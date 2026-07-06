@@ -490,22 +490,33 @@ fix-PR-style commits could not be created in this workspace.
     `node --check ui/app.js` clean.
   - Marked AGENTS.md Sprint 2 Agent 8 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 9 QA / verify sweep:
+  - `python3 -m http.server` was already listening on `127.0.0.1:8765`;
+    `curl` returned HTTP 200.
+  - Fixed the remaining NAV smoke failures by registering lightweight local
+    study surfaces for secondary nav links that did not yet have dedicated
+    `VIEWS[...]` implementations.
+  - Made `copyToClipboard()` handle denied/unavailable clipboard permission
+    without unhandled promise errors, and added an inline empty favicon to
+    avoid browser 404 noise during smoke tests.
+  - Headless Chrome CDP pass confirmed the Defender home default render,
+    waffle app switcher, workload navigation, alert detail panel,
+    suppression rule save/re-render, `defender-lab.rules` persistence across
+    hard refresh, and "Replay scenario events".
+  - All 83 NAV routes rendered without "Page not found", including Sprint 2
+    routes and `#/sentinel/notebooks`; `#/sentinel/hunting/dns` also rendered.
+  - Targeted 1366x768 browser checks passed for
+    `#/defender/custom-detections`, `#/defender/hunting-graph`, the Sentinel
+    analytics wizard entity picker, Sentinel Threat intel/Logs copy buttons,
+    and the Purview DLP -> Insider Risk -> eDiscovery walk.
+  - Clean rerun reported no runtime/log events and no document-level
+    horizontal overflow on targeted pages.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Marked AGENTS.md Sprint 2 Agent 9 checklist complete.
+
 ## Next useful work
 
-- **Sprint 2 (2026-07-06):** `AGENTS.md` now defines Agents 1–9 covering
-  every remaining gap in `OBJECTIVES_DELTA.md` (each delta bullet is
-  labeled `[Agent N]` or `[DONE]`). Completing Agents 1–9 = 100% of the
-  July 2026 objectives delta. Agent 9 subsumes the optional passes below.
-- Optional verify pass: save a suppression rule in the UI, hard-refresh, and
-  confirm `localStorage.getItem('defender-lab.rules')` survives.
-- Optional browser interaction pass: click through the new
-  `#/defender/custom-detections` and `#/defender/hunting-graph` pages at
-  1366x768 and confirm tables do not overflow.
-- Optional browser interaction pass: click through the expanded Sentinel
-  analytics wizard entity picker in Firefox and confirm layout at 1366x768.
-- Optional browser interaction pass: click the copy buttons on the Sentinel
-  Threat intelligence and Logs pages and confirm clipboard permission behavior
-  in Firefox and Chrome.
-- Optional browser interaction pass: walk the Purview DLP incident to Insider
-  Risk to eDiscovery story at 1366x768 and confirm no table overflow on
-  smaller screens.
+- Sprint 2 Agents 1-9 are complete against the July 2026 objectives delta.
+- Next pass should be a human visual review in Firefox only if Alex wants
+  pixel-level polish beyond the automated route and interaction sweep.

@@ -191,14 +191,48 @@ and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
   investigation).
 
 ## Agent 9 — QA / verify sweep (run last)
-- [ ] **9.1** Old Agent D checklist (D1–D3): server 200, full click-through,
+- [x] **9.1** Old Agent D checklist (D1–D3): server 200, full click-through,
   `defender-lab.rules` localStorage survives hard refresh.
-- [ ] **9.2** All nav routes render — especially the new Sprint 2 routes and
+- [x] **9.2** All nav routes render — especially the new Sprint 2 routes and
   the previously dead `#/sentinel/notebooks`.
-- [ ] **9.3** Browser passes from `HANDOFF.md` § Next useful work
+- [x] **9.3** Browser passes from `HANDOFF.md` § Next useful work
   (custom-detections/hunting-graph overflow at 1366×768, analytics wizard
   entity picker, copy buttons, Purview DLP→IRM→eDiscovery walk).
-- [ ] **9.4** Update `HANDOFF.md` and mark Sprint 2 boxes here.
+- [x] **9.4** Update `HANDOFF.md` and mark Sprint 2 boxes here.
+
+## Agent 10 — dead-route triage (added 2026-07-06 after Sprint 2 launch)
+29 NAV routes in `ui/data.js` have no `VIEWS[...]` entry and render "Page
+not found" (found via nav-vs-views sweep). The Sprint 2 agents built the
+delta objectives but never audited existing nav links.
+- [ ] **10.1** Enumerate every NAV route missing from `VIEWS` (compare
+  `route:'#/...'` entries in `ui/data.js` against `VIEWS['...']` in
+  `ui/views.js`). Nothing may 404 when this task is done.
+- [ ] **10.2** Build a FULL `#/sentinel/workspace-manager` view — Alex
+  flagged this as vital: the central landing surface for managing and
+  distributing analytics rules and DCR-backed content across workspaces.
+  Include: member workspace list, content selection (analytics rules,
+  hunting queries, workbooks, automation), publish/last-publish status,
+  and cross-links to `#/sentinel/analytics` and the DCR workflows in
+  `#/sentinel/data-connectors`.
+- [ ] **10.3** Build real views for the other exam-relevant dead routes per
+  `ExamObjectives.md`/`OBJECTIVES_DELTA.md`: Action center (ties into the
+  AIR surface from Agent 2), Email & collaboration (MDO investigation),
+  Entity behavior (UEBA), Watchlist, Sentinel settings (UEBA enablement),
+  Sentinel search, Defender for Cloud inventory + attack paths.
+- [ ] **10.4** For genuinely chrome-only routes (community, news, trials,
+  learning hub): render a small original "secondary surface" page stating
+  it's supporting content, with pointers to the related core surface.
+
+## Agent 11 — SC-200 Learn-link coverage sweep (read-only report)
+Authoritative corpus: `/home/alex/sc-200_app/sc-200_microsoft_learn_links.txt`
+(curated official-only SC-200 link index, 2026-07-03, sectioned by topic).
+- [ ] **11.1** For each section/topic in the link index, assess lab
+  coverage: full (interactive surface exists), partial (fixture or study
+  card only), missing.
+- [ ] **11.2** Write `COVERAGE_SWEEP.md` at the repo root: a
+  covered/partial/missing table per topic with the lab route(s) that
+  cover it, plus a ranked list of the biggest remaining gaps.
+- [ ] **11.3** Do NOT copy Learn text. Do NOT edit ui/ files — report only.
 
 ---
 

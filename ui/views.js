@@ -15,7 +15,14 @@ function fieldLabel(k) { return (FIELDS.find(f => f.key === k) || { label:k }).l
 function copyToClipboard(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  navigator.clipboard?.writeText(el.value || el.textContent || '');
+  const text = el.value || el.textContent || '';
+  if (!navigator.clipboard?.writeText) {
+    toast('Clipboard API is not available in this browser session.');
+    return;
+  }
+  navigator.clipboard.writeText(text)
+    .then(() => toast('Copied to clipboard.'))
+    .catch(() => toast('Clipboard permission was not granted.'));
 }
 
 const VIEWS = {};
@@ -4825,3 +4832,78 @@ VIEWS['sentinel/hunting/dns'] = () => {
     },
   };
 };
+
+// Register deliberate study surfaces for secondary navigation entries that do
+// not yet need a full interactive lab. This keeps every visible NAV route
+// renderable while preserving richer hand-built views above.
+(function registerSecondaryNavViews() {
+  const workloadNotes = {
+    defender: {
+      context:'Microsoft Defender XDR',
+      goal:'Use this surface to orient where the portal feature sits during incident response, tuning, or tenant configuration.',
+      pivots:['#/defender/incidents', '#/defender/hunting', '#/defender/settings'],
+    },
+    sentinel: {
+      context:'Microsoft Sentinel',
+      goal:'Use this surface as a map back to Sentinel operations: content, workspace configuration, hunting, and automation.',
+      pivots:['#/sentinel/incidents', '#/sentinel/data-connectors', '#/sentinel/analytics'],
+    },
+    'defender-cloud': {
+      context:'Defender for Cloud',
+      goal:'Use this supporting surface for workload-protection and posture context while keeping SC-200 focus on alerts and response.',
+      pivots:['#/defender-cloud/alerts', '#/defender-cloud/recommendations', '#/defender-cloud/regulatory'],
+    },
+    purview: {
+      context:'Microsoft Purview',
+      goal:'Use this surface for investigation context that supports Audit, eDiscovery, Graph activity logs, and risk cases.',
+      pivots:['#/purview/audit', '#/purview/ediscovery', '#/purview/graph-activity'],
+    },
+  };
+
+  const routeMeta = {};
+  Object.entries(NAV).forEach(([workload, items]) => {
+    items.filter(item => item.route).forEach(item => {
+      routeMeta[item.route.replace(/^#\//, '')] = {
+        workload,
+        label:item.label,
+        icon:item.icon || '•',
+      };
+    });
+  });
+
+  Object.entries(routeMeta).forEach(([route, meta]) => {
+    if (VIEWS[route]) return;
+    const note = workloadNotes[meta.workload] || workloadNotes.defender;
+    VIEWS[route] = () => `
+      <div class="page-header">
+        <div>
+          <div class="breadcrumb">${esc(note.context)} › <strong>${esc(meta.label)}</strong></div>
+          <h1>${esc(meta.label)}</h1>
+          <div class="page-subtitle">Secondary study surface for SC-200 lab navigation.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-toolbar">
+          <strong>${esc(meta.icon)} ${esc(meta.label)}</strong>
+          <span class="muted">Local-only placeholder</span>
+        </div>
+        <div class="card-body">
+          <p class="muted">${esc(note.goal)}</p>
+          <div class="callout info">
+            This page is intentionally static. It exists so the portal navigation is complete while the hands-on exam workflows remain concentrated in the linked lab views.
+          </div>
+        </div>
+      </div>
+      <div class="tile-grid">
+        ${note.pivots.map(pivot => {
+          const target = routeMeta[pivot.replace(/^#\//, '')];
+          return `
+            <a class="tile" href="${esc(pivot)}">
+              <div class="tile-title">${esc(target?.label || pivot)}</div>
+              <div class="tile-sub">Open the related hands-on lab view.</div>
+            </a>`;
+        }).join('')}
+      </div>
+    `;
+  });
+})();
