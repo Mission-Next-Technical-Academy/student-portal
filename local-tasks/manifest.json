@@ -1,0 +1,235 @@
+{
+ "T01": {
+  "file": "out/t01-copilot-sessions.js",
+  "exports": {
+   "COPILOT_SESSIONS": {
+    "count": 8,
+    "keys": [
+     "id",
+     "name",
+     "owner",
+     "workspace",
+     "lastActivity",
+     "promptCount",
+     "plugins",
+     "pinned"
+    ]
+   }
+  }
+ },
+ "T02": {
+  "file": "out/t02-copilot-transcripts.js",
+  "exports": {
+   "COPILOT_TRANSCRIPTS": {
+    "count": 2,
+    "keys": [
+     "sessionId",
+     "steps"
+    ]
+   }
+  }
+ },
+ "T03": {
+  "file": "out/t03-copilot-promptbooks.js",
+  "exports": {
+   "COPILOT_PROMPTBOOKS": {
+    "count": 8,
+    "keys": [
+     "id",
+     "name",
+     "source",
+     "description",
+     "inputs",
+     "prompts"
+    ]
+   }
+  }
+ },
+ "T04": {
+  "file": "out/t04-copilot-plugins.js",
+  "exports": {
+   "COPILOT_PLUGINS": {
+    "count": 12,
+    "keys": [
+     "id",
+     "name",
+     "category",
+     "status",
+     "description",
+     "setupNote"
+    ]
+   }
+  }
+ },
+ "T05": {
+  "file": "out/t05-copilot-capacity.js",
+  "exports": {
+   "COPILOT_USAGE": {
+    "count": 14,
+    "keys": [
+     "date",
+     "unitsUsed",
+     "sessions"
+    ]
+   },
+   "COPILOT_CAPACITY": {
+    "count": null,
+    "keys": [
+     "provisionedSCU",
+     "overageAllowed",
+     "region",
+     "owners"
+    ]
+   }
+  }
+ },
+ "T06": {
+  "file": "out/t06-tvm.js",
+  "exports": {
+   "TVM_SOFTWARE": {
+    "count": 10,
+    "keys": [
+     "id",
+     "name",
+     "vendor",
+     "version",
+     "weaknesses",
+     "exposedDevices",
+     "threatInsight"
+    ]
+   },
+   "TVM_CVES": {
+    "count": 12,
+    "keys": [
+     "id",
+     "cve",
+     "severity",
+     "cvss",
+     "software",
+     "exploitAvailable",
+     "exposedDevices"
+    ]
+   },
+   "TVM_RECOMMENDATIONS": {
+    "count": 8,
+    "keys": [
+     "id",
+     "title",
+     "software",
+     "exposedDevices",
+     "impact",
+     "status"
+    ]
+   }
+  }
+ },
+ "T07": {
+  "file": "out/t07-multicloud.js",
+  "exports": {
+   "MC_CONNECTORS": {
+    "count": 2,
+    "keys": [
+     "id",
+     "cloud",
+     "accountId",
+     "plans",
+     "health",
+     "lastSync"
+    ]
+   },
+   "MC_RESOURCES": {
+    "count": 12,
+    "keys": [
+     "id",
+     "cloud",
+     "type",
+     "name",
+     "region",
+     "riskLevel"
+    ]
+   },
+   "MC_ALERTS": {
+    "count": 2,
+    "keys": [
+     "id",
+     "cloud",
+     "title",
+     "severity",
+     "resource",
+     "description"
+    ]
+   }
+  }
+ },
+ "T08": {
+  "file": "out/t08-audit-premium.js",
+  "exports": {
+   "AUDIT_RETENTION_POLICIES": {
+    "count": 5,
+    "keys": [
+     "id",
+     "name",
+     "users",
+     "recordTypes",
+     "duration",
+     "priority"
+    ]
+   },
+   "AUDIT_COPILOT_EVENTS": {
+    "count": 10,
+    "keys": [
+     "time",
+     "user",
+     "operation",
+     "workload",
+     "detail"
+    ]
+   }
+  }
+ },
+ "T09": {
+  "file": "out/t09-threat-explorer.js",
+  "exports": {
+   "TX_EMAILS": {
+    "count": 15,
+    "keys": [
+     "id",
+     "time",
+     "subject",
+     "sender",
+     "recipient",
+     "verdict",
+     "threat",
+     "deliveryAction",
+     "campaign"
+    ]
+   }
+  }
+ },
+ "T10": {
+  "file": "out/t10-mssp-mto.js",
+  "exports": {
+   "MSSP_TENANTS": {
+    "count": 4,
+    "keys": [
+     "id",
+     "name",
+     "workspaces",
+     "delegatedRoles",
+     "status"
+    ]
+   },
+   "MTO_INCIDENTS": {
+    "count": 8,
+    "keys": [
+     "id",
+     "tenant",
+     "title",
+     "severity",
+     "status",
+     "assignedTo"
+    ]
+   }
+  }
+ }
+}
