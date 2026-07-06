@@ -3300,6 +3300,239 @@ VIEWS['sentinel/automation'] = () => {
   `;
 };
 
+// ---------- Agent 10 dead-route cleanup surfaces ----------
+const ACTION_CENTER_ITEMS = [
+  { source:'AIR', status:'Pending approval', incident:'INC-1042', action:'Remove OAuth consent for DocViewer Pro', target:'jane.doe@contoso.com', age:'12 min' },
+  { source:'AIR', status:'Completed', incident:'INC-1050', action:'Isolate device', target:'FIN-FS-02', age:'38 min' },
+  { source:'MDE', status:'Pending approval', incident:'INC-1050', action:'Quarantine locker.exe', target:'aaaabbbbcccc1111222233334444555566667777888899990000aaaabbbbcccc', age:'41 min' },
+  { source:'MDO', status:'Completed', incident:'INC-1042', action:'Soft-delete phishing message', target:'MSG-7781', age:'55 min' },
+];
+
+const MDO_INVESTIGATION_ROWS = [
+  { sev:'high', title:'User clicked phishing URL and granted OAuth consent', user:'jane.doe@contoso.com', evidence:'URL click + app consent', incident:'INC-1042', action:'Revoke sessions, remove consent, purge message' },
+  { sev:'medium', title:'Mailbox rule created after suspicious sign-in', user:'maria.chen@contoso.com', evidence:'Inbox rule forwards finance mail', incident:'INC-1051', action:'Disable rule, reset password, review audit' },
+  { sev:'low', title:'Attachment detonated but blocked', user:'pavel.novak@contoso.com', evidence:'Sandbox verdict matched malware family', incident:'INC-1031', action:'Confirm delivery blocked and tune alert noise' },
+];
+
+const SENTINEL_WATCHLIST_ROWS = [
+  { name:'VIP accounts', alias:'vip_accounts', items:18, updated:'2026-07-06T07:35:00Z', use:'Join to SigninLogs and UEBA anomalies before creating incidents.' },
+  { name:'Privileged service principals', alias:'tier0_apps', items:9, updated:'2026-07-05T16:20:00Z', use:'Scope OAuth consent and app activity hunts.' },
+  { name:'Approved scanner hosts', alias:'approved_scanners', items:6, updated:'2026-07-01T09:10:00Z', use:'Suppress known scanner noise without hiding new hosts.' },
+];
+
+const CLOUD_ASSETS = [
+  { name:'vm-prod-web-01', type:'Virtual machine', subscription:'sub-prod-001', risk:'High', exposure:'Internet exposed', alerts:1, recs:3 },
+  { name:'aks-prod/node-3', type:'Kubernetes node', subscription:'sub-prod-001', risk:'High', exposure:'Privileged container path', alerts:2, recs:4 },
+  { name:'stcontosologs', type:'Storage account', subscription:'sub-prod-001', risk:'Medium', exposure:'Public network access', alerts:1, recs:2 },
+  { name:'sql-prod-reporting', type:'SQL server', subscription:'sub-prod-001', risk:'Medium', exposure:'Wide firewall rule', alerts:1, recs:2 },
+  { name:'kv-prod-app', type:'Key vault', subscription:'sub-prod-001', risk:'Low', exposure:'Unusual access location', alerts:1, recs:1 },
+];
+
+const CLOUD_ATTACK_PATHS = [
+  { name:'Internet VM to storage exfiltration', severity:'high', start:'vm-prod-web-01', path:['Open SSH management port','Managed identity has Storage Blob Data Contributor','stcontosologs permits public network access'], result:'Potential data exfiltration path' },
+  { name:'Container breakout to node credential access', severity:'high', start:'aks-prod/node-3', path:['Privileged pod scheduled','Host namespace mounted','Node identity can read Key Vault secrets'], result:'Credential access and lateral movement path' },
+  { name:'SQL public access to reporting data', severity:'medium', start:'sql-prod-reporting', path:['Firewall allows any internet source','Weak conditional access coverage','Database contains customer exports'], result:'Initial access and collection risk' },
+];
+
+const SECONDARY_SURFACES = {
+  'defender/content-hub': { crumb:'Microsoft Defender › Content management', title:'Content hub', note:'Supporting content surface for Defender solution packs and integrations.', links:[['Open Sentinel content hub','#/sentinel/content-hub'], ['Review analytics rules','#/sentinel/analytics'], ['Open data connectors','#/sentinel/data-connectors']] },
+  'defender/repositories': { crumb:'Microsoft Defender › Content management', title:'Repositories', note:'Supporting surface for source-controlled detection content. The hands-on Sentinel rule work lives in Analytics and Workspace manager.', links:[['Open Workspace manager','#/sentinel/workspace-manager'], ['Open Analytics','#/sentinel/analytics']] },
+  'defender/community': { crumb:'Microsoft Defender › Other', title:'Community', note:'Supporting learning surface. Use the interactive incident, hunting, and AIR pages for SC-200 practice.', links:[['Open incidents','#/defender/incidents'], ['Open AIR center','#/defender/air']] },
+  'defender/reports': { crumb:'Microsoft Defender › Other', title:'Reports', note:'Secondary reporting surface for lab review. The exam-relevant detail is in Threat analytics, Secure score, and incident queues.', links:[['Open Threat analytics','#/defender/threat-analytics'], ['Open Secure score','#/defender/secure-score']] },
+  'defender/learning-hub': { crumb:'Microsoft Defender › Other', title:'Learning hub', note:'Supporting study surface with pointers into the local hands-on flows.', links:[['Start Guided scenarios','#/defender/home'], ['Open Advanced hunting','#/defender/hunting']] },
+  'defender/trials': { crumb:'Microsoft Defender › Other', title:'Trials', note:'Chrome-only lab surface. Licensing and trials are outside this local simulator; practice workload behavior instead.', links:[['Open Settings','#/defender/settings'], ['Open Endpoints','#/defender/endpoints']] },
+  'sentinel/news': { crumb:'Microsoft Sentinel › General', title:'News and guides', note:'Supporting content surface. Current syllabus practice is covered by connectors, analytics, incidents, hunting, and graph views.', links:[['Open Data connectors','#/sentinel/data-connectors'], ['Open Sentinel Graph','#/sentinel/graph']] },
+  'sentinel/repositories': { crumb:'Microsoft Sentinel › Content management', title:'Repositories', note:'Supporting content lifecycle surface. Use Workspace manager to distribute rules and DCR-backed content across workspaces.', links:[['Open Workspace manager','#/sentinel/workspace-manager'], ['Open Content hub','#/sentinel/content-hub']] },
+  'sentinel/community': { crumb:'Microsoft Sentinel › Content management', title:'Community', note:'Supporting community surface. The lab keeps all content local and original.', links:[['Open Hunting','#/sentinel/hunting'], ['Open Analytics','#/sentinel/analytics']] },
+  'defender-cloud/community': { crumb:'Defender for Cloud › General', title:'Community', note:'Supporting study surface for cloud security guidance. Use alerts, inventory, and attack paths for hands-on practice.', links:[['Open Security alerts','#/defender-cloud/alerts'], ['Open Attack paths','#/defender-cloud/attack-paths']] },
+  'defender-cloud/workbooks': { crumb:'Defender for Cloud › General', title:'Workbooks', note:'Secondary dashboard surface for posture and workload protection summaries.', links:[['Open Recommendations','#/defender-cloud/recommendations'], ['Open Inventory','#/defender-cloud/inventory']] },
+  'defender-cloud/diagnose': { crumb:'Defender for Cloud › General', title:'Diagnose and solve problems', note:'Secondary support surface. The lab models investigation decisions in alerts, inventory, and attack paths.', links:[['Open Security alerts','#/defender-cloud/alerts'], ['Open Environment settings','#/defender-cloud/environment']] },
+};
+
+function renderSecondarySurface(config) {
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">${esc(config.crumb)}</div>
+        <h1>${esc(config.title)}</h1>
+        <div class="page-subtitle">${esc(config.note)}</div>
+      </div>
+    </div>
+    <div class="card card-body">
+      <div class="alert-section-title">Supporting content</div>
+      <div class="callout info">This route is intentionally small so navigation never dead-ends. It points back to the interactive SC-200 surfaces that exercise the skill.</div>
+      <div class="tile-grid" style="margin-top:12px;">
+        ${config.links.map(([label, href]) => `<a class="tile" href="${href}"><strong>${esc(label)}</strong><span>Open related lab surface</span></a>`).join('')}
+      </div>
+    </div>`;
+}
+
+VIEWS['defender/content-hub'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender/content-hub']);
+VIEWS['defender/repositories'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender/repositories']);
+VIEWS['defender/community'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender/community']);
+VIEWS['defender/reports'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender/reports']);
+VIEWS['defender/learning-hub'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender/learning-hub']);
+VIEWS['defender/trials'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender/trials']);
+VIEWS['sentinel/news'] = () => renderSecondarySurface(SECONDARY_SURFACES['sentinel/news']);
+VIEWS['sentinel/repositories'] = () => renderSecondarySurface(SECONDARY_SURFACES['sentinel/repositories']);
+VIEWS['sentinel/community'] = () => renderSecondarySurface(SECONDARY_SURFACES['sentinel/community']);
+VIEWS['defender-cloud/community'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender-cloud/community']);
+VIEWS['defender-cloud/workbooks'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender-cloud/workbooks']);
+VIEWS['defender-cloud/diagnose'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender-cloud/diagnose']);
+
+VIEWS['defender/action-center'] = () => `
+  <div class="page-header">
+    <div><div class="breadcrumb">Investigation &amp; response › <strong>Action center</strong></div><h1>Action center</h1><div class="page-subtitle">Review completed and pending response actions from AIR, MDE, and MDO.</div></div>
+    <div class="page-actions"><a class="btn btn-secondary" href="#/defender/air">Open AIR center</a></div>
+  </div>
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">Pending approval</span><span class="kpi-value">${ACTION_CENTER_ITEMS.filter(i=>i.status.includes('Pending')).length}</span></div>
+    <div class="kpi"><span class="kpi-label">Completed</span><span class="kpi-value">${ACTION_CENTER_ITEMS.filter(i=>i.status==='Completed').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Sources</span><span class="kpi-value">3</span><span class="kpi-delta">AIR · MDE · MDO</span></div>
+    <div class="kpi"><span class="kpi-label">Linked incidents</span><span class="kpi-value">2</span></div>
+  </div>
+  <div class="card">
+    <div class="card-toolbar"><strong>Response actions</strong><span class="muted">Lab-static approvals</span></div>
+    <table class="grid">
+      <thead><tr><th>Status</th><th>Source</th><th>Action</th><th>Target</th><th>Incident</th><th>Age</th><th></th></tr></thead>
+      <tbody>${ACTION_CENTER_ITEMS.map(i => `
+        <tr>
+          <td><span class="tag ${i.status === 'Completed' ? 'green' : 'orange'}">${esc(i.status)}</span></td>
+          <td>${esc(i.source)}</td>
+          <td><strong>${esc(i.action)}</strong></td>
+          <td class="kv">${esc(i.target)}</td>
+          <td><button class="link-button strong" onclick="openIncident('${esc(i.incident)}')">${esc(i.incident)}</button></td>
+          <td>${esc(i.age)}</td>
+          <td><button class="btn btn-sm btn-primary" onclick="toast('Action reviewed in the lab.')">Review</button></td>
+        </tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+
+VIEWS['defender/email-collab'] = () => `
+  <div class="page-header">
+    <div><div class="breadcrumb">Configuration › <strong>Email &amp; collaboration</strong></div><h1>Email and collaboration investigation</h1><div class="page-subtitle">Practice MDO triage paths for phishing, mailbox rules, submissions, and OAuth follow-on activity.</div></div>
+    <div class="page-actions"><a class="btn btn-secondary" href="#/defender/cloud-apps">Cloud apps OAuth pivot</a></div>
+  </div>
+  <div class="two-col">
+    <section class="card">
+      <div class="card-toolbar"><strong>MDO investigation queue</strong><span class="muted">Fictional messages and users</span></div>
+      <table class="grid">
+        <thead><tr><th>Severity</th><th>Investigation</th><th>User</th><th>Evidence</th><th>Response</th></tr></thead>
+        <tbody>${MDO_INVESTIGATION_ROWS.map(r => `
+          <tr>
+            <td><span class="sev ${r.sev}">${cap(r.sev)}</span></td>
+            <td><button class="link-button strong" onclick="openIncident('${esc(r.incident)}')">${esc(r.title)}</button></td>
+            <td>${esc(r.user)}</td>
+            <td>${esc(r.evidence)}</td>
+            <td>${esc(r.action)}</td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </section>
+    <section class="card card-body">
+      <div class="alert-section-title">Hands-on flow</div>
+      <div class="flowline vertical-flow">
+        <div class="flow-step"><strong>Open alert</strong><span>Start from the MDO URL click alert in INC-1042.</span></div>
+        <div class="flow-step"><strong>Inspect evidence</strong><span>Review clicked URL, delivery action, mailbox events, and user activity.</span></div>
+        <div class="flow-step"><strong>Pivot</strong><span>Move to Cloud Apps for the risky OAuth grant and to Purview Audit for consent events.</span></div>
+        <div class="flow-step"><strong>Respond</strong><span>Purge mail, revoke sessions, remove app consent, and close the incident with classification.</span></div>
+      </div>
+    </section>
+  </div>`;
+
+VIEWS['defender/endpoints'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Configuration › <strong>Endpoints</strong></div><h1>Endpoint security operations</h1><div class="page-subtitle">Shortcut surface for MDE device settings, ASR policy, live response, and device inventory.</div></div></div>
+  <div class="tile-grid">
+    <a class="tile" href="#/defender/devices"><strong>Device inventory</strong><span>Open device overview, timeline, live response, and package collection.</span></a>
+    <a class="tile" href="#/defender/settings"><strong>MDE settings</strong><span>Advanced features, device groups, roles, and automation levels.</span></a>
+    <a class="tile" href="#/defender/asr-policy"><strong>ASR policies</strong><span>Audit/block states, exclusions, and expected impact.</span></a>
+    <a class="tile" href="#/defender/custom-detections"><strong>Custom detections</strong><span>Promote Advanced hunting queries to endpoint actions.</span></a>
+  </div>`;
+
+VIEWS['defender/exposure'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Microsoft Defender › <strong>Exposure management</strong></div><h1>Exposure management</h1><div class="page-subtitle">Prioritize exposed assets by incident linkage, cloud attack paths, and secure score recommendations.</div></div></div>
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">Critical assets</span><span class="kpi-value">7</span></div>
+    <div class="kpi"><span class="kpi-label">Open paths</span><span class="kpi-value">${CLOUD_ATTACK_PATHS.length}</span></div>
+    <div class="kpi"><span class="kpi-label">High recs</span><span class="kpi-value">${DEFENDER_CLOUD_RECS.filter(r=>r.severity==='high').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Active incidents</span><span class="kpi-value">${INCIDENTS.filter(i=>i.status!=='Resolved').length}</span></div>
+  </div>
+  <div class="two-col">
+    <section class="card card-body"><div class="alert-section-title">Exposure priorities</div><ul><li>Resolve public management ports on internet-facing VMs before tuning low-value posture findings.</li><li>Use Defender for Cloud attack paths when a resource appears in a workload-protection alert.</li><li>Pivot endpoint exposure to device inventory and cloud exposure to inventory/attack paths.</li></ul></section>
+    <section class="card"><div class="card-toolbar"><strong>Related attack paths</strong><a class="chip-link" href="#/defender-cloud/attack-paths">Open cloud paths →</a></div>${CLOUD_ATTACK_PATHS.map(p => `<div class="card-body border-top"><span class="sev ${p.severity}">${cap(p.severity)}</span> <strong>${esc(p.name)}</strong><div class="muted">${esc(p.result)}</div></div>`).join('')}</section>
+  </div>`;
+
+VIEWS['defender/intel-explorer'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Threat intelligence › <strong>Intel explorer</strong></div><h1>Intel explorer</h1><div class="page-subtitle">Static IOC triage surface using the lab's Sentinel threat intelligence indicators.</div></div><div class="page-actions"><a class="btn btn-secondary" href="#/sentinel/threat-intel">Sentinel threat intel</a></div></div>
+  <div class="card">
+    <div class="card-toolbar"><strong>Indicators in this lab</strong><span class="muted">Mapped to synthetic events only</span></div>
+    <table class="grid"><thead><tr><th>Type</th><th>Indicator</th><th>Confidence</th><th>Scenario</th><th>Pivot</th></tr></thead><tbody>
+      <tr><td>IP</td><td class="kv">203.0.113.10</td><td>High</td><td>TI match synthetic transaction</td><td><a class="chip-link" href="#/sentinel/threat-intel">Open TI lab</a></td></tr>
+      <tr><td>Domain</td><td class="kv">bad-demo.example</td><td>Medium</td><td>Phishing and command channel demo</td><td><a class="chip-link" href="#/sentinel/logs">Open logs</a></td></tr>
+      <tr><td>Hash</td><td class="kv">aaaabbbbcccc...</td><td>Low</td><td>Scanner suppression gotcha</td><td><a class="chip-link" href="#/defender/suppression">Open suppression</a></td></tr>
+    </tbody></table>
+  </div>`;
+
+VIEWS['sentinel/search'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Microsoft Sentinel › <strong>Search</strong></div><h1>Search</h1><div class="page-subtitle">Run investigation searches across Basic, Analytics, Data lake, and summary-table patterns.</div></div><div class="page-actions"><a class="btn btn-primary" href="#/sentinel/hunting">Open hunting search job</a></div></div>
+  <div class="tile-grid">
+    <a class="tile" href="#/sentinel/hunting"><strong>Basic-table search job</strong><span>Recover older NetworkLogs_CL rows through materialized search results.</span></a>
+    <a class="tile" href="#/sentinel/data-lake-jobs"><strong>Data lake KQL job</strong><span>Run long-range historical hunts and review results tables.</span></a>
+    <a class="tile" href="#/sentinel/summary-rules"><strong>Summary table query</strong><span>Compare noisy raw telemetry with aggregate summary output.</span></a>
+    <a class="tile" href="#/sentinel/logs"><strong>Logs</strong><span>Inspect current Sentinel fixture rows and copy KQL.</span></a>
+  </div>`;
+
+VIEWS['sentinel/entity-behavior'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Threat management › <strong>Entity behavior</strong></div><h1>Entity behavior</h1><div class="page-subtitle">UEBA-style risk context for users, hosts, and IPs that feed incidents, anomalies, and hunting pivots.</div></div><div class="page-actions"><a class="btn btn-secondary" href="#/sentinel/settings">UEBA settings</a></div></div>
+  <div class="two-col">
+    <section class="card"><div class="card-toolbar"><strong>Behavioral entities</strong><span class="muted">Fictional UEBA scores</span></div><table class="grid"><thead><tr><th>Entity</th><th>Type</th><th>Score</th><th>Top anomaly</th><th>Pivot</th></tr></thead><tbody>
+      <tr><td>jane.doe@contoso.com</td><td>Account</td><td><span class="sev high">92</span></td><td>OAuth grant after phishing click</td><td><a class="chip-link" href="#/sentinel/graph">Graph</a></td></tr>
+      <tr><td>FIN-FS-02</td><td>Host</td><td><span class="sev high">88</span></td><td>Rare encryption process and service stop</td><td><a class="chip-link" href="#/defender/device">Device</a></td></tr>
+      <tr><td>10.5.12.44</td><td>IP</td><td><span class="sev medium">67</span></td><td>Repeated IOC destination contact</td><td><a class="chip-link" href="#/sentinel/hunting/dns">DNS hunt</a></td></tr>
+    </tbody></table></section>
+    <section class="card card-body"><div class="alert-section-title">How UEBA supports SC-200 tasks</div><ul><li>Entity pages summarize peer baselines, alerts, incidents, and anomalies.</li><li>Anomaly rules can enrich hunting and scheduled analytics rules.</li><li>Risky users and devices should be validated against evidence before response.</li></ul></section>
+  </div>`;
+
+VIEWS['sentinel/watchlist'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Configuration › <strong>Watchlist</strong></div><h1>Watchlists</h1><div class="page-subtitle">Use watchlists to enrich KQL detections with controlled lists such as VIP users, approved scanners, and Tier 0 apps.</div></div><div class="page-actions"><button class="btn btn-primary" onclick="toast('Watchlist upload simulated.')">+ Add watchlist</button></div></div>
+  <div class="card"><div class="card-toolbar"><strong>Watchlists</strong><span class="muted">Local fixture rows</span></div><table class="grid"><thead><tr><th>Name</th><th>Alias</th><th>Items</th><th>Updated</th><th>Detection use</th></tr></thead><tbody>${SENTINEL_WATCHLIST_ROWS.map(w => `<tr><td><strong>${esc(w.name)}</strong></td><td class="kv">${esc(w.alias)}</td><td>${w.items}</td><td>${fmtTime(w.updated)}</td><td>${esc(w.use)}</td></tr>`).join('')}</tbody></table></div>
+  <div class="card card-body" style="margin-top:16px;"><div class="alert-section-title">KQL pattern</div><pre class="kql">let VIPs = _GetWatchlist('vip_accounts') | project UserPrincipalName;
+SigninLogs
+| where UserPrincipalName in (VIPs)
+| where RiskLevel == "High"</pre></div>`;
+
+VIEWS['sentinel/settings'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Configuration › <strong>Settings</strong></div><h1>Sentinel settings</h1><div class="page-subtitle">Workspace-level controls for UEBA, retention decisions, and content lifecycle.</div></div></div>
+  <div class="two-col">
+    <section class="card card-body"><div class="alert-section-title">UEBA enablement</div>
+      <div class="setting-row"><div><strong>Entity behavior analytics</strong><span>Builds behavioral context for accounts, hosts, and IPs.</span></div><label class="toggle"><input type="checkbox" checked><span></span></label></div>
+      <div class="setting-row"><div><strong>Directory data sync</strong><span>Enriches accounts with department, manager, and role context.</span></div><label class="toggle"><input type="checkbox" checked><span></span></label></div>
+      <div class="setting-row"><div><strong>Anomaly enrichment</strong><span>Feeds customizable anomaly rules and hunting pivots.</span></div><label class="toggle"><input type="checkbox" checked><span></span></label></div>
+      <a class="chip-link" href="#/sentinel/entity-behavior">Open Entity behavior →</a>
+    </section>
+    <section class="card card-body"><div class="alert-section-title">Workspace operations</div><ul><li>Use Workspace manager to publish analytics, workbooks, and automation to member workspaces.</li><li>Use Data connectors for DCR-backed Windows, CEF, Azure Activity, and custom ingestion labs.</li><li>Use Analytics and Anomalies for detection engineering coverage.</li></ul><a class="chip-link" href="#/sentinel/workspace-manager">Open Workspace manager →</a></section>
+  </div>`;
+
+VIEWS['sentinel/workspace-manager'] = () => {
+  const content = [
+    { type:'Analytics rules', selected:5, total:SENTINEL_RULES.length, link:'#/sentinel/analytics', detail:'Scheduled, NRT, TI, and ML behavior analytics examples' },
+    { type:'Hunting queries', selected:4, total:SAVED_QUERIES.length, link:'#/defender/hunting', detail:'Reusable Advanced hunting and Sentinel search patterns' },
+    { type:'Workbooks', selected:3, total:5, link:'#/sentinel/workbooks', detail:'SOC overview, UEBA, and ingestion health panels' },
+    { type:'Automation', selected:2, total:3, link:'#/sentinel/automation', detail:'Playbooks and automation rules tied to incident response' },
+    { type:'DCR-backed connectors', selected:4, total:SENTINEL_INGESTION_LABS.length + 1, link:'#/sentinel/data-connectors', detail:'Syslog, Windows Security Events, CEF, Azure Activity, custom logs' },
+  ];
+  return `
+    <div class="page-header">
+      <div><div class="breadcrumb">Configuration › <strong>Workspace manager</strong></div><h1>Workspace manager</h1><div class="page-subtitle">Central landing surface for packaging, publishing, and tracking Sentinel content across member workspaces.</div></div>
+      <div class="page-actions"><a class="btn btn-secondary" href="#/sentinel/analytics">Analytics</a><a class="btn btn-primary" href="#/sentinel/data-connectors">DCR workflows</a></div>
+    </div>
+    <div class="kpi-strip"><div class="kpi"><span class="kpi-label">Member workspaces</span><span class="kpi-value">${SENTINEL_WORKSPACES.length}</span></div><div class="kpi"><span class="kpi-label">Content types</span><span class="kpi-value">${content.length}</span></div><div class="kpi"><span class="kpi-label">Last publish</span><span class="kpi-value">07:40</span><span class="kpi-delta">2026-07-06</span></div><div class="kpi"><span class="kpi-label">Pending changes</span><span class="kpi-value">3</span></div></div>
+    <div class="two-col">
+      <section class="card"><div class="card-toolbar"><strong>Member workspaces</strong><span class="muted">Publish target status</span></div><table class="grid"><thead><tr><th>Workspace</th><th>Region</th><th>Tier</th><th>Rules</th><th>Publish status</th><th>Last publish</th></tr></thead><tbody>${SENTINEL_WORKSPACES.map((w, i) => `<tr><td><strong>${esc(w.name)}</strong></td><td>${esc(w.region)}</td><td>${esc(w.tier)}</td><td>${w.ruleIdx.length}</td><td><span class="tag ${i === 2 ? 'orange' : 'green'}">${i === 2 ? 'Pending changes' : 'In sync'}</span></td><td>${i === 2 ? '2026-07-05 16:10' : '2026-07-06 07:40'}</td></tr>`).join('')}</tbody></table></section>
+      <section class="card"><div class="card-toolbar"><strong>Content selection</strong><span class="muted">Package for publish</span></div><table class="grid"><thead><tr><th>Content</th><th>Selected</th><th>Scope</th><th>Open</th></tr></thead><tbody>${content.map(c => `<tr><td><strong>${esc(c.type)}</strong><br><span class="muted">${esc(c.detail)}</span></td><td>${c.selected} / ${c.total}</td><td><span class="tag green">Included</span></td><td><a class="chip-link" href="${c.link}">Open →</a></td></tr>`).join('')}</tbody></table></section>
+    </div>
+    <div class="card card-body" style="margin-top:16px;"><div class="alert-section-title">Publish workflow</div><div class="flowline"><div class="flow-step"><strong>Select content</strong><span>Choose analytics rules, hunting queries, workbooks, automation, and connector-backed DCR labs.</span></div><div class="flow-step"><strong>Validate dependencies</strong><span>Confirm required tables, connectors, watchlists, and UEBA settings exist in each member workspace.</span></div><div class="flow-step"><strong>Publish</strong><span>Distribute the package and record last-publish status per workspace.</span></div><div class="flow-step"><strong>Monitor drift</strong><span>Flag workspaces with changed rules, disabled connectors, or stale automation.</span></div></div></div>`;
+};
+
 // ====================================================================
 // DEFENDER FOR CLOUD
 // ====================================================================
@@ -3403,6 +3636,109 @@ VIEWS['defender-cloud/alerts'] = () => `
     </table>
   </div>
 `;
+
+VIEWS['defender-cloud/inventory'] = () => `
+  <div class="page-header">
+    <div><div class="breadcrumb">Defender for Cloud › <strong>Inventory</strong></div><h1>Inventory</h1><div class="page-subtitle">Cloud resources with workload-protection alerts, recommendations, and exposure context.</div></div>
+    <div class="page-actions"><a class="btn btn-secondary" href="#/defender-cloud/attack-paths">Attack paths</a></div>
+  </div>
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">Resources</span><span class="kpi-value">${CLOUD_ASSETS.length}</span></div>
+    <div class="kpi"><span class="kpi-label">High risk</span><span class="kpi-value">${CLOUD_ASSETS.filter(a=>a.risk==='High').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Open alerts</span><span class="kpi-value">${CLOUD_ASSETS.reduce((n,a)=>n+a.alerts,0)}</span></div>
+    <div class="kpi"><span class="kpi-label">Recommendations</span><span class="kpi-value">${CLOUD_ASSETS.reduce((n,a)=>n+a.recs,0)}</span></div>
+  </div>
+  <div class="card">
+    <div class="card-toolbar"><strong>Resource inventory</strong><span class="muted">Fictional cloud assets</span></div>
+    <table class="grid">
+      <thead><tr><th>Risk</th><th>Resource</th><th>Type</th><th>Subscription</th><th>Exposure</th><th>Alerts</th><th>Recommendations</th></tr></thead>
+      <tbody>${CLOUD_ASSETS.map(a => `
+        <tr>
+          <td><span class="sev ${a.risk === 'High' ? 'high' : a.risk === 'Medium' ? 'medium' : 'low'}">${esc(a.risk)}</span></td>
+          <td><strong>${esc(a.name)}</strong></td>
+          <td>${esc(a.type)}</td>
+          <td>${esc(a.subscription)}</td>
+          <td>${esc(a.exposure)}</td>
+          <td>${a.alerts}</td>
+          <td>${a.recs}</td>
+        </tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+
+VIEWS['defender-cloud/attack-paths'] = () => `
+  <div class="page-header">
+    <div><div class="breadcrumb">Defender for Cloud › <strong>Attack path analysis</strong></div><h1>Attack path analysis</h1><div class="page-subtitle">Reason about exploitable cloud paths that connect exposure, identity permissions, workload alerts, and data assets.</div></div>
+    <div class="page-actions"><a class="btn btn-secondary" href="#/defender-cloud/inventory">Inventory</a></div>
+  </div>
+  <div class="three-col">
+    ${CLOUD_ATTACK_PATHS.map(p => `
+      <section class="card card-body">
+        <span class="sev ${p.severity}">${cap(p.severity)}</span>
+        <h2 style="font-size:18px; margin:10px 0 6px;">${esc(p.name)}</h2>
+        <div class="muted">Start: ${esc(p.start)}</div>
+        <div class="flowline vertical-flow" style="margin-top:12px;">
+          ${p.path.map(step => `<div class="flow-step"><strong>Path step</strong><span>${esc(step)}</span></div>`).join('')}
+        </div>
+        <div class="callout warn" style="margin-top:12px;">${esc(p.result)}</div>
+      </section>`).join('')}
+  </div>
+  <div class="card card-body" style="margin-top:16px;">
+    <div class="alert-section-title">Investigation use</div>
+    <ul><li>Open attack paths when a Defender for Cloud alert involves an internet-facing or privileged resource.</li><li>Use recommendations to break the path, then verify alerts and inventory status.</li><li>Escalate paths that combine public exposure, privileged identity, and sensitive data access.</li></ul>
+  </div>`;
+
+VIEWS['defender-cloud/setup'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Defender for Cloud › <strong>Setup</strong></div><h1>Setup</h1><div class="page-subtitle">Local study surface for enabling workload protection plans and connector coverage.</div></div></div>
+  <div class="two-col">
+    <section class="card card-body"><div class="alert-section-title">Plan coverage</div><div class="flowline vertical-flow"><div class="flow-step"><strong>Servers Plan 2</strong><span>Enabled for production subscriptions; two lab VMs still need extension health review.</span></div><div class="flow-step"><strong>Containers</strong><span>AKS runtime signal enabled for aks-prod; image scanning feeds recommendations.</span></div><div class="flow-step"><strong>Storage</strong><span>Malware scanning and sensitive data discovery enabled on high-value accounts.</span></div></div></section>
+    <section class="card card-body"><div class="alert-section-title">Next routes</div><div class="tile-grid"><a class="tile" href="#/defender-cloud/environment"><strong>Environment settings</strong><span>Subscription and plan configuration.</span></a><a class="tile" href="#/defender-cloud/recommendations"><strong>Recommendations</strong><span>Posture actions that reduce attack paths.</span></a></div></section>
+  </div>`;
+
+VIEWS['defender-cloud/explorer'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Defender for Cloud › <strong>Cloud Security Explorer</strong></div><h1>Cloud Security Explorer</h1><div class="page-subtitle">Explore resource queries that combine exposure, alerts, and recommendations.</div></div></div>
+  <div class="card card-body">
+    <div class="alert-section-title">Saved exploration</div>
+    <pre class="kql">Resources
+| where InternetExposure == "Public"
+| join kind=leftouter SecurityAlerts on ResourceId
+| join kind=leftouter Recommendations on ResourceId
+| project ResourceName, ResourceType, AlertCount, RecommendationCount, AttackPath</pre>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar"><strong>Explorer results</strong><a class="chip-link" href="#/defender-cloud/inventory">Open inventory →</a></div>
+    <table class="grid"><thead><tr><th>Resource</th><th>Exposure</th><th>Risk</th><th>Reason</th></tr></thead><tbody>${CLOUD_ASSETS.filter(a=>a.risk !== 'Low').map(a => `<tr><td><strong>${esc(a.name)}</strong></td><td>${esc(a.exposure)}</td><td><span class="sev ${a.risk === 'High' ? 'high' : 'medium'}">${esc(a.risk)}</span></td><td>${a.alerts} alert(s), ${a.recs} recommendation(s)</td></tr>`).join('')}</tbody></table>
+  </div>`;
+
+VIEWS['defender-cloud/cloud-security'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Defender for Cloud › <strong>Cloud Security</strong></div><h1>Cloud Security</h1><div class="page-subtitle">Workload protection hub for alerts, attack paths, inventory, recommendations, and regulatory context.</div></div></div>
+  <div class="tile-grid">
+    <a class="tile" href="#/defender-cloud/alerts"><strong>Security alerts</strong><span>Investigate active workload-protection findings.</span></a>
+    <a class="tile" href="#/defender-cloud/attack-paths"><strong>Attack paths</strong><span>Break exploitable paths across resources and identities.</span></a>
+    <a class="tile" href="#/defender-cloud/inventory"><strong>Inventory</strong><span>Prioritize resources by risk and exposure.</span></a>
+    <a class="tile" href="#/defender-cloud/recommendations"><strong>Recommendations</strong><span>Reduce posture findings that feed attack paths.</span></a>
+  </div>`;
+
+VIEWS['defender-cloud/environment'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Defender for Cloud › Management › <strong>Environment settings</strong></div><h1>Environment settings</h1><div class="page-subtitle">Subscription-level workload protection and diagnostic collection settings.</div></div></div>
+  <div class="card">
+    <div class="card-toolbar"><strong>Subscriptions</strong><span class="muted">Lab-static configuration</span></div>
+    <table class="grid"><thead><tr><th>Subscription</th><th>Plans</th><th>Log collection</th><th>Status</th><th>Next action</th></tr></thead><tbody>
+      <tr><td>sub-prod-001</td><td>Servers, Containers, Storage, SQL</td><td>AMA + diagnostic settings</td><td><span class="tag green">Enabled</span></td><td>Review attack paths</td></tr>
+      <tr><td>sub-dev-001</td><td>Servers Plan 1</td><td>Partial diagnostics</td><td><span class="tag orange">Needs review</span></td><td>Enable container plan</td></tr>
+      <tr><td>sub-lab-001</td><td>Free posture only</td><td>None</td><td><span class="tag orange">Study only</span></td><td>Document exam scope</td></tr>
+    </tbody></table>
+  </div>`;
+
+VIEWS['defender-cloud/workflow'] = () => `
+  <div class="page-header"><div><div class="breadcrumb">Defender for Cloud › Management › <strong>Workflow automation</strong></div><h1>Workflow automation</h1><div class="page-subtitle">Route Defender for Cloud alerts and recommendations into local response steps.</div></div></div>
+  <div class="two-col">
+    <section class="card"><div class="card-toolbar"><strong>Automation rules</strong><span class="muted">No real Logic Apps called</span></div><table class="grid"><thead><tr><th>Status</th><th>Trigger</th><th>Action</th><th>Scope</th></tr></thead><tbody>
+      <tr><td><span class="tag green">Enabled</span></td><td>High severity security alert</td><td>Create SOC task and notify cloud responder</td><td>sub-prod-001</td></tr>
+      <tr><td><span class="tag green">Enabled</span></td><td>Attack path severity high</td><td>Open incident note and link affected assets</td><td>Production resources</td></tr>
+      <tr><td><span class="tag orange">Draft</span></td><td>Storage public network recommendation</td><td>Create remediation ticket</td><td>Storage accounts</td></tr>
+    </tbody></table></section>
+    <section class="card card-body"><div class="alert-section-title">Response mapping</div><ul><li>Workload-protection alerts feed the Defender for Cloud alert queue.</li><li>High-risk attack paths should link to inventory and recommendations.</li><li>Automation in this lab is local-only and represented by static task creation.</li></ul></section>
+  </div>`;
 
 // ====================================================================
 // PURVIEW

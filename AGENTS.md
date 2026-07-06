@@ -204,22 +204,22 @@ and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
 29 NAV routes in `ui/data.js` have no `VIEWS[...]` entry and render "Page
 not found" (found via nav-vs-views sweep). The Sprint 2 agents built the
 delta objectives but never audited existing nav links.
-- [ ] **10.1** Enumerate every NAV route missing from `VIEWS` (compare
+- [x] **10.1** Enumerate every NAV route missing from `VIEWS` (compare
   `route:'#/...'` entries in `ui/data.js` against `VIEWS['...']` in
   `ui/views.js`). Nothing may 404 when this task is done.
-- [ ] **10.2** Build a FULL `#/sentinel/workspace-manager` view — Alex
+- [x] **10.2** Build a FULL `#/sentinel/workspace-manager` view — Alex
   flagged this as vital: the central landing surface for managing and
   distributing analytics rules and DCR-backed content across workspaces.
   Include: member workspace list, content selection (analytics rules,
   hunting queries, workbooks, automation), publish/last-publish status,
   and cross-links to `#/sentinel/analytics` and the DCR workflows in
   `#/sentinel/data-connectors`.
-- [ ] **10.3** Build real views for the other exam-relevant dead routes per
+- [x] **10.3** Build real views for the other exam-relevant dead routes per
   `ExamObjectives.md`/`OBJECTIVES_DELTA.md`: Action center (ties into the
   AIR surface from Agent 2), Email & collaboration (MDO investigation),
   Entity behavior (UEBA), Watchlist, Sentinel settings (UEBA enablement),
   Sentinel search, Defender for Cloud inventory + attack paths.
-- [ ] **10.4** For genuinely chrome-only routes (community, news, trials,
+- [x] **10.4** For genuinely chrome-only routes (community, news, trials,
   learning hub): render a small original "secondary surface" page stating
   it's supporting content, with pointers to the related core surface.
 

@@ -515,8 +515,37 @@ fix-PR-style commits could not be created in this workspace.
     `node --check ui/app.js` clean.
   - Marked AGENTS.md Sprint 2 Agent 9 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 10 dead-route triage:
+  - Re-ran the NAV-vs-VIEWS sweep: all 83 `NAV` routes now have explicit
+    `VIEWS['...']` registrations; missing route count is 0.
+  - Added a full `#/sentinel/workspace-manager` view with member workspaces,
+    content selection for analytics rules, hunting queries, workbooks,
+    automation, and DCR-backed connectors, publish status, last-publish
+    timestamps, and links to `#/sentinel/analytics` and
+    `#/sentinel/data-connectors`.
+  - Added real exam-relevant views for `#/defender/action-center`,
+    `#/defender/email-collab`, `#/defender/endpoints`,
+    `#/defender/exposure`, `#/defender/intel-explorer`,
+    `#/sentinel/search`, `#/sentinel/entity-behavior`,
+    `#/sentinel/watchlist`, `#/sentinel/settings`,
+    `#/defender-cloud/inventory`, `#/defender-cloud/attack-paths`,
+    `#/defender-cloud/setup`, `#/defender-cloud/explorer`,
+    `#/defender-cloud/cloud-security`, `#/defender-cloud/environment`, and
+    `#/defender-cloud/workflow`.
+  - Added small original secondary surfaces for chrome/support routes:
+    Defender content hub, repositories, community, reports, learning hub,
+    trials; Sentinel news, repositories, community; Defender for Cloud
+    community, workbooks, and diagnose.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Existing server on `127.0.0.1:8765` returned 200; headless Chrome
+    `--dump-dom` smoke loaded all 29 formerly missing routes without
+    "Page not found" or obvious render exceptions.
+  - Marked AGENTS.md Sprint 2 Agent 10 checklist complete.
+
 ## Next useful work
 
-- Sprint 2 Agents 1-9 are complete against the July 2026 objectives delta.
+- Sprint 2 Agents 1-10 are complete against the July 2026 objectives delta
+  and dead-route audit.
 - Next pass should be a human visual review in Firefox only if Alex wants
   pixel-level polish beyond the automated route and interaction sweep.
