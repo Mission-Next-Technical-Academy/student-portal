@@ -100,3 +100,10 @@
 ## integrate.py — 2026-07-06T11:17:17+02:00
 - Merged 9/10 task drafts into `ui/data.js` (marker section rebuilt), `node --check` clean. Detail: `INTEGRATION.md`.
 
+## T09 — 2026-07-06T11:20:10+02:00
+- **PASS** (attempt 2). Checks: file created, node-loadable,
+  export names/counts/keys per manifest.json, banned-pattern scan
+  (no http/URLs, no Microsoft domains or MS fictional brands, no
+  long hex/secret-like strings, no real-year CVEs).
+- Output: `out/t09-threat-explorer.js`
+
