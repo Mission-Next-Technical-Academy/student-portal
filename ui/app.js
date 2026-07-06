@@ -1583,8 +1583,9 @@ window.startGuidedScenario = startGuidedScenario;
 window.openCopilot       = openCopilot;
 window.selectCopilotPrompt = selectCopilotPrompt;
 
-// ---------- Sentinel Syslog via AMA lab ----------
+// ---------- Sentinel connector and DCR labs ----------
 const SYSLOG_AMA_STATE_KEY = 'defender-lab.sentinel.syslogAma';
+const SENTINEL_INGESTION_STATE_PREFIX = 'defender-lab.sentinel.ingestion.';
 function currentSyslogAmaState() {
   const empty = {
     solutionInstalled:false,
@@ -1654,6 +1655,139 @@ function resetSyslogAmaLab() {
   toast('Syslog via AMA lab reset.');
   render();
 }
+function emptyIngestionLabState() {
+  return {
+    solutionInstalled:false,
+    connectorOpened:false,
+    dcrCreated:false,
+    scoped:false,
+    daemonConfigured:false,
+    policyConfigured:false,
+    diagnosticConfigured:false,
+    appRegistered:false,
+    roleAssigned:false,
+    endpointChosen:false,
+    streamDeclared:false,
+    tableCreated:false,
+    verified:false,
+  };
+}
+function ingestionLabById(id) {
+  return SENTINEL_INGESTION_LABS.find(l => l.id === id);
+}
+function currentSentinelIngestionState(id) {
+  const empty = emptyIngestionLabState();
+  const raw = localStorage.getItem(SENTINEL_INGESTION_STATE_PREFIX + id);
+  if (!raw) return empty;
+  try { return { ...empty, ...JSON.parse(raw) }; }
+  catch { return empty; }
+}
+function saveSentinelIngestionState(id, next) {
+  localStorage.setItem(
+    SENTINEL_INGESTION_STATE_PREFIX + id,
+    JSON.stringify({ ...currentSentinelIngestionState(id), ...next })
+  );
+}
+function installSentinelIngestionSolution(id) {
+  const lab = ingestionLabById(id);
+  if (!lab) return;
+  saveSentinelIngestionState(id, { solutionInstalled:true });
+  toast(`${lab.solution} solution ready. Open the connector next.`);
+  render();
+}
+function openSentinelIngestionConnector(id) {
+  const lab = ingestionLabById(id);
+  if (!lab) return;
+  const state = currentSentinelIngestionState(id);
+  if (!state.solutionInstalled && lab.id !== 'azure-activity' && lab.id !== 'custom-logs') {
+    toast(`Confirm the ${lab.solution} solution in Content hub first.`);
+    navigate('#/sentinel/content-hub');
+    return;
+  }
+  saveSentinelIngestionState(id, { connectorOpened:true });
+  toast(`${lab.connector} connector opened.`);
+  navigate('#/sentinel/data-connectors');
+}
+function advanceSentinelIngestionLab(id, step) {
+  const lab = ingestionLabById(id);
+  if (!lab) return;
+  const state = currentSentinelIngestionState(id);
+  const updates = {};
+  const needsConnector = ['dcr', 'scope', 'daemon', 'verify'];
+  if (needsConnector.includes(step) && !state.connectorOpened) {
+    toast(`Open ${lab.connector} before this step.`);
+    return;
+  }
+  if (step === 'dcr' && !state.solutionInstalled && lab.id !== 'azure-activity' && lab.id !== 'custom-logs') {
+    toast(`Confirm the ${lab.solution} solution before creating the DCR.`);
+    return;
+  }
+  if (step === 'scope' && !state.dcrCreated) {
+    toast('Create the DCR before scoping events.');
+    return;
+  }
+  if (step === 'daemon' && !state.dcrCreated) {
+    toast('Create the DCR before configuring the forwarder.');
+    return;
+  }
+  if (step === 'diagnostic' && !state.policyConfigured) {
+    toast('Choose the Azure Policy or diagnostic settings path first.');
+    return;
+  }
+  if (step === 'role' && !state.appRegistered) {
+    toast('Create the app registration before assigning the role.');
+    return;
+  }
+  if (step === 'endpoint' && !state.roleAssigned) {
+    toast('Assign Monitoring Metrics Publisher before choosing the endpoint.');
+    return;
+  }
+  if (step === 'stream' && !state.endpointChosen) {
+    toast('Choose DCE or DCR direct endpoint before declaring streams.');
+    return;
+  }
+  if (step === 'table' && !state.streamDeclared) {
+    toast('Declare the stream and transform before creating the _CL table.');
+    return;
+  }
+  if (step === 'verify') {
+    const ready = lab.id === 'windows-security'
+      ? state.scoped
+      : lab.id === 'cef'
+        ? state.daemonConfigured
+        : lab.id === 'azure-activity'
+          ? state.diagnosticConfigured || state.policyConfigured
+          : state.tableCreated;
+    if (!ready) {
+      toast('Complete the ingestion configuration before verifying rows.');
+      return;
+    }
+  }
+  const keyByStep = {
+    solution:'solutionInstalled',
+    connector:'connectorOpened',
+    dcr:'dcrCreated',
+    scope:'scoped',
+    daemon:'daemonConfigured',
+    policy:'policyConfigured',
+    diagnostic:'diagnosticConfigured',
+    app:'appRegistered',
+    role:'roleAssigned',
+    endpoint:'endpointChosen',
+    stream:'streamDeclared',
+    table:'tableCreated',
+    verify:'verified',
+  };
+  updates[keyByStep[step] || step] = true;
+  saveSentinelIngestionState(id, updates);
+  toast(`${lab.title}: ${step === 'verify' ? 'verification rows available' : 'step completed'}.`);
+  render();
+}
+function resetSentinelIngestionLab(id) {
+  localStorage.removeItem(SENTINEL_INGESTION_STATE_PREFIX + id);
+  toast('Sentinel ingestion lab reset.');
+  render();
+}
 window.currentSyslogAmaState = currentSyslogAmaState;
 window.installSentinelSolution = installSentinelSolution;
 window.openSyslogAmaConnector = openSyslogAmaConnector;
@@ -1661,6 +1795,11 @@ window.createSyslogAmaDcr = createSyslogAmaDcr;
 window.configureSyslogDaemon = configureSyslogDaemon;
 window.verifySyslogIngestion = verifySyslogIngestion;
 window.resetSyslogAmaLab = resetSyslogAmaLab;
+window.currentSentinelIngestionState = currentSentinelIngestionState;
+window.installSentinelIngestionSolution = installSentinelIngestionSolution;
+window.openSentinelIngestionConnector = openSentinelIngestionConnector;
+window.advanceSentinelIngestionLab = advanceSentinelIngestionLab;
+window.resetSentinelIngestionLab = resetSentinelIngestionLab;
 
 // ---------- Sentinel search jobs ----------
 function runSentinelSearchJob() {

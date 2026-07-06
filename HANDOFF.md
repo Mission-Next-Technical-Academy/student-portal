@@ -387,6 +387,29 @@ fix-PR-style commits could not be created in this workspace.
     `node --check ui/app.js` clean.
   - Marked AGENTS.md Sprint 2 Agent 3 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 4 Sentinel ingestion connectors and DCR family:
+  - Expanded `#/sentinel/content-hub` and `#/sentinel/data-connectors` with
+    Windows Security Events via AMA, CEF via AMA, Azure Activity, and Logs
+    Ingestion API custom-table labs, using local-only button state and the
+    existing Syslog AMA practice-card pattern.
+  - Added Windows Security Events workflow: Content hub solution, connector,
+    DCR creation, event-set/XPath scoping, and `SecurityEvent` verification.
+  - Added CEF via AMA workflow with Linux forwarder setup and
+    `CommonSecurityLog` fixture rows.
+  - Added a Windows Event Forwarding vs AMA planning study card.
+  - Added Azure Activity collection workflow covering Azure Policy at scale,
+    diagnostic settings for a subscription, connector review, and
+    `AzureActivity` verification rows.
+  - Added Logs Ingestion API workflow covering app registration, Monitoring
+    Metrics Publisher, DCE vs DCR direct endpoint, `streamDeclarations`,
+    `transformKql`, `Custom-` vs `Microsoft-` streams, and
+    `AppRiskEvents_CL` output.
+  - Added fictional fixture rows for `SecurityEvent`, `WindowsEvent`,
+    `CommonSecurityLog`, `AzureActivity`, and `AppRiskEvents_CL`.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Marked AGENTS.md Sprint 2 Agent 4 checklist complete.
+
 ## Next useful work
 
 - **Sprint 2 (2026-07-06):** `AGENTS.md` now defines Agents 1–9 covering

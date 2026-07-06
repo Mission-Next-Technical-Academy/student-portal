@@ -133,16 +133,16 @@ and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
   settings tab).
 
 ## Agent 4 — Sentinel ingestion (connectors + DCR family)
-- [ ] **4.1** Windows Security Events via AMA lab: content-hub solution →
+- [x] **4.1** Windows Security Events via AMA lab: content-hub solution →
   connector → DCR with event-set/xPath scoping, mirroring the Syslog lab
   pattern at `app.js:1495`.
-- [ ] **4.2** CEF via AMA lab (connector row already exists in
+- [x] **4.2** CEF via AMA lab (connector row already exists in
   `data.js:1096`; build the workflow + `CommonSecurityLog` fixture rows).
-- [ ] **4.3** Windows Event Forwarding planning study card (WEF vs AMA,
+- [x] **4.3** Windows Event Forwarding planning study card (WEF vs AMA,
   when each applies).
-- [ ] **4.4** Azure Activity collection via Azure Policy / diagnostic
+- [x] **4.4** Azure Activity collection via Azure Policy / diagnostic
   settings workflow.
-- [ ] **4.5** Logs Ingestion API custom-table lab: app registration +
+- [x] **4.5** Logs Ingestion API custom-table lab: app registration +
   Monitoring Metrics Publisher role, DCE vs DCR direct endpoint,
   `streamDeclarations`/`transformKql`, `Custom-` vs `Microsoft-` streams,
   creating a `_CL` table. (The gap Alex spotted 2026-07-06.)

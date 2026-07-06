@@ -2008,11 +2008,118 @@ function renderSyslogAmaExamCard(state) {
   `;
 }
 
+function ingestionStepComplete(state, stepId) {
+  return {
+    solution: state.solutionInstalled,
+    connector: state.connectorOpened,
+    dcr: state.dcrCreated,
+    scope: state.scoped,
+    daemon: state.daemonConfigured,
+    policy: state.policyConfigured,
+    diagnostic: state.diagnosticConfigured,
+    app: state.appRegistered,
+    role: state.roleAssigned,
+    endpoint: state.endpointChosen,
+    stream: state.streamDeclared,
+    table: state.tableCreated,
+    verify: state.verified,
+  }[stepId];
+}
+
+function ingestionStepButton(lab, step) {
+  const id = esc(lab.id);
+  const label = esc(step.title);
+  if (step.id === 'solution') {
+    return `<button class="btn btn-secondary" onclick="installSentinelIngestionSolution('${id}')">${label}</button>`;
+  }
+  if (step.id === 'connector') {
+    return `<button class="btn btn-secondary" onclick="openSentinelIngestionConnector('${id}')">${label}</button>`;
+  }
+  return `<button class="btn btn-secondary" onclick="advanceSentinelIngestionLab('${id}','${esc(step.id)}')">${label}</button>`;
+}
+
+function renderSentinelIngestionLabCard(lab) {
+  const state = currentSentinelIngestionState(lab.id);
+  return `
+    <div class="card syslog-lab-card">
+      <div class="card-toolbar">
+        <strong>${esc(lab.title)}</strong>
+        <button class="btn btn-ghost btn-sm" onclick="resetSentinelIngestionLab('${esc(lab.id)}')">Reset</button>
+      </div>
+      <div class="syslog-lab-body">
+        <section>
+          <div class="alert-section-title">Scenario</div>
+          <p class="muted">${esc(lab.prompt)}</p>
+          <div class="connector-list">
+            <div><strong>Workspace</strong><span>${esc(lab.workspace)}</span></div>
+            <div><strong>Target</strong><span>${esc(lab.target)}</span></div>
+            <div><strong>Connector</strong><span>${esc(lab.connector)}</span></div>
+            <div><strong>Target table</strong><span>${esc(lab.table)}</span></div>
+          </div>
+        </section>
+        <section>
+          <div class="alert-section-title">Do this in order</div>
+          <div class="syslog-action-stack">
+            ${lab.steps.map(step => ingestionStepButton(lab, step)).join('')}
+          </div>
+        </section>
+      </div>
+      <div class="syslog-progress">
+        ${lab.steps.map((step, idx) => `
+          <div class="syslog-step ${ingestionStepComplete(state, step.id) ? 'complete' : ''}">
+            <div class="syslog-step-index">${idx + 1}</div>
+            <div>
+              <strong>${esc(step.title)}</strong>
+              <span>${esc(step.detail)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ${state.verified ? `
+        <div class="card-body" style="border-top:1px solid var(--border);">
+          <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+            <strong>Verification query</strong>
+            <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('ingestion-query-${esc(lab.id)}')">Copy</button>
+          </div>
+          <textarea id="ingestion-query-${esc(lab.id)}" class="kql" readonly>${esc(lab.query)}</textarea>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderWefPlanningCard() {
+  return `
+    <div class="card card-body">
+      <div class="alert-section-title">${esc(WEF_PLANNING_CARD.title)}</div>
+      <div class="two-col">
+        <div>
+          <strong>Use WEF when</strong>
+          <p class="muted">${esc(WEF_PLANNING_CARD.useWef)}</p>
+        </div>
+        <div>
+          <strong>Use AMA when</strong>
+          <p class="muted">${esc(WEF_PLANNING_CARD.useAma)}</p>
+        </div>
+      </div>
+      <div class="callout info" style="margin:10px 0;">
+        <strong>Exam cue:</strong> ${esc(WEF_PLANNING_CARD.examCue)}
+      </div>
+      <div class="connector-list">
+        ${WEF_PLANNING_CARD.checklist.map(item => `<div><strong>Decision point</strong><span>${esc(item)}</span></div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
 VIEWS['sentinel/content-hub'] = () => {
   const state = currentSyslogAmaState();
-  const solutions = SENTINEL_CONTENT_SOLUTIONS.map(s =>
-    s.id === 'syslog' && state.solutionInstalled ? { ...s, status:'Installed' } : s
-  );
+  const solutions = SENTINEL_CONTENT_SOLUTIONS.map(s => {
+    const labState = currentSentinelIngestionState(s.id);
+    if (s.id === 'syslog' && state.solutionInstalled) return { ...s, status:'Installed' };
+    if (labState.solutionInstalled) return { ...s, status:'Installed' };
+    return s;
+  });
   return `
     <div class="page-header">
       <div>
@@ -2029,10 +2136,18 @@ VIEWS['sentinel/content-hub'] = () => {
       <strong>Syslog via AMA sequence:</strong>
       install the <strong>Syslog</strong> solution here first, then open Data connectors and create the DCR from the Syslog via AMA connector page.
     </div>
+    <div class="callout info" style="margin-bottom:14px;">
+      <strong>DCR family:</strong>
+      Windows Security Events, CEF, Azure Activity, and custom Logs Ingestion API labs are built as local-only practice flows below. No real Azure or Graph calls are made.
+    </div>
 
     <div class="solution-grid sentinel-content-grid">
       ${solutions.map(s => `
-        <button class="solution-card" onclick="${s.id === 'syslog' ? "installSentinelSolution('syslog')" : "toast('Solution opened in lab stub.')" }">
+        <button class="solution-card" onclick="${
+          s.id === 'syslog' ? "installSentinelSolution('syslog')" :
+          SENTINEL_INGESTION_LABS.some(l => l.solutionId === s.id) ? `installSentinelIngestionSolution('${esc(s.id)}')` :
+          "toast('Solution opened in lab stub.')"
+        }">
           <strong>${esc(s.name)}</strong>
           <span>${esc(s.provider)} · ${esc(s.status)}</span>
           <span>${esc(s.use)}</span>
@@ -2042,6 +2157,11 @@ VIEWS['sentinel/content-hub'] = () => {
     </div>
 
     ${renderSyslogAmaExamCard(state)}
+    <div style="display:grid; gap:16px; margin-top:16px;">
+      ${SENTINEL_INGESTION_LABS
+        .filter(l => ['windows-security','cef'].includes(l.id))
+        .map(renderSentinelIngestionLabCard).join('')}
+    </div>
   `;
 };
 
@@ -2061,6 +2181,10 @@ VIEWS['sentinel/data-connectors'] = () => `
     Sentinel MITRE coverage lights up from active scheduled or NRT analytics rules and their assigned tactics or techniques.
   </div>
   ${renderSyslogAmaExamCard(currentSyslogAmaState())}
+  <div style="display:grid; gap:16px; margin-bottom:16px;">
+    ${SENTINEL_INGESTION_LABS.map(renderSentinelIngestionLabCard).join('')}
+    ${renderWefPlanningCard()}
+  </div>
   <div class="card">
     <div class="card-toolbar"><strong>${SENTINEL_DATA_CONNECTORS.length}</strong> connectors and views</div>
     <table class="grid">
@@ -2068,8 +2192,12 @@ VIEWS['sentinel/data-connectors'] = () => `
       <tbody>
         ${SENTINEL_DATA_CONNECTORS.map(c => {
           const syslogState = currentSyslogAmaState();
+          const lab = SENTINEL_INGESTION_LABS.find(l => l.connector === c.name);
+          const labState = lab ? currentSentinelIngestionState(lab.id) : null;
           const status = c.name === 'Syslog via AMA' && syslogState.solutionInstalled
             ? (syslogState.dcrCreated ? 'Connected' : 'Available')
+            : labState && labState.solutionInstalled
+              ? (labState.verified ? 'Connected' : 'Available')
             : c.status;
           const statusClass = status === 'Connected' ? 'resolved' : status === 'Not a connector' ? 'warn' : '';
           return `

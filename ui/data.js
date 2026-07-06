@@ -1061,6 +1061,49 @@ const MOCK_QUERY_RESULTS = {
     { TimeGenerated:'2026-06-28T12:01:00Z', ClusterName:'aks-prod', PodName:'pod-api-77',
       Image:'contoso/api:2026.06', Syscall:'setns', NodeName:'aks-prod/node-3' },
   ],
+  SecurityEvent: [
+    { TimeGenerated:'2026-07-06T08:12:00Z', Computer:'DC01', EventID:4624,
+      Account:'CONTOSO\\svc-backup', Activity:'An account was successfully logged on', IpAddress:'10.20.4.55', LogonType:3 },
+    { TimeGenerated:'2026-07-06T08:14:32Z', Computer:'WKS-03', EventID:4625,
+      Account:'CONTOSO\\jdoe', Activity:'An account failed to log on', IpAddress:'10.20.7.42', LogonType:2 },
+    { TimeGenerated:'2026-07-06T08:16:18Z', Computer:'FIN-FS-02', EventID:4672,
+      Account:'CONTOSO\\fin-svc', Activity:'Special privileges assigned to new logon', IpAddress:'10.20.7.14', LogonType:10 },
+    { TimeGenerated:'2026-07-06T08:17:44Z', Computer:'WKS-03', EventID:4688,
+      Account:'CONTOSO\\jdoe', Activity:'A new process has been created', NewProcessName:'C:\\Users\\Public\\scanner.exe' },
+  ],
+  WindowsEvent: [
+    { TimeGenerated:'2026-07-06T08:12:00Z', Computer:'DC01', EventID:4624, Channel:'Security',
+      Provider:'Microsoft-Windows-Security-Auditing', RenderedDescription:'Successful logon for CONTOSO\\svc-backup' },
+    { TimeGenerated:'2026-07-06T08:17:44Z', Computer:'WKS-03', EventID:4688, Channel:'Security',
+      Provider:'Microsoft-Windows-Security-Auditing', RenderedDescription:'Process creation for C:\\Users\\Public\\scanner.exe' },
+  ],
+  CommonSecurityLog: [
+    { TimeGenerated:'2026-07-06T08:20:00Z', DeviceVendor:'Contoso Firewall', DeviceProduct:'EdgeFW',
+      DeviceAction:'deny', LogSeverity:'High', SourceIP:'10.20.7.14', DestinationIP:'203.0.113.10', DestinationPort:443 },
+    { TimeGenerated:'2026-07-06T08:21:08Z', DeviceVendor:'Fabrikam Mail', DeviceProduct:'MailSecure',
+      DeviceAction:'quarantine', LogSeverity:'Medium', SourceIP:'198.51.100.77', DestinationIP:'10.20.5.22', DestinationPort:25 },
+    { TimeGenerated:'2026-07-06T08:22:15Z', DeviceVendor:'Contoso Firewall', DeviceProduct:'EdgeFW',
+      DeviceAction:'allow', LogSeverity:'Low', SourceIP:'10.20.6.19', DestinationIP:'198.51.100.22', DestinationPort:443 },
+  ],
+  AzureActivity: [
+    { TimeGenerated:'2026-07-06T07:50:00Z', SubscriptionId:'sub-prod-001',
+      Caller:'cloudadmin@contoso.com', OperationNameValue:'Microsoft.Authorization/roleAssignments/write',
+      ActivityStatusValue:'Succeeded', ResourceGroup:'rg-prod-identity', ResourceProviderValue:'Microsoft.Authorization' },
+    { TimeGenerated:'2026-07-06T07:57:31Z', SubscriptionId:'sub-shared-002',
+      Caller:'platformops@contoso.com', OperationNameValue:'Microsoft.Authorization/policyAssignments/write',
+      ActivityStatusValue:'Succeeded', ResourceGroup:'rg-policy', ResourceProviderValue:'Microsoft.Authorization' },
+    { TimeGenerated:'2026-07-06T08:05:44Z', SubscriptionId:'sub-prod-001',
+      Caller:'storage-owner@contoso.com', OperationNameValue:'Microsoft.Storage/storageAccounts/write',
+      ActivityStatusValue:'Succeeded', ResourceGroup:'rg-prod-storage', ResourceProviderValue:'Microsoft.Storage' },
+  ],
+  AppRiskEvents_CL: [
+    { TimeGenerated:'2026-07-06T08:31:00Z', AppId:'app-expense-portal',
+      UserPrincipalName:'maria.ross@contoso.com', SourceIp:'203.0.113.44', RiskScore:92, Action:'BlockedOAuthCallback' },
+    { TimeGenerated:'2026-07-06T08:34:18Z', AppId:'app-partner-sync',
+      UserPrincipalName:'svc-partner@contoso.com', SourceIp:'198.51.100.64', RiskScore:35, Action:'AllowedSync' },
+    { TimeGenerated:'2026-07-06T08:39:02Z', AppId:'app-expense-portal',
+      UserPrincipalName:'sam.lee@contoso.com', SourceIp:'203.0.113.89', RiskScore:78, Action:'HighRiskTokenUse' },
+  ],
 };
 
 const SENTINEL_GRAPH = {
@@ -1155,7 +1198,13 @@ const SENTINEL_DATA_CONNECTORS = [
   { name:'Microsoft Entra ID', type:'Data connector', status:'Connected',
     table:'SigninLogs, AuditLogs', use:'Provides sign-in, risk, and directory audit events for identity detections.' },
   { name:'Azure Activity', type:'Data connector', status:'Connected',
-    table:'AzureActivity', use:'Collects subscription control-plane operations for cloud administration detections.' },
+    table:'AzureActivity', use:'Collects subscription control-plane operations through Azure Policy or diagnostic settings for cloud administration detections.' },
+  { name:'Windows Security Events via AMA', type:'Data connector', status:'Requires solution',
+    table:'SecurityEvent, WindowsEvent', use:'Collects selected Windows Security Event IDs from servers and workstations through Azure Monitor Agent and a scoped DCR.' },
+  { name:'Common Event Format via AMA', type:'Data connector', status:'Requires solution',
+    table:'CommonSecurityLog', use:'Ingests CEF-formatted Syslog from network and security appliances through a Linux log forwarder and AMA DCR.' },
+  { name:'Logs Ingestion API', type:'Custom logs ingestion', status:'Plan required',
+    table:'*_CL custom tables', use:'Creates custom tables from application-owned JSON payloads using app registration, a DCR stream declaration, and optional transform KQL.' },
   { name:'Threat Intelligence - TAXII', type:'Threat intelligence connector', status:'Available',
     table:'ThreatIntelIndicators', use:'Imports STIX/TAXII indicators when a TAXII API root and collection ID are available.' },
   { name:'Defender Threat Intelligence', type:'Threat intelligence connector', status:'Available',
@@ -1179,6 +1228,12 @@ const SENTINEL_CONTENT_SOLUTIONS = [
   { id:'windows-security', name:'Windows Security Events', provider:'Microsoft', status:'Installed',
     connectors:['Windows Security Events via AMA'],
     use:'Adds Windows event collection with Azure Monitor Agent and DCR scoping.' },
+  { id:'azure-activity', name:'Azure Activity', provider:'Microsoft', status:'Installed',
+    connectors:['Azure Activity'],
+    use:'Adds subscription activity collection guidance for Azure Policy and diagnostic settings.' },
+  { id:'custom-logs', name:'Custom logs ingestion', provider:'Lab', status:'Planning only',
+    connectors:['Logs Ingestion API'],
+    use:'Study card for custom table ingestion through app registration, DCE/DCR endpoints, streams, and transforms.' },
 ];
 
 const SYSLOG_AMA_LAB = {
@@ -1219,6 +1274,135 @@ const SYSLOG_AMA_LAB = {
 | where Computer == "VM1"
 | summarize Events=count() by Facility, SeverityLevel, HostName
 | order by Events desc`,
+};
+
+const SENTINEL_INGESTION_LABS = [
+  {
+    id:'windows-security',
+    title:'Windows Security Events via AMA',
+    solutionId:'windows-security',
+    solution:'Windows Security Events',
+    connector:'Windows Security Events via AMA',
+    workspace:'soc-prod-sentinel',
+    dcr:'DCR-Windows-Security-Servers',
+    target:'Server group: DC01, FIN-FS-02, WKS-03',
+    table:'SecurityEvent / WindowsEvent',
+    prompt:'Collect only the Windows Security events needed for sign-in and privilege-use detections while keeping noisy event IDs out of the workspace.',
+    steps:[
+      { id:'solution', title:'Confirm Windows Security Events solution',
+        detail:'Content hub makes the Windows Security Events via AMA connector and workbook content available.' },
+      { id:'connector', title:'Open the AMA connector',
+        detail:'Start from Sentinel Data connectors so the DCR is associated with the workspace and connector experience.' },
+      { id:'dcr', title:'Create a DCR for Windows hosts',
+        detail:'Select target machines, choose an event set, and add XPath filters for the event IDs needed by the lab.' },
+      { id:'scope', title:'Scope events with XPath',
+        detail:'Use a concise XPath such as Security!*[System[(EventID=4624 or EventID=4625 or EventID=4672 or EventID=4688)]].' },
+      { id:'verify', title:'Verify Windows rows',
+        detail:'Query SecurityEvent and confirm expected logon, privileged logon, and process creation events.' },
+    ],
+    query:`SecurityEvent
+| where TimeGenerated > ago(1h)
+| where EventID in (4624, 4625, 4672, 4688)
+| summarize Events=count() by Computer, EventID, Account
+| order by Events desc`,
+  },
+  {
+    id:'cef',
+    title:'CEF via AMA',
+    solutionId:'cef',
+    solution:'Common Event Format (CEF)',
+    connector:'Common Event Format via AMA',
+    workspace:'soc-prod-sentinel',
+    dcr:'DCR-CEF-FW1',
+    target:'Linux forwarder: CEF-FWD-01',
+    table:'CommonSecurityLog',
+    prompt:'A firewall and email gateway emit CEF-formatted Syslog to a Linux forwarder. Bring the rows into Sentinel through AMA.',
+    steps:[
+      { id:'solution', title:'Install CEF solution from Content hub',
+        detail:'The solution exposes the CEF via AMA connector and expected CommonSecurityLog schema.' },
+      { id:'connector', title:'Open CEF via AMA connector',
+        detail:'Use the connector workflow so Sentinel creates the DCR for the forwarder and workspace.' },
+      { id:'dcr', title:'Create the DCR and select CEF-FWD-01',
+        detail:'The DCR deploys AMA, selects facilities/severities, and routes CEF records to CommonSecurityLog.' },
+      { id:'daemon', title:'Configure syslog forwarding',
+        detail:'Forward appliance CEF messages to the Linux collector and keep transport/local firewall rules aligned.' },
+      { id:'verify', title:'Verify CommonSecurityLog',
+        detail:'Query CommonSecurityLog for vendor, device action, source, destination, and severity fields.' },
+    ],
+    query:`CommonSecurityLog
+| where TimeGenerated > ago(1h)
+| summarize Events=count() by DeviceVendor, DeviceProduct, DeviceAction, LogSeverity
+| order by Events desc`,
+  },
+  {
+    id:'azure-activity',
+    title:'Azure Activity collection',
+    solutionId:'azure-activity',
+    solution:'Azure Activity',
+    connector:'Azure Activity',
+    workspace:'soc-prod-sentinel',
+    dcr:'Diagnostic setting: send AzureActivity to soc-prod-sentinel',
+    target:'Subscriptions: Contoso-Prod, Contoso-Shared',
+    table:'AzureActivity',
+    prompt:'Collect subscription control-plane operations so Sentinel can detect risky role assignments, policy changes, and public network exposure changes.',
+    steps:[
+      { id:'policy', title:'Choose Azure Policy for scale',
+        detail:'Use policy when many subscriptions must send activity logs to the same workspace.' },
+      { id:'diagnostic', title:'Create diagnostic setting',
+        detail:'For a single subscription, configure the activity log diagnostic setting to send administrative, security, policy, and service health categories.' },
+      { id:'connector', title:'Open Azure Activity connector',
+        detail:'Confirm connected subscriptions and query examples from Sentinel Data connectors.' },
+      { id:'verify', title:'Verify AzureActivity',
+        detail:'Query AzureActivity for role assignment writes, policy assignment writes, and public access changes.' },
+    ],
+    query:`AzureActivity
+| where TimeGenerated > ago(24h)
+| where OperationNameValue has_any ("roleAssignments/write", "policyAssignments/write", "storageAccounts/write")
+| project TimeGenerated, SubscriptionId, Caller, OperationNameValue, ActivityStatusValue, ResourceGroup, ResourceProviderValue`,
+  },
+  {
+    id:'custom-logs',
+    title:'Logs Ingestion API custom table',
+    solutionId:'custom-logs',
+    solution:'Custom logs ingestion',
+    connector:'Logs Ingestion API',
+    workspace:'soc-prod-sentinel',
+    dcr:'DCR-Custom-AppTelemetry',
+    target:'App registration: app-lab-log-writer',
+    table:'AppRiskEvents_CL',
+    prompt:'Create a custom table for application risk events using the Logs Ingestion API without putting secrets or real endpoints in the lab.',
+    steps:[
+      { id:'app', title:'Create app registration',
+        detail:'Use an Entra app identity for ingestion and store any real credentials outside this lab.' },
+      { id:'role', title:'Grant Monitoring Metrics Publisher',
+        detail:'Assign the app the Monitoring Metrics Publisher role on the DCR so it can post logs.' },
+      { id:'endpoint', title:'Choose DCE or DCR direct endpoint',
+        detail:'Use a DCR direct endpoint for simple ingestion or DCE when network isolation and endpoint reuse are needed.' },
+      { id:'stream', title:'Declare stream and transform',
+        detail:'Define streamDeclarations for the incoming JSON and transformKql to shape columns into the destination table.' },
+      { id:'table', title:'Create _CL table output',
+        detail:'Custom streams usually use Custom- prefixes and land in a _CL table such as AppRiskEvents_CL; Microsoft- streams target supported built-in schemas.' },
+      { id:'verify', title:'Verify custom rows',
+        detail:'Query AppRiskEvents_CL and validate TimeGenerated, AppId, RiskScore, SourceIp, and Action columns.' },
+    ],
+    query:`AppRiskEvents_CL
+| where TimeGenerated > ago(24h)
+| where RiskScore >= 70
+| project TimeGenerated, AppId, UserPrincipalName, SourceIp, RiskScore, Action`,
+  },
+];
+
+const WEF_PLANNING_CARD = {
+  title:'Windows Event Forwarding vs AMA planning',
+  useWef:'Use WEF when Windows hosts already forward selected events to a collector, especially for on-prem domains where agent rollout is constrained.',
+  useAma:'Use AMA when Sentinel should collect directly through DCRs, especially for Azure/Arc machines, event-set scoping, and centralized connector management.',
+  examCue:'If the question asks for a Sentinel connector and DCR, choose AMA. If it asks for native Windows collector subscriptions or no extra agent on endpoints, evaluate WEF.',
+  checklist:[
+    'Source ownership: domain GPO/subscription model vs Azure/Arc resource targeting',
+    'Filtering point: WEF subscription filters vs DCR event sets and XPath',
+    'Destination: collector host forwarding onward vs Log Analytics workspace table',
+    'Operations: Windows event collector health vs Azure Monitor Agent and DCR health',
+  ],
 };
 
 const THREAT_INTEL_INDICATORS = [
