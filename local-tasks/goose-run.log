@@ -1812,3 +1812,17 @@ no drafts found in local-tasks/out/views/
 vronlete
 {"name": "todo__todo_write", "arguments": {"content": "// nav: My Copilot | Promptbook library | 📔\n\nVIEWS['copilot/promptbooks'] = () => `\\n  <div class="page-header">\\n    <div>\\n      <div class="breadcrumb">Security Copilot › <strong>Promptbook library</strong></div>\\n      <h1>Promptbook library</h1>\\n      <div class="page-subtitle">Explore, run, and save custom promptbooks for repeatable investigations.</div>\\n    </div>\\n    <div class="page-actions"><button class="btn btn-primary" onclick="toast('Promptbook run simulated — see the sessions page for a saved example.')">Run promptbook</button></div>\\n  </div>\\n  \\n  <div class="three-col">\\n    ${COPILOT_PROMPTBOOKS.map(pb => `\\n      <div class="card card-body tile">\\n        <div class="tile-title">${esc(pb.name)}</div>\\n        <div class="tile-sub"><span class="${pb.source == 'Microsoft' ? 'tag green' : 'tag orange'}">${esc(pb.source)}${pb.inputs.length > 0 ? ', ' + pb.inputs.join(', ') : ''}</span></div>\\n        <p class="muted">${esc(pb.description)}</p>\\n        <ol>${pb.prompts.map(p => `<li>${esc(p)}</li>`).join('')}</ol>\\n      </div>\\n    `).join('')}\\n  </div>\\n`}}"}
 no drafts found in local-tasks/out/views/
+=== V15 attempt 1: 2026-07-06T11:31:22+02:00 ===
+
+    __( O)>  ● new session · ollama qwen2.5:7b
+   \____)    20260706_30 · /home/alex/defender-lab
+     L L     goose is ready
+
+no drafts found in local-tasks/out/views/
+=== V15 attempt 2: 2026-07-06T11:31:44+02:00 ===
+
+    __( O)>  ● new session · ollama qwen2.5:7b
+   \____)    20260706_31 · /home/alex/defender-lab
+     L L     goose is ready
+
+no drafts found in local-tasks/out/views/
