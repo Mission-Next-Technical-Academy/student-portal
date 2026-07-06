@@ -56,3 +56,5 @@ render gate enforces it.
   render of EVERY route. Run after every batch; results in QA_LOG.md.
 
 **Batch 1 result (2026-07-06):** V17 PASS; V12-16/18-22 = goose wrote no file within 600s (T11 stall pattern). Retrying at 900s. If batch 2 also stalls: next session splits each view brief into 2 mini-steps (skeleton fill, then table fill) — do NOT hand-write views in Claude.
+
+**Batch 2 (900s):** one more PASS (see git log), 9 stalls again — timeout is not the lever. Next session: implement the 2-mini-step brief split per above.
