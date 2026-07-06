@@ -5243,3 +5243,34 @@ VIEWS['sentinel/hunting/dns'] = () => {
     `;
   });
 })();
+
+// ---------- Security Copilot standalone workload ----------
+
+VIEWS['copilot/home'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Security Copilot › <strong>Home</strong></div>
+      <h1>Security Copilot</h1>
+      <div class="page-subtitle">Standalone experience — sessions, promptbooks, plugins, and capacity, all fictional and local.</div>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-primary" onclick="toast('Prompt bar is a static lab surface; open a session instead.')">New session</button>
+    </div>
+  </div>
+  <div class="grid">
+    ${COPILOT_SESSIONS.filter(s => s.pinned).map(s => `
+      <div class="tile">
+        <div class="tile-title"><span class="tile-icon">🗂</span>${esc(s.name)}</div>
+        <div class="tile-sub">${esc(s.owner)} · ${esc(s.workspace)} · ${fmtTime(s.lastActivity)}</div>
+        <div class="muted" style="margin-top:8px;">${s.promptCount} prompts · plugins: ${s.plugins.map(esc).join(', ')}</div>
+      </div>
+    `).join('')}
+  </div>
+  <div class="card card-body" style="margin-top:16px;">
+    <div class="alert-section-title">Embedded vs standalone</div>
+    <div class="muted">The Copilot pane inside Defender/Purview answers in-context; this standalone portal is where owners manage sessions, promptbooks, plugins, knowledge, and SCU capacity. The topbar Copilot button in this lab is the embedded side of the same fictional tenant.</div>
+  </div>
+`;
+
+// === local-tasks views (auto-merged by add_view.py — do not hand-edit between markers) ===
+// === end local-tasks views ===
