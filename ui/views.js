@@ -5277,4 +5277,51 @@ VIEWS['copilot/home'] = () => `
 // --- v17-defender-vulnerabilities ---
 // nav: Endpoints | Vulnerability management | 🩹 
 VIEWS['defender/vulnerabilities'] = () => ` <div class="page-header">    <div>        <div class="breadcrumb">Endpoints › <strong>Vulnerability management</strong></div>        <h1>Vulnerability management</h1>        <div class="page-subtitle">Review and manage vulnerabilities for your workload.</div>    </div>    <div class="page-actions"><a class="btn btn-secondary" href="#/defender/exposure">Exposure management</a>        <button class="btn btn-primary" onclick="toast('Remediation request created in the fictional queue.')">Request remediation</button></div> </div> <table class="grid"><thead><tr><th>Total CVEs</th><th>Critical/High count</th><th>Exploit-available count</th></tr></thead><tbody>${TVM_CVES.map(r => `<tr><td>${esc(TVM_CVES.length)}</td><td>${esc(TVM_CVES.filter(x => x.severity === 'Critical' || x.severity === 'High').length)}</td><td>${esc(TVM_CVES.filter(x => x.exploitAvailable).length)}</td></tr>`).join('')}</tbody></table> <div class="alert-section-title">Security recommendations</div> <table class="grid"><thead><tr><th>Recommendation</th><th>Software</th><th>Exposed devices</th><th>Impact</th><th>Status</th><th>Action</th></tr></thead><tbody>${TVM_RECOMMENDATIONS.map(r => `<tr><td>${esc(r.title)}</td><td>${r.software?.name || '-'}</td><td>${r.exposedDevices}</td><td>${cap(fmtTime(r.impact.toString()))}</td><td><span class="${(r.status === 'Completed' ? 'chip-link green' : r.status === 'Exception' ? 'chip-link orange' : 'btn primary')}">${r.status}</span></td><td><button class="btn btn-secondary btn-sm" onclick="labToggleFlag('tvm-exceptions','${r.id}','Exception toggled for ${r.id}.')">Toggle exception</button></td></tr>`).join('')}</tbody></table> <div class="alert-section-title">Weaknesses</div> <table class="grid"><thead><tr><th>CVE</th><th>Severity</th><th>CVSS</th><th>Software</th><th>Exploit</th><th>Exposed devices</th></tr></thead><tbody>${TVM_CVES.map(r => `<tr><td>${esc(r.id)}</td><td class="${r.severity === 'Critical' ? 'sev high' : r.severity === 'High' ? 'sev medium' : 'sev low'}">${cap(r.severity)}</td><td>${esc(r.cvss)}</td><td>${r.software?.name || '-'}</td><td class="${r.exploitAvailable ? 'sev high' : 'muted'}">${r.exploitAvailable ? 'Exploit available' : '—'}</td><td>${esc(r.exposedDevices)}</td></tr>`).join('')}</tbody></table> <div class="alert-section-title">Software inventory</div> <table class="grid"><thead><tr><th>Software</th><th>Vendor</th><th>Version</th><th>Weaknesses</th><th>Exposed devices</th><th>Threat insight</th></tr></thead><tbody>${TVM_SOFTWARE.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.vendor)}</td><td>${esc(r.version)}</td><td>${esc(r.weaknesses)}</td><td>${esc(r.exposedDevices)}</td><td>${esc(r.threatInsight)}</td></tr>`).join('')}</tbody></table> <div class="card card-body">    Prioritize by exposure and exploit availability; remediation requests hand off to IT tooling; accept risk with scoped exceptions.</div>`
+
+// --- v18-defender-threat-explorer ---
+// nav: Email & collaboration | Threat explorer | 📧
+VIEWS['defender/threat-explorer'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Email & collaboration › <strong>Explorer</strong></div>
+      <h1>Threat explorer</h1>
+      <div class="page-subtitle">Explore and manage threats across malicious emails.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/defender/email-collab">Email & collaboration</a>
+      <button class="btn btn-primary" onclick="toast('Selected messages queued for remediation (soft delete) — fictional.')">Remediate</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="kpi"><div class="kpi-value">5</div><div class="kpi-label">Phish count</div></div> 
+    <div class="kpi"><div class="kpi-value">3</div><div class="kpi-label">Malware count</div></div>
+    <div class="kpi"><div class="kpi-value">7</div><div class="kpi-label">ZAP removed count</div></div> 
+    <div class="kpi">
+      <span class="chip-link" href="#/defender/email-collab/threat-explorer/campaigns"></span>
+      <span class="badge badge-pill badge-secondary">Campaigns = 2</span> 
+    </div> 
+  </div>
+
+  <table class="grid">
+    <thead><tr><th>Time</th><th>Subject</th><th>Sender</th><th>Recipient</th><th>Verdict</th><th>Threat</th><th>Delivery action</th><th>Campaign</th></tr></thead>
+    <tbody>
+      ${TX_EMAILS.map((e) => `
+        <tr>
+          <td>${esc(fmtTime(e.time))}</td>
+          <td>${esc(e.subject)}</td>
+          <td>${esc(e.sender)}</td>
+          <td>${esc(e.recipient)}</td>
+          <td class="${e.verdict !== 'Clean' ? (e.verdict === 'Phish' || e.verdict === 'Malware' ? 'text-danger' : '') : ''}">${esc(cap(e.verdict))}</td>
+          <td>${esc(e.threat)}</td>
+          <td class="${e.deliveryAction === 'Delivered' ? 'text-warning' : ''}">${esc(e.deliveryAction)}</td>
+          <td><span class="badge badge-${['Invoice lure June', 'Payroll update lure'].includes(esc(e.campaign)) ? (cap(cap(e.campaign))) : 'secondary'}">${esc(e.campaign === 'None' ? '—' : e.campaign)}</span></td>
+        </tr>`).join('')}
+      </tbody>
+  </table>
+
+  <div class="card card-body">
+    Using the explorer, learners can pivot by verdict and campaign to understand patterns. Phish and malware are flagged with high severity. Remediation queues soft delete for phished emails that have been delivered or were already zapped.
+    Campaign views reveal how lures are used in waves to target organizations.
+  </div>`
 // === end local-tasks views ===
