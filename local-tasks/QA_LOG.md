@@ -97,3 +97,6 @@
   >   - TX_EMAILS[12] missing key "campaign"
 - Output deleted; task remains open.
 
+## integrate.py — 2026-07-06T11:17:17+02:00
+- Merged 9/10 task drafts into `ui/data.js` (marker section rebuilt), `node --check` clean. Detail: `INTEGRATION.md`.
+

@@ -2368,6 +2368,7 @@ const PORTALS = [
   { id:'sentinel',      name:'Microsoft Sentinel',          tag:'SIEM · analytics rules, hunting, automation',color:'#0064bf', initial:'S' },
   { id:'defender-cloud',name:'Microsoft Defender for Cloud',tag:'CSPM/CWPP · recommendations, compliance',    color:'#5c2d91', initial:'C' },
   { id:'purview',       name:'Microsoft Purview',           tag:'Data security · DLP, insider risk, audit',   color:'#038387', initial:'P' },
+  { id:'copilot',       name:'Security Copilot',            tag:'Standalone · sessions, promptbooks, plugins', color:'#8661c5', initial:'SC' },
 ];
 
 // Microsoft Cloud app launcher — same set surfaced by the waffle in security.microsoft.com.
@@ -2506,6 +2507,10 @@ const NAV = {
     { route:'#/purview/lifecycle',              label:'Data lifecycle',        icon:'⏱' },
     { section:'Portal' },
     { route:'#/purview/settings',               label:'Settings',              icon:'⚙' },
+  ],
+  copilot: [
+    { route:'#/copilot/home',                   label:'Home',                  icon:'🏠' },
+    // === local-tasks nav (auto-inserted by add_view.py — do not hand-edit below this line) ===
   ],
 };
 
@@ -3144,6 +3149,74 @@ const COPILOT_TRANSCRIPTS = [
 }
 ];
 
+// --- T03: out/t03-copilot-promptbooks.js ---
+const COPILOT_PROMPTBOOKS = [
+    {
+        id: 'pb-01',
+        name: 'Incident investigation',
+        source: 'Microsoft',
+        description: 'Step-by-step triage of an incident.',
+        inputs: ['Incident ID'],
+        prompts: ['Summarize incident <ID>', 'List impacted entities', 'List related alerts', 'Suggest response actions', 'Draft an executive summary']
+    },
+    {
+        id: 'pb-02',
+        name: 'Suspicious script analysis',
+        source: 'Microsoft',
+        description: 'Analyze suspicious scripts for potential threats.',
+        inputs: [],
+        prompts: ['Identify the purpose of <script>', 'Check against known malware patterns', 'Examine network activity related to <script>', 'Suggest next steps']
+    },
+    {
+        id: 'pb-03',
+        name: 'Threat actor profile',
+        source: 'Microsoft',
+        description: 'Develop a profile of the threat actor based on attack patterns.',
+        inputs: ['Device name'],
+        prompts: ['List recent activity by <device>', 'Identify common tactics and techniques used', 'Suggest potential motivations']
+    },
+    {
+        id: 'pb-04',
+        name: 'Vulnerability impact assessment',
+        source: 'Microsoft',
+        description: 'Assess the risk of a vulnerability exploit.',
+        inputs: [],
+        prompts: ['Describe the vulnerability', 'Estimate potential damage', 'Suggest remediation steps']
+    },
+    {
+        id: 'pb-05',
+        name: 'User compromise assessment',
+        source: 'Microsoft',
+        description: 'Evaluate the risk of user data breaches.',
+        inputs: [],
+        prompts: ['Identify potential access vectors', 'Determine impacted users and data', 'Suggest containment actions']
+    },
+    {
+        id: 'pb-06',
+        name: 'Email threat triage',
+        source: 'Microsoft',
+        description: 'Triage incoming emails for potential threats.',
+        inputs: ['Incident ID'],
+        prompts: ['Summarize email content <ID>', 'Check against known phishing patterns', 'Analyze sender behavior', 'Suggest actions']
+    },
+    {
+        id: 'pb-07',
+        name: 'Shift handoff summary',
+        source: 'Custom',
+        description: 'Compile a summary of ongoing incidents for oncoming analysts.',
+        inputs: [],
+        prompts: ['List unresolved incidents', 'Highlight key findings and issues', 'Provide recommendations']
+    },
+    {
+        id: 'pb-08',
+        name: 'Threat hunting playbook',
+        source: 'Custom',
+        description: 'Detailed steps for proactive threat hunting activities.',
+        inputs: [],
+        prompts: ['Outline objectives and scope', 'Describe detection criteria', 'Suggest initial actions']
+    }
+];
+
 // --- T04: out/t04-copilot-plugins.js ---
 const COPILOT_PLUGINS = [
     {
@@ -3444,6 +3517,222 @@ const MC_ALERTS = [
     severity: 'Medium',
     resource: 'nw-ops-vm-7',
     description: 'A series of failed sign-on attempts were detected, which could indicate a compromised key pair or brute-force attack.'
+  }
+];
+
+// --- T08: out/t08-audit-premium.js ---
+const AUDIT_RETENTION_POLICIES = [
+    {
+        id: 'arp-1',
+        name: 'Daily Usage Tracking',
+        users: ['R.Vance@northwindops.example','M.Okafor@northwindops.example'],
+        recordTypes: ['ExchangeItem','SharePointFileOperation','CopilotInteraction'],
+        duration: '30 days',
+        priority: 1
+    },
+    {
+        id: 'arp-2',
+        name: 'Quarterly Data Review',
+        users: ['M.Okafor@northwindops.example'],
+        recordTypes: ['SharePointFileOperation','CopilotInteraction'],
+        duration: '90 days',
+        priority: 3
+    },
+    {
+        id: 'arp-3',
+        name: 'Full Year Audit',
+        users: [],
+        recordTypes: ['ExchangeItem','SharePointFileOperation','CopilotInteraction'],
+        duration: '1 year',
+        priority: 5
+    },
+    {
+        id: 'arp-4',
+        name: 'Annual Compliance Check',
+        users: [],
+        recordTypes: ['ExchangeItem','SharePointFileOperation','CopilotInteraction'],
+        duration: '10 years',
+        priority: 2
+    },
+    {
+        id: 'arp-5',
+        name: 'Special Project Audits',
+        users: [],
+        recordTypes: ['ExchangeItem'],
+        duration: '365 days',
+        priority: 4
+    }
+];
+
+const AUDIT_COPILOT_EVENTS = [
+    {
+        time: '2026-06-01T09:15:00.000Z',
+        user: 'R.Vance@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'SecurityCopilot',
+        detail: 'Generated a custom DLP policy for sensitive data.'
+    },
+    {
+        time: '2026-06-15T14:30:00.000Z',
+        user: 'M.Okafor@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'Word',
+        detail: 'Saved draft document on OneDrive.'
+    },
+    {
+        time: '2026-06-30T11:45:00.000Z',
+        user: 'R.Vance@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'Teams',
+        detail: 'Integrated Office 365 DLP policies with compliance features.'
+    },
+    {
+        time: '2026-07-01T08:00:00.000Z',
+        user: 'M.Okafor@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'Outlook',
+        detail: 'Created a calendar event reminder for next month.'
+    },
+    {
+        time: '2026-07-05T13:25:00.000Z',
+        user: 'R.Vance@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'SecurityCopilot',
+        detail: 'Set up audit trails for all Office 365 tenants.'
+    },
+    {
+        time: '2026-07-06T10:45:00.000Z',
+        user: 'M.Okafor@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'Word',
+        detail: 'Saved final draft for board presentation on OneDrive.'
+    },
+    {
+        time: '2026-06-10T15:30:00.000Z',
+        user: 'R.Vance@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'Teams',
+        detail: 'Integrated DLP policies into compliance dashboards.'
+    },
+    {
+        time: '2026-06-25T11:00:00.000Z',
+        user: 'M.Okafor@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'Teams',
+        detail: 'Prepared presentation slides for next meeting.'
+    },
+    {
+        time: '2026-07-03T14:50:00.000Z',
+        user: 'R.Vance@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'Outlook',
+        detail: 'Set up reminders for upcoming board meetings.'
+    },
+    {
+        time: '2026-07-04T09:35:00.000Z',
+        user: 'M.Okafor@northwindops.example',
+        operation: 'CopilotInteraction',
+        workload: 'SecurityCopilot',
+        detail: 'Reviewed DLP policy settings for new users.'
+    }
+];
+
+// --- T10: out/t10-mssp-mto.js ---
+const MSSP_TENANTS = [
+  {
+    id: 'tn-1',
+    name: 'Northwind Trading Co.',
+    workspaces: ['Workspace A'],
+    delegatedRoles: ['Microsoft Sentinel Reader'],
+    status: 'Active'
+  },
+  {
+    id: 'tn-2',
+    name: 'BlueHarbor Logistics Ltd.',
+    workspaces: ['Workspace B', 'Workspace C'],
+    delegatedRoles: ['Microsoft Sentinel Contributor', 'Microsoft Sentinel Responder'],
+    status: 'Pending'
+  },
+  {
+    id: 'tn-3',
+    name: 'SeaShell Enterprises Inc.',
+    workspaces: ['Workspace D'],
+    delegatedRoles: ['Microsoft Sentinel Reader'],
+    status: 'Active'
+  },
+  {
+    id: 'tn-4',
+    name: 'Albatross Shipping Corp.',
+    workspaces: ['Workspace E'],
+    delegatedRoles: ['Microsoft Sentinel Contributor'],
+    status: 'Pending'
+  }
+];
+
+const MTO_INCIDENTS = [
+  {
+    id: 'mti-01',
+    tenant: 'Northwind Trading Co.',
+    title: 'Alleged Data Exfiltration from Finance Group',
+    severity: 'High',
+    status: 'Resolved',
+    assignedTo: 'Alex Taylor'
+  },
+  {
+    id: 'mti-02',
+    tenant: 'Northwind Trading Co.',
+    title: 'Suspicious Login from Uncommon IP',
+    severity: 'Medium',
+    status: 'In progress',
+    assignedTo: 'M. Okafor'
+  },
+  {
+    id: 'mti-03',
+    tenant: 'BlueHarbor Logistics Ltd.',
+    title: 'Potential Security Breach in Operations Warehouse',
+    severity: 'High',
+    status: 'Active',
+    assignedTo: 'R. Vance'
+  },
+  {
+    id: 'mti-04',
+    tenant: 'BlueHarbor Logistics Ltd.',
+    title: 'Failed Login Attempt from Internal Machine',
+    severity: 'Low',
+    status: 'Active',
+    assignedTo: 'Unassigned'
+  },
+  {
+    id: 'mti-05',
+    tenant: 'SeaShell Enterprises Inc.',
+    title: 'Repeated Attempts to Access Restricted Files',
+    severity: 'Medium',
+    status: 'Active',
+    assignedTo: 'L. Higginbotham'
+  },
+  {
+    id: 'mti-06',
+    tenant: 'SeaShell Enterprises Inc.',
+    title: 'Data Scrubbing Operation in Progress',
+    severity: 'Informational',
+    status: 'In progress',
+    assignedTo: 'Unassigned'
+  },
+  {
+    id: 'mti-07',
+    tenant: 'Albatross Shipping Corp.',
+    title: 'Multiple Suspicious Activities in Sales Department',
+    severity: 'High',
+    status: 'In progress',
+    assignedTo: 'Z. Wang'
+  },
+  {
+    id: 'mti-08',
+    tenant: 'Albatross Shipping Corp.',
+    title: 'Unrecognized User Access to Restricted Network Zone',
+    severity: 'Medium',
+    status: 'Active',
+    assignedTo: 'V. Patel'
   }
 ];
 // === end local-tasks fixtures ===
