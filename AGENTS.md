@@ -234,6 +234,148 @@ Authoritative corpus: `/home/alex/sc-200_app/sc-200_microsoft_learn_links.txt`
   cover it, plus a ranked list of the biggest remaining gaps.
 - [x] **11.3** Do NOT copy Learn text. Do NOT edit ui/ files — report only.
 
+## Agent 12 — Security Copilot standalone portal (GAP_BRIDGE wave, L)
+The largest corpus gap: 800+ chunk-level mentions, zero lab surface (see
+`GAP_BRIDGE_FINDINGS.md`). Build Security Copilot as a FIFTH workload:
+add a `copilot` entry to `PORTALS` in `data.js` (suggested color
+`#7a7574`-family or a distinct teal/violet, initial `SC`), a NAV section,
+and views for every route. All content original, own words, fully local.
+- [ ] **12.1** `#/copilot/home` — standalone landing: prompt bar, recent
+  sessions, promptbook shortcuts, "embedded vs standalone" study card
+  cross-linking the existing topbar Copilot panel.
+- [ ] **12.2** `#/copilot/sessions` + session detail — session list
+  (name, owner, workspace, last activity) and a transcript view: prompts,
+  responses, which plugin/skill each step used, pin board, share/export
+  controls (local only), edit + rerun a prompt.
+- [ ] **12.3** `#/copilot/promptbooks` — library (Microsoft vs custom
+  tabs), promptbook detail (sequenced prompts, input params), a "run
+  promptbook" flow producing a canned session, and a create-your-own
+  builder that saves to localStorage.
+- [ ] **12.4** `#/copilot/plugins` — plugin manager: first-party
+  (Defender XDR, Sentinel — workspace picker, Entra, Intune, MDTI),
+  non-Microsoft, and custom (OpenAPI/KQL/GPT) plugins; on/off toggles,
+  per-plugin setup panel, precedence note for which plugin answers.
+- [ ] **12.5** `#/copilot/knowledge` — knowledge base connections:
+  file upload and Azure AI Search style sources, how grounding affects
+  answers (study card + one canned grounded-answer example).
+- [ ] **12.6** `#/copilot/settings` — owner settings: SCU capacity
+  provisioning + usage dashboard (units, overage, per-session burn),
+  role assignment (owner/contributor), data-sharing & logging toggles,
+  geo/tenant notes. Interactive sliders/toggles persisting locally.
+- [ ] **12.7** Wire the existing embedded Copilot panel and guided
+  scenario overlay to deep-link into the matching standalone session so
+  the embedded↔standalone relationship is walkable both ways.
+
+## Agent 13 — KQL practice depth (GAP_BRIDGE wave, M/L)
+Corpus: kql summarize 171, parsing 182, joins 64 chunks; lab evaluator
+covers only canned basics. Extend hunting surfaces, don't fork them.
+- [ ] **13.1** Extend the local mock evaluator (`app.js` hunting
+  executor) to genuinely evaluate over fixture rows: `union`, `join`
+  (inner/leftouter at minimum), `summarize` with `bin()`, `dcount()`,
+  `arg_max()`, `parse`/`extract()`/`parse_json()`/`split()`, `let`
+  bindings, and `externaldata` (serve a tiny local CSV fixture).
+- [ ] **13.2** `render` operator support: `timechart`/`barchart`/
+  `piechart` results draw a simple original CSS/SVG chart in the results
+  pane on `#/sentinel/logs` and `#/defender/hunting`.
+- [ ] **13.3** A guided KQL exercise set (8–12 tasks: filter → project →
+  summarize → join → parse → render) with check-my-answer against
+  expected row counts, surfaced from `#/sentinel/logs`.
+- [ ] **13.4** ASIM beyond DNS: add `imAuthentication` and
+  `imNetworkSession` parser-style hunting pages/fixtures mirroring
+  `#/sentinel/hunting/dns`, plus a normalization study card comparing
+  source columns → ASIM columns.
+
+## Agent 14 — Sentinel hunting operations (GAP_BRIDGE wave, M)
+Bookmarks/livestream/restore are exam objectives with no lab controls.
+- [ ] **14.1** Bookmarks: "Add bookmark" on hunting query results
+  (captures query, result row, entity mapping, tags, MITRE technique),
+  a bookmarks tab on `#/sentinel/hunting`, and promote-to-incident /
+  add-to-existing-incident actions.
+- [ ] **14.2** Livestream: start a livestream from a hunting query —
+  simulated ticking new rows (setInterval over fixtures), pause/stop,
+  and "elevate to alert" creating an analytics rule stub.
+- [ ] **14.3** Restore historical data: from `#/sentinel/search`, a
+  restore job on a Data-lake/long-retention table → job status →
+  restored `_RST` table queryable in `#/sentinel/logs`, with cost/scope
+  notes in own words.
+- [ ] **14.4** Entity-trigger playbooks: "Run playbook (entity)" action
+  on an entity in the incident side panel / `#/sentinel/entity-behavior`,
+  wired to a new entity-trigger playbook in `#/sentinel/automation`.
+
+## Agent 15 — Defender Vulnerability Management workflow (GAP_BRIDGE wave, M/L)
+Corpus 307 mentions vs 13 in lab; today only exposure/recommendation
+context exists. Build the TVM suite under the Defender workload.
+- [ ] **15.1** `#/defender/vulnerabilities` dashboard — exposure score
+  trend, top security recommendations, top vulnerable software, exposed
+  devices; cross-link `#/defender/exposure`.
+- [ ] **15.2** Software inventory + weaknesses: software list (version,
+  weakness count, exposed devices) → software detail with CVE list; CVE
+  detail (CVSS, exploit-available flag, affected devices).
+- [ ] **15.3** Security recommendations → "Request remediation" flow
+  (ticket with due date, Intune-handoff note) and a remediation
+  activities tracker with progress.
+- [ ] **15.4** Exceptions workflow: file an exception on a
+  recommendation (justification, scope: device group, expiry) and show
+  its effect on the recommendation list.
+- [ ] **15.5** Surface device-level TVM tab on `#/defender/device`
+  (installed software, discovered vulnerabilities for that device).
+
+## Agent 16 — Defender for Cloud multi-cloud onboarding (GAP_BRIDGE wave, M)
+GCP 209 / AWS 82 corpus mentions; lab has only setup context cards.
+- [ ] **16.1** AWS connector onboarding lab in
+  `#/defender-cloud/environment`: create connector wizard (account ID,
+  regions, plans selection CSPM/Servers/Containers/Databases,
+  CloudFormation-style template step described in own words, connector
+  health states).
+- [ ] **16.2** GCP connector onboarding lab, same wizard shape
+  (project ID, Cloud Shell script step in own words, plan toggles,
+  health/errors).
+- [ ] **16.3** Onboarded AWS/GCP resources appear in
+  `#/defender-cloud/inventory` and generate 1–2 multi-cloud alerts in
+  `#/defender-cloud/alerts` + one multi-cloud attack path.
+- [ ] **16.4** File integrity monitoring surface (enable on a plan,
+  monitored entities, change events table) + JIT VM access study card
+  with a request-access mock.
+
+## Agent 17 — Purview Audit Premium + MDO Threat Explorer (GAP_BRIDGE wave, M)
+- [ ] **17.1** Audit (Premium) depth on `#/purview/audit`: standard vs
+  premium comparison card, audit retention policies tab (create policy:
+  users/record types/duration/priority), long-retention search behavior.
+- [ ] **17.2** Audit export flow (search → export rows, size/limit
+  notes) and Copilot-interaction audit events as searchable fixture rows
+  (`CopilotInteraction` record type).
+- [ ] **17.3** Threat Explorer view inside `#/defender/email-collab`:
+  malware/phish/campaign pivots, top targeted users, email entity detail
+  (headers summary, verdicts, delivery/ZAP actions), remediate-selected
+  mock flow.
+
+## Agent 18 — Multi-workspace / multi-tenant operations (GAP_BRIDGE wave, M)
+- [ ] **18.1** MSSP / Azure Lighthouse lab on
+  `#/sentinel/workspace-manager`: delegated customer tenants list,
+  cross-tenant workspace switcher mock, what Lighthouse delegates vs
+  what B2B is needed for (own words), cross-workspace `workspace()`
+  query example wired into `#/sentinel/logs`.
+- [ ] **18.2** Defender multi-tenant management (MTO) surface reachable
+  from `#/defender/settings` or its own route: consolidated incidents
+  across two fictional tenants, tenant switcher, MTO vs single-tenant
+  scoping notes.
+- [ ] **18.3** Data platform depth cards on `#/sentinel/logs`: Azure
+  Data Explorer integration (when to mirror/export to ADX) and
+  Basic/Auxiliary tier query limitations (KQL limits, per-query charge
+  model in concept form) with one runnable limited-query example.
+
+## Agent 19 — GAP_BRIDGE QA / verify sweep (run last)
+- [ ] **19.1** Nav-vs-views sweep: every `route:'#/...'` in `data.js`
+  resolves to a `VIEWS[...]` entry — zero 404s, including all new
+  Copilot workload routes.
+- [ ] **19.2** `node --check` on data.js/views.js/app.js; headless-Chrome
+  click-through of every route added by Agents 12–18; console clean.
+- [ ] **19.3** State checks: promptbook builder, bookmarks, restore
+  jobs, SCU settings survive a hard refresh (localStorage).
+- [ ] **19.4** KQL evaluator regression: the pre-existing canned queries
+  on `#/defender/hunting` and `#/sentinel/logs` still run after 13.1.
+- [ ] **19.5** Update `HANDOFF.md` and mark Agent 12–19 boxes.
+
 ---
 
 ## Rules for every agent
