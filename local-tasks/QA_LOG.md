@@ -110,3 +110,28 @@
 ## integrate.py — 2026-07-06T11:20:10+02:00
 - Merged 10/10 task drafts into `ui/data.js` (marker section rebuilt), `node --check` clean. Detail: `INTEGRATION.md`.
 
+## integrate.py — 2026-07-06T11:26:58+02:00
+- Merged 11/11 task drafts into `ui/data.js` (marker section rebuilt), `node --check` clean. Detail: `INTEGRATION.md`.
+
+## qa-sweep — 2026-07-06T11:28:14+02:00
+```
+views: 78/88 render clean; dead NAV routes: 0
+  FAIL: defender/home: throws alerts is not defined
+  FAIL: defender/incident: throws sessionStorage is not defined
+  FAIL: defender/alerts: throws alerts is not defined
+  FAIL: defender/hunting: throws sessionStorage is not defined
+  FAIL: defender/device: throws sessionStorage is not defined
+  FAIL: defender/identity: throws sessionStorage is not defined
+  FAIL: defender/suppression: throws rules is not defined
+  FAIL: sentinel/analytics: throws currentWorkspace is not defined
+  FAIL: sentinel/content-hub: throws currentSyslogAmaState is not defined
+  FAIL: sentinel/data-connectors: throws currentSyslogAmaState is not defined
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-07-06T11:28:41+02:00
+```
+views: 88/88 render clean; dead NAV routes: 0
+```
+- Result: **CLEAN**
+

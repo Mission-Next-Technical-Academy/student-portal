@@ -564,3 +564,13 @@ fix-PR-style commits could not be created in this workspace.
   dead-route audit, and Learn-link coverage sweep.
 - Next pass should be a human visual review in Firefox only if Alex wants
   pixel-level polish beyond the automated route and interaction sweep.
+
+## 2026-07-06 — GAP_BRIDGE pivot: goose-local pipeline replaces codex wave
+Codex hit its usage cap; per Alex, the wave now runs on goose+qwen2.5:7b
+via python gates. Shipped: GAP_BRIDGE_FINDINGS.md; Agent 12-19 briefs;
+local-tasks/ pipeline (fixture briefs T01-T12 → verify.js gate →
+integrate.py auto-merge: 18 consts live in data.js); Copilot 5th workload
+(PORTALS+NAV+#/copilot/home); ui/lab-widgets.js interaction primitives;
+view pipeline (gen_view_task.py → tasks/V12-V22 → add_view.py render
+gate → NAV wiring); bin/qa-sweep.sh + bin/render_all.js (88/88 views
+render clean, 0 dead NAV). State/queue: local-tasks/VIEW_QUEUE.md.

@@ -2436,6 +2436,7 @@ const NAV = {
     { route:'#/defender/reports',               label:'Reports',                 icon:'📑' },
     { route:'#/defender/learning-hub',          label:'Learning hub',            icon:'🎓' },
     { route:'#/defender/trials',                label:'Trials',                  icon:'🧪' },
+    // === local-tasks nav:defender ===
   ],
   sentinel: [
     { section:'General' },
@@ -2468,6 +2469,7 @@ const NAV = {
     { route:'#/sentinel/watchlist',             label:'Watchlist',               icon:'👁' },
     { route:'#/sentinel/automation',            label:'Automation',              icon:'⚙' },
     { route:'#/sentinel/settings',              label:'Settings',                icon:'⚙' },
+    // === local-tasks nav:sentinel ===
   ],
   'defender-cloud': [
     { section:'General' },
@@ -2487,6 +2489,7 @@ const NAV = {
     { section:'Management' },
     { route:'#/defender-cloud/environment',      label:'Environment settings',       icon:'⚙' },
     { route:'#/defender-cloud/workflow',         label:'Workflow automation',        icon:'🔁' },
+    // === local-tasks nav:defender-cloud ===
   ],
   purview: [
     { section:'Microsoft Purview' },
@@ -2507,10 +2510,11 @@ const NAV = {
     { route:'#/purview/lifecycle',              label:'Data lifecycle',        icon:'⏱' },
     { section:'Portal' },
     { route:'#/purview/settings',               label:'Settings',              icon:'⚙' },
+    // === local-tasks nav:purview ===
   ],
   copilot: [
     { route:'#/copilot/home',                   label:'Home',                  icon:'🏠' },
-    // === local-tasks nav (auto-inserted by add_view.py — do not hand-edit below this line) ===
+    // === local-tasks nav:copilot ===
   ],
 };
 
@@ -3903,5 +3907,14 @@ const MTO_INCIDENTS = [
     status: 'Active',
     assignedTo: 'V. Patel'
   }
+];
+
+// --- T12: out/t12-knowledge.js ---
+const COPILOT_KNOWLEDGE = [
+  { id:'kb-1', name:'HR policies', type:'File upload', items:14, status:'Ready', scope:'IRM analysts', addedBy:'M. Okafor' },
+  { id:'kb-2', name:'IR runbooks', type:'File upload', items:22, status:'Ready', scope:'SOC all', addedBy:'R. Vance' },
+  { id:'kb-3', name:'Asset register extract', type:'Search index', items:1830, status:'Ready', scope:'SOC all', addedBy:'R. Vance' },
+  { id:'kb-4', name:'Network diagrams', type:'File upload', items:9, status:'Indexing', scope:'Tier 2 only', addedBy:'L. Harper' },
+  { id:'kb-5', name:'Vendor risk notes', type:'Search index', items:412, status:'Ready', scope:'GRC team', addedBy:'M. Okafor' },
 ];
 // === end local-tasks fixtures ===

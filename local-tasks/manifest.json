@@ -231,5 +231,22 @@
     ]
    }
   }
+ },
+ "T12": {
+  "file": "out/t12-knowledge.js",
+  "exports": {
+   "COPILOT_KNOWLEDGE": {
+    "count": 5,
+    "keys": [
+     "id",
+     "name",
+     "type",
+     "items",
+     "status",
+     "scope",
+     "addedBy"
+    ]
+   }
+  }
  }
 }

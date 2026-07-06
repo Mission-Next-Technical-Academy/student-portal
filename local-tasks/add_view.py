@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wire goose-drafted views into ui/views.js + NAV, behind a render gate.
+r"""Wire goose-drafted views into ui/views.js + NAV, behind a render gate.
 
 Usage:
   python3 local-tasks/add_view.py                # merge all out/views/*.js
@@ -30,7 +30,8 @@ DATA = LAB / "ui" / "data.js"
 VDIR = LT / "out" / "views"
 VMARK_A = "// === local-tasks views (auto-merged by add_view.py — do not hand-edit between markers) ==="
 VMARK_B = "// === end local-tasks views ==="
-NAVMARK = "// === local-tasks nav (auto-inserted by add_view.py — do not hand-edit below this line) ==="
+def navmark(workload):
+    return f"// === local-tasks nav:{workload} ==="
 
 BANNED = [
     (re.compile(r"http", re.I), "contains 'http' (no URLs)"),
@@ -52,6 +53,12 @@ function esc(s) {{ return String(s ?? '').replace(/[&<>"']/g, c => ({{'&':'&amp;
 function cap(s) {{ return s.charAt(0).toUpperCase() + s.slice(1); }}
 function fmtTime(iso) {{ return iso ? new Date(iso).toISOString().slice(0,16).replace('T',' ') : '—'; }}
 function toast(m) {{}}
+function labList(k) {{ return []; }}
+function labGet(k, d) {{ return d; }}
+function labSet(k, v, m) {{}}
+function labPush(k, o, m) {{}}
+function labRemoveAt(k, i, m) {{}}
+function labToggleFlag(k, i, m) {{}}
 `, ctx);
 vm.runInContext(fs.readFileSync('{data}', 'utf8'), ctx);
 vm.runInContext(fs.readFileSync('{draft}', 'utf8'), ctx);
@@ -114,13 +121,23 @@ def main():
 
         dtxt = DATA.read_text()
         section, label, icon = (s.strip() for s in nav.groups())
+        workload = route.split("/")[0]
+        MARK = navmark(workload)
+        if MARK not in dtxt:
+            VIEWS.write_text(views_orig)
+            fail(name, [f"no NAV marker for workload '{workload}' in data.js"]); continue
         entry = f"    {{ route:'#/{route}', label:'{label}', icon:'{icon}' }},"
         if f"route:'#/{route}'" not in dtxt:
+            # this workload's nav slab: from the previous marker (or NAV start) to just past ours
+            idx = dtxt.index(MARK)
+            prev = dtxt.rfind("// === local-tasks nav:", 0, idx)
+            start = prev if prev != -1 else dtxt.index("const NAV = {")
+            slab = dtxt[start: idx + len(MARK) + 1500]
             ins = ""
-            if section and f"section:'{section}'" not in dtxt.split(NAVMARK)[1][:2000]:
+            if section and f"section:'{section}'" not in slab:
                 ins += f"    {{ section:'{section}' }},\n"
             ins += entry + "\n"
-            dtxt = dtxt.replace(NAVMARK + "\n", NAVMARK + "\n" + ins, 1) if NAVMARK + "\n" in dtxt else dtxt.replace(NAVMARK, NAVMARK + "\n" + ins, 1)
+            dtxt = dtxt[: idx + len(MARK)] + "\n" + ins.rstrip("\n") + dtxt[idx + len(MARK):]
             DATA.write_text(dtxt)
 
         ok = all(subprocess.run(["node", "--check", str(f)], capture_output=True).returncode == 0 for f in (VIEWS, DATA))
