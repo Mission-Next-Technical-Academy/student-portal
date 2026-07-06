@@ -169,3 +169,9 @@ RangeError: Invalid time value
 
 Node.js v20.20.2
 
+## qa-sweep — 2026-07-06T11:46:37+02:00
+```
+views: 90/90 render clean; dead NAV routes: 0
+```
+- Result: **CLEAN**
+
