@@ -410,6 +410,26 @@ fix-PR-style commits could not be created in this workspace.
     `node --check ui/app.js` clean.
   - Marked AGENTS.md Sprint 2 Agent 4 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 5 Sentinel data platform and hunting infrastructure:
+  - Extended `#/sentinel/hunting` table-plan cards with Data lake and XDR-tier
+    retention examples plus a decision guide for Analytics, Basic, Auxiliary,
+    Data lake, and XDR-tier data.
+  - Added `#/sentinel/soc-optimization` with coverage, rule tuning, and
+    data-value recommendations.
+  - Added `#/sentinel/summary-rules` showing noisy `NetworkLogs_CL` rows,
+    a summary-rule KQL query, and `NetworkSummary_CL` aggregate results.
+  - Added `#/sentinel/data-lake-jobs` with a long-running Sentinel Data lake
+    KQL job, local completion state, and `DnsBeaconingResults_CL` output.
+  - Built the previously dead `#/sentinel/notebooks` route with notebook
+    templates and Sentinel MCP Server connection notes, keeping the lab
+    local-only and static.
+  - Added Sentinel nav links and fictional fixtures for all Agent 5 surfaces.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean; existing server on `127.0.0.1:8765`
+    returned 200; headless Chrome confirmed all new routes render expected
+    text without "Page not found".
+  - Marked AGENTS.md Sprint 2 Agent 5 checklist complete.
+
 ## Next useful work
 
 - **Sprint 2 (2026-07-06):** `AGENTS.md` now defines Agents 1–9 covering

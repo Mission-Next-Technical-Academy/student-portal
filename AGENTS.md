@@ -148,14 +148,14 @@ and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
   creating a `_CL` table. (The gap Alex spotted 2026-07-06.)
 
 ## Agent 5 — Sentinel data platform & hunting infrastructure
-- [ ] **5.1** Extend table-plan cards with Data lake tier and XDR-tier
+- [x] **5.1** Extend table-plan cards with Data lake tier and XDR-tier
   retention; retention decision guidance (Analytics vs Data lake vs XDR).
-- [ ] **5.2** SOC optimization page (coverage + data-value recommendations).
-- [ ] **5.3** Summary rule tables lab (aggregate a noisy table into a
+- [x] **5.2** SOC optimization page (coverage + data-value recommendations).
+- [x] **5.3** Summary rule tables lab (aggregate a noisy table into a
   summary table, query both).
-- [ ] **5.4** Sentinel KQL jobs in Data lake (long-running job → results
+- [x] **5.4** Sentinel KQL jobs in Data lake (long-running job → results
   table, contrast with the existing Basic-table search job).
-- [ ] **5.5** Build `#/sentinel/notebooks` — nav link at `data.js:1845` is
+- [x] **5.5** Build `#/sentinel/notebooks` — nav link at `data.js:1845` is
   currently a dead route. Include Sentinel MCP Server connection notes.
 
 ## Agent 6 — Detection engineering completion

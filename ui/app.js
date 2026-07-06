@@ -1809,6 +1809,13 @@ function runSentinelSearchJob() {
 }
 window.runSentinelSearchJob = runSentinelSearchJob;
 
+function runSentinelDataLakeJob() {
+  localStorage.setItem('defender-lab.sentinel.dataLakeJob', 'complete');
+  toast('Data lake KQL job completed. Results table is ready.');
+  render();
+}
+window.runSentinelDataLakeJob = runSentinelDataLakeJob;
+
 // ---------- Sentinel workspace selector ----------
 function currentWorkspace() {
   const id = localStorage.getItem('defender-lab.sentinel.workspace');

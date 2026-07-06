@@ -1498,13 +1498,31 @@ const SENTINEL_WORKSPACES = [
 
 const SENTINEL_TABLE_PLANS = [
   { name:'SecurityEvent', plan:'Analytics', interactive:'90 days', total:'365 days',
+    tier:'Analytics', cost:'High-value hot data',
     status:'Interactive', detail:'Used for security detections, incidents, analytics rules, and workbooks.' },
   { name:'SigninLogs', plan:'Analytics', interactive:'30 days', total:'180 days',
+    tier:'Analytics', cost:'Detection-ready identity data',
     status:'Interactive', detail:'Identity sign-in events for scheduled rules and investigation.' },
   { name:'NetworkLogs_CL', plan:'Basic', interactive:'30 days', total:'365 days',
+    tier:'Basic', cost:'Cheap high-volume search',
     status:'Search job required', detail:'High-volume custom network telemetry kept cheaply for occasional investigations.' },
   { name:'ArchiveDns_CL', plan:'Auxiliary', interactive:'365 days', total:'365 days',
+    tier:'Auxiliary', cost:'Low-cost retained logs',
     status:'Interactive', detail:'Low-cost retained data that can be queried across total retention in this lab scenario.' },
+  { name:'SentinelDataLake.SecurityEvent', plan:'Data lake', interactive:'KQL job', total:'7 years',
+    tier:'Data lake', cost:'Long-range investigations',
+    status:'Job required', detail:'Retains historical Sentinel data for long-running KQL jobs and downstream results tables.' },
+  { name:'XDR.DeviceProcessEvents', plan:'XDR tier', interactive:'30 days', total:'180 days',
+    tier:'XDR', cost:'Defender hunting retention',
+    status:'Advanced hunting', detail:'Defender XDR-retained events stay in the Defender hunting tier and complement Sentinel tables.' },
+];
+
+const SENTINEL_RETENTION_GUIDANCE = [
+  { choice:'Analytics', use:'Detections, dashboards, workbooks, incident evidence, and frequent analyst queries.', avoid:'Noisy telemetry that rarely contributes to rules or triage.' },
+  { choice:'Basic', use:'High-volume custom or platform logs needed for occasional search, not scheduled analytics.', avoid:'Tables that must trigger Sentinel analytics rules.' },
+  { choice:'Auxiliary', use:'Low-cost retained data where analysts still need direct interactive access across retention.', avoid:'Hot incident queues or near-real-time detection paths.' },
+  { choice:'Data lake', use:'Long-range historical hunts, large joins, and batch enrichment that can wait for a KQL job.', avoid:'Immediate triage where the result must be visible inside seconds.' },
+  { choice:'XDR tier', use:'Defender-native endpoint, identity, email, and cloud app hunting before duplicating into Sentinel.', avoid:'Duplicating every XDR table into Sentinel without a detection or retention reason.' },
 ];
 
 const NETWORK_LOGS_SEARCH_QUERY = `NetworkLogs_CL
@@ -1519,6 +1537,79 @@ const NETWORK_LOGS_SEARCH_RESULTS = [
     Protocol:'HTTP', Action:'Allowed', BytesOut:12844, ThreatIntelMatch:'Demo domain redirect' },
   { TimeGenerated:'2026-04-30T10:51:09Z', SrcIp:'10.5.12.44', DstIp:'203.0.113.10',
     Protocol:'HTTPS', Action:'Blocked', BytesOut:0, ThreatIntelMatch:'Demo IOC IP' },
+];
+
+const SOC_OPTIMIZATION_RECOMMENDATIONS = [
+  { area:'Coverage gap', recommendation:'Enable identity connector coverage for all production tenants', impact:'High', dataValue:'High',
+    reason:'Two high-severity identity rules are enabled, but only one tenant sends SigninLogs into the workspace.', action:'Connect remaining tenant or scope rules to the covered tenant only.' },
+  { area:'Rule tuning', recommendation:'Reduce duplicate endpoint malware alerts', impact:'Medium', dataValue:'Medium',
+    reason:'Three scheduled rules overlap with Defender XDR incident correlation and create duplicate triage work.', action:'Keep the Sentinel rule that adds cloud context; disable duplicate endpoint-only logic.' },
+  { area:'Data value', recommendation:'Move verbose firewall allow logs to Basic', impact:'Medium', dataValue:'Low',
+    reason:'Allowed events account for most ingestion volume but rarely appear in incidents or hunting bookmarks.', action:'Retain deny and threat logs as Analytics; move allow telemetry to Basic or Data lake.' },
+  { area:'Detection content', recommendation:'Add an analytics rule for suspicious OAuth consent', impact:'High', dataValue:'High',
+    reason:'The phishing-to-OAuth scenario has CloudAppEvents rows but no Sentinel-native detection.', action:'Promote the saved hunt to a scheduled analytics rule with account and app entity mappings.' },
+  { area:'Long-range hunt', recommendation:'Use Data lake KQL jobs for 180-day DNS beaconing reviews', impact:'Medium', dataValue:'High',
+    reason:'ArchiveDns_CL has retained signal, but the query spans too much history for shift triage.', action:'Run a Data lake job and materialize the suspicious domain summary table.' },
+];
+
+const SUMMARY_RULE_SOURCE_ROWS = [
+  { TimeGenerated:'2026-07-06T08:00:11Z', SrcIp:'10.5.12.44', DstIp:'203.0.113.10', Action:'Allowed', BytesOut:48192 },
+  { TimeGenerated:'2026-07-06T08:01:02Z', SrcIp:'10.5.12.44', DstIp:'203.0.113.10', Action:'Allowed', BytesOut:38211 },
+  { TimeGenerated:'2026-07-06T08:02:19Z', SrcIp:'10.5.12.44', DstIp:'203.0.113.10', Action:'Blocked', BytesOut:0 },
+  { TimeGenerated:'2026-07-06T08:03:44Z', SrcIp:'10.5.18.23', DstIp:'198.51.100.24', Action:'Allowed', BytesOut:1833 },
+  { TimeGenerated:'2026-07-06T08:04:08Z', SrcIp:'10.5.18.23', DstIp:'198.51.100.24', Action:'Allowed', BytesOut:2104 },
+  { TimeGenerated:'2026-07-06T08:05:55Z', SrcIp:'10.5.20.18', DstIp:'192.0.2.44', Action:'Blocked', BytesOut:0 },
+];
+
+const SUMMARY_RULE_RESULTS = [
+  { TimeGenerated:'2026-07-06T08:00:00Z', SrcIp:'10.5.12.44', DstIp:'203.0.113.10', Events:3, BytesOut:86403, Blocks:1 },
+  { TimeGenerated:'2026-07-06T08:00:00Z', SrcIp:'10.5.18.23', DstIp:'198.51.100.24', Events:2, BytesOut:3937, Blocks:0 },
+  { TimeGenerated:'2026-07-06T08:00:00Z', SrcIp:'10.5.20.18', DstIp:'192.0.2.44', Events:1, BytesOut:0, Blocks:1 },
+];
+
+const SUMMARY_RULE_QUERY = `NetworkLogs_CL
+| summarize Events=count(), BytesOut=sum(BytesOut), Blocks=countif(Action == "Blocked")
+    by SrcIp, DstIp, bin(TimeGenerated, 1h)
+| order by Events desc`;
+
+const SUMMARY_TABLE_QUERY = `NetworkSummary_CL
+| where TimeGenerated > ago(24h)
+| where Blocks > 0 or BytesOut > 50000
+| project TimeGenerated, SrcIp, DstIp, Events, BytesOut, Blocks`;
+
+const DATA_LAKE_KQL_JOB = {
+  name:'180-day DNS beaconing review',
+  source:'SentinelDataLake.ArchiveDns_CL',
+  resultTable:'DnsBeaconingResults_CL',
+  runtime:'18 min estimated',
+  query:`SentinelDataLake.ArchiveDns_CL
+| where TimeGenerated between (datetime(2026-01-01) .. datetime(2026-06-30))
+| summarize QueryCount=count(), UniqueHosts=dcount(SrcHostname) by DnsQuery, bin(TimeGenerated, 1d)
+| where QueryCount > 250 and UniqueHosts < 4
+| project TimeGenerated, DnsQuery, QueryCount, UniqueHosts`,
+  results:[
+    { TimeGenerated:'2026-06-12T00:00:00Z', DnsQuery:'sync-a.bad-demo.example', QueryCount:341, UniqueHosts:2, Verdict:'Beaconing candidate' },
+    { TimeGenerated:'2026-06-13T00:00:00Z', DnsQuery:'sync-a.bad-demo.example', QueryCount:328, UniqueHosts:2, Verdict:'Beaconing candidate' },
+    { TimeGenerated:'2026-06-21T00:00:00Z', DnsQuery:'cdn-metrics.contoso.test', QueryCount:411, UniqueHosts:1, Verdict:'Benign updater allowlist review' },
+  ],
+};
+
+const SENTINEL_NOTEBOOKS = [
+  { name:'Incident entity expansion', language:'Python', status:'Ready',
+    inputs:'Incident ID, account, host, IP', output:'Entity timeline plus related incidents',
+    detail:'Uses local mock graph fixtures to show how a notebook can pivot from incident entities into related alerts.' },
+  { name:'Threat intel enrichment', language:'Python', status:'Template',
+    inputs:'IP/domain indicator list', output:'Confidence scoring worksheet',
+    detail:'Demonstrates offline enrichment logic against bundled ThreatIntelIndicators rows.' },
+  { name:'Data lake hunting job review', language:'KQL + Python', status:'Ready',
+    inputs:'DnsBeaconingResults_CL', output:'Ranked beaconing candidates',
+    detail:'Consumes the Data lake KQL job result table instead of querying raw long-range telemetry interactively.' },
+];
+
+const SENTINEL_MCP_NOTES = [
+  { title:'Connection purpose', detail:'Sentinel MCP Server can expose workspace context, incidents, rules, and hunting actions to an AI-assisted client.' },
+  { title:'Lab boundary', detail:'This simulator does not make MCP, Azure, Graph, or Log Analytics calls; the notebook view shows where that connection fits conceptually.' },
+  { title:'Operational caution', detail:'Use least-privilege identities, scoped workspaces, and reviewed tool actions before allowing any assistant to run investigation commands.' },
 ];
 
 const SENTINEL_RULES = [
@@ -2110,6 +2201,9 @@ const NAV = {
     { route:'#/sentinel/workbooks',             label:'Workbooks',               icon:'📓' },
     { route:'#/sentinel/hunting',               label:'Hunting',                 icon:'🔎' },
     { route:'#/sentinel/hunting/dns',           label:'ASIM DNS (Preview)',      icon:'🌐' },
+    { route:'#/sentinel/soc-optimization',      label:'SOC optimization',        icon:'📈' },
+    { route:'#/sentinel/summary-rules',         label:'Summary rules',           icon:'∑' },
+    { route:'#/sentinel/data-lake-jobs',        label:'Data lake KQL jobs',      icon:'🌊' },
     { route:'#/sentinel/notebooks',             label:'Notebooks',               icon:'📓' },
     { route:'#/sentinel/entity-behavior',       label:'Entity behavior',         icon:'👤' },
     { route:'#/sentinel/threat-intel',          label:'Threat intelligence',     icon:'🛰' },

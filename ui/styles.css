@@ -2066,6 +2066,13 @@ body.route-defender-hunting .content {
   font-size: 12px;
   font-weight: 600;
 }
+.mcp-note {
+  border-left: 3px solid var(--workload);
+  padding: 2px 10px;
+}
+.mcp-note p {
+  margin: 6px 0 0;
+}
 
 /* secure score donut */
 .donut {

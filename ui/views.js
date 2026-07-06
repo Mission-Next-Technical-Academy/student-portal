@@ -2439,6 +2439,7 @@ VIEWS['sentinel/hunting'] = () => {
     </div>
     <div class="page-actions">
       <a class="btn btn-secondary" href="#/sentinel/logs">Open Logs</a>
+      <a class="btn btn-secondary" href="#/sentinel/soc-optimization">SOC optimization</a>
       <button class="btn btn-primary" onclick="runSentinelSearchJob()">Run search job</button>
     </div>
   </div>
@@ -2468,10 +2469,30 @@ VIEWS['sentinel/hunting'] = () => {
           <div><span>Interactive</span><strong>${esc(t.interactive)}</strong></div>
           <div><span>Total retention</span><strong>${esc(t.total)}</strong></div>
         </div>
+        <div><span class="tag">${esc(t.tier)}</span> <span class="muted">${esc(t.cost)}</span></div>
         <div class="muted">${esc(t.detail)}</div>
         <div class="table-plan-status">${esc(t.status)}</div>
       </div>
     `).join('')}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar">
+      <strong>Retention decision guide</strong>
+      <span class="muted">Analytics vs Data lake vs XDR tier</span>
+    </div>
+    <table class="grid">
+      <thead><tr><th>Choice</th><th>Use when</th><th>Avoid when</th></tr></thead>
+      <tbody>
+        ${SENTINEL_RETENTION_GUIDANCE.map(g => `
+          <tr>
+            <td><strong>${esc(g.choice)}</strong></td>
+            <td>${esc(g.use)}</td>
+            <td>${esc(g.avoid)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
   </div>
 
   <div class="two-col" style="margin-top:16px;">
@@ -2521,6 +2542,197 @@ VIEWS['sentinel/hunting'] = () => {
   </div>
 `;
 };
+
+VIEWS['sentinel/soc-optimization'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Microsoft Sentinel › Manage › <strong>SOC optimization</strong></div>
+      <h1>SOC optimization</h1>
+      <div class="page-subtitle">Review coverage gaps, rule quality, and data-value recommendations before changing ingestion or detections.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/sentinel/analytics">Analytics rules</a>
+      <a class="btn btn-secondary" href="#/sentinel/hunting">Retention</a>
+    </div>
+  </div>
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">Recommendations</span><span class="kpi-value">${SOC_OPTIMIZATION_RECOMMENDATIONS.length}</span><span class="kpi-delta">Lab-static</span></div>
+    <div class="kpi"><span class="kpi-label">High impact</span><span class="kpi-value">${SOC_OPTIMIZATION_RECOMMENDATIONS.filter(r => r.impact === 'High').length}</span><span class="kpi-delta bad">Act first</span></div>
+    <div class="kpi"><span class="kpi-label">Data-value calls</span><span class="kpi-value">2</span><span class="kpi-delta">Cost + signal</span></div>
+    <div class="kpi"><span class="kpi-label">Coverage goal</span><span class="kpi-value">Identity</span><span class="kpi-delta">Highest gap</span></div>
+  </div>
+  <div class="card">
+    <div class="card-toolbar">
+      <strong>Recommendations</strong>
+      <span class="muted">Coverage, detection content, and ingestion value</span>
+    </div>
+    <table class="grid">
+      <thead><tr><th>Area</th><th>Recommendation</th><th>Impact</th><th>Data value</th><th>Reason</th><th>Action</th></tr></thead>
+      <tbody>
+        ${SOC_OPTIMIZATION_RECOMMENDATIONS.map(r => `
+          <tr>
+            <td>${esc(r.area)}</td>
+            <td><strong>${esc(r.recommendation)}</strong></td>
+            <td><span class="severity ${r.impact.toLowerCase()}">${esc(r.impact)}</span></td>
+            <td>${esc(r.dataValue)}</td>
+            <td>${esc(r.reason)}</td>
+            <td>${esc(r.action)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div class="callout info" style="margin-top:16px;">
+    SOC optimization is a decision surface: use it to justify whether to add coverage, tune a noisy rule, or move low-value telemetry out of Analytics.
+  </div>
+`;
+
+VIEWS['sentinel/summary-rules'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Microsoft Sentinel › Hunting › <strong>Summary rules</strong></div>
+      <h1>Summary rule tables</h1>
+      <div class="page-subtitle">Aggregate noisy source telemetry into a smaller table that is cheaper and faster for follow-up hunts.</div>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-secondary" onclick="copyToClipboard('summary-rule-query')">Copy rule query</button>
+      <button class="btn btn-primary" onclick="toast('Summary table refreshed with 3 aggregate rows in this lab.')">Run summary rule</button>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="card card-body">
+      <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;"><strong>Rule query</strong></div>
+      <textarea id="summary-rule-query" class="kql" readonly>${esc(SUMMARY_RULE_QUERY)}</textarea>
+    </div>
+    <div class="card card-body">
+      <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;"><strong>Analyst query</strong></div>
+      <textarea class="kql" readonly>${esc(SUMMARY_TABLE_QUERY)}</textarea>
+      <div class="callout info" style="margin-top:10px;">Analysts query NetworkSummary_CL for triage, then pivot back to NetworkLogs_CL only when raw evidence is needed.</div>
+    </div>
+  </div>
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card">
+      <div class="card-toolbar"><strong>Noisy source table</strong><span class="muted">NetworkLogs_CL sample</span></div>
+      <table class="grid compact-grid">
+        <thead><tr><th>Time</th><th>SrcIp</th><th>DstIp</th><th>Action</th><th>BytesOut</th></tr></thead>
+        <tbody>${SUMMARY_RULE_SOURCE_ROWS.map(r => `
+          <tr><td>${fmtTime(r.TimeGenerated)}</td><td class="kv">${esc(r.SrcIp)}</td><td class="kv">${esc(r.DstIp)}</td><td>${esc(r.Action)}</td><td>${r.BytesOut}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-toolbar"><strong>Summary output table</strong><span class="muted">NetworkSummary_CL</span></div>
+      <table class="grid compact-grid">
+        <thead><tr><th>Hour</th><th>SrcIp</th><th>DstIp</th><th>Events</th><th>BytesOut</th><th>Blocks</th></tr></thead>
+        <tbody>${SUMMARY_RULE_RESULTS.map(r => `
+          <tr><td>${fmtTime(r.TimeGenerated)}</td><td class="kv">${esc(r.SrcIp)}</td><td class="kv">${esc(r.DstIp)}</td><td>${r.Events}</td><td>${r.BytesOut}</td><td>${r.Blocks}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  </div>
+`;
+
+VIEWS['sentinel/data-lake-jobs'] = () => {
+  const complete = localStorage.getItem('defender-lab.sentinel.dataLakeJob') === 'complete';
+  return `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Microsoft Sentinel › Hunting › <strong>Data lake KQL jobs</strong></div>
+      <h1>Sentinel KQL jobs in Data lake</h1>
+      <div class="page-subtitle">Run long-range KQL over retained Data lake tables, then materialize results for analyst review.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/sentinel/hunting">Basic search job</a>
+      <button class="btn btn-primary" onclick="runSentinelDataLakeJob()">Run Data lake job</button>
+    </div>
+  </div>
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">Source</span><span class="kpi-value">ArchiveDns</span><span class="kpi-delta">Data lake</span></div>
+    <div class="kpi"><span class="kpi-label">Lookback</span><span class="kpi-value">180d</span><span class="kpi-delta">Batch job</span></div>
+    <div class="kpi"><span class="kpi-label">Runtime</span><span class="kpi-value">${esc(DATA_LAKE_KQL_JOB.runtime.split(' ')[0])}</span><span class="kpi-delta">${esc(DATA_LAKE_KQL_JOB.runtime.replace(DATA_LAKE_KQL_JOB.runtime.split(' ')[0]+' ', ''))}</span></div>
+    <div class="kpi"><span class="kpi-label">Results table</span><span class="kpi-value">_CL</span><span class="kpi-delta">${complete ? 'Materialized' : 'Pending'}</span></div>
+  </div>
+  <div class="two-col">
+    <div class="card card-body">
+      <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+        <strong>${esc(DATA_LAKE_KQL_JOB.name)}</strong>
+        <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('data-lake-job-query')">Copy</button>
+      </div>
+      <textarea id="data-lake-job-query" class="kql" readonly>${esc(DATA_LAKE_KQL_JOB.query)}</textarea>
+    </div>
+    <div class="card card-body">
+      <h2>Contrast with Basic-table search job</h2>
+      <p class="muted">A Basic-table search job retrieves older retained rows from one Log Analytics table for investigation. A Data lake KQL job is for broader historical processing where a long-running query writes a reusable results table.</p>
+      <dl class="summary-info" style="margin-top:12px;">
+        <dt>Basic search job</dt><dd>Case-specific retrieval from NetworkLogs_CL.</dd>
+        <dt>Data lake KQL job</dt><dd>Batch hunt over ${esc(DATA_LAKE_KQL_JOB.source)} into ${esc(DATA_LAKE_KQL_JOB.resultTable)}.</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar">
+      <strong>${esc(DATA_LAKE_KQL_JOB.resultTable)}</strong>
+      <span class="muted">${complete ? DATA_LAKE_KQL_JOB.results.length + ' rows materialized' : 'Run the job to create results'}</span>
+    </div>
+    ${complete ? `
+      <table class="grid">
+        <thead><tr><th>Time</th><th>DnsQuery</th><th>QueryCount</th><th>UniqueHosts</th><th>Verdict</th></tr></thead>
+        <tbody>${DATA_LAKE_KQL_JOB.results.map(r => `
+          <tr><td>${fmtTime(r.TimeGenerated)}</td><td class="kv">${esc(r.DnsQuery)}</td><td>${r.QueryCount}</td><td>${r.UniqueHosts}</td><td>${esc(r.Verdict)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    ` : '<div class="card-body muted">The result table is empty until the long-running job completes.</div>'}
+  </div>
+`;
+};
+
+VIEWS['sentinel/notebooks'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Microsoft Sentinel › Hunting › <strong>Notebooks</strong></div>
+      <h1>Notebooks</h1>
+      <div class="page-subtitle">Use notebook-style investigation templates for enrichment, entity pivots, and Data lake job review.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/sentinel/data-lake-jobs">Data lake jobs</a>
+      <button class="btn btn-primary" onclick="toast('Notebook opened with static lab cells only.')">Open notebook</button>
+    </div>
+  </div>
+  <div class="three-col">
+    ${SENTINEL_NOTEBOOKS.map(n => `
+      <div class="tile">
+        <div class="tile-title"><span class="tile-icon">📓</span>${esc(n.name)}</div>
+        <div class="tile-sub">${esc(n.language)} · ${esc(n.status)}</div>
+        <div class="resource-summary" style="margin-top:10px;">
+          <div><span>Inputs</span><strong>${esc(n.inputs)}</strong></div>
+          <div><span>Output</span><strong>${esc(n.output)}</strong></div>
+        </div>
+        <div class="muted" style="margin-top:10px;">${esc(n.detail)}</div>
+      </div>
+    `).join('')}
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar">
+      <strong>Sentinel MCP Server connection notes</strong>
+      <span class="muted">Conceptual only; no network calls in this lab</span>
+    </div>
+    <div class="three-col">
+      ${SENTINEL_MCP_NOTES.map(n => `
+        <div class="mcp-note">
+          <strong>${esc(n.title)}</strong>
+          <p class="muted">${esc(n.detail)}</p>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+  <div class="card card-body" style="margin-top:16px;">
+    <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;"><strong>Notebook cell preview</strong></div>
+    <textarea class="kql" readonly># Static lab cell
+incident_id = "INC-1042"
+result_table = "DnsBeaconingResults_CL"
+print("Load incident entities, enrich indicators, and attach the result table to the case notes.")</textarea>
+  </div>
+`;
 
 VIEWS['sentinel/workbooks'] = () => `
   <div class="page-header"><div><div class="breadcrumb">Threat management › <strong>Workbooks</strong></div><h1>Workbooks</h1></div></div>
