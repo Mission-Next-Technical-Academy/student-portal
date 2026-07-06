@@ -240,6 +240,11 @@ The largest corpus gap: 800+ chunk-level mentions, zero lab surface (see
 add a `copilot` entry to `PORTALS` in `data.js` (suggested color
 `#7a7574`-family or a distinct teal/violet, initial `SC`), a NAV section,
 and views for every route. All content original, own words, fully local.
+Verified fixture drafts exist in `local-tasks/out/` (sessions,
+transcripts, promptbooks, plugins, capacity — see
+`local-tasks/README.md`): review each row for product accuracy, adapt to
+`data.js` fixture style, and inline into `ui/data.js`. Do NOT
+`<script>`-include the draft files and do NOT regenerate from scratch.
 - [ ] **12.1** `#/copilot/home` — standalone landing: prompt bar, recent
   sessions, promptbook shortcuts, "embedded vs standalone" study card
   cross-linking the existing topbar Copilot panel.
@@ -305,6 +310,8 @@ Bookmarks/livestream/restore are exam objectives with no lab controls.
 ## Agent 15 — Defender Vulnerability Management workflow (GAP_BRIDGE wave, M/L)
 Corpus 307 mentions vs 13 in lab; today only exposure/recommendation
 context exists. Build the TVM suite under the Defender workload.
+Verified TVM fixture drafts: `local-tasks/out/t06-tvm.js` (see
+`local-tasks/README.md` merging rule).
 - [ ] **15.1** `#/defender/vulnerabilities` dashboard — exposure score
   trend, top security recommendations, top vulnerable software, exposed
   devices; cross-link `#/defender/exposure`.
@@ -322,6 +329,8 @@ context exists. Build the TVM suite under the Defender workload.
 
 ## Agent 16 — Defender for Cloud multi-cloud onboarding (GAP_BRIDGE wave, M)
 GCP 209 / AWS 82 corpus mentions; lab has only setup context cards.
+Verified fixture drafts: `local-tasks/out/t07-multicloud.js` (see
+`local-tasks/README.md` merging rule).
 - [ ] **16.1** AWS connector onboarding lab in
   `#/defender-cloud/environment`: create connector wizard (account ID,
   regions, plans selection CSPM/Servers/Containers/Databases,
@@ -338,6 +347,8 @@ GCP 209 / AWS 82 corpus mentions; lab has only setup context cards.
   with a request-access mock.
 
 ## Agent 17 — Purview Audit Premium + MDO Threat Explorer (GAP_BRIDGE wave, M)
+Verified fixture drafts: `local-tasks/out/t08-audit-premium.js` and
+`t09-threat-explorer.js` (see `local-tasks/README.md` merging rule).
 - [ ] **17.1** Audit (Premium) depth on `#/purview/audit`: standard vs
   premium comparison card, audit retention policies tab (create policy:
   users/record types/duration/priority), long-retention search behavior.
@@ -350,6 +361,8 @@ GCP 209 / AWS 82 corpus mentions; lab has only setup context cards.
   mock flow.
 
 ## Agent 18 — Multi-workspace / multi-tenant operations (GAP_BRIDGE wave, M)
+Verified fixture drafts: `local-tasks/out/t10-mssp-mto.js` (see
+`local-tasks/README.md` merging rule).
 - [ ] **18.1** MSSP / Azure Lighthouse lab on
   `#/sentinel/workspace-manager`: delegated customer tenants list,
   cross-tenant workspace switcher mock, what Lighthouse delegates vs
