@@ -113,8 +113,17 @@ const INCIDENTS = [
     summary:'User clicked phishing link, then granted a third-party OAuth app Mail.ReadWrite. Likely token-theft persistence.' },
   { id:'INC-1050', severity:'high', title:'Ransomware activity on finance file server',
     status:'New', assignedTo:'Unassigned', classification:'',
+    responseTag:'Attack disruption',
     tactics:['Impact','Defense Evasion'], alertIds:['A301','A302'],
     entities:[{type:'Device',name:'FIN-FS-02'},{type:'File',name:'locker.exe'},{type:'Process',name:'vssadmin.exe'}],
+    disruptionActions:[
+      { time:'2026-06-28T10:18:36Z', action:'Contain user', target:'fin-svc@contoso.com',
+        result:'Automated action blocked token reuse and prevented new remote sessions.' },
+      { time:'2026-06-28T10:18:48Z', action:'Contain device', target:'FIN-FS-02',
+        result:'Device isolated from peer endpoints while preserving Defender service connectivity.' },
+      { time:'2026-06-28T10:19:06Z', action:'Stop process tree', target:'locker.exe',
+        result:'Malicious encryption process tree terminated before additional shares were touched.' },
+    ],
     createdAt:'2026-06-28T10:21:00Z', alertCount:2,
     summary:'Encryption behavior, ransom-note creation, and shadow-copy deletion indicate active ransomware on a file server.' },
   { id:'INC-1051', severity:'high', title:'AiTM phishing against finance user',
@@ -967,9 +976,18 @@ const SAVED_QUERIES = [
   { name:'Cloud storage public access changes',
     table:'CloudAppEvents', description:'Find storage ACL changes that expose buckets or containers.',
     query:`CloudAppEvents\n| where ActionType == "PutBucketAcl"\n| where BucketName == "aws-s3-prod-logs"\n| project Timestamp, AccountDisplayName, ActionType, BucketName, AccessLevel` },
+  { name:'Find all devices that are internet facing',
+    table:'DeviceInfo', description:'Surface endpoints that received external incoming communication.',
+    query:`DeviceInfo\n| where IsInternetFacing == true\n| project Timestamp, DeviceName, OSPlatform, PublicIP, IsInternetFacing, ExposureLevel` },
 ];
 
 const MOCK_QUERY_RESULTS = {
+  DeviceInfo: [
+    { Timestamp:'2026-06-28T15:02:11Z', DeviceName:'WKS-03', OSPlatform:'Windows 11 Enterprise',
+      PublicIP:'198.51.100.41', IsInternetFacing:true, ExposureLevel:'High' },
+    { Timestamp:'2026-06-28T10:22:00Z', DeviceName:'FIN-FS-02', OSPlatform:'Windows Server 2022',
+      PublicIP:'', IsInternetFacing:false, ExposureLevel:'Medium' },
+  ],
   DeviceProcessEvents: [
     { Timestamp:'2026-06-28T15:00:01Z', DeviceName:'WKS-03', FileName:'scanner.exe',
       FolderPath:'C:\\Users\\Public\\scanner.exe', SHA256:ROGUE_HASH.slice(0,16)+'…', AccountName:'jdoe' },
@@ -2167,6 +2185,85 @@ const DEVICES = [
     isInternetFacing:false, recommendationCount:4, installedSoftware:31, discoveredVulnerabilities:3 },
 ];
 
+const DEVICE_LIVE_RESPONSE = {
+  'FIN-FS-02': {
+    operator:'alex.ansbergs',
+    started:'2026-06-28T10:23:15Z',
+    status:'Connected',
+    transcript:[
+      { prompt:'connect FIN-FS-02', output:'Session established through Defender for Endpoint. Role: Live response operator.' },
+      { prompt:'dir C:\\ProgramData', output:'2026-06-28 10:17  locker.exe\n2026-06-28 10:18  RECOVER-FILES.txt\n2026-06-28 09:56  finance-cache.db' },
+      { prompt:'getfile C:\\ProgramData\\locker.exe', output:'File queued for collection as evidence item LR-20260628-001.' },
+      { prompt:'run triage.ps1', output:'Process tree captured. Network connections: none active after isolation. Shadow-copy deletion artifacts found.' },
+    ],
+    log:['10:23:15 Session started','10:23:31 Directory listing returned','10:23:49 File collection queued','10:24:18 Triage script completed'],
+  },
+  'WKS-03': {
+    operator:'alex.ansbergs',
+    started:'2026-06-28T15:03:10Z',
+    status:'Connected',
+    transcript:[
+      { prompt:'connect WKS-03', output:'Session established through Defender for Endpoint. Role: Live response operator.' },
+      { prompt:'dir C:\\Users\\Public', output:'2026-06-28 15:00  scanner.exe\n2026-06-28 15:00  scanner.log' },
+      { prompt:'getfile C:\\Users\\Public\\scanner.exe', output:'File queued for collection as evidence item LR-20260628-014.' },
+      { prompt:'run autoruns-lite.ps1', output:'Run key references C:\\Users\\Public\\scanner.exe. No signed publisher metadata found.' },
+    ],
+    log:['15:03:10 Session started','15:03:22 Directory listing returned','15:03:37 File collection queued','15:04:02 Autoruns triage completed'],
+  },
+};
+
+const DEVICE_INVESTIGATION_PACKAGES = {
+  'FIN-FS-02': {
+    status:'Ready to download',
+    collected:'2026-06-28T10:25:44Z',
+    reason:'High-confidence ransomware disruption. Collect package before wiping or rebuilding the file server.',
+    contents:[
+      'Autoruns and scheduled task inventory',
+      'Running processes and loaded modules',
+      'Network connections and DNS cache',
+      'Security event log slices around the incident',
+      'Defender Antivirus detections and quarantine metadata',
+      'MDE sensor health and isolation state',
+    ],
+    guidance:[
+      'Use when you need host-level evidence for containment, scoping, or handoff to forensics.',
+      'Collect before destructive remediation so process, persistence, and sensor state are preserved.',
+      'Do not treat the ZIP as a malware sandbox result; pair it with Timeline and Advanced hunting rows.',
+    ],
+  },
+  'WKS-03': {
+    status:'Collection in progress',
+    collected:'2026-06-28T15:05:20Z',
+    reason:'Unsigned look-alike scanner binary executed from a user-writable folder.',
+    contents:[
+      'Process execution history',
+      'File metadata for scanner.exe and nearby artifacts',
+      'Browser download and Mark-of-the-Web evidence',
+      'Network connection summary',
+      'Persistence locations',
+    ],
+    guidance:[
+      'Use to validate whether the look-alike binary arrived through download, removable media, or lateral movement.',
+      'Compare package artifacts with the Timeline technique markers before closing the incident.',
+    ],
+  },
+};
+
+const DEVICE_PROCESS_TREES = {
+  'FIN-FS-02': [
+    { depth:0, name:'services.exe', detail:'Service Control Manager' },
+    { depth:1, name:'cmd.exe', detail:'cmd.exe /c copy \\\\WKS-03\\share\\locker.exe C:\\ProgramData\\locker.exe' },
+    { depth:2, name:'locker.exe', detail:'locker.exe --encrypt --shares' },
+    { depth:3, name:'vssadmin.exe', detail:'vssadmin delete shadows /all /quiet' },
+    { depth:3, name:'wmic.exe', detail:'wmic shadowcopy delete' },
+  ],
+  'WKS-03': [
+    { depth:0, name:'explorer.exe', detail:'Interactive shell for jdoe' },
+    { depth:1, name:'scanner.exe', detail:'C:\\Users\\Public\\scanner.exe' },
+    { depth:2, name:'rundll32.exe', detail:'Network beacon helper loaded after process start' },
+  ],
+};
+
 // Per-device timeline. Mirrors the Defender for Endpoint device Timeline tab:
 // two row kinds interleaved chronologically.
 //   - kind='technique' : MITRE marker row (blue T icon). Side pane explains
@@ -2213,15 +2310,20 @@ const DEVICE_TIMELINE_EVENTS = {
     { kind:'event', time:'2026-06-28T10:20:04Z', table:'DeviceProcessEvents', actionType:'ProcessCreated',
       title:'vssadmin delete shadows /all /quiet', description:'Wipes Volume Shadow Copies so encrypted files cannot be restored locally.',
       fileName:'vssadmin.exe', folder:'C:\\Windows\\System32\\vssadmin.exe',
-      cmdline:'vssadmin delete shadows /all /quiet', account:'fin-svc',
+      cmdline:'vssadmin delete shadows /all /quiet', account:'fin-svc', flagged:true,
       techniqueId:'T1490', eventType:'Process' },
+    { kind:'event', time:'2026-06-28T10:19:15Z', table:'DeviceEvents', actionType:'EDRClientResourceManagerCriticalMode',
+      title:'EDR client entered resource-protection mode', description:'MsSense.exe Resource Manager reduced nonessential telemetry while ransomware containment completed.',
+      fileName:'MsSense.exe', folder:'C:\\Program Files\\Windows Defender Advanced Threat Protection\\MsSense.exe',
+      cmdline:'MsSense.exe ResourceManager CriticalMode', account:'SYSTEM',
+      techniqueId:'T1486', eventType:'Sensor' },
     { kind:'technique', time:'2026-06-28T10:18:30Z', techniqueId:'T1486',
       techniqueName:'Data Encrypted for Impact', tactic:'Impact',
       description:'Mass file rename to .locked extension across mapped shares.' },
     { kind:'event', time:'2026-06-28T10:18:21Z', table:'DeviceProcessEvents', actionType:'ProcessCreated',
       title:'locker.exe --encrypt --shares', description:'Untrusted binary executed from C:\\ProgramData with encryption arguments.',
       fileName:'locker.exe', folder:'C:\\ProgramData\\locker.exe',
-      cmdline:'locker.exe --encrypt --shares', account:'fin-svc',
+      cmdline:'locker.exe --encrypt --shares', account:'fin-svc', flagged:true,
       techniqueId:'T1486', eventType:'Process' },
     { kind:'technique', time:'2026-06-28T10:18:00Z', techniqueId:'T1021',
       techniqueName:'Remote Services', tactic:'Lateral Movement',

@@ -1147,7 +1147,8 @@ function setDeviceTab(tab) {
 
 // Open the MITRE technique side pane from a Timeline technique marker.
 function openTechnique(deviceId, index) {
-  const events = DEVICE_TIMELINE_EVENTS[deviceId] || [];
+  const events = (DEVICE_TIMELINE_EVENTS[deviceId] || [])
+    .slice().sort((a,b) => new Date(b.time) - new Date(a.time));
   const row = events[index];
   if (!row || row.kind !== 'technique') return;
   const tactic = row.tactic || TECHNIQUE_TACTIC_LOOKUP[row.techniqueId] || 'Unknown tactic';
@@ -1196,6 +1197,104 @@ function openTechnique(deviceId, index) {
     </div>
   `;
   showPanel('panel-technique');
+}
+
+function responsePanel(title, html) {
+  document.getElementById('device-response-title').textContent = title;
+  document.getElementById('device-response-body').innerHTML = html;
+  showPanel('panel-device-response');
+}
+
+function openDeviceLiveResponse(deviceId) {
+  const device = DEVICES.find(d => d.id === deviceId) || { name: deviceId };
+  const session = DEVICE_LIVE_RESPONSE[deviceId] || {
+    operator:'alex.ansbergs',
+    started:new Date().toISOString(),
+    status:'Ready',
+    transcript:[
+      { prompt:`connect ${deviceId}`, output:'Session prepared. Select a scoped device with active MDE sensor telemetry.' },
+      { prompt:'dir C:\\', output:'Canned lab transcript is not available for this device.' },
+    ],
+    log:['Session template opened'],
+  };
+  responsePanel(`Live response - ${device.name}`, `
+    <div class="alert-section-title">Session</div>
+    <dl class="kv-list">
+      <dt>Device</dt><dd>${esc(device.name)}</dd>
+      <dt>Status</dt><dd><span class="tag green">${esc(session.status)}</span></dd>
+      <dt>Operator</dt><dd>${esc(session.operator)}</dd>
+      <dt>Started</dt><dd>${fmtTime(session.started)}</dd>
+    </dl>
+    <div class="alert-section-title">Lab console transcript</div>
+    <div class="response-console">
+      ${session.transcript.map(step => `
+        <div><span class="console-prompt">LR&gt; ${esc(step.prompt)}</span><pre>${esc(step.output)}</pre></div>
+      `).join('')}
+    </div>
+    <div class="alert-section-title">Session log</div>
+    <ul class="response-list">${session.log.map(item => `<li>${esc(item)}</li>`).join('')}</ul>
+    <div class="callout info">Live response is for scoped investigation commands such as <code>dir</code>, <code>getfile</code>, and approved scripts. This lab transcript is static and never runs commands on the host.</div>
+  `);
+}
+
+function openInvestigationPackage(deviceId) {
+  const device = DEVICES.find(d => d.id === deviceId) || { name: deviceId };
+  const pkg = DEVICE_INVESTIGATION_PACKAGES[deviceId] || {
+    status:'Ready',
+    collected:new Date().toISOString(),
+    reason:'Collect host evidence before remediation.',
+    contents:['Autoruns','Process list','Network summary','Defender sensor diagnostics'],
+    guidance:['Use the package to preserve host-level evidence before rebuild or wipe.'],
+  };
+  responsePanel(`Investigation package - ${device.name}`, `
+    <div class="alert-section-title">Collection flow</div>
+    <div class="response-flow">
+      <div><strong>1. Request</strong><span>Analyst starts package collection from the device action strip.</span></div>
+      <div><strong>2. Collect</strong><span>MDE sensor gathers triage artifacts from the endpoint.</span></div>
+      <div><strong>3. Review</strong><span>Analyst downloads the package and correlates contents with Timeline and hunting rows.</span></div>
+    </div>
+    <dl class="kv-list">
+      <dt>Status</dt><dd>${esc(pkg.status)}</dd>
+      <dt>Collected</dt><dd>${fmtTime(pkg.collected)}</dd>
+      <dt>Use case</dt><dd>${esc(pkg.reason)}</dd>
+    </dl>
+    <div class="alert-section-title">Package contents</div>
+    <ul class="response-list">${pkg.contents.map(item => `<li>${esc(item)}</li>`).join('')}</ul>
+    <div class="alert-section-title">When to use it</div>
+    <ul class="response-list">${pkg.guidance.map(item => `<li>${esc(item)}</li>`).join('')}</ul>
+  `);
+}
+
+function openDeviceTimelineEvent(deviceId, index) {
+  const events = (DEVICE_TIMELINE_EVENTS[deviceId] || [])
+    .slice().sort((a,b) => new Date(b.time) - new Date(a.time));
+  const row = events[index];
+  if (!row || row.kind !== 'event') return;
+  const device = DEVICES.find(d => d.id === deviceId) || { name: deviceId };
+  const tree = DEVICE_PROCESS_TREES[deviceId] || [];
+  responsePanel(`Timeline event - ${device.name}`, `
+    <div class="alert-section-title">${esc(row.title || row.actionType || 'Timeline event')}</div>
+    <dl class="kv-list">
+      <dt>Time</dt><dd>${fmtTime(row.time)}</dd>
+      <dt>Table</dt><dd>${esc(row.table || 'DeviceEvents')}</dd>
+      <dt>Action type</dt><dd>${esc(row.actionType || 'Event')}</dd>
+      <dt>Account</dt><dd>${esc(row.account || '—')}</dd>
+      <dt>Command line</dt><dd><code>${esc(row.cmdline || '—')}</code></dd>
+      <dt>SHA1 / hash</dt><dd><code>${esc(row.sha256 || 'not present in this fixture')}</code></dd>
+    </dl>
+    <div class="alert-section-title">Process tree</div>
+    <div class="process-tree">
+      ${tree.map(p => `
+        <div class="process-row depth-${Math.min(p.depth, 3)}">
+          <strong>${esc(p.name)}</strong><span>${esc(p.detail)}</span>
+        </div>
+      `).join('') || '<div class="muted">No process tree captured for this fixture row.</div>'}
+    </div>
+    <div class="sidepanel-footer">
+      <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${esc(row.cmdline || '')}'); toast('Copied command line.')">Copy command line</button>
+      <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${esc(row.sha256 || '')}'); toast('Copied hash value.')">Copy SHA1</button>
+    </div>
+  `);
 }
 
 function huntTime(baseIso, seconds) {
@@ -1451,6 +1550,9 @@ window.openIdentityAlert = openIdentityAlert;
 window.openDevice        = openDevice;
 window.setDeviceTab      = setDeviceTab;
 window.openTechnique     = openTechnique;
+window.openDeviceLiveResponse = openDeviceLiveResponse;
+window.openInvestigationPackage = openInvestigationPackage;
+window.openDeviceTimelineEvent = openDeviceTimelineEvent;
 window.huntRelatedEvents = huntRelatedEvents;
 window.navigate          = navigate;
 window.openAlert         = openAlert;

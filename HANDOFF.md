@@ -366,6 +366,27 @@ fix-PR-style commits could not be created in this workspace.
     `node --check ui/app.js` clean.
   - Marked AGENTS.md Sprint 2 Agent 2 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 3 MDE device response deepening:
+  - Replaced the device-page Live response toast with a static right-side lab
+    console showing canned `dir`, `getfile`, and `run` transcript output plus
+    a session log for FIN-FS-02 and WKS-03.
+  - Replaced the investigation-package toast with a static collection flow,
+    package contents, and guidance on when to use the ZIP during response.
+  - Tagged ransomware incident `INC-1050` as `Attack disruption` and rendered
+    automatic contain-user, contain-device, and stop-process-tree actions in
+    the incident side-panel timeline, full incident attack-story tab, and
+    Activities table.
+  - Burned down the Agent 3 `DEVICE_PAGE_PARITY.md` items: response action
+    strip, internet-facing device flag/counter/query, timeline flag column,
+    raw event process-tree side pane, copy command/hash actions, MsSense.exe
+    Resource Manager row, overview-card wording, and Effective settings tab.
+  - Added `DeviceInfo` fixture rows and a saved hunting query for internet-
+    facing devices; widened the mock hunting parser to support boolean
+    equality filters.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Marked AGENTS.md Sprint 2 Agent 3 checklist complete.
+
 ## Next useful work
 
 - **Sprint 2 (2026-07-06):** `AGENTS.md` now defines Agents 1–9 covering

@@ -256,6 +256,16 @@ VIEWS['defender/incident'] = () => {
     case 'attack-story':
       body = `
         ${renderAttackStory(inc, incAlerts)}
+        ${(inc.disruptionActions || []).length ? `
+          <div class="card card-body disruption-card">
+            <div class="alert-section-title">Automatic attack disruption</div>
+            <div class="response-flow">
+              ${inc.disruptionActions.map(a => `
+                <div><strong>${esc(a.action)}</strong><span>${fmtTime(a.time)} · ${esc(a.target)} · ${esc(a.result)}</span></div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
         <div class="callout info" style="margin-top:18px;">
           The attack story stitches alerts into a chronological narrative across the kill chain.
           Use the <strong>Alerts</strong> tab for the raw row-by-row view, <strong>Assets</strong> for affected
@@ -343,6 +353,7 @@ VIEWS['defender/incident'] = () => {
             <dt>Incident ID</dt><dd>${esc(inc.id)}</dd>
             <dt>Severity</dt><dd><span class="sev ${inc.severity}">${cap(inc.severity)}</span></dd>
             <dt>Status</dt><dd>${esc(inc.status)}</dd>
+            ${inc.responseTag ? `<dt>Response tag</dt><dd><span class="tag orange">${esc(inc.responseTag)}</span></dd>` : ''}
             <dt>Assigned</dt><dd>${esc(inc.assignedTo)}</dd>
             <dt>Created</dt><dd>${fmtTime(inc.createdAt)}</dd>
           </dl>
@@ -504,6 +515,7 @@ VIEWS['defender/hunting'] = () => {
       // Mock KQL executor. Supports a small subset:
       //   <TableName>                            — leading table line
       //   | where Field == "value"               — equality match
+      //   | where Field == true/false            — boolean equality
       //   | where Field has "needle"             — substring match (e.g. AttackTechniques)
       //   | where Timestamp between (datetime(..)..datetime(..))   — time window
       //   | project / | sort / | top / | take    — display-only, ignored by executor
@@ -516,9 +528,11 @@ VIEWS['defender/hunting'] = () => {
         let timeWindow = null;
         lines.forEach(l => {
           const eq  = l.match(/^\|\s*where\s+([A-Za-z_][A-Za-z0-9_]*)\s*==\s*"([^"]*)"$/i);
+          const beq = l.match(/^\|\s*where\s+([A-Za-z_][A-Za-z0-9_]*)\s*==\s*(true|false)$/i);
           const has = l.match(/^\|\s*where\s+([A-Za-z_][A-Za-z0-9_]*)\s+has\s+"([^"]*)"$/i);
           const bw  = l.match(/^\|\s*where\s+Timestamp\s+between\s*\(\s*datetime\(([^)]+)\)\s*\.\.\s*datetime\(([^)]+)\)\s*\)$/i);
           if (eq)  filters.push({ kind:'eq',  field:eq[1],  value:eq[2] });
+          if (beq) filters.push({ kind:'bool', field:beq[1], value:beq[2].toLowerCase() === 'true' });
           if (has) filters.push({ kind:'has', field:has[1], value:has[2] });
           if (bw)  timeWindow = { start:bw[1].trim(), end:bw[2].trim() };
         });
@@ -537,6 +551,8 @@ VIEWS['defender/hunting'] = () => {
         filters.forEach(f => {
           if (f.kind === 'eq') {
             out = out.filter(r => String(r[f.field] ?? '') === f.value);
+          } else if (f.kind === 'bool') {
+            out = out.filter(r => Boolean(r[f.field]) === f.value);
           } else if (f.kind === 'has') {
             out = out.filter(r => String(r[f.field] ?? '').includes(f.value));
           }
@@ -1016,16 +1032,17 @@ VIEWS['defender/devices'] = () => `
     <div class="kpi"><span class="kpi-label">Onboarded</span><span class="kpi-value">${DEVICES.length}</span><span class="kpi-delta">Active sensors</span></div>
     <div class="kpi"><span class="kpi-label">High risk</span><span class="kpi-value">${DEVICES.filter(d=>d.riskLevel==='High').length}</span><span class="kpi-delta bad">Investigate</span></div>
     <div class="kpi"><span class="kpi-label">Open alerts</span><span class="kpi-value">${DEVICES.reduce((n,d)=>n+d.openAlerts,0)}</span><span class="kpi-delta">Across devices</span></div>
-    <div class="kpi"><span class="kpi-label">Sensor health</span><span class="kpi-value">${DEVICES.filter(d=>d.healthStatus==='Active').length}/${DEVICES.length}</span><span class="kpi-delta">Active</span></div>
+    <div class="kpi"><span class="kpi-label">Internet facing</span><span class="kpi-value">${DEVICES.filter(d=>d.isInternetFacing).length}</span><span class="kpi-delta">External incoming observed</span></div>
   </div>
   <div class="card">
     <div class="card-toolbar"><strong>Devices</strong><span class="muted">${DEVICES.length} devices</span></div>
     <table class="grid">
-      <thead><tr><th>Name</th><th>Domain</th><th>OS</th><th>Risk</th><th>Exposure</th><th>Sensor</th><th>Last seen</th><th>Open alerts</th></tr></thead>
+      <thead><tr><th>Name</th><th>Flags</th><th>Domain</th><th>OS</th><th>Risk</th><th>Exposure</th><th>Sensor</th><th>Last seen</th><th>Open alerts</th></tr></thead>
       <tbody>
         ${DEVICES.map(d => `
           <tr onclick="openDevice('${esc(d.id)}')">
             <td><strong>${esc(d.name)}</strong></td>
+            <td>${d.isInternetFacing ? '<span class="dev-tag internet">Internet facing</span>' : '<span class="muted">—</span>'}</td>
             <td>${esc(d.domain)}</td>
             <td>${esc(d.os)}</td>
             <td><span class="sev ${d.riskLevel==='High'?'high':d.riskLevel==='Medium'?'medium':'low'}">${esc(d.riskLevel)}</span></td>
@@ -1163,6 +1180,7 @@ VIEWS['defender/device'] = () => {
       <div class="dev-cmdbar">
         <input class="ipt dev-search" placeholder="Search timeline" />
         <button class="btn btn-secondary btn-sm">Filter</button>
+        <button class="btn btn-secondary btn-sm">Flagged events only</button>
         <button class="btn btn-secondary btn-sm">Time range</button>
         <button class="btn btn-secondary btn-sm">Customize columns</button>
         <button class="btn btn-secondary btn-sm">Export</button>
@@ -1183,10 +1201,11 @@ VIEWS['defender/device'] = () => {
           const right = isTech ? 'Technique' : esc(e.eventType || (e.table||'').replace(/^Device/,''));
           const click = isTech
             ? `onclick="openTechnique('${esc(d.id)}', ${i})"`
-            : `onclick="toast('Event detail not modeled — open via Advanced hunting.')"`;
+            : `onclick="openDeviceTimelineEvent('${esc(d.id)}', ${i})"`;
           return `
             <div class="dev-tle ${isTech?'is-tech':''}" ${click} role="button" tabindex="0">
               <div class="dev-tle-time">${fmtTime(e.time)}</div>
+              <div class="dev-tle-flag">${e.flagged ? '⚑' : ''}</div>
               <div class="dev-tle-icon ${iconCls}">${iconLetter}</div>
               <div class="dev-tle-main">
                 <div class="dev-tle-title">${titleHtml}</div>
@@ -1221,12 +1240,15 @@ VIEWS['defender/device'] = () => {
         <button class="btn btn-secondary btn-sm">Refresh</button>
         <button class="btn btn-secondary btn-sm">Export</button>
       </div>
+      <div class="callout info">Effective settings resolve tenant security baseline, antivirus policy, endpoint detection policy, and local policy into the value currently applied to this device.</div>
       <table class="grid">
-        <thead><tr><th>Setting</th><th>Source</th><th>Effective value</th><th>Status</th></tr></thead>
+        <thead><tr><th>Setting</th><th>Category</th><th>Source</th><th>Effective value</th><th>Status</th></tr></thead>
         <tbody>
-          <tr><td>Real-time protection</td><td>Antivirus policy</td><td>Enabled</td><td><span class="dev-state">Applied</span></td></tr>
-          <tr><td>Cloud-delivered protection</td><td>Endpoint security baseline</td><td>Enabled</td><td><span class="dev-state">Applied</span></td></tr>
-          <tr><td>Scheduled full scan</td><td>Local policy</td><td>Not configured</td><td><span class="dev-state err">Needs attention</span></td></tr>
+          <tr><td>Real-time protection</td><td>Antivirus</td><td>Antivirus policy</td><td>Enabled</td><td><span class="dev-state">Applied</span></td></tr>
+          <tr><td>Cloud-delivered protection</td><td>Antivirus</td><td>Endpoint security baseline</td><td>Enabled</td><td><span class="dev-state">Applied</span></td></tr>
+          <tr><td>EDR in block mode</td><td>Endpoint detection</td><td>MDE advanced features</td><td>Enabled</td><td><span class="dev-state">Applied</span></td></tr>
+          <tr><td>Automatic investigation level</td><td>AIR</td><td>Finance workstations group</td><td>Full - remediate threats</td><td><span class="dev-state">Applied</span></td></tr>
+          <tr><td>Scheduled full scan</td><td>Antivirus</td><td>Local policy</td><td>Not configured</td><td><span class="dev-state err">Needs attention</span></td></tr>
         </tbody>
       </table>`;
   }
@@ -1332,9 +1354,13 @@ VIEWS['defender/device'] = () => {
       <div class="dev-header-actions">
         <button class="dev-action" onclick="toast('Map opened (lab stub).')">View in map</button>
         <button class="dev-action" onclick="toast('Device isolated (lab stub).')">Isolate device</button>
+        <button class="dev-action" onclick="toast('App execution restricted for ${esc(d.name)} (lab stub).')">Restrict app execution</button>
         <button class="dev-action" onclick="toast('Antivirus scan queued (lab stub).')">Run antivirus scan</button>
-        <button class="dev-action" onclick="toast('Investigation package collection started (lab stub).')">Collect investigation package</button>
-        <button class="dev-action" onclick="toast('Live response session opened (lab stub).')">Initiate Live Response Session</button>
+        <button class="dev-action" onclick="openInvestigationPackage('${esc(d.id)}')">Collect investigation package</button>
+        <button class="dev-action" onclick="openDeviceLiveResponse('${esc(d.id)}')">Initiate Live Response Session</button>
+        <button class="dev-action" onclick="toast('Automated investigation initiated for ${esc(d.name)} (lab stub).')">Initiate automated investigation</button>
+        <button class="dev-action" onclick="toast('Threat expert consultation request drafted (lab stub).')">Consult a threat expert</button>
+        <button class="dev-action" onclick="toast('Action center opened for this device (lab stub).')">Action center</button>
         <button class="dev-action" onclick="toast('Criticality menu opened (lab stub).')">Set criticality</button>
         <button class="dev-action" onclick="toast('More actions opened (lab stub).')">⋯</button>
       </div>
@@ -3533,8 +3559,14 @@ function renderIncidentSummary(inc, incAlerts) {
 }
 
 function renderIncidentActivities(inc) {
-  const items = INCIDENT_ACTIVITIES[inc.id];
-  if (!items) {
+  const items = (INCIDENT_ACTIVITIES[inc.id] || []).concat((inc.disruptionActions || []).map(a => ({
+    time:a.time,
+    origin:'System',
+    category:'Attack disruption',
+    performedBy:'Automatic attack disruption',
+    detail:`${a.action}: ${a.target}. ${a.result}`,
+  })));
+  if (!items.length) {
     return `<div class="muted">No analyst or automation activity recorded for this incident yet. The Activities tab shows manual and automated actions in a unified timeline.</div>`;
   }
   return `
@@ -3635,6 +3667,7 @@ function renderIncidentDetail(inc) {
       <dt>Incident ID</dt><dd>${esc(inc.id)}</dd>
       <dt>Severity</dt><dd><span class="sev ${inc.severity}">${cap(inc.severity)}</span></dd>
       <dt>Status</dt><dd>${esc(inc.status)}</dd>
+      ${inc.responseTag ? `<dt>Response tag</dt><dd><span class="tag orange">${esc(inc.responseTag)}</span></dd>` : ''}
       <dt>Assigned to</dt><dd>${esc(inc.assignedTo)}</dd>
       <dt>Tactics</dt><dd>${inc.tactics.map(t=>`<span class="mitre">${esc(t)}</span>`).join('')}</dd>
       <dt>Created</dt><dd>${fmtTime(inc.createdAt)}</dd>
@@ -3662,6 +3695,7 @@ function renderIncidentDetail(inc) {
     <ul class="timeline">
       <li><div class="t-time">${fmtTime(inc.createdAt)}</div><div class="t-title">Incident created</div></li>
       ${incAlerts.map(a => `<li><div class="t-time">${fmtTime(a.firstActivity)}</div><div class="t-title">${esc(a.title)} (${esc(a.asset)})</div></li>`).join('')}
+      ${(inc.disruptionActions || []).map(a => `<li><div class="t-time">${fmtTime(a.time)}</div><div class="t-title">${esc(a.action)} - ${esc(a.target)}</div><div class="muted">${esc(a.result)}</div></li>`).join('')}
     </ul>
 
     <div class="alert-section-title">Summary</div>

@@ -122,13 +122,13 @@ and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
   attack disruption explanation surface with a disrupted-incident example.
 
 ## Agent 3 — MDE device response deepening
-- [ ] **3.1** Live response: replace the toast stub with a lab console
+- [x] **3.1** Live response: replace the toast stub with a lab console
   (canned `dir`/`getfile`/`run` transcript, session log).
-- [ ] **3.2** Investigation package: replace toast stub with collection
+- [x] **3.2** Investigation package: replace toast stub with collection
   flow + package-contents explainer (what's in the ZIP, when to use it).
-- [ ] **3.3** Tag an incident as "Attack disruption" with the contain-user /
+- [x] **3.3** Tag an incident as "Attack disruption" with the contain-user /
   contain-device automatic actions shown on the timeline.
-- [ ] **3.4** Burn down the `DEVICE_PAGE_PARITY.md` gap list (response-action
+- [x] **3.4** Burn down the `DEVICE_PAGE_PARITY.md` gap list (response-action
   strip gaps, internet-facing tag, flag column, process tree, Effective
   settings tab).
 

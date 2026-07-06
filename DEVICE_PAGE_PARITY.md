@@ -14,7 +14,7 @@ using the project's own Fluent-tokens in `ui/styles.css`
 
 ## Access paths to the device page
 - [x] Device inventory (`#/defender/devices` → row click)
-- [~] Alerts queue → device name link (alert panel exists; clickable device link from the alert detail body is **not** wired yet)
+- [~] Alerts queue → device name link (incident/asset pivots open devices; alert-detail body link still not fully modeled)
 - [ ] Incidents → incident graph → device node
 - [ ] Global search (top-bar search input is decorative; needs entity router)
 - [ ] File details → "Devices where file was observed"
@@ -22,14 +22,14 @@ using the project's own Fluent-tokens in `ui/styles.css`
 
 ## Header — response actions strip
 Learn lists 12. Build has 5. Missing:
-- [ ] Isolate device (functional stub)
-- [ ] Restrict app execution
-- [ ] Run antivirus scan
-- [ ] Collect investigation package (button only)
-- [ ] Initiate Live Response Session
-- [ ] Initiate automated investigation
-- [ ] Consult a threat expert
-- [ ] Action center link
+- [x] Isolate device (functional stub)
+- [x] Restrict app execution
+- [x] Run antivirus scan
+- [x] Collect investigation package (opens static collection flow + contents)
+- [x] Initiate Live Response Session (opens static lab console)
+- [x] Initiate automated investigation
+- [x] Consult a threat expert
+- [x] Action center link
 Built:
 - [x] View in map
 - [x] Device value
@@ -41,14 +41,14 @@ Built:
 - [x] Risk level pill
 - [x] Criticality pill (we map to exposureLevel)
 - [x] Health state pill
-- [~] **Internet facing** tag (data field not yet on `DEVICES`; only one device in real DfE shows it). Add to WKS-03 with hover text "This device received external incoming communication."
+- [x] **Internet facing** tag on WKS-03 with hover text "This device received external incoming communication."
 
 ## Tabs (Learn order)
 - [x] Overview
 - [x] Incidents and alerts
 - [x] Timeline
 - [x] Security recommendations
-- [ ] **Configuration management → Effective settings** (we have Security policies only)
+- [x] **Configuration management → Effective settings**
 - [x] Security policies (under our `policies` tab key)
 - [x] Software inventory (under our `inventories` tab key — also includes browser extensions / certificates / hardware mini-cards as Learn implies)
 - [x] Discovered vulnerabilities
@@ -63,10 +63,10 @@ Learn variants exist:
 - [ ] Add a CSS toggle (`.dev-overview-grid.is-3col`) so the page can render either variant — the 4-card is the modern shape per Learn body text, the 3-card matches older screenshots and some smaller-tenant views.
 
 Card-by-card detail vs Learn:
-- Active alerts: [x] risk-level pill · [x] active alert + incident counts · [x] severity bar · [x] legend · [ ] **"X active alerts in Y incident(s)"** wording (we say "on timeline") — easy fix.
-- Security assessments: [x] exposure pill · [~] recommendations count (hard-coded 41) · [ ] **installed software count** · [ ] **discovered vulnerabilities count** (3-card variant lists these as separate text rows; 4-card variant uses a bar — pick one and align).
-- Logged on users: [x] count + primary user · [ ] **Most frequent / Least frequent** rows · [ ] "See all users" pane that opens a flyout.
-- Device health status: [x] table with state dots · [ ] **header status message** ("Full scan status is unknown" etc., selected from the priority list in Learn).
+- Active alerts: [x] risk-level pill · [x] active alert + incident counts · [x] severity bar · [x] legend · [x] **"X active alerts in Y incident(s)"** wording.
+- Security assessments: [x] exposure pill · [x] recommendations count · [x] **installed software count** · [x] **discovered vulnerabilities count**.
+- Logged on users: [x] count + primary user · [x] **Most frequent / Least frequent** rows · [ ] "See all users" pane that opens a flyout.
+- Device health status: [x] table with state dots · [x] **header status message** ("Full scan status is unknown" etc., selected from the priority list in Learn).
 
 ## Timeline tab
 Learn capabilities:
@@ -75,15 +75,15 @@ Learn capabilities:
 - [x] Interleaved **technique markers** (blue T) and **event rows** (gray)
 - [x] Technique side pane on click — title, ID, name, tactic, description, **Hunt for related events** button
 - [x] Canonical wording: "the query returns the underlying events related to the technique, not the marker row itself"
-- [ ] **Flag column** + flag-events-only filter
-- [ ] **Process tree** in event side pane (clicking a non-technique row currently shows a toast stub)
-- [ ] **EDR client (MsSense.exe) Resource Manager** row (entry that appears when the sensor enters critical mode) — add one synthetic row on FIN-FS-02
+- [x] **Flag column** + flag-events-only filter
+- [x] **Process tree** in event side pane
+- [x] **EDR client (MsSense.exe) Resource Manager** row on FIN-FS-02
 - [ ] Custom-date-range picker (the button is decorative)
 - [ ] "Customize columns" pop-out
 - [ ] Filter pills showing currently-applied filters
 - [ ] Bold-text styling on technique titles (we use bold but no left-side blue T icon column treatment beyond the circular badge)
 - [ ] User-name → user-page navigation
-- [ ] "Copy command line" / "Copy SHA1" actions inside the event side pane
+- [x] "Copy command line" / "Copy SHA1" actions inside the event side pane
 
 ## Hunt for related events — KQL hand-off
 - [x] Side pane button generates a query scoped to **DeviceId** + **AttackTechniques has "T####"** + **±30-minute time window** around the technique time
@@ -91,14 +91,14 @@ Learn capabilities:
 - [x] Auto-run on arrival so the analyst sees rows immediately
 - [x] Result set excludes the technique marker (we only seed `kind='event'` rows into `MOCK_QUERY_RESULTS`)
 - [x] Mock executor supports `where Timestamp between (datetime(..)..datetime(..))`, `where DeviceId == "..."`, `where AttackTechniques has "..."`
-- [ ] **Process tree** preview alongside the query results
+- [~] **Process tree** preview alongside the query results (implemented in Timeline event side pane, not beside Advanced hunting results)
 - [ ] Source-table picker (we pick the dominant table per technique; Learn doesn't promise this either)
 
 ## Internet-facing investigation section
-- [ ] Add `isInternetFacing` field to `DEVICES`
-- [ ] "Internet facing" pill in the badges with hover text per Learn
-- [ ] Top-of-page counter on Devices list
-- [ ] Saved query: "Find all devices that are internet facing" (the `DeviceInfo | where IsInternetFacing | extend …` query from Learn) — add to `SAVED_QUERIES`
+- [x] Add `isInternetFacing` field to `DEVICES`
+- [x] "Internet facing" pill in the badges with hover text per Learn
+- [x] Top-of-page counter on Devices list
+- [x] Saved query: "Find all devices that are internet facing" added to `SAVED_QUERIES`
 
 ## Data retention note
 - [x] No-op for the lab (all data is in-memory). Could add a copy-line "Timeline retention is 90 days by default" to the Timeline tab header for exam realism.
