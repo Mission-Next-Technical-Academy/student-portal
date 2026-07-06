@@ -43,3 +43,10 @@
   long hex/secret-like strings, no real-year CVEs).
 - Output: `out/t07-multicloud.js`
 
+## T08 — 2026-07-06T11:07:57+02:00
+- **FAIL** after 2 attempts. Last verifier output:
+  > FAIL T08:
+  >   - AUDIT_RETENTION_POLICIES is not an array
+  >   - AUDIT_COPILOT_EVENTS is not an array
+- Output deleted; task remains open.
+
