@@ -143,6 +143,67 @@ const INCIDENTS = [
     summary:'Public-read ACL on a log bucket exposes production telemetry. Remove public access, review object access, and add guardrail policy.' },
 ];
 
+const MDE_SETTINGS = {
+  advancedFeatures:[
+    { name:'EDR in block mode', enabled:true, note:'Blocks malicious artifacts after EDR conviction even when another antivirus is primary.' },
+    { name:'Live response', enabled:true, note:'Allows approved responders to open device sessions for investigation commands.' },
+    { name:'Automated investigation', enabled:true, note:'Lets AIR collect evidence and remediate low-risk findings automatically.' },
+    { name:'Custom network indicators', enabled:true, note:'Applies tenant IP/domain allow and block indicators to onboarded endpoints.' },
+    { name:'Preview features', enabled:false, note:'Kept off in this lab tenant until SOC leads approve pilot devices.' },
+  ],
+  rulesSettings:[
+    { area:'Alert suppression', setting:'Enabled with expiration review', owner:'SOC engineering' },
+    { area:'Indicators', setting:'File, certificate, IP, URL, and domain indicators allowed', owner:'Threat intel' },
+    { area:'Endpoint notifications', setting:'User notifications on block actions', owner:'Endpoint platform' },
+    { area:'Advanced hunting', setting:'Custom detections can trigger device and file actions', owner:'Detection engineering' },
+  ],
+  customCollection:[
+    { name:'Browser extension inventory', scope:'Pilot devices', table:'DeviceTvmBrowserExtensions', status:'Collecting' },
+    { name:'Finance app plugin audit', scope:'Finance device group', table:'DeviceFileEvents', status:'Planned' },
+    { name:'High-value server script logs', scope:'Tier 0 servers', table:'DeviceEvents', status:'Collecting' },
+  ],
+  deviceGroups:[
+    { name:'Tier 0 servers', devices:14, automation:'Semi - require approval', role:'Privileged responders', rank:1 },
+    { name:'Finance workstations', devices:128, automation:'Full - remediate threats', role:'SOC analysts', rank:2 },
+    { name:'Pilot endpoints', devices:32, automation:'Full - preview features', role:'Endpoint engineering', rank:3 },
+    { name:'Default', devices:842, automation:'Semi - remediate safe actions', role:'Security readers', rank:4 },
+  ],
+  roles:[
+    { role:'Security administrator', members:'4 users', rights:'Manage settings, device groups, indicators, and roles' },
+    { role:'Security operator', members:'12 users', rights:'Investigate alerts, run response actions, approve AIR actions' },
+    { role:'Security reader', members:'26 users', rights:'Read-only investigation and reporting access' },
+    { role:'Live response operator', members:'5 users', rights:'Run approved live response commands on scoped devices' },
+  ],
+};
+
+const ASR_POLICIES = [
+  { rule:'Block Office from creating child processes', state:'Block', mode:'Enforced', exclusions:['finance-macro-runner.exe'], impact:'3 blocks / 24h' },
+  { rule:'Block executable content from email and webmail', state:'Block', mode:'Enforced', exclusions:[], impact:'11 blocks / 24h' },
+  { rule:'Block credential stealing from LSASS', state:'Block', mode:'Enforced', exclusions:['edr-sensor-test.exe'], impact:'1 block / 7d' },
+  { rule:'Use advanced protection against ransomware', state:'Audit', mode:'Pilot', exclusions:['backup-agent.exe'], impact:'7 audits / 24h' },
+  { rule:'Block JavaScript or VBScript from launching downloaded executables', state:'Warn', mode:'User override logged', exclusions:[], impact:'2 warns / 24h' },
+  { rule:'Block abuse of vulnerable signed drivers', state:'Block', mode:'Enforced', exclusions:[], impact:'0 blocks / 24h' },
+];
+
+const NOTIFICATION_RULES = [
+  { name:'High severity incidents', trigger:'Incident created or updated', recipients:'soc-leads@contoso.example', filter:'Severity is High', status:'Enabled' },
+  { name:'Pending action approvals', trigger:'Action center item pending', recipients:'endpoint-response@contoso.example', filter:'Action requires approval', status:'Enabled' },
+  { name:'Threat analytics exposure', trigger:'Threat analytics report impacts assets', recipients:'threat-intel@contoso.example', filter:'Impacted assets > 0', status:'Enabled' },
+];
+
+const ALERT_TUNING_RULES = [
+  { name:'Merge scanner waves by device group', type:'Correlation hint', status:'Enabled', condition:'Same title + signer within 2 hours', outcome:'Rolls A001/A002 into scanner incident' },
+  { name:'Do not correlate storage posture alerts with endpoint malware', type:'Correlation boundary', status:'Enabled', condition:'Service source differs and no shared entity', outcome:'Keeps cloud posture noise out of ransomware cases' },
+  { name:'Escalate OAuth consent after phishing click', type:'Incident severity rule', status:'Enabled', condition:'MDO URL click followed by risky OAuth app', outcome:'Raises INC-1042 to High' },
+  { name:'Scanner.exe hash drift review', type:'Tuning rule draft', status:'Draft', condition:'Signed Acme scanner from approved path', outcome:'Candidate for stable suppression or allow indicator' },
+];
+
+const AIR_INVESTIGATIONS = [
+  { id:'AIR-7101', incident:'INC-1050', title:'Ransomware containment on FIN-FS-02', status:'Completed', verdict:'Malicious', actions:['Isolated FIN-FS-02','Quarantined locker.exe','Stopped process tree'], disruption:true },
+  { id:'AIR-7102', incident:'INC-1042', title:'Phishing and OAuth consent abuse', status:'Waiting for approval', verdict:'Malicious', actions:['Soft-delete phishing email','Revoke user sessions','Remove OAuth consent'], disruption:false },
+  { id:'AIR-7103', incident:'INC-1031', title:'Scanner update hash drift', status:'Completed', verdict:'Benign', actions:['No remediation','Recommended tuning review'], disruption:false },
+];
+
 const INCIDENT_INVESTIGATION_GUIDE = {
   source:'Microsoft Learn: Investigate incidents in the Microsoft Defender portal',
   lastUpdated:'2026-03-11',
@@ -1821,11 +1882,16 @@ const NAV = {
     { route:'#/defender/repositories',          label:'Repositories',            icon:'📚' },
     { route:'#/defender/community',             label:'Community',               icon:'💬' },
     { section:'Configuration' },
+    { route:'#/defender/settings',              label:'Settings',                icon:'⚙' },
     { route:'#/defender/endpoints',             label:'Endpoints',               icon:'💻' },
     { route:'#/defender/email-collab',          label:'Email & collaboration',   icon:'✉' },
     { route:'#/defender/cloud-apps',            label:'Cloud apps',              icon:'☁' },
     { route:'#/defender/secure-score',          label:'Secure score',            icon:'🛡' },
     { route:'#/defender/suppression',           label:'Suppression rules',       icon:'🔕' },
+    { route:'#/defender/asr-policy',            label:'ASR policies',            icon:'🚧' },
+    { route:'#/defender/notifications',         label:'Email notifications',     icon:'📨' },
+    { route:'#/defender/alert-tuning',          label:'Alert tuning',            icon:'🎚' },
+    { route:'#/defender/air',                   label:'AIR center',              icon:'🤖' },
     { section:'Other' },
     { route:'#/defender/reports',               label:'Reports',                 icon:'📑' },
     { route:'#/defender/learning-hub',          label:'Learning hub',            icon:'🎓' },

@@ -347,6 +347,25 @@ fix-PR-style commits could not be created in this workspace.
     supporting study content, while keeping them in scope for lab realism.
   - Marked AGENTS.md Sprint 2 Agent 1 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 2 Defender XDR/MDE settings and automation:
+  - Added `#/defender/settings` with MDE advanced-feature toggles, rules
+    settings, custom data collection cards, device groups, permissions/roles,
+    and per-group automation levels.
+  - Added `#/defender/asr-policy` with ASR audit/block/warn state controls,
+    observed impact, and exclusion examples.
+  - Added `#/defender/notifications` with incident/action/threat analytics
+    email notification rules plus a static create-notification flow.
+  - Added `#/defender/alert-tuning` showing signal-to-incident correlation,
+    incident rollup examples, and tuning rules separate from suppression.
+  - Added `#/defender/air` with automated investigation rows and an automatic
+    attack disruption explanation tied to ransomware incident `INC-1050`.
+  - Added fictional fixture data for all Agent 2 surfaces in `ui/data.js`,
+    small local DOM handlers in `ui/app.js`, scoped original CSS in
+    `ui/styles.css`, and Defender nav links for each new route.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Marked AGENTS.md Sprint 2 Agent 2 checklist complete.
+
 ## Next useful work
 
 - **Sprint 2 (2026-07-06):** `AGENTS.md` now defines Agents 1–9 covering

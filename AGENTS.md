@@ -109,16 +109,16 @@ and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
   scenarios as supporting study content per the delta's de-emphasis notes.
 
 ## Agent 2 — Defender XDR/MDE settings & automation
-- [ ] **2.1** `#/defender/settings` surface: MDE advanced features toggles,
+- [x] **2.1** `#/defender/settings` surface: MDE advanced features toggles,
   rules settings, custom data collection, device groups, permissions/roles,
   automation levels per group.
-- [ ] **2.2** ASR policy configuration view (audit vs block modes,
+- [x] **2.2** ASR policy configuration view (audit vs block modes,
   per-rule states, exclusions).
-- [ ] **2.3** Email notification rules for incidents, actions, and threat
+- [x] **2.3** Email notification rules for incidents, actions, and threat
   analytics (create-notification flow, lab-static).
-- [ ] **2.4** Alert correlation/tuning beyond suppression: show how alerts
+- [x] **2.4** Alert correlation/tuning beyond suppression: show how alerts
   roll into incidents and a tuning-rule surface.
-- [ ] **2.5** AIR (automated investigation & response) center + automatic
+- [x] **2.5** AIR (automated investigation & response) center + automatic
   attack disruption explanation surface with a disrupted-incident example.
 
 ## Agent 3 — MDE device response deepening

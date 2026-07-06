@@ -779,6 +779,230 @@ VIEWS['defender/secure-score'] = () => `
   </div>
 `;
 
+VIEWS['defender/settings'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Configuration › <strong>Settings</strong></div>
+      <h1>Microsoft Defender XDR settings</h1>
+      <div class="page-subtitle">MDE tenant controls for advanced features, device grouping, permissions, and automation levels.</div>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-secondary" onclick="toast('Settings export prepared in the lab.')">Export</button>
+      <button class="btn btn-primary" onclick="toast('Settings saved in lab memory only.')">Save changes</button>
+    </div>
+  </div>
+  <div class="settings-grid">
+    <section class="card card-body">
+      <div class="alert-section-title">Advanced features</div>
+      <div class="settings-list">
+        ${MDE_SETTINGS.advancedFeatures.map(f => `
+          <label class="setting-row">
+            <input type="checkbox" ${f.enabled ? 'checked' : ''} onchange="toggleSettingState(this)">
+            <span><strong>${esc(f.name)}</strong><small>${esc(f.note)}</small></span>
+            <em>${f.enabled ? 'On' : 'Off'}</em>
+          </label>
+        `).join('')}
+      </div>
+    </section>
+    <section class="card card-body">
+      <div class="alert-section-title">Rules settings</div>
+      <table class="grid compact-grid">
+        <thead><tr><th>Area</th><th>Current setting</th><th>Owner</th></tr></thead>
+        <tbody>${MDE_SETTINGS.rulesSettings.map(r => `
+          <tr><td><strong>${esc(r.area)}</strong></td><td>${esc(r.setting)}</td><td>${esc(r.owner)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </section>
+  </div>
+  <div class="two-col" style="margin-top:16px;">
+    <section class="card">
+      <div class="card-toolbar"><strong>Device groups and automation levels</strong><span class="muted">Rank controls policy precedence</span></div>
+      <table class="grid">
+        <thead><tr><th>Rank</th><th>Device group</th><th>Devices</th><th>Automation level</th><th>Allowed role</th></tr></thead>
+        <tbody>${MDE_SETTINGS.deviceGroups.map(g => `
+          <tr><td>${g.rank}</td><td><strong>${esc(g.name)}</strong></td><td>${g.devices}</td><td>${esc(g.automation)}</td><td>${esc(g.role)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </section>
+    <section class="card">
+      <div class="card-toolbar"><strong>Permissions and roles</strong><a class="chip-link" href="#/defender/action-center">Review pending actions →</a></div>
+      <table class="grid">
+        <thead><tr><th>Role</th><th>Members</th><th>Rights</th></tr></thead>
+        <tbody>${MDE_SETTINGS.roles.map(r => `
+          <tr><td><strong>${esc(r.role)}</strong></td><td>${esc(r.members)}</td><td>${esc(r.rights)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </section>
+  </div>
+  <section class="card" style="margin-top:16px;">
+    <div class="card-toolbar"><strong>Custom data collection</strong><span class="muted">Lab-only study cards</span></div>
+    <div class="tile-grid">
+      ${MDE_SETTINGS.customCollection.map(c => `
+        <div class="tile">
+          <div class="tile-title">${esc(c.name)}</div>
+          <div class="tile-sub">${esc(c.scope)}</div>
+          <div><span class="entity-chip">${esc(c.table)}</span><span class="tag ${c.status === 'Collecting' ? 'green' : 'orange'}">${esc(c.status)}</span></div>
+        </div>
+      `).join('')}
+    </div>
+  </section>
+`;
+
+VIEWS['defender/asr-policy'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Configuration › Endpoints › <strong>Attack surface reduction</strong></div>
+      <h1>ASR policy configuration</h1>
+      <div class="page-subtitle">Practice choosing audit, warn, and block behavior before enforcing high-impact endpoint rules.</div>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-secondary" onclick="toast('ASR policy duplicated for pilot testing.')">Duplicate policy</button>
+      <button class="btn btn-primary" onclick="toast('ASR policy saved in the lab.')">Save policy</button>
+    </div>
+  </div>
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">Block rules</span><span class="kpi-value">${ASR_POLICIES.filter(p=>p.state==='Block').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Audit rules</span><span class="kpi-value">${ASR_POLICIES.filter(p=>p.state==='Audit').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Warn rules</span><span class="kpi-value">${ASR_POLICIES.filter(p=>p.state==='Warn').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Exclusions</span><span class="kpi-value">${ASR_POLICIES.reduce((n,p)=>n+p.exclusions.length,0)}</span></div>
+  </div>
+  <div class="card">
+    <div class="card-toolbar"><strong>Rule states</strong><span class="muted">Audit first when business impact is uncertain</span></div>
+    <table class="grid">
+      <thead><tr><th>ASR rule</th><th>State</th><th>Mode</th><th>Exclusions</th><th>Observed impact</th></tr></thead>
+      <tbody>${ASR_POLICIES.map(p => `
+        <tr>
+          <td><strong>${esc(p.rule)}</strong></td>
+          <td><select class="input-sm"><option ${p.state==='Block'?'selected':''}>Block</option><option ${p.state==='Audit'?'selected':''}>Audit</option><option ${p.state==='Warn'?'selected':''}>Warn</option><option ${p.state==='Off'?'selected':''}>Off</option></select></td>
+          <td>${esc(p.mode)}</td>
+          <td>${p.exclusions.length ? p.exclusions.map(e=>`<span class="entity-chip">${esc(e)}</span>`).join('') : '<span class="muted">None</span>'}</td>
+          <td>${esc(p.impact)}</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  </div>
+  <div class="callout info" style="margin-top:16px;">
+    <strong>SC-200 decision point:</strong> use Audit to measure breakage, Warn when user override is acceptable, and Block for high-confidence protections after exclusions are justified.
+  </div>
+`;
+
+VIEWS['defender/notifications'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Configuration › <strong>Email notifications</strong></div>
+      <h1>Email notification rules</h1>
+      <div class="page-subtitle">Static create flow for incident, action center, and threat analytics notifications.</div>
+    </div>
+    <div class="page-actions"><button class="btn btn-primary" onclick="showNotificationComposer()">+ Create notification rule</button></div>
+  </div>
+  <div class="two-col">
+    <section class="card">
+      <div class="card-toolbar"><strong>${NOTIFICATION_RULES.length}</strong> notification rules</div>
+      <table class="grid">
+        <thead><tr><th>Status</th><th>Name</th><th>Trigger</th><th>Recipients</th><th>Filter</th></tr></thead>
+        <tbody>${NOTIFICATION_RULES.map(r => `
+          <tr><td><span class="status-dot resolved"></span>${esc(r.status)}</td><td><strong>${esc(r.name)}</strong></td><td>${esc(r.trigger)}</td><td>${esc(r.recipients)}</td><td>${esc(r.filter)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </section>
+    <section class="card card-body notification-composer" id="notification-composer">
+      <div class="alert-section-title">Create notification rule</div>
+      <label class="wizard-label">Rule name<input class="text-input" id="notif-name" value="Medium incidents assigned to L1"></label>
+      <label class="wizard-label">Notify on
+        <select class="text-input" id="notif-trigger">
+          <option>Incident created or updated</option>
+          <option>Action center item pending</option>
+          <option>Threat analytics report impacts assets</option>
+        </select>
+      </label>
+      <label class="wizard-label">Recipients<input class="text-input" value="l1-soc@contoso.example"></label>
+      <label class="wizard-label">Filter<input class="text-input" value="Severity is Medium and assignedTo is L1-Triage"></label>
+      <button class="btn btn-primary" onclick="createNotificationRule()">Create lab rule</button>
+      <div class="callout hidden" id="notification-result"></div>
+    </section>
+  </div>
+`;
+
+VIEWS['defender/alert-tuning'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Investigation &amp; response › <strong>Alert tuning</strong></div>
+      <h1>Alert correlation and tuning</h1>
+      <div class="page-subtitle">Suppression removes matching alert noise; correlation and tuning control how alerts become incidents.</div>
+    </div>
+    <div class="page-actions"><button class="btn btn-primary" onclick="toast('Tuning rule draft created in the lab.')">+ Create tuning rule</button></div>
+  </div>
+  <div class="correlation-path">
+    <div><strong>Signal</strong><span>Raw detection from MDE, MDO, MDI, MDA, Entra, or cloud workload protection.</span></div>
+    <div><strong>Alert</strong><span>Entity, evidence, severity, source, and MITRE context are normalized.</span></div>
+    <div><strong>Correlation</strong><span>Shared entities, time windows, and source logic group related alerts.</span></div>
+    <div><strong>Incident</strong><span>The analyst receives a unified case with timeline, evidence, and response actions.</span></div>
+  </div>
+  <div class="two-col" style="margin-top:16px;">
+    <section class="card">
+      <div class="card-toolbar"><strong>Incident rollup examples</strong><a class="chip-link" href="#/defender/incidents">Open incidents →</a></div>
+      <table class="grid">
+        <thead><tr><th>Incident</th><th>Correlated alerts</th><th>Why grouped</th></tr></thead>
+        <tbody>${INCIDENTS.filter(i => i.alertIds.length > 1).slice(0,5).map(i => `
+          <tr onclick="openIncident('${i.id}')">
+            <td><span class="sev ${i.severity}">${cap(i.severity)}</span> <strong>${esc(i.title)}</strong></td>
+            <td>${i.alertIds.map(id=>`<span class="entity-chip">${esc(id)}</span>`).join('')}</td>
+            <td>${esc(i.entities.slice(0,2).map(e=>e.name).join(' + '))} inside the same investigation window</td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </section>
+    <section class="card">
+      <div class="card-toolbar"><strong>Tuning rules</strong><a class="chip-link" href="#/defender/suppression">Compare suppression →</a></div>
+      <table class="grid">
+        <thead><tr><th>Status</th><th>Name</th><th>Type</th><th>Outcome</th></tr></thead>
+        <tbody>${ALERT_TUNING_RULES.map(r => `
+          <tr><td><span class="tag ${r.status === 'Enabled' ? 'green' : 'orange'}">${esc(r.status)}</span></td><td><strong>${esc(r.name)}</strong><br><span class="muted">${esc(r.condition)}</span></td><td>${esc(r.type)}</td><td>${esc(r.outcome)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </section>
+  </div>
+`;
+
+VIEWS['defender/air'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Investigation &amp; response › <strong>AIR center</strong></div>
+      <h1>Automated investigation and response</h1>
+      <div class="page-subtitle">Review automated investigations, remediation approvals, and automatic attack disruption outcomes.</div>
+    </div>
+    <div class="page-actions"><button class="btn btn-primary" onclick="toast('AIR policy review opened in the lab.')">Review automation policy</button></div>
+  </div>
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">Investigations</span><span class="kpi-value">${AIR_INVESTIGATIONS.length}</span></div>
+    <div class="kpi"><span class="kpi-label">Completed</span><span class="kpi-value">${AIR_INVESTIGATIONS.filter(i=>i.status==='Completed').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Pending approval</span><span class="kpi-value">${AIR_INVESTIGATIONS.filter(i=>i.status.includes('approval')).length}</span></div>
+    <div class="kpi"><span class="kpi-label">Attack disruption</span><span class="kpi-value">${AIR_INVESTIGATIONS.filter(i=>i.disruption).length}</span></div>
+  </div>
+  <div class="two-col">
+    <section class="card">
+      <div class="card-toolbar"><strong>AIR investigations</strong><span class="muted">Fictional lab queue</span></div>
+      <table class="grid">
+        <thead><tr><th>Status</th><th>Investigation</th><th>Verdict</th><th>Actions</th></tr></thead>
+        <tbody>${AIR_INVESTIGATIONS.map(i => `
+          <tr><td><span class="tag ${i.status === 'Completed' ? 'green' : 'orange'}">${esc(i.status)}</span></td><td><strong>${esc(i.id)}</strong><br><button class="link-button strong" onclick="openIncident('${esc(i.incident)}')">${esc(i.title)}</button></td><td>${esc(i.verdict)}</td><td>${i.actions.map(a=>`<div class="mini-step">${esc(a)}</div>`).join('')}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </section>
+    <section class="card card-body">
+      <div class="alert-section-title">Automatic attack disruption example</div>
+      <div class="callout warn">INC-1050 triggered a high-confidence ransomware chain. The lab marks it as disrupted after automatic containment isolated the device and stopped malicious execution.</div>
+      <div class="flowline vertical-flow">
+        <div class="flow-step"><strong>Detect</strong><span>Ransomware encryption and shadow-copy deletion alerts correlate.</span></div>
+        <div class="flow-step"><strong>Contain</strong><span>AIR isolates FIN-FS-02 and kills the process tree.</span></div>
+        <div class="flow-step"><strong>Remediate</strong><span>locker.exe is quarantined; pending file restore remains an analyst decision.</span></div>
+        <div class="flow-step"><strong>Explain</strong><span>Attack disruption reduces spread while preserving an evidence trail in the incident timeline.</span></div>
+      </div>
+      <button class="btn btn-secondary" onclick="openIncidentPage('INC-1050')">Open disrupted incident</button>
+    </section>
+  </div>
+`;
+
 // ---------- Defender for Endpoint › Devices ----------
 VIEWS['defender/devices'] = () => `
   <div class="page-header">

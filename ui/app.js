@@ -434,6 +434,33 @@ function replayScenario() {
   toast('Replayed 5 detection events through current suppression rules.');
 }
 
+function toggleSettingState(input) {
+  const row = input.closest('.setting-row');
+  const state = row?.querySelector('em');
+  if (state) state.textContent = input.checked ? 'On' : 'Off';
+}
+window.toggleSettingState = toggleSettingState;
+
+function showNotificationComposer() {
+  const composer = document.getElementById('notification-composer');
+  if (!composer) return;
+  composer.classList.add('active');
+  composer.scrollIntoView({ behavior:'smooth', block:'center' });
+  setTimeout(() => document.getElementById('notif-name')?.focus(), 150);
+}
+window.showNotificationComposer = showNotificationComposer;
+
+function createNotificationRule() {
+  const result = document.getElementById('notification-result');
+  const name = document.getElementById('notif-name')?.value || 'Untitled notification';
+  const trigger = document.getElementById('notif-trigger')?.value || 'Incident created or updated';
+  if (!result) return;
+  result.classList.remove('hidden');
+  result.innerHTML = `<strong>Created:</strong> ${esc(name)} listens for "${esc(trigger)}" in this lab session.`;
+  toast('Created email notification rule in the lab.');
+}
+window.createNotificationRule = createNotificationRule;
+
 function openSentinelRule(i) {
   const r = SENTINEL_RULES[i];
   if (!r) return;
