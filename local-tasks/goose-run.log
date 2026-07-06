@@ -2136,3 +2136,24 @@ no drafts found in local-tasks/out/views/
      L L     goose is ready
 
 no drafts found in local-tasks/out/views/
+=== V20 attempt 1: 2026-07-06T11:44:04+02:00 ===
+
+    __( O)>  ● new session · ollama qwen2.5:7b
+   \____)    20260706_58 · /home/alex/defender-lab
+     L L     goose is ready
+
+no drafts found in local-tasks/out/views/
+=== V20 attempt 2: 2026-07-06T11:44:24+02:00 ===
+
+    __( O)>  ● new session · ollama qwen2.5:7b
+   \____)    20260706_59 · /home/alex/defender-lab
+     L L     goose is ready
+brtc
+{
+    "name": "write",
+    "arguments": {
+        "path": "/home/alex/defender-lab/local-tasks/out/views/v20-sentinel-mssp.js",
+        "content": "// nav: Configuration | MSSP & Lighthouse | 🌐\nVIEWS['sentinel/mssp'] = () => ` \n<div class=\"page-header\">\n  <div>\n    <div class=\"breadcrumb\">Microsoft Sentinel › Configuration › <strong>MSSP & Lighthouse</strong></div>\n    <h1>MSSP & Azure Lighthouse</h1>\n    <div class=\"page-subtitle\">Configure roles and manage cross-workspace queries for your MSSP customers.</div>\n  </div>\n  <div class=\"page-actions\"><a class=\"btn btn-secondary\" href=\"#/sentinel/workspace-manager\">Workspace manager</a></div>\n</div>\n<table class=\"grid\">\n<thead><tr><th>Customer</th><th>Workspaces</th><th>Delegated roles</th><th>Status</th></tr></thead>\n<tbody>${MSSP_TENANTS.map(t => `<tr><td>${esc(t.name)}</td><td>${esc(t.workspaces.join(', '))}</td><td>${esc(t.delegatedRoles.join(', '))}</td><td class=\"${t.status === 'Active' ? 'tag green' : 'tag orange'}\">${t.status}</td></tr>`).join('')}</tbody>\n</table>\n<div class=\"card card-body\"><div class=\"muted\">A single cross-workspace query can span multiple customer delegated workspaces.</div><div class=\"kv key-wrap\">example: <span class=\"tag tag-orange\">workspace('nw-ops-prod')</span>.SecurityAlert | union <span class=\"tag tag-orange\">workspace('blueharbor-sec')</span>.SecurityAlert | summarize count() by TenantId</div></div>\n<div class=\"card card-body\">\n  Lighthouse delegates resource access so one analyst tenant manages many customer workspaces.\n  Roles are granted per delegation, and B2B guest access is still needed for portal experiences that read the customer directory.\n  Content is distributed centrally via workspace manager.\n</div>` }
+    }
+} rtbc
+no drafts found in local-tasks/out/views/
