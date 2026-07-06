@@ -79,3 +79,21 @@
   long hex/secret-like strings, no real-year CVEs).
 - Output: `out/t08-audit-premium.js`
 
+## T09 — 2026-07-06T11:17:17+02:00
+- **FAIL** after 2 attempts. Last verifier output:
+  > FAIL T09:
+  >   - TX_EMAILS[0] missing key "campaign"
+  >   - TX_EMAILS[1] missing key "campaign"
+  >   - TX_EMAILS[2] missing key "campaign"
+  >   - TX_EMAILS[3] missing key "campaign"
+  >   - TX_EMAILS[4] missing key "campaign"
+  >   - TX_EMAILS[5] missing key "campaign"
+  >   - TX_EMAILS[6] missing key "campaign"
+  >   - TX_EMAILS[7] missing key "campaign"
+  >   - TX_EMAILS[8] missing key "campaign"
+  >   - TX_EMAILS[9] missing key "campaign"
+  >   - TX_EMAILS[10] missing key "campaign"
+  >   - TX_EMAILS[11] missing key "campaign"
+  >   - TX_EMAILS[12] missing key "campaign"
+- Output deleted; task remains open.
+
