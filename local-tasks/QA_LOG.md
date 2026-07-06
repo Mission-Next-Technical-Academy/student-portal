@@ -138,3 +138,6 @@ views: 88/88 render clean; dead NAV routes: 0
 ## add_view v17-defender-vulnerabilities — 2026-07-06T11:33:25+02:00
 - **PASS**: route #defender/vulnerabilities wired: draft render gate (RENDER-OK 6930 chars, 1 links), spliced into views.js + NAV, node --check clean
 
+## add_view v20-sentinel-mssp — 2026-07-06T11:36:03+02:00
+- **FAIL**: node --check failed on draft
+
