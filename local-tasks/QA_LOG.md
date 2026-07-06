@@ -107,3 +107,6 @@
   long hex/secret-like strings, no real-year CVEs).
 - Output: `out/t09-threat-explorer.js`
 
+## integrate.py — 2026-07-06T11:20:10+02:00
+- Merged 10/10 task drafts into `ui/data.js` (marker section rebuilt), `node --check` clean. Detail: `INTEGRATION.md`.
+
