@@ -226,13 +226,13 @@ delta objectives but never audited existing nav links.
 ## Agent 11 — SC-200 Learn-link coverage sweep (read-only report)
 Authoritative corpus: `/home/alex/sc-200_app/sc-200_microsoft_learn_links.txt`
 (curated official-only SC-200 link index, 2026-07-03, sectioned by topic).
-- [ ] **11.1** For each section/topic in the link index, assess lab
+- [x] **11.1** For each section/topic in the link index, assess lab
   coverage: full (interactive surface exists), partial (fixture or study
   card only), missing.
-- [ ] **11.2** Write `COVERAGE_SWEEP.md` at the repo root: a
+- [x] **11.2** Write `COVERAGE_SWEEP.md` at the repo root: a
   covered/partial/missing table per topic with the lab route(s) that
   cover it, plus a ranked list of the biggest remaining gaps.
-- [ ] **11.3** Do NOT copy Learn text. Do NOT edit ui/ files — report only.
+- [x] **11.3** Do NOT copy Learn text. Do NOT edit ui/ files — report only.
 
 ---
 

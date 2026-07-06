@@ -543,9 +543,24 @@ fix-PR-style commits could not be created in this workspace.
     "Page not found" or obvious render exceptions.
   - Marked AGENTS.md Sprint 2 Agent 10 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 11 Learn-link coverage sweep:
+  - Read the curated official-only SC-200 Learn link index at
+    `/home/alex/sc-200_app/sc-200_microsoft_learn_links.txt`.
+  - Added `COVERAGE_SWEEP.md` with full/partial/missing coverage tables for
+    every section/topic in the link index and route mappings back to the lab.
+  - Ranked the remaining gaps: standalone Security Copilot administration,
+    exam logistics support, advanced KQL breadth, Sentinel bookmarks/
+    livestream/restore depth, Defender Vulnerability Management depth,
+    Defender for Cloud multi-cloud onboarding depth, and Purview Audit
+    Premium depth.
+  - Kept the pass report-only; no `ui/` files were edited.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Marked AGENTS.md Sprint 2 Agent 11 checklist complete.
+
 ## Next useful work
 
-- Sprint 2 Agents 1-10 are complete against the July 2026 objectives delta
-  and dead-route audit.
+- Sprint 2 Agents 1-11 are complete against the July 2026 objectives delta,
+  dead-route audit, and Learn-link coverage sweep.
 - Next pass should be a human visual review in Firefox only if Alex wants
   pixel-level polish beyond the automated route and interaction sweep.
