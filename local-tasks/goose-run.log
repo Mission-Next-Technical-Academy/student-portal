@@ -1724,3 +1724,62 @@ GOOSE RUN COMPLETE 2026-07-06T11:20:10+02:00
    \____)    20260706_23 · /home/alex/defender-lab
      L L     goose is ready
 
+=== V12 attempt 1: 2026-07-06T11:29:15+02:00 ===
+
+    __( O)>  ● new session · ollama qwen2.5:7b
+   \____)    20260706_24 · /home/alex/defender-lab
+     L L     goose is ready
+ronics
+    
+```js
+// nav: Manage | Plugins | 🧩
+VIEWS['copilot/plugins'] = () => `
+<div class="page-header">
+  <div>
+    <div class="breadcrumb">Security Copilot › <strong>Plugins</strong></div>
+    <h1>Plugins</h1>
+    <div class="page-subtitle">Configure and manage plugins to enhance Security Copilot's capabilities.</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-primary" onclick="toast('Plugin catalog is a fictional lab surface.')">Add plugin</button>
+  </div>
+</div>
+<div class="grid">
+  <div class="kpi"><div class="kpi-value">${COPILOT_PLUGINS.length}</div><div class="kpi-label">Total Plugins</div></div>
+  <div class="kpi"><div class="kpi-value">${COPILOT_PLUGINS.filter(p => p.status === 'On').length}</div><div class="kpi-label">Plugins On</div></div>
+  <div class="kpi"><div class="kpi-value">${COPILOT_PLUGINS.filter(p => p.category === 'Custom').length}</div><div class="kpi-label">Custom Plugins</div></div>
+</div>
+<table class="grid">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Category</th>
+      <th>Status</th>
+      <th>Description</th>
+      <th>Setup Note</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${COPILOT_PLUGINS.map(p => `
+    <tr>
+      <td>${esc(p.name)}</td>
+      <td><span class="tag">${p.category === 'First-party' ? 'First-p' : p.category === 'Non-Microsoft' ? 'Non-MS' : ''}</span></td>
+      <td><span class="tag ${p.status === 'On' ? 'green' : 'orange'}">${p.status}</span></td>
+      <td>${esc(p.description)}</td>
+      <td>${esc(p.setupNote)}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>
+<div class="card card-body">
+  Plugins ground Copilot answers in security data; first-party plugins connect tenant products; custom KQL/API plugins extend reach. The most relevant enabled plugin is chosen to answer a prompt.
+</div>
+`;
+```
+no drafts found in local-tasks/out/views/
+=== V12 attempt 2: 2026-07-06T11:29:49+02:00 ===
+
+    __( O)>  ● new session · ollama qwen2.5:7b
+   \____)    20260706_25 · /home/alex/defender-lab
+     L L     goose is ready
+
+no drafts found in local-tasks/out/views/
