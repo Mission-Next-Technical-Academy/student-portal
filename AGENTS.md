@@ -166,18 +166,18 @@ and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
   feed hunting/detections).
 
 ## Agent 7 — Incident response surfaces
-- [ ] **7.1** Defender for Cloud Apps investigation surface: risky OAuth
+- [x] **7.1** Defender for Cloud Apps investigation surface: risky OAuth
   app investigation tied to the existing phishing→OAuth incident.
-- [ ] **7.2** Entra ID compromised-identity investigation view (risky
+- [x] **7.2** Entra ID compromised-identity investigation view (risky
   sign-ins, risk detections, confirm-compromise/dismiss actions) tied to
   the existing risky sign-in incident.
-- [ ] **7.3** Case management: Sentinel/Defender cases with tasks,
+- [x] **7.3** Case management: Sentinel/Defender cases with tasks,
   assignment, linked incidents.
-- [ ] **7.4** Sentinel incidents viewed through the Defender XDR lens
+- [x] **7.4** Sentinel incidents viewed through the Defender XDR lens
   (unified queue callouts on `#/sentinel/incidents`).
-- [ ] **7.5** Upgrade Copilot panel: one guided agentic investigation flow
+- [x] **7.5** Upgrade Copilot panel: one guided agentic investigation flow
   (multi-step plan → tool calls → verdict), still fully static.
-- [ ] **7.6** Dedicated Sentinel Graph view rendering the existing INC-1042
+- [x] **7.6** Dedicated Sentinel Graph view rendering the existing INC-1042
   node/edge fixtures (entity relationship analysis).
 
 ## Agent 8 — M365 investigation & threat analytics depth

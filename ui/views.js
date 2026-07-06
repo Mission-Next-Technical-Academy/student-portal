@@ -420,6 +420,53 @@ VIEWS['defender/alerts'] = () => {
   `;
 };
 
+VIEWS['defender/cases'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Investigation &amp; response › <strong>Cases</strong></div>
+      <h1>Case management</h1>
+      <div class="page-subtitle">Coordinate owners, tasks, linked incidents, and closure notes across Defender XDR and Sentinel investigations.</div>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-secondary" onclick="toast('Case export prepared in the lab.')">Export</button>
+      <button class="btn btn-primary" onclick="toast('New case draft created in memory only.')">+ Create case</button>
+    </div>
+  </div>
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">Active cases</span><span class="kpi-value">${CASE_MANAGEMENT.filter(c=>c.status==='Active').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Draft cases</span><span class="kpi-value">${CASE_MANAGEMENT.filter(c=>c.status==='Draft').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Linked incidents</span><span class="kpi-value">${CASE_MANAGEMENT.reduce((n,c)=>n+c.linkedIncidents.length,0)}</span></div>
+    <div class="kpi"><span class="kpi-label">Open tasks</span><span class="kpi-value">${CASE_MANAGEMENT.reduce((n,c)=>n+c.tasks.filter(t=>t.status!=='Done').length,0)}</span></div>
+  </div>
+  <div class="case-board">
+    ${CASE_MANAGEMENT.map(c => `
+      <section class="card case-card">
+        <div class="card-toolbar">
+          <strong>${esc(c.id)}</strong>
+          <span class="tag ${c.status === 'Active' ? 'orange' : ''}">${esc(c.status)}</span>
+        </div>
+        <div class="case-title">${esc(c.title)}</div>
+        <dl class="summary-info">
+          <dt>Owner</dt><dd>${esc(c.owner)}</dd>
+          <dt>Severity</dt><dd><span class="sev ${c.severity.toLowerCase()}">${esc(c.severity)}</span></dd>
+          <dt>Due</dt><dd>${fmtTime(c.due)}</dd>
+          <dt>Linked incidents</dt><dd>${c.linkedIncidents.map(id=>`<button class="link-button" onclick="openIncidentPage('${esc(id)}')">${esc(id)}</button>`).join(' ')}</dd>
+        </dl>
+        <div class="alert-section-title">Tasks</div>
+        <div class="case-task-list">
+          ${c.tasks.map(t => `
+            <div class="case-task">
+              <span class="status-dot ${t.status === 'Done' ? 'resolved' : t.status === 'In progress' ? 'warn' : ''}"></span>
+              <span><strong>${esc(t.title)}</strong><small>${esc(t.assignee)} · ${esc(t.status)}</small></span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="callout ${c.status === 'Active' ? 'warn' : 'info'}">${esc(c.closure)}</div>
+      </section>
+    `).join('')}
+  </div>
+`;
+
 VIEWS['defender/hunting'] = () => {
   const prefilled = sessionStorage.getItem('defender-lab.hunting.prefill');
   const autorun = sessionStorage.getItem('defender-lab.hunting.autorun') === '1';
@@ -794,6 +841,62 @@ VIEWS['defender/secure-score'] = () => `
     </table>
   </div>
 `;
+
+VIEWS['defender/cloud-apps'] = () => {
+  const inv = CLOUD_APP_INVESTIGATIONS[0];
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Configuration › <strong>Cloud apps</strong></div>
+        <h1>Defender for Cloud Apps investigation</h1>
+        <div class="page-subtitle">Risky OAuth app investigation tied to ${esc(inv.incidentId)} and the phishing-to-consent abuse scenario.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="openIncident('${esc(inv.incidentId)}')">Open incident preview</button>
+        <button class="btn btn-primary" onclick="openIncidentPage('${esc(inv.incidentId)}')">Open in Defender XDR</button>
+      </div>
+    </div>
+    <div class="kpi-strip">
+      <div class="kpi"><span class="kpi-label">Risky app</span><span class="kpi-value">${esc(inv.appName)}</span><span class="kpi-delta bad">${esc(inv.risk)} risk</span></div>
+      <div class="kpi"><span class="kpi-label">Consenting user</span><span class="kpi-value" style="font-size:18px;">${esc(inv.user)}</span></div>
+      <div class="kpi"><span class="kpi-label">Scopes</span><span class="kpi-value">${inv.scopes.length}</span><span class="kpi-delta">Mail + files + refresh token</span></div>
+      <div class="kpi"><span class="kpi-label">Verdict</span><span class="kpi-value" style="font-size:18px;">True positive</span></div>
+    </div>
+    <div class="two-col">
+      <section class="card card-body">
+        <div class="alert-section-title">Risky OAuth app</div>
+        <dl class="summary-info">
+          <dt>App name</dt><dd>${esc(inv.appName)}</dd>
+          <dt>Publisher</dt><dd>${esc(inv.publisher)}</dd>
+          <dt>Consent time</dt><dd>${fmtTime(inv.consentTime)}</dd>
+          <dt>Incident</dt><dd><button class="link-button" onclick="openIncidentPage('${esc(inv.incidentId)}')">${esc(inv.incidentId)}</button></dd>
+        </dl>
+        <div class="pill-row">${inv.scopes.map(s=>`<span class="tag orange">${esc(s)}</span>`).join('')}</div>
+        <div class="alert-section-title">Why risky</div>
+        <ul class="compact-list">${inv.indicators.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>
+      </section>
+      <section class="card card-body">
+        <div class="alert-section-title">Response actions</div>
+        <div class="response-flow">
+          ${inv.response.map((r, idx) => `
+            <div><strong>${idx + 1}. ${esc(r)}</strong><span>${idx < 2 ? 'High-confidence containment' : 'Investigation follow-up'}</span></div>
+          `).join('')}
+        </div>
+        <div class="callout warn" style="margin-top:12px;">${esc(inv.verdict)}</div>
+        <button class="btn btn-secondary btn-sm" onclick="toast('DocViewer Pro consent revoked in lab state.')">Revoke app consent</button>
+        <button class="btn btn-secondary btn-sm" onclick="toast('Tenant app block queued in lab state.')">Block app</button>
+      </section>
+    </div>
+    <section class="card" style="margin-top:16px;">
+      <div class="card-toolbar"><strong>Investigation timeline</strong><a class="chip-link" href="#/sentinel/graph">Open Sentinel Graph →</a></div>
+      <ol class="timeline card-body">
+        ${inv.activity.map(a => `
+          <li><div class="t-time">${fmtTime(a.time)}</div><div class="t-title">${esc(a.title)}</div><div class="muted">${esc(a.detail)}</div></li>
+        `).join('')}
+      </ol>
+    </section>
+  `;
+};
 
 VIEWS['defender/settings'] = () => `
   <div class="page-header">
@@ -1430,6 +1533,70 @@ VIEWS['defender/identities'] = () => `
   </div>
 `;
 
+VIEWS['defender/identity-protection'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Assets › Identities › <strong>Identity protection</strong></div>
+      <h1>Compromised identity investigation</h1>
+      <div class="page-subtitle">Review risky sign-ins and risk detections, then confirm compromise or dismiss risk with documented context.</div>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-secondary" onclick="toast('Risk policy settings opened in the lab.')">Risk policy</button>
+      <button class="btn btn-primary" onclick="openIdentity('sam.lee@contoso.com')">Open Sam Lee identity</button>
+    </div>
+  </div>
+  <div class="identity-risk-layout">
+    <section class="card">
+      <div class="card-toolbar"><strong>Risky users</strong><span class="muted">${ENTRA_IDENTITY_INVESTIGATIONS.length} lab investigations</span></div>
+      <table class="grid">
+        <thead><tr><th>User</th><th>User risk</th><th>Sign-in risk</th><th>Status</th><th>Incident</th><th>Actions</th></tr></thead>
+        <tbody>${ENTRA_IDENTITY_INVESTIGATIONS.map(r => `
+          <tr onclick="openIdentity('${esc(r.user)}')">
+            <td><strong>${esc(r.user)}</strong></td>
+            <td><span class="sev ${r.userRisk === 'High' ? 'high' : 'medium'}">${esc(r.userRisk)}</span></td>
+            <td><span class="sev ${r.signInRisk === 'High' ? 'high' : 'medium'}">${esc(r.signInRisk)}</span></td>
+            <td>${esc(r.status)}</td>
+            <td><button class="link-button" onclick="event.stopPropagation(); openIncidentPage('${esc(r.incidentId)}')">${esc(r.incidentId)}</button></td>
+            <td>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); toast('Compromise confirmed for ${esc(r.user)} in lab state.')">Confirm compromise</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); toast('Risk dismissed for ${esc(r.user)} in lab state.')">Dismiss</button>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </section>
+    ${ENTRA_IDENTITY_INVESTIGATIONS.map(r => `
+      <section class="card card-body">
+        <div class="alert-section-title">${esc(r.user)} - investigation detail</div>
+        <div class="callout info">${esc(r.decisionGuide)}</div>
+        <div class="two-col">
+          <div>
+            <div class="alert-section-title">Risk detections</div>
+            <table class="grid compact-grid">
+              <thead><tr><th>Time</th><th>Detection</th><th>Risk</th><th>Detail</th></tr></thead>
+              <tbody>${r.riskDetections.map(d => `
+                <tr><td>${fmtTime(d.time)}</td><td><strong>${esc(d.type)}</strong><br><span class="muted">${esc(d.source)}</span></td><td><span class="sev ${d.risk === 'High' ? 'high' : 'medium'}">${esc(d.risk)}</span></td><td>${esc(d.detail)}</td></tr>
+              `).join('')}</tbody>
+            </table>
+          </div>
+          <div>
+            <div class="alert-section-title">Risky sign-ins</div>
+            <table class="grid compact-grid">
+              <thead><tr><th>Time</th><th>App</th><th>IP</th><th>Location</th><th>Result</th></tr></thead>
+              <tbody>${r.signIns.map(s => `
+                <tr><td>${fmtTime(s.time)}</td><td>${esc(s.app)}</td><td>${esc(s.ip)}</td><td>${esc(s.location)}</td><td>${esc(s.result)} · ${esc(s.risk)}</td></tr>
+              `).join('')}</tbody>
+            </table>
+          </div>
+        </div>
+        <div class="incident-command-bar">
+          ${r.actions.map(a => `<button class="btn btn-secondary btn-sm" onclick="toast('${esc(a)} action recorded for ${esc(r.user)}.')">${esc(a)}</button>`).join('')}
+        </div>
+      </section>
+    `).join('')}
+  </div>
+`;
+
 // ---------- Defender for Identity ↔ XDR › Identity detail (Overview / Timeline / …) ----------
 const IDENTITY_TABS = [
   { key:'overview',   label:'Overview' },
@@ -1873,7 +2040,118 @@ VIEWS['sentinel/home'] = () => `
   </div>
 `;
 
-VIEWS['sentinel/incidents'] = VIEWS['defender/incidents'];
+VIEWS['sentinel/incidents'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Microsoft Sentinel › Threat management › <strong>Incidents</strong></div>
+      <h1>Sentinel incidents</h1>
+      <div class="page-subtitle">Sentinel queue with Defender XDR unified-response context, ownership, evidence, and cross-product pivots.</div>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-secondary" onclick="navigate('#/defender/incidents')">Open Defender XDR queue</button>
+      <button class="btn btn-primary" onclick="navigate('#/sentinel/graph')">Open Sentinel Graph</button>
+    </div>
+  </div>
+  <div class="callout info">
+    <strong>Unified response lens:</strong> Sentinel incidents can be investigated from Defender XDR when Microsoft security signals are connected.
+    Keep Sentinel analytics, automation, bookmarks, and Graph context visible while using Defender XDR for the unified incident story and response actions.
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar"><strong>${INCIDENTS.length}</strong> incidents<span class="muted">Mapped to Defender XDR incident IDs for this lab</span></div>
+    <table class="grid">
+      <thead><tr><th>Severity</th><th>Sentinel incident</th><th>Provider</th><th>Analytics / source</th><th>Unified lens</th><th>Action</th></tr></thead>
+      <tbody>${INCIDENTS.map(i => {
+        const sources = (typeof alerts !== 'undefined' ? alerts : SEED_ALERTS).filter(a => i.alertIds.includes(a.id)).map(a => a.detectionSource);
+        const uniqueSources = [...new Set(sources)];
+        return `
+          <tr onclick="openIncident('${esc(i.id)}')">
+            <td><span class="sev ${i.severity}">${cap(i.severity)}</span></td>
+            <td><strong>${esc(i.title)}</strong><br><span class="muted">${esc(i.id)} · ${i.alertCount} alert(s)</span></td>
+            <td>${uniqueSources.map(s=>`<span class="tag">${esc(s)}</span>`).join('') || '<span class="tag">Sentinel</span>'}</td>
+            <td>${i.tactics.map(t=>`<span class="mitre">${esc(t)}</span>`).join('')}</td>
+            <td>
+              <div class="mini-step">Defender incident page preserves attack story, evidence, and response actions.</div>
+              ${i.id === SENTINEL_GRAPH.incidentId ? '<div class="mini-step">Sentinel Graph fixture available for entity relationship analysis.</div>' : ''}
+            </td>
+            <td>
+              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openIncidentPage('${esc(i.id)}')">Open in Defender XDR</button>
+              ${i.id === SENTINEL_GRAPH.incidentId ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); navigate('#/sentinel/graph')">Graph</button>` : ''}
+            </td>
+          </tr>`;
+      }).join('')}</tbody>
+    </table>
+  </div>
+`;
+
+VIEWS['sentinel/graph'] = () => {
+  const inc = INCIDENTS.find(i => i.id === SENTINEL_GRAPH.incidentId) || INCIDENTS[0];
+  const positions = [
+    { x:50, y:46 }, { x:18, y:22 }, { x:82, y:22 }, { x:20, y:75 }, { x:82, y:75 },
+  ];
+  const layout = SENTINEL_GRAPH.nodes.reduce((map, node, index) => {
+    map[node.id] = positions[index] || { x:50, y:50 };
+    return map;
+  }, {});
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Microsoft Sentinel › Threat management › <strong>Sentinel Graph</strong></div>
+        <h1>Entity relationship analysis</h1>
+        <div class="page-subtitle">Dedicated Sentinel Graph view for ${esc(SENTINEL_GRAPH.incidentId)} using the existing node and edge fixtures.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="openIncident('${esc(inc.id)}')">Open incident preview</button>
+        <button class="btn btn-primary" onclick="openIncidentPage('${esc(inc.id)}')">Open in Defender XDR</button>
+      </div>
+    </div>
+    <div class="sentinel-graph-layout">
+      <section class="card sentinel-graph-card">
+        <div class="card-toolbar">
+          <strong>${esc(inc.title)}</strong>
+          <span class="muted">${SENTINEL_GRAPH.nodes.length} nodes · ${SENTINEL_GRAPH.edges.length} edges</span>
+        </div>
+        <div class="sentinel-graph-canvas">
+          <svg class="sentinel-graph-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            ${SENTINEL_GRAPH.edges.map(edge => {
+              const from = layout[edge.from];
+              const to = layout[edge.to];
+              return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" />`;
+            }).join('')}
+          </svg>
+          ${SENTINEL_GRAPH.edges.map(edge => {
+            const from = layout[edge.from];
+            const to = layout[edge.to];
+            return `<div class="sentinel-edge-label" style="left:${(from.x + to.x) / 2}%; top:${(from.y + to.y) / 2}%;">${esc(edge.label)}</div>`;
+          }).join('')}
+          ${SENTINEL_GRAPH.nodes.map(node => {
+            const p = layout[node.id];
+            return `
+              <button class="sentinel-graph-node risk-${esc(node.risk)}" style="left:${p.x}%; top:${p.y}%;" onclick="toast('Graph node selected: ${esc(node.label)}')">
+                <span>${esc(node.type)}</span>
+                <strong>${esc(node.label)}</strong>
+              </button>`;
+          }).join('')}
+        </div>
+      </section>
+      <aside class="card card-body">
+        <div class="alert-section-title">Investigation pivots</div>
+        <div class="response-flow">
+          <div><strong>User to URL</strong><span>Validate click evidence and sign-in timing.</span></div>
+          <div><strong>User to app</strong><span>Review consent grant scopes and publisher trust.</span></div>
+          <div><strong>IP to user</strong><span>Compare source address with sign-in baseline.</span></div>
+          <div><strong>App to mailbox</strong><span>Scope Mail.ReadWrite access and possible collection.</span></div>
+        </div>
+        <div class="alert-section-title">Recommended response</div>
+        <ul class="compact-list">
+          <li>Revoke DocViewer Pro consent and block the app tenant-wide.</li>
+          <li>Revoke Jane Doe sessions and require credential recovery.</li>
+          <li>Attach Graph relationship notes to CASE-2406-1042.</li>
+          <li>Promote recurring CloudAppEvents query into Sentinel analytics.</li>
+        </ul>
+      </aside>
+    </div>
+  `;
+};
 
 VIEWS['sentinel/analytics'] = () => {
   const ws = currentWorkspace();

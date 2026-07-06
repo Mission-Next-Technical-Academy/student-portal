@@ -2241,6 +2241,38 @@ body.route-defender-hunting .content {
 .copilot-response {
   background: #fff;
 }
+.copilot-plan {
+  margin: 0 0 14px 18px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.copilot-toolcalls {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.copilot-toolcall {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-left: 3px solid var(--workload);
+  border-radius: 4px;
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.copilot-toolcall strong,
+.copilot-toolcall span,
+.copilot-toolcall em {
+  display: block;
+}
+.copilot-toolcall span {
+  color: var(--fg-muted);
+}
+.copilot-toolcall em {
+  margin-top: 4px;
+  font-style: normal;
+}
 
 /* Guided scenario coach */
 .guide-panel {
@@ -2312,6 +2344,137 @@ body.route-defender-hunting .content {
 }
 .timeline .t-time { font-size: 11px; color: var(--fg-muted); }
 .timeline .t-title { font-weight: 600; font-size: 13px; }
+
+.case-board,
+.identity-risk-layout {
+  display: grid;
+  gap: 16px;
+}
+.case-board {
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+}
+.case-card {
+  padding-bottom: 12px;
+}
+.case-title {
+  padding: 0 16px 10px;
+  font-weight: 700;
+  font-size: 15px;
+}
+.case-card .summary-info,
+.case-card .alert-section-title,
+.case-card .callout {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+.case-task-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+.case-task {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+  align-items: start;
+  font-size: 12px;
+}
+.case-task small {
+  display: block;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+.compact-list {
+  margin: 8px 0 0 18px;
+  padding: 0;
+  color: var(--fg-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.sentinel-graph-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap: 16px;
+}
+.sentinel-graph-card {
+  min-width: 0;
+}
+.sentinel-graph-canvas {
+  position: relative;
+  height: 520px;
+  background: linear-gradient(180deg, #fafafa, #fff);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+.sentinel-graph-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.sentinel-graph-lines line {
+  stroke: #8a8886;
+  stroke-width: 0.75;
+  vector-effect: non-scaling-stroke;
+}
+.sentinel-edge-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  max-width: 130px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: rgba(255,255,255,0.92);
+  color: var(--fg-muted);
+  font-size: 10px;
+  line-height: 1.15;
+  text-align: center;
+  pointer-events: none;
+  z-index: 2;
+}
+.sentinel-graph-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 126px;
+  min-height: 82px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--fg);
+  box-shadow: var(--shadow-1);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  padding: 8px 12px;
+  text-align: center;
+  cursor: pointer;
+  font: inherit;
+  z-index: 3;
+}
+.sentinel-graph-node:hover {
+  border-color: var(--workload);
+  box-shadow: 0 0 0 5px rgba(0,120,212,0.12), var(--shadow-1);
+}
+.sentinel-graph-node span {
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.sentinel-graph-node strong {
+  max-width: 104px;
+  font-size: 12px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.sentinel-graph-node.risk-high {
+  border-color: #d13438;
+}
+.sentinel-graph-node.risk-medium {
+  border-color: #ff8c00;
+}
 
 .attack-story {
   border: 1px solid var(--border-strong);
@@ -3491,6 +3654,7 @@ body.route-defender-device .page-header { margin: 0; }
   .dev-content { flex-direction: column; }
   .dev-rail { width: 100%; flex-basis: auto; border-right: 0; border-bottom: 1px solid var(--border); }
   .automation-layout { grid-template-columns: 1fr; }
+  .sentinel-graph-layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
   .table-plan-grid { grid-template-columns: 1fr; }
@@ -3501,6 +3665,8 @@ body.route-defender-device .page-header { margin: 0; }
   .dev-tle { grid-template-columns: 100px 18px 22px 1fr; }
   .dev-tle-right { display: none; }
   .response-flow div { grid-template-columns: 1fr; }
+  .sentinel-graph-canvas { height: 600px; }
+  .sentinel-graph-node { width: 112px; min-height: 76px; }
   .playbook-select-row,
   .action-header {
     align-items: flex-start;

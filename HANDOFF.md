@@ -446,6 +446,32 @@ fix-PR-style commits could not be created in this workspace.
     `node --check ui/app.js` clean.
   - Marked AGENTS.md Sprint 2 Agent 6 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 7 incident response surfaces:
+  - Added `#/defender/cloud-apps` as a Defender for Cloud Apps risky OAuth
+    investigation tied to `INC-1042`, with DocViewer Pro scopes, timeline,
+    response actions, and pivots back to the Defender incident and Sentinel
+    Graph.
+  - Added `#/defender/identity-protection` for Entra compromised-identity
+    investigation, including risky users, risky sign-ins, risk detections,
+    and lab-static confirm-compromise / dismiss actions for `INC-1053` and
+    `INC-1051`.
+  - Added `#/defender/cases` with Sentinel/Defender case management cards:
+    tasks, assignees, owners, linked incidents, due dates, and closure
+    context.
+  - Replaced the old `#/sentinel/incidents` alias with a Sentinel-specific
+    incident queue that calls out the Defender XDR unified-response lens and
+    links matching rows into the Defender incident page.
+  - Added `#/sentinel/graph`, rendering the existing `INC-1042`
+    `SENTINEL_GRAPH` node/edge fixtures for entity relationship analysis.
+  - Upgraded the Security Copilot side panel with a static guided agentic
+    investigation flow: plan, tool calls, and containment verdict for
+    `INC-1042`.
+  - Added fictional fixtures for Cloud Apps OAuth investigations, Entra risk
+    investigations, case management, and the Copilot agentic flow.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Marked AGENTS.md Sprint 2 Agent 7 checklist complete.
+
 ## Next useful work
 
 - **Sprint 2 (2026-07-06):** `AGENTS.md` now defines Agents 1–9 covering

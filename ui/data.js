@@ -1123,6 +1123,92 @@ const SENTINEL_GRAPH = {
   ],
 };
 
+const CLOUD_APP_INVESTIGATIONS = [
+  { id:'MDA-OAUTH-1042', incidentId:'INC-1042', status:'Active investigation',
+    appName:'DocViewer Pro', publisher:'Unverified publisher', user:'jane.doe@contoso.com',
+    consentTime:'2026-06-28T08:23:00Z', risk:'High',
+    scopes:['Mail.ReadWrite','Files.Read.All','offline_access'],
+    indicators:['Consent followed a phishing URL click by 12 minutes','Publisher has no verified tenant relationship','App requested mailbox write scope and persistent refresh tokens'],
+    activity:[
+      { time:'2026-06-28T08:11:00Z', title:'Phishing URL clicked', detail:'MDO recorded Jane opening secure-document-portal[.]xyz.' },
+      { time:'2026-06-28T08:12:00Z', title:'Interactive sign-in completed', detail:'Token issued after MFA prompt from 76.21.55.4.' },
+      { time:'2026-06-28T08:23:00Z', title:'OAuth consent grant', detail:'DocViewer Pro gained Mail.ReadWrite and Files.Read.All.' },
+      { time:'2026-06-28T08:31:00Z', title:'Mailbox access attempt', detail:'CloudAppEvents shows Graph mailbox enumeration by the app.' },
+    ],
+    response:['Revoke app consent','Block app tenant-wide','Revoke Jane Doe sessions','Search CloudAppEvents for the app ID'],
+    verdict:'True positive - risky OAuth consent after phishing' },
+];
+
+const ENTRA_IDENTITY_INVESTIGATIONS = [
+  { id:'IDRISK-1053', incidentId:'INC-1053', user:'sam.lee@contoso.com',
+    status:'Needs analyst decision', userRisk:'High', signInRisk:'High',
+    riskDetections:[
+      { time:'2026-06-28T13:27:00Z', type:'Unfamiliar sign-in properties', risk:'High', source:'Entra ID Protection', detail:'Sign-in from NL differs from Sam Lee baseline.' },
+      { time:'2026-06-28T13:28:00Z', type:'Anonymous IP address', risk:'Medium', source:'Entra ID Protection', detail:'Source 91.219.236.54 is tagged as an anonymizing service.' },
+      { time:'2026-06-28T13:31:00Z', type:'Impossible travel', risk:'Medium', source:'Entra ID Protection', detail:'Prior successful sign-in from Seattle occurred 42 minutes earlier.' },
+    ],
+    signIns:[
+      { time:'2026-06-28T12:45:00Z', app:'Microsoft Teams', ip:'198.51.100.18', location:'US', result:'Success', risk:'None' },
+      { time:'2026-06-28T13:27:00Z', app:'Office 365 Exchange Online', ip:'91.219.236.54', location:'NL', result:'Success', risk:'High' },
+      { time:'2026-06-28T13:33:00Z', app:'Azure Portal', ip:'91.219.236.54', location:'NL', result:'Blocked by CA', risk:'High' },
+    ],
+    actions:['Confirm compromise','Dismiss user risk','Reset password','Revoke sessions','Require MFA re-registration'],
+    decisionGuide:'Confirm compromise when the user cannot validate the NL sign-in or when follow-on activity appears from the same IP. Dismiss only after user verification and matching travel/VPN context.' },
+  { id:'IDRISK-1051', incidentId:'INC-1051', user:'maria.ross@contoso.com',
+    status:'Confirmed compromised', userRisk:'High', signInRisk:'High',
+    riskDetections:[
+      { time:'2026-06-28T06:40:00Z', type:'Adversary-in-the-middle', risk:'High', source:'Entra ID Protection', detail:'MFA token was satisfied through a suspected phishing proxy.' },
+      { time:'2026-06-28T06:43:00Z', type:'Token replay', risk:'High', source:'Entra ID Protection', detail:'Session cookie reused from a different ASN.' },
+    ],
+    signIns:[
+      { time:'2026-06-28T06:39:00Z', app:'Microsoft 365 portal', ip:'185.199.111.12', location:'US', result:'Success', risk:'High' },
+      { time:'2026-06-28T06:44:00Z', app:'SharePoint Online', ip:'185.199.111.12', location:'US', result:'Interrupted', risk:'High' },
+    ],
+    actions:['Confirm compromise','Revoke sessions','Reset password','Require phishing-resistant MFA'],
+    decisionGuide:'AiTM evidence is sufficient to confirm compromise and force credential/session cleanup.' },
+];
+
+const CASE_MANAGEMENT = [
+  { id:'CASE-2406-1042', title:'OAuth consent abuse response', owner:'alex.ansbergs', status:'Active',
+    severity:'High', linkedIncidents:['INC-1042','INC-1051'], due:'2026-06-29T12:00:00Z',
+    closure:'Not ready - waiting for OAuth app block approval',
+    tasks:[
+      { title:'Revoke DocViewer Pro enterprise app consent', assignee:'Cloud apps responder', status:'In progress' },
+      { title:'Revoke Jane Doe sessions and require MFA reset', assignee:'Identity responder', status:'Done' },
+      { title:'Hunt for Mail.ReadWrite grants in CloudAppEvents', assignee:'Detection engineer', status:'Open' },
+      { title:'Attach Sentinel Graph screenshot to case notes', assignee:'SOC lead', status:'Open' },
+    ] },
+  { id:'CASE-2406-1019', title:'Tier-0 identity attack containment', owner:'identity-soc', status:'Active',
+    severity:'High', linkedIncidents:['INC-1019'], due:'2026-06-28T18:00:00Z',
+    closure:'Not ready - KRBTGT rotation evidence pending',
+    tasks:[
+      { title:'Disable svc-backup and reset credential', assignee:'AD operations', status:'Done' },
+      { title:'Revert AdminSDHolder ACL change', assignee:'Tier-0 admin', status:'In progress' },
+      { title:'Collect DC01 timeline evidence', assignee:'MDE responder', status:'Done' },
+    ] },
+  { id:'CASE-2406-1053', title:'Sam Lee risky sign-in verification', owner:'L1-Triage', status:'Draft',
+    severity:'Medium', linkedIncidents:['INC-1053'], due:'2026-06-28T16:30:00Z',
+    closure:'Decision required - confirm compromise or dismiss after user callback',
+    tasks:[
+      { title:'Call user and validate travel/VPN use', assignee:'L1-Triage', status:'Open' },
+      { title:'Review risky sign-ins and risk detections', assignee:'Identity responder', status:'Open' },
+      { title:'Apply risk-based password reset if unconfirmed', assignee:'Identity responder', status:'Open' },
+    ] },
+];
+
+const COPILOT_AGENTIC_FLOW = {
+  title:'Agentic investigation: INC-1042 OAuth abuse',
+  prompt:'Investigate INC-1042 end to end and recommend whether to contain Jane Doe and DocViewer Pro.',
+  plan:['Read incident alerts and timeline','Expand user, OAuth app, IP, URL, and mailbox entities','Run static CloudAppEvents and SigninLogs checks','Decide containment and case tasks'],
+  toolCalls:[
+    { tool:'get_incident', input:'INC-1042', output:'2 correlated alerts: phishing URL click and anomalous OAuth consent grant.' },
+    { tool:'expand_entities', input:'jane.doe@contoso.com', output:'Linked URL secure-document-portal[.]xyz, app DocViewer Pro, IP 76.21.55.4, mailbox Jane Doe mailbox.' },
+    { tool:'query_cloud_app_events', input:'AppName == "DocViewer Pro"', output:'Consent grant plus mailbox enumeration within eight minutes.' },
+    { tool:'query_signin_logs', input:'UserPrincipalName == "jane.doe@contoso.com"', output:'Successful MFA-backed sign-in from unfamiliar IP immediately after URL click.' },
+  ],
+  verdict:'True positive. Revoke app consent, block DocViewer Pro tenant-wide, revoke Jane Doe sessions, reset credentials, and keep CASE-2406-1042 open until CloudAppEvents hunting completes.',
+};
+
 const SENTINEL_ENTITY_TYPES = [
   { type:'Account', icon:'@', identifiers:['Name','UPNSuffix','Sid','AadUserId','PUID','IsDomainJoined'] },
   { type:'Host', icon:'H', identifiers:['HostName','DnsDomain','NTDomain','AzureID','OSFamily'] },
@@ -2199,6 +2285,9 @@ const COPILOT_PROMPTS = [
     answer:'Pivot from jane.doe@contoso.com to the phishing URL, OAuth app DocViewer Pro, sign-in IP 76.21.55.4, and recent CloudAppEvents consent activity.' },
   { title:'Map this to MITRE',
     answer:'Scanner tuning maps to Discovery. DCSync maps to Credential Access and Persistence. OAuth abuse maps to Initial Access and Persistence. Ransomware posture work maps to Impact prevention.' },
+  { title:'Run guided investigation for INC-1042',
+    answer:'Open the guided flow to review the static plan, tool calls, entity expansion, and final containment verdict for the phishing-to-OAuth incident.',
+    flow:'agentic-investigation' },
 ];
 
 const DEFAULT_SUPPRESSION_RULE = {
@@ -2253,6 +2342,7 @@ const NAV = {
     { section:'Investigation & response' },
     { route:'#/defender/incidents',             label:'Incidents',               icon:'⛓' },
     { route:'#/defender/alerts',                label:'Alerts',                  icon:'⚠' },
+    { route:'#/defender/cases',                 label:'Cases',                   icon:'📁' },
     { route:'#/defender/hunting',               label:'Advanced hunting',        icon:'🔎' },
     { route:'#/defender/custom-detections',     label:'Custom detections',       icon:'🧠' },
     { route:'#/defender/hunting-graph',         label:'Hunting graph (Preview)', icon:'🕸' },
@@ -2263,10 +2353,12 @@ const NAV = {
     { section:'Assets' },
     { route:'#/defender/devices',               label:'Devices',                 icon:'💻' },
     { route:'#/defender/identities',            label:'Identities',              icon:'🆔' },
+    { route:'#/defender/identity-protection',   label:'Identity protection',     icon:'🔐' },
     { section:'Microsoft Sentinel' },
     { route:'#/sentinel/home',                  label:'Overview',                icon:'🏠' },
     { route:'#/sentinel/hunting',               label:'Search',                  icon:'🔎' },
     { route:'#/sentinel/incidents',             label:'Threat management',       icon:'⛓' },
+    { route:'#/sentinel/graph',                 label:'Sentinel Graph',          icon:'🕸' },
     { route:'#/sentinel/analytics',             label:'Analytics',               icon:'🧠' },
     { section:'Content management' },
     { route:'#/defender/content-hub',           label:'Content hub',             icon:'🧱' },
@@ -2296,6 +2388,7 @@ const NAV = {
     { route:'#/sentinel/search',                label:'Search',                  icon:'🔎' },
     { section:'Threat management' },
     { route:'#/sentinel/incidents',             label:'Incidents',               icon:'⛓' },
+    { route:'#/sentinel/graph',                 label:'Sentinel Graph',          icon:'🕸' },
     { route:'#/sentinel/workbooks',             label:'Workbooks',               icon:'📓' },
     { route:'#/sentinel/hunting',               label:'Hunting',                 icon:'🔎' },
     { route:'#/sentinel/hunting/dns',           label:'ASIM DNS (Preview)',      icon:'🌐' },

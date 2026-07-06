@@ -917,6 +917,34 @@ function selectCopilotPrompt(i) {
   const p = COPILOT_PROMPTS[i] || COPILOT_PROMPTS[0];
   document.querySelectorAll('.copilot-prompt').forEach((btn, idx) =>
     btn.classList.toggle('active', idx === i));
+  if (p.flow === 'agentic-investigation') {
+    const flow = COPILOT_AGENTIC_FLOW;
+    document.getElementById('copilot-answer').innerHTML = `
+      <div class="alert-section-title">Prompt</div>
+      <div class="copilot-user">${esc(flow.prompt)}</div>
+      <div class="alert-section-title">Agent plan</div>
+      <ol class="copilot-plan">
+        ${flow.plan.map(step => `<li>${esc(step)}</li>`).join('')}
+      </ol>
+      <div class="alert-section-title">Tool calls</div>
+      <div class="copilot-toolcalls">
+        ${flow.toolCalls.map(call => `
+          <div class="copilot-toolcall">
+            <strong>${esc(call.tool)}</strong>
+            <span>Input: ${esc(call.input)}</span>
+            <em>${esc(call.output)}</em>
+          </div>
+        `).join('')}
+      </div>
+      <div class="alert-section-title">Verdict</div>
+      <div class="copilot-response">${esc(flow.verdict)}</div>
+      <div class="sidepanel-footer">
+        <button class="btn btn-primary" onclick="openIncidentPage('INC-1042')">Open incident</button>
+        <button class="btn btn-secondary" onclick="navigate('#/defender/cases'); hidePanels();">Open case</button>
+      </div>
+    `;
+    return;
+  }
   document.getElementById('copilot-answer').innerHTML = `
     <div class="alert-section-title">Prompt</div>
     <div class="copilot-user">${esc(p.title)}</div>
