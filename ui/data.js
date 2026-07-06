@@ -1491,9 +1491,9 @@ const CLOUD_ALERTS = [
 
 // Synthetic Log Analytics workspaces — selector at top of Sentinel views scopes rules to one of these.
 const SENTINEL_WORKSPACES = [
-  { id:'contoso-sec-prod',  name:'contoso-sec-prod',  region:'East US 2',     tier:'Production',  ruleIdx:[0,1,3,4,5] },
-  { id:'contoso-sec-lab',   name:'contoso-sec-lab',   region:'West Europe',   tier:'Lab',         ruleIdx:[1,2,5] },
-  { id:'fabrikam-soc-dev',  name:'fabrikam-soc-dev',  region:'North Europe',  tier:'Development', ruleIdx:[2,3] },
+  { id:'contoso-sec-prod',  name:'contoso-sec-prod',  region:'East US 2',     tier:'Production',  ruleIdx:[0,1,3,4,5,6,7] },
+  { id:'contoso-sec-lab',   name:'contoso-sec-lab',   region:'West Europe',   tier:'Lab',         ruleIdx:[1,2,5,6] },
+  { id:'fabrikam-soc-dev',  name:'fabrikam-soc-dev',  region:'North Europe',  tier:'Development', ruleIdx:[2,3,7] },
 ];
 
 const SENTINEL_TABLE_PLANS = [
@@ -1614,26 +1614,124 @@ const SENTINEL_MCP_NOTES = [
 
 const SENTINEL_RULES = [
   { name:'Successful sign-in from blocked country',
-    severity:'medium', enabled:true, frequency:'Every 5 minutes', tactics:['Initial Access'],
+    type:'Scheduled', severity:'medium', enabled:true, frequency:'Every 5 minutes', tactics:['Initial Access'],
     query:`SigninLogs\n| where ResultType == 0\n| where LocationDetails.countryOrRegion in ("KP","IR")\n| project TimeGenerated, UserPrincipalName, IPAddress, LocationDetails` },
   { name:'Mass file deletion in OneDrive',
-    severity:'high', enabled:true, frequency:'Every 5 minutes', tactics:['Impact'],
+    type:'Scheduled', severity:'high', enabled:true, frequency:'Every 5 minutes', tactics:['Impact'],
     query:`OfficeActivity\n| where Operation == "FileDeleted"\n| summarize Deletions=count() by UserId, bin(TimeGenerated,5m)\n| where Deletions > 100` },
   { name:'Suspicious resource deployment from new IP',
-    severity:'medium', enabled:true, frequency:'Every 15 minutes', tactics:['Defense Evasion','Persistence'],
+    type:'Scheduled', severity:'medium', enabled:true, frequency:'Every 15 minutes', tactics:['Defense Evasion','Persistence'],
     query:`AzureActivity\n| where OperationNameValue endswith "/write"\n| where CallerIpAddress !in (cached_ips)\n| project TimeGenerated, Caller, OperationNameValue, CallerIpAddress` },
   { name:'Brute force against Azure VM (RDP/SSH)',
-    severity:'high', enabled:true, frequency:'Every 5 minutes', tactics:['Credential Access'],
+    type:'Scheduled', severity:'high', enabled:true, frequency:'Every 5 minutes', tactics:['Credential Access'],
     query:`SecurityEvent\n| where EventID == 4625\n| summarize Failures=count() by IpAddress, Computer, bin(TimeGenerated,5m)\n| where Failures > 50` },
   { name:'New Global Administrator role assignment',
-    severity:'high', enabled:true, frequency:'Every 5 minutes', tactics:['Privilege Escalation'],
+    type:'Scheduled', severity:'high', enabled:true, frequency:'Every 5 minutes', tactics:['Privilege Escalation'],
     query:`AuditLogs\n| where OperationName == "Add member to role"\n| where TargetResources has "Global Administrator"` },
   { name:'TI map synthetic IOC to custom transaction events',
-    severity:'high', enabled:true, frequency:'Every 5 minutes',
+    type:'Threat intelligence', severity:'high', enabled:true, frequency:'Every 5 minutes',
     tactics:['Command and Control','Initial Access'],
     techniques:['T1071','T1566'],
     entities:['IP: DstIp','Account: AccountName','URL: Url','DNS: Domain'],
     query:TI_IP_MATCH_QUERY },
+  { name:'NRT high-risk sign-in from unfamiliar location',
+    type:'NRT', severity:'high', enabled:true, frequency:'Every 1 minute',
+    tactics:['Initial Access','Credential Access'],
+    techniques:['T1078'],
+    entities:['Account: UserPrincipalName','IP: IPAddress'],
+    query:`SigninLogs\n| where RiskLevel == "High"\n| where ResultType == 0\n| project TimeGenerated, UserPrincipalName, IPAddress, RiskLevel` },
+  { name:'Fusion multi-stage identity and OAuth attack',
+    type:'ML behavior analytics', severity:'high', enabled:true, frequency:'Built-in ML correlation',
+    tactics:['Initial Access','Persistence','Credential Access'],
+    techniques:['T1566','T1098','T1078'],
+    entities:['Account','Cloud application','IP'],
+    query:`// Built-in Fusion behavior analytics rule.\n// Correlates risky sign-in, phishing click, OAuth consent, and impossible travel signals.` },
+];
+
+const SENTINEL_ANALYTICS_RULE_TYPES = [
+  { id:'scheduled', name:'Scheduled query rule', badge:'Scheduled',
+    summary:'Runs a KQL query on a schedule and creates alerts when the result threshold is met.',
+    bestFor:'Repeatable hunts, entity mapping, custom alert details, and automation rules.',
+    limits:['Frequency and lookback are configurable.', 'Supports full rule wizard controls in this lab.', 'Use the query preview to validate fixture rows.'],
+    defaults:{
+      name:'High-risk sign-in from unfamiliar location',
+      severity:'Medium',
+      tactics:'Initial Access, Credential Access',
+      query:`SigninLogs
+| where RiskLevel == "High"
+| project TimeGenerated, UserPrincipalName, IPAddress, RiskLevel, ResultType`,
+      runEvery:'5 minutes',
+      lookback:'5 minutes',
+      start:'Automatically',
+    } },
+  { id:'nrt', name:'Near-real-time query rule', badge:'NRT',
+    summary:'Runs close to ingestion time for fast alerting when latency matters.',
+    bestFor:'High-confidence detections that need quick triage, such as risky sign-ins or active command execution.',
+    limits:['Runs on a one-minute cadence in the lab model.', 'Keep query logic narrow and efficient.', 'Use short lookback windows and avoid heavy joins.'],
+    defaults:{
+      name:'NRT high-risk sign-in from unfamiliar location',
+      severity:'High',
+      tactics:'Initial Access, Credential Access',
+      query:`SigninLogs
+| where RiskLevel == "High"
+| where ResultType == 0
+| project TimeGenerated, UserPrincipalName, IPAddress, RiskLevel`,
+      runEvery:'1 minute',
+      lookback:'1 minute',
+      start:'Automatically',
+    } },
+  { id:'ti', name:'Threat intelligence rule', badge:'TI',
+    summary:'Matches indicators from ThreatIntelIndicators against event tables to create alerts.',
+    bestFor:'IOC matching, threat intel operationalization, and watchlisted IP/domain investigation.',
+    limits:['Requires active indicators and matching telemetry.', 'Map matched IP, URL, DNS, or account entities.', 'Tune expiration and confidence before enabling broadly.'],
+    defaults:{
+      name:'TI map synthetic IOC to custom transaction events',
+      severity:'High',
+      tactics:'Command and Control, Initial Access',
+      query:TI_IP_MATCH_QUERY,
+      runEvery:'5 minutes',
+      lookback:'1 hour',
+      start:'Automatically',
+    } },
+  { id:'fusion', name:'ML behavior analytics (Fusion)', badge:'ML',
+    summary:'Uses built-in machine-learning correlation to combine suspicious behaviors into high-fidelity incidents.',
+    bestFor:'Multi-stage attacks where several low-volume signals become meaningful together.',
+    limits:['No custom KQL authoring in this lab model.', 'Requires supported data connectors and active behavior analytics.', 'Review generated incidents and entity graph pivots before closing.'],
+    defaults:{
+      name:'Fusion multi-stage identity and OAuth attack',
+      severity:'High',
+      tactics:'Initial Access, Persistence, Credential Access',
+      query:`// Fusion rules use built-in ML correlation rather than custom KQL in this lab.
+// Enable the rule, verify required data connectors, then review generated incidents.`,
+      runEvery:'Built-in',
+      lookback:'Built-in',
+      start:'When enabled',
+    } },
+];
+
+const SENTINEL_ANOMALY_RULES = [
+  { name:'Anomalous sign-in location by user', status:'Enabled', source:'UEBA',
+    severity:'medium', threshold:'Medium and High anomalies', tactics:['Initial Access'],
+    customization:'Exclude known travel IP ranges and service accounts.',
+    feeds:'Hunting bookmarks, incident enrichment, and scheduled rules that join anomalies to SigninLogs.' },
+  { name:'Rare process on endpoint peer group', status:'Enabled', source:'Entity behavior',
+    severity:'medium', threshold:'Score >= 0.78', tactics:['Execution','Defense Evasion'],
+    customization:'Pilot on finance and Tier 0 device groups before broad incident creation.',
+    feeds:'Hunting graph pivots and custom analytics rules that correlate rare process with risky sign-in.' },
+  { name:'Unusual data access volume', status:'Disabled', source:'Data lake baseline',
+    severity:'low', threshold:'Score >= 0.65', tactics:['Collection','Exfiltration'],
+    customization:'Disabled until summary-rule baselines have seven clean business days.',
+    feeds:'Hunting queue only; do not create incidents until the baseline is stable.' },
+  { name:'Impossible travel with OAuth grant', status:'Enabled', source:'Fusion signal',
+    severity:'high', threshold:'High anomalies only', tactics:['Initial Access','Persistence'],
+    customization:'Create incidents only when an OAuth consent or risky app event occurs within 30 minutes.',
+    feeds:'Fusion incidents and the phishing-to-OAuth investigation path.' },
+];
+
+const SENTINEL_ANOMALY_HUNTING_ROWS = [
+  { TimeGenerated:'2026-07-06T07:42:00Z', AnomalyRule:'Anomalous sign-in location by user', Entity:'sam.lee@contoso.com', Score:'0.91', RelatedTable:'SigninLogs', Action:'Open identity investigation' },
+  { TimeGenerated:'2026-07-06T08:05:00Z', AnomalyRule:'Rare process on endpoint peer group', Entity:'FIN-FS-02', Score:'0.84', RelatedTable:'DeviceProcessEvents', Action:'Correlate with ransomware incident' },
+  { TimeGenerated:'2026-07-06T08:23:00Z', AnomalyRule:'Impossible travel with OAuth grant', Entity:'jane.doe@contoso.com', Score:'0.96', RelatedTable:'CloudAppEvents', Action:'Create high severity incident' },
 ];
 
 // Curated subset of MITRE ATT&CK Enterprise v15 (tactic order matches attack.mitre.org).
@@ -2201,6 +2299,7 @@ const NAV = {
     { route:'#/sentinel/workbooks',             label:'Workbooks',               icon:'📓' },
     { route:'#/sentinel/hunting',               label:'Hunting',                 icon:'🔎' },
     { route:'#/sentinel/hunting/dns',           label:'ASIM DNS (Preview)',      icon:'🌐' },
+    { route:'#/sentinel/anomalies',             label:'Anomalies',               icon:'〽' },
     { route:'#/sentinel/soc-optimization',      label:'SOC optimization',        icon:'📈' },
     { route:'#/sentinel/summary-rules',         label:'Summary rules',           icon:'∑' },
     { route:'#/sentinel/data-lake-jobs',        label:'Data lake KQL jobs',      icon:'🌊' },

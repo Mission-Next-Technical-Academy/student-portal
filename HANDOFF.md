@@ -430,6 +430,22 @@ fix-PR-style commits could not be created in this workspace.
     text without "Page not found".
   - Marked AGENTS.md Sprint 2 Agent 5 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 6 detection engineering completion:
+  - Extended the Sentinel analytics wizard with a rule-type chooser for
+    scheduled query, near-real-time, threat intelligence, and ML behavior
+    analytics (Fusion-style) rules.
+  - Added per-type defaults, constraints, review text, and static query/
+    no-query preview behavior while keeping the lab local-only.
+  - Added NRT, threat intelligence, and ML behavior analytics examples to the
+    Sentinel analytics rule list.
+  - Built `#/sentinel/anomalies` with customizable anomaly rules, thresholds,
+    exclusions, hunting-feed rows, and guidance on how anomalies feed hunting,
+    analytics rules, and Fusion incidents.
+  - Added the Sentinel Anomalies nav link and fictional anomaly fixtures.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Marked AGENTS.md Sprint 2 Agent 6 checklist complete.
+
 ## Next useful work
 
 - **Sprint 2 (2026-07-06):** `AGENTS.md` now defines Agents 1–9 covering

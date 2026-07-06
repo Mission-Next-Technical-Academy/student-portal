@@ -1884,7 +1884,7 @@ VIEWS['sentinel/analytics'] = () => {
       <div class="breadcrumb">Configuration › <strong>Analytics</strong></div>
       <h1>Analytics rules</h1>
     </div>
-    <div class="page-actions"><button class="btn btn-primary" onclick="openAnalyticsWizard()">+ Create scheduled rule</button></div>
+    <div class="page-actions"><button class="btn btn-primary" onclick="openAnalyticsWizard()">+ Create analytics rule</button></div>
   </div>
 
   <div class="callout info" style="margin-bottom:14px;">
@@ -1905,7 +1905,7 @@ VIEWS['sentinel/analytics'] = () => {
   <div class="card">
     <div class="card-toolbar"><strong>${idxs.length}</strong> rules · <span class="muted">workspace: ${esc(ws.name)}</span></div>
     <table class="grid">
-      <thead><tr><th>Status</th><th>Severity</th><th>Name</th><th>Tactics</th><th>Frequency</th></tr></thead>
+      <thead><tr><th>Status</th><th>Severity</th><th>Name</th><th>Rule type</th><th>Tactics</th><th>Frequency</th></tr></thead>
       <tbody>
         ${idxs.map(i => {
           const r = SENTINEL_RULES[i];
@@ -1914,6 +1914,7 @@ VIEWS['sentinel/analytics'] = () => {
             <td><span class="status-dot ${r.enabled?'resolved':''}"></span>${r.enabled?'Enabled':'Disabled'}</td>
             <td><span class="sev ${r.severity}">${cap(r.severity)}</span></td>
             <td><strong>${esc(r.name)}</strong></td>
+            <td><span class="tag">${esc(r.type || 'Scheduled')}</span></td>
             <td>${r.tactics.map(t=>`<span class="mitre">${esc(t)}</span>`).join('')}</td>
             <td>${esc(r.frequency)}</td>
           </tr>`;
@@ -1924,6 +1925,89 @@ VIEWS['sentinel/analytics'] = () => {
   <div id="rule-preview"></div>
   `;
 };
+
+VIEWS['sentinel/anomalies'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Threat management › <strong>Anomalies</strong></div>
+      <h1>Sentinel anomalies</h1>
+      <div class="page-subtitle">Customize anomaly rules, decide when they create incidents, and use anomaly rows as hunting pivots.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/sentinel/hunting">Open hunting</a>
+      <a class="btn btn-primary" href="#/sentinel/analytics">Analytics rules</a>
+    </div>
+  </div>
+
+  <div class="callout info" style="margin-bottom:14px;">
+    <strong>Detection engineering cue:</strong>
+    <span>Anomalies are not just dashboards. Use them as hunting leads, incident enrichment, or inputs to analytics/Fusion logic after tuning thresholds and exclusions.</span>
+  </div>
+
+  <div class="three-col">
+    <div class="kpi"><span class="kpi-label">Enabled anomaly rules</span><span class="kpi-value">${SENTINEL_ANOMALY_RULES.filter(r=>r.status==='Enabled').length}</span><span class="kpi-delta">1 high-confidence incident path</span></div>
+    <div class="kpi"><span class="kpi-label">Hunting rows today</span><span class="kpi-value">${SENTINEL_ANOMALY_HUNTING_ROWS.length}</span><span class="kpi-delta">Scores above tuned thresholds</span></div>
+    <div class="kpi"><span class="kpi-label">Customization focus</span><span class="kpi-value">4</span><span class="kpi-delta">Thresholds, scope, exclusions, incident creation</span></div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar"><strong>Customizable anomaly rules</strong><span class="muted">Lab-static settings</span></div>
+    <div class="anomaly-rule-grid">
+      ${SENTINEL_ANOMALY_RULES.map(rule => `
+        <div class="anomaly-rule-card">
+          <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+            <strong>${esc(rule.name)}</strong>
+            <span><span class="status-dot ${rule.status==='Enabled'?'resolved':''}"></span>${esc(rule.status)}</span>
+          </div>
+          <div><span class="sev ${rule.severity}">${cap(rule.severity)}</span> <span class="tag">${esc(rule.source)}</span></div>
+          <div class="alert-section-title">Threshold</div>
+          <p class="muted">${esc(rule.threshold)}</p>
+          <div class="alert-section-title">Tactics</div>
+          <div>${rule.tactics.map(t => `<span class="mitre">${esc(t)}</span>`).join('')}</div>
+          <div class="alert-section-title">Customization</div>
+          <p class="muted">${esc(rule.customization)}</p>
+          <div class="alert-section-title">Feeds hunting and detections</div>
+          <p class="muted">${esc(rule.feeds)}</p>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card">
+      <div class="card-toolbar"><strong>Anomaly hunting feed</strong><span class="muted">Example rows analysts pivot from</span></div>
+      <table class="grid">
+        <thead><tr><th>Time</th><th>Rule</th><th>Entity</th><th>Score</th><th>Related table</th><th>Action</th></tr></thead>
+        <tbody>
+          ${SENTINEL_ANOMALY_HUNTING_ROWS.map(row => `
+            <tr>
+              <td>${fmtTime(row.TimeGenerated)}</td>
+              <td><strong>${esc(row.AnomalyRule)}</strong></td>
+              <td>${esc(row.Entity)}</td>
+              <td>${esc(row.Score)}</td>
+              <td><code>${esc(row.RelatedTable)}</code></td>
+              <td>${esc(row.Action)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="card card-body">
+      <div class="alert-section-title">Operational pattern</div>
+      <ol class="study-steps">
+        <li>Start with anomalies in hunting mode so analysts can review score quality.</li>
+        <li>Tune thresholds, scopes, and known-good exclusions until the row volume is useful.</li>
+        <li>Promote high-confidence combinations to analytics rules or Fusion-driven incidents.</li>
+        <li>Keep lower-confidence anomalies as entity enrichment and graph pivots.</li>
+      </ol>
+      <div class="alert-section-title">KQL pivot</div>
+      <textarea class="kql" readonly>${esc(`BehaviorAnalytics
+| where ActivityType has "Anomaly"
+| where Score >= 0.8
+| project TimeGenerated, UserPrincipalName, DevicesInsights, SourceIPAddress, Score`)}</textarea>
+    </div>
+  </div>
+`;
 
 function renderSyslogAmaProgress(state) {
   const completed = {

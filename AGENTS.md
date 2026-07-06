@@ -159,10 +159,10 @@ and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
   currently a dead route. Include Sentinel MCP Server connection notes.
 
 ## Agent 6 — Detection engineering completion
-- [ ] **6.1** Add rule-type chooser to the analytics wizard: NRT (with its
+- [x] **6.1** Add rule-type chooser to the analytics wizard: NRT (with its
   limits), Threat intelligence, ML behavior analytics (Fusion), alongside
   the existing scheduled type.
-- [ ] **6.2** Sentinel anomalies page (customizable anomaly rules, how they
+- [x] **6.2** Sentinel anomalies page (customizable anomaly rules, how they
   feed hunting/detections).
 
 ## Agent 7 — Incident response surfaces

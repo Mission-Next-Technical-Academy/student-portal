@@ -491,13 +491,12 @@ function openSentinelRule(i) {
 }
 
 function openAnalyticsWizard() {
-  const query = document.getElementById('analytics-rule-query');
-  query.value = `SigninLogs
-| where RiskLevel == "High"
-| project TimeGenerated, UserPrincipalName, IPAddress, RiskLevel, ResultType`;
-  document.getElementById('analytics-wizard-results').classList.add('hidden');
+  selectAnalyticsRuleType('scheduled');
+  analyticsWizardStep = 0;
   showPanel('panel-analytics-wizard');
   initAnalyticsWizard();
+  document.getElementById('analytics-wizard-results')?.classList.add('hidden');
+  const query = document.getElementById('analytics-rule-query');
   setTimeout(() => query.focus(), 0);
 }
 
@@ -506,7 +505,7 @@ function toggleWizardAccordion(row) {
 }
 
 let analyticsEntityMappings = [];
-let analyticsWizardStep = 1;
+let analyticsWizardStep = 0;
 const ANALYTICS_WIZARD_STEPS = [
   'General',
   'Set rule logic',
@@ -523,9 +522,74 @@ function initAnalyticsWizard() {
       { type:'Host', fields:[{ identifier:'HostName', column:'DeviceName' }] },
     ];
   }
+  renderAnalyticsRuleTypes();
   renderEntityCatalog();
   renderEntityMappings();
   setAnalyticsWizardStep(analyticsWizardStep);
+}
+
+function currentAnalyticsRuleType() {
+  const id = document.getElementById('analytics-rule-type')?.value || 'scheduled';
+  return SENTINEL_ANALYTICS_RULE_TYPES.find(t => t.id === id) || SENTINEL_ANALYTICS_RULE_TYPES[0];
+}
+
+function renderAnalyticsRuleTypes() {
+  const list = document.getElementById('analytics-rule-type-list');
+  const detail = document.getElementById('analytics-rule-type-detail');
+  if (!list || !detail) return;
+  const selected = currentAnalyticsRuleType();
+  list.innerHTML = SENTINEL_ANALYTICS_RULE_TYPES.map(type => `
+    <button class="rule-type-card ${type.id === selected.id ? 'active' : ''}" type="button" onclick="selectAnalyticsRuleType('${esc(type.id)}')">
+      <span class="rule-type-badge">${esc(type.badge)}</span>
+      <strong>${esc(type.name)}</strong>
+      <span>${esc(type.summary)}</span>
+    </button>
+  `).join('');
+  detail.innerHTML = `
+    <strong>${esc(selected.name)}</strong>
+    <span>${esc(selected.bestFor)}</span>
+  `;
+  const limits = document.getElementById('analytics-rule-type-limits');
+  if (limits) {
+    limits.innerHTML = selected.limits.map(item => `<span>${esc(item)}</span>`).join('');
+  }
+}
+
+function selectAnalyticsRuleType(id) {
+  const type = SENTINEL_ANALYTICS_RULE_TYPES.find(t => t.id === id) || SENTINEL_ANALYTICS_RULE_TYPES[0];
+  const typeInput = document.getElementById('analytics-rule-type');
+  if (typeInput) typeInput.value = type.id;
+  const title = document.getElementById('analytics-wizard-title');
+  if (title) title.textContent = `Analytics rule wizard - Create ${type.name}`;
+  const name = document.getElementById('analytics-rule-name');
+  const severity = document.getElementById('analytics-rule-severity');
+  const tactics = document.getElementById('analytics-rule-tactics');
+  const query = document.getElementById('analytics-rule-query');
+  const runEvery = document.getElementById('analytics-run-every');
+  const lookback = document.getElementById('analytics-lookback');
+  const start = document.getElementById('analytics-start');
+  if (name) name.value = type.defaults.name;
+  if (severity) severity.value = type.defaults.severity;
+  if (tactics) tactics.value = type.defaults.tactics;
+  if (query) {
+    query.value = type.defaults.query;
+    query.readOnly = type.id === 'fusion';
+  }
+  if (runEvery) {
+    runEvery.value = type.defaults.runEvery;
+    runEvery.readOnly = type.id === 'fusion' || type.id === 'nrt';
+  }
+  if (lookback) {
+    lookback.value = type.defaults.lookback;
+    lookback.readOnly = type.id === 'fusion' || type.id === 'nrt';
+  }
+  if (start) start.value = type.defaults.start;
+  const intro = document.getElementById('analytics-logic-intro');
+  if (intro) intro.textContent = type.id === 'fusion'
+    ? 'Review the built-in machine-learning behavior analytics rule behavior and required data coverage.'
+    : 'Define the detection logic for this analytics rule.';
+  document.getElementById('analytics-wizard-results')?.classList.add('hidden');
+  renderAnalyticsRuleTypes();
 }
 
 function setAnalyticsWizardStep(step) {
@@ -551,8 +615,9 @@ function setAnalyticsWizardStep(step) {
 
 function moveAnalyticsWizardStep(delta) {
   if (analyticsWizardStep === ANALYTICS_WIZARD_STEPS.length - 1 && delta > 0) {
+    const type = currentAnalyticsRuleType();
     hidePanels();
-    toast('Created scheduled analytics rule in the lab.');
+    toast(`Created ${type.name} in the lab.`);
     return;
   }
   setAnalyticsWizardStep(analyticsWizardStep + delta);
@@ -562,12 +627,14 @@ function renderAnalyticsReview() {
   const target = document.getElementById('analytics-review');
   if (!target) return;
   const query = document.getElementById('analytics-rule-query')?.value || '';
+  const type = currentAnalyticsRuleType();
   const name = document.getElementById('analytics-rule-name')?.value || 'Untitled analytics rule';
   const severity = document.getElementById('analytics-rule-severity')?.value || 'Medium';
   const frequency = document.getElementById('analytics-run-every')?.value || '5 minutes';
   const lookback = document.getElementById('analytics-lookback')?.value || '5 minutes';
   target.innerHTML = `
     <div class="review-grid">
+      <div><span class="muted">Rule type</span><strong>${esc(type.name)}</strong></div>
       <div><span class="muted">Name</span><strong>${esc(name)}</strong></div>
       <div><span class="muted">Severity</span><strong>${esc(severity)}</strong></div>
       <div><span class="muted">Schedule</span><strong>Every ${esc(frequency)}</strong></div>
@@ -717,6 +784,17 @@ function renderEntityMappings() {
 
 function previewAnalyticsWizardResults() {
   const query = document.getElementById('analytics-rule-query').value;
+  const type = currentAnalyticsRuleType();
+  if (type.id === 'fusion') {
+    document.getElementById('analytics-wizard-results').innerHTML = `
+      <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+        <strong>Built-in ML correlation</strong>
+        <span class="muted">No custom query preview</span>
+      </div>
+      <p class="muted">Fusion-style behavior analytics rules correlate supported signals and generate incidents from the built-in model. Validate connector coverage and review generated incidents instead of previewing KQL rows.</p>`;
+    document.getElementById('analytics-wizard-results').classList.remove('hidden');
+    return;
+  }
   const table = HUNTING_TABLES.find(t => query.trimStart().startsWith(t)) || 'SigninLogs';
   const where = [...query.matchAll(/\|\s*where\s+([A-Za-z_][A-Za-z0-9_]*)\s*==\s*"([^"]*)"/gi)]
     .map(m => ({ field:m[1], value:m[2] }));
