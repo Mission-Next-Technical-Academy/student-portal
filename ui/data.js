@@ -2437,6 +2437,8 @@ const NAV = {
     { route:'#/defender/learning-hub',          label:'Learning hub',            icon:'🎓' },
     { route:'#/defender/trials',                label:'Trials',                  icon:'🧪' },
     // === local-tasks nav:defender ===
+    { section:'Endpoints' },
+    { route:'#/defender/vulnerabilities', label:'Vulnerability management', icon:'🩹' },
   ],
   sentinel: [
     { section:'General' },
