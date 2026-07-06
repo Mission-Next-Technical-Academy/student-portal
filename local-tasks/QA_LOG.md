@@ -65,3 +65,10 @@
   long hex/secret-like strings, no real-year CVEs).
 - Output: `out/t10-mssp-mto.js`
 
+## T03 — 2026-07-06T11:12:50+02:00
+- **PASS** (attempt 1). Checks: file created, node-loadable,
+  export names/counts/keys per manifest.json, banned-pattern scan
+  (no http/URLs, no Microsoft domains or MS fictional brands, no
+  long hex/secret-like strings, no real-year CVEs).
+- Output: `out/t03-copilot-promptbooks.js`
+
