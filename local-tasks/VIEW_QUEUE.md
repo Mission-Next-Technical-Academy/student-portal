@@ -54,3 +54,5 @@ render gate enforces it.
   no `undefined`, internal links only, splice + node --check + rollback).
 - Whole-lab: `bin/qa-sweep.sh` — nav-vs-views sweep + node --check + vm
   render of EVERY route. Run after every batch; results in QA_LOG.md.
+
+**Batch 1 result (2026-07-06):** V17 PASS; V12-16/18-22 = goose wrote no file within 600s (T11 stall pattern). Retrying at 900s. If batch 2 also stalls: next session splits each view brief into 2 mini-steps (skeleton fill, then table fill) — do NOT hand-write views in Claude.

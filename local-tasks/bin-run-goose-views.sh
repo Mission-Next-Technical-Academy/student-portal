@@ -13,7 +13,7 @@ for T in "$@"; do
   for ATTEMPT in 1 2; do
     rm -f "$LT/out/views/$V"-*.js
     echo "=== $T attempt $ATTEMPT: $(date -Is) ===" >> "$LT/goose-run.log"
-    ( cd "$LAB" && timeout 600 goose run -i "$LT/tasks/$T.md" --no-session ) \
+    ( cd "$LAB" && timeout 900 goose run -i "$LT/tasks/$T.md" --no-session ) \
       >> "$LT/goose-run.log" 2>&1
     RES=$(python3 "$LT/add_view.py" "$V" 2>&1)
     echo "$RES" >> "$LT/goose-run.log"
