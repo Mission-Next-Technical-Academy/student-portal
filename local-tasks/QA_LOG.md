@@ -141,3 +141,9 @@ views: 88/88 render clean; dead NAV routes: 0
 ## add_view v20-sentinel-mssp — 2026-07-06T11:36:03+02:00
 - **FAIL**: node --check failed on draft
 
+## qa-sweep — 2026-07-06T11:38:10+02:00
+```
+views: 89/89 render clean; dead NAV routes: 0
+```
+- Result: **CLEAN**
+
