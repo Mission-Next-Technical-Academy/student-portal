@@ -150,3 +150,22 @@ views: 89/89 render clean; dead NAV routes: 0
 ## add_view v18-defender-threat-explorer — 2026-07-06T11:43:05+02:00
 - **PASS**: route #defender/threat-explorer wired: draft render gate (RENDER-OK 8218 chars, 2 links), spliced into views.js + NAV, node --check clean
 
+## add_view v21-defender-mto — 2026-07-06T11:45:10+02:00
+- **FAIL**: render gate: evalmachine.<anonymous>:4
+function fmtTime(iso) { return iso ? new Date(iso).toISOString().slice(0,16).replace('T',' ') : '—'; }
+                                                   ^
+
+RangeError: Invalid time value
+    at Date.toISOString (<anonymous>)
+    at fmtTime (evalmachine.<anonymous>:4:52)
+    at evalmachine.<anonymous>:29:107
+    at Array.map (<anonymous>)
+    at VIEWS.defender/mto (evalmachine.<anonymous>:29:17)
+    at [eval]:23:14
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:118:14
+    at [eval]-wrapper:6:24
+    at runScript (node:internal/process/execution:101:62)
+
+Node.js v20.20.2
+
