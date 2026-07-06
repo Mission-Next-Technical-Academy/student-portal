@@ -2240,3 +2240,75 @@ brtc
 }
 brtc
 no drafts found in local-tasks/out/views/
+=== V22 attempt 1: 2026-07-06T11:45:45+02:00 ===
+
+    __( O)>  ● new session · ollama qwen2.5:7b
+   \____)    20260706_62 · /home/alex/defender-lab
+     L L     goose is ready
+
+no drafts found in local-tasks/out/views/
+=== V22 attempt 2: 2026-07-06T11:46:08+02:00 ===
+
+    __( O)>  ● new session · ollama qwen2.5:7b
+   \____)    20260706_63 · /home/alex/defender-lab
+     L L     goose is ready
+ronics:
+// nav: Solutions | Audit (Premium) | 🕰
+VIEWS['purview/audit-premium'] = () => `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Microsoft Purview › <strong>Audit (Premium)</strong></div>
+      <h1>Audit (Premium)</h1>
+      <div class="page-subtitle">Set up and configure audit policies to ensure comprehensive data protection.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/purview/audit">Audit search</a>
+      <button class="btn btn-primary" onclick="toast('Export prepared — fictional download.')">Export results</button>
+    </div>
+  </div>
+
+  <card card-body>
+    <table class="grid">
+      <thead><tr>
+        <th>Retention (days)</th>
+        <th>Intelligent insights</th>
+        <th>Bandwidth (API export throughput)</th>
+      </tr></thead>
+      <tbody>
+        ${AUDIT_RETENTION_POLICIES.map(r => `<tr><td>${esc(retention(r.duration))}</td><td class="tag">${cap(retention(r.priority))} policy</td><td>${esc(bandwidth(r.priority))}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  </card>
+
+  <div class="alert-section-title">Audit retention policies</div>
+  <card card-body>
+    <table class="grid">
+      <thead><tr>
+        <th>Policy</th>
+        <th.Users<th.Record types(th>
+        <th(Duration(<span class="tag">${esc(r.duration)}`)<th.Priority(th</tr></thead>
+      <tbody>${AUDIT_RETENTION_POLICIES.map(r => `<tr><td id="${esc(r.id)}">${esc(r.name)}</td><td class="grid" style="white-space: nowrap;">${esc(r.users.map(u => esc(u)).join(', '))}</td><td class="grid" style="white-space: nowrap;">${esc(r.recordTypes.map(rt => esc(rt)).join(', '))}</td><td>${esc(fmtTime(r.duration))}<span class="tag">${cap(retention(r.priority))} policy</span></td><td>${esc(r.priority)}</td></tr>`).join('')}</tbody>
+    </table>
+  </card>
+
+  <div class="alert-section-title">Copilot interaction events</div>
+  <card card-body>
+    <table class="grid">
+      <thead><tr>
+        <th><span class="kpi-value">${esc(fmtTime(r.time))}</span></th>
+        <th>User</th>
+        <th>Operation</th>
+        <th>Workload</th>
+        <th.Detail(<td>${esc(detail(r.detail))}</td></tr></thead>
+      <tbody>${AUDIT_COPILOT_EVENTS.map(r => `<tr><td>${esc(fmtTime(r.time))}</td><td id="${esc(r.user)}">${esc(cap(user(r.user)))}</td><td class="sev ${cap(severity(r.time))}"><span class="kpi-value">${esc(r.operation)}</span></td><td id="${esc(r.workload)}">${esc(workload(r.workload))}</td><td>${esc(r.detail)}</td></tr>`).join('')}</tbody>
+    </table>
+  </card>
+
+<div class="alert-section-title">Understanding retention policies</div>
+<card card-body>
+  <p>Retention policies ensure that audit data is stored for a longer period, facilitating thorough investigations.</p>
+  <p>Prioritized policies address key overlaps to maintain the most critical information.</p>
+  <p>Copilot interactions can be audited and managed just like any other activity within Purview Audit (Premium).</p>
+</card>
+`;
+no drafts found in local-tasks/out/views/
