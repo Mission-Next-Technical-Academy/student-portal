@@ -99,13 +99,13 @@ Numbered agents, one per surface, parallelizable. Each bullet in
 and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
 
 ## Agent 1 — Objectives doc sync (docs only, small)
-- [ ] **1.1** Update `ExamObjectives.md` to reference the 2026-06-26 Learn
+- [x] **1.1** Update `ExamObjectives.md` to reference the 2026-06-26 Learn
   page and the July 28, 2026 skill outline; add explicit skill weights
   (40-45 / 35-40 / 20-25).
-- [ ] **1.2** Add Azure cloud services to the candidate familiarity list.
-- [ ] **1.3** Add all `OBJECTIVES_DELTA.md` missing objectives as concise
+- [x] **1.2** Add Azure cloud services to the candidate familiarity list.
+- [x] **1.3** Add all `OBJECTIVES_DELTA.md` missing objectives as concise
   bullets (own words, no Learn text copied).
-- [ ] **1.4** Re-label Defender for Cloud posture + Purview DLP/Insider Risk
+- [x] **1.4** Re-label Defender for Cloud posture + Purview DLP/Insider Risk
   scenarios as supporting study content per the delta's de-emphasis notes.
 
 ## Agent 2 — Defender XDR/MDE settings & automation

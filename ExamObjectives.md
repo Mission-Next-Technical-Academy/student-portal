@@ -3,8 +3,8 @@
 **Certification:** Microsoft Certified: Security Operations Analyst Associate
 **Exam:** SC-200
 **Level:** Intermediate · **Role:** Security Operations Analyst · **Renewal:** 12 months
-**Reference checked:** Microsoft Learn cert page, last-updated 2026-04-16
-(English-language objectives refresh scheduled 2026-07-28 — re-verify after that.)
+**Reference checked:** Microsoft Learn SC-200 study guide, page last-updated
+2026-06-26; skills measured outline effective 2026-07-28.
 
 This document is the **source of truth for what the SC-200_lab must simulate.**
 Every lab view, mock dataset, and scenario should map back to one of the
@@ -20,22 +20,91 @@ skill areas or product surfaces below.
 - Collaborate with security leadership on standards and posture.
 
 Assumed familiarity: Microsoft security/compliance/identity solutions,
-M365, Azure, AI agents/Copilots, Windows / Linux / mobile OS.
+M365, Azure cloud services, AI agents/Copilots, Windows / Linux / mobile OS.
 
 ## Exam domains (three skill areas)
-1. **Manage a security operations environment** — onboarding workloads
+1. **Manage a security operations environment (40-45%)** — onboarding workloads
    and data sources, configuring connectors and policies, tuning alerts
    (suppression rules, exclusions), managing roles/RBAC, content/solutions
    in Sentinel, posture configuration in Defender for Cloud, Purview
    policy setup.
-2. **Respond to security incidents** — triage queues across Defender XDR
+2. **Respond to security incidents (35-40%)** — triage queues across Defender XDR
    and Sentinel, multi-alert incident correlation, MITRE ATT&CK mapping,
    evidence/entity review, manual + automated response actions, case
    classification and closure.
-3. **Perform threat hunting** — KQL across DeviceProcessEvents /
+3. **Perform threat hunting (20-25%)** — KQL across DeviceProcessEvents /
    EmailEvents / SigninLogs / CloudAppEvents / etc., saved/scheduled
    queries, hunting bookmarks, Sentinel Graph for entity-centric pivoting,
    custom analytics rules from hunting queries.
+
+## July 2026 coverage checklist
+These syllabus points must be represented as lab views, scenario steps, or
+explicit study notes. Keep the wording local to this project; do not copy
+Microsoft Learn text.
+
+### Manage a security operations environment
+- Configure Defender XDR/MDE settings: advanced features, rules settings,
+  custom data collection, device groups, permissions/roles, and automation
+  levels.
+- Configure attack surface reduction policy behavior, including audit/block
+  mode choices, per-rule states, and exclusions.
+- Create and tune notification rules for incidents, actions, and threat
+  analytics.
+- Explain alert correlation and tuning beyond suppression, including how
+  alerts roll up into incidents.
+- Manage automated investigation and response and show automatic attack
+  disruption behavior.
+- Manage Sentinel retention and table choices across Analytics, Data lake,
+  and XDR tiers.
+- Use SOC optimization recommendations to reason about coverage and data
+  value.
+- Ingest Windows Security Events through AMA and data collection rules.
+- Compare Windows Event Forwarding with AMA-based collection planning.
+- Ingest CEF through AMA and validate rows in `CommonSecurityLog`.
+- Collect Azure Activity through Azure Policy and diagnostic settings.
+- Create custom log tables through the Logs Ingestion API, including app
+  registration, Monitoring Metrics Publisher permissions, DCE/DCR endpoint
+  choices, stream declarations, transform KQL, and `_CL` table output.
+
+### Detection engineering
+- Create Defender XDR custom detections from Advanced hunting queries.
+- Build Sentinel analytics rules for scheduled, near-real-time, threat
+  intelligence, and machine-learning behavior analytics use cases.
+- Use MITRE ATT&CK coverage views to identify detection gaps.
+- Configure Sentinel anomaly rules and explain how anomalies feed hunting
+  and detections.
+
+### Respond to security incidents
+- Investigate Defender for Cloud Apps alerts, including risky OAuth app
+  consent.
+- Investigate compromised identities in Entra ID, using risky sign-ins and
+  risk detections, then confirm or dismiss risk.
+- Investigate Defender for Identity alerts such as directory replication
+  abuse.
+- View Sentinel alerts and incidents through the Defender XDR response lens.
+- Use embedded Copilot-style assistance for a static, agentic investigation
+  walkthrough.
+- Work multi-stage, cross-domain attacks with lateral movement and entity
+  pivots.
+- Manage cases with tasks, owners, linked incidents, and closure context.
+- Use Defender for Endpoint response actions: device timelines, live
+  response sessions, investigation packages, evidence/entity review, and
+  automatic attack disruption.
+
+### Perform threat hunting and investigation
+- Select the correct Advanced hunting or Sentinel table before writing KQL.
+- Interpret Defender XDR threat analytics reports, affected assets, related
+  incidents, and analyst guidance.
+- Use hunting graphs and blast-radius views for relationship analysis.
+- Use Sentinel Graph for entity relationship investigation.
+- Run Sentinel KQL jobs in Data lake and contrast them with Basic-table
+  search jobs.
+- Create and query summary rule tables for high-volume data.
+- Use Sentinel notebooks and note where Sentinel MCP Server integration fits.
+- Search Purview Audit and eDiscovery Content search during an
+  investigation.
+- Investigate Microsoft Graph activity logs and understand that collection is
+  enabled through diagnostic settings.
 
 ## Product surfaces the lab must mirror
 - **Microsoft Defender XDR** (`security.microsoft.com`)
@@ -51,13 +120,14 @@ M365, Azure, AI agents/Copilots, Windows / Linux / mobile OS.
   Workspace manager · Data connectors · Analytics rules · Watchlists ·
   Automation (playbooks + rules) · Sentinel Graph.
 - **Microsoft Defender for Cloud** (Azure portal)
-  Overview · Security posture / Secure score · Recommendations ·
-  Regulatory compliance · Workload protections · Security alerts ·
-  Inventory · DevOps security.
+  Workload protections · Security alerts · Inventory · DevOps security ·
+  supporting study views for posture, secure score, recommendations, and
+  regulatory compliance.
 - **Microsoft Purview** (`purview.microsoft.com`)
-  Data loss prevention (policies/incidents) · Insider risk management ·
+  Audit · eDiscovery Content search · Microsoft Graph activity logs ·
+  supporting study views for data loss prevention and insider risk ·
   Information protection (sensitivity labels) · Communication compliance ·
-  eDiscovery · Records management · Audit · Data lifecycle management.
+  Records management · Data lifecycle management.
 - **Microsoft Entra ID** (identity surface used in many scenarios)
   Sign-in logs · Audit logs · Risky users / sign-ins (Identity Protection) ·
   Conditional Access overview · Role assignments.
@@ -85,13 +155,16 @@ be playable in the lab as walk-throughs:
    `C:\Users\Public`, join with sign-in data, save as a custom detection.
 6. **Promote hunt to analytics rule (Sentinel)** — take a KQL query,
    schedule it, set entity mappings, MITRE tactics.
-7. **Posture remediation (Defender for Cloud)** — review a high-severity
+7. **Posture remediation (Defender for Cloud, supporting study content)** —
+   review a high-severity
    recommendation (e.g. "Storage accounts should disable public network
    access"), see affected resources, mark exemption.
-8. **DLP policy match (Purview)** — file with credit-card content
-   blocked from external share; review DLP incident, override workflow.
-9. **Insider risk** — departing user downloads large volume from
-   SharePoint; review the case, escalate to eDiscovery.
+8. **DLP policy match (Purview, supporting study content)** — file with
+   credit-card content blocked from external share; review DLP incident,
+   override workflow.
+9. **Insider risk (Purview, supporting study content)** — departing user
+   downloads large volume from SharePoint; review the case, escalate to
+   eDiscovery.
 10. **Audit search** — search M365 audit log for a specific operation
     and user across a time window.
 

@@ -334,6 +334,19 @@ fix-PR-style commits could not be created in this workspace.
     `ui/app.js`; headless Chrome DOM checks; CDP click-through confirmed the
     initial locked state, solution unlock, and final verified state.
 
+- 2026-07-06 Sprint 2 Agent 1 objectives sync:
+  - Updated `ExamObjectives.md` to reference the 2026-06-26 Microsoft Learn
+    SC-200 study guide page and the July 28, 2026 skills outline.
+  - Added explicit skill weights: Manage security operations environment
+    40-45%, Respond to security incidents 35-40%, Perform threat hunting
+    20-25%.
+  - Added Azure cloud services to the candidate familiarity list.
+  - Folded every `[Agent N]` objective from `OBJECTIVES_DELTA.md` into a
+    concise July 2026 coverage checklist, written in project-owned wording.
+  - Re-labeled Defender for Cloud posture and Purview DLP/Insider Risk as
+    supporting study content, while keeping them in scope for lab realism.
+  - Marked AGENTS.md Sprint 2 Agent 1 checklist complete.
+
 ## Next useful work
 
 - **Sprint 2 (2026-07-06):** `AGENTS.md` now defines Agents 1–9 covering
