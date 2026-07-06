@@ -3106,3 +3106,344 @@ const TECHNIQUE_TACTIC_LOOKUP = (() => {
     rows.forEach(r => MOCK_QUERY_RESULTS[table].push(r));
   });
 })();
+
+// === local-tasks fixtures (auto-merged by integrate.py — do not hand-edit between markers) ===
+// --- T01: out/t01-copilot-sessions.js ---
+const COPILOT_SESSIONS = [
+  { id: 'cs-001', name: 'Phishing wave triage - finance dept', owner: 'R. Vance', workspace: 'Primary', lastActivity: '2026-06-28T14:02:00Z', promptCount: 9, plugins: [ 'Defender XDR', 'MDTI' ], pinned: true },
+  { id: 'cs-002', name: 'Ransomware indicator in SIEM alerts', owner: 'M. Okafor', workspace: 'SOC-EU', lastActivity: '2026-06-30T15:45:00Z', promptCount: 7, plugins: [ 'Defender XDR' ], pinned: false },
+  { id: 'cs-003', name: 'OAuth app misuse event timeline', owner: 'L. Harper', workspace: 'Primary', lastActivity: '2026-06-29T14:58:00Z', promptCount: 5, plugins: [ 'Defender XDR', 'MDTI' ], pinned: true },
+  { id: 'cs-004', name: 'DLP alert - potential employee data exfiltration', owner: 'T. Martinez', workspace: 'Primary', lastActivity: '2026-06-27T15:30:00Z', promptCount: 11, plugins: [ 'MDTI' ], pinned: true },
+  { id: 'cs-005', name: 'Vulnerability scan prioritization - high risk', owner: 'E. Silva', workspace: 'Primary', lastActivity: '2026-06-30T17:40:00Z', promptCount: 8, plugins: [ 'Defender XDR', 'Sentinel' ], pinned: false },
+  { id: 'cs-006', name: 'Incident summary for C-suite: ransomware containment', owner: 'C. Williams', workspace: 'Primary', lastActivity: '2026-06-29T16:58:00Z', promptCount: 6, plugins: [ 'Defender XDR' ], pinned: false },
+  { id: 'cs-007', name: 'TI analysis - suspicious DNS traffic', owner: 'J. Patel', workspace: 'Primary', lastActivity: '2026-06-30T14:25:00Z', promptCount: 3, plugins: [ 'Intune' ], pinned: true },
+  { id: 'cs-008', name: 'Risk matrix for recent sign-ins - SOC report', owner: 'K. Kim', workspace: 'SOC-EU', lastActivity: '2026-06-31T17:59:00Z', promptCount: 4, plugins: [ 'Sentinel' ], pinned: true }
+];
+
+// --- T02: out/t02-copilot-transcripts.js ---
+const COPILOT_TRANSCRIPTS = [
+{
+    sessionId: 'cs-001',
+    steps: [
+        { role: 'analyst', text: 'Reviewing the incident details of A123. This is a suspected phishing attack.', plugin: 'none', pinned: true },
+        { role: 'copilot', text: 'The summary shows an email campaign targeting employees with a phishing link. 90% open rate, 25% click-through to payload delivery page.', plugin: 'Defender XDR', pinned: false },
+        { role: 'analyst', text: 'Which users clicked the malicious link?', plugin: 'none', pinned: true },
+        { role: 'copilot', text: 'The list of affected users includes R. Vance and M. Okafor.', plugin: 'Defender XDR', pinned: false },
+        { role: 'analyst', text: 'What are the recommended actions?', plugin: 'none', pinned: true }
+    ]
+},
+{
+    sessionId: 'cs-003',
+    steps: [
+        { role: 'analyst', text: 'Analyzing a suspicious PowerShell command pasted by the analyst.', plugin: 'MDTI', pinned: true },
+        { role: 'copilot', text: 'Providing context, this command decodes an encoded payload that appears to be a downloader script.', plugin: 'none', pinned: false },
+        { role: 'analyst', text: 'Could you provide more related intel on the actor?', plugin: 'none', pinned: true },
+        { role: 'copilot', text: 'The command was likely executed by an actor called Nickel Sleet, known for spear-phishing campaigns targeting financial institutions.', plugin: 'none', pinned: false },
+        { role: 'analyst', text: 'Draft a summary with this information.', plugin: 'none', pinned: true }
+    ]
+}
+];
+
+// --- T04: out/t04-copilot-plugins.js ---
+const COPILOT_PLUGINS = [
+    {
+        id: 'pl-01',
+        name: 'Microsoft Defender XDR - Endpoint Security Policies',
+        category: 'First-party',
+        status: 'On',
+        description: 'Enforces security policies for endpoints.',
+        setupNote: 'Configure policy sets in the Workspace.'
+    },
+    {
+        id: 'pl-02',
+        name: 'Microsoft Sentinel - Data Connector to APM',
+        category: 'First-party',
+        status: 'On',
+        description: 'Automatically correlates events from application performance monitoring.',
+        setupNote: 'Integrate with the on-prem SIEM.'
+    },
+    {
+        id: 'pl-03',
+        name: 'Microsoft Entra - Conditional Access Policy',
+        category: 'First-party',
+        status: 'On',
+        description: 'Enforces access rules for cloud resources.',
+        setupNote: 'Configure policy in Microsoft Entra ID.'
+    },
+    {
+        id: 'pl-04',
+        name: 'Microsoft Intune - Device Management',
+        category: 'First-party',
+        status: 'On',
+        description: 'Manages company-owned and personal devices.',
+        setupNote: 'Set up managed devices via the portal.'
+    },
+    {
+        id: 'pl-05',
+        name: 'Microsoft Defender Threat Intelligence - Real-Time Indicators',
+        category: 'First-party',
+        status: 'Off',
+        description: 'Provides real-time cyber threat intelligence.',
+        setupNote: 'Enable in the workspace and manage threats.'
+    },
+    {
+        id: 'pl-06',
+        name: 'Microsoft Purview - Information Protection Policies',
+        category: 'First-party',
+        status: 'On',
+        description: 'Protects sensitive data in documents and emails.',
+        setupNote: 'Create policies for email and file shares.'
+    },
+    {
+        id: 'pl-07',
+        name: 'Azure Firewall - Network Security Policy',
+        category: 'First-party',
+        status: 'On',
+        description: 'Secures network traffic flow.',
+        setupNote: 'Configure firewall rules in the Azure portal.'
+    },
+    {
+        id: 'pl-08',
+        name: 'NetScope CASB - Cloud Security Risk Policy',
+        category: 'Non-Microsoft',
+        status: 'Off',
+        description: 'Monitors and manages cloud security risks.',
+        setupNote: 'Integrate with NetScope platform.'
+    },
+    {
+        id: 'pl-09',
+        name: 'ComplySoft Compliance Manager - Audit Policies',
+        category: 'Non-Microsoft',
+        status: 'Off',
+        description: 'Enforces compliance of cloud applications.',
+        setupNote: 'Configure policies for SaaS apps.'
+    },
+    {
+        id: 'pl-10',
+        name: 'KQL Debugger - Query Optimization Tool',
+        category: 'Custom',
+        status: 'On',
+        description: 'Optimizes Kusto queries for performance.',
+        setupNote: 'Requires Node.js environment.'
+    },
+    {
+        id: 'pl-11',
+        name: 'Azure API Manager - Gateway Management Tool',
+        category: 'Custom',
+        status: 'Off',
+        description: 'Manages and secures APIs.',
+        setupNote: 'Configure in the Azure portal.'
+    },
+    {
+        id: 'pl-12',
+        name: 'ChatGPT Prompt Engine - Interactive Assistance Tool',
+        category: 'Custom',
+        status: 'On',
+        description: 'Provides interactive Q&A support for analysts.',
+        setupNote: 'No additional setup required.'
+    }
+];
+
+// --- T05: out/t05-copilot-capacity.js ---
+const COPILOT_USAGE = [
+  { date: '2026-06-15', unitsUsed: 4.9, sessions: 7 },
+  { date: '2026-06-16', unitsUsed: 4.8, sessions: 6 },
+  { date: '2026-06-17', unitsUsed: 4.3, sessions: 5 },
+  { date: '2026-06-18', unitsUsed: 4.5, sessions: 5 },
+  { date: '2026-06-19', unitsUsed: 4.2, sessions: 4 },
+  { date: '2026-06-20', unitsUsed: 3.8, sessions: 6 },
+  { date: '2026-06-21', unitsUsed: 3.9, sessions: 6 },
+  { date: '2026-06-22', unitsUsed: 4.7, sessions: 8 },
+  { date: '2026-06-23', unitsUsed: 5.1, sessions: 9 },
+  { date: '2026-06-24', unitsUsed: 4.7, sessions: 8 },
+  { date: '2026-06-25', unitsUsed: 4.3, sessions: 7 },
+  { date: '2026-06-26', unitsUsed: 3.9, sessions: 6 },
+  { date: '2026-06-27', unitsUsed: 4.1, sessions: 7 },
+  { date: '2026-06-28', unitsUsed: 3.5, sessions: 5 }
+];
+
+const COPILOT_CAPACITY = {
+  provisionedSCU: 6,
+  overageAllowed: true,
+  region: 'Europe',
+  owners: ['R. Vance', 'M. Okafor']
+};
+
+// --- T06: out/t06-tvm.js ---
+const TVM_SOFTWARE = [
+  { id: 'sw-01', name: 'CodeGenius', vendor: 'TechNova', version: '5.2.3', weaknesses: 4, exposedDevices: 7, threatInsight: 'Exploit available' },
+  { id: 'sw-02', name: 'DataMaster Pro', vendor: 'InfoForge', version: '2.8.1', weaknesses: 6, exposedDevices: 12, threatInsight: 'Active alert' },
+  { id: 'sw-03', name: 'OfficeSuite Premium', vendor: 'OffiSys', version: '4.5.0', weaknesses: 2, exposedDevices: 28, threatInsight: 'None' },
+  { id: 'sw-04', name: 'CryptoSecure', vendor: 'SecuroTech', version: '1.9.3', weaknesses: 7, exposedDevices: 6, threatInsight: 'Exploit available' },
+  { id: 'sw-05', name: 'VideoEditor Suite', vendor: 'Vidsoft', version: '3.2.2', weaknesses: 1, exposedDevices: 34, threatInsight: 'Active alert' },
+  { id: 'sw-06', name: 'PDFXpert Pro', vendor: 'DocuMaster', version: '3.7', weaknesses: 8, exposedDevices: 21, threatInsight: 'Exploit available' },
+  { id: 'sw-07', name: 'ImageMagick Pro', vendor: 'ImagoSys', version: '6.5.4', weaknesses: 3, exposedDevices: 9, threatInsight: 'None' },
+  { id: 'sw-08', name: 'AudioMaster XL', vendor: 'Sonicscape', version: '1.2.1', weaknesses: 3, exposedDevices: 6, threatInsight: 'Exploit available' },
+  { id: 'sw-09', name: 'SecuritySuite Pro', vendor: 'SecuTech', version: '4.1.5', weaknesses: 6, exposedDevices: 2, threatInsight: 'None' },
+  { id: 'sw-10', name: 'DataFlow X', vendor: 'BitStream', version: '3.8', weaknesses: 9, exposedDevices: 14, threatInsight: 'Active alert' }
+];
+
+const TVM_CVES = [
+  { id: 'cv-01', cve: 'CVE-2026-9001', severity: 'Critical', cvss: 8.5, software: 'CodeGenius', exploitAvailable: true, exposedDevices: 4 },
+  { id: 'cv-02', cve: 'CVE-2026-9003', severity: 'High', cvss: 7.1, software: 'DataMaster Pro', exploitAvailable: false, exposedDevices: 10 },
+  { id: 'cv-03', cve: 'CVE-2026-9005', severity: 'Critical', cvss: 8.8, software: 'OfficeSuite Premium', exploitAvailable: true, exposedDevices: 35 },
+  { id: 'cv-04', cve: 'CVE-2026-9007', severity: 'Medium', cvss: 5.3, software: 'CryptoSecure', exploitAvailable: false, exposedDevices: 8 },
+  { id: 'cv-05', cve: 'CVE-2026-9009', severity: 'Critical', cvss: 9.4, software: 'VideoEditor Suite', exploitAvailable: true, exposedDevices: 30 },
+  { id: 'cv-06', cve: 'CVE-2026-9011', severity: 'High', cvss: 7.8, software: 'PDFXpert Pro', exploitAvailable: false, exposedDevices: 25 },
+  { id: 'cv-07', cve: 'CVE-2026-9013', severity: 'Low', cvss: 2.4, software: 'ImageMagick Pro', exploitAvailable: false, exposedDevices: 15 },
+  { id: 'cv-08', cve: 'CVE-2026-9015', severity: 'Critical', cvss: 8.3, software: 'AudioMaster XL', exploitAvailable: true, exposedDevices: 6 },
+  { id: 'cv-09', cve: 'CVE-2026-9017', severity: 'Medium', cvss: 5.7, software: 'SecuritySuite Pro', exploitAvailable: false, exposedDevices: 4 },
+  { id: 'cv-10', cve: 'CVE-2026-9019', severity: 'Critical', cvss: 8.6, software: 'DataFlow X', exploitAvailable: true, exposedDevices: 18 },
+  { id: 'cv-11', cve: 'CVE-2026-9021', severity: 'High', cvss: 7.6, software: 'OfficeSuite Premium', exploitAvailable: false, exposedDevices: 30 },
+  { id: 'cv-12', cve: 'CVE-2026-9023', severity: 'Low', cvss: 4.5, software: 'CryptoSecure', exploitAvailable: true, exposedDevices: 7 }
+];
+
+const TVM_RECOMMENDATIONS = [
+  { id: 'tr-01', title: 'Update CodeGenius to version 5.2.4', software: 'CodeGenius', exposedDevices: 6, impact: 8.2, status: 'Active' },
+  { id: 'tr-02', title: 'Fix DataMaster Pro vulnerabilities', software: 'DataMaster Pro', exposedDevices: 12, impact: 5.9, status: 'Exception' },
+  { id: 'tr-03', title: 'Update OfficeSuite Premium to latest version', software: 'OfficeSuite Premium', exposedDevices: 28, impact: 6.7, status: 'Active' },
+  { id: 'tr-04', title: 'Upgrade CryptoSecure version', software: 'CryptoSecure', exposedDevices: 6, impact: 4.5, status: 'Completed' },
+  { id: 'tr-05', title: 'Resolve VideoEditor Suite issues', software: 'VideoEditor Suite', exposedDevices: 34, impact: 9.1, status: 'Active' },
+  { id: 'tr-06', title: 'Secure PDFXpert Pro', software: 'PDFXpert Pro', exposedDevices: 21, impact: 7.8, status: 'Exception' },
+  { id: 'tr-07', title: 'Patch ImageMagick Pro', software: 'ImageMagick Pro', exposedDevices: 9, impact: 3.4, status: 'Completed' },
+  { id: 'tr-08', title: 'Address AudioMaster XL flaws', software: 'AudioMaster XL', exposedDevices: 6, impact: 7.2, status: 'Active' }
+];
+
+// --- T07: out/t07-multicloud.js ---
+const MC_CONNECTORS = [
+  {
+    id: 'connector-a-aaaa1111',
+    cloud: 'AWS',
+    accountId: '111122223333',
+    plans: ['CSPM','Servers'],
+    health: 'Healthy',
+    lastSync: '2026-06-15T12:00:00.000Z'
+  },
+  {
+    id: 'connector-b-bbbb2222',
+    cloud: 'GCP',
+    accountId: 'proj-aaaa1111',
+    plans: ['Databases','Containers'],
+    health: 'Warning',
+    lastSync: '2026-06-14T18:30:00.000Z'
+  }
+];
+
+const MC_RESOURCES = [
+  {
+    id: 'res-a-bbbb2222-7',
+    cloud: 'GCP',
+    type: 'Container cluster',
+    name: 'nw-ops-cluster-8',
+    region: 'europe-west3',
+    riskLevel: 'High'
+  },
+  {
+    id: 'res-b-aaaa1111-9',
+    cloud: 'AWS',
+    type: 'VM instance',
+    name: 'nw-ops-vm-7',
+    region: 'eu-west-1',
+    riskLevel: 'Medium'
+  },
+  {
+    id: 'res-c-bbbb2222-3',
+    cloud: 'GCP',
+    type: 'VM instance',
+    name: 'nw-ops-web-server-6',
+    region: 'us-central1',
+    riskLevel: 'Low'
+  },
+  {
+    id: 'res-d-bbbb2222-4',
+    cloud: 'GCP',
+    type: 'VM instance',
+    name: 'nw-ops-backend-server-5',
+    region: 'us-central1',
+    riskLevel: 'None'
+  },
+  {
+    id: 'res-e-bbbb2222-6',
+    cloud: 'GCP',
+    type: 'SQL database',
+    name: 'nw-ops-user-database-10',
+    region: 'europe-west3',
+    riskLevel: 'High'
+  },
+  {
+    id: 'res-f-bbbb2222-8',
+    cloud: 'GCP',
+    type: 'VM instance',
+    name: 'nw-ops-api-server-9',
+    region: 'us-central1',
+    riskLevel: 'Low'
+  },
+  {
+    id: 'res-g-bbbb2222-0',
+    cloud: 'GCP',
+    type: 'Storage bucket',
+    name: 'nw-ops-data-store-3',
+    region: 'us-central1',
+    riskLevel: 'None'
+  },
+  {
+    id: 'res-h-bbbb2222-1',
+    cloud: 'GCP',
+    type: 'VM instance',
+    name: 'nw-ops-frontend-server-4',
+    region: 'us-central1',
+    riskLevel: 'Low'
+  },
+  {
+    id: 'res-i-bbbb2222-5',
+    cloud: 'GCP',
+    type: 'VM instance',
+    name: 'nw-ops-auth-server-2',
+    region: 'us-central1',
+    riskLevel: 'Low'
+  },
+  {
+    id: 'res-j-bbbb2222-2',
+    cloud: 'GCP',
+    type: 'Container cluster',
+    name: 'nw-ops-k8s-cluster-0',
+    region: 'europe-west3',
+    riskLevel: 'Medium'
+  },
+  {
+    id: 'res-k-bbbb2222-10',
+    cloud: 'GCP',
+    type: 'Storage bucket',
+    name: 'nw-ops-backup-store-7',
+    region: 'us-central1',
+    riskLevel: 'Low'
+  },
+  {
+    id: 'res-l-bbbb2222-9',
+    cloud: 'GCP',
+    type: 'Storage bucket',
+    name: 'nw-ops-media-store-8',
+    region: 'us-central1',
+    riskLevel: 'Low'
+  }
+];
+
+const MC_ALERTS = [
+  {
+    id: 'alert-a-bbbb2222-5',
+    cloud: 'GCP',
+    title: 'Unusual access event on container cluster',
+    severity: 'High',
+    resource: 'nw-ops-k8s-cluster-0',
+    description: 'An unexpected role was assumed by an identity in the container cluster, indicating potential misuse or unauthorized access.'
+  },
+  {
+    id: 'alert-b-bbbb2222-3',
+    cloud: 'AWS',
+    title: 'Unsuccessful login attempts on keypair management service',
+    severity: 'Medium',
+    resource: 'nw-ops-vm-7',
+    description: 'A series of failed sign-on attempts were detected, which could indicate a compromised key pair or brute-force attack.'
+  }
+];
+// === end local-tasks fixtures ===

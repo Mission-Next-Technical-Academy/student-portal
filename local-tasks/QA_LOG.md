@@ -55,3 +55,6 @@
   > FAIL T09: out/t09-threat-explorer.js not created
 - Output deleted; task remains open.
 
+## integrate.py — 2026-07-06T11:10:39+02:00
+- Merged 6/10 task drafts into `ui/data.js` (marker section rebuilt), `node --check` clean. Detail: `INTEGRATION.md`.
+
