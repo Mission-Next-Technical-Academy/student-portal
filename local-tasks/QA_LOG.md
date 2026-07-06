@@ -50,3 +50,8 @@
   >   - AUDIT_COPILOT_EVENTS is not an array
 - Output deleted; task remains open.
 
+## T09 — 2026-07-06T11:10:19+02:00
+- **FAIL** after 2 attempts. Last verifier output:
+  > FAIL T09: out/t09-threat-explorer.js not created
+- Output deleted; task remains open.
+
