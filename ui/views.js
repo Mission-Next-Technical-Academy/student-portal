@@ -784,7 +784,11 @@ VIEWS['defender/hunting-graph'] = () => `
 
 VIEWS['defender/threat-analytics'] = () => `
   <div class="page-header">
-    <div><div class="breadcrumb">Threat intelligence › <strong>Threat analytics</strong></div><h1>Threat analytics</h1></div>
+    <div>
+      <div class="breadcrumb">Threat intelligence › <strong>Threat analytics</strong></div>
+      <h1>Threat analytics</h1>
+      <div class="page-subtitle">Interpret active reports by reading the overview, analyst guidance, related incidents, and tenant exposure before choosing response work.</div>
+    </div>
   </div>
   <div class="kpi-strip">
     <div class="kpi"><span class="kpi-label">Active campaigns</span><span class="kpi-value">${THREAT_REPORTS.filter(t=>t.status==='Active campaign').length}</span></div>
@@ -795,7 +799,7 @@ VIEWS['defender/threat-analytics'] = () => `
   <div class="card">
     <div class="card-toolbar"><strong>${THREAT_REPORTS.length}</strong> reports</div>
     <table class="grid">
-      <thead><tr><th>Severity</th><th>Threat</th><th>Type</th><th>Status</th><th>Impacted assets</th></tr></thead>
+      <thead><tr><th>Severity</th><th>Threat</th><th>Type</th><th>Status</th><th>Impacted assets</th><th>Related incidents</th></tr></thead>
       <tbody>
         ${THREAT_REPORTS.map(t => `
           <tr>
@@ -804,10 +808,38 @@ VIEWS['defender/threat-analytics'] = () => `
             <td>${esc(t.type)}</td>
             <td>${esc(t.status)}</td>
             <td>${t.impactedAssets}</td>
+            <td>${(t.relatedIncidents || []).map(id => `<a class="chip-link" href="#/defender/incidents" onclick="event.preventDefault(); openIncident('${esc(id)}')">${esc(id)}</a>`).join('') || '<span class="muted">None</span>'}</td>
           </tr>
         `).join('')}
       </tbody>
     </table>
+  </div>
+  <div class="three-col" style="margin-top:16px;">
+    ${THREAT_REPORTS.slice(0,3).map(t => `
+      <div class="card card-body">
+        <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+          <strong>${esc(t.id)} · ${esc(t.name)}</strong>
+          <span class="sev ${t.severity}">${cap(t.severity)}</span>
+        </div>
+        <div class="alert-section-title">Overview</div>
+        <ol class="mini-steps">${(t.overview || []).map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+        <div class="alert-section-title">Analyst report</div>
+        <ol class="mini-steps">${(t.analystReport || []).map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+        <div class="alert-section-title">Exposure</div>
+        <div class="callout ${t.impactedAssets ? 'warn' : 'info'}">${esc(t.exposure)}</div>
+        <div class="alert-section-title">Interpretation guidance</div>
+        <ol class="mini-steps">${(t.recommendations || []).map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+      </div>
+    `).join('')}
+  </div>
+  <div class="card card-body" style="margin-top:16px;">
+    <div class="alert-section-title">How to use this on the exam</div>
+    <div class="flowline">
+      <div class="flow-step"><strong>Read report scope</strong><span>Identify whether the report is a campaign, malware family, tool, or activity group.</span></div>
+      <div class="flow-step"><strong>Check exposure</strong><span>Prioritize reports with impacted users, devices, apps, or vulnerabilities in your tenant.</span></div>
+      <div class="flow-step"><strong>Pivot to incidents</strong><span>Open related incidents for evidence, response actions, and classification decisions.</span></div>
+      <div class="flow-step"><strong>Hunt or tune</strong><span>Use analyst guidance to write KQL, create detections, or adjust controls.</span></div>
+    </div>
   </div>
 `;
 
@@ -3721,9 +3753,71 @@ VIEWS['purview/communication-compliance'] = () => `
   </div>
 `;
 
+VIEWS['purview/graph-activity'] = () => {
+  const rows = MOCK_QUERY_RESULTS.MicrosoftGraphActivityLogs || [];
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Purview › <strong>Microsoft Graph activity logs</strong></div>
+        <h1>Microsoft Graph activity logs</h1>
+        <div class="page-subtitle">Investigation guidance and fixture rows for API activity after OAuth consent, risky sign-ins, or compromised-token events.</div>
+      </div>
+      <div class="page-actions">
+        <a class="btn btn-secondary" href="#/defender/hunting">Advanced hunting</a>
+        <a class="btn btn-primary" href="#/purview/audit">Audit search</a>
+      </div>
+    </div>
+    <div class="three-col">
+      ${GRAPH_ACTIVITY_GUIDANCE.map(g => `
+        <div class="card card-body">
+          <div class="alert-section-title">${esc(g.title)}</div>
+          <p class="muted">${esc(g.detail)}</p>
+        </div>
+      `).join('')}
+    </div>
+    <div class="two-col" style="margin-top:16px; grid-template-columns: 1fr 340px;">
+      <div class="card">
+        <div class="card-toolbar"><strong>MicrosoftGraphActivityLogs fixture rows</strong><span class="muted">${rows.length} rows</span></div>
+        <table class="grid">
+          <thead><tr><th>Time</th><th>User</th><th>App</th><th>Operation</th><th>Request</th><th>IP</th><th>Status</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${fmtTime(r.TimeGenerated)}</td>
+                <td>${esc(r.UserPrincipalName)}</td>
+                <td><strong>${esc(r.AppDisplayName)}</strong><br><span class="muted">${esc(r.AppId)}</span></td>
+                <td>${esc(r.Operation)}</td>
+                <td class="kv">${esc(r.RequestUri)}</td>
+                <td>${esc(r.IPAddress)}</td>
+                <td>${esc(r.ResultStatus)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card card-body">
+        <div class="alert-section-title">Hunting query</div>
+        <pre class="kql-snippet">MicrosoftGraphActivityLogs
+| where AppDisplayName == "DocViewer Pro"
+| project TimeGenerated, UserPrincipalName, AppDisplayName, Operation, RequestUri, IPAddress, ResultStatus</pre>
+        <div class="alert-section-title">Use with</div>
+        <div class="connector-list">
+          <div><strong>Threat analytics</strong><span>Validate affected assets and exposed apps.</span></div>
+          <div><strong>CloudAppEvents</strong><span>Correlate consent grants and app governance events.</span></div>
+          <div><strong>Purview Audit</strong><span>Confirm user-visible mailbox and file operations.</span></div>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
 VIEWS['purview/ediscovery'] = () => `
   <div class="page-header">
-    <div><div class="breadcrumb">Purview › <strong>eDiscovery</strong></div><h1>eDiscovery cases</h1></div>
+    <div>
+      <div class="breadcrumb">Purview › <strong>eDiscovery</strong></div>
+      <h1>eDiscovery cases</h1>
+      <div class="page-subtitle">Build a Content search, preview matching evidence, then prepare an investigation export.</div>
+    </div>
   </div>
   <div class="three-col">
     ${EDISCOVERY_CASES.map(c => `
@@ -3741,6 +3835,42 @@ VIEWS['purview/ediscovery'] = () => `
         <ol class="mini-steps">${c.searches.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
       </div>
     `).join('')}
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar">
+      <strong>Content search workflow</strong>
+      <span class="muted">${esc(EDISCOVERY_CONTENT_SEARCH.caseId)} · ${esc(EDISCOVERY_CONTENT_SEARCH.name)}</span>
+    </div>
+    <div class="two-col" style="grid-template-columns: 340px 1fr; padding:14px;">
+      <div>
+        <div class="alert-section-title">Build search</div>
+        <div class="connector-list">
+          <div><strong>Query</strong><span class="kv">${esc(EDISCOVERY_CONTENT_SEARCH.query)}</span></div>
+          <div><strong>Locations</strong><span>${EDISCOVERY_CONTENT_SEARCH.locations.map(x => `<span class="tag">${esc(x)}</span>`).join('')}</span></div>
+          <div><strong>Conditions</strong><span>${EDISCOVERY_CONTENT_SEARCH.conditions.map(x => `<span class="tag">${esc(x)}</span>`).join('')}</span></div>
+        </div>
+        <div class="alert-section-title">Export for investigation</div>
+        <ol class="mini-steps">${EDISCOVERY_CONTENT_SEARCH.export.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+      </div>
+      <div>
+        <div class="alert-section-title">Preview results</div>
+        <table class="grid">
+          <thead><tr><th>Location</th><th>Item</th><th>Custodian</th><th>Date</th><th>Match</th></tr></thead>
+          <tbody>
+            ${EDISCOVERY_CONTENT_SEARCH.preview.map(r => `
+              <tr>
+                <td>${esc(r.location)}<br><span class="muted">${esc(r.kind)}</span></td>
+                <td><strong>${esc(r.item)}</strong></td>
+                <td>${esc(r.custodian)}</td>
+                <td>${fmtTime(r.date)}</td>
+                <td>${esc(r.match)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="callout info" style="margin-top:12px;">${esc(EDISCOVERY_CONTENT_SEARCH.interpretation)}</div>
+      </div>
+    </div>
   </div>
 `;
 

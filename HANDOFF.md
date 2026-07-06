@@ -472,6 +472,24 @@ fix-PR-style commits could not be created in this workspace.
     `node --check ui/app.js` clean.
   - Marked AGENTS.md Sprint 2 Agent 7 checklist complete.
 
+- 2026-07-06 Sprint 2 Agent 8 M365 investigation and threat analytics depth:
+  - Added `MicrosoftGraphActivityLogs` to the Advanced hunting table list,
+    saved queries, and mock fixture rows for DocViewer Pro OAuth follow-on
+    Graph calls and a blocked Graph PowerShell risky sign-in path.
+  - Added `#/purview/graph-activity` with diagnostic-settings location
+    guidance, fixture rows, and pivots to Advanced hunting, Audit, and
+    Threat analytics context.
+  - Expanded `#/defender/threat-analytics` from a thin report table into
+    report detail panels covering overview, analyst report notes, related
+    incidents, exposure, and interpretation guidance for three active
+    reports.
+  - Expanded `#/purview/ediscovery` with a Content search workflow:
+    build query and locations, preview matching evidence, and export for
+    investigation.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Marked AGENTS.md Sprint 2 Agent 8 checklist complete.
+
 ## Next useful work
 
 - **Sprint 2 (2026-07-06):** `AGENTS.md` now defines Agents 1–9 covering

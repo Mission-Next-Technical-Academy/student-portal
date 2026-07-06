@@ -829,17 +829,29 @@ const ATTACK_STORIES = {
 
 const THREAT_REPORTS = [
   { id:'TR-001', name:'Storm-1947 ransomware activity', type:'Ransomware', status:'Active campaign',
-    impactedAssets:4, severity:'high',
-    summary:'Double-extortion ransomware operator using ScreenConnect for initial access; recent shift to BYOVD techniques.' },
+    impactedAssets:4, severity:'high', relatedIncidents:['INC-1050'], exposure:'2 exposed servers, 1 vulnerable signed driver, 1 unmanaged file share',
+    summary:'Double-extortion ransomware operator using ScreenConnect for initial access; recent shift to BYOVD techniques.',
+    overview:['Active exploitation is focused on remote management tools and finance file shares.','Tenant exposure is concentrated on FIN-FS-02 and two internet-facing endpoints.'],
+    analystReport:['Treat remote interactive logons followed by shadow-copy deletion as high-confidence ransomware staging.','Prioritize device isolation and investigation package collection before restoring files.'],
+    recommendations:['Contain FIN-FS-02 and confirm attack disruption actions completed.','Hunt for vssadmin.exe, wbadmin.exe, and suspicious driver loads in the last 7 days.','Patch exposed remote management tools or remove external access.'] },
   { id:'TR-002', name:'Midnight Blizzard credential-theft phishing', type:'Activity group',
-    status:'Active campaign', impactedAssets:1, severity:'high',
-    summary:'State-aligned actor targeting M365 admins via device-code phishing into OAuth consent grants.' },
+    status:'Active campaign', impactedAssets:1, severity:'high', relatedIncidents:['INC-1042'], exposure:'1 OAuth app consent, 1 affected mailbox, 3 broad Graph permissions',
+    summary:'State-aligned actor targeting M365 admins via device-code phishing into OAuth consent grants.',
+    overview:['The report connects phishing, OAuth consent, and Graph mailbox access into one investigation path.','The lab tenant has one matching incident: Jane Doe granting DocViewer Pro mail and file scopes.'],
+    analystReport:['OAuth persistence survives password reset until consent and refresh tokens are revoked.','Graph activity logs help confirm whether the app enumerated messages, files, or directory objects after consent.'],
+    recommendations:['Revoke DocViewer Pro consent and Jane Doe sessions.','Query CloudAppEvents and MicrosoftGraphActivityLogs for the app ID.','Review app governance for unverified publishers requesting mail write scopes.'] },
   { id:'TR-003', name:'AiTM phishing kits (Tycoon 2FA)', type:'Tool', status:'Active campaign',
-    impactedAssets:2, severity:'medium',
-    summary:'Adversary-in-the-middle phishing pages proxy MFA prompts and steal session cookies; bypasses non-FIDO MFA.' },
+    impactedAssets:2, severity:'medium', relatedIncidents:['INC-1051','INC-1053'], exposure:'2 risky sign-ins, 1 MFA-proxied session, 1 blocked Azure Portal attempt',
+    summary:'Adversary-in-the-middle phishing pages proxy MFA prompts and steal session cookies; bypasses non-FIDO MFA.',
+    overview:['The campaign explains why a successful MFA prompt can still be suspicious.','Relevant tenant signals are unfamiliar properties, impossible travel, and follow-on portal access.'],
+    analystReport:['A valid MFA result is not a benign signal when the session source, user agent, and travel pattern are abnormal.','Use risk detections to decide whether to confirm compromise or dismiss user risk.'],
+    recommendations:['Revoke sessions for Maria Ross and Sam Lee pending user validation.','Require phishing-resistant MFA for finance and admin users.','Create a hunting query for risky sign-ins followed by Graph or Azure Portal access.'] },
   { id:'TR-004', name:'AsyncRAT delivered via .lnk in archives', type:'Malware',
-    status:'Active campaign', impactedAssets:0, severity:'medium',
-    summary:'Commodity RAT delivered through .zip → .lnk → PowerShell chain; persists via Run key.' },
+    status:'Active campaign', impactedAssets:0, severity:'medium', relatedIncidents:[], exposure:'No matching tenant assets in the last 30 days',
+    summary:'Commodity RAT delivered through .zip → .lnk → PowerShell chain; persists via Run key.',
+    overview:['No active exposure is present, so use this report as preventive detection guidance.','The useful outcome is a custom detection for suspicious archive-to-script execution chains.'],
+    analystReport:['Commodity RAT delivery changes file names frequently, so behavior-based detections are more durable than hash-only matching.'],
+    recommendations:['Keep ASR blocking script-launched executables enabled.','Hunt for .lnk launches from archive extraction paths.','Monitor new startup Run key values created by Office or archive child processes.'] },
 ];
 
 const HUNTING_TABLES = ['AlertEvidence','AlertInfo','CloudAppEvents','DeviceEvents',
@@ -850,13 +862,13 @@ const HUNTING_TABLES = ['AlertEvidence','AlertInfo','CloudAppEvents','DeviceEven
   'DeviceTvmSoftwareVulnerabilities','DeviceTvmSoftwareVulnerabilitiesKB',
   'EmailAttachmentInfo','EmailEvents','EmailPostDeliveryEvents','EmailUrlInfo','UrlClickEvents',
   'IdentityDirectoryEvents','IdentityInfo','IdentityLogonEvents','IdentityQueryEvents',
-  'OAuthAppInfo','SigninLogs','ContainerEvents'];
+  'MicrosoftGraphActivityLogs','OAuthAppInfo','SigninLogs','ContainerEvents'];
 
 const HUNTING_SCHEMA_GROUPS = [
   { name:'Alerts', tables:['AlertInfo','AlertEvidence'] },
   { name:'Apps & identities',
     tables:['IdentityInfo','IdentityLogonEvents','IdentityQueryEvents',
-      'IdentityDirectoryEvents','CloudAppEvents','OAuthAppInfo'] },
+      'IdentityDirectoryEvents','CloudAppEvents','MicrosoftGraphActivityLogs','OAuthAppInfo'] },
   { name:'Email',
     tables:['EmailEvents','EmailAttachmentInfo','EmailUrlInfo',
       'EmailPostDeliveryEvents','UrlClickEvents'] },
@@ -979,6 +991,9 @@ const SAVED_QUERIES = [
   { name:'Find all devices that are internet facing',
     table:'DeviceInfo', description:'Surface endpoints that received external incoming communication.',
     query:`DeviceInfo\n| where IsInternetFacing == true\n| project Timestamp, DeviceName, OSPlatform, PublicIP, IsInternetFacing, ExposureLevel` },
+  { name:'Graph app mailbox access after consent',
+    table:'MicrosoftGraphActivityLogs', description:'Review Microsoft Graph calls made by an OAuth app after a risky consent grant.',
+    query:`MicrosoftGraphActivityLogs\n| where AppDisplayName == "DocViewer Pro"\n| project TimeGenerated, UserPrincipalName, AppDisplayName, Operation, RequestUri, IPAddress, ResultStatus` },
 ];
 
 const MOCK_QUERY_RESULTS = {
@@ -1009,6 +1024,20 @@ const MOCK_QUERY_RESULTS = {
       ApplicationId:'b9f2…ad21', Perms:'Mail.ReadWrite, Files.Read.All' },
     { Timestamp:'2026-06-28T07:52:14Z', AccountDisplayName:'aws-prod-breakglass',
       ActionType:'PutBucketAcl', BucketName:'aws-s3-prod-logs', AccessLevel:'public-read' },
+  ],
+  MicrosoftGraphActivityLogs: [
+    { TimeGenerated:'2026-06-28T08:31:00Z', UserPrincipalName:'jane.doe@contoso.com',
+      AppDisplayName:'DocViewer Pro', AppId:'b9f2-demo-ad21', Operation:'Mail.Read',
+      RequestUri:'/users/jane.doe@contoso.com/messages', IPAddress:'76.21.55.4', ResultStatus:'Success' },
+    { TimeGenerated:'2026-06-28T08:33:12Z', UserPrincipalName:'jane.doe@contoso.com',
+      AppDisplayName:'DocViewer Pro', AppId:'b9f2-demo-ad21', Operation:'Files.Read.All',
+      RequestUri:'/users/jane.doe@contoso.com/drive/root/search(q=invoice)', IPAddress:'76.21.55.4', ResultStatus:'Success' },
+    { TimeGenerated:'2026-06-28T08:36:44Z', UserPrincipalName:'jane.doe@contoso.com',
+      AppDisplayName:'DocViewer Pro', AppId:'b9f2-demo-ad21', Operation:'Mail.Send',
+      RequestUri:'/users/jane.doe@contoso.com/sendMail', IPAddress:'76.21.55.4', ResultStatus:'Denied' },
+    { TimeGenerated:'2026-06-28T13:34:09Z', UserPrincipalName:'sam.lee@contoso.com',
+      AppDisplayName:'Graph PowerShell', AppId:'graph-powershell-demo', Operation:'Directory.Read.All',
+      RequestUri:'/users?$select=id,userPrincipalName', IPAddress:'91.219.236.54', ResultStatus:'ConditionalAccessBlocked' },
   ],
   DeviceLogonEvents: [
     { Timestamp:'2026-06-28T03:44:05Z', DeviceName:'FIN-FS-02', ActionType:'LogonSuccess',
@@ -2112,6 +2141,33 @@ const EDISCOVERY_CASES = [
     linkedCase:'INC-1042' },
 ];
 
+const EDISCOVERY_CONTENT_SEARCH = {
+  caseId:'ED-9011',
+  name:'DocViewer Pro consent and mail access',
+  query:'("DocViewer Pro" OR "secure-document-portal") AND received>=2026-06-28',
+  locations:['Jane Doe mailbox','Jane Doe OneDrive','Teams chats for Finance Ops'],
+  conditions:['Date range: Jun 28, 2026 08:00-12:00 UTC','Sender or content contains secure-document-portal','Attachment names include invoice or overdue'],
+  preview:[
+    { location:'Exchange mailbox', item:'Action required: invoice overdue', custodian:'jane.doe@contoso.com',
+      date:'2026-06-28T08:09:00Z', kind:'Email', match:'secure-document-portal[.]xyz link in message body' },
+    { location:'Exchange mailbox', item:'DocViewer Pro permissions granted', custodian:'jane.doe@contoso.com',
+      date:'2026-06-28T08:24:00Z', kind:'Notification', match:'OAuth app consent notification' },
+    { location:'OneDrive', item:'Invoice-June-Overdue.url', custodian:'jane.doe@contoso.com',
+      date:'2026-06-28T08:27:00Z', kind:'Shortcut', match:'Downloaded URL shortcut from phishing workflow' },
+  ],
+  export:['Export report only for triage notes','Export indexed items with deduplicated copies','Preserve export key in case notes; do not place real secrets in lab files'],
+  interpretation:'Use Content search when the analyst needs mailbox, OneDrive, or Teams evidence for an investigation. Use Purview Audit for activity metadata and Graph activity logs for API calls.'
+};
+
+const GRAPH_ACTIVITY_GUIDANCE = [
+  { title:'Where it lives',
+    detail:'Microsoft Graph activity logs are collected through diagnostic settings, then queried from the configured Log Analytics workspace or routed into Sentinel.' },
+  { title:'What it answers',
+    detail:'Use the logs to see which app, user, operation, request URI, IP address, and result were observed after an OAuth consent or compromised-token event.' },
+  { title:'How to enable in the lab story',
+    detail:'Create a diagnostic setting for Microsoft Graph activity logs, send it to the SOC workspace, then hunt the MicrosoftGraphActivityLogs fixture table below.' },
+];
+
 const RECORD_LABELS = [
   { name:'Finance records - 7 years', type:'Retention label', status:'Published',
     disposition:'Disposition review required', locations:'SharePoint finance sites' },
@@ -2444,6 +2500,7 @@ const NAV = {
     { route:'#/purview/communication-compliance', label:'Communication compliance', icon:'💬' },
     { route:'#/purview/ediscovery',             label:'eDiscovery',            icon:'🔍' },
     { route:'#/purview/audit',                  label:'Audit',                 icon:'📜' },
+    { route:'#/purview/graph-activity',         label:'Graph activity logs',   icon:'🧾' },
     { section:'Data governance' },
     { route:'#/purview/records',                label:'Records management',    icon:'🗃' },
     { route:'#/purview/lifecycle',              label:'Data lifecycle',        icon:'⏱' },

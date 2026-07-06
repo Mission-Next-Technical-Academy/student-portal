@@ -181,12 +181,12 @@ and hard rules as above. Mark `[x]` here and update `HANDOFF.md` when done.
   node/edge fixtures (entity relationship analysis).
 
 ## Agent 8 — M365 investigation & threat analytics depth
-- [ ] **8.1** Microsoft Graph activity logs: fixture table + hunting rows +
+- [x] **8.1** Microsoft Graph activity logs: fixture table + hunting rows +
   where-it-lives guidance (enable via diagnostic settings).
-- [ ] **8.2** Threat analytics depth: 2–3 report detail pages (overview,
+- [x] **8.2** Threat analytics depth: 2–3 report detail pages (overview,
   analyst report, related incidents, exposure) + interpretation guidance —
   route exists at `views.js:722` but is thin.
-- [ ] **8.3** eDiscovery Content search workflow inside
+- [x] **8.3** eDiscovery Content search workflow inside
   `#/purview/ediscovery` (build search → preview → export for
   investigation).
 
