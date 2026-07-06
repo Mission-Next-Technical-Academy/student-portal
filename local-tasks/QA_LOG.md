@@ -58,3 +58,10 @@
 ## integrate.py — 2026-07-06T11:10:39+02:00
 - Merged 6/10 task drafts into `ui/data.js` (marker section rebuilt), `node --check` clean. Detail: `INTEGRATION.md`.
 
+## T10 — 2026-07-06T11:11:26+02:00
+- **PASS** (attempt 2). Checks: file created, node-loadable,
+  export names/counts/keys per manifest.json, banned-pattern scan
+  (no http/URLs, no Microsoft domains or MS fictional brands, no
+  long hex/secret-like strings, no real-year CVEs).
+- Output: `out/t10-mssp-mto.js`
+
