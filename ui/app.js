@@ -75,6 +75,7 @@ const PORTAL_CONTEXT = {
   'purview':        'defender',
   'sentinel':       'azure',
   'defender-cloud': 'azure',
+  'copilot':        'defender',
 };
 const PORTAL_CONTEXT_HOME = {
   'defender': '#/defender/home',
@@ -842,6 +843,7 @@ function runGuideAction(step) {
   if (kind === 'openAlert') openAlert(id);
   if (kind === 'openIncident') openIncident(id);
   if (kind === 'openRulePanel') openRulePanel(id || undefined);
+  if (kind === 'openCopilotSession') openCopilotSession(id);
 }
 
 function renderGuide() {
@@ -901,25 +903,60 @@ function scheduleGuideRefresh() {
   setTimeout(renderGuide, 80);
 }
 
-// ---------- Security Copilot stub ----------
+// ---------- Security Copilot ----------
+function readCopilotStorage(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeCopilotStorage(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function findCopilotPromptIndexForSession(sessionId) {
+  if (!sessionId) return -1;
+  return COPILOT_PROMPTS.findIndex(p => p.sessionId === sessionId || p.flow === sessionId);
+}
+
 function openCopilot(promptIndex = 0) {
   const prompts = document.getElementById('copilot-prompts');
+  if (!prompts) return;
   prompts.innerHTML = COPILOT_PROMPTS.map((p, i) => `
     <button class="copilot-prompt ${i === promptIndex ? 'active' : ''}" onclick="selectCopilotPrompt(${i})">
       ${esc(p.title)}
+      ${p.sessionId ? `<span class="copilot-prompt-meta">${esc(p.sessionId)}</span>` : ''}
     </button>
   `).join('');
   selectCopilotPrompt(promptIndex);
   showPanel('panel-copilot');
 }
 
+function openCopilotSession(sessionId) {
+  if (!sessionId) return;
+  sessionStorage.setItem('defender-lab.copilot.session.id', sessionId);
+  hidePanels();
+  navigate('#/copilot/session');
+}
+
+function openCopilotPromptForSession(sessionId) {
+  const promptIndex = Math.max(0, findCopilotPromptIndexForSession(sessionId));
+  openCopilot(promptIndex);
+}
+
 function selectCopilotPrompt(i) {
   const p = COPILOT_PROMPTS[i] || COPILOT_PROMPTS[0];
   document.querySelectorAll('.copilot-prompt').forEach((btn, idx) =>
     btn.classList.toggle('active', idx === i));
+  const sessionId = p.sessionId || COPILOT_AGENTIC_FLOW.sessionId;
+  const body = document.getElementById('copilot-answer');
+  if (!body) return;
   if (p.flow === 'agentic-investigation') {
     const flow = COPILOT_AGENTIC_FLOW;
-    document.getElementById('copilot-answer').innerHTML = `
+    body.innerHTML = `
       <div class="alert-section-title">Prompt</div>
       <div class="copilot-user">${esc(flow.prompt)}</div>
       <div class="alert-section-title">Agent plan</div>
@@ -939,18 +976,191 @@ function selectCopilotPrompt(i) {
       <div class="alert-section-title">Verdict</div>
       <div class="copilot-response">${esc(flow.verdict)}</div>
       <div class="sidepanel-footer">
+        <button class="btn btn-primary" onclick="openCopilotSession('${esc(sessionId)}')">Open standalone session</button>
         <button class="btn btn-primary" onclick="openIncidentPage('INC-1042')">Open incident</button>
         <button class="btn btn-secondary" onclick="navigate('#/defender/cases'); hidePanels();">Open case</button>
       </div>
     `;
     return;
   }
-  document.getElementById('copilot-answer').innerHTML = `
+  body.innerHTML = `
     <div class="alert-section-title">Prompt</div>
     <div class="copilot-user">${esc(p.title)}</div>
     <div class="alert-section-title">Answer</div>
     <div class="copilot-response">${esc(p.answer)}</div>
+    ${sessionId ? `
+      <div class="sidepanel-footer">
+        <button class="btn btn-primary" onclick="openCopilotSession('${esc(sessionId)}')">Open standalone session</button>
+      </div>
+    ` : ''}
   `;
+}
+
+function getCopilotSessionState() {
+  const id = sessionStorage.getItem('defender-lab.copilot.session.id') || getCopilotSessions()[0]?.id;
+  return getCopilotSession(id);
+}
+
+function persistCopilotSession(session, transcriptSteps) {
+  const sessions = readCopilotStorage('defender-lab.copilot.sessions.custom', []);
+  const transcripts = readCopilotStorage('defender-lab.copilot.transcripts.custom', []);
+  sessions.unshift(session);
+  transcripts.unshift({ sessionId: session.id, steps: transcriptSteps });
+  writeCopilotStorage('defender-lab.copilot.sessions.custom', sessions);
+  writeCopilotStorage('defender-lab.copilot.transcripts.custom', transcripts);
+}
+
+function promptbookPluginSelection(book) {
+  const title = `${book.name} ${book.source || ''}`.toLowerCase();
+  if (title.includes('email') || title.includes('purview') || title.includes('dlp')) return ['Microsoft Purview', 'Microsoft Defender XDR'];
+  if (title.includes('vulnerability')) return ['Microsoft Defender XDR', 'Microsoft Sentinel'];
+  if (title.includes('hunting') || title.includes('threat')) return ['Microsoft Sentinel', 'Microsoft Defender Threat Intelligence'];
+  return ['Microsoft Defender XDR'];
+}
+
+function runCopilotPromptbook(bookId) {
+  const book = getCopilotPromptbooks().find(pb => pb.id === bookId);
+  if (!book) return;
+  const sessionId = `cs-run-${book.id}-${Date.now().toString(36)}`;
+  const steps = [];
+  book.prompts.forEach((prompt, index) => {
+    const analyst = prompt.replace(/<[^>]+>/g, 'input');
+    const copilot = `Canned answer ${index + 1} for ${book.name}: use the lab fixtures and summarize the requested entity or event before deciding on response actions.`;
+    steps.push({ role:'analyst', text: analyst, plugin:'none', skill:'Promptbook input', pinned:index === 0 });
+    steps.push({ role:'copilot', text: copilot, plugin: promptbookPluginSelection(book)[0], skill:'Promptbook run', pinned:index === 0 });
+  });
+  persistCopilotSession({
+    id: sessionId,
+    name: `${book.name} run`,
+    owner: 'You',
+    workspace: 'Primary',
+    lastActivity: new Date().toISOString(),
+    promptCount: book.prompts.length,
+    plugins: promptbookPluginSelection(book),
+    pinned: true,
+    generatedFrom: book.id,
+  }, steps);
+  sessionStorage.setItem('defender-lab.copilot.session.id', sessionId);
+  toast(`Ran promptbook ${book.name} and created a canned session.`);
+  navigate('#/copilot/session');
+}
+
+function saveCopilotPromptbook() {
+  const name = document.getElementById('copilot-pb-name')?.value.trim();
+  const description = document.getElementById('copilot-pb-description')?.value.trim();
+  const inputs = (document.getElementById('copilot-pb-inputs')?.value || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const prompts = (document.getElementById('copilot-pb-prompts')?.value || '')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (!name || !prompts.length) {
+    toast('Add a name and at least one prompt before saving.');
+    return;
+  }
+  const custom = readCopilotStorage('defender-lab.copilot.promptbooks.custom', []);
+  const book = {
+    id: `pb-custom-${Date.now().toString(36)}`,
+    name,
+    source: 'Custom',
+    description: description || 'User-created promptbook',
+    inputs,
+    prompts,
+  };
+  custom.unshift(book);
+  writeCopilotStorage('defender-lab.copilot.promptbooks.custom', custom);
+  sessionStorage.setItem('defender-lab.copilot.promptbook.tab', 'Custom');
+  sessionStorage.setItem('defender-lab.copilot.promptbook.id', book.id);
+  toast(`Saved promptbook ${name}.`);
+  render();
+}
+
+function selectCopilotPromptbook(id) {
+  const book = getCopilotPromptbooks().find(pb => pb.id === id);
+  sessionStorage.setItem('defender-lab.copilot.promptbook.id', id);
+  if (book?.source) sessionStorage.setItem('defender-lab.copilot.promptbook.tab', book.source);
+  render();
+}
+
+function toggleCopilotPlugin(id) {
+  const enabled = readCopilotStorage('defender-lab.copilot.plugins.enabled', {});
+  enabled[id] = !enabled[id];
+  writeCopilotStorage('defender-lab.copilot.plugins.enabled', enabled);
+  render();
+}
+
+function selectCopilotPlugin(id) {
+  sessionStorage.setItem('defender-lab.copilot.plugin.id', id);
+  render();
+}
+
+function updateCopilotSetting(key, value) {
+  const settings = readCopilotStorage('defender-lab.copilot.settings', { ...COPILOT_SETTINGS_DEFAULTS });
+  settings[key] = value;
+  writeCopilotStorage('defender-lab.copilot.settings', settings);
+  render();
+}
+
+function addCopilotKnowledgeSource(kind) {
+  const custom = readCopilotStorage('defender-lab.copilot.knowledge.custom', []);
+  const stamp = new Date().toISOString();
+  custom.unshift({
+    id: `kb-custom-${Date.now().toString(36)}`,
+    name: kind === 'search' ? 'Grounding search source' : 'Uploaded file bundle',
+    type: kind === 'search' ? 'Azure AI Search index' : 'File upload',
+    items: kind === 'search' ? 128 : 1,
+    status: kind === 'search' ? 'Ready' : 'Indexing',
+    scope: 'Current lab tenant',
+    addedBy: 'You',
+    createdAt: stamp,
+  });
+  writeCopilotStorage('defender-lab.copilot.knowledge.custom', custom);
+  toast(kind === 'search' ? 'Added a mock Azure AI Search source.' : 'Added a mock file upload source.');
+  render();
+}
+
+function exportCopilotSession(sessionId) {
+  const session = getCopilotSession(sessionId);
+  const transcript = getCopilotTranscript(sessionId);
+  if (!session) return;
+  const payload = {
+    session,
+    transcript,
+  };
+  if (!navigator.clipboard?.writeText) {
+    toast('Transcript export preview is ready, but clipboard access is not available.');
+    return;
+  }
+  navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
+    .then(() => toast('Copied the canned transcript JSON.'))
+    .catch(() => toast('Transcript export is available in this browser only as a preview.'));
+}
+
+function copyCopilotSessionLink(sessionId) {
+  const text = `#/copilot/session :: ${sessionId}`;
+  if (!navigator.clipboard?.writeText) {
+    toast(`Session reference: ${text}`);
+    return;
+  }
+  navigator.clipboard.writeText(text)
+    .then(() => toast('Copied the local session reference.'))
+    .catch(() => toast(`Session reference: ${text}`));
+}
+
+function editCopilotPrompt(sessionId) {
+  const value = document.getElementById('copilot-prompt-edit')?.value || '';
+  sessionStorage.setItem(`defender-lab.copilot.prompt.${sessionId}`, value);
+  toast('Saved the prompt draft locally.');
+  render();
+}
+
+function rerunCopilotPrompt(sessionId) {
+  const value = document.getElementById('copilot-prompt-edit')?.value || '';
+  sessionStorage.setItem(`defender-lab.copilot.rerun.${sessionId}`, value);
+  toast('Queued a canned rerun of the prompt in the lab.');
+  render();
 }
 
 // ---------- app switcher ----------

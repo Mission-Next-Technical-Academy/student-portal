@@ -245,29 +245,29 @@ transcripts, promptbooks, plugins, capacity — see
 `local-tasks/README.md`): review each row for product accuracy, adapt to
 `data.js` fixture style, and inline into `ui/data.js`. Do NOT
 `<script>`-include the draft files and do NOT regenerate from scratch.
-- [ ] **12.1** `#/copilot/home` — standalone landing: prompt bar, recent
+- [x] **12.1** `#/copilot/home` — standalone landing: prompt bar, recent
   sessions, promptbook shortcuts, "embedded vs standalone" study card
   cross-linking the existing topbar Copilot panel.
-- [ ] **12.2** `#/copilot/sessions` + session detail — session list
+- [x] **12.2** `#/copilot/sessions` + session detail — session list
   (name, owner, workspace, last activity) and a transcript view: prompts,
   responses, which plugin/skill each step used, pin board, share/export
   controls (local only), edit + rerun a prompt.
-- [ ] **12.3** `#/copilot/promptbooks` — library (Microsoft vs custom
+- [x] **12.3** `#/copilot/promptbooks` — library (Microsoft vs custom
   tabs), promptbook detail (sequenced prompts, input params), a "run
   promptbook" flow producing a canned session, and a create-your-own
   builder that saves to localStorage.
-- [ ] **12.4** `#/copilot/plugins` — plugin manager: first-party
+- [x] **12.4** `#/copilot/plugins` — plugin manager: first-party
   (Defender XDR, Sentinel — workspace picker, Entra, Intune, MDTI),
   non-Microsoft, and custom (OpenAPI/KQL/GPT) plugins; on/off toggles,
   per-plugin setup panel, precedence note for which plugin answers.
-- [ ] **12.5** `#/copilot/knowledge` — knowledge base connections:
+- [x] **12.5** `#/copilot/knowledge` — knowledge base connections:
   file upload and Azure AI Search style sources, how grounding affects
   answers (study card + one canned grounded-answer example).
-- [ ] **12.6** `#/copilot/settings` — owner settings: SCU capacity
+- [x] **12.6** `#/copilot/settings` — owner settings: SCU capacity
   provisioning + usage dashboard (units, overage, per-session burn),
   role assignment (owner/contributor), data-sharing & logging toggles,
   geo/tenant notes. Interactive sliders/toggles persisting locally.
-- [ ] **12.7** Wire the existing embedded Copilot panel and guided
+- [x] **12.7** Wire the existing embedded Copilot panel and guided
   scenario overlay to deep-link into the matching standalone session so
   the embedded↔standalone relationship is walkable both ways.
 

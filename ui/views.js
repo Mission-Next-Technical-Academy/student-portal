@@ -5246,31 +5246,580 @@ VIEWS['sentinel/hunting/dns'] = () => {
 
 // ---------- Security Copilot standalone workload ----------
 
-VIEWS['copilot/home'] = () => `
-  <div class="page-header">
-    <div>
-      <div class="breadcrumb">Security Copilot › <strong>Home</strong></div>
-      <h1>Security Copilot</h1>
-      <div class="page-subtitle">Standalone experience — sessions, promptbooks, plugins, and capacity, all fictional and local.</div>
-    </div>
-    <div class="page-actions">
-      <button class="btn btn-primary" onclick="toast('Prompt bar is a static lab surface; open a session instead.')">New session</button>
-    </div>
-  </div>
-  <div class="grid">
-    ${COPILOT_SESSIONS.filter(s => s.pinned).map(s => `
-      <div class="tile">
-        <div class="tile-title"><span class="tile-icon">🗂</span>${esc(s.name)}</div>
-        <div class="tile-sub">${esc(s.owner)} · ${esc(s.workspace)} · ${fmtTime(s.lastActivity)}</div>
-        <div class="muted" style="margin-top:8px;">${s.promptCount} prompts · plugins: ${s.plugins.map(esc).join(', ')}</div>
+function copilotSessionsSorted() {
+  return getCopilotSessions().slice().sort((a, b) => new Date(b.lastActivity) - new Date(a.lastActivity));
+}
+
+function copilotSelectedSession() {
+  const sessions = copilotSessionsSorted();
+  const selectedId = sessionStorage.getItem('defender-lab.copilot.session.id') || sessions[0]?.id;
+  return getCopilotSession(selectedId) || sessions[0];
+}
+
+function copilotSelectedPromptbook() {
+  const books = getCopilotPromptbooks();
+  const tab = sessionStorage.getItem('defender-lab.copilot.promptbook.tab') || 'Microsoft';
+  const selectedId = sessionStorage.getItem('defender-lab.copilot.promptbook.id');
+  const list = books.filter(book => tab === 'All' || book.source === tab);
+  return books.find(book => book.id === selectedId) || list.find(book => book.id === selectedId) || list[0] || books[0];
+}
+
+function copilotSelectedPlugin() {
+  const plugins = getCopilotPlugins();
+  const selectedId = sessionStorage.getItem('defender-lab.copilot.plugin.id');
+  return plugins.find(plugin => plugin.id === selectedId) || plugins[0];
+}
+
+function copilotSelectedKnowledgeSource() {
+  const sources = getCopilotKnowledge();
+  const selectedId = sessionStorage.getItem('defender-lab.copilot.knowledge.id');
+  return sources.find(source => source.id === selectedId) || sources[0];
+}
+
+VIEWS['copilot/home'] = () => {
+  const sessions = copilotSessionsSorted();
+  const promptbooks = getCopilotPromptbooks();
+  const pinned = sessions.filter(s => s.pinned).slice(0, 4);
+  const activePrompt = sessionStorage.getItem('defender-lab.copilot.home.prompt') || 'Summarize incident INC-1042';
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Security Copilot › <strong>Home</strong></div>
+        <h1>Security Copilot</h1>
+        <div class="page-subtitle">Standalone experience for sessions, promptbooks, plugins, knowledge, and capacity. All content is fictional and local.</div>
       </div>
-    `).join('')}
-  </div>
-  <div class="card card-body" style="margin-top:16px;">
-    <div class="alert-section-title">Embedded vs standalone</div>
-    <div class="muted">The Copilot pane inside Defender/Purview answers in-context; this standalone portal is where owners manage sessions, promptbooks, plugins, knowledge, and SCU capacity. The topbar Copilot button in this lab is the embedded side of the same fictional tenant.</div>
-  </div>
-`;
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="openCopilot()">Open embedded panel</button>
+        <button class="btn btn-primary" onclick="openCopilotSession('cs-009')">Open agentic session</button>
+      </div>
+    </div>
+
+    <div class="copilot-home-layout">
+      <section class="card card-body copilot-hero">
+        <div class="card-toolbar">
+          <strong>Prompt bar</strong>
+          <span class="muted">Static input with local study shortcuts</span>
+        </div>
+        <textarea id="copilot-home-prompt" class="copilot-home-prompt" spellcheck="false" placeholder="Ask for an incident summary, KQL draft, entity expansion, or MITRE mapping.">${esc(activePrompt)}</textarea>
+        <div class="copilot-chip-row">
+          ${COPILOT_PROMPTS.map((prompt, index) => `
+            <button class="chip-link" type="button" onclick="openCopilot(${index})">${esc(prompt.title)}</button>
+          `).join('')}
+        </div>
+        <div class="sidepanel-footer">
+          <button class="btn btn-primary" onclick="openCopilot(0)">Open in panel</button>
+          <button class="btn btn-secondary" onclick="openCopilotSession('cs-009')">Open matching session</button>
+          <button class="btn btn-secondary" onclick="navigate('#/copilot/promptbooks')">Browse promptbooks</button>
+        </div>
+      </section>
+
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Recent sessions</strong>
+          <span class="muted">${sessions.length} local sessions</span>
+        </div>
+        <div class="copilot-session-list">
+          ${pinned.map(session => `
+            <article class="copilot-session-tile">
+              <div class="tile-title">${esc(session.name)}</div>
+              <div class="tile-sub">${esc(session.owner)} · ${esc(session.workspace)} · ${fmtTime(session.lastActivity)}</div>
+              <div class="muted">${session.promptCount} prompts · ${session.plugins.map(esc).join(', ')}</div>
+              <div class="sidepanel-footer">
+                <button class="btn btn-primary btn-sm" onclick="openCopilotSession('${esc(session.id)}')">Open session</button>
+                <button class="btn btn-secondary btn-sm" onclick="openCopilotPromptForSession('${esc(session.id)}')">Open panel</button>
+              </div>
+            </article>
+          `).join('')}
+        </div>
+      </section>
+    </div>
+
+    <div class="copilot-home-columns">
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Promptbook shortcuts</strong>
+          <span class="muted">Microsoft and custom study flows</span>
+        </div>
+        <div class="copilot-shortcut-grid">
+          ${promptbooks.slice(0, 4).map(book => `
+            <button class="copilot-shortcut" onclick="selectCopilotPromptbook('${esc(book.id)}'); navigate('#/copilot/promptbooks');">
+              <span class="copilot-shortcut-title">${esc(book.name)}</span>
+              <span class="copilot-shortcut-meta">${esc(book.source)} · ${book.prompts.length} steps</span>
+            </button>
+          `).join('')}
+        </div>
+      </section>
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Embedded vs standalone</strong>
+          <span class="muted">Same tenant, two surfaces</span>
+        </div>
+        <div class="muted">
+          The topbar Copilot button opens the embedded panel for quick prompts inside Defender or Purview.
+          This workload manages durable sessions, promptbooks, plugins, grounding sources, and SCU settings.
+        </div>
+        <div class="callout info" style="margin-top:12px;">
+          Use the panel for fast summaries, then jump into the matching standalone session when you need the transcript, pin board, or rerun controls.
+        </div>
+      </section>
+    </div>
+  `;
+};
+
+VIEWS['copilot/sessions'] = () => {
+  const sessions = copilotSessionsSorted();
+  const selected = copilotSelectedSession();
+  const transcript = getCopilotTranscript(selected?.id);
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Security Copilot › <strong>Sessions</strong></div>
+        <h1>Sessions</h1>
+        <div class="page-subtitle">Session list and transcript preview for the local Security Copilot tenant.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="openCopilot()">Open embedded panel</button>
+        <button class="btn btn-primary" onclick="navigate('#/copilot/promptbooks')">Run promptbook</button>
+      </div>
+    </div>
+
+    <div class="copilot-session-layout">
+      <section class="card">
+        <div class="card-toolbar">
+          <strong>Session list</strong>
+          <span class="muted">${sessions.length} sessions</span>
+        </div>
+        <table class="grid">
+          <thead><tr><th>Session</th><th>Owner</th><th>Workspace</th><th>Last activity</th><th>Plugins</th><th>Action</th></tr></thead>
+          <tbody>
+            ${sessions.map(session => `
+              <tr class="${session.id === selected?.id ? 'selected-row' : ''}">
+                <td>
+                  <strong>${esc(session.name)}</strong>
+                  ${session.generatedFrom ? `<div class="muted">Generated from ${esc(session.generatedFrom)}</div>` : ''}
+                </td>
+                <td>${esc(session.owner)}</td>
+                <td>${esc(session.workspace)}</td>
+                <td>${fmtTime(session.lastActivity)}</td>
+                <td>${session.plugins.map(plugin => `<span class="tag">${esc(plugin)}</span>`).join(' ')}</td>
+                <td>
+                  <button class="btn btn-secondary btn-sm" onclick="openCopilotSession('${esc(session.id)}')">Open</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Selected session</strong>
+          <span class="muted">${esc(selected?.id || '—')}</span>
+        </div>
+        ${selected ? `
+          <div class="summary-info">
+            <div><span class="muted">Owner</span><strong>${esc(selected.owner)}</strong></div>
+            <div><span class="muted">Workspace</span><strong>${esc(selected.workspace)}</strong></div>
+            <div><span class="muted">Prompts</span><strong>${esc(selected.promptCount)}</strong></div>
+            <div><span class="muted">Plugins</span><strong>${selected.plugins.map(esc).join(', ')}</strong></div>
+          </div>
+          <div class="alert-section-title">Preview</div>
+          <div class="copilot-preview">
+            ${transcript.slice(0, 4).map(step => `
+              <div class="copilot-step ${step.role}">
+                <div class="copilot-step-meta">${esc(cap(step.role))}${step.plugin && step.plugin !== 'none' ? ` · ${esc(step.plugin)}` : ''}${step.skill ? ` · ${esc(step.skill)}` : ''}</div>
+                <div class="copilot-step-text">${esc(step.text)}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="sidepanel-footer">
+            <button class="btn btn-primary" onclick="openCopilotSession('${esc(selected.id)}')">Open transcript</button>
+            <button class="btn btn-secondary" onclick="openCopilotPromptForSession('${esc(selected.id)}')">Open embedded panel</button>
+          </div>
+        ` : `
+          <div class="muted">No session selected.</div>
+        `}
+      </section>
+    </div>
+  `;
+};
+
+VIEWS['copilot/session'] = () => {
+  const selected = copilotSelectedSession();
+  const transcript = selected ? getCopilotTranscript(selected.id) : [];
+  const firstAnalystPrompt = transcript.find(step => step.role === 'analyst')?.text || '';
+  const draft = sessionStorage.getItem(`defender-lab.copilot.prompt.${selected?.id || ''}`) || firstAnalystPrompt;
+  const rerun = sessionStorage.getItem(`defender-lab.copilot.rerun.${selected?.id || ''}`);
+  const pinned = transcript.filter(step => step.pinned);
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Security Copilot › <strong>Sessions</strong> › ${esc(selected?.name || 'Session')}</div>
+        <h1>${esc(selected?.name || 'Session detail')}</h1>
+        <div class="page-subtitle">Transcript view with prompts, plugin context, pin board, and local rerun controls.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="openCopilotPromptForSession('${esc(selected?.id || '')}')">Open embedded panel</button>
+        <button class="btn btn-secondary" onclick="navigate('#/copilot/sessions')">Back to sessions</button>
+      </div>
+    </div>
+
+    ${selected ? `
+      <div class="copilot-session-detail">
+        <section class="card card-body">
+          <div class="card-toolbar">
+            <strong>Session facts</strong>
+            <span class="muted">${fmtTime(selected.lastActivity)}</span>
+          </div>
+          <div class="summary-info">
+            <div><span class="muted">Owner</span><strong>${esc(selected.owner)}</strong></div>
+            <div><span class="muted">Workspace</span><strong>${esc(selected.workspace)}</strong></div>
+            <div><span class="muted">Prompt count</span><strong>${esc(selected.promptCount)}</strong></div>
+            <div><span class="muted">Plugins</span><strong>${selected.plugins.map(esc).join(', ')}</strong></div>
+          </div>
+          <div class="alert-section-title">Pin board</div>
+          <div class="copilot-pinboard">
+            ${pinned.map(step => `
+              <div class="copilot-pin">
+                <span class="tag">${esc(cap(step.role))}</span>
+                <strong>${esc(step.text)}</strong>
+              </div>
+            `).join('')}
+          </div>
+          <div class="sidepanel-footer">
+            <button class="btn btn-primary" onclick="exportCopilotSession('${esc(selected.id)}')">Export transcript</button>
+            <button class="btn btn-secondary" onclick="copyCopilotSessionLink('${esc(selected.id)}')">Copy local link</button>
+          </div>
+        </section>
+
+        <section class="card card-body">
+          <div class="card-toolbar">
+            <strong>Transcript</strong>
+            <span class="muted">${transcript.length} turns</span>
+          </div>
+          <div class="copilot-transcript">
+            ${transcript.map((step, index) => `
+              <article class="copilot-turn ${step.role} ${step.pinned ? 'pinned' : ''}">
+                <div class="copilot-turn-head">
+                  <strong>${esc(cap(step.role))}</strong>
+                  <span>${step.plugin && step.plugin !== 'none' ? esc(step.plugin) : 'No plugin'}${step.skill ? ` · ${esc(step.skill)}` : ''}</span>
+                </div>
+                <div class="copilot-turn-text">${esc(step.text)}</div>
+                ${step.pinned ? `<div class="muted">Pinned note</div>` : ''}
+              </article>
+            `).join('')}
+          </div>
+        </section>
+
+        <section class="card card-body">
+          <div class="card-toolbar">
+            <strong>Edit and rerun</strong>
+            <span class="muted">Stored in sessionStorage only</span>
+          </div>
+          <textarea id="copilot-prompt-edit" class="copilot-prompt-edit" spellcheck="false">${esc(draft)}</textarea>
+          <div class="sidepanel-footer">
+            <button class="btn btn-secondary" onclick="editCopilotPrompt('${esc(selected.id)}')">Save draft</button>
+            <button class="btn btn-primary" onclick="rerunCopilotPrompt('${esc(selected.id)}')">Rerun prompt</button>
+          </div>
+          ${rerun ? `
+            <div class="callout info" style="margin-top:12px;">
+              Last rerun prompt: ${esc(rerun)}
+            </div>
+          ` : ''}
+        </section>
+      </div>
+    ` : `<div class="callout warn">No session is selected.</div>`}
+  `;
+};
+
+VIEWS['copilot/promptbooks'] = () => {
+  const tab = sessionStorage.getItem('defender-lab.copilot.promptbook.tab') || 'Microsoft';
+  const books = getCopilotPromptbooks();
+  const filtered = books.filter(book => tab === 'All' || book.source === tab);
+  const selected = copilotSelectedPromptbook();
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Security Copilot › <strong>Promptbooks</strong></div>
+        <h1>Promptbooks</h1>
+        <div class="page-subtitle">Browse Microsoft and custom promptbooks, then run one to create a canned session.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="navigate('#/copilot/home')">Home</button>
+        <button class="btn btn-primary" onclick="runCopilotPromptbook('${esc(selected?.id || books[0]?.id || '')}')">Run selected promptbook</button>
+      </div>
+    </div>
+
+    <div class="copilot-tabbar">
+      ${['Microsoft', 'Custom', 'All'].map(source => `
+        <button class="copilot-tab ${tab === source ? 'active' : ''}" onclick="sessionStorage.setItem('defender-lab.copilot.promptbook.tab', '${source}'); render();">${source}</button>
+      `).join('')}
+    </div>
+
+    <div class="copilot-promptbook-layout">
+      <section class="card">
+        <div class="card-toolbar">
+          <strong>Library</strong>
+          <span class="muted">${filtered.length} promptbooks</span>
+        </div>
+        <div class="copilot-book-list">
+          ${filtered.map(book => `
+            <button class="copilot-book ${selected?.id === book.id ? 'active' : ''}" onclick="selectCopilotPromptbook('${esc(book.id)}')">
+              <span class="copilot-book-title">${esc(book.name)}</span>
+              <span class="copilot-book-meta">${esc(book.source)} · ${book.prompts.length} prompts${book.inputs.length ? ` · ${book.inputs.length} inputs` : ''}</span>
+              <span class="copilot-book-desc">${esc(book.description)}</span>
+            </button>
+          `).join('')}
+        </div>
+      </section>
+
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Promptbook detail</strong>
+          <span class="muted">${esc(selected?.source || '—')}</span>
+        </div>
+        ${selected ? `
+          <div class="summary-info">
+            <div><span class="muted">Inputs</span><strong>${selected.inputs.length ? selected.inputs.join(', ') : 'None'}</strong></div>
+            <div><span class="muted">Prompts</span><strong>${selected.prompts.length}</strong></div>
+            <div><span class="muted">Source</span><strong>${esc(selected.source)}</strong></div>
+          </div>
+          <div class="alert-section-title">Sequenced prompts</div>
+          <ol class="copilot-book-steps">
+            ${selected.prompts.map(prompt => `<li>${esc(prompt)}</li>`).join('')}
+          </ol>
+          <div class="sidepanel-footer">
+            <button class="btn btn-primary" onclick="runCopilotPromptbook('${esc(selected.id)}')">Run promptbook</button>
+            <button class="btn btn-secondary" onclick="openCopilotPromptForSession('cs-009')">Open agentic session</button>
+          </div>
+        ` : `<div class="muted">Choose a promptbook from the library.</div>`}
+      </section>
+    </div>
+
+    <div class="copilot-builder-grid">
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Create your own</strong>
+          <span class="muted">Saved locally in browser storage</span>
+        </div>
+        <div class="form-grid two">
+          <label class="lbl">Name<input class="ipt" id="copilot-pb-name" placeholder="Custom incident summarizer"></label>
+          <label class="lbl">Inputs<input class="ipt" id="copilot-pb-inputs" placeholder="Incident ID, User principal name"></label>
+        </div>
+        <label class="lbl">Description<textarea class="ipt" id="copilot-pb-description" rows="3" placeholder="Describe when to use this promptbook."></textarea></label>
+        <label class="lbl">Prompts<textarea class="ipt" id="copilot-pb-prompts" rows="6" placeholder="First prompt line&#10;Second prompt line&#10;Third prompt line"></textarea></label>
+        <div class="sidepanel-footer">
+          <button class="btn btn-primary" onclick="saveCopilotPromptbook()">Save promptbook</button>
+        </div>
+      </section>
+
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Run promptbook flow</strong>
+          <span class="muted">Creates a canned session</span>
+        </div>
+        <div class="muted">Running a promptbook records a local session transcript and opens it in the session detail view, which makes it easy to compare Microsoft and custom promptbooks side by side.</div>
+        <div class="callout info" style="margin-top:12px;">
+          Use this flow to practice repeatable triage: pick a promptbook, run it, then inspect the transcript and rerun a prompt from the generated session.
+        </div>
+      </section>
+    </div>
+  `;
+};
+
+VIEWS['copilot/plugins'] = () => {
+  const plugins = getCopilotPlugins();
+  const selected = copilotSelectedPlugin();
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Security Copilot › <strong>Plugins</strong></div>
+        <h1>Plugins</h1>
+        <div class="page-subtitle">Manage first-party, non-Microsoft, and custom plugins that can ground a Copilot answer.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="navigate('#/copilot/knowledge')">Knowledge</button>
+        <button class="btn btn-primary" onclick="toast('Microsoft first-party plugins win before non-Microsoft or custom plugins when multiple are enabled.')">Precedence note</button>
+      </div>
+    </div>
+
+    <div class="copilot-plugin-layout">
+      <section class="card">
+        <div class="card-toolbar">
+          <strong>Plugin manager</strong>
+          <span class="muted">Toggle and select a plugin to review its setup note</span>
+        </div>
+        <div class="copilot-plugin-grid">
+          ${plugins.map(plugin => `
+            <button class="copilot-plugin-card ${selected?.id === plugin.id ? 'active' : ''}" onclick="selectCopilotPlugin('${esc(plugin.id)}')">
+              <div class="copilot-plugin-head">
+                <strong>${esc(plugin.name)}</strong>
+                <label class="copilot-toggle">
+                  <input type="checkbox" ${plugin.status === 'On' ? 'checked' : ''} onclick="event.stopPropagation(); toggleCopilotPlugin('${esc(plugin.id)}')">
+                  <span>On</span>
+                </label>
+              </div>
+              <div class="copilot-plugin-meta">${esc(plugin.category)} · ${esc(plugin.status)}</div>
+              <div class="copilot-plugin-desc">${esc(plugin.description)}</div>
+            </button>
+          `).join('')}
+        </div>
+      </section>
+
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Setup panel</strong>
+          <span class="muted">${esc(selected?.category || '—')}</span>
+        </div>
+        ${selected ? `
+          <div class="summary-info">
+            <div><span class="muted">Status</span><strong>${esc(selected.status)}</strong></div>
+            <div><span class="muted">Category</span><strong>${esc(selected.category)}</strong></div>
+          </div>
+          <div class="alert-section-title">What it adds</div>
+          <div class="muted">${esc(selected.description)}</div>
+          <div class="alert-section-title">Setup note</div>
+          <div class="callout info">${esc(selected.setupNote)}</div>
+          <div class="alert-section-title">Precedence</div>
+          <div class="muted">When multiple plugins are enabled, Microsoft first-party plugins are checked before non-Microsoft or custom plugins. The highest-priority enabled plugin gets the first chance to answer.</div>
+        ` : `<div class="muted">Pick a plugin from the list.</div>`}
+      </section>
+    </div>
+  `;
+};
+
+VIEWS['copilot/knowledge'] = () => {
+  const sources = getCopilotKnowledge();
+  const selected = copilotSelectedKnowledgeSource();
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Security Copilot › <strong>Knowledge</strong></div>
+        <h1>Knowledge base connections</h1>
+        <div class="page-subtitle">File uploads and Azure AI Search style sources ground responses in the lab tenant.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="addCopilotKnowledgeSource('file')">Upload file</button>
+        <button class="btn btn-primary" onclick="addCopilotKnowledgeSource('search')">Connect search source</button>
+      </div>
+    </div>
+
+    <div class="copilot-knowledge-layout">
+      <section class="card">
+        <div class="card-toolbar">
+          <strong>Knowledge sources</strong>
+          <span class="muted">${sources.length} connected</span>
+        </div>
+        <div class="copilot-knowledge-list">
+          ${sources.map(source => `
+            <button class="copilot-knowledge-card ${selected?.id === source.id ? 'active' : ''}" onclick="sessionStorage.setItem('defender-lab.copilot.knowledge.id','${esc(source.id)}'); render();">
+              <span class="copilot-knowledge-title">${esc(source.name)}</span>
+              <span class="copilot-knowledge-meta">${esc(source.type)} · ${esc(source.status)}</span>
+              <span class="copilot-knowledge-meta">${esc(source.scope)} · Added by ${esc(source.addedBy)}</span>
+            </button>
+          `).join('')}
+        </div>
+      </section>
+
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Grounding example</strong>
+          <span class="muted">${esc(selected?.type || '—')}</span>
+        </div>
+        ${selected ? `
+          <div class="summary-info">
+            <div><span class="muted">Items</span><strong>${esc(selected.items)}</strong></div>
+            <div><span class="muted">Status</span><strong>${esc(selected.status)}</strong></div>
+            <div><span class="muted">Scope</span><strong>${esc(selected.scope)}</strong></div>
+          </div>
+          <div class="alert-section-title">Prompt</div>
+          <div class="copilot-user">Where do I look for the policy that explains external sharing decisions?</div>
+          <div class="alert-section-title">Grounded answer</div>
+          <div class="copilot-response">Use the connected knowledge source to ground the response, then cite the local policy language and the most recent audit or DLP evidence before recommending an action.</div>
+          <div class="alert-section-title">Sources used</div>
+          <div class="copilot-chip-row">
+            <span class="tag">${esc(selected.name)}</span>
+            <span class="tag">${esc(selected.type)}</span>
+            <span class="tag">${esc(selected.scope)}</span>
+          </div>
+          <div class="callout info" style="margin-top:12px;">
+            Grounding makes Copilot answer with tenant-specific context instead of generic advice. File uploads are best for runbooks; search indexes are better for large policy or knowledge repositories.
+          </div>
+        ` : `<div class="muted">Choose a source to see a grounded answer example.</div>`}
+      </section>
+    </div>
+  `;
+};
+
+VIEWS['copilot/settings'] = () => {
+  const settings = getCopilotSettings();
+  const usage = COPILOT_USAGE;
+  const avgUnits = usage.reduce((sum, row) => sum + row.unitsUsed, 0) / usage.length;
+  const avgSessions = usage.reduce((sum, row) => sum + row.sessions, 0) / usage.length;
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Security Copilot › <strong>Settings</strong></div>
+        <h1>Capacity and owner settings</h1>
+        <div class="page-subtitle">Provision SCUs, choose ownership, and decide how much data the tenant shares with Copilot.</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="sessionStorage.removeItem('defender-lab.copilot.settings'); render();">Reset defaults</button>
+        <button class="btn btn-primary" onclick="toast('Settings are persisted locally in browser storage.')">Saved locally</button>
+      </div>
+    </div>
+
+    <div class="copilot-settings-grid">
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Capacity dashboard</strong>
+          <span class="muted">${settings.region} · ${settings.tenant}</span>
+        </div>
+        <div class="kpi-strip">
+          <div class="kpi"><span class="kpi-label">Provisioned SCUs</span><span class="kpi-value">${esc(settings.provisionedSCU)}</span></div>
+          <div class="kpi"><span class="kpi-label">Average burn</span><span class="kpi-value">${avgUnits.toFixed(1)}</span></div>
+          <div class="kpi"><span class="kpi-label">Average sessions</span><span class="kpi-value">${avgSessions.toFixed(1)}</span></div>
+          <div class="kpi"><span class="kpi-label">Overage</span><span class="kpi-value">${settings.overageAllowed ? 'On' : 'Off'}</span></div>
+        </div>
+        <table class="grid">
+          <thead><tr><th>Date</th><th>SCU used</th><th>Sessions</th></tr></thead>
+          <tbody>
+            ${usage.map(row => `
+              <tr><td>${fmtTime(row.date)}</td><td>${row.unitsUsed.toFixed(1)}</td><td>${row.sessions}</td></tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Owner settings</strong>
+          <span class="muted">Persisted locally</span>
+        </div>
+        <div class="form-grid two">
+          <label class="lbl">Role
+            <select class="ipt" onchange="updateCopilotSetting('ownerRole', this.value)">
+              <option ${settings.ownerRole === 'Owner' ? 'selected' : ''}>Owner</option>
+              <option ${settings.ownerRole === 'Contributor' ? 'selected' : ''}>Contributor</option>
+            </select>
+          </label>
+          <label class="lbl">Tenant<input class="ipt" value="${esc(settings.tenant)}" onchange="updateCopilotSetting('tenant', this.value)"></label>
+          <label class="lbl">Provisioned SCUs
+            <input class="ipt" type="range" min="1" max="20" value="${esc(settings.provisionedSCU)}" onchange="updateCopilotSetting('provisionedSCU', Number(this.value))">
+          </label>
+          <label class="lbl">Daily session limit
+            <input class="ipt" type="range" min="1" max="20" value="${esc(settings.dailyLimit)}" onchange="updateCopilotSetting('dailyLimit', Number(this.value))">
+          </label>
+        </div>
+        <label class="check-row"><input type="checkbox" ${settings.dataSharing ? 'checked' : ''} onchange="updateCopilotSetting('dataSharing', this.checked)"> Allow tenant data to ground answers</label>
+        <label class="check-row"><input type="checkbox" ${settings.logging ? 'checked' : ''} onchange="updateCopilotSetting('logging', this.checked)"> Keep session logging for local review</label>
+        <label class="check-row"><input type="checkbox" ${settings.overageAllowed ? 'checked' : ''} onchange="updateCopilotSetting('overageAllowed', this.checked)"> Allow overage when SCU demand spikes</label>
+        <div class="alert-section-title">Usage notes</div>
+        <div class="muted">Owners provision capacity, contributors run investigations, and the lab keeps all telemetry local. Geo and tenant notes are informational only.</div>
+      </section>
+    </div>
+  `;
+};
 
 // === local-tasks views (auto-merged by add_view.py — do not hand-edit between markers) ===
 

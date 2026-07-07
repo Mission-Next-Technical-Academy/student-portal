@@ -1227,6 +1227,7 @@ const CASE_MANAGEMENT = [
 
 const COPILOT_AGENTIC_FLOW = {
   title:'Agentic investigation: INC-1042 OAuth abuse',
+  sessionId:'cs-009',
   prompt:'Investigate INC-1042 end to end and recommend whether to contain Jane Doe and DocViewer Pro.',
   plan:['Read incident alerts and timeline','Expand user, OAuth app, IP, URL, and mailbox entities','Run static CloudAppEvents and SigninLogs checks','Decide containment and case tasks'],
   toolCalls:[
@@ -2327,23 +2328,43 @@ const GUIDED_SCENARIOS = [
         body:'Audit search narrows activity by operation, user, workload, and time window during an investigation.' },
       { route:'#/purview/audit', target:'.grid tbody tr:nth-child(2)',
         title:'Review privileged activity',
-        body:'The result set includes role assignment, file access, consent grant, and identity replication events for cross-checking incident evidence.' },
+      body:'The result set includes role assignment, file access, consent grant, and identity replication events for cross-checking incident evidence.' },
+    ],
+  },
+  {
+    id:'copilot-handoff',
+    name:'Copilot handoff',
+    archetype:'Embedded to standalone',
+    summary:'Jump from the Defender home guided scenario into the matching standalone Copilot session.',
+    steps:[
+      { route:'#/defender/home', target:'.guided-scenario-card',
+        title:'Open the local Copilot session',
+        body:'Use the guided scenario overlay to jump into the same transcript that the embedded topbar Copilot panel references.',
+        actionLabel:'Open session cs-009', action:'openCopilotSession:cs-009' },
+      { route:'#/copilot/session', target:'.copilot-session-detail',
+        title:'Review the standalone transcript',
+        body:'The session detail view keeps the transcript, pin board, and rerun controls in one place so you can study the same investigation outside the embedded panel.' },
     ],
   },
 ];
 
 const COPILOT_PROMPTS = [
   { title:'Summarize incident INC-1019',
-    answer:'Two Defender for Identity alerts indicate possible DCSync from svc-backup against DC01. Review service-account ownership, reset credentials, and validate replication permissions before closure.' },
+    answer:'Two Defender for Identity alerts indicate possible DCSync from svc-backup against DC01. Review service-account ownership, reset credentials, and validate replication permissions before closure.',
+    sessionId:'cs-001' },
   { title:'Draft KQL for public-folder execution',
-    answer:'Start with DeviceProcessEvents, filter FolderPath for C:\\Users\\Public, remove known installers, then project Timestamp, DeviceName, FileName, SHA256, and AccountName for triage.' },
+    answer:'Start with DeviceProcessEvents, filter FolderPath for C:\\Users\\Public, remove known installers, then project Timestamp, DeviceName, FileName, SHA256, and AccountName for triage.',
+    sessionId:'cs-005' },
   { title:'Expand Jane Doe entities',
-    answer:'Pivot from jane.doe@contoso.com to the phishing URL, OAuth app DocViewer Pro, sign-in IP 76.21.55.4, and recent CloudAppEvents consent activity.' },
+    answer:'Pivot from jane.doe@contoso.com to the phishing URL, OAuth app DocViewer Pro, sign-in IP 76.21.55.4, and recent CloudAppEvents consent activity.',
+    sessionId:'cs-003' },
   { title:'Map this to MITRE',
-    answer:'Scanner tuning maps to Discovery. DCSync maps to Credential Access and Persistence. OAuth abuse maps to Initial Access and Persistence. Ransomware posture work maps to Impact prevention.' },
+    answer:'Scanner tuning maps to Discovery. DCSync maps to Credential Access and Persistence. OAuth abuse maps to Initial Access and Persistence. Ransomware posture work maps to Impact prevention.',
+    sessionId:'cs-006' },
   { title:'Run guided investigation for INC-1042',
     answer:'Open the guided flow to review the static plan, tool calls, entity expansion, and final containment verdict for the phishing-to-OAuth incident.',
-    flow:'agentic-investigation' },
+    flow:'agentic-investigation',
+    sessionId:'cs-009' },
 ];
 
 const DEFAULT_SUPPRESSION_RULE = {
@@ -2368,7 +2389,7 @@ const PORTALS = [
   { id:'sentinel',      name:'Microsoft Sentinel',          tag:'SIEM · analytics rules, hunting, automation',color:'#0064bf', initial:'S' },
   { id:'defender-cloud',name:'Microsoft Defender for Cloud',tag:'CSPM/CWPP · recommendations, compliance',    color:'#5c2d91', initial:'C' },
   { id:'purview',       name:'Microsoft Purview',           tag:'Data security · DLP, insider risk, audit',   color:'#038387', initial:'P' },
-  { id:'copilot',       name:'Security Copilot',            tag:'Standalone · sessions, promptbooks, plugins', color:'#8661c5', initial:'SC' },
+  { id:'copilot',       name:'Security Copilot',            tag:'Standalone · sessions, promptbooks, plugins, knowledge', color:'#7a7574', initial:'SC' },
 ];
 
 // Microsoft Cloud app launcher — same set surfaced by the waffle in security.microsoft.com.
@@ -2518,6 +2539,11 @@ const NAV = {
   ],
   copilot: [
     { route:'#/copilot/home',                   label:'Home',                  icon:'🏠' },
+    { route:'#/copilot/sessions',               label:'Sessions',              icon:'🗂' },
+    { route:'#/copilot/promptbooks',            label:'Promptbooks',           icon:'📚' },
+    { route:'#/copilot/plugins',                label:'Plugins',               icon:'🧩' },
+    { route:'#/copilot/knowledge',              label:'Knowledge',             icon:'🧠' },
+    { route:'#/copilot/settings',               label:'Settings',              icon:'⚙' },
     // === local-tasks nav:copilot ===
   ],
 };
@@ -3123,206 +3149,262 @@ const TECHNIQUE_TACTIC_LOOKUP = (() => {
 // === local-tasks fixtures (auto-merged by integrate.py — do not hand-edit between markers) ===
 // --- T01: out/t01-copilot-sessions.js ---
 const COPILOT_SESSIONS = [
-  { id: 'cs-001', name: 'Phishing wave triage - finance dept', owner: 'R. Vance', workspace: 'Primary', lastActivity: '2026-06-28T14:02:00Z', promptCount: 9, plugins: [ 'Defender XDR', 'MDTI' ], pinned: true },
-  { id: 'cs-002', name: 'Ransomware indicator in SIEM alerts', owner: 'M. Okafor', workspace: 'SOC-EU', lastActivity: '2026-06-30T15:45:00Z', promptCount: 7, plugins: [ 'Defender XDR' ], pinned: false },
-  { id: 'cs-003', name: 'OAuth app misuse event timeline', owner: 'L. Harper', workspace: 'Primary', lastActivity: '2026-06-29T14:58:00Z', promptCount: 5, plugins: [ 'Defender XDR', 'MDTI' ], pinned: true },
-  { id: 'cs-004', name: 'DLP alert - potential employee data exfiltration', owner: 'T. Martinez', workspace: 'Primary', lastActivity: '2026-06-27T15:30:00Z', promptCount: 11, plugins: [ 'MDTI' ], pinned: true },
-  { id: 'cs-005', name: 'Vulnerability scan prioritization - high risk', owner: 'E. Silva', workspace: 'Primary', lastActivity: '2026-06-30T17:40:00Z', promptCount: 8, plugins: [ 'Defender XDR', 'Sentinel' ], pinned: false },
-  { id: 'cs-006', name: 'Incident summary for C-suite: ransomware containment', owner: 'C. Williams', workspace: 'Primary', lastActivity: '2026-06-29T16:58:00Z', promptCount: 6, plugins: [ 'Defender XDR' ], pinned: false },
-  { id: 'cs-007', name: 'TI analysis - suspicious DNS traffic', owner: 'J. Patel', workspace: 'Primary', lastActivity: '2026-06-30T14:25:00Z', promptCount: 3, plugins: [ 'Intune' ], pinned: true },
-  { id: 'cs-008', name: 'Risk matrix for recent sign-ins - SOC report', owner: 'K. Kim', workspace: 'SOC-EU', lastActivity: '2026-06-31T17:59:00Z', promptCount: 4, plugins: [ 'Sentinel' ], pinned: true }
+  { id: 'cs-001', name: 'Phishing wave triage - finance dept', owner: 'R. Vance', workspace: 'Primary', lastActivity: '2026-06-28T14:02:00Z', promptCount: 9, plugins: [ 'Microsoft Defender XDR', 'Microsoft Sentinel' ], pinned: true },
+  { id: 'cs-002', name: 'Ransomware indicator in SIEM alerts', owner: 'M. Okafor', workspace: 'SOC-EU', lastActivity: '2026-06-30T15:45:00Z', promptCount: 7, plugins: [ 'Microsoft Sentinel', 'Microsoft Defender XDR' ], pinned: false },
+  { id: 'cs-003', name: 'OAuth app misuse event timeline', owner: 'L. Harper', workspace: 'Primary', lastActivity: '2026-06-29T14:58:00Z', promptCount: 5, plugins: [ 'Microsoft Defender XDR', 'Microsoft Defender Threat Intelligence' ], pinned: true },
+  { id: 'cs-004', name: 'DLP alert - potential employee data exfiltration', owner: 'T. Martinez', workspace: 'Primary', lastActivity: '2026-06-27T15:30:00Z', promptCount: 11, plugins: [ 'Microsoft Purview', 'Microsoft Defender XDR' ], pinned: true },
+  { id: 'cs-005', name: 'Vulnerability scan prioritization - high risk', owner: 'E. Silva', workspace: 'Primary', lastActivity: '2026-06-30T17:40:00Z', promptCount: 8, plugins: [ 'Microsoft Defender XDR', 'Microsoft Sentinel' ], pinned: false },
+  { id: 'cs-006', name: 'Incident summary for C-suite: ransomware containment', owner: 'C. Williams', workspace: 'Primary', lastActivity: '2026-06-29T16:58:00Z', promptCount: 6, plugins: [ 'Microsoft Defender XDR' ], pinned: false },
+  { id: 'cs-007', name: 'TI analysis - suspicious DNS traffic', owner: 'J. Patel', workspace: 'Primary', lastActivity: '2026-06-30T14:25:00Z', promptCount: 3, plugins: [ 'Microsoft Sentinel', 'Microsoft Defender Threat Intelligence' ], pinned: true },
+  { id: 'cs-008', name: 'Risk matrix for recent sign-ins - SOC report', owner: 'K. Kim', workspace: 'SOC-EU', lastActivity: '2026-06-30T17:59:00Z', promptCount: 4, plugins: [ 'Microsoft Sentinel', 'Microsoft Entra' ], pinned: true },
+  { id: 'cs-009', name: 'INC-1042 phishing-to-OAuth investigation', owner: 'A. Lee', workspace: 'Primary', lastActivity: '2026-06-30T18:12:00Z', promptCount: 7, plugins: [ 'Microsoft Defender XDR', 'Microsoft Purview' ], pinned: true }
 ];
 
 // --- T02: out/t02-copilot-transcripts.js ---
 const COPILOT_TRANSCRIPTS = [
-{
+  {
     sessionId: 'cs-001',
     steps: [
-        { role: 'analyst', text: 'Reviewing the incident details of A123. This is a suspected phishing attack.', plugin: 'none', pinned: true },
-        { role: 'copilot', text: 'The summary shows an email campaign targeting employees with a phishing link. 90% open rate, 25% click-through to payload delivery page.', plugin: 'Defender XDR', pinned: false },
-        { role: 'analyst', text: 'Which users clicked the malicious link?', plugin: 'none', pinned: true },
-        { role: 'copilot', text: 'The list of affected users includes R. Vance and M. Okafor.', plugin: 'Defender XDR', pinned: false },
-        { role: 'analyst', text: 'What are the recommended actions?', plugin: 'none', pinned: true }
+      { role: 'analyst', text: 'Reviewing the incident details for the phishing wave. Which alerts are correlated?', plugin: 'none', skill: 'Incident summary', pinned: true },
+      { role: 'copilot', text: 'Two alerts are grouped: a malicious URL click and a mailbox activity spike on the same users.', plugin: 'Microsoft Defender XDR', skill: 'Correlation', pinned: false },
+      { role: 'analyst', text: 'Which users clicked the link?', plugin: 'none', skill: 'Entity pivot', pinned: true },
+      { role: 'copilot', text: 'R. Vance and M. Okafor are the affected users in this lab case.', plugin: 'Microsoft Defender XDR', skill: 'Entity expansion', pinned: false }
     ]
-},
-{
+  },
+  {
+    sessionId: 'cs-002',
+    steps: [
+      { role: 'analyst', text: 'This SIEM feed looks like ransomware staging. What makes it suspicious?', plugin: 'none', skill: 'Threat hunting', pinned: true },
+      { role: 'copilot', text: 'The process chain shows archive creation, share discovery, and bulk file rename activity from a finance workstation.', plugin: 'Microsoft Sentinel', skill: 'KQL reasoning', pinned: false },
+      { role: 'analyst', text: 'Should we isolate the device?', plugin: 'none', skill: 'Response planning', pinned: true },
+      { role: 'copilot', text: 'Yes. Isolate the host, stop the service account, and preserve the alert set for incident follow-up.', plugin: 'Microsoft Defender XDR', skill: 'Containment', pinned: false }
+    ]
+  },
+  {
     sessionId: 'cs-003',
     steps: [
-        { role: 'analyst', text: 'Analyzing a suspicious PowerShell command pasted by the analyst.', plugin: 'MDTI', pinned: true },
-        { role: 'copilot', text: 'Providing context, this command decodes an encoded payload that appears to be a downloader script.', plugin: 'none', pinned: false },
-        { role: 'analyst', text: 'Could you provide more related intel on the actor?', plugin: 'none', pinned: true },
-        { role: 'copilot', text: 'The command was likely executed by an actor called Nickel Sleet, known for spear-phishing campaigns targeting financial institutions.', plugin: 'none', pinned: false },
-        { role: 'analyst', text: 'Draft a summary with this information.', plugin: 'none', pinned: true }
+      { role: 'analyst', text: 'I need to understand the OAuth app misuse timeline.', plugin: 'none', skill: 'Incident triage', pinned: true },
+      { role: 'copilot', text: 'The user clicked a phishing URL, then consented to DocViewer Pro with broad mail and files scopes.', plugin: 'Microsoft Defender XDR', skill: 'Timeline summarization', pinned: false },
+      { role: 'analyst', text: 'What should I pivot on next?', plugin: 'none', skill: 'Entity pivots', pinned: true },
+      { role: 'copilot', text: 'Expand the user, the app registration, the source IP, and the mailbox activity in CloudAppEvents.', plugin: 'Microsoft Defender Threat Intelligence', skill: 'Entity expansion', pinned: false }
     ]
-}
+  },
+  {
+    sessionId: 'cs-004',
+    steps: [
+      { role: 'analyst', text: 'Purview flagged external sharing of sensitive files. What is the likely issue?', plugin: 'none', skill: 'Policy triage', pinned: true },
+      { role: 'copilot', text: 'The file contains payment card data and was shared outside the tenant; the DLP policy tip is consistent with a real exfiltration risk.', plugin: 'Microsoft Purview', skill: 'DLP review', pinned: false },
+      { role: 'analyst', text: 'What are the response options?', plugin: 'none', skill: 'Response planning', pinned: true },
+      { role: 'copilot', text: 'Review the override request, notify the user owner, and escalate to insider-risk or eDiscovery if the pattern repeats.', plugin: 'Microsoft Purview', skill: 'Remediation', pinned: false }
+    ]
+  },
+  {
+    sessionId: 'cs-005',
+    steps: [
+      { role: 'analyst', text: 'Prioritize the vulnerability scan findings. What stands out?', plugin: 'none', skill: 'Exposure analysis', pinned: true },
+      { role: 'copilot', text: 'CodeGenius and PDFXpert Pro have exploit-available CVEs with multiple exposed devices, so they should be first in line for remediation.', plugin: 'Microsoft Defender XDR', skill: 'Prioritization', pinned: false },
+      { role: 'analyst', text: 'Can this become a repeatable workflow?', plugin: 'none', skill: 'Operationalization', pinned: true },
+      { role: 'copilot', text: 'Yes. Turn the pattern into a tracker item and route the remediation request to IT with an expiry date.', plugin: 'Microsoft Sentinel', skill: 'Workflow suggestion', pinned: false }
+    ]
+  },
+  {
+    sessionId: 'cs-006',
+    steps: [
+      { role: 'analyst', text: 'Summarize the ransomware incident for leadership.', plugin: 'none', skill: 'Executive summary', pinned: true },
+      { role: 'copilot', text: 'The incident is a confirmed ransomware event with service-account driven encryption, mapped network shares, and containment already underway.', plugin: 'Microsoft Defender XDR', skill: 'Summarization', pinned: false },
+      { role: 'analyst', text: 'What should be included in the headline?', plugin: 'none', skill: 'Decision support', pinned: true },
+      { role: 'copilot', text: 'State the scope, containment actions, and restoration plan; avoid speculation about dwell time until forensics confirms it.', plugin: 'Microsoft Defender XDR', skill: 'Leadership guidance', pinned: false }
+    ]
+  },
+  {
+    sessionId: 'cs-007',
+    steps: [
+      { role: 'analyst', text: 'These DNS lookups look noisy. What do you see?', plugin: 'none', skill: 'Threat hunting', pinned: true },
+      { role: 'copilot', text: 'The burst contains repeated NXDOMAIN queries from one host plus suspicious responses from known proxy ranges, which is consistent with tunneling or beaconing.', plugin: 'Microsoft Sentinel', skill: 'Pattern detection', pinned: false },
+      { role: 'analyst', text: 'Can I ground this in indicators?', plugin: 'none', skill: 'Indicator enrichment', pinned: true },
+      { role: 'copilot', text: 'Yes. Save the IPs and domains as indicators, then validate whether they appear in other alerts or in the hunting graph.', plugin: 'Microsoft Defender Threat Intelligence', skill: 'TI enrichment', pinned: false }
+    ]
+  },
+  {
+    sessionId: 'cs-008',
+    steps: [
+      { role: 'analyst', text: 'Are these risky sign-ins likely compromise or travel?', plugin: 'none', skill: 'Identity triage', pinned: true },
+      { role: 'copilot', text: 'The sign-in from an unfamiliar region is paired with risk detections, so the lab should treat it as suspicious until the user validates the activity.', plugin: 'Microsoft Entra', skill: 'Risk interpretation', pinned: false },
+      { role: 'analyst', text: 'What would you do next?', plugin: 'none', skill: 'Response planning', pinned: true },
+      { role: 'copilot', text: 'Confirm or dismiss the risk, then decide whether to require password reset and revoke sessions.', plugin: 'Microsoft Defender XDR', skill: 'Containment guidance', pinned: false }
+    ]
+  },
+  {
+    sessionId: 'cs-009',
+    steps: [
+      { role: 'analyst', text: 'Investigate INC-1042 end to end and decide if we contain the user.', plugin: 'none', skill: 'Agentic prompt', pinned: true },
+      { role: 'copilot', text: 'The incident is a phishing-to-OAuth chain: user click, app consent, and follow-on mailbox access. Expand the user, app, and IP entities next.', plugin: 'Microsoft Defender XDR', skill: 'Incident summary', pinned: false },
+      { role: 'analyst', text: 'What tool calls should I make?', plugin: 'none', skill: 'Planning', pinned: true },
+      { role: 'copilot', text: 'Query CloudAppEvents for DocViewer Pro, inspect SigninLogs for the unfamiliar IP, and review the mailbox for scope abuse.', plugin: 'Microsoft Purview', skill: 'Tool planning', pinned: false },
+      { role: 'analyst', text: 'Verdict?', plugin: 'none', skill: 'Decisioning', pinned: true },
+      { role: 'copilot', text: 'Contain the user, revoke sessions, remove consent, and keep the case open until hunting shows no further abuse.', plugin: 'Microsoft Defender XDR', skill: 'Verdict', pinned: false }
+    ]
+  }
 ];
 
 // --- T03: out/t03-copilot-promptbooks.js ---
 const COPILOT_PROMPTBOOKS = [
-    {
-        id: 'pb-01',
-        name: 'Incident investigation',
-        source: 'Microsoft',
-        description: 'Step-by-step triage of an incident.',
-        inputs: ['Incident ID'],
-        prompts: ['Summarize incident <ID>', 'List impacted entities', 'List related alerts', 'Suggest response actions', 'Draft an executive summary']
-    },
-    {
-        id: 'pb-02',
-        name: 'Suspicious script analysis',
-        source: 'Microsoft',
-        description: 'Analyze suspicious scripts for potential threats.',
-        inputs: [],
-        prompts: ['Identify the purpose of <script>', 'Check against known malware patterns', 'Examine network activity related to <script>', 'Suggest next steps']
-    },
-    {
-        id: 'pb-03',
-        name: 'Threat actor profile',
-        source: 'Microsoft',
-        description: 'Develop a profile of the threat actor based on attack patterns.',
-        inputs: ['Device name'],
-        prompts: ['List recent activity by <device>', 'Identify common tactics and techniques used', 'Suggest potential motivations']
-    },
-    {
-        id: 'pb-04',
-        name: 'Vulnerability impact assessment',
-        source: 'Microsoft',
-        description: 'Assess the risk of a vulnerability exploit.',
-        inputs: [],
-        prompts: ['Describe the vulnerability', 'Estimate potential damage', 'Suggest remediation steps']
-    },
-    {
-        id: 'pb-05',
-        name: 'User compromise assessment',
-        source: 'Microsoft',
-        description: 'Evaluate the risk of user data breaches.',
-        inputs: [],
-        prompts: ['Identify potential access vectors', 'Determine impacted users and data', 'Suggest containment actions']
-    },
-    {
-        id: 'pb-06',
-        name: 'Email threat triage',
-        source: 'Microsoft',
-        description: 'Triage incoming emails for potential threats.',
-        inputs: ['Incident ID'],
-        prompts: ['Summarize email content <ID>', 'Check against known phishing patterns', 'Analyze sender behavior', 'Suggest actions']
-    },
-    {
-        id: 'pb-07',
-        name: 'Shift handoff summary',
-        source: 'Custom',
-        description: 'Compile a summary of ongoing incidents for oncoming analysts.',
-        inputs: [],
-        prompts: ['List unresolved incidents', 'Highlight key findings and issues', 'Provide recommendations']
-    },
-    {
-        id: 'pb-08',
-        name: 'Threat hunting playbook',
-        source: 'Custom',
-        description: 'Detailed steps for proactive threat hunting activities.',
-        inputs: [],
-        prompts: ['Outline objectives and scope', 'Describe detection criteria', 'Suggest initial actions']
-    }
+  {
+    id: 'pb-01',
+    name: 'Incident investigation',
+    source: 'Microsoft',
+    description: 'Step-by-step triage of an incident.',
+    inputs: ['Incident ID'],
+    prompts: ['Summarize incident <ID>', 'List impacted entities', 'List related alerts', 'Suggest response actions', 'Draft an executive summary']
+  },
+  {
+    id: 'pb-02',
+    name: 'Suspicious script analysis',
+    source: 'Microsoft',
+    description: 'Analyze suspicious scripts for potential threats.',
+    inputs: [],
+    prompts: ['Identify the purpose of <script>', 'Check against known malware patterns', 'Examine network activity related to <script>', 'Suggest next steps']
+  },
+  {
+    id: 'pb-03',
+    name: 'Threat actor profile',
+    source: 'Microsoft',
+    description: 'Develop a profile of the threat actor based on attack patterns.',
+    inputs: ['Device name'],
+    prompts: ['List recent activity by <device>', 'Identify common tactics and techniques used', 'Suggest potential motivations']
+  },
+  {
+    id: 'pb-04',
+    name: 'Vulnerability impact assessment',
+    source: 'Microsoft',
+    description: 'Assess the risk of a vulnerability exploit.',
+    inputs: [],
+    prompts: ['Describe the vulnerability', 'Estimate potential damage', 'Suggest remediation steps']
+  },
+  {
+    id: 'pb-05',
+    name: 'User compromise assessment',
+    source: 'Microsoft',
+    description: 'Evaluate the risk of user data breaches.',
+    inputs: [],
+    prompts: ['Identify potential access vectors', 'Determine impacted users and data', 'Suggest containment actions']
+  },
+  {
+    id: 'pb-06',
+    name: 'Email threat triage',
+    source: 'Microsoft',
+    description: 'Triage incoming emails for potential threats.',
+    inputs: ['Incident ID'],
+    prompts: ['Summarize email content <ID>', 'Check against known phishing patterns', 'Analyze sender behavior', 'Suggest actions']
+  },
+  {
+    id: 'pb-07',
+    name: 'Shift handoff summary',
+    source: 'Custom',
+    description: 'Compile a summary of ongoing incidents for oncoming analysts.',
+    inputs: [],
+    prompts: ['List unresolved incidents', 'Highlight key findings and issues', 'Provide recommendations']
+  },
+  {
+    id: 'pb-08',
+    name: 'Threat hunting playbook',
+    source: 'Custom',
+    description: 'Detailed steps for proactive threat hunting activities.',
+    inputs: [],
+    prompts: ['Outline objectives and scope', 'Describe detection criteria', 'Suggest initial actions']
+  }
 ];
 
 // --- T04: out/t04-copilot-plugins.js ---
 const COPILOT_PLUGINS = [
-    {
-        id: 'pl-01',
-        name: 'Microsoft Defender XDR - Endpoint Security Policies',
-        category: 'First-party',
-        status: 'On',
-        description: 'Enforces security policies for endpoints.',
-        setupNote: 'Configure policy sets in the Workspace.'
-    },
-    {
-        id: 'pl-02',
-        name: 'Microsoft Sentinel - Data Connector to APM',
-        category: 'First-party',
-        status: 'On',
-        description: 'Automatically correlates events from application performance monitoring.',
-        setupNote: 'Integrate with the on-prem SIEM.'
-    },
-    {
-        id: 'pl-03',
-        name: 'Microsoft Entra - Conditional Access Policy',
-        category: 'First-party',
-        status: 'On',
-        description: 'Enforces access rules for cloud resources.',
-        setupNote: 'Configure policy in Microsoft Entra ID.'
-    },
-    {
-        id: 'pl-04',
-        name: 'Microsoft Intune - Device Management',
-        category: 'First-party',
-        status: 'On',
-        description: 'Manages company-owned and personal devices.',
-        setupNote: 'Set up managed devices via the portal.'
-    },
-    {
-        id: 'pl-05',
-        name: 'Microsoft Defender Threat Intelligence - Real-Time Indicators',
-        category: 'First-party',
-        status: 'Off',
-        description: 'Provides real-time cyber threat intelligence.',
-        setupNote: 'Enable in the workspace and manage threats.'
-    },
-    {
-        id: 'pl-06',
-        name: 'Microsoft Purview - Information Protection Policies',
-        category: 'First-party',
-        status: 'On',
-        description: 'Protects sensitive data in documents and emails.',
-        setupNote: 'Create policies for email and file shares.'
-    },
-    {
-        id: 'pl-07',
-        name: 'Azure Firewall - Network Security Policy',
-        category: 'First-party',
-        status: 'On',
-        description: 'Secures network traffic flow.',
-        setupNote: 'Configure firewall rules in the Azure portal.'
-    },
-    {
-        id: 'pl-08',
-        name: 'NetScope CASB - Cloud Security Risk Policy',
-        category: 'Non-Microsoft',
-        status: 'Off',
-        description: 'Monitors and manages cloud security risks.',
-        setupNote: 'Integrate with NetScope platform.'
-    },
-    {
-        id: 'pl-09',
-        name: 'ComplySoft Compliance Manager - Audit Policies',
-        category: 'Non-Microsoft',
-        status: 'Off',
-        description: 'Enforces compliance of cloud applications.',
-        setupNote: 'Configure policies for SaaS apps.'
-    },
-    {
-        id: 'pl-10',
-        name: 'KQL Debugger - Query Optimization Tool',
-        category: 'Custom',
-        status: 'On',
-        description: 'Optimizes Kusto queries for performance.',
-        setupNote: 'Requires Node.js environment.'
-    },
-    {
-        id: 'pl-11',
-        name: 'Azure API Manager - Gateway Management Tool',
-        category: 'Custom',
-        status: 'Off',
-        description: 'Manages and secures APIs.',
-        setupNote: 'Configure in the Azure portal.'
-    },
-    {
-        id: 'pl-12',
-        name: 'ChatGPT Prompt Engine - Interactive Assistance Tool',
-        category: 'Custom',
-        status: 'On',
-        description: 'Provides interactive Q&A support for analysts.',
-        setupNote: 'No additional setup required.'
-    }
+  {
+    id: 'pl-01',
+    name: 'Microsoft Defender XDR - Incident context',
+    category: 'First-party',
+    status: 'On',
+    description: 'Summarizes incidents, alerts, and entity pivots from Defender XDR.',
+    setupNote: 'Grant Security Copilot access to the Defender workload and incident data.'
+  },
+  {
+    id: 'pl-02',
+    name: 'Microsoft Sentinel - Workspace context',
+    category: 'First-party',
+    status: 'On',
+    description: 'Pulls hunting queries, incidents, and workbook context from Sentinel.',
+    setupNote: 'Pick the target workspace before asking Copilot to explain Sentinel data.'
+  },
+  {
+    id: 'pl-03',
+    name: 'Microsoft Entra - Identity context',
+    category: 'First-party',
+    status: 'On',
+    description: 'Brings sign-in risk, user risk, and directory audit details into answers.',
+    setupNote: 'Enable the identity plugin for the tenant that holds the sign-in logs.'
+  },
+  {
+    id: 'pl-04',
+    name: 'Microsoft Intune - Device context',
+    category: 'First-party',
+    status: 'On',
+    description: 'Adds device posture and management context for endpoint questions.',
+    setupNote: 'Connect the managed device source so Copilot can ground device-centric responses.'
+  },
+  {
+    id: 'pl-05',
+    name: 'Microsoft Defender Threat Intelligence - Indicator enrichment',
+    category: 'First-party',
+    status: 'Off',
+    description: 'Enriches IP, domain, and file indicators with threat intelligence context.',
+    setupNote: 'Turn it on when you want Copilot to explain indicators before writing hunts.'
+  },
+  {
+    id: 'pl-06',
+    name: 'Microsoft Purview - Content security context',
+    category: 'First-party',
+    status: 'On',
+    description: 'Grounds answers in DLP, audit, and eDiscovery content clues.',
+    setupNote: 'Connect the Purview sources used in the lab tenant.'
+  },
+  {
+    id: 'pl-07',
+    name: 'Fabrikam SIEM - Custom triage bridge',
+    category: 'Non-Microsoft',
+    status: 'Off',
+    description: 'Adds a fictional third-party alert feed used for lab comparisons.',
+    setupNote: 'Enable the connector only when cross-platform alert blending is being studied.'
+  },
+  {
+    id: 'pl-08',
+    name: 'NetScope CASB - Cloud app risk feed',
+    category: 'Non-Microsoft',
+    status: 'Off',
+    description: 'Represents a third-party cloud app risk source with OAuth and file activity.',
+    setupNote: 'Use it as a stand-in for non-Microsoft app governance context.'
+  },
+  {
+    id: 'pl-09',
+    name: 'KQL Debugger - Query optimization tool',
+    category: 'Custom',
+    status: 'On',
+    description: 'Helps draft and shorten KQL for local lab hunts.',
+    setupNote: 'No extra setup required in the offline lab.'
+  },
+  {
+    id: 'pl-10',
+    name: 'Promptbook Runner - Guided session builder',
+    category: 'Custom',
+    status: 'On',
+    description: 'Runs local promptbooks and records the resulting canned session.',
+    setupNote: 'Stores generated sessions in browser storage.'
+  },
+  {
+    id: 'pl-11',
+    name: 'Case Notes Copier - Analyst helper',
+    category: 'Custom',
+    status: 'Off',
+    description: 'Provides a static example of a custom workflow plugin.',
+    setupNote: 'Use it to compare custom plugin ordering against first-party plugins.'
+  }
 ];
 
 // --- T05: out/t05-copilot-capacity.js ---
@@ -3348,6 +3430,15 @@ const COPILOT_CAPACITY = {
   overageAllowed: true,
   region: 'Europe',
   owners: ['R. Vance', 'M. Okafor']
+};
+
+const COPILOT_SETTINGS_DEFAULTS = {
+  ...COPILOT_CAPACITY,
+  ownerRole: 'Contributor',
+  dataSharing: true,
+  logging: true,
+  tenant: 'Contoso',
+  dailyLimit: 8,
 };
 
 // --- T06: out/t06-tvm.js ---
@@ -3915,10 +4006,60 @@ const MTO_INCIDENTS = [
 
 // --- T12: out/t12-knowledge.js ---
 const COPILOT_KNOWLEDGE = [
-  { id:'kb-1', name:'HR policies', type:'File upload', items:14, status:'Ready', scope:'IRM analysts', addedBy:'M. Okafor' },
-  { id:'kb-2', name:'IR runbooks', type:'File upload', items:22, status:'Ready', scope:'SOC all', addedBy:'R. Vance' },
-  { id:'kb-3', name:'Asset register extract', type:'Search index', items:1830, status:'Ready', scope:'SOC all', addedBy:'R. Vance' },
+  { id:'kb-1', name:'IR runbooks', type:'File upload', items:22, status:'Ready', scope:'SOC all', addedBy:'R. Vance' },
+  { id:'kb-2', name:'Identity policy library', type:'File upload', items:14, status:'Ready', scope:'IRM analysts', addedBy:'M. Okafor' },
+  { id:'kb-3', name:'Asset register extract', type:'Azure AI Search index', items:1830, status:'Ready', scope:'SOC all', addedBy:'R. Vance' },
   { id:'kb-4', name:'Network diagrams', type:'File upload', items:9, status:'Indexing', scope:'Tier 2 only', addedBy:'L. Harper' },
-  { id:'kb-5', name:'Vendor risk notes', type:'Search index', items:412, status:'Ready', scope:'GRC team', addedBy:'M. Okafor' },
+  { id:'kb-5', name:'Vendor risk notes', type:'Azure AI Search index', items:412, status:'Ready', scope:'GRC team', addedBy:'M. Okafor' },
 ];
+
+function readStoredJson(key, fallback) {
+  if (typeof localStorage === 'undefined') return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getCopilotCustomSessions() {
+  return readStoredJson('defender-lab.copilot.sessions.custom', []);
+}
+
+function getCopilotSessions() {
+  return [...COPILOT_SESSIONS, ...getCopilotCustomSessions()];
+}
+
+function getCopilotTranscriptRecords() {
+  return [...COPILOT_TRANSCRIPTS, ...readStoredJson('defender-lab.copilot.transcripts.custom', [])];
+}
+
+function getCopilotTranscript(sessionId) {
+  return getCopilotTranscriptRecords().find(record => record.sessionId === sessionId)?.steps || [];
+}
+
+function getCopilotSession(sessionId) {
+  return getCopilotSessions().find(session => session.id === sessionId);
+}
+
+function getCopilotPromptbooks() {
+  return [...COPILOT_PROMPTBOOKS, ...readStoredJson('defender-lab.copilot.promptbooks.custom', [])];
+}
+
+function getCopilotPlugins() {
+  const enabled = readStoredJson('defender-lab.copilot.plugins.enabled', {});
+  return COPILOT_PLUGINS.map(plugin => ({
+    ...plugin,
+    status: enabled[plugin.id] === undefined ? plugin.status : (enabled[plugin.id] ? 'On' : 'Off'),
+  }));
+}
+
+function getCopilotKnowledge() {
+  return [...COPILOT_KNOWLEDGE, ...readStoredJson('defender-lab.copilot.knowledge.custom', [])];
+}
+
+function getCopilotSettings() {
+  return { ...COPILOT_SETTINGS_DEFAULTS, ...readStoredJson('defender-lab.copilot.settings', {}) };
+}
 // === end local-tasks fixtures ===

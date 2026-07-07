@@ -30,6 +30,7 @@ body.wl-defender      { --workload: #0078d4; --topbar: #201f1e; }
 body.wl-sentinel      { --workload: #0064bf; --topbar: #1f1f1f; }
 body.wl-defender-cloud{ --workload: #5c2d91; --topbar: #1f1f1f; }
 body.wl-purview       { --workload: #038387; --topbar: #1a3a3a; }
+body.wl-copilot       { --workload: #7a7574; --topbar: #232120; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -2205,6 +2206,239 @@ body.route-defender-hunting .content {
 }
 
 /* Security Copilot */
+.copilot-home-layout,
+.copilot-home-columns,
+.copilot-session-layout,
+.copilot-session-detail,
+.copilot-promptbook-layout,
+.copilot-builder-grid,
+.copilot-plugin-layout,
+.copilot-knowledge-layout,
+.copilot-settings-grid {
+  display: grid;
+  gap: 16px;
+}
+.copilot-home-layout {
+  grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.9fr);
+  align-items: start;
+}
+.copilot-home-columns,
+.copilot-promptbook-layout,
+.copilot-plugin-layout,
+.copilot-knowledge-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.copilot-session-layout,
+.copilot-session-detail {
+  grid-template-columns: minmax(340px, 1fr) minmax(0, 1.15fr);
+}
+.copilot-builder-grid,
+.copilot-settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.copilot-hero {
+  border-top: 3px solid var(--workload);
+}
+.copilot-home-prompt,
+.copilot-prompt-edit {
+  width: 100%;
+  min-height: 110px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 12px;
+  font: inherit;
+  background: #fff;
+  color: var(--fg);
+  resize: vertical;
+}
+.copilot-home-prompt:focus,
+.copilot-prompt-edit:focus {
+  outline: 2px solid var(--primary-soft);
+  border-color: var(--workload);
+}
+.copilot-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.copilot-chip-row .chip-link {
+  margin: 0;
+}
+.copilot-session-list,
+.copilot-book-list,
+.copilot-knowledge-list {
+  display: grid;
+  gap: 10px;
+}
+.copilot-session-tile,
+.copilot-book,
+.copilot-plugin-card,
+.copilot-knowledge-card {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 12px;
+  cursor: pointer;
+}
+.copilot-session-tile:hover,
+.copilot-book:hover,
+.copilot-plugin-card:hover,
+.copilot-knowledge-card:hover,
+.copilot-session-tile.active,
+.copilot-book.active,
+.copilot-plugin-card.active,
+.copilot-knowledge-card.active {
+  border-color: var(--workload);
+  background: var(--primary-soft);
+}
+.copilot-session-tile .tile-title,
+.copilot-book-title,
+.copilot-knowledge-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.copilot-session-tile .tile-sub,
+.copilot-book-meta,
+.copilot-knowledge-meta,
+.copilot-plugin-meta,
+.copilot-prompt-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.copilot-book-desc,
+.copilot-plugin-desc {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--fg);
+  line-height: 1.45;
+}
+.copilot-shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.copilot-shortcut {
+  text-align: left;
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  border-radius: 4px;
+  padding: 12px;
+  cursor: pointer;
+}
+.copilot-shortcut:hover {
+  border-color: var(--workload);
+  background: var(--primary-soft);
+}
+.copilot-shortcut-title,
+.copilot-book-title,
+.copilot-knowledge-title {
+  display: block;
+}
+.copilot-shortcut-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.copilot-tabbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.copilot-tab {
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  border-radius: 4px;
+  height: 32px;
+  padding: 0 14px;
+  cursor: pointer;
+}
+.copilot-tab.active {
+  background: var(--primary-soft);
+  border-color: var(--workload);
+  color: var(--workload);
+  font-weight: 600;
+}
+.copilot-preview,
+.copilot-transcript,
+.copilot-pinboard {
+  display: grid;
+  gap: 10px;
+}
+.copilot-step,
+.copilot-turn,
+.copilot-pin {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px;
+  background: #fff;
+}
+.copilot-step.analyst,
+.copilot-turn.analyst {
+  border-left: 3px solid var(--primary);
+}
+.copilot-step.copilot,
+.copilot-turn.copilot {
+  border-left: 3px solid var(--workload);
+}
+.copilot-step.pinned,
+.copilot-turn.pinned {
+  background: var(--bg-hover);
+}
+.copilot-step-meta,
+.copilot-turn-head {
+  font-size: 11px;
+  color: var(--fg-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.copilot-step-text,
+.copilot-turn-text {
+  line-height: 1.5;
+}
+.copilot-book-steps {
+  margin: 0 0 0 18px;
+  padding: 0;
+  line-height: 1.6;
+}
+.copilot-plugin-grid {
+  display: grid;
+  gap: 10px;
+}
+.copilot-plugin-card {
+  cursor: pointer;
+}
+.copilot-plugin-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.copilot-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.copilot-toggle input {
+  margin: 0;
+}
+.copilot-knowledge-card.active .copilot-knowledge-title,
+.copilot-book.active .copilot-book-title {
+  color: var(--workload);
+}
+.copilot-session-detail > section:last-child {
+  grid-column: 1 / -1;
+}
 .copilot-prompts {
   display: grid;
   gap: 8px;
@@ -2220,11 +2454,15 @@ body.route-defender-hunting .content {
   font-size: 13px;
   color: var(--fg);
   cursor: pointer;
+  display: block;
 }
 .copilot-prompt:hover,
 .copilot-prompt.active {
   border-color: var(--workload);
   background: var(--primary-soft);
+}
+.copilot-prompt-meta {
+  margin-top: 4px;
 }
 .copilot-user,
 .copilot-response {
@@ -2272,6 +2510,29 @@ body.route-defender-hunting .content {
 .copilot-toolcall em {
   margin-top: 4px;
   font-style: normal;
+}
+.selected-row {
+  background: var(--primary-soft);
+}
+
+@media (max-width: 1180px) {
+  .copilot-home-layout,
+  .copilot-home-columns,
+  .copilot-session-layout,
+  .copilot-session-detail,
+  .copilot-promptbook-layout,
+  .copilot-builder-grid,
+  .copilot-plugin-layout,
+  .copilot-knowledge-layout,
+  .copilot-settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .copilot-shortcut-grid {
+    grid-template-columns: 1fr;
+  }
+  .copilot-session-detail > section:last-child {
+    grid-column: auto;
+  }
 }
 
 /* Guided scenario coach */

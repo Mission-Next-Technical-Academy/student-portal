@@ -589,3 +589,21 @@ EXTEND these, do not rebuild or duplicate:
 - `#/copilot/home` + Copilot PORTALS/NAV entry exist; `ui/lab-widgets.js`
   provides labList/labGet/labSet persistence helpers for new views.
 Current QA baseline: 90/90 views render clean, 0 dead NAV routes.
+
+## 2026-07-07 — Agent 12 Security Copilot standalone portal
+- Added the standalone `copilot` workload with new NAV entries for
+  `#/copilot/home`, `#/copilot/sessions`, `#/copilot/promptbooks`,
+  `#/copilot/plugins`, `#/copilot/knowledge`, and `#/copilot/settings`,
+  plus a detailed `#/copilot/session` drill-in route.
+- Merged the local fixture drafts into `ui/data.js` and cleaned them up for
+  product accuracy: sessions, transcripts, promptbooks, plugins, usage,
+  capacity, and knowledge sources now all feed the new views.
+- Built local-only persistence for custom promptbooks, generated sessions,
+  plugin enablement, knowledge sources, and Copilot settings via
+  `localStorage` / `sessionStorage`.
+- Wired the topbar Copilot panel and the standalone session view together
+  so the panel can jump into the matching transcript, and the session view
+  can reopen the embedded panel.
+- Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+  `node --check ui/app.js` clean, plus headless Chrome `--dump-dom` checks
+  on the new Copilot routes and an HTTP 200 from `127.0.0.1:8765`.
