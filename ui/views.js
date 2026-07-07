@@ -356,6 +356,8 @@ function mockKqlEvaluateSource(expr, bindings, cache) {
     return parts.flatMap(part => mockKqlNormalizeRows(mockKqlEvaluateSource(part.trim(), bindings, cache)));
   }
   if (/^externaldata\b/i.test(source)) return mockKqlParseCsvSource(source);
+  const workspaceMatch = source.match(/^workspace\s*\(\s*["'][^"']+["']\s*\)\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)$/i);
+  if (workspaceMatch) return mockKqlCloneRows(mockKqlTables()[workspaceMatch[1]] || []);
   const fnMatch = source.match(/^(_Im_[A-Za-z0-9_]+)\s*\(([\s\S]*)\)$/);
   if (fnMatch) {
     const rows = mockKqlCloneRows(mockKqlTables()[fnMatch[1]] || []);
@@ -1840,6 +1842,7 @@ VIEWS['defender/settings'] = () => `
     </div>
     <div class="page-actions">
       <button class="btn btn-secondary" onclick="toast('Settings export prepared in the lab.')">Export</button>
+      <a class="btn btn-secondary" href="#/defender/mto">Multi-tenant management</a>
       <button class="btn btn-primary" onclick="toast('Settings saved in lab memory only.')">Save changes</button>
     </div>
   </div>
@@ -1899,6 +1902,87 @@ VIEWS['defender/settings'] = () => `
     </div>
   </section>
 `;
+
+VIEWS['defender/mto'] = () => {
+  const tenant = currentMsspTenant();
+  const tenantIncidents = MTO_INCIDENTS.filter(i => i.tenant === tenant.name);
+  const openIncidents = MTO_INCIDENTS.filter(i => i.status !== 'Resolved');
+  return `
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Configuration › <strong>Multi-tenant management</strong></div>
+        <h1>Defender multi-tenant management</h1>
+        <div class="page-subtitle">Consolidated incident queue for a managed-security-provider style lab tenant. Use it to reason about delegated access versus customer-tenant administration.</div>
+      </div>
+      <div class="page-actions">
+        <a class="btn btn-secondary" href="#/defender/settings">Back to settings</a>
+        <button class="btn btn-primary" onclick="toast('MTO queue updated in local lab state only.')">Refresh queue</button>
+      </div>
+    </div>
+    <div class="callout info" style="margin-bottom:16px;">
+      Multi-tenant management is for delegated triage, hunting, and response across customer tenants. It does <strong>not</strong> replace customer-tenant ownership for directory, licensing, or admin-only changes.
+    </div>
+    <div class="kpi-strip">
+      <div class="kpi"><span class="kpi-label">Customer tenants</span><span class="kpi-value">${MSSP_TENANTS.length}</span></div>
+      <div class="kpi"><span class="kpi-label">Open incidents</span><span class="kpi-value">${openIncidents.length}</span></div>
+      <div class="kpi"><span class="kpi-label">Selected tenant</span><span class="kpi-value">${esc(tenant.name)}</span></div>
+      <div class="kpi"><span class="kpi-label">Delegated roles</span><span class="kpi-value">${tenant.delegatedRoles.length}</span></div>
+    </div>
+    <div class="two-col">
+      <section class="card card-body">
+        <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+          <strong>Tenant switcher</strong>
+          <span class="muted">Choose the customer you are triaging</span>
+        </div>
+        <label class="wizard-label">Active customer
+          <select class="text-input" onchange="setMsspTenant(this.value)">
+            ${MSSP_TENANTS.map(t => `<option value="${t.id}" ${t.id === tenant.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}
+          </select>
+        </label>
+        <div class="tile-grid" style="margin-top:12px;">
+          ${MSSP_TENANTS.map(t => `
+            <button class="tile ${t.id === tenant.id ? 'selected-row' : ''}" type="button" onclick="setMsspTenant('${esc(t.id)}')">
+              <div class="tile-title">${esc(t.name)}</div>
+              <div class="tile-sub">${esc(t.status)} · ${t.workspaces.length} workspace${t.workspaces.length === 1 ? '' : 's'}</div>
+              <div style="margin-top:8px;">${t.delegatedRoles.map(role => `<span class="tag">${esc(role)}</span>`).join(' ')}</div>
+            </button>
+          `).join('')}
+        </div>
+      </section>
+      <section class="card card-body">
+        <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+          <strong>Scope notes</strong>
+          <span class="muted">What MTO covers and what it does not</span>
+        </div>
+        <div class="flowline vertical-flow">
+          <div class="flow-step"><strong>MTO can</strong><span>View and triage incidents, pivot entities, run response actions, and coordinate across delegated customer workspaces.</span></div>
+          <div class="flow-step"><strong>Need B2B or tenant admin</strong><span>Change directory objects, tenant settings, subscription ownership, or customer-owned configuration outside the delegated scope.</span></div>
+          <div class="flow-step"><strong>Single-tenant only</strong><span>Lab tasks that touch licensing, ownership, or customer governance stay in the customer tenant even when the queue is centralized.</span></div>
+        </div>
+      </section>
+    </div>
+    <section class="card" style="margin-top:16px;">
+      <div class="card-toolbar">
+        <strong>Consolidated incident queue</strong>
+        <span class="muted">${tenantIncidents.length} incidents for ${esc(tenant.name)}</span>
+      </div>
+      <table class="grid">
+        <thead><tr><th>Tenant</th><th>Severity</th><th>Incident</th><th>Status</th><th>Assigned to</th></tr></thead>
+        <tbody>
+          ${MTO_INCIDENTS.map(incident => `
+            <tr class="${incident.tenant === tenant.name ? 'active-row' : ''}">
+              <td><strong>${esc(incident.tenant)}</strong></td>
+              <td><span class="sev ${incident.severity === 'High' ? 'high' : incident.severity === 'Medium' ? 'medium' : 'low'}">${esc(incident.severity)}</span></td>
+              <td>${esc(incident.title)}</td>
+              <td>${esc(incident.status)}</td>
+              <td>${esc(incident.assignedTo)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+  `;
+};
 
 VIEWS['defender/asr-policy'] = () => `
   <div class="page-header">
@@ -3736,6 +3820,14 @@ VIEWS['sentinel/mitre'] = () => {
 VIEWS['sentinel/logs'] = () => {
   const initialTask = KQL_PRACTICE_TASKS[0];
   const restoreJob = currentSentinelRestoreJob();
+  const workspaceQuery = `workspace("${currentWorkspace().name}").SecurityEvent
+| where EventID == 4625
+| project TimeGenerated, Computer, EventID, Account, IpAddress`;
+  const auxiliaryQuery = `ArchiveDns_CL
+| where DnsQuery == "sync-a.bad-demo.example"
+| project TimeGenerated, DnsQuery, QueryCount, UniqueHosts`;
+  const prefilledQuery = sessionStorage.getItem('defender-lab.sentinel.logs.query') || auxiliaryQuery;
+  const queryLoadedFromWorkspace = /^workspace\s*\(/i.test(prefilledQuery.trim());
   return {
     html: `
   <div class="page-header hunting-page-header">
@@ -3761,6 +3853,41 @@ VIEWS['sentinel/logs'] = () => {
     <div class="kpi"><span class="kpi-label">Union / join</span><span class="kpi-value">2</span><span class="kpi-delta">Cross-table drills</span></div>
     <div class="kpi"><span class="kpi-label">Transforms</span><span class="kpi-value">4</span><span class="kpi-delta">Parse, JSON, split, extract</span></div>
     <div class="kpi"><span class="kpi-label">Render ops</span><span class="kpi-value">3</span><span class="kpi-delta">timechart, barchart, piechart</span></div>
+  </div>
+  <div class="two-col" style="margin-top:16px;">
+    <section class="card card-body">
+      <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+        <strong>Data lake and tier guidance</strong>
+        <span class="muted">When to mirror, when to search, when to batch</span>
+      </div>
+      <div class="flowline vertical-flow">
+        <div class="flow-step"><strong>Azure Data Explorer</strong><span>Mirror or export when the work needs broader historical analytics, notebooks, or cross-domain joins that do not have to stay in the incident queue.</span></div>
+        <div class="flow-step"><strong>Basic tier</strong><span>Keep noisy telemetry cheap. Use search jobs when you need retained rows outside the 30-day interactive window.</span></div>
+        <div class="flow-step"><strong>Auxiliary tier</strong><span>Query retained rows directly when the analyst needs lower-cost history without moving the data into a new table.</span></div>
+      </div>
+      <div class="callout warn" style="margin-top:12px;">Basic tables are intentionally limited for repeated long-lookback hunts. That is why the lab uses a search job for <code>NetworkLogs_CL</code> and keeps the auxiliary example below interactive.</div>
+    </section>
+    <section class="card card-body">
+      <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+        <strong>Limited query example</strong>
+        <span class="muted">${queryLoadedFromWorkspace ? 'Workspace() query loaded from Workspace manager' : 'Auxiliary table query'}</span>
+      </div>
+      <div class="callout ${queryLoadedFromWorkspace ? 'success' : 'info'}" id="sentinel-limited-status">
+        ${queryLoadedFromWorkspace
+          ? 'Loaded the workspace-qualified query from Workspace manager. It stays local but uses the same shape as a real Sentinel cross-workspace hunt.'
+          : 'ArchiveDns_CL is an auxiliary table in this lab, so it stays interactive across retention and makes a good limited-query example.'}
+      </div>
+      <textarea id="sentinel-limited-query" class="kql hunting-kql">${esc(prefilledQuery)}</textarea>
+      <div class="kql-toolbar">
+        <button class="btn btn-primary btn-sm" onclick="runSentinelLimitedQuery()">Run query</button>
+        <button class="btn btn-secondary btn-sm" onclick='loadSentinelLogsQuery(${JSON.stringify(workspaceQuery)})'>Load workspace() example</button>
+        <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('sentinel-limited-query')">Copy</button>
+      </div>
+      <div class="hunting-results" id="sentinel-limited-results" style="margin-top:12px;">
+        <div class="card-toolbar"><strong>Results</strong></div>
+        <div class="card-body muted">Run the auxiliary query to review retained rows.</div>
+      </div>
+    </section>
   </div>
   <div class="hunting-workspace">
     <aside class="hunting-schema-sidebar" aria-label="Practice tasks">
@@ -3900,8 +4027,31 @@ VIEWS['sentinel/logs'] = () => {
             : `Result mismatch: expected ${task.expectedRows} rows for <strong>${esc(task.title)}</strong>, got ${result.rows.length}.`;
         }
       };
+      window.runSentinelLimitedQuery = () => {
+        const queryEl = document.getElementById('sentinel-limited-query');
+        if (!queryEl) return;
+        const query = queryEl.value;
+        const result = mockKqlEvaluate(query);
+        const status = document.getElementById('sentinel-limited-status');
+        if (status) {
+          const isWorkspaceQuery = query.trim() === workspaceQuery.trim();
+          status.className = `callout ${isWorkspaceQuery ? 'success' : 'info'}`;
+          status.innerHTML = isWorkspaceQuery
+            ? 'Loaded the workspace-qualified query from Workspace manager. It stays local but uses the same shape as a real Sentinel cross-workspace hunt.'
+            : 'ArchiveDns_CL is an auxiliary table in this lab, so it stays interactive across retention and makes a good limited-query example.';
+        }
+        document.getElementById('sentinel-limited-results').innerHTML = `
+          <div class="card-toolbar">
+            <strong>${result.rows.length} rows</strong>
+            <span class="muted">${/^workspace\s*\(/i.test(query.trim()) ? 'Workspace-qualified query' : 'Auxiliary-table query'}</span>
+          </div>
+          ${mockKqlRenderResult(result)}`;
+      };
       taskButtons.forEach(btn => btn.addEventListener('click', () => setActiveTask(btn.dataset.kqlTask)));
       setActiveTask(sessionStorage.getItem('defender-lab.kql-practice.task') || initialTask.id);
+      if (document.getElementById('sentinel-limited-query')) {
+        window.runSentinelLimitedQuery();
+      }
     },
   };
 };
@@ -4931,17 +5081,97 @@ VIEWS['sentinel/workspace-manager'] = () => {
     { type:'Automation', selected:2, total:3, link:'#/sentinel/automation', detail:'Playbooks and automation rules tied to incident response' },
     { type:'DCR-backed connectors', selected:4, total:SENTINEL_INGESTION_LABS.length + 1, link:'#/sentinel/data-connectors', detail:'Syslog, Windows Security Events, CEF, Azure Activity, custom logs' },
   ];
+  const workspace = currentWorkspace();
+  const tenant = currentMsspTenant();
+  const workspaceQuery = `workspace("${workspace.name}").SecurityEvent
+| where EventID == 4625
+| project TimeGenerated, Computer, EventID, Account, IpAddress`;
   return `
     <div class="page-header">
-      <div><div class="breadcrumb">Configuration › <strong>Workspace manager</strong></div><h1>Workspace manager</h1><div class="page-subtitle">Central landing surface for packaging, publishing, and tracking Sentinel content across member workspaces.</div></div>
+      <div>
+        <div class="breadcrumb">Configuration › <strong>Workspace manager</strong></div>
+        <h1>Workspace manager</h1>
+        <div class="page-subtitle">Central landing surface for packaging, publishing, and tracking Sentinel content across member workspaces and customer tenants.</div>
+      </div>
       <div class="page-actions"><a class="btn btn-secondary" href="#/sentinel/analytics">Analytics</a><a class="btn btn-primary" href="#/sentinel/data-connectors">DCR workflows</a></div>
     </div>
-    <div class="kpi-strip"><div class="kpi"><span class="kpi-label">Member workspaces</span><span class="kpi-value">${SENTINEL_WORKSPACES.length}</span></div><div class="kpi"><span class="kpi-label">Content types</span><span class="kpi-value">${content.length}</span></div><div class="kpi"><span class="kpi-label">Last publish</span><span class="kpi-value">07:40</span><span class="kpi-delta">2026-07-06</span></div><div class="kpi"><span class="kpi-label">Pending changes</span><span class="kpi-value">3</span></div></div>
-    <div class="two-col">
-      <section class="card"><div class="card-toolbar"><strong>Member workspaces</strong><span class="muted">Publish target status</span></div><table class="grid"><thead><tr><th>Workspace</th><th>Region</th><th>Tier</th><th>Rules</th><th>Publish status</th><th>Last publish</th></tr></thead><tbody>${SENTINEL_WORKSPACES.map((w, i) => `<tr><td><strong>${esc(w.name)}</strong></td><td>${esc(w.region)}</td><td>${esc(w.tier)}</td><td>${w.ruleIdx.length}</td><td><span class="tag ${i === 2 ? 'orange' : 'green'}">${i === 2 ? 'Pending changes' : 'In sync'}</span></td><td>${i === 2 ? '2026-07-05 16:10' : '2026-07-06 07:40'}</td></tr>`).join('')}</tbody></table></section>
-      <section class="card"><div class="card-toolbar"><strong>Content selection</strong><span class="muted">Package for publish</span></div><table class="grid"><thead><tr><th>Content</th><th>Selected</th><th>Scope</th><th>Open</th></tr></thead><tbody>${content.map(c => `<tr><td><strong>${esc(c.type)}</strong><br><span class="muted">${esc(c.detail)}</span></td><td>${c.selected} / ${c.total}</td><td><span class="tag green">Included</span></td><td><a class="chip-link" href="${c.link}">Open →</a></td></tr>`).join('')}</tbody></table></section>
+    <div class="kpi-strip">
+      <div class="kpi"><span class="kpi-label">Member workspaces</span><span class="kpi-value">${SENTINEL_WORKSPACES.length}</span></div>
+      <div class="kpi"><span class="kpi-label">Customer tenants</span><span class="kpi-value">${MSSP_TENANTS.length}</span></div>
+      <div class="kpi"><span class="kpi-label">Content types</span><span class="kpi-value">${content.length}</span></div>
+      <div class="kpi"><span class="kpi-label">Last publish</span><span class="kpi-value">07:40</span><span class="kpi-delta">2026-07-06</span></div>
     </div>
-    <div class="card card-body" style="margin-top:16px;"><div class="alert-section-title">Publish workflow</div><div class="flowline"><div class="flow-step"><strong>Select content</strong><span>Choose analytics rules, hunting queries, workbooks, automation, and connector-backed DCR labs.</span></div><div class="flow-step"><strong>Validate dependencies</strong><span>Confirm required tables, connectors, watchlists, and UEBA settings exist in each member workspace.</span></div><div class="flow-step"><strong>Publish</strong><span>Distribute the package and record last-publish status per workspace.</span></div><div class="flow-step"><strong>Monitor drift</strong><span>Flag workspaces with changed rules, disabled connectors, or stale automation.</span></div></div></div>`;
+    <div class="callout info" style="margin-bottom:16px;">
+      Azure Lighthouse lets the lab SOC see and act across customer workspaces with delegated access. Use B2B when the work needs customer-tenant administration, directory changes, or ownership that Lighthouse does not delegate.
+    </div>
+    <div class="two-col">
+      <section class="card">
+        <div class="card-toolbar"><strong>Member workspaces</strong><span class="muted">Publish target status</span></div>
+        <table class="grid">
+          <thead><tr><th>Workspace</th><th>Region</th><th>Tier</th><th>Rules</th><th>Publish status</th><th>Last publish</th></tr></thead>
+          <tbody>${SENTINEL_WORKSPACES.map((w, i) => `<tr><td><strong>${esc(w.name)}</strong></td><td>${esc(w.region)}</td><td>${esc(w.tier)}</td><td>${w.ruleIdx.length}</td><td><span class="tag ${i === 2 ? 'orange' : 'green'}">${i === 2 ? 'Pending changes' : 'In sync'}</span></td><td>${i === 2 ? '2026-07-05 16:10' : '2026-07-06 07:40'}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="callout info" style="margin-top:12px;">Selected workspace: <strong>${esc(workspace.name)}</strong> · use it as the publishing target for analytics, hunting, workbooks, and automation packages.</div>
+      </section>
+      <section class="card card-body">
+        <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+          <strong>Customer tenants</strong>
+          <span class="muted">Cross-tenant switcher</span>
+        </div>
+        <label class="wizard-label">Tenant
+          <select class="text-input" onchange="setMsspTenant(this.value)">
+            ${MSSP_TENANTS.map(t => `<option value="${t.id}" ${t.id === tenant.id ? 'selected' : ''}>${esc(t.name)} · ${esc(t.status)}</option>`).join('')}
+          </select>
+        </label>
+        <div class="resource-summary" style="margin-top:12px;">
+          <div><span>Selected tenant</span><strong>${esc(tenant.name)}</strong><small>${esc(tenant.status)} delegation</small></div>
+          <div><span>Workspaces</span><strong>${tenant.workspaces.length}</strong><small>${esc(tenant.workspaces.join(' · '))}</small></div>
+          <div><span>Delegated roles</span><strong>${tenant.delegatedRoles.length}</strong><small>${esc(tenant.delegatedRoles.join(' · '))}</small></div>
+        </div>
+        <table class="grid" style="margin-top:12px;">
+          <thead><tr><th>Tenant</th><th>Workspaces</th><th>Delegated roles</th><th>Status</th></tr></thead>
+          <tbody>${MSSP_TENANTS.map(t => `
+            <tr class="${t.id === tenant.id ? 'active-row' : ''}">
+              <td><strong>${esc(t.name)}</strong></td>
+              <td>${t.workspaces.map(ws => `<span class="tag">${esc(ws)}</span>`).join(' ')}</td>
+              <td>${t.delegatedRoles.map(role => `<span class="entity-chip">${esc(role)}</span>`).join(' ')}</td>
+              <td><span class="status-dot ${t.status === 'Active' ? 'resolved' : 'warn'}"></span>${esc(t.status)}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      </section>
+    </div>
+    <div class="two-col" style="margin-top:16px;">
+      <section class="card">
+        <div class="card-toolbar"><strong>Content selection</strong><span class="muted">Package for publish</span></div>
+        <table class="grid">
+          <thead><tr><th>Content</th><th>Selected</th><th>Scope</th><th>Open</th></tr></thead>
+          <tbody>${content.map(c => `<tr><td><strong>${esc(c.type)}</strong><br><span class="muted">${esc(c.detail)}</span></td><td>${c.selected} / ${c.total}</td><td><span class="tag green">Included</span></td><td><a class="chip-link" href="${c.link}">Open →</a></td></tr>`).join('')}</tbody>
+        </table>
+      </section>
+      <section class="card card-body">
+        <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+          <strong>Cross-workspace query</strong>
+          <span class="muted">workspace() example</span>
+        </div>
+        <div class="callout info">This query is a study aid for cross-workspace hunting. It stays local, but it mirrors the way Sentinel references a workspace-qualified table.</div>
+        <textarea class="kql" readonly>${esc(workspaceQuery)}</textarea>
+        <div class="sidepanel-footer" style="padding-top:12px;">
+          <button class="btn btn-secondary" onclick='loadSentinelLogsQuery(${JSON.stringify(workspaceQuery)})'>Send to Logs</button>
+          <a class="btn btn-primary" href="#/sentinel/logs">Open Logs</a>
+        </div>
+      </section>
+    </div>
+    <div class="card card-body" style="margin-top:16px;">
+      <div class="alert-section-title">Publish workflow</div>
+      <div class="flowline">
+        <div class="flow-step"><strong>Select content</strong><span>Choose analytics rules, hunting queries, workbooks, automation, and connector-backed DCR labs.</span></div>
+        <div class="flow-step"><strong>Validate dependencies</strong><span>Confirm required tables, connectors, watchlists, and UEBA settings exist in each member workspace.</span></div>
+        <div class="flow-step"><strong>Publish</strong><span>Distribute the package and record last-publish status per workspace.</span></div>
+        <div class="flow-step"><strong>Monitor drift</strong><span>Flag workspaces with changed rules, disabled connectors, or stale automation.</span></div>
+      </div>
+    </div>`;
 };
 
 // ====================================================================

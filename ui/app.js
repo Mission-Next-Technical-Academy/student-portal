@@ -2932,3 +2932,21 @@ function setWorkspace(id) {
 }
 window.currentWorkspace = currentWorkspace;
 window.setWorkspace      = setWorkspace;
+
+// ---------- MSSP / MTO state ----------
+function currentMsspTenant() {
+  const id = localStorage.getItem('defender-lab.sentinel.mssp.tenant');
+  return MSSP_TENANTS.find(t => t.id === id) || MSSP_TENANTS[0];
+}
+function setMsspTenant(id) {
+  localStorage.setItem('defender-lab.sentinel.mssp.tenant', id);
+  render();
+}
+window.currentMsspTenant = currentMsspTenant;
+window.setMsspTenant = setMsspTenant;
+
+function loadSentinelLogsQuery(query) {
+  sessionStorage.setItem('defender-lab.sentinel.logs.query', query);
+  navigate('#/sentinel/logs');
+}
+window.loadSentinelLogsQuery = loadSentinelLogsQuery;

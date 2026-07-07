@@ -363,16 +363,16 @@ Verified fixture drafts: `local-tasks/out/t08-audit-premium.js` and
 ## Agent 18 — Multi-workspace / multi-tenant operations (GAP_BRIDGE wave, M)
 Verified fixture drafts: `local-tasks/out/t10-mssp-mto.js` (see
 `local-tasks/README.md` merging rule).
-- [ ] **18.1** MSSP / Azure Lighthouse lab on
+- [x] **18.1** MSSP / Azure Lighthouse lab on
   `#/sentinel/workspace-manager`: delegated customer tenants list,
   cross-tenant workspace switcher mock, what Lighthouse delegates vs
   what B2B is needed for (own words), cross-workspace `workspace()`
   query example wired into `#/sentinel/logs`.
-- [ ] **18.2** Defender multi-tenant management (MTO) surface reachable
+- [x] **18.2** Defender multi-tenant management (MTO) surface reachable
   from `#/defender/settings` or its own route: consolidated incidents
   across two fictional tenants, tenant switcher, MTO vs single-tenant
   scoping notes.
-- [ ] **18.3** Data platform depth cards on `#/sentinel/logs`: Azure
+- [x] **18.3** Data platform depth cards on `#/sentinel/logs`: Azure
   Data Explorer integration (when to mirror/export to ADX) and
   Basic/Auxiliary tier query limitations (KQL limits, per-query charge
   model in concept form) with one runnable limited-query example.

@@ -34,6 +34,22 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-07-07 Agent 18 pass:
+  - Added `#/sentinel/workspace-manager` cross-tenant study content with
+    Azure Lighthouse vs B2B notes, a customer-tenant switcher, and a
+    workspace-qualified `workspace()` query handoff into `#/sentinel/logs`.
+  - Added `#/defender/mto` for consolidated multi-tenant incident review
+    across fictional customer tenants, with tenant switching and MTO vs
+    single-tenant scoping notes.
+  - Expanded `#/sentinel/logs` with Azure Data Explorer guidance, Basic
+    vs Auxiliary tier notes, and a runnable auxiliary-table example that
+    also accepts the workspace-qualified query from Workspace manager.
+  - Added `ArchiveDns_CL` auxiliary rows and the MTO tenant/incident
+    fixtures to `ui/data.js`.
+  - Wired `#/defender/settings` to the new multi-tenant management route
+    and verified `node --check` on `ui/data.js`, `ui/views.js`, and
+    `ui/app.js` plus headless Chrome smoke renders for the new routes.
+
 - Multi-portal static SPA is functional across Defender XDR, Sentinel,
   Defender for Cloud, and Purview routes.
 - Suppression rule scenario remains wired through Defender alerts, alert

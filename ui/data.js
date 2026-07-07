@@ -1027,6 +1027,12 @@ const SENTINEL_RESTORE_JOB = {
   ],
 };
 
+const ARCHIVE_DNS_AUX_ROWS = [
+  { TimeGenerated:'2026-06-12T00:00:00Z', DnsQuery:'sync-a.bad-demo.example', QueryCount:341, UniqueHosts:2, Tier:'Auxiliary', SourceTable:'ArchiveDns_CL' },
+  { TimeGenerated:'2026-06-13T00:00:00Z', DnsQuery:'sync-a.bad-demo.example', QueryCount:328, UniqueHosts:2, Tier:'Auxiliary', SourceTable:'ArchiveDns_CL' },
+  { TimeGenerated:'2026-06-21T00:00:00Z', DnsQuery:'cdn-metrics.contoso.test', QueryCount:411, UniqueHosts:1, Tier:'Auxiliary', SourceTable:'ArchiveDns_CL' },
+];
+
 const MOCK_QUERY_RESULTS = {
   DeviceInfo: [
     { Timestamp:'2026-06-28T15:02:11Z', DeviceName:'WKS-03', OSPlatform:'Windows 11 Enterprise',
@@ -1173,6 +1179,7 @@ const MOCK_QUERY_RESULTS = {
       Caller:'storage-owner@contoso.com', OperationNameValue:'Microsoft.Storage/storageAccounts/write',
       ActivityStatusValue:'Succeeded', ResourceGroup:'rg-prod-storage', ResourceProviderValue:'Microsoft.Storage' },
   ],
+  ArchiveDns_CL: ARCHIVE_DNS_AUX_ROWS,
   ArchiveDns_RST: SENTINEL_RESTORE_JOB.results,
   AppRiskEvents_CL: [
     { TimeGenerated:'2026-07-06T08:31:00Z', AppId:'app-expense-portal',
@@ -1890,6 +1897,104 @@ const SENTINEL_WORKSPACES = [
   { id:'contoso-sec-prod',  name:'contoso-sec-prod',  region:'East US 2',     tier:'Production',  ruleIdx:[0,1,3,4,5,6,7] },
   { id:'contoso-sec-lab',   name:'contoso-sec-lab',   region:'West Europe',   tier:'Lab',         ruleIdx:[1,2,5,6] },
   { id:'fabrikam-soc-dev',  name:'fabrikam-soc-dev',  region:'North Europe',  tier:'Development', ruleIdx:[2,3,7] },
+];
+
+const MSSP_TENANTS = [
+  {
+    id: 'tn-1',
+    name: 'Northwind Trading Co.',
+    workspaces: ['Workspace A'],
+    delegatedRoles: ['Microsoft Sentinel Reader'],
+    status: 'Active'
+  },
+  {
+    id: 'tn-2',
+    name: 'BlueHarbor Logistics Ltd.',
+    workspaces: ['Workspace B', 'Workspace C'],
+    delegatedRoles: ['Microsoft Sentinel Contributor', 'Microsoft Sentinel Responder'],
+    status: 'Pending'
+  },
+  {
+    id: 'tn-3',
+    name: 'SeaShell Enterprises Inc.',
+    workspaces: ['Workspace D'],
+    delegatedRoles: ['Microsoft Sentinel Reader'],
+    status: 'Active'
+  },
+  {
+    id: 'tn-4',
+    name: 'Albatross Shipping Corp.',
+    workspaces: ['Workspace E'],
+    delegatedRoles: ['Microsoft Sentinel Contributor'],
+    status: 'Pending'
+  }
+];
+
+const MTO_INCIDENTS = [
+  {
+    id: 'mti-01',
+    tenant: 'Northwind Trading Co.',
+    title: 'Alleged Data Exfiltration from Finance Group',
+    severity: 'High',
+    status: 'Resolved',
+    assignedTo: 'Alex Taylor'
+  },
+  {
+    id: 'mti-02',
+    tenant: 'Northwind Trading Co.',
+    title: 'Suspicious Login from Uncommon IP',
+    severity: 'Medium',
+    status: 'In progress',
+    assignedTo: 'M. Okafor'
+  },
+  {
+    id: 'mti-03',
+    tenant: 'BlueHarbor Logistics Ltd.',
+    title: 'Potential Security Breach in Operations Warehouse',
+    severity: 'High',
+    status: 'Active',
+    assignedTo: 'R. Vance'
+  },
+  {
+    id: 'mti-04',
+    tenant: 'BlueHarbor Logistics Ltd.',
+    title: 'Failed Login Attempt from Internal Machine',
+    severity: 'Low',
+    status: 'Active',
+    assignedTo: 'Unassigned'
+  },
+  {
+    id: 'mti-05',
+    tenant: 'SeaShell Enterprises Inc.',
+    title: 'Repeated Attempts to Access Restricted Files',
+    severity: 'Medium',
+    status: 'Active',
+    assignedTo: 'L. Higginbotham'
+  },
+  {
+    id: 'mti-06',
+    tenant: 'SeaShell Enterprises Inc.',
+    title: 'Data Scrubbing Operation in Progress',
+    severity: 'Informational',
+    status: 'In progress',
+    assignedTo: 'Unassigned'
+  },
+  {
+    id: 'mti-07',
+    tenant: 'Albatross Shipping Corp.',
+    title: 'Multiple Suspicious Activities in Sales Department',
+    severity: 'High',
+    status: 'In progress',
+    assignedTo: 'Z. Wang'
+  },
+  {
+    id: 'mti-08',
+    tenant: 'Albatross Shipping Corp.',
+    title: 'Unrecognized User Access to Restricted Network Zone',
+    severity: 'Medium',
+    status: 'Active',
+    assignedTo: 'V. Patel'
+  }
 ];
 
 const SENTINEL_TABLE_PLANS = [
@@ -2763,6 +2868,7 @@ const NAV = {
     { route:'#/defender/community',             label:'Community',               icon:'💬' },
     { section:'Configuration' },
     { route:'#/defender/settings',              label:'Settings',                icon:'⚙' },
+    { route:'#/defender/mto',                   label:'Multi-tenant management', icon:'👥' },
     { route:'#/defender/endpoints',             label:'Endpoints',               icon:'💻' },
     { route:'#/defender/email-collab',          label:'Email & collaboration',   icon:'✉' },
     { route:'#/defender/cloud-apps',            label:'Cloud apps',              icon:'☁' },
@@ -4448,105 +4554,6 @@ const THREAT_EXPLORER_CAMPAIGNS = [
     deliveryActions: 'One message quarantined, one removed by ZAP.',
     zapNote: 'Campaign pivots on attachment verdict, sender domain reuse, and recipient group overlap.',
   },
-];
-
-// --- T10: out/t10-mssp-mto.js ---
-const MSSP_TENANTS = [
-  {
-    id: 'tn-1',
-    name: 'Northwind Trading Co.',
-    workspaces: ['Workspace A'],
-    delegatedRoles: ['Microsoft Sentinel Reader'],
-    status: 'Active'
-  },
-  {
-    id: 'tn-2',
-    name: 'BlueHarbor Logistics Ltd.',
-    workspaces: ['Workspace B', 'Workspace C'],
-    delegatedRoles: ['Microsoft Sentinel Contributor', 'Microsoft Sentinel Responder'],
-    status: 'Pending'
-  },
-  {
-    id: 'tn-3',
-    name: 'SeaShell Enterprises Inc.',
-    workspaces: ['Workspace D'],
-    delegatedRoles: ['Microsoft Sentinel Reader'],
-    status: 'Active'
-  },
-  {
-    id: 'tn-4',
-    name: 'Albatross Shipping Corp.',
-    workspaces: ['Workspace E'],
-    delegatedRoles: ['Microsoft Sentinel Contributor'],
-    status: 'Pending'
-  }
-];
-
-const MTO_INCIDENTS = [
-  {
-    id: 'mti-01',
-    tenant: 'Northwind Trading Co.',
-    title: 'Alleged Data Exfiltration from Finance Group',
-    severity: 'High',
-    status: 'Resolved',
-    assignedTo: 'Alex Taylor'
-  },
-  {
-    id: 'mti-02',
-    tenant: 'Northwind Trading Co.',
-    title: 'Suspicious Login from Uncommon IP',
-    severity: 'Medium',
-    status: 'In progress',
-    assignedTo: 'M. Okafor'
-  },
-  {
-    id: 'mti-03',
-    tenant: 'BlueHarbor Logistics Ltd.',
-    title: 'Potential Security Breach in Operations Warehouse',
-    severity: 'High',
-    status: 'Active',
-    assignedTo: 'R. Vance'
-  },
-  {
-    id: 'mti-04',
-    tenant: 'BlueHarbor Logistics Ltd.',
-    title: 'Failed Login Attempt from Internal Machine',
-    severity: 'Low',
-    status: 'Active',
-    assignedTo: 'Unassigned'
-  },
-  {
-    id: 'mti-05',
-    tenant: 'SeaShell Enterprises Inc.',
-    title: 'Repeated Attempts to Access Restricted Files',
-    severity: 'Medium',
-    status: 'Active',
-    assignedTo: 'L. Higginbotham'
-  },
-  {
-    id: 'mti-06',
-    tenant: 'SeaShell Enterprises Inc.',
-    title: 'Data Scrubbing Operation in Progress',
-    severity: 'Informational',
-    status: 'In progress',
-    assignedTo: 'Unassigned'
-  },
-  {
-    id: 'mti-07',
-    tenant: 'Albatross Shipping Corp.',
-    title: 'Multiple Suspicious Activities in Sales Department',
-    severity: 'High',
-    status: 'In progress',
-    assignedTo: 'Z. Wang'
-  },
-  {
-    id: 'mti-08',
-    tenant: 'Albatross Shipping Corp.',
-    title: 'Unrecognized User Access to Restricted Network Zone',
-    severity: 'Medium',
-    status: 'Active',
-    assignedTo: 'V. Patel'
-  }
 ];
 
 // --- T12: out/t12-knowledge.js ---
