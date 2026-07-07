@@ -1008,6 +1008,25 @@ const KQL_PRACTICE_ROWS = [
     Domain:'bad-demo.example', Source:'CloudAppEvents' },
 ];
 
+const SENTINEL_RESTORE_JOB = {
+  sourceTable:'ArchiveDns_CL',
+  resultTable:'ArchiveDns_RST',
+  status:'Running',
+  scope:'Long-retention Data lake query',
+  costNote:'Restoring a narrow slice is cheaper than querying the full retained table repeatedly.',
+  scopeNote:'Use a restore job when the investigation needs a reusable table rather than a one-off long-range hunt.',
+  query:`ArchiveDns_CL
+| where TimeGenerated between (datetime(2026-06-12T00:00:00Z) .. datetime(2026-06-21T23:59:59Z))
+| where DnsQuery has_any ("sync-a.bad-demo.example","cdn-metrics.contoso.test")
+| summarize QueryCount=count(), UniqueHosts=dcount(SrcHostname) by DnsQuery, bin(TimeGenerated, 1d)
+| project TimeGenerated, DnsQuery, QueryCount, UniqueHosts`,
+  results:[
+    { TimeGenerated:'2026-06-12T00:00:00Z', DnsQuery:'sync-a.bad-demo.example', QueryCount:341, UniqueHosts:2, SourceTable:'ArchiveDns_CL', RestoreJobId:'RST-8401' },
+    { TimeGenerated:'2026-06-13T00:00:00Z', DnsQuery:'sync-a.bad-demo.example', QueryCount:328, UniqueHosts:2, SourceTable:'ArchiveDns_CL', RestoreJobId:'RST-8401' },
+    { TimeGenerated:'2026-06-21T00:00:00Z', DnsQuery:'cdn-metrics.contoso.test', QueryCount:411, UniqueHosts:1, SourceTable:'ArchiveDns_CL', RestoreJobId:'RST-8401' },
+  ],
+};
+
 const MOCK_QUERY_RESULTS = {
   DeviceInfo: [
     { Timestamp:'2026-06-28T15:02:11Z', DeviceName:'WKS-03', OSPlatform:'Windows 11 Enterprise',
@@ -1154,6 +1173,7 @@ const MOCK_QUERY_RESULTS = {
       Caller:'storage-owner@contoso.com', OperationNameValue:'Microsoft.Storage/storageAccounts/write',
       ActivityStatusValue:'Succeeded', ResourceGroup:'rg-prod-storage', ResourceProviderValue:'Microsoft.Storage' },
   ],
+  ArchiveDns_RST: SENTINEL_RESTORE_JOB.results,
   AppRiskEvents_CL: [
     { TimeGenerated:'2026-07-06T08:31:00Z', AppId:'app-expense-portal',
       UserPrincipalName:'maria.ross@contoso.com', SourceIp:'203.0.113.44', RiskScore:92, Action:'BlockedOAuthCallback' },
@@ -1536,6 +1556,9 @@ const SENTINEL_PLAYBOOKS = [
     status:'Enabled', steps:['Find service principal','Revoke grant','Revoke user sessions','Notify mailbox owner'] },
   { name:'PB-StoragePublicAccess', trigger:'Public cloud storage alert', connector:'Azure + AWS',
     status:'Enabled', steps:['Remove public ACL','Snapshot configuration','Open owner task','Add incident comment'] },
+  { name:'PB-ContainEntity', trigger:'Entity trigger', connector:'Microsoft Sentinel + Logic Apps',
+    status:'Enabled', resourceGroup:'RG-Entity-Playbooks', permissionState:'Ready',
+    steps:['Receive entity pivot context','Collect linked incidents','Contain entity in a bounded playbook','Add response notes to the case'] },
   { name:'Playbook1', trigger:'Microsoft Sentinel incident', connector:'Microsoft Sentinel + Logic Apps',
     status:'Enabled', resourceGroup:'RG-Playbooks', permissionState:'Needs Sentinel access',
     steps:['Receive Microsoft Sentinel incident','Get incident details','Post Teams notification','Add incident comment'] },
@@ -1910,6 +1933,60 @@ const NETWORK_LOGS_SEARCH_RESULTS = [
     Protocol:'HTTP', Action:'Allowed', BytesOut:12844, ThreatIntelMatch:'Demo domain redirect' },
   { TimeGenerated:'2026-04-30T10:51:09Z', SrcIp:'10.5.12.44', DstIp:'203.0.113.10',
     Protocol:'HTTPS', Action:'Blocked', BytesOut:0, ThreatIntelMatch:'Demo IOC IP' },
+];
+
+const SENTINEL_LIVESTREAM_QUERY = `CloudAppEvents
+| where TimeGenerated > ago(30m)
+| where AccountDisplayName in ("Jane Doe","Maria Ross","Sam Lee")
+| project TimeGenerated, AccountDisplayName, ActionType, AppId, SourceIp, RiskScore, Signal`;
+
+const SENTINEL_LIVESTREAM_ROWS = [
+  { TimeGenerated:'2026-07-06T08:19:10Z', AccountDisplayName:'Jane Doe', ActionType:'Consent to application', AppId:'b9f2-demo-ad21', SourceIp:'76.21.55.4', RiskScore:92, Signal:'OAuth grant after phishing click' },
+  { TimeGenerated:'2026-07-06T08:20:44Z', AccountDisplayName:'Jane Doe', ActionType:'Mail.Read', AppId:'b9f2-demo-ad21', SourceIp:'76.21.55.4', RiskScore:89, Signal:'Mailbox access after consent' },
+  { TimeGenerated:'2026-07-06T08:21:33Z', AccountDisplayName:'Jane Doe', ActionType:'Files.Read.All', AppId:'b9f2-demo-ad21', SourceIp:'76.21.55.4', RiskScore:91, Signal:'OneDrive enumeration' },
+  { TimeGenerated:'2026-07-06T08:23:19Z', AccountDisplayName:'Sam Lee', ActionType:'HighRiskTokenUse', AppId:'graph-powershell-demo', SourceIp:'91.219.236.54', RiskScore:78, Signal:'MFA-proxied follow-up' },
+  { TimeGenerated:'2026-07-06T08:24:02Z', AccountDisplayName:'Maria Ross', ActionType:'Risky sign-in', AppId:'login.microsoftonline.com', SourceIp:'185.199.111.12', RiskScore:96, Signal:'AiTM sign-in telemetry' },
+];
+
+const SENTINEL_BOOKMARK_SUGGESTIONS = [
+  {
+    id:'bm-1001',
+    queryName:'Cloud app follow-up',
+    table:'CloudAppEvents',
+    entity:'Jane Doe',
+    incident:'INC-1042',
+    query:`CloudAppEvents
+| where ActionType == "Consent to application"
+| project TimeGenerated, AccountDisplayName, ApplicationId, ActionType, Perms`,
+    tags:['OAuth','Mail.ReadWrite','High'],
+    mitre:'T1566',
+    row:{
+      TimeGenerated:'2026-06-28T08:23:00Z',
+      AccountDisplayName:'Jane Doe',
+      ApplicationId:'b9f2…ad21',
+      ActionType:'Consent to application',
+      Perms:'Mail.ReadWrite, Files.Read.All',
+    },
+  },
+  {
+    id:'bm-1002',
+    queryName:'Risky sign-ins by user',
+    table:'SigninLogs',
+    entity:'Sam Lee',
+    incident:'INC-1053',
+    query:`SigninLogs
+| where UserPrincipalName == "sam.lee@contoso.com"
+| project TimeGenerated, UserPrincipalName, IPAddress, RiskLevel, ResultType`,
+    tags:['Risky sign-in','Identity','AiTM'],
+    mitre:'T1078',
+    row:{
+      TimeGenerated:'2026-06-28T13:27:00Z',
+      UserPrincipalName:'sam.lee@contoso.com',
+      IPAddress:'91.219.236.54',
+      RiskLevel:'High',
+      ResultType:'0',
+    },
+  },
 ];
 
 const SOC_OPTIMIZATION_RECOMMENDATIONS = [

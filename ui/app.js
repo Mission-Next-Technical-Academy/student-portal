@@ -38,6 +38,7 @@ function navigate(hash) {
 }
 
 function render() {
+  finalizeSentinelRestoreJobIfReady();
   const route = currentRoute();
   const wl    = workloadOf(route);
   const portal = PORTALS.find(p => p.id === wl);
@@ -335,6 +336,7 @@ function updateAttackStoryEntity(panel, story, nodeId, activeAlertId) {
         ? `<button class="btn btn-primary btn-sm" onclick="openDevice('${esc(node.label)}')">Open device page</button>`
         : `<button class="btn btn-secondary btn-sm" onclick="openEntityPivot('${esc(node.type || 'Entity')}', '${esc(node.label || '')}')">Open entity page</button>`}
       <button class="btn btn-primary btn-sm" onclick="viewBlastRadius('${esc(panel.dataset.incidentId)}', '${esc(node.id || '')}')">View blast radius</button>
+      <button class="btn btn-secondary btn-sm" onclick="runSentinelEntityPlaybook('${esc(node.label || panel.dataset.incidentId)}', 'Defender incident side panel')">Run playbook (entity)</button>
       <button class="btn btn-secondary btn-sm" onclick="navigate('#/defender/hunting')">Go hunt</button>
     </div>
     <ul class="attack-evidence-list">
@@ -1226,10 +1228,18 @@ function explainDisabledPlaybook() {
 function selectSentinelPlaybook(name) {
   toast(`${name} selected for the Run playbook action.`);
 }
+function selectSentinelAutomationPlaybook(name) {
+  sessionStorage.setItem('defender-lab.sentinel.playbook.selected', name);
+  if (name === 'PB-ContainEntity') {
+    sessionStorage.setItem('defender-lab.sentinel.playbook.entity', sentinelEntityPlaybookContext().entityName || sessionStorage.getItem('defender-lab.sentinel.playbook.entity') || '');
+  }
+  render();
+}
 window.grantPlaybookPermissions = grantPlaybookPermissions;
 window.resetPlaybookPermissions = resetPlaybookPermissions;
 window.explainDisabledPlaybook = explainDisabledPlaybook;
 window.selectSentinelPlaybook = selectSentinelPlaybook;
+window.selectSentinelAutomationPlaybook = selectSentinelAutomationPlaybook;
 
 // ---------- wire-up ----------
 document.addEventListener('DOMContentLoaded', () => {
@@ -2116,6 +2126,324 @@ window.installSentinelIngestionSolution = installSentinelIngestionSolution;
 window.openSentinelIngestionConnector = openSentinelIngestionConnector;
 window.advanceSentinelIngestionLab = advanceSentinelIngestionLab;
 window.resetSentinelIngestionLab = resetSentinelIngestionLab;
+
+// ---------- Sentinel hunting bookmarks / livestream / restore jobs ----------
+const SENTINEL_HUNTING_TAB_KEY = 'defender-lab.sentinel.hunting.tab';
+const SENTINEL_BOOKMARKS_KEY = 'defender-lab.sentinel.bookmarks';
+const SENTINEL_LIVESTREAM_KEY = 'defender-lab.sentinel.livestream';
+const SENTINEL_RESTORE_JOB_KEY = 'defender-lab.sentinel.restoreJob';
+const SENTINEL_ENTITY_PLAYBOOK_KEY = 'defender-lab.sentinel.entity.playbook';
+let sentinelLivestreamTimer = null;
+
+function readSentinelJSON(key, fallback) {
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+  try { return { ...fallback, ...JSON.parse(raw) }; }
+  catch { return fallback; }
+}
+
+function writeSentinelJSON(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function currentSentinelHuntingTab() {
+  return sessionStorage.getItem(SENTINEL_HUNTING_TAB_KEY) || 'search';
+}
+
+function setSentinelHuntingTab(tab) {
+  sessionStorage.setItem(SENTINEL_HUNTING_TAB_KEY, tab);
+  render();
+}
+
+function currentSentinelBookmarks() {
+  return readSentinelJSON(SENTINEL_BOOKMARKS_KEY, { items: [] }).items || [];
+}
+
+function saveSentinelBookmarks(items) {
+  writeSentinelJSON(SENTINEL_BOOKMARKS_KEY, { items });
+}
+
+function bookmarkEntityMapping(row) {
+  const mapping = [];
+  const pairs = [
+    ['Account', row.AccountDisplayName || row.UserPrincipalName || row.TargetUserName],
+    ['Source IP', row.SrcIp || row.SrcIpAddr || row.IPAddress || row.SourceIp],
+    ['Destination IP', row.DstIp || row.DstIpAddr || row.DestinationIP],
+    ['App', row.AppId || row.ApplicationId || row.AppDisplayName],
+    ['Domain', row.Domain || row.DnsQuery || row.DstHostname],
+  ];
+  pairs.forEach(([label, value]) => {
+    if (value) mapping.push(`${label}: ${value}`);
+  });
+  return mapping;
+}
+
+function bookmarkTagsForRow(table, row) {
+  const tags = new Set();
+  if (table === 'CloudAppEvents') tags.add('OAuth');
+  if (table === 'SigninLogs') tags.add('Identity');
+  if (table === 'NetworkLogs_CL') tags.add('Network');
+  if (table === 'ArchiveDns_RST') tags.add('Restore');
+  if (row.ThreatIntelMatch) tags.add('Threat intel');
+  if (row.RiskLevel === 'High' || row.RiskScore >= 80) tags.add('High');
+  if (row.Action === 'Blocked' || row.ResultType === '0') tags.add('Investigation');
+  return [...tags];
+}
+
+function bookmarkMitreForRow(table, row) {
+  if (table === 'CloudAppEvents') return 'T1566';
+  if (table === 'SigninLogs') return 'T1078';
+  if (table === 'ArchiveDns_RST') return 'T1041';
+  if (row.ThreatIntelMatch) return 'T1071';
+  return 'T1041';
+}
+
+function bookmarkIncidentForRow(table, row) {
+  if (table === 'CloudAppEvents') return 'INC-1042';
+  if (table === 'SigninLogs' && String(row.UserPrincipalName || '').includes('sam.lee')) return 'INC-1053';
+  if (table === 'NetworkLogs_CL') return 'INC-1054';
+  if (table === 'ArchiveDns_RST') return 'INC-1054';
+  return INCIDENTS[0]?.id || 'INC-1042';
+}
+
+function addSentinelBookmarkFromResult(table, queryName, queryText, row) {
+  const bookmark = {
+    id: 'bm-' + Date.now(),
+    createdAt: new Date().toISOString(),
+    table,
+    queryName,
+    query: queryText || SENTINEL_RESTORE_JOB.query,
+    entityMapping: bookmarkEntityMapping(row),
+    tags: bookmarkTagsForRow(table, row),
+    mitre: bookmarkMitreForRow(table, row),
+    row: { ...row },
+    linkedIncidents: [bookmarkIncidentForRow(table, row)],
+    note: row.ThreatIntelMatch || row.Signal || row.ActionType || 'Lab bookmark',
+  };
+  saveSentinelBookmarks([bookmark, ...currentSentinelBookmarks()]);
+  toast(`Saved bookmark for ${bookmark.queryName}.`);
+  render();
+}
+
+function addSentinelBookmarkFromButton(button, table, queryName, queryText) {
+  let row = {};
+  try { row = JSON.parse(button?.dataset?.row || '{}'); }
+  catch { row = {}; }
+  addSentinelBookmarkFromResult(table, queryName, queryText, row);
+}
+
+function addBookmarkToExistingIncident(bookmarkId, incidentId) {
+  const items = currentSentinelBookmarks().map(item => item.id === bookmarkId
+    ? { ...item, linkedIncidents: Array.from(new Set([...(item.linkedIncidents || []), incidentId])) }
+    : item);
+  saveSentinelBookmarks(items);
+  toast(`Bookmark linked to incident ${incidentId}.`);
+  render();
+}
+
+function promoteSentinelBookmark(bookmarkId) {
+  const items = currentSentinelBookmarks();
+  const item = items.find(entry => entry.id === bookmarkId);
+  if (!item) return;
+  const incidentId = 'INC-BM-' + String(Date.now()).slice(-4);
+  if (!INCIDENTS.some(incident => incident.id === incidentId)) {
+    INCIDENTS.unshift({
+      id: incidentId,
+      severity: item.tags.includes('High') ? 'high' : 'medium',
+      title: `Bookmark promoted: ${item.queryName}`,
+      status: 'New',
+      assignedTo: 'Unassigned',
+      classification: '',
+      tactics: [item.mitre === 'T1566' ? 'Initial Access' : 'Discovery'],
+      alertIds: [],
+      entities: item.entityMapping.slice(0, 3).map(text => {
+        const [type, value] = text.split(':').map(s => s.trim());
+        return { type, name: value };
+      }),
+      createdAt: new Date().toISOString(),
+      alertCount: 0,
+      summary: `Created from a hunting bookmark on ${item.table}.`,
+    });
+  }
+  saveSentinelBookmarks(items.map(entry => entry.id === bookmarkId
+    ? { ...entry, promotedIncidentId: incidentId, linkedIncidents: Array.from(new Set([...(entry.linkedIncidents || []), incidentId])) }
+    : entry));
+  toast(`Promoted bookmark to incident ${incidentId}.`);
+  render();
+}
+
+function currentSentinelLivestreamState() {
+  return readSentinelJSON(SENTINEL_LIVESTREAM_KEY, {
+    status: 'idle',
+    cursor: 0,
+    rows: [],
+    startedAt: '',
+    updatedAt: '',
+    elevated: false,
+    alertStub: null,
+  });
+}
+
+function saveSentinelLivestreamState(next) {
+  writeSentinelJSON(SENTINEL_LIVESTREAM_KEY, { ...currentSentinelLivestreamState(), ...next });
+}
+
+function clearSentinelLivestreamTimer() {
+  if (sentinelLivestreamTimer) {
+    clearInterval(sentinelLivestreamTimer);
+    sentinelLivestreamTimer = null;
+  }
+}
+
+function stepSentinelLivestream() {
+  const state = currentSentinelLivestreamState();
+  if (state.status !== 'running') return;
+  if (state.cursor >= SENTINEL_LIVESTREAM_ROWS.length) {
+    saveSentinelLivestreamState({ status: 'complete', updatedAt: new Date().toISOString() });
+    clearSentinelLivestreamTimer();
+    render();
+    toast('Livestream finished.');
+    return;
+  }
+  const nextRow = SENTINEL_LIVESTREAM_ROWS[state.cursor];
+  saveSentinelLivestreamState({
+    rows: [...state.rows, nextRow],
+    cursor: state.cursor + 1,
+    updatedAt: new Date().toISOString(),
+  });
+  render();
+  if (state.cursor + 1 >= SENTINEL_LIVESTREAM_ROWS.length) {
+    saveSentinelLivestreamState({ status: 'complete' });
+    clearSentinelLivestreamTimer();
+    toast('Livestream finished.');
+  }
+}
+
+function startSentinelLivestream() {
+  const state = currentSentinelLivestreamState();
+  const reset = state.status === 'stopped' || state.cursor >= SENTINEL_LIVESTREAM_ROWS.length;
+  saveSentinelLivestreamState({
+    status: 'running',
+    cursor: reset ? 0 : state.cursor,
+    rows: reset ? [] : state.rows,
+    startedAt: state.startedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+  clearSentinelLivestreamTimer();
+  stepSentinelLivestream();
+  sentinelLivestreamTimer = setInterval(stepSentinelLivestream, 1600);
+  render();
+}
+
+function pauseSentinelLivestream() {
+  const state = currentSentinelLivestreamState();
+  if (state.status !== 'running') return;
+  saveSentinelLivestreamState({ status: 'paused', updatedAt: new Date().toISOString() });
+  clearSentinelLivestreamTimer();
+  toast('Livestream paused.');
+  render();
+}
+
+function stopSentinelLivestream() {
+  saveSentinelLivestreamState({ status: 'stopped', updatedAt: new Date().toISOString() });
+  clearSentinelLivestreamTimer();
+  toast('Livestream stopped.');
+  render();
+}
+
+function elevateSentinelLivestreamToAlert() {
+  const state = currentSentinelLivestreamState();
+  const stub = {
+    name: 'Livestreamed sign-in and app activity',
+    severity: 'High',
+    tactics: ['Initial Access', 'Credential Access'],
+    query: SENTINEL_LIVESTREAM_QUERY,
+    rows: state.rows.length,
+    source: 'Hunting livestream',
+  };
+  saveSentinelLivestreamState({ elevated: true, alertStub: stub, updatedAt: new Date().toISOString() });
+  writeSentinelJSON('defender-lab.sentinel.livestream.rule', stub);
+  toast('Analytics rule stub created from the livestream.');
+  render();
+}
+
+function currentSentinelRestoreJob() {
+  return readSentinelJSON(SENTINEL_RESTORE_JOB_KEY, {
+    status: 'idle',
+    startedAt: '',
+    completedAt: '',
+    pendingCompleteAt: 0,
+    sourceTable: SENTINEL_RESTORE_JOB.sourceTable,
+    resultTable: SENTINEL_RESTORE_JOB.resultTable,
+  });
+}
+
+function saveSentinelRestoreJob(next) {
+  writeSentinelJSON(SENTINEL_RESTORE_JOB_KEY, { ...currentSentinelRestoreJob(), ...next });
+}
+
+function finalizeSentinelRestoreJobIfReady() {
+  const state = currentSentinelRestoreJob();
+  if (state.status !== 'running') return;
+  if (!state.pendingCompleteAt || Date.now() < state.pendingCompleteAt) return;
+  saveSentinelRestoreJob({ status: 'complete', completedAt: new Date().toISOString(), pendingCompleteAt: 0 });
+}
+
+function runSentinelRestoreJob() {
+  saveSentinelRestoreJob({
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    completedAt: '',
+    pendingCompleteAt: Date.now() + 1200,
+  });
+  toast(`Restore job queued for ${SENTINEL_RESTORE_JOB.sourceTable}.`);
+  render();
+  setTimeout(() => {
+    finalizeSentinelRestoreJobIfReady();
+    if (currentSentinelRestoreJob().status === 'running') {
+      saveSentinelRestoreJob({ status: 'complete', completedAt: new Date().toISOString(), pendingCompleteAt: 0 });
+    }
+    toast(`Restore job complete. ${SENTINEL_RESTORE_JOB.resultTable} is available for logs queries.`);
+    render();
+  }, 1300);
+}
+
+function runSentinelEntityPlaybook(entityName, source) {
+  writeSentinelJSON(SENTINEL_ENTITY_PLAYBOOK_KEY, {
+    entityName,
+    source,
+    playbookId: 'PB-ContainEntity',
+  });
+  sessionStorage.setItem('defender-lab.sentinel.playbook.selected', 'PB-ContainEntity');
+  sessionStorage.setItem('defender-lab.sentinel.playbook.entity', entityName);
+  toast(`Loaded PB-ContainEntity for ${entityName}.`);
+  navigate('#/sentinel/automation');
+}
+
+function sentinelEntityPlaybookContext() {
+  return readSentinelJSON(SENTINEL_ENTITY_PLAYBOOK_KEY, {
+    entityName: '',
+    source: '',
+    playbookId: 'PB-ContainEntity',
+  });
+}
+
+window.setSentinelHuntingTab = setSentinelHuntingTab;
+window.addSentinelBookmarkFromButton = addSentinelBookmarkFromButton;
+window.addSentinelBookmarkFromResult = addSentinelBookmarkFromResult;
+window.addBookmarkToExistingIncident = addBookmarkToExistingIncident;
+window.promoteSentinelBookmark = promoteSentinelBookmark;
+window.currentSentinelBookmarks = currentSentinelBookmarks;
+window.currentSentinelLivestreamState = currentSentinelLivestreamState;
+window.startSentinelLivestream = startSentinelLivestream;
+window.pauseSentinelLivestream = pauseSentinelLivestream;
+window.stopSentinelLivestream = stopSentinelLivestream;
+window.elevateSentinelLivestreamToAlert = elevateSentinelLivestreamToAlert;
+window.currentSentinelRestoreJob = currentSentinelRestoreJob;
+window.runSentinelRestoreJob = runSentinelRestoreJob;
+window.sentinelEntityPlaybookContext = sentinelEntityPlaybookContext;
+window.runSentinelEntityPlaybook = runSentinelEntityPlaybook;
+window.finalizeSentinelRestoreJobIfReady = finalizeSentinelRestoreJobIfReady;
 
 // ---------- Sentinel search jobs ----------
 function runSentinelSearchJob() {

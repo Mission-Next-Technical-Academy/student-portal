@@ -3680,6 +3680,7 @@ VIEWS['sentinel/mitre'] = () => {
 
 VIEWS['sentinel/logs'] = () => {
   const initialTask = KQL_PRACTICE_TASKS[0];
+  const restoreJob = currentSentinelRestoreJob();
   return {
     html: `
   <div class="page-header hunting-page-header">
@@ -3693,6 +3694,12 @@ VIEWS['sentinel/logs'] = () => {
       <a class="btn btn-secondary" href="#/sentinel/hunting/dns">Open ASIM DNS</a>
       <button class="btn btn-primary" onclick="runSentinelKqlPractice()">Run practice query</button>
     </div>
+  </div>
+  <div class="callout ${restoreJob.status === 'complete' ? 'success' : restoreJob.status === 'running' ? 'warn' : 'info'}" style="margin-bottom:14px;">
+    <strong>Restore job ${restoreJob.status === 'idle' ? 'not started' : restoreJob.status}:</strong>
+    ${restoreJob.status === 'complete'
+      ? `${esc(restoreJob.resultTable)} is now queryable in this workspace.`
+      : 'Run the restore job from Search to materialize the retained table into a reusable _RST dataset.'}
   </div>
   <div class="kpi-strip hunting-status-cards">
     <div class="kpi"><span class="kpi-label">Tasks</span><span class="kpi-value">${KQL_PRACTICE_TASKS.length}</span><span class="kpi-delta">Row-count checked</span></div>
@@ -3783,6 +3790,29 @@ VIEWS['sentinel/logs'] = () => {
       <textarea id="ti-ip-query" class="kql" readonly>${esc(TI_IP_MATCH_QUERY)}</textarea>
     </div>
   </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar">
+      <strong>Restored table preview</strong>
+      <span class="muted">${restoreJob.status === 'complete' ? SENTINEL_RESTORE_JOB.results.length + ' rows' : 'Waiting for restore job'}</span>
+    </div>
+    ${restoreJob.status === 'complete' ? `
+      <table class="grid compact-grid">
+        <thead><tr><th>TimeGenerated</th><th>DnsQuery</th><th>QueryCount</th><th>UniqueHosts</th><th>SourceTable</th></tr></thead>
+        <tbody>
+          ${SENTINEL_RESTORE_JOB.results.map(r => `
+            <tr>
+              <td>${fmtTime(r.TimeGenerated)}</td>
+              <td class="kv">${esc(r.DnsQuery)}</td>
+              <td>${r.QueryCount}</td>
+              <td>${r.UniqueHosts}</td>
+              <td>${esc(r.SourceTable)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div class="callout info" style="margin:12px;">Query the restored table directly with <code>${esc(SENTINEL_RESTORE_JOB.resultTable)}</code> to confirm the long-retention rows are reusable.</div>
+    ` : `<div class="card-body muted">Use the Search page to materialize the retained rows, then query the <code>${esc(SENTINEL_RESTORE_JOB.resultTable)}</code> table here.</div>`}
+  </div>
     `,
     onMount: () => {
       const taskButtons = Array.from(document.querySelectorAll('[data-kql-task]'));
@@ -3823,117 +3853,250 @@ VIEWS['sentinel/logs'] = () => {
 
 VIEWS['sentinel/hunting'] = () => {
   const jobComplete = localStorage.getItem('defender-lab.sentinel.networklogs.searchJob') === 'complete';
-  return `
-  <div class="page-header hunting-page-header">
-    <div>
-      <div class="breadcrumb">Microsoft Sentinel › Search › <strong>Logs</strong></div>
-      <h1>Search</h1>
-      <div class="page-subtitle">Investigate Log Analytics tables by plan, query window, and retained data availability.</div>
+  const activeTab = currentSentinelHuntingTab();
+  const bookmarks = currentSentinelBookmarks();
+  const livestream = currentSentinelLivestreamState();
+  const restoreJob = currentSentinelRestoreJob();
+  const renderSearchTab = `
+    <div class="kpi-strip hunting-status-cards">
+      <div class="kpi"><span class="kpi-label">Selected table</span><span class="kpi-value">NetworkLogs_CL</span><span class="kpi-delta">Custom table</span></div>
+      <div class="kpi"><span class="kpi-label">Plan</span><span class="kpi-value">Basic</span><span class="kpi-delta">Lower-cost retention</span></div>
+      <div class="kpi"><span class="kpi-label">Interactive window</span><span class="kpi-value">30d</span><span class="kpi-delta bad">60d query blocked</span></div>
+      <div class="kpi"><span class="kpi-label">Bookmarks</span><span class="kpi-value">${bookmarks.length}</span><span class="kpi-delta">Saved from query rows</span></div>
     </div>
-    <div class="page-actions">
-      <a class="btn btn-secondary" href="#/sentinel/logs">Open Logs</a>
-      <a class="btn btn-secondary" href="#/sentinel/soc-optimization">SOC optimization</a>
-      <button class="btn btn-primary" onclick="runSentinelSearchJob()">Run search job</button>
+
+    <div class="callout ${jobComplete ? 'info' : 'warn'}" style="margin-bottom:14px;">
+      <strong>${jobComplete ? 'Search job complete:' : 'Scenario:'}</strong>
+      ${jobComplete
+        ? 'NetworkLogs_CL data from Apr 30, 2026 is materialized below for interactive analysis in the lab.'
+        : 'NetworkLogs_CL is on the Basic plan. A direct interactive query can read only the last 30 days, so data from Apr 30, 2026 needs a search job.'}
     </div>
-  </div>
 
-  <div class="kpi-strip hunting-status-cards">
-    <div class="kpi"><span class="kpi-label">Selected table</span><span class="kpi-value">NetworkLogs_CL</span><span class="kpi-delta">Custom table</span></div>
-    <div class="kpi"><span class="kpi-label">Plan</span><span class="kpi-value">Basic</span><span class="kpi-delta">Lower-cost retention</span></div>
-    <div class="kpi"><span class="kpi-label">Interactive window</span><span class="kpi-value">30d</span><span class="kpi-delta bad">60d query blocked</span></div>
-    <div class="kpi"><span class="kpi-label">Total retention</span><span class="kpi-value">365d</span><span class="kpi-delta">Search job can retrieve</span></div>
-  </div>
-
-  <div class="callout ${jobComplete ? 'info' : 'warn'}" style="margin-bottom:14px;">
-    <strong>${jobComplete ? 'Search job complete:' : 'Scenario:'}</strong>
-    ${jobComplete
-      ? 'NetworkLogs_CL data from Apr 30, 2026 is materialized below for interactive analysis in the lab.'
-      : 'NetworkLogs_CL is on the Basic plan. A direct interactive query can read only the last 30 days, so data from Apr 30, 2026 needs a search job.'}
-  </div>
-
-  <div class="table-plan-grid">
-    ${SENTINEL_TABLE_PLANS.map(t => `
-      <div class="table-plan-card ${t.name === 'NetworkLogs_CL' ? 'selected' : ''}">
-        <div class="table-plan-head">
-          <strong>${esc(t.name)}</strong>
-          <span class="tag ${t.status === 'Interactive' ? 'green' : 'orange'}">${esc(t.plan)}</span>
+    <div class="table-plan-grid">
+      ${SENTINEL_TABLE_PLANS.map(t => `
+        <div class="table-plan-card ${t.name === 'NetworkLogs_CL' ? 'selected' : ''}">
+          <div class="table-plan-head">
+            <strong>${esc(t.name)}</strong>
+            <span class="tag ${t.status === 'Interactive' ? 'green' : 'orange'}">${esc(t.plan)}</span>
+          </div>
+          <div class="table-plan-stats">
+            <div><span>Interactive</span><strong>${esc(t.interactive)}</strong></div>
+            <div><span>Total retention</span><strong>${esc(t.total)}</strong></div>
+          </div>
+          <div><span class="tag">${esc(t.tier)}</span> <span class="muted">${esc(t.cost)}</span></div>
+          <div class="muted">${esc(t.detail)}</div>
+          <div class="table-plan-status">${esc(t.status)}</div>
         </div>
-        <div class="table-plan-stats">
-          <div><span>Interactive</span><strong>${esc(t.interactive)}</strong></div>
-          <div><span>Total retention</span><strong>${esc(t.total)}</strong></div>
-        </div>
-        <div><span class="tag">${esc(t.tier)}</span> <span class="muted">${esc(t.cost)}</span></div>
-        <div class="muted">${esc(t.detail)}</div>
-        <div class="table-plan-status">${esc(t.status)}</div>
-      </div>
-    `).join('')}
-  </div>
+      `).join('')}
+    </div>
 
-  <div class="card" style="margin-top:16px;">
-    <div class="card-toolbar">
-      <strong>Retention decision guide</strong>
-      <span class="muted">Analytics vs Data lake vs XDR tier</span>
-    </div>
-    <table class="grid">
-      <thead><tr><th>Choice</th><th>Use when</th><th>Avoid when</th></tr></thead>
-      <tbody>
-        ${SENTINEL_RETENTION_GUIDANCE.map(g => `
-          <tr>
-            <td><strong>${esc(g.choice)}</strong></td>
-            <td>${esc(g.use)}</td>
-            <td>${esc(g.avoid)}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="two-col" style="margin-top:16px;">
-    <div class="card card-body">
-      <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
-        <strong>Direct interactive query</strong>
-        <button class="btn btn-ghost btn-sm" onclick="toast('Basic table interactive queries are limited to the last 30 days in this lab scenario.')">Run</button>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-toolbar">
+        <strong>Retention decision guide</strong>
+        <span class="muted">Analytics vs Data lake vs XDR tier</span>
       </div>
-      <textarea class="kql" readonly>NetworkLogs_CL
-| where TimeGenerated between (ago(60d) .. ago(59d))
-| summarize Events=count() by DstIp</textarea>
-      <div class="callout warn" style="margin-top:10px;">This path is intentionally blocked for the 60-day investigation because the selected table is Basic.</div>
-    </div>
-    <div class="card card-body">
-      <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
-        <strong>Search job query</strong>
-        <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('networklogs-search-query')">Copy</button>
-      </div>
-      <textarea id="networklogs-search-query" class="kql" readonly>${esc(NETWORK_LOGS_SEARCH_QUERY)}</textarea>
-      <div class="callout info" style="margin-top:10px;">Use a search job to retrieve data older than the Basic table interactive window but still inside total retention.</div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <div class="card-toolbar">
-      <strong>Search job results</strong>
-      <span class="muted">${jobComplete ? NETWORK_LOGS_SEARCH_RESULTS.length + ' rows materialized' : 'No job run yet'}</span>
-    </div>
-    ${jobComplete ? `
       <table class="grid">
-        <thead><tr><th>TimeGenerated</th><th>SrcIp</th><th>DstIp</th><th>Protocol</th><th>Action</th><th>BytesOut</th><th>Threat intel match</th></tr></thead>
+        <thead><tr><th>Choice</th><th>Use when</th><th>Avoid when</th></tr></thead>
         <tbody>
-          ${NETWORK_LOGS_SEARCH_RESULTS.map(r => `
+          ${SENTINEL_RETENTION_GUIDANCE.map(g => `
             <tr>
-              <td>${fmtTime(r.TimeGenerated)}</td>
-              <td class="kv">${esc(r.SrcIp)}</td>
-              <td class="kv">${esc(r.DstIp)}</td>
-              <td>${esc(r.Protocol)}</td>
-              <td>${esc(r.Action)}</td>
-              <td>${r.BytesOut}</td>
-              <td>${esc(r.ThreatIntelMatch)}</td>
+              <td><strong>${esc(g.choice)}</strong></td>
+              <td>${esc(g.use)}</td>
+              <td>${esc(g.avoid)}</td>
             </tr>
           `).join('')}
         </tbody>
       </table>
-    ` : '<div class="card-body muted">Run the search job to retrieve the retained Basic table rows.</div>'}
+    </div>
+
+    <div class="two-col" style="margin-top:16px;">
+      <div class="card card-body">
+        <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+          <strong>Direct interactive query</strong>
+          <button class="btn btn-ghost btn-sm" onclick="toast('Basic table interactive queries are limited to the last 30 days in this lab scenario.')">Run</button>
+        </div>
+        <textarea class="kql" readonly>NetworkLogs_CL
+| where TimeGenerated between (ago(60d) .. ago(59d))
+| summarize Events=count() by DstIp</textarea>
+        <div class="callout warn" style="margin-top:10px;">This path is intentionally blocked for the 60-day investigation because the selected table is Basic.</div>
+      </div>
+      <div class="card card-body">
+        <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+          <strong>Search job query</strong>
+          <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('networklogs-search-query')">Copy</button>
+        </div>
+        <textarea id="networklogs-search-query" class="kql" readonly>${esc(NETWORK_LOGS_SEARCH_QUERY)}</textarea>
+        <div class="callout info" style="margin-top:10px;">Use a search job to retrieve data older than the Basic table interactive window but still inside total retention.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-toolbar">
+        <strong>Search job results</strong>
+        <span class="muted">${jobComplete ? NETWORK_LOGS_SEARCH_RESULTS.length + ' rows materialized' : 'No job run yet'}</span>
+      </div>
+      ${jobComplete ? `
+        <table class="grid">
+          <thead><tr><th>TimeGenerated</th><th>SrcIp</th><th>DstIp</th><th>Protocol</th><th>Action</th><th>BytesOut</th><th>Threat intel match</th><th>Bookmark</th></tr></thead>
+          <tbody>
+            ${NETWORK_LOGS_SEARCH_RESULTS.map((r, index) => `
+              <tr>
+                <td>${fmtTime(r.TimeGenerated)}</td>
+                <td class="kv">${esc(r.SrcIp)}</td>
+                <td class="kv">${esc(r.DstIp)}</td>
+                <td>${esc(r.Protocol)}</td>
+                <td>${esc(r.Action)}</td>
+                <td>${r.BytesOut}</td>
+                <td>${esc(r.ThreatIntelMatch)}</td>
+                <td><button class="btn btn-secondary btn-sm" data-row="${esc(JSON.stringify(r))}" onclick="addSentinelBookmarkFromButton(this, 'NetworkLogs_CL', 'Search job', '${esc(NETWORK_LOGS_SEARCH_QUERY)}')">Add bookmark</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<div class="card-body muted">Run the search job to retrieve the retained Basic table rows.</div>'}
+    </div>
+  `;
+
+  const renderBookmarksTab = `
+    <div class="kpi-strip hunting-status-cards">
+      <div class="kpi"><span class="kpi-label">Saved bookmarks</span><span class="kpi-value">${bookmarks.length}</span><span class="kpi-delta">Persisted locally</span></div>
+      <div class="kpi"><span class="kpi-label">Suggestions</span><span class="kpi-value">${SENTINEL_BOOKMARK_SUGGESTIONS.length}</span><span class="kpi-delta">Capture templates</span></div>
+      <div class="kpi"><span class="kpi-label">Promotions</span><span class="kpi-value">${bookmarks.filter(b => b.promotedIncidentId).length}</span><span class="kpi-delta">Incident stubs</span></div>
+      <div class="kpi"><span class="kpi-label">Linked incidents</span><span class="kpi-value">${bookmarks.reduce((n, b) => n + (b.linkedIncidents?.length || 0), 0)}</span><span class="kpi-delta">Bookmark context</span></div>
+    </div>
+    <div class="callout info" style="margin-bottom:14px;">
+      Bookmarks capture the KQL, the row that triggered the save, entity mapping, tags, and a MITRE technique so you can turn a hunt into a repeatable investigation pattern.
+    </div>
+    <div class="two-col">
+      <section class="card">
+        <div class="card-toolbar"><strong>Saved bookmarks</strong><span class="muted">${bookmarks.length} local items</span></div>
+        ${bookmarks.length ? `
+          <table class="grid">
+            <thead><tr><th>Query</th><th>Entities</th><th>Tags</th><th>MITRE</th><th>Incident</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${bookmarks.map(bookmark => `
+                <tr>
+                  <td>
+                    <strong>${esc(bookmark.queryName)}</strong>
+                    <div class="muted">${esc(bookmark.table)}</div>
+                  </td>
+                  <td>${bookmark.entityMapping.map(item => `<span class="tag">${esc(item)}</span>`).join(' ')}</td>
+                  <td>${bookmark.tags.map(tag => `<span class="tag">${esc(tag)}</span>`).join(' ')}</td>
+                  <td><span class="mitre">${esc(bookmark.mitre)}</span></td>
+                  <td>${bookmark.promotedIncidentId ? `<button class="link-button strong" onclick="navigate('#/sentinel/incidents')">${esc(bookmark.promotedIncidentId)}</button>` : `${bookmark.linkedIncidents?.map(id => `<span class="tag">${esc(id)}</span>`).join(' ') || '<span class="muted">None</span>'}`}</td>
+                  <td>
+                    <button class="btn btn-secondary btn-sm" onclick="promoteSentinelBookmark('${esc(bookmark.id)}')">Promote to incident</button>
+                    <button class="btn btn-ghost btn-sm" onclick="addBookmarkToExistingIncident('${esc(bookmark.id)}', '${esc(bookmark.linkedIncidents?.[0] || bookmark.incident || 'INC-1042')}')">Add to existing incident</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : `
+          <div class="card-body muted">No bookmarks yet. Use the search results tab to save one of the matching rows below.</div>
+        `}
+      </section>
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Bookmark shape</strong>
+          <span class="muted">What gets captured</span>
+        </div>
+        <div class="flowline vertical-flow">
+          <div class="flow-step"><strong>Query text</strong><span>Keep the KQL that produced the row so the hunt is repeatable.</span></div>
+          <div class="flow-step"><strong>Row evidence</strong><span>Store the exact result row and the entity values that matter for review.</span></div>
+          <div class="flow-step"><strong>MITRE and tags</strong><span>Tag the bookmark so you can pivot to ATT&amp;CK and triage context later.</span></div>
+          <div class="flow-step"><strong>Incident linkage</strong><span>Promote the bookmark into a new incident or attach it to an existing case.</span></div>
+        </div>
+        <div class="card-toolbar" style="margin-top:18px;"><strong>Suggested captures</strong><span class="muted">Static templates</span></div>
+        <div class="tile-grid">
+          ${SENTINEL_BOOKMARK_SUGGESTIONS.map(template => `
+            <button class="tile" type="button" data-row="${esc(JSON.stringify(template.row))}" onclick="addSentinelBookmarkFromButton(this, '${esc(template.table)}', '${esc(template.queryName)}', '${esc(template.query)}')">
+              <div class="tile-title"><span class="tile-icon">🔖</span>${esc(template.queryName)}</div>
+              <div class="tile-sub">${esc(template.entity)} · ${esc(template.incident)}</div>
+              <div class="muted">${template.tags.map(tag => esc(tag)).join(' · ')} · ${esc(template.mitre)}</div>
+            </button>
+          `).join('')}
+        </div>
+      </section>
+    </div>
+  `;
+
+  const renderLivestreamTab = `
+    <div class="kpi-strip hunting-status-cards">
+      <div class="kpi"><span class="kpi-label">Status</span><span class="kpi-value">${esc(livestream.status)}</span><span class="kpi-delta">${livestream.elevated ? 'Alert stub created' : 'Live query feed'}</span></div>
+      <div class="kpi"><span class="kpi-label">Rows observed</span><span class="kpi-value">${livestream.rows.length}</span><span class="kpi-delta">Ticks from fixture feed</span></div>
+      <div class="kpi"><span class="kpi-label">Cursor</span><span class="kpi-value">${livestream.cursor}</span><span class="kpi-delta">${SENTINEL_LIVESTREAM_ROWS.length} available</span></div>
+      <div class="kpi"><span class="kpi-label">Alert stub</span><span class="kpi-value">${livestream.alertStub ? 'Ready' : 'None'}</span><span class="kpi-delta">Elevate when enough evidence appears</span></div>
+    </div>
+    <div class="two-col">
+      <section class="card card-body">
+        <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+          <strong>Livestream query</strong>
+          <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('sentinel-livestream-query')">Copy</button>
+        </div>
+        <textarea id="sentinel-livestream-query" class="kql" readonly>${esc(SENTINEL_LIVESTREAM_QUERY)}</textarea>
+        <div class="sidepanel-footer" style="padding-top:12px;">
+          <button class="btn btn-primary" onclick="startSentinelLivestream()">Start</button>
+          <button class="btn btn-secondary" onclick="pauseSentinelLivestream()">Pause</button>
+          <button class="btn btn-secondary" onclick="stopSentinelLivestream()">Stop</button>
+          <button class="btn btn-primary" onclick="elevateSentinelLivestreamToAlert()">Elevate to alert</button>
+        </div>
+        <div class="callout info" style="margin-top:12px;">
+          The livestream uses a timer over canned rows so you can watch the query light up in stages, then turn the pattern into a stub analytics rule.
+        </div>
+      </section>
+      <section class="card card-body">
+        <div class="card-toolbar">
+          <strong>Stream state</strong>
+          <span class="muted">${livestream.startedAt ? fmtTime(livestream.startedAt) : 'Not started'}</span>
+        </div>
+        ${livestream.alertStub ? `
+          <div class="callout success">
+            <strong>${esc(livestream.alertStub.name)}</strong><br>
+            Severity: ${esc(livestream.alertStub.severity)} · Rows observed: ${livestream.alertStub.rows}
+          </div>
+        ` : `
+          <div class="callout warn">Run the stream long enough to collect multiple rows, then elevate it into a static analytics rule stub.</div>
+        `}
+        <div class="alert-section-title">Feed history</div>
+        <table class="grid compact-grid">
+          <thead><tr><th>Time</th><th>Account</th><th>Action</th><th>App</th><th>Risk</th></tr></thead>
+          <tbody>
+            ${livestream.rows.length ? livestream.rows.map(row => `
+              <tr>
+                <td>${fmtTime(row.TimeGenerated)}</td>
+                <td>${esc(row.AccountDisplayName)}</td>
+                <td>${esc(row.ActionType)}</td>
+                <td class="kv">${esc(row.AppId)}</td>
+                <td><span class="sev ${row.RiskScore >= 90 ? 'high' : row.RiskScore >= 70 ? 'medium' : 'low'}">${esc(row.RiskScore)}</span> ${esc(row.Signal)}</td>
+              </tr>
+            `).join('') : `<tr><td colspan="5" class="muted">No rows yet. Start the livestream to watch the feed tick.</td></tr>`}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  `;
+
+  return `
+  <div class="page-header hunting-page-header">
+    <div>
+      <div class="breadcrumb">Microsoft Sentinel › <strong>Search</strong></div>
+      <h1>Hunting workspace</h1>
+      <div class="page-subtitle">Work through retained search results, bookmarks, and a live query feed from the same hunting surface.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/sentinel/logs">Open Logs</a>
+      <a class="btn btn-secondary" href="#/sentinel/search">Restore data</a>
+      <button class="btn btn-primary" onclick="runSentinelSearchJob()">Run search job</button>
+    </div>
   </div>
-`;
+  <div class="tabs" style="margin-bottom:14px;">
+    <button class="tab ${activeTab === 'search' ? 'active' : ''}" onclick="setSentinelHuntingTab('search')">Search results</button>
+    <button class="tab ${activeTab === 'bookmarks' ? 'active' : ''}" onclick="setSentinelHuntingTab('bookmarks')">Bookmarks (${bookmarks.length})</button>
+    <button class="tab ${activeTab === 'livestream' ? 'active' : ''}" onclick="setSentinelHuntingTab('livestream')">Livestream</button>
+  </div>
+  ${activeTab === 'bookmarks' ? renderBookmarksTab : activeTab === 'livestream' ? renderLivestreamTab : renderSearchTab}
+  `;
 };
 
 VIEWS['sentinel/soc-optimization'] = () => `
@@ -4154,9 +4317,12 @@ VIEWS['sentinel/workbooks'] = () => `
 VIEWS['sentinel/automation'] = () => {
   const lab = SENTINEL_AUTOMATION_LAB;
   const hasPermission = localStorage.getItem('defender-lab.sentinel.playbook1Permission') === 'granted';
+  const selectedPlaybookName = sessionStorage.getItem('defender-lab.sentinel.playbook.selected') || (hasPermission ? 'Playbook1' : 'PB-RevokeOAuthConsent');
+  const selectedPlaybook = SENTINEL_PLAYBOOKS.find(p => p.name === selectedPlaybookName) || SENTINEL_PLAYBOOKS.find(p => p.name === 'Playbook1');
+  const entityContext = sentinelEntityPlaybookContext();
   const playbookState = hasPermission ? 'Available' : 'Grayed out';
   const permissionClass = hasPermission ? 'granted' : 'missing';
-  const selectedPlaybook = hasPermission
+  const selectedPlaybookRow = hasPermission
     ? `<button class="playbook-select-row selected" onclick="selectSentinelPlaybook('Playbook1')">
         <span><strong>Playbook1</strong><small>Microsoft Sentinel incident trigger · RG-Playbooks</small></span>
         <span class="status-pill ok">Selectable</span>
@@ -4221,9 +4387,13 @@ VIEWS['sentinel/automation'] = () => {
           </div>
           <div class="playbook-dropdown">
             <div class="dropdown-label">Playbook drop-down list</div>
-            ${selectedPlaybook}
+            ${selectedPlaybookRow}
             <button class="playbook-select-row" onclick="toast('PB-RevokeOAuthConsent selected for comparison.')">
               <span><strong>PB-RevokeOAuthConsent</strong><small>Microsoft Sentinel incident trigger · RG-SOC</small></span>
+              <span class="status-pill ok">Selectable</span>
+            </button>
+            <button class="playbook-select-row ${selectedPlaybookName === 'PB-ContainEntity' ? 'selected' : ''}" onclick="selectSentinelAutomationPlaybook('PB-ContainEntity')">
+              <span><strong>PB-ContainEntity</strong><small>Entity trigger · ${esc(lab.resourceGroup.replace('RG-Playbooks', 'RG-Entity-Playbooks'))}</small></span>
               <span class="status-pill ok">Selectable</span>
             </button>
           </div>
@@ -4273,9 +4443,41 @@ VIEWS['sentinel/automation'] = () => {
       </section>
     </div>
 
+    <div class="card card-body" style="margin-top:16px;">
+      <div class="card-toolbar">
+        <strong>Playbook detail side panel</strong>
+        <span class="muted">${esc(selectedPlaybook?.name || '—')}</span>
+      </div>
+      ${selectedPlaybook ? `
+        <div class="two-col">
+          <div>
+            <div class="summary-info">
+              <div><span class="muted">Trigger</span><strong>${esc(selectedPlaybook.trigger)}</strong></div>
+              <div><span class="muted">Connector</span><strong>${esc(selectedPlaybook.connector)}</strong></div>
+              <div><span class="muted">Status</span><strong>${esc(selectedPlaybook.status)}</strong></div>
+              <div><span class="muted">Resource group</span><strong>${esc(selectedPlaybook.resourceGroup || '—')}</strong></div>
+            </div>
+            ${entityContext.entityName ? `
+              <div class="callout info" style="margin-top:12px;">
+                <strong>Entity trigger context</strong><br>
+                Entity: ${esc(entityContext.entityName)}<br>
+                Source: ${esc(entityContext.source || 'Sentinel entity behavior')}
+              </div>
+            ` : ''}
+          </div>
+          <div>
+            <div class="alert-section-title">Playbook steps</div>
+            <ol class="learn-steps">
+              ${selectedPlaybook.steps.map(step => `<li>${esc(step)}</li>`).join('')}
+            </ol>
+          </div>
+        </div>
+      ` : '<div class="muted">Pick a playbook to see its step-by-step detail panel.</div>'}
+    </div>
+
     <div class="three-col" style="margin-top:16px;">
       ${SENTINEL_PLAYBOOKS.map(p => `
-        <div class="card card-body ${p.name === 'Playbook1' ? 'playbook1-card' : ''}">
+        <div class="card card-body ${p.name === selectedPlaybookName ? 'selected-row' : ''} ${p.name === 'Playbook1' ? 'playbook1-card' : ''}">
           <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
             <strong>${esc(p.name)}</strong>
             <span class="tag ${p.status === 'Enabled' ? 'green' : 'orange'}">${esc(p.status)}</span>
@@ -4286,6 +4488,7 @@ VIEWS['sentinel/automation'] = () => {
           <ol style="margin:0; padding-left:18px; font-size:12px; line-height:1.7;">
             ${p.steps.map(s => `<li>${esc(s)}</li>`).join('')}
           </ol>
+          <button class="btn btn-secondary btn-sm" style="margin-top:12px;" onclick="selectSentinelAutomationPlaybook('${esc(p.name)}')">View details</button>
         </div>
       `).join('')}
     </div>
@@ -4464,24 +4667,96 @@ VIEWS['defender/intel-explorer'] = () => `
     </tbody></table>
   </div>`;
 
-VIEWS['sentinel/search'] = () => `
-  <div class="page-header"><div><div class="breadcrumb">Microsoft Sentinel › <strong>Search</strong></div><h1>Search</h1><div class="page-subtitle">Run investigation searches across Basic, Analytics, Data lake, and summary-table patterns.</div></div><div class="page-actions"><a class="btn btn-primary" href="#/sentinel/hunting">Open hunting search job</a></div></div>
+VIEWS['sentinel/search'] = () => {
+  const restoreJob = currentSentinelRestoreJob();
+  const complete = restoreJob.status === 'complete';
+  return `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Microsoft Sentinel › <strong>Search</strong></div>
+      <h1>Search</h1>
+      <div class="page-subtitle">Run investigation searches across Basic, Analytics, Data lake, and summary-table patterns.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-primary" href="#/sentinel/hunting">Open hunting workspace</a>
+      <button class="btn btn-secondary" onclick="runSentinelRestoreJob()">Run restore job</button>
+    </div>
+  </div>
   <div class="tile-grid">
     <a class="tile" href="#/sentinel/hunting"><strong>Basic-table search job</strong><span>Recover older NetworkLogs_CL rows through materialized search results.</span></a>
     <a class="tile" href="#/sentinel/data-lake-jobs"><strong>Data lake KQL job</strong><span>Run long-range historical hunts and review results tables.</span></a>
     <a class="tile" href="#/sentinel/summary-rules"><strong>Summary table query</strong><span>Compare noisy raw telemetry with aggregate summary output.</span></a>
     <a class="tile" href="#/sentinel/logs"><strong>Logs</strong><span>Inspect current Sentinel fixture rows and copy KQL.</span></a>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar">
+      <strong>Restore historical data</strong>
+      <span class="muted">${restoreJob.sourceTable} → ${restoreJob.resultTable}</span>
+    </div>
+    <div class="two-col">
+      <div class="card card-body">
+        <div class="alert-section-title">Job status</div>
+        <div class="callout ${complete ? 'success' : restoreJob.status === 'running' ? 'warn' : 'info'}">
+          <strong>${restoreJob.status === 'idle' ? 'Not started' : restoreJob.status === 'running' ? 'Running' : 'Complete'}</strong>
+          <div>${esc(restoreJob.scopeNote)}</div>
+        </div>
+        <dl class="summary-info" style="margin-top:12px;">
+          <dt>Source table</dt><dd>${esc(restoreJob.sourceTable)}</dd>
+          <dt>Result table</dt><dd>${esc(restoreJob.resultTable)}</dd>
+          <dt>Scope</dt><dd>${esc(restoreJob.scope)}</dd>
+        </dl>
+        <div class="callout info" style="margin-top:12px;">${esc(restoreJob.costNote)}</div>
+      </div>
+      <div class="card card-body">
+        <div class="alert-section-title">Restore query</div>
+        <textarea class="kql" readonly>${esc(SENTINEL_RESTORE_JOB.query)}</textarea>
+        <div class="sidepanel-footer" style="padding-top:12px;">
+          <button class="btn btn-primary" onclick="runSentinelRestoreJob()">Restore table</button>
+          <a class="btn btn-secondary" href="#/sentinel/logs">Open logs</a>
+        </div>
+      </div>
+    </div>
+    ${complete ? `
+      <div class="card" style="margin-top:16px;">
+        <div class="card-toolbar"><strong>${esc(restoreJob.resultTable)}</strong><span class="muted">${SENTINEL_RESTORE_JOB.results.length} rows restored</span></div>
+        <table class="grid">
+          <thead><tr><th>TimeGenerated</th><th>DnsQuery</th><th>QueryCount</th><th>UniqueHosts</th><th>SourceTable</th></tr></thead>
+          <tbody>
+            ${SENTINEL_RESTORE_JOB.results.map(r => `
+              <tr>
+                <td>${fmtTime(r.TimeGenerated)}</td>
+                <td class="kv">${esc(r.DnsQuery)}</td>
+                <td>${r.QueryCount}</td>
+                <td>${r.UniqueHosts}</td>
+                <td>${esc(r.SourceTable)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    ` : ''}
   </div>`;
+};
 
 VIEWS['sentinel/entity-behavior'] = () => `
   <div class="page-header"><div><div class="breadcrumb">Threat management › <strong>Entity behavior</strong></div><h1>Entity behavior</h1><div class="page-subtitle">UEBA-style risk context for users, hosts, and IPs that feed incidents, anomalies, and hunting pivots.</div></div><div class="page-actions"><a class="btn btn-secondary" href="#/sentinel/settings">UEBA settings</a></div></div>
   <div class="two-col">
-    <section class="card"><div class="card-toolbar"><strong>Behavioral entities</strong><span class="muted">Fictional UEBA scores</span></div><table class="grid"><thead><tr><th>Entity</th><th>Type</th><th>Score</th><th>Top anomaly</th><th>Pivot</th></tr></thead><tbody>
-      <tr><td>jane.doe@contoso.com</td><td>Account</td><td><span class="sev high">92</span></td><td>OAuth grant after phishing click</td><td><a class="chip-link" href="#/sentinel/graph">Graph</a></td></tr>
-      <tr><td>FIN-FS-02</td><td>Host</td><td><span class="sev high">88</span></td><td>Rare encryption process and service stop</td><td><a class="chip-link" href="#/defender/device">Device</a></td></tr>
-      <tr><td>10.5.12.44</td><td>IP</td><td><span class="sev medium">67</span></td><td>Repeated IOC destination contact</td><td><a class="chip-link" href="#/sentinel/hunting/dns">DNS hunt</a></td></tr>
-    </tbody></table></section>
-    <section class="card card-body"><div class="alert-section-title">How UEBA supports SC-200 tasks</div><ul><li>Entity pages summarize peer baselines, alerts, incidents, and anomalies.</li><li>Anomaly rules can enrich hunting and scheduled analytics rules.</li><li>Risky users and devices should be validated against evidence before response.</li></ul></section>
+    <section class="card">
+      <div class="card-toolbar"><strong>Behavioral entities</strong><span class="muted">Fictional UEBA scores</span></div>
+      <table class="grid">
+        <thead><tr><th>Entity</th><th>Type</th><th>Score</th><th>Top anomaly</th><th>Pivot</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>jane.doe@contoso.com</td><td>Account</td><td><span class="sev high">92</span></td><td>OAuth grant after phishing click</td><td><a class="chip-link" href="#/sentinel/graph">Graph</a></td><td><button class="btn btn-primary btn-sm" onclick="runSentinelEntityPlaybook('jane.doe@contoso.com', 'Sentinel entity behavior')">Run playbook (entity)</button></td></tr>
+          <tr><td>FIN-FS-02</td><td>Host</td><td><span class="sev high">88</span></td><td>Rare encryption process and service stop</td><td><a class="chip-link" href="#/defender/device">Device</a></td><td><button class="btn btn-primary btn-sm" onclick="runSentinelEntityPlaybook('FIN-FS-02', 'Sentinel entity behavior')">Run playbook (entity)</button></td></tr>
+          <tr><td>10.5.12.44</td><td>IP</td><td><span class="sev medium">67</span></td><td>Repeated IOC destination contact</td><td><a class="chip-link" href="#/sentinel/hunting/dns">DNS hunt</a></td><td><button class="btn btn-primary btn-sm" onclick="runSentinelEntityPlaybook('10.5.12.44', 'Sentinel entity behavior')">Run playbook (entity)</button></td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card card-body">
+      <div class="alert-section-title">How UEBA supports SC-200 tasks</div>
+      <ul><li>Entity pages summarize peer baselines, alerts, incidents, and anomalies.</li><li>Anomaly rules can enrich hunting and scheduled analytics rules.</li><li>Risky users and devices should be validated against evidence before response.</li></ul>
+      <div class="callout info" style="margin-top:12px;">The entity-trigger playbook action loads the same playbook detail used in the automation surface so the pivot stays walkable.</div>
+    </section>
   </div>`;
 
 VIEWS['sentinel/watchlist'] = () => `
@@ -5497,6 +5772,7 @@ function renderAttackStory(inc, incAlerts) {
               ? `<button class="btn btn-primary btn-sm" onclick="openDevice('${esc(activeNode.label)}')">Open device page</button>`
               : `<button class="btn btn-secondary btn-sm" onclick="toast('Entity pivot opened for ${esc(activeNode.type || 'entity')} (lab stub).')">Open entity page</button>`}
             <button class="btn btn-primary btn-sm" onclick="viewBlastRadius('${esc(inc.id)}', '${esc(activeNode.id || '')}')">View blast radius</button>
+            <button class="btn btn-secondary btn-sm" onclick="runSentinelEntityPlaybook('${esc(activeNode.label || inc.id)}', 'Defender incident side panel')">Run playbook (entity)</button>
             <button class="btn btn-secondary btn-sm" onclick="navigate('#/defender/hunting')">Go hunt</button>
           </div>
           <ul class="attack-evidence-list">
