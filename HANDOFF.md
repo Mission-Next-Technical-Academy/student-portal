@@ -34,6 +34,13 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-07-07 Agent 11 coverage-sweep rerun:
+  - Rebuilt `COVERAGE_SWEEP.md` from scratch against the post-GAP_BRIDGE
+    route map and the authoritative Learn-link index.
+  - Marked the report as superseding the 2026-07-06 sweep and ranked the
+    remaining gaps with `concepts.jsonl` chunk counts as the emphasis proxy.
+  - No `ui/` files were changed.
+
 - 2026-07-07 Agent 19 QA / verify sweep:
   - Ran a static route-vs-view compare across all registered views and
     confirmed there are no `Page not found` matches for the current route
