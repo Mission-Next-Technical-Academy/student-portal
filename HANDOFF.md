@@ -574,3 +574,18 @@ integrate.py auto-merge: 18 consts live in data.js); Copilot 5th workload
 view pipeline (gen_view_task.py → tasks/V12-V22 → add_view.py render
 gate → NAV wiring); bin/qa-sweep.sh + bin/render_all.js (88/88 views
 render clean, 0 dead NAV). State/queue: local-tasks/VIEW_QUEUE.md.
+
+## 2026-07-07 — codex wave resumed (usage cap reset)
+Goose stalled on 9 of 11 queued views; per Alex, Agents 12–19 now run on
+codex via `bin/run-codex-agents.sh`. Already live from the goose batch —
+EXTEND these, do not rebuild or duplicate:
+- `#/defender/vulnerabilities` (V17) — covers part of Agent 15.1.
+- `#/defender/threat-explorer` (V18) — standalone route; Agent 17.3 may
+  link it from `#/defender/email-collab` instead of duplicating content.
+- 18 fixture consts already merged into `ui/data.js` by `integrate.py`
+  (Copilot sessions/transcripts/promptbooks/plugins/capacity, TVM,
+  multicloud, audit-premium, threat-explorer, MSSP/MTO — see
+  `local-tasks/manifest.json`). Reuse them; adapt names if needed.
+- `#/copilot/home` + Copilot PORTALS/NAV entry exist; `ui/lab-widgets.js`
+  provides labList/labGet/labSet persistence helpers for new views.
+Current QA baseline: 90/90 views render clean, 0 dead NAV routes.

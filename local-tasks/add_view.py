@@ -59,6 +59,8 @@ function labSet(k, v, m) {{}}
 function labPush(k, o, m) {{}}
 function labRemoveAt(k, i, m) {{}}
 function labToggleFlag(k, i, m) {{}}
+function labTag(t, tone) {{ return '<span class="tag ' + (tone || '') + '">' + esc(t) + '</span>'; }}
+function labSev(l) {{ const c = /critical|high|over/i.test(l) ? 'high' : (/medium/i.test(l) ? 'medium' : 'low'); return '<span class="sev ' + c + '">' + esc(l) + '</span>'; }}
 `, ctx);
 vm.runInContext(fs.readFileSync('{data}', 'utf8'), ctx);
 vm.runInContext(fs.readFileSync('{draft}', 'utf8'), ctx);

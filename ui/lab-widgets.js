@@ -28,3 +28,11 @@ function labToggleFlag(key, id, msg) {
   if (i === -1) l.push(id); else l.splice(i, 1);
   labSet(key, l, msg);
 }
+
+// Render helpers for compiled/generated views (avoid nested template literals)
+function labTag(text, tone) { return '<span class="tag ' + (tone || '') + '">' + esc(text) + '</span>'; }
+function labSev(level) {
+  const l = String(level).toLowerCase();
+  const c = (l === 'critical' || l === 'high' || l === 'over') ? 'high' : (l === 'medium' ? 'medium' : 'low');
+  return '<span class="sev ' + c + '">' + esc(level) + '</span>';
+}
