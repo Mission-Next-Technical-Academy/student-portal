@@ -3779,42 +3779,137 @@ const COPILOT_SETTINGS_DEFAULTS = {
 
 // --- T06: out/t06-tvm.js ---
 const TVM_SOFTWARE = [
-  { id: 'sw-01', name: 'CodeGenius', vendor: 'TechNova', version: '5.2.3', weaknesses: 4, exposedDevices: 7, threatInsight: 'Exploit available' },
-  { id: 'sw-02', name: 'DataMaster Pro', vendor: 'InfoForge', version: '2.8.1', weaknesses: 6, exposedDevices: 12, threatInsight: 'Active alert' },
-  { id: 'sw-03', name: 'OfficeSuite Premium', vendor: 'OffiSys', version: '4.5.0', weaknesses: 2, exposedDevices: 28, threatInsight: 'None' },
-  { id: 'sw-04', name: 'CryptoSecure', vendor: 'SecuroTech', version: '1.9.3', weaknesses: 7, exposedDevices: 6, threatInsight: 'Exploit available' },
-  { id: 'sw-05', name: 'VideoEditor Suite', vendor: 'Vidsoft', version: '3.2.2', weaknesses: 1, exposedDevices: 34, threatInsight: 'Active alert' },
-  { id: 'sw-06', name: 'PDFXpert Pro', vendor: 'DocuMaster', version: '3.7', weaknesses: 8, exposedDevices: 21, threatInsight: 'Exploit available' },
-  { id: 'sw-07', name: 'ImageMagick Pro', vendor: 'ImagoSys', version: '6.5.4', weaknesses: 3, exposedDevices: 9, threatInsight: 'None' },
-  { id: 'sw-08', name: 'AudioMaster XL', vendor: 'Sonicscape', version: '1.2.1', weaknesses: 3, exposedDevices: 6, threatInsight: 'Exploit available' },
-  { id: 'sw-09', name: 'SecuritySuite Pro', vendor: 'SecuTech', version: '4.1.5', weaknesses: 6, exposedDevices: 2, threatInsight: 'None' },
-  { id: 'sw-10', name: 'DataFlow X', vendor: 'BitStream', version: '3.8', weaknesses: 9, exposedDevices: 14, threatInsight: 'Active alert' }
+  { id:'sw-01', name:'CodeGenius', vendor:'TechNova', version:'5.2.3', weaknesses:4, exposedDevices:7, threatInsight:'Exploit available', recommendationId:'tr-01', topCves:['CVE-2026-9001','CVE-2026-9002'], deviceCount:2 },
+  { id:'sw-02', name:'DataMaster Pro', vendor:'InfoForge', version:'2.8.1', weaknesses:6, exposedDevices:12, threatInsight:'Active alert', recommendationId:'tr-02', topCves:['CVE-2026-9003','CVE-2026-9004'], deviceCount:2 },
+  { id:'sw-03', name:'OfficeSuite Premium', vendor:'OffiSys', version:'4.5.0', weaknesses:2, exposedDevices:28, threatInsight:'Needs patch', recommendationId:'tr-03', topCves:['CVE-2026-9005','CVE-2026-9006'], deviceCount:3 },
+  { id:'sw-04', name:'CryptoSecure', vendor:'SecuroTech', version:'1.9.3', weaknesses:7, exposedDevices:6, threatInsight:'Exploit available', recommendationId:'tr-04', topCves:['CVE-2026-9007','CVE-2026-9023'], deviceCount:2 },
+  { id:'sw-05', name:'VideoEditor Suite', vendor:'Vidsoft', version:'3.2.2', weaknesses:1, exposedDevices:34, threatInsight:'Active alert', recommendationId:'tr-05', topCves:['CVE-2026-9009'], deviceCount:1 },
+  { id:'sw-06', name:'PDFXpert Pro', vendor:'DocuMaster', version:'3.7', weaknesses:8, exposedDevices:21, threatInsight:'Exploit available', recommendationId:'tr-06', topCves:['CVE-2026-9011','CVE-2026-9012'], deviceCount:2 },
+  { id:'sw-07', name:'ImageMagick Pro', vendor:'ImagoSys', version:'6.5.4', weaknesses:3, exposedDevices:9, threatInsight:'None', recommendationId:'tr-07', topCves:['CVE-2026-9013'], deviceCount:1 },
+  { id:'sw-08', name:'AudioMaster XL', vendor:'Sonicscape', version:'1.2.1', weaknesses:3, exposedDevices:6, threatInsight:'Exploit available', recommendationId:'tr-08', topCves:['CVE-2026-9015'], deviceCount:1 },
+  { id:'sw-09', name:'SecuritySuite Pro', vendor:'SecuTech', version:'4.1.5', weaknesses:6, exposedDevices:2, threatInsight:'Review exceptions', recommendationId:'tr-09', topCves:['CVE-2026-9017'], deviceCount:2 },
+  { id:'sw-10', name:'DataFlow X', vendor:'BitStream', version:'3.8', weaknesses:9, exposedDevices:14, threatInsight:'Active alert', recommendationId:'tr-10', topCves:['CVE-2026-9019','CVE-2026-9021'], deviceCount:2 }
 ];
 
 const TVM_CVES = [
-  { id: 'cv-01', cve: 'CVE-2026-9001', severity: 'Critical', cvss: 8.5, software: 'CodeGenius', exploitAvailable: true, exposedDevices: 4 },
-  { id: 'cv-02', cve: 'CVE-2026-9003', severity: 'High', cvss: 7.1, software: 'DataMaster Pro', exploitAvailable: false, exposedDevices: 10 },
-  { id: 'cv-03', cve: 'CVE-2026-9005', severity: 'Critical', cvss: 8.8, software: 'OfficeSuite Premium', exploitAvailable: true, exposedDevices: 35 },
-  { id: 'cv-04', cve: 'CVE-2026-9007', severity: 'Medium', cvss: 5.3, software: 'CryptoSecure', exploitAvailable: false, exposedDevices: 8 },
-  { id: 'cv-05', cve: 'CVE-2026-9009', severity: 'Critical', cvss: 9.4, software: 'VideoEditor Suite', exploitAvailable: true, exposedDevices: 30 },
-  { id: 'cv-06', cve: 'CVE-2026-9011', severity: 'High', cvss: 7.8, software: 'PDFXpert Pro', exploitAvailable: false, exposedDevices: 25 },
-  { id: 'cv-07', cve: 'CVE-2026-9013', severity: 'Low', cvss: 2.4, software: 'ImageMagick Pro', exploitAvailable: false, exposedDevices: 15 },
-  { id: 'cv-08', cve: 'CVE-2026-9015', severity: 'Critical', cvss: 8.3, software: 'AudioMaster XL', exploitAvailable: true, exposedDevices: 6 },
-  { id: 'cv-09', cve: 'CVE-2026-9017', severity: 'Medium', cvss: 5.7, software: 'SecuritySuite Pro', exploitAvailable: false, exposedDevices: 4 },
-  { id: 'cv-10', cve: 'CVE-2026-9019', severity: 'Critical', cvss: 8.6, software: 'DataFlow X', exploitAvailable: true, exposedDevices: 18 },
-  { id: 'cv-11', cve: 'CVE-2026-9021', severity: 'High', cvss: 7.6, software: 'OfficeSuite Premium', exploitAvailable: false, exposedDevices: 30 },
-  { id: 'cv-12', cve: 'CVE-2026-9023', severity: 'Low', cvss: 4.5, software: 'CryptoSecure', exploitAvailable: true, exposedDevices: 7 }
+  { id:'cv-01', cve:'CVE-2026-9001', severity:'Critical', cvss:8.5, software:'CodeGenius', exploitAvailable:true, exposedDevices:4, affectedDevices:['WKS-01','WKS-03'], summary:'Remote execution in the plugin loader', remediation:'Update CodeGenius to 5.2.4' },
+  { id:'cv-02', cve:'CVE-2026-9003', severity:'High', cvss:7.1, software:'DataMaster Pro', exploitAvailable:false, exposedDevices:10, affectedDevices:['DC01','WKS-02'], summary:'Privilege escalation through report macros', remediation:'Apply vendor hotfix and review macro usage' },
+  { id:'cv-03', cve:'CVE-2026-9005', severity:'Critical', cvss:8.8, software:'OfficeSuite Premium', exploitAvailable:true, exposedDevices:35, affectedDevices:['WKS-01','WKS-02','WKS-03'], summary:'Untrusted add-in launch leads to code execution', remediation:'Patch OfficeSuite Premium' },
+  { id:'cv-04', cve:'CVE-2026-9007', severity:'Medium', cvss:5.3, software:'CryptoSecure', exploitAvailable:false, exposedDevices:8, affectedDevices:['DC01','FIN-FS-02'], summary:'Crypto library mishandles certificate validation', remediation:'Upgrade CryptoSecure and reissue certificates' },
+  { id:'cv-05', cve:'CVE-2026-9009', severity:'Critical', cvss:9.4, software:'VideoEditor Suite', exploitAvailable:true, exposedDevices:30, affectedDevices:['FIN-FS-02'], summary:'Project import parser leads to arbitrary code execution', remediation:'Isolate editor build and deploy the patched release' },
+  { id:'cv-06', cve:'CVE-2026-9011', severity:'High', cvss:7.8, software:'PDFXpert Pro', exploitAvailable:false, exposedDevices:25, affectedDevices:['WKS-03','WKS-02'], summary:'Malformed PDF can trigger process crash and memory corruption', remediation:'Update PDFXpert Pro' },
+  { id:'cv-07', cve:'CVE-2026-9013', severity:'Low', cvss:2.4, software:'ImageMagick Pro', exploitAvailable:false, exposedDevices:15, affectedDevices:['WKS-01'], summary:'Image conversion bug exposes low-risk memory corruption', remediation:'Upgrade when the next maintenance window opens' },
+  { id:'cv-08', cve:'CVE-2026-9015', severity:'Critical', cvss:8.3, software:'AudioMaster XL', exploitAvailable:true, exposedDevices:6, affectedDevices:['WKS-02'], summary:'Malicious sample library can launch code on load', remediation:'Patch AudioMaster XL before the next scan' },
+  { id:'cv-09', cve:'CVE-2026-9017', severity:'Medium', cvss:5.7, software:'SecuritySuite Pro', exploitAvailable:false, exposedDevices:4, affectedDevices:['DC01','WKS-01'], summary:'Policy engine allows stale allow-list entries', remediation:'Review allow-list scope and update SecuritySuite Pro' },
+  { id:'cv-10', cve:'CVE-2026-9019', severity:'Critical', cvss:8.6, software:'DataFlow X', exploitAvailable:true, exposedDevices:18, affectedDevices:['FIN-FS-02','WKS-02'], summary:'Pipeline connector can be abused to run a payload', remediation:'Patch DataFlow X and validate connector rules' },
+  { id:'cv-11', cve:'CVE-2026-9021', severity:'High', cvss:7.6, software:'OfficeSuite Premium', exploitAvailable:false, exposedDevices:30, affectedDevices:['WKS-01','WKS-02','WKS-03'], summary:'Document preview can leak process memory', remediation:'Apply OfficeSuite Premium update' },
+  { id:'cv-12', cve:'CVE-2026-9023', severity:'Low', cvss:4.5, software:'CryptoSecure', exploitAvailable:true, exposedDevices:7, affectedDevices:['FIN-FS-02'], summary:'Legacy cipher negotiation bypasses policy checks', remediation:'Retire the legacy cipher suite in CryptoSecure' }
 ];
 
 const TVM_RECOMMENDATIONS = [
-  { id: 'tr-01', title: 'Update CodeGenius to version 5.2.4', software: 'CodeGenius', exposedDevices: 6, impact: 8.2, status: 'Active' },
-  { id: 'tr-02', title: 'Fix DataMaster Pro vulnerabilities', software: 'DataMaster Pro', exposedDevices: 12, impact: 5.9, status: 'Exception' },
-  { id: 'tr-03', title: 'Update OfficeSuite Premium to latest version', software: 'OfficeSuite Premium', exposedDevices: 28, impact: 6.7, status: 'Active' },
-  { id: 'tr-04', title: 'Upgrade CryptoSecure version', software: 'CryptoSecure', exposedDevices: 6, impact: 4.5, status: 'Completed' },
-  { id: 'tr-05', title: 'Resolve VideoEditor Suite issues', software: 'VideoEditor Suite', exposedDevices: 34, impact: 9.1, status: 'Active' },
-  { id: 'tr-06', title: 'Secure PDFXpert Pro', software: 'PDFXpert Pro', exposedDevices: 21, impact: 7.8, status: 'Exception' },
-  { id: 'tr-07', title: 'Patch ImageMagick Pro', software: 'ImageMagick Pro', exposedDevices: 9, impact: 3.4, status: 'Completed' },
-  { id: 'tr-08', title: 'Address AudioMaster XL flaws', software: 'AudioMaster XL', exposedDevices: 6, impact: 7.2, status: 'Active' }
+  { id:'tr-01', title:'Update CodeGenius to version 5.2.4', software:'CodeGenius', exposedDevices:6, impact:8.2, status:'Active', owner:'Endpoint engineering', due:'2026-07-11T16:00:00Z', scope:'Finance workstation group', handoff:'Package the fix through Intune remediation so the patched binary reaches the pilot ring first.', devices:['WKS-01','WKS-03'] },
+  { id:'tr-02', title:'Fix DataMaster Pro vulnerabilities', software:'DataMaster Pro', exposedDevices:12, impact:5.9, status:'Exception', owner:'Finance IT', due:'2026-07-31T16:00:00Z', scope:'Finance workstation group', handoff:'Track the vendor hotfix and keep the exception scoped to the finance pilot ring.', devices:['DC01','WKS-02'] },
+  { id:'tr-03', title:'Update OfficeSuite Premium to latest version', software:'OfficeSuite Premium', exposedDevices:28, impact:6.7, status:'Active', owner:'Desktop engineering', due:'2026-07-09T16:00:00Z', scope:'Office users', handoff:'Roll the updated build to Office workstations before the next document review cycle.', devices:['WKS-01','WKS-02','WKS-03'] },
+  { id:'tr-04', title:'Upgrade CryptoSecure version', software:'CryptoSecure', exposedDevices:6, impact:4.5, status:'Completed', owner:'Identity platform', due:'2026-07-04T16:00:00Z', scope:'Domain controllers', handoff:'Certificate trust validation completed and the new CryptoSecure version is in place.', devices:['DC01','FIN-FS-02'] },
+  { id:'tr-05', title:'Resolve VideoEditor Suite issues', software:'VideoEditor Suite', exposedDevices:34, impact:9.1, status:'In progress', owner:'Media production IT', due:'2026-07-08T16:00:00Z', scope:'Video editors', handoff:'Cut over the affected hosts after the patched release clears validation.', devices:['FIN-FS-02'] },
+  { id:'tr-06', title:'Secure PDFXpert Pro', software:'PDFXpert Pro', exposedDevices:21, impact:7.8, status:'Exception', owner:'Workstation engineering', due:'2026-07-22T16:00:00Z', scope:'Finance file server', handoff:'Document why the exception is needed, then re-test when the vendor release lands.', devices:['WKS-02','WKS-03'] },
+  { id:'tr-07', title:'Patch ImageMagick Pro', software:'ImageMagick Pro', exposedDevices:9, impact:3.4, status:'Completed', owner:'Desktop engineering', due:'2026-07-05T16:00:00Z', scope:'Image processing workstations', handoff:'The image-processing build was updated during the weekend maintenance window.', devices:['WKS-01'] },
+  { id:'tr-08', title:'Address AudioMaster XL flaws', software:'AudioMaster XL', exposedDevices:6, impact:7.2, status:'Active', owner:'Endpoint engineering', due:'2026-07-10T16:00:00Z', scope:'Audio editing workstations', handoff:'Stage the fix and remove the vulnerable sample library package.', devices:['WKS-02'] },
+  { id:'tr-09', title:'Review SecuritySuite Pro allow-list drift', software:'SecuritySuite Pro', exposedDevices:4, impact:5.1, status:'Active', owner:'Threat hunting', due:'2026-07-14T16:00:00Z', scope:'Tier 0 servers and priority workstations', handoff:'Check the allow-list entries before making a remediation decision.', devices:['DC01','WKS-01'] },
+  { id:'tr-10', title:'Patch DataFlow X connector parsing', software:'DataFlow X', exposedDevices:14, impact:8.9, status:'Active', owner:'Platform engineering', due:'2026-07-12T16:00:00Z', scope:'Finance servers and analysis workstations', handoff:'Treat the connector parser update as a blocking change for the exposed devices.', devices:['FIN-FS-02','WKS-02'] }
+];
+
+const TVM_REMEDIATION_TRACKER = [
+  { id:'rt-001', recommendationId:'tr-01', title:'Update CodeGenius to version 5.2.4', status:'In progress', owner:'Endpoint engineering', due:'2026-07-11T16:00:00Z', scope:'Finance workstation group', handoff:'Intune remediation package staged to the pilot ring', progress:'40%', createdAt:'2026-07-06T09:15:00Z' },
+  { id:'rt-002', recommendationId:'tr-05', title:'Resolve VideoEditor Suite issues', status:'Waiting on approval', owner:'Media production IT', due:'2026-07-08T16:00:00Z', scope:'Video editors', handoff:'Patch window request sent to operations', progress:'20%', createdAt:'2026-07-06T10:10:00Z' },
+  { id:'rt-003', recommendationId:'tr-08', title:'Address AudioMaster XL flaws', status:'Draft', owner:'Endpoint engineering', due:'2026-07-10T16:00:00Z', scope:'Audio editing workstations', handoff:'Need change approval before deployment', progress:'10%', createdAt:'2026-07-06T11:40:00Z' },
+  { id:'rt-004', recommendationId:'tr-10', title:'Patch DataFlow X connector parsing', status:'In progress', owner:'Platform engineering', due:'2026-07-12T16:00:00Z', scope:'Finance servers and analysis workstations', handoff:'Connector update under validation', progress:'55%', createdAt:'2026-07-06T12:20:00Z' }
+];
+
+const TVM_EXCEPTIONS = [
+  { id:'ex-001', recommendationId:'tr-02', title:'Fix DataMaster Pro vulnerabilities', justification:'Vendor hotfix is not yet available for the finance pilot build.', scope:'Finance workstation group', expires:'2026-07-31T23:59:00Z', owner:'alex.ansbergs', status:'Approved', createdAt:'2026-07-06T11:32:00Z' },
+  { id:'ex-002', recommendationId:'tr-06', title:'Secure PDFXpert Pro', justification:'The finance file server needs the current build until the archival export is complete.', scope:'Finance file server', expires:'2026-07-22T23:59:00Z', owner:'workstation-engineering', status:'Approved', createdAt:'2026-07-06T12:05:00Z' }
+];
+
+const TVM_DEVICE_VULNS = {
+  'WKS-03': {
+    exposureScore: 92,
+    software: [
+      { name:'CodeGenius', version:'5.2.3', vendor:'TechNova', weaknessCount:4, recommendationId:'tr-01' },
+      { name:'OfficeSuite Premium', version:'4.5.0', vendor:'OffiSys', weaknessCount:2, recommendationId:'tr-03' },
+      { name:'PDFXpert Pro', version:'3.7', vendor:'DocuMaster', weaknessCount:8, recommendationId:'tr-06' },
+    ],
+    vulnerabilities: [
+      { cve:'CVE-2026-9001', severity:'Critical', cvss:8.5, software:'CodeGenius', exploitAvailable:true, affectedDevices:4, status:'Exposed' },
+      { cve:'CVE-2026-9011', severity:'High', cvss:7.8, software:'PDFXpert Pro', exploitAvailable:false, affectedDevices:25, status:'Exposed' },
+      { cve:'CVE-2026-9021', severity:'High', cvss:7.6, software:'OfficeSuite Premium', exploitAvailable:false, affectedDevices:30, status:'Exposed' },
+    ],
+    recommendations: ['tr-01','tr-03','tr-06'],
+  },
+  'FIN-FS-02': {
+    exposureScore: 88,
+    software: [
+      { name:'VideoEditor Suite', version:'3.2.2', vendor:'Vidsoft', weaknessCount:1, recommendationId:'tr-05' },
+      { name:'DataFlow X', version:'3.8', vendor:'BitStream', weaknessCount:9, recommendationId:'tr-10' },
+      { name:'CryptoSecure', version:'1.9.3', vendor:'SecuroTech', weaknessCount:7, recommendationId:'tr-04' },
+    ],
+    vulnerabilities: [
+      { cve:'CVE-2026-9009', severity:'Critical', cvss:9.4, software:'VideoEditor Suite', exploitAvailable:true, affectedDevices:30, status:'Exposed' },
+      { cve:'CVE-2026-9019', severity:'Critical', cvss:8.6, software:'DataFlow X', exploitAvailable:true, affectedDevices:18, status:'Exposed' },
+      { cve:'CVE-2026-9007', severity:'Medium', cvss:5.3, software:'CryptoSecure', exploitAvailable:false, affectedDevices:8, status:'Exposed' },
+    ],
+    recommendations: ['tr-04','tr-05','tr-10'],
+  },
+  'WKS-01': {
+    exposureScore: 73,
+    software: [
+      { name:'CodeGenius', version:'5.2.3', vendor:'TechNova', weaknessCount:4, recommendationId:'tr-01' },
+      { name:'ImageMagick Pro', version:'6.5.4', vendor:'ImagoSys', weaknessCount:3, recommendationId:'tr-07' },
+      { name:'SecuritySuite Pro', version:'4.1.5', vendor:'SecuTech', weaknessCount:6, recommendationId:'tr-09' },
+    ],
+    vulnerabilities: [
+      { cve:'CVE-2026-9001', severity:'Critical', cvss:8.5, software:'CodeGenius', exploitAvailable:true, affectedDevices:4, status:'Exposed' },
+      { cve:'CVE-2026-9013', severity:'Low', cvss:2.4, software:'ImageMagick Pro', exploitAvailable:false, affectedDevices:15, status:'Exposed' },
+      { cve:'CVE-2026-9017', severity:'Medium', cvss:5.7, software:'SecuritySuite Pro', exploitAvailable:false, affectedDevices:4, status:'Exposed' },
+    ],
+    recommendations: ['tr-01','tr-07','tr-09'],
+  },
+  'WKS-02': {
+    exposureScore: 69,
+    software: [
+      { name:'OfficeSuite Premium', version:'4.5.0', vendor:'OffiSys', weaknessCount:2, recommendationId:'tr-03' },
+      { name:'PDFXpert Pro', version:'3.7', vendor:'DocuMaster', weaknessCount:8, recommendationId:'tr-06' },
+      { name:'AudioMaster XL', version:'1.2.1', vendor:'Sonicscape', weaknessCount:3, recommendationId:'tr-08' },
+    ],
+    vulnerabilities: [
+      { cve:'CVE-2026-9005', severity:'Critical', cvss:8.8, software:'OfficeSuite Premium', exploitAvailable:true, affectedDevices:35, status:'Exposed' },
+      { cve:'CVE-2026-9011', severity:'High', cvss:7.8, software:'PDFXpert Pro', exploitAvailable:false, affectedDevices:25, status:'Exposed' },
+      { cve:'CVE-2026-9015', severity:'Critical', cvss:8.3, software:'AudioMaster XL', exploitAvailable:true, affectedDevices:6, status:'Exposed' },
+    ],
+    recommendations: ['tr-03','tr-06','tr-08'],
+  },
+  'DC01': {
+    exposureScore: 61,
+    software: [
+      { name:'DataMaster Pro', version:'2.8.1', vendor:'InfoForge', weaknessCount:6, recommendationId:'tr-02' },
+      { name:'SecuritySuite Pro', version:'4.1.5', vendor:'SecuTech', weaknessCount:6, recommendationId:'tr-09' },
+      { name:'CryptoSecure', version:'1.9.3', vendor:'SecuroTech', weaknessCount:7, recommendationId:'tr-04' },
+    ],
+    vulnerabilities: [
+      { cve:'CVE-2026-9003', severity:'High', cvss:7.1, software:'DataMaster Pro', exploitAvailable:false, affectedDevices:10, status:'Exposed' },
+      { cve:'CVE-2026-9017', severity:'Medium', cvss:5.7, software:'SecuritySuite Pro', exploitAvailable:false, affectedDevices:4, status:'Exposed' },
+      { cve:'CVE-2026-9023', severity:'Low', cvss:4.5, software:'CryptoSecure', exploitAvailable:true, affectedDevices:7, status:'Exposed' },
+    ],
+    recommendations: ['tr-02','tr-04','tr-09'],
+  },
+};
+
+const TVM_EXPOSURE_TREND = [
+  { date:'2026-06-30', score:72 },
+  { date:'2026-07-01', score:71 },
+  { date:'2026-07-02', score:69 },
+  { date:'2026-07-03', score:68 },
+  { date:'2026-07-06', score:65 }
 ];
 
 // --- T07: out/t07-multicloud.js ---

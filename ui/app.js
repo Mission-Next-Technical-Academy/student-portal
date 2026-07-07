@@ -1623,6 +1623,302 @@ function openDeviceTimelineEvent(deviceId, index) {
   `);
 }
 
+// ---------- Defender Vulnerability Management ----------
+const TVM_STATE_KEY = 'defender-lab.tvm';
+const TVM_PANEL_RECOMMENDATION_KEY = 'defender-lab.tvm.recommendation';
+const TVM_PANEL_MODE_KEY = 'defender-lab.tvm.mode';
+
+function currentTvmState() {
+  return readStoredJson(TVM_STATE_KEY, { tickets: [], exceptions: [] });
+}
+function saveTvmState(next) {
+  localStorage.setItem(TVM_STATE_KEY, JSON.stringify({ ...currentTvmState(), ...next }));
+}
+function currentTvmTickets() {
+  return currentTvmState().tickets || [];
+}
+function currentTvmExceptions() {
+  return currentTvmState().exceptions || [];
+}
+function currentTvmRecommendations() {
+  const tickets = currentTvmTickets();
+  const exceptions = currentTvmExceptions();
+  return TVM_RECOMMENDATIONS.map(rec => {
+    const ticket = tickets.find(item => item.recommendationId === rec.id);
+    const exception = exceptions.find(item => item.recommendationId === rec.id);
+    return { ...rec, ticket, exception, status: exception ? 'Exception' : ticket ? ticket.status : rec.status };
+  });
+}
+function currentTvmTracker() {
+  const merged = new Map(TVM_REMEDIATION_TRACKER.map(item => [item.recommendationId, { ...item }]));
+  for (const ticket of currentTvmTickets()) {
+    const existing = merged.get(ticket.recommendationId);
+    merged.set(ticket.recommendationId, existing ? { ...existing, ...ticket, id: existing.id } : { ...ticket });
+  }
+  return [...merged.values()];
+}
+function currentTvmExceptionsWithDefaults() {
+  const merged = new Map(TVM_EXCEPTIONS.map(item => [item.recommendationId, { ...item }]));
+  for (const exception of currentTvmExceptions()) {
+    const existing = merged.get(exception.recommendationId);
+    merged.set(exception.recommendationId, existing ? { ...existing, ...exception, id: existing.id } : { ...exception });
+  }
+  return [...merged.values()];
+}
+function currentTvmDeviceVulns(deviceId) {
+  return TVM_DEVICE_VULNS[deviceId] || { exposureScore: 0, software: [], vulnerabilities: [], recommendations: [] };
+}
+function currentTvmRecommendation(id) {
+  return currentTvmRecommendations().find(rec => rec.id === id) || TVM_RECOMMENDATIONS[0];
+}
+function currentTvmSoftware(id) {
+  return TVM_SOFTWARE.find(item => item.id === id || item.name === id) || TVM_SOFTWARE[0];
+}
+function currentTvmCve(id) {
+  return TVM_CVES.find(item => item.id === id || item.cve === id) || TVM_CVES[0];
+}
+function openTvmPanel(title, bodyHtml) {
+  document.getElementById('tvm-title').textContent = title;
+  document.getElementById('tvm-body').innerHTML = bodyHtml;
+  showPanel('panel-tvm');
+}
+function tvmStatusClass(status) {
+  if (status === 'Completed') return 'good';
+  if (status === 'Exception' || status === 'Failed') return 'bad';
+  if (status === 'Waiting on approval' || status === 'Draft' || status === 'In progress') return 'warn';
+  return 'info';
+}
+function openTvmRecommendation(id) {
+  const rec = currentTvmRecommendation(id);
+  sessionStorage.setItem(TVM_PANEL_RECOMMENDATION_KEY, rec.id);
+  sessionStorage.setItem(TVM_PANEL_MODE_KEY, 'detail');
+  const software = currentTvmSoftware(rec.software);
+  const cves = TVM_CVES.filter(cve => cve.software === rec.software);
+  const exception = currentTvmExceptionsWithDefaults().find(item => item.recommendationId === rec.id);
+  const tracker = currentTvmTracker().filter(item => item.recommendationId === rec.id);
+  openTvmPanel(`Recommendation - ${rec.title}`, `
+    <div class="alert-section-title">Recommendation summary</div>
+    <dl class="tvm-detail-list">
+      <dt>Status</dt><dd><span class="tvm-chip ${tvmStatusClass(rec.status)}">${esc(rec.status)}</span></dd>
+      <dt>Owner</dt><dd>${esc(rec.owner || 'Unassigned')}</dd>
+      <dt>Due</dt><dd>${fmtTime(rec.due)}</dd>
+      <dt>Scope</dt><dd>${esc(rec.scope || 'Tenant-wide')}</dd>
+      <dt>Handoff</dt><dd>${esc(rec.handoff || 'No handoff note recorded.')}</dd>
+    </dl>
+    <div class="tvm-tag-row">
+      <span class="tag">${esc(rec.software)}</span>
+      <span class="tag">${rec.exposedDevices} exposed devices</span>
+      <span class="tag">Impact ${rec.impact}</span>
+      ${exception ? '<span class="tag orange">Exception in effect</span>' : ''}
+      ${tracker.length ? `<span class="tag green">${tracker.length} tracker item${tracker.length === 1 ? '' : 's'}</span>` : ''}
+    </div>
+    <div class="alert-section-title">Related software</div>
+    <p class="muted">${esc(software.name)} ${esc(software.version)} by ${esc(software.vendor)} affects ${software.deviceCount} device group${software.deviceCount === 1 ? '' : 's'} in this lab.</p>
+    <div class="alert-section-title">Related CVEs</div>
+    <table class="grid tvm-side-table">
+      <thead><tr><th>CVE</th><th>Severity</th><th>CVSS</th><th>Exploit</th><th>Affected devices</th></tr></thead>
+      <tbody>
+        ${cves.map(cve => `
+          <tr>
+            <td><a class="tvm-soft-link" onclick="openTvmCve('${esc(cve.id)}')">${esc(cve.cve)}</a></td>
+            <td><span class="sev ${cve.severity === 'Critical' ? 'high' : cve.severity === 'High' ? 'medium' : 'low'}">${esc(cve.severity)}</span></td>
+            <td>${esc(cve.cvss)}</td>
+            <td>${cve.exploitAvailable ? '<span class="tvm-chip bad">Exploit available</span>' : '<span class="tvm-chip good">No known exploit</span>'}</td>
+            <td>${esc(cve.affectedDevices)}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="5" class="muted">No CVE detail rows.</td></tr>'}
+      </tbody>
+    </table>
+    <div class="sidepanel-footer">
+      <button class="btn btn-primary" onclick="openTvmRemediationFlow('${esc(rec.id)}')">Request remediation</button>
+      <button class="btn btn-secondary" onclick="openTvmExceptionFlow('${esc(rec.id)}')">File exception</button>
+    </div>
+  `);
+}
+function openTvmSoftware(id) {
+  const software = currentTvmSoftware(id);
+  const rec = currentTvmRecommendation(software.recommendationId);
+  const cves = TVM_CVES.filter(item => item.software === software.name);
+  const deviceVulns = Object.entries(TVM_DEVICE_VULNS)
+    .filter(([, item]) => item.software.some(s => s.name === software.name))
+    .map(([deviceId, item]) => ({ deviceId, ...item }));
+  sessionStorage.setItem(TVM_PANEL_RECOMMENDATION_KEY, rec.id);
+  sessionStorage.setItem(TVM_PANEL_MODE_KEY, 'detail');
+  openTvmPanel(`Software - ${software.name}`, `
+    <div class="alert-section-title">Software profile</div>
+    <dl class="tvm-detail-list">
+      <dt>Vendor</dt><dd>${esc(software.vendor)}</dd>
+      <dt>Version</dt><dd>${esc(software.version)}</dd>
+      <dt>Weaknesses</dt><dd>${esc(software.weaknesses)}</dd>
+      <dt>Exposed devices</dt><dd>${esc(software.exposedDevices)}</dd>
+      <dt>Threat insight</dt><dd>${esc(software.threatInsight)}</dd>
+    </dl>
+    <div class="tvm-tag-row">
+      <span class="tag">${esc(rec.status)}</span>
+      <span class="tag">${software.deviceCount} device group${software.deviceCount === 1 ? '' : 's'}</span>
+      <span class="tag">${software.topCves.length} top CVE${software.topCves.length === 1 ? '' : 's'}</span>
+    </div>
+    <div class="alert-section-title">Top vulnerabilities</div>
+    <table class="grid tvm-side-table">
+      <thead><tr><th>CVE</th><th>Severity</th><th>CVSS</th><th>Exploit</th><th>Action</th></tr></thead>
+      <tbody>
+        ${cves.map(cve => `
+          <tr>
+            <td><a class="tvm-soft-link" onclick="openTvmCve('${esc(cve.id)}')">${esc(cve.cve)}</a></td>
+            <td><span class="sev ${cve.severity === 'Critical' ? 'high' : cve.severity === 'High' ? 'medium' : 'low'}">${esc(cve.severity)}</span></td>
+            <td>${esc(cve.cvss)}</td>
+            <td>${cve.exploitAvailable ? 'Yes' : 'No'}</td>
+            <td><button class="btn btn-secondary btn-sm" onclick="openTvmRemediationFlow('${esc(rec.id)}')">Request remediation</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    <div class="alert-section-title">Affected devices</div>
+    <div class="tvm-pill-list">
+      ${deviceVulns.map(item => `<span class="tag">${esc(item.deviceId)} · ${esc(item.exposureScore)} score</span>`).join('')}
+    </div>
+    <div class="sidepanel-footer">
+      <button class="btn btn-primary" onclick="openTvmRemediationFlow('${esc(rec.id)}')">Request remediation</button>
+      <button class="btn btn-secondary" onclick="openTvmExceptionFlow('${esc(rec.id)}')">File exception</button>
+    </div>
+  `);
+}
+function openTvmCve(id) {
+  const cve = currentTvmCve(id);
+  const rec = currentTvmRecommendation(currentTvmSoftware(cve.software).recommendationId);
+  const affectedDevices = cve.affectedDevices || [];
+  sessionStorage.setItem(TVM_PANEL_RECOMMENDATION_KEY, rec.id);
+  sessionStorage.setItem(TVM_PANEL_MODE_KEY, 'detail');
+  openTvmPanel(`CVE - ${cve.cve}`, `
+    <div class="alert-section-title">CVE summary</div>
+    <dl class="tvm-detail-list">
+      <dt>Software</dt><dd>${esc(cve.software)}</dd>
+      <dt>Severity</dt><dd><span class="sev ${cve.severity === 'Critical' ? 'high' : cve.severity === 'High' ? 'medium' : 'low'}">${esc(cve.severity)}</span></dd>
+      <dt>CVSS</dt><dd>${esc(cve.cvss)}</dd>
+      <dt>Exploit available</dt><dd>${cve.exploitAvailable ? 'Yes' : 'No'}</dd>
+      <dt>Remediation</dt><dd>${esc(cve.remediation || 'Patch the affected build.')}</dd>
+      <dt>Summary</dt><dd>${esc(cve.summary || 'Synthetic CVE detail for SC-200 study.')}</dd>
+    </dl>
+    <div class="tvm-tag-row">
+      <span class="tag">${affectedDevices.length} affected device${affectedDevices.length === 1 ? '' : 's'}</span>
+      ${cve.exploitAvailable ? '<span class="tag orange">Exploit available</span>' : '<span class="tag">No public exploit</span>'}
+    </div>
+    <div class="alert-section-title">Affected devices</div>
+    <div class="tvm-pill-list">
+      ${affectedDevices.map(device => `<span class="tag">${esc(device)}</span>`).join('')}
+    </div>
+    <div class="sidepanel-footer">
+      <button class="btn btn-primary" onclick="openTvmRemediationFlow('${esc(rec.id)}')">Request remediation</button>
+      <button class="btn btn-secondary" onclick="openTvmExceptionFlow('${esc(rec.id)}')">File exception</button>
+    </div>
+  `);
+}
+function openTvmRemediationFlow(id) {
+  const rec = currentTvmRecommendation(id);
+  sessionStorage.setItem(TVM_PANEL_RECOMMENDATION_KEY, rec.id);
+  sessionStorage.setItem(TVM_PANEL_MODE_KEY, 'remediation');
+  openTvmPanel(`Request remediation - ${rec.title}`, `
+    <div class="callout info">Create a remediation ticket with a due date and an Intune handoff note. The tracker updates locally and survives refresh.</div>
+    <div class="tvm-form-grid">
+      <label class="lbl">Ticket title<input class="ipt" id="tvm-rem-title" value="${esc(rec.title)}"></label>
+      <div class="tvm-form-grid two">
+        <label class="lbl">Owner<input class="ipt" id="tvm-rem-owner" value="${esc(rec.owner || 'Endpoint engineering')}"></label>
+        <label class="lbl">Due date<input class="ipt" id="tvm-rem-due" value="${esc(rec.due || '2026-07-12T16:00:00Z')}"></label>
+      </div>
+      <label class="lbl">Scope<select class="ipt" id="tvm-rem-scope">
+        <option ${rec.scope === 'Finance workstation group' ? 'selected' : ''}>Finance workstation group</option>
+        <option ${rec.scope === 'Office users' ? 'selected' : ''}>Office users</option>
+        <option ${rec.scope === 'Video editors' ? 'selected' : ''}>Video editors</option>
+        <option ${rec.scope === 'Finance servers and analysis workstations' ? 'selected' : ''}>Finance servers and analysis workstations</option>
+        <option ${rec.scope === 'Domain controllers' ? 'selected' : ''}>Domain controllers</option>
+        <option ${rec.scope === 'Audio editing workstations' ? 'selected' : ''}>Audio editing workstations</option>
+        <option ${rec.scope === 'Tier 0 servers and priority workstations' ? 'selected' : ''}>Tier 0 servers and priority workstations</option>
+        <option ${rec.scope === 'Image processing workstations' ? 'selected' : ''}>Image processing workstations</option>
+        <option ${rec.scope === 'Finance file server' ? 'selected' : ''}>Finance file server</option>
+      </select></label>
+      <label class="lbl">Intune handoff note<textarea class="ipt" id="tvm-rem-handoff" rows="4">${esc(rec.handoff || 'Remediation will be staged through Intune.')}</textarea></label>
+    </div>
+    <div class="sidepanel-footer">
+      <button class="btn btn-primary" onclick="saveTvmRemediationRequest()">Save remediation ticket</button>
+      <button class="btn btn-secondary" data-close="panel-tvm">Cancel</button>
+    </div>
+  `);
+}
+function openTvmExceptionFlow(id) {
+  const rec = currentTvmRecommendation(id);
+  sessionStorage.setItem(TVM_PANEL_RECOMMENDATION_KEY, rec.id);
+  sessionStorage.setItem(TVM_PANEL_MODE_KEY, 'exception');
+  openTvmPanel(`File exception - ${rec.title}`, `
+    <div class="callout warn">Exceptions keep the recommendation visible but scoped. Use them for short-lived business need, then revisit before expiry.</div>
+    <div class="tvm-form-grid">
+      <label class="lbl">Justification<textarea class="ipt" id="tvm-exc-justification" rows="4">Business owner accepted the risk while a vendor fix is staged.</textarea></label>
+      <div class="tvm-form-grid two">
+        <label class="lbl">Scope<select class="ipt" id="tvm-exc-scope">
+          <option ${rec.scope === 'Finance workstation group' ? 'selected' : ''}>Finance workstation group</option>
+          <option ${rec.scope === 'Finance file server' ? 'selected' : ''}>Finance file server</option>
+          <option ${rec.scope === 'Office users' ? 'selected' : ''}>Office users</option>
+          <option ${rec.scope === 'Audio editing workstations' ? 'selected' : ''}>Audio editing workstations</option>
+          <option ${rec.scope === 'Tier 0 servers and priority workstations' ? 'selected' : ''}>Tier 0 servers and priority workstations</option>
+          <option ${rec.scope === 'Finance servers and analysis workstations' ? 'selected' : ''}>Finance servers and analysis workstations</option>
+          <option ${rec.scope === 'Image processing workstations' ? 'selected' : ''}>Image processing workstations</option>
+          <option ${rec.scope === 'Video editors' ? 'selected' : ''}>Video editors</option>
+        </select></label>
+        <label class="lbl">Expiry<input class="ipt" id="tvm-exc-expiry" value="${esc(rec.due || '2026-07-31T23:59:00Z')}"></label>
+      </div>
+    </div>
+    <div class="sidepanel-footer">
+      <button class="btn btn-primary" onclick="saveTvmExceptionRequest()">Save exception</button>
+      <button class="btn btn-secondary" data-close="panel-tvm">Cancel</button>
+    </div>
+  `);
+}
+function saveTvmRemediationRequest() {
+  const id = sessionStorage.getItem(TVM_PANEL_RECOMMENDATION_KEY);
+  const rec = currentTvmRecommendation(id);
+  const state = currentTvmState();
+  const ticket = {
+    id: `rt-${Date.now()}`,
+    recommendationId: rec.id,
+    title: document.getElementById('tvm-rem-title')?.value.trim() || rec.title,
+    status: 'In progress',
+    owner: document.getElementById('tvm-rem-owner')?.value.trim() || rec.owner || 'Endpoint engineering',
+    due: document.getElementById('tvm-rem-due')?.value || rec.due,
+    scope: document.getElementById('tvm-rem-scope')?.value || rec.scope,
+    handoff: document.getElementById('tvm-rem-handoff')?.value.trim() || rec.handoff || '',
+    progress: '0%',
+    createdAt: new Date().toISOString(),
+  };
+  saveTvmState({ tickets: [...state.tickets, ticket] });
+  sessionStorage.setItem(TVM_PANEL_MODE_KEY, 'detail');
+  hidePanels();
+  render();
+  toast(`Remediation ticket created for ${rec.title}.`);
+}
+function saveTvmExceptionRequest() {
+  const id = sessionStorage.getItem(TVM_PANEL_RECOMMENDATION_KEY);
+  const rec = currentTvmRecommendation(id);
+  const state = currentTvmState();
+  const exception = {
+    id: `ex-${Date.now()}`,
+    recommendationId: rec.id,
+    title: rec.title,
+    justification: document.getElementById('tvm-exc-justification')?.value.trim() || 'Business-approved exception.',
+    scope: document.getElementById('tvm-exc-scope')?.value || rec.scope,
+    expires: document.getElementById('tvm-exc-expiry')?.value || rec.due,
+    owner: 'alex.ansbergs',
+    status: 'Approved',
+    createdAt: new Date().toISOString(),
+  };
+  saveTvmState({ exceptions: [...state.exceptions, exception] });
+  sessionStorage.setItem(TVM_PANEL_MODE_KEY, 'detail');
+  hidePanels();
+  render();
+  toast(`Exception saved for ${rec.title}.`);
+}
+function openTvmDeviceTab(deviceId) {
+  openDevice(deviceId, 'vulnerabilities');
+}
+
 function huntTime(baseIso, seconds) {
   return new Date(new Date(baseIso).getTime() + seconds * 1000).toISOString();
 }
@@ -1879,6 +2175,25 @@ window.openTechnique     = openTechnique;
 window.openDeviceLiveResponse = openDeviceLiveResponse;
 window.openInvestigationPackage = openInvestigationPackage;
 window.openDeviceTimelineEvent = openDeviceTimelineEvent;
+window.currentTvmState = currentTvmState;
+window.currentTvmTickets = currentTvmTickets;
+window.currentTvmExceptions = currentTvmExceptions;
+window.currentTvmRecommendations = currentTvmRecommendations;
+window.currentTvmTracker = currentTvmTracker;
+window.currentTvmExceptionsWithDefaults = currentTvmExceptionsWithDefaults;
+window.currentTvmDeviceVulns = currentTvmDeviceVulns;
+window.currentTvmRecommendation = currentTvmRecommendation;
+window.currentTvmSoftware = currentTvmSoftware;
+window.currentTvmCve = currentTvmCve;
+window.openTvmPanel = openTvmPanel;
+window.openTvmRecommendation = openTvmRecommendation;
+window.openTvmSoftware = openTvmSoftware;
+window.openTvmCve = openTvmCve;
+window.openTvmRemediationFlow = openTvmRemediationFlow;
+window.openTvmExceptionFlow = openTvmExceptionFlow;
+window.saveTvmRemediationRequest = saveTvmRemediationRequest;
+window.saveTvmExceptionRequest = saveTvmExceptionRequest;
+window.openTvmDeviceTab = openTvmDeviceTab;
 window.huntRelatedEvents = huntRelatedEvents;
 window.navigate          = navigate;
 window.openAlert         = openAlert;

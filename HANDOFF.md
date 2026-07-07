@@ -642,3 +642,22 @@ Current QA baseline: 90/90 views render clean, 0 dead NAV routes.
   `PB-ContainEntity` through the Sentinel automation surface.
 - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
   `node --check ui/app.js` clean after the closeout pass.
+
+## 2026-07-07 — Agent 15 Defender Vulnerability Management workflow
+- Expanded the TVM fixtures in `ui/data.js` with richer software, CVE,
+  remediation-tracker, exception, and device-specific vulnerability data,
+  including an exposure trend and per-device software/vulnerability maps.
+- Replaced the `#/defender/vulnerabilities` stub with a full dashboard:
+  exposure trend, top recommendations, software inventory, exploitable CVEs,
+  remediation tracker, and exception summary, plus links into `#/defender/exposure`
+  and the device TVM tab.
+- Added a right-edge TVM side panel for software, CVE, recommendation,
+  remediation-request, and exception workflows. Remediation tickets and
+  exceptions persist locally and re-render the dashboard.
+- Reworked the Defender device `Discovered vulnerabilities` tab so it now
+  shows device-specific installed software, vulnerabilities, and linked
+  recommendations instead of placeholder rows.
+- Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+  `node --check ui/app.js` clean; curl to `127.0.0.1:8765` returned HTTP
+  200; headless Chrome `--dump-dom` confirmed the new TVM dashboard renders
+  the expected headings and panels.

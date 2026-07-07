@@ -2300,12 +2300,67 @@ VIEWS['defender/device'] = () => {
   }
 
   function vulnerabilitiesBody() {
+    const tvm = currentTvmDeviceVulns(d.id);
+    const recs = currentTvmRecommendations().filter(item => (tvm.recommendations || []).includes(item.id));
     return `
+      <div class="dev-cmdbar">
+        <button class="btn btn-primary btn-sm" onclick="navigate('#/defender/vulnerabilities')">Open full TVM dashboard</button>
+        <button class="btn btn-secondary btn-sm" onclick="openTvmSoftware('${esc(tvm.software[0]?.name || 'CodeGenius')}')">Inspect top software</button>
+        <button class="btn btn-secondary btn-sm" onclick="openTvmRemediationFlow('${esc(recs[0]?.id || 'tr-01')}')">Request remediation</button>
+      </div>
+      <div class="callout info">This tab shows the installed software and discovered vulnerabilities for <strong>${esc(d.name)}</strong>. Use the full TVM dashboard to compare exposure across the tenant.</div>
+      <div class="dev-assessment-list">
+        <div><span>Exposure score</span><strong>${esc(tvm.exposureScore)}</strong></div>
+        <div><span>Installed software</span><strong>${esc(tvm.software.length)}</strong></div>
+        <div><span>Discovered vulnerabilities</span><strong>${esc(tvm.vulnerabilities.length)}</strong></div>
+      </div>
+      <div class="alert-section-title">Installed software</div>
       <table class="grid">
-        <thead><tr><th>CVE</th><th>Sev</th><th>CVSS</th><th>Software</th><th>Published</th></tr></thead>
+        <thead><tr><th>Software</th><th>Vendor</th><th>Version</th><th>Weaknesses</th><th>Recommendation</th></tr></thead>
         <tbody>
-          <tr><td>CVE-2026-0001</td><td><span class="sev high">High</span></td><td>8.8</td><td>Windows Server component</td><td>2026</td></tr>
-          <tr><td>CVE-2026-0014</td><td><span class="sev medium">Medium</span></td><td>6.5</td><td>Browser runtime</td><td>2026</td></tr>
+          ${tvm.software.map(item => `
+            <tr>
+              <td><a class="tvm-soft-link" onclick="openTvmSoftware('${esc(item.name)}')">${esc(item.name)}</a></td>
+              <td>${esc(item.vendor)}</td>
+              <td>${esc(item.version)}</td>
+              <td>${esc(item.weaknessCount)}</td>
+              <td>${esc(currentTvmRecommendation(item.recommendationId).title)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div class="alert-section-title">Discovered vulnerabilities</div>
+      <table class="grid">
+        <thead><tr><th>CVE</th><th>Severity</th><th>CVSS</th><th>Software</th><th>Exploit</th><th>Affected devices</th></tr></thead>
+        <tbody>
+          ${tvm.vulnerabilities.map(item => `
+            <tr>
+              <td><a class="tvm-soft-link" onclick="openTvmCve('${esc(item.cve)}')">${esc(item.cve)}</a></td>
+              <td><span class="sev ${item.severity === 'Critical' ? 'high' : item.severity === 'High' ? 'medium' : 'low'}">${esc(item.severity)}</span></td>
+              <td>${esc(item.cvss)}</td>
+              <td>${esc(item.software)}</td>
+              <td>${item.exploitAvailable ? '<span class="tvm-chip bad">Exploit available</span>' : '<span class="tvm-chip good">No known exploit</span>'}</td>
+              <td>${esc(item.affectedDevices)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div class="alert-section-title">Device recommendations</div>
+      <table class="grid">
+        <thead><tr><th>Recommendation</th><th>Status</th><th>Owner</th><th>Due</th><th>Action</th></tr></thead>
+        <tbody>
+          ${recs.map(item => `
+            <tr>
+              <td><strong>${esc(item.title)}</strong></td>
+              <td><span class="tvm-chip ${item.status === 'Exception' ? 'bad' : item.status === 'Completed' ? 'good' : 'warn'}">${esc(item.status)}</span></td>
+              <td>${esc(item.owner)}</td>
+              <td>${fmtTime(item.due)}</td>
+              <td>
+                <button class="btn btn-secondary btn-sm" onclick="openTvmRemediationFlow('${esc(item.id)}')">Request remediation</button>
+                <button class="btn btn-secondary btn-sm" onclick="openTvmExceptionFlow('${esc(item.id)}')">File exception</button>
+              </td>
+            </tr>
+          `).join('') || '<tr><td colspan="5" class="muted">No device-specific recommendations.</td></tr>'}
         </tbody>
       </table>`;
   }
@@ -7092,8 +7147,181 @@ VIEWS['copilot/settings'] = () => {
 // === local-tasks views (auto-merged by add_view.py — do not hand-edit between markers) ===
 
 // --- v17-defender-vulnerabilities ---
-// nav: Endpoints | Vulnerability management | 🩹 
-VIEWS['defender/vulnerabilities'] = () => ` <div class="page-header">    <div>        <div class="breadcrumb">Endpoints › <strong>Vulnerability management</strong></div>        <h1>Vulnerability management</h1>        <div class="page-subtitle">Review and manage vulnerabilities for your workload.</div>    </div>    <div class="page-actions"><a class="btn btn-secondary" href="#/defender/exposure">Exposure management</a>        <button class="btn btn-primary" onclick="toast('Remediation request created in the fictional queue.')">Request remediation</button></div> </div> <table class="grid"><thead><tr><th>Total CVEs</th><th>Critical/High count</th><th>Exploit-available count</th></tr></thead><tbody>${TVM_CVES.map(r => `<tr><td>${esc(TVM_CVES.length)}</td><td>${esc(TVM_CVES.filter(x => x.severity === 'Critical' || x.severity === 'High').length)}</td><td>${esc(TVM_CVES.filter(x => x.exploitAvailable).length)}</td></tr>`).join('')}</tbody></table> <div class="alert-section-title">Security recommendations</div> <table class="grid"><thead><tr><th>Recommendation</th><th>Software</th><th>Exposed devices</th><th>Impact</th><th>Status</th><th>Action</th></tr></thead><tbody>${TVM_RECOMMENDATIONS.map(r => `<tr><td>${esc(r.title)}</td><td>${r.software?.name || '-'}</td><td>${r.exposedDevices}</td><td>${cap(fmtTime(r.impact.toString()))}</td><td><span class="${(r.status === 'Completed' ? 'chip-link green' : r.status === 'Exception' ? 'chip-link orange' : 'btn primary')}">${r.status}</span></td><td><button class="btn btn-secondary btn-sm" onclick="labToggleFlag('tvm-exceptions','${r.id}','Exception toggled for ${r.id}.')">Toggle exception</button></td></tr>`).join('')}</tbody></table> <div class="alert-section-title">Weaknesses</div> <table class="grid"><thead><tr><th>CVE</th><th>Severity</th><th>CVSS</th><th>Software</th><th>Exploit</th><th>Exposed devices</th></tr></thead><tbody>${TVM_CVES.map(r => `<tr><td>${esc(r.id)}</td><td class="${r.severity === 'Critical' ? 'sev high' : r.severity === 'High' ? 'sev medium' : 'sev low'}">${cap(r.severity)}</td><td>${esc(r.cvss)}</td><td>${r.software?.name || '-'}</td><td class="${r.exploitAvailable ? 'sev high' : 'muted'}">${r.exploitAvailable ? 'Exploit available' : '—'}</td><td>${esc(r.exposedDevices)}</td></tr>`).join('')}</tbody></table> <div class="alert-section-title">Software inventory</div> <table class="grid"><thead><tr><th>Software</th><th>Vendor</th><th>Version</th><th>Weaknesses</th><th>Exposed devices</th><th>Threat insight</th></tr></thead><tbody>${TVM_SOFTWARE.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.vendor)}</td><td>${esc(r.version)}</td><td>${esc(r.weaknesses)}</td><td>${esc(r.exposedDevices)}</td><td>${esc(r.threatInsight)}</td></tr>`).join('')}</tbody></table> <div class="card card-body">    Prioritize by exposure and exploit availability; remediation requests hand off to IT tooling; accept risk with scoped exceptions.</div>`
+// nav: Endpoints | Vulnerability management | 🩹
+VIEWS['defender/vulnerabilities'] = () => {
+  const recs = currentTvmRecommendations();
+  const tracker = currentTvmTracker().slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const exceptions = currentTvmExceptionsWithDefaults().slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const severityRank = { Critical: 3, High: 2, Medium: 1, Low: 0 };
+  const topSoftware = [...TVM_SOFTWARE].sort((a, b) => b.weaknesses - a.weaknesses).slice(0, 5);
+  const topCves = [...TVM_CVES].sort((a, b) => (severityRank[b.severity] || 0) - (severityRank[a.severity] || 0) || b.exposedDevices - a.exposedDevices).slice(0, 6);
+  const exploitable = TVM_CVES.filter(c => c.exploitAvailable).length;
+  const active = recs.filter(r => r.status === 'Active' || r.status === 'In progress').length;
+  const exceptionCount = recs.filter(r => r.status === 'Exception').length;
+  const fixed = recs.filter(r => r.status === 'Completed').length;
+  const trendMax = Math.max(...TVM_EXPOSURE_TREND.map(item => item.score));
+  return `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Endpoints › <strong>Vulnerability management</strong></div>
+      <h1>Vulnerability management</h1>
+      <div class="page-subtitle">Track exposed software, exploitable CVEs, remediation requests, and scoped exceptions for the lab tenant.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/defender/exposure">Exposure management</a>
+      <a class="btn btn-secondary" href="#/defender/device" onclick="openDevice('WKS-03', 'vulnerabilities')">Open device TVM</a>
+      <button class="btn btn-primary" onclick="openTvmRemediationFlow('tr-01')">Request remediation</button>
+    </div>
+  </div>
+
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">Open recommendations</span><span class="kpi-value">${active}</span><span class="kpi-delta">In flight</span></div>
+    <div class="kpi"><span class="kpi-label">Exceptions</span><span class="kpi-value">${exceptionCount}</span><span class="kpi-delta">Scoped risk accepted</span></div>
+    <div class="kpi"><span class="kpi-label">Exploitable CVEs</span><span class="kpi-value">${exploitable}</span><span class="kpi-delta bad">Prioritize these</span></div>
+    <div class="kpi"><span class="kpi-label">Completed fixes</span><span class="kpi-value">${fixed}</span><span class="kpi-delta good">Closed</span></div>
+  </div>
+
+  <div class="two-col">
+    <section class="card card-body">
+      <div class="card-toolbar">
+        <strong>Exposure score trend</strong>
+        <a class="chip-link" href="#/defender/exposure">Open exposure management →</a>
+      </div>
+      <div class="tvm-trend">
+        ${TVM_EXPOSURE_TREND.map(item => `
+          <div class="tvm-trend-item">
+            <strong>${item.score}%</strong>
+            <span>${esc(item.date)}</span>
+            <div class="tvm-trend-bar" style="width:${Math.max(24, Math.round((item.score / trendMax) * 100))}%"></div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="callout info">The trend is strongest when exploit-available CVEs line up with active remediation tickets. Exceptions do not remove the issue; they only scope it.</div>
+    </section>
+    <section class="card card-body">
+      <div class="card-toolbar">
+        <strong>Remediation tracker</strong>
+        <span class="muted">${tracker.length} items</span>
+      </div>
+      <div class="tvm-track">
+        ${tracker.map(item => `
+          <div class="tvm-track-row">
+            <div><strong>${esc(item.title)}</strong><span>${esc(item.scope)}</span></div>
+            <div><span class="tvm-chip ${tvmStatusClass(item.status)}">${esc(item.status)}</span></div>
+            <div><strong>${esc(item.owner)}</strong><span>Owner</span></div>
+            <div><strong>${fmtTime(item.due)}</strong><span>Due</span></div>
+            <div>
+              <div class="tvm-progress" aria-label="Remediation progress"><i style="width:${Math.max(10, parseInt(item.progress || '0', 10) || 0)}%"></i></div>
+              <span>${esc(item.handoff)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </section>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar">
+      <strong>Security recommendations</strong>
+      <span class="muted">${recs.length} total</span>
+    </div>
+    <table class="grid">
+      <thead><tr><th>Recommendation</th><th>Software</th><th>Exposure</th><th>Impact</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>
+        ${recs.map(r => `
+          <tr class="${r.status === 'Exception' ? 'tvm-exception-row' : ''}">
+            <td><strong>${esc(r.title)}</strong>${r.exception ? `<div class="muted">Exception scope: ${esc(r.exception.scope)}</div>` : ''}</td>
+            <td><a class="tvm-soft-link" onclick="openTvmSoftware('${esc(TVM_SOFTWARE.find(sw => sw.name === r.software)?.id || '')}')">${esc(r.software)}</a></td>
+            <td>${esc(r.exposedDevices)}</td>
+            <td>${esc(r.impact)}</td>
+            <td><span class="tvm-chip ${tvmStatusClass(r.status)}">${esc(r.status)}</span></td>
+            <td>
+              <button class="btn btn-secondary btn-sm" onclick="openTvmRemediationFlow('${esc(r.id)}')">Request remediation</button>
+              <button class="btn btn-secondary btn-sm" onclick="openTvmExceptionFlow('${esc(r.id)}')">File exception</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="two-col" style="margin-top:16px;">
+    <section class="card card-body">
+      <div class="card-toolbar">
+        <strong>Software inventory</strong>
+        <span class="muted">${topSoftware.length} top entries</span>
+      </div>
+      <table class="grid tvm-side-table">
+        <thead><tr><th>Software</th><th>Vendor</th><th>Version</th><th>Weaknesses</th><th>Devices</th></tr></thead>
+        <tbody>
+          ${topSoftware.map(item => `
+            <tr>
+              <td><a class="tvm-soft-link" onclick="openTvmSoftware('${esc(item.id)}')">${esc(item.name)}</a></td>
+              <td>${esc(item.vendor)}</td>
+              <td>${esc(item.version)}</td>
+              <td>${esc(item.weaknesses)}</td>
+              <td>${esc(item.deviceCount)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+    <section class="card card-body">
+      <div class="card-toolbar">
+        <strong>Exploitable CVEs</strong>
+        <span class="muted">Click any row for detail</span>
+      </div>
+      <table class="grid tvm-side-table">
+        <thead><tr><th>CVE</th><th>Software</th><th>Severity</th><th>CVSS</th><th>Devices</th></tr></thead>
+        <tbody>
+          ${topCves.map(item => `
+            <tr>
+              <td><a class="tvm-soft-link" onclick="openTvmCve('${esc(item.id)}')">${esc(item.cve)}</a></td>
+              <td>${esc(item.software)}</td>
+              <td><span class="sev ${item.severity === 'Critical' ? 'high' : item.severity === 'High' ? 'medium' : 'low'}">${esc(item.severity)}</span></td>
+              <td>${esc(item.cvss)}</td>
+              <td>${esc(item.affectedDevices ? item.affectedDevices.length : item.exposedDevices)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <div class="two-col" style="margin-top:16px;">
+    <section class="card card-body">
+      <div class="card-toolbar">
+        <strong>Exceptions in effect</strong>
+        <span class="muted">${exceptions.length} entries</span>
+      </div>
+      <table class="grid tvm-side-table">
+        <thead><tr><th>Recommendation</th><th>Scope</th><th>Owner</th><th>Expires</th></tr></thead>
+        <tbody>
+          ${exceptions.map(item => `
+            <tr>
+              <td><strong>${esc(item.title)}</strong></td>
+              <td>${esc(item.scope)}</td>
+              <td>${esc(item.owner)}</td>
+              <td>${fmtTime(item.expires)}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="4" class="muted">No exceptions recorded yet.</td></tr>'}
+        </tbody>
+      </table>
+    </section>
+    <section class="card card-body">
+      <div class="card-toolbar">
+        <strong>Workflow guidance</strong>
+        <span class="muted">Static lab notes</span>
+      </div>
+      <ul>
+        <li>Use remediation tickets when the fix is available and you want the recommendation to move to In progress.</li>
+        <li>Use scoped exceptions only when business need exists and the recommendation must remain visible for review.</li>
+        <li>Open a software row to inspect the CVEs and the affected device groups behind the recommendation.</li>
+      </ul>
+    </section>
+  </div>
+  `;
+};
 
 // --- v18-defender-threat-explorer ---
 // nav: Email & collaboration | Threat explorer | 📧

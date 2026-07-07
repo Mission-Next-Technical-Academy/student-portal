@@ -312,19 +312,19 @@ Corpus 307 mentions vs 13 in lab; today only exposure/recommendation
 context exists. Build the TVM suite under the Defender workload.
 Verified TVM fixture drafts: `local-tasks/out/t06-tvm.js` (see
 `local-tasks/README.md` merging rule).
-- [ ] **15.1** `#/defender/vulnerabilities` dashboard — exposure score
+- [x] **15.1** `#/defender/vulnerabilities` dashboard — exposure score
   trend, top security recommendations, top vulnerable software, exposed
   devices; cross-link `#/defender/exposure`.
-- [ ] **15.2** Software inventory + weaknesses: software list (version,
+- [x] **15.2** Software inventory + weaknesses: software list (version,
   weakness count, exposed devices) → software detail with CVE list; CVE
   detail (CVSS, exploit-available flag, affected devices).
-- [ ] **15.3** Security recommendations → "Request remediation" flow
+- [x] **15.3** Security recommendations → "Request remediation" flow
   (ticket with due date, Intune-handoff note) and a remediation
   activities tracker with progress.
-- [ ] **15.4** Exceptions workflow: file an exception on a
+- [x] **15.4** Exceptions workflow: file an exception on a
   recommendation (justification, scope: device group, expiry) and show
   its effect on the recommendation list.
-- [ ] **15.5** Surface device-level TVM tab on `#/defender/device`
+- [x] **15.5** Surface device-level TVM tab on `#/defender/device`
   (installed software, discovered vulnerabilities for that device).
 
 ## Agent 16 — Defender for Cloud multi-cloud onboarding (GAP_BRIDGE wave, M)
