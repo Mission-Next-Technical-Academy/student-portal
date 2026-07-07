@@ -627,3 +627,18 @@ Current QA baseline: 90/90 views render clean, 0 dead NAV routes.
   `#/sentinel/logs`, `#/sentinel/hunting/authentication`, and
   `#/sentinel/hunting/network-session`; the Node VM also matched the
   expected row counts for the new queries.
+
+## 2026-07-07 — Agent 14 Sentinel hunting operations
+- Confirmed the Sentinel hunting workspace includes bookmark capture from
+  query results, with the saved row, entity mapping, tags, MITRE technique,
+  and incident linkage all persisted locally.
+- Confirmed the hunting workspace tabs cover search results, bookmarks, and
+  a simulated livestream with start/pause/stop controls plus an
+  elevate-to-alert action that creates a local analytics-rule stub.
+- Confirmed `#/sentinel/search` runs the restore-job workflow for retained
+  data and `#/sentinel/logs` shows the restored `_RST` table preview once
+  the job completes.
+- Confirmed the entity-trigger playbook path from incident/entity pivots to
+  `PB-ContainEntity` through the Sentinel automation surface.
+- Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+  `node --check ui/app.js` clean after the closeout pass.

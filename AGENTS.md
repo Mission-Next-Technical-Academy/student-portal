@@ -292,18 +292,18 @@ covers only canned basics. Extend hunting surfaces, don't fork them.
 
 ## Agent 14 — Sentinel hunting operations (GAP_BRIDGE wave, M)
 Bookmarks/livestream/restore are exam objectives with no lab controls.
-- [ ] **14.1** Bookmarks: "Add bookmark" on hunting query results
+- [x] **14.1** Bookmarks: "Add bookmark" on hunting query results
   (captures query, result row, entity mapping, tags, MITRE technique),
   a bookmarks tab on `#/sentinel/hunting`, and promote-to-incident /
   add-to-existing-incident actions.
-- [ ] **14.2** Livestream: start a livestream from a hunting query —
+- [x] **14.2** Livestream: start a livestream from a hunting query —
   simulated ticking new rows (setInterval over fixtures), pause/stop,
   and "elevate to alert" creating an analytics rule stub.
-- [ ] **14.3** Restore historical data: from `#/sentinel/search`, a
+- [x] **14.3** Restore historical data: from `#/sentinel/search`, a
   restore job on a Data-lake/long-retention table → job status →
   restored `_RST` table queryable in `#/sentinel/logs`, with cost/scope
   notes in own words.
-- [ ] **14.4** Entity-trigger playbooks: "Run playbook (entity)" action
+- [x] **14.4** Entity-trigger playbooks: "Run playbook (entity)" action
   on an entity in the incident side panel / `#/sentinel/entity-behavior`,
   wired to a new entity-trigger playbook in `#/sentinel/automation`.
 
