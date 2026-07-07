@@ -378,16 +378,16 @@ Verified fixture drafts: `local-tasks/out/t10-mssp-mto.js` (see
   model in concept form) with one runnable limited-query example.
 
 ## Agent 19 — GAP_BRIDGE QA / verify sweep (run last)
-- [ ] **19.1** Nav-vs-views sweep: every `route:'#/...'` in `data.js`
+- [x] **19.1** Nav-vs-views sweep: every `route:'#/...'` in `data.js`
   resolves to a `VIEWS[...]` entry — zero 404s, including all new
   Copilot workload routes.
-- [ ] **19.2** `node --check` on data.js/views.js/app.js; headless-Chrome
+- [x] **19.2** `node --check` on data.js/views.js/app.js; headless-Chrome
   click-through of every route added by Agents 12–18; console clean.
-- [ ] **19.3** State checks: promptbook builder, bookmarks, restore
+- [x] **19.3** State checks: promptbook builder, bookmarks, restore
   jobs, SCU settings survive a hard refresh (localStorage).
-- [ ] **19.4** KQL evaluator regression: the pre-existing canned queries
+- [x] **19.4** KQL evaluator regression: the pre-existing canned queries
   on `#/defender/hunting` and `#/sentinel/logs` still run after 13.1.
-- [ ] **19.5** Update `HANDOFF.md` and mark Agent 12–19 boxes.
+- [x] **19.5** Update `HANDOFF.md` and mark Agent 12–19 boxes.
 
 ---
 

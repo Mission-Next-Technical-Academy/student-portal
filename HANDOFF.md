@@ -34,6 +34,19 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-07-07 Agent 19 QA / verify sweep:
+  - Ran a static route-vs-view compare across all registered views and
+    confirmed there are no `Page not found` matches for the current route
+    set.
+  - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+    `node --check ui/app.js` clean.
+  - Swept 100 registered views in headless Chrome over the local server,
+    with no console or page exceptions recorded.
+  - Exercised the suppression-rule save flow in the browser and confirmed
+    `localStorage.getItem('defender-lab.rules')` survives a reload with the
+    saved rule intact.
+  - Marked Agent 19 complete in `AGENTS.md`.
+
 - 2026-07-07 Agent 18 pass:
   - Added `#/sentinel/workspace-manager` cross-tenant study content with
     Azure Lighthouse vs B2B notes, a customer-tenant switcher, and a
