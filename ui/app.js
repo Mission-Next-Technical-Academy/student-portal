@@ -2429,6 +2429,146 @@ function resetSentinelIngestionLab(id) {
   toast('Sentinel ingestion lab reset.');
   render();
 }
+
+// ---------- Defender for Cloud multicloud onboarding ----------
+const DEFENDER_CLOUD_MULTICLOUD_STATE_KEY = 'defender-lab.defender-cloud.multicloud';
+
+function defaultDefenderCloudMulticloudState() {
+  const aws = MC_CONNECTORS.find(c => c.cloud === 'AWS') || {};
+  const gcp = MC_CONNECTORS.find(c => c.cloud === 'GCP') || {};
+  return {
+    aws: {
+      onboarded: true,
+      accountId: aws.accountId || '111122223333',
+      regions: ['us-east-1', 'eu-west-1'],
+      plans: ['CSPM', 'Servers'],
+      health: aws.health || 'Healthy',
+      lastSync: aws.lastSync || '2026-06-15T12:00:00Z',
+      bootstrap: 'CloudFormation-style stack',
+    },
+    gcp: {
+      onboarded: true,
+      projectId: gcp.accountId || 'proj-aaaa1111',
+      regions: ['us-central1', 'europe-west3'],
+      plans: ['CSPM', 'Containers', 'Databases'],
+      health: gcp.health || 'Warning',
+      lastSync: gcp.lastSync || '2026-06-14T18:30:00Z',
+      bootstrap: 'Cloud Shell bootstrap script',
+    },
+    fim: {
+      enabled: true,
+      monitored: [
+        '/etc/ssh/sshd_config',
+        '/var/log/auth.log',
+        'C:\\Windows\\System32\\drivers\\etc\\hosts',
+        'C:\\inetpub\\wwwroot\\web.config',
+      ],
+      recentChanges: [
+        { item:'/etc/ssh/sshd_config', change:'Unexpected allow-list edit', source:'AWS workload' },
+        { item:'C:\\Windows\\System32\\drivers\\etc\\hosts', change:'Local name resolution change', source:'GCP VM' },
+        { item:'/var/log/auth.log', change:'Burst of failed logons', source:'AWS workload' },
+      ],
+    },
+    jit: {
+      enabled: true,
+      vm:'nw-ops-vm-7',
+      ports:['3389', '22'],
+      duration:'3 hours',
+      requestState:'Approved',
+      requestor:'cloud-admin@contoso.com',
+      note:'Lab-only request surface; no real network access is opened.',
+    },
+  };
+}
+
+function currentDefenderCloudMulticloudState() {
+  const fallback = defaultDefenderCloudMulticloudState();
+  const raw = localStorage.getItem(DEFENDER_CLOUD_MULTICLOUD_STATE_KEY);
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      ...fallback,
+      ...parsed,
+      aws: { ...fallback.aws, ...(parsed.aws || {}) },
+      gcp: { ...fallback.gcp, ...(parsed.gcp || {}) },
+      fim: { ...fallback.fim, ...(parsed.fim || {}) },
+      jit: { ...fallback.jit, ...(parsed.jit || {}) },
+    };
+  }
+  catch { return fallback; }
+}
+
+function saveDefenderCloudMulticloudState(next) {
+  localStorage.setItem(
+    DEFENDER_CLOUD_MULTICLOUD_STATE_KEY,
+    JSON.stringify({
+      ...currentDefenderCloudMulticloudState(),
+      ...next,
+      aws: { ...currentDefenderCloudMulticloudState().aws, ...(next.aws || {}) },
+      gcp: { ...currentDefenderCloudMulticloudState().gcp, ...(next.gcp || {}) },
+      fim: { ...currentDefenderCloudMulticloudState().fim, ...(next.fim || {}) },
+      jit: { ...currentDefenderCloudMulticloudState().jit, ...(next.jit || {}) },
+    })
+  );
+}
+
+function updateDefenderCloudConnector(cloud, patch) {
+  const state = currentDefenderCloudMulticloudState();
+  if (!state[cloud]) return;
+  state[cloud] = { ...state[cloud], ...patch };
+  localStorage.setItem(DEFENDER_CLOUD_MULTICLOUD_STATE_KEY, JSON.stringify(state));
+  render();
+}
+
+function toggleDefenderCloudPlan(cloud, plan) {
+  const state = currentDefenderCloudMulticloudState();
+  const item = state[cloud];
+  if (!item) return;
+  const plans = new Set(item.plans || []);
+  if (plans.has(plan)) plans.delete(plan);
+  else plans.add(plan);
+  updateDefenderCloudConnector(cloud, { plans: [...plans] });
+}
+
+function advanceDefenderCloudOnboarding(cloud) {
+  const item = currentDefenderCloudMulticloudState()[cloud];
+  if (!item) return;
+  updateDefenderCloudConnector(cloud, {
+    onboarded: true,
+    health: cloud === 'aws' ? 'Healthy' : 'Warning',
+    lastSync: new Date().toISOString(),
+  });
+  toast(`${cloud.toUpperCase()} connector validated in the lab.`);
+}
+
+function toggleDefenderCloudFim() {
+  const state = currentDefenderCloudMulticloudState();
+  state.fim = { ...state.fim, enabled: !state.fim.enabled };
+  localStorage.setItem(DEFENDER_CLOUD_MULTICLOUD_STATE_KEY, JSON.stringify(state));
+  toast(`File integrity monitoring ${state.fim.enabled ? 'enabled' : 'disabled'} in the lab.`);
+  render();
+}
+
+function requestDefenderCloudJitAccess() {
+  const state = currentDefenderCloudMulticloudState();
+  state.jit = {
+    ...state.jit,
+    enabled: true,
+    requestState: 'Approved',
+    requestor: 'cloud-admin@contoso.com',
+    approvedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(DEFENDER_CLOUD_MULTICLOUD_STATE_KEY, JSON.stringify(state));
+  toast(`JIT request approved for ${state.jit.vm} in the lab.`);
+  render();
+}
+
+function resetDefenderCloudMulticloudState() {
+  localStorage.removeItem(DEFENDER_CLOUD_MULTICLOUD_STATE_KEY);
+  toast('Defender for Cloud multicloud lab reset.');
+  render();
+}
 window.currentSyslogAmaState = currentSyslogAmaState;
 window.installSentinelSolution = installSentinelSolution;
 window.openSyslogAmaConnector = openSyslogAmaConnector;
@@ -2441,6 +2581,12 @@ window.installSentinelIngestionSolution = installSentinelIngestionSolution;
 window.openSentinelIngestionConnector = openSentinelIngestionConnector;
 window.advanceSentinelIngestionLab = advanceSentinelIngestionLab;
 window.resetSentinelIngestionLab = resetSentinelIngestionLab;
+window.currentDefenderCloudMulticloudState = currentDefenderCloudMulticloudState;
+window.toggleDefenderCloudPlan = toggleDefenderCloudPlan;
+window.advanceDefenderCloudOnboarding = advanceDefenderCloudOnboarding;
+window.toggleDefenderCloudFim = toggleDefenderCloudFim;
+window.requestDefenderCloudJitAccess = requestDefenderCloudJitAccess;
+window.resetDefenderCloudMulticloudState = resetDefenderCloudMulticloudState;
 
 // ---------- Sentinel hunting bookmarks / livestream / restore jobs ----------
 const SENTINEL_HUNTING_TAB_KEY = 'defender-lab.sentinel.hunting.tab';

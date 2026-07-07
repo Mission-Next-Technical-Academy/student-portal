@@ -331,18 +331,18 @@ Verified TVM fixture drafts: `local-tasks/out/t06-tvm.js` (see
 GCP 209 / AWS 82 corpus mentions; lab has only setup context cards.
 Verified fixture drafts: `local-tasks/out/t07-multicloud.js` (see
 `local-tasks/README.md` merging rule).
-- [ ] **16.1** AWS connector onboarding lab in
+- [x] **16.1** AWS connector onboarding lab in
   `#/defender-cloud/environment`: create connector wizard (account ID,
   regions, plans selection CSPM/Servers/Containers/Databases,
   CloudFormation-style template step described in own words, connector
   health states).
-- [ ] **16.2** GCP connector onboarding lab, same wizard shape
+- [x] **16.2** GCP connector onboarding lab, same wizard shape
   (project ID, Cloud Shell script step in own words, plan toggles,
   health/errors).
-- [ ] **16.3** Onboarded AWS/GCP resources appear in
+- [x] **16.3** Onboarded AWS/GCP resources appear in
   `#/defender-cloud/inventory` and generate 1–2 multi-cloud alerts in
   `#/defender-cloud/alerts` + one multi-cloud attack path.
-- [ ] **16.4** File integrity monitoring surface (enable on a plan,
+- [x] **16.4** File integrity monitoring surface (enable on a plan,
   monitored entities, change events table) + JIT VM access study card
   with a request-access mock.
 

@@ -661,3 +661,21 @@ Current QA baseline: 90/90 views render clean, 0 dead NAV routes.
   `node --check ui/app.js` clean; curl to `127.0.0.1:8765` returned HTTP
   200; headless Chrome `--dump-dom` confirmed the new TVM dashboard renders
   the expected headings and panels.
+
+## 2026-07-07 — Agent 16 Defender for Cloud multicloud onboarding
+- Added a Defender for Cloud multicloud lab state in `ui/app.js` so the
+  AWS and GCP connector flows, plan toggles, health states, FIM toggle, and
+  JIT access request all persist locally across refreshes.
+- Expanded `ui/data.js` with multicloud fixtures for AWS/GCP connectors,
+  onboarded resources, alerts, a cross-cloud attack path, file integrity
+  monitoring, and a JIT VM access study card.
+- Reworked `#/defender-cloud/environment` into a connector wizard surface
+  with AWS and GCP onboarding steps, plan selection, CloudFormation / Cloud
+  Shell guidance, FIM monitoring, and JIT request controls.
+- Reworked `#/defender-cloud/inventory`, `#/defender-cloud/alerts`, and
+  `#/defender-cloud/attack-paths` so the onboarded AWS/GCP content appears
+  alongside the existing Azure cloud assets and paths.
+- Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+  `node --check ui/app.js` clean, confirmed `curl` to `127.0.0.1:8765`
+  returns HTTP 200, and used headless Chrome `--dump-dom` to confirm the
+  new Defender for Cloud routes render the expected multicloud headings.

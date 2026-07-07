@@ -4630,6 +4630,70 @@ VIEWS['defender-cloud/community'] = () => renderSecondarySurface(SECONDARY_SURFA
 VIEWS['defender-cloud/workbooks'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender-cloud/workbooks']);
 VIEWS['defender-cloud/diagnose'] = () => renderSecondarySurface(SECONDARY_SURFACES['defender-cloud/diagnose']);
 
+function defenderCloudMulticloudState() {
+  return typeof currentDefenderCloudMulticloudState === 'function'
+    ? currentDefenderCloudMulticloudState()
+    : {
+        aws: { onboarded:true, accountId:'111122223333', regions:['us-east-1','eu-west-1'], plans:['CSPM','Servers'], health:'Healthy', lastSync:'2026-06-15T12:00:00Z', bootstrap:'CloudFormation-style stack' },
+        gcp: { onboarded:true, projectId:'proj-aaaa1111', regions:['us-central1','europe-west3'], plans:['CSPM','Containers','Databases'], health:'Warning', lastSync:'2026-06-14T18:30:00Z', bootstrap:'Cloud Shell bootstrap script' },
+        fim: {
+          enabled: true,
+          monitored:['/etc/ssh/sshd_config','/var/log/auth.log','C:\\Windows\\System32\\drivers\\etc\\hosts','C:\\inetpub\\wwwroot\\web.config'],
+          recentChanges:[
+            { item:'/etc/ssh/sshd_config', change:'Unexpected allow-list edit', source:'AWS workload' },
+            { item:'C:\\Windows\\System32\\drivers\\etc\\hosts', change:'Local name resolution change', source:'GCP VM' },
+            { item:'/var/log/auth.log', change:'Burst of failed logons', source:'AWS workload' },
+          ],
+        },
+        jit: { enabled:true, vm:'nw-ops-vm-7', ports:['3389','22'], duration:'3 hours', requestState:'Approved', requestor:'cloud-admin@contoso.com', note:'Lab-only request surface; no real network access is opened.' },
+      };
+}
+
+function defenderCloudInventoryRows() {
+  const state = defenderCloudMulticloudState();
+  const azRows = CLOUD_ASSETS.map(a => ({
+    cloud: 'Azure',
+    name: a.name,
+    type: a.type,
+    scope: a.subscription,
+    exposure: a.exposure,
+    risk: a.risk,
+    alerts: a.alerts,
+    recs: a.recs,
+  }));
+  const mcRows = MC_RESOURCES.map(r => {
+    const scope = r.cloud === 'AWS' ? state.aws.accountId : state.gcp.projectId;
+    const exposure = r.cloud === 'AWS'
+      ? `${(state.aws.regions || []).join(', ')} connector scope`
+      : `${(state.gcp.regions || []).join(', ')} connector scope`;
+    return {
+      cloud: r.cloud,
+      name: r.name,
+      type: r.type,
+      scope,
+      exposure,
+      risk: r.riskLevel,
+      alerts: 1,
+      recs: r.riskLevel === 'High' ? 3 : r.riskLevel === 'Medium' ? 2 : 1,
+    };
+  });
+  return [...azRows, ...mcRows];
+}
+
+function defenderCloudAlertRows() {
+  return [
+    ...CLOUD_ALERTS.map(a => ({ cloud:'Azure', ...a })),
+    ...MC_ALERTS.map(a => ({ cloud:a.cloud, ...a })),
+  ];
+}
+
+function defenderCloudAttackPaths() {
+  return [
+    ...CLOUD_ATTACK_PATHS.map(p => ({ cloud:'Azure', ...p })),
+    ...(typeof MC_ATTACK_PATHS !== 'undefined' ? MC_ATTACK_PATHS : []),
+  ];
+}
+
 VIEWS['defender/action-center'] = () => `
   <div class="page-header">
     <div><div class="breadcrumb">Investigation &amp; response › <strong>Action center</strong></div><h1>Action center</h1><div class="page-subtitle">Review completed and pending response actions from AIR, MDE, and MDO.</div></div>
@@ -4939,18 +5003,19 @@ VIEWS['defender-cloud/alerts'] = () => `
     <span class="chip">Resource type: <strong>Any</strong> ▾</span>
   </div>
   <div class="card">
-    <div class="card-toolbar"><strong>${CLOUD_ALERTS.length}</strong> cloud workload alerts</div>
+    <div class="card-toolbar"><strong>${defenderCloudAlertRows().length}</strong> cloud workload alerts</div>
     <table class="grid">
-      <thead><tr><th>Severity</th><th>Alert</th><th>Affected resource</th><th>Type</th><th>Status</th><th>Tactics</th><th>Activity start</th></tr></thead>
+      <thead><tr><th>Cloud</th><th>Severity</th><th>Alert</th><th>Affected resource</th><th>Type</th><th>Status</th><th>Tactics</th><th>Activity start</th></tr></thead>
       <tbody>
-        ${CLOUD_ALERTS.map(a => `
+        ${defenderCloudAlertRows().map(a => `
           <tr>
+            <td>${esc(a.cloud)}</td>
             <td><span class="sev ${a.severity}">${cap(a.severity)}</span></td>
             <td><strong>${esc(a.title)}</strong></td>
             <td>${esc(a.resource)}</td>
             <td>${esc(a.type)}</td>
             <td>${esc(a.status)}</td>
-            <td>${a.tactics.map(t => `<span class="mitre">${esc(t)}</span>`).join('')}</td>
+            <td>${(a.tactics || []).map(t => `<span class="mitre">${esc(t)}</span>`).join('')}</td>
             <td>${fmtTime(a.time)}</td>
           </tr>
         `).join('')}
@@ -4965,21 +5030,22 @@ VIEWS['defender-cloud/inventory'] = () => `
     <div class="page-actions"><a class="btn btn-secondary" href="#/defender-cloud/attack-paths">Attack paths</a></div>
   </div>
   <div class="kpi-strip">
-    <div class="kpi"><span class="kpi-label">Resources</span><span class="kpi-value">${CLOUD_ASSETS.length}</span></div>
-    <div class="kpi"><span class="kpi-label">High risk</span><span class="kpi-value">${CLOUD_ASSETS.filter(a=>a.risk==='High').length}</span></div>
-    <div class="kpi"><span class="kpi-label">Open alerts</span><span class="kpi-value">${CLOUD_ASSETS.reduce((n,a)=>n+a.alerts,0)}</span></div>
-    <div class="kpi"><span class="kpi-label">Recommendations</span><span class="kpi-value">${CLOUD_ASSETS.reduce((n,a)=>n+a.recs,0)}</span></div>
+    <div class="kpi"><span class="kpi-label">Resources</span><span class="kpi-value">${defenderCloudInventoryRows().length}</span></div>
+    <div class="kpi"><span class="kpi-label">High risk</span><span class="kpi-value">${defenderCloudInventoryRows().filter(a=>a.risk==='High').length}</span></div>
+    <div class="kpi"><span class="kpi-label">Open alerts</span><span class="kpi-value">${defenderCloudInventoryRows().reduce((n,a)=>n+a.alerts,0)}</span></div>
+    <div class="kpi"><span class="kpi-label">Recommendations</span><span class="kpi-value">${defenderCloudInventoryRows().reduce((n,a)=>n+a.recs,0)}</span></div>
   </div>
   <div class="card">
-    <div class="card-toolbar"><strong>Resource inventory</strong><span class="muted">Fictional cloud assets</span></div>
+    <div class="card-toolbar"><strong>Resource inventory</strong><span class="muted">Azure plus onboarded AWS/GCP assets</span></div>
     <table class="grid">
-      <thead><tr><th>Risk</th><th>Resource</th><th>Type</th><th>Subscription</th><th>Exposure</th><th>Alerts</th><th>Recommendations</th></tr></thead>
-      <tbody>${CLOUD_ASSETS.map(a => `
+      <thead><tr><th>Cloud</th><th>Risk</th><th>Resource</th><th>Type</th><th>Scope</th><th>Exposure</th><th>Alerts</th><th>Recommendations</th></tr></thead>
+      <tbody>${defenderCloudInventoryRows().map(a => `
         <tr>
+          <td>${esc(a.cloud)}</td>
           <td><span class="sev ${a.risk === 'High' ? 'high' : a.risk === 'Medium' ? 'medium' : 'low'}">${esc(a.risk)}</span></td>
           <td><strong>${esc(a.name)}</strong></td>
           <td>${esc(a.type)}</td>
-          <td>${esc(a.subscription)}</td>
+          <td>${esc(a.scope)}</td>
           <td>${esc(a.exposure)}</td>
           <td>${a.alerts}</td>
           <td>${a.recs}</td>
@@ -4992,8 +5058,9 @@ VIEWS['defender-cloud/attack-paths'] = () => `
     <div><div class="breadcrumb">Defender for Cloud › <strong>Attack path analysis</strong></div><h1>Attack path analysis</h1><div class="page-subtitle">Reason about exploitable cloud paths that connect exposure, identity permissions, workload alerts, and data assets.</div></div>
     <div class="page-actions"><a class="btn btn-secondary" href="#/defender-cloud/inventory">Inventory</a></div>
   </div>
+  <div class="callout info" style="margin-bottom:14px;">The lab now includes a cross-cloud path from AWS into a GCP workload so exam questions can pivot between connectors, inventory, and alerts.</div>
   <div class="three-col">
-    ${CLOUD_ATTACK_PATHS.map(p => `
+    ${defenderCloudAttackPaths().filter(p => !String(p.cloud || '').includes('+')).map(p => `
       <section class="card card-body">
         <span class="sev ${p.severity}">${cap(p.severity)}</span>
         <h2 style="font-size:18px; margin:10px 0 6px;">${esc(p.name)}</h2>
@@ -5004,6 +5071,22 @@ VIEWS['defender-cloud/attack-paths'] = () => `
         <div class="callout warn" style="margin-top:12px;">${esc(p.result)}</div>
       </section>`).join('')}
   </div>
+  ${defenderCloudAttackPaths().some(p => String(p.cloud || '').includes('+')) ? `
+    <div class="card card-body" style="margin-top:16px;">
+      <div class="alert-section-title">Multi-cloud attack path</div>
+      <div class="flowline vertical-flow" style="margin-top:12px;">
+        ${defenderCloudAttackPaths().filter(p => String(p.cloud || '').includes('+')).map(p => `
+          <div class="flow-step">
+            <strong>${esc(p.name)}</strong>
+            <span>${esc(p.cloud)} · ${cap(p.severity)}</span>
+            <div class="muted" style="margin-top:6px;">Start: ${esc(p.start)}</div>
+            ${p.path.map(step => `<div class="muted" style="margin-top:4px;">• ${esc(step)}</div>`).join('')}
+            <div class="callout warn" style="margin-top:10px;">${esc(p.result)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : ''}
   <div class="card card-body" style="margin-top:16px;">
     <div class="alert-section-title">Investigation use</div>
     <ul><li>Open attack paths when a Defender for Cloud alert involves an internet-facing or privileged resource.</li><li>Use recommendations to break the path, then verify alerts and inventory status.</li><li>Escalate paths that combine public exposure, privileged identity, and sensitive data access.</li></ul>
@@ -5013,7 +5096,7 @@ VIEWS['defender-cloud/setup'] = () => `
   <div class="page-header"><div><div class="breadcrumb">Defender for Cloud › <strong>Setup</strong></div><h1>Setup</h1><div class="page-subtitle">Local study surface for enabling workload protection plans and connector coverage.</div></div></div>
   <div class="two-col">
     <section class="card card-body"><div class="alert-section-title">Plan coverage</div><div class="flowline vertical-flow"><div class="flow-step"><strong>Servers Plan 2</strong><span>Enabled for production subscriptions; two lab VMs still need extension health review.</span></div><div class="flow-step"><strong>Containers</strong><span>AKS runtime signal enabled for aks-prod; image scanning feeds recommendations.</span></div><div class="flow-step"><strong>Storage</strong><span>Malware scanning and sensitive data discovery enabled on high-value accounts.</span></div></div></section>
-    <section class="card card-body"><div class="alert-section-title">Next routes</div><div class="tile-grid"><a class="tile" href="#/defender-cloud/environment"><strong>Environment settings</strong><span>Subscription and plan configuration.</span></a><a class="tile" href="#/defender-cloud/recommendations"><strong>Recommendations</strong><span>Posture actions that reduce attack paths.</span></a></div></section>
+    <section class="card card-body"><div class="alert-section-title">Next routes</div><div class="tile-grid"><a class="tile" href="#/defender-cloud/environment"><strong>Environment settings</strong><span>Connector onboarding, FIM, and JIT study flows.</span></a><a class="tile" href="#/defender-cloud/recommendations"><strong>Recommendations</strong><span>Posture actions that reduce attack paths.</span></a></div></section>
   </div>`;
 
 VIEWS['defender-cloud/explorer'] = () => `
@@ -5040,16 +5123,76 @@ VIEWS['defender-cloud/cloud-security'] = () => `
     <a class="tile" href="#/defender-cloud/recommendations"><strong>Recommendations</strong><span>Reduce posture findings that feed attack paths.</span></a>
   </div>`;
 
-VIEWS['defender-cloud/environment'] = () => `
-  <div class="page-header"><div><div class="breadcrumb">Defender for Cloud › Management › <strong>Environment settings</strong></div><h1>Environment settings</h1><div class="page-subtitle">Subscription-level workload protection and diagnostic collection settings.</div></div></div>
-  <div class="card">
-    <div class="card-toolbar"><strong>Subscriptions</strong><span class="muted">Lab-static configuration</span></div>
-    <table class="grid"><thead><tr><th>Subscription</th><th>Plans</th><th>Log collection</th><th>Status</th><th>Next action</th></tr></thead><tbody>
-      <tr><td>sub-prod-001</td><td>Servers, Containers, Storage, SQL</td><td>AMA + diagnostic settings</td><td><span class="tag green">Enabled</span></td><td>Review attack paths</td></tr>
-      <tr><td>sub-dev-001</td><td>Servers Plan 1</td><td>Partial diagnostics</td><td><span class="tag orange">Needs review</span></td><td>Enable container plan</td></tr>
-      <tr><td>sub-lab-001</td><td>Free posture only</td><td>None</td><td><span class="tag orange">Study only</span></td><td>Document exam scope</td></tr>
-    </tbody></table>
+VIEWS['defender-cloud/environment'] = () => {
+  const state = defenderCloudMulticloudState();
+  const awsPlans = ['CSPM', 'Servers', 'Containers', 'Databases'];
+  const gcpPlans = ['CSPM', 'Servers', 'Containers', 'Databases'];
+  return `
+  <div class="page-header">
+    <div><div class="breadcrumb">Defender for Cloud › Management › <strong>Environment settings</strong></div><h1>Environment settings</h1><div class="page-subtitle">Onboard AWS and GCP connectors, then review file integrity monitoring and just-in-time VM access.</div></div>
+    <div class="page-actions"><button class="btn btn-secondary" onclick="resetDefenderCloudMulticloudState()">Reset lab</button></div>
+  </div>
+  <div class="kpi-strip">
+    <div class="kpi"><span class="kpi-label">AWS connector</span><span class="kpi-value">${esc(state.aws.health)}</span></div>
+    <div class="kpi"><span class="kpi-label">GCP connector</span><span class="kpi-value">${esc(state.gcp.health)}</span></div>
+    <div class="kpi"><span class="kpi-label">FIM</span><span class="kpi-value">${state.fim.enabled ? 'On' : 'Off'}</span></div>
+    <div class="kpi"><span class="kpi-label">JIT requests</span><span class="kpi-value">${esc(state.jit.requestState)}</span></div>
+  </div>
+  <div class="two-col">
+    <section class="card card-body">
+      <div class="alert-section-title">AWS connector wizard</div>
+      <div class="flowline vertical-flow" style="margin-top:12px;">
+        <div class="flow-step"><strong>1. Account and region scope</strong><span>Account ${esc(state.aws.accountId)} with coverage in ${esc((state.aws.regions || []).join(', '))}.</span></div>
+        <div class="flow-step"><strong>2. Plan selection</strong><span>The lab includes CSPM and Servers coverage; you can toggle Containers or Databases if the scenario calls for it.</span></div>
+        <div class="flow-step"><strong>3. Template deployment</strong><span>A CloudFormation-style stack provisions the cross-account role, permissions, and monitoring hooks in one pass.</span></div>
+        <div class="flow-step"><strong>4. Connector health</strong><span>Status: <span class="tag ${state.aws.health === 'Healthy' ? 'green' : 'orange'}">${esc(state.aws.health)}</span> · Last sync ${fmtTime(state.aws.lastSync)}</span></div>
+      </div>
+      <div class="form-grid two" style="margin-top:14px;">
+        ${awsPlans.map(plan => `<button class="btn ${state.aws.plans.includes(plan) ? 'btn-primary' : 'btn-secondary'} btn-sm" onclick="toggleDefenderCloudPlan('aws', '${plan}')">${esc(plan)}</button>`).join('')}
+      </div>
+      <div class="callout info" style="margin-top:14px;">${esc(state.aws.bootstrap)}. The lab keeps the workflow static, but the connector list, plan selection, and health state are persisted locally.</div>
+      <div class="button-row" style="margin-top:14px;"><button class="btn btn-primary" onclick="advanceDefenderCloudOnboarding('aws')">Validate AWS connector</button></div>
+    </section>
+    <section class="card card-body">
+      <div class="alert-section-title">GCP connector wizard</div>
+      <div class="flowline vertical-flow" style="margin-top:12px;">
+        <div class="flow-step"><strong>1. Project and region scope</strong><span>Project ${esc(state.gcp.projectId)} with coverage in ${esc((state.gcp.regions || []).join(', '))}.</span></div>
+        <div class="flow-step"><strong>2. Plan selection</strong><span>Containers and Databases are included for the lab scenario, with CSPM keeping posture findings in view.</span></div>
+        <div class="flow-step"><strong>3. Cloud Shell bootstrap</strong><span>A short shell bootstrap script assigns the project permissions and prepares the connector registration.</span></div>
+        <div class="flow-step"><strong>4. Connector health</strong><span>Status: <span class="tag ${state.gcp.health === 'Healthy' ? 'green' : 'orange'}">${esc(state.gcp.health)}</span> · Last sync ${fmtTime(state.gcp.lastSync)}</span></div>
+      </div>
+      <div class="form-grid two" style="margin-top:14px;">
+        ${gcpPlans.map(plan => `<button class="btn ${state.gcp.plans.includes(plan) ? 'btn-primary' : 'btn-secondary'} btn-sm" onclick="toggleDefenderCloudPlan('gcp', '${plan}')">${esc(plan)}</button>`).join('')}
+      </div>
+      <div class="callout info" style="margin-top:14px;">${esc(state.gcp.bootstrap)}. Warning health keeps the inventory and alert surfaces noisy enough for triage practice.</div>
+      <div class="button-row" style="margin-top:14px;"><button class="btn btn-primary" onclick="advanceDefenderCloudOnboarding('gcp')">Validate GCP connector</button></div>
+    </section>
+  </div>
+  <div class="two-col" style="margin-top:16px;">
+    <section class="card card-body">
+      <div class="alert-section-title">File integrity monitoring</div>
+      <div class="callout ${state.fim.enabled ? 'success' : 'warn'}">Enable FIM on the plan that matters most, then watch for unexpected edits to critical files on servers and container nodes.</div>
+      <div class="flowline vertical-flow" style="margin-top:12px;">
+        <div class="flow-step"><strong>Monitored entities</strong><span>${esc(state.fim.monitored.join(' · '))}</span></div>
+        <div class="flow-step"><strong>Recent change events</strong><span>${esc(state.fim.recentChanges.map(ev => `${ev.item} (${ev.source})`).join(' · '))}</span></div>
+      </div>
+      <table class="grid" style="margin-top:14px;"><thead><tr><th>Item</th><th>Change</th><th>Source</th></tr></thead><tbody>${state.fim.recentChanges.map(ev => `<tr><td>${esc(ev.item)}</td><td>${esc(ev.change)}</td><td>${esc(ev.source)}</td></tr>`).join('')}</tbody></table>
+      <div class="button-row" style="margin-top:14px;"><button class="btn ${state.fim.enabled ? 'btn-secondary' : 'btn-primary'}" onclick="toggleDefenderCloudFim()">${state.fim.enabled ? 'Disable FIM' : 'Enable FIM'}</button></div>
+    </section>
+    <section class="card card-body">
+      <div class="alert-section-title">Just-in-time VM access</div>
+      <div class="callout info">Request access only when you need a port open briefly. In the lab, the approval is static and local-only, but the sequence mirrors the real decision path.</div>
+      <table class="grid" style="margin-top:14px;"><thead><tr><th>VM</th><th>Ports</th><th>Duration</th><th>Status</th></tr></thead><tbody>
+        <tr><td><strong>${esc(state.jit.vm)}</strong></td><td>${esc(state.jit.ports.join(', '))}</td><td>${esc(state.jit.duration)}</td><td><span class="tag green">${esc(state.jit.requestState)}</span></td></tr>
+      </tbody></table>
+      <div class="flowline vertical-flow" style="margin-top:14px;">
+        <div class="flow-step"><strong>Requester</strong><span>${esc(state.jit.requestor)}</span></div>
+        <div class="flow-step"><strong>Note</strong><span>${esc(state.jit.note)}</span></div>
+      </div>
+      <div class="button-row" style="margin-top:14px;"><button class="btn btn-primary" onclick="requestDefenderCloudJitAccess()">Request access</button></div>
+    </section>
   </div>`;
+};
 
 VIEWS['defender-cloud/workflow'] = () => `
   <div class="page-header"><div><div class="breadcrumb">Defender for Cloud › Management › <strong>Workflow automation</strong></div><h1>Workflow automation</h1><div class="page-subtitle">Route Defender for Cloud alerts and recommendations into local response steps.</div></div></div>

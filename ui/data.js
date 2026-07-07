@@ -4038,6 +4038,10 @@ const MC_ALERTS = [
     title: 'Unusual access event on container cluster',
     severity: 'High',
     resource: 'nw-ops-k8s-cluster-0',
+    type: 'Kubernetes workload',
+    status: 'New',
+    time: '2026-06-28T12:42:00Z',
+    tactics: ['Execution', 'Privilege Escalation'],
     description: 'An unexpected role was assumed by an identity in the container cluster, indicating potential misuse or unauthorized access.'
   },
   {
@@ -4046,9 +4050,54 @@ const MC_ALERTS = [
     title: 'Unsuccessful login attempts on keypair management service',
     severity: 'Medium',
     resource: 'nw-ops-vm-7',
+    type: 'Virtual machine',
+    status: 'In progress',
+    time: '2026-06-28T11:55:00Z',
+    tactics: ['Credential Access'],
     description: 'A series of failed sign-on attempts were detected, which could indicate a compromised key pair or brute-force attack.'
   }
 ];
+
+const MC_ATTACK_PATHS = [
+  {
+    id: 'mc-path-1',
+    cloud: 'AWS + GCP',
+    severity: 'high',
+    name: 'Shared admin path from AWS VM to GCP cluster',
+    start: 'nw-ops-vm-7',
+    path: [
+      'AWS connector sees a VM with broad CSPM and server coverage',
+      'A reused operator account touches both the AWS host and the GCP project',
+      'The GCP container cluster has an elevated workload identity and exposed control plane',
+    ],
+    result: 'Cross-cloud lateral movement could reach the container cluster and pivot into the database and storage tier.',
+  },
+];
+
+const DEFENDER_CLOUD_FIM = {
+  enabledByDefault: true,
+  scope: 'Servers and container nodes',
+  monitored: [
+    '/etc/ssh/sshd_config',
+    '/var/log/auth.log',
+    'C:\\Windows\\System32\\drivers\\etc\\hosts',
+    'C:\\inetpub\\wwwroot\\web.config',
+  ],
+  recentChanges: [
+    { item:'/etc/ssh/sshd_config', change:'Unexpected allow-list edit', source:'AWS workload' },
+    { item:'C:\\Windows\\System32\\drivers\\etc\\hosts', change:'Local name resolution change', source:'GCP VM' },
+    { item:'/var/log/auth.log', change:'Burst of failed logons', source:'AWS workload' },
+  ],
+};
+
+const DEFENDER_CLOUD_JIT = {
+  vm: 'nw-ops-vm-7',
+  ports: ['3389', '22'],
+  duration: '3 hours',
+  requestState: 'Approved',
+  requestor: 'cloud-admin@contoso.com',
+  note: 'Lab-only request surface; no real network access is opened.',
+};
 
 // --- T08: out/t08-audit-premium.js ---
 const AUDIT_RETENTION_POLICIES = [
