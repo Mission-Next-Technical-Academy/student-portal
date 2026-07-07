@@ -679,3 +679,23 @@ Current QA baseline: 90/90 views render clean, 0 dead NAV routes.
   `node --check ui/app.js` clean, confirmed `curl` to `127.0.0.1:8765`
   returns HTTP 200, and used headless Chrome `--dump-dom` to confirm the
   new Defender for Cloud routes render the expected multicloud headings.
+
+## 2026-07-07 — Agent 17 Purview Audit Premium + MDO Threat Explorer
+- Expanded `#/purview/audit` into a premium-aware audit workspace with a
+  standard-vs-premium comparison card, a retention-policy builder/table,
+  CopilotInteraction audit rows, and a local export preview flow that
+  uses selected or filtered rows.
+- Merged the audit fixture drafts into `ui/data.js`, including Copilot
+  activity rows and the premium retention policy set used by the search
+  and export surfaces.
+- Reworked `#/defender/email-collab` into an entry ramp for message
+  investigation and replaced `#/defender/threat-explorer` with a pivotable
+  mail triage view that supports phish/malware/campaign filtering, top
+  targeted users, message entity detail, and a mock remediation batch.
+- Added `#/defender/email-collab/threat-explorer/campaigns` for campaign
+  summaries and response guidance so the email-investigation flow can walk
+  from landing page to campaign pivot cleanly.
+- Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+  `node --check ui/app.js` clean, confirmed `curl` to `127.0.0.1:8765`
+  returns HTTP 200, and used headless Chrome `--dump-dom` to confirm the
+  new Audit and Threat Explorer routes render the expected headings.

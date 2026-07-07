@@ -2579,21 +2579,6 @@ const LABEL_ACTIVITY = [
   { time:'2026-06-28T11:58:00Z', user:'jdoe@contoso.com', file:'customer-list.xlsx', label:'General', action:'Downgraded with justification' },
 ];
 
-const AUDIT_LOG = [
-  { time:'2026-06-28T15:00:11Z', user:'jdoe@contoso.com', op:'FileDownloaded',
-    workload:'OneDrive', item:'/personal/jdoe/customer-list.xlsx', ip:'76.21.55.4' },
-  { time:'2026-06-28T14:55:02Z', user:'admin@contoso.com', op:'Add member to role',
-    workload:'AzureAD', item:'Role: Global Administrator', ip:'10.10.0.5' },
-  { time:'2026-06-28T14:20:33Z', user:'svc-backup@contoso.com', op:'DirectoryServicesReplication',
-    workload:'AAD Connect', item:'DC01.contoso.com', ip:'10.20.4.55' },
-  { time:'2026-06-28T08:23:11Z', user:'jane.doe@contoso.com', op:'Consent to application',
-    workload:'AzureAD', item:'DocViewer Pro', ip:'76.21.55.4' },
-  { time:'2026-06-28T13:27:00Z', user:'sam.lee@contoso.com', op:'UserLoggedIn',
-    workload:'AzureAD', item:'Risky sign-in', ip:'91.219.236.54' },
-  { time:'2026-06-28T10:19:45Z', user:'fin-svc@contoso.com', op:'FileModified',
-    workload:'SharePoint', item:'/sites/finance/budget.locked', ip:'10.30.8.22' },
-];
-
 const GUIDED_SCENARIOS = [
   {
     id:'noisy-detection',
@@ -4216,6 +4201,31 @@ const AUDIT_COPILOT_EVENTS = [
     }
 ];
 
+const AUDIT_LOG = [
+  { time:'2026-06-28T15:00:11Z', user:'jdoe@contoso.com', op:'FileDownloaded',
+    workload:'OneDrive', item:'/personal/jdoe/customer-list.xlsx', ip:'76.21.55.4' },
+  { time:'2026-06-28T14:55:02Z', user:'admin@contoso.com', op:'Add member to role',
+    workload:'AzureAD', item:'Role: Global Administrator', ip:'10.10.0.5' },
+  { time:'2026-06-28T14:20:33Z', user:'svc-backup@contoso.com', op:'DirectoryServicesReplication',
+    workload:'AAD Connect', item:'DC01.contoso.com', ip:'10.20.4.55' },
+  { time:'2026-06-28T08:23:11Z', user:'jane.doe@contoso.com', op:'Consent to application',
+    workload:'AzureAD', item:'DocViewer Pro', ip:'76.21.55.4' },
+  { time:'2026-06-28T13:27:00Z', user:'sam.lee@contoso.com', op:'UserLoggedIn',
+    workload:'AzureAD', item:'Risky sign-in', ip:'91.219.236.54' },
+  { time:'2026-06-28T10:19:45Z', user:'fin-svc@contoso.com', op:'FileModified',
+    workload:'SharePoint', item:'/sites/finance/budget.locked', ip:'10.30.8.22' },
+  { time:'2026-07-04T09:35:00Z', user:'m.okafor@contoso.com', op:'CopilotInteraction',
+    workload:'SecurityCopilot', item:'Reviewed DLP policy settings for new users.', ip:'10.10.0.8' },
+  { time:'2026-07-05T13:25:00Z', user:'r.vance@contoso.com', op:'CopilotInteraction',
+    workload:'SecurityCopilot', item:'Set up audit trails for all Office 365 tenants.', ip:'10.10.0.8' },
+  { time:'2026-07-06T10:45:00Z', user:'m.okafor@contoso.com', op:'CopilotInteraction',
+    workload:'Word', item:'Saved final draft for board presentation on OneDrive.', ip:'10.10.0.9' },
+  { time:'2026-06-30T11:45:00Z', user:'r.vance@contoso.com', op:'CopilotInteraction',
+    workload:'Teams', item:'Integrated Office 365 DLP policies with compliance features.', ip:'10.10.0.8' },
+  { time:'2026-07-01T08:00:00Z', user:'m.okafor@contoso.com', op:'CopilotInteraction',
+    workload:'Outlook', item:'Created a calendar event reminder for next month.', ip:'10.10.0.9' },
+];
+
 // --- T09: out/t09-threat-explorer.js ---
 const TX_EMAILS = [
     {
@@ -4382,7 +4392,62 @@ const TX_EMAILS = [
         threat: 'Financial fraud',
         deliveryAction: 'Blocked',
         campaign: 'Invoice lure June'
+    },
+    {
+        id: 'tx-16',
+        time: '2026-07-01T09:20:00Z',
+        subject: 'Quarterly_report_2026.docm',
+        sender: 'external-mailer.example',
+        recipient: 'finance@northwindops.example',
+        verdict: 'Malware',
+        threat: 'Malicious attachment',
+        deliveryAction: 'Quarantined',
+        campaign: 'Attachment detonation July'
+    },
+    {
+        id: 'tx-17',
+        time: '2026-07-01T09:28:00Z',
+        subject: 'Shared invoice image.zip',
+        sender: 'external-mailer.example',
+        recipient: 'support@northwindops.example',
+        verdict: 'Malware',
+        threat: 'Macro loader',
+        deliveryAction: 'Removed by ZAP',
+        campaign: 'Attachment detonation July'
     }
+];
+
+const THREAT_EXPLORER_CAMPAIGNS = [
+  {
+    id: 'camp-invoice',
+    name: 'Invoice lure June',
+    verdict: 'Phish',
+    messageCount: 7,
+    topTargets: ['account@northwindops.example', 'finance@northwindops.example', 'support@northwindops.example'],
+    summary: 'Reused invoice language, urgent payment requests, and credential-harvesting links aimed at finance staff.',
+    deliveryActions: 'Blocked or junked before user mailbox delivery.',
+    zapNote: 'Delivered phish would be removed by ZAP if it reached the inbox.',
+  },
+  {
+    id: 'camp-payroll',
+    name: 'Payroll update lure',
+    verdict: 'Phish',
+    messageCount: 5,
+    topTargets: ['hr@northwindops.example'],
+    summary: 'Payroll-themed subject lines were used to attract HR and accounting users into reply or click behavior.',
+    deliveryActions: 'Messages were mostly junked as low-confidence phishing.',
+    zapNote: 'The lab treats the wave as a credential phishing campaign with no confirmed malware.',
+  },
+  {
+    id: 'camp-attachment',
+    name: 'Attachment detonation July',
+    verdict: 'Malware',
+    messageCount: 2,
+    topTargets: ['finance@northwindops.example', 'support@northwindops.example'],
+    summary: 'Attachment-heavy wave delivering macro and archive payloads that were caught by mail protections.',
+    deliveryActions: 'One message quarantined, one removed by ZAP.',
+    zapNote: 'Campaign pivots on attachment verdict, sender domain reuse, and recipient group overlap.',
+  },
 ];
 
 // --- T10: out/t10-mssp-mto.js ---

@@ -349,13 +349,13 @@ Verified fixture drafts: `local-tasks/out/t07-multicloud.js` (see
 ## Agent 17 — Purview Audit Premium + MDO Threat Explorer (GAP_BRIDGE wave, M)
 Verified fixture drafts: `local-tasks/out/t08-audit-premium.js` and
 `t09-threat-explorer.js` (see `local-tasks/README.md` merging rule).
-- [ ] **17.1** Audit (Premium) depth on `#/purview/audit`: standard vs
+- [x] **17.1** Audit (Premium) depth on `#/purview/audit`: standard vs
   premium comparison card, audit retention policies tab (create policy:
   users/record types/duration/priority), long-retention search behavior.
-- [ ] **17.2** Audit export flow (search → export rows, size/limit
+- [x] **17.2** Audit export flow (search → export rows, size/limit
   notes) and Copilot-interaction audit events as searchable fixture rows
   (`CopilotInteraction` record type).
-- [ ] **17.3** Threat Explorer view inside `#/defender/email-collab`:
+- [x] **17.3** Threat Explorer view inside `#/defender/email-collab`:
   malware/phish/campaign pivots, top targeted users, email entity detail
   (headers summary, verdicts, delivery/ZAP actions), remediate-selected
   mock flow.

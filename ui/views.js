@@ -4724,8 +4724,15 @@ VIEWS['defender/action-center'] = () => `
 
 VIEWS['defender/email-collab'] = () => `
   <div class="page-header">
-    <div><div class="breadcrumb">Configuration › <strong>Email &amp; collaboration</strong></div><h1>Email and collaboration investigation</h1><div class="page-subtitle">Practice MDO triage paths for phishing, mailbox rules, submissions, and OAuth follow-on activity.</div></div>
-    <div class="page-actions"><a class="btn btn-secondary" href="#/defender/cloud-apps">Cloud apps OAuth pivot</a></div>
+    <div>
+      <div class="breadcrumb">Configuration › <strong>Email &amp; collaboration</strong></div>
+      <h1>Email and collaboration investigation</h1>
+      <div class="page-subtitle">Practice MDO triage paths for phishing, mailbox rules, submissions, and OAuth follow-on activity.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/defender/threat-explorer">Open Threat Explorer</a>
+      <a class="btn btn-secondary" href="#/defender/cloud-apps">Cloud apps OAuth pivot</a>
+    </div>
   </div>
   <div class="two-col">
     <section class="card">
@@ -4747,10 +4754,28 @@ VIEWS['defender/email-collab'] = () => `
       <div class="flowline vertical-flow">
         <div class="flow-step"><strong>Open alert</strong><span>Start from the MDO URL click alert in INC-1042.</span></div>
         <div class="flow-step"><strong>Inspect evidence</strong><span>Review clicked URL, delivery action, mailbox events, and user activity.</span></div>
-        <div class="flow-step"><strong>Pivot</strong><span>Move to Cloud Apps for the risky OAuth grant and to Purview Audit for consent events.</span></div>
+        <div class="flow-step"><strong>Pivot</strong><span>Move to Threat Explorer for campaign pivots, then to Cloud Apps for the risky OAuth grant and Purview Audit for consent events.</span></div>
         <div class="flow-step"><strong>Respond</strong><span>Purge mail, revoke sessions, remove app consent, and close the incident with classification.</span></div>
       </div>
+      <div class="callout info" style="margin-top:12px;">
+        Threat Explorer is the dedicated mail triage drill-down. Use it to pivot by verdict, campaign, and targeted user before you take remediation action.
+      </div>
+      <div class="sidepanel-footer" style="padding-top:12px;">
+        <a class="btn btn-primary" href="#/defender/threat-explorer">Open Threat Explorer</a>
+        <a class="btn btn-secondary" href="#/defender/email-collab/threat-explorer/campaigns">Campaign pivots</a>
+      </div>
     </section>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="card-toolbar">
+      <strong>Mail response study card</strong>
+      <span class="muted">Use the full explorer for pivots and entity detail</span>
+    </div>
+    <div class="tile-grid">
+      <a class="tile" href="#/defender/threat-explorer"><strong>Threat Explorer</strong><span>Filter phish and malware waves, inspect headers, and queue remediation.</span></a>
+      <a class="tile" href="#/defender/cloud-apps"><strong>Cloud Apps OAuth</strong><span>Continue the phishing-to-consent chain and review risky app activity.</span></a>
+      <a class="tile" href="#/purview/audit"><strong>Purview Audit</strong><span>Search consent, login, and Copilot interactions across the timeline.</span></a>
+    </div>
   </div>`;
 
 VIEWS['defender/endpoints'] = () => `
@@ -5784,58 +5809,327 @@ VIEWS['purview/information-protection'] = () => `
 `;
 
 VIEWS['purview/audit'] = () => ({
-  html: `
-    <div class="page-header"><div><div class="breadcrumb">Purview › <strong>Audit</strong></div><h1>Audit search</h1></div></div>
-    <div class="card card-body">
-      <div class="two-col">
-        <div><label class="lbl">Activities</label><input id="audit-op" class="ipt" placeholder="FileDownloaded, UserLoggedIn, any"></div>
-        <div><label class="lbl">Users</label><input id="audit-user" class="ipt" placeholder="user@contoso.com"></div>
-      </div>
-      <div class="two-col" style="margin-top:8px;">
-        <div><label class="lbl">Workload</label><input id="audit-workload" class="ipt" placeholder="AzureAD, SharePoint, OneDrive"></div>
-        <div><label class="lbl">IP address</label><input id="audit-ip" class="ipt" placeholder="76.21.55.4"></div>
-      </div>
-      <div style="margin-top:8px;"><button id="audit-search" class="btn btn-primary">Search</button></div>
-    </div>
-    <div class="card" id="audit-results"></div>
-  `,
+  html: `<div id="audit-premium-root"></div>`,
   onMount: () => {
-    function auditRows(rows) {
-      return `
-        <div class="card-toolbar"><strong>${rows.length}</strong> results</div>
-        <table class="grid">
-          <thead><tr><th>Date (UTC)</th><th>User</th><th>Operation</th><th>Workload</th><th>Item</th><th>IP</th></tr></thead>
-          <tbody>
-            ${rows.map(a => `
-              <tr>
-                <td>${fmtTime(a.time)}</td><td>${esc(a.user)}</td>
-                <td><strong>${esc(a.op)}</strong></td>
-                <td>${esc(a.workload)}</td>
-                <td class="kv">${esc(a.item)}</td>
-                <td>${esc(a.ip)}</td>
-              </tr>`).join('') || '<tr><td colspan="6" class="muted">No matching audit events.</td></tr>'}
-          </tbody>
-        </table>`;
-    }
-    function value(id) { return document.getElementById(id).value.trim().toLowerCase(); }
-    function runAuditSearch() {
-      const op = value('audit-op');
-      const user = value('audit-user');
-      const workload = value('audit-workload');
-      const ip = value('audit-ip');
-      const rows = AUDIT_LOG.filter(a =>
+    const state = {
+      tab: 'search',
+      filters: { op: '', user: '', workload: '', ip: '' },
+      selected: new Set(),
+      exportSummary: null,
+      policies: AUDIT_RETENTION_POLICIES.map(p => ({ ...p, recordTypes: [...p.recordTypes], users: [...p.users] })),
+      draft: { name: '', users: '', recordTypes: 'ExchangeItem, SharePointFileOperation', duration: '90 days', priority: '3' },
+    };
+
+    const root = document.getElementById('audit-premium-root');
+
+    function filteredRows() {
+      const op = state.filters.op.trim().toLowerCase();
+      const user = state.filters.user.trim().toLowerCase();
+      const workload = state.filters.workload.trim().toLowerCase();
+      const ip = state.filters.ip.trim().toLowerCase();
+      return AUDIT_LOG.filter(a =>
         (!op || op === 'any' || a.op.toLowerCase().includes(op)) &&
         (!user || a.user.toLowerCase().includes(user)) &&
         (!workload || a.workload.toLowerCase().includes(workload)) &&
         (!ip || a.ip.toLowerCase().includes(ip)));
-      document.getElementById('audit-results').innerHTML = auditRows(rows);
     }
-    document.getElementById('audit-search').addEventListener('click', runAuditSearch);
-    ['audit-op','audit-user','audit-workload','audit-ip'].forEach(id =>
-      document.getElementById(id).addEventListener('keydown', e => {
-        if (e.key === 'Enter') runAuditSearch();
-      }));
-    runAuditSearch();
+
+    function selectedRows(rows) {
+      return rows.filter(row => state.selected.has(row.time + '|' + row.user + '|' + row.op));
+    }
+
+    function estimateExport(rows) {
+      const count = rows.length;
+      return {
+        count,
+        size: `${Math.max(1, count * 9)} KB`,
+        limit: 'Mock preview capped at 50 rows in the lab; export packages are fictional and local only.',
+      };
+    }
+
+    function renderSearchTab(rows) {
+      const picked = selectedRows(rows);
+      const exportBase = picked.length ? picked : rows;
+      const exportInfo = state.exportSummary || estimateExport(exportBase);
+      return `
+        <div class="two-col" style="margin-top:14px;">
+          <section class="card card-body">
+            <div class="alert-section-title">Search audit events</div>
+            <div class="two-col">
+              <div><label class="lbl">Activity</label><input id="audit-op" class="ipt" value="${esc(state.filters.op)}" placeholder="FileDownloaded, UserLoggedIn, CopilotInteraction"></div>
+              <div><label class="lbl">User</label><input id="audit-user" class="ipt" value="${esc(state.filters.user)}" placeholder="user@contoso.com"></div>
+            </div>
+            <div class="two-col" style="margin-top:8px;">
+              <div><label class="lbl">Workload</label><input id="audit-workload" class="ipt" value="${esc(state.filters.workload)}" placeholder="AzureAD, SharePoint, OneDrive"></div>
+              <div><label class="lbl">IP address</label><input id="audit-ip" class="ipt" value="${esc(state.filters.ip)}" placeholder="76.21.55.4"></div>
+            </div>
+            <div class="sidepanel-footer" style="padding-top:12px; align-items:center;">
+              <button id="audit-search" class="btn btn-primary">Search</button>
+              <button id="audit-export" class="btn btn-secondary">Prepare export</button>
+              <span class="muted">${rows.length} matched rows</span>
+            </div>
+            <div class="callout info" style="margin-top:12px;">
+              Premium audit keeps older activity searchable and includes record types such as <strong>CopilotInteraction</strong>. Use it when the investigation spans beyond the default retention window.
+            </div>
+          </section>
+          <section class="card card-body">
+            <div class="alert-section-title">Audit export summary</div>
+            <div class="callout ${state.exportSummary ? 'success' : 'info'}">
+              <strong>${esc(exportInfo.count)} row preview</strong>
+              <div>${esc(exportInfo.size)}</div>
+              <div style="margin-top:4px;">${esc(exportInfo.limit)}</div>
+            </div>
+            ${state.exportSummary ? `
+              <div class="callout success" style="margin-top:12px;">
+                Export queued for ${esc(state.exportSummary.count)} rows from ${esc(state.exportSummary.source)}.
+              </div>
+            ` : ''}
+            <div class="alert-section-title" style="margin-top:12px;">Premium-only samples</div>
+            <table class="grid">
+              <thead><tr><th>Time</th><th>User</th><th>Workload</th><th>Detail</th></tr></thead>
+              <tbody>
+                ${AUDIT_COPILOT_EVENTS.map(a => `
+                  <tr>
+                    <td>${fmtTime(a.time)}</td>
+                    <td>${esc(a.user)}</td>
+                    <td>${esc(a.workload)}</td>
+                    <td class="kv">${esc(a.detail)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </section>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="card-toolbar">
+            <strong>Audit results</strong>
+            <span class="muted">${rows.length} matching rows</span>
+          </div>
+          <table class="grid">
+            <thead><tr><th></th><th>Date (UTC)</th><th>User</th><th>Operation</th><th>Workload</th><th>Item</th><th>IP</th></tr></thead>
+            <tbody>
+              ${rows.map(a => {
+                const id = a.time + '|' + a.user + '|' + a.op;
+                const checked = state.selected.has(id) ? 'checked' : '';
+                return `
+                  <tr>
+                    <td><input type="checkbox" class="audit-select" data-audit-id="${esc(id)}" ${checked}></td>
+                    <td>${fmtTime(a.time)}</td>
+                    <td>${esc(a.user)}</td>
+                    <td><strong>${esc(a.op)}</strong></td>
+                    <td>${esc(a.workload)}</td>
+                    <td class="kv">${esc(a.item)}</td>
+                    <td>${esc(a.ip)}</td>
+                  </tr>`;
+              }).join('') || '<tr><td colspan="7" class="muted">No matching audit events.</td></tr>'}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function renderPoliciesTab() {
+      return `
+        <div class="two-col" style="margin-top:14px;">
+          <section class="card card-body">
+            <div class="alert-section-title">Standard vs Premium</div>
+            <div class="two-col">
+              <div class="callout info">
+                <strong>Standard audit</strong>
+                <div>Good for recent activity and baseline triage. The lab keeps the surface intentionally small here.</div>
+              </div>
+              <div class="callout success">
+                <strong>Audit (Premium)</strong>
+                <div>Longer searchable retention, policy-based retention control, and record types like <strong>CopilotInteraction</strong>.</div>
+              </div>
+            </div>
+            <div class="callout warn" style="margin-top:12px;">
+              Premium search matters when the incident timeline crosses retention windows or when you need to track Copilot activity alongside mailbox and file events.
+            </div>
+          </section>
+          <section class="card card-body">
+            <div class="alert-section-title">Create retention policy</div>
+            <div class="two-col">
+              <div><label class="lbl">Policy name</label><input id="audit-policy-name" class="ipt" value="${esc(state.draft.name)}" placeholder="Finance quarterly retention"></div>
+              <div><label class="lbl">Users</label><input id="audit-policy-users" class="ipt" value="${esc(state.draft.users)}" placeholder="user1@contoso.com, user2@contoso.com"></div>
+            </div>
+            <div class="two-col" style="margin-top:8px;">
+              <div><label class="lbl">Record types</label><input id="audit-policy-recordtypes" class="ipt" value="${esc(state.draft.recordTypes)}" placeholder="ExchangeItem, CopilotInteraction"></div>
+              <div><label class="lbl">Duration</label><input id="audit-policy-duration" class="ipt" value="${esc(state.draft.duration)}" placeholder="90 days"></div>
+            </div>
+            <div class="two-col" style="margin-top:8px;">
+              <div><label class="lbl">Priority</label><input id="audit-policy-priority" class="ipt" value="${esc(state.draft.priority)}" placeholder="3"></div>
+              <div class="callout info" style="margin-top:0;">Priority decides which policy wins when a user matches more than one rule.</div>
+            </div>
+            <div class="sidepanel-footer" style="padding-top:12px;">
+              <button id="audit-policy-save" class="btn btn-primary">Save policy</button>
+            </div>
+          </section>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="card-toolbar">
+            <strong>Retention policy table</strong>
+            <span class="muted">${state.policies.length} policies</span>
+          </div>
+          <table class="grid">
+            <thead><tr><th>Name</th><th>Users</th><th>Record types</th><th>Duration</th><th>Priority</th></tr></thead>
+            <tbody>
+              ${state.policies.map(p => `
+                <tr>
+                  <td><strong>${esc(p.name)}</strong></td>
+                  <td>${esc(p.users.length ? p.users.join(', ') : 'All users')}</td>
+                  <td>${esc(p.recordTypes.join(', '))}</td>
+                  <td>${esc(p.duration)}</td>
+                  <td>${esc(p.priority)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function renderExportTab(rows) {
+      const selectedCount = state.selected.size;
+      const exportRows = selectedCount ? rows.filter(r => state.selected.has(r.time + '|' + r.user + '|' + r.op)) : rows;
+      const preview = estimateExport(exportRows);
+      return `
+        <div class="two-col" style="margin-top:14px;">
+          <section class="card card-body">
+            <div class="alert-section-title">Export workflow</div>
+            <ol style="margin:0; padding-left:18px; line-height:1.7;">
+              <li>Run a search and pick the rows you want to investigate.</li>
+              <li>Prepare a mock export for the selected rows, or export the filtered set if nothing is selected.</li>
+              <li>Keep the package local; this lab never calls a real Purview service.</li>
+            </ol>
+            <div class="callout info" style="margin-top:12px;">
+              Export preview respects the current search filters and selected checkboxes. The mock package estimates size from row count only.
+            </div>
+          </section>
+          <section class="card card-body">
+            <div class="alert-section-title">Export limits</div>
+            <div class="callout warn">
+              <strong>${esc(preview.count)} rows selected for export</strong>
+              <div>${esc(preview.size)} package estimate</div>
+              <div style="margin-top:4px;">Fictional lab limit: preview bundles stay under 50 rows.</div>
+            </div>
+            ${state.exportSummary ? `
+              <div class="callout success" style="margin-top:12px;">
+                Latest export request: ${esc(state.exportSummary.count)} rows from ${esc(state.exportSummary.source)}.
+              </div>
+            ` : ''}
+          </section>
+        </div>`;
+    }
+
+    function render() {
+      const rows = filteredRows();
+      root.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="breadcrumb">Purview › <strong>Audit</strong></div>
+            <h1>Audit search</h1>
+            <div class="page-subtitle">Search standard and premium audit events, create retention policies, and prepare local export previews.</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-secondary" data-audit-tab="search">Search</button>
+            <button class="btn btn-secondary" data-audit-tab="policies">Retention policies</button>
+            <button class="btn btn-secondary" data-audit-tab="export">Export</button>
+          </div>
+        </div>
+        <div class="card card-body">
+          <div class="two-col">
+            <div class="callout info">
+              <strong>Standard vs Premium</strong>
+              <div>Standard audit is enough for recent triage. Premium adds longer retention, policy-based control, and CopilotInteraction visibility for this lab.</div>
+            </div>
+            <div class="callout success">
+              <strong>Searchable record types</strong>
+              <div>Use the search form to query file activity, role changes, app consent, risky sign-ins, and Copilot interactions across the lab fixtures.</div>
+            </div>
+          </div>
+          <div class="tabs" style="margin-top:12px;">
+            <span class="tab ${state.tab === 'search' ? 'active' : ''}" data-audit-tab="search">Search</span>
+            <span class="tab ${state.tab === 'policies' ? 'active' : ''}" data-audit-tab="policies">Retention policies</span>
+            <span class="tab ${state.tab === 'export' ? 'active' : ''}" data-audit-tab="export">Export</span>
+          </div>
+        </div>
+        <div id="audit-section">
+          ${state.tab === 'search' ? renderSearchTab(rows) : state.tab === 'policies' ? renderPoliciesTab() : renderExportTab(rows)}
+        </div>`;
+
+      const bind = () => {
+        root.querySelectorAll('[data-audit-tab]').forEach(el => {
+          el.addEventListener('click', () => {
+            state.tab = el.getAttribute('data-audit-tab');
+            state.exportSummary = null;
+            render();
+          });
+        });
+
+        if (state.tab === 'search') {
+          ['audit-op', 'audit-user', 'audit-workload', 'audit-ip'].forEach(id => {
+            const input = document.getElementById(id);
+            if (!input) return;
+            input.addEventListener('input', () => {
+              state.filters[id.replace('audit-', '')] = input.value;
+              state.selected.clear();
+              state.exportSummary = null;
+              render();
+            });
+          });
+          const searchBtn = document.getElementById('audit-search');
+          if (searchBtn) searchBtn.addEventListener('click', () => render());
+          const exportBtn = document.getElementById('audit-export');
+          if (exportBtn) exportBtn.addEventListener('click', () => {
+            const exportRows = selectedRows(rows);
+            const effective = exportRows.length ? exportRows : rows;
+            state.exportSummary = {
+              source: selectedRows(rows).length ? 'selected rows' : 'filtered rows',
+              count: effective.length,
+              size: `${Math.max(1, effective.length * 9)} KB`,
+            };
+            state.tab = 'export';
+            render();
+          });
+          root.querySelectorAll('.audit-select').forEach(cb => {
+            cb.addEventListener('change', () => {
+              const id = cb.getAttribute('data-audit-id');
+              if (cb.checked) state.selected.add(id);
+              else state.selected.delete(id);
+            });
+          });
+        }
+
+        if (state.tab === 'policies') {
+          ['audit-policy-name', 'audit-policy-users', 'audit-policy-recordtypes', 'audit-policy-duration', 'audit-policy-priority'].forEach(id => {
+            const input = document.getElementById(id);
+            if (!input) return;
+            input.addEventListener('input', () => {
+              state.draft[id.replace('audit-policy-', '')] = input.value;
+            });
+          });
+          const save = document.getElementById('audit-policy-save');
+          if (save) save.addEventListener('click', () => {
+            const name = document.getElementById('audit-policy-name').value.trim();
+            const users = document.getElementById('audit-policy-users').value.split(',').map(s => s.trim()).filter(Boolean);
+            const recordTypes = document.getElementById('audit-policy-recordtypes').value.split(',').map(s => s.trim()).filter(Boolean);
+            const duration = document.getElementById('audit-policy-duration').value.trim() || '90 days';
+            const priority = Number(document.getElementById('audit-policy-priority').value.trim() || '3');
+            if (!name) {
+              toast('Add a policy name first.');
+              return;
+            }
+            state.policies.unshift({ name, users, recordTypes, duration, priority });
+            state.draft = { name:'', users:'', recordTypes:'ExchangeItem, SharePointFileOperation', duration:'90 days', priority:'3' };
+            state.exportSummary = null;
+            render();
+            toast('Retention policy saved in the lab.');
+          });
+        }
+      };
+      bind();
+    }
+
+    render();
   }
 });
 
@@ -7468,48 +7762,264 @@ VIEWS['defender/vulnerabilities'] = () => {
 
 // --- v18-defender-threat-explorer ---
 // nav: Email & collaboration | Threat explorer | 📧
-VIEWS['defender/threat-explorer'] = () => `
+VIEWS['defender/threat-explorer'] = () => ({
+  html: `<div id="threat-explorer-root"></div>`,
+  onMount: () => {
+    const root = document.getElementById('threat-explorer-root');
+    const campaigns = THREAT_EXPLORER_CAMPAIGNS;
+    const state = {
+      pivot: 'all',
+      campaign: campaigns[0]?.name || 'Invoice lure June',
+      selectedId: TX_EMAILS[0]?.id || '',
+      selectedBatch: new Set([TX_EMAILS[0]?.id].filter(Boolean)),
+      remediation: null,
+    };
+
+    function visibleEmails() {
+      let rows = TX_EMAILS.slice();
+      if (state.pivot === 'phish') rows = rows.filter(e => e.verdict === 'Phish');
+      if (state.pivot === 'malware') rows = rows.filter(e => e.verdict === 'Malware');
+      if (state.pivot === 'campaign') rows = rows.filter(e => e.campaign === state.campaign);
+      return rows;
+    }
+
+    function setSelected(id) {
+      state.selectedId = id;
+      state.selectedBatch.add(id);
+      render();
+    }
+
+    function topTargets(rows) {
+      const counts = new Map();
+      rows.forEach(row => counts.set(row.recipient, (counts.get(row.recipient) || 0) + 1));
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    }
+
+    function detailFor(email) {
+      if (!email) return '<div class="muted">Select an email to inspect headers, verdict, and response actions.</div>';
+      const actionList = email.verdict === 'Malware'
+        ? ['Quarantine message', 'Block sender domain', 'Sweep matching attachments', 'Notify the recipient owner']
+        : email.verdict === 'Phish'
+          ? ['Soft delete message', 'Revoke user sessions', 'Search and purge campaign', 'Check for follow-on consent']
+          : ['Review delivery action', 'Confirm no user impact', 'Keep for reference'];
+      const authResults = email.verdict === 'Malware'
+        ? 'spf=pass dkim=pass dmarc=fail'
+        : 'spf=pass dkim=pass dmarc=bestguesspass';
+      return `
+        <dl class="alert-meta">
+          <dt>Subject</dt><dd>${esc(email.subject)}</dd>
+          <dt>Sender</dt><dd>${esc(email.sender)}</dd>
+          <dt>Recipient</dt><dd>${esc(email.recipient)}</dd>
+          <dt>Verdict</dt><dd><span class="sev ${email.verdict === 'Malware' ? 'high' : email.verdict === 'Phish' ? 'medium' : 'low'}">${esc(email.verdict)}</span></dd>
+          <dt>Delivery</dt><dd>${esc(email.deliveryAction)}</dd>
+          <dt>Campaign</dt><dd>${esc(email.campaign)}</dd>
+        </dl>
+        <div class="alert-section-title">Header summary</div>
+        <div class="kv">
+          <div><span class="k">Message-ID:</span> &lt;${esc(email.id)}@mail.lab.example&gt;</div>
+          <div><span class="k">Authentication-Results:</span> ${esc(authResults)}</div>
+          <div><span class="k">Return-Path:</span> ${esc(email.sender)}</div>
+          <div><span class="k">Received:</span> from mail-gateway.lab.example by defender-lab</div>
+        </div>
+        <div class="alert-section-title">Delivery and ZAP actions</div>
+        <div class="callout ${email.verdict === 'Malware' ? 'warn' : 'info'}">
+          <strong>${esc(email.deliveryAction)}</strong>
+          <div>${email.verdict === 'Malware' ? 'Malware payload was quarantined or removed by ZAP. Review the attachment and sender lineage before release.' : 'Phish message is a candidate for soft delete, user purge, and follow-on session revocation.'}</div>
+        </div>
+        <ul style="margin:10px 0 0; padding-left:18px; line-height:1.7;">${actionList.map(action => `<li>${esc(action)}</li>`).join('')}</ul>
+      `;
+    }
+
+    function renderCampaignCards() {
+      return campaigns.map(c => `
+        <button class="tile" type="button" data-campaign="${esc(c.name)}" style="text-align:left; width:100%; border:none; background:#fff;">
+          <strong>${esc(c.name)}</strong>
+          <span>${esc(c.verdict)} wave · ${esc(c.messageCount)} messages · ${esc(c.summary)}</span>
+        </button>
+      `).join('');
+    }
+
+    function render() {
+      const rows = visibleEmails();
+      const selected = rows.find(r => r.id === state.selectedId) || rows[0] || TX_EMAILS[0];
+      const phishCount = TX_EMAILS.filter(e => e.verdict === 'Phish').length;
+      const malwareCount = TX_EMAILS.filter(e => e.verdict === 'Malware').length;
+      const zapCount = TX_EMAILS.filter(e => e.deliveryAction.toLowerCase().includes('zap') || e.deliveryAction === 'Removed by ZAP').length;
+      const targetRows = topTargets(TX_EMAILS);
+      root.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="breadcrumb">Email & collaboration › <strong>Threat explorer</strong></div>
+            <h1>Threat explorer</h1>
+            <div class="page-subtitle">Pivot by verdict or campaign, inspect message entities, and queue a mock remediation batch.</div>
+          </div>
+          <div class="page-actions">
+            <a class="btn btn-secondary" href="#/defender/email-collab">Email &amp; collaboration</a>
+            <a class="btn btn-secondary" href="#/defender/email-collab/threat-explorer/campaigns">Campaign pivots</a>
+            <button class="btn btn-primary" id="remediate-selected">Remediate selected</button>
+          </div>
+        </div>
+        <div class="kpi-strip">
+          <div class="kpi"><span class="kpi-label">Phish count</span><span class="kpi-value">${phishCount}</span></div>
+          <div class="kpi"><span class="kpi-label">Malware count</span><span class="kpi-value">${malwareCount}</span></div>
+          <div class="kpi"><span class="kpi-label">ZAP removals</span><span class="kpi-value">${zapCount}</span></div>
+          <div class="kpi"><span class="kpi-label">Campaigns</span><span class="kpi-value">${campaigns.length}</span></div>
+        </div>
+        <div class="card card-body">
+          <div class="tabs">
+            <span class="tab ${state.pivot === 'all' ? 'active' : ''}" data-pivot="all">All</span>
+            <span class="tab ${state.pivot === 'phish' ? 'active' : ''}" data-pivot="phish">Phish</span>
+            <span class="tab ${state.pivot === 'malware' ? 'active' : ''}" data-pivot="malware">Malware</span>
+            <span class="tab ${state.pivot === 'campaign' ? 'active' : ''}" data-pivot="campaign">Campaigns</span>
+          </div>
+          <div class="callout info" style="margin-top:12px;">
+            The table below reflects the active pivot. Use checkboxes to batch a local remediation preview, then inspect one message in the detail pane.
+          </div>
+        </div>
+        <div class="two-col" style="margin-top:16px;">
+          <section class="card">
+            <div class="card-toolbar">
+              <strong>Message queue</strong>
+              <span class="muted">${rows.length} rows in the current pivot</span>
+            </div>
+            <table class="grid">
+              <thead><tr><th></th><th>Time</th><th>Subject</th><th>Sender</th><th>Recipient</th><th>Verdict</th><th>Delivery action</th><th>Campaign</th></tr></thead>
+              <tbody>
+                ${rows.map(e => `
+                  <tr class="${e.id === selected.id ? 'selected' : ''}">
+                    <td><input type="checkbox" class="threat-select" data-email-id="${esc(e.id)}" ${state.selectedBatch.has(e.id) ? 'checked' : ''}></td>
+                    <td>${esc(fmtTime(e.time))}</td>
+                    <td><button class="link-button strong threat-row" type="button" data-email-id="${esc(e.id)}">${esc(e.subject)}</button></td>
+                    <td>${esc(e.sender)}</td>
+                    <td>${esc(e.recipient)}</td>
+                    <td><span class="sev ${e.verdict === 'Malware' ? 'high' : e.verdict === 'Phish' ? 'medium' : 'low'}">${esc(e.verdict)}</span></td>
+                    <td>${esc(e.deliveryAction)}</td>
+                    <td>${esc(e.campaign)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            ${state.remediation ? `
+              <div class="callout success" style="margin-top:12px;">
+                ${esc(state.remediation)}
+              </div>
+            ` : ''}
+          </section>
+          <section class="card card-body">
+            <div class="card-toolbar">
+              <strong>Email entity detail</strong>
+              <span class="muted">${selected ? esc(selected.id) : 'No selection'}</span>
+            </div>
+            ${detailFor(selected)}
+          </section>
+        </div>
+        <div class="two-col" style="margin-top:16px;">
+          <section class="card card-body">
+            <div class="card-toolbar">
+              <strong>Top targeted users</strong>
+              <span class="muted">Recipient counts from the corpus</span>
+            </div>
+            <table class="grid">
+              <thead><tr><th>User</th><th>Messages</th><th>Why it matters</th></tr></thead>
+              <tbody>
+                ${targetRows.map(([user, count]) => `
+                  <tr>
+                    <td>${esc(user)}</td>
+                    <td>${count}</td>
+                    <td>${count > 2 ? 'Repeated target across lure waves' : 'Single-message target worth reviewing'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </section>
+          <section class="card card-body">
+            <div class="card-toolbar">
+              <strong>Campaign pivots</strong>
+              <span class="muted">Click a card to narrow to one wave</span>
+            </div>
+            <div class="tile-grid">${renderCampaignCards()}</div>
+          </section>
+        </div>
+      `;
+
+      root.querySelectorAll('[data-pivot]').forEach(tab => {
+        tab.addEventListener('click', () => {
+          state.pivot = tab.getAttribute('data-pivot');
+          if (state.pivot !== 'campaign') state.campaign = campaigns[0]?.name || state.campaign;
+          const visible = visibleEmails();
+          state.selectedId = visible[0]?.id || TX_EMAILS[0]?.id || '';
+          render();
+        });
+      });
+      root.querySelectorAll('.threat-row').forEach(btn => {
+        btn.addEventListener('click', () => setSelected(btn.getAttribute('data-email-id')));
+      });
+      root.querySelectorAll('.threat-select').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const id = cb.getAttribute('data-email-id');
+          if (cb.checked) state.selectedBatch.add(id);
+          else state.selectedBatch.delete(id);
+        });
+      });
+      root.querySelectorAll('[data-campaign]').forEach(card => {
+        card.addEventListener('click', () => {
+          state.pivot = 'campaign';
+          state.campaign = card.getAttribute('data-campaign');
+          const visible = visibleEmails();
+          state.selectedId = visible[0]?.id || TX_EMAILS[0]?.id || '';
+          render();
+        });
+      });
+      const remediate = document.getElementById('remediate-selected');
+      if (remediate) remediate.addEventListener('click', () => {
+        const chosen = rows.filter(r => state.selectedBatch.has(r.id));
+        const batch = chosen.length ? chosen : (selected ? [selected] : []);
+        state.remediation = batch.length
+          ? `Queued ${batch.length} message${batch.length === 1 ? '' : 's'} for soft delete and ZAP cleanup in the lab.`
+          : 'Select one or more messages first.';
+        render();
+        toast(state.remediation);
+      });
+    }
+
+    render();
+  }
+});
+
+VIEWS['defender/email-collab/threat-explorer/campaigns'] = () => `
   <div class="page-header">
     <div>
-      <div class="breadcrumb">Email & collaboration › <strong>Explorer</strong></div>
-      <h1>Threat explorer</h1>
-      <div class="page-subtitle">Explore and manage threats across malicious emails.</div>
+      <div class="breadcrumb">Email &amp; collaboration › <strong>Threat explorer › Campaigns</strong></div>
+      <h1>Campaign pivots</h1>
+      <div class="page-subtitle">Break the mail corpus into lure waves, affected users, and the response pattern you would take in the portal.</div>
     </div>
     <div class="page-actions">
-      <a class="btn btn-secondary" href="#/defender/email-collab">Email & collaboration</a>
-      <button class="btn btn-primary" onclick="toast('Selected messages queued for remediation (soft delete) — fictional.')">Remediate</button>
+      <a class="btn btn-secondary" href="#/defender/threat-explorer">Back to explorer</a>
     </div>
   </div>
-
-  <div class="grid">
-    <div class="kpi"><div class="kpi-value">5</div><div class="kpi-label">Phish count</div></div> 
-    <div class="kpi"><div class="kpi-value">3</div><div class="kpi-label">Malware count</div></div>
-    <div class="kpi"><div class="kpi-value">7</div><div class="kpi-label">ZAP removed count</div></div> 
-    <div class="kpi">
-      <span class="chip-link" href="#/defender/email-collab/threat-explorer/campaigns"></span>
-      <span class="badge badge-pill badge-secondary">Campaigns = 2</span> 
-    </div> 
+  <div class="two-col">
+    <section class="card card-body">
+      <div class="alert-section-title">Campaign summaries</div>
+      ${THREAT_EXPLORER_CAMPAIGNS.map(c => `
+        <div class="callout ${c.verdict === 'Malware' ? 'warn' : 'info'}" style="margin-top:12px;">
+          <strong>${esc(c.name)}</strong>
+          <div>${esc(c.summary)}</div>
+          <div style="margin-top:4px;">Messages: ${esc(c.messageCount)} · Targets: ${esc(c.topTargets.join(', '))}</div>
+          <div style="margin-top:4px;">${esc(c.deliveryActions)}</div>
+        </div>
+      `).join('')}
+    </section>
+    <section class="card card-body">
+      <div class="alert-section-title">Guidance</div>
+      <ul style="margin:0; padding-left:18px; line-height:1.7;">
+        <li>Use verdict pivots to separate phish from malware before you decide on response scope.</li>
+        <li>Use campaign pivots when the same sender pattern or lure text repeats across multiple messages.</li>
+        <li>Use entity detail to review headers, authentication clues, and ZAP/delivery actions before remediation.</li>
+      </ul>
+      <div class="callout success" style="margin-top:12px;">
+        Selected batches stay local to the lab. No real mailboxes, exports, or purge actions are touched.
+      </div>
+    </section>
   </div>
-
-  <table class="grid">
-    <thead><tr><th>Time</th><th>Subject</th><th>Sender</th><th>Recipient</th><th>Verdict</th><th>Threat</th><th>Delivery action</th><th>Campaign</th></tr></thead>
-    <tbody>
-      ${TX_EMAILS.map((e) => `
-        <tr>
-          <td>${esc(fmtTime(e.time))}</td>
-          <td>${esc(e.subject)}</td>
-          <td>${esc(e.sender)}</td>
-          <td>${esc(e.recipient)}</td>
-          <td class="${e.verdict !== 'Clean' ? (e.verdict === 'Phish' || e.verdict === 'Malware' ? 'text-danger' : '') : ''}">${esc(cap(e.verdict))}</td>
-          <td>${esc(e.threat)}</td>
-          <td class="${e.deliveryAction === 'Delivered' ? 'text-warning' : ''}">${esc(e.deliveryAction)}</td>
-          <td><span class="badge badge-${['Invoice lure June', 'Payroll update lure'].includes(esc(e.campaign)) ? (cap(cap(e.campaign))) : 'secondary'}">${esc(e.campaign === 'None' ? '—' : e.campaign)}</span></td>
-        </tr>`).join('')}
-      </tbody>
-  </table>
-
-  <div class="card card-body">
-    Using the explorer, learners can pivot by verdict and campaign to understand patterns. Phish and malware are flagged with high severity. Remediation queues soft delete for phished emails that have been delivered or were already zapped.
-    Campaign views reveal how lures are used in waves to target organizations.
-  </div>`
+`;
 // === end local-tasks views ===
