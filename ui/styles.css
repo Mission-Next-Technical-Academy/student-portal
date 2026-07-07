@@ -462,6 +462,15 @@ button.tab:hover { background: transparent; }
   min-height: 140px;
   transition: box-shadow 0.12s ease, transform 0.12s ease;
 }
+.tile, button.tile {
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.tile {
+  appearance: none;
+  width: 100%;
+}
 .tile:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
 .tile-title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .tile-icon  { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
@@ -2057,6 +2066,11 @@ body.route-defender-hunting .content {
 .saved-query-row {
   border-radius: 2px;
   line-height: 1.25;
+}
+.saved-query-row.active {
+  background: var(--bg-selected);
+  border-left: 3px solid var(--workload);
+  padding-left: 5px;
 }
 .saved-query-row small {
   color: var(--fg-muted);

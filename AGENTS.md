@@ -274,18 +274,18 @@ transcripts, promptbooks, plugins, capacity — see
 ## Agent 13 — KQL practice depth (GAP_BRIDGE wave, M/L)
 Corpus: kql summarize 171, parsing 182, joins 64 chunks; lab evaluator
 covers only canned basics. Extend hunting surfaces, don't fork them.
-- [ ] **13.1** Extend the local mock evaluator (`app.js` hunting
+- [x] **13.1** Extend the local mock evaluator (`app.js` hunting
   executor) to genuinely evaluate over fixture rows: `union`, `join`
   (inner/leftouter at minimum), `summarize` with `bin()`, `dcount()`,
   `arg_max()`, `parse`/`extract()`/`parse_json()`/`split()`, `let`
   bindings, and `externaldata` (serve a tiny local CSV fixture).
-- [ ] **13.2** `render` operator support: `timechart`/`barchart`/
+- [x] **13.2** `render` operator support: `timechart`/`barchart`/
   `piechart` results draw a simple original CSS/SVG chart in the results
   pane on `#/sentinel/logs` and `#/defender/hunting`.
-- [ ] **13.3** A guided KQL exercise set (8–12 tasks: filter → project →
+- [x] **13.3** A guided KQL exercise set (8–12 tasks: filter → project →
   summarize → join → parse → render) with check-my-answer against
   expected row counts, surfaced from `#/sentinel/logs`.
-- [ ] **13.4** ASIM beyond DNS: add `imAuthentication` and
+- [x] **13.4** ASIM beyond DNS: add `imAuthentication` and
   `imNetworkSession` parser-style hunting pages/fixtures mirroring
   `#/sentinel/hunting/dns`, plus a normalization study card comparing
   source columns → ASIM columns.

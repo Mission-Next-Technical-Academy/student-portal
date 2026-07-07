@@ -963,7 +963,7 @@ const HUNTING_GRAPH_FILTERS = [
 const SAVED_QUERIES = [
   { name:'Process executions from Public folder',
     table:'DeviceProcessEvents', description:'Binaries running out of C:\\Users\\Public are commonly attacker staging.',
-    query:`DeviceProcessEvents\n| where FolderPath startswith "C:\\\\Users\\\\Public"\n| where InitiatingProcessFileName !in ("explorer.exe","msiexec.exe")\n| project Timestamp, DeviceName, FileName, FolderPath, SHA256, AccountName\n| top 100 by Timestamp desc` },
+    query:`DeviceProcessEvents\n| where FolderPath startswith "C:\\Users\\Public"\n| where InitiatingProcessFileName !in ("explorer.exe","msiexec.exe")\n| where SHA256 has "c"\n| project Timestamp, DeviceName, FileName, FolderPath, SHA256, AccountName\n| top 100 by Timestamp desc` },
   { name:'OAuth consent to risky apps',
     table:'CloudAppEvents', description:'New OAuth consent grants to apps with broad mail/files scopes.',
     query:`CloudAppEvents\n| where ActionType == "Consent to application"\n| extend Perms = tostring(RawEventData.ModifiedProperties)\n| where Perms has_any ("Mail.ReadWrite","Files.Read.All","User.Read.All")\n| project Timestamp, AccountDisplayName, ApplicationId, Perms` },
@@ -996,6 +996,18 @@ const SAVED_QUERIES = [
     query:`MicrosoftGraphActivityLogs\n| where AppDisplayName == "DocViewer Pro"\n| project TimeGenerated, UserPrincipalName, AppDisplayName, Operation, RequestUri, IPAddress, ResultStatus` },
 ];
 
+const KQL_PRACTICE_ROWS = [
+  { TimeGenerated:'2026-07-06T09:10:00Z', Scenario:'endpoint staging',
+    Message:'user=jane.doe@contoso.com ip=76.21.55.4 action=allow', Payload:'{"user":"jane.doe@contoso.com","device":"WKS-03","risk":"High"}', Tags:'finance|priority|cloud',
+    Domain:'secure-document-portal.xyz', Source:'DeviceProcessEvents' },
+  { TimeGenerated:'2026-07-06T10:12:00Z', Scenario:'identity pivot',
+    Message:'user=sam.lee@contoso.com ip=91.219.236.54 action=block', Payload:'{"user":"sam.lee@contoso.com","device":"WKS-11","risk":"Medium"}', Tags:'identity|risk|mfa',
+    Domain:'login.contoso.example', Source:'SigninLogs' },
+  { TimeGenerated:'2026-07-06T10:14:00Z', Scenario:'cloud app follow-up',
+    Message:'user=maria.ross@contoso.com ip=185.199.111.12 action=alert', Payload:'{"user":"maria.ross@contoso.com","device":"LAP-07","risk":"High"}', Tags:'cloud|oauth|mail',
+    Domain:'bad-demo.example', Source:'CloudAppEvents' },
+];
+
 const MOCK_QUERY_RESULTS = {
   DeviceInfo: [
     { Timestamp:'2026-06-28T15:02:11Z', DeviceName:'WKS-03', OSPlatform:'Windows 11 Enterprise',
@@ -1021,7 +1033,9 @@ const MOCK_QUERY_RESULTS = {
   ],
   CloudAppEvents: [
     { Timestamp:'2026-06-28T08:23:00Z', AccountDisplayName:'Jane Doe',
-      ApplicationId:'b9f2…ad21', Perms:'Mail.ReadWrite, Files.Read.All' },
+      ApplicationId:'b9f2…ad21', ActionType:'Consent to application',
+      RawEventData:{ ModifiedProperties:'Mail.ReadWrite, Files.Read.All' },
+      Perms:'Mail.ReadWrite, Files.Read.All' },
     { Timestamp:'2026-06-28T07:52:14Z', AccountDisplayName:'aws-prod-breakglass',
       ActionType:'PutBucketAcl', BucketName:'aws-s3-prod-logs', AccessLevel:'public-read' },
   ],
@@ -1040,39 +1054,54 @@ const MOCK_QUERY_RESULTS = {
       RequestUri:'/users?$select=id,userPrincipalName', IPAddress:'91.219.236.54', ResultStatus:'ConditionalAccessBlocked' },
   ],
   DeviceLogonEvents: [
-    { Timestamp:'2026-06-28T03:44:05Z', DeviceName:'FIN-FS-02', ActionType:'LogonSuccess',
+    { Timestamp:'2026-07-06T03:44:05Z', DeviceName:'FIN-FS-02', ActionType:'LogonSuccess',
       LogonType:'Network', AccountName:'svc-backup', AccountDomain:'CONTOSO',
       AccountSid:'S-1-5-21-1180699209-877415012-3182924384-1144',
       RemoteIP:'10.20.4.55', RemoteDeviceName:'DC01', Protocol:'Kerberos', IsLocalAdmin:false },
-    { Timestamp:'2026-06-28T10:17:55Z', DeviceName:'FIN-FS-02', ActionType:'LogonSuccess',
+    { Timestamp:'2026-07-06T10:17:55Z', DeviceName:'FIN-FS-02', ActionType:'LogonSuccess',
       LogonType:'RemoteInteractive', AccountName:'fin-svc', AccountDomain:'CONTOSO',
       AccountSid:'S-1-5-21-1180699209-877415012-3182924384-2207',
       RemoteIP:'10.20.7.14', RemoteDeviceName:'WKS-03', Protocol:'NTLM', IsLocalAdmin:true },
-    { Timestamp:'2026-06-28T14:59:48Z', DeviceName:'WKS-03', ActionType:'LogonFailed',
+    { Timestamp:'2026-07-06T14:59:48Z', DeviceName:'WKS-03', ActionType:'LogonFailed',
       LogonType:'Interactive', AccountName:'jdoe', AccountDomain:'CONTOSO',
       AccountSid:'S-1-5-21-1180699209-877415012-3182924384-1812',
       FailureReason:'BadPassword', Protocol:'Kerberos', IsLocalAdmin:false },
-    { Timestamp:'2026-06-28T15:00:00Z', DeviceName:'WKS-03', ActionType:'LogonSuccess',
+    { Timestamp:'2026-07-06T14:59:52Z', DeviceName:'WKS-03', ActionType:'LogonFailed',
+      LogonType:'Interactive', AccountName:'jdoe', AccountDomain:'CONTOSO',
+      AccountSid:'S-1-5-21-1180699209-877415012-3182924384-1812',
+      FailureReason:'BadPassword', Protocol:'Kerberos', IsLocalAdmin:false },
+    { Timestamp:'2026-07-06T14:59:57Z', DeviceName:'WKS-03', ActionType:'LogonFailed',
+      LogonType:'Interactive', AccountName:'jdoe', AccountDomain:'CONTOSO',
+      AccountSid:'S-1-5-21-1180699209-877415012-3182924384-1812',
+      FailureReason:'BadPassword', Protocol:'Kerberos', IsLocalAdmin:false },
+    { Timestamp:'2026-07-06T15:00:00Z', DeviceName:'WKS-03', ActionType:'LogonSuccess',
       LogonType:'Interactive', AccountName:'jdoe', AccountDomain:'CONTOSO',
       AccountSid:'S-1-5-21-1180699209-877415012-3182924384-1812',
       RemoteIP:'', Protocol:'Kerberos', IsLocalAdmin:false },
   ],
   IdentityLogonEvents: [
-    { Timestamp:'2026-06-28T03:44:00Z', ActionType:'LogonSuccess', Application:'Active Directory',
+    { Timestamp:'2026-07-06T03:44:00Z', ActionType:'LogonSuccess', Application:'Active Directory',
       LogonType:'Network', Protocol:'Kerberos',
       AccountName:'svc-backup', AccountDomain:'CONTOSO',
       AccountUpn:'svc-backup@contoso.com',
       AccountSid:'S-1-5-21-1180699209-877415012-3182924384-1144',
       AccountObjectId:'9b21a4e0-1f44-4b13-9fd0-1f6b8a3c0011',
       DeviceName:'DC01', IPAddress:'10.20.4.55', DestinationDeviceName:'DC01' },
-    { Timestamp:'2026-06-28T10:17:58Z', ActionType:'LogonSuccess', Application:'Active Directory',
+    { Timestamp:'2026-07-06T03:46:00Z', ActionType:'DirectoryServicesReplication', Application:'Active Directory',
+      LogonType:'Network', Protocol:'Kerberos',
+      AccountName:'svc-backup', AccountDomain:'CONTOSO',
+      AccountUpn:'svc-backup@contoso.com',
+      AccountSid:'S-1-5-21-1180699209-877415012-3182924384-1144',
+      AccountObjectId:'9b21a4e0-1f44-4b13-9fd0-1f6b8a3c0011',
+      DeviceName:'DC01', IPAddress:'10.20.4.55', DestinationDeviceName:'DC01' },
+    { Timestamp:'2026-07-06T10:17:58Z', ActionType:'LogonSuccess', Application:'Active Directory',
       LogonType:'Remote interactive', Protocol:'NTLM',
       AccountName:'fin-svc', AccountDomain:'CONTOSO',
       AccountUpn:'fin-svc@contoso.com',
       AccountSid:'S-1-5-21-1180699209-877415012-3182924384-2207',
       AccountObjectId:'1c54f7d2-8e09-4d3b-b71a-2cf90a4f7d22',
       DeviceName:'WKS-03', IPAddress:'10.20.7.14', DestinationDeviceName:'FIN-FS-02' },
-    { Timestamp:'2026-06-28T14:59:55Z', ActionType:'LogonFailed', Application:'Active Directory',
+    { Timestamp:'2026-07-06T14:59:55Z', ActionType:'LogonFailed', Application:'Active Directory',
       LogonType:'Interactive', Protocol:'Kerberos', FailureReason:'BadPassword',
       AccountName:'jdoe', AccountDomain:'CONTOSO',
       AccountUpn:'jane.doe@contoso.com',
@@ -1133,7 +1162,235 @@ const MOCK_QUERY_RESULTS = {
     { TimeGenerated:'2026-07-06T08:39:02Z', AppId:'app-expense-portal',
       UserPrincipalName:'sam.lee@contoso.com', SourceIp:'203.0.113.89', RiskScore:78, Action:'HighRiskTokenUse' },
   ],
+  KQLPractice_CL: KQL_PRACTICE_ROWS,
 };
+
+const KQL_EXTERNALDATA_CSV = `Domain,Category,Priority
+secure-document-portal.xyz,phish,1
+login.contoso.example,auth,2
+bad-demo.example,phish,1
+update.example,benign,3`;
+
+const ASIM_AUTHENTICATION_ROWS = [
+  { TimeGenerated:'2026-07-06T03:44:00Z', EventVendor:'Microsoft', EventProduct:'Windows', EventSchema:'Authentication', EventType:'Logon', EventResult:'Success',
+    SrcIpAddr:'10.20.4.55', DstIpAddr:'10.20.4.10', SrcHostname:'DC01', DstHostname:'DC01', TargetUserName:'svc-backup', DvcAction:'LogonSuccess', Dvc:'DC01' },
+  { TimeGenerated:'2026-07-06T10:17:58Z', EventVendor:'Microsoft', EventProduct:'Entra ID', EventSchema:'Authentication', EventType:'Logon', EventResult:'Success',
+    SrcIpAddr:'91.219.236.54', DstIpAddr:'52.96.0.0', SrcHostname:'unknown', DstHostname:'login.microsoftonline.com', TargetUserName:'sam.lee@contoso.com', DvcAction:'MFA satisfied', Dvc:'AAD' },
+  { TimeGenerated:'2026-07-06T13:27:00Z', EventVendor:'Microsoft', EventProduct:'Entra ID', EventSchema:'Authentication', EventType:'Logon', EventResult:'Failure',
+    SrcIpAddr:'91.219.236.54', DstIpAddr:'52.96.0.0', SrcHostname:'proxy-91-219-236-54', DstHostname:'login.microsoftonline.com', TargetUserName:'sam.lee@contoso.com', DvcAction:'Risky sign-in', Dvc:'AAD' },
+  { TimeGenerated:'2026-07-06T06:40:00Z', EventVendor:'Microsoft', EventProduct:'Entra ID', EventSchema:'Authentication', EventType:'Logon', EventResult:'Success',
+    SrcIpAddr:'185.199.111.12', DstIpAddr:'52.96.0.0', SrcHostname:'aitm-gateway', DstHostname:'login.microsoftonline.com', TargetUserName:'maria.ross@contoso.com', DvcAction:'MFA proxied', Dvc:'AAD' },
+];
+
+const ASIM_AUTHENTICATION_SAVED_QUERIES = [
+  {
+    name:'Risky sign-ins and logons',
+    description:'Identify successful and failed authentication rows for a user after a suspicious sign-in.',
+    expectedRows:3,
+    query:`_Im_Authentication(starttime=ago(1d), eventtype="Logon")
+| where TargetUserName in ("sam.lee@contoso.com","maria.ross@contoso.com")
+| project TimeGenerated, SrcIpAddr, TargetUserName, EventProduct, EventResult, DvcAction`,
+  },
+  {
+    name:'Failed sign-ins from one IP',
+    description:'Filter the normalized auth rows to an attacker source and review the outcome.',
+    expectedRows:1,
+    query:`_Im_Authentication(eventtype="Logon")
+| where SrcIpAddr == "91.219.236.54"
+| where EventResult == "Failure"
+| project TimeGenerated, SrcIpAddr, TargetUserName, EventProduct, EventResult`,
+  },
+  {
+    name:'Entra MFA-proxied activity',
+    description:'Show the rows that look like MFA was satisfied through a proxy or AiTM flow.',
+    expectedRows:1,
+    query:`_Im_Authentication(eventtype="Logon")
+| where DvcAction has "MFA"
+| project TimeGenerated, SrcIpAddr, TargetUserName, DvcAction, Dvc`,
+  },
+];
+
+const ASIM_AUTHENTICATION_NOTES = [
+  { title:'Normalization target', detail:'Authentication rows collapse source details into SrcIpAddr, TargetUserName, EventResult, and Dvc fields so sign-in and logon hunts can share one query shape.' },
+  { title:'Source mapping', detail:'Windows event 4624/4625, Entra sign-in logs, and proxy records all feed the same parser-style experience in this lab.' },
+  { title:'Investigation pivot', detail:'Use the normalized output to pivot back to the original sign-in or domain controller evidence before making response decisions.' },
+];
+
+const ASIM_NETWORK_SESSION_ROWS = [
+  { TimeGenerated:'2026-07-06T08:20:00Z', EventVendor:'Contoso Firewall', EventProduct:'EdgeFW', EventSchema:'NetworkSession', EventType:'NetworkSession', EventResult:'Allowed',
+    SrcIpAddr:'10.20.7.14', DstIpAddr:'203.0.113.10', SrcHostname:'WKS-03', DstHostname:'bad-demo.example', SrcPortNumber:51550, DstPortNumber:443, NetworkDirection:'Outbound', DvcAction:'allow' },
+  { TimeGenerated:'2026-07-06T08:21:08Z', EventVendor:'Fabrikam Mail', EventProduct:'MailSecure', EventSchema:'NetworkSession', EventType:'NetworkSession', EventResult:'Blocked',
+    SrcIpAddr:'198.51.100.77', DstIpAddr:'10.20.5.22', SrcHostname:'mail-gateway', DstHostname:'EXCH-01', SrcPortNumber:25, DstPortNumber:25, NetworkDirection:'Inbound', DvcAction:'quarantine' },
+  { TimeGenerated:'2026-07-06T08:22:15Z', EventVendor:'Contoso Firewall', EventProduct:'EdgeFW', EventSchema:'NetworkSession', EventType:'NetworkSession', EventResult:'Allowed',
+    SrcIpAddr:'10.20.6.19', DstIpAddr:'198.51.100.22', SrcHostname:'WKS-11', DstHostname:'update.example', SrcPortNumber:51234, DstPortNumber:443, NetworkDirection:'Outbound', DvcAction:'allow' },
+  { TimeGenerated:'2026-07-06T08:23:44Z', EventVendor:'Contoso Firewall', EventProduct:'EdgeFW', EventSchema:'NetworkSession', EventType:'NetworkSession', EventResult:'Blocked',
+    SrcIpAddr:'10.20.4.55', DstIpAddr:'203.0.113.10', SrcHostname:'DC01', DstHostname:'bad-demo.example', SrcPortNumber:49610, DstPortNumber:443, NetworkDirection:'Outbound', DvcAction:'deny' },
+];
+
+const ASIM_NETWORK_SESSION_SAVED_QUERIES = [
+  {
+    name:'Blocked outbound sessions',
+    description:'Show blocked outbound sessions toward the demo IOC domain.',
+    expectedRows:1,
+    query:`_Im_NetworkSession(starttime=ago(1d), eventtype="NetworkSession")
+| where NetworkDirection == "Outbound"
+| where EventResult == "Blocked"
+| project TimeGenerated, SrcIpAddr, DstIpAddr, SrcHostname, DstHostname, DvcAction`,
+  },
+  {
+    name:'Outbound sessions to risky domain',
+    description:'Follow outbound network sessions where the destination hostname matches the phish demo domain.',
+    expectedRows:2,
+    query:`_Im_NetworkSession(eventtype="NetworkSession")
+| where DstHostname has "bad-demo.example"
+| project TimeGenerated, SrcIpAddr, DstIpAddr, SrcHostname, DstHostname, NetworkDirection, EventResult`,
+  },
+  {
+    name:'Sessions by source host',
+    description:'Summarize outbound sessions by source host for a quick blast-radius view.',
+    expectedRows:4,
+    query:`_Im_NetworkSession(eventtype="NetworkSession")
+| summarize Events=count() by SrcHostname
+| order by Events desc`,
+  },
+];
+
+const ASIM_NETWORK_SESSION_NOTES = [
+  { title:'Normalization target', detail:'Network sessions normalize source and destination IPs, ports, hostnames, direction, and result so firewall and proxy feeds can be hunted together.' },
+  { title:'Source mapping', detail:'Firewall denies, proxy allows, and gateway quarantine rows can all flow into one ASIM network session parser in the lab.' },
+  { title:'Investigation pivot', detail:'Use the normalized rows to trace where traffic originated, whether it was blocked, and which host or domain should be reviewed next.' },
+];
+
+const KQL_PRACTICE_TASKS = [
+  {
+    id:'filter-risky-signins',
+    title:'Filter high-risk sign-ins',
+    concept:'where + equality',
+    expectedRows:2,
+    table:'SigninLogs',
+    query:`SigninLogs
+| where RiskLevel == "High"
+| project TimeGenerated, UserPrincipalName, IPAddress, RiskLevel, ResultType`,
+  },
+  {
+    id:'join-logon-correlation',
+    title:'Join endpoint and identity logons',
+    concept:'join kind=inner',
+    expectedRows:4,
+    table:'DeviceLogonEvents + IdentityLogonEvents',
+    query:`DeviceLogonEvents
+| where Timestamp > ago(1d)
+| join kind=inner (
+    IdentityLogonEvents
+    | where Timestamp > ago(1d)
+    | project IdTime = Timestamp, AccountSid, IPAddress, Application, IdActionType = ActionType
+  ) on AccountSid
+| where abs(datetime_diff('second', Timestamp, IdTime)) < 120
+| project Timestamp, DeviceName, AccountName, AccountSid, IdTime, IPAddress, Application, IdActionType`,
+  },
+  {
+    id:'summarize-securityevent',
+    title:'Summarize SecurityEvent by computer',
+    concept:'summarize + countif',
+    expectedRows:3,
+    table:'SecurityEvent',
+    query:`SecurityEvent
+| summarize Events = count(), Failures = countif(EventID == 4625) by Computer
+| order by Events desc`,
+  },
+  {
+    id:'union-logon-events',
+    title:'Union logon tables and group by SID',
+    concept:'union + summarize',
+    expectedRows:3,
+    table:'DeviceLogonEvents + IdentityLogonEvents',
+    query:`union DeviceLogonEvents, IdentityLogonEvents
+| summarize Events = count() by AccountSid
+| order by Events desc`,
+  },
+  {
+    id:'argmax-processes',
+    title:'Arg-max the latest process per device',
+    concept:'arg_max()',
+    expectedRows:4,
+    table:'DeviceProcessEvents',
+    query:`DeviceProcessEvents
+| summarize (Timestamp, FileName, FolderPath, SHA256) = arg_max(Timestamp, FileName, FolderPath, SHA256) by DeviceName
+| order by DeviceName asc`,
+  },
+  {
+    id:'parse-practice',
+    title:'Parse text fields into columns',
+    concept:'parse / extract',
+    expectedRows:3,
+    table:'KQLPractice_CL',
+    query:`KQLPractice_CL
+| parse Message with "user=" User " ip=" IP " action=" Action
+| project TimeGenerated, Scenario, User, IP, Action`,
+  },
+  {
+    id:'json-practice',
+    title:'Extract values from JSON payloads',
+    concept:'parse_json()',
+    expectedRows:3,
+    table:'KQLPractice_CL',
+    query:`KQLPractice_CL
+| extend Json = parse_json(Payload)
+| project TimeGenerated, Scenario, User = tostring(Json.user), Device = tostring(Json.device), Risk = tostring(Json.risk)`,
+  },
+  {
+    id:'split-practice',
+    title:'Split delimited tags',
+    concept:'split()',
+    expectedRows:3,
+    table:'KQLPractice_CL',
+    query:`KQLPractice_CL
+| extend FirstTag = split(Tags, "|")[0]
+| project TimeGenerated, Scenario, FirstTag`,
+  },
+  {
+    id:'externaldata-practice',
+    title:'Query a local CSV via externaldata',
+    concept:'externaldata',
+    expectedRows:2,
+    table:'kql-practice.csv',
+    query:`externaldata (Domain:string, Category:string, Priority:int)
+  [@"kql-practice.csv"]
+  with (format="csv")
+| where Category == "phish"
+| project Domain, Priority`,
+  },
+  {
+    id:'render-timechart',
+    title:'Draw a timechart from hourly bins',
+    concept:'render timechart',
+    expectedRows:2,
+    table:'KQLPractice_CL',
+    query:`KQLPractice_CL
+| summarize Events = count() by bin(TimeGenerated, 1h)
+| render timechart`,
+  },
+  {
+    id:'render-barchart',
+    title:'Draw a bar chart by scenario',
+    concept:'render barchart',
+    expectedRows:3,
+    table:'KQLPractice_CL',
+    query:`KQLPractice_CL
+| summarize Events = count() by Scenario
+| render barchart`,
+  },
+  {
+    id:'render-piechart',
+    title:'Draw a pie chart by source',
+    concept:'render piechart',
+    expectedRows:3,
+    table:'KQLPractice_CL',
+    query:`KQLPractice_CL
+| summarize Events = count() by Source
+| render piechart`,
+  },
+];
 
 const SENTINEL_GRAPH = {
   incidentId:'INC-1042',
@@ -2475,6 +2732,8 @@ const NAV = {
     { route:'#/sentinel/workbooks',             label:'Workbooks',               icon:'📓' },
     { route:'#/sentinel/hunting',               label:'Hunting',                 icon:'🔎' },
     { route:'#/sentinel/hunting/dns',           label:'ASIM DNS (Preview)',      icon:'🌐' },
+    { route:'#/sentinel/hunting/authentication', label:'ASIM Authentication (Preview)', icon:'🔐' },
+    { route:'#/sentinel/hunting/network-session', label:'ASIM Network Session (Preview)', icon:'🛰' },
     { route:'#/sentinel/anomalies',             label:'Anomalies',               icon:'〽' },
     { route:'#/sentinel/soc-optimization',      label:'SOC optimization',        icon:'📈' },
     { route:'#/sentinel/summary-rules',         label:'Summary rules',           icon:'∑' },

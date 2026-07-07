@@ -25,6 +25,895 @@ function copyToClipboard(id) {
     .catch(() => toast('Clipboard permission was not granted.'));
 }
 
+// Mock KQL evaluator used by the hunting, logs, and ASIM parser surfaces.
+// Supported subset: let bindings, union, join (inner/leftouter), summarize
+// with count/sum/dcount/countif/arg_max and bin(), parse/extend/project,
+// render timechart/barchart/piechart, externaldata over a bundled CSV, and
+// common where predicates (==, !=, in, has, contains, startswith, endswith,
+// between, matches regex, isempty, isnull, and date comparisons).
+function mockKqlTables() {
+  return {
+    ...MOCK_QUERY_RESULTS,
+    KQLPractice_CL: KQL_PRACTICE_ROWS,
+    _Im_Authentication: ASIM_AUTHENTICATION_ROWS,
+    _Im_NetworkSession: ASIM_NETWORK_SESSION_ROWS,
+    SyntheticTransactions_CL: SYNTHETIC_TRANSACTIONS,
+    ThreatIntelIndicators: THREAT_INTEL_INDICATORS,
+  };
+}
+function mockKqlCloneRows(rows) {
+  return rows.map(r => ({ ...r }));
+}
+function mockKqlStripComments(text) {
+  return String(text || '').replace(/^\s*\/\/.*$/gm, '').trim();
+}
+function mockKqlTrimParens(text) {
+  let out = String(text || '').trim();
+  while (out.startsWith('(') && out.endsWith(')')) {
+    let depth = 0, ok = true, quote = '';
+    for (let i = 0; i < out.length; i++) {
+      const ch = out[i];
+      if (quote) {
+        if (ch === quote && out[i - 1] !== '\\') quote = '';
+        continue;
+      }
+      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (ch === '(' || ch === '[' || ch === '{') depth++;
+      else if (ch === ')' || ch === ']' || ch === '}') {
+        depth--;
+        if (depth === 0 && i < out.length - 1) { ok = false; break; }
+      }
+    }
+    if (!ok || depth !== 0) break;
+    out = out.slice(1, -1).trim();
+  }
+  return out;
+}
+function mockKqlSplitTopLevel(text, needle) {
+  const out = [];
+  const src = String(text || '');
+  const token = String(needle);
+  let depth = 0, quote = '', cur = '';
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (quote) {
+      cur += ch;
+      if (ch === quote && src[i - 1] !== '\\') quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === "'") { quote = ch; cur += ch; continue; }
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+    if (depth === 0 && src.slice(i, i + token.length) === token) {
+      out.push(cur);
+      cur = '';
+      i += token.length - 1;
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+function mockKqlCsvToRows(csvText) {
+  const lines = String(csvText || '').trim().split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const parseLine = line => {
+    const out = [];
+    let cur = '', quote = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (quote) {
+        if (ch === quote && line[i - 1] !== '\\') quote = '';
+        else cur += ch;
+        continue;
+      }
+      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (ch === ',') { out.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    out.push(cur);
+    return out.map(v => v.trim());
+  };
+  const headers = parseLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const cells = parseLine(line);
+    return Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? '']));
+  });
+}
+function mockKqlMaybeDate(value) {
+  if (value instanceof Date) return value;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Date.parse(trimmed);
+  return Number.isNaN(parsed) ? null : new Date(parsed);
+}
+function mockKqlComparable(value) {
+  const dt = mockKqlMaybeDate(value);
+  if (dt) return dt.getTime();
+  if (typeof value === 'number') return value;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  const num = Number(value);
+  return Number.isNaN(num) ? String(value ?? '') : num;
+}
+function mockKqlValueList(value) {
+  if (Array.isArray(value)) {
+    return value.flatMap(item => {
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const keys = Object.keys(item);
+        if (keys.length === 1) return [item[keys[0]]];
+        if ('Value' in item) return [item.Value];
+        return [keys.length ? item[keys[0]] : item];
+      }
+      return [item];
+    });
+  }
+  if (value && typeof value === 'object') return Object.values(value);
+  if (value == null) return [];
+  return [value];
+}
+function mockKqlDateUnit(unit) {
+  const u = String(unit || '').toLowerCase();
+  const m = u.match(/^(\d+)\s*(ms|s|m|h|d|w)$/);
+  const amount = m ? parseInt(m[1], 10) : 1;
+  const kind = m ? m[2] : u;
+  if (kind.startsWith('ms')) return amount;
+  if (kind.startsWith('s')) return amount * 1000;
+  if (kind.startsWith('m')) return amount * 60e3;
+  if (kind.startsWith('h')) return amount * 3600e3;
+  if (kind.startsWith('d')) return amount * 86400e3;
+  if (kind.startsWith('w')) return amount * 604800e3;
+  return 1;
+}
+function mockKqlContext(row, bindings, cache) {
+  const helper = {
+    tostring: v => (v == null ? '' : String(v)),
+    toint: v => parseInt(v, 10),
+    tolong: v => parseInt(v, 10),
+    todouble: v => parseFloat(v),
+    tolower: v => String(v ?? '').toLowerCase(),
+    toupper: v => String(v ?? '').toUpperCase(),
+    trim: v => String(v ?? '').trim(),
+    parse_json: v => {
+      if (v && typeof v === 'object') return v;
+      try { return JSON.parse(String(v || '{}')); } catch { return {}; }
+    },
+    split: (v, sep) => String(v ?? '').split(String(sep ?? ',')),
+    extract: (pattern, idx, value) => {
+      let re;
+      try {
+        const pat = String(pattern ?? '').replace(/^@/, '');
+        re = new RegExp(pat);
+      } catch { return null; }
+      const match = String(value ?? '').match(re);
+      const group = parseInt(idx, 10);
+      return match ? (match[group] ?? null) : null;
+    },
+    bin: (value, period) => {
+      const dt = mockKqlMaybeDate(value);
+      if (!dt) return value;
+      const size = mockKqlDateUnit(period);
+      const rounded = Math.floor(dt.getTime() / size) * size;
+      return new Date(rounded).toISOString();
+    },
+    ago: span => {
+      const m = String(span || '').trim().match(/^(\d+)\s*([smhdw])$/i);
+      const size = m ? mockKqlDateUnit(m[2]) : 0;
+      const amount = m ? parseInt(m[1], 10) : 0;
+      return new Date(Date.now() - amount * size);
+    },
+    now: () => new Date(),
+    datetime: value => new Date(String(value ?? '')),
+    datetime_diff: (unit, left, right) => {
+      const a = mockKqlMaybeDate(left);
+      const b = mockKqlMaybeDate(right);
+      if (!a || !b) return 0;
+      const divisor = mockKqlDateUnit(unit);
+      return Math.round((a.getTime() - b.getTime()) / divisor);
+    },
+    coalesce: (...vals) => vals.find(v => v != null && v !== ''),
+    isempty: v => v == null || v === '',
+    isnull: v => v == null,
+    hasText: (left, right) => String(left ?? '').toLowerCase().includes(String(right ?? '').toLowerCase()),
+    startsWithText: (left, right) => String(left ?? '').toLowerCase().startsWith(String(right ?? '').toLowerCase()),
+    endsWithText: (left, right) => String(left ?? '').toLowerCase().endsWith(String(right ?? '').toLowerCase()),
+    containsText: (left, right) => String(left ?? '').toLowerCase().includes(String(right ?? '').toLowerCase()),
+    inList: (left, list) => mockKqlValueList(list).some(v => String(v ?? '').toLowerCase() === String(left ?? '').toLowerCase()),
+    notInList: (left, list) => !helper.inList(left, list),
+    hasAny: (left, list) => mockKqlValueList(list).some(v => String(left ?? '').toLowerCase().includes(String(v ?? '').toLowerCase())),
+    matchesRegex: (left, pattern) => {
+      try { return new RegExp(String(pattern)).test(String(left ?? '')); } catch { return false; }
+    },
+    abs: value => Math.abs(Number(value) || 0),
+  };
+  return { ...helper, ...row };
+}
+function mockKqlRewriteScalarExpr(expr) {
+  return String(expr || '')
+    .replace(/@\s*"/g, '"')
+    .replace(/\bago\(\s*(\d+\s*[smhdw])\s*\)/gi, (_, span) => `ago("${span.replace(/\s+/g, '')}")`)
+    .replace(/\bdatetime\(\s*([0-9]{4}-[0-9T:\-\.Z]+)\s*\)/gi, (_, value) => `datetime("${value}")`)
+    .replace(/\bbin\(\s*([^,]+),\s*(\d+\s*[smhdw])\s*\)/gi, (_, value, unit) => `bin(${value}, "${unit.replace(/\s+/g, '')}")`);
+}
+function mockKqlEvalScalar(expr, row, bindings, cache) {
+  const js = mockKqlRewriteScalarExpr(expr);
+  try {
+    return Function('ctx', `with(ctx){ return (${js}); }`)(mockKqlContext(row, bindings, cache));
+  } catch {
+    return null;
+  }
+}
+function mockKqlEvalList(expr, row, bindings, cache) {
+  const trimmed = mockKqlTrimParens(String(expr || '').trim());
+  if (!trimmed) return [];
+  if (bindings[trimmed] != null) {
+    const resolved = mockKqlResolveBinding(trimmed, bindings, cache);
+    return mockKqlValueList(resolved);
+  }
+  return mockKqlSplitTopLevel(trimmed, ',').map(item => mockKqlEvalScalar(item.trim(), row, bindings, cache)).filter(v => v !== undefined);
+}
+function mockKqlCompare(left, right, op) {
+  const lDate = mockKqlMaybeDate(left);
+  const rDate = mockKqlMaybeDate(right);
+  const l = lDate ? lDate.getTime() : mockKqlComparable(left);
+  const r = rDate ? rDate.getTime() : mockKqlComparable(right);
+  switch (op) {
+    case '==': return l === r;
+    case '!=': return l !== r;
+    case '>': return l > r;
+    case '>=': return l >= r;
+    case '<': return l < r;
+    case '<=': return l <= r;
+    default: return false;
+  }
+}
+function mockKqlEvalPredicate(expr, row, bindings, cache) {
+  let text = mockKqlTrimParens(String(expr || '').trim());
+  const orParts = mockKqlSplitTopLevel(text, ' or ');
+  if (orParts.length > 1) return orParts.some(part => mockKqlEvalPredicate(part, row, bindings, cache));
+  const andParts = mockKqlSplitTopLevel(text, ' and ');
+  if (andParts.length > 1) return andParts.every(part => mockKqlEvalPredicate(part, row, bindings, cache));
+  if (/^not\s+/i.test(text)) return !mockKqlEvalPredicate(text.replace(/^not\s+/i, ''), row, bindings, cache);
+
+  let m;
+  if ((m = text.match(/^isempty\((.+)\)$/i))) return !!mockKqlContext(row, bindings, cache).isempty(mockKqlEvalScalar(m[1], row, bindings, cache));
+  if ((m = text.match(/^isnull\((.+)\)$/i))) return !!mockKqlContext(row, bindings, cache).isnull(mockKqlEvalScalar(m[1], row, bindings, cache));
+  if ((m = text.match(/^(.+?)\s+between\s+\(\s*(.+?)\s*\.\.\s*(.+?)\s*\)$/i))) {
+    const left = mockKqlEvalScalar(m[1], row, bindings, cache);
+    return mockKqlCompare(left, mockKqlEvalScalar(m[2], row, bindings, cache), '>=') &&
+      mockKqlCompare(left, mockKqlEvalScalar(m[3], row, bindings, cache), '<=');
+  }
+  if ((m = text.match(/^(.+?)\s+matches\s+regex\s+"([^"]*)"$/i))) return mockKqlContext(row, bindings, cache).matchesRegex(mockKqlEvalScalar(m[1], row, bindings, cache), m[2]);
+  if ((m = text.match(/^(.+?)\s+(!?has_any)\s+\((.+)\)$/i))) {
+    const left = mockKqlEvalScalar(m[1], row, bindings, cache);
+    const values = mockKqlEvalList(m[3], row, bindings, cache);
+    const matched = values.some(v => String(left ?? '').toLowerCase().includes(String(v ?? '').toLowerCase()));
+    return m[2].startsWith('!') ? !matched : matched;
+  }
+  if ((m = text.match(/^(.+?)\s+(has|contains|startswith|endswith)\s+"([^"]*)"$/i))) {
+    const left = mockKqlEvalScalar(m[1], row, bindings, cache);
+    const right = m[3];
+    const ctx = mockKqlContext(row, bindings, cache);
+    if (m[2].toLowerCase() === 'has') return ctx.hasText(left, right);
+    if (m[2].toLowerCase() === 'contains') return ctx.containsText(left, right);
+    if (m[2].toLowerCase() === 'startswith') return ctx.startsWithText(left, right);
+    return ctx.endsWithText(left, right);
+  }
+  if ((m = text.match(/^(.+?)\s+(!?in)\s+\((.+)\)$/i))) {
+    const left = mockKqlEvalScalar(m[1], row, bindings, cache);
+    const values = mockKqlEvalList(m[3], row, bindings, cache);
+    const matched = values.some(v => String(v ?? '').toLowerCase() === String(left ?? '').toLowerCase());
+    return m[2].startsWith('!') ? !matched : matched;
+  }
+  if ((m = text.match(/^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/))) {
+    const left = mockKqlEvalScalar(m[1], row, bindings, cache);
+    const right = mockKqlEvalScalar(m[3], row, bindings, cache);
+    return mockKqlCompare(left, right, m[2]);
+  }
+
+  const js = mockKqlRewriteScalarExpr(text)
+    .replace(/\btrue\b/gi, 'true')
+    .replace(/\bfalse\b/gi, 'false')
+    .replace(/\bnull\b/gi, 'null')
+    .replace(/\bnot\s+/gi, '!')
+    .replace(/\band\b/gi, '&&')
+    .replace(/\bor\b/gi, '||')
+    .replace(/([A-Za-z_][A-Za-z0-9_.]*)\s+has_any\s+\(([^)]+)\)/gi, 'hasAny($1, [$2])')
+    .replace(/([A-Za-z_][A-Za-z0-9_.]*)\s+(!?in)\s+\(([^)]+)\)/gi, (_, left, op, list) => `${op.startsWith('!') ? 'notInList' : 'inList'}(${left}, [${list}])`)
+    .replace(/([A-Za-z_][A-Za-z0-9_.]*)\s+has\s+"([^"]*)"/gi, 'hasText($1, "$2")')
+    .replace(/([A-Za-z_][A-Za-z0-9_.]*)\s+contains\s+"([^"]*)"/gi, 'containsText($1, "$2")')
+    .replace(/([A-Za-z_][A-Za-z0-9_.]*)\s+startswith\s+"([^"]*)"/gi, 'startsWithText($1, "$2")')
+    .replace(/([A-Za-z_][A-Za-z0-9_.]*)\s+endswith\s+"([^"]*)"/gi, 'endsWithText($1, "$2")')
+    .replace(/([A-Za-z_][A-Za-z0-9_.]*)\s+matches\s+regex\s+"([^"]*)"/gi, 'matchesRegex($1, "$2")')
+    .replace(/([A-Za-z_][A-Za-z0-9_.]*)\s+between\s+\(\s*(.+?)\s*\.\.\s*(.+?)\s*\)/gi, 'betweenValues($1, $2, $3)');
+  try {
+    return Function('ctx', `with(ctx){ return (${js}); }`)({
+      ...mockKqlContext(row, bindings, cache),
+      betweenValues: (left, start, end) => mockKqlCompare(left, start, '>=') && mockKqlCompare(left, end, '<='),
+    });
+  } catch {
+    return false;
+  }
+}
+function mockKqlParseCsvSource(sourceName) {
+  return mockKqlCsvToRows(KQL_EXTERNALDATA_CSV);
+}
+function mockKqlResolveBinding(name, bindings, cache) {
+  if (cache.bindingResults[name] != null) return cache.bindingResults[name];
+  const expr = bindings[name];
+  if (expr == null) return null;
+  const resolved = mockKqlEvaluate(expr, bindings, cache);
+  cache.bindingResults[name] = resolved;
+  return resolved;
+}
+function mockKqlEvaluateSource(expr, bindings, cache) {
+  const source = mockKqlTrimParens(String(expr || '').trim());
+  if (!source) return [];
+  if (bindings[source] != null) return mockKqlResolveBinding(source, bindings, cache);
+  if (/^union\b/i.test(source)) {
+    const parts = mockKqlSplitTopLevel(source.replace(/^union\b\s*/i, ''), ',');
+    return parts.flatMap(part => mockKqlNormalizeRows(mockKqlEvaluateSource(part.trim(), bindings, cache)));
+  }
+  if (/^externaldata\b/i.test(source)) return mockKqlParseCsvSource(source);
+  const fnMatch = source.match(/^(_Im_[A-Za-z0-9_]+)\s*\(([\s\S]*)\)$/);
+  if (fnMatch) {
+    const rows = mockKqlCloneRows(mockKqlTables()[fnMatch[1]] || []);
+    const params = {};
+    mockKqlSplitTopLevel(fnMatch[2], ',').forEach(part => {
+      const eq = part.indexOf('=');
+      if (eq < 0) return;
+      params[part.slice(0, eq).trim().toLowerCase()] = part.slice(eq + 1).trim();
+    });
+    let out = rows;
+    if (params.starttime) {
+      const start = mockKqlEvalScalar(params.starttime, {}, bindings, cache);
+      const dt = mockKqlMaybeDate(start);
+      if (dt) out = out.filter(row => mockKqlCompare(row.TimeGenerated || row.Timestamp, dt, '>='));
+    }
+    if (params.eventtype) {
+      const ev = String(mockKqlEvalScalar(params.eventtype, {}, bindings, cache) ?? '').toLowerCase();
+      out = out.filter(row => String(row.EventType ?? '').toLowerCase() === ev);
+    }
+    if (params.srcipaddr) {
+      const ip = String(mockKqlEvalScalar(params.srcipaddr, {}, bindings, cache) ?? '');
+      out = out.filter(row => String(row.SrcIpAddr ?? '') === ip);
+    }
+    if (params.dstipaddr) {
+      const ip = String(mockKqlEvalScalar(params.dstipaddr, {}, bindings, cache) ?? '');
+      out = out.filter(row => String(row.DstIpAddr ?? '') === ip);
+    }
+    return out;
+  }
+  if (mockKqlTables()[source]) return mockKqlCloneRows(mockKqlTables()[source]);
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(source)) {
+    const table = mockKqlTables()[source];
+    return table ? mockKqlCloneRows(table) : [];
+  }
+  return mockKqlEvaluate(source, bindings, cache).rows;
+}
+function mockKqlNormalizeRows(value) {
+  if (Array.isArray(value)) return value;
+  if (value && Array.isArray(value.rows)) return value.rows;
+  return [];
+}
+function mockKqlFindTopLevelEquals(text) {
+  let depth = 0, quote = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === quote && text[i - 1] !== '\\') quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+    else if (depth === 0 && ch === '=') return i;
+  }
+  return -1;
+}
+function mockKqlParseAssignments(text) {
+  return mockKqlSplitTopLevel(text, ',').map(item => item.trim()).filter(Boolean).map(item => {
+    const eq = mockKqlFindTopLevelEquals(item);
+    if (eq >= 0) return { name: item.slice(0, eq).trim(), expr: item.slice(eq + 1).trim() };
+    return { name: item, expr: item };
+  });
+}
+function mockKqlApplyProject(rows, clause, bindings, cache, keepExisting) {
+  const assignments = mockKqlParseAssignments(clause);
+  return rows.map(row => {
+    const base = keepExisting ? { ...row } : {};
+    assignments.forEach(({ name, expr }) => {
+      base[name] = mockKqlEvalScalar(expr, row, bindings, cache);
+    });
+    return base;
+  });
+}
+function mockKqlApplyParse(rows, clause, bindings, cache) {
+  const m = clause.match(/^([A-Za-z_][A-Za-z0-9_.]*)\s+with\s+(.+)$/i);
+  if (!m) return rows;
+  const sourceField = m[1];
+  const pattern = m[2];
+  const tokens = [];
+  let i = 0;
+  while (i < pattern.length) {
+    while (i < pattern.length && /\s/.test(pattern[i])) i++;
+    if (i >= pattern.length) break;
+    if (pattern[i] === '"' || pattern[i] === "'") {
+      const quote = pattern[i++];
+      let literal = '';
+      while (i < pattern.length && pattern[i] !== quote) literal += pattern[i++];
+      if (pattern[i] === quote) i++;
+      tokens.push({ type:'literal', value:literal });
+      continue;
+    }
+    let word = '';
+    while (i < pattern.length && !/\s/.test(pattern[i])) word += pattern[i++];
+    if (word) {
+      if (word === '*') tokens.push({ type:'wildcard' });
+      else if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(word)) tokens.push({ type:'capture', value:word });
+      else tokens.push({ type:'literal', value:word });
+    }
+  }
+  return rows.map(row => {
+    const text = String(row[sourceField] ?? '');
+    const out = { ...row };
+    let cursor = 0;
+    for (let idx = 0; idx < tokens.length; idx++) {
+      const token = tokens[idx];
+      if (token.type === 'wildcard') continue;
+      if (token.type === 'literal') {
+        const pos = text.indexOf(token.value, cursor);
+        if (pos < 0) return row;
+        cursor = pos + token.value.length;
+        continue;
+      }
+      const nextLiteral = tokens.slice(idx + 1).find(t => t.type === 'literal');
+      if (!nextLiteral) {
+        out[token.value] = text.slice(cursor).trim();
+        cursor = text.length;
+        continue;
+      }
+      const pos = text.indexOf(nextLiteral.value, cursor);
+      if (pos < 0) return row;
+      out[token.value] = text.slice(cursor, pos).trim();
+      cursor = pos;
+    }
+    return out;
+  });
+}
+function mockKqlApplyExtend(rows, clause, bindings, cache) {
+  const assignments = mockKqlParseAssignments(clause);
+  return rows.map(row => {
+    const next = { ...row };
+    assignments.forEach(({ name, expr }) => {
+      next[name] = mockKqlEvalScalar(expr, row, bindings, cache);
+    });
+    return next;
+  });
+}
+function mockKqlApplyWhere(rows, clause, bindings, cache) {
+  return rows.filter(row => mockKqlEvalPredicate(clause, row, bindings, cache));
+}
+function mockKqlApplyJoin(leftRows, clause, bindings, cache) {
+  const kindMatch = clause.match(/^kind\s*=\s*(inner|leftouter)\s+/i);
+  const kind = kindMatch ? kindMatch[1].toLowerCase() : 'inner';
+  const rest = kindMatch ? clause.slice(kindMatch[0].length).trim() : clause.trim();
+  let rightExpr = '';
+  let onExpr = '';
+  if (rest.startsWith('(')) {
+    let depth = 0, end = -1, quote = '';
+    for (let i = 0; i < rest.length; i++) {
+      const ch = rest[i];
+      if (quote) {
+        if (ch === quote && rest[i - 1] !== '\\') quote = '';
+        continue;
+      }
+      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (ch === '(') depth++;
+      else if (ch === ')') {
+        depth--;
+        if (depth === 0) { end = i; break; }
+      }
+    }
+    rightExpr = rest.slice(1, end).trim();
+    onExpr = rest.slice(end + 1).trim().replace(/^on\s+/i, '');
+  } else {
+    const onIdx = rest.toLowerCase().lastIndexOf(' on ');
+    if (onIdx >= 0) {
+      rightExpr = rest.slice(0, onIdx).trim();
+      onExpr = rest.slice(onIdx + 4).trim();
+    } else {
+      rightExpr = rest.trim();
+    }
+  }
+  const rightRows = mockKqlNormalizeRows(mockKqlEvaluateSource(rightExpr, bindings, cache));
+  const cond = onExpr || '';
+  const explicit = cond.match(/^\$left\.([A-Za-z_][A-Za-z0-9_]*)\s*==\s*\$right\.([A-Za-z_][A-Za-z0-9_]*)$/i);
+  const simple = !explicit && cond.match(/^([A-Za-z_][A-Za-z0-9_]*)$/);
+  const out = [];
+  leftRows.forEach(left => {
+    const matches = rightRows.filter(right => {
+      if (explicit) return String(left[explicit[1]] ?? '') === String(right[explicit[2]] ?? '');
+      if (simple) return String(left[simple[1]] ?? '') === String(right[simple[1]] ?? '');
+      return mockKqlEvalPredicate(cond, { ...left, $right: right }, bindings, cache);
+    });
+    if (matches.length) {
+      matches.forEach(right => out.push({ ...left, ...right }));
+    } else if (kind === 'leftouter') {
+      out.push({ ...left });
+    }
+  });
+  return out;
+}
+function mockKqlApplySummarize(rows, clause, bindings, cache) {
+  const byIdx = clause.toLowerCase().lastIndexOf(' by ');
+  const aggText = byIdx >= 0 ? clause.slice(0, byIdx).trim() : clause.trim();
+  const byText = byIdx >= 0 ? clause.slice(byIdx + 4).trim() : '';
+  const groupExprs = byText ? mockKqlSplitTopLevel(byText, ',').map(s => s.trim()).filter(Boolean) : [];
+  const aggItems = mockKqlSplitTopLevel(aggText, ',').map(s => s.trim()).filter(Boolean);
+  const groups = new Map();
+  rows.forEach(row => {
+    const keyParts = groupExprs.map(expr => {
+      const bin = expr.match(/^bin\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*([^)]+)\)$/i);
+      if (bin) return { col: bin[1], value: mockKqlEvalScalar(expr, row, bindings, cache) };
+      const alias = expr.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/);
+      if (alias) return { col: alias[1], value: mockKqlEvalScalar(alias[2], row, bindings, cache) };
+      return { col: expr, value: mockKqlEvalScalar(expr, row, bindings, cache) };
+    });
+    const key = JSON.stringify(keyParts.map(p => p.value));
+    const bucket = groups.get(key) || { rows: [], keys: keyParts };
+    bucket.rows.push(row);
+    groups.set(key, bucket);
+  });
+
+  const result = [];
+  groups.forEach(bucket => {
+    const groupRow = {};
+    bucket.keys.forEach(k => { groupRow[k.col] = k.value; });
+    aggItems.forEach(item => {
+      const alias = item.match(/^([A-Za-z_][A-Za-z0-9_]*|\([^)]+\))\s*=\s*(.+)$/);
+      const name = alias ? alias[1] : null;
+      const expr = alias ? alias[2] : item;
+      let m;
+      if ((m = expr.match(/^count\(\)$/i))) {
+        groupRow[name || 'count_'] = bucket.rows.length;
+      } else if ((m = expr.match(/^sum\(\s*([^)]+)\s*\)$/i))) {
+        const field = m[1];
+        const outName = name || field.replace(/[^\w]+/g, '_') + '_sum';
+        groupRow[outName] = bucket.rows.reduce((n, row) => n + (Number(mockKqlEvalScalar(field, row, bindings, cache)) || 0), 0);
+      } else if ((m = expr.match(/^dcount\(\s*([^)]+)\s*\)$/i))) {
+        const field = m[1];
+        const outName = name || field.replace(/[^\w]+/g, '_') + '_dcount';
+        groupRow[outName] = new Set(bucket.rows.map(row => mockKqlEvalScalar(field, row, bindings, cache))).size;
+      } else if ((m = expr.match(/^countif\(\s*(.+)\s*\)$/i))) {
+        const outName = name || 'countif';
+        groupRow[outName] = bucket.rows.filter(row => mockKqlEvalPredicate(m[1], row, bindings, cache)).length;
+      } else if ((m = expr.match(/^arg_max\(\s*([^,]+)\s*,\s*(.+)\)$/i))) {
+        const maxField = m[1].trim();
+        const selectFields = m[2].trim();
+        const best = bucket.rows.reduce((winner, row) => {
+          if (!winner) return row;
+          return mockKqlCompare(mockKqlEvalScalar(maxField, row, bindings, cache), mockKqlEvalScalar(maxField, winner, bindings, cache), '>') ? row : winner;
+        }, null);
+        const selected = selectFields === '*' ? best : null;
+        if (name && name.startsWith('(') && name.endsWith(')')) {
+          const cols = name.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean);
+          const picks = selectFields === '*' ? cols : mockKqlSplitTopLevel(selectFields, ',').map(s => s.trim());
+          cols.forEach((col, index) => {
+            const pick = picks[index] || picks[0] || col;
+            groupRow[col] = selectFields === '*' ? best?.[col] : mockKqlEvalScalar(pick, best || {}, bindings, cache);
+          });
+        } else {
+          const outName = name || maxField.trim();
+          groupRow[outName] = best ? mockKqlEvalScalar(selectFields === '*' ? maxField : selectFields.split(',')[0], best, bindings, cache) : null;
+        }
+      }
+    });
+    result.push(groupRow);
+  });
+  return result;
+}
+function mockKqlSortRows(rows, clause, bindings, cache) {
+  const specs = mockKqlSplitTopLevel(clause, ',').map(spec => {
+    const m = spec.trim().match(/^(.+?)\s+(asc|desc)$/i);
+    return { field: (m ? m[1] : spec).trim(), dir: m ? m[2].toLowerCase() : 'asc' };
+  });
+  return rows.slice().sort((a, b) => {
+    for (const spec of specs) {
+      const av = mockKqlComparable(mockKqlEvalScalar(spec.field, a, bindings, cache) ?? a[spec.field]);
+      const bv = mockKqlComparable(mockKqlEvalScalar(spec.field, b, bindings, cache) ?? b[spec.field]);
+      if (av === bv) continue;
+      return (av > bv ? 1 : -1) * (spec.dir === 'desc' ? -1 : 1);
+    }
+    return 0;
+  });
+}
+function mockKqlTopRows(rows, clause, bindings, cache) {
+  const m = clause.match(/^(\d+)\s+by\s+(.+?)(?:\s+(asc|desc))?$/i);
+  if (!m) return rows.slice(0, parseInt(clause, 10) || rows.length);
+  const limit = parseInt(m[1], 10);
+  const sortClause = `${m[2].trim()} ${m[3] || 'desc'}`;
+  return mockKqlSortRows(rows, sortClause, bindings, cache).slice(0, limit);
+}
+function mockKqlApplyPipeline(rows, pipeline, bindings, cache, result) {
+  let current = rows;
+  let render = result.render || null;
+  for (const clause of pipeline) {
+    const lower = clause.toLowerCase();
+    if (lower.startsWith('where ')) current = mockKqlApplyWhere(current, clause.slice(6).trim(), bindings, cache);
+    else if (lower.startsWith('extend ')) current = mockKqlApplyExtend(current, clause.slice(7).trim(), bindings, cache);
+    else if (lower.startsWith('parse ')) current = mockKqlApplyParse(current, clause.slice(6).trim(), bindings, cache);
+    else if (lower.startsWith('project ')) current = mockKqlApplyProject(current, clause.slice(8).trim(), bindings, cache, false);
+    else if (lower.startsWith('project-away ')) {
+      const drop = new Set(mockKqlSplitTopLevel(clause.slice(13).trim(), ',').map(s => s.trim()));
+      current = current.map(row => {
+        const next = { ...row };
+        drop.forEach(field => { delete next[field]; });
+        return next;
+      });
+    } else if (lower.startsWith('summarize ')) current = mockKqlApplySummarize(current, clause.slice(10).trim(), bindings, cache);
+    else if (lower.startsWith('join ')) current = mockKqlApplyJoin(current, clause.slice(5).trim(), bindings, cache);
+    else if (lower.startsWith('order by ')) current = mockKqlSortRows(current, clause.slice(9).trim(), bindings, cache);
+    else if (lower.startsWith('sort by ')) current = mockKqlSortRows(current, clause.slice(8).trim(), bindings, cache);
+    else if (lower.startsWith('top ')) current = mockKqlTopRows(current, clause.slice(4).trim(), bindings, cache);
+    else if (lower.startsWith('take ')) current = current.slice(0, parseInt(clause.slice(5).trim(), 10) || 0);
+    else if (lower.startsWith('render ')) render = { kind: clause.slice(7).trim().split(/\s+/)[0].toLowerCase() };
+  }
+  result.render = render;
+  return current;
+}
+function mockKqlIsQueryLike(expr) {
+  const text = mockKqlTrimParens(String(expr || '').trim());
+  return /[|]/.test(text) || /^union\b/i.test(text) || /^externaldata\b/i.test(text) || /^[A-Za-z_][A-Za-z0-9_]*\s*\|/i.test(text);
+}
+function mockKqlEvaluate(expr, bindings = {}, cache = { bindingResults: {}, tables: mockKqlTables() }) {
+  const text = mockKqlStripComments(expr);
+  const localBindings = {};
+  let body = text;
+  while (true) {
+    const m = body.match(/^\s*let\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([\s\S]*?);\s*/i);
+    if (!m) break;
+    localBindings[m[1]] = m[2].trim();
+    body = body.slice(m[0].length);
+  }
+  const mergedBindings = { ...bindings, ...localBindings };
+  const segments = mockKqlSplitTopLevel(body.trim(), '|').map(s => s.trim()).filter(Boolean);
+  if (!segments.length) return { rows: [], cols: ['(no rows)'], render: null, source: '' };
+  const sourceExpr = segments.shift();
+  const initialRows = mockKqlNormalizeRows(mockKqlEvaluateSource(sourceExpr, mergedBindings, cache));
+  const result = { rows: [], cols: [], render: null, source: sourceExpr };
+  result.rows = mockKqlApplyPipeline(initialRows, segments, mergedBindings, cache, result);
+  result.cols = result.rows.length ? Object.keys(result.rows[0]) : (initialRows.length ? Object.keys(initialRows[0]) : ['(no rows)']);
+  if (!result.rows.length && initialRows.length && !segments.length) result.rows = initialRows;
+  if (!result.cols.length) result.cols = ['(no rows)'];
+  return result;
+}
+function mockKqlResultSummary(result) {
+  const cols = result.cols || [];
+  return cols.length ? cols.join(' · ') : '(no columns)';
+}
+function mockKqlRenderChart(result) {
+  const kind = (result.render && result.render.kind) || '';
+  if (!kind || !result.rows.length) return '';
+  const rows = result.rows.slice(0, 8);
+  const cols = result.cols || [];
+  const labelKey = cols[0];
+  const numericKey = cols.find((col, index) => index > 0 && rows.some(row => !Number.isNaN(Number(row[col]))));
+  if (kind === 'piechart') {
+    const values = rows.map((row, index) => Number(row[numericKey || cols[1]] ?? (rows.length ? 1 : 0)) || 0);
+    const total = values.reduce((n, v) => n + v, 0) || 1;
+    const size = 180, r = 70, cx = 90, cy = 90;
+    let start = -90;
+    const slices = rows.map((row, index) => {
+      const value = values[index] || 0;
+      const sweep = (value / total) * 360;
+      const end = start + sweep;
+      const large = sweep > 180 ? 1 : 0;
+      const color = ['#0078d4', '#50e6ff', '#107c10', '#ff8c00', '#d13438', '#8864d2'][index % 6];
+      const startRad = start * Math.PI / 180;
+      const endRad = end * Math.PI / 180;
+      const x1 = cx + r * Math.cos(startRad);
+      const y1 = cy + r * Math.sin(startRad);
+      const x2 = cx + r * Math.cos(endRad);
+      const y2 = cy + r * Math.sin(endRad);
+      start = end;
+      return `<path d="M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${color}" opacity="0.92"></path>`;
+    }).join('');
+    return `
+      <div class="kql-chart" style="margin:10px 0 14px; padding:10px; border:1px solid var(--border); border-radius:4px; background:#fff;">
+        <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+          <strong>${esc(cap(kind))} chart</strong>
+          <span class="muted">${esc(labelKey)}${numericKey ? ' · ' + esc(numericKey) : ''}</span>
+        </div>
+        <div style="display:flex; gap:16px; align-items:center;">
+          <svg viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="${esc(kind)} chart">${slices}<circle cx="90" cy="90" r="36" fill="#fff"></circle></svg>
+          <div style="display:grid; gap:6px; min-width:0;">
+            ${rows.map((row, index) => `<div style="display:flex; gap:8px; align-items:center;"><span class="tag" style="background:${['#0078d4','#50e6ff','#107c10','#ff8c00','#d13438','#8864d2'][index % 6]}; color:#fff;">${esc(row[labelKey] ?? labelKey)}</span><span class="muted">${esc(rows[index][numericKey] ?? values[index] ?? 0)}</span></div>`).join('')}
+          </div>
+        </div>
+      </div>`;
+  }
+  const values = rows.map(row => Number(row[numericKey] ?? row.count_ ?? row.Events ?? 1) || 0);
+  const max = Math.max(...values, 1);
+  const width = 560, height = 180;
+  const barWidth = width / rows.length;
+  const chartBars = rows.map((row, index) => {
+    const value = values[index];
+    const barHeight = Math.max(8, Math.round((value / max) * 120));
+    const x = index * barWidth + 18;
+    const y = 135 - barHeight;
+    const label = String(row[labelKey] ?? labelKey).slice(0, 24);
+    return `
+      <g>
+        <rect x="${x}" y="${y}" width="${Math.max(18, barWidth - 28)}" height="${barHeight}" rx="2" fill="${kind === 'timechart' ? '#0078d4' : '#5c2d91'}"></rect>
+        <text x="${x + Math.max(9, (barWidth - 28) / 2)}" y="148" text-anchor="middle" font-size="11" fill="#605e5c">${esc(label)}</text>
+        <text x="${x + Math.max(9, (barWidth - 28) / 2)}" y="${Math.max(24, y - 6)}" text-anchor="middle" font-size="11" fill="#201f1e">${esc(value)}</text>
+      </g>`;
+  }).join('');
+  return `
+    <div class="kql-chart" style="margin:10px 0 14px; padding:10px; border:1px solid var(--border); border-radius:4px; background:#fff;">
+      <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
+        <strong>${esc(cap(kind))} chart</strong>
+        <span class="muted">${esc(labelKey)}${numericKey ? ' · ' + esc(numericKey) : ''}</span>
+      </div>
+      <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="${esc(kind)} chart">
+        <line x1="12" y1="136" x2="${width - 12}" y2="136" stroke="#d2d0ce"></line>
+        ${chartBars}
+      </svg>
+    </div>`;
+}
+function mockKqlRenderResult(result) {
+  const rows = result.rows || [];
+  const cols = result.cols || [];
+  const chart = mockKqlRenderChart(result);
+  return `
+    ${chart}
+    <table class="grid">
+      <thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+      <tbody>${
+        rows.length
+          ? rows.map(r => `<tr>${cols.map(c => `<td class="kv">${esc(r[c] ?? '')}</td>`).join('')}</tr>`).join('')
+          : `<tr><td colspan="${Math.max(1, cols.length)}" class="muted">(no rows matched)</td></tr>`
+      }</tbody>
+    </table>`;
+}
+function renderMockAsimLab(config) {
+  const initialQuery = config.savedQueries[0].query;
+  const initialExpected = config.savedQueries[0].expectedRows;
+  return {
+    html: `
+    <div class="page-header hunting-page-header">
+      <div>
+        <div class="breadcrumb">${esc(config.crumb)} › <strong>${esc(config.title)}</strong></div>
+        <h1>${esc(config.heading)}</h1>
+        <div class="page-subtitle">${esc(config.subtitle)}</div>
+      </div>
+      <div class="page-actions">
+        <a class="btn btn-secondary" href="#/sentinel/hunting">Advanced hunting</a>
+        ${config.nextHref ? `<a class="btn btn-secondary" href="${esc(config.nextHref)}">${esc(config.nextLabel || 'Next parser')}</a>` : ''}
+        <button class="btn btn-primary" onclick="${esc(config.runFn)}()">Run query</button>
+      </div>
+    </div>
+    <div class="kpi-strip hunting-status-cards">
+      <div class="kpi"><span class="kpi-label">Rows</span><span class="kpi-value">${config.rows.length}</span><span class="kpi-delta">${esc(config.schemaVersion || 'ASIM')}</span></div>
+      <div class="kpi"><span class="kpi-label">Saved queries</span><span class="kpi-value">${config.savedQueries.length}</span><span class="kpi-delta">Practice set</span></div>
+      <div class="kpi"><span class="kpi-label">Normalization</span><span class="kpi-value">${config.mappings.length}</span><span class="kpi-delta">Source → ASIM</span></div>
+      <div class="kpi"><span class="kpi-label">Default task</span><span class="kpi-value">${initialExpected}</span><span class="kpi-delta">Expected rows</span></div>
+    </div>
+    <div class="hunting-workspace">
+      <aside class="hunting-schema-sidebar" aria-label="Saved queries">
+        <div class="hunting-sidebar-header">
+          <strong>Saved queries</strong>
+          <span>${config.savedQueries.length}</span>
+        </div>
+        <div class="hunting-saved-queries" id="${esc(config.listId)}">
+          ${config.savedQueries.map((q, index) => `
+            <button class="saved-query-row${index === 0 ? ' active' : ''}" type="button" data-asim-query-index="${index}">
+              <span>${esc(q.name)}</span>
+              <small>${esc(q.description)}</small>
+            </button>
+          `).join('')}
+        </div>
+      </aside>
+      <section class="hunting-query-results" aria-label="Query and results">
+        <div class="hunting-query-editor">
+          <div class="hunting-section-toolbar">
+            <strong>Query</strong>
+            <span class="muted">${esc(config.queryHint)}</span>
+          </div>
+          <div class="callout info" id="${esc(config.statusId)}">Loaded task: <strong>${esc(config.savedQueries[0].name)}</strong> · expected ${initialExpected} rows.</div>
+          <textarea id="${esc(config.queryId)}" class="kql hunting-kql">${esc(initialQuery)}</textarea>
+          <div class="kql-toolbar">
+            <button class="btn btn-primary btn-sm" onclick="${esc(config.runFn)}()">Run query</button>
+            <button class="btn btn-secondary btn-sm" onclick="${esc(config.loadFn)}(0)">Load first query</button>
+            <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${esc(config.queryId)}')">Copy</button>
+          </div>
+        </div>
+        <div class="hunting-results" id="${esc(config.resultsId)}">
+          <div class="card-toolbar"><strong>Results</strong></div>
+          <div class="card-body muted">Run a query to see normalized rows.</div>
+        </div>
+      </section>
+    </div>
+    <div class="two-col" style="margin-top:16px;">
+      <div class="card">
+        <div class="card-toolbar"><strong>Source rows</strong><span class="muted">${esc(config.sourceLabel)}</span></div>
+        <table class="grid compact-grid">
+          <thead><tr>${config.sourceColumns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+          <tbody>${config.rows.map(row => `
+            <tr>${config.sourceColumns.map(c => `<td class="${c === 'Message' ? 'kv' : 'kv'}">${esc(row[c] ?? '')}</td>`).join('')}</tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-toolbar"><strong>Normalization study card</strong><span class="muted">Source columns → ASIM columns</span></div>
+        <table class="grid compact-grid">
+          <thead><tr><th>Source field</th><th>ASIM field</th><th>Why it matters</th></tr></thead>
+          <tbody>${config.mappings.map(m => `
+            <tr>
+              <td><strong>${esc(m.source)}</strong></td>
+              <td class="kv">${esc(m.asim)}</td>
+              <td>${esc(m.note)}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+        <div class="callout info" style="margin:12px;">${esc(config.studyNote)}</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-toolbar"><strong>${esc(config.sourceLabel)} notes</strong><span class="muted">${config.notes.length} reminders</span></div>
+      <div class="tile-grid" style="padding:12px;">
+        ${config.notes.map(note => `
+          <div class="tile">
+            <div class="tile-title">${esc(note.title)}</div>
+            <div class="tile-sub">${esc(note.detail)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    `,
+    onMount: () => {
+      const buttons = Array.from(document.querySelectorAll('[data-asim-query-index]'));
+      function setQuery(index) {
+        const q = config.savedQueries[index] || config.savedQueries[0];
+        document.getElementById(config.queryId).value = q.query;
+        document.getElementById(config.statusId).innerHTML = `Loaded task: <strong>${esc(q.name)}</strong> · expected ${q.expectedRows} rows.`;
+        buttons.forEach(btn => btn.classList.toggle('active', Number(btn.dataset.asimQueryIndex) === index));
+        sessionStorage.setItem(config.storageKey, String(index));
+        runQuery();
+      }
+      window[config.loadFn] = index => setQuery(Number(index) || 0);
+      window[config.runFn] = () => {
+        runQuery();
+      };
+      function runQuery() {
+        const q = document.getElementById(config.queryId).value;
+        const selectedIndex = Number(sessionStorage.getItem(config.storageKey) || 0);
+        const task = config.savedQueries[selectedIndex] || config.savedQueries[0];
+        const result = mockKqlEvaluate(q);
+        const ok = typeof task.expectedRows === 'number' ? result.rows.length === task.expectedRows : true;
+        document.getElementById(config.resultsId).innerHTML = `
+          <div class="card-toolbar">
+            <strong>${result.rows.length} rows</strong>
+            <span class="muted">${ok ? 'Row count matched the study card' : `Expected ${task.expectedRows} rows`} · ${esc(task.name)}</span>
+          </div>
+          ${mockKqlRenderResult(result)}`;
+        const status = document.getElementById(config.statusId);
+        if (status) {
+          status.className = `callout ${ok ? 'success' : 'warn'}`;
+          status.innerHTML = ok
+            ? `Correct answer: <strong>${esc(task.name)}</strong> returned ${result.rows.length} rows.`
+            : `Result mismatch: expected ${task.expectedRows} rows for <strong>${esc(task.name)}</strong>, got ${result.rows.length}.`;
+        }
+      }
+      buttons.forEach(btn => btn.addEventListener('click', () => setQuery(Number(btn.dataset.asimQueryIndex))));
+      const remembered = Number(sessionStorage.getItem(config.storageKey) || 0);
+      setQuery(Number.isFinite(remembered) ? remembered : 0);
+    },
+  };
+}
+
 const VIEWS = {};
 
 // ====================================================================
@@ -566,70 +1455,15 @@ VIEWS['defender/hunting'] = () => {
     </div>
   `,
     onMount: () => {
-      // Mock KQL executor. Supports a small subset:
-      //   <TableName>                            — leading table line
-      //   | where Field == "value"               — equality match
-      //   | where Field == true/false            — boolean equality
-      //   | where Field has "needle"             — substring match (e.g. AttackTechniques)
-      //   | where Timestamp between (datetime(..)..datetime(..))   — time window
-      //   | project / | sort / | top / | take    — display-only, ignored by executor
-      function parseKqlSubset(query) {
-        const stripped = query.replace(/^\s*\/\/.*$/gm, '');
-        const lines = stripped.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-        const tableLine = lines.find(l => /^[A-Za-z][A-Za-z0-9_]*$/.test(l));
-        const table = tableLine || HUNTING_TABLES.find(t => stripped.trimStart().startsWith(t)) || initialTable;
-        const filters = [];
-        let timeWindow = null;
-        lines.forEach(l => {
-          const eq  = l.match(/^\|\s*where\s+([A-Za-z_][A-Za-z0-9_]*)\s*==\s*"([^"]*)"$/i);
-          const beq = l.match(/^\|\s*where\s+([A-Za-z_][A-Za-z0-9_]*)\s*==\s*(true|false)$/i);
-          const has = l.match(/^\|\s*where\s+([A-Za-z_][A-Za-z0-9_]*)\s+has\s+"([^"]*)"$/i);
-          const bw  = l.match(/^\|\s*where\s+Timestamp\s+between\s*\(\s*datetime\(([^)]+)\)\s*\.\.\s*datetime\(([^)]+)\)\s*\)$/i);
-          if (eq)  filters.push({ kind:'eq',  field:eq[1],  value:eq[2] });
-          if (beq) filters.push({ kind:'bool', field:beq[1], value:beq[2].toLowerCase() === 'true' });
-          if (has) filters.push({ kind:'has', field:has[1], value:has[2] });
-          if (bw)  timeWindow = { start:bw[1].trim(), end:bw[2].trim() };
-        });
-        return { table, filters, timeWindow };
-      }
-      function applyKqlFilters(rows, filters, timeWindow) {
-        let out = rows;
-        if (timeWindow) {
-          const s = new Date(timeWindow.start).getTime();
-          const e = new Date(timeWindow.end).getTime();
-          out = out.filter(r => {
-            const t = new Date(r.Timestamp || r.TimeGenerated || 0).getTime();
-            return t >= s && t <= e;
-          });
-        }
-        filters.forEach(f => {
-          if (f.kind === 'eq') {
-            out = out.filter(r => String(r[f.field] ?? '') === f.value);
-          } else if (f.kind === 'bool') {
-            out = out.filter(r => Boolean(r[f.field]) === f.value);
-          } else if (f.kind === 'has') {
-            out = out.filter(r => String(r[f.field] ?? '').includes(f.value));
-          }
-        });
-        return out;
-      }
       window.runKqlQuery = () => {
         const q = document.getElementById('kql').value;
-        const parsed = parseKqlSubset(q);
-        const table = parsed.table;
-        const rows = applyKqlFilters(MOCK_QUERY_RESULTS[table] || [], parsed.filters, parsed.timeWindow);
-        const cols = rows.length ? Object.keys(rows[0]) : ['(no rows)'];
-        const filterSummary = [
-          parsed.timeWindow ? `Timestamp ∈ [${parsed.timeWindow.start} .. ${parsed.timeWindow.end}]` : null,
-          ...parsed.filters.map(f => `${f.field} ${f.kind==='has'?'has':'='} ${f.value}`)
-        ].filter(Boolean).join(' · ');
+        const result = mockKqlEvaluate(q);
         document.getElementById('kql-results').innerHTML = `
-          <div class="card-toolbar"><strong>${rows.length} rows</strong>
-            <span class="muted">Table: ${esc(table)}${filterSummary ? ' · '+esc(filterSummary) : ''}</span></div>
-          <table class="grid">
-            <thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
-            <tbody>${rows.map(r => `<tr>${cols.map(c => `<td class="kv">${esc(r[c] ?? '')}</td>`).join('')}</tr>`).join('') || `<tr><td>(no data)</td></tr>`}</tbody>
-          </table>`;
+          <div class="card-toolbar">
+            <strong>${result.rows.length} rows</strong>
+            <span class="muted">${esc(mockKqlResultSummary(result))}${result.source ? ' · ' + esc(result.source) : ''}${result.render ? ' · render ' + esc(result.render.kind) : ''}</span>
+          </div>
+          ${mockKqlRenderResult(result)}`;
       };
       window.loadSavedQuery = (i) => {
         document.getElementById('kql').value = SAVED_QUERIES[i].query;
@@ -656,6 +1490,66 @@ VIEWS['defender/hunting'] = () => {
     }
   };
 };
+
+VIEWS['sentinel/hunting/authentication'] = () => renderMockAsimLab({
+  crumb:'Microsoft Sentinel › Hunting',
+  title:'ASIM Authentication',
+  heading:'ASIM Authentication hunting',
+  subtitle:'Normalize Windows logons and Entra sign-ins into one parser-style view so you can filter by source IP, target user, and result without switching tables.',
+  schemaVersion:'ASIM 0.1.7',
+  nextHref:'#/sentinel/hunting/network-session',
+  nextLabel:'Network session',
+  runFn:'runAsimAuthenticationQuery',
+  loadFn:'loadAsimAuthenticationQuery',
+  queryId:'asim-auth-query',
+  resultsId:'asim-auth-results',
+  statusId:'asim-auth-status',
+  listId:'asim-auth-list',
+  storageKey:'defender-lab.asim-auth.query',
+  queryHint:'Query the unifying _Im_Authentication parser. Filter rows from Windows and Entra sources with one query.',
+  sourceLabel:'ASIM Authentication rows',
+  sourceColumns:['TimeGenerated','EventProduct','SrcIpAddr','TargetUserName','EventResult','DvcAction'],
+  rows:ASIM_AUTHENTICATION_ROWS,
+  savedQueries:ASIM_AUTHENTICATION_SAVED_QUERIES,
+  notes:ASIM_AUTHENTICATION_NOTES,
+  mappings:[
+    { source:'SrcIpAddr', asim:'Source IP', note:'Correlates the sign-in source across Windows and Entra evidence.' },
+    { source:'TargetUserName', asim:'Target user', note:'Keeps the account pivot consistent even when the source system names differ.' },
+    { source:'EventResult', asim:'Success / Failure', note:'Shows whether the normalized auth attempt worked or needs follow-up.' },
+    { source:'DvcAction', asim:'Action detail', note:'Preserves the original source signal, such as MFA satisfied or risky sign-in.' },
+  ],
+  studyNote:'The same query shape can investigate a DC logon or an Entra sign-in, which is why ASIM helps SOC teams avoid writing separate hunts for every source.',
+});
+
+VIEWS['sentinel/hunting/network-session'] = () => renderMockAsimLab({
+  crumb:'Microsoft Sentinel › Hunting',
+  title:'ASIM Network Session',
+  heading:'ASIM Network Session hunting',
+  subtitle:'Review firewall and proxy sessions in a normalized shape so blocked outbound traffic, risky destinations, and source-host blast radius stay easy to compare.',
+  schemaVersion:'ASIM 0.1.7',
+  nextHref:'#/sentinel/hunting/dns',
+  nextLabel:'DNS hunting',
+  runFn:'runAsimNetworkSessionQuery',
+  loadFn:'loadAsimNetworkSessionQuery',
+  queryId:'asim-network-query',
+  resultsId:'asim-network-results',
+  statusId:'asim-network-status',
+  listId:'asim-network-list',
+  storageKey:'defender-lab.asim-network.query',
+  queryHint:'Query the unifying _Im_NetworkSession parser. Use the normalized fields to follow blocked or allowed traffic.',
+  sourceLabel:'ASIM Network Session rows',
+  sourceColumns:['TimeGenerated','SrcIpAddr','DstIpAddr','SrcHostname','DstHostname','EventResult','NetworkDirection'],
+  rows:ASIM_NETWORK_SESSION_ROWS,
+  savedQueries:ASIM_NETWORK_SESSION_SAVED_QUERIES,
+  notes:ASIM_NETWORK_SESSION_NOTES,
+  mappings:[
+    { source:'SrcIpAddr', asim:'Source IP', note:'Shows where the session started, no matter which firewall emitted it.' },
+    { source:'DstIpAddr', asim:'Destination IP', note:'Lets you pivot from a denied or allowed session to the target asset.' },
+    { source:'NetworkDirection', asim:'Direction', note:'Separates outbound follow-on traffic from inbound exposure.' },
+    { source:'DvcAction', asim:'Action detail', note:'Preserves source-specific verdict text such as allow, deny, or quarantine.' },
+  ],
+  studyNote:'When a question asks whether a domain or IP was contacted, a normalized network-session view avoids hunting separately in every firewall or proxy table.',
+});
 
 VIEWS['defender/custom-detections'] = () => `
   <div class="page-header">
@@ -2784,50 +3678,148 @@ VIEWS['sentinel/mitre'] = () => {
   `;
 };
 
-VIEWS['sentinel/logs'] = () => `
-  <div class="page-header">
+VIEWS['sentinel/logs'] = () => {
+  const initialTask = KQL_PRACTICE_TASKS[0];
+  return {
+    html: `
+  <div class="page-header hunting-page-header">
     <div>
-      <div class="breadcrumb">General › <strong>Logs</strong></div>
-      <h1>Logs</h1>
-      <div class="page-subtitle">Synthetic custom table rows used by the IOC matching lab.</div>
+      <div class="breadcrumb">Microsoft Sentinel › Hunting › <strong>Logs</strong></div>
+      <h1>KQL practice workspace</h1>
+      <div class="page-subtitle">Work through row-level KQL tasks against local fixtures. The runner supports union, join, summarize, parse, extract, parse_json, split, externaldata, and render.</div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-secondary" href="#/sentinel/hunting">Open hunting</a>
+      <a class="btn btn-secondary" href="#/sentinel/hunting/dns">Open ASIM DNS</a>
+      <button class="btn btn-primary" onclick="runSentinelKqlPractice()">Run practice query</button>
     </div>
   </div>
-  <div class="card">
-    <div class="card-toolbar"><strong>SyntheticTransactions_CL</strong><span class="muted">${SYNTHETIC_TRANSACTIONS.length} demo rows</span></div>
-    <table class="grid">
-      <thead><tr><th>TimeGenerated</th><th>SrcIp</th><th>DstIp</th><th>Domain</th><th>AccountName</th><th>Action</th><th>TechniqueId</th></tr></thead>
-      <tbody>
-        ${SYNTHETIC_TRANSACTIONS.map(e => `
-          <tr>
-            <td>${fmtTime(e.TimeGenerated)}</td>
-            <td class="kv">${esc(e.SrcIp)}</td>
-            <td class="kv">${esc(e.DstIp)}</td>
-            <td class="kv">${esc(e.Domain)}</td>
-            <td>${esc(e.AccountName)}</td>
-            <td>${esc(e.Action)}</td>
-            <td><span class="tag">${esc(e.TechniqueId)}</span></td>
-          </tr>
+  <div class="kpi-strip hunting-status-cards">
+    <div class="kpi"><span class="kpi-label">Tasks</span><span class="kpi-value">${KQL_PRACTICE_TASKS.length}</span><span class="kpi-delta">Row-count checked</span></div>
+    <div class="kpi"><span class="kpi-label">Union / join</span><span class="kpi-value">2</span><span class="kpi-delta">Cross-table drills</span></div>
+    <div class="kpi"><span class="kpi-label">Transforms</span><span class="kpi-value">4</span><span class="kpi-delta">Parse, JSON, split, extract</span></div>
+    <div class="kpi"><span class="kpi-label">Render ops</span><span class="kpi-value">3</span><span class="kpi-delta">timechart, barchart, piechart</span></div>
+  </div>
+  <div class="hunting-workspace">
+    <aside class="hunting-schema-sidebar" aria-label="Practice tasks">
+      <div class="hunting-sidebar-header">
+        <strong>Practice tasks</strong>
+        <span>${KQL_PRACTICE_TASKS.length}</span>
+      </div>
+      <div class="hunting-saved-queries" id="kql-practice-task-list">
+        ${KQL_PRACTICE_TASKS.map((task, index) => `
+          <button class="saved-query-row${index === 0 ? ' active' : ''}" type="button" data-kql-task="${esc(task.id)}">
+            <span>${esc(task.title)}</span>
+            <small>${esc(task.concept)} · ${task.expectedRows} rows expected</small>
+          </button>
         `).join('')}
-      </tbody>
-    </table>
+      </div>
+    </aside>
+
+    <section class="hunting-query-results" aria-label="Practice query and results">
+      <div class="hunting-query-editor">
+        <div class="hunting-section-toolbar">
+          <strong>Practice query</strong>
+          <span class="muted">Choose a task, load its query, and validate the result count.</span>
+        </div>
+        <div class="callout info" id="kql-practice-check">Loaded task: <strong>${esc(initialTask.title)}</strong> · expected ${initialTask.expectedRows} rows.</div>
+        <textarea id="sentinel-kql-query" class="kql hunting-kql">${esc(initialTask.query)}</textarea>
+        <div class="kql-toolbar">
+          <button class="btn btn-primary btn-sm" onclick="runSentinelKqlPractice()">Run query</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadSentinelKqlPractice('${esc(initialTask.id)}')">Load first task</button>
+          <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('sentinel-kql-query')">Copy</button>
+        </div>
+      </div>
+      <div class="hunting-results" id="sentinel-kql-results">
+        <div class="card-toolbar"><strong>Results</strong></div>
+        <div class="card-body muted">Run a practice query to see row-level output.</div>
+      </div>
+    </section>
+  </div>
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card">
+      <div class="card-toolbar"><strong>Fixture preview</strong><span class="muted">Use these rows for the practice queries</span></div>
+      <table class="grid compact-grid">
+        <thead><tr><th>Time</th><th>Scenario</th><th>Message</th><th>Domain</th></tr></thead>
+        <tbody>
+          ${KQL_PRACTICE_ROWS.map(row => `
+            <tr>
+              <td>${fmtTime(row.TimeGenerated)}</td>
+              <td>${esc(row.Scenario)}</td>
+              <td class="kv">${esc(row.Message)}</td>
+              <td class="kv">${esc(row.Domain)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-toolbar"><strong>Render samples</strong><span class="muted">Queries that should draw charts</span></div>
+      <div class="tile-grid" style="padding:12px;">
+        ${KQL_PRACTICE_TASKS.filter(task => task.query.toLowerCase().includes('render ')).map(task => `
+          <button class="tile" type="button" data-kql-task="${esc(task.id)}">
+            <strong>${esc(task.title)}</strong>
+            <span>${esc(task.concept)} · ${task.expectedRows} rows</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="callout info" style="margin:0 12px 12px;">The chart output is original SVG, not portal markup copied from Microsoft. It is deliberately simple so learners can read the shape of the result quickly.</div>
+    </div>
   </div>
   <div class="two-col" style="margin-top:16px;">
     <div class="card card-body">
       <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
-        <strong>IP IOC match query</strong>
-        <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('ti-ip-query')">Copy</button>
+        <strong>CSV fixture</strong>
+        <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('kql-practice-csv')">Copy</button>
       </div>
-      <textarea id="ti-ip-query" class="kql" readonly>${esc(TI_IP_MATCH_QUERY)}</textarea>
+      <textarea id="kql-practice-csv" class="kql" readonly>${esc(KQL_EXTERNALDATA_CSV)}</textarea>
+      <div class="callout info" style="margin-top:10px;">The externaldata task reads the bundled local CSV fixture instead of calling a live endpoint.</div>
     </div>
     <div class="card card-body">
       <div class="card-toolbar" style="padding:0 0 8px; border-bottom:0;">
-        <strong>Domain IOC match query</strong>
-        <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('ti-domain-query')">Copy</button>
+        <strong>IOC matching reference</strong>
+        <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('ti-ip-query')">Copy IP query</button>
       </div>
-      <textarea id="ti-domain-query" class="kql" readonly>${esc(TI_DOMAIN_MATCH_QUERY)}</textarea>
+      <textarea id="ti-ip-query" class="kql" readonly>${esc(TI_IP_MATCH_QUERY)}</textarea>
     </div>
   </div>
-`;
+    `,
+    onMount: () => {
+      const taskButtons = Array.from(document.querySelectorAll('[data-kql-task]'));
+      const taskById = Object.fromEntries(KQL_PRACTICE_TASKS.map(task => [task.id, task]));
+      function setActiveTask(taskId) {
+        const task = taskById[taskId] || initialTask;
+        sessionStorage.setItem('defender-lab.kql-practice.task', task.id);
+        document.getElementById('sentinel-kql-query').value = task.query;
+        document.getElementById('kql-practice-check').innerHTML = `Loaded task: <strong>${esc(task.title)}</strong> · expected ${task.expectedRows} rows.`;
+        taskButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.kqlTask === task.id));
+        runSentinelKqlPractice();
+      }
+      window.loadSentinelKqlPractice = taskId => setActiveTask(taskId);
+      window.runSentinelKqlPractice = () => {
+        const query = document.getElementById('sentinel-kql-query').value;
+        const task = Object.values(taskById).find(t => t.query.trim() === query.trim()) || taskById[sessionStorage.getItem('defender-lab.kql-practice.task')] || initialTask;
+        const result = mockKqlEvaluate(query);
+        const ok = result.rows.length === task.expectedRows;
+        document.getElementById('sentinel-kql-results').innerHTML = `
+          <div class="card-toolbar">
+            <strong>${result.rows.length} rows</strong>
+            <span class="muted">${ok ? 'Matched expected row count' : `Expected ${task.expectedRows} rows`} · ${esc(task.title)}</span>
+          </div>
+          ${mockKqlRenderResult(result)}`;
+        const check = document.getElementById('kql-practice-check');
+        if (check) {
+          check.className = `callout ${ok ? 'success' : 'warn'}`;
+          check.innerHTML = ok
+            ? `Correct answer: <strong>${esc(task.title)}</strong> returned ${result.rows.length} rows.`
+            : `Result mismatch: expected ${task.expectedRows} rows for <strong>${esc(task.title)}</strong>, got ${result.rows.length}.`;
+        }
+      };
+      taskButtons.forEach(btn => btn.addEventListener('click', () => setActiveTask(btn.dataset.kqlTask)));
+      setActiveTask(sessionStorage.getItem('defender-lab.kql-practice.task') || initialTask.id);
+    },
+  };
+};
 
 VIEWS['sentinel/hunting'] = () => {
   const jobComplete = localStorage.getItem('defender-lab.sentinel.networklogs.searchJob') === 'complete';

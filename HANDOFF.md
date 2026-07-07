@@ -607,3 +607,23 @@ Current QA baseline: 90/90 views render clean, 0 dead NAV routes.
 - Verified `node --check ui/data.js`, `node --check ui/views.js`, and
   `node --check ui/app.js` clean, plus headless Chrome `--dump-dom` checks
   on the new Copilot routes and an HTTP 200 from `127.0.0.1:8765`.
+
+## 2026-07-07 — Agent 13 KQL practice depth
+- Added a shared mock KQL evaluator in `ui/views.js` with support for
+  `union`, `join` (`inner` / `leftouter`), `summarize` (`bin()`, `dcount()`,
+  `countif()`, `arg_max()`), `parse`, `extend`, `project`, `render`
+  (`timechart`, `barchart`, `piechart`), `parse_json()`, `split()`,
+  `extract()`, `let` bindings, and local `externaldata` CSV fixtures.
+- Reworked `#/sentinel/logs` into a guided KQL practice workspace with 11
+  row-count-checked tasks and chart exercises, plus a bundled CSV fixture
+  preview and source-row reference cards.
+- Added `#/sentinel/hunting/authentication` and
+  `#/sentinel/hunting/network-session` as ASIM parser-style labs with saved
+  queries, source-row tables, and normalization study cards.
+- Updated the auth/network/KQL practice fixture rows in `ui/data.js` so the
+  practice queries and checks line up with the current lab date.
+- Verified `node --check ui/data.js`, `node --check ui/views.js`, and
+  `node --check ui/app.js`, plus headless Chrome `--dump-dom` checks on
+  `#/sentinel/logs`, `#/sentinel/hunting/authentication`, and
+  `#/sentinel/hunting/network-session`; the Node VM also matched the
+  expected row counts for the new queries.
