@@ -175,3 +175,79 @@ views: 90/90 render clean; dead NAV routes: 0
 ```
 - Result: **CLEAN**
 
+## qa-sweep — 2026-07-16T21:37:09+02:00
+```
+views: 102/104 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+  FAIL: defender/threat-explorer: tiny/empty render
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-07-16T21:37:34+02:00
+```
+views: 102/104 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+  FAIL: defender/threat-explorer: tiny/empty render
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-07-16T21:42:53+02:00
+```
+views: 103/105 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+  FAIL: defender/threat-explorer: tiny/empty render
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-07-16T21:45:07+02:00
+```
+views: 103/105 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+  FAIL: defender/threat-explorer: tiny/empty render
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-07-16T21:46:09+02:00
+```
+views: 103/105 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+  FAIL: defender/threat-explorer: tiny/empty render
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-08-02T10:57:41+02:00
+```
+views: 103/105 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+  FAIL: defender/threat-explorer: tiny/empty render
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-08-02T20:54:55+02:00
+```
+views: 112/113 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-08-02T20:59:50+02:00
+```
+views: 112/113 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-08-02T21:07:56+02:00
+```
+views: 112/113 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+```
+- Result: **FAILURES — see above**
+
+## qa-sweep — 2026-08-02T21:12:13+02:00
+```
+views: 112/113 render clean; dead NAV routes: 0
+  FAIL: purview/audit: tiny/empty render
+```
+- Result: **FAILURES — see above**
+

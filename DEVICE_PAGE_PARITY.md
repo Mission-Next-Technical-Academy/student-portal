@@ -12,6 +12,18 @@ using the project's own Fluent-tokens in `ui/styles.css`
 - [~] Partial / stub
 - [ ] Not implemented yet
 
+## Device discovery (added 2026-07-16 — see HANDOFF.md)
+- [x] Discovered/unmanaged devices in the inventory (`DISCOVERED_DEVICES`)
+- [x] Inventory tabs: Endpoints / Network devices / IoT devices
+- [x] Onboarding status: Onboarded / Can be onboarded / Unsupported / Insufficient info
+- [x] Filter flyout (health, onboarding, antivirus, excluded, Windows 10 versions)
+- [x] Choose columns (real picker) + Export (real CSV)
+- [x] Dedicated page per discovered asset (`#/defender/discovered-device`)
+- [x] Discovery settings (`#/defender/device-discovery`): mode, monitored networks,
+      exclusions, authenticated scans, Enterprise IoT
+- [x] Home "Discovered devices" card + "Devices discovered in the last 7 days"
+- [ ] Discovered-device advanced hunting pivot (DeviceInfo `OnboardingStatus`) — not modeled
+
 ## Access paths to the device page
 - [x] Device inventory (`#/defender/devices` → row click)
 - [~] Alerts queue → device name link (incident/asset pivots open devices; alert-detail body link still not fully modeled)

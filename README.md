@@ -1,8 +1,12 @@
-# SC-200 lab
+# Hacksmartersoft Security Lab — SC-200
 
-Local-only static-files simulator of the Microsoft security operations
-toolset (Defender XDR, Sentinel, Defender for Cloud, and Purview) for
-SC-200 exam study.
+Hacksmartersoft's local-only static-files training simulator for security
+operations concepts across Defender XDR, Sentinel, Defender for Cloud, Purview,
+Entra, and related administration surfaces.
+
+Hacksmartersoft Security Lab is an independent training publication and is
+not affiliated with, authorized, sponsored, or approved by any software vendor.
+All lab UI code and fictional data are original.
 
 Start here: [`SC200_LAB.md`](SC200_LAB.md) is the master project doc.
 Scope source of truth: [`ExamObjectives.md`](ExamObjectives.md).

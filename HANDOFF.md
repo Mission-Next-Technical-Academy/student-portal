@@ -34,6 +34,33 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-08-05 product architecture audit (planning only):
+  - Audited the live shell and 106 unique navigation routes against current
+    Microsoft Learn guidance through the Learn MCP server.
+  - Added `PRODUCT_ARCHITECTURE_PLAN.md` with the target product map, prioritized
+    gaps, and a six-agent/fourteen-package implementation sequence.
+  - No `ui/` files were changed in this planning pass.
+
+- 2026-08-02 Sentinel incident graph learning upgrade:
+  - Rebuilt `#/sentinel/graph` from the downloaded Microsoft Sentinel graph
+    public-preview article and its six screenshots as visual/product references;
+    all lab markup, styling, and interaction code remains original.
+  - Replaced the five-node toast-only mock with the existing 14-node `INC-1042`
+    phishing-to-OAuth attack story, progressive connected-asset expansion, and
+    a full blast-radius view distinguishing observed activity from reachable
+    exposure and marking critical assets.
+  - Added selectable node and relationship details, evidence sources, incident
+    timeline, response guidance, entity hunting/playbook pivots, an action log,
+    a four-step guided exercise, filters, relationship/risk layouts, similar-
+    entity grouping, zoom, fit, and drag-to-pan behavior.
+  - Matched the article's incident-graph information architecture with an alert
+    story rail, incident tabs, graph provisioning status, graph toolbar, dotted
+    canvas, blast-radius list, and contextual details drawer without copying
+    Microsoft portal code.
+  - Verified syntax and diff whitespace, HTTP 200, `103/105` full-view render
+    baseline with the same pre-existing Audit and Threat Explorer failures, and
+    17 browser interaction assertions covering the full guided workflow.
+
 - 2026-07-07 Agent 11 coverage-sweep rerun:
   - Rebuilt `COVERAGE_SWEEP.md` from scratch against the post-GAP_BRIDGE
     route map and the authoritative Learn-link index.
@@ -735,3 +762,554 @@ Current QA baseline: 90/90 views render clean, 0 dead NAV routes.
   `node --check ui/app.js` clean, confirmed `curl` to `127.0.0.1:8765`
   returns HTTP 200, and used headless Chrome `--dump-dom` to confirm the
   new Audit and Threat Explorer routes render the expected headings.
+
+## Ad-hoc addition (2026-07-09): script-triggered incident + embedded script analysis
+- New incident **INC-1055** "Suspicious PowerShell script execution on FIN-WKS-07"
+  and alert **A801** added to `ui/data.js` (SEED_ALERTS + INCIDENTS). A801 carries
+  a `scriptAnalysis` object (decoded script, findings, ATT&CK `techniques[]`).
+- `renderAlertDetail` (ui/views.js) shows an **Analyze script** button when an alert
+  has `scriptAnalysis`. New panel `#panel-script` in `ui/index.html`; new functions
+  `openScriptAnalysis()` / `toggleScriptMitre()` in `ui/app.js` implement the embedded
+  script-analysis pane with a **Show MITRE techniques** reveal (mirrors real Defender).
+- Reuses existing CSS (`.kql`, `.pill-row`, `.card card-body`, `.tag`, `.sev`). No new routes.
+
+## Sprint (2026-07-16): Device discovery — unmanaged asset inventory
+
+Source: Microsoft Learn → *Defender for Endpoint device discovery overview*
+(`/defender-endpoint/device-discovery`). Screenshot reference: the real portal's
+Home **Discovered devices** card. Look-alike from scratch; no Microsoft markup copied.
+
+### Why
+The lab modeled only onboarded devices, so the entire discovery half of the
+product — the "what don't we cover?" blind-spot question SC-200 asks — was missing.
+
+### New fixtures (`ui/data.js`)
+- `DISCOVERED_DEVICES` — 17 unmanaged assets across three inventory tabs
+  (`tab`: `computers` | `network` | `iot`). Carries `onboardingStatus`,
+  `discoverySource` (Basic / Standard / Authenticated scan), `protocols[]`,
+  `seenBy[]` (which onboarded sensor found it), `highValue`, `note`.
+- `DEVICE_INVENTORY_TABS`, `ONBOARDING_STATUSES`, `INVENTORY_FILTER_GROUPS`,
+  `INVENTORY_RANGES`.
+- `DEVICE_DISCOVERY_SETTINGS` — mode + both mode descriptions, monitored networks
+  (incl. two Ignored non-corporate ones), exclusions, authenticated scans, Enterprise IoT.
+- `DEVICES` gained `avStatus`, `excluded`, `winVersion`, plus a 13-device Windows 10
+  fleet so every filter facet (Inactive / Misconfigured / AV Disabled / Not updated /
+  Unknown / Excluded=Yes / each Win10 build) returns real rows. 18 onboarded total.
+
+### New/changed routes
+- `#/defender/devices` — rewritten. Union of onboarded + discovered rows
+  (`inventoryRows(tab)` normalizes both into one row shape). Tabs
+  Endpoints / Network devices / IoT devices; toolbar `📅 range · 🧮 Choose columns ·
+  ⬇ Export · 🔽 Filter`; active-filter chips; `.table-scroll` wrapper.
+- `#/defender/discovered-device` — **new.** Dedicated page per unmanaged asset
+  (Overview / Discovery details / Security recommendations / Onboarding).
+  Onboard button is disabled for Unsupported/Insufficient info.
+- `#/defender/device-discovery` — **new.** System > Settings > Device discovery:
+  mode switch (live, re-renders), monitored networks, exclusions, authenticated
+  scans, Enterprise IoT. Added to `NAV.defender` under Configuration.
+- `#/defender/home` — added `renderDiscoveredDevicesCard()`: total, IoT/Endpoints/
+  Network/High-value split, distribution-by-device-type bars, recent-7-day table.
+
+### Real, not stubbed
+`Choose columns` and `Export` genuinely work. `INVENTORY_COLUMNS` (views.js) drives
+the table; the picker persists to sessionStorage; `exportInventoryCsv()` (app.js)
+downloads a real CSV of exactly the visible columns and filtered rows. Only the
+onboarding-package / exclusion-write buttons remain `toast()` stubs.
+
+### Filter model
+`INVENTORY_FILTER_GROUPS[].field` names the row property. Options inside a group OR;
+groups AND (`applyInventoryFilters`). Empty group = no constraint. Switching tabs
+clears facets — a stale facet (e.g. a Win10 build) matches nothing on the Network
+tab and reads as an empty inventory rather than a tab change.
+
+### Gotcha for the next agent
+`.kv` is a **monospace code cell** (`<td class="kv">`), NOT a label/value row —
+`ui/NODE_MAP.md` previously implied otherwise and this cost a render bug. Use the
+new `.detail-row` (`<div class="detail-row"><span>Label</span><strong>Value</strong></div>`).
+
+### Verified
+`bin/qa-sweep.sh` → 103/105 views clean, 0 dead NAV routes. The two failures
+(`purview/audit`, `defender/threat-explorer`) are **pre-existing** — confirmed by
+stashing this work and re-running (98/100 baseline, same two). Drove the real UI in
+headless Chrome via Playwright: every tab, every filter facet, select-all, the column
+picker, the CSV download, the asset page tabs, and the discovery mode switch — all
+correct, **zero console/page errors**.
+
+## Ad-hoc addition (2026-08-02): Low and Informational incident mix
+- Added eight openable Defender/Sentinel incident fixtures: four Low
+  (`INC-1060`–`INC-1063`) and four Informational (`INC-1064`–`INC-1067`),
+  each backed by a matching alert and realistic identity, endpoint, email,
+  cloud, OAuth, or ASR-audit triage context.
+- Added the `informational` severity CSS alias so the full label uses the
+  existing informational color token in queue, preview, and detail views.
+- Verified all three JavaScript files with `node --check`, confirmed HTTP
+  200, and rendered `#/defender/incidents` in headless Chrome with 19 rows
+  and the new severity labels. `bin/qa-sweep.sh` remains at 103/105 with
+  the same pre-existing Audit and Threat Explorer tiny-render failures.
+
+## Ad-hoc addition (2026-08-02): Interactive Defender hunting graph
+- Replaced the static `#/defender/hunting-graph` scenario table with the
+  current guided workflow: open predefined scenarios, select a scenario,
+  supply required entities, apply shortest-path and advanced filters, and
+  run the scenario to render an interactive graph.
+- Added all 20 scenario shapes from the current Microsoft Learn hunting-graph
+  reference. Graph entities, paths, risk properties, and investigation details
+  are fictional local fixtures; the lab makes no real Defender or Sentinel
+  calls.
+- Added input validation, source/target/edge filtering, no-match feedback,
+  session-scoped workflow state, and a node inspector for criticality,
+  vulnerability, internet exposure, risk, and sensitive-data context.
+- Browser verification covered a two-input path scenario, an input-free SQL
+  choke-point scenario, missing-input validation, node inspection, filter
+  narrowing/empty results, and all 20 default scenario graphs. The run had zero
+  console/page errors and no horizontal overflow at 1366x768.
+- `node --check` passed for `data.js`, `views.js`, and `app.js`. The render
+  sweep remains at 103/105 with zero dead NAV routes and only the same
+  pre-existing `purview/audit` and `defender/threat-explorer` tiny-render
+  failures documented above.
+
+## Ad-hoc fix (2026-08-02): Threat Explorer message queue interactions
+- Made the full message row on `#/defender/threat-explorer` open a dedicated
+  email-entity detail side panel; previously only the subject refreshed an
+  inline detail area, so most row clicks appeared inert and nothing popped up.
+- Added Enter/Space keyboard activation, visible row focus/hover states, and
+  kept checkbox clicks isolated for batch remediation selection.
+- Verified 17 queue rows in headless Chrome: non-subject cell click and Enter
+  both opened the matching panel, checkbox selection kept it closed, and no
+  runtime/log errors occurred. Syntax checks passed; the render sweep improved
+  to 104/105 with only the unrelated pre-existing `purview/audit` tiny-render
+  failure remaining.
+
+## Ad-hoc fix (2026-08-02): Defender for Cloud attack-path wrapping
+- Fixed the `vertical-flow` modifier being overridden by the later generic
+  `.flowline` grid declaration. Attack-path steps now stack at full card width
+  instead of squeezing their text into six narrow columns.
+- Added minimum-width and overflow wrapping safeguards to `.flow-step` and
+  verified `#/defender-cloud/attack-paths` at 1366x768 in headless Chrome.
+  JavaScript syntax checks passed; the render sweep remains at 104/105 with
+  only the unrelated pre-existing `purview/audit` tiny-render failure.
+
+## Ad-hoc fix (2026-08-02): Defender for Cloud security alerts made interactive
+- `#/defender-cloud/alerts` rows had `cursor: pointer` from `.grid tbody tr`
+  but no handler, so every alert looked clickable and did nothing. Rows now
+  call `openCloudAlert(id)` and open a dedicated alert details pane.
+- Rebuilt the pane to match the real portal flow, verified against Microsoft
+  Learn (`manage-respond-alerts`, `alerts-overview`, `incidents-reference`):
+  summary block (severity / status / activity time, description, affected
+  resource, kill-chain intent), then an **Alert details** tab (alert ID,
+  detecting plan, scope, activity start/end, entities, evidence, related
+  alerts) and a **Take action** tab with the five documented sections —
+  Inspect resource context, Mitigate the threat, Prevent future attacks,
+  Trigger automated response, Suppress similar alerts — plus Change status
+  and Useful/Not useful feedback.
+- Answered "should alerts connect to other alerts": yes. Added `CLOUD_INCIDENTS`
+  (data.js) — a security incident is a correlation of alerts sharing an entity
+  or kill-chain pattern. Three incidents: exfiltration chain on shared IP +
+  identity, Kubernetes cluster chain, and a cross-cloud AWS→GCP correlation on
+  a reused operator account. Member alerts stay visible in the main table
+  because the same alert can be both standalone and part of an incident.
+  `openCloudIncident(id)` opens an incident pane listing members in attack
+  order; every member row opens that alert, and each alert links back.
+- Accuracy fixes found while checking Learn:
+  - Alert statuses were XDR states (New / In progress). Defender for Cloud
+    uses **Active / Dismissed / Resolved** — corrected in `CLOUD_ALERTS` and
+    `MC_ALERTS`. Keeping these distinct from XDR is itself exam-relevant.
+  - `MC_ALERTS` used capitalized severities, producing an unstyled `sev High`
+    pill. `defenderCloudAlertRows()` now lowercases severity.
+  - Added an **Informational** alert; the severity scale is High / Medium /
+    Low / Informational, and informational alerts matter mainly in the context
+    of an incident, which the correlation fixture now demonstrates.
+- Filter chips are functional (severity / status / cloud, session-scoped);
+  status changes persist to `defender-lab.defender-cloud.alert-status` so the
+  Dismissed filter behavior is observable across a refresh.
+- New globals: `openCloudAlert`, `setCloudAlertTab`, `setCloudAlertStatus`,
+  `openCloudIncident`, `setDefenderCloudAlertFilter`. New panels
+  `#panel-cloud-alert` and `#panel-cloud-incident` in `index.html`.
+  Defined the previously-undeclared `.border-top` class in `styles.css`.
+- Verified in headless Chrome with a throwaway iframe harness: 22/22 assertions
+  passed (row clicks, both tabs, all five Take action sections, status
+  persistence, related-alert chaining, incident members, filters, no unstyled
+  severity pills) with zero page errors. `node --check` passed for `data.js`,
+  `views.js`, `app.js`. Harness files were removed afterwards.
+
+## Ad-hoc addition (2026-08-02): Entra admin center tenant directory
+
+`#/entra/overview` was two navigation cards with no data. It now renders the
+Contoso tenant directory so the Entra surface carries the same synthetic
+population the Defender XDR and Sentinel views investigate.
+
+- New fixtures at the end of `ui/data.js` (`=== Microsoft Entra admin center —
+  tenant directory ===` … `=== end Entra tenant directory ===`):
+  `ENTRA_TENANT`, `ENTRA_USERS` (28 principals), `ENTRA_ROLE_ASSIGNMENTS`,
+  `ENTRA_RISK_DETECTION_SUMMARY`, `ENTRA_RECENT_SIGNINS`,
+  `ENTRA_RECOMMENDATIONS`.
+- Every principal reuses a UPN that already appears in the alert, incident,
+  device, Purview, or Copilot fixtures, so cross-portal pivots line up. Rows
+  carry `xdrIdentity` (set when the principal is in `IDENTITIES`) and
+  `incidentId` to drive the pivots.
+- The page renders: tenant summary, 7-day risk-detection rollup, a filterable
+  and searchable user table (All / Flagged for risk / Privileged / MFA not
+  registered / Service principals / Guests), recent risky sign-ins, privileged
+  role assignments (PIM active vs. eligible), and posture recommendations.
+- Teaching points preserved in the data: `MSOL_AzureSync` replication is
+  expected (benign true positive); three members are MFA-unregistered so risk
+  policies cannot self-remediate them; `legacy.batch` is the account CA002
+  blocks; Global Administrator still holds standing assignments.
+- New globals: `openEntraUser` (side panel reusing `#panel-technique`),
+  `setEntraUserFilter`, `setEntraUserSearch`, `entraUserRows`,
+  `currentEntraUserFilter`, `currentEntraUserSearch`, `entraRiskClass`,
+  `entraMfaTag`, plus the `ENTRA_USER_FILTERS` table.
+- New scoped CSS appended to `ui/styles.css`: `.entra-user-summary`,
+  `.entra-kv`, `.entra-user-actions`. Nothing existing was restyled.
+- Verified: `node --check` clean on `data.js` / `views.js` / `app.js`; the view
+  renders 28 user rows with no `undefined`/`[object Object]` leakage; all six
+  filters and the search box return the expected subsets; `openEntraUser`
+  renders without error for all 28 principals; headless-Chrome screenshots
+  confirmed the page and both side-panel variants (onboarded vs.
+  directory-only).
+
+NOTE: a codex agent was editing `ui/*` concurrently during this change. The
+data and CSS additions were appended at EOF and the view was replaced in place,
+so nothing else was overwritten — but re-check for merge damage if that sprint
+also touched `#/entra/overview`.
+
+## Ad-hoc fix (2026-08-02): KQL editor selection hid the query text
+- Selecting text in the query editor made it disappear. The editor is a
+  transparent `<textarea class="kql-input">` layered over a `.kql-highlight`
+  `<pre>` that holds the only visible (syntax-colored) copy of the text. The
+  textarea is appended after the highlight layer, so its opaque
+  `::selection { background: #264f78 }` band painted straight over the colored
+  text below it.
+- Fixed by making the selection band translucent — `rgba(38,79,120,.55)`,
+  with a `::-moz-selection` twin for Firefox — so the highlight layer reads
+  through. Left a comment on the rule warning not to give it a solid color.
+- Verified in headless Chrome by programmatically selecting the first four
+  lines: the band samples as rgb(34,56,79) (the expected blend over #1e1e1e)
+  against the rgb(30,30,30) editor background, and every token class stays
+  legible through it. Covers all three editor instances
+  (`#/defender/hunting`, the saved-query surface, and the Sentinel practice
+  editor) since they share one component.
+
+## Ad-hoc addition (2026-08-02): Microsoft 365 admin center
+
+- Added Microsoft 365 Admin as a navigable workload at `#/m365-admin/home`.
+  The existing waffle tile is now live, and the top portal strip includes a
+  direct Microsoft 365 admin entry.
+- Modeled Microsoft Learn's Dashboard view navigation with Home, Users ›
+  Active users, Billing › Licenses, Reports › Usage, Health › Service health,
+  Message center, Setup, and Admin centers.
+- Reused the Entra tenant directory for active users and added fictional
+  product-license, aggregate usage, service-health, message-center, and setup
+  fixtures. Security, Compliance, and Entra specialist-center cards pivot into
+  the existing Defender, Purview, and Entra lab workloads.
+- Kept the portal in a single-navigation-pane shell and explicitly labels all
+  actions and telemetry as local lab simulations.
+- Verified current product terminology and task paths against Microsoft Learn's
+  Microsoft 365 admin center overview, user creation/licensing, usage-report,
+  license-assignment, and Health dashboard articles.
+- `node --check` passed for `data.js`, `views.js`, and `app.js`; all eight new
+  routes rendered; the full render sweep reports zero dead NAV routes and only
+  the pre-existing `purview/audit` tiny-render failure. Headless Chrome drove
+  Defender home › waffle › Microsoft 365 Admin, Billing › Licenses, and the top
+  portal-strip return path with zero page/console errors and no 1366px overflow.
+
+## Ad-hoc fix (2026-08-02): Defender for Cloud inventory resource health
+
+- Finished the interrupted `#/defender-cloud/inventory` work. All 17 Azure,
+  AWS, and GCP resource rows now support click, Enter, and Space activation and
+  open a dedicated Resource Health panel.
+- Added Overview, Recommendations, and Alerts tabs with provider-native asset
+  IDs, cloud/scope/region metadata, protection and health state, exposure,
+  attack-path involvement, mapped posture recommendations, and linked security
+  alerts. Alert Take action panes now pivot directly back to the matching
+  inventory resource.
+- Corrected the Kubernetes identity mismatch: the Azure inventory asset is the
+  `aks-prod` managed cluster identified by its ARM ID; `node-3` is retained as
+  secondary alert context instead of being presented as the ARM resource.
+- Moved the Azure cloud asset fixtures from `ui/views.js` into `ui/data.js` and
+  gave every multicloud row a stable local ID. Inventory alert/recommendation
+  counts now match the rows rendered in each Resource Health pane.
+- Wrapped the nine-column inventory in an internal horizontal scroller and
+  added visible keyboard focus, so the document itself does not overflow at
+  1366×768.
+- Verified against Microsoft Learn's current Cloud asset inventory and
+  Investigate resource health workflows: selecting an asset leads to resource
+  metadata plus Recommendations and Alerts.
+- `node --check` passed for all three JavaScript files; the full render sweep
+  still has zero dead NAV routes and only the pre-existing `purview/audit`
+  tiny-render warning. Browser automation opened all 17 resources, exercised
+  mouse and keyboard activation, all panel tabs, alert/recommendation pivots,
+  and found zero console/page errors or count mismatches.
+
+## Ad-hoc fix (2026-08-02): Defender for Cloud attack-path workflow
+
+- Rechecked `#/defender-cloud/attack-paths` against Microsoft Learn's current
+  identify/remediate guidance. Replaced the static path cards with Overview,
+  Attack paths, and Choke points views; risk/asset/status/time filters; an
+  interactive Attack Path Map; and node-level insights, risk factors, MITRE
+  techniques, and associated recommendations.
+- Added path-wide remediation with the documented distinction between
+  path-breaking and additional recommendations. Lab progress persists in
+  `defender-lab.defender-cloud.attack-path-remediation`; resolving every
+  path-breaking recommendation changes the path to Resolved and teaches the
+  documented graph-refresh delay.
+- Expanded the Azure and AWS→GCP fixtures with entry points, vulnerable nodes,
+  choke points, target assets, timestamps, and remediation metadata. The page
+  now calls out Defender CSPM/agentless/container coverage and eligible-role
+  prerequisites.
+- `node --check` passed for `data.js`, `views.js`, and `app.js`; `git diff
+  --check` passed. Headless Chrome at 1366×768 verified overview/list/choke
+  navigation, all four filters, three- and four-node maps, node selection,
+  persistent resolution/reset, resolved-status filtering, contained map
+  overflow, and zero runtime errors.
+
+## Ad-hoc fix (2026-08-02): ASIM Authentication and DNS query terminals
+
+- `#/sentinel/hunting/authentication` had a working click handler but its
+  `starttime=ago(1d)` parser parameter used wall-clock time against frozen July
+  fixtures, producing 0 rows instead of 3. ASIM relative time now anchors to
+  each parser's newest fixture row; all Authentication saved queries return
+  3/1/1 rows and Network Session remains correct at 1/2/4.
+- `#/sentinel/hunting/dns` was the remaining bespoke query surface: plain
+  textarea, limited private evaluator, dead save actions, and no shared status
+  feedback. It now uses `renderMockAsimLab` and the common KQL evaluator/editor,
+  with top and toolbar Run actions, expected-row checks, save/delete/reset/copy,
+  inspectable result rows, and shared draft persistence.
+- Added `_Im_Dns` support to the common evaluator, including snapshot-relative
+  start/end time and DNS parser parameters for response code, domain lists,
+  response IPv4, and response prefixes. The five saved DNS queries return
+  9/4/6/2/3 rows. Scoped ASIM card overflow keeps all three terminal canvases
+  contained at 1366×768.
+- `node --check` passed for `data.js`, `views.js`, and `app.js`; `git diff
+  --check` passed. Headless Chrome completed 13/13 final assertions with zero
+  runtime/log errors.
+
+## Ad-hoc correction (2026-08-02): Defender for Cloud setup
+
+- Replaced the thin static `#/defender-cloud/setup` summary with a persistent
+  Azure subscription plan lab modeled from the current Defender for Cloud Learn
+  documentation. It now separates included foundational CSPM from paid plans,
+  makes plan scope and cost implications explicit, and distinguishes plan
+  enablement from feature configuration and coverage verification.
+- Added interactive plan selection for Defender CSPM, Servers, Containers,
+  Storage, Databases, App Service, APIs, and AI. Servers Plan 1/2 dependencies,
+  endpoint protection, agentless scanning, FIM, container sensor/registry
+  access, and Storage add-ons can be changed and saved to localStorage.
+- Added the actual study sequence: choose the Environment settings scope,
+  select and save plans, wait for components, validate with Coverage/inventory,
+  then investigate the resulting workload alerts in Defender for Cloud or the
+  automatically integrated Defender portal. AWS/GCP/Azure Arc remain in the
+  dedicated connector lab.
+- Labeled setup as supporting knowledge for the July 2026 SC-200 objective,
+  which directly assesses investigation and remediation of Defender for Cloud
+  workload-protection alerts and incidents.
+- Verified with `node --check`, a 1366×768 Chrome screenshot, and a CDP UI
+  harness: 8 plan rows, default/dirty/saved state, Plan 1 dependency behavior,
+  reload persistence, zero content overflow, and no route fallback all pass.
+
+## Ad-hoc fix (2026-08-02): Defender for Cloud recommendation rows
+
+- Microsoft Learn documents recommendation rows as selectable: opening a row
+  reveals overview, remediation, affected assets, related initiatives, and
+  applicable attack-path context. `#/defender-cloud/recommendations` previously
+  inherited a pointer cursor but had no interaction.
+- Recommendation rows now open a dedicated, keyboard-operable side panel with
+  those four views. The fictional fixtures include risk context, remediation
+  sequences, affected assets, and initiative mappings; action buttons remain
+  explicit local lab simulations.
+- Verified all eight rows in headless Chrome at 1366×768: mouse and Enter-key
+  activation open the correct recommendation, all four tabs render their
+  expected content, and the page has no horizontal overflow. JavaScript syntax
+  checks passed; the full render sweep remains 112/113 with only the unrelated
+  pre-existing `purview/audit` tiny-render failure.
+
+## Ad-hoc publication branding (2026-08-02): Hacksmartersoft
+
+- Rebranded the publication shell and browser title as **Hacksmartersoft
+  Security Lab**. After the publication requirement was clarified, removed the
+  restricted vendor word from every file under `ui/` and from `README.md`.
+- Product labels are now neutral (`Defender for Cloud`, `Defender XDR`,
+  `Sentinel`, `Purview`, `Entra`, and `365 Admin`). Fixture identifiers, mock
+  domains, provider paths, source comments, and the Graph activity table were
+  renamed too, preventing the word from resurfacing in rendered technical data.
+- Removed the two outbound vendor-documentation links and replaced the footer
+  with a generic independent-simulator notice.
+- Verified the Defender for Cloud recommendations route at 1366×768 in headless
+  Chrome. Case-insensitive scans of the complete publishable `ui/` tree,
+  `README.md`, and rendered DOM return zero matches. JavaScript syntax checks
+  passed; the render sweep remains 112/113 with only the unrelated pre-existing
+  `purview/audit` tiny-render failure.
+
+## Ad-hoc fix (2026-08-02): Microsoft 365 Message center reading pane
+
+- Corrected `#/m365-admin/message-center` so selecting a post opens a dedicated
+  reading pane, matching the current Microsoft 365 admin workflow rather than
+  behaving like a static table.
+- Expanded the three fictional posts with the April 2026 Message center
+  structure: change rationale, rollout schedule, tenant impact, recommended
+  actions, and compliance considerations, plus timing, relevance, platform,
+  tenant status, and monthly-active-user context.
+- Added keyboard-operable rows, read/unread state, favorites, archive/restore,
+  share simulation, active/archive tabs, and previous/next post navigation.
+  State is local-only and persists through refresh.
+- CDP browser harness passed 15/15 checks covering row click, detail sections,
+  read state, navigation, favorite, unread, archive, keyboard activation,
+  refresh persistence, archive tab, and zero main/pane horizontal overflow.
+  `node --check` passed for `data.js`, `views.js`, and `app.js`.
+
+## Sprint (2026-08-05): Defender-portal nav accuracy + guided hunting
+
+Grounded throughout against Microsoft Learn via the `microsoft-learn` MCP
+server, not from memory. Source pages are cited inline below.
+
+### 1. Nav accuracy — the Defender workload nav was modeling routes that
+### don't exist and hiding ones that do
+
+Per [Microsoft Sentinel in the Defender portal][1], Content hub / Repositories /
+Community are **Sentinel** nodes (`Microsoft Sentinel > Content management`),
+and `Microsoft Sentinel > Configuration` holds exactly Data connectors,
+Analytics, Watchlists, Automation.
+
+- Deleted the fabricated `defender/content-hub`, `defender/repositories`, and
+  `defender/community` stub views plus their `SECONDARY_SURFACES` entries; the
+  Defender nav now points at the real `#/sentinel/*` surfaces.
+- Added the Sentinel `Configuration` group. **`#/sentinel/automation` was fully
+  built but unreachable from the Defender nav** — same for Data connectors and
+  Watchlists. This was the reported "the automation rule is missing" symptom.
+- Promoted Endpoints, Email & collaboration, and Cloud apps to their own
+  sections; ASR policies now sits under Endpoints ([endpoint security
+  policies][2]), Threat explorer under Email & collaboration.
+- `Exposure management` became a section holding Secure score and Vulnerability
+  management, which [moved under Exposure management][3].
+- `System` holds Settings, Device discovery, Suppression rules, Email
+  notifications, Multi-tenant management — all Settings sub-pages in the real
+  portal.
+
+### 2. Nav sub-sections (new renderer capability)
+
+The renderer was one level deep, so `Investigation & response > Hunting >
+Advanced hunting` ([per the modes doc][4]) could not be expressed.
+
+- `ui/app.js`: `renderSidenav` now understands `{ subsection:'…' }`. Collapse
+  state is namespaced by parent via `subKey()` so a label like "Hunting" can
+  repeat under different sections. An item hides when *either* its section or
+  its subsection is collapsed; a new section resets subsection scope.
+- `ui/styles.css`: `.navsubsection`, `.navsubsection-toggle`, `.navitem-nested`.
+- `Investigation & response` now nests **Incidents & alerts**, **Hunting**,
+  **Actions & submissions**.
+- Renamed `Custom detections` → `Custom detection rules` to match the portal.
+
+### 3. Guided hunting mode (new)
+
+[Advanced hunting supports guided and advanced modes][4]; only the KQL editor
+existed. New `ui/guided-hunting.js` (loaded in `index.html` before `views.js`).
+
+- Mode tabs on `#/defender/hunting`; last-used mode persists. A query handed
+  over from another page (the `hunting.prefill` handoff) forces advanced mode.
+- Data domain selector with all six product domains ([domain list][5]).
+- Basic filters by default (AND-only); the "Toggle to see more filters and
+  conditions" switch unlocks the full set plus OR — matching the product.
+- Load sample queries, filtered by selected domain; loading a sample that uses
+  non-basic filters auto-reveals all filters, as the product does.
+- **Table pinning**: the first condition pins the table and filters from other
+  tables grey out until Clear all. Deliberate divergence from the product (which
+  unions internally) — it keeps emitted KQL single-table and runnable against
+  the bundled fixtures, and makes "the schema decides the table" concrete.
+- The compiled KQL is shown in a preview pane *and* mirrored into the advanced
+  editor, so the filter → `| where Col == "value"` mapping stays visible. This
+  is the pedagogical point of the feature.
+- `GUIDED_HUNTING_DOMAINS` / `_OPERATORS` / `_FILTERS` / `_SAMPLES` in `data.js`.
+  Filter columns and suggested values are taken from the real fixtures so built
+  queries return rows.
+
+### 4. Mock KQL evaluator bug found and fixed
+
+`mockKqlEvalPredicate` captured the string literal raw for
+`has|contains|startswith|endswith` while `==` got escape processing for free by
+evaluating the literal as JS. So `startswith "C:\\Users"` never matched a path
+containing `C:\Users`. Added `mockKqlUnescapeLiteral()` and applied it to that
+branch. Verified against all 11 `SAVED_QUERIES`: **0 changed** row counts.
+
+### Verification
+
+- `node --check` clean on `data.js`, `views.js`, `app.js`, `guided-hunting.js`.
+- `node bin/render_all.js`: 109/110, dead NAV routes 0. The single failure is
+  the pre-existing, unrelated `purview/audit` tiny-render.
+- All 114 nav routes across every workload resolve to a defined `VIEWS[]`.
+- Nav nesting: scripted test covers default state, subsection collapse, parent
+  collapse hiding subsection headers, and independent state on re-expand.
+- Guided builder: 51/51 — every sample query, every filter's first suggested
+  value, every operator in `GUIDED_HUNTING_OPERATORS`, OR joins, and edge cases
+  (empty state, empty value, number/bool unquoted, quote and backslash escaping).
+
+### Known / not done
+
+- `purview/audit` renders tiny. Pre-existing, untouched.
+- `SAVED_QUERIES` "Process executions from Public folder" returns 0 rows because
+  of `SHA256 has "c"` — correct KQL (`has` is term-based; `c` is not a term in a
+  hex hash). Pre-existing and arguably good teaching material; left alone.
+- The Email and collaboration guided domain has no bundled fixture tables, so it
+  shows an explicit empty-state callout rather than silently returning nothing.
+- Breadcrumbs on relocated views still name their old sections (e.g.
+  `#/defender/settings` says `Configuration ›` but now lives under System).
+  Not yet synced.
+- `Alert tuning` is placed under Investigation & response to match its own
+  breadcrumb; the portal files it under `Settings > Microsoft Defender XDR`.
+
+[1]: https://learn.microsoft.com/azure/sentinel/microsoft-sentinel-defender-portal#quick-reference
+[2]: https://learn.microsoft.com/defender-xdr/microsoft-365-security-center-mde#what-to-expect
+[3]: https://learn.microsoft.com/defender-vulnerability-management/tvm-microsoft-secure-score-devices
+[4]: https://learn.microsoft.com/defender-xdr/advanced-hunting-modes
+[5]: https://learn.microsoft.com/defender-xdr/advanced-hunting-query-builder#specify-the-data-domain-to-hunt-in
+
+## Correction (2026-08-05, same day): Sentinel section shape was wrong
+
+The earlier restructure in this file was built from `microsoft_docs_search`
+excerpts. Fetching the full page with `microsoft_docs_fetch` showed the Sentinel
+section's *shape* was wrong, and surfaced six more built-but-unreachable routes.
+
+- **Content management and Configuration are subsections _under_ Microsoft
+  Sentinel**, not siblings. Every row in the source table reads
+  `Microsoft Sentinel > Content management > …`. The excerpts rendered them as
+  separate tables, which hid the hierarchy. Fixed using the subsection renderer.
+- **Added `Microsoft Sentinel > Threat management`** with Workbooks, Hunting,
+  Notebooks, MITRE ATT&CK — all four views existed, none were in the Defender nav.
+- **Search pointed at the wrong route** (`#/sentinel/hunting`); the doc maps it
+  to `Microsoft Sentinel > Search` and `#/sentinel/search` exists. Fixed.
+- **Removed the bogus "Threat management" _route_** (`#/sentinel/incidents`).
+  Threat management is a subsection; Sentinel Incidents maps to
+  `Investigation & response > Incidents & alerts > Incidents`, already present.
+- Added `Intel management` (`#/sentinel/threat-intel`) under Threat intelligence
+  and `Microsoft Sentinel` settings (`#/sentinel/settings`) under System.
+
+Net: 6 more views became reachable. Same bug class as the Automation report.
+
+### New: `NAV_SPEC.md`
+
+Verified source of truth for `NAV.defender`, with a per-row citation table. Read
+it before touching the left nav. It records explicitly:
+
+- **Docs establish parentage, not ordering.** The source tables are "organized as
+  Microsoft Sentinel is in the Azure portal" — Azure-blade order, not Defender
+  nav sequence. The authoritative artifact for sequence is a screenshot. Section
+  order in `data.js` is a reasoned choice and must not be cited as sourced.
+- Unverified placements: `defender/mto`, `sentinel/graph`, `defender/alert-tuning`.
+- Nodes that must never enter `NAV.defender`: News & guides, Workspace manager,
+  and any Defender-owned Content hub / Repositories / Community.
+
+### New invariant
+
+`NAV_SPEC.md` carries an orphan-view check (every `VIEWS[...]` reachable from
+some nav). It currently reports 7, of which 5 are legitimate drill-down detail
+routes (`defender/incident`, `defender/device`, `defender/identity`,
+`defender/discovered-device`, `copilot/session`). Two look like real gaps:
+`purview/ai-hub` and `defender/email-collab/threat-explorer/campaigns`. The
+check needs a detail-route exclusion list before it is CI-worthy.
+
+### Queued: Agent 20 in `AGENTS.md`
+
+Breadcrumb sync — 10 views still name their pre-restructure section (e.g.
+`#/defender/settings` renders `Configuration ›` but now lives under System).
+Checklist is per-view with the exact old → new string, plus an embedded audit
+command that must report `stale: 0`. Run with `bin/run-codex-agents.sh 20`.
+`defender/home` is deliberately excluded (top-level item, no section).

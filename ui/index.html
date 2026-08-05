@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SC-200_lab</title>
+<title>Hacksmartersoft Security Lab</title>
 <link rel="icon" href="data:," />
 <link rel="stylesheet" href="styles.css" />
 </head>
@@ -29,8 +29,8 @@
               stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="wordmark-text">
-        <span id="portal-name">Microsoft Defender</span>
-        <span class="wordmark-faint">· SC-200_lab</span>
+        <span id="portal-name">Hacksmartersoft Security Lab</span>
+        <span class="wordmark-faint" id="portal-context">· Defender</span>
       </span>
     </span>
   </div>
@@ -47,21 +47,22 @@
     <button class="iconbtn" title="Settings">⚙</button>
     <button class="iconbtn" title="Help">?</button>
     <div class="tenant">Contoso · Tenant</div>
-    <div class="avatar" title="alex.ansbergs@contoso.onmicrosoft.com">AA</div>
+    <div class="avatar" title="alex.ansbergs@contoso.example">AA</div>
   </div>
 </header>
 
 <div class="portal-tabs" id="portal-tabs">
   <button class="portal-tab" data-portal="defender" onclick="switchPortalContext('defender')">Defender portal</button>
   <button class="portal-tab" data-portal="azure" onclick="switchPortalContext('azure')">Azure portal</button>
+  <button class="portal-tab" data-portal="admin" onclick="switchPortalContext('admin')">365 admin</button>
 </div>
 <div class="workload-strip" id="workload-strip"></div>
 
 <div class="shell" id="shell">
   <nav class="pane pane-azure" id="pane-azure" hidden>
     <div class="pane-header">
-      <span class="pane-title">Microsoft Cloud</span>
-      <button class="pane-toggle" id="toggle-azure" title="Collapse" aria-label="Collapse Microsoft Cloud pane">«</button>
+      <span class="pane-title">Cloud</span>
+      <button class="pane-toggle" id="toggle-azure" title="Collapse" aria-label="Collapse Cloud pane">«</button>
     </div>
     <ul class="pane-list" id="sidenav-azure"></ul>
   </nav>
@@ -79,7 +80,7 @@
 <aside id="panel-switcher" class="sidepanel left hidden">
   <div class="sidepanel-header switcher-header">
     <span class="switcher-close-spacer"></span>
-    <h2>Microsoft Cloud</h2>
+    <h2>Hacksmartersoft training portals</h2>
     <button class="iconbtn" data-close="panel-switcher">✕</button>
   </div>
   <div class="sidepanel-body switcher-grid" id="switcher-grid"></div>
@@ -101,7 +102,7 @@
 <section id="panel-analytics-wizard" class="wizard-window hidden" role="dialog" aria-modal="true" aria-labelledby="analytics-wizard-title">
   <div class="wizard-header">
     <div>
-      <div class="wizard-breadcrumb">Home › Microsoft Sentinel › Analytics</div>
+      <div class="wizard-breadcrumb">Home › Sentinel › Analytics</div>
       <h2 id="analytics-wizard-title">Analytics rule wizard - Create a new rule</h2>
     </div>
     <button class="iconbtn wizard-close" data-close="panel-analytics-wizard" aria-label="Close analytics rule wizard">✕</button>
@@ -243,6 +244,87 @@
   <div id="alert-body" class="sidepanel-body"></div>
 </aside>
 
+<!-- ADVANCED HUNTING: INSPECT RECORD -->
+<aside id="panel-hunt-record" class="sidepanel wide hidden" role="dialog" aria-modal="true" aria-labelledby="hunt-record-title">
+  <div class="sidepanel-header">
+    <h2 id="hunt-record-title">Inspect record</h2>
+    <button class="iconbtn" data-close="panel-hunt-record" aria-label="Close record details">✕</button>
+  </div>
+  <div id="hunt-record-body" class="sidepanel-body"></div>
+</aside>
+
+<!-- DEFENDER FOR CLOUD ALERT DETAIL -->
+<aside id="panel-cloud-alert" class="sidepanel wide hidden" role="dialog" aria-modal="true" aria-labelledby="cloud-alert-title">
+  <div class="sidepanel-header">
+    <h2 id="cloud-alert-title">Security alert</h2>
+    <button class="iconbtn" data-close="panel-cloud-alert" aria-label="Close alert details">✕</button>
+  </div>
+  <div id="cloud-alert-body" class="sidepanel-body"></div>
+</aside>
+
+<!-- DEFENDER FOR CLOUD RECOMMENDATION DETAIL -->
+<aside id="panel-cloud-recommendation" class="sidepanel wide hidden" role="dialog" aria-modal="true" aria-labelledby="cloud-recommendation-title">
+  <div class="sidepanel-header">
+    <h2 id="cloud-recommendation-title">Security recommendation</h2>
+    <button class="iconbtn" data-close="panel-cloud-recommendation" aria-label="Close recommendation details">✕</button>
+  </div>
+  <div id="cloud-recommendation-body" class="sidepanel-body"></div>
+</aside>
+
+<!-- DEFENDER FOR CLOUD RESOURCE HEALTH -->
+<aside id="panel-cloud-resource" class="sidepanel wide hidden" role="dialog" aria-modal="true" aria-labelledby="cloud-resource-title">
+  <div class="sidepanel-header">
+    <h2 id="cloud-resource-title">Resource health</h2>
+    <button class="iconbtn" data-close="panel-cloud-resource" aria-label="Close resource health">✕</button>
+  </div>
+  <div id="cloud-resource-body" class="sidepanel-body"></div>
+</aside>
+
+<!-- DEFENDER FOR CLOUD SECURITY INCIDENT -->
+<aside id="panel-cloud-incident" class="sidepanel wide hidden" role="dialog" aria-modal="true" aria-labelledby="cloud-incident-title">
+  <div class="sidepanel-header">
+    <h2 id="cloud-incident-title">Security incident</h2>
+    <button class="iconbtn" data-close="panel-cloud-incident" aria-label="Close security incident">✕</button>
+  </div>
+  <div id="cloud-incident-body" class="sidepanel-body"></div>
+</aside>
+
+<!-- THREAT EXPLORER MESSAGE DETAIL -->
+<aside id="panel-threat-message" class="sidepanel wide hidden" role="dialog" aria-modal="true" aria-labelledby="threat-message-title">
+  <div class="sidepanel-header">
+    <h2 id="threat-message-title">Email entity</h2>
+    <button class="iconbtn" data-close="panel-threat-message" aria-label="Close message details">✕</button>
+  </div>
+  <div id="threat-message-body" class="sidepanel-body"></div>
+</aside>
+
+<!-- 365 MESSAGE CENTER READING PANE -->
+<aside id="panel-m365-message" class="sidepanel wide hidden" role="dialog" aria-modal="true" aria-labelledby="m365-message-title">
+  <div class="sidepanel-header">
+    <h2 id="m365-message-title">Message center post</h2>
+    <button class="iconbtn" data-close="panel-m365-message" aria-label="Close message center post">✕</button>
+  </div>
+  <div id="m365-message-body" class="sidepanel-body"></div>
+</aside>
+
+<!-- DEVICE INVENTORY COLUMN PICKER -->
+<aside id="panel-inventory-columns" class="sidepanel hidden">
+  <div class="sidepanel-header">
+    <h2>🧮 Choose columns</h2>
+    <button class="iconbtn" data-close="panel-inventory-columns">✕</button>
+  </div>
+  <div id="inventory-columns-body" class="sidepanel-body"></div>
+</aside>
+
+<!-- DEVICE INVENTORY FILTER FLYOUT -->
+<aside id="panel-inventory-filter" class="sidepanel hidden">
+  <div class="sidepanel-header">
+    <h2>🔽 Filters</h2>
+    <button class="iconbtn" data-close="panel-inventory-filter">✕</button>
+  </div>
+  <div id="inventory-filter-body" class="sidepanel-body"></div>
+</aside>
+
 <!-- INCIDENT DETAIL -->
 <aside id="panel-incident" class="sidepanel wide hidden">
   <div class="sidepanel-header">
@@ -268,6 +350,15 @@
     <button class="iconbtn" data-close="panel-tvm">✕</button>
   </div>
   <div id="tvm-body" class="sidepanel-body"></div>
+</aside>
+
+<!-- MSSP CUSTOMER TENANT DETAILS -->
+<aside id="panel-tenant" class="sidepanel wide hidden">
+  <div class="sidepanel-header">
+    <h2 id="tenant-title">Customer tenant</h2>
+    <button class="iconbtn" data-close="panel-tenant">✕</button>
+  </div>
+  <div id="tenant-body" class="sidepanel-body"></div>
 </aside>
 
 <!-- SUPPRESSION RULE EDITOR -->
@@ -312,6 +403,15 @@
   <div id="technique-body" class="sidepanel-body"></div>
 </aside>
 
+<!-- EMBEDDED SCRIPT ANALYSIS (from a script-based alert) -->
+<aside id="panel-script" class="sidepanel wide hidden">
+  <div class="sidepanel-header">
+    <h2 id="script-title">Script analysis</h2>
+    <button class="iconbtn" data-close="panel-script">✕</button>
+  </div>
+  <div id="script-body" class="sidepanel-body"></div>
+</aside>
+
 <!-- GUIDED SCENARIO COACH -->
 <aside id="panel-guide" class="guide-panel hidden" aria-live="polite">
   <div class="guide-kicker" id="guide-kicker">Guided scenario</div>
@@ -326,9 +426,20 @@
 
 <div id="scrim" class="scrim hidden"></div>
 
+<footer class="legal-footer" id="legal-footer">
+  <span><strong>Hacksmartersoft Security Lab</strong> is an independent fictional training
+    simulator. It is not affiliated with, authorized, sponsored, or approved by any software
+    vendor. Product and service names are used only to identify training concepts. All other
+    trademarks belong to their respective owners. All lab data is fictional.</span>
+</footer>
+
 <script src="data.js"></script>
 <script src="lab-widgets.js"></script>
+<script src="kql-editor.js"></script>
+<script src="guided-hunting.js"></script>
 <script src="views.js"></script>
 <script src="app.js"></script>
+<!-- Loaded last: overrides the static VIEWS['defender-cloud/workflow'] registration. -->
+<script src="workflow-automation.js"></script>
 </body>
 </html>
