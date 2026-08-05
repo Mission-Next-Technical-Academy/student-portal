@@ -2298,7 +2298,7 @@ VIEWS['defender/threat-analytics'] = () => `
 `;
 
 VIEWS['defender/secure-score'] = () => `
-  <div class="page-header"><div><div class="breadcrumb">Configuration › <strong>Secure score</strong></div><h1>Secure Score</h1></div></div>
+  <div class="page-header"><div><div class="breadcrumb">Exposure management › <strong>Secure score</strong></div><h1>Secure Score</h1></div></div>
   <div class="two-col">
     <div class="card card-body" style="text-align:center;">
       <div class="alert-section-title">Your secure score</div>
@@ -2333,7 +2333,7 @@ VIEWS['defender/cloud-apps'] = () => {
   return `
     <div class="page-header">
       <div>
-        <div class="breadcrumb">Configuration › <strong>Cloud apps</strong></div>
+        <div class="breadcrumb">Cloud apps › <strong>Cloud apps</strong></div>
         <h1>Defender for Cloud Apps investigation</h1>
         <div class="page-subtitle">Risky OAuth app investigation tied to ${esc(inv.incidentId)} and the phishing-to-consent abuse scenario.</div>
       </div>
@@ -2387,7 +2387,7 @@ VIEWS['defender/cloud-apps'] = () => {
 VIEWS['defender/settings'] = () => `
   <div class="page-header">
     <div>
-      <div class="breadcrumb">Configuration › <strong>Settings</strong></div>
+      <div class="breadcrumb">System › <strong>Settings</strong></div>
       <h1>Defender XDR settings</h1>
       <div class="page-subtitle">MDE tenant controls for advanced features, device grouping, permissions, and automation levels.</div>
     </div>
@@ -2461,7 +2461,7 @@ VIEWS['defender/mto'] = () => {
   return `
     <div class="page-header">
       <div>
-        <div class="breadcrumb">Configuration › <strong>Multi-tenant management</strong></div>
+        <div class="breadcrumb">System › <strong>Multi-tenant management</strong></div>
         <h1>Defender multi-tenant management</h1>
         <div class="page-subtitle">Consolidated incident queue for a managed-security-provider style lab tenant. Use it to reason about delegated access versus customer-tenant administration.</div>
       </div>
@@ -2576,7 +2576,7 @@ VIEWS['defender/asr-policy'] = () => `
 VIEWS['defender/notifications'] = () => `
   <div class="page-header">
     <div>
-      <div class="breadcrumb">Configuration › <strong>Email notifications</strong></div>
+      <div class="breadcrumb">System › <strong>Email notifications</strong></div>
       <h1>Email notification rules</h1>
       <div class="page-subtitle">Static create flow for incident, action center, and threat analytics notifications.</div>
     </div>
@@ -4014,7 +4014,7 @@ VIEWS['defender/identity'] = () => {
 VIEWS['defender/suppression'] = () => {
   return `
     <div class="page-header">
-      <div><div class="breadcrumb">Configuration › <strong>Suppression rules</strong></div><h1>Suppression rules</h1></div>
+      <div><div class="breadcrumb">System › <strong>Suppression rules</strong></div><h1>Suppression rules</h1></div>
       <div class="page-actions"><button class="btn btn-primary" onclick="openRulePanel()">+ Create rule</button></div>
     </div>
     <div class="callout">
@@ -6528,7 +6528,7 @@ VIEWS['defender/action-center'] = () => `
 VIEWS['defender/email-collab'] = () => `
   <div class="page-header">
     <div>
-      <div class="breadcrumb">Configuration › <strong>Email &amp; collaboration</strong></div>
+      <div class="breadcrumb">Email &amp; collaboration › <strong>Email &amp; collaboration</strong></div>
       <h1>Email and collaboration investigation</h1>
       <div class="page-subtitle">Practice MDO triage paths for phishing, mailbox rules, submissions, and OAuth follow-on activity.</div>
     </div>
@@ -6582,7 +6582,7 @@ VIEWS['defender/email-collab'] = () => `
   </div>`;
 
 VIEWS['defender/endpoints'] = () => `
-  <div class="page-header"><div><div class="breadcrumb">Configuration › <strong>Endpoints</strong></div><h1>Endpoint security operations</h1><div class="page-subtitle">Shortcut surface for MDE device settings, ASR policy, live response, and device inventory.</div></div></div>
+  <div class="page-header"><div><div class="breadcrumb">Endpoints › <strong>Endpoints</strong></div><h1>Endpoint security operations</h1><div class="page-subtitle">Shortcut surface for MDE device settings, ASR policy, live response, and device inventory.</div></div></div>
   <div class="tile-grid">
     <a class="tile" href="#/defender/devices"><strong>Device inventory</strong><span>Open device overview, timeline, live response, and package collection.</span></a>
     <a class="tile" href="#/defender/settings"><strong>MDE settings</strong><span>Advanced features, device groups, roles, and automation levels.</span></a>
@@ -6591,7 +6591,7 @@ VIEWS['defender/endpoints'] = () => `
   </div>`;
 
 VIEWS['defender/exposure'] = () => `
-  <div class="page-header"><div><div class="breadcrumb">Defender › <strong>Exposure management</strong></div><h1>Exposure management</h1><div class="page-subtitle">Prioritize exposed assets by incident linkage, cloud attack paths, and secure score recommendations.</div></div></div>
+  <div class="page-header"><div><div class="breadcrumb">Exposure management › <strong>Exposure management</strong></div><h1>Exposure management</h1><div class="page-subtitle">Prioritize exposed assets by incident linkage, cloud attack paths, and secure score recommendations.</div></div></div>
   <div class="kpi-strip">
     <div class="kpi"><span class="kpi-label">Critical assets</span><span class="kpi-value">7</span></div>
     <div class="kpi"><span class="kpi-label">Open paths</span><span class="kpi-value">${CLOUD_ATTACK_PATHS.length}</span></div>
@@ -9942,7 +9942,7 @@ VIEWS['defender/vulnerabilities'] = () => {
   return `
   <div class="page-header">
     <div>
-      <div class="breadcrumb">Endpoints › <strong>Vulnerability management</strong></div>
+      <div class="breadcrumb">Exposure management › <strong>Vulnerability management</strong></div>
       <h1>Vulnerability management</h1>
       <div class="page-subtitle">Track exposed software, exploitable CVEs, remediation requests, and scoped exceptions for the lab tenant.</div>
     </div>

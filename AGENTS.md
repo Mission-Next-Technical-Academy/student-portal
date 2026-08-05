@@ -406,17 +406,17 @@ Rules for this agent:
 - `NAV_SPEC.md` records that section *ordering* is a reasoned choice, not a cited
   fact. You are syncing names only; do not reorder anything.
 
-- [ ] **20.1** `defender/secure-score` — `Configuration ›` → `Exposure management ›`
-- [ ] **20.2** `defender/exposure` — `Defender ›` → `Exposure management ›`
-- [ ] **20.3** `defender/vulnerabilities` — `Endpoints ›` → `Exposure management ›`
-- [ ] **20.4** `defender/endpoints` — `Configuration ›` → `Endpoints ›`
-- [ ] **20.5** `defender/email-collab` — `Configuration ›` → `Email & collaboration ›`
-- [ ] **20.6** `defender/cloud-apps` — `Configuration ›` → `Cloud apps ›`
-- [ ] **20.7** `defender/settings` — `Configuration ›` → `System ›`
-- [ ] **20.8** `defender/mto` — `Configuration ›` → `System ›`
-- [ ] **20.9** `defender/notifications` — `Configuration ›` → `System ›`
-- [ ] **20.10** `defender/suppression` — `Configuration ›` → `System ›`
-- [ ] **20.11** Re-run the audit below; it must report `stale: 0`. Then
+- [x] **20.1** `defender/secure-score` — `Configuration ›` → `Exposure management ›`
+- [x] **20.2** `defender/exposure` — `Defender ›` → `Exposure management ›`
+- [x] **20.3** `defender/vulnerabilities` — `Endpoints ›` → `Exposure management ›`
+- [x] **20.4** `defender/endpoints` — `Configuration ›` → `Endpoints ›`
+- [x] **20.5** `defender/email-collab` — `Configuration ›` → `Email & collaboration ›`
+- [x] **20.6** `defender/cloud-apps` — `Configuration ›` → `Cloud apps ›`
+- [x] **20.7** `defender/settings` — `Configuration ›` → `System ›`
+- [x] **20.8** `defender/mto` — `Configuration ›` → `System ›`
+- [x] **20.9** `defender/notifications` — `Configuration ›` → `System ›`
+- [x] **20.10** `defender/suppression` — `Configuration ›` → `System ›`
+- [x] **20.11** Re-run the audit below; it must report `stale: 0`. Then
   `node --check ui/views.js` and `node bin/render_all.js` (expect
   `dead NAV routes: 0`; the `purview/audit` tiny-render failure is
   pre-existing and unrelated — leave it).

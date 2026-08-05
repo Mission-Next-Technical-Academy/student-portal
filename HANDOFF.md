@@ -1313,3 +1313,15 @@ Breadcrumb sync — 10 views still name their pre-restructure section (e.g.
 Checklist is per-view with the exact old → new string, plus an embedded audit
 command that must report `stale: 0`. Run with `bin/run-codex-agents.sh 20`.
 `defender/home` is deliberately excluded (top-level item, no section).
+
+## Agent 20 (2026-08-05): Defender breadcrumb sync
+
+- Synced the ten stale Defender breadcrumbs to the section names in
+  `NAV_SPEC.md`: Exposure management, Endpoints, Email & collaboration,
+  Cloud apps, and System. No routes, page titles, navigation entries, or
+  layouts changed.
+- The breadcrumb audit reports `stale: 0`; `node --check` passes for
+  `ui/data.js`, `ui/views.js`, and `ui/app.js`.
+- `node bin/render_all.js` reports `109/110 render clean` and
+  `dead NAV routes: 0`; the sole `purview/audit` tiny-render failure is the
+  documented pre-existing baseline.
