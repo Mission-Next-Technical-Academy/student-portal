@@ -2333,7 +2333,7 @@ VIEWS['defender/cloud-apps'] = () => {
   return `
     <div class="page-header">
       <div>
-        <div class="breadcrumb">Cloud apps › <strong>Cloud apps</strong></div>
+        <div class="breadcrumb">Cloud apps › <strong>Defender for Cloud Apps</strong></div>
         <h1>Defender for Cloud Apps investigation</h1>
         <div class="page-subtitle">Risky OAuth app investigation tied to ${esc(inv.incidentId)} and the phishing-to-consent abuse scenario.</div>
       </div>
@@ -6528,7 +6528,7 @@ VIEWS['defender/action-center'] = () => `
 VIEWS['defender/email-collab'] = () => `
   <div class="page-header">
     <div>
-      <div class="breadcrumb">Email &amp; collaboration › <strong>Email &amp; collaboration</strong></div>
+      <div class="breadcrumb">Email &amp; collaboration › <strong>Investigations</strong></div>
       <h1>Email and collaboration investigation</h1>
       <div class="page-subtitle">Practice MDO triage paths for phishing, mailbox rules, submissions, and OAuth follow-on activity.</div>
     </div>
@@ -6582,7 +6582,7 @@ VIEWS['defender/email-collab'] = () => `
   </div>`;
 
 VIEWS['defender/endpoints'] = () => `
-  <div class="page-header"><div><div class="breadcrumb">Endpoints › <strong>Endpoints</strong></div><h1>Endpoint security operations</h1><div class="page-subtitle">Shortcut surface for MDE device settings, ASR policy, live response, and device inventory.</div></div></div>
+  <div class="page-header"><div><div class="breadcrumb">Endpoints › <strong>Endpoint security ops</strong></div><h1>Endpoint security operations</h1><div class="page-subtitle">Shortcut surface for MDE device settings, ASR policy, live response, and device inventory.</div></div></div>
   <div class="tile-grid">
     <a class="tile" href="#/defender/devices"><strong>Device inventory</strong><span>Open device overview, timeline, live response, and package collection.</span></a>
     <a class="tile" href="#/defender/settings"><strong>MDE settings</strong><span>Advanced features, device groups, roles, and automation levels.</span></a>
@@ -6591,7 +6591,7 @@ VIEWS['defender/endpoints'] = () => `
   </div>`;
 
 VIEWS['defender/exposure'] = () => `
-  <div class="page-header"><div><div class="breadcrumb">Exposure management › <strong>Exposure management</strong></div><h1>Exposure management</h1><div class="page-subtitle">Prioritize exposed assets by incident linkage, cloud attack paths, and secure score recommendations.</div></div></div>
+  <div class="page-header"><div><div class="breadcrumb">Exposure management › <strong>Overview</strong></div><h1>Exposure management</h1><div class="page-subtitle">Prioritize exposed assets by incident linkage, cloud attack paths, and secure score recommendations.</div></div></div>
   <div class="kpi-strip">
     <div class="kpi"><span class="kpi-label">Critical assets</span><span class="kpi-value">7</span></div>
     <div class="kpi"><span class="kpi-label">Open paths</span><span class="kpi-value">${CLOUD_ATTACK_PATHS.length}</span></div>

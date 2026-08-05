@@ -1325,3 +1325,22 @@ command that must report `stale: 0`. Run with `bin/run-codex-agents.sh 20`.
 - `node bin/render_all.js` reports `109/110 render clean` and
   `dead NAV routes: 0`; the sole `purview/audit` tiny-render failure is the
   documented pre-existing baseline.
+
+## Agent 20 follow-up (2026-08-05): redundant breadcrumbs
+
+Agent 20 completed all 10 checklist items correctly and the audit reported
+`stale: 0`. The task spec was flawed, though: it gave the section name as the
+literal replacement without accounting for views whose nav label equals their
+section name. The agent followed it faithfully and produced four crumbs that
+read `Section › Section`:
+
+- `defender/cloud-apps`   → now `Cloud apps › Defender for Cloud Apps`
+- `defender/email-collab` → now `Email & collaboration › Investigations`
+- `defender/endpoints`    → now `Endpoints › Endpoint security ops`
+- `defender/exposure`     → now `Exposure management › Overview`
+
+Rule going forward: **a breadcrumb ends in the view's nav _label_, not a repeat
+of its section.** The audit in `AGENTS.md` 20.11 only checked that the section
+name appears, so it passed on redundant output. An extra check for
+"last segment already present in the prefix" now catches this; fold it into the
+`NAV_SPEC.md` invariant if the breadcrumb sweep is ever repeated.
