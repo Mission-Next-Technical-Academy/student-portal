@@ -77,10 +77,81 @@ function hasModuleAccess(user, slug, moduleKey) {
   return false;
 }
 
+const MODULE_ENGAGEMENT_PREFIX = 'mnt-portal.module-engagement.v1';
+
+function moduleEngagementKey(user) {
+  return `${MODULE_ENGAGEMENT_PREFIX}.${LabRuntime.anonymousStudentId(user)}`;
+}
+
+function loadModuleEngagement(user) {
+  const fallback = { openedModules: [], completedLabs: [] };
+  try {
+    const saved = JSON.parse(localStorage.getItem(moduleEngagementKey(user)) || 'null');
+    if (!saved) return fallback;
+    return {
+      openedModules: Array.isArray(saved.openedModules) ? saved.openedModules : [],
+      completedLabs: Array.isArray(saved.completedLabs) ? saved.completedLabs : [],
+    };
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function saveModuleEngagement(user, engagement) {
+  localStorage.setItem(moduleEngagementKey(user), JSON.stringify(engagement));
+}
+
+function moduleEngagementId(programSlug, moduleKey) {
+  return `${programSlug}:${moduleKey}`;
+}
+
+function moduleLabEngagementId(programSlug, moduleKey, labKey) {
+  return `${moduleEngagementId(programSlug, moduleKey)}:${labKey}`;
+}
+
+function markModuleContentOpened(user, programSlug, moduleKey) {
+  if (!user) return;
+  const engagement = loadModuleEngagement(user);
+  const id = moduleEngagementId(programSlug, moduleKey);
+  if (!engagement.openedModules.includes(id)) {
+    engagement.openedModules.push(id);
+    saveModuleEngagement(user, engagement);
+  }
+}
+
+function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed = true) {
+  if (!user) return;
+  const engagement = loadModuleEngagement(user);
+  const id = moduleLabEngagementId(programSlug, moduleKey, labKey);
+  engagement.completedLabs = completed
+    ? [...new Set([...engagement.completedLabs, id])]
+    : engagement.completedLabs.filter((item) => item !== id);
+  saveModuleEngagement(user, engagement);
+}
+
+function moduleCompletion(program, moduleKey, user) {
+  const module = program.modules[moduleKey];
+  const fixtureState = (user.progress || {})[moduleKey] || 'not_started';
+  const engagement = loadModuleEngagement(user);
+  const moduleId = moduleEngagementId(program.slug, moduleKey);
+  const labs = LABS.filter((lab) => lab.module === moduleKey);
+  const contentOpened = fixtureState === 'complete' || engagement.openedModules.includes(moduleId);
+  const allLabsComplete = labs.every((lab) => {
+    const engagementComplete = engagement.completedLabs.includes(moduleLabEngagementId(program.slug, moduleKey, lab.key));
+    if (lab.key === 'lab-soc-environment') {
+      const guidedLabState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
+      return (engagementComplete || guidedLabState.completed) && guidedLabState.consoleCompleted === true;
+    }
+    return engagementComplete || fixtureState === 'complete';
+  });
+  const complete = module.status !== 'draft' && contentOpened && allLabsComplete;
+  return { complete, contentOpened, allLabsComplete, fixtureState, module };
+}
+
 function programProgress(user, program) {
   const keys = Object.keys(program.modules || {});
   if (!keys.length) return { done: 0, total: 0, percent: 0 };
-  const done = keys.filter((k) => (user.progress || {})[k] === 'complete').length;
+  const done = keys.filter((key) => moduleCompletion(program, key, user).complete).length;
   return { done, total: keys.length, percent: Math.round((done / keys.length) * 100) };
 }
 
@@ -373,15 +444,22 @@ function moduleCard(program, key, user) {
   const m = program.modules[key];
   // Locked is DERIVED here, never stored. PLATFORM_ARCHITECTURE.md §4.3.
   const unlocked = hasModuleAccess(user, program.slug, key);
+  const completion = moduleCompletion(program, key, user);
   const state = !unlocked ? 'locked'
               : m.status === 'draft' ? 'draft'
-              : (user.progress || {})[key] || 'not_started';
+              : completion.complete ? 'complete'
+              : completion.contentOpened || completion.fixtureState !== 'not_started' ? 'in_progress'
+              : 'not_started';
   const s = STATE_STYLES[state];
   const labs = LABS.filter((l) => l.module === key);
+  const completionLabel = completion.complete
+    ? 'Complete: module content opened and every lab completed'
+    : 'Not complete: open the module content and complete every lab';
 
   return `
   <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${unlocked ? '' : 'mnt-locked'}">
     <button aria-expanded="false" aria-controls="body-${esc(key)}" data-acc
+            data-program="${esc(program.slug)}" data-module="${esc(key)}"
             class="w-full text-left p-7 flex items-start gap-5 hover:bg-gray-50/60 transition-colors cursor-pointer">
 
       <div class="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl bg-[#1e3a5f]/8 text-[#1e3a5f] font-bold">
@@ -405,7 +483,13 @@ function moduleCard(program, key, user) {
         </div>
       </div>
 
-      <i class="ri-arrow-down-s-line acc-chev text-2xl text-gray-400 transition-transform duration-200 shrink-0"></i>
+      <span class="flex items-center gap-3 shrink-0 pt-1">
+        <span class="mnt-module-completion-dot w-2.5 h-2.5 rounded-full ${completion.complete ? 'bg-[#22c55e] ring-4 ring-[#dcfce7]' : 'bg-gray-300 ring-4 ring-gray-100'}"
+              role="status" aria-label="${completionLabel}" title="${completionLabel}"></span>
+        <span class="w-8 h-8 grid place-items-center rounded-full bg-gray-50 border border-gray-200" aria-hidden="true">
+          <i class="ri-arrow-down-s-line acc-chev text-xl text-gray-500 transition-transform duration-200"></i>
+        </span>
+      </span>
     </button>
 
     <div class="acc-body" id="body-${esc(key)}">
@@ -465,6 +549,23 @@ function moduleCard(program, key, user) {
       </div>
     </div>
   </div>`;
+}
+
+function refreshModuleCompletionDot(button, user) {
+  const program = PROGRAMS.find((item) => item.slug === button.dataset.program);
+  if (!program || !program.modules[button.dataset.module]) return;
+  const dot = button.querySelector('.mnt-module-completion-dot');
+  if (!dot) return;
+  const complete = moduleCompletion(program, button.dataset.module, user).complete;
+  dot.classList.toggle('bg-[#22c55e]', complete);
+  dot.classList.toggle('ring-[#dcfce7]', complete);
+  dot.classList.toggle('bg-gray-300', !complete);
+  dot.classList.toggle('ring-gray-100', !complete);
+  const label = complete
+    ? 'Complete: module content opened and every lab completed'
+    : 'Not complete: open the module content and complete every lab';
+  dot.setAttribute('aria-label', label);
+  dot.title = label;
 }
 
 function labRow(lab) {
@@ -633,7 +734,13 @@ function viewProgram(user, slug) {
       <div class="max-w-7xl mx-auto">
         <h2 class="text-3xl font-bold text-[#1e3a5f] mb-3">Curriculum</h2>
         <div class="w-12 h-1 bg-[#f97316] rounded-full mb-3"></div>
-        <p class="text-gray-500 text-base mb-12">6 Weeks · 12 Modules</p>
+        <div class="flex items-center justify-between gap-4 flex-wrap mb-12">
+          <p class="text-gray-500 text-base">6 Weeks · 12 Modules</p>
+          <p class="inline-flex items-center gap-2 text-gray-500 text-xs">
+            <span class="w-2.5 h-2.5 rounded-full bg-[#22c55e] ring-4 ring-[#dcfce7]"></span>
+            Green means the content was opened and every module lab was completed
+          </p>
+        </div>
 
         ${program.weekGroups.map((w) => `
           <div class="mb-12">
@@ -908,8 +1015,14 @@ function wireLogin() {
     const email = form.email.value;
     const password = form.password.value;
     if (signIn(email, password)) {
-      // Replace the login entry instead of pushing the portal on top of it.
-      history.replaceState(null, '', '#/portal');
+      // A completed console walkthrough can return in its own tab after the
+      // original module tab was closed. Preserve that verified return route;
+      // ordinary sign-ins still land on the portal home.
+      const coachReturn = new URLSearchParams(location.search).get('coachComplete');
+      const returnToModule = coachReturn === 'm01' && location.hash === '#/program/soc-analyst/module/1';
+      history.replaceState(null, '', returnToModule
+        ? location.pathname + location.search + location.hash
+        : '#/portal');
       render();
     } else {
       document.getElementById('login-error').classList.remove('hidden');
@@ -933,7 +1046,13 @@ function wireCommon() {
 
   document.querySelectorAll('[data-acc]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      btn.setAttribute('aria-expanded', btn.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
+      const willOpen = btn.getAttribute('aria-expanded') !== 'true';
+      btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      if (willOpen && btn.dataset.program && btn.dataset.module) {
+        const user = currentUser();
+        markModuleContentOpened(user, btn.dataset.program, btn.dataset.module);
+        refreshModuleCompletionDot(btn, user);
+      }
     });
   });
 
@@ -941,4 +1060,5 @@ function wireCommon() {
 }
 
 window.addEventListener('hashchange', render);
+window.addEventListener('message', moduleOneReceiveCoachCompletion);
 document.addEventListener('DOMContentLoaded', render);

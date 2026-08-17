@@ -11,6 +11,18 @@ function fmtTime(iso) {
   const d = new Date(iso);
   return d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
 }
+// Authentication evidence is read in UTC — a real sign-in log is stamped in UTC,
+// and Module 01's alert narrative quotes those exact clock times. Rendering it
+// in the browser's local zone would silently shift 09:09 to something else and
+// break the student's ability to match the alert to the log line.
+function fmtUtc(iso, opts = {}) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-GB', { timeZone:'UTC', month:'short', day:'numeric' });
+  const time = d.toLocaleTimeString('en-GB', { timeZone:'UTC', hour12:false, hour:'2-digit',
+                                               minute:'2-digit', ...(opts.seconds ? { second:'2-digit' } : {}) });
+  return `${date}, ${time}`;
+}
 function fieldLabel(k) { return (FIELDS.find(f => f.key === k) || { label:k }).label; }
 function copyToClipboard(id) {
   const el = document.getElementById(id);
@@ -1468,7 +1480,7 @@ VIEWS['defender/incidents'] = () => `
       </tr></thead>
       <tbody>
         ${INCIDENTS.map(i => `
-          <tr onclick="openIncident('${i.id}')">
+          <tr data-incident-id="${esc(i.id)}" onclick="openIncident('${i.id}')">
             <td><span class="sev ${i.severity}">${cap(i.severity)}</span></td>
             <td>
               <button class="link-button strong" onclick="event.stopPropagation(); openIncidentPage('${esc(i.id)}')">${esc(i.title)}</button>
@@ -1800,7 +1812,7 @@ VIEWS['defender/hunting'] = () => {
           ${schemaGroups.map((group, index) => `
             <section class="schema-group">
               <button class="schema-group-toggle" type="button" aria-expanded="${index < 4 ? 'true' : 'false'}">
-                <span class="schema-caret">${index < 4 ? '▴' : '▾'}</span>
+                <span class="schema-caret">${index < 4 ? '▾' : '▸'}</span>
                 <span>${esc(group.name)}</span>
                 <span class="schema-count">${group.tables.length}</span>
               </button>
@@ -1893,7 +1905,7 @@ VIEWS['defender/hunting'] = () => {
           const list = btn.nextElementSibling;
           const collapsed = list.classList.toggle('collapsed');
           btn.setAttribute('aria-expanded', String(!collapsed));
-          btn.querySelector('.schema-caret').textContent = collapsed ? '▾' : '▴';
+          btn.querySelector('.schema-caret').textContent = collapsed ? '▸' : '▾';
         });
       });
       document.querySelectorAll('.schema-table').forEach(btn => {
@@ -2833,7 +2845,7 @@ VIEWS['defender/devices'] = () => {
   <div class="inventory-toolbar">
     <span class="muted">${shown.length} of ${rows.length} devices</span>
     <div class="inventory-toolbar-actions">
-      <button class="chip" onclick="setInventoryRange()">📅 ${esc(range)} <span class="chev">⌄</span></button>
+      <button class="chip" onclick="setInventoryRange()">📅 ${esc(range)} <span class="chev">▾</span></button>
       <button class="chip" onclick="openInventoryColumns()">🧮 Choose columns <span class="pill">${cols.length}</span></button>
       <button class="chip" onclick="exportInventoryCsv()">⬇ Export</button>
       <button class="chip ${activeCount ? 'active' : ''}" onclick="openInventoryFilters()">🔽 Filter${activeCount ? ` <span class="pill">${activeCount}</span>` : ''}</button>
@@ -10594,6 +10606,92 @@ VIEWS['entra/overview'] = () => {
       <p class="muted">Build the sign-in risk-based policy that lets users self-remediate with MFA. Interactive builder inside.</p>
     </section>
   </div>
+`;
+};
+
+// Raw authentication evidence. This is the first table a Module 01 student ever
+// reads, so it stays close to a real sign-in log: one row per attempt, an error
+// code on failures, and no verdict text anywhere. The filters are the lesson —
+// a burst is invisible in a mixed log until you narrow it to one account.
+VIEWS['entra/sign-in-logs'] = () => {
+  const logType = sessionStorage.getItem('defender-lab.signin.logtype') || 'interactive';
+  const userFilter = sessionStorage.getItem('defender-lab.signin.user') || '';
+  const resultFilter = sessionStorage.getItem('defender-lab.signin.result') || '';
+  const users = [...new Set(SIGNIN_LOG_EVENTS.map(e => e.user))].sort();
+  const rows = SIGNIN_LOG_EVENTS
+    .slice()
+    .sort((a, b) => b.time.localeCompare(a.time))   // newest first, whatever order the fixture is in
+    .filter(e => !userFilter || e.user === userFilter)
+    .filter(e => !resultFilter || e.result === resultFilter);
+  const filtered = userFilter || resultFilter;
+
+  return `
+  <div class="page-header">
+    <div>
+      <div class="breadcrumb">Entra › Monitoring &amp; health › <strong>Sign-in logs</strong></div>
+      <h1>Sign-in logs</h1>
+      <div class="page-subtitle">Every interactive authentication attempt in the tenant. One row is one attempt — success and failure alike.</div>
+    </div>
+  </div>
+
+  <div class="filterbar signin-filterbar">
+    <label class="signin-filter">Date range:
+      <select disabled><option>2026-06-27 → 2026-06-28</option></select>
+    </label>
+    <label class="signin-filter">User:
+      <select id="signin-user-filter" onchange="setSigninFilter('user', this.value)">
+        <option value="">All users</option>
+        ${users.map(u => `<option value="${escHtml(u)}" ${u === userFilter ? 'selected' : ''}>${esc(u)}</option>`).join('')}
+      </select>
+    </label>
+    <label class="signin-filter">Result:
+      <select id="signin-result-filter" onchange="setSigninFilter('result', this.value)">
+        <option value="">Any result</option>
+        ${['Success', 'Failure'].map(r => `<option value="${r}" ${r === resultFilter ? 'selected' : ''}>${r}</option>`).join('')}
+      </select>
+    </label>
+    ${filtered ? `<button class="btn btn-ghost btn-sm" onclick="clearSigninFilters()">Clear filters</button>` : ''}
+  </div>
+
+  <div class="tabs signin-type-tabs">
+    ${SIGNIN_LOG_TYPES.map(type => `<button class="tab ${type.key === logType ? 'active' : ''}" type="button"
+      onclick="setSigninLogType('${type.key}')">${esc(type.label)}</button>`).join('')}
+  </div>
+
+  ${logType !== 'interactive' ? `<div class="card card-body">
+    <div class="alert-section-title">${esc(SIGNIN_LOG_TYPES.find(t => t.key === logType).label)}</div>
+    <p class="muted">${esc(SIGNIN_LOG_TYPES.find(t => t.key === logType).empty)}</p>
+    <p class="muted">This lab's evidence is in the interactive log. Switch back to <strong>User sign-ins (interactive)</strong>.</p>
+  </div>` : `
+  <div class="card">
+    <div class="card-toolbar">
+      <strong>${rows.length}</strong> sign-in${rows.length === 1 ? '' : 's'}
+      <span class="muted">${filtered ? 'Filtered view' : 'All tenant sign-ins, newest first'}</span>
+    </div>
+    <table class="grid signin-grid">
+      <thead><tr>
+        <th>Date (UTC)</th><th>User</th><th>Application</th><th>Status</th>
+        <th>IP address</th><th>Location</th><th>Device</th><th>Sign-in risk</th>
+      </tr></thead>
+      <tbody>
+        ${rows.length === 0 ? `<tr><td colspan="8" class="muted">No sign-ins match these filters.</td></tr>` : ''}
+        ${rows.map(e => `
+          <tr class="signin-row ${e.result === 'Failure' ? 'is-fail' : ''} ${e.flag ? 'flag-' + e.flag : ''}"
+              data-signin-id="${escHtml(e.id)}" onclick="openSigninEvent('${escHtml(e.id)}')">
+            <td>${fmtUtc(e.time, { seconds:true })}</td>
+            <td>${esc(e.user)}</td>
+            <td>${esc(e.app)}</td>
+            <td>${e.result === 'Failure'
+                  ? `<span class="tag red">Failure</span> <span class="muted">${esc(e.code)}</span>`
+                  : `<span class="tag green">Success</span>`}</td>
+            <td>${esc(e.ip)}</td>
+            <td>${esc(e.location)}</td>
+            <td>${esc(e.device)}</td>
+            <td>${e.risk === 'None' ? '<span class="muted">None</span>' : `<span class="sev ${String(e.risk).toLowerCase()}">${esc(e.risk)}</span>`}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`}
 `;
 };
 

@@ -4963,7 +4963,16 @@ body.route-defender-device .page-header { margin: 0; }
 .dfc-remediation-row small { grid-column: 2; color: var(--fg-muted); }
 .dfc-remediation-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .dfc-additional-recs { margin-top: 16px; }
-.dfc-additional-recs summary { cursor: pointer; color: var(--workload); font-weight: 600; padding: 8px 0; }
+/* The default <details> marker is a right triangle that rotates on open, which
+   reads as a third collapse idiom next to the nav's ▾/▸ sections. Suppress it
+   and use the same carets. */
+.dfc-additional-recs > summary {
+  cursor: pointer; color: var(--workload); font-weight: 600; padding: 8px 0;
+  list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.dfc-additional-recs > summary::-webkit-details-marker { display: none; }
+.dfc-additional-recs > summary::before { content: '▸'; font-size: 12px; }
+.dfc-additional-recs[open] > summary::before { content: '▾'; }
 
 @media (max-width: 1120px) {
   .dfc-path-detail-grid { grid-template-columns: 1fr; }
@@ -5564,3 +5573,180 @@ body.route-defender-device .page-header { margin: 0; }
   .hd-metric-grid, .hd-field-grid, .hd-kb-grid { grid-template-columns: 1fr; }
   .hd-related, .hd-diagnosis-row { align-items: stretch; display: flex; flex-direction: column; }
 }
+
+/* ============================================================
+   Mission Next coach — floating module guide + scope lock
+   ============================================================
+   The badge is the only always-visible piece; everything else appears
+   while a module coach is running. Mission Next navy is used deliberately
+   here instead of --workload: the coach is the academy speaking, not the
+   simulated product. */
+
+.coach-badge {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #1e3a5f;
+  box-shadow: 0 6px 18px rgba(30, 58, 95, 0.38);
+  cursor: pointer;
+  z-index: 160;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.coach-badge:hover  { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(30, 58, 95, 0.45); }
+.coach-badge:focus-visible { outline: 3px solid #ffb900; outline-offset: 3px; }
+.coach-badge img { width: 34px; height: 34px; object-fit: contain; }
+.coach-badge.is-active { animation: coach-pulse 2.6s ease-in-out infinite; }
+.coach-badge-step {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 30px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: #ffb900;
+  color: #3a2b00;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+@keyframes coach-pulse {
+  0%, 100% { box-shadow: 0 6px 18px rgba(30, 58, 95, 0.38); }
+  50%      { box-shadow: 0 6px 18px rgba(30, 58, 95, 0.38), 0 0 0 10px rgba(30, 58, 95, 0.10); }
+}
+
+.coach-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 90px;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 130px);
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  border-top: 4px solid #1e3a5f;
+  border-radius: 6px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22);
+  z-index: 159;
+}
+.coach-panel[hidden] { display: none; }
+.coach-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px 8px;
+}
+.coach-head h2 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.35; }
+.coach-kicker {
+  color: #1e3a5f;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+.coach-x {
+  margin-left: auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.coach-body { padding: 0 16px 12px; }
+.coach-body p { margin: 0 0 10px; font-size: 13px; line-height: 1.6; color: var(--fg-muted); }
+.coach-intro { font-style: italic; }
+.coach-progress { display: flex; gap: 4px; margin-top: 12px; }
+.coach-progress span {
+  height: 3px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.coach-progress span.on { background: #1e3a5f; }
+.coach-foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border);
+}
+.coach-btn {
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.coach-btn.primary { background: #1e3a5f; color: #fff; }
+.coach-btn.primary:hover { background: #16304f; }
+.coach-btn.ghost { background: none; border-color: var(--border-strong); color: var(--fg-muted); }
+.coach-btn.ghost:hover:not(:disabled) { background: var(--bg-hover); }
+.coach-btn:disabled { opacity: 0.4; cursor: default; }
+.coach-foot .coach-btn[data-coach="exit"] { margin-left: auto; }
+
+.coach-pick {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.coach-pick:hover { border-color: #1e3a5f; background: #fff; }
+.coach-pick span { display: block; }
+.coach-pick-name    { font-size: 13px; font-weight: 700; color: #1e3a5f; }
+.coach-pick-role    { font-size: 11px; color: var(--fg-faint); margin: 2px 0 6px; }
+.coach-pick-summary { font-size: 12px; color: var(--fg-muted); line-height: 1.5; }
+
+/* What the current step is pointing at. Table rows cannot take an outline
+   cleanly across cells, so they get a background wash and a left marker. */
+.coach-spotlight {
+  outline: 3px solid #ffb900;
+  outline-offset: 2px;
+  position: relative;
+  z-index: 3;
+  border-radius: 3px;
+}
+tr.coach-spotlight {
+  outline: none;
+  background: #fff7e0 !important;
+  box-shadow: inset 4px 0 0 #ffb900;
+}
+
+/* Scope lock: pages outside the running module's mini environment stay
+   visible — a student should see what exists — but read as unavailable. */
+body.coach-locked .navitem.coach-out-of-scope {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+body.coach-locked .navitem.coach-out-of-scope:hover { background: none; }
+body.coach-locked #portal-tabs,
+body.coach-locked #workload-strip,
+body.coach-locked #btn-waffle,
+body.coach-locked .topbar-search { pointer-events: none; opacity: 0.45; }
+
+/* Sign-in logs (#/entra/sign-in-logs) */
+.signin-filterbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.signin-filter { font-size: 12px; color: var(--fg-muted); display: inline-flex; align-items: center; gap: 6px; }
+.signin-filter select { font-size: 12px; padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: 3px; }
+.signin-grid tbody tr { cursor: pointer; }
+.signin-grid tbody tr.is-fail td:first-child { box-shadow: inset 3px 0 0 var(--sev-high); }
+.signin-detail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+body.coach-locked #pane-azure { pointer-events: none; opacity: 0.4; }
+body.coach-shift-left .coach-panel { right: auto; left: 22px; }
+body.coach-shift-left .coach-badge { right: auto; left: 22px; }

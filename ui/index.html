@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Mission Next Technical Academy Labs</title>
 <link rel="icon" type="image/png" href="assets/mission-next-logo.png" />
-<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="styles.css?v=20260817" />
 </head>
 <body>
 
@@ -421,16 +421,19 @@
     vendor. Interface labels use generic industry terminology, and all lab data is fictional.</span>
 </footer>
 
-<script src="data.js"></script>
-<script src="helpdesk-data.js"></script>
-<script src="lab-widgets.js"></script>
-<script src="kql-editor.js"></script>
-<script src="guided-hunting.js"></script>
-<script src="views.js"></script>
-<script src="app.js"></script>
+<script src="data.js?v=20260817"></script>
+<script src="coach-data.js?v=20260817"></script>
+<script src="helpdesk-data.js?v=20260817"></script>
+<script src="lab-widgets.js?v=20260817"></script>
+<script src="kql-editor.js?v=20260817"></script>
+<script src="guided-hunting.js?v=20260817"></script>
+<script src="views.js?v=20260817"></script>
+<script src="app.js?v=20260817"></script>
 <!-- Loaded last: overrides the static VIEWS['defender-cloud/workflow'] registration. -->
-<script src="workflow-automation.js"></script>
-<script src="helpdesk.js"></script>
-<script src="neutral-terminology.js"></script>
+<script src="workflow-automation.js?v=20260817"></script>
+<script src="helpdesk.js?v=20260817"></script>
+<!-- Loaded after every view registration so its badge sits above the app. -->
+<script src="coach.js?v=20260817"></script>
+<script src="neutral-terminology.js?v=20260817"></script>
 </body>
 </html>

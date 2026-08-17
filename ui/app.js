@@ -34,6 +34,8 @@ function workloadOf(route) {
 }
 function navigate(hash) {
   if (!hash.startsWith('#')) hash = '#' + hash;
+  // A running module coach can restrict the app to its own set of pages.
+  if (typeof coachAllowsRoute === 'function' && !coachAllowsRoute(hash)) return;
   if (location.hash === hash) render();
   else location.hash = hash;
 }
@@ -73,6 +75,7 @@ function render() {
   renderPortalTabs(wl);
   mountView(route);
   scheduleGuideRefresh();
+  if (typeof coachAfterRender === 'function') coachAfterRender();
 }
 
 // Top-of-page neutral simulator context strip.
@@ -188,7 +191,8 @@ function renderSidenav(wl, activeHash) {
     if (currentSub) classes.push('navitem-nested');
     // Hidden when either its own section or its enclosing subsection is collapsed.
     if ((currentSection && !sectionExpanded) || (currentSub && !subExpanded)) classes.push('section-hidden');
-    return `<li class="${classes.join(' ')}" onclick="navigate('${item.route}')" data-tip="${escHtml(item.label)}">
+    return `<li class="${classes.join(' ')}" onclick="navigate('${item.route}')"
+                data-route="${escHtml(item.route)}" data-tip="${escHtml(item.label)}">
               <span class="navicon">${item.icon || ''}</span><span class="navlabel">${item.label}</span>
             </li>`;
   }).join('');
@@ -4761,3 +4765,168 @@ function openEntraUser(upn) {
   showPanel('panel-technique');
 }
 window.openEntraUser = openEntraUser;
+
+// ---------- sign-in logs (#/entra/sign-in-logs) ----------
+// Filters live in sessionStorage so a coach step can navigate away and back
+// without the learner losing the narrowing they just applied.
+function setSigninFilter(kind, value) {
+  sessionStorage.setItem('defender-lab.signin.' + kind, value || '');
+  render();
+}
+function setSigninLogType(kind) {
+  sessionStorage.setItem('defender-lab.signin.logtype', kind);
+  render();
+}
+
+function clearSigninFilters() {
+  sessionStorage.removeItem('defender-lab.signin.user');
+  sessionStorage.removeItem('defender-lab.signin.result');
+  render();
+}
+
+// One authentication attempt, expanded.
+//
+// The tab set follows the real console's activity-details pane — Basic info,
+// Location, Device info, Authentication details, Conditional Access — because
+// the split is the lesson: identity evidence is not one blob, and an analyst
+// has to know which tab answers which question. Labels are the generic ones the
+// vendor documentation uses to describe the panes; nothing branded is copied.
+const SIGNIN_DETAIL_TABS = [
+  { key: 'basic',    label: 'Basic info' },
+  { key: 'location', label: 'Location' },
+  { key: 'device',   label: 'Device info' },
+  { key: 'auth',     label: 'Authentication details' },
+  { key: 'ca',       label: 'Conditional Access' },
+];
+
+// The fixture keeps one readable string per fact (device, client, mfa, ca) and
+// this expands them into the per-tab shape. The value space is closed and lives
+// in SIGNIN_LOG_EVENTS, so parsing here stays honest and no fact is invented.
+function signinDetailModel(e) {
+  const failed = e.result === 'Failure';
+  const managed = /\(managed\)/.test(e.device);
+  const deviceName = managed ? e.device.replace(/\s*\(managed\)$/, '') : '—';
+  const [clientKind, clientVersion] = e.client.split(' — ');
+  const browser = clientVersion || clientKind;
+
+  // Password first; a second factor only exists when one was actually reached.
+  const authSteps = [{
+    method: 'Password',
+    result: failed ? 'Failure' : 'Success',
+    detail: failed ? `Error ${e.code} — ${e.detail}` : 'Credential accepted',
+  }];
+  if (e.mfa && !['Not prompted', 'Not reached'].includes(e.mfa)) {
+    authSteps.push({ method: e.mfa, result: 'Success', detail: 'Second factor satisfied' });
+  }
+
+  const caApplied = e.ca && e.ca !== 'Not applied';
+  const policies = caApplied
+    ? [{ name: e.ca.replace(/ satisfied$/, ''), result: 'Success' }]
+    : [{ name: 'CA001 — Require multifactor authentication for all users', result: 'Not applied' }];
+
+  return { failed, managed, deviceName, browser, clientKind, authSteps, caApplied, policies };
+}
+
+let signinDetailTab = 'basic';
+
+function setSigninDetailTab(id, tab) {
+  signinDetailTab = tab;
+  openSigninEvent(id);
+}
+
+function signinDetailBody(e, m) {
+  if (signinDetailTab === 'location') {
+    return `<dl class="entra-kv">
+      <dt>IP address</dt><dd>${esc(e.ip)}</dd>
+      <dt>Location</dt><dd>${esc(e.location)}</dd>
+      <dt>Network type</dt><dd>${m.managed ? 'Corporate network' : 'Unknown — outside any named location'}</dd>
+    </dl>`;
+  }
+  if (signinDetailTab === 'device') {
+    return `<dl class="entra-kv">
+      <dt>Device name</dt><dd>${esc(m.deviceName)}</dd>
+      <dt>Managed</dt><dd>${m.managed ? 'Yes — enrolled in device management' : 'No'}</dd>
+      <dt>Compliant</dt><dd>${m.managed ? 'Yes' : 'Not evaluated — device is not registered'}</dd>
+      <dt>Join type</dt><dd>${m.managed ? 'Directory joined' : 'Not registered'}</dd>
+      <dt>Client app</dt><dd>${esc(m.clientKind)}</dd>
+      <dt>Browser</dt><dd>${esc(m.browser)}</dd>
+    </dl>`;
+  }
+  if (signinDetailTab === 'auth') {
+    return `<table class="grid compact-grid">
+      <thead><tr><th>#</th><th>Method</th><th>Result</th><th>Detail</th></tr></thead>
+      <tbody>${m.authSteps.map((s, i) => `<tr>
+        <td>${i + 1}</td><td>${esc(s.method)}</td>
+        <td><span class="tag ${s.result === 'Failure' ? 'red' : 'green'}">${esc(s.result)}</span></td>
+        <td>${esc(s.detail)}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    ${m.authSteps.length === 1 ? `<div class="muted" style="font-size:12px;padding-top:8px;">
+      Only one factor appears in this sequence. ${m.failed
+        ? 'The password step failed, so no second factor was reached.'
+        : 'The password alone completed the sign-in — no second factor was requested.'}
+    </div>` : ''}`;
+  }
+  if (signinDetailTab === 'ca') {
+    return `<table class="grid compact-grid">
+      <thead><tr><th>Policy</th><th>Result</th></tr></thead>
+      <tbody>${m.policies.map(p => `<tr>
+        <td>${esc(p.name)}</td>
+        <td><span class="tag ${p.result === 'Success' ? 'green' : 'orange'}">${esc(p.result)}</span></td>
+      </tr>`).join('')}</tbody>
+    </table>
+    ${m.caApplied ? '' : `<div class="muted" style="font-size:12px;padding-top:8px;">
+      Not applied means the sign-in never matched the policy's conditions — not that the policy passed.
+    </div>`}`;
+  }
+
+  const priorSuccess = SIGNIN_LOG_EVENTS
+    .filter(x => x.user === e.user && x.result === 'Success' && x.time < e.time)
+    .sort((a, b) => b.time.localeCompare(a.time))[0];
+  return `<dl class="entra-kv">
+      <dt>User</dt><dd>${esc(e.user)}</dd>
+      <dt>Application</dt><dd>${esc(e.app)}</dd>
+      <dt>Status</dt><dd>${esc(e.detail)}${m.failed ? ` <span class="muted">(error ${esc(e.code)})</span>` : ''}</dd>
+      <dt>Sign-in risk</dt><dd>${esc(e.risk)}</dd>
+      <dt>Correlation ID</dt><dd><code>${esc(signinCorrelationId(e))}</code></dd>
+    </dl>
+    ${priorSuccess ? `<div class="muted" style="font-size:12px;">
+      Previous successful sign-in for this account: ${fmtUtc(priorSuccess.time, { seconds:true })} UTC from
+      ${esc(priorSuccess.ip)} (${esc(priorSuccess.location)}) on ${esc(priorSuccess.device)}.
+    </div>` : ''}`;
+}
+
+// A stable synthetic identifier, so the same row always shows the same ID and a
+// student can quote it in a case note the way a real correlation ID is quoted.
+function signinCorrelationId(e) {
+  let hash = 0;
+  for (const ch of `${e.id}${e.time}${e.user}`) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const hex = hash.toString(16).padStart(8, '0');
+  return `${hex}-4f${hex.slice(0, 2)}-4b${hex.slice(2, 4)}-9${hex.slice(4, 7)}-${hex}${hex.slice(0, 4)}`;
+}
+
+function openSigninEvent(id) {
+  const e = SIGNIN_LOG_EVENTS.find(x => x.id === id);
+  if (!e) return;
+  const m = signinDetailModel(e);
+
+  document.getElementById('technique-title').textContent = `Sign-in ${e.id} — ${e.display}`;
+  document.getElementById('technique-body').innerHTML = `
+    <div class="signin-detail-head">
+      <span class="tag ${m.failed ? 'red' : 'green'}">${esc(e.result)}</span>
+      ${e.risk === 'None' ? '' : `<span class="sev ${String(e.risk).toLowerCase()}">${esc(e.risk)} risk</span>`}
+      <span class="muted">${fmtUtc(e.time, { seconds:true })} UTC</span>
+    </div>
+    <div class="tabs signin-detail-tabs">
+      ${SIGNIN_DETAIL_TABS.map(t => `<button class="tab ${t.key === signinDetailTab ? 'active' : ''}" type="button"
+        onclick="setSigninDetailTab('${esc(e.id)}','${t.key}')">${esc(t.label)}</button>`).join('')}
+    </div>
+    ${signinDetailBody(e, m)}
+  `;
+  showPanel('panel-technique');
+}
+window.setSigninDetailTab = setSigninDetailTab;
+window.setSigninFilter = setSigninFilter;
+window.clearSigninFilters = clearSigninFilters;
+window.setSigninLogType = setSigninLogType;
+window.openSigninEvent = openSigninEvent;

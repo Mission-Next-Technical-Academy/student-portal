@@ -29,8 +29,11 @@ serve() {
     echo "  $name already up on $port"
     return
   fi
-  # setsid+nohup so the servers outlive this script and the terminal that ran it.
-  setsid nohup python3 -m http.server "$port" --bind 127.0.0.1 --directory "$dir" \
+  # bin/serve.py rather than `python3 -m http.server`: same server, but with
+  # caching disabled, so an edited views.js is never served stale alongside a
+  # freshly added file. setsid+nohup so the servers outlive this script and the
+  # terminal that ran it.
+  setsid nohup python3 "$ROOT/bin/serve.py" "$port" --bind 127.0.0.1 --directory "$dir" \
     >"$ROOT/.$name.log" 2>&1 </dev/null &
   echo $! >"$ROOT/.$name.pid"
   for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -45,9 +48,11 @@ stop_one() {
   [ -f "$pidfile" ] || return 0
   local pid
   pid="$(cat "$pidfile")"
-  # Only kill it if it is still the http.server we started — a recycled PID
-  # belonging to something else must not be touched.
-  if ps -o args= -p "$pid" 2>/dev/null | grep -q 'http\.server'; then
+  # Only kill it if it is still the server we started — a recycled PID
+  # belonging to something else must not be touched. Match both bin/serve.py and
+  # the http.server it replaced, so a shell still holding an older process can
+  # stop it.
+  if ps -o args= -p "$pid" 2>/dev/null | grep -qE 'bin/serve\.py|http\.server'; then
     kill "$pid" && echo "  stopped $name (pid $pid)"
   fi
   rm -f "$pidfile"

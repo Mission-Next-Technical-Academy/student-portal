@@ -205,6 +205,15 @@ const SEED_ALERTS = [
     firstActivity:'2026-06-28T18:09:00Z', incidentId:'INC-1067',
     event:{ parent_process:'winword.exe', process:'cmd.exe', document:'Q3-campaign-template.docm',
             asr_mode:'Audit', signer:'Mission Next Marketing Automation' } },
+  // Module 01's teaching case. The portal lab presents this same account and
+  // timeline as a plain alert card; here it is the SIEM record behind it, so a
+  // first-time student sees that both halves describe one event.
+  { id:'A1701', severity:'medium', title:'Successful sign-in after repeated failures',
+    status:'New', category:'Credential access', detectionSource:'Identity Protection', asset:'j.santos@missionnextlabs.example',
+    firstActivity:'2026-06-28T09:09:41Z', incidentId:'INC-1070',
+    event:{ user:'j.santos@missionnextlabs.example', source_ip:'185.220.101.24', country:'RO',
+            failed_attempts:8, first_failure:'2026-06-28T09:02:11Z', succeeded_at:'2026-06-28T09:09:41Z',
+            client_app:'Browser (unmanaged)', risk_level:'High' } },
 ];
 
 const INCIDENTS = [
@@ -331,6 +340,12 @@ const INCIDENTS = [
     entities:[{type:'Device',name:'MKT-WKS-11'},{type:'Process',name:'cmd.exe'},{type:'File',name:'Q3-campaign-template.docm'}],
     createdAt:'2026-06-28T18:10:00Z', alertCount:1,
     summary:'An Office child-process event was logged by an ASR rule in audit mode. Validate the signed marketing automation before deciding whether the rule can move to block mode.' },
+  { id:'INC-1070', severity:'medium', title:'Successful sign-in after repeated failures',
+    status:'New', assignedTo:'L1-Triage', classification:'',
+    tactics:['Credential Access'], alertIds:['A1701'],
+    entities:[{type:'User',name:'j.santos@missionnextlabs.example'},{type:'IP',name:'185.220.101.24'},{type:'Session',name:'Unmanaged browser session'}],
+    createdAt:'2026-06-28T09:10:00Z', alertCount:1,
+    summary:'Eight password failures were followed by one success for the same account, from an IP and browser the account has never used. Service desk reached the account owner on the registered phone number at 09:14 — the user confirms they did not attempt these sign-ins and was not travelling.' },
 ];
 
 const MDE_SETTINGS = {
@@ -3756,6 +3771,11 @@ const NAV = {
     { section:'Protection' },
     { route:'#/entra/identity-protection',      label:'Identity Protection',  icon:'🛡' },
     { route:'#/entra/conditional-access',       label:'Conditional Access',   icon:'🔐' },
+    // Sign-in logs belong to monitoring, not to the identity object list — the
+    // real console puts them at Identity > Monitoring & health > Sign-in logs.
+    // A student who learns the wrong path here has to unlearn it later.
+    { section:'Monitoring & health' },
+    { route:'#/entra/sign-in-logs',             label:'Sign-in logs',          icon:'🔑' },
     // === local-tasks nav:entra ===
   ],
   'm365-admin': [
@@ -6778,6 +6798,101 @@ const ENTRA_RECENT_SIGNINS = [
   { time:'2026-06-28T04:12:00Z', user:'liam.chen@missionnextlabs.example',  app:'365 portal',         ip:'203.0.113.74',   location:'Unknown',       result:'Failure',       risk:'Medium', ca:'Not applied' },
   { time:'2026-06-28T03:44:00Z', user:'svc-backup@missionnextlabs.example', app:'Windows LDAP (on-prem)',       ip:'10.20.4.55',     location:'Redmond, US',   result:'Success',       risk:'High',   ca:'Not applied' },
   { time:'2026-06-28T02:00:00Z', user:'legacy.batch@missionnextlabs.example', app:'IMAP4 (legacy auth)',        ip:'10.20.9.10',     location:'Redmond, US',   result:'Blocked by CA', risk:'Medium', ca:'CA002 - Block legacy auth' },
+];
+
+// The four sign-in log types a real identity platform separates. Only the
+// interactive log carries lab evidence; the rest exist so a student learns that
+// "the sign-in log" is really four logs, and that a human-typed password is
+// only one of the ways an identity authenticates.
+const SIGNIN_LOG_TYPES = [
+  { key:'interactive',      label:'User sign-ins (interactive)',
+    empty:'' },
+  { key:'noninteractive',   label:'User sign-ins (non-interactive)',
+    empty:'Sign-ins performed by a client on behalf of a user, with no one typing a password — refresh tokens, background mail sync. High volume, sampled.' },
+  { key:'serviceprincipal', label:'Service principal sign-ins',
+    empty:'Applications and service principals authenticating with their own credentials rather than as a user. No device or browser is involved.' },
+  { key:'managedidentity',  label:'Managed identity sign-ins',
+    empty:'Platform-managed identities assigned to cloud resources. Credentials are rotated by the platform and never handled by a person.' },
+];
+
+// Raw sign-in log for #/entra/sign-in-logs — the evidence table Module 01 sends
+// a first-time student to read. Deliberately unsorted-looking and mixed with
+// benign traffic: the failure burst is findable, but only by filtering. Nothing
+// in the rows states a verdict; the analyst supplies that.
+//
+// `id` values are stable so the coach can spotlight specific rows by selector.
+const SIGNIN_LOG_EVENTS = [
+  { id:'SL-020', time:'2026-06-28T09:14:22Z', user:'m.okafor@missionnextlabs.example', display:'Miriam Okafor',
+    app:'365 portal', ip:'91.63.14.22', location:'Berlin, DE', device:'MNT-LT-2104 (managed)',
+    client:'Browser — Edge 139', result:'Success', code:'0', detail:'Sign-in successful', mfa:'Authenticator',
+    risk:'None', ca:'CA001 satisfied' },
+  { id:'SL-019', time:'2026-06-28T09:09:41Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'185.220.101.24', location:'Bucharest, RO', device:'Unmanaged — not registered',
+    client:'Browser — Chrome 141', result:'Success', code:'0', detail:'Sign-in successful', mfa:'Not prompted',
+    risk:'High', ca:'Not applied', flag:'success' },
+  { id:'SL-018', time:'2026-06-28T09:08:55Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'185.220.101.24', location:'Bucharest, RO', device:'Unmanaged — not registered',
+    client:'Browser — Chrome 141', result:'Failure', code:'50126', detail:'Invalid username or password', mfa:'Not reached',
+    risk:'High', ca:'Not applied', flag:'fail' },
+  { id:'SL-017', time:'2026-06-28T09:08:02Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'185.220.101.24', location:'Bucharest, RO', device:'Unmanaged — not registered',
+    client:'Browser — Chrome 141', result:'Failure', code:'50126', detail:'Invalid username or password', mfa:'Not reached',
+    risk:'High', ca:'Not applied', flag:'fail' },
+  { id:'SL-016', time:'2026-06-28T09:07:10Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'185.220.101.24', location:'Bucharest, RO', device:'Unmanaged — not registered',
+    client:'Browser — Chrome 141', result:'Failure', code:'50126', detail:'Invalid username or password', mfa:'Not reached',
+    risk:'Medium', ca:'Not applied', flag:'fail' },
+  { id:'SL-015', time:'2026-06-28T09:06:19Z', user:'t.arnold@missionnextlabs.example', display:'Tom Arnold',
+    app:'Exchange Online', ip:'91.63.14.22', location:'Berlin, DE', device:'MNT-LT-1877 (managed)',
+    client:'Outlook desktop', result:'Success', code:'0', detail:'Sign-in successful', mfa:'Authenticator',
+    risk:'None', ca:'CA001 satisfied' },
+  { id:'SL-014', time:'2026-06-28T09:05:44Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'185.220.101.24', location:'Bucharest, RO', device:'Unmanaged — not registered',
+    client:'Browser — Chrome 141', result:'Failure', code:'50126', detail:'Invalid username or password', mfa:'Not reached',
+    risk:'Medium', ca:'Not applied', flag:'fail' },
+  { id:'SL-013', time:'2026-06-28T09:04:51Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'185.220.101.24', location:'Bucharest, RO', device:'Unmanaged — not registered',
+    client:'Browser — Chrome 141', result:'Failure', code:'50126', detail:'Invalid username or password', mfa:'Not reached',
+    risk:'Medium', ca:'Not applied', flag:'fail' },
+  { id:'SL-012', time:'2026-06-28T09:03:58Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'185.220.101.24', location:'Bucharest, RO', device:'Unmanaged — not registered',
+    client:'Browser — Chrome 141', result:'Failure', code:'50126', detail:'Invalid username or password', mfa:'Not reached',
+    risk:'Low', ca:'Not applied', flag:'fail' },
+  { id:'SL-011', time:'2026-06-28T09:03:04Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'185.220.101.24', location:'Bucharest, RO', device:'Unmanaged — not registered',
+    client:'Browser — Chrome 141', result:'Failure', code:'50126', detail:'Invalid username or password', mfa:'Not reached',
+    risk:'Low', ca:'Not applied', flag:'fail' },
+  { id:'SL-010', time:'2026-06-28T09:02:11Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'185.220.101.24', location:'Bucharest, RO', device:'Unmanaged — not registered',
+    client:'Browser — Chrome 141', result:'Failure', code:'50126', detail:'Invalid username or password', mfa:'Not reached',
+    risk:'Low', ca:'Not applied', flag:'fail' },
+  { id:'SL-009', time:'2026-06-28T08:58:37Z', user:'r.beck@missionnextlabs.example', display:'Rina Beck',
+    app:'SharePoint Online', ip:'91.63.14.22', location:'Berlin, DE', device:'MNT-LT-2290 (managed)',
+    client:'Browser — Edge 139', result:'Success', code:'0', detail:'Sign-in successful', mfa:'Authenticator',
+    risk:'None', ca:'CA001 satisfied' },
+  { id:'SL-008', time:'2026-06-28T08:41:16Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'91.63.14.22', location:'Berlin, DE', device:'MNT-LT-2291 (managed)',
+    client:'Browser — Edge 139', result:'Success', code:'0', detail:'Sign-in successful', mfa:'Authenticator',
+    risk:'None', ca:'CA001 satisfied', flag:'baseline' },
+  // The control case: one failure then a success, same managed laptop, same
+  // office IP. A student who calls this an attack has learned the pattern
+  // without the context, which is the mistake Module 01 is built to prevent.
+  { id:'SL-007', time:'2026-06-28T08:23:11Z', user:'t.arnold@missionnextlabs.example', display:'Tom Arnold',
+    app:'365 portal', ip:'91.63.14.22', location:'Berlin, DE', device:'MNT-LT-1877 (managed)',
+    client:'Browser — Edge 139', result:'Success', code:'0', detail:'Sign-in successful', mfa:'Authenticator',
+    risk:'None', ca:'CA001 satisfied' },
+  { id:'SL-006', time:'2026-06-28T08:22:49Z', user:'t.arnold@missionnextlabs.example', display:'Tom Arnold',
+    app:'365 portal', ip:'91.63.14.22', location:'Berlin, DE', device:'MNT-LT-1877 (managed)',
+    client:'Browser — Edge 139', result:'Failure', code:'50126', detail:'Invalid username or password', mfa:'Not reached',
+    risk:'None', ca:'Not applied' },
+  { id:'SL-005', time:'2026-06-27T17:02:30Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'Exchange Online', ip:'91.63.14.22', location:'Berlin, DE', device:'MNT-LT-2291 (managed)',
+    client:'Outlook desktop', result:'Success', code:'0', detail:'Sign-in successful', mfa:'Authenticator',
+    risk:'None', ca:'CA001 satisfied', flag:'baseline' },
+  { id:'SL-004', time:'2026-06-27T08:37:05Z', user:'j.santos@missionnextlabs.example', display:'Julia Santos',
+    app:'365 portal', ip:'91.63.14.22', location:'Berlin, DE', device:'MNT-LT-2291 (managed)',
+    client:'Browser — Edge 139', result:'Success', code:'0', detail:'Sign-in successful', mfa:'Authenticator',
+    risk:'None', ca:'CA001 satisfied', flag:'baseline' },
 ];
 
 // Tenant posture recommendations shown alongside the identity secure score.

@@ -109,7 +109,9 @@ Module Agent 12 must instead assemble the reusable components into the full caps
 
 Module Agent 01 is complete and implementation has stopped. Module Agents 02–12 remain unlaunched and unchanged.
 
-Module 1 now mounts an isolated, guided alert-orientation lab on the portal route. It presents one signal-to-SIEM-to-XDR concept flow, four module-specific synthetic alerts with benign explanations, a limited alert-evidence panel, and a scored observation/analysis/decision/communication artifact. A stable anonymous learner identifier selects equivalent entity/time variations without changing the required reasoning. Attempts, selected evidence, notes, score, best score, earned flag, and completion persist under a lab-specific browser key; reset affects only this lab.
+Module 1 now mounts an isolated, guided alert-orientation lab on the portal route. It presents nine foundation lessons, an activity-to-investigation concept flow, one synthetic identity alert, a sequential evidence review, and a scored verdict/priority/lifecycle/action/case-note artifact. Attempts, reviewed evidence, notes, score, best score, earned flag, and completion persist under a lab-specific browser key; reset affects only this lab.
+
+The scoped SIEM console walkthrough is a required Module 1 step. It starts a fresh eight-step coach run across only the sign-in log, identity-risk, and incident pages, reports verified completion back to the module, and unlocks the triage worksheet. Module completion requires both this walkthrough and a passing triage artifact.
 
 The full existing security operations environment remains the Module 12 capstone at `http://127.0.0.1:8767/#/defender/home`. Module 1 does not link to or reveal that environment, its navigation, its shared evidence, or an end-to-end workflow.
 

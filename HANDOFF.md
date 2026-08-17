@@ -1496,3 +1496,183 @@ Verification:
   an unrelated localStorage sentinel.
 - A 390×844 browser pass confirmed native Space-key selection, focus transfer to
   the opened evidence panel, and no horizontal overflow.
+
+## Module 01 required guided-console repair (2026-08-17)
+
+- Changed the SIEM console walkthrough from an optional bridge to a required
+  Module 1 step. The triage worksheet remains locked until all eight coach steps
+  are complete, and Module 1 completion now requires both the console walkthrough
+  and a passing triage artifact.
+- Replaced the detached, stale-session-prone launch with a fresh coach run and a
+  validated completion handshake back to the module tab. A signed-in fallback
+  return route preserves completion if the original tab is no longer available.
+- End-to-end Chrome verification followed the four portal evidence reveals,
+  opened the scoped console, completed every guided action across sign-in logs,
+  identity risk, and incidents, and returned to an unlocked worksheet with
+  `consoleCompleted: true`. No runtime exceptions were recorded. Syntax, HTTP,
+  and diff-whitespace checks passed.
+
+## Module 01 beginner-first redesign (2026-08-17)
+
+This redesign supersedes the four-alert Module Agent 01 experience described
+above. The route and isolation boundary remain the same, but the teaching model
+now starts before the certification-level assumptions.
+
+- Reframed `#/program/soc-analyst/module/1` around the learner question **“What
+  Is a SOC Analyst?”** and explicitly states that no SOC vocabulary or tool
+  knowledge is assumed.
+- Added nine expandable foundation lessons: what cybersecurity protects, what a
+  SOC is, the analyst role, events/alerts/incidents, telemetry and tools, triage,
+  severity and escalation, the incident response lifecycle, and case handoff.
+- Added plain-language SIEM/EDR/XDR translation, an activity → telemetry →
+  detection → analyst model, a five-step triage loop, and a six-phase response
+  lifecycle (prepare, detect/analyze, contain, eradicate, recover, learn).
+- Grounded the scope in official references linked in the module: CompTIA CySA+
+  V4 (CS0-004), the NIST NICE Workforce Framework, and U.S. O*NET Information
+  Security Analysts. The module explains that CySA+ starts at analyst-level
+  security operations and recommends prior role experience, so this course adds
+  a deliberate beginner bridge.
+- Replaced the four-alert prioritization quiz with one easy, realistic identity
+  incident. A coach reveals four facts in order: failed sign-ins, successful
+  access, unfamiliar context, and independent user denial.
+- The learner makes only five coached decisions: true-positive verdict, High
+  priority, detect/analyze lifecycle phase, proportionate identity-response
+  escalation, and a concise case note. A note-starter removes blank-page
+  friction while still teaching the required handoff structure.
+- Moved persistence to the versioned `m01-first-soc-alert-v2` storage record so
+  saved choices from the superseded exercise cannot corrupt the new flow.
+- Updated the catalogue title, description, module objective, topics, hands-on
+  steps, and skills to match the redesigned experience.
+
+Verification:
+
+- `node --check` passed for `portal/data.js`, `portal/module-01.js`,
+  `portal/lab-runtime.js`, and `portal/app.js`; `git diff --check` passed.
+- Firefox WebDriver at 1366px rendered the correct H1, 9 lessons, 6 lifecycle
+  phases, single alert, and no horizontal overflow.
+- Full interaction passed: all 4 evidence reveals unlocked the worksheet; the
+  correct verdict, priority, lifecycle phase, action, and coached case note
+  produced `100/100 — First alert triaged`, completion state, five feedback
+  items, and a persisted v2 lab record.
+- Responsive verification at the browser's 500px headless minimum showed no
+  horizontal overflow and a readable stacked hero/progress layout.
+
+## Module coach + Module 01 mini environment (2026-08-17)
+
+Module 01 now has a hands-on half inside the simulator, reached from the module
+page and guided by a floating Mission Next badge. The design decision worth
+keeping: **the coach is an overlay on the untouched simulator, not a second,
+smaller app.** A separate beginner build would fork the shell, the nav, and the
+fixtures, and the two copies would drift apart within a sprint.
+
+New files:
+
+- `ui/coach-data.js` — `MODULE_COACHES`. One entry per module: `allow` (the
+  routes that make up the mini environment) and `steps` (route, spotlight
+  selector, copy, and optional `do()`/`check()`). Adding a module means adding
+  one array entry; it does not mean touching views.
+- `ui/coach.js` — the engine. Mounts the badge and dock, drives steps, applies
+  the spotlight, and enforces the scope lock.
+
+Hooks into the existing app — exactly two, both small:
+
+- `navigate()` (`ui/app.js`) asks `coachAllowsRoute()` before moving.
+- `render()` (`ui/app.js`) calls `coachAfterRender()` at the end, which reapplies
+  the spotlight and the lock after the DOM is replaced.
+- `renderSidenav()` now emits `data-route` on each `li` so the lock can dim
+  out-of-scope items, and incident rows carry `data-incident-id` so a step can
+  point at one incident instead of `tr:nth-child(n)`.
+
+Entry: `sim/?coach=m01#/entra/sign-in-logs`. The portal builds that link from
+`SIM_ORIGIN` in the Module 01 page (`.m01-siem` card, shown once the four facts
+are revealed). State lives in `sessionStorage` under `mnt.coach.state`, so a
+reload resumes on the same step. The badge with no coach running opens a picker.
+
+Scope lock: while a coach runs, `body.coach-locked` dims the workload strip,
+portal tabs, waffle, global search, and the cloud pane; out-of-scope sidenav
+items are dimmed; and any navigation outside `allow` is refused with a toast.
+Module 01's environment is three pages: `#/entra/sign-in-logs`,
+`#/entra/identity-protection`, `#/defender/incidents`.
+
+Supporting fixtures (`ui/data.js`), so the SIEM shows the same case the portal
+lab narrates rather than a lookalike:
+
+- `SIGNIN_LOG_EVENTS` — 17 rows. j.santos: eight 50126 failures 09:02–09:08 and
+  one success at 09:09:41 from 185.220.101.24 (Bucharest, unmanaged browser),
+  plus Berlin/managed baseline rows. t.arnold carries the control case — one
+  failure then a success from the office on a managed laptop.
+- `A1701` / `INC-1070` — the alert and incident behind the case; the incident
+  summary carries the 09:14 service desk callback in which the owner denies the
+  activity.
+- New view `VIEWS['entra/sign-in-logs']` with working User/Result filters (the
+  filter is step 2's lesson: a burst is invisible in mixed traffic) and a row
+  detail panel via `openSigninEvent()`.
+- `fmtUtc()` in `ui/views.js`: this evidence renders in UTC, because the alert
+  narrative quotes those clock times and `fmtTime()` would shift them to the
+  browser's zone.
+
+Verification:
+
+- `node bin/render_all.js`: 128/129 views clean, 0 dead NAV routes. The one
+  failure (`purview/audit`) predates this work — confirmed by stashing.
+- Headless Chrome drove all 8 coach steps end to end: correct routes, 8 rows
+  spotlit at step 3, the gated filter step advancing after `do()`, the detail
+  panel and INC-1070 opening, and the finish button rendering.
+- Scope probe: `navigate('#/sentinel/logs')` under the lock left the route
+  unchanged.
+- Portal probe: after revealing all four facts, the `.m01-siem` card renders and
+  links to `http://127.0.0.1:8767/?coach=m01#/entra/sign-in-logs` locally
+  (`…/student-portal/sim/?coach=m01#…` when deployed).
+
+## Module 01 section collapse controls — 2026-08-17
+
+- Added accessible chevron buttons to the incident-response lifecycle in
+  section 3 and the guided lab in section 5. They collapse and restore each
+  complete section body while keeping
+  `aria-expanded`, `aria-label`, and the controlled region's `hidden` state in
+  sync. Browser verification passed for the initial, collapsed, and reopened
+  states at `#/program/soc-analyst/module/1`.
+- Selecting phase 6, collapsing section 3, and reopening it preserves the
+  active `Learn` phase, hub text, and `-300deg` wheel rotation.
+
+## Sign-in log fidelity — structure taken from vendor documentation (2026-08-17)
+
+Rule applied here, worth keeping: **where a page and its parts live is copied
+from the official documentation; only the names are neutralized.** A student who
+learns a layout that does not exist in the real console has to unlearn it.
+
+- Nav placement corrected. Sign-in logs sat under *Identity*, next to Overview.
+  The documented path is *Identity > Monitoring & health > Sign-in logs*
+  (learn.microsoft.com/entra/identity/monitoring-health/concept-sign-ins), so
+  `NAV.entra` now has a **Monitoring & health** section and the breadcrumb and
+  Module 01 coach copy name that path.
+- The page carries the four documented sign-in log types as tabs
+  (`SIGNIN_LOG_TYPES`): interactive, non-interactive, service principal, managed
+  identity. Only interactive holds lab evidence; the others explain what they
+  would contain, which is how a student learns "the sign-in log" is four logs.
+- The row detail pane is now tabbed to match the documented activity-details
+  panes: **Basic info · Location · Device info · Authentication details ·
+  Conditional Access**. Basic info carries the error code and correlation ID,
+  Authentication details carries the method sequence, and Conditional Access
+  states policy results — including that *Not applied* means the conditions
+  never matched, not that the policy passed. `signinDetailModel()` derives all
+  of it from the strings already in `SIGNIN_LOG_EVENTS`; no fact is invented.
+
+Module 01 coach step 5 now teaches the split — which tab answers which question
+— instead of reading one flat property list.
+
+## Stale-asset defence (2026-08-17)
+
+A tab holding a cached `views.js` from before a new view existed navigates to a
+route it cannot render, and the student sees "Page not found". Three changes:
+
+- `bin/serve.py` — the dev server now sends `Cache-Control: no-store`;
+  `bin/dev.sh` launches both halves through it. `python -m http.server` sends
+  Last-Modified with no Cache-Control, which invites heuristic caching of
+  exactly the oldest, largest files.
+- One-time `?v=20260817` on every script and stylesheet in both `index.html`
+  files, to break cache keys that were established before the header existed.
+- `ui/coach.js` checks every step route against `VIEWS` before step 1. On a
+  mismatch the dock says the tab is running an older console and offers a reload
+  with a cache-busting parameter, instead of dropping the student on a
+  "Page not found" screen. This will matter on Pages after future deploys.
