@@ -1,0 +1,81 @@
+# Single-origin build for GitHub Pages.
+#
+# The app is two static apps that reference each other. Locally they run as two
+# servers (portal on 8768, simulator on 8767); deployed they must be one origin,
+# or the relative SIM_ORIGIN in portal/app.js has nothing to resolve against.
+# This assembles that single origin: portal at /, simulator at /sim/.
+name: Deploy student portal
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; queue them instead of cancelling, so a fast
+# follow-up push cannot land before the deploy it overtook.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble single-origin site
+        run: |
+          set -euo pipefail
+          mkdir -p _site/sim
+          cp -R portal/. _site/
+          cp -R ui/. _site/sim/
+          # Pages runs Jekyll by default, which silently drops files and
+          # directories beginning with an underscore. The vendored libraries
+          # must survive verbatim.
+          touch _site/.nojekyll
+
+      - name: Verify the assembled site
+        run: |
+          set -euo pipefail
+          test -f _site/index.html
+          test -f _site/sim/index.html
+          test -f _site/vendor/tailwind.js
+          # A hardcoded simulator origin is the one regression that looks fine
+          # in CI and breaks every lab button in production. The localhost
+          # literal is legitimate inside the hostname-guarded branch, so match
+          # on preceding context rather than line-by-line.
+          python3 - <<'PY'
+          import pathlib, re, sys
+
+          unguarded = []
+          for path in pathlib.Path('_site').rglob('*.js'):
+              text = path.read_text(errors='ignore')
+              for match in re.finditer(r'127\.0\.0\.1:8767', text):
+                  if 'location.hostname' not in text[max(0, match.start() - 200):match.start()]:
+                      unguarded.append(f'{path}:{text.count(chr(10), 0, match.start()) + 1}')
+
+          if unguarded:
+              print('::error::Unguarded simulator origin: ' + ', '.join(unguarded))
+              sys.exit(1)
+          print('simulator origin is hostname-guarded')
+          PY
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

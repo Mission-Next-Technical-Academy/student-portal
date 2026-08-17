@@ -15,7 +15,7 @@ app corpus is the authority.
 |---|---|---|
 | Path | `/home/alex/sc-200_app` | `/home/alex/defender-lab` |
 | What | RAG/MCQ study tool over downloaded Microsoft Learn content | Original-code portal look-alike (Defender XDR, Sentinel, Defender for Cloud, Purview) |
-| Serve | `server.py` (runs on 127.0.0.1:8766) | `python3 -m http.server 8765 --bind 127.0.0.1` from `ui/` |
+| Serve | `server.py` (runs on 127.0.0.1:8766) | `python3 -m http.server 8767 --bind 127.0.0.1` from `ui/` |
 | Role here | **Source of truth** (read-only) | **Target** (gets the fixes) |
 
 ## Study-app corpus files (read these, never edit)
@@ -74,7 +74,7 @@ Concept vocabulary with chunk counts (proxy for exam emphasis):
 2. For each capability, check the lab: does an interactive surface exist
    (route + view + fixture), only a study card/fixture, or nothing?
    Grep `ui/data.js` + `ui/views.js`; click-check ambiguous ones at
-   `http://127.0.0.1:8765`.
+   `http://127.0.0.1:8767`.
 3. Record every `missing` and `partial` capability in a table in
    `GAP_BRIDGE_FINDINGS.md`: concept, capability, chunk-count weight,
    lab status, existing nearest route, proposed fix size (S/M/L).

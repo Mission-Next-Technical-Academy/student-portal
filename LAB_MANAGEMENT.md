@@ -31,8 +31,9 @@ agent briefs, launch runs, verify claims, and keep the docs honest.
 | `LAB_MANAGEMENT.md` | This file. Update it at end of each management session |
 
 Companion project: `~/sc-200_app` (study app, 127.0.0.1:8766) — read-only
-authority for coverage compares. Lab serves on 127.0.0.1:8765
-(`python3 -m http.server 8765 --bind 127.0.0.1` from `ui/`).
+authority for coverage compares. This course copy serves on 127.0.0.1:8767
+(`python3 -m http.server 8767 --bind 127.0.0.1` from `ui/`); the original
+SC-200 lab keeps 127.0.0.1:8765.
 
 ## Hard-won gotchas (do not re-learn these)
 

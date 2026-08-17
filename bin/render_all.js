@@ -37,7 +37,7 @@ function setInterval(){ return 0; } function clearInterval(){}
 function setTimeout(){ return 0; } function clearTimeout(){}
 `, ctx);
 // workflow-automation.js must load after app.js — it overrides a VIEWS entry.
-for (const f of ['data.js', 'lab-widgets.js', 'views.js', 'app.js', 'workflow-automation.js']) {
+for (const f of ['data.js', 'helpdesk-data.js', 'lab-widgets.js', 'views.js', 'app.js', 'workflow-automation.js', 'helpdesk.js']) {
   try { vm.runInContext(fs.readFileSync(path.join(UI, f), 'utf8'), ctx); }
   catch (e) { console.log(`load note (${f}): ${e.message.slice(0, 100)}`); }
 }

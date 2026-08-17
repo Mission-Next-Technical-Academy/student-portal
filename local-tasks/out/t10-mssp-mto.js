@@ -36,7 +36,7 @@ const MTO_INCIDENTS = [
     title: 'Alleged Data Exfiltration from Finance Group',
     severity: 'High',
     status: 'Resolved',
-    assignedTo: 'Alex Taylor'
+    assignedTo: 'Jordan Taylor'
   },
   {
     id: 'mti-02',

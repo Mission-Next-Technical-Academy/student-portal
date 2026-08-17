@@ -1,4 +1,8 @@
-# SC-200 — Exam Objectives (scope for SC-200_lab)
+# SC-200 — Legacy Exam Objectives Reference
+
+> **Current status:** Retained from the source project for historical and
+> optional product-reference use. This is no longer the scope authority for the
+> Mission_Next_Technical_Academy_SOC_Analyst_course. See `LATEST_PROGRESS.md`.
 
 **Certification:** Microsoft Certified: Security Operations Analyst Associate
 **Exam:** SC-200

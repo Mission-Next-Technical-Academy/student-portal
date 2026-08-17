@@ -21,7 +21,7 @@ then full-page fetch) and checked the live lab at 1440×900 and 1024×768.
 ## Target product map
 
 ```text
-Hacksmartersoft Security Lab
+Mission Next Technical Academy Labs
 ├── Defender portal — primary SC-200 operating surface
 │   ├── Home and Exposure management
 │   ├── Unified investigation and response

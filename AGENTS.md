@@ -1,4 +1,9 @@
-# SC-200_lab — per-agent task plan
+# SC-200_lab — legacy per-agent task plan
+
+> **Current status:** This file records work inherited from the source lab.
+> Current course direction is general SOC Analyst training. Read
+> `LATEST_PROGRESS.md` before using any historical task or certification scope
+> below. The safety rules at the end remain applicable.
 
 Tasks divided by agent strength. Each agent should read `SC200_LAB.md`
 (master), `ExamObjectives.md` (scope), and `HANDOFF.md` (sprint state)
@@ -81,7 +86,7 @@ Microsoft Learn modules.
 Run after every meaningful change.
 
 - [ ] **D1.** `python3 -m http.server` is up; `curl -sS
-  http://127.0.0.1:8765/ -o /dev/null -w "%{http_code}\n"` returns 200.
+  http://127.0.0.1:8767/ -o /dev/null -w "%{http_code}\n"` returns 200.
 - [ ] **D2.** Open Firefox to `/`, hard-refresh, confirm:
   default route loads Defender home; waffle opens app switcher; each
   workload reachable; alert detail panel opens; suppression rule save

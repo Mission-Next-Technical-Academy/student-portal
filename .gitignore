@@ -1,2 +1,15 @@
+# Agent scratch and run logs — machine-local, never useful to another dev.
 .agent-logs/
-.server.log
+*.log
+*.pid
+
+# Python bytecode from the local-tasks fixture tooling.
+__pycache__/
+*.pyc
+
+# Supabase CLI local state. Migrations and seed.sql ARE tracked; these are not.
+supabase/.temp/
+supabase/.branches/
+
+node_modules/
+_site/

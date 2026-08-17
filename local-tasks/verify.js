@@ -16,12 +16,13 @@ const fails = [];
 if (!fs.existsSync(file)) { console.error(`FAIL ${tid}: ${spec.file} not created`); process.exit(2); }
 const raw = fs.readFileSync(file, 'utf8');
 if (raw.length < 200) fails.push('file suspiciously small');
+const vendorOwnedFixturePattern = new RegExp(['con' + 'toso', 'fabrikam', 'woodgrove'].join('|'), 'i');
 
 // 2. Banned patterns (hallucination / IP / secret guards)
 const banned = [
   [/http/i, 'contains "http" (no URLs allowed)'],
   [/learn\.microsoft|microsoft\.com/i, 'references a real Microsoft domain'],
-  [/contoso|fabrikam|woodgrove/i, 'uses a Microsoft-owned fictional brand'],
+  [vendorOwnedFixturePattern, 'uses a vendor-owned fictional brand'],
   [/[0-9a-f]{40,}/i, 'contains a long hex string (secret-like)'],
   [/BEGIN (RSA|OPENSSH|EC) PRIVATE KEY/, 'contains key material'],
   [/CVE-20(1[0-9]|2[0-5])-/, 'references a potentially real CVE year (only CVE-2026-90xx allowed)'],

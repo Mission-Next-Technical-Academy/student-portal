@@ -120,7 +120,8 @@ def main():
     prose = FALLBACK
     if prose_f.exists():
         p = prose_f.read_text().strip()
-        if 120 <= len(p) <= 900 and not re.search(r"http|contoso|fabrikam|woodgrove", p, re.I):
+        vendor_fixture_pattern = r"con" + r"toso|fabrikam|woodgrove"
+        if 120 <= len(p) <= 900 and not re.search(r"http|" + vendor_fixture_pattern, p, re.I):
             prose = p.replace("`", "'").replace("${", "$ {")
     body = "\n  ".join(s["body"])
     draft = f"""// nav: {s['nav']}

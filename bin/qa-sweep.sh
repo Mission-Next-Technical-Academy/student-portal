@@ -4,7 +4,7 @@
 set -u
 LAB="$(cd "$(dirname "$0")/.." && pwd)"
 FAILED=0
-for f in data.js lab-widgets.js views.js app.js; do
+for f in data.js helpdesk-data.js lab-widgets.js views.js app.js helpdesk.js; do
   node --check "$LAB/ui/$f" || { echo "SYNTAX FAIL: $f"; FAILED=1; }
 done
 OUT=$(node "$LAB/bin/render_all.js") || FAILED=1

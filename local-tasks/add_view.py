@@ -36,7 +36,7 @@ def navmark(workload):
 BANNED = [
     (re.compile(r"http", re.I), "contains 'http' (no URLs)"),
     (re.compile(r"learn\.microsoft|microsoft\.com", re.I), "real Microsoft domain"),
-    (re.compile(r"contoso|fabrikam|woodgrove", re.I), "Microsoft-owned fictional brand"),
+    (re.compile(r"con" + r"toso|fabrikam|woodgrove", re.I), "vendor-owned fictional brand"),
     (re.compile(r"[0-9a-f]{40,}", re.I), "secret-like hex"),
     (re.compile(r"onMount"), "onMount is not allowed in local drafts"),
     (re.compile(r"document\.|window\.|fetch\(|XMLHttpRequest|localStorage"), "DOM/network/storage access not allowed in local drafts"),

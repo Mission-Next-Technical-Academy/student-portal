@@ -851,7 +851,7 @@ function huntResolveIdentity(value) {
   const raw = String(value ?? '').trim();
   if (!raw || typeof IDENTITIES === 'undefined') return null;
   const v = raw.toLowerCase();
-  // CONTOSO\jdoe and jdoe@contoso.com both resolve to the jdoe identity.
+  // MISSIONNEXTLABS\jdoe and jdoe@missionnextlabs.example both resolve to the jdoe identity.
   const bare = (v.includes('\\') ? v.split('\\').pop() : v).split('@')[0];
   return IDENTITIES.find(i =>
     [i.id, i.upn, i.samName, i.displayName, i.sid].filter(Boolean).some(x => {
@@ -1327,9 +1327,9 @@ VIEWS['defender/home'] = () => {
   return `
     <div class="page-header">
       <div>
-        <div class="breadcrumb">Defender</div>
+        <div class="breadcrumb">XDR Security</div>
         <h1>Home</h1>
-        <div class="page-subtitle">Welcome back, Alex. Here's what's happening across your environment.</div>
+        <div class="page-subtitle">Welcome back. Here's what's happening across your environment.</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-secondary">↻ Refresh</button>
@@ -2602,7 +2602,7 @@ VIEWS['defender/notifications'] = () => `
           <option>Threat analytics report impacts assets</option>
         </select>
       </label>
-      <label class="wizard-label">Recipients<input class="text-input" value="l1-soc@contoso.example"></label>
+      <label class="wizard-label">Recipients<input class="text-input" value="l1-soc@missionnextlabs.example"></label>
       <label class="wizard-label">Filter<input class="text-input" value="Severity is Medium and assignedTo is L1-Triage"></label>
       <button class="btn btn-primary" onclick="createNotificationRule()">Create lab rule</button>
       <div class="callout hidden" id="notification-result"></div>
@@ -3596,7 +3596,7 @@ VIEWS['defender/identity-protection'] = () => `
     </div>
     <div class="page-actions">
       <button class="btn btn-secondary" onclick="toast('Risk policy settings opened in the lab.')">Risk policy</button>
-      <button class="btn btn-primary" onclick="openIdentity('sam.lee@contoso.com')">Open Sam Lee identity</button>
+      <button class="btn btn-primary" onclick="openIdentity('sam.lee@missionnextlabs.example')">Open Sam Lee identity</button>
     </div>
   </div>
   <div class="identity-risk-layout">
@@ -3686,11 +3686,11 @@ const IDENTITY_ALERT_TEMPLATES = [
 ];
 
 function identityAlertRows(identity, realAlerts, timeline) {
-  const defaultIncident = identity.id === 'fin-svc@contoso.com' ? 'INC-1050'
-    : identity.id === 'jane.doe@contoso.com' ? 'INC-1042'
-    : identity.id === 'maria.ross@contoso.com' ? 'INC-1051'
-    : identity.id === 'sam.lee@contoso.com' ? 'INC-1053'
-    : identity.id === 'svc-backup@contoso.com' || identity.id === 'MSOL_AzureSync@contoso.com' ? 'INC-1019'
+  const defaultIncident = identity.id === 'fin-svc@missionnextlabs.example' ? 'INC-1050'
+    : identity.id === 'jane.doe@missionnextlabs.example' ? 'INC-1042'
+    : identity.id === 'maria.ross@missionnextlabs.example' ? 'INC-1051'
+    : identity.id === 'sam.lee@missionnextlabs.example' ? 'INC-1053'
+    : identity.id === 'svc-backup@missionnextlabs.example' || identity.id === 'MSOL_AzureSync@missionnextlabs.example' ? 'INC-1019'
     : 'INC-1038';
   const timelineAlerts = timeline.filter(r => r.kind === 'alert').map((r, index) => ({
     id: r.alertId || `IDTIM-${index + 1}`,
@@ -3730,7 +3730,7 @@ function identityAssetRows(identity) {
   const ips = ['10.20.7.42','10.20.4.55','185.199.111.12','91.219.236.54','76.21.55.4','168.63.129.16'];
   const files = ['scanner.exe','locker.exe','vssadmin.exe','invoice.html','consent-grant.json','RECOVER-FILES.txt'];
   const groups = ['Domain Admins','Backup Operators','Finance Share Owners','Privileged Role Admins','Remote Management Users'];
-  const mailboxes = [identity.upn, 'shared-finance@contoso.com', 'cfo@contoso.com'];
+  const mailboxes = [identity.upn, 'shared-finance@missionnextlabs.example', 'cfo@missionnextlabs.example'];
   const make = (type, values, source, riskBase) => values.map((name, index) => ({
     type,
     name,
@@ -4107,7 +4107,7 @@ VIEWS['sentinel/incidents'] = () => `
     </div>
   </div>
   <div class="callout info">
-    <strong>Unified response lens:</strong> Sentinel incidents can be investigated from Defender XDR when Contoso security signals are connected.
+    <strong>Unified response lens:</strong> Sentinel incidents can be investigated from Defender XDR when Mission Next Labs security signals are connected.
     Keep Sentinel analytics, automation, bookmarks, and Graph context visible while using Defender XDR for the unified incident story and response actions.
   </div>
   <div class="card" style="margin-top:16px;">
@@ -6062,16 +6062,16 @@ VIEWS['sentinel/automation'] = () => {
 
 // ---------- Agent 10 dead-route cleanup surfaces ----------
 const ACTION_CENTER_ITEMS = [
-  { source:'AIR', status:'Pending approval', incident:'INC-1042', action:'Remove OAuth consent for DocViewer Pro', target:'jane.doe@contoso.com', age:'12 min' },
+  { source:'AIR', status:'Pending approval', incident:'INC-1042', action:'Remove OAuth consent for DocViewer Pro', target:'jane.doe@missionnextlabs.example', age:'12 min' },
   { source:'AIR', status:'Completed', incident:'INC-1050', action:'Isolate device', target:'FIN-FS-02', age:'38 min' },
   { source:'MDE', status:'Pending approval', incident:'INC-1050', action:'Quarantine locker.exe', target:'7a64529e93fa01e8cedfc02114f397d4bbbb42715349f24763d3b7765ffed466', age:'41 min' },
   { source:'MDO', status:'Completed', incident:'INC-1042', action:'Soft-delete phishing message', target:'MSG-7781', age:'55 min' },
 ];
 
 const MDO_INVESTIGATION_ROWS = [
-  { sev:'high', title:'User clicked phishing URL and granted OAuth consent', user:'jane.doe@contoso.com', evidence:'URL click + app consent', incident:'INC-1042', action:'Revoke sessions, remove consent, purge message' },
-  { sev:'medium', title:'Mailbox rule created after suspicious sign-in', user:'maria.chen@contoso.com', evidence:'Inbox rule forwards finance mail', incident:'INC-1051', action:'Disable rule, reset password, review audit' },
-  { sev:'low', title:'Attachment detonated but blocked', user:'pavel.novak@contoso.com', evidence:'Sandbox verdict matched malware family', incident:'INC-1031', action:'Confirm delivery blocked and tune alert noise' },
+  { sev:'high', title:'User clicked phishing URL and granted OAuth consent', user:'jane.doe@missionnextlabs.example', evidence:'URL click + app consent', incident:'INC-1042', action:'Revoke sessions, remove consent, purge message' },
+  { sev:'medium', title:'Mailbox rule created after suspicious sign-in', user:'maria.chen@missionnextlabs.example', evidence:'Inbox rule forwards finance mail', incident:'INC-1051', action:'Disable rule, reset password, review audit' },
+  { sev:'low', title:'Attachment detonated but blocked', user:'pavel.novak@missionnextlabs.example', evidence:'Sandbox verdict matched malware family', incident:'INC-1031', action:'Confirm delivery blocked and tune alert noise' },
 ];
 
 const SENTINEL_WATCHLIST_ROWS = [
@@ -6084,18 +6084,18 @@ const CLOUD_ATTACK_PATHS = [
   {
     id:'dfc-path-01', name:'Internet VM to storage exfiltration', severity:'high', status:'Pending', assetType:'Virtual machine',
     firstSeen:'2026-07-12T09:20:00Z', lastSeen:'2026-08-02T07:42:00Z', affectedResources:4,
-    start:'vm-prod-web-01', entryPoint:'Public SSH endpoint', target:'stcontosologs', chokePoints:['mi-web-prod'],
-    path:['Open SSH management port','Managed identity has Storage Blob Data Contributor','stcontosologs permits public network access'],
+    start:'vm-prod-web-01', entryPoint:'Public SSH endpoint', target:'stmissionnextlabslogs', chokePoints:['mi-web-prod'],
+    path:['Open SSH management port','Managed identity has Storage Blob Data Contributor','stmissionnextlabslogs permits public network access'],
     result:'Potential data exfiltration path', scenario:'Internet-exposed compute can use a workload identity to reach a data store.',
     nodes:[
       { id:'vm-web', role:'entry', type:'Virtual machine', label:'vm-prod-web-01', subtitle:'Public IP · SSH 22 open', insight:'The management port is reachable from the internet and the VM has unresolved high-severity vulnerabilities.', riskFactors:['Internet exposed','High-severity vulnerabilities'], techniques:['T1190 Exploit Public-Facing Application'], recommendationIds:['ap-rec-ssh','ap-rec-vuln'] },
       { id:'mi-web', role:'choke', type:'Managed identity', label:'mi-web-prod', subtitle:'Storage Blob Data Contributor', insight:'This identity is the single convergence point between the exposed VM and the storage target.', riskFactors:['Broad data-plane role','Reachable from exposed compute'], techniques:['T1078 Valid Accounts'], recommendationIds:['ap-rec-role'] },
-      { id:'storage-logs', role:'target', type:'Storage account', label:'stcontosologs', subtitle:'Sensitive operational exports', insight:'The account contains sensitive exports and still accepts public network traffic.', riskFactors:['Sensitive data','Public network access'], techniques:['T1530 Data from Cloud Storage'], recommendationIds:['ap-rec-storage'] },
+      { id:'storage-logs', role:'target', type:'Storage account', label:'stmissionnextlabslogs', subtitle:'Sensitive operational exports', insight:'The account contains sensitive exports and still accepts public network traffic.', riskFactors:['Sensitive data','Public network access'], techniques:['T1530 Data from Cloud Storage'], recommendationIds:['ap-rec-storage'] },
     ],
     recommendations:[
       { id:'ap-rec-ssh', kind:'mitigating', title:'Close internet-exposed management ports on vm-prod-web-01', resource:'vm-prod-web-01', status:'Not started' },
       { id:'ap-rec-role', kind:'mitigating', title:'Remove the broad storage data role from mi-web-prod', resource:'mi-web-prod', status:'Not started' },
-      { id:'ap-rec-storage', kind:'mitigating', title:'Disable public network access on stcontosologs', resource:'stcontosologs', status:'Not started' },
+      { id:'ap-rec-storage', kind:'mitigating', title:'Disable public network access on stmissionnextlabslogs', resource:'stmissionnextlabslogs', status:'Not started' },
       { id:'ap-rec-vuln', kind:'additional', title:'Resolve high-severity vulnerabilities on vm-prod-web-01', resource:'vm-prod-web-01', status:'Not started' },
     ],
   },
@@ -6192,7 +6192,7 @@ function defenderCloudMulticloudState() {
             { item:'/var/log/auth.log', change:'Burst of failed logons', source:'AWS workload' },
           ],
         },
-        jit: { enabled:true, vm:'i-0b8d41f7c9a2e6f35', ports:['3389','22'], duration:'3 hours', requestState:'Approved', requestor:'cloud-admin@contoso.com', note:'Lab-only request surface; no real network access is opened.' },
+        jit: { enabled:true, vm:'i-0b8d41f7c9a2e6f35', ports:['3389','22'], duration:'3 hours', requestState:'Approved', requestor:'cloud-admin@missionnextlabs.example', note:'Lab-only request surface; no real network access is opened.' },
       };
 }
 
@@ -6693,7 +6693,7 @@ VIEWS['sentinel/entity-behavior'] = () => `
       <table class="grid">
         <thead><tr><th>Entity</th><th>Type</th><th>Score</th><th>Top anomaly</th><th>Pivot</th><th>Action</th></tr></thead>
         <tbody>
-          <tr><td>jane.doe@contoso.com</td><td>Account</td><td><span class="sev high">92</span></td><td>OAuth grant after phishing click</td><td><a class="chip-link" href="#/sentinel/graph">Graph</a></td><td><button class="btn btn-primary btn-sm" onclick="runSentinelEntityPlaybook('jane.doe@contoso.com', 'Sentinel entity behavior')">Run playbook (entity)</button></td></tr>
+          <tr><td>jane.doe@missionnextlabs.example</td><td>Account</td><td><span class="sev high">92</span></td><td>OAuth grant after phishing click</td><td><a class="chip-link" href="#/sentinel/graph">Graph</a></td><td><button class="btn btn-primary btn-sm" onclick="runSentinelEntityPlaybook('jane.doe@missionnextlabs.example', 'Sentinel entity behavior')">Run playbook (entity)</button></td></tr>
           <tr><td>FIN-FS-02</td><td>Host</td><td><span class="sev high">88</span></td><td>Rare encryption process and service stop</td><td><a class="chip-link" href="#/defender/device">Device</a></td><td><button class="btn btn-primary btn-sm" onclick="runSentinelEntityPlaybook('FIN-FS-02', 'Sentinel entity behavior')">Run playbook (entity)</button></td></tr>
           <tr><td>10.5.12.44</td><td>IP</td><td><span class="sev medium">67</span></td><td>Repeated IOC destination contact</td><td><a class="chip-link" href="#/sentinel/hunting/dns">DNS hunt</a></td><td><button class="btn btn-primary btn-sm" onclick="runSentinelEntityPlaybook('10.5.12.44', 'Sentinel entity behavior')">Run playbook (entity)</button></td></tr>
         </tbody>
@@ -7680,7 +7680,7 @@ VIEWS['purview/home'] = () => `
         `).join('')}
         <div class="purview-cloud-hub">
           <span class="purview-cloud-mark"></span>
-          <strong>Contoso<br>Purview</strong>
+          <strong>Mission Next Labs<br>Purview</strong>
         </div>
       </div>
       <div class="purview-connection-status"><span class="status-dot resolved"></span>2 connected sources · 280 discovered assets</div>
@@ -7756,8 +7756,8 @@ VIEWS['purview/home'] = () => `
   <div class="section-title">Related portals</div>
   <section class="purview-related-grid">
     ${[
-      ['Contoso Priva', 'Discover privacy risk workflows.', '🔒', '#/purview/solutions'],
-      ['Contoso Fabric', 'Analytics lakehouse and warehouse context.', '▣', '#/sentinel/logs'],
+      ['Privacy Center', 'Discover privacy risk workflows.', '🔒', '#/purview/solutions'],
+      ['Data Fabric', 'Analytics lakehouse and warehouse context.', '▣', '#/sentinel/logs'],
       ['Defender', 'Monitor security incidents and alerts.', '🛡', '#/defender/home'],
       ['Entra', 'Identity and access context.', '◈', '#/defender/identities'],
       ['Service Trust', 'Compliance resources and trust documentation.', '▤', '#/purview/records'],
@@ -7842,9 +7842,9 @@ VIEWS['purview/classic-governance'] = () => `
     <table class="grid">
       <thead><tr><th>Asset</th><th>Type</th><th>Collection</th><th>Owner</th><th>Classification</th></tr></thead>
       <tbody>
-        <tr><td><strong>customer-list.xlsx</strong></td><td>Excel workbook</td><td>Finance</td><td>jdoe@contoso.com</td><td><span class="tag">Credit card number</span></td></tr>
-        <tr><td><strong>employee-roster.csv</strong></td><td>CSV file</td><td>HR</td><td>maria.ross@contoso.com</td><td><span class="tag">U.S. SSN</span></td></tr>
-        <tr><td><strong>audit-export-2026</strong></td><td>Storage path</td><td>Security</td><td>soc@contoso.com</td><td><span class="tag">Operational logs</span></td></tr>
+        <tr><td><strong>customer-list.xlsx</strong></td><td>Excel workbook</td><td>Finance</td><td>jdoe@missionnextlabs.example</td><td><span class="tag">Credit card number</span></td></tr>
+        <tr><td><strong>employee-roster.csv</strong></td><td>CSV file</td><td>HR</td><td>maria.ross@missionnextlabs.example</td><td><span class="tag">U.S. SSN</span></td></tr>
+        <tr><td><strong>audit-export-2026</strong></td><td>Storage path</td><td>Security</td><td>soc@missionnextlabs.example</td><td><span class="tag">Operational logs</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -7897,9 +7897,9 @@ VIEWS['purview/ai-hub'] = () => `
       <table class="grid">
         <thead><tr><th>User</th><th>App</th><th>Signal</th><th>Status</th></tr></thead>
         <tbody>
-          <tr><td>jdoe@contoso.com</td><td>Copilot for 365</td><td>Prompt referenced customer-list.xlsx</td><td><span class="tag orange">Review</span></td></tr>
-          <tr><td>maria.ross@contoso.com</td><td>Approved summarizer</td><td>Used labeled HR document</td><td><span class="tag green">Allowed</span></td></tr>
-          <tr><td>sales.rep@contoso.com</td><td>Unsanctioned AI app</td><td>Browser upload attempted</td><td><span class="tag orange">Blocked</span></td></tr>
+          <tr><td>jdoe@missionnextlabs.example</td><td>Copilot for 365</td><td>Prompt referenced customer-list.xlsx</td><td><span class="tag orange">Review</span></td></tr>
+          <tr><td>maria.ross@missionnextlabs.example</td><td>Approved summarizer</td><td>Used labeled HR document</td><td><span class="tag green">Allowed</span></td></tr>
+          <tr><td>sales.rep@missionnextlabs.example</td><td>Unsanctioned AI app</td><td>Browser upload attempted</td><td><span class="tag orange">Blocked</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -8292,7 +8292,7 @@ VIEWS['purview/audit'] = () => ({
             <div class="alert-section-title">Search audit events</div>
             <div class="two-col">
               <div><label class="lbl">Activity</label><input id="audit-op" class="ipt" value="${esc(state.filters.op)}" placeholder="FileDownloaded, UserLoggedIn, CopilotInteraction"></div>
-              <div><label class="lbl">User</label><input id="audit-user" class="ipt" value="${esc(state.filters.user)}" placeholder="user@contoso.com"></div>
+              <div><label class="lbl">User</label><input id="audit-user" class="ipt" value="${esc(state.filters.user)}" placeholder="user@missionnextlabs.example"></div>
             </div>
             <div class="two-col" style="margin-top:8px;">
               <div><label class="lbl">Workload</label><input id="audit-workload" class="ipt" value="${esc(state.filters.workload)}" placeholder="AzureAD, SharePoint, OneDrive"></div>
@@ -8385,7 +8385,7 @@ VIEWS['purview/audit'] = () => ({
             <div class="alert-section-title">Create retention policy</div>
             <div class="two-col">
               <div><label class="lbl">Policy name</label><input id="audit-policy-name" class="ipt" value="${esc(state.draft.name)}" placeholder="Finance quarterly retention"></div>
-              <div><label class="lbl">Users</label><input id="audit-policy-users" class="ipt" value="${esc(state.draft.users)}" placeholder="user1@contoso.com, user2@contoso.com"></div>
+              <div><label class="lbl">Users</label><input id="audit-policy-users" class="ipt" value="${esc(state.draft.users)}" placeholder="user1@missionnextlabs.example, user2@missionnextlabs.example"></div>
             </div>
             <div class="two-col" style="margin-top:8px;">
               <div><label class="lbl">Record types</label><input id="audit-policy-recordtypes" class="ipt" value="${esc(state.draft.recordTypes)}" placeholder="ExchangeItem, CopilotInteraction"></div>
@@ -9360,7 +9360,7 @@ function copilotSelectedSession() {
 
 function copilotSelectedPromptbook() {
   const books = getCopilotPromptbooks();
-  const tab = sessionStorage.getItem('defender-lab.copilot.promptbook.tab') || 'Contoso';
+  const tab = sessionStorage.getItem('defender-lab.copilot.promptbook.tab') || 'Mission Next Labs';
   const selectedId = sessionStorage.getItem('defender-lab.copilot.promptbook.id');
   const list = books.filter(book => tab === 'All' || book.source === tab);
   return books.find(book => book.id === selectedId) || list.find(book => book.id === selectedId) || list[0] || books[0];
@@ -9440,7 +9440,7 @@ VIEWS['copilot/home'] = () => {
       <section class="card card-body">
         <div class="card-toolbar">
           <strong>Promptbook shortcuts</strong>
-          <span class="muted">Contoso and custom study flows</span>
+          <span class="muted">built-in and custom study flows</span>
         </div>
         <div class="copilot-shortcut-grid">
           ${promptbooks.slice(0, 4).map(book => `
@@ -9635,7 +9635,7 @@ VIEWS['copilot/session'] = () => {
 };
 
 VIEWS['copilot/promptbooks'] = () => {
-  const tab = sessionStorage.getItem('defender-lab.copilot.promptbook.tab') || 'Contoso';
+  const tab = sessionStorage.getItem('defender-lab.copilot.promptbook.tab') || 'Mission Next Labs';
   const books = getCopilotPromptbooks();
   const filtered = books.filter(book => tab === 'All' || book.source === tab);
   const selected = copilotSelectedPromptbook();
@@ -9644,7 +9644,7 @@ VIEWS['copilot/promptbooks'] = () => {
       <div>
         <div class="breadcrumb">Security Copilot › <strong>Promptbooks</strong></div>
         <h1>Promptbooks</h1>
-        <div class="page-subtitle">Browse Contoso and custom promptbooks, then run one to create a canned session.</div>
+        <div class="page-subtitle">Browse built-in and custom promptbooks, then run one to create a canned session.</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-secondary" onclick="navigate('#/copilot/home')">Home</button>
@@ -9653,7 +9653,7 @@ VIEWS['copilot/promptbooks'] = () => {
     </div>
 
     <div class="copilot-tabbar">
-      ${['Contoso', 'Custom', 'All'].map(source => `
+      ${['Mission Next Labs', 'Custom', 'All'].map(source => `
         <button class="copilot-tab ${tab === source ? 'active' : ''}" onclick="sessionStorage.setItem('defender-lab.copilot.promptbook.tab', '${source}'); render();">${source}</button>
       `).join('')}
     </div>
@@ -9720,7 +9720,7 @@ VIEWS['copilot/promptbooks'] = () => {
           <strong>Run promptbook flow</strong>
           <span class="muted">Creates a canned session</span>
         </div>
-        <div class="muted">Running a promptbook records a local session transcript and opens it in the session detail view, which makes it easy to compare Contoso and custom promptbooks side by side.</div>
+        <div class="muted">Running a promptbook records a local session transcript and opens it in the session detail view, which makes it easy to compare built-in and custom promptbooks side by side.</div>
         <div class="callout info" style="margin-top:12px;">
           Use this flow to practice repeatable triage: pick a promptbook, run it, then inspect the transcript and rerun a prompt from the generated session.
         </div>
@@ -9737,11 +9737,11 @@ VIEWS['copilot/plugins'] = () => {
       <div>
         <div class="breadcrumb">Security Copilot › <strong>Plugins</strong></div>
         <h1>Plugins</h1>
-        <div class="page-subtitle">Manage first-party, non-Contoso, and custom plugins that can ground a Copilot answer.</div>
+        <div class="page-subtitle">Manage first-party, third-party, and custom plugins that can ground a Copilot answer.</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-secondary" onclick="navigate('#/copilot/knowledge')">Knowledge</button>
-        <button class="btn btn-primary" onclick="toast('Contoso first-party plugins win before non-Contoso or custom plugins when multiple are enabled.')">Precedence note</button>
+        <button class="btn btn-primary" onclick="toast('platform-native plugins win before third-party or custom plugins when multiple are enabled.')">Precedence note</button>
       </div>
     </div>
 
@@ -9783,7 +9783,7 @@ VIEWS['copilot/plugins'] = () => {
           <div class="alert-section-title">Setup note</div>
           <div class="callout info">${esc(selected.setupNote)}</div>
           <div class="alert-section-title">Precedence</div>
-          <div class="muted">When multiple plugins are enabled, Contoso first-party plugins are checked before non-Contoso or custom plugins. The highest-priority enabled plugin gets the first chance to answer.</div>
+          <div class="muted">When multiple plugins are enabled, platform-native plugins are checked before third-party or custom plugins. The highest-priority enabled plugin gets the first chance to answer.</div>
         ` : `<div class="muted">Pick a plugin from the list.</div>`}
       </section>
     </div>
@@ -10857,12 +10857,12 @@ VIEWS['m365-admin/licenses'] = () => `
   <div class="callout success" style="margin-top:14px;"><strong>Least privilege:</strong> the real workflow requires at least the License Administrator or User Administrator role. Global Administrator should be reserved for tasks that cannot use a narrower role.</div>`;
 
 VIEWS['m365-admin/usage'] = () => `
-  ${m365AdminHeader('Usage', '365 product adoption for the fictional Contoso tenant.', '<button class="btn btn-secondary" onclick="toast(\'A fictional usage CSV would be exported.\')">⬇ Export</button>')}
+  ${m365AdminHeader('Usage', '365 product adoption for the fictional Mission Next Labs tenant.', '<button class="btn btn-secondary" onclick="toast(\'A fictional usage CSV would be exported.\')">⬇ Export</button>')}
   <div class="callout info" style="margin-bottom:14px;">Product documentation path: <strong>Reports › Usage</strong>. Real usage reports can cover 7, 30, 90, or 180 days and normally conceal user, group, and site names by default. This lab shows only aggregate fictional values.</div>
   <div class="card"><div class="card-toolbar"><strong>Active users by product</strong><span class="muted">Last 30 days</span></div><table class="grid"><thead><tr><th>Product</th><th>Enabled users</th><th>Active users</th><th>Adoption</th><th>Activity</th></tr></thead><tbody>${M365_USAGE_REPORTS.map(r => { const pct = Math.round(r.active / r.enabled * 100); return `<tr><td><strong>${esc(r.product)}</strong></td><td>${r.enabled}</td><td>${r.active}</td><td>${pct}%</td><td style="min-width:220px"><div style="height:8px;background:var(--bg-selected);border-radius:4px"><div style="height:8px;width:${pct}%;background:var(--workload);border-radius:4px"></div></div></td></tr>`; }).join('')}</tbody></table></div>`;
 
 VIEWS['m365-admin/service-health'] = () => `
-  ${m365AdminHeader('Service health', 'Current health and active advisories for services used by Contoso.', '<button class="btn btn-secondary" onclick="toast(\'Fictional service-health snapshot refreshed.\')">↻ Refresh</button>')}
+  ${m365AdminHeader('Service health', 'Current health and active advisories for services used by Mission Next Labs.', '<button class="btn btn-secondary" onclick="toast(\'Fictional service-health snapshot refreshed.\')">↻ Refresh</button>')}
   <div class="callout info" style="margin-bottom:14px;">Product documentation path: <strong>Health › Service health</strong>. The Health area also provides health history; Message center is where admins track upcoming product changes.</div>
   <div class="card"><table class="grid"><thead><tr><th>Service</th><th>Status</th><th>Current detail</th><th>Last updated</th></tr></thead><tbody>${M365_SERVICE_HEALTH.map(s => `<tr><td><strong>${esc(s.service)}</strong></td><td>${m365ServiceTag(s.status)}</td><td>${esc(s.detail)}</td><td>${fmtTime(s.updated)}</td></tr>`).join('')}</tbody></table></div>
   <div class="two-col" style="margin-top:14px"><section class="card card-body"><div class="alert-section-title">Active issue</div><strong>SharePoint search indexing delay</strong><p class="muted">Classification: advisory. Search results can lag behind recent content changes; file access and collaboration remain available.</p><button class="btn btn-secondary btn-sm" onclick="toast('Notification preference saved locally for this fictional advisory.')">Notify me</button></section><section class="card card-body"><div class="alert-section-title">Operations note</div><p>Service incidents describe outages or degradation. Advisories describe a condition administrators should know about even when the service remains available.</p><button class="chip-link" onclick="navigate('#/m365-admin/message-center')">Open Message center →</button></section></div>`;

@@ -22,7 +22,7 @@ trusted — only artifacts that pass mechanical checks survive:
 2. **verify.js** loads the output with node and asserts: export names,
    array counts, per-row keys, plus banned-pattern scans — no `http`
    anywhere (no URLs), no Microsoft domains, no Microsoft-owned fictional
-   brands (Contoso/Fabrikam/Woodgrove), no ≥40-char hex (secret-like),
+   brands (Mission Next Labs/Fabrikam/Woodgrove), no ≥40-char hex (secret-like),
    no key material, no real-year CVEs (only the fake `CVE-2026-90xx`
    range is allowed).
 3. **Runner** (`bin-run-goose-tasks.sh`): fail → delete output, retry

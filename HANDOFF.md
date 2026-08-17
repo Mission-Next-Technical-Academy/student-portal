@@ -1,13 +1,14 @@
 # SC-200_lab — sprint handoff
 
 Local-only static-files lab. No build step, no auth, no real network calls.
-Serve from `~/defender-lab/ui/` with:
+Serve this course copy from `~/Mission_Next_Technical_Academy_SOC_Analyst_course/ui/` with:
 
 ```bash
-python3 -m http.server 8765 --bind 127.0.0.1
+python3 -m http.server 8767 --bind 127.0.0.1
 ```
 
-Open `http://127.0.0.1:8765/`.
+Open `http://127.0.0.1:8767/`. Port `8765` remains reserved for the original
+SC-200 lab, and `8766` remains reserved for the companion study app.
 
 ## Scope
 
@@ -33,6 +34,59 @@ Single-page app with hash routing.
 State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
+
+- 2026-08-17 final Mission Next Labs tenant migration:
+  - Replaced all 453 references to the inherited example tenant across source
+    fixtures, rendered views, actions, identifiers, and supporting documents.
+  - Standardized the fictional organization as `Mission Next Labs`, email and
+    directory identities as `missionnextlabs.example`, lowercase resource IDs
+    as `missionnextlabs`, and the directory account domain as
+    `MISSIONNEXTLABS`.
+  - Preserved compatibility for old browser-stored values through the neutral
+    terminology layer without retaining the legacy name as a contiguous source
+    string.
+  - Verified zero legacy-name matches, zero old tenant domains, JavaScript and
+    Python syntax, 109/110 clean mechanical renders with zero dead NAV routes,
+    HTTP 200, final browser rendering, and old-session state migration. The
+    temporary course server was stopped after verification.
+
+- 2026-08-17 general SOC Analyst scope correction:
+  - Confirmed the Mission Next course teaches general SOC Analyst work rather
+    than SC-200 certification preparation.
+  - Added `LATEST_PROGRESS.md` as the authoritative current-status record with
+    the latest copy, port, launcher, logo, branding, terminology, verification,
+    known debt, and recommended next work.
+  - Updated `README.md` and `PROJECT_GUIDE_FOR_AI.md`; marked `SC200_LAB.md`,
+    `ExamObjectives.md`, and `AGENTS.md` as inherited legacy references.
+  - Audited the inherited example tenant: 453 references across four UI files.
+    Documented the need for a controlled fixture migration rather than a blind
+    replacement; that migration is now complete.
+
+- 2026-08-17 Mission Next logo integration:
+  - Cleaned the user-provided geometric `M` logo into a high-resolution PNG
+    with true alpha transparency and no white canvas.
+  - Brightened the blue palette for contrast against the dark application
+    header while keeping the transparent background and orange chevron.
+  - Replaced the top-left shield with the transparent logo, reused it as the
+    favicon, and updated the pinned GNOME dash launcher to the same asset.
+  - Rebuilt the outer cloud/app launcher with the user-approved neutral labels
+    while preserving all underlying routes and SC-200 product content. The top
+    context tabs, workload headings, document titles, and home breadcrumb now
+    use the same neutral terminology.
+
+- 2026-08-17 AI project guide and publication branding:
+  - Added `PROJECT_GUIDE_FOR_AI.md` with project identity, safety rules,
+    architecture, runtime flow, route inventory, state conventions, desktop
+    integration, verification baseline, known limitations, and change workflow.
+  - Replaced every case-insensitive reference to the previous publication
+    brand with `Mission Next Technical Academy Labs` and verified the live page.
+  - Corrected the copied README launcher and CLI paths to this course folder.
+
+- 2026-08-17 course-copy port separation:
+  - Assigned this course copy to `127.0.0.1:8767` so it can run alongside the
+    original SC-200 lab on `8765` and the companion study app on `8766`.
+  - Updated the launcher and active run instructions; historical QA entries
+    below retain the ports used when those checks were performed.
 
 - 2026-08-05 product architecture audit (planning only):
   - Audited the live shell and 106 unique navigation routes against current
@@ -935,7 +989,7 @@ correct, **zero console/page errors**.
 ## Ad-hoc addition (2026-08-02): Entra admin center tenant directory
 
 `#/entra/overview` was two navigation cards with no data. It now renders the
-Contoso tenant directory so the Entra surface carries the same synthetic
+Mission Next Labs tenant directory so the Entra surface carries the same synthetic
 population the Defender XDR and Sentinel views investigate.
 
 - New fixtures at the end of `ui/data.js` (`=== Microsoft Entra admin center —
@@ -1123,10 +1177,10 @@ also touched `#/entra/overview`.
   checks passed; the full render sweep remains 112/113 with only the unrelated
   pre-existing `purview/audit` tiny-render failure.
 
-## Ad-hoc publication branding (2026-08-02): Hacksmartersoft
+## Ad-hoc publication branding (2026-08-02): Mission Next Technical Academy Labs
 
-- Rebranded the publication shell and browser title as **Hacksmartersoft
-  Security Lab**. After the publication requirement was clarified, removed the
+- Rebranded the publication shell and browser title as **Mission Next Technical
+  Academy Labs**. After the publication requirement was clarified, removed the
   restricted vendor word from every file under `ui/` and from `README.md`.
 - Product labels are now neutral (`Defender for Cloud`, `Defender XDR`,
   `Sentinel`, `Purview`, `Entra`, and `365 Admin`). Fixture identifiers, mock
@@ -1344,3 +1398,101 @@ of its section.** The audit in `AGENTS.md` 20.11 only checked that the section
 name appears, so it passed on redundant output. An extra check for
 "last segment already present in the prefix" now catches this; fold it into the
 `NAV_SPEC.md` invariant if the breadcrumb sweep is ever repeated.
+
+## Neutral terminology pass (2026-08-17)
+
+- Added `ui/neutral-terminology.js` as a presentation-only compatibility layer:
+  historical route, storage, symbol, and fixture keys stay stable while all
+  rendered labels use generic SOC terminology.
+- Renamed Security Copilot to **AI Security Agent** and migrated the visible
+  tenant to **Mission Next Labs** with reserved `missionnextlabs.example`
+  addresses. Also generalized the Microsoft security, cloud, identity,
+  governance, endpoint-management, and productivity product labels.
+- A headless-Chrome audit traversed all 103 unique NAV routes and all 110
+  registered views, checking visible text, hidden panel text, titles, ARIA
+  labels, alt text, tooltips, placeholders, and form values: zero targeted
+  targeted Microsoft and legacy-tenant terms remain. The migrated authentication hunt still
+  returns its expected three rows.
+- JavaScript syntax checks pass; HTTP 8767 returns 200; NAV has zero dead routes.
+  The render sweep remains 109/110 with only the documented pre-existing
+  `purview/audit` tiny-render warning.
+
+## IT Help Desk enterprise simulator (2026-08-17)
+
+- Added a new **IT Service Desk** workload to the existing port-8767 simulator.
+  The implementation is isolated in `ui/helpdesk-data.js` and
+  `ui/helpdesk.js`; no student-portal curriculum contract, module route, or
+  entitlement architecture was changed.
+- Added the fictional Northstar Distribution Group environment: Windows 11
+  endpoints, Windows Server 2022 domain controllers and member servers, Active
+  Directory users/groups/computers, DNS, DHCP, Group Policy, file shares,
+  printers, endpoint-security signals, remote support, PowerShell, Event Viewer,
+  and a knowledge base.
+- Added an enterprise shift containing 23 generated tickets with complete
+  lifecycle fields, hidden causes, symptoms, logs, system state, plausible
+  causes, expected resolutions, and escalation criteria. Five tickets share a
+  certificate-expiry cause so students must correlate them into problem record
+  `PRB-0081`.
+- Ticket actions persist locally: assignment, priority, valid state transition,
+  requester contact, work notes, diagnosis checking, problem linking,
+  resolution, closure code, and warm escalation. Active Directory actions,
+  printer actions, endpoint selection, and the simulated PowerShell transcript
+  persist in the same Help Desk namespace.
+- `ui/neutral-terminology.js` now exempts only Help Desk technical content so
+  required course terms such as Windows Server, Active Directory, and
+  PowerShell remain visible; the SOC presentation layer is unchanged.
+- Extended `bin/render_all.js` and `bin/qa-sweep.sh` to include both Help Desk
+  scripts. Current render baseline: 127/128 clean, zero dead navigation routes;
+  the only failure remains the pre-existing `purview/audit` tiny render.
+- Browser verification passed: all 18 Help Desk routes render; zero runtime
+  errors while navigating all routes; 10/10 interaction checks for 23-ticket
+  generation, five-ticket correlation, diagnosis gating, resolution, work-note
+  persistence, problem linking, AD unlock, refresh persistence, and horizontal
+  overflow. Visual checks were performed at 1366×768 and 1920×1080.
+
+## Generic local-user identity (2026-08-17)
+
+- Replaced the personalized analyst username in every active UI fixture with
+  **Me**; the avatar now shows **ME**, its tooltip is **Me**, and the home greeting
+  no longer contains a personal name.
+- Renamed unrelated fictional identities that used the same first name to avoid
+  ambiguity. The fixed **Me** self-reference requires no user lookup.
+
+## Module Agent 01 (2026-08-17): isolated SOC foundation and alert orientation
+
+- Implemented only `#/program/soc-analyst/module/1` in the student portal as a
+  guided miniature lab. Module Agents 02–12 were not started.
+- Replaced Module 1's direct launch into the complete simulator with an internal
+  alert-orientation route. The existing complete environment is explicitly
+  preserved for Module 12 at `http://127.0.0.1:8767/#/defender/home`.
+- Added one measurable objective: prioritize the alert needing first review and
+  justify it with two facts, an analysis, a proportional decision, and a concise
+  analyst note.
+- Added an original, fictional four-alert dataset with benign distractors and a
+  tightly limited signal → SIEM analytics → XDR alert concept flow. The route
+  contains no full product navigation, search, incident graph, response controls,
+  shared capstone evidence, or end-to-end workflow.
+- Added explainable scoring across Observation (30), Analysis (25), Decision
+  (25), and Communication (20), with partial credit, remediation feedback, an
+  80% completion threshold, and the `M01-ALERT-ORIENTED` earned flag.
+- Added browser-local, anonymous, per-lab persistence for attempts, evidence,
+  notes, current/best score, breakdown, flags, completion, and last submission.
+  The lab reset clears only the Module 1 record and preserves unrelated state.
+- The stable anonymous learner ID selects one of three equivalent entity/time
+  variants, changing surface data without changing the answer or difficulty.
+- Added native radio/checkbox/textarea semantics, explicit labels and legends,
+  live score feedback, focus movement after alert selection/submission/reset,
+  visible focus styles, and responsive scoped CSS.
+
+Verification:
+
+- `node --check portal/data.js portal/lab-runtime.js portal/module-01.js portal/app.js` passed (run as individual checks).
+- `git diff --check` passed for the Agent 01 portal files.
+- Both `http://127.0.0.1:8768/` and `http://127.0.0.1:8767/` returned HTTP 200.
+- Headless Chrome at 1366×768 passed 30/30 assertions: route content, four-alert
+  isolation, no 8767/Defender links or global nav, field labels, no horizontal
+  overflow, partial and full-score paths, focus after submit, persisted attempts/
+  evidence/notes/score/flag/completion after refresh, and scoped reset preserving
+  an unrelated localStorage sentinel.
+- A 390×844 browser pass confirmed native Space-key selection, focus transfer to
+  the opened evidence panel, and no horizontal overflow.

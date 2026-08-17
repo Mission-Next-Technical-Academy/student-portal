@@ -2,7 +2,7 @@
 # Launch the SC-200 lab: ensure the local http server is running, then open Firefox.
 set -u
 
-PORT=8765
+PORT=8767
 URL="http://127.0.0.1:${PORT}/"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 UI_DIR="$ROOT/ui"

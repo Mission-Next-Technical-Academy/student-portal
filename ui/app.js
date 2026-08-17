@@ -23,7 +23,7 @@ function matchedRule(alert) {
 
 // ---------- router ----------
 const DEFAULT_ROUTE = '#/defender/home';
-const LAB_BRAND = 'Hacksmartersoft Security Lab';
+const LAB_BRAND = 'Mission Next Technical Academy Labs';
 
 function currentRoute() {
   return (location.hash || DEFAULT_ROUTE).replace(/^#\//, '');   // e.g. "defender/home"
@@ -45,8 +45,8 @@ function render() {
   const portal = PORTALS.find(p => p.id === wl);
 
   document.body.className = 'wl-' + wl + ' route-' + route.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-  // Keep the publisher more prominent than the Contoso product being taught.
-  // Product names stay intact for technical accuracy and descriptive trademark use.
+  // Keep the publisher prominent and present every workload with neutral,
+  // transferable security-operations terminology.
   document.getElementById('portal-name').textContent = LAB_BRAND;
   document.getElementById('portal-context').textContent = `· ${portal.name}`;
   document.title = `${LAB_BRAND} — ${portal.name}`;
@@ -75,9 +75,9 @@ function render() {
   scheduleGuideRefresh();
 }
 
-// Top-of-page tab strip: "Defender portal | Azure portal".
-// Defender XDR + Purview live on security.portal.example / purview.portal.example — treated as "Defender portal" context.
-// Sentinel + Defender for Cloud live in portal.azure.com — "Azure portal" context.
+// Top-of-page neutral simulator context strip.
+// XDR and governance workloads use the XDR Security context; SIEM and cloud
+// security workloads use Cloud Console.
 const PORTAL_CONTEXT = {
   'defender':       'defender',
   'purview':        'defender',
@@ -107,12 +107,12 @@ window.switchPortalContext = switchPortalContext;
 
 // Which Cloud app to highlight for the active workload.
 const CLOUD_HIGHLIGHT = {
-  'defender':       'Defender',
-  'sentinel':       'Sentinel',
-  'defender-cloud': 'Defender',
-  'purview':        'Purview',
-  'entra':          'Entra',
-  'm365-admin':     '365 Admin',
+  'defender':       'XDR Security',
+  'sentinel':       'SIEM & SOAR',
+  'defender-cloud': 'Cloud Console',
+  'purview':        'Data Governance',
+  'entra':          'Identity & Access',
+  'm365-admin':     'Workspace Admin',
 };
 function renderAzurePane(wl) {
   const target = CLOUD_HIGHLIGHT[wl];
@@ -1630,12 +1630,12 @@ function rerunCopilotPrompt(sessionId) {
 // ---------- app switcher ----------
 // Map Cloud app labels to the workloads navigable in this lab.
 const CLOUD_APP_ROUTE = {
-  'Defender':          '#/defender/home',
-  'Azure':             '#/defender-cloud/overview',
-  'Purview':           '#/purview/home',
-  'Sentinel':'#/sentinel/home',
-  'Entra':             '#/entra/overview',
-  '365 Admin':'#/m365-admin/home',
+  'XDR Security':      '#/defender/home',
+  'Cloud Console':     '#/defender-cloud/overview',
+  'Data Governance':   '#/purview/home',
+  'SIEM & SOAR':       '#/sentinel/home',
+  'Identity & Access': '#/entra/overview',
+  'Workspace Admin':   '#/m365-admin/home',
 };
 function renderSwitcher() {
   const grid = document.getElementById('switcher-grid');
@@ -2608,7 +2608,7 @@ function responsePanel(title, html) {
 function openDeviceLiveResponse(deviceId) {
   const device = DEVICES.find(d => d.id === deviceId) || { name: deviceId };
   const session = DEVICE_LIVE_RESPONSE[deviceId] || {
-    operator:'alex.ansbergs',
+    operator:'Me',
     started:new Date().toISOString(),
     status:'Ready',
     transcript:[
@@ -2979,7 +2979,7 @@ function saveTvmExceptionRequest() {
     justification: document.getElementById('tvm-exc-justification')?.value.trim() || 'Business-approved exception.',
     scope: document.getElementById('tvm-exc-scope')?.value || rec.scope,
     expires: document.getElementById('tvm-exc-expiry')?.value || rec.due,
-    owner: 'alex.ansbergs',
+    owner: 'Me',
     status: 'Approved',
     createdAt: new Date().toISOString(),
   };
@@ -3036,7 +3036,7 @@ function syntheticHuntRows(payload, sourceEvents) {
         InitiatingProcessFileName: processName,
       }),
       row(-8, 'DeviceRegistryEvents', 'RegistryValueSet', {
-        RegistryKey: 'HKCU\\Software\\Contoso\\Windows\\CurrentVersion\\Run',
+        RegistryKey: 'HKCU\\Software\\ExampleOrg\\OS\\CurrentVersion\\Run',
         RegistryValueName: 'OneDrive Update', RegistryValueData: processPath,
       }),
       row(7, 'DeviceNetworkEvents', 'ConnectionSuccess', {
@@ -3706,7 +3706,7 @@ function defaultDefenderCloudMulticloudState() {
       ports:['3389', '22'],
       duration:'3 hours',
       requestState:'Approved',
-      requestor:'cloud-admin@contoso.com',
+      requestor:'cloud-admin@missionnextlabs.example',
       note:'Lab-only request surface; no real network access is opened.',
     },
   };
@@ -3787,7 +3787,7 @@ function requestDefenderCloudJitAccess() {
     ...state.jit,
     enabled: true,
     requestState: 'Approved',
-    requestor: 'cloud-admin@contoso.com',
+    requestor: 'cloud-admin@missionnextlabs.example',
     approvedAt: new Date().toISOString(),
   };
   localStorage.setItem(DEFENDER_CLOUD_MULTICLOUD_STATE_KEY, JSON.stringify(state));
@@ -3809,7 +3809,7 @@ const DEFENDER_CLOUD_SETUP_STATE_KEY = 'defender-lab.defender-cloud.setup';
 
 function defaultDefenderCloudSetupState() {
   return {
-    scope: 'Contoso-Production',
+    scope: 'Mission-Next-Labs-Production',
     scopeType: 'Azure subscription',
     saved: true,
     lastSaved: '2026-08-02T18:45:00Z',

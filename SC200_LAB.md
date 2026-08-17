@@ -1,4 +1,9 @@
-# SC-200_lab — master project doc
+# SC-200_lab — legacy source project document
+
+> **Current status:** This file describes the source project's historical
+> certification scope. The copied Mission Next course now teaches general SOC
+> Analyst work. Read `LATEST_PROGRESS.md` for the authoritative current
+> direction; do not use SC-200 exam coverage as a feature gate.
 
 **Read this file first.** It's the single entry point for anyone (human or agent)
 picking up this project. Everything else hangs off it.
@@ -29,9 +34,11 @@ backend. Opens in Firefox via a tiny Python http server.
 
 ## Run it
 ```bash
-~/defender-lab/bin/launch.sh        # starts server on 127.0.0.1:8765 + opens browser
+~/Mission_Next_Technical_Academy_SOC_Analyst_course/bin/launch.sh
+                                      # starts server on 127.0.0.1:8767 + opens browser
 # or, manually:
-cd ~/defender-lab/ui && python3 -m http.server 8765 --bind 127.0.0.1
+cd ~/Mission_Next_Technical_Academy_SOC_Analyst_course/ui
+python3 -m http.server 8767 --bind 127.0.0.1
 ```
 
 Pinned to GNOME dash via `~/.local/share/applications/sc200-lab.desktop`.
@@ -93,7 +100,7 @@ You're picking up an in-progress sprint. The hard contract:
   panel, and Sentinel workspace selector
 
 ## What's next (in order)
-1. Smoke-test any route added to `NAV` at `http://127.0.0.1:8765/`.
+1. Smoke-test any route added to `NAV` at `http://127.0.0.1:8767/`.
 2. Verify the scanner.exe suppression scenario still walks correctly:
    pre-update events show "Suppressed", post-update events fire alerts,
    look-alike file does NOT suppress.
