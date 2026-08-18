@@ -57,6 +57,18 @@ portal/module-${nn}.js must end with:
 view(user, program) returns the module's full HTML as a string; wire() runs after every
 render and attaches listeners. index.html already loads both of your files.
 
+Difficulty gradient — the course must ramp, and yours is one rung of it:
+  Modules 1-3   guided. One data source, one question at a time, the coach names the
+                next step. A student in week 1 has never opened a console before.
+  Modules 4-6   assisted. Two sources at most, hints available, the student chooses the
+                order but the path is signposted.
+  Modules 7-9   semi-independent. The student decides what to look at; hints cost nothing
+                but are not offered unasked.
+  Modules 10-11 independent. Objective and dataset only; no step list.
+  Module 12     the capstone, and the only module that may expose the full range.
+Build to YOUR rung. Reaching for the next one up is the most common way these labs go
+wrong: it makes an early module feel like the capstone and leaves the student stuck.
+
 Hard rules:
 - No git. No npm, no build step, no bundler. Vanilla HTML/CSS/JS only.
 - No network calls, no real auth. State in memory or via LabRuntime only.
