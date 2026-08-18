@@ -1,1 +1,214 @@
-/* Module 06 lab styles — owned by Module Agent 06. Prefix every rule .m06-. */
+/* Module 06 — isolated assisted threat-hunting surface. */
+
+.m06-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); }
+.m06-shell *, .m06-shell *::before, .m06-shell *::after { box-sizing: border-box; }
+.m06-shell .m06-topbar { min-height: 64px; padding: 10px clamp(20px, 4vw, 48px); display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(255, 255, 255, .96); border-bottom: 1px solid #e5e7eb; }
+.m06-shell .m06-brand img { width: auto; height: 42px; display: block; }
+.m06-shell .m06-top-actions { display: flex; align-items: center; gap: 16px; }
+.m06-shell .m06-simulation, .m06-shell .m06-exit { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.m06-shell .m06-simulation { padding: 7px 11px; color: #1e3a5f; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 999px; }
+.m06-shell .m06-exit { color: #1e3a5f; text-decoration: none; }
+.m06-shell .m06-exit:hover, .m06-shell .m06-exit:focus-visible { color: #ea580c; text-decoration: underline; }
+.m06-shell .m06-main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 80px; }
+.m06-shell .m06-kicker { margin: 0; color: #f97316; font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+
+.m06-shell .m06-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 42px; align-items: end; padding: clamp(30px, 5vw, 54px); color: #fff; background: linear-gradient(150deg, #0c1e32 0%, #1e3a5f 50%, #162d4a 100%); border-radius: 24px; box-shadow: 0 18px 48px rgba(10, 22, 40, .18); }
+.m06-shell .m06-hero h1 { margin: 8px 0 14px; font-size: clamp(34px, 5vw, 52px); line-height: 1.05; letter-spacing: -.025em; }
+.m06-shell .m06-lede { max-width: 750px; margin: 0; color: rgba(255, 255, 255, .76); font: 16px/1.75 Inter, sans-serif; }
+.m06-shell .m06-hero-action { width: fit-content; margin-top: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; color: #fff; background: #f97316; border-radius: 11px; font-size: 13px; font-weight: 700; text-decoration: none; }
+.m06-shell .m06-hero-action:hover, .m06-shell .m06-hero-action:focus-visible { background: #ea580c; }
+.m06-shell .m06-progress { min-width: 310px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 0; overflow: hidden; background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .16); border-radius: 14px; }
+.m06-shell .m06-progress div { padding: 14px 16px; background: rgba(12, 30, 50, .54); }
+.m06-shell .m06-progress dt { color: rgba(255, 255, 255, .56); font: 10px/1.3 Inter, sans-serif; }
+.m06-shell .m06-progress dd { margin: 5px 0 0; font-size: 13px; font-weight: 700; white-space: nowrap; }
+
+.m06-shell .m06-objective { margin-top: 22px; display: flex; align-items: flex-start; gap: 16px; padding: 22px; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 8px 24px rgba(30, 58, 95, .06); }
+.m06-shell .m06-objective-icon { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 12px; font-size: 21px; }
+.m06-shell .m06-objective h2 { margin: 4px 0 0; color: #1e3a5f; font-size: 18px; line-height: 1.45; }
+.m06-shell .m06-section { scroll-margin-top: 20px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e5e7eb; border-radius: 20px; box-shadow: 0 8px 24px rgba(30, 58, 95, .05); }
+.m06-shell .m06-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.m06-shell .m06-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-weight: 800; }
+.m06-shell .m06-section-heading h2 { margin: 3px 0 0; color: #1e3a5f; font-size: 23px; line-height: 1.25; }
+
+.m06-shell .m06-concept-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.m06-shell .m06-concept-grid article { min-width: 0; padding: 20px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 14px; }
+.m06-shell .m06-concept-grid i { color: #1e3a5f; font-size: 24px; }
+.m06-shell .m06-concept-grid h3 { margin: 11px 0 6px; color: #1e3a5f; font-size: 14px; }
+.m06-shell .m06-concept-grid p { margin: 0; color: #64748b; font: 12px/1.6 Inter, sans-serif; }
+.m06-shell .m06-hunt-loop { margin-top: 18px; padding: 16px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 9px; color: #fff; background: #0c1e32; border-radius: 13px; }
+.m06-shell .m06-hunt-loop span { padding: 7px 10px; color: #1e3a5f; background: #fff; border-radius: 8px; font-size: 11px; font-weight: 800; }
+.m06-shell .m06-hunt-loop i { color: #f97316; }
+
+.m06-shell .m06-lab-section { border-top: 4px solid #f97316; }
+.m06-shell .m06-role { display: flex; align-items: flex-start; gap: 13px; margin: -5px 0 20px; padding: 16px; color: #1e3a5f; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; }
+.m06-shell .m06-role > i { flex: 0 0 auto; font-size: 22px; }
+.m06-shell .m06-role strong { font-size: 14px; }
+.m06-shell .m06-role p { margin: 4px 0 0; color: #64748b; font: 12px/1.55 Inter, sans-serif; }
+.m06-shell .m06-panel { margin-top: 18px; padding: 24px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 16px; }
+.m06-shell .m06-panel-heading, .m06-shell .m06-score-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.m06-shell .m06-panel-heading h3, .m06-shell .m06-score-heading h3 { margin: 4px 0 0; color: #1e3a5f; font-size: 20px; }
+.m06-shell .m06-status-chip { flex: 0 0 auto; padding: 6px 9px; color: #1e3a5f; background: #fff; border: 1px solid #e5e7eb; border-radius: 999px; font: 700 10px Inter, sans-serif; }
+.m06-shell .m06-instruction { margin: 8px 0 0; color: #64748b; font: 12px/1.6 Inter, sans-serif; }
+
+.m06-shell .m06-seed { margin-top: 18px; display: flex; align-items: flex-start; gap: 13px; padding: 17px; color: #fff; background: linear-gradient(135deg, #0c1e32, #1e3a5f); border-radius: 12px; }
+.m06-shell .m06-seed > i { flex: 0 0 auto; color: #f97316; font-size: 23px; }
+.m06-shell .m06-seed strong { font-size: 13px; }
+.m06-shell .m06-seed p { margin: 5px 0 0; color: rgba(255, 255, 255, .76); font: 12px/1.6 Inter, sans-serif; }
+.m06-shell .m06-seed code { color: #fff; font-weight: 800; overflow-wrap: anywhere; }
+.m06-shell .m06-fieldset { min-width: 0; margin: 24px 0 0; padding: 0; border: 0; }
+.m06-shell .m06-fieldset legend, .m06-shell .m06-note-label { display: flex; align-items: center; gap: 9px; color: #1e3a5f; font-size: 14px; font-weight: 700; }
+.m06-shell .m06-fieldset legend > span, .m06-shell .m06-note-label > span { width: 28px; height: 26px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 7px; font-size: 10px; }
+.m06-shell .m06-hypothesis-options { display: grid; gap: 8px; }
+.m06-shell .m06-hypothesis-options label, .m06-shell .m06-option-list label, .m06-shell .m06-check-grid label { min-width: 0; display: flex; align-items: flex-start; gap: 10px; padding: 13px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; cursor: pointer; }
+.m06-shell .m06-hypothesis-options label:has(input:checked), .m06-shell .m06-option-list label:has(input:checked), .m06-shell .m06-check-grid label:has(input:checked) { background: #fff; border-color: #f97316; box-shadow: 0 0 0 1px rgba(249, 115, 22, .15); }
+.m06-shell .m06-hypothesis-options input, .m06-shell .m06-option-list input, .m06-shell .m06-check-grid input { width: 17px; height: 17px; flex: 0 0 auto; margin-top: 2px; accent-color: #f97316; }
+.m06-shell .m06-hypothesis-options strong, .m06-shell .m06-hypothesis-options small, .m06-shell .m06-option-list strong, .m06-shell .m06-option-list small, .m06-shell .m06-check-grid strong, .m06-shell .m06-check-grid small { display: block; }
+.m06-shell .m06-hypothesis-options strong, .m06-shell .m06-option-list strong, .m06-shell .m06-check-grid strong { color: #334155; font: 600 12px/1.5 Inter, sans-serif; }
+.m06-shell .m06-hypothesis-options small, .m06-shell .m06-option-list small, .m06-shell .m06-check-grid small { margin-top: 3px; color: #64748b; font: 11px/1.45 Inter, sans-serif; }
+.m06-shell .m06-hint { margin-top: 14px; padding: 12px 14px; color: #475569; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; }
+.m06-shell .m06-hint summary { color: #1e3a5f; font-size: 11px; font-weight: 800; cursor: pointer; }
+.m06-shell .m06-hint p { margin: 8px 0 0; font: 11px/1.6 Inter, sans-serif; }
+
+.m06-shell .m06-workspace { padding: 0; overflow: hidden; background: #fff; border-color: #1e3a5f; }
+.m06-shell .m06-workspace > .m06-panel-heading, .m06-shell .m06-workspace > .m06-instruction { margin-right: 24px; margin-left: 24px; }
+.m06-shell .m06-workspace > .m06-panel-heading { margin-top: 24px; }
+.m06-shell .m06-source-tabs { margin-top: 18px; display: grid; grid-template-columns: repeat(2, 1fr); background: #e5e7eb; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; }
+.m06-shell .m06-source-tabs button { min-width: 0; min-height: 54px; display: flex; align-items: center; gap: 8px; padding: 12px 18px; color: #64748b; background: #f8fafc; border: 0; font: 700 12px 'Space Grotesk', sans-serif; text-align: left; cursor: pointer; }
+.m06-shell .m06-source-tabs button + button { border-left: 1px solid #e5e7eb; }
+.m06-shell .m06-source-tabs button[aria-selected="true"] { color: #fff; background: #1e3a5f; }
+.m06-shell .m06-source-tabs button > i { font-size: 19px; }
+.m06-shell .m06-source-tabs button > span { margin-left: auto; font: 10px Inter, sans-serif; white-space: nowrap; }
+.m06-shell .m06-source-panel { padding: 24px; }
+.m06-shell .m06-query-layout { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 18px; padding: 20px; color: #fff; background: #0c1e32; border-radius: 13px; }
+.m06-shell .m06-query-prompt { margin: 0 0 12px; color: rgba(255, 255, 255, .72); font: 12px/1.55 Inter, sans-serif; }
+.m06-shell .m06-query-prompt strong { color: #fff; }
+.m06-shell .m06-query-prompt code, .m06-shell .m06-query-layout .m06-hint code { color: #f97316; font-weight: 800; }
+.m06-shell .m06-query-layout label { display: block; color: #fff; font-size: 12px; font-weight: 700; }
+.m06-shell .m06-query-layout textarea { width: 100%; margin-top: 8px; padding: 13px; resize: vertical; color: #fff; background: #162d4a; border: 1px solid rgba(255, 255, 255, .2); border-radius: 10px; font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.m06-shell .m06-query-layout textarea:focus { border-color: #f97316; }
+.m06-shell .m06-query-layout textarea + p { margin: 7px 0 0; color: rgba(255, 255, 255, .55); font: 10px/1.5 Inter, sans-serif; }
+.m06-shell .m06-run { min-height: 40px; margin-top: 12px; display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; color: #fff; background: #f97316; border: 1px solid #f97316; border-radius: 9px; font: 700 11px 'Space Grotesk', sans-serif; cursor: pointer; }
+.m06-shell .m06-run:hover, .m06-shell .m06-run:focus-visible { background: #ea580c; }
+.m06-shell .m06-query-hint { align-self: start; margin: 0; color: rgba(255, 255, 255, .72); background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .16); }
+.m06-shell .m06-query-hint summary { color: #fff; }
+.m06-shell .m06-query-empty, .m06-shell .m06-query-result { margin-top: 14px; padding: 13px 15px; border-radius: 10px; font: 11px/1.55 Inter, sans-serif; }
+.m06-shell .m06-query-empty { color: #64748b; background: #f8fafc; border: 1px dashed #e5e7eb; }
+.m06-shell .m06-query-result.is-pass { color: #1e3a5f; background: #fff; border: 2px solid #1e3a5f; }
+.m06-shell .m06-query-result.is-remediate { color: #9a3412; background: #fff; border: 2px solid #f97316; }
+.m06-shell .m06-query-result strong { font-size: 12px; }
+.m06-shell .m06-query-result p { margin: 3px 0 0; }
+.m06-shell .m06-result-heading { margin: 18px 0 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.m06-shell .m06-result-heading strong { color: #1e3a5f; font-size: 12px; }
+.m06-shell .m06-result-heading span { color: #64748b; font: 10px Inter, sans-serif; }
+.m06-shell .m06-table-wrap { max-width: 100%; overflow-x: auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 11px; }
+.m06-shell .m06-data-table { width: 100%; min-width: 940px; border-collapse: collapse; font: 10px/1.45 Inter, sans-serif; }
+.m06-shell .m06-data-table th { padding: 10px 9px; color: rgba(255, 255, 255, .75); background: #162d4a; font-weight: 700; text-align: left; white-space: nowrap; }
+.m06-shell .m06-data-table td { padding: 10px 9px; color: #475569; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+.m06-shell .m06-data-table tbody tr:last-child td { border-bottom: 0; }
+.m06-shell .m06-data-table tr.is-bookmarked td { background: #fff7ed; }
+.m06-shell .m06-data-table code { color: #1e3a5f; font-size: 10px; overflow-wrap: anywhere; }
+.m06-shell .m06-bookmark { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; color: #1e3a5f; background: transparent; border: 1px solid transparent; border-radius: 7px; font: 800 10px Inter, sans-serif; cursor: pointer; }
+.m06-shell .m06-bookmark[aria-pressed="true"] { color: #ea580c; background: #fff; border-color: #f97316; }
+.m06-shell .m06-detail-link { max-width: 220px; padding: 0; color: #1e3a5f; background: transparent; border: 0; font: 700 10px/1.45 Inter, sans-serif; text-align: left; text-decoration: underline; cursor: pointer; overflow-wrap: anywhere; }
+.m06-shell .m06-row-detail { position: relative; margin-top: 12px; padding: 15px 45px 15px 16px; background: #f8fafc; border: 1px solid #e5e7eb; border-left: 4px solid #f97316; border-radius: 0 11px 11px 0; }
+.m06-shell .m06-row-detail > button { position: absolute; top: 9px; right: 9px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; color: #64748b; background: #fff; border: 1px solid #e5e7eb; border-radius: 50%; cursor: pointer; }
+.m06-shell .m06-row-detail > strong { display: block; margin-top: 4px; color: #1e3a5f; font-size: 13px; }
+.m06-shell .m06-row-detail > p:last-child { margin: 5px 0 0; color: #64748b; font: 11px/1.55 Inter, sans-serif; }
+.m06-shell .m06-bookmark-tray { margin: 0 24px 24px; padding: 17px; display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; background: #0c1e32; border-radius: 12px; }
+.m06-shell .m06-bookmark-tray h4 { margin: 4px 0 0; color: #fff; font-size: 14px; }
+.m06-shell .m06-bookmark-tray > p { margin: 0; color: rgba(255, 255, 255, .62); font: 11px/1.55 Inter, sans-serif; }
+.m06-shell .m06-bookmark-tray ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 0; padding: 0; list-style: none; }
+.m06-shell .m06-bookmark-tray li { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 8px 9px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .12); border-radius: 8px; }
+.m06-shell .m06-bookmark-tray code { color: #f97316; font-size: 10px; font-weight: 800; }
+.m06-shell .m06-bookmark-tray li span { min-width: 0; color: rgba(255, 255, 255, .72); font: 10px Inter, sans-serif; overflow-wrap: anywhere; }
+.m06-shell .m06-bookmark-tray li button { width: 25px; height: 25px; display: grid; place-items: center; padding: 0; color: #fff; background: transparent; border: 0; border-radius: 6px; cursor: pointer; }
+.m06-shell .m06-bookmark-tray li button:hover { background: rgba(255, 255, 255, .1); }
+
+.m06-shell .m06-artifact { border-top: 4px solid #f97316; }
+.m06-shell .m06-help { margin: 6px 0 10px 37px; color: #64748b; font: 12px/1.55 Inter, sans-serif; }
+.m06-shell .m06-check-grid { margin-left: 37px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.m06-shell .m06-option-list { margin-left: 37px; display: grid; gap: 8px; }
+.m06-shell .m06-note-label { margin-top: 24px; }
+.m06-shell #m06-notes { width: calc(100% - 37px); margin-left: 37px; padding: 13px 14px; resize: vertical; color: #172033; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; font: 13px/1.6 Inter, sans-serif; }
+.m06-shell #m06-notes:focus { border-color: #f97316; }
+.m06-shell .m06-note-count { margin: 5px 0 0 37px; color: #64748b; font: 10px Inter, sans-serif; text-align: right; }
+.m06-shell .m06-artifact-hint { margin-left: 37px; }
+.m06-shell .m06-actions { margin: 24px 0 0 37px; display: flex; flex-wrap: wrap; gap: 10px; }
+.m06-shell .m06-actions button { min-height: 42px; display: inline-flex; align-items: center; gap: 7px; padding: 10px 15px; border-radius: 10px; font: 700 12px 'Space Grotesk', sans-serif; cursor: pointer; }
+.m06-shell .m06-submit { color: #fff; background: #f97316; border: 1px solid #f97316; }
+.m06-shell .m06-submit:hover, .m06-shell .m06-submit:focus-visible { background: #ea580c; }
+.m06-shell .m06-reset { color: #1e3a5f; background: #fff; border: 1px solid #e5e7eb; }
+.m06-shell .m06-reset:hover, .m06-shell .m06-reset:focus-visible { border-color: #1e3a5f; background: #f8fafc; }
+.m06-shell .m06-score-empty, .m06-shell .m06-validation, .m06-shell .m06-score { margin: 20px 0 0 37px; padding: 19px; border-radius: 13px; }
+.m06-shell .m06-score-empty { color: #64748b; background: #fff; border: 1px dashed #e5e7eb; font: 12px/1.55 Inter, sans-serif; }
+.m06-shell .m06-validation { display: flex; align-items: flex-start; gap: 11px; color: #9a3412; background: #fff; border: 2px solid #f97316; }
+.m06-shell .m06-validation i { flex: 0 0 auto; font-size: 20px; }
+.m06-shell .m06-validation strong { font-size: 13px; }
+.m06-shell .m06-validation p { margin: 3px 0 0; font: 12px/1.55 Inter, sans-serif; }
+.m06-shell .m06-score { background: #fff; border: 2px solid; }
+.m06-shell .m06-score.is-pass { border-color: #1e3a5f; }
+.m06-shell .m06-score.is-remediate { border-color: #f97316; }
+.m06-shell .m06-score-heading > span { width: 56px; height: 56px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 50%; font-size: 19px; font-weight: 800; }
+.m06-shell .m06-score-grid { margin-top: 15px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.m06-shell .m06-score-grid div { padding: 11px; background: #f8fafc; border-radius: 9px; }
+.m06-shell .m06-score-grid strong, .m06-shell .m06-score-grid span, .m06-shell .m06-score-grid small { display: block; }
+.m06-shell .m06-score-grid strong { color: #1e3a5f; font-size: 13px; }
+.m06-shell .m06-score-grid span { margin-top: 2px; color: #475569; font: 700 10px Inter, sans-serif; }
+.m06-shell .m06-score-grid small { margin-top: 4px; color: #64748b; font: 9px/1.4 Inter, sans-serif; }
+.m06-shell .m06-feedback-list { margin: 14px 0 0; padding-left: 18px; color: #475569; font: 12px/1.65 Inter, sans-serif; }
+.m06-shell .m06-expert-model { margin-top: 14px; padding: 14px; background: #f8fafc; border-left: 3px solid #1e3a5f; border-radius: 0 9px 9px 0; }
+.m06-shell .m06-expert-model strong { color: #1e3a5f; font-size: 12px; }
+.m06-shell .m06-expert-model p { margin: 5px 0 0; color: #64748b; font: 11px/1.6 Inter, sans-serif; }
+.m06-shell .m06-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.m06-shell :focus-visible { outline: 3px solid rgba(249, 115, 22, .38); outline-offset: 2px; }
+
+@media (max-width: 920px) {
+  .m06-shell .m06-hero { grid-template-columns: 1fr; }
+  .m06-shell .m06-progress { width: 100%; min-width: 0; }
+  .m06-shell .m06-concept-grid { grid-template-columns: repeat(2, 1fr); }
+  .m06-shell .m06-query-layout { grid-template-columns: 1fr; }
+  .m06-shell .m06-score-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 700px) {
+  .m06-shell .m06-main { width: min(100% - 24px, 1180px); padding-top: 22px; }
+  .m06-shell .m06-topbar { padding-inline: 14px; }
+  .m06-shell .m06-brand img { height: 34px; }
+  .m06-shell .m06-simulation { display: none; }
+  .m06-shell .m06-exit { font-size: 0; }
+  .m06-shell .m06-exit i { font-size: 20px; }
+  .m06-shell .m06-hero, .m06-shell .m06-section { border-radius: 16px; }
+  .m06-shell .m06-panel-heading, .m06-shell .m06-score-heading { flex-direction: column; }
+  .m06-shell .m06-check-grid { grid-template-columns: 1fr; }
+  .m06-shell .m06-table-wrap { overflow: visible; border: 0; background: transparent; }
+  .m06-shell .m06-data-table { min-width: 0; display: block; }
+  .m06-shell .m06-data-table thead { display: none; }
+  .m06-shell .m06-data-table tbody { display: grid; gap: 10px; }
+  .m06-shell .m06-data-table tr { display: block; overflow: hidden; background: #fff; border: 1px solid #e5e7eb; border-radius: 11px; }
+  .m06-shell .m06-data-table td { min-width: 0; display: grid; grid-template-columns: minmax(82px, .7fr) minmax(0, 1.3fr); gap: 9px; padding: 8px 11px; border-bottom: 1px solid #e5e7eb; overflow-wrap: anywhere; }
+  .m06-shell .m06-data-table td::before { content: attr(data-label); color: #64748b; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+  .m06-shell .m06-detail-link { max-width: 100%; }
+  .m06-shell .m06-bookmark-tray { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .m06-shell .m06-hero { padding: 26px 22px; }
+  .m06-shell .m06-hero h1 { font-size: 34px; }
+  .m06-shell .m06-section, .m06-shell .m06-panel, .m06-shell .m06-source-panel { padding: 19px 15px; }
+  .m06-shell .m06-workspace { padding: 0; }
+  .m06-shell .m06-workspace > .m06-panel-heading, .m06-shell .m06-workspace > .m06-instruction { margin-right: 15px; margin-left: 15px; }
+  .m06-shell .m06-workspace > .m06-panel-heading { margin-top: 19px; }
+  .m06-shell .m06-source-tabs { grid-template-columns: 1fr; }
+  .m06-shell .m06-source-tabs button + button { border-top: 1px solid #e5e7eb; border-left: 0; }
+  .m06-shell .m06-query-layout { padding: 16px 13px; }
+  .m06-shell .m06-bookmark-tray { margin: 0 15px 19px; }
+  .m06-shell .m06-bookmark-tray ol { grid-template-columns: 1fr; }
+  .m06-shell .m06-help, .m06-shell .m06-check-grid, .m06-shell .m06-option-list, .m06-shell #m06-notes, .m06-shell .m06-note-count, .m06-shell .m06-artifact-hint, .m06-shell .m06-actions, .m06-shell .m06-score-empty, .m06-shell .m06-validation, .m06-shell .m06-score { margin-left: 0; }
+  .m06-shell #m06-notes { width: 100%; }
+  .m06-shell .m06-score-grid, .m06-shell .m06-concept-grid, .m06-shell .m06-progress { grid-template-columns: 1fr; }
+  .m06-shell .m06-result-heading { align-items: flex-start; flex-direction: column; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m06-shell .m06-hero-action { transition: none; }
+}

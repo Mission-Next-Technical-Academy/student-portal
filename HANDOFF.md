@@ -1773,3 +1773,42 @@ Verification:
   corrective feedback items visible.
 - At 390×844, the opened ten-row log workspace had no document-level horizontal
   overflow; browser runtime-error count was zero during the complete-path pass.
+
+## Wave 2 module labs — Modules 04, 05, 06 (2026-08-18)
+
+Three codex module agents ran in parallel and delivered `portal/module-04.*`,
+`portal/module-05.*`, and `portal/module-06.*`. Each mounts an isolated assisted
+lab on its own portal route, keeps every CSS selector under its own `.mNN-`
+namespace, persists through `LabRuntime` under a lab-specific id, and resets only
+itself. Per-agent detail is in `.agent-logs/module-0{4,5,6}-report.md`; the
+orchestrator gate review is in `MODULAR_LAB_PROGRAM_PROGRESS.md`.
+
+- Module 4 — detection studio: a rule desk (grouping, metric, threshold) whose
+  local simulator shows the original rule firing on a benign retry pattern while
+  missing a five-account spray, plus an intelligence desk for indicator
+  attachment and bounded automation. Flag `M04-DETECTION-ENGINEERED`.
+- Module 5 — endpoint investigation: process tree, endpoint timeline, and file
+  evidence over one synthetic host, with quarantine-is-not-closure framing.
+- Module 6 — hypothesis hunt: two scoped query workbenches, bookmark tray,
+  device/identity scoping, IOC interpretation, and ATT&CK mapping. Flag
+  `M06-HUNT-SCOPE-COMPLETE`.
+
+Orchestrator fix shipped in the same commit, in the shared runtime rather than in
+any module file: `LabRuntime.freshState()` shallow-spread the caller's defaults,
+so live state shared array and object instances with each module's
+`MODULE_*_DEFAULT_STATE` constant. Learner pushes into `selectedEvidence`,
+`reviewedStations`, `hintsOpened`, or `flags` mutated the constant, so a lab
+reset handed back the polluted arrays and a neighbouring lab reusing the same
+defaults shape was disturbed too. `freshState()` now deep-clones defaults
+(`structuredClone`, JSON fallback). Modules 01-05 were affected; Module 06 was
+immune because it builds defaults through `moduleSixFreshDefaults()`.
+
+New check: `node bin/lab-state-check.js` (exit 0 = isolated) fails on mutated
+defaults, on a reset that leaves arrays or nested defaults populated, and on a
+reset that disturbs a neighbouring lab or unrelated course storage. Verified
+failing 4/6 against the pre-fix runtime. Run it with `node bin/portal-check.js`
+before closing a wave.
+
+Wave 3 (Modules 07, 08, 09) is not launched. Future module agents should build
+defaults from a function, as Module 06 does, not from a shared module-level
+constant.

@@ -1,6 +1,6 @@
 # SOC Analyst Modular Lab Program — Orchestration and Progress
 
-Last updated: 2026-08-17 (Europe/Berlin)
+Last updated: 2026-08-18 (Europe/Berlin)
 
 ## Status
 
@@ -10,11 +10,12 @@ Last updated: 2026-08-17 (Europe/Berlin)
 - [x] Define module ownership and execution order.
 - [x] Launch and complete Module Agent 01 only.
 - [x] Wave 1 — Module Agents 02 and 03 complete and reviewed.
-- [ ] Launch Module Agents 02–12.
+- [x] Wave 2 — Module Agents 04, 05, and 06 complete, reviewed, and committed.
+- [ ] Launch Module Agents 07–12.
 - [ ] Integrate module changes.
 - [ ] Run cross-module, accessibility, state-isolation, and capstone-gating QA.
 
-Current phase: **Wave 1 complete (Modules 01-03). Wave 2 (Modules 04-06) launched 2026-08-18.**
+Current phase: **Wave 2 complete (Modules 01-06) and gate-reviewed 2026-08-18. Wave 3 (Modules 07-09) not launched.**
 
 ## Agent Count
 
@@ -30,7 +31,7 @@ Implementation runs in four waves of three module agents. Agents are Codex proce
 `portal/module-NN.js`, `portal/module-NN.css`, and its own report. The router discovers modules
 through `registerModuleLab()` in `portal/module-registry.js`, so no shared file is edited by an agent.
 
-Agents launched: **3**. Agents complete: **3**. Application implementation covers Modules 1-3.
+Agents launched: **6**. Agents complete: **6**. Application implementation covers Modules 1-6.
 
 ## Source-of-Truth Decision
 
@@ -51,9 +52,9 @@ In particular:
 | Module Agent 01 | `#/program/soc-analyst/module/1` | SOC & Security Architecture | Create isolated foundation/alert-orientation lab slices; no full range navigation. | Complete |
 | Module Agent 02 | `#/program/soc-analyst/module/2` | Network, Identity & Security Foundations | Create constrained identity/network interpretation labs with synthetic data. | Complete |
 | Module Agent 03 | `#/program/soc-analyst/module/3` | SIEM & Log Analysis | Create miniature alert triage, log interpretation, timeline, and query tasks. | Complete |
-| Module Agent 04 | `#/program/soc-analyst/module/4` | Detection Engineering, Threat Intelligence & Automation | Create limited detection logic, tuning, enrichment, and alert-context workflows. | Not started |
-| Module Agent 05 | `#/program/soc-analyst/module/5` | Endpoint & Malware Investigation | Create constrained process-tree, endpoint-timeline, and file-evidence labs. | Not started |
-| Module Agent 06 | `#/program/soc-analyst/module/6` | Threat Hunting & Investigation | Create hypothesis, query, bookmarking, scoping, IOC, and ATT&CK exercises. | Not started |
+| Module Agent 04 | `#/program/soc-analyst/module/4` | Detection Engineering, Threat Intelligence & Automation | Create limited detection logic, tuning, enrichment, and alert-context workflows. | Complete |
+| Module Agent 05 | `#/program/soc-analyst/module/5` | Endpoint & Malware Investigation | Create constrained process-tree, endpoint-timeline, and file-evidence labs. | Complete |
+| Module Agent 06 | `#/program/soc-analyst/module/6` | Threat Hunting & Investigation | Create hypothesis, query, bookmarking, scoping, IOC, and ATT&CK exercises. | Complete |
 | Module Agent 07 | `#/program/soc-analyst/module/7` | Network & Email Analysis | Create isolated network-session, phishing, header, URL/attachment, and trace labs. | Not started |
 | Module Agent 08 | `#/program/soc-analyst/module/8` | Vulnerability Management & Exposure Analysis | Create constrained prioritization and exposure-analysis workflows without enterprise-wide browsing. | Not started |
 | Module Agent 09 | `#/program/soc-analyst/module/9` | Incident Response | Create limited correlation, investigation, and proportional-response exercises. | Not started |
@@ -66,7 +67,7 @@ In particular:
 | Wave | Module agents | Gate before the next wave | Status |
 |---|---|---|---|
 | 1 | 01, 02, 03 | Shared lab contract and early guided pattern validated. | Complete 2026-08-18 |
-| 2 | 04, 05, 06 | Reusable detection, endpoint, and hunting components validated. | Running |
+| 2 | 04, 05, 06 | Reusable detection, endpoint, and hunting components validated. | Complete 2026-08-18 |
 | 3 | 07, 08, 09 | Evidence isolation and semi-independent progression validated. | Not started |
 | 4 | 10, 11, 12 | Advanced artifacts integrated; capstone alone exposes full range. | Not started |
 
@@ -126,6 +127,42 @@ stations and Module 03 adds a query workbench and timeline builder — heavier t
 for at week 1-2, but both stay inside their own surface and neither pivots across consoles the way
 Module 01 did. Left as built; revisit if the early modules read as steep in use.
 
+## Wave 2 Gate Review (2026-08-18)
+
+Modules 04, 05, and 06 passed the orchestrator gate:
+
+- Each agent modified only its own two files; `git status` showed no shared-file edits.
+- `node --check` passed for all three module scripts.
+- `node bin/portal-check.js 1 2 3 4 5 6` renders all six plus the program overview.
+- No `8767`, `SIM_ORIGIN`, `simEntry`, `#/defender`, `fetch(`, or `XMLHttpRequest` reference in
+  any Wave 2 module file — the full range stays hidden and no lab reaches the network.
+- Every CSS selector is `.m04-` / `.m05-` / `.m06-` prefixed, so no lab can restyle another.
+- All three persist through `LabRuntime` under a lab-specific id with a scoped reset.
+
+One defect was found and fixed by the orchestrator, in the shared runtime rather than in any
+module file:
+
+`LabRuntime.freshState()` shallow-spread the caller's defaults, so the live state received the
+same array and object instances held by each module's `MODULE_*_DEFAULT_STATE` constant. A
+learner's pushes into `selectedEvidence`, `reviewedStations`, `hintsOpened`, or `flags` mutated
+the constant itself. Two gate promises were broken by this: an individual-lab reset returned the
+already-polluted arrays instead of empty ones, and because the constants are per module but the
+symptom is per instance, a reset also failed to restore a lab whose neighbour had written through
+the same shape. `freshState()` now deep-clones defaults (`structuredClone`, JSON fallback).
+
+Modules 01-05 all passed the shared constant to `load()` and `reset()` and were affected;
+Module 06 was already immune because it builds fresh defaults from `moduleSixFreshDefaults()`.
+The agents' own reset checks missed it because they asserted on scalars — attempts, score — which
+reset correctly even with the shared reference.
+
+`bin/lab-state-check.js` now guards this: it fails on defaults mutated by learner selections, on a
+reset that leaves arrays or nested defaults populated, and on a reset that disturbs a neighbouring
+lab or unrelated course storage. Verified failing (4 checks) against the pre-fix runtime and
+passing after it. Run it alongside `node bin/portal-check.js` before closing any future wave.
+
+Note for Wave 3: agents should build defaults through a function, as Module 06 does, rather than
+sharing a module-level constant.
+
 ## Orchestration Stop Point
 
 Module 1 now mounts an isolated, guided alert-orientation lab on the portal route. It presents nine foundation lessons, an activity-to-investigation concept flow, one synthetic identity alert, a sequential evidence review, and a scored verdict/priority/lifecycle/action/case-note artifact. Attempts, reviewed evidence, notes, score, best score, earned flag, and completion persist under a lab-specific browser key; reset affects only this lab.
@@ -143,3 +180,15 @@ Agent 01 verification:
 - HTTP checks returned 200 for the portal on 8768 and the preserved capstone environment on 8767.
 - Headless Chrome at 1366×768 passed 30/30 focused assertions covering the exact route, four-alert isolation, absence of full navigation/capstone links, labels, focus after scoring, overflow, explainable 0/100 and 100/100 paths, attempts/evidence/notes/score/flag/completion persistence after refresh, and a reset that preserved unrelated course state.
 - A second browser check passed keyboard Space activation, managed evidence-panel focus, and horizontal containment at 390×844.
+
+## Wave 2 Stop Point (2026-08-18)
+
+Modules 4, 5, and 6 mount isolated assisted labs on their portal routes: a detection studio with a
+rule-tuning desk and an intelligence desk (Module 4), an endpoint process-tree, timeline, and
+file-evidence investigation (Module 5), and a hypothesis-driven hunt with two scoped query
+workbenches, a bookmark tray, scoping, IOC interpretation, and ATT&CK mapping (Module 6). Each
+scores observation, analysis, decision, and communication out of 100 with explainable per-category
+feedback, persists its own state under a lab-specific key, and resets only itself.
+
+Wave 3 (Modules 07, 08, 09) is not launched. Launch it with
+`bin/run-module-agents.sh 7 8 9` after reading the Wave 2 gate review above.

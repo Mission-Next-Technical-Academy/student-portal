@@ -27,6 +27,15 @@ const LabRuntime = (() => {
     return `${PREFIX}.${labId}.${anonymousStudentId(user)}`;
   }
 
+  function cloneDefaults(defaults) {
+    if (!defaults || typeof defaults !== 'object') return {};
+    try {
+      return typeof structuredClone === 'function' ? structuredClone(defaults) : JSON.parse(JSON.stringify(defaults));
+    } catch (_) {
+      return JSON.parse(JSON.stringify(defaults));
+    }
+  }
+
   function freshState(labId, user, defaults) {
     return {
       anonymousStudentId: anonymousStudentId(user),
@@ -38,7 +47,7 @@ const LabRuntime = (() => {
       bestScore: 0,
       flags: [],
       completed: false,
-      ...defaults,
+      ...cloneDefaults(defaults),
     };
   }
 
