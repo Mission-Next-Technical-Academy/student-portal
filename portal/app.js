@@ -994,10 +994,14 @@ function render() {
 
   const moduleMatch = hash.match(/^#\/program\/([a-z0-9-]+)\/module\/(\d+)$/);
   const programMatch = hash.match(/^#\/program\/([a-z0-9-]+)/);
-  if (moduleMatch && moduleMatch[1] === 'soc-analyst' && moduleMatch[2] === '1') {
+  const moduleLab = moduleMatch ? moduleLabFor(moduleMatch[1], moduleMatch[2]) : null;
+  // A module route with no registered lab is not an error: that module simply
+  // has no interactive surface built yet, so it falls through to the program
+  // overview the same way it always did.
+  if (moduleLab) {
     const program = PROGRAMS.find((item) => item.slug === moduleMatch[1]);
-    app.innerHTML = hasModuleAccess(user, program.slug, 'soc-01')
-      ? viewModuleOne(user, program)
+    app.innerHTML = hasModuleAccess(user, program.slug, moduleLab.moduleKey)
+      ? moduleLab.view(user, program)
       : viewNoAccess(user, program);
   } else if (programMatch) {
     app.innerHTML = viewProgram(user, programMatch[1]);
@@ -1056,9 +1060,9 @@ function wireCommon() {
     });
   });
 
-  wireModuleOneLab();
+  wireRegisteredModuleLabs();
 }
 
 window.addEventListener('hashchange', render);
-window.addEventListener('message', moduleOneReceiveCoachCompletion);
+window.addEventListener('message', dispatchModuleLabMessage);
 document.addEventListener('DOMContentLoaded', render);

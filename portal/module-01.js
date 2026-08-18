@@ -565,3 +565,12 @@ function moduleOneReceiveCoachCompletion(event) {
   }
   if (location.hash === '#/program/soc-analyst/module/1') render();
 }
+
+registerModuleLab({
+  program: 'soc-analyst',
+  moduleNumber: 1,
+  moduleKey: 'soc-01',
+  view: viewModuleOne,
+  wire: wireModuleOneLab,
+  onMessage: moduleOneReceiveCoachCompletion,
+});
