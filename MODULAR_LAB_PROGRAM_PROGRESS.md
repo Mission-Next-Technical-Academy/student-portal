@@ -111,7 +111,9 @@ Module Agent 01 is complete and implementation has stopped. Module Agents 02–1
 
 Module 1 now mounts an isolated, guided alert-orientation lab on the portal route. It presents nine foundation lessons, an activity-to-investigation concept flow, one synthetic identity alert, a sequential evidence review, and a scored verdict/priority/lifecycle/action/case-note artifact. Attempts, reviewed evidence, notes, score, best score, earned flag, and completion persist under a lab-specific browser key; reset affects only this lab.
 
-The scoped SIEM console walkthrough is a required Module 1 step. It starts a fresh eight-step coach run across only the sign-in log, identity-risk, and incident pages, reports verified completion back to the module, and unlocks the triage worksheet. Module completion requires both this walkthrough and a passing triage artifact.
+The scoped SIEM console walkthrough is a required Module 1 step. It starts a fresh six-step coach run on the sign-in log alone, reports verified completion back to the module, and unlocks the triage worksheet. Module completion requires both this walkthrough and a passing triage artifact.
+
+Revised 2026-08-18 after review: Module 1 is the student's first hour and must read as easy. The walkthrough previously pivoted across three consoles (sign-in logs, Identity Protection, Defender incidents) to collect four facts — that is the capstone's shape, not a first lesson's. It is now single-source: every fact the verdict depends on is readable in the sign-in log, the platform's risk score is surfaced in the sign-in detail pane, and the account owner's denial is handed to the student in the module's own evidence panel. The pass mark moved from 80 to 70 and the case note is graded in independent parts instead of all-or-nothing, so a correct verdict with an imperfect note still passes.
 
 The full existing security operations environment remains the Module 12 capstone at `http://127.0.0.1:8767/#/defender/home`. Module 1 does not link to or reveal that environment, its navigation, its shared evidence, or an end-to-end workflow.
 

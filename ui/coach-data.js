@@ -22,15 +22,16 @@ const MODULE_COACHES = [
     module: 1,
     name: 'Your first SOC alert',
     role: 'Tier 1 SOC analyst',
-    summary: 'Find the evidence behind ALT-1001 in the SIEM, then take your verdict back to the module.',
+    summary: 'Find the evidence behind ALT-1001 in one log, then take your verdict back to the module.',
     completionToken: 'm01',
     home: '#/entra/sign-in-logs',
-    // The mini-environment. Three pages, nothing else reachable.
-    allow: [
-      '#/entra/sign-in-logs',
-      '#/entra/identity-protection',
-      '#/defender/incidents',
-    ],
+    // The mini-environment. ONE page, nothing else reachable. Module 1 is the
+    // student's first hour: pivoting across three consoles to collect four
+    // facts is the capstone's shape, not a first lesson's. Every fact the
+    // verdict depends on is readable in the sign-in log; the account owner's
+    // denial is handed to the student in the module's own evidence panel, the
+    // way a service-desk callback would reach a Tier 1 analyst.
+    allow: ['#/entra/sign-in-logs'],
     steps: [
       {
         route: '#/entra/sign-in-logs',
@@ -63,29 +64,15 @@ const MODULE_COACHES = [
         route: '#/entra/sign-in-logs',
         target: '#panel-technique .entra-kv',
         title: 'Fact 3 — the context is wrong',
-        body: 'Open the successful sign-in. The details pane splits the evidence the way a real console does, and each tab answers a different question: Basic info shows the risk and the previous sign-in from Berlin on a managed laptop 28 minutes earlier, Location shows Bucharest, Device info shows an unregistered device, and Authentication details shows a password with no second factor. Same account, incompatible context.',
+        body: 'Open the successful sign-in. The details pane splits the evidence the way a real console does, and each tab answers a different question: Basic info shows the risk and the previous sign-in from Berlin on a managed laptop 28 minutes earlier, Location shows Bucharest, Device info shows an unregistered device, and Authentication details shows a password with no second factor. Same account, incompatible context. Basic info also carries the platform\'s own call: it scored this sign-in High risk on exactly that combination — unfamiliar location plus unfamiliar device.',
         actionLabel: 'Open the successful sign-in',
         do: () => setSigninDetailTab('SL-019', 'basic'),
       },
       {
-        route: '#/entra/identity-protection',
-        target: '.card.card-body .grid',
-        title: 'Why the platform flagged it',
-        body: 'Identity Protection scored that sign-in as High risk — unfamiliar location plus unfamiliar device. Note the distinction here: sign-in risk is about one authentication request, user risk is about the account itself. A confirmed unauthorized sign-in raises both.',
-      },
-      {
-        route: '#/defender/incidents',
-        target: '.grid tbody tr[data-incident-id="INC-1070"]',
-        title: 'Fact 4 — the account owner denies it',
-        body: 'Open INC-1070. The incident record carries the service desk callback: the user was reached on their registered phone number and confirms they did not attempt these sign-ins. That is independent confirmation, not an assumption.',
-        actionLabel: 'Open INC-1070',
-        do: () => openIncident('INC-1070'),
-      },
-      {
-        route: '#/defender/incidents',
+        route: '#/entra/sign-in-logs',
         target: null,
-        title: 'You have all four facts',
-        body: 'Access succeeded, the context is unfamiliar, the platform scored it High risk, and the owner denies the activity. That is a confirmed unauthorized access incident, not a suspicious-but-unproven alert. Go back to Module 1 and record your verdict, priority, and case note.',
+        title: 'You have the facts',
+        body: 'Three facts, one log: access succeeded, the context is unfamiliar, and the platform scored the sign-in High risk. The fourth fact — the account owner reached by phone, denying the activity — is waiting for you in the module, the way a service-desk callback would reach you. Together that is a confirmed unauthorized access incident, not a suspicious-but-unproven alert. Go back to Module 1 and record your verdict, priority, and case note.',
         finish: { label: 'Back to Module 1' },
       },
     ],

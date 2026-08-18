@@ -195,8 +195,8 @@ function moduleOneLabDynamic() {
       <p class="m01-kicker">${consoleComplete ? 'Required walkthrough complete' : 'Required · 10 minutes'}</p>
       <h3 id="m01-siem-title">Investigate the same case in the guided console</h3>
       <p>Every fact above came from somewhere. Open the lab console and the Mission Next coach walks you to it —
-      the sign-in log holding the eight failures, the risk detection, and the incident record. The coach keeps you
-      in the three pages this lab uses; nothing else is reachable until you exit. Complete all eight coach steps to unlock the triage worksheet.</p>
+      one page, the sign-in log holding the eight failures and the success that followed them. Nothing else is
+      reachable until you exit. Complete the six coach steps to unlock the triage worksheet.</p>
     </div>
     <a class="m01-siem-launch" data-m01-console-launch href="${esc(SIM_ORIGIN)}?coach=m01&amp;restart=1#/entra/sign-in-logs" target="_blank" rel="opener">
       <i class="${consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${consoleComplete ? 'Review guided console' : 'Start required walkthrough'}
@@ -208,7 +208,7 @@ function moduleOneLabDynamic() {
     <div><strong>Triage worksheet</strong><p>Review all four facts first. In real work, deciding before reading the available evidence creates avoidable mistakes.</p></div>
   </section>` : !consoleComplete ? `<section class="m01-worksheet-locked" aria-label="Triage worksheet locked until the guided console is complete">
     <i class="ri-lock-line" aria-hidden="true"></i>
-    <div><strong>Complete the guided console walkthrough</strong><p>Follow all eight coach steps through the sign-in log, risk detection, and incident record. The console returns you here and unlocks this worksheet when the walkthrough is complete.</p></div>
+    <div><strong>Complete the guided console walkthrough</strong><p>Follow the six coach steps through the sign-in log. The console returns you here and unlocks this worksheet when the walkthrough is complete.</p></div>
   </section>` : `<form id="m01-form" class="m01-worksheet" novalidate>
     <div class="m01-panel-heading">
       <div><p class="m01-kicker">Guided decision</p><h3>Complete the five-part triage record</h3></div>
@@ -395,9 +395,15 @@ function moduleOneScore() {
   const priority = moduleOneState.priority === lab.correctPriority ? 20 : 0;
   const lifecycle = moduleOneState.phase === lab.correctPhase ? 15 : 0;
   const action = moduleOneState.decision === lab.correctDecision ? 25 : 0;
+  // Graded in three independent parts rather than all-or-nothing: a first-week
+  // student who names the account and says what happened should not score zero
+  // on the note because they left the recommendation implicit.
   const note = moduleOneState.notes.trim().toLowerCase();
-  const communication = (note.length >= 60 ? 8 : 0)
-    + (/(j\.santos|account)/.test(note) && /(success|succeeded|unauthori|denies|denied)/.test(note) && /(escalat|contain|revoke|reset)/.test(note) ? 7 : 0);
+  const noteNamesEntity = /(j\.santos|account)/.test(note);
+  const noteStatesActivity = /(success|succeeded|unauthori|denies|denied|sign-in|signin)/.test(note);
+  const noteRecommends = /(escalat|contain|revoke|reset|playbook)/.test(note);
+  const communication = (note.length >= 40 ? 6 : 0)
+    + (noteNamesEntity ? 3 : 0) + (noteStatesActivity ? 3 : 0) + (noteRecommends ? 3 : 0);
   const score = verdict + priority + lifecycle + action + communication;
 
   return {
@@ -408,7 +414,14 @@ function moduleOneScore() {
       priority ? 'Priority: Correct. Confirmed unauthorized access needs prompt response even though only one identity is currently in scope.' : 'Priority: Use High. Confidence is strong and the attacker obtained an active session.',
       lifecycle ? 'Lifecycle: Correct. You are in detection and analysis; containment is the next response activity, not a completed one.' : 'Lifecycle: Triage belongs in detect and analyze. The evidence has been validated, but access has not yet been contained.',
       action ? 'Next action: Correct. The handoff preserves evidence and invokes an authorized, proportionate identity response.' : 'Next action: Escalate with evidence and follow the identity-containment playbook. Do not close the case or disrupt unrelated systems.',
-      communication === 15 ? 'Case note: Clear. It names the entity, observed unauthorized access, and recommended response.' : 'Case note: Name the account, successful or denied activity, and the escalation or containment recommendation in at least 60 characters.',
+      communication === 15
+        ? 'Case note: Clear. It names the entity, observed unauthorized access, and recommended response.'
+        : `Case note: ${[
+            note.length >= 40 ? null : 'write at least a couple of sentences',
+            noteNamesEntity ? null : 'name the account',
+            noteStatesActivity ? null : 'say what the activity was',
+            noteRecommends ? null : 'say what should happen next',
+          ].filter(Boolean).join(', ')}.`,
     ],
   };
 }

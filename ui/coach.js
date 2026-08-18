@@ -73,7 +73,8 @@
     if (Date.now() - lastDeniedAt > 400) {
       lastDeniedAt = Date.now();
       if (typeof toast === 'function') {
-        toast(`Module ${coach.module} lab: stay in ${coach.allow.length} pages of the console. Exit the coach to explore freely.`);
+        const pages = coach.allow.length === 1 ? 'the one page' : `the ${coach.allow.length} pages`;
+        toast(`Module ${coach.module} lab: stay in ${pages} this lab uses. Exit the coach to explore freely.`);
       }
     }
     return false;

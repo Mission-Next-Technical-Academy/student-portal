@@ -298,7 +298,7 @@ const MODULE_ONE_ALERT_ORIENTATION = {
   id: 'M01-L01',
   title: 'Your First SOC Alert: A Guided Triage',
   minutes: 20,
-  passingScore: 80,
+  passingScore: 70,
   lessons: [
     {
       number: 1,
