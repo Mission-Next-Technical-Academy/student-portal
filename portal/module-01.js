@@ -5,9 +5,13 @@
 const MODULE_ONE_LAB_ID = 'm01-first-soc-alert-v2';
 const MODULE_ONE_FLAG = 'M01-FIRST-ALERT-TRIAGED';
 const MODULE_ONE_CATALOG_LAB_KEY = 'lab-soc-environment';
+const MODULE_ONE_ROUTE = '#/program/soc-analyst/module/1';
 
 const MODULE_ONE_DEFAULT_STATE = {
   reviewedEvidence: [],
+  factTries: {},
+  factWrong: [],
+  factError: '',
   consoleStarted: false,
   consoleCompleted: false,
   verdict: '',
@@ -27,6 +31,8 @@ function moduleOneLoad(user) {
   moduleOneUser = user;
   moduleOneState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
   if (!Array.isArray(moduleOneState.reviewedEvidence)) moduleOneState.reviewedEvidence = [];
+  if (!Array.isArray(moduleOneState.factWrong)) moduleOneState.factWrong = [];
+  if (!moduleOneState.factTries || typeof moduleOneState.factTries !== 'object') moduleOneState.factTries = {};
   if (new URLSearchParams(location.search).get('coachComplete') === 'm01') {
     moduleOneState.consoleStarted = true;
     moduleOneState.consoleCompleted = true;
@@ -129,6 +135,77 @@ function moduleOneScorePanel() {
   </section>`;
 }
 
+// ---------- recorded facts ----------
+//
+// The timeline is filled in, not revealed: the student has just read these
+// values in the console, and writing them down is the first half of a case
+// note. Matching is deliberately forgiving — trimmed, lower-cased, punctuation
+// and interior spacing ignored — because the skill being practised is reading
+// a log, not typing an exact string.
+const MODULE_ONE_TRIES_BEFORE_ANSWER = 3;
+
+function moduleOneNormalize(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[.,;:'"]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function moduleOneBlankCorrect(blank, value) {
+  const given = moduleOneNormalize(value);
+  if (!given) return false;
+  return blank.accept.some((accepted) => moduleOneNormalize(accepted) === given);
+}
+
+function moduleOneFactTries(factId) {
+  return Number(moduleOneState.factTries[factId] || 0);
+}
+
+function moduleOneRecordedSentence(fact) {
+  return fact.template.replace(/\{(\w+)\}/g, (_, key) => {
+    const blank = fact.blanks.find((item) => item.key === key);
+    return blank ? blank.answer : '';
+  });
+}
+
+function moduleOneBlankForm(fact) {
+  const wrong = new Set(moduleOneState.factWrong);
+  const tries = moduleOneFactTries(fact.id);
+  const showHints = tries >= 1;
+  const showAnswer = tries >= MODULE_ONE_TRIES_BEFORE_ANSWER;
+  const sentence = fact.template.split(/(\{\w+\})/).map((piece) => {
+    const match = piece.match(/^\{(\w+)\}$/);
+    if (!match) return esc(piece);
+    const blank = fact.blanks.find((item) => item.key === match[1]);
+    if (!blank) return '';
+    const isWrong = wrong.has(blank.key);
+    return `<span class="m01-blank ${isWrong ? 'is-wrong' : ''}">
+      <input type="text" name="${esc(blank.key)}" size="${blank.size}" autocomplete="off" spellcheck="false"
+             aria-label="${esc(blank.label)}" aria-invalid="${isWrong ? 'true' : 'false'}"
+             placeholder="${'_'.repeat(Math.min(blank.size, 12))}" />
+      <small>${esc(blank.label)}</small>
+    </span>`;
+  }).join('');
+
+  return `<form class="m01-fact-form" data-m01-fact="${esc(fact.id)}" novalidate>
+    <p class="m01-fact-prompt">${esc(fact.prompt)}</p>
+    <p class="m01-fact-sentence">${sentence}</p>
+    ${moduleOneState.factError ? `<p class="m01-fact-error" role="alert">${esc(moduleOneState.factError)}</p>` : ''}
+    ${showHints ? `<ul class="m01-fact-hints">
+      ${fact.blanks.filter((blank) => wrong.has(blank.key) || tries >= 2).map((blank) =>
+        `<li><strong>${esc(blank.label)}:</strong> ${esc(blank.hint)}</li>`).join('')}
+    </ul>` : ''}
+    <div class="m01-fact-actions">
+      <button type="submit" class="m01-reveal"><i class="ri-check-line" aria-hidden="true"></i> Record this fact</button>
+      ${showAnswer ? `<button type="button" class="m01-fact-give" data-m01-give="${esc(fact.id)}">
+        <i class="ri-eye-line" aria-hidden="true"></i> Show me this one</button>` : ''}
+      <a class="m01-fact-reopen" href="${esc(SIM_ORIGIN)}?coach=m01&amp;restart=1#/entra/sign-in-logs" target="_blank" rel="opener">
+        <i class="ri-external-link-line" aria-hidden="true"></i> Reopen the log</a>
+    </div>
+  </form>`;
+}
+
 function moduleOneLabDynamic() {
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const scenario = lab.scenario;
@@ -171,44 +248,67 @@ function moduleOneLabDynamic() {
     </div>
   </section>
 
-  <section class="m01-evidence" aria-labelledby="m01-evidence-title">
+  <section class="m01-siem ${consoleComplete ? 'is-complete' : ''}" aria-labelledby="m01-siem-title">
+    <div class="m01-siem-copy">
+      <p class="m01-kicker">${consoleComplete ? 'Required walkthrough complete' : 'Required · 10 minutes'}</p>
+      <h3 id="m01-siem-title">Investigate the same case in the guided console</h3>
+      <p>Every fact above came from somewhere. Open the lab console and the Mission Next coach starts you where a
+      real shift starts — the alert queue — then has you open the alert, navigate to the sign-in log yourself, and
+      read the eight failures and the success that followed them. Only the control each step asks for is clickable,
+      and nothing outside those two pages is reachable until you exit. Complete the eight coach steps to unlock the
+      triage worksheet.</p>
+    </div>
+    <a class="m01-siem-launch" data-m01-console-launch href="${esc(SIM_ORIGIN)}?coach=m01&amp;restart=1#/defender/alerts" target="_blank" rel="opener">
+      <i class="${consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${consoleComplete ? 'Review guided console' : 'Start required walkthrough'}
+    </a>
+  </section>
+
+  ${!consoleComplete ? `<section class="m01-worksheet-locked" aria-label="Investigation timeline locked until the guided console is complete">
+    <i class="ri-lock-line" aria-hidden="true"></i>
+    <div><strong>Investigation timeline</strong><p>The console walkthrough comes first: you cannot write down what a log said before reading it. Finish the eight coach steps and the timeline opens here for you to fill in.</p></div>
+  </section>` : `<section class="m01-evidence" aria-labelledby="m01-evidence-title">
     <div class="m01-panel-heading">
-      <div><p class="m01-kicker">Guided evidence review</p><h3 id="m01-evidence-title">Investigation timeline</h3></div>
-      <span class="m01-evidence-count">${reviewedCount}/${scenario.evidence.length} facts reviewed</span>
+      <div><p class="m01-kicker">Record what the log showed</p><h3 id="m01-evidence-title">Investigation timeline</h3></div>
+      <span class="m01-evidence-count">${reviewedCount}/${scenario.evidence.length} facts recorded</span>
     </div>
     <ol class="m01-timeline">
       ${scenario.evidence.map((item, index) => {
         const isReviewed = reviewed.has(item.id);
-        return `<li class="${isReviewed ? 'is-reviewed' : 'is-locked'}">
-          <span class="m01-timeline-marker"><i class="${isReviewed ? esc(item.icon) : 'ri-lock-line'}" aria-hidden="true"></i></span>
-          <div><time>${isReviewed ? esc(item.time) : `Fact ${index + 1}`}</time><strong>${isReviewed ? esc(item.label) : 'Not reviewed yet'}</strong><p>${isReviewed ? esc(item.detail) : 'Reveal the preceding evidence to continue.'}</p></div>
+        const isActive = nextEvidence && nextEvidence.id === item.id;
+        if (isReviewed) {
+          return `<li class="is-reviewed">
+            <span class="m01-timeline-marker"><i class="${esc(item.icon)}" aria-hidden="true"></i></span>
+            <div><time>${esc(item.time)}</time><strong>${esc(item.label)}</strong><p>${esc(item.detail)}</p></div>
+          </li>`;
+        }
+        if (isActive && item.blanks) {
+          return `<li class="is-active">
+            <span class="m01-timeline-marker"><i class="ri-edit-line" aria-hidden="true"></i></span>
+            <div><time>${esc(item.time)}</time><strong>Fact ${index + 1} — fill in the blanks</strong>
+            ${moduleOneBlankForm(item)}</div>
+          </li>`;
+        }
+        if (isActive) {
+          return `<li class="is-active">
+            <span class="m01-timeline-marker"><i class="ri-phone-line" aria-hidden="true"></i></span>
+            <div><time>${esc(item.time)}</time><strong>Fact ${index + 1} — handed to you</strong>
+            <p>This one does not live in the log. The service desk called the account owner while you were reading it.</p>
+            <button type="button" class="m01-reveal" data-m01-reveal="${esc(item.id)}">
+              <i class="ri-eye-line" aria-hidden="true"></i> Read the service-desk callback</button></div>
+          </li>`;
+        }
+        return `<li class="is-locked">
+          <span class="m01-timeline-marker"><i class="ri-lock-line" aria-hidden="true"></i></span>
+          <div><time>Fact ${index + 1}</time><strong>Not recorded yet</strong><p>Record the preceding fact to continue.</p></div>
         </li>`;
       }).join('')}
     </ol>
-    ${nextEvidence ? `<button type="button" class="m01-reveal" data-m01-reveal="${esc(nextEvidence.id)}">
-      <i class="ri-eye-line" aria-hidden="true"></i> ${reviewedCount ? 'Reveal next fact' : 'Open alert evidence'}
-    </button>` : `<div class="m01-evidence-complete"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span><strong>Evidence review complete.</strong> You can now make the first triage decision.</span></div>`}
-  </section>
+    ${!nextEvidence ? `<div class="m01-evidence-complete"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span><strong>Timeline recorded.</strong> Every fact came from something you read yourself. You can now make the first triage decision.</span></div>` : ''}
+  </section>`}
 
-  ${investigationReady ? `<section class="m01-siem ${consoleComplete ? 'is-complete' : ''}" aria-labelledby="m01-siem-title">
-    <div class="m01-siem-copy">
-      <p class="m01-kicker">${consoleComplete ? 'Required walkthrough complete' : 'Required · 10 minutes'}</p>
-      <h3 id="m01-siem-title">Investigate the same case in the guided console</h3>
-      <p>Every fact above came from somewhere. Open the lab console and the Mission Next coach walks you to it —
-      one page, the sign-in log holding the eight failures and the success that followed them. Nothing else is
-      reachable until you exit. Complete the six coach steps to unlock the triage worksheet.</p>
-    </div>
-    <a class="m01-siem-launch" data-m01-console-launch href="${esc(SIM_ORIGIN)}?coach=m01&amp;restart=1#/entra/sign-in-logs" target="_blank" rel="opener">
-      <i class="${consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${consoleComplete ? 'Review guided console' : 'Start required walkthrough'}
-    </a>
-  </section>` : ''}
-
-  ${!investigationReady ? `<section class="m01-worksheet-locked" aria-label="Triage worksheet locked">
+  ${!consoleComplete || !investigationReady ? `<section class="m01-worksheet-locked" aria-label="Triage worksheet locked">
     <i class="ri-lock-line" aria-hidden="true"></i>
-    <div><strong>Triage worksheet</strong><p>Review all four facts first. In real work, deciding before reading the available evidence creates avoidable mistakes.</p></div>
-  </section>` : !consoleComplete ? `<section class="m01-worksheet-locked" aria-label="Triage worksheet locked until the guided console is complete">
-    <i class="ri-lock-line" aria-hidden="true"></i>
-    <div><strong>Complete the guided console walkthrough</strong><p>Follow the six coach steps through the sign-in log. The console returns you here and unlocks this worksheet when the walkthrough is complete.</p></div>
+    <div><strong>Triage worksheet</strong><p>Record all four facts first. In real work, deciding before reading the available evidence creates avoidable mistakes.</p></div>
   </section>` : `<form id="m01-form" class="m01-worksheet" novalidate>
     <div class="m01-panel-heading">
       <div><p class="m01-kicker">Guided decision</p><h3>Complete the five-part triage record</h3></div>
@@ -480,6 +580,17 @@ function wireModuleOneLab() {
       return;
     }
 
+    const give = event.target.closest('[data-m01-give]');
+    if (give) {
+      const factId = give.dataset.m01Give;
+      if (!moduleOneState.reviewedEvidence.includes(factId)) moduleOneState.reviewedEvidence.push(factId);
+      moduleOneState.factWrong = [];
+      moduleOneState.factError = '';
+      moduleOneSave();
+      moduleOneRenderDynamic('m01-evidence-title');
+      return;
+    }
+
     const reveal = event.target.closest('[data-m01-reveal]');
     if (reveal) {
       const evidenceId = reveal.dataset.m01Reveal;
@@ -524,6 +635,36 @@ function wireModuleOneLab() {
   });
 
   root.addEventListener('submit', (event) => {
+    const factForm = event.target.closest('[data-m01-fact]');
+    if (factForm) {
+      event.preventDefault();
+      const fact = MODULE_ONE_ALERT_ORIENTATION.scenario.evidence
+        .find((item) => item.id === factForm.dataset.m01Fact);
+      if (!fact || !fact.blanks) return;
+      const wrong = fact.blanks
+        .filter((blank) => !moduleOneBlankCorrect(blank, factForm.elements[blank.key].value))
+        .map((blank) => blank.key);
+
+      if (!wrong.length) {
+        if (!moduleOneState.reviewedEvidence.includes(fact.id)) moduleOneState.reviewedEvidence.push(fact.id);
+        moduleOneState.factWrong = [];
+        moduleOneState.factError = '';
+        moduleOneSave();
+        moduleOneRenderDynamic('m01-evidence-title');
+        return;
+      }
+
+      const tries = moduleOneFactTries(fact.id) + 1;
+      moduleOneState.factTries[fact.id] = tries;
+      moduleOneState.factWrong = wrong;
+      moduleOneState.factError = wrong.length === fact.blanks.length
+        ? 'Not yet — none of these match the log. Go back to the sign-in log and read the row again.'
+        : `Close. ${wrong.length} of ${fact.blanks.length} still do not match the log — the marked fields.`;
+      moduleOneSave();
+      moduleOneRenderDynamic('m01-evidence-title');
+      return;
+    }
+
     if (event.target.id !== 'm01-form') return;
     event.preventDefault();
     const form = event.target;
@@ -576,7 +717,20 @@ function moduleOneReceiveCoachCompletion(event) {
   if (saved.completed && typeof markModuleLabComplete === 'function') {
     markModuleLabComplete(user, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
   }
-  if (location.hash === '#/program/soc-analyst/module/1') render();
+
+  // The student may be sitting on an in-page anchor — '#m01-foundations' is the
+  // hero's own CTA — when the console reports back. That hash is not a route,
+  // so matching the route exactly here left the unlock saved but never drawn:
+  // the worksheet stayed locked until a manual reload. Detect the mounted view
+  // instead, restore the route, and re-render.
+  const mounted = Boolean(document.querySelector('.m01-shell'));
+  if (location.hash !== MODULE_ONE_ROUTE && !mounted) return;
+  if (location.hash !== MODULE_ONE_ROUTE) history.replaceState(null, '', MODULE_ONE_ROUTE);
+  render();
+
+  // Land the student on what just changed rather than at the top of the module.
+  const worksheet = document.getElementById('m01-form') || document.querySelector('.m01-siem');
+  if (worksheet) worksheet.scrollIntoView({ block: 'start' });
 }
 
 registerModuleLab({

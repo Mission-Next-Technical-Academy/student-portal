@@ -96,6 +96,46 @@
 
   function clearSpotlight() {
     document.querySelectorAll('.coach-spotlight').forEach(el => el.classList.remove('coach-spotlight'));
+    document.querySelectorAll('.coach-required').forEach(el => el.classList.remove('coach-required'));
+    document.body.classList.remove('coach-focus-lock');
+    const scrim = document.getElementById('coach-scrim');
+    if (scrim) scrim.hidden = true;
+  }
+
+  // ---------- required-action lock ----------
+  //
+  // A step marked `require` is the student's to perform. The console stays
+  // readable — dimmed, not hidden, so they still see what a real queue looks
+  // like — but only the highlighted control answers to the mouse. Without this
+  // a "click the alert" step turns into a tour of the whole console, which is
+  // the capstone's freedom handed to someone in their first hour.
+  function requiredStep() {
+    const step = activeStep();
+    return state && step && step.require && step.target ? step : null;
+  }
+
+  function applyRequiredLock() {
+    const step = requiredStep();
+    document.body.classList.toggle('coach-focus-lock', Boolean(step));
+    const scrim = document.getElementById('coach-scrim');
+    if (scrim) scrim.hidden = !step;
+    if (!step) return;
+    document.querySelectorAll(step.target).forEach(el => el.classList.add('coach-required'));
+  }
+
+  // Capture phase: the simulator wires most actions as inline onclick, which
+  // fire at the target, so stopping the event on the way down is what actually
+  // blocks them.
+  function guardClick(event) {
+    const step = requiredStep();
+    if (!step) return;
+    const node = event.target.nodeType === 1 ? event.target : event.target.parentElement;
+    if (node && node.closest('.coach-required, #coach-panel, #coach-badge, #toast')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof toast === 'function') {
+      toast(step.nudge || 'This step is yours — use the highlighted control.');
+    }
   }
 
   // Side panels open against the right edge, which is where the dock lives. When
@@ -113,6 +153,7 @@
     if (!step || !step.target) return;
     const targets = document.querySelectorAll(step.target);
     targets.forEach(el => el.classList.add('coach-spotlight'));
+    applyRequiredLock();
     if (targets[0] && typeof targets[0].scrollIntoView === 'function') {
       targets[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
@@ -165,6 +206,10 @@
     const last = state.step === coach.steps.length - 1;
     const gated = typeof step.check === 'function' && !step.check() && typeof step.do === 'function';
     const demoOnly = !step.check && typeof step.do === 'function' && !step._done;
+    // A step with `check` and no `do` is the student's to perform: the coach
+    // spotlights the control and waits. The button stays live rather than
+    // disabled so it can answer "have I done it yet?" instead of dead-ending.
+    const waiting = typeof step.check === 'function' && !step.check() && typeof step.do !== 'function';
 
     panelEl().innerHTML = `
       <div class="coach-head">
@@ -185,7 +230,9 @@
         ${last && step.finish
           ? `<button class="coach-btn primary" type="button" data-coach="finish">${step.finish.label}</button>`
           : `<button class="coach-btn primary" type="button" data-coach="next">${
-              gated || demoOnly ? step.actionLabel || 'Show me' : (last ? 'Finish' : 'Next')}</button>`}
+              waiting ? step.waitLabel || 'I have done it'
+                : gated || demoOnly ? step.actionLabel || 'Show me'
+                : (last ? 'Finish' : 'Next')}</button>`}
         <button class="coach-btn ghost" type="button" data-coach="exit">Exit lab</button>
       </div>`;
   }
@@ -206,6 +253,7 @@
     state.step = Math.max(0, Math.min(index, coach.steps.length - 1));
     saveState();
     const step = activeStep();
+    if (state.step === coach.steps.length - 1) reportCompletion();
     if (step.route && location.hash !== step.route) {
       if (typeof hidePanels === 'function') hidePanels();
       navigate(step.route);           // render() calls back into coachAfterRender
@@ -221,9 +269,15 @@
     const step = activeStep();
     if (!coach || !step) return;
 
-    // A step with `do` demonstrates itself first; the second press advances.
+    // A step the student must perform holds the coach here until they have.
     const gated = typeof step.check === 'function' && !step.check();
     const demoOnly = !step.check && typeof step.do === 'function' && !step._done;
+    if (gated && typeof step.do !== 'function') {
+      if (typeof toast === 'function') toast(step.nudge || 'Not yet — follow the highlighted control, then press again.');
+      renderPanel();
+      setTimeout(applySpotlight, 60);
+      return;
+    }
     if ((gated || demoOnly) && typeof step.do === 'function') {
       step._done = true;
       step.do();
@@ -298,6 +352,20 @@
     }
   }
 
+  // Completion is earned by reaching the last step, not by pressing the return
+  // button. A student who reads the final step and switches back to the module
+  // tab by hand — or closes this one — has still done the walkthrough, and the
+  // module must not stay locked behind a button they never saw the point of.
+  let reportedToken = '';
+  function reportCompletion() {
+    const coach = activeCoach();
+    if (!coach || !coach.completionToken || reportedToken === coach.completionToken) return;
+    if (!window.opener || window.opener.closed) return;
+    reportedToken = coach.completionToken;
+    window.opener.postMessage({ type: 'mnt-coach-complete', id: coach.completionToken },
+      new URL(portalUrl('')).origin);
+  }
+
   function finish() {
     const coach = activeCoach();
     const step = activeStep();
@@ -330,6 +398,12 @@
 
   function mount() {
     if (badgeEl()) return;
+
+    const scrim = document.createElement('div');
+    scrim.id = 'coach-scrim';
+    scrim.hidden = true;
+    document.body.appendChild(scrim);
+    document.addEventListener('click', guardClick, true);
 
     const badge = document.createElement('button');
     badge.id = 'coach-badge';

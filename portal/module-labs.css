@@ -168,7 +168,7 @@
 .m01-panel-heading h3, .m01-score-summary h3 { margin: 4px 0 0; color: #1e3a5f; font-size: 19px; }
 .m01-evidence-count { color: #64748b; font: 11px Inter, sans-serif; }
 .m01-timeline { margin: 20px 0 0; padding: 0; list-style: none; }
-.m01-timeline li { position: relative; min-height: 78px; display: grid; grid-template-columns: 38px 1fr; gap: 13px; }
+.m01-timeline li { position: relative; min-height: 78px; display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 13px; }
 .m01-timeline li:not(:last-child)::before { content: ''; position: absolute; top: 34px; bottom: 0; left: 18px; width: 2px; background: #dbe3ed; }
 .m01-timeline-marker { z-index: 1; width: 36px; height: 36px; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 50%; }
 .m01-timeline .is-locked .m01-timeline-marker { color: #94a3b8; background: #e2e8f0; }
@@ -180,6 +180,31 @@
 .m01-reveal, .m01-note-starter { display: inline-flex; align-items: center; gap: 7px; border-radius: 9px; font-weight: 700; cursor: pointer; }
 .m01-reveal { min-height: 42px; padding: 10px 15px; color: #fff; background: #1e3a5f; border: 1px solid #1e3a5f; font-size: 12px; }
 .m01-reveal:hover, .m01-reveal:focus-visible { background: #142d4b; }
+/* Fill-in-the-blank facts. The sentence reads as prose with gaps in it, so a
+   student sees the case note they are writing, not a form. */
+.m01-timeline .is-active .m01-timeline-marker { background: #f97316; }
+.m01-fact-form { margin: 4px 0 18px; padding: 13px 14px; background: #f8fafc; border: 1px solid #dbe3ed; border-radius: 10px; }
+.m01-fact-prompt { margin: 0 0 9px; color: #64748b; font: 11px/1.5 Inter, sans-serif; }
+.m01-fact-sentence { margin: 0; color: #1e3a5f; font: 13px/2.4 Inter, sans-serif; }
+.m01-blank { display: inline-flex; flex-direction: column; vertical-align: baseline; max-width: 100%; margin: 0 3px; }
+.m01-blank input {
+  box-sizing: border-box; max-width: 100%;
+  padding: 5px 8px; color: #1e3a5f; background: #fff;
+  border: 1px solid #94a3b8; border-bottom-width: 2px; border-radius: 6px;
+  font: 700 12px Inter, sans-serif;
+}
+.m01-blank input:focus-visible { outline: 2px solid #f97316; outline-offset: 1px; }
+.m01-blank.is-wrong input { border-color: #dc2626; background: #fef2f2; }
+.m01-blank small { margin-top: 2px; color: #94a3b8; font: 9px/1.3 Inter, sans-serif; text-transform: uppercase; letter-spacing: .04em; }
+.m01-fact-error { margin: 10px 0 0; color: #b91c1c; font: 11px/1.5 Inter, sans-serif; }
+.m01-fact-hints { margin: 9px 0 0; padding-left: 16px; color: #64748b; font: 11px/1.6 Inter, sans-serif; }
+.m01-fact-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.m01-fact-give, .m01-fact-reopen {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 11px;
+  color: #1e3a5f; background: #fff; border: 1px solid #cbd5e1; border-radius: 9px;
+  font: 700 11px Inter, sans-serif; text-decoration: none; cursor: pointer;
+}
+.m01-fact-give:hover, .m01-fact-reopen:hover { border-color: #1e3a5f; }
 .m01-evidence-complete { display: flex; align-items: center; gap: 10px; padding: 12px 14px; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; font: 12px/1.45 Inter, sans-serif; }
 .m01-evidence-complete i { font-size: 19px; }
 .m01-worksheet-locked { display: flex; align-items: flex-start; gap: 12px; color: #64748b; background: #f8fafc; border-style: dashed; }

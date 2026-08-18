@@ -420,10 +420,50 @@ const MODULE_ONE_ALERT_ORIENTATION = {
     summary: 'Eight failed password attempts were followed by a successful sign-in to one employee account.',
     entity: 'j.santos',
     created: '09:10',
+    // Facts 1-3 are recorded, not revealed: the student read them in the console
+    // walkthrough and now writes them down from the log, which is what a case
+    // note actually is. `accept` is deliberately generous — this is recall of
+    // evidence, not a spelling test. Fact 4 arrives by phone, so it is handed
+    // over rather than asked for.
     evidence: [
-      { id: 'timeline', time: '09:02–09:08', icon: 'ri-close-circle-line', label: 'Eight failed sign-ins', detail: 'All failures targeted j.santos from 185.220.101.24.' },
-      { id: 'success', time: '09:09', icon: 'ri-login-box-line', label: 'A sign-in succeeded', detail: 'The same source obtained a browser session one minute later.' },
-      { id: 'context', time: '09:09', icon: 'ri-map-pin-line', label: 'The context is unfamiliar', detail: 'The source is in Bucharest, Romania, using an unmanaged browser. The user normally signs in from Berlin on a managed laptop.' },
+      { id: 'timeline', time: '09:02–09:08', icon: 'ri-close-circle-line', label: 'Eight failed sign-ins',
+        detail: 'All failures targeted j.santos from 185.220.101.24.',
+        prompt: 'Between 09:02 and 09:08 the sign-in log recorded a burst of failures. Record what it showed.',
+        template: '{count} failed sign-ins targeted {account} from {ip}.',
+        blanks: [
+          { key: 'count', label: 'How many failures', size: 4, answer: '8',
+            accept: ['8', 'eight'], hint: 'Count the red Failure rows once the log is filtered to one account.' },
+          { key: 'account', label: 'Account targeted', size: 30, answer: 'j.santos@missionnextlabs.example',
+            accept: ['j.santos', 'j.santos@missionnextlabs.example', 'julia santos', 'jsantos'],
+            hint: 'The User column — the account you filtered the log to.' },
+          { key: 'ip', label: 'Source IP address', size: 16, answer: '185.220.101.24',
+            accept: ['185.220.101.24'], hint: 'The IP address column, identical on every failure row.' },
+        ] },
+      { id: 'success', time: '09:09', icon: 'ri-login-box-line', label: 'A sign-in succeeded',
+        detail: 'The same source obtained a browser session one minute later.',
+        prompt: 'The ninth attempt is the one that changes the case. Record what happened to it.',
+        template: 'At {time} the same source produced a {result}.',
+        blanks: [
+          { key: 'time', label: 'Time of the ninth attempt', size: 10, answer: '09:09:41',
+            accept: ['09:09', '09:09:41', '9:09', '9:09:41', '0909'], hint: 'The first row that is not a failure.' },
+          { key: 'result', label: 'Its result', size: 12, answer: 'Success',
+            accept: ['success', 'successful', 'succeeded', 'successful sign-in', 'success.'],
+            hint: 'The Result column — one word, and it is not "Failure".' },
+        ] },
+      { id: 'context', time: '09:09', icon: 'ri-map-pin-line', label: 'The context is unfamiliar',
+        detail: 'The source is in Bucharest, Romania, using an unmanaged browser. The user normally signs in from Berlin on a managed laptop.',
+        prompt: 'Open the successful sign-in and record the context around it.',
+        template: 'The sign-in came from {city}, on an {device} device, and the platform scored it {risk} risk.',
+        blanks: [
+          { key: 'city', label: 'Location', size: 18, answer: 'Bucharest',
+            accept: ['bucharest', 'bucharest, romania', 'bucuresti', 'romania', 'ro'],
+            hint: 'The Location tab of the detail pane — the user normally signs in from Berlin.' },
+          { key: 'device', label: 'Device status', size: 16, answer: 'unmanaged',
+            accept: ['unmanaged', 'unregistered', 'unknown', 'not registered', 'unmanaged browser', 'browser (unmanaged)'],
+            hint: 'The Device info tab — was this laptop enrolled in management?' },
+          { key: 'risk', label: 'Risk the platform assigned', size: 10, answer: 'High',
+            accept: ['high', 'high risk'], hint: 'Basic info shows the platform\'s own risk score for this sign-in.' },
+        ] },
       { id: 'confirmation', time: '09:14', icon: 'ri-phone-line', label: 'The user denies the activity', detail: 'The service desk reached the account owner through the registered phone number. The user confirms they did not attempt the sign-ins.' },
     ],
     scope: 'One employee identity is confirmed affected. No endpoint or additional account is yet linked.',

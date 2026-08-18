@@ -5728,6 +5728,39 @@ tr.coach-spotlight {
   box-shadow: inset 4px 0 0 #ffb900;
 }
 
+/* Alert pane pivot: the link an analyst follows from a summary to the record. */
+.alert-pivot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 4px; }
+.alert-pivot .muted { font-size: 11px; }
+
+/* Required-action lock: the step is the student's to perform, so the console
+   dims behind a scrim and only the highlighted control stays live. The scrim
+   never blocks clicks itself — coach.js does that in the capture phase — so it
+   can sit above the page without trapping the coach dock or a toast. */
+#coach-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(22, 32, 48, 0.42);
+  z-index: 120;
+  pointer-events: none;
+}
+#coach-scrim[hidden] { display: none; }
+
+.coach-required {
+  position: relative;
+  z-index: 130;
+  outline: 3px solid #ffb900;
+  outline-offset: 2px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0);
+}
+tr.coach-required {
+  outline: none;
+  background: #fff7e0 !important;
+  box-shadow: inset 4px 0 0 #ffb900;
+}
+#sidenav .navitem.coach-required { background: #fff7e0; }
+body.coach-focus-lock .coach-required { cursor: pointer; }
+
 /* Scope lock: pages outside the running module's mini environment stay
    visible — a student should see what exists — but read as unavailable. */
 body.coach-locked .navitem.coach-out-of-scope {

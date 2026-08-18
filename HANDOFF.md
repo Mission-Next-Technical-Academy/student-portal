@@ -1812,3 +1812,51 @@ before closing a wave.
 Wave 3 (Modules 07, 08, 09) is not launched. Future module agents should build
 defaults from a function, as Module 06 does, not from a shared module-level
 constant.
+
+## Module 1 rework — alert-first walkthrough and recorded facts (2026-08-18)
+
+Two bugs, then a redesign of the Module 1 flow.
+
+**Bug 1 — the walkthrough unlock never drew.** `moduleOneReceiveCoachCompletion()`
+re-rendered only when `location.hash` was exactly the module route. The module's own
+hero CTA ("Begin with the foundations") sets `#m01-foundations`, an in-page anchor, so
+a student who used it finished the console, had `consoleCompleted: true` written to
+storage, and still saw "Complete the guided console walkthrough" until they reloaded.
+The handler now detects the mounted `.m01-shell`, restores the route with
+`history.replaceState`, re-renders, and scrolls to what changed.
+
+**Bug 2 — completion depended on one button.** Only `finish()` reported back, so a
+student who read the last step and switched tabs by hand got nothing. `goToStep()` now
+reports completion on reaching the final step; the return button still navigates.
+
+**Flow, reordered.** Console walkthrough first, then the timeline, then the worksheet.
+You cannot write down what a log said before reading it.
+
+**The walkthrough now starts at the alert queue** (`#/defender/alerts`, 8 steps, was 6
+starting in the sign-in log) and the student performs every action:
+
+- Steps marked `require` in `ui/coach-data.js` dim the console behind `#coach-scrim`
+  and let only the highlighted control take a click — `guardClick()` in `ui/coach.js`
+  swallows everything else in the capture phase and toasts the step's `nudge`.
+- A step with `check` and no `do` waits for the student: the button reads
+  `waitLabel` and pressing it early nudges instead of advancing.
+- Required actions: open alert A1701, follow the alert pane's new
+  "Investigate sign-ins for this account" pivot (`data-pivot="signin-logs"` in
+  `renderAlertDetail`, added because the Defender rail has no Entra log item), filter
+  the log to one account, open the SL-019 detail pane.
+
+**The timeline is filled in, not revealed.** Facts 1-3 carry `template` + `blanks` in
+`portal/data.js`; the student types the count, account, IP, time, result, location,
+device status, and risk they read in the console. Matching is normalized (case,
+punctuation, spacing) with a generous `accept` list. Wrong fields are marked, hints
+appear after the first miss, all hints after the second, and a "Show me this one"
+escape appears after three (`MODULE_ONE_TRIES_BEFORE_ANSWER`). Fact 4 is the
+service-desk callback and is still handed over. Nothing here is scored — the worksheet
+is the graded artifact.
+
+Verified in headless Chrome: 8/8 coach steps with off-target clicks blocked and
+premature presses held at every locked step; unlock renders from the `#m01-foundations`
+anchor and without pressing the return button; wrong/partial/correct blank paths;
+persistence across reload; no horizontal overflow at 1366x768 or 390x844; zero runtime
+errors. `bin/portal-check.js`, `bin/lab-state-check.js`, and `bin/render_all.js` pass
+(`purview/audit` was already failing before these changes).

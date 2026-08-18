@@ -1685,7 +1685,7 @@ VIEWS['defender/alerts'] = () => {
     const rule = matchedRule(a);
     if (rule) suppressed++;
     return `
-      <tr class="${rule ? 'suppressed' : ''}" onclick="openAlert('${a.id}')">
+      <tr class="${rule ? 'suppressed' : ''}" data-alert-id="${a.id}" onclick="openAlert('${a.id}')">
         <td><input type="checkbox" onclick="event.stopPropagation()"></td>
         <td><span class="sev ${a.severity}">${cap(a.severity)}</span></td>
         <td><strong>${esc(a.title)}</strong></td>
@@ -8645,6 +8645,12 @@ function renderAlertDetail(a) {
     ${renderAlertGraph(a)}
     <div class="alert-section-title">Evidence</div>
     <div class="kv">${Object.entries(a.event).map(([k,v]) => `<div><span class="k">${esc(k)}:</span> ${esc(v)}</div>`).join('')}</div>
+    ${a.event && a.event.user ? `
+      <div class="alert-pivot">
+        <button class="btn btn-secondary" type="button" data-pivot="signin-logs"
+                onclick="navigate('#/entra/sign-in-logs')">Investigate sign-ins for this account</button>
+        <span class="muted">The alert summarizes; the sign-in log holds the records behind it.</span>
+      </div>` : ''}
     ${a.scriptAnalysis ? `
       <div class="alert-section-title">Analyzed script</div>
       <div class="detail-row"><div><span class="k">File:</span> ${esc(a.scriptAnalysis.fileName)}</div><div><span class="k">Spawned by:</span> ${esc(a.scriptAnalysis.spawnedBy)}</div></div>
