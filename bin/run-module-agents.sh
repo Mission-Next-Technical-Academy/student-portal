@@ -107,11 +107,16 @@ for N in "$@"; do
        "$(brief "$N")")
 
   if [ "$TERMINALS" = 1 ]; then
-    # Each agent gets a visible window. bash -lc keeps the window open on exit
-    # so a crash is readable instead of vanishing.
+    # Each agent gets a visible window. A clean run closes its own window; a
+    # failed one parks at a shell so the error is still on screen to read.
+    # Without this the finished windows have to be hunted down and closed by
+    # hand, and they lose their title once the shell replaces codex.
     gnome-terminal --title="Module Agent $NN" -- bash -lc \
       "$(printf '%q ' "${CMD[@]}") 2>&1 | tee '$LOG/module-$NN.log'; \
-       echo; echo \"=== Module Agent $NN exited (\$?) ===\"; exec bash" &
+       rc=\${PIPESTATUS[0]}; \
+       echo \"=== Module Agent $NN done: exit \$rc, \$(date -Is) ===\" >> '$LOG/progress.log'; \
+       if [ \$rc -eq 0 ]; then exit 0; fi; \
+       echo; echo \"=== Module Agent $NN FAILED (exit \$rc) — window kept open ===\"; exec bash" &
   else
     ( "${CMD[@]}" > "$LOG/module-$NN.log" 2>&1
       echo "=== Module Agent $NN done: exit $?, $(date -Is) ===" >> "$LOG/progress.log" ) &
