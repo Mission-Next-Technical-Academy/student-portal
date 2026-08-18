@@ -9,11 +9,12 @@ Last updated: 2026-08-17 (Europe/Berlin)
 - [x] Confirm the live SOC Analyst track contains 12 modules.
 - [x] Define module ownership and execution order.
 - [x] Launch and complete Module Agent 01 only.
+- [x] Wave 1 — Module Agents 02 and 03 complete and reviewed.
 - [ ] Launch Module Agents 02–12.
 - [ ] Integrate module changes.
 - [ ] Run cross-module, accessibility, state-isolation, and capstone-gating QA.
 
-Current phase: **Module Agent 01 complete; implementation stopped before Module Agent 02 at the user's requested stop point.**
+Current phase: **Wave 1 complete (Modules 01-03). Wave 2 (Modules 04-06) launched 2026-08-18.**
 
 ## Agent Count
 
@@ -24,9 +25,12 @@ Including the coordinating/integration agent, the program requires **13 agent ro
 - 1 orchestration/integration agent.
 - 12 module implementation agents.
 
-The current four-slot concurrency limit permits the orchestrator plus three module agents at once, so implementation should run in four waves of three module agents.
+Implementation runs in four waves of three module agents. Agents are Codex processes launched by
+`bin/run-module-agents.sh [-t] <numbers>` — parallel is safe because each agent writes only
+`portal/module-NN.js`, `portal/module-NN.css`, and its own report. The router discovers modules
+through `registerModuleLab()` in `portal/module-registry.js`, so no shared file is edited by an agent.
 
-Agents launched: **1**. Agents complete: **1**. Application implementation is limited to Module 1.
+Agents launched: **3**. Agents complete: **3**. Application implementation covers Modules 1-3.
 
 ## Source-of-Truth Decision
 
@@ -45,8 +49,8 @@ In particular:
 | Agent | Live route | Live module | Primary orchestration brief | Status |
 |---|---|---|---|---|
 | Module Agent 01 | `#/program/soc-analyst/module/1` | SOC & Security Architecture | Create isolated foundation/alert-orientation lab slices; no full range navigation. | Complete |
-| Module Agent 02 | `#/program/soc-analyst/module/2` | Network, Identity & Security Foundations | Create constrained identity/network interpretation labs with synthetic data. | Not started |
-| Module Agent 03 | `#/program/soc-analyst/module/3` | SIEM & Log Analysis | Create miniature alert triage, log interpretation, timeline, and query tasks. | Not started |
+| Module Agent 02 | `#/program/soc-analyst/module/2` | Network, Identity & Security Foundations | Create constrained identity/network interpretation labs with synthetic data. | Complete |
+| Module Agent 03 | `#/program/soc-analyst/module/3` | SIEM & Log Analysis | Create miniature alert triage, log interpretation, timeline, and query tasks. | Complete |
 | Module Agent 04 | `#/program/soc-analyst/module/4` | Detection Engineering, Threat Intelligence & Automation | Create limited detection logic, tuning, enrichment, and alert-context workflows. | Not started |
 | Module Agent 05 | `#/program/soc-analyst/module/5` | Endpoint & Malware Investigation | Create constrained process-tree, endpoint-timeline, and file-evidence labs. | Not started |
 | Module Agent 06 | `#/program/soc-analyst/module/6` | Threat Hunting & Investigation | Create hypothesis, query, bookmarking, scoping, IOC, and ATT&CK exercises. | Not started |
@@ -61,8 +65,8 @@ In particular:
 
 | Wave | Module agents | Gate before the next wave | Status |
 |---|---|---|---|
-| 1 | 01, 02, 03 | Shared lab contract and early guided pattern validated. | Agent 01 complete; 02–03 not started; paused |
-| 2 | 04, 05, 06 | Reusable detection, endpoint, and hunting components validated. | Not started |
+| 1 | 01, 02, 03 | Shared lab contract and early guided pattern validated. | Complete 2026-08-18 |
+| 2 | 04, 05, 06 | Reusable detection, endpoint, and hunting components validated. | Running |
 | 3 | 07, 08, 09 | Evidence isolation and semi-independent progression validated. | Not started |
 | 4 | 10, 11, 12 | Advanced artifacts integrated; capstone alone exposes full range. | Not started |
 
@@ -105,9 +109,24 @@ Module Agent 12 must instead assemble the reusable components into the full caps
 - [ ] Existing routes and unrelated work remain intact.
 - [ ] Keyboard access, labels, focus behavior, contrast, and responsive layouts pass QA.
 
-## Orchestration Stop Point
+## Wave 1 Gate Review (2026-08-18)
 
-Module Agent 01 is complete and implementation has stopped. Module Agents 02–12 remain unlaunched and unchanged.
+Modules 02 and 03 passed the orchestrator gate:
+
+- Each agent modified only its own two files; `git status` showed no shared-file edits.
+- `node bin/portal-check.js 1 2 3` renders all three plus the program overview.
+- No `8767`, `SIM_ORIGIN`, or `simEntry` reference in either module — the full range stays hidden.
+- Every CSS selector is `.m02-` / `.m03-` prefixed, so no lab can restyle another.
+- Both persist through `LabRuntime` under a lab-specific id with a scoped reset.
+- Both self-verified in headless Chrome at 1366x768 and 390x844, including the failing path.
+
+Difficulty note carried into Wave 2: the agents for 02 and 03 launched before the difficulty
+gradient was added to the brief. Module 02 correlates three record types across four in-module
+stations and Module 03 adds a query workbench and timeline builder — heavier than the ramp calls
+for at week 1-2, but both stay inside their own surface and neither pivots across consoles the way
+Module 01 did. Left as built; revisit if the early modules read as steep in use.
+
+## Orchestration Stop Point
 
 Module 1 now mounts an isolated, guided alert-orientation lab on the portal route. It presents nine foundation lessons, an activity-to-investigation concept flow, one synthetic identity alert, a sequential evidence review, and a scored verdict/priority/lifecycle/action/case-note artifact. Attempts, reviewed evidence, notes, score, best score, earned flag, and completion persist under a lab-specific browser key; reset affects only this lab.
 
