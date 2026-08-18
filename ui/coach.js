@@ -1,27 +1,26 @@
-// The Mission Next coach — a floating guide that turns the full simulator into
+// The Mission Next coach — a docked guide that turns the full simulator into
 // a module-sized mini environment.
 //
 // Why an overlay instead of a second, smaller app: the simulator already holds
 // every view a module needs. A separate "beginner build" would fork the shell,
 // the nav, and the fixtures, and the two copies would drift. So the coach adds
-// three things on top of the untouched app and nothing else:
+// two things on top of the untouched app and nothing else:
 //
-//   1. a persistent badge (bottom right) that starts and reopens the guide
-//   2. step-by-step instructions that spotlight real elements in real views
-//   3. a scope lock — while a coach runs, only its `allow` routes are reachable
+//   1. step-by-step instructions that spotlight real elements in real views
+//   2. a scope lock — while a coach runs, only its `allow` routes are reachable
 //
 // It hooks the app at exactly two points, both in app.js: navigate() asks
 // coachAllowsRoute() before moving, and render() calls coachAfterRender().
 // Everything else here is self-contained.
 //
 // Entry: ?coach=<id> on the simulator URL (the portal module page links that
-// way), or the badge's own picker. State survives reload in sessionStorage.
+// way). State survives reload in sessionStorage.
 
 (function () {
   'use strict';
 
   const STATE_KEY = 'mnt.coach.state';
-  let state = null;           // { id, step, open }
+  let state = null;           // { id, step }
   let lastDeniedAt = 0;
 
   const coachById = id => (typeof MODULE_COACHES === 'undefined' ? [] : MODULE_COACHES)
@@ -130,7 +129,7 @@
     const step = requiredStep();
     if (!step) return;
     const node = event.target.nodeType === 1 ? event.target : event.target.parentElement;
-    if (node && node.closest('.coach-required, #coach-panel, #coach-badge, #toast')) return;
+    if (node && node.closest('.coach-required, #coach-panel, #toast')) return;
     event.preventDefault();
     event.stopPropagation();
     if (typeof toast === 'function') {
@@ -159,45 +158,7 @@
     }
   }
 
-  function badgeEl() { return document.getElementById('coach-badge'); }
   function panelEl() { return document.getElementById('coach-panel'); }
-
-  function renderBadge() {
-    const badge = badgeEl();
-    if (!badge) return;
-    const coach = activeCoach();
-    badge.classList.toggle('is-active', Boolean(coach));
-    const counter = badge.querySelector('.coach-badge-step');
-    if (coach) {
-      counter.hidden = false;
-      counter.textContent = `${state.step + 1}/${coach.steps.length}`;
-      badge.setAttribute('aria-label', `${coach.name} — step ${state.step + 1} of ${coach.steps.length}`);
-    } else {
-      counter.hidden = true;
-      badge.setAttribute('aria-label', 'Mission Next coach — guided module labs');
-    }
-  }
-
-  function renderPicker() {
-    const list = (typeof MODULE_COACHES === 'undefined' ? [] : MODULE_COACHES);
-    panelEl().innerHTML = `
-      <div class="coach-head">
-        <div>
-          <div class="coach-kicker">Mission Next coach</div>
-          <h2>Guided module labs</h2>
-        </div>
-        <button class="coach-x" type="button" data-coach="close" aria-label="Close coach">✕</button>
-      </div>
-      <div class="coach-body">
-        <p class="coach-intro">Pick a module. The coach walks you to the data the lab needs and keeps you inside the pages that lab uses.</p>
-        ${list.map(c => `
-          <button class="coach-pick" type="button" data-coach="start" data-id="${c.id}">
-            <span class="coach-pick-name">Module ${String(c.module).padStart(2, '0')} · ${c.name}</span>
-            <span class="coach-pick-role">Your role: ${c.role}</span>
-            <span class="coach-pick-summary">${c.summary}</span>
-          </button>`).join('')}
-      </div>`;
-  }
 
   function renderSteps() {
     const coach = activeCoach();
@@ -230,14 +191,14 @@
         ${step.body ? `<details class="coach-bar-why"><summary>Why this matters</summary><p>${step.body}</p></details>` : ''}
       </div>
       <div class="coach-bar-actions">
-        <button class="coach-btn ghost" type="button" data-coach="prev" ${state.step === 0 ? 'disabled' : ''}>Back</button>
         ${last && step.finish
           ? `<button class="coach-btn primary" type="button" data-coach="finish">${step.finish.label}</button>`
           : waiting
             ? `<span class="coach-bar-waiting"><i class="coach-bar-pulse" aria-hidden="true"></i>${
                 step.waitLabel || 'Waiting for you'}</span>`
             : `<button class="coach-btn primary" type="button" data-coach="next">${
-                gated || demoOnly ? step.actionLabel || 'Show me' : (last ? 'Finish' : 'Got it')}</button>`}
+                gated || demoOnly ? step.actionLabel || 'Show me'
+                  : (last ? 'Finish' : step.continueLabel || 'Continue')}</button>`}
         <button class="coach-btn ghost" type="button" data-coach="exit">Exit lab</button>
       </div>`;
     watchForStepCompletion();
@@ -270,13 +231,10 @@
 
   function renderPanel() {
     if (!panelEl()) return;
-    const open = Boolean(state && state.open) || (!state && panelEl().dataset.picker === 'open');
+    const open = Boolean(state);
     panelEl().hidden = !open;
     if (!open) return;
-    if (state) { renderSteps(); return; }
-    panelEl().classList.remove('coach-bar');
-    document.body.classList.remove('coach-bar-open');
-    renderPicker();
+    renderSteps();
   }
 
   // ---------- step flow ----------
@@ -293,7 +251,6 @@
       navigate(step.route);           // render() calls back into coachAfterRender
     } else {
       renderPanel();
-      renderBadge();
       setTimeout(applySpotlight, 30);
     }
   }
@@ -364,11 +321,10 @@
     const coach = coachById(id);
     if (!coach) return;
     const missing = missingRoutes(coach);
-    if (missing.length) { renderStale(coach, missing); renderBadge(); return; }
+    if (missing.length) { renderStale(coach, missing); return; }
     coach.steps.forEach(s => { s._done = false; });
-    state = { id, step: 0, open: true };
+    state = { id, step: 0 };
     saveState();
-    panelEl().dataset.picker = '';
     goToStep(0);
     applyScopeLock();
   }
@@ -382,7 +338,6 @@
     document.body.classList.remove('coach-bar-open');
     clearSpotlight();
     applyScopeLock();
-    renderBadge();
     renderPanel();
     if (coach && typeof toast === 'function') {
       toast('Coach closed — the full console is available again.');
@@ -420,36 +375,16 @@
     window.location.href = href;
   }
 
-  function togglePanel() {
-    if (state) {
-      state.open = !state.open;
-      saveState();
-    } else {
-      panelEl().dataset.picker = panelEl().dataset.picker === 'open' ? '' : 'open';
-    }
-    renderPanel();
-    if (state && state.open) setTimeout(applySpotlight, 30);
-  }
-
   // ---------- mount ----------
 
   function mount() {
-    if (badgeEl()) return;
+    if (panelEl()) return;
 
     const scrim = document.createElement('div');
     scrim.id = 'coach-scrim';
     scrim.hidden = true;
     document.body.appendChild(scrim);
     document.addEventListener('click', guardClick, true);
-
-    const badge = document.createElement('button');
-    badge.id = 'coach-badge';
-    badge.type = 'button';
-    badge.className = 'coach-badge';
-    badge.innerHTML = `
-      <img src="assets/mission-next-logo.png" alt="" aria-hidden="true" />
-      <span class="coach-badge-step" hidden></span>`;
-    badge.addEventListener('click', togglePanel);
 
     const panel = document.createElement('aside');
     panel.id = 'coach-panel';
@@ -460,17 +395,13 @@
       const btn = ev.target.closest('[data-coach]');
       if (!btn) return;
       const action = btn.dataset.coach;
-      if (action === 'start') start(btn.dataset.id);
       if (action === 'next') next();
-      if (action === 'prev') goToStep(state.step - 1);
-      if (action === 'close') togglePanel();
       if (action === 'exit') stop();
       if (action === 'finish') finish();
       if (action === 'refresh') hardReload();
     });
 
     document.body.appendChild(panel);
-    document.body.appendChild(badge);
 
     // Panels open and close through several paths (row clicks, ✕, the scrim),
     // none of which re-render. One deferred check per click keeps the dock's
@@ -491,9 +422,8 @@
       return;
     }
     applyScopeLock();
-    renderBadge();
     renderPanel();
-    if (state && state.open) setTimeout(applySpotlight, 30);
+    if (state) setTimeout(applySpotlight, 30);
   }
 
   function boot() {
@@ -503,9 +433,10 @@
     const restart = search.get('restart') === '1';
     const restored = loadState();
     if (requested && coachById(requested)) {
+      const requestedCoach = coachById(requested);
+      if (restart && typeof requestedCoach.resetState === 'function') requestedCoach.resetState();
       if (!restart && restored && restored.id === requested) {
         state = restored;
-        state.open = true;
         saveState();
         goToStep(state.step);
       } else {

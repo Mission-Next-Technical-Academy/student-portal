@@ -14,6 +14,7 @@
 //   do()        performs the step for the student (a demonstration, not a gate)
 //   check()     true when the student has done it themselves; while false the
 //               Next button offers `actionLabel` instead of advancing
+//   continueLabel explicit label for a reading step's continue button
 //   finish      { label, href } shown on the last step
 
 const MODULE_COACHES = [
@@ -25,7 +26,12 @@ const MODULE_COACHES = [
     summary: 'Open the alert, find the evidence behind it in the sign-in log, then take your verdict back to the module.',
     completionToken: 'm01',
     home: '#/defender/alerts',
-    // The mini-environment. ONE page, nothing else reachable. Module 1 is the
+    resetState: () => {
+      sessionStorage.removeItem('defender-lab.signin.user');
+      sessionStorage.removeItem('defender-lab.signin.result');
+      sessionStorage.removeItem('defender-lab.signin.logtype');
+    },
+    // The mini-environment. Two pages, nothing else reachable. Module 1 is the
     // student's first hour: pivoting across three consoles to collect four
     // facts is the capstone's shape, not a first lesson's. Every fact the
     // verdict depends on is readable in the sign-in log; the account owner's
@@ -49,22 +55,15 @@ const MODULE_COACHES = [
       },
       {
         route: '#/defender/alerts',
-        target: '#panel-alert',
-        title: 'Read what the alert claims — and what it does not',
-        instruction: 'Read the alert pane: it claims eight failures then a success — a lead, not proof.',
-        body: 'The detail pane gives you the rule\'s claim: eight failures then a success, one source address, an unmanaged browser. Notice what it is <em>not</em>: proof that the session was unauthorized. A detection is a lead. Note the severity the product assigned — Medium — and treat it as a starting label, not your verdict.',
-      },
-      {
-        route: '#/defender/alerts',
         // The pivot lives in the alert pane, not the left rail: the rail on this
         // page belongs to Defender, and the sign-in log is an identity surface.
         // Following evidence from an alert into the log that recorded it is the
         // move itself, so the student makes it.
         target: '#panel-alert [data-pivot="signin-logs"]',
         require: true,
-        title: 'Go to the log that recorded it',
-        instruction: 'In the alert pane, choose <strong>Investigate sign-ins for this account</strong>.',
-        body: 'The alert is a summary; the log is the record. Authentication data lives in the <strong>sign-in log</strong>, and the alert pane offers the pivot straight to it — highlighted for you. Take it. In a SIEM the first question is always "which log would record this?"',
+        title: 'Read the claim, then go to the log',
+        instruction: 'Read the alert pane, then choose <strong>Investigate sign-ins for this account</strong>.',
+        body: 'The pane claims eight failures then a success, one source address, and an unmanaged browser. That is a lead, not proof the session was unauthorized. Note the Medium severity, then follow the highlighted pivot to the <strong>sign-in log</strong> that recorded the activity. In a SIEM the first question is always "which log would record this?"',
         waitLabel: 'I am in the sign-in log',
         nudge: 'Use the highlighted "Investigate sign-ins for this account" button in the alert pane.',
         check: () => location.hash === '#/entra/sign-in-logs',
@@ -85,40 +84,26 @@ const MODULE_COACHES = [
       },
       {
         route: '#/entra/sign-in-logs',
-        target: '.signin-row.is-fail',
-        title: 'Fact 1 — eight failures, one source',
-        instruction: 'Read the eight red Failure rows: 09:02–09:08, all from 185.220.101.24.',
-        body: 'Eight Failure rows between 09:02 and 09:08, all error 50126 (invalid username or password), all from 185.220.101.24. Repetition from one IP against one account is the password-guessing pattern the rule detected.',
-      },
-      {
-        route: '#/entra/sign-in-logs',
         target: '.signin-row[data-signin-id="SL-019"]',
-        title: 'Fact 2 — the ninth attempt succeeded',
-        instruction: 'Find the 09:09:41 row — the attempt that returned <strong>Success</strong>.',
-        body: 'At 09:09:41 the same IP got a Success. This is the fact that changes everything: a blocked attempt is a prevented attack, a successful one is an intrusion. Always check whether access was actually obtained.',
-      },
-      {
-        route: '#/entra/sign-in-logs',
-        target: '.signin-row[data-signin-id="SL-019"], #panel-technique',
         require: true,
-        waitLabel: 'I have opened it',
-        nudge: 'Click the highlighted 09:09:41 Success row to open its detail pane.',
+        waitLabel: 'Next: find the success',
+        nudge: 'Read the failure rows, then click the highlighted 09:09:41 Success row.',
         check: () => {
           const title = document.getElementById('technique-title');
           const panel = document.getElementById('panel-technique');
           return Boolean(panel && !panel.classList.contains('hidden')
             && title && title.textContent.includes('SL-019'));
         },
-        title: 'Fact 3 — the context is wrong',
-        instruction: 'Open that successful sign-in and read its Location, Device info, and risk.',
-        body: 'Open the successful sign-in yourself — the 09:09:41 Success row. The details pane splits the evidence the way a real console does, and each tab answers a different question: Basic info shows the risk and the previous sign-in from Berlin on a managed laptop 28 minutes earlier, Location shows Bucharest, Device info shows an unregistered device, and Authentication details shows a password with no second factor. Same account, incompatible context. Basic info also carries the platform\'s own call: it scored this sign-in High risk on exactly that combination — unfamiliar location plus unfamiliar device.',
+        title: 'Read the pattern, then open the success',
+        instruction: 'Read the eight Failure rows, then open the highlighted 09:09:41 <strong>Success</strong>.',
+        body: 'The eight failures from 09:02–09:08 all came from 185.220.101.24. At 09:09:41 the same IP succeeded. That change—from blocked attempts to obtained access—is the critical fact. Open the highlighted success to inspect whether its context fits the account owner.',
       },
       {
         route: '#/entra/sign-in-logs',
         target: null,
         title: 'You have the facts',
         instruction: 'You have the evidence. Take it back to Module 1 and record your verdict.',
-        body: 'Three facts, one log: access succeeded, the context is unfamiliar, and the platform scored the sign-in High risk. The fourth fact — the account owner reached by phone, denying the activity — is waiting for you in the module, the way a service-desk callback would reach you. Together that is a confirmed unauthorized access incident, not a suspicious-but-unproven alert. Go back to Module 1 and record your verdict, priority, and case note.',
+        body: 'Three facts, one log: access succeeded; Location is <strong>Bucharest, RO</strong>; Device info shows <strong>Managed: No</strong> and <strong>Join type: Not registered</strong>; and Basic info shows <strong>Sign-in risk: High</strong>. The fourth fact — the account owner reached by phone, denying the activity — is waiting for you in the module, the way a service-desk callback would reach you. Together that is a confirmed unauthorized access incident, not a suspicious-but-unproven alert. Go back to Module 1 and record your verdict, priority, and case note.',
         finish: { label: 'Back to Module 1' },
       },
     ],

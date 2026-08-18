@@ -1879,3 +1879,50 @@ Step shape in `ui/coach-data.js` now supports:
 - `require: true` — dim the console and accept clicks only on `target`.
 - `check` with no `do` — the student performs it; the bar waits and auto-advances.
 - `waitLabel` / `nudge` — the waiting chip's text and the toast for a stray click.
+
+## Module 1 coach and timeline feedback pass (2026-08-18)
+
+The simulator no longer mounts the floating Mission Next badge. Module 1 launches the
+coach directly, and the bottom bar now has five steps with no intermediate Back/Next or
+"Got it" action required from the learner. The four required actions each show a
+non-clickable amber waiting chip, briefly show Done in green, and auto-advance only when
+their `check()` succeeds. The alert-pane reading step is folded into its highlighted
+sign-in-log pivot, and the failure-row reading step is folded into opening the highlighted
+09:09:41 Success row. `restart=1` now clears the three sign-in-log session filters so a
+previous attempt cannot silently satisfy the filter step. The required-step scrim is 14%
+opacity (was 42%); the yellow control highlight remains the primary cue.
+
+The portal timeline is now a strict sequential gate. The "Show me this one" bypass and
+handler are removed: an incorrect typed fact leaves the evidence count unchanged, later
+facts locked, and the worksheet absent. A correct fact renders a green marker and animated
+green confirmation before exposing the next fact. The service-desk callback remains handed
+to the student because it has no answer to derive from the sign-in log.
+
+Verified with syntax checks, `node bin/portal-check.js 1`, `node bin/lab-state-check.js`,
+and a real Chrome pass covering all five coach steps, empty filter state after restart,
+amber non-button waiting states, green timeline confirmation, rejection of a wrong fact,
+and worksheet unlock only at 4/4. `node bin/render_all.js` remains 128/129 with only the
+pre-existing `purview/audit` tiny-render failure and zero dead NAV routes.
+
+## Investigation timeline character masks (2026-08-18)
+
+The timeline's free-form text fields are now explicit character masks derived from each
+canonical log value. Every learner-entered character has its own bordered box, while
+punctuation is rendered as a fixed separator. Typing or pasting a complete value skips
+colons, periods, dashes, `@`, commas, spaces, and any other displayed separator. This
+makes the required length and format visible without revealing letters or digits.
+
+The time mask renders as `__:__:__`: pasting `09:09:41` produces that exact hidden form
+value, and typing the colons is harmless. The IP and user masks use the same behavior for
+dots; the generic renderer was also checked with a dashed `AB-12` format. Only time keeps
+a visible helper because “At …” does not identify the source column. Count, account, IP,
+status, location, managed state, and risk are already named by their sentence context;
+their redundant visible helpers were removed while their screen-reader labels remain.
+The general punctuation instruction was removed for the same reason—the fixed separators
+and individual boxes communicate the interaction without an extra callout.
+
+Verified in real Chrome at 1366×768: six time-entry slots plus two fixed colons, exact
+paste reconstruction, typed-colon suppression, successful Fact 2 submission, eleven IP
+slots plus three fixed dots, and dashed-mask generation. Syntax, whitespace, module
+render, and state-isolation checks pass; the full render baseline remains 128/129 with
+only the pre-existing `purview/audit` failure.

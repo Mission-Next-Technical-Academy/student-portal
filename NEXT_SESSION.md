@@ -1,6 +1,6 @@
 # Next session — start here
 
-Repo: `~/Mission_Next_Technical_Academy_SOC_Analyst_course` (branch `master`, clean at `873df15`).
+Repo: `~/Mission_Next_Technical_Academy_SOC_Analyst_course` (branch `master`).
 
 ```bash
 cd ~/Mission_Next_Technical_Academy_SOC_Analyst_course
@@ -15,7 +15,7 @@ Module 1 lives at `http://127.0.0.1:8768/#/program/soc-analyst/module/1`.
 
 ## What just changed (2026-08-18, this session)
 
-Three commits, all verified in headless Chrome:
+Three foundation commits plus the final feedback commit, all verified in headless Chrome:
 
 - `034d271` — Wave 2 module labs (Modules 04, 05, 06) integrated, plus a shared-runtime
   fix: `LabRuntime.freshState()` shallow-spread its defaults, so learner selections
@@ -25,25 +25,31 @@ Three commits, all verified in headless Chrome:
   every action, and the investigation timeline is filled in rather than revealed.
 - `873df15` — the coach became a bottom instruction bar that advances on the student's
   action instead of a floating card with a Next button.
+- Final Module 1 feedback pass — removed the floating M launcher and intermediate coach buttons;
+  all four actions use amber waiting states and auto-advance; restart clears stale sign-in
+  filters; timeline facts are strict correct-answer gates with green success feedback and
+  clearly boxed character masks whose fixed punctuation is skipped during typing or paste.
 
-Full detail is in `HANDOFF.md` (bottom three sections) and
+Full detail is in `HANDOFF.md` (bottom four sections) and
 `MODULAR_LAB_PROGRAM_PROGRESS.md` (Wave 2 gate review).
 
 ## Module 1 flow as it now stands
 
 1. Foundations lessons and the alert card (portal).
-2. **Required console walkthrough** — 8 coach steps starting at `#/defender/alerts`:
-   open alert A1701 → read the alert pane → take the pane's "Investigate sign-ins for
-   this account" pivot → filter the log to j.santos → read the eight failures → find the
-   09:09:41 success → open its detail pane → return.
-   Steps marked `require` dim the console behind `#coach-scrim` and accept a click only
-   on the highlighted control; the four action steps auto-advance when their `check()`
-   passes, no Next press.
+2. **Required console walkthrough** — 5 coach steps starting at `#/defender/alerts`:
+   open alert A1701 → read the alert pane and take its highlighted "Investigate sign-ins
+   for this account" pivot → filter the log to j.santos → read the eight failures and
+   open the highlighted 09:09:41 success → return.
+   Steps marked `require` accept a click only on the highlighted control; all four action
+   steps show a non-clickable amber waiting chip, briefly turn green when complete, and
+   auto-advance when their `check()` passes. There is no floating launcher or Next press.
 3. **Investigation timeline, filled in** — facts 1-3 are fill-in-the-blank sentences
    (count, account, IP, time, result, location, device status, risk) typed from what the
-   log showed. Normalized matching, marked wrong fields, hints after the first miss, all
-   hints after the second, "Show me this one" after three. Fact 4 (service-desk callback)
-   is handed over. Unscored — practice, not assessment.
+   log showed. Each typed character has its own box; fixed punctuation is skipped when a
+   full value is typed or pasted. Normalized matching, marked wrong fields, hints after
+   the first miss, and all hints after the second. There is no answer bypass: each fact
+   must be correct to unlock the next one, and a correct answer pops green. Fact 4
+   (service-desk callback) is handed over. Unscored — practice, not assessment.
 4. **Triage worksheet** — the graded artifact, unchanged (pass mark 70).
 
 ## Where the pieces live

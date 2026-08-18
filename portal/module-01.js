@@ -26,6 +26,7 @@ const MODULE_ONE_DEFAULT_STATE = {
 
 let moduleOneState = null;
 let moduleOneUser = null;
+let moduleOneJustCorrect = '';
 
 function moduleOneLoad(user) {
   moduleOneUser = user;
@@ -142,8 +143,6 @@ function moduleOneScorePanel() {
 // note. Matching is deliberately forgiving — trimmed, lower-cased, punctuation
 // and interior spacing ignored — because the skill being practised is reading
 // a log, not typing an exact string.
-const MODULE_ONE_TRIES_BEFORE_ANSWER = 3;
-
 function moduleOneNormalize(value) {
   return String(value || '')
     .toLowerCase()
@@ -169,11 +168,76 @@ function moduleOneRecordedSentence(fact) {
   });
 }
 
+function moduleOneMaskIsEditable(character) {
+  return /[\p{L}\p{N}]/u.test(character);
+}
+
+function moduleOneMaskedBlank(blank, isWrong) {
+  const characters = Array.from(blank.answer);
+  const editableCount = characters.filter(moduleOneMaskIsEditable).length;
+  const inputMode = characters.every((character) => !moduleOneMaskIsEditable(character) || /\d/.test(character))
+    ? 'numeric'
+    : 'text';
+  let editableIndex = 0;
+  const parts = characters.map((character) => {
+    if (!moduleOneMaskIsEditable(character)) {
+      const spaceClass = /\s/.test(character) ? ' is-space' : '';
+      return `<span class="m01-mask-literal${spaceClass}" data-m01-mask-part data-m01-mask-literal="${esc(character)}" aria-hidden="true">${esc(character)}</span>`;
+    }
+
+    editableIndex += 1;
+    return `<input class="m01-mask-slot" type="text" size="1" maxlength="1" inputmode="${inputMode}"
+                   autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="_"
+                   data-m01-mask-part data-m01-mask-slot aria-label="${esc(blank.label)}, character ${editableIndex} of ${editableCount}"
+                   aria-invalid="${isWrong ? 'true' : 'false'}" />`;
+  }).join('');
+
+  const helper = blank.showHelper === true
+    ? `<small>${esc(blank.label)} · ${characters.length}-character value · ${editableCount} to type</small>`
+    : '';
+
+  return `<span class="m01-mask" data-m01-mask role="group"
+                aria-label="${esc(blank.label)}. ${characters.length}-character format; ${editableCount} characters to type. Punctuation is prefilled.">
+      ${parts}
+    </span>
+    <input type="hidden" name="${esc(blank.key)}" value="" data-m01-mask-value />
+    ${helper}`;
+}
+
+function moduleOneMaskSlots(mask) {
+  return Array.from(mask.querySelectorAll('[data-m01-mask-slot]'));
+}
+
+function moduleOneSyncMask(mask) {
+  const blank = mask.closest('.m01-blank');
+  const valueInput = blank?.querySelector('[data-m01-mask-value]');
+  if (!valueInput) return;
+  valueInput.value = Array.from(mask.querySelectorAll('[data-m01-mask-part]'))
+    .map((part) => part.matches('[data-m01-mask-slot]') ? part.value : part.dataset.m01MaskLiteral)
+    .join('');
+}
+
+function moduleOneFillMask(mask, startSlot, text) {
+  const slots = moduleOneMaskSlots(mask);
+  const startIndex = Math.max(0, slots.indexOf(startSlot));
+  const characters = Array.from(String(text || '')).filter(moduleOneMaskIsEditable);
+  slots.slice(startIndex).forEach((slot) => { slot.value = ''; });
+  characters.slice(0, slots.length - startIndex).forEach((character, offset) => {
+    slots[startIndex + offset].value = character;
+  });
+  moduleOneSyncMask(mask);
+
+  const nextSlot = slots[Math.min(startIndex + characters.length, slots.length - 1)];
+  if (nextSlot) {
+    nextSlot.focus();
+    nextSlot.select();
+  }
+}
+
 function moduleOneBlankForm(fact) {
   const wrong = new Set(moduleOneState.factWrong);
   const tries = moduleOneFactTries(fact.id);
   const showHints = tries >= 1;
-  const showAnswer = tries >= MODULE_ONE_TRIES_BEFORE_ANSWER;
   const sentence = fact.template.split(/(\{\w+\})/).map((piece) => {
     const match = piece.match(/^\{(\w+)\}$/);
     if (!match) return esc(piece);
@@ -181,10 +245,7 @@ function moduleOneBlankForm(fact) {
     if (!blank) return '';
     const isWrong = wrong.has(blank.key);
     return `<span class="m01-blank ${isWrong ? 'is-wrong' : ''}">
-      <input type="text" name="${esc(blank.key)}" size="${blank.size}" autocomplete="off" spellcheck="false"
-             aria-label="${esc(blank.label)}" aria-invalid="${isWrong ? 'true' : 'false'}"
-             placeholder="${'_'.repeat(Math.min(blank.size, 12))}" />
-      <small>${esc(blank.label)}</small>
+      ${moduleOneMaskedBlank(blank, isWrong)}
     </span>`;
   }).join('');
 
@@ -198,8 +259,6 @@ function moduleOneBlankForm(fact) {
     </ul>` : ''}
     <div class="m01-fact-actions">
       <button type="submit" class="m01-reveal"><i class="ri-check-line" aria-hidden="true"></i> Record this fact</button>
-      ${showAnswer ? `<button type="button" class="m01-fact-give" data-m01-give="${esc(fact.id)}">
-        <i class="ri-eye-line" aria-hidden="true"></i> Show me this one</button>` : ''}
       <a class="m01-fact-reopen" href="${esc(SIM_ORIGIN)}?coach=m01&amp;restart=1#/entra/sign-in-logs" target="_blank" rel="opener">
         <i class="ri-external-link-line" aria-hidden="true"></i> Reopen the log</a>
     </div>
@@ -255,7 +314,7 @@ function moduleOneLabDynamic() {
       <p>Every fact above came from somewhere. Open the lab console and the Mission Next coach starts you where a
       real shift starts — the alert queue — then has you open the alert, navigate to the sign-in log yourself, and
       read the eight failures and the success that followed them. Only the control each step asks for is clickable,
-      and nothing outside those two pages is reachable until you exit. Complete the eight coach steps to unlock the
+      and nothing outside those two pages is reachable until you exit. Complete the five coach steps to unlock the
       triage worksheet.</p>
     </div>
     <a class="m01-siem-launch" data-m01-console-launch href="${esc(SIM_ORIGIN)}?coach=m01&amp;restart=1#/defender/alerts" target="_blank" rel="opener">
@@ -265,7 +324,7 @@ function moduleOneLabDynamic() {
 
   ${!consoleComplete ? `<section class="m01-worksheet-locked" aria-label="Investigation timeline locked until the guided console is complete">
     <i class="ri-lock-line" aria-hidden="true"></i>
-    <div><strong>Investigation timeline</strong><p>The console walkthrough comes first: you cannot write down what a log said before reading it. Finish the eight coach steps and the timeline opens here for you to fill in.</p></div>
+    <div><strong>Investigation timeline</strong><p>The console walkthrough comes first: you cannot write down what a log said before reading it. Finish the five coach steps and the timeline opens here for you to fill in.</p></div>
   </section>` : `<section class="m01-evidence" aria-labelledby="m01-evidence-title">
     <div class="m01-panel-heading">
       <div><p class="m01-kicker">Record what the log showed</p><h3 id="m01-evidence-title">Investigation timeline</h3></div>
@@ -276,9 +335,13 @@ function moduleOneLabDynamic() {
         const isReviewed = reviewed.has(item.id);
         const isActive = nextEvidence && nextEvidence.id === item.id;
         if (isReviewed) {
-          return `<li class="is-reviewed">
+          const justCorrect = moduleOneJustCorrect === item.id;
+          return `<li class="is-reviewed ${justCorrect ? 'is-just-correct' : ''}">
             <span class="m01-timeline-marker"><i class="${esc(item.icon)}" aria-hidden="true"></i></span>
-            <div><time>${esc(item.time)}</time><strong>${esc(item.label)}</strong><p>${esc(item.detail)}</p></div>
+            <div><time>${esc(item.time)}</time><strong>${esc(item.label)}</strong><p>${esc(item.detail)}</p>
+            ${justCorrect ? `<p class="m01-fact-success" id="m01-fact-success" role="status" tabindex="-1">
+              <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>
+              Correct — fact recorded. The next fact is now unlocked.</p>` : ''}</div>
           </li>`;
         }
         if (isActive && item.blanks) {
@@ -308,7 +371,7 @@ function moduleOneLabDynamic() {
 
   ${!consoleComplete || !investigationReady ? `<section class="m01-worksheet-locked" aria-label="Triage worksheet locked">
     <i class="ri-lock-line" aria-hidden="true"></i>
-    <div><strong>Triage worksheet</strong><p>Record all four facts first. In real work, deciding before reading the available evidence creates avoidable mistakes.</p></div>
+    <div><strong>Triage worksheet</strong><p>Record every fact correctly first. A wrong answer keeps the current fact open and the remaining timeline and worksheet locked.</p></div>
   </section>` : `<form id="m01-form" class="m01-worksheet" novalidate>
     <div class="m01-panel-heading">
       <div><p class="m01-kicker">Guided decision</p><h3>Complete the five-part triage record</h3></div>
@@ -398,28 +461,38 @@ function viewModuleOne(user, program) {
         <div class="m01-section-heading">
           <span>1</span>
           <div><p class="m01-kicker">Nine short foundation lessons</p><h2 id="m01-foundations-title">Meet security operations from the beginning</h2></div>
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="foundation lessons" aria-expanded="true" aria-controls="m01-foundations-body" aria-label="Collapse foundation lessons">
+            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+          </button>
         </div>
-        <p class="m01-instruction">Read these in order on your first visit. Each lesson gives you one idea to carry into the lab; open a lesson to see the explanation.</p>
-        ${moduleOneLessons(lab)}
-        ${moduleOneReferences(lab)}
+        <div class="m01-section-body" id="m01-foundations-body">
+          <p class="m01-instruction">Read these in order on your first visit. Each lesson gives you one idea to carry into the lab; open a lesson to see the explanation.</p>
+          ${moduleOneLessons(lab)}
+          ${moduleOneReferences(lab)}
+        </div>
       </section>
 
       <section class="m01-section" aria-labelledby="m01-flow-title">
         <div class="m01-section-heading">
           <span>2</span>
           <div><p class="m01-kicker">Security architecture, without the jargon wall</p><h2 id="m01-flow-title">How activity becomes analyst work</h2></div>
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="activity-to-investigation flow" aria-expanded="true" aria-controls="m01-flow-body" aria-label="Collapse activity-to-investigation flow">
+            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+          </button>
         </div>
-        <div class="m01-flow" aria-label="Activity-to-investigation flow">
-          ${lab.signalFlow.map((step) => `<article><i class="${esc(step.icon)}" aria-hidden="true"></i><h3>${esc(step.title)}</h3><p>${esc(step.description)}</p></article>`).join('')}
-        </div>
-        <div class="m01-tool-translation">
-          <strong>Tool translation</strong>
-          <dl>
-            <div><dt>SIEM</dt><dd><strong>Security Information and Event Management.</strong> Collects and analyzes security events from many sources.</dd></div>
-            <div><dt>EDR</dt><dd><strong>Endpoint Detection and Response.</strong> Records endpoint behavior and supports device investigation and response.</dd></div>
-            <div><dt>XDR</dt><dd><strong>Extended Detection and Response.</strong> Connects evidence across domains such as identity, endpoint, email, and cloud.</dd></div>
-          </dl>
-          <p>Products help organize facts. The analyst is responsible for what those facts support.</p>
+        <div class="m01-section-body" id="m01-flow-body">
+          <div class="m01-flow" aria-label="Activity-to-investigation flow">
+            ${lab.signalFlow.map((step) => `<article><i class="${esc(step.icon)}" aria-hidden="true"></i><h3>${esc(step.title)}</h3><p>${esc(step.description)}</p></article>`).join('')}
+          </div>
+          <div class="m01-tool-translation">
+            <strong>Tool translation</strong>
+            <dl>
+              <div><dt>SIEM</dt><dd><strong>Security Information and Event Management.</strong> Collects and analyzes security events from many sources.</dd></div>
+              <div><dt>EDR</dt><dd><strong>Endpoint Detection and Response.</strong> Records endpoint behavior and supports device investigation and response.</dd></div>
+              <div><dt>XDR</dt><dd><strong>Extended Detection and Response.</strong> Connects evidence across domains such as identity, endpoint, email, and cloud.</dd></div>
+            </dl>
+            <p>Products help organize facts. The analyst is responsible for what those facts support.</p>
+          </div>
         </div>
       </section>
 
@@ -462,11 +535,35 @@ function viewModuleOne(user, program) {
         <div class="m01-section-heading">
           <span>4</span>
           <div><p class="m01-kicker">The repeatable habit</p><h2 id="m01-loop-title">Your five-step triage loop</h2></div>
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="five-step triage loop" aria-expanded="true" aria-controls="m01-loop-body" aria-label="Collapse five-step triage loop">
+            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+          </button>
         </div>
-        <ol class="m01-triage-loop">
-          ${lab.triageLoop.map((item, index) => `<li><span>${index + 1}</span><div><strong>${esc(item.title)}</strong><p>${esc(item.description)}</p></div></li>`).join('')}
-        </ol>
-        <div class="m01-boundary"><i class="ri-error-warning-line" aria-hidden="true"></i><p><strong>Beginner guardrail:</strong> Never take a disruptive response action just because a screen offers a button. Confirm the evidence, follow the organization's playbook, and stay inside your assigned authority.</p></div>
+        <div class="m01-section-body" id="m01-loop-body">
+          <p class="m01-instruction">Select each step to rotate the wheel and focus on the question an analyst should answer before moving forward.</p>
+          <div class="m01-triage-wheel" style="--triage-wheel-rotation: 0deg" data-m01-triage-wheel>
+            <div class="m01-triage-track" aria-hidden="true">
+              ${lab.triageLoop.map((item, index) => `<span style="--triage-wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
+              <div class="m01-triage-hub">
+                <i class="ri-radar-line"></i>
+                <strong>Triage loop</strong>
+                <small data-m01-triage-hub>Step 1 · ${esc(lab.triageLoop[0].title)}</small>
+              </div>
+            </div>
+            <ol class="m01-triage-loop" aria-label="Five-step alert triage loop">
+              ${lab.triageLoop.map((item, index) => `<li class="${index === 0 ? 'is-active' : ''}" data-m01-triage-card="${index}">
+                <button type="button" class="m01-triage-button" data-m01-triage-step="${index}"
+                        aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m01-triage-detail-${index + 1}">
+                  <span class="m01-triage-heading"><span>${index + 1}</span><span class="m01-triage-title">${esc(item.title)}</span><i class="ri-arrow-down-s-line m01-triage-chevron" aria-hidden="true"></i></span>
+                </button>
+                <div class="m01-triage-detail" id="m01-triage-detail-${index + 1}" ${index === 0 ? '' : 'hidden'}>
+                  <p>${esc(item.description)}</p>
+                </div>
+              </li>`).join('')}
+            </ol>
+          </div>
+          <div class="m01-boundary"><i class="ri-error-warning-line" aria-hidden="true"></i><p><strong>Beginner guardrail:</strong> Never take a disruptive response action just because a screen offers a button. Confirm the evidence, follow the organization's playbook, and stay inside your assigned authority.</p></div>
+        </div>
       </section>
 
       <section class="m01-section m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
@@ -530,6 +627,7 @@ function moduleOneRenderDynamic(focusId) {
   const root = document.getElementById('m01-lab-dynamic');
   if (!root) return;
   root.innerHTML = moduleOneLabDynamic();
+  moduleOneJustCorrect = '';
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -570,6 +668,29 @@ function wireModuleOneLab() {
     });
   }
 
+  const triageWheel = document.querySelector('[data-m01-triage-wheel]');
+  if (triageWheel) {
+    triageWheel.addEventListener('click', (event) => {
+      const stepButton = event.target.closest('[data-m01-triage-step]');
+      if (!stepButton || !triageWheel.contains(stepButton)) return;
+
+      const activeIndex = Number(stepButton.dataset.m01TriageStep);
+      const steps = triageWheel.querySelectorAll('[data-m01-triage-step]');
+      steps.forEach((button, index) => {
+        const isActive = index === activeIndex;
+        button.setAttribute('aria-expanded', String(isActive));
+        button.closest('[data-m01-triage-card]')?.classList.toggle('is-active', isActive);
+        const detail = document.getElementById(button.getAttribute('aria-controls'));
+        if (detail) detail.hidden = !isActive;
+      });
+
+      triageWheel.style.setProperty('--triage-wheel-rotation', `${activeIndex * -72}deg`);
+      const selectedStep = MODULE_ONE_ALERT_ORIENTATION.triageLoop[activeIndex];
+      const hubLabel = triageWheel.querySelector('[data-m01-triage-hub]');
+      if (hubLabel && selectedStep) hubLabel.textContent = `Step ${activeIndex + 1} · ${selectedStep.title}`;
+    });
+  }
+
   const root = document.getElementById('m01-lab-dynamic');
   if (!root || !moduleOneState) return;
 
@@ -580,29 +701,19 @@ function wireModuleOneLab() {
       return;
     }
 
-    const give = event.target.closest('[data-m01-give]');
-    if (give) {
-      const factId = give.dataset.m01Give;
-      if (!moduleOneState.reviewedEvidence.includes(factId)) moduleOneState.reviewedEvidence.push(factId);
-      moduleOneState.factWrong = [];
-      moduleOneState.factError = '';
-      moduleOneSave();
-      moduleOneRenderDynamic('m01-evidence-title');
-      return;
-    }
-
     const reveal = event.target.closest('[data-m01-reveal]');
     if (reveal) {
       const evidenceId = reveal.dataset.m01Reveal;
       if (!moduleOneState.reviewedEvidence.includes(evidenceId)) moduleOneState.reviewedEvidence.push(evidenceId);
       moduleOneState.validationError = '';
+      moduleOneJustCorrect = evidenceId;
       moduleOneSave();
-      moduleOneRenderDynamic('m01-evidence-title');
+      moduleOneRenderDynamic('m01-fact-success');
       return;
     }
 
     if (event.target.closest('[data-m01-note-starter]')) {
-      moduleOneState.notes = 'ALT-1001: Eight failed sign-ins were followed by a successful session for j.santos from an unfamiliar, unmanaged browser. The user denied the activity. Classify as a high-priority true positive and escalate under the approved identity-containment playbook.';
+      moduleOneState.notes = 'ALT-1001: Eight failed sign-ins were followed by a successful session for j.santos@missionnextlabs.example from Bucharest, RO. Device info shows Managed: No and Join type: Not registered. The user denied the activity. Classify as a high-priority true positive and escalate under the approved identity-containment playbook.';
       moduleOneSave();
       moduleOneRenderDynamic('m01-notes');
       return;
@@ -627,6 +738,21 @@ function wireModuleOneLab() {
   });
 
   root.addEventListener('input', (event) => {
+    const slot = event.target.closest('[data-m01-mask-slot]');
+    if (slot) {
+      const mask = slot.closest('[data-m01-mask]');
+      if (!mask) return;
+      const characters = Array.from(slot.value).filter(moduleOneMaskIsEditable);
+      slot.value = characters[0] || '';
+      moduleOneSyncMask(mask);
+      if (slot.value) {
+        const slots = moduleOneMaskSlots(mask);
+        const nextSlot = slots[slots.indexOf(slot) + 1];
+        if (nextSlot) nextSlot.focus();
+      }
+      return;
+    }
+
     if (event.target.name !== 'notes') return;
     moduleOneState.notes = event.target.value;
     const count = root.querySelector('#m01-note-count span');
@@ -634,10 +760,63 @@ function wireModuleOneLab() {
     moduleOneSave();
   });
 
+  root.addEventListener('keydown', (event) => {
+    const slot = event.target.closest('[data-m01-mask-slot]');
+    if (!slot) return;
+    const mask = slot.closest('[data-m01-mask]');
+    if (!mask) return;
+    const slots = moduleOneMaskSlots(mask);
+    const index = slots.indexOf(slot);
+
+    if (event.key === 'ArrowLeft' && slots[index - 1]) {
+      event.preventDefault();
+      slots[index - 1].focus();
+      return;
+    }
+    if (event.key === 'ArrowRight' && slots[index + 1]) {
+      event.preventDefault();
+      slots[index + 1].focus();
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      slots[0]?.focus();
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      slots[slots.length - 1]?.focus();
+      return;
+    }
+    if (event.key === 'Backspace' && !slot.value && slots[index - 1]) {
+      event.preventDefault();
+      slots[index - 1].value = '';
+      slots[index - 1].focus();
+      moduleOneSyncMask(mask);
+      return;
+    }
+
+    // Separators are visible, fixed mask characters. If a learner types one
+    // while copying a value, ignore it and leave the next editable slot ready.
+    if (event.key.length === 1 && !moduleOneMaskIsEditable(event.key)) {
+      event.preventDefault();
+    }
+  });
+
+  root.addEventListener('paste', (event) => {
+    const slot = event.target.closest('[data-m01-mask-slot]');
+    if (!slot) return;
+    const mask = slot.closest('[data-m01-mask]');
+    if (!mask) return;
+    event.preventDefault();
+    moduleOneFillMask(mask, slot, event.clipboardData?.getData('text/plain') || '');
+  });
+
   root.addEventListener('submit', (event) => {
     const factForm = event.target.closest('[data-m01-fact]');
     if (factForm) {
       event.preventDefault();
+      factForm.querySelectorAll('[data-m01-mask]').forEach(moduleOneSyncMask);
       const fact = MODULE_ONE_ALERT_ORIENTATION.scenario.evidence
         .find((item) => item.id === factForm.dataset.m01Fact);
       if (!fact || !fact.blanks) return;
@@ -649,8 +828,9 @@ function wireModuleOneLab() {
         if (!moduleOneState.reviewedEvidence.includes(fact.id)) moduleOneState.reviewedEvidence.push(fact.id);
         moduleOneState.factWrong = [];
         moduleOneState.factError = '';
+        moduleOneJustCorrect = fact.id;
         moduleOneSave();
-        moduleOneRenderDynamic('m01-evidence-title');
+        moduleOneRenderDynamic('m01-fact-success');
         return;
       }
 
