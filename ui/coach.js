@@ -203,6 +203,8 @@
     const coach = activeCoach();
     const step = activeStep();
     if (!step) { stop(); return; }
+    panelEl().classList.add('coach-bar');
+    document.body.classList.add('coach-bar-open');
     const last = state.step === coach.steps.length - 1;
     const gated = typeof step.check === 'function' && !step.check() && typeof step.do === 'function';
     const demoOnly = !step.check && typeof step.do === 'function' && !step._done;
@@ -211,30 +213,59 @@
     // disabled so it can answer "have I done it yet?" instead of dead-ending.
     const waiting = typeof step.check === 'function' && !step.check() && typeof step.do !== 'function';
 
+    // One line of instruction, the dots, and a way out. The teaching text lives
+    // behind "Why this matters" so the bar never competes with the console it is
+    // pointing at, and an action step carries no Next button at all: doing the
+    // thing is what advances it.
+    const done = i => i < state.step;
     panelEl().innerHTML = `
-      <div class="coach-head">
-        <div>
-          <div class="coach-kicker">Module ${String(coach.module).padStart(2, '0')} · step ${state.step + 1} of ${coach.steps.length}</div>
-          <h2>${step.title}</h2>
-        </div>
-        <button class="coach-x" type="button" data-coach="close" aria-label="Minimize coach">✕</button>
+      <div class="coach-bar-dots" role="progressbar" aria-label="Walkthrough progress"
+           aria-valuemin="1" aria-valuemax="${coach.steps.length}" aria-valuenow="${state.step + 1}">
+        ${coach.steps.map((_, i) => `<span class="${done(i) ? 'done' : i === state.step ? 'on' : ''}"></span>`).join('')}
       </div>
-      <div class="coach-body">
-        <p>${step.body}</p>
-        <div class="coach-progress" role="presentation">
-          ${coach.steps.map((_, i) => `<span class="${i <= state.step ? 'on' : ''}"></span>`).join('')}
-        </div>
+      <div class="coach-bar-main">
+        <p class="coach-bar-kicker">Module ${String(coach.module).padStart(2, '0')} · step ${state.step + 1} of ${coach.steps.length}${
+          waiting ? ' · your move' : ''}</p>
+        <p class="coach-bar-instruction">${step.instruction || step.title}</p>
+        ${step.body ? `<details class="coach-bar-why"><summary>Why this matters</summary><p>${step.body}</p></details>` : ''}
       </div>
-      <div class="coach-foot">
+      <div class="coach-bar-actions">
         <button class="coach-btn ghost" type="button" data-coach="prev" ${state.step === 0 ? 'disabled' : ''}>Back</button>
         ${last && step.finish
           ? `<button class="coach-btn primary" type="button" data-coach="finish">${step.finish.label}</button>`
-          : `<button class="coach-btn primary" type="button" data-coach="next">${
-              waiting ? step.waitLabel || 'I have done it'
-                : gated || demoOnly ? step.actionLabel || 'Show me'
-                : (last ? 'Finish' : 'Next')}</button>`}
+          : waiting
+            ? `<span class="coach-bar-waiting"><i class="coach-bar-pulse" aria-hidden="true"></i>${
+                step.waitLabel || 'Waiting for you'}</span>`
+            : `<button class="coach-btn primary" type="button" data-coach="next">${
+                gated || demoOnly ? step.actionLabel || 'Show me' : (last ? 'Finish' : 'Got it')}</button>`}
         <button class="coach-btn ghost" type="button" data-coach="exit">Exit lab</button>
       </div>`;
+    watchForStepCompletion();
+  }
+
+  // A step the student performs advances itself. The console re-renders on most
+  // actions, but a side panel opening does not always come back through
+  // render(), so the check is also polled while such a step is on screen.
+  let completionTimer = 0;
+  function watchForStepCompletion() {
+    clearInterval(completionTimer);
+    const step = activeStep();
+    if (!state || !step || typeof step.check !== 'function' || typeof step.do === 'function') return;
+    completionTimer = setInterval(() => {
+      const current = activeStep();
+      if (!state || !current || typeof current.check !== 'function') { clearInterval(completionTimer); return; }
+      if (!current.check()) return;
+      clearInterval(completionTimer);
+      const dots = panelEl().querySelectorAll('.coach-bar-dots span');
+      if (dots[state.step]) dots[state.step].className = 'done';
+      const waitingLabel = panelEl().querySelector('.coach-bar-waiting');
+      if (waitingLabel) waitingLabel.innerHTML = '<i class="coach-bar-tick" aria-hidden="true">✓</i>Done';
+      setTimeout(() => {
+        if (!state) return;
+        if (state.step >= activeCoach().steps.length - 1) { renderPanel(); return; }
+        goToStep(state.step + 1);
+      }, 650);
+    }, 300);
   }
 
   function renderPanel() {
@@ -242,7 +273,10 @@
     const open = Boolean(state && state.open) || (!state && panelEl().dataset.picker === 'open');
     panelEl().hidden = !open;
     if (!open) return;
-    if (state) renderSteps(); else renderPicker();
+    if (state) { renderSteps(); return; }
+    panelEl().classList.remove('coach-bar');
+    document.body.classList.remove('coach-bar-open');
+    renderPicker();
   }
 
   // ---------- step flow ----------
@@ -343,6 +377,9 @@
     const coach = activeCoach();
     state = null;
     saveState();
+    clearInterval(completionTimer);
+    panelEl().classList.remove('coach-bar');
+    document.body.classList.remove('coach-bar-open');
     clearSpotlight();
     applyScopeLock();
     renderBadge();

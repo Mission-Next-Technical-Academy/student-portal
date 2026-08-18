@@ -38,6 +38,7 @@ const MODULE_COACHES = [
         target: 'tr[data-alert-id="A1701"]',
         require: true,
         title: 'Start at the alert',
+        instruction: 'Open the alert <strong>Successful sign-in after repeated failures</strong> on j.santos.',
         body: 'This is the alert queue — the analyst\'s inbox. Your case is <strong>Successful sign-in after repeated failures</strong> on <strong>j.santos@missionnextlabs.example</strong>. Open it. Everything else is dimmed because this lab is one case; in a real queue you would pick by severity, age, and asset.',
         waitLabel: 'I have opened the alert',
         nudge: 'Click the highlighted alert row to open it.',
@@ -50,6 +51,7 @@ const MODULE_COACHES = [
         route: '#/defender/alerts',
         target: '#panel-alert',
         title: 'Read what the alert claims — and what it does not',
+        instruction: 'Read the alert pane: it claims eight failures then a success — a lead, not proof.',
         body: 'The detail pane gives you the rule\'s claim: eight failures then a success, one source address, an unmanaged browser. Notice what it is <em>not</em>: proof that the session was unauthorized. A detection is a lead. Note the severity the product assigned — Medium — and treat it as a starting label, not your verdict.',
       },
       {
@@ -61,6 +63,7 @@ const MODULE_COACHES = [
         target: '#panel-alert [data-pivot="signin-logs"]',
         require: true,
         title: 'Go to the log that recorded it',
+        instruction: 'In the alert pane, choose <strong>Investigate sign-ins for this account</strong>.',
         body: 'The alert is a summary; the log is the record. Authentication data lives in the <strong>sign-in log</strong>, and the alert pane offers the pivot straight to it — highlighted for you. Take it. In a SIEM the first question is always "which log would record this?"',
         waitLabel: 'I am in the sign-in log',
         nudge: 'Use the highlighted "Investigate sign-ins for this account" button in the alert pane.',
@@ -71,6 +74,7 @@ const MODULE_COACHES = [
         target: '#signin-user-filter',
         require: true,
         title: 'Narrow the log to one account',
+        instruction: 'Set the <strong>User</strong> filter to j.santos@missionnextlabs.example.',
         // No `do` here on purpose: filtering a log is the one motion every SOC
         // analyst repeats all day, so the student performs it. The coach
         // spotlights the control and waits instead of doing it for them.
@@ -83,12 +87,14 @@ const MODULE_COACHES = [
         route: '#/entra/sign-in-logs',
         target: '.signin-row.is-fail',
         title: 'Fact 1 — eight failures, one source',
+        instruction: 'Read the eight red Failure rows: 09:02–09:08, all from 185.220.101.24.',
         body: 'Eight Failure rows between 09:02 and 09:08, all error 50126 (invalid username or password), all from 185.220.101.24. Repetition from one IP against one account is the password-guessing pattern the rule detected.',
       },
       {
         route: '#/entra/sign-in-logs',
         target: '.signin-row[data-signin-id="SL-019"]',
         title: 'Fact 2 — the ninth attempt succeeded',
+        instruction: 'Find the 09:09:41 row — the attempt that returned <strong>Success</strong>.',
         body: 'At 09:09:41 the same IP got a Success. This is the fact that changes everything: a blocked attempt is a prevented attack, a successful one is an intrusion. Always check whether access was actually obtained.',
       },
       {
@@ -104,12 +110,14 @@ const MODULE_COACHES = [
             && title && title.textContent.includes('SL-019'));
         },
         title: 'Fact 3 — the context is wrong',
+        instruction: 'Open that successful sign-in and read its Location, Device info, and risk.',
         body: 'Open the successful sign-in yourself — the 09:09:41 Success row. The details pane splits the evidence the way a real console does, and each tab answers a different question: Basic info shows the risk and the previous sign-in from Berlin on a managed laptop 28 minutes earlier, Location shows Bucharest, Device info shows an unregistered device, and Authentication details shows a password with no second factor. Same account, incompatible context. Basic info also carries the platform\'s own call: it scored this sign-in High risk on exactly that combination — unfamiliar location plus unfamiliar device.',
       },
       {
         route: '#/entra/sign-in-logs',
         target: null,
         title: 'You have the facts',
+        instruction: 'You have the evidence. Take it back to Module 1 and record your verdict.',
         body: 'Three facts, one log: access succeeded, the context is unfamiliar, and the platform scored the sign-in High risk. The fourth fact — the account owner reached by phone, denying the activity — is waiting for you in the module, the way a service-desk callback would reach you. Together that is a confirmed unauthorized access incident, not a suspicious-but-unproven alert. Go back to Module 1 and record your verdict, priority, and case note.',
         finish: { label: 'Back to Module 1' },
       },

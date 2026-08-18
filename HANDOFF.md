@@ -1860,3 +1860,22 @@ anchor and without pressing the return button; wrong/partial/correct blank paths
 persistence across reload; no horizontal overflow at 1366x768 or 390x844; zero runtime
 errors. `bin/portal-check.js`, `bin/lab-state-check.js`, and `bin/render_all.js` pass
 (`purview/audit` was already failing before these changes).
+
+## Coach bar — the walkthrough advances itself (2026-08-18)
+
+The floating coach card became a bottom bar (`.coach-panel.coach-bar` in
+`ui/coach.js` / `ui/styles.css`). It carries the step dots, one line of
+instruction (`step.instruction`), and the teaching paragraph folded into a
+"Why this matters" disclosure, so it never covers the console it is pointing at.
+
+Steps the student performs no longer have a Next button. `watchForStepCompletion()`
+polls the step's `check()` every 300ms while such a step is on screen, fills the
+dot, shows a brief "Done", and advances after 650ms. Reading steps keep a small
+"Got it". In Module 1 that is 4 self-advancing action steps and 3 acknowledgements.
+
+Step shape in `ui/coach-data.js` now supports:
+
+- `instruction` — the single line shown in the bar (falls back to `title`).
+- `require: true` — dim the console and accept clicks only on `target`.
+- `check` with no `do` — the student performs it; the bar waits and auto-advances.
+- `waitLabel` / `nudge` — the waiting chip's text and the toast for a stray click.
