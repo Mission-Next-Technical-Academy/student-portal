@@ -8256,7 +8256,15 @@ VIEWS['purview/information-protection'] = () => `
 `;
 
 VIEWS['purview/audit'] = () => ({
-  html: `<div id="audit-premium-root"></div>`,
+  html: `<div id="audit-premium-root">
+    <div class="page-header">
+      <div>
+        <div class="breadcrumb">Purview › <strong>Audit</strong></div>
+        <h1>Audit search</h1>
+        <div class="page-subtitle">Loading the local audit search workspace…</div>
+      </div>
+    </div>
+  </div>`,
   onMount: () => {
     const state = {
       tab: 'search',

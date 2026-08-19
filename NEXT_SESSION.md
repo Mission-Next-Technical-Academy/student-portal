@@ -7,13 +7,18 @@ cd ~/Mission_Next_Technical_Academy_SOC_Analyst_course
 bin/launch.sh                 # portal on :8768, simulator/capstone on :8767
 node bin/portal-check.js      # every module lab renders
 node bin/lab-state-check.js   # lab state stays isolated across resets
-node bin/render_all.js        # every simulator view renders (purview/audit fails already — pre-existing)
+node bin/render_all.js        # every simulator view renders; current baseline is 129/129
 ```
 
 Student account for the SOC Analyst track: `user2` / `user2`.
 Module 1 lives at `http://127.0.0.1:8768/#/program/soc-analyst/module/1`.
 
 ## What just changed (2026-08-18, this session)
+
+Update 2026-08-19: Wave 3 is complete. Modules 07–09 now provide isolated
+semi-independent network/email, vulnerability/exposure, and incident-response labs.
+All three passed integration and browser QA. The old `purview/audit` render baseline
+was also fixed; `node bin/render_all.js` is now 129/129 with zero dead routes.
 
 Three foundation commits plus the final feedback commit, all verified in headless Chrome:
 
@@ -66,19 +71,16 @@ Full detail is in `HANDOFF.md` (bottom four sections) and
 
 ## Open items, roughly in priority order
 
-1. **Wave 3 module agents (Modules 07, 08, 09)** — not launched. `bin/run-module-agents.sh 7 8 9`.
-   Read the Wave 2 gate review in `MODULAR_LAB_PROGRAM_PROGRESS.md` first; the one carried
-   instruction is that agents must build lab defaults from a function (as Module 06 does),
-   never from a shared module-level constant.
+1. **Wave 4 module agents (Modules 10, 11, 12)** — not launched. Modules 10 and 11 are independent
+   labs; Module 12 is the only complete integrated range. Read the Wave 3 gate review and the
+   Module 12 exception in `MODULAR_LAB_PROGRAM_PROGRESS.md` before launching.
 2. **Roll the Module 1 pattern outward.** Modules 02-06 still use the reveal-then-decide
    shape. The pieces that generalize: `require` steps, auto-advance, fill-in-the-blank
    recall, console-before-worksheet ordering.
 3. **A second, unguided Module 1 alert.** Same difficulty, no coach, different story
    (impossible travel or MFA fatigue rather than password spray), scored the same way.
    This is the "did you actually learn it" half of the module and does not exist yet.
-4. **`purview/audit` renders empty** in `bin/render_all.js`. Pre-existing, unrelated to
-   this session's work, still worth fixing.
-5. **Difficulty note from Wave 1** — Modules 02 and 03 were built before the difficulty
+4. **Difficulty note from Wave 1** — Modules 02 and 03 were built before the difficulty
    gradient reached the briefs and read heavier than the ramp calls for at week 1-2.
    Left as built; revisit if they feel steep in use.
 

@@ -1926,3 +1926,23 @@ paste reconstruction, typed-colon suppression, successful Fact 2 submission, ele
 slots plus three fixed dots, and dashed-mask generation. Syntax, whitespace, module
 render, and state-isolation checks pass; the full render baseline remains 128/129 with
 only the pre-existing `purview/audit` failure.
+
+## Wave 3 module labs — Modules 07, 08, 09 (2026-08-19)
+
+Three parallel module agents delivered the semi-independent stage of the course in isolated
+`portal/module-07.*`, `portal/module-08.*`, and `portal/module-09.*` files. Module 07 correlates
+email authentication, URL/attachment, message trace, DNS, and TLS evidence. Module 08 provides two
+separately persisted labs for exposure-driven prioritization and a four-item vulnerability decision
+queue. Module 09 correlates a limited endpoint/identity/network incident slice into a bounded
+containment, eradication, recovery, escalation, and handoff plan.
+
+All three use fresh-state functions, module-specific `LabRuntime` records, synthetic data, optional
+hints, scoped reset, explainable 100-point scoring, keyboard-accessible controls, and responsive
+table/card layouts. Module 07's initial invented completion key was caught during integration and
+replaced with the two real catalogue keys, so its combined pass/reset updates both declared labs.
+
+Verification passed: syntax checks, `node bin/portal-check.js 1 2 3 4 5 6 7 8 9`,
+`node bin/lab-state-check.js`, isolation/reference scans, CSS-prefix scans, and independent Chrome
+checks at 1366×768 and 390×844 with a live interaction per route, zero runtime exceptions, and no
+horizontal overflow. The old `purview/audit` tiny-render baseline was also fixed with an initial
+mount shell; `node bin/render_all.js` now reports 129/129 clean views and zero dead NAV routes.
