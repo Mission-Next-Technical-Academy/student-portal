@@ -19,7 +19,7 @@ Does not supersede: `architecture.md` for the in-progress Supabase/auth migratio
 | F — Records/export and checker repair | Done, gate-checked |
 | H — Admin progress dashboard | Done, gate-checked (commit `57ac7cc`) |
 | Admin-only redirect (spec'd at the end of the Sprint H section) | Done, gate-checked (commit `e4903e1`) |
-| H.1 — Student detail drill-down | Done, gate-checked (commit `227bb5c`). Migration `supabase/migrations/20260828170000_admin_student_detail.sql` is written but **not applied to the live database** — a site-owner action. |
+| H.1 — Student detail drill-down | Done, gate-checked (commit `227bb5c`). Migration `supabase/migrations/20260828170000_admin_student_detail.sql` is **applied to the live database** (confirmed via `supabase db diff --linked`). |
 | G — Final QA and handoff | Done. Full syntax/render/browser sweep, prohibited-language scan, stable-key diff audit, and exact-hours reconciliation all pass; found and fixed a real `TypeError: Assignment to constant variable` in `portal/app.js`'s `render()` (broke every admin login) plus several prohibited-language leftovers in skill-tag chips and summary copy (see HANDOFF.md for the full list). Release readiness still gated on section 9's external approvals — this sprint cannot itself certify launch. |
 
 Also live and relevant but tracked in `architecture.md`, not here: the backend-simplification migration (`supabase/migrations/20260828160000_simplify_schema.sql`) has been applied to the live database (confirmed via `supabase migration list`), and a live-breaking bug it caused — `portal/app.js`'s `buildUserFromSession()` querying the now-dropped `enrollments`/`programs` tables — has been found and fixed directly (not part of any lettered sprint).

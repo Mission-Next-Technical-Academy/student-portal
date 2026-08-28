@@ -14,11 +14,10 @@ more commits landed **this session, all local only, none pushed**:
    / `lab_attempts` / `capstone_submissions` only had "own row" RLS policies, so
    admin queries against them (including Sprint H's own dashboard rollups) were
    silently seeing only the admin's own data. Fix is in
-   `supabase/migrations/20260828170000_admin_student_detail.sql` — **written,
-   not applied to the live database.** Applying it (`supabase db push`) is the
-   next concrete unblock, same as Sprints 1-4 in the "Auth, backend
-   simplification" section below — needs the site owner to run it or grant a
-   permission rule.
+   `supabase/migrations/20260828170000_admin_student_detail.sql` — **applied
+   to the live database** (confirmed via `supabase migration list` showing it
+   in the Remote column, and `supabase db diff --linked` returning "No schema
+   changes found").
 3. `0ef74c8` — **Sprint G, final QA sweep.** Full syntax/render/browser pass,
    prohibited-language scan, stable-key diff audit, exact-hours reconciliation
    — all clean. Found and fixed two real bugs along the way: `render()`'s
