@@ -1,5 +1,55 @@
 # Next session — start here
 
+## URGENT handoff (2026-08-28, later session — read before anything else)
+
+The curriculum-alignment wave is now fully closed out. Commit `57ac7cc` (Sprints
+A-F + H's admin dashboard rebuild + backend schema-simplification migrations)
+was already pushed to `origin/master` as of the start of this session. Three
+more commits landed **this session, all local only, none pushed**:
+
+1. `e4903e1` — **Admin-only redirect.** Router now sends any `user.isAdmin`
+   session to `#/admin` on every navigation path, not just post-login.
+2. `227bb5c` — **Sprint H.1, student detail drill-down.** Dropdown + detail
+   panel on the admin dashboard. Building it surfaced a real gap: `module_progress`
+   / `lab_attempts` / `capstone_submissions` only had "own row" RLS policies, so
+   admin queries against them (including Sprint H's own dashboard rollups) were
+   silently seeing only the admin's own data. Fix is in
+   `supabase/migrations/20260828170000_admin_student_detail.sql` — **written,
+   not applied to the live database.** Applying it (`supabase db push`) is the
+   next concrete unblock, same as Sprints 1-4 in the "Auth, backend
+   simplification" section below — needs the site owner to run it or grant a
+   permission rule.
+3. `0ef74c8` — **Sprint G, final QA sweep.** Full syntax/render/browser pass,
+   prohibited-language scan, stable-key diff audit, exact-hours reconciliation
+   — all clean. Found and fixed two real bugs along the way: `render()`'s
+   admin-redirect block reassigned a `const hash`, which threw and left every
+   admin session on a blank page since `e4903e1` landed (fixed to `let`, so if
+   you're reading this before `e4903e1`+`0ef74c8` are both applied, the admin
+   redirect alone is not safe to rely on) — and several prohibited-language
+   leftovers from before the Sprint C rename ("Detection Engineering",
+   "Vulnerability Management", "Digital Forensics" in skill-tag chips and
+   summary copy). Full list in `HANDOFF.md`'s dated entry.
+
+**Nothing from this session is pushed.** `git log --oneline -4` from `master`
+should show `0ef74c8`, `227bb5c`, `e4903e1`, `57ac7cc` in that order — confirm
+before assuming any of this is live. Pushing `e4903e1`/`227bb5c`/`0ef74c8`
+(and separately, applying the new migration) both remain site-owner-gated
+actions per the standing rule in `architecture.md`.
+
+`CURRICULUM_ALIGNMENT_ARCHITECTURE.md` section 0 now shows every sprint
+(A-H, the redirect, H.1, G) as done, each with its commit hash. Release
+readiness is still gated on external sign-offs — see that doc's section 9
+"Release boundary" (Form 301 comparison, curriculum-lead/compliance-
+reviewer/faculty approval) — none of that changes just because the repo is
+now internally consistent.
+
+Also still true from the prior session, unchanged: Sprint H.1's live
+select-a-student flow could not be exercised end-to-end because the test
+DB currently has zero students with real progress — that needs a real
+authenticated session with actual student activity to verify.
+
+---
+
 Repo: `~/Mission_Next_Technical_Academy_SOC_Analyst_course` (branch `master`).
 
 ```bash
