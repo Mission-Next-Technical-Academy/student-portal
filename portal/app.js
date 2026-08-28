@@ -1576,7 +1576,8 @@ function viewNotFound(user) {
   </section></main>${footer()}`;
 }
 
-function viewAdmin(user, rows, error) {
+function viewAdmin(user, rows, error, activeStudents) {
+  activeStudents = activeStudents || [];
   // Summary statistics
   let totalStudents = rows.length;
   let notStarted = rows.filter((r) => r.modules_complete === 0).length;
@@ -1700,6 +1701,32 @@ function viewAdmin(user, rows, error) {
                </div>`
         }
 
+        ${
+          error
+            ? ''
+            : `<div class="mt-12">
+                 <div class="mb-6">
+                   <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Student Detail</h2>
+                   <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
+                   <p class="text-gray-500 text-sm">Drill into one student's module, lab, and capstone record. Only students with recorded progress appear below.</p>
+                 </div>
+                 ${
+                   activeStudents.length === 0
+                     ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
+                          <p class="text-gray-500 text-sm">No students have recorded progress yet.</p>
+                        </div>`
+                     : `<div class="mb-6">
+                          <label for="student-detail-select" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Select a Student</label>
+                          <select id="student-detail-select" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 w-full sm:w-96">
+                            <option value="">Choose a student…</option>
+                            ${activeStudents.map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)} (${r.modules_complete}/${r.modules_total} modules)</option>`).join('')}
+                          </select>
+                        </div>
+                        <div id="student-detail-panel"></div>`
+                 }
+               </div>`
+        }
+
         <div class="mt-8">
           <a href="#/portal" class="inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-6 py-3 rounded-xl transition-colors">
             <i class="ri-arrow-left-line"></i> Back to My Programs
@@ -1745,6 +1772,7 @@ async function render() {
   }
 
   if (hash === '#/admin') {
+    let activeStudents = [];
     if (!user.isAdmin) {
       history.replaceState(null, '', '#/portal');
       app.innerHTML = viewPortal(user);
@@ -1763,10 +1791,22 @@ async function render() {
         const bActive = b.last_active ? new Date(b.last_active).getTime() : 0;
         return bActive - aActive;
       });
-      app.innerHTML = viewAdmin(user, sorted, error);
+
+      // Sprint H.1: student detail drill-down. admin_student_activity carries
+      // user_id (so per-student detail selects don't need a second lookup)
+      // and lab/capstone attempt counts (so "has real progress" reflects lab
+      // activity too, not just completed modules — see the migration).
+      const { data: activityRows } = await mntSupabase
+        .from('admin_student_activity')
+        .select('*');
+      activeStudents = (activityRows || [])
+        .filter((r) => (r.modules_complete || 0) > 0 || (r.lab_attempts_count || 0) > 0 || (r.capstone_submissions_count || 0) > 0)
+        .sort((a, b) => a.student_id.localeCompare(b.student_id));
+
+      app.innerHTML = viewAdmin(user, sorted, error, activeStudents);
     }
     wireCommon();
-    wireAdmin();
+    wireAdmin(activeStudents);
     window.scrollTo(0, 0);
     return;
   }
@@ -1842,7 +1882,8 @@ function wireCommon() {
   wireRegisteredModuleLabs();
 }
 
-function wireAdmin() {
+function wireAdmin(activeStudents) {
+  activeStudents = activeStudents || [];
   const trackFilter = document.getElementById('track-filter');
   const hideNotStarted = document.getElementById('hide-not-started');
   const tableRows = document.querySelectorAll('.admin-table-row');
@@ -1864,6 +1905,176 @@ function wireAdmin() {
 
   if (trackFilter) trackFilter.addEventListener('change', applyFilters);
   if (hideNotStarted) hideNotStarted.addEventListener('change', applyFilters);
+
+  // Sprint H.1: student detail drill-down.
+  const detailSelect = document.getElementById('student-detail-select');
+  if (detailSelect) {
+    detailSelect.addEventListener('change', async () => {
+      const panel = document.getElementById('student-detail-panel');
+      if (!panel) return;
+      const studentId = detailSelect.value;
+      if (!studentId) { panel.innerHTML = ''; return; }
+      const row = activeStudents.find((r) => r.student_id === studentId);
+      if (!row) { panel.innerHTML = ''; return; }
+
+      panel.innerHTML = `<div class="text-sm text-gray-400 py-6">Loading…</div>`;
+      const [moduleRes, labRes, capstoneRes, scorecardRes] = await Promise.all([
+        mntSupabase.from('module_progress').select('*').eq('user_id', row.user_id),
+        mntSupabase.from('lab_attempts').select('*').eq('user_id', row.user_id),
+        mntSupabase.from('capstone_submissions').select('*').eq('user_id', row.user_id).order('stage', { ascending: true }),
+        mntSupabase.from('capstone_scorecard').select('*').eq('user_id', row.user_id).maybeSingle(),
+      ]);
+
+      // Still the currently-selected student? A fast re-select before this
+      // resolves would otherwise let a stale response overwrite the panel.
+      if (detailSelect.value !== studentId) return;
+
+      panel.innerHTML = renderStudentDetail(
+        row,
+        moduleRes.data || [],
+        labRes.data || [],
+        capstoneRes.data || [],
+        scorecardRes.data || null
+      );
+    });
+  }
+}
+
+/* --------------------------------------------- admin student detail panel */
+
+/* module_key only resolves within its own program's catalogue (see PROGRAMS
+ * in portal/data.js), so the student's track_code is required to look it up
+ * — mirrors the join CURRICULUM_MAP.md documents against the same catalogue. */
+function adminModuleLabel(trackCode, moduleKey) {
+  const slug = TRACK_CODE_TO_PROGRAM_SLUG[trackCode];
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  const module = program && program.modules && program.modules[moduleKey];
+  return module ? module.title : moduleKey;
+}
+
+function adminLabLabel(labKey) {
+  const lab = LABS.find((l) => l.key === labKey);
+  return lab ? lab.title : labKey;
+}
+
+function adminStateLabel(state) {
+  return state === 'complete' ? 'Complete' : state === 'in_progress' ? 'In Progress' : 'Not Started';
+}
+
+function adminStateColor(state) {
+  return state === 'complete' ? '#22c55e' : state === 'in_progress' ? '#f97316' : '#9ca3af';
+}
+
+function adminScore(value) {
+  return value === null || value === undefined || value === '' ? '—' : Number(value).toFixed(1);
+}
+
+function adminDate(value) {
+  return value ? new Date(value).toLocaleDateString() : '—';
+}
+
+function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow) {
+  const moduleSection = moduleRows.length === 0
+    ? `<p class="text-sm text-gray-400">No module progress recorded.</p>`
+    : `<div class="overflow-x-auto">
+         <table class="w-full border-collapse text-sm">
+           <thead>
+             <tr class="border-b border-gray-200">
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Module</th>
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Percent</th>
+             </tr>
+           </thead>
+           <tbody>
+             ${moduleRows.slice().sort((a, b) => String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
+               <tr class="border-b border-gray-100">
+                 <td class="px-4 py-2 text-gray-900">${esc(adminModuleLabel(row.track_code, m.module_key))}</td>
+                 <td class="px-4 py-2"><span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span></td>
+                 <td class="px-4 py-2 text-gray-600">${m.percent}%</td>
+               </tr>`).join('')}
+           </tbody>
+         </table>
+       </div>`;
+
+  const labSection = labRows.length === 0
+    ? `<p class="text-sm text-gray-400">No lab attempts recorded.</p>`
+    : `<div class="overflow-x-auto">
+         <table class="w-full border-collapse text-sm">
+           <thead>
+             <tr class="border-b border-gray-200">
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Lab</th>
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Score</th>
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Completed</th>
+             </tr>
+           </thead>
+           <tbody>
+             ${labRows.slice().sort((a, b) => String(a.lab_key).localeCompare(String(b.lab_key))).map((l) => `
+               <tr class="border-b border-gray-100">
+                 <td class="px-4 py-2 text-gray-900">${esc(adminLabLabel(l.lab_key))}</td>
+                 <td class="px-4 py-2"><span style="color:${adminStateColor(l.state)}">${adminStateLabel(l.state)}</span></td>
+                 <td class="px-4 py-2 text-gray-600">${adminScore(l.score)}</td>
+                 <td class="px-4 py-2 text-gray-600">${adminDate(l.completed_at)}</td>
+               </tr>`).join('')}
+           </tbody>
+         </table>
+       </div>`;
+
+  const capstoneSection = capstoneRows.length === 0
+    ? `<p class="text-sm text-gray-400">No capstone stages submitted.</p>`
+    : `<div class="overflow-x-auto">
+         <table class="w-full border-collapse text-sm">
+           <thead>
+             <tr class="border-b border-gray-200">
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage</th>
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Score</th>
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Submitted</th>
+             </tr>
+           </thead>
+           <tbody>
+             ${capstoneRows.map((c) => `
+               <tr class="border-b border-gray-100">
+                 <td class="px-4 py-2 text-gray-900">Stage ${c.stage}</td>
+                 <td class="px-4 py-2 text-gray-600">${adminScore(c.score)}</td>
+                 <td class="px-4 py-2 text-gray-600">${adminDate(c.submitted_at)}</td>
+               </tr>`).join('')}
+           </tbody>
+         </table>
+       </div>`;
+
+  const scorecardDimensions = [
+    ['Overall', scorecardRow && scorecardRow.overall_score],
+    ['Investigation', scorecardRow && scorecardRow.investigation_accuracy],
+    ['Detection', scorecardRow && scorecardRow.detection_score],
+    ['Threat Hunting', scorecardRow && scorecardRow.threat_hunting_score],
+    ['Incident Response', scorecardRow && scorecardRow.incident_response_score],
+    ['Vulnerability', scorecardRow && scorecardRow.vulnerability_score],
+    ['Reporting', scorecardRow && scorecardRow.reporting_score],
+  ];
+  const scorecardSection = !scorecardRow
+    ? ''
+    : `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+         ${scorecardDimensions.map(([label, value]) => `
+           <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+             <p class="text-xs text-gray-500 uppercase tracking-wide">${esc(label)}</p>
+             <p class="text-lg font-semibold text-[#1e3a5f]">${adminScore(value)}</p>
+           </div>`).join('')}
+       </div>`;
+
+  return `
+    <div class="bg-white border border-gray-200 rounded-xl p-6">
+      <div class="mb-6 pb-4 border-b border-gray-100">
+        <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}</p>
+        <p class="text-xs text-gray-500 mt-1">${esc(row.program_slug || row.track_code)} · ${row.modules_complete}/${row.modules_total} modules · ${row.percent_complete}% complete</p>
+      </div>
+      <h3 class="text-base font-semibold text-[#1e3a5f] mb-3">Modules</h3>
+      ${moduleSection}
+      <h3 class="text-base font-semibold text-[#1e3a5f] mt-8 mb-3">Labs</h3>
+      ${labSection}
+      <h3 class="text-base font-semibold text-[#1e3a5f] mt-8 mb-3">Capstone</h3>
+      ${capstoneSection}
+      ${scorecardSection}
+    </div>`;
 }
 
 window.addEventListener('hashchange', render);
