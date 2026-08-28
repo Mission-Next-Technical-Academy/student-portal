@@ -226,17 +226,35 @@ the intended additions.
 
 ## Sprint 4 — Auth and entitlement (lane P)
 
-### Agent 39 — Authentication
+### Agent 39 — Authentication — ✅ **DONE (superseded by actual design)**
 
-- **39A `/login`, `/signup`, `/auth/callback`:** split layout from existing
-  tokens; email/password + magic link; `?next=` preservation
-- **39B Session context + guards:** `<RequireAuth>`, `<RequireEnrollment>`,
-  `<RequireModuleAccess>`; loading states that don't flash unauthenticated content
-- **39C Sign-out:** clears the Supabase session **and** purges `defender-lab.*`
-  from local/session storage (§7.2 — otherwise the next student inherits the
-  previous one's lab)
+**Original plan** (email/password + magic link, open signup) has been
+replaced by an admin-provisioned model:
 
-### Agent 40 — Portal and gating
+- **New table `public.students`** (migration `supabase/migrations/20260828120000_students_admin.sql`):
+  `student_id` (login ID, PK), `user_id` → `auth.users`, `track_code`, `is_admin` boolean.
+  RLS: students read only their own row; admins (via `public.is_admin()` function) read all rows.
+- **Login ID format:** `<10-digit-random>-<TRACKCODE>`. Examples: `4957361987-SOCAN` (SOC Analyst),
+  `9284157643-HDESK` (IT Support), `3891745623-AIENG` (AI & ML), `5743819062-ELECT` (Electrical),
+  `2019384756-ADMIN` (instructor/admin, no program).
+- **Authentication:** login ID is mapped to a synthetic email `<lowercased-id>@missionnext.example`
+  before calling `supabase.auth.signInWithPassword()`. Student never sees or types the synthetic email.
+  `.example` is the RFC 2606 reserved TLD (never resolves), chosen so the address reads as inert
+  placeholder data rather than a real, targetable org domain.
+  Passwords are strong, randomly generated at provisioning time.
+- **New function `public.is_admin()`:** returns true if the current user's `students.is_admin` flag is set.
+- **New view `public.admin_student_progress`:** aggregates each student's modules-complete count,
+  capstone score, last-active timestamp. RLS: admins only.
+- **New script `bin/provision-students.js`:** runs locally (never deployed), bulk-creates accounts for a
+  track code + count, writes a roster CSV (student_id, password, user_id) to `bin/.roster-output/`
+  (gitignored, plaintext passwords must be moved to password vault immediately after running).
+- **Portal auth rewrite** (`portal/app.js`): `currentUser()`, `signIn()`, `signOut()` are now real
+  Supabase Auth calls. New `#/admin` route and `viewAdmin()` show student-progress table to admins only.
+- **Deleted:** mock `DEMO_USERS` array from `portal/data.js` (lines ~549–609).
+- **New vendored file:** `portal/vendor/supabase.js` (Supabase JS SDK, UMD build) + `portal/supabase-config.js`
+  (project URL, public/anon key, global `mntSupabase` client).
+
+### Agent 40 — Portal and gating — ✅ **DONE (DB-verified, frontend wired)**
 
 - **40A `/portal`:** enrolled programs only; 0 → empty state with Request
   Information; 1 → redirect straight through; n → picker
@@ -250,6 +268,15 @@ Acceptance: a student with `access_mode='partial'` and 4 of 12 modules entitled
 sees 4 interactive and 8 locked; hand-crafting a request for a locked module's
 progress row is **rejected by RLS**, not merely hidden by the UI. Test that
 explicitly.
+
+**Not yet done (still open, blocking live deployment):**
+- Live Supabase schema push: migration `supabase/migrations/20260828120000_students_admin.sql` has
+  not been pushed to the production project (needs `supabase login` + `supabase link --project-ref
+  eokvngifirjgfozzbieu` + `supabase db push` on the site owner's machine).
+- Account provisioning: no real student accounts have been created yet (blocked on site owner
+  supplying `SUPABASE_SERVICE_ROLE_KEY` to run `bin/provision-students.js`).
+- Frontend entitlement: `access_mode: 'partial'` and `module_entitlements` are not yet wired into the
+  portal UI — provisioning always creates `access_mode: 'full'` enrollments for now. Known gap, not a bug.
 
 ---
 
@@ -310,11 +337,11 @@ cold with no reconstruction.
 
 ## Open decisions (blocking, from §9)
 
-| # | Decision | Blocks |
-|---|---|---|
-| 1 | Program title: spec's "Cybersecurity Operations — SOC Analyst" vs live "Security Operation Center (SOC) Analyst" | Agent 33, 37 |
-| 2 | Secondary button style (site has none — outline variant proposed) | Agent 37 |
-| 3 | Payment processor vs manual enrollment | Agent 39, 40 |
-| 4 | Default `access_mode` (recommend `full`) | Agent 30, 40 |
-| 5 | Name CySA+ publicly, with disclaimer? | Agent 33 |
-| 6 | Owners for T1 / T3 / T4 | Sprint 2 |
+| # | Decision | Status | Blocks |
+|---|---|---|---|
+| 1 | Program title: spec's "Cybersecurity Operations — SOC Analyst" vs live "Security Operation Center (SOC) Analyst" | **Open** | Agent 33, 37 |
+| 2 | Secondary button style (site has none — outline variant proposed) | **Open** | Agent 37 |
+| 3 | Payment processor vs manual enrollment | **Resolved: manual enrollment / admin-provisioned** | — |
+| 4 | Default `access_mode` (recommend `full`) | **Open** | Agent 30, 40 |
+| 5 | Name CySA+ publicly, with disclaimer? | **Open** | Agent 33 |
+| 6 | Owners for T1 / T3 / T4 | **Open** | Sprint 2 |

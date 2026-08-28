@@ -11,5 +11,9 @@ __pycache__/
 supabase/.temp/
 supabase/.branches/
 
+# Locally-generated student/admin account rosters with plaintext passwords.
+# Never commit these — they must be moved to a password vault immediately after provisioning.
+bin/.roster-output/
+
 node_modules/
 _site/

@@ -5,7 +5,7 @@
 const MODULE_SIX_LAB_ID = 'm06-hypothesis-hunt-v1';
 const MODULE_SIX_FLAG = 'M06-HUNT-SCOPE-COMPLETE';
 const MODULE_SIX_CATALOG_LAB_KEY = 'lab-threat-hunt';
-const MODULE_SIX_PASSING_SCORE = 80;
+const MODULE_SIX_PASSING_SCORE = 70;
 
 const MODULE_SIX_ENDPOINT_ROWS = [
   { id: 'EP-601', time: '08:31', device: 'WS-214', account: 'acct-27', process: 'doc-reader.exe', parent: 'explorer.exe', fileHash: 'ddd…', remoteIp: 'None', action: 'Opened benefits-guide.pdf', detail: 'The signed document reader opened a locally downloaded PDF. No child process or network action followed.', relevant: false },
@@ -298,13 +298,15 @@ function moduleSixLabDynamic() {
 
 function viewModuleSix(user, program) {
   moduleSixLoad(user);
+  const module = program.modules['soc-06'];
+  const moduleLab = LABS.find((item) => item.key === MODULE_SIX_CATALOG_LAB_KEY);
   return `<div class="m06-shell">
     <header class="m06-topbar"><a href="#/program/${esc(program.slug)}" class="m06-brand" aria-label="Back to SOC Analyst program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div class="m06-top-actions"><span class="m06-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Assisted simulation · fictional data</span><a href="#/program/${esc(program.slug)}" class="m06-exit"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header>
     <main class="m06-main">
-      <section class="m06-hero" aria-labelledby="m06-title"><div><p class="m06-kicker">Module 06 · Applied practice · assisted</p><h1 id="m06-title">Threat Hunting &amp; Investigation</h1><p class="m06-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff.</p><a class="m06-hero-action" href="#m06-field-guide"><i class="ri-compass-3-line" aria-hidden="true"></i> Review the hunt method</a></div><dl class="m06-progress" aria-label="Saved lab progress"><div><dt>Data sources</dt><dd>2</dd></div><div><dt>Target time</dt><dd>60 min</dd></div><div><dt>Lab status</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
-      <section class="m06-objective" aria-labelledby="m06-objective-title"><div class="m06-objective-icon"><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m06-kicker">Measurable objective</p><h2 id="m06-objective-title">Test one cross-device execution hypothesis with two scoped queries, bookmark the four records that establish behavior and scope, and communicate a supported disposition with at least 80/100.</h2></div></section>
+      <section class="m06-hero" aria-labelledby="m06-title"><div><p class="m06-kicker">Module 06 · ${formatInstructionalMinutes(module.durationMinutes)} · guided SOC practice</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p><a class="m06-hero-action" href="#m06-field-guide"><i class="ri-compass-3-line" aria-hidden="true"></i> Review the hunt method</a></div><dl class="m06-progress" aria-label="Saved lab progress"><div><dt>Data sources</dt><dd>2</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(moduleLab.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m06-objective" aria-labelledby="m06-objective-title"><div class="m06-objective-icon"><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m06-kicker">Measurable objective</p><h2 id="m06-objective-title">Test one cross-device execution hypothesis with two scoped queries, bookmark the four records that establish behavior and scope, and communicate a supported disposition with at least ${MODULE_SIX_PASSING_SCORE}/100.</h2></div></section>
       <section class="m06-section" id="m06-field-guide" aria-labelledby="m06-guide-title"><div class="m06-section-heading"><span>1</span><div><p class="m06-kicker">Field guide</p><h2 id="m06-guide-title">Hunt for evidence, not confirmation</h2></div></div>${moduleSixConcepts()}<div class="m06-hunt-loop" aria-label="Hypothesis-led hunting loop"><span>Hypothesis</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Query</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Bookmark</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Decide &amp; communicate</span></div></section>
-      <section class="m06-section m06-lab-section" aria-labelledby="m06-lab-title"><div class="m06-section-heading"><span>2</span><div><p class="m06-kicker">Miniature hunt surface · no full console</p><h2 id="m06-lab-title">Cross-device script recurrence</h2></div></div><div class="m06-role"><i class="ri-user-search-line" aria-hidden="true"></i><div><strong>Your role: threat-hunting analyst</strong><p>You may investigate endpoint activity and sign-in activity in either order. Hints are available when you want them. Your job is to test the stated lead, not to investigate unrelated systems.</p></div></div><div id="m06-lab-dynamic">${moduleSixLabDynamic()}</div></section>
+      <section class="m06-section m06-lab-section" aria-labelledby="m06-lab-title"><div class="m06-section-heading"><span>2</span><div><p class="m06-kicker">Guided hunt surface · no full console</p><h2 id="m06-lab-title">Cross-device script recurrence</h2></div></div><div class="m06-role"><i class="ri-user-search-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst conducting a guided hunt</strong><p>You may investigate endpoint activity and sign-in activity in either order. Hints are available when you want them. Your job is to test the stated lead inside the assigned monitoring workflow, not to investigate unrelated systems.</p></div></div><div id="m06-lab-dynamic">${moduleSixLabDynamic()}</div></section>
     </main>
   </div>`;
 }
@@ -493,7 +495,15 @@ function wireModuleSixLab() {
     moduleSixState.feedback = result.feedback;
     moduleSixState.validationError = '';
     moduleSixState.lastSubmittedAt = new Date().toISOString();
-    if (result.score >= MODULE_SIX_PASSING_SCORE) {
+    const passed = result.score >= MODULE_SIX_PASSING_SCORE;
+    if (typeof recordLabAttempt === 'function') {
+      recordLabAttempt(moduleSixUser, MODULE_SIX_CATALOG_LAB_KEY, {
+        state: passed ? 'complete' : 'in_progress',
+        score: result.score,
+        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleSixState.attempts },
+      });
+    }
+    if (passed) {
       moduleSixState.completed = true;
       if (!moduleSixState.flags.includes(MODULE_SIX_FLAG)) moduleSixState.flags.push(MODULE_SIX_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_CATALOG_LAB_KEY);

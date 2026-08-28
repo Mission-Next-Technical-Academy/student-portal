@@ -1,7 +1,7 @@
 # Mission Next Technical Academy SOC Analyst Course — Latest Progress
 
-Status date: 2026-08-17  
-Status: Cleanup complete; course server stopped after verification  
+Status date: 2026-08-19
+Status: Wave 4 implemented and gate-reviewed; course servers left running for local review
 Current direction: General SOC Analyst training—not SC-200 certification training
 
 ## Current project direction
@@ -214,14 +214,14 @@ Latest automated verification:
 JavaScript syntax checks: pass
 HTTP response on port 8767 before final shutdown: 200
 Registered views: 110
-Views rendering cleanly: 109
+Views rendering cleanly: 110
 Dead navigation routes: 0
-Known renderer warning: purview/audit — tiny/empty render
+Known renderer warnings: none
 Git diff whitespace check: pass
 ```
 
-The `purview/audit` renderer warning predates the recent branding, logo, port,
-and navigation changes. No new renderer regressions were introduced.
+The prior `purview/audit` renderer warning was fixed by giving its mount point a
+meaningful initial shell.
 
 ## Important remaining terminology work
 
@@ -235,9 +235,10 @@ would require a separate route/state migration and is not needed for publication
 
 ### Inherited SC-200 wording
 
-The publishable UI still contains inherited `SC-200` teaching labels in a
-small number of view callouts, comments, and secondary surfaces. The general
-SOC Analyst scope means those should become role-based wording such as:
+The simulator retains compatibility-only source comments and internal route
+names, while its learner-facing terminology layer removes certification-
+specific framing at render time. Portal-facing certification copy has also
+been removed.
 
 - SOC analyst decision point
 - Investigation checkpoint
@@ -245,9 +246,8 @@ SOC Analyst scope means those should become role-based wording such as:
 - Detection engineering exercise
 - Supporting security-operations context
 
-This work has not yet been performed in the interactive UI. It should be a
-focused content pass so technically useful exercises are preserved while
-certification-specific framing is removed.
+Technically useful exercises remain intact because this was handled as a
+presentation/content pass rather than a route or fixture migration.
 
 ### Vendor-specific technical schemas
 
@@ -258,9 +258,7 @@ fixtures, saved queries, result sets, and exercises can be migrated together.
 
 ## Recommended next work
 
-1. Remove remaining SC-200 wording from the publishable UI and replace it with
-   general SOC Analyst competency language.
-2. Define a general SOC Analyst curriculum map covering:
+1. Define and publish a general SOC Analyst curriculum map covering:
    - alert intake and prioritization;
    - incident triage and case ownership;
    - evidence, entity, and timeline analysis;
@@ -271,9 +269,8 @@ fixtures, saved queries, result sets, and exercises can be migrated together.
    - cloud and SaaS investigation;
    - data protection and insider-risk response;
    - documentation, escalation, and shift handoff.
-3. Use that curriculum map—not `ExamObjectives.md`—to decide future features.
-4. Fix or formally retire the `purview/audit` mechanical renderer warning.
-5. Perform a fresh visual walkthrough at 1366×768 and a larger desktop
+2. Use that curriculum map—not `ExamObjectives.md`—to decide future features.
+3. Perform a fresh visual walkthrough at 1366×768 and a larger desktop
    resolution after future layout changes.
 
 ## Current working-tree note

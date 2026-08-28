@@ -140,6 +140,42 @@ create table public.labs (
 `sim_entry` is the seam between LMS and simulator: the only place the LMS knows
 a simulator route. Everything else about the simulator stays opaque to the LMS.
 
+### 4.1.5 Student provisioning and authentication
+
+Full source is `supabase/migrations/20260828120000_students_admin.sql` — this section
+describes behavior rather than duplicating the SQL, to avoid the two drifting apart.
+The table is `public.students (student_id text primary key, user_id uuid references
+auth.users, track_code text check (...), is_admin boolean, created_at)`. `student_id`
+is the login ID itself (`'<10-digit-random>-<TRACKCODE>'`); `track_code` is constrained
+to `'SOCAN' | 'HDESK' | 'AIENG' | 'ELECT' | 'ADMIN'`.
+
+`public.is_admin()` — security-definer SQL function, mirrors the `has_module_access()`
+pattern in §4.2: `exists (select 1 from public.students where user_id = auth.uid() and
+is_admin)`.
+
+`public.admin_student_progress` — a `security_invoker = true` view (so RLS on the
+underlying tables still applies to the querying user) joining `students` →
+`enrollments` → `programs` → `capstone_scorecard`, plus a `where public.is_admin()`
+guard in the view body. Columns: `student_id`, `track_code`, `program_slug`,
+`modules_total`, `modules_complete`, `capstone_overall_score`, `last_active`.
+
+**Login flow:** Students log in with a student ID (login ID), which has the format
+`<10-digit-random>-<TRACKCODE>`, e.g. `4957361987-SOCAN`. This login ID is mapped to a
+synthetic email `<lowercased-login-id>@students.mntacademy.internal` before calling
+Supabase Auth's `signInWithPassword()`. The student never sees or types the synthetic email.
+Passwords are strong, randomly generated at provisioning time and must be rotated immediately
+after first login.
+
+**Provisioning:** Accounts are created entirely by the site owner via `bin/provision-students.js`
+(run locally, never deployed). This script takes a track code and count, bulk-creates Supabase
+Auth users and `students` table rows, and writes a roster CSV (student_id, password, user_id)
+to `bin/.roster-output/` (gitignored). The roster contains plaintext passwords and must be
+moved to a password vault immediately after generation.
+
+**Admin accounts:** Login IDs with track code `ADMIN` are instructor/admin accounts. The
+`is_admin()` function checks the `students.is_admin` boolean; admin UI (e.g., `#/admin` route)
+uses this to gate the `admin_student_progress` view.
+
 ### 4.2 Entitlement — "only what they purchased"
 
 Two separate questions, and they need two mechanisms:
@@ -601,10 +637,9 @@ track — the public page, the portal, and the DB seed script all read it, and
 
 | Route | Access | Purpose |
 |---|---|---|
-| `/login` | public | Email/password + magic link |
-| `/signup` | public | Gated behind purchase, or open with no enrollments |
-| `/auth/callback` | public | Supabase redirect handler |
+| `/login` | public | Login ID + password (admin-provisioned accounts only) |
 | `/portal` | auth | Dashboard — **only enrolled programs** |
+| `/portal#/admin` | auth + admin | Student roster and progress analytics (admins only) |
 | `/portal/:slug` | auth + enrolled | Curriculum in `enrolled` mode |
 | `/portal/:slug/module/:n` | auth + module access | Module player |
 | `/portal/:slug/labs` | auth + enrolled | Labs grid |
@@ -612,18 +647,27 @@ track — the public page, the portal, and the DB seed script all read it, and
 | `/portal/:slug/portfolio` | auth + enrolled | Artifacts |
 | `/lab/*` | auth + enrolled | Simulator (static, outside React) |
 
+No public signup route — all accounts are created by the site owner via `bin/provision-students.js`.
+The admin view is a hash route (`#/admin`) within the portal SPA, gated by `is_admin()`.
+
 ### 6.3 Login page
 
 Built entirely from existing tokens — this is a new page, not a new design:
 
 - Split layout: left `linear-gradient(135deg,#0a1628,#1e3a5f,#0f2440)` with the
   logo and one line of copy; right white form panel. Single column under `md:`.
-- Inputs: `border border-gray-200 rounded-xl px-4 py-3 text-sm` with
-  `focus:border-[#1e3a5f] focus:ring-2 focus:ring-[#1e3a5f]/10`. The site has no
-  input style yet outside the waitlist form — check that form's classes when the
-  repo lands and match it instead of this if it differs.
-- Submit: the standard orange button, `w-full`.
-- Errors: `text-sm text-[#dc2626]` inline. Never disclose whether an email exists.
+- **Inputs:** Two fields:
+  - *Student ID:* `<10-digit-random>-<TRACKCODE>`, e.g. `4957361987-SOCAN`. Input style:
+    `border border-gray-200 rounded-xl px-4 py-3 text-sm` with
+    `focus:border-[#1e3a5f] focus:ring-2 focus:ring-[#1e3a5f]/10`.
+  - *Password:* Similar input style. Entered as-is; the frontend maps the student ID
+    to the synthetic email `<lowercased-id>@students.mntacademy.internal` before calling
+    `supabase.auth.signInWithPassword()`.
+- **Submit:** The standard orange button, `w-full`.
+- **Errors:** `text-sm text-[#dc2626]` inline. On auth failure, return a generic error
+  ("Invalid student ID or password") — never disclose whether a student ID exists.
+- **`?next=` preservation:** After successful sign-in, redirect to the `next` parameter
+  if present, or to `/portal` by default.
 
 ### 6.4 The gating flow
 

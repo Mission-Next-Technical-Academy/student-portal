@@ -37,6 +37,72 @@ vm.runInContext(`
   var window = new Proxy({ location, history, document }, {
     get: (t, p) => (p in t ? t[p] : (p === 'addEventListener' || p === 'scrollTo' ? () => {} : undefined)),
     set: () => true });
+
+  // Stub Supabase for test harness: makes signIn/currentUser async calls resolve properly.
+  var mntSupabase = {
+    auth: {
+      _session: null,
+      async signInWithPassword({ email, password }) {
+        if (email === 'user2@missionnext.example' && password === 'user2') {
+          this._session = {
+            user: { id: 'stub-user2-id', email: 'user2@missionnext.example' }
+          };
+          return {
+            data: { session: this._session },
+            error: null
+          };
+        }
+        return { data: { session: null }, error: { message: 'Invalid credentials' } };
+      },
+      async getSession() {
+        return {
+          data: { session: this._session }
+        };
+      }
+    },
+    from(table) {
+      const builder = {
+        _filters: {},
+        select: (cols) => builder,
+        eq: (column, value) => {
+          builder._filters[column] = value;
+          return builder;
+        },
+        maybeSingle: async function() {
+          if (this._table === 'students' && this._filters.user_id === 'stub-user2-id') {
+            return {
+              data: { student_id: 'user2', track_code: 'SOCAN', is_admin: false },
+              error: null
+            };
+          }
+          return { data: null, error: null };
+        },
+        single: async function() {
+          if (this._table === 'students' && this._filters.user_id === 'stub-user2-id') {
+            return {
+              data: { student_id: 'user2', track_code: 'SOCAN', is_admin: false },
+              error: null
+            };
+          }
+          return { data: null, error: { message: 'No rows' } };
+        },
+        insert: async function() { return { error: null }; },
+        upsert: async function() { return { error: null }; },
+        then: function(onResolve, onReject) {
+          // Support Promise-like interface for fire-and-forget calls
+          if (this._table === 'students' && this._filters.user_id === 'stub-user2-id') {
+            return onResolve?.({
+              data: { student_id: 'user2', track_code: 'SOCAN', is_admin: false },
+              error: null
+            });
+          }
+          return onResolve?.({ data: null, error: null });
+        },
+        _table: table
+      };
+      return builder;
+    }
+  };
 `, ctx);
 ctx.URLSearchParams = URLSearchParams;
 ctx.URL = URL;
@@ -62,31 +128,45 @@ for (const n of wanted) {
   if (!registered.some((d) => d.n === n)) console.log(`  module ${n}  not registered (placeholder)`);
 }
 
-// user2 is the SOC Analyst student — the only demo account with the track.
-vm.runInContext("signIn('user2', 'user2');", ctx);
+// Run async test in a wrapper that returns a Promise we can await from Node.
+const testPromise = vm.runInContext(`
+  (async () => {
+    // user2 is the SOC Analyst student — the only demo account with the track.
+    await signIn('user2', 'user2');
 
-let failures = 0;
-for (const target of targets) {
-  try {
-    const html = vm.runInContext(
-      `(() => { const p = PROGRAMS.find((x) => x.slug === ${JSON.stringify(target.program)});
-        const lab = moduleLabFor(${JSON.stringify(target.program)}, ${target.n});
-        return lab.view(currentUser(), p); })()`, ctx);
-    if (typeof html !== 'string' || html.length < 500) throw new Error(`view returned ${typeof html} of length ${(html || '').length}`);
-    console.log(`  module ${target.n}  OK  (${target.key}, ${html.length} chars)`);
-  } catch (error) {
-    failures += 1;
-    console.error(`  module ${target.n}  FAIL  ${error.message}`);
-  }
-}
+    let failures = 0;
+    const targets = ${JSON.stringify(targets)};
 
-// The program overview must survive too — every module links back to it.
-try {
-  vm.runInContext("viewProgram(currentUser(), 'soc-analyst')", ctx);
-  console.log('  program overview  OK');
-} catch (error) {
-  failures += 1;
-  console.error(`  program overview  FAIL  ${error.message}`);
-}
+    for (const target of targets) {
+      try {
+        const p = PROGRAMS.find((x) => x.slug === target.program);
+        const lab = moduleLabFor(target.program, target.n);
+        const user = await currentUser();
+        const html = lab.view(user, p);
+        if (typeof html !== 'string' || html.length < 500) throw new Error(\`view returned \${typeof html} of length \${(html || '').length}\`);
+        console.log(\`  module \${target.n}  OK  (\${target.key}, \${html.length} chars)\`);
+      } catch (error) {
+        failures += 1;
+        console.error(\`  module \${target.n}  FAIL  \${error.message}\`);
+      }
+    }
 
-process.exit(failures ? 1 : 0);
+    // The program overview must survive too — every module links back to it.
+    try {
+      const user = await currentUser();
+      viewProgram(user, 'soc-analyst');
+      console.log('  program overview  OK');
+    } catch (error) {
+      failures += 1;
+      console.error(\`  program overview  FAIL  \${error.message}\`);
+    }
+
+    return failures;
+  })()
+`, ctx);
+
+// Await the async test function and exit with the failure count
+(async () => {
+  const failures = await testPromise;
+  process.exit(failures ? 1 : 0);
+})();

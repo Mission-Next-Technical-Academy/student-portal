@@ -77,8 +77,36 @@
 .m07-shell dd { min-width: 0; margin: 0; color: #334155; font: 11px/1.45 Inter,sans-serif; overflow-wrap: anywhere; }
 .m07-shell code { overflow-wrap: anywhere; }
 
+.m07-shell .m07-mail-chips { margin: 3px 0 14px; display: flex; flex-wrap: wrap; gap: 7px; }
+.m07-shell .m07-mail-chips button { min-height: 34px; display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; color: #475569; background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; font: 700 10px 'Space Grotesk',sans-serif; cursor: pointer; }
+.m07-shell .m07-mail-chips button[aria-pressed="true"] { color: #fff; background: #1e3a5f; border-color: #1e3a5f; }
+.m07-shell .m07-mail-chips small { padding: 1px 6px; color: inherit; background: rgba(100,116,139,.14); border-radius: 999px; font-weight: 800; }
+.m07-shell .m07-mail-chips button[aria-pressed="true"] small { background: rgba(255,255,255,.2); }
+
+.m07-shell .m07-mail-query { margin-bottom: 18px; padding: 18px; background: #0c1e32; border-radius: 13px; }
+.m07-shell .m07-mail-query .m07-panel-heading h4 { margin: 4px 0 0; color: #fff; font-size: 15px; }
+.m07-shell .m07-mail-query .m07-chip { color: rgba(255,255,255,.72); background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); }
+.m07-shell .m07-mail-query-layout { display: grid; grid-template-columns: minmax(0,1fr) 230px; gap: 16px; margin-top: 14px; }
+.m07-shell .m07-mail-query-layout label { display: block; color: rgba(255,255,255,.86); font-size: 11px; font-weight: 700; }
+.m07-shell .m07-mail-query-layout label code { color: #fdba74; }
+.m07-shell .m07-mail-query-layout textarea { width: 100%; margin-top: 8px; padding: 12px; resize: vertical; color: #dbeafe; background: #081627; border: 1px solid #345777; border-radius: 9px; font: 11px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+.m07-shell .m07-mail-query-layout textarea:focus { border-color: #f97316; }
+.m07-shell .m07-mail-query-layout textarea + p { margin: 6px 0 0; color: rgba(255,255,255,.55); font: 9px/1.5 Inter,sans-serif; }
+.m07-shell .m07-run-mail-query { min-height: 38px; margin-top: 10px; display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; color: #fff; background: #f97316; border: 1px solid #f97316; border-radius: 9px; font: 700 10px 'Space Grotesk',sans-serif; cursor: pointer; }
+.m07-shell .m07-run-mail-query:hover, .m07-shell .m07-run-mail-query:focus-visible { background: #ea580c; }
+.m07-shell .m07-mail-query-hint { align-self: start; padding: 12px; color: rgba(255,255,255,.7); background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
+.m07-shell .m07-mail-query-hint summary { color: #fff; font-size: 10px; font-weight: 700; cursor: pointer; }
+.m07-shell .m07-mail-query-hint p { margin: 8px 0 0; font: 10px/1.55 Inter,sans-serif; }
+.m07-shell .m07-query-empty, .m07-shell .m07-query-feedback { margin-top: 14px; padding: 12px 13px; border-radius: 9px; font: 10px/1.55 Inter,sans-serif; }
+.m07-shell .m07-query-empty { color: rgba(255,255,255,.62); border: 1px dashed rgba(255,255,255,.2); }
+.m07-shell .m07-query-feedback { color: #dbeafe; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); }
+.m07-shell .m07-query-feedback strong { display: block; color: #fff; font-size: 11px; }
+.m07-shell .m07-query-feedback p { margin: 3px 0 0; }
+
 .m07-shell .m07-mail-layout { display: grid; grid-template-columns: minmax(260px,.72fr) minmax(0,1.28fr); gap: 14px; }
-.m07-shell .m07-mail-list { min-width: 0; display: grid; align-content: start; gap: 7px; }
+.m07-shell .m07-mail-list { min-width: 0; max-height: 480px; overflow-y: auto; display: grid; align-content: start; gap: 7px; padding-right: 4px; }
+.m07-shell .m07-mail-empty { display: flex; align-items: center; gap: 9px; padding: 16px; color: #64748b; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; font: 11px/1.55 Inter,sans-serif; }
+.m07-shell .m07-mail-empty i { font-size: 17px; }
 .m07-shell .m07-mail-list button { min-width: 0; padding: 12px; color: #475569; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; text-align: left; cursor: pointer; }
 .m07-shell .m07-mail-list button[aria-pressed="true"] { border-color: #f97316; box-shadow: 0 0 0 1px rgba(249,115,22,.14); }
 .m07-shell .m07-mail-list span { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
@@ -176,7 +204,8 @@
   .m07-shell .m07-progress { width: 100%; min-width: 0; }
   .m07-shell .m07-concepts { grid-template-columns: repeat(2,1fr); }
   .m07-shell .m07-mail-layout { grid-template-columns: 1fr; }
-  .m07-shell .m07-mail-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .m07-shell .m07-mail-list { grid-template-columns: repeat(2,minmax(0,1fr)); max-height: none; }
+  .m07-shell .m07-mail-query-layout { grid-template-columns: 1fr; }
   .m07-shell .m07-score-grid { grid-template-columns: repeat(2,1fr); }
 }
 

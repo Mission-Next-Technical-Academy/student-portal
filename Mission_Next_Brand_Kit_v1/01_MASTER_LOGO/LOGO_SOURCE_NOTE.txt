@@ -1,0 +1,5 @@
+Current protected master source: ORIGINAL_UNTOUCHED_MTN_Academy_Logo.png
+
+The source provided to this brand-kit build is a PNG raster asset. No official SVG, EPS, or AI vector master was included in the source set reviewed for this build.
+
+Do not auto-trace or redraw the logo and treat that output as an official master. If an original vector master exists, add it to this folder after leadership review and preserve the PNG master unchanged.

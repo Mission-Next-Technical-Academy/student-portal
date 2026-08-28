@@ -5,7 +5,7 @@
 const MODULE_NINE_LAB_ID = 'm09-proportional-response-v1';
 const MODULE_NINE_FLAG = 'M09-INCIDENT-RESPONSE-COMPLETE';
 const MODULE_NINE_CATALOG_LAB_KEY = 'lab-active-incident';
-const MODULE_NINE_PASSING_SCORE = 80;
+const MODULE_NINE_PASSING_SCORE = 70;
 
 const MODULE_NINE_SOURCES = {
   endpoint: {
@@ -215,9 +215,11 @@ function moduleNineDynamic() {
 
 function viewModuleNine(user, program) {
   moduleNineLoad(user);
+  const module = program.modules['soc-09'];
+  const moduleLab = LABS.find((item) => item.key === MODULE_NINE_CATALOG_LAB_KEY);
   return `<div class="m09-shell"><header class="m09-topbar"><a class="m09-brand" href="#/program/${esc(program.slug)}" aria-label="Back to SOC Analyst program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div class="m09-top-actions"><span class="m09-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Semi-independent simulation · fictional data</span><a class="m09-exit" href="#/program/${esc(program.slug)}"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header><main class="m09-main">
-    <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · Week 5 · operations &amp; response</p><h1 id="m09-title">Incident Response</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p><a class="m09-primary" href="#m09-field-guide"><i class="ri-book-open-line" aria-hidden="true"></i> Review the response guide</a></div><dl aria-label="Saved lab progress"><div><dt>Evidence sources</dt><dd>3</dd></div><div><dt>Target time</dt><dd>60 min</dd></div><div><dt>Lab status</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
-    <section class="m09-objective" aria-labelledby="m09-objective-title"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m09-kicker">Measurable objective</p><h2 id="m09-objective-title">Correlate six incident records across three sources, bound the confirmed endpoint and identity scope, and produce a proportional containment, eradication, recovery, and escalation handoff scoring at least 80/100.</h2></div></section>
+    <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · ${formatInstructionalMinutes(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p><a class="m09-primary" href="#m09-field-guide"><i class="ri-book-open-line" aria-hidden="true"></i> Review the response guide</a></div><dl aria-label="Saved lab progress"><div><dt>Evidence sources</dt><dd>3</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(moduleLab.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+    <section class="m09-objective" aria-labelledby="m09-objective-title"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m09-kicker">Measurable objective</p><h2 id="m09-objective-title">Correlate six incident records across three sources, bound the confirmed endpoint and identity scope, and produce a proportional containment, eradication, recovery, and escalation handoff scoring at least ${MODULE_NINE_PASSING_SCORE}/100.</h2></div></section>
     <section class="m09-section" id="m09-field-guide" aria-labelledby="m09-guide-title"><div class="m09-section-heading"><span>1</span><div><p class="m09-kicker">Response guide</p><h2 id="m09-guide-title">Act on evidence, not urgency alone</h2></div></div>${moduleNineConcepts()}</section>
     <section class="m09-section m09-lab-section" aria-labelledby="m09-lab-title"><div class="m09-section-heading"><span>2</span><div><p class="m09-kicker">Miniature response desk · no full range navigation</p><h2 id="m09-lab-title">Active incident IR-09-44</h2></div></div><div class="m09-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: Tier 1 incident responder</strong><p>Investigate the three sources in any order. You may initiate playbook-approved containment and recommend later phases; the incident lead and system owners retain execution authority.</p></div></div><div id="m09-lab-dynamic">${moduleNineDynamic()}</div></section>
   </main></div>`;
@@ -403,7 +405,15 @@ function wireModuleNineLab() {
     moduleNineState.feedback = result.feedback;
     moduleNineState.validationError = '';
     moduleNineState.lastSubmittedAt = new Date().toISOString();
-    if (result.score >= MODULE_NINE_PASSING_SCORE) {
+    const passed = result.score >= MODULE_NINE_PASSING_SCORE;
+    if (typeof recordLabAttempt === 'function') {
+      recordLabAttempt(moduleNineUser, MODULE_NINE_CATALOG_LAB_KEY, {
+        state: passed ? 'complete' : 'in_progress',
+        score: result.score,
+        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleNineState.attempts },
+      });
+    }
+    if (passed) {
       moduleNineState.completed = true;
       if (!moduleNineState.flags.includes(MODULE_NINE_FLAG)) moduleNineState.flags.push(MODULE_NINE_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleNineUser, 'soc-analyst', 'soc-09', MODULE_NINE_CATALOG_LAB_KEY);

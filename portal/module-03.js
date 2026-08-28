@@ -5,6 +5,7 @@
 const MODULE_THREE_LAB_ID = 'm03-siem-signal-room-v1';
 const MODULE_THREE_FLAG = 'M03-SIEM-CORRELATION-COMPLETE';
 const MODULE_THREE_CATALOG_LAB_KEY = 'lab-siem-triage';
+const MODULE_THREE_PASSING_SCORE = 70;
 
 const MODULE_THREE_ALERTS = [
   {
@@ -266,10 +267,10 @@ function moduleThreeScorePanel() {
     return `<div class="m03-validation" id="m03-score-feedback" role="alert" tabindex="-1"><i class="ri-information-line" aria-hidden="true"></i><div><strong>Complete the investigation record</strong><p>${esc(moduleThreeState.validationError)}</p></div></div>`;
   }
   if (!moduleThreeState.attempts || !moduleThreeState.breakdown) {
-    return `<div class="m03-score-empty" id="m03-score-feedback" role="status">Your submission is scored on observation (30), analysis (25), decision (25), and communication (20). Passing score: 80.</div>`;
+    return `<div class="m03-score-empty" id="m03-score-feedback" role="status">Your submission is scored on observation (30), analysis (25), decision (25), and communication (20). Passing score: ${MODULE_THREE_PASSING_SCORE}.</div>`;
   }
   const b = moduleThreeState.breakdown;
-  const passed = moduleThreeState.score >= 80;
+  const passed = moduleThreeState.score >= MODULE_THREE_PASSING_SCORE;
   return `<section class="m03-score ${passed ? 'is-pass' : 'is-remediate'}" id="m03-score-feedback" tabindex="-1" aria-live="polite" aria-labelledby="m03-score-title">
     <div class="m03-score-heading"><div><p class="m03-kicker">Attempt ${moduleThreeState.attempts} · best ${moduleThreeState.bestScore}/100</p><h3 id="m03-score-title">${moduleThreeState.score}/100 — ${passed ? 'SIEM correlation complete' : 'Review, refine, and retry'}</h3></div><span>${moduleThreeState.score}</span></div>
     <div class="m03-score-grid" aria-label="Explainable score breakdown">
@@ -332,6 +333,8 @@ function moduleThreeLabDynamic() {
 function viewModuleThree(user, program) {
   moduleThreeLoad(user);
   const complete = moduleThreeState.completed === true;
+  const module = program.modules['soc-03'];
+  const moduleLab = LABS.find((item) => item.key === MODULE_THREE_CATALOG_LAB_KEY);
   return `<div class="m03-shell">
     <header class="m03-topbar">
       <a href="#/program/${esc(program.slug)}" class="m03-brand" aria-label="Back to SOC Analyst program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a>
@@ -339,13 +342,13 @@ function viewModuleThree(user, program) {
     </header>
     <main class="m03-main">
       <section class="m03-hero" aria-labelledby="m03-title">
-        <div><p class="m03-kicker">Module 03 · Core systems · assisted investigation</p><h1 id="m03-title">SIEM &amp; Log Analysis</h1><p>Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p><a href="#m03-lab" class="m03-hero-action"><i class="ri-terminal-box-line" aria-hidden="true"></i> Enter the signal room</a></div>
+        <div><p class="m03-kicker">Module 03 · ${formatInstructionalMinutes(module.durationMinutes)} · assisted investigation</p><h1 id="m03-title">${esc(module.title)}</h1><p>Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p><a href="#m03-lab" class="m03-hero-action"><i class="ri-terminal-box-line" aria-hidden="true"></i> Enter the signal room</a></div>
         <dl class="m03-status" aria-label="Saved lab status"><div><dt>Primary objective</dt><dd>Correlate one alert</dd></div><div><dt>Dataset</dt><dd>10 events · 4 sources</dd></div><div><dt>Status</dt><dd id="m03-status">${complete ? 'Complete' : moduleThreeState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
       </section>
-      <section class="m03-objective" aria-labelledby="m03-objective-title"><i class="ri-focus-2-line" aria-hidden="true"></i><div><p class="m03-kicker">One measurable objective</p><h2 id="m03-objective-title">Correlate a suspicious alert into an accurate timeline and justify a proportionate triage decision with at least 80/100.</h2></div></section>
+      <section class="m03-objective" aria-labelledby="m03-objective-title"><i class="ri-focus-2-line" aria-hidden="true"></i><div><p class="m03-kicker">One measurable objective</p><h2 id="m03-objective-title">Correlate a suspicious alert into an accurate timeline and justify a proportionate triage decision with at least ${MODULE_THREE_PASSING_SCORE}/100.</h2></div></section>
       <section class="m03-section" aria-labelledby="m03-guide-title"><div class="m03-section-heading"><span>01</span><div><p class="m03-kicker">Analyst field guide</p><h2 id="m03-guide-title">Read logs as linked observations</h2></div></div>${moduleThreeFieldGuide()}</section>
       <section class="m03-section m03-lab-section" id="m03-lab" aria-labelledby="m03-lab-title">
-        <div class="m03-section-heading"><span>02</span><div><p class="m03-kicker">45-minute miniature lab</p><h2 id="m03-lab-title">Signal room: service-account correlation</h2></div></div>
+        <div class="m03-section-heading"><span>02</span><div><p class="m03-kicker">${formatInstructionalMinutes(moduleLab.instructionalMinutes)} instructional lab</p><h2 id="m03-lab-title">Signal room: service-account correlation</h2></div></div>
         <div class="m03-runbook" aria-label="Assisted investigation runbook"><div><span>1</span>Open assigned alert</div><div><span>2</span>Select evidence</div><div><span>3</span>Run the query</div><div><span>4</span>Build timeline</div><div><span>5</span>Write handoff</div></div>
         <div class="m03-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This surface contains one fictional case and the records needed to assess it. It does not expose another module, an enterprise environment, or a future incident storyline.</p></div>
         <div id="m03-lab-dynamic">${moduleThreeLabDynamic()}</div>
@@ -530,7 +533,15 @@ function wireModuleThreeLab() {
     moduleThreeState.feedback = result.feedback;
     moduleThreeState.validationError = '';
     moduleThreeState.lastSubmittedAt = new Date().toISOString();
-    if (result.score >= 80) {
+    const passed = result.score >= MODULE_THREE_PASSING_SCORE;
+    if (typeof recordLabAttempt === 'function') {
+      recordLabAttempt(moduleThreeUser, MODULE_THREE_CATALOG_LAB_KEY, {
+        state: passed ? 'complete' : 'in_progress',
+        score: result.score,
+        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleThreeState.attempts },
+      });
+    }
+    if (passed) {
       moduleThreeState.completed = true;
       if (!moduleThreeState.flags.includes(MODULE_THREE_FLAG)) moduleThreeState.flags.push(MODULE_THREE_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleThreeUser, 'soc-analyst', 'soc-03', MODULE_THREE_CATALOG_LAB_KEY);

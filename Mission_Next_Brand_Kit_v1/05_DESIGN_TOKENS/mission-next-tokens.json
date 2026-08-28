@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "brand": "Mission Next Technical Academy",
+    "version": "1.0",
+    "date": "2026-08-22"
+  },
+  "color": {
+    "mission_blue": "#1F4E79",
+    "mission_blue_dark": "#123754",
+    "signal_orange": "#F26A2E",
+    "electric_blue": "#2F80ED",
+    "cyber_teal": "#00A6A6",
+    "steel": "#3A3F45",
+    "slate": "#E6EDF3",
+    "mist": "#F5F8FB",
+    "white": "#FFFFFF",
+    "ink": "#15212B",
+    "muted": "#5E6B76",
+    "black": "#111111"
+  },
+  "typography": {
+    "heading": {
+      "family": "Roboto",
+      "weight": 700
+    },
+    "body": {
+      "family": "Open Sans",
+      "weight": 400
+    },
+    "technical": {
+      "family": "JetBrains Mono",
+      "weight": 400
+    },
+    "scale": {
+      "h1": "48-68px responsive",
+      "h2": "32-48px responsive",
+      "h3": "24px",
+      "body": "16px / 1.65",
+      "small": "13-14px"
+    }
+  },
+  "spacing_px": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48,
+    64,
+    96
+  ],
+  "radius_px": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "pill": 999
+  },
+  "shadow": {
+    "card": "0 18px 50px rgba(18,55,84,.12)"
+  },
+  "program_accents": {
+    "Mission Next: IT Help Desk & Career Accelerator": "#2F80ED",
+    "Mission Next: Security Operation Center (SOC) Analyst": "#00A6A6",
+    "Mission Next: Foundations of AI & Machine Learning": "#00A6A6"
+  }
+}

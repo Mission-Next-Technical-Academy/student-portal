@@ -5,7 +5,7 @@
 const MODULE_FIVE_LAB_ID = 'm05-endpoint-chain-v1';
 const MODULE_FIVE_FLAG = 'M05-ENDPOINT-CHAIN-VALIDATED';
 const MODULE_FIVE_CATALOG_LAB_KEY = 'lab-endpoint-investigation';
-const MODULE_FIVE_PASSING_SCORE = 75;
+const MODULE_FIVE_PASSING_SCORE = 70;
 
 const MODULE_FIVE_DEFAULT_STATE = {
   activeSource: 'processes',
@@ -214,14 +214,16 @@ function moduleFiveDynamic() {
 
 function viewModuleFive(user, program) {
   moduleFiveLoad(user);
+  const module = program.modules['soc-05'];
+  const moduleLab = LABS.find((item) => item.key === MODULE_FIVE_CATALOG_LAB_KEY);
   return `<div class="m05-shell">
     <header class="m05-topbar"><a class="m05-brand" href="#/program/${esc(program.slug)}" aria-label="Back to SOC Analyst program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div><span class="m05-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Assisted simulation · fictional data</span><a class="m05-exit" href="#/program/${esc(program.slug)}"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header>
     <main class="m05-main">
-      <section class="m05-hero" aria-labelledby="m05-title"><div><p class="m05-kicker">Module 05 · Week 3 · assisted investigation</p><h1 id="m05-title">Endpoint &amp; Malware Investigation</h1><p>Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab.</p><a href="#m05-field-guide" class="m05-primary"><i class="ri-book-open-line" aria-hidden="true"></i> Review the field guide</a></div><dl><div><dt>Lessons</dt><dd>10</dd></div><div><dt>Evidence sources</dt><dd>2</dd></div><div><dt>Lab status</dt><dd id="m05-status">${moduleFiveState.completed ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m05-hero" aria-labelledby="m05-title"><div><p class="m05-kicker">Module 05 · ${formatInstructionalMinutes(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p>Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p><a href="#m05-field-guide" class="m05-primary"><i class="ri-book-open-line" aria-hidden="true"></i> Review the field guide</a></div><dl><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Evidence sources</dt><dd>2</dd></div><div><dt>Lab status</dt><dd id="m05-status">${moduleFiveState.completed ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
       <section class="m05-objective" aria-labelledby="m05-objective-title"><i class="ri-focus-3-line" aria-hidden="true"></i><div><p class="m05-kicker">Measurable objective</p><h2 id="m05-objective-title">Produce an evidence-backed endpoint verdict and containment handoff.</h2><p>Success means selecting relevant observations, identifying the execution chain and file verdict, limiting the conclusion to the proven scope, and communicating the next action.</p></div></section>
       <section class="m05-section" id="m05-field-guide" aria-labelledby="m05-field-guide-title"><div class="m05-section-heading"><span>1</span><div><p class="m05-kicker">Endpoint investigation field guide</p><h2 id="m05-field-guide-title">Ten ideas to use in the lab</h2></div></div><p class="m05-section-intro">Open any lesson when you need it. The lab is assisted: the path is visible, but you decide which evidence source to review first.</p>${moduleFiveLessonGrid()}</section>
       <section class="m05-section" aria-labelledby="m05-path-title"><div class="m05-section-heading"><span>2</span><div><p class="m05-kicker">Signposted path · flexible source order</p><h2 id="m05-path-title">Your investigation route</h2></div></div><ol class="m05-route"><li><span>1</span><div><strong>Orient</strong><p>Read the alert and endpoint facts.</p></div></li><li><span>2</span><div><strong>Inspect</strong><p>Use both sources in either order.</p></div></li><li><span>3</span><div><strong>Select</strong><p>Add decisive records to findings.</p></div></li><li><span>4</span><div><strong>Conclude</strong><p>Submit the scored handoff.</p></div></li></ol><div class="m05-boundary"><i class="ri-shield-keyhole-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This miniature case contains only WS-LAB-27. Simulated isolation is a recommendation in the scored record; no real endpoint action occurs.</p></div></section>
-      <section class="m05-section m05-lab" id="m05-lab" aria-labelledby="m05-lab-title"><div class="m05-section-heading"><span>3</span><div><p class="m05-kicker">Infected workstation investigation · about 50 minutes</p><h2 id="m05-lab-title">Investigate one endpoint</h2></div></div><div id="m05-dynamic">${moduleFiveDynamic()}</div></section>
+      <section class="m05-section m05-lab" id="m05-lab" aria-labelledby="m05-lab-title"><div class="m05-section-heading"><span>3</span><div><p class="m05-kicker">Infected workstation investigation · ${formatInstructionalMinutes(moduleLab.instructionalMinutes)} instructional time</p><h2 id="m05-lab-title">Investigate one endpoint</h2></div></div><div id="m05-dynamic">${moduleFiveDynamic()}</div></section>
     </main>
   </div>`;
 }
@@ -383,7 +385,15 @@ function wireModuleFiveLab() {
     moduleFiveState.feedback = result.feedback;
     moduleFiveState.validationError = '';
     moduleFiveState.lastSubmittedAt = new Date().toISOString();
-    if (result.score >= MODULE_FIVE_PASSING_SCORE) {
+    const passed = result.score >= MODULE_FIVE_PASSING_SCORE;
+    if (typeof recordLabAttempt === 'function') {
+      recordLabAttempt(moduleFiveUser, MODULE_FIVE_CATALOG_LAB_KEY, {
+        state: passed ? 'complete' : 'in_progress',
+        score: result.score,
+        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleFiveState.attempts },
+      });
+    }
+    if (passed) {
       moduleFiveState.completed = true;
       if (!moduleFiveState.flags.includes(MODULE_FIVE_FLAG)) moduleFiveState.flags.push(MODULE_FIVE_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFiveUser, 'soc-analyst', 'soc-05', MODULE_FIVE_CATALOG_LAB_KEY);

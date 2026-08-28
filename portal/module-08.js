@@ -8,7 +8,9 @@ const MODULE_EIGHT_PRIORITY_FLAG = 'M08-EXPOSURE-PRIORITIZED';
 const MODULE_EIGHT_QUEUE_FLAG = 'M08-QUEUE-DISPOSITIONED';
 const MODULE_EIGHT_PRIORITY_CATALOG_KEY = 'lab-vuln-prioritization';
 const MODULE_EIGHT_QUEUE_CATALOG_KEY = 'lab-vuln-queue';
-const MODULE_EIGHT_PASSING_SCORE = 80;
+const MODULE_EIGHT_PASSING_SCORE = 70;
+const MODULE_EIGHT_PRIORITY_MINUTES = LABS.find((item) => item.key === MODULE_EIGHT_PRIORITY_CATALOG_KEY).instructionalMinutes;
+const MODULE_EIGHT_QUEUE_MINUTES = LABS.find((item) => item.key === MODULE_EIGHT_QUEUE_CATALOG_KEY).instructionalMinutes;
 
 const MODULE_EIGHT_FINDINGS = [
   {
@@ -212,8 +214,8 @@ function moduleEightRadioOptions(name, selected, options) {
 function moduleEightPriorityLab() {
   const active = MODULE_EIGHT_FINDINGS.find((finding) => finding.id === moduleEightPriorityState.activeFinding);
   return `<section class="m08-lab-card" aria-labelledby="m08-priority-title">
-    <div class="m08-lab-heading"><div><p class="m08-kicker">Lab 1 · semi-independent · 50 minutes</p><h2 id="m08-priority-title">Exposure-driven remediation priority</h2></div><span class="m08-lab-status">${moduleEightStatus(moduleEightPriorityState)}</span></div>
-    <div class="m08-objective"><i class="ri-focus-3-line" aria-hidden="true"></i><div><strong>Measurable objective</strong><p>Prioritize one finding from six assigned assets and defend the first remediation using validated exploitability, exposure, business criticality, and control strength with at least 80/100.</p></div></div>
+    <div class="m08-lab-heading"><div><p class="m08-kicker">Lab 1 · semi-independent · ${formatInstructionalMinutes(MODULE_EIGHT_PRIORITY_MINUTES)}</p><h2 id="m08-priority-title">Exposure-driven remediation priority</h2></div><span class="m08-lab-status">${moduleEightStatus(moduleEightPriorityState)}</span></div>
+    <div class="m08-objective"><i class="ri-focus-3-line" aria-hidden="true"></i><div><strong>Measurable objective</strong><p>Prioritize one finding from six assigned assets and defend the first remediation using validated exploitability, exposure, business criticality, and control strength with at least ${MODULE_EIGHT_PASSING_SCORE}/100.</p></div></div>
     <div class="m08-scope-note"><i class="ri-shield-keyhole-line" aria-hidden="true"></i><p><strong>Bounded assignment:</strong> this is a six-asset portfolio prepared for the exercise. There is no enterprise inventory, hidden tenant, or route into a wider console.</p></div>
     <div class="m08-workbench" aria-labelledby="m08-workbench-title"><div class="m08-panel-heading"><div><p class="m08-kicker">Observation workspace</p><h3 id="m08-workbench-title">Validate before you rank</h3></div><span>${moduleEightPriorityState.reviewedFindings.length}/6 inspected</span></div>
       <div class="m08-toolbar" aria-label="Finding filters and sort"><div role="group" aria-label="Filter findings">${[
@@ -264,8 +266,8 @@ function moduleEightQueueLab() {
     ['fix-now', 'Fix now'], ['schedule', 'Schedule remediation'], ['compensating-control', 'Apply / verify compensating control'],
     ['accept-risk', 'Accept risk'], ['escalate', 'Escalate for more investigation'], ['false-positive', 'Close validated false positive'],
   ];
-  return `<section class="m08-lab-card" aria-labelledby="m08-queue-title"><div class="m08-lab-heading"><div><p class="m08-kicker">Lab 2 · semi-independent · 45 minutes</p><h2 id="m08-queue-title">Vulnerability analyst decision queue</h2></div><span class="m08-lab-status">${moduleEightStatus(moduleEightQueueState)}</span></div>
-    <div class="m08-objective"><i class="ri-list-check-3" aria-hidden="true"></i><div><strong>Measurable objective</strong><p>Validate four assigned findings, give each an evidence-supported disposition, and produce an owned, time-bound, verifiable handoff with at least 80/100.</p></div></div>
+  return `<section class="m08-lab-card" aria-labelledby="m08-queue-title"><div class="m08-lab-heading"><div><p class="m08-kicker">Lab 2 · semi-independent · ${formatInstructionalMinutes(MODULE_EIGHT_QUEUE_MINUTES)}</p><h2 id="m08-queue-title">SOC finding decision queue</h2></div><span class="m08-lab-status">${moduleEightStatus(moduleEightQueueState)}</span></div>
+    <div class="m08-objective"><i class="ri-list-check-3" aria-hidden="true"></i><div><strong>Measurable objective</strong><p>Validate four assigned findings, give each an evidence-supported disposition, and produce an owned, time-bound, verifiable handoff with at least ${MODULE_EIGHT_PASSING_SCORE}/100.</p></div></div>
     <div class="m08-queue" aria-label="Four synthetic vulnerability queue items">${MODULE_EIGHT_QUEUE.map((item) => {
       const reviewed = moduleEightQueueState.reviewedItems.includes(item.id);
       return `<article class="${reviewed ? 'is-reviewed' : ''}"><div class="m08-queue-id"><span>${esc(item.id)}</span><code>${esc(item.cve)}</code></div><div><h3>${esc(item.asset)}</h3><p>${esc(item.summary)}</p></div><button type="button" class="m08-inspect" data-m08-queue-item="${esc(item.id)}"><i class="${reviewed ? 'ri-checkbox-circle-fill' : 'ri-search-eye-line'}" aria-hidden="true"></i>${reviewed ? 'Reviewed' : 'Inspect'}</button><label>Disposition<select name="queueDecision" data-m08-decision="${esc(item.id)}"><option value="">Choose…</option>${dispositions.map((option) => `<option value="${option[0]}" ${moduleEightQueueState.decisions[item.id] === option[0] ? 'selected' : ''}>${option[1]}</option>`).join('')}</select></label></article>`;
@@ -297,10 +299,11 @@ function moduleEightDynamic() {
 function viewModuleEight(user, program) {
   moduleEightLoad(user);
   const completeCount = Number(moduleEightPriorityState.completed) + Number(moduleEightQueueState.completed);
+  const module = program.modules['soc-08'];
   return `<div class="m08-shell"><header class="m08-topbar"><a href="#/program/${esc(program.slug)}" class="m08-brand" aria-label="Back to SOC Analyst program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div class="m08-top-actions"><span class="m08-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Semi-independent · fictional data</span><a href="#/program/${esc(program.slug)}" class="m08-exit"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header>
-    <main class="m08-main"><section class="m08-hero" aria-labelledby="m08-title"><div><p class="m08-kicker">Module 08 · Week 4 · analysis &amp; specialization</p><h1 id="m08-title">Vulnerability Management &amp; Exposure Analysis</h1><p class="m08-lede">Move beyond severity-only ranking: validate affected versions, weigh exploitability and reachability, account for business impact and controls, and turn findings into owned remediation work.</p><a class="m08-hero-action" href="#m08-field-guide"><i class="ri-compass-3-line" aria-hidden="true"></i> Review the exposure model</a></div><dl class="m08-progress" aria-label="Saved Module 08 progress"><div><dt>Scoped assets</dt><dd>10 total</dd></div><div><dt>Practical labs</dt><dd>${completeCount}/2 passed</dd></div><div><dt>Module status</dt><dd id="m08-status">${completeCount === 2 ? 'Complete' : completeCount || moduleEightPriorityState.attempts || moduleEightQueueState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+    <main class="m08-main"><section class="m08-hero" aria-labelledby="m08-title"><div><p class="m08-kicker">Module 08 · ${formatInstructionalMinutes(module.durationMinutes)} · SOC prioritization</p><h1 id="m08-title">${esc(module.title)}</h1><p class="m08-lede">Validate assigned findings, weigh exploitability, reachability, business impact, and controls, then prioritize and escalate them through the SOC workflow. Enterprise scanning governance, remediation-program ownership, and risk acceptance remain outside this module.</p><a class="m08-hero-action" href="#m08-field-guide"><i class="ri-compass-3-line" aria-hidden="true"></i> Review the prioritization model</a></div><dl class="m08-progress" aria-label="Saved Module 08 progress"><div><dt>Scoped assets</dt><dd>10 total</dd></div><div><dt>Practical labs</dt><dd>${completeCount}/${module.labs} passed</dd></div><div><dt>Module status</dt><dd id="m08-status">${completeCount === module.labs ? 'Complete' : completeCount || moduleEightPriorityState.attempts || moduleEightQueueState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
       <section class="m08-section" id="m08-field-guide" aria-labelledby="m08-guide-title"><div class="m08-section-heading"><span>1</span><div><p class="m08-kicker">Six-part field guide</p><h2 id="m08-guide-title">Treat vulnerability data as a decision input</h2></div></div><p class="m08-intro">The base score describes technical severity under standard assumptions. Your priority must also explain whether this instance is actually affected, reachable, exploitable, important, and protected.</p>${moduleEightConcepts()}</section>
-      <section class="m08-section m08-practice" aria-labelledby="m08-practice-title"><div class="m08-section-heading"><span>2</span><div><p class="m08-kicker">Two isolated miniature labs</p><h2 id="m08-practice-title">Prioritize, disposition, and communicate</h2></div></div><div class="m08-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: vulnerability management analyst</strong><p>Work only the assigned records below. Inspect context in any order, use hints if needed, and make defensible decisions. You cannot browse other business units or a complete enterprise topology.</p></div></div><div id="m08-dynamic">${moduleEightDynamic()}</div></section>
+      <section class="m08-section m08-practice" aria-labelledby="m08-practice-title"><div class="m08-section-heading"><span>2</span><div><p class="m08-kicker">${module.labs} isolated labs · ${formatInstructionalMinutes(MODULE_EIGHT_PRIORITY_MINUTES + MODULE_EIGHT_QUEUE_MINUTES)} instructional time</p><h2 id="m08-practice-title">Prioritize, disposition, and communicate</h2></div></div><div class="m08-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst reviewing assigned findings</strong><p>Work only the records below, validate their context, rank what needs attention, and escalate an owned next step. You do not administer an enterprise vulnerability program, approve risk acceptance, or control other business units.</p></div></div><div id="m08-dynamic">${moduleEightDynamic()}</div></section>
     </main></div>`;
 }
 
@@ -512,7 +515,15 @@ function wireModuleEightLab() {
       moduleEightPriorityState.feedback = result.feedback;
       moduleEightPriorityState.validationError = '';
       moduleEightPriorityState.lastSubmittedAt = new Date().toISOString();
-      if (result.score >= MODULE_EIGHT_PASSING_SCORE) {
+      const priorityPassed = result.score >= MODULE_EIGHT_PASSING_SCORE;
+      if (typeof recordLabAttempt === 'function') {
+        recordLabAttempt(moduleEightUser, MODULE_EIGHT_PRIORITY_CATALOG_KEY, {
+          state: priorityPassed ? 'complete' : 'in_progress',
+          score: result.score,
+          result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleEightPriorityState.attempts },
+        });
+      }
+      if (priorityPassed) {
         moduleEightPriorityState.completed = true;
         if (!moduleEightPriorityState.flags.includes(MODULE_EIGHT_PRIORITY_FLAG)) moduleEightPriorityState.flags.push(MODULE_EIGHT_PRIORITY_FLAG);
         if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleEightUser, 'soc-analyst', 'soc-08', MODULE_EIGHT_PRIORITY_CATALOG_KEY);
@@ -545,7 +556,15 @@ function wireModuleEightLab() {
       moduleEightQueueState.feedback = result.feedback;
       moduleEightQueueState.validationError = '';
       moduleEightQueueState.lastSubmittedAt = new Date().toISOString();
-      if (result.score >= MODULE_EIGHT_PASSING_SCORE) {
+      const queuePassed = result.score >= MODULE_EIGHT_PASSING_SCORE;
+      if (typeof recordLabAttempt === 'function') {
+        recordLabAttempt(moduleEightUser, MODULE_EIGHT_QUEUE_CATALOG_KEY, {
+          state: queuePassed ? 'complete' : 'in_progress',
+          score: result.score,
+          result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleEightQueueState.attempts },
+        });
+      }
+      if (queuePassed) {
         moduleEightQueueState.completed = true;
         if (!moduleEightQueueState.flags.includes(MODULE_EIGHT_QUEUE_FLAG)) moduleEightQueueState.flags.push(MODULE_EIGHT_QUEUE_FLAG);
         if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleEightUser, 'soc-analyst', 'soc-08', MODULE_EIGHT_QUEUE_CATALOG_KEY);

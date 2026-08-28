@@ -5,7 +5,7 @@
 const MODULE_FOUR_LAB_ID = 'm04-detection-enrichment-v1';
 const MODULE_FOUR_FLAG = 'M04-DETECTION-ENGINEERED';
 const MODULE_FOUR_CATALOG_LAB_KEY = 'lab-detection-rule';
-const MODULE_FOUR_PASSING_SCORE = 80;
+const MODULE_FOUR_PASSING_SCORE = 70;
 
 const MODULE_FOUR_AUTH_EVENTS = [
   { id: 'AE-401', time: '09:01', outcome: 'Success', account: 'acct-06', ip: '10.44.3.18', device: 'Managed', region: 'East office', detail: 'Normal interactive sign-in from the account’s assigned workstation.' },
@@ -279,7 +279,7 @@ function moduleFourArtifact() {
     { id: 'disable-rule', label: 'Disable password-failure detection entirely', help: 'One tuning defect does not justify losing coverage.' },
   ];
   return `<section class="m04-artifact" aria-labelledby="m04-artifact-title">
-    <div class="m04-panel-heading"><div>${moduleFourKicker('Scored artifact · retry allowed')}<h3 id="m04-artifact-title">Complete the detection package</h3></div><span>No timer · 80/100 to pass</span></div>
+    <div class="m04-panel-heading"><div>${moduleFourKicker('Scored artifact · retry allowed')}<h3 id="m04-artifact-title">Complete the detection package</h3></div><span>No timer · ${MODULE_FOUR_PASSING_SCORE}/100 to pass</span></div>
     <form id="m04-assessment" novalidate>
       <fieldset class="m04-fieldset"><legend><span>1</span> Interpret the attached intelligence</legend>${moduleFourOptionList('intelAssessment', assessmentOptions)}</fieldset>
       <fieldset class="m04-fieldset"><legend><span>2A</span> Set the alert priority</legend>${moduleFourOptionList('priority', priorityOptions)}</fieldset>
@@ -308,6 +308,8 @@ function moduleFourLabDynamic() {
 
 function viewModuleFour(user, program) {
   moduleFourLoad(user);
+  const module = program.modules['soc-04'];
+  const moduleLab = LABS.find((item) => item.key === MODULE_FOUR_CATALOG_LAB_KEY);
   return `<div class="m04-shell">
     <header class="m04-topbar">
       <a href="#/program/${esc(program.slug)}" class="m04-brand" aria-label="Back to SOC Analyst program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a>
@@ -315,10 +317,10 @@ function viewModuleFour(user, program) {
     </header>
     <main class="m04-main">
       <section class="m04-hero" aria-labelledby="m04-title">
-        <div>${moduleFourKicker('Module 04 · Core systems · assisted workflow')}<h1 id="m04-title">Detection Engineering, Threat Intelligence &amp; Automation</h1><p>Tune a noisy authentication rule, add relevant intelligence, and choose automation that moves the alert forward without outrunning the evidence.</p><a href="#m04-lab" class="m04-hero-action"><i class="ri-equalizer-2-line" aria-hidden="true"></i> Open the detection studio</a></div>
+        <div>${moduleFourKicker(`Module 04 · ${formatInstructionalMinutes(module.durationMinutes)} · assisted workflow`)}<h1 id="m04-title">${esc(module.title)}</h1><p>Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p><a href="#m04-lab" class="m04-hero-action"><i class="ri-equalizer-2-line" aria-hidden="true"></i> Open the detection studio</a></div>
         <dl class="m04-status" aria-label="Saved lab status"><div><dt>Objective</dt><dd>Tune one rule</dd></div><div><dt>Sources</dt><dd>Authentication + intel</dd></div><div><dt>Status</dt><dd id="m04-status">${moduleFourState.completed ? 'Complete' : moduleFourState.attempts || moduleFourState.ruleRuns ? 'In progress' : 'Not started'}</dd></div></dl>
       </section>
-      <section class="m04-objective" aria-labelledby="m04-objective-title"><i class="ri-focus-2-line" aria-hidden="true"></i><div>${moduleFourKicker('One measurable objective')}<h2 id="m04-objective-title">Tune a detection to catch one distributed password spray while excluding one benign retry pattern, then justify enrichment and bounded automation with at least 80/100.</h2></div></section>
+      <section class="m04-objective" aria-labelledby="m04-objective-title"><i class="ri-focus-2-line" aria-hidden="true"></i><div>${moduleFourKicker('One measurable objective')}<h2 id="m04-objective-title">Tune a detection to catch one distributed password spray while excluding one benign retry pattern, then justify enrichment and bounded automation with at least ${MODULE_FOUR_PASSING_SCORE}/100.</h2></div></section>
       <section class="m04-section" aria-labelledby="m04-guide-title">
         <div class="m04-section-heading"><span>01</span><div>${moduleFourKicker('Detection field guide')}<h2 id="m04-guide-title">Balance coverage, fidelity, and action</h2></div></div>
         <div class="m04-guide-grid">
@@ -328,7 +330,7 @@ function viewModuleFour(user, program) {
         </div>
       </section>
       <section class="m04-section m04-lab-section" id="m04-lab" aria-labelledby="m04-lab-title">
-        <div class="m04-section-heading"><span>02</span><div>${moduleFourKicker('45-minute miniature lab')}<h2 id="m04-lab-title">Detection studio: distributed sign-in failures</h2></div></div>
+        <div class="m04-section-heading"><span>02</span><div>${moduleFourKicker(`${formatInstructionalMinutes(moduleLab.instructionalMinutes)} instructional lab`)}<h2 id="m04-lab-title">Detection studio: distributed sign-in failures</h2></div></div>
         <div class="m04-signposts" aria-label="Assisted lab signposts"><div><span>A</span>Inspect either source first</div><div><span>B</span>Test and enrich</div><div><span>C</span>Choose bounded action</div><div><span>D</span>Explain the package</div></div>
         <div class="m04-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This isolated surface contains one fictional rule, one authentication slice, and one intelligence snapshot. No other course environment or future-module evidence is reachable here.</p></div>
         <div id="m04-lab-dynamic">${moduleFourLabDynamic()}</div>
@@ -538,7 +540,15 @@ function wireModuleFourLab() {
     moduleFourState.feedback = result.feedback;
     moduleFourState.validationError = '';
     moduleFourState.lastSubmittedAt = new Date().toISOString();
-    if (result.score >= MODULE_FOUR_PASSING_SCORE) {
+    const passed = result.score >= MODULE_FOUR_PASSING_SCORE;
+    if (typeof recordLabAttempt === 'function') {
+      recordLabAttempt(moduleFourUser, MODULE_FOUR_CATALOG_LAB_KEY, {
+        state: passed ? 'complete' : 'in_progress',
+        score: result.score,
+        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleFourState.attempts },
+      });
+    }
+    if (passed) {
       moduleFourState.completed = true;
       if (!moduleFourState.flags.includes(MODULE_FOUR_FLAG)) moduleFourState.flags.push(MODULE_FOUR_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFourUser, 'soc-analyst', 'soc-04', MODULE_FOUR_CATALOG_LAB_KEY);

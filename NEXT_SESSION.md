@@ -71,18 +71,99 @@ Full detail is in `HANDOFF.md` (bottom four sections) and
 
 ## Open items, roughly in priority order
 
-1. **Wave 4 module agents (Modules 10, 11, 12)** — not launched. Modules 10 and 11 are independent
-   labs; Module 12 is the only complete integrated range. Read the Wave 3 gate review and the
-   Module 12 exception in `MODULAR_LAB_PROGRAM_PROGRESS.md` before launching.
-2. **Roll the Module 1 pattern outward.** Modules 02-06 still use the reveal-then-decide
+1. **Roll the Module 1 pattern outward.** Modules 02-06 still use the reveal-then-decide
    shape. The pieces that generalize: `require` steps, auto-advance, fill-in-the-blank
    recall, console-before-worksheet ordering.
-3. **A second, unguided Module 1 alert.** Same difficulty, no coach, different story
+2. **A second, unguided Module 1 alert.** Same difficulty, no coach, different story
    (impossible travel or MFA fatigue rather than password spray), scored the same way.
    This is the "did you actually learn it" half of the module and does not exist yet.
-4. **Difficulty note from Wave 1** — Modules 02 and 03 were built before the difficulty
+3. **Difficulty note from Wave 1** — Modules 02 and 03 were built before the difficulty
    gradient reached the briefs and read heavier than the ramp calls for at week 1-2.
    Left as built; revisit if they feel steep in use.
+
+## Auth, backend simplification, and provisioning (as of 2026-08-28, later session)
+
+**`architecture.md` at the repo root is the authoritative, current doc for all of this —
+read that first, it supersedes everything below and the old `SPRINT_PLAN.md` numbering for
+this workstream.** Summary of where things actually stand:
+
+**Sprints 1-4 (the backend-simplification + persistence-wiring wave) are all built and
+code-reviewed, but NOT yet applied anywhere live and NOT yet committed to git:**
+- Sprint 1 — `supabase/migrations/20260828160000_simplify_schema.sql`: drops
+  `profiles`/`enrollments`/`module_entitlements`/`programs`/`modules`/`labs`, rewrites
+  `module_progress`/`lab_attempts`/`capstone_submissions`/`portfolio_artifacts` to key by
+  `module_key`/`lab_key`/`track_code` text instead of uuid FKs, redefines `course_progress`
+  as a live rollup view. Written, reviewed, syntax/dependency-order checked — **never run
+  against local or remote Postgres.**
+- Sprint 2 — `module_progress` writes wired into `portal/app.js` (additive, localStorage
+  behavior unchanged).
+- Sprint 3 — `lab_attempts` writes wired into `portal/app.js` + all 12 `module-*.js` files
+  (the "already-scored" half only — the simulator→portal result contract for modules 2-12
+  was deliberately left unbuilt, still a future sprint).
+- Sprint 4 — `capstone_submissions` writes wired into `portal/module-12.js` (simple version:
+  one upserted row per student at `stage=12`, not a 12-stage UI — this matches a separate
+  concurrent curriculum-planning doc's framing, see below).
+- All four: `node --check` clean on every touched file. **Not tested against a real Supabase
+  session** — no local dev stack was running this session.
+
+**BLOCKED: `supabase db push` was denied by Claude Code's auto-mode classifier** (a live,
+destructive action — this migration drops tables). The CLI is already logged in and linked
+to the live project (`eokvngifirjgfozzbieu`) and `supabase migration list` confirms exactly
+one migration is pending (`20260828160000`) — it's ready to push, it just needs the site
+owner to either run `supabase db push` themselves in their own terminal, or grant a Bash
+permission rule for it. **This is the actual next step, first thing next session** — nothing
+else (frontend smoke test against a real session, git commit, Sprint 5 deploy) can happen
+until this lands.
+
+**Provisioning (Sprint 6) — done, all 81 accounts exist**, run directly by the site owner in
+their own terminal this session (not delegated, per the standing rule on the service-role
+key): `ADMIN 1`, `SOCAN 20`, `HDESK 20`, `AIENG 20`, `ELECT 20`. Roster CSVs sit in
+`bin/.roster-output/` (gitignored, confirmed not at commit risk). Site owner's call: fine to
+leave them there for now rather than urgently vault them — these are rotatable, no-real-PII
+training accounts (random login IDs, no names/emails), low enough stakes that the usual
+"move to vault immediately" urgency doesn't apply here. Still worth moving to a real password
+manager before handing any out to actual students, mainly so the only copy of each password
+isn't a single un-backed-up CSV.
+
+**Important side effect of that provisioning run, fixed this session:**
+`bin/provision-students.js` (pre-fix) wrote every non-ADMIN account into `public.enrollments`
+too (resolving `program_id` via a live `programs` table lookup) — a leftover from the old
+enrollment-based access model. That means `enrollments` now has ~80 real rows, which
+contradicts Sprint 1 migration's own code comment claiming that table is confirmed empty.
+**This is fine to drop anyway** — site owner confirmed: those rows are fully redundant with
+`students.track_code` (every one is `status=active, access_mode=full`, program mechanically
+implied by track_code), and accounts are rotatable across cohorts, so no real data is lost.
+But the script itself would have started hard-failing on every future provisioning run once
+Sprint 1's migration landed (since it queries `programs`, a table being dropped) — **already
+fixed**: `getProgramId()`/`insertEnrollment()` and their call site were removed from
+`bin/provision-students.js` this session. Confirmed `node --check` clean, no other behavior
+changed.
+
+**Concurrent workstream, different session/agent, same repo — not a conflict but worth
+knowing about:** `CURRICULUM_ALIGNMENT_ARCHITECTURE.md` (new this session) governs a
+separate curriculum-content-alignment wave (Codex-driven, its own sprint lettering A-G).
+Sprint A already landed additive `compliance`/`curriculumItems` metadata into
+`portal/data.js`. That plan explicitly locks `soc-01`..`soc-12` module keys, lab keys,
+routes, and runtime IDs as immutable, and explicitly names `architecture.md`'s backend
+simplification as something it does not supersede — so no actual conflict with Sprints 1-4
+above. Its future sprints (C/D) will edit `module-01/04/05/06/08/10/12.js` for label/copy
+changes — those files now also carry this session's `recordLabAttempt`/
+`recordCapstoneSubmission` additions, so whoever runs that workstream's next agent should
+make sure it reads current file state, not a stale pre-session copy.
+
+**Sprint 5 (git commit + push to `master` + live deploy) has not happened.** Nothing from
+this session is committed. This remains a deliberate, site-owner-confirmed action per
+`architecture.md` — do not do this without an explicit go-ahead in the moment it happens,
+separate from any earlier general permission.
+
+**Still-open design questions from `architecture.md`, unchanged:** none blocking right now —
+the `enrollments`/`module_progress` vs `lesson_progress` simplification questions raised
+earlier this session were resolved by the Sprint 1 migration (enrollments dropped,
+`course_progress` redefined as a rollup view). Nothing else currently blocking.
+
+Separately, a stray local `supabase start` Docker stack (14h uptime, crash-looping) was found
+running for this same project earlier this session and was stopped (`supabase stop`) — not
+the cause of any of the above, noted here so it isn't mistaken for still being up.
 
 ## Conventions that matter
 

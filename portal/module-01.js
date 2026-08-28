@@ -72,9 +72,9 @@ function moduleOneLessons(lab) {
 function moduleOneReferences(lab) {
   return `<aside class="m01-references" aria-labelledby="m01-reference-title">
     <div>
-      <p class="m01-kicker">Why this module starts earlier than CySA+</p>
-      <h3 id="m01-reference-title">Official scope, with a beginner bridge</h3>
-      <p>CySA+ V4 starts with analyst-level security operations and recommends prior role experience. This course first teaches the role, vocabulary, and decision loop that the certification scope assumes.</p>
+      <p class="m01-kicker">Role context</p>
+      <h3 id="m01-reference-title">Analyst work, with a beginner bridge</h3>
+      <p>This course starts with the role, vocabulary, and decision loop that a new SOC analyst needs before handling a larger investigation.</p>
     </div>
     <ul>
       ${lab.officialReferences.map((reference) => `<li>
@@ -268,6 +268,7 @@ function moduleOneBlankForm(fact) {
 function moduleOneLabDynamic() {
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const scenario = lab.scenario;
+  const incidentRoute = `${SIM_ORIGIN}#/sentinel/incidents`;
   const reviewed = new Set(moduleOneState.reviewedEvidence);
   const reviewedCount = scenario.evidence.filter((item) => reviewed.has(item.id)).length;
   const investigationReady = reviewedCount === scenario.evidence.length;
@@ -310,21 +311,20 @@ function moduleOneLabDynamic() {
   <section class="m01-siem ${consoleComplete ? 'is-complete' : ''}" aria-labelledby="m01-siem-title">
     <div class="m01-siem-copy">
       <p class="m01-kicker">${consoleComplete ? 'Required walkthrough complete' : 'Required · 10 minutes'}</p>
-      <h3 id="m01-siem-title">Investigate the same case in the guided console</h3>
-      <p>Every fact above came from somewhere. Open the lab console and the Mission Next coach starts you where a
-      real shift starts — the alert queue — then has you open the alert, navigate to the sign-in log yourself, and
-      read the eight failures and the success that followed them. Only the control each step asks for is clickable,
-      and nothing outside those two pages is reachable until you exit. Complete the five coach steps to unlock the
-      triage worksheet.</p>
+      <h3 id="m01-siem-title">Lab 1: investigate the alert in the console</h3>
+      <p>Every fact above came from somewhere. Open the walkthrough and the coach starts you where a real shift
+      starts — the alert queue — then has you open the alert, navigate to the sign-in log yourself, and read the
+      eight failures and the success that followed them. Only the buttons the step allows are clickable, and
+      nothing outside the sandbox is reachable until you exit. Finish Lab 1 and Lab 2 opens here.</p>
     </div>
     <a class="m01-siem-launch" data-m01-console-launch href="${esc(SIM_ORIGIN)}?coach=m01&amp;restart=1#/defender/alerts" target="_blank" rel="opener">
-      <i class="${consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${consoleComplete ? 'Review guided console' : 'Start required walkthrough'}
+      <i class="${consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${consoleComplete ? 'Review Lab 1 walkthrough' : 'Start Lab 1 walkthrough'}
     </a>
   </section>
 
   ${!consoleComplete ? `<section class="m01-worksheet-locked" aria-label="Investigation timeline locked until the guided console is complete">
     <i class="ri-lock-line" aria-hidden="true"></i>
-    <div><strong>Investigation timeline</strong><p>The console walkthrough comes first: you cannot write down what a log said before reading it. Finish the five coach steps and the timeline opens here for you to fill in.</p></div>
+    <div><strong>Investigation timeline</strong><p>Next Step: finish Lab 1 in the walkthrough, then return here. You cannot write down what a log said before reading it.</p></div>
   </section>` : `<section class="m01-evidence" aria-labelledby="m01-evidence-title">
     <div class="m01-panel-heading">
       <div><p class="m01-kicker">Record what the log showed</p><h3 id="m01-evidence-title">Investigation timeline</h3></div>
@@ -372,7 +372,16 @@ function moduleOneLabDynamic() {
   ${!consoleComplete || !investigationReady ? `<section class="m01-worksheet-locked" aria-label="Triage worksheet locked">
     <i class="ri-lock-line" aria-hidden="true"></i>
     <div><strong>Triage worksheet</strong><p>Record every fact correctly first. A wrong answer keeps the current fact open and the remaining timeline and worksheet locked.</p></div>
-  </section>` : `<form id="m01-form" class="m01-worksheet" novalidate>
+  </section>` : `<section class="m01-worksheet-locked" aria-label="Lab 2 unlocked">
+    <i class="ri-shield-check-line" aria-hidden="true"></i>
+    <div>
+      <strong>Lab 2: escalate the incident in Sentinel</strong>
+      <p>Open the incident view, confirm the affected account, and then finish the handoff so the responder can take over identity containment.</p>
+      <a class="m01-siem-launch" href="${esc(incidentRoute)}" target="_blank" rel="opener">
+        <i class="ri-external-link-line" aria-hidden="true"></i> Open SIEM incident view
+      </a>
+    </div>
+  </section><form id="m01-form" class="m01-worksheet" novalidate>
     <div class="m01-panel-heading">
       <div><p class="m01-kicker">Guided decision</p><h3>Complete the five-part triage record</h3></div>
       <span class="m01-evidence-count">No timer · retry allowed</span>
@@ -403,10 +412,11 @@ function moduleOneLabDynamic() {
     </fieldset>
 
     <div class="m01-fieldset">
-      <label for="m01-notes" class="m01-note-label"><span>5</span><strong>Write the case note</strong></label>
-      <p class="m01-help" id="m01-notes-help">Use: what happened + strongest evidence + your decision. You may use the starter, then read it as if you were receiving the handoff.</p>
-      <button type="button" class="m01-note-starter" data-m01-note-starter><i class="ri-magic-line" aria-hidden="true"></i> Insert a plain-language note starter</button>
-      <textarea id="m01-notes" name="notes" rows="5" maxlength="700" aria-describedby="m01-notes-help m01-note-count" placeholder="ALT-1001: Observed… Evidence shows… Recommend…">${esc(moduleOneState.notes)}</textarea>
+      <label for="m01-notes" class="m01-note-label"><span>Lab 2</span><strong>Case handoff note</strong></label>
+      <p class="m01-help" id="m01-notes-help">Open the SIEM incident view first, then write it like a handoff: what happened, the strongest evidence, and your decision.</p>
+      <a class="m01-note-starter" href="${esc(incidentRoute)}" target="_blank" rel="opener"><i class="ri-external-link-line" aria-hidden="true"></i> Open the SIEM incident view</a>
+      <button type="button" class="m01-note-starter" data-m01-note-starter><i class="ri-magic-line" aria-hidden="true"></i> Insert a plain-language handoff starter</button>
+      <textarea id="m01-notes" name="notes" rows="5" maxlength="700" aria-describedby="m01-notes-help m01-note-count" placeholder="Handoff note: I opened the Sentinel incident, confirmed the affected account, and will escalate for identity containment because...">${esc(moduleOneState.notes)}</textarea>
       <p class="m01-note-count" id="m01-note-count"><span>${moduleOneState.notes.length}</span>/700 characters</p>
     </div>
 
@@ -422,6 +432,9 @@ function moduleOneLabDynamic() {
 function viewModuleOne(user, program) {
   moduleOneLoad(user);
   const lab = MODULE_ONE_ALERT_ORIENTATION;
+  const module = program.modules['soc-01'];
+  const moduleLabs = LABS.filter((item) => item.module === module.key);
+  const moduleLabMinutes = moduleLabs.reduce((total, item) => total + item.instructionalMinutes, 0);
 
   return `<div class="m01-shell">
     <header class="m01-topbar">
@@ -437,14 +450,14 @@ function viewModuleOne(user, program) {
     <main class="m01-main">
       <section class="m01-hero" aria-labelledby="m01-title">
         <div>
-          <p class="m01-kicker">Module 01 · Start here · no SOC experience assumed</p>
-          <h1 id="m01-title">What Is a SOC Analyst?</h1>
+          <p class="m01-kicker">Module 01 · ${formatInstructionalMinutes(module.durationMinutes)} · Start here</p>
+          <h1 id="m01-title">${esc(module.title)}</h1>
           <p class="m01-lede">Meet the team that watches for security threats, learn the language of alerts and incidents, follow the incident response lifecycle, and triage one clear alert with a coach beside you.</p>
           <a class="m01-hero-action" href="#m01-foundations"><i class="ri-book-open-line" aria-hidden="true"></i> Begin with the foundations</a>
         </div>
-        <dl class="m01-progress" aria-label="Saved guided-lab progress">
-          <div><dt>Foundation lessons</dt><dd>9</dd></div>
-          <div><dt>Guided lab</dt><dd>${lab.minutes} min</dd></div>
+        <dl class="m01-progress" aria-label="Saved lab progress">
+          <div><dt>Foundation lessons</dt><dd>${module.lessons}</dd></div>
+          <div><dt>Labs</dt><dd>${module.labs}</dd></div>
           <div><dt>Lab status</dt><dd id="m01-status">${moduleOneState.completed && moduleOneState.consoleCompleted ? 'Complete' : 'Not complete'}</dd></div>
         </dl>
       </section>
@@ -505,7 +518,7 @@ function viewModuleOne(user, program) {
           </button>
         </div>
         <div class="m01-section-body" id="m01-lifecycle-body">
-          <p class="m01-instruction">Frameworks group or name phases differently. This six-part model shows the complete operational idea and matches the response work referenced by current CySA+ objectives. Select each phase to rotate the lifecycle and open its definition.</p>
+          <p class="m01-instruction">Frameworks group or name phases differently. This six-part model shows the complete operational idea used in day-to-day response work. Select each phase to rotate the lifecycle and open its definition.</p>
           <div class="m01-lifecycle-wheel" style="--wheel-rotation: 0deg" data-m01-lifecycle-wheel>
             <div class="m01-wheel-track" aria-hidden="true">
               ${lab.lifecycle.map((phase, index) => `<span style="--wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
@@ -516,7 +529,7 @@ function viewModuleOne(user, program) {
               </div>
             </div>
             <ol class="m01-lifecycle" aria-label="Incident response phases">
-              ${lab.lifecycle.map((phase, index) => `<li class="${index === 0 ? 'is-active' : ''}" data-m01-phase-card="${index}">
+              ${lab.lifecycle.map((phase, index) => `<li data-m01-phase-card="${index}">
                 <button type="button" class="m01-phase-button" data-m01-phase="${index}"
                         aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m01-phase-detail-${esc(phase.id)}">
                   <span class="m01-phase-heading"><span>${index + 1}</span><i class="${esc(phase.icon)}" aria-hidden="true"></i><span class="m01-phase-title">${esc(phase.title)}</span><i class="ri-arrow-down-s-line m01-phase-chevron" aria-hidden="true"></i></span>
@@ -551,7 +564,7 @@ function viewModuleOne(user, program) {
               </div>
             </div>
             <ol class="m01-triage-loop" aria-label="Five-step alert triage loop">
-              ${lab.triageLoop.map((item, index) => `<li class="${index === 0 ? 'is-active' : ''}" data-m01-triage-card="${index}">
+              ${lab.triageLoop.map((item, index) => `<li data-m01-triage-card="${index}">
                 <button type="button" class="m01-triage-button" data-m01-triage-step="${index}"
                         aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m01-triage-detail-${index + 1}">
                   <span class="m01-triage-heading"><span>${index + 1}</span><span class="m01-triage-title">${esc(item.title)}</span><i class="ri-arrow-down-s-line m01-triage-chevron" aria-hidden="true"></i></span>
@@ -569,15 +582,15 @@ function viewModuleOne(user, program) {
       <section class="m01-section m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
         <div class="m01-section-heading">
           <span>5</span>
-          <div><p class="m01-kicker">One easy, truthful incident · ${lab.minutes} minutes</p><h2 id="m01-lab-title">Guided lab: your first SOC alert</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="guided lab" aria-expanded="true" aria-controls="m01-guided-lab-body" aria-label="Collapse guided lab">
+          <div><p class="m01-kicker">${moduleLabs.length} labs · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Lab 1 and Lab 2: your first SOC alert</h2></div>
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="lab block" aria-expanded="true" aria-controls="m01-guided-lab-body" aria-label="Collapse lab block">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
         </div>
         <div class="m01-lab-body" id="m01-guided-lab-body">
           <div class="m01-lab-brief">
             <i class="ri-user-star-line" aria-hidden="true"></i>
-            <div><strong>Your role: Tier 1 SOC analyst</strong><p>You are responsible for validating this identity alert and creating a clear handoff. You are not expected to hunt across an enterprise or operate unfamiliar response tools.</p></div>
+            <div><strong>Two labs, one case</strong><p>Lab 1 is the guided console. Lab 2 is the handoff note. Use only the sandboxed buttons in each lab, then carry the note into the report.</p></div>
           </div>
           <div id="m01-lab-dynamic">${moduleOneLabDynamic()}</div>
         </div>
@@ -653,10 +666,9 @@ function wireModuleOneLab() {
 
       const activeIndex = Number(phaseButton.dataset.m01Phase);
       const phases = lifecycleWheel.querySelectorAll('[data-m01-phase]');
-      phases.forEach((button, index) => {
+    phases.forEach((button, index) => {
         const isActive = index === activeIndex;
         button.setAttribute('aria-expanded', String(isActive));
-        button.closest('[data-m01-phase-card]')?.classList.toggle('is-active', isActive);
         const detail = document.getElementById(button.getAttribute('aria-controls'));
         if (detail) detail.hidden = !isActive;
       });
@@ -679,7 +691,6 @@ function wireModuleOneLab() {
       steps.forEach((button, index) => {
         const isActive = index === activeIndex;
         button.setAttribute('aria-expanded', String(isActive));
-        button.closest('[data-m01-triage-card]')?.classList.toggle('is-active', isActive);
         const detail = document.getElementById(button.getAttribute('aria-controls'));
         if (detail) detail.hidden = !isActive;
       });
@@ -713,7 +724,7 @@ function wireModuleOneLab() {
     }
 
     if (event.target.closest('[data-m01-note-starter]')) {
-      moduleOneState.notes = 'ALT-1001: Eight failed sign-ins were followed by a successful session for j.santos@missionnextlabs.example from Bucharest, RO. Device info shows Managed: No and Join type: Not registered. The user denied the activity. Classify as a high-priority true positive and escalate under the approved identity-containment playbook.';
+      moduleOneState.notes = 'Handoff note: this looks like a likely account compromise. Eight failed sign-ins were followed by a successful session for j.santos@missionnextlabs.example from Bucharest, RO. The device is not registered and the user denied the activity. My decision is to escalate for identity containment and keep the responder focused on the affected account, session, and follow-up checks.';
       moduleOneSave();
       moduleOneRenderDynamic('m01-notes');
       return;
@@ -723,6 +734,7 @@ function wireModuleOneLab() {
       moduleOneState = LabRuntime.reset(MODULE_ONE_LAB_ID, moduleOneUser, MODULE_ONE_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') {
         markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY, false);
+        markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation', false);
       }
       moduleOneRenderDynamic('m01-scenario-title');
     }
@@ -867,11 +879,22 @@ function wireModuleOneLab() {
     moduleOneState.feedback = result.feedback;
     moduleOneState.validationError = '';
     moduleOneState.lastSubmittedAt = new Date().toISOString();
-    if (result.score >= MODULE_ONE_ALERT_ORIENTATION.passingScore) {
+    const passed = result.score >= MODULE_ONE_ALERT_ORIENTATION.passingScore;
+    if (typeof recordLabAttempt === 'function') {
+      const attemptFields = {
+        state: passed ? 'complete' : 'in_progress',
+        score: result.score,
+        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleOneState.attempts },
+      };
+      recordLabAttempt(moduleOneUser, MODULE_ONE_CATALOG_LAB_KEY, attemptFields);
+      recordLabAttempt(moduleOneUser, 'lab-soc-escalation', attemptFields);
+    }
+    if (passed) {
       moduleOneState.completed = true;
       if (!moduleOneState.flags.includes(MODULE_ONE_FLAG)) moduleOneState.flags.push(MODULE_ONE_FLAG);
       if (typeof markModuleLabComplete === 'function') {
         markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
+        markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
       }
     }
     moduleOneSave();
@@ -881,10 +904,10 @@ function wireModuleOneLab() {
   });
 }
 
-function moduleOneReceiveCoachCompletion(event) {
+async function moduleOneReceiveCoachCompletion(event) {
   if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== 'm01') return;
   if (event.origin !== new URL(SIM_ORIGIN).origin) return;
-  const user = currentUser();
+  const user = await currentUser();
   if (!user) return;
 
   const saved = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
@@ -896,6 +919,18 @@ function moduleOneReceiveCoachCompletion(event) {
 
   if (saved.completed && typeof markModuleLabComplete === 'function') {
     markModuleLabComplete(user, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
+  }
+
+  // Bare completion signal — no score attached (the postMessage contract
+  // carries only a completion flag; see architecture.md §3 Sprint 3). This is
+  // a second, independent lab_attempts row for the same lab_key: the graded
+  // worksheet submit above writes its own scored row, this one just records
+  // that the guided console itself was completed.
+  if (typeof recordLabAttempt === 'function') {
+    recordLabAttempt(user, MODULE_ONE_CATALOG_LAB_KEY, {
+      state: 'complete',
+      result: { source: 'mnt-coach-complete' },
+    });
   }
 
   // The student may be sitting on an in-page anchor — '#m01-foundations' is the

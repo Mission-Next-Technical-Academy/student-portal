@@ -1,0 +1,10 @@
+:root {
+ --mn-mission-blue: #1F4E79; --mn-mission-blue-dark: #123754; --mn-signal-orange: #F26A2E;
+ --mn-electric-blue: #2F80ED; --mn-cyber-teal: #00A6A6; --mn-steel-gray: #3A3F45; --mn-light-slate: #E6EDF3;
+ --mn-mist: #F5F8FB; --mn-white: #FFFFFF; --mn-ink: #15212B; --mn-muted: #5E6B76;
+ --mn-font-heading: "Roboto", Arial, sans-serif; --mn-font-body: "Open Sans", Arial, sans-serif; --mn-font-technical: "JetBrains Mono", Consolas, monospace;
+ --mn-space-1:4px; --mn-space-2:8px; --mn-space-3:12px; --mn-space-4:16px; --mn-space-5:24px; --mn-space-6:32px; --mn-space-7:48px; --mn-space-8:64px; --mn-space-9:96px;
+ --mn-radius-sm:8px; --mn-radius-md:16px; --mn-radius-lg:24px; --mn-radius-pill:999px; --mn-shadow-card:0 18px 50px rgba(18,55,84,.12);
+ --mn-h1-size:clamp(2.65rem,5vw,4.25rem); --mn-h2-size:clamp(2rem,3.6vw,3rem); --mn-h3-size:1.5rem; --mn-body-size:1rem; --mn-body-line:1.65;
+}
+/* Use orange, teal, and electric blue mainly as accents on white. For small text, prefer Mission Blue, Mission Blue Dark, Steel Gray, Ink, or White on dark backgrounds. */

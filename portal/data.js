@@ -4,8 +4,9 @@
  * PLATFORM_ARCHITECTURE.md §5A.2. One object per track, no cross-references,
  * so each track author owns exactly one entry.
  *
- * Program copy for all four cards is taken verbatim from the live site
- * (mntacademy.com #programs) so nothing here contradicts production.
+ * Published programme copy must follow the current governing curriculum
+ * source for that track. Draft tracks may retain their existing catalogue
+ * positioning, but must not inherit invented hour or lab estimates.
  */
 
 /* ---------------------------------------------------------------------------
@@ -25,7 +26,7 @@ const MODULE_DEFAULTS = {
   week: 0,
   title: '',
   summary: '',
-  hours: '',            // always a range, e.g. '6–8 Hours'
+  hours: '',            // exact display duration when the curriculum is mapped
   lessons: 0,
   labs: 0,
   objectives: [],       // 3–6, measurable verbs
@@ -75,6 +76,59 @@ function skeleton(keyPrefix, rows) {
   return out;
 }
 
+/* ---------------------------------------------------------------------------
+ * SOC CURRICULUM COMPLIANCE MAP
+ *
+ * This is a developer-authored mapping derived from the 2026-08-28 LMS review
+ * checklist. The controlling Form 301 and current catalogue are not stored in
+ * this repository, so these item labels, minute allocations, and evaluation
+ * methods remain pending curriculum and compliance review. Assessment activity
+ * is embedded in each duration and must never be added to the clock-hour total
+ * a second time.
+ * ------------------------------------------------------------------------ */
+
+const SOC_CURRICULUM_REVISION = '2026-08-28-developer-map-v1';
+
+function curriculumItem(spec) {
+  return {
+    kind: 'lesson',
+    classification: 'theory',
+    learn: `Study the ${spec.title} instructional block and its worked examples.`,
+    practice: `Apply ${spec.title.toLowerCase()} to the module's synthetic SOC scenario.`,
+    prove: 'Explain the decision and cite the scenario evidence that supports it.',
+    evidence: 'Saved knowledge check and written scenario rationale.',
+    assessmentMethod: 'Embedded knowledge check and scenario response; assessment time is included in durationMinutes.',
+    facultyEvaluation: 'Faculty reviews the saved response for technical accuracy, evidence use, and appropriate scope.',
+    securityPlusTags: [],
+    revision: SOC_CURRICULUM_REVISION,
+    ...spec,
+  };
+}
+
+function allocation(code, minutes) {
+  return { code, minutes };
+}
+
+function m360Item(key, title, objective) {
+  return {
+    key,
+    kind: 'career-readiness',
+    title,
+    durationMinutes: 90,
+    classification: 'theory',
+    parentAllocations: [allocation('M360-101', 90)],
+    objective,
+    learn: `Review Mission Next guidance and examples for ${title.toLowerCase()}.`,
+    practice: `Draft or rehearse the ${title.toLowerCase()} activity using the learner's current career materials.`,
+    prove: 'Submit the assigned career-readiness artifact or recorded practice reflection.',
+    evidence: 'Saved M360 artifact or faculty-observed practice record.',
+    assessmentMethod: 'Embedded artifact review or observed practice; assessment time is included in durationMinutes.',
+    facultyEvaluation: 'Faculty evaluates completion, professional relevance, and required revision using the M360 activity criteria.',
+    securityPlusTags: [],
+    revision: SOC_CURRICULUM_REVISION,
+  };
+}
+
 const PROGRAMS = [
   {
     slug: 'it-support',
@@ -118,80 +172,209 @@ const PROGRAMS = [
     category: 'Cybersecurity Operations',
     icon: 'ri-shield-keyhole-line',
     eyebrow: 'Mission Next',
-    // Card title and description are the LIVE SITE copy, verbatim. Do not
-    // replace them with the build-spec wording — the site is the authority.
-    cardTitle: 'Security Operation Center (SOC) Analyst',
-    title: 'Security Operation Center (SOC) Analyst',
+    cardTitle: 'Mission Next: Security Operation Center (SOC) Analyst',
+    title: 'Mission Next: Security Operation Center (SOC) Analyst',
     tagline: 'Learn to Investigate. Detect. Respond.',
     description:
-      'Train in live SIEM environments, packet analysis, and threat detection workflows used in modern Security Operations Centers.',
-    // Longer positioning copy, detail page only. It expands on the card rather
-    // than contradicting it.
+      'Prepare for entry-level SOC Analyst roles through hands-on network operations, attack-method analysis, alert triage, SIEM and log review, incident response, and security monitoring workflows.',
     intro:
-      'Prepare for entry-level cybersecurity operations and SOC analyst roles through hands-on investigation, detection, vulnerability management, incident response, and security operations training.',
+      'Build evidence-based investigation, detection, response, escalation, documentation, and analyst communication skills in focused fictional environments.',
     badge: 'Secure a role in Cybersecurity Ops',
     weeks: 6,
     moduleCount: 12,
     isPublished: true,
+    compliance: {
+      revision: SOC_CURRICULUM_REVISION,
+      programName: 'Mission Next: Security Operation Center (SOC) Analyst',
+      credential: 'Diploma',
+      delivery: 'Online / approved distance education',
+      weeks: 6,
+      tuition: 3000,
+      technicalHours: 70,
+      careerHours: 12,
+      totalHours: 82,
+      theoryHours: 42,
+      labHours: 40,
+      passingPercent: 70,
+      attendancePercent: 80,
+      status: 'developer-mapped',
+      sourceNotes: [
+        'Mapped from the 2026-08-28 Mission Next SOC Analyst LMS Build Review checklist.',
+        'The controlling Form 301 and current catalogue are not present in this repository.',
+        'Curriculum labels, minute allocations, theory/lab allocations, and evaluation methods remain pending curriculum and compliance review.',
+      ],
+    },
+    parents: [
+      { code: 'SOC-101.1', title: 'Program Orientation, LMS Navigation, SOC Role Overview, and Security Operations Workflow', hours: 3, theoryMinutes: 180, labMinutes: 0, reviewStatus: 'developer-mapped' },
+      { code: 'SOC-101.2', title: 'Network Operations Fundamentals, Protocols, Traffic Flow, and Security Architecture', hours: 10, theoryMinutes: 600, labMinutes: 0, reviewStatus: 'developer-mapped' },
+      { code: 'SOC-101.3', title: 'Network Attack Methods, Common Threat Vectors, and Adversary Techniques', hours: 10, theoryMinutes: 165, labMinutes: 435, reviewStatus: 'developer-mapped' },
+      { code: 'SOC-101.4', title: 'Detection Mechanisms, Alert Triage, Indicators of Compromise, and Event Review', hours: 12, theoryMinutes: 375, labMinutes: 345, reviewStatus: 'developer-mapped' },
+      { code: 'SOC-101.5', title: 'Packet Capture, Log Review, IDS/IPS Concepts, and SIEM Scenario Analysis', hours: 14, theoryMinutes: 150, labMinutes: 690, reviewStatus: 'developer-mapped' },
+      { code: 'SOC-101.6', title: 'Incident Response Fundamentals, Escalation, Documentation, and Case Handling', hours: 9, theoryMinutes: 150, labMinutes: 390, reviewStatus: 'developer-mapped' },
+      { code: 'SOC-101.7', title: 'Automated Detection Tools, Security Monitoring Methodologies, and Analyst Workflow', hours: 8, theoryMinutes: 180, labMinutes: 300, reviewStatus: 'developer-mapped' },
+      { code: 'SOC-101.8', title: 'Capstone: SOC Case Study, Threat Detection Scenario, and Analyst Report', hours: 4, theoryMinutes: 0, labMinutes: 240, reviewStatus: 'developer-mapped' },
+    ],
+    careerReadiness: {
+      code: 'M360-101',
+      title: 'Personal Branding, Career Positioning, LinkedIn Optimization, Resume Development, Interview Preparation, and Career Spotlight',
+      durationMinutes: 720,
+      hours: 12,
+      classification: 'theory',
+      boundary: 'Separate companion course; excluded from technical SOC module progress and the 70-hour technical roll-up.',
+      progressNamespace: 'mnt.m360-101.progress.v1',
+      status: 'developer-mapped',
+      curriculumComplianceReview: 'pending',
+      revision: SOC_CURRICULUM_REVISION,
+      items: [
+        m360Item('m360-101-personal-branding', 'Personal Branding', 'Define a consistent professional identity grounded in the learner\'s experience and target role.'),
+        m360Item('m360-101-career-positioning', 'Career Positioning', 'Connect transferable experience and current training to an appropriate entry-level career target.'),
+        m360Item('m360-101-linkedin-optimization', 'LinkedIn Optimization', 'Revise a professional profile so role focus, skills, and experience are clear and supportable.'),
+        m360Item('m360-101-resume-development', 'Resume Development', 'Produce a role-focused resume that accurately presents relevant accomplishments and training.'),
+        m360Item('m360-101-interview-preparation', 'Interview Preparation', 'Prepare and rehearse concise evidence-based responses to common interview questions.'),
+        m360Item('m360-101-professional-follow-up', 'Professional Follow-Up', 'Draft timely and appropriate follow-up communication for recruiting and networking interactions.'),
+        m360Item('m360-101-mentorship', 'Mentorship', 'Use structured mentor feedback to identify and complete a career-readiness improvement.'),
+        m360Item('m360-101-career-spotlight', 'Career Spotlight', 'Present a concise career narrative and next-step plan for faculty or peer review.'),
+      ],
+    },
     stats: [
       { icon: 'ri-calendar-line', label: 'Duration', value: '6 Weeks' },
-      { icon: 'ri-stack-line', label: 'Curriculum', value: '12 Modules' },
-      { icon: 'ri-time-line', label: 'Estimated Training', value: '80–100 Hours' },
-      { icon: 'ri-flask-line', label: 'Hands-On Training', value: '10–15 Labs + Capstone' },
+      { icon: 'ri-stack-line', label: 'Learning Experience', value: '12 Modules' },
+      { icon: 'ri-time-line', label: 'Approved Program', value: '82 Clock Hours' },
+      { icon: 'ri-flask-line', label: 'Lab Instruction', value: '40 Hours' },
       { icon: 'ri-global-line', label: 'Delivery', value: 'Online' },
+      { icon: 'ri-award-line', label: 'Credential', value: 'Diploma' },
     ],
     skills: [
       'SIEM', 'XDR', 'Threat Detection', 'Incident Response', 'Threat Hunting',
       'Vulnerability Management', 'Network Analysis', 'Email Security', 'Security Operations',
     ],
     weekGroups: [
-      { number: 1, label: 'Week 1 — Security Operations Foundations', modules: ['soc-01', 'soc-02'] },
-      { number: 2, label: 'Week 2 — Detection & Security Analytics', modules: ['soc-03', 'soc-04'] },
+      { number: 1, label: 'Week 1 — SOC Operations, Network, Identity & Security Foundations', modules: ['soc-01', 'soc-02'] },
+      { number: 2, label: 'Week 2 — SIEM, Detection Rules & Automated Monitoring', modules: ['soc-03', 'soc-04'] },
       { number: 3, label: 'Week 3 — Endpoint Investigation & Threat Hunting', modules: ['soc-05', 'soc-06'] },
-      { number: 4, label: 'Week 4 — Network, Email & Vulnerability Analysis', modules: ['soc-07', 'soc-08'] },
-      { number: 5, label: 'Week 5 — Incident Response & Forensics', modules: ['soc-09', 'soc-10'] },
+      { number: 4, label: 'Week 4 — Network, Email & Vulnerability Prioritization', modules: ['soc-07', 'soc-08'] },
+      { number: 5, label: 'Week 5 — Incident Response, Evidence & Case Documentation', modules: ['soc-09', 'soc-10'] },
       { number: 6, label: 'Week 6 — SOC Operations & Capstone', modules: ['soc-11', 'soc-12'] },
     ],
     modules: {
-      'soc-01': { number: 1, week: 1, title: 'SOC & Security Architecture', hours: '6–8 Hours', lessons: 9, labs: 1,
+      'soc-01': { number: 1, week: 1, title: 'SOC Operations Foundations', hours: '8 Hours', durationMinutes: 480, lessons: 9, labs: 2,
         summary: 'Start from the beginning: learn what a SOC analyst does, how security signals become incidents, and where triage fits in the response lifecycle.',
         objectives: ['Explain the SOC analyst role and complete one coached, evidence-based alert triage and handoff.'],
         topics: [{ items: ['SOC purpose and analyst roles', 'Events, alerts, and incidents', 'SIEM, EDR, and XDR basics', 'Incident response lifecycle', 'Triage and escalation'] }],
-        handsOn: [{ title: 'Your first SOC alert', steps: ['Reveal and interpret four identity facts.', 'Classify and prioritize one clear incident.', 'Create a documented escalation handoff.'] }],
+        handsOn: [
+          { title: 'Lab 1: Guided console walkthrough', steps: ['Open the alert and use only the available buttons.', 'Reveal and interpret the identity evidence in the sandbox.'] },
+          { title: 'Lab 2: SIEM incident escalation & handoff', steps: ['Open the SIEM incident view and confirm the affected account.', 'Write the escalation handoff with the strongest evidence and your decision.'] },
+        ],
         assessment: { knowledgeCheck: true, practicalLab: true, capstoneGate: false },
+        curriculumItems: [
+          curriculumItem({ key: 'soc-01-lesson-01', title: 'What is cybersecurity protecting?', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Explain how confidentiality, integrity, and availability support the systems and data monitored by a SOC.' }),
+          curriculumItem({ key: 'soc-01-lesson-02', title: 'What is a SOC?', durationMinutes: 25, parentAllocations: [allocation('SOC-101.1', 25)], objective: 'Describe the SOC as an operating function that coordinates monitoring, investigation, and response.' }),
+          curriculumItem({ key: 'soc-01-lesson-03', title: 'What does a SOC analyst do?', durationMinutes: 25, parentAllocations: [allocation('SOC-101.1', 25)], objective: 'Distinguish entry-level analyst responsibilities, decision boundaries, and escalation responsibilities.' }),
+          curriculumItem({ key: 'soc-01-lesson-04', title: 'Event, alert, and incident', durationMinutes: 20, parentAllocations: [allocation('SOC-101.1', 20)], objective: 'Differentiate recorded events, detection alerts, and declared incidents in an analyst workflow.' }),
+          curriculumItem({ key: 'soc-01-lesson-05', title: 'Where alerts come from', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Relate identity, endpoint, network, application, and cloud telemetry to the systems that generate it.' }),
+          curriculumItem({ key: 'soc-01-lesson-06', title: 'How alert triage works', durationMinutes: 25, parentAllocations: [allocation('SOC-101.1', 25)], objective: 'Apply a repeatable read, verify, scope, decide, and document triage loop.' }),
+          curriculumItem({ key: 'soc-01-lesson-07', title: 'Severity, priority, and escalation', durationMinutes: 30, parentAllocations: [allocation('SOC-101.1', 30)], objective: 'Use impact, confidence, scope, and authority to justify priority and escalation.' }),
+          curriculumItem({ key: 'soc-01-lesson-08', title: 'Incident response lifecycle', durationMinutes: 25, parentAllocations: [allocation('SOC-101.1', 25)], objective: 'Place alert validation and analyst handoff within the incident response lifecycle.' }),
+          curriculumItem({ key: 'soc-01-lesson-09', title: 'Document and escalate', durationMinutes: 30, parentAllocations: [allocation('SOC-101.1', 30)], objective: 'Write a concise handoff that separates observations, analysis, scope, and the requested next action.' }),
+        ],
         skills: ['SOC Operations', 'SIEM', 'XDR', 'Alert Triage', 'Incident Response Lifecycle', 'Security Architecture'] },
-      'soc-02': { number: 2, week: 1, title: 'Network, Identity & Security Foundations', hours: '6–8 Hours', lessons: 8, labs: 1,
+      'soc-02': { number: 2, week: 1, title: 'Network, Identity & Security Foundations', hours: '11 Hours', durationMinutes: 660, lessons: 8, labs: 1,
         summary: 'Understand how networks, identities, access controls, and modern security architectures affect security operations.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-02-lesson-01', title: 'Network paths', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Interpret a connection using its source, destination, route, protocol, trust zone, and outcome.' }),
+          curriculumItem({ key: 'soc-02-lesson-02', title: 'Identity and accounts', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Distinguish human, service, device, and workload identities when reviewing network and access activity.' }),
+          curriculumItem({ key: 'soc-02-lesson-03', title: 'Authentication', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Interpret authentication methods and outcomes without treating a successful control decision as proof of authorization.' }),
+          curriculumItem({ key: 'soc-02-lesson-04', title: 'Authorization', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Explain how roles and permissions govern resource access after authentication.' }),
+          curriculumItem({ key: 'soc-02-lesson-05', title: 'MFA', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Use multi-factor results with device, route, and session context during analyst review.' }),
+          curriculumItem({ key: 'soc-02-lesson-06', title: 'RBAC and least privilege', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Assess whether a role assignment has appropriate approval, purpose, and scope.' }),
+          curriculumItem({ key: 'soc-02-lesson-07', title: 'PKI', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Interpret certificate subject, issuer, use, expiry, and workload context during security review.' }),
+          curriculumItem({ key: 'soc-02-lesson-08', title: 'Zero Trust reasoning', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Combine identity, device, network, resource, and risk signals to recommend a proportionate control.' }),
+        ],
         skills: ['IAM', 'Zero Trust', 'MFA', 'RBAC', 'PKI', 'Network Security'] },
-      'soc-03': { number: 3, week: 2, title: 'SIEM & Log Analysis', hours: '7–9 Hours', lessons: 10, labs: 2,
+      'soc-03': { number: 3, week: 2, title: 'SIEM & Log Analysis', hours: '7 Hours 45 Minutes', durationMinutes: 465, lessons: 4, labs: 1,
         summary: 'Learn how analysts use centralized security telemetry to identify and investigate suspicious activity.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-03-lesson-01', title: 'Read logs as linked observations', durationMinutes: 45, parentAllocations: [allocation('SOC-101.4', 45)], objective: 'Relate individual log observations to a detection claim while preserving source and time context.' }),
+          curriculumItem({ key: 'soc-03-lesson-02', title: 'Normalized log explorer', durationMinutes: 60, parentAllocations: [allocation('SOC-101.5', 60)], objective: 'Compare normalized authentication, directory, application, and system log fields in one timeline.' }),
+          curriculumItem({ key: 'soc-03-lesson-03', title: 'Correlation query workbench', durationMinutes: 60, parentAllocations: [allocation('SOC-101.4', 60)], objective: 'Use a bounded query to correlate related events by identity, host, address, and time.' }),
+          curriculumItem({ key: 'soc-03-lesson-04', title: 'Build the analyst handoff', durationMinutes: 60, parentAllocations: [allocation('SOC-101.4', 60)], objective: 'Document a supported alert disposition, scope, evidence chain, and escalation request.' }),
+        ],
         skills: ['SIEM', 'Log Analysis', 'Alert Triage', 'Event Correlation', 'Detection'] },
-      'soc-04': { number: 4, week: 2, title: 'Detection Engineering, Threat Intelligence & Automation', hours: '6–8 Hours', lessons: 9, labs: 2,
+      'soc-04': { number: 4, week: 2, title: 'Detection Rules, Threat Intelligence & Automated Monitoring', hours: '5 Hours', durationMinutes: 300, lessons: 4, labs: 1,
         summary: 'Learn how detections are created, enriched, prioritized, and automated.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-04-lesson-01', title: 'Balance coverage, fidelity, and action', durationMinutes: 60, parentAllocations: [allocation('SOC-101.4', 60)], objective: 'Explain how detection coverage, false-positive cost, and response risk shape a rule decision.' }),
+          curriculumItem({ key: 'soc-04-lesson-02', title: 'Detection logic desk', durationMinutes: 60, parentAllocations: [allocation('SOC-101.4', 60)], objective: 'Review detection conditions, thresholds, grouping, and exclusions against supplied event patterns.' }),
+          curriculumItem({ key: 'soc-04-lesson-03', title: 'Threat intelligence desk', durationMinutes: 30, parentAllocations: [allocation('SOC-101.4', 30)], objective: 'Use source quality, recency, and observed context to enrich rather than replace the evidence.' }),
+          curriculumItem({ key: 'soc-04-lesson-04', title: 'Automation boundary', durationMinutes: 30, parentAllocations: [allocation('SOC-101.7', 30)], objective: 'Choose a bounded automated action that preserves review and avoids unsupported disruption.' }),
+        ],
         skills: ['Detection Engineering', 'Threat Intelligence', 'SOAR', 'Automation', 'Regex'] },
-      'soc-05': { number: 5, week: 3, title: 'Endpoint & Malware Investigation', hours: '7–9 Hours', lessons: 10, labs: 2,
+      'soc-05': { number: 5, week: 3, title: 'Endpoint & Malware Investigation', hours: '4 Hours 30 Minutes', durationMinutes: 270, lessons: 10, labs: 1,
         summary: 'Investigate suspicious activity occurring on endpoints.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-05-lesson-01', title: 'Read endpoint telemetry', durationMinutes: 15, parentAllocations: [allocation('SOC-101.4', 15)], objective: 'Distinguish observed endpoint behavior from a product verdict or inferred intent.' }),
+          curriculumItem({ key: 'soc-05-lesson-02', title: 'Follow parent and child processes', durationMinutes: 15, parentAllocations: [allocation('SOC-101.3', 15)], objective: 'Use process ancestry to explain how suspicious execution began.' }),
+          curriculumItem({ key: 'soc-05-lesson-03', title: 'Inspect command context', durationMinutes: 15, parentAllocations: [allocation('SOC-101.3', 15)], objective: 'Assess executable path, arguments, user, and time as a combined behavior.' }),
+          curriculumItem({ key: 'soc-05-lesson-04', title: 'Build an endpoint timeline', durationMinutes: 15, parentAllocations: [allocation('SOC-101.4', 15)], objective: 'Order endpoint observations to distinguish causal activity from nearby noise.' }),
+          curriculumItem({ key: 'soc-05-lesson-05', title: 'Evaluate a file', durationMinutes: 15, parentAllocations: [allocation('SOC-101.3', 15)], objective: 'Combine signer, prevalence, reputation, and execution behavior in a file assessment.' }),
+          curriculumItem({ key: 'soc-05-lesson-06', title: 'Use hashes carefully', durationMinutes: 15, parentAllocations: [allocation('SOC-101.3', 15)], objective: 'Use a hash to identify matching bytes without treating novelty as proof of maliciousness.' }),
+          curriculumItem({ key: 'soc-05-lesson-07', title: 'Recognize persistence', durationMinutes: 15, parentAllocations: [allocation('SOC-101.4', 15)], objective: 'Relate an autostart change to its creating process, path, and surrounding activity.' }),
+          curriculumItem({ key: 'soc-05-lesson-08', title: 'Separate prevention from cleanup', durationMinutes: 15, parentAllocations: [allocation('SOC-101.4', 15)], objective: 'Explain why a blocked artifact may not remove existing execution or persistence.' }),
+          curriculumItem({ key: 'soc-05-lesson-09', title: 'Scope proportionally', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'State the confirmed affected scope and the limits of the available endpoint evidence.' }),
+          curriculumItem({ key: 'soc-05-lesson-10', title: 'Write a useful handoff', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'Prepare an endpoint handoff that separates observation, interpretation, and requested action.' }),
+        ],
         skills: ['EDR', 'XDR', 'Malware Analysis', 'Endpoint Investigation', 'Process Analysis'] },
-      'soc-06': { number: 6, week: 3, title: 'Threat Hunting & Investigation', hours: '6–8 Hours', lessons: 8, labs: 2,
+      'soc-06': { number: 6, week: 3, title: 'Threat Hunting & Investigation', hours: '2 Hours 45 Minutes', durationMinutes: 165, lessons: 4, labs: 1,
         summary: 'Move beyond individual alerts and proactively search for evidence of malicious activity.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-06-lesson-01', title: 'Start with a testable hypothesis', durationMinutes: 15, parentAllocations: [allocation('SOC-101.7', 15)], objective: 'State an observable hunting hypothesis that available data can support or disprove.' }),
+          curriculumItem({ key: 'soc-06-lesson-02', title: 'Use indicators as pivots', durationMinutes: 20, parentAllocations: [allocation('SOC-101.7', 20)], objective: 'Pivot from a seed indicator into related device, identity, time, and behavior context.' }),
+          curriculumItem({ key: 'soc-06-lesson-03', title: 'Bookmark the reasoning chain', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'Preserve the minimum evidence set that establishes behavior and current scope.' }),
+          curriculumItem({ key: 'soc-06-lesson-04', title: 'Map behavior after validation', durationMinutes: 25, parentAllocations: [allocation('SOC-101.7', 10), allocation('SOC-101.6', 15)], objective: 'Map only demonstrated adversary behavior and document the investigation limits.' }),
+        ],
         skills: ['Threat Hunting', 'IOC Analysis', 'Correlation', 'Investigation', 'Behavior Analytics'] },
-      'soc-07': { number: 7, week: 4, title: 'Network & Email Analysis', hours: '7–9 Hours', lessons: 10, labs: 2,
+      'soc-07': { number: 7, week: 4, title: 'Network & Email Analysis', hours: '10 Hours', durationMinutes: 600, lessons: 4, labs: 2,
         summary: 'Analyze network traffic and email evidence during security investigations.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-07-lesson-01', title: 'Follow identity, artifact, delivery, and session', durationMinutes: 30, parentAllocations: [allocation('SOC-101.3', 30)], objective: 'Relate sender identity, message artifacts, delivery, and subsequent network activity without assuming causation.' }),
+          curriculumItem({ key: 'soc-07-lesson-02', title: 'Network session ledger', durationMinutes: 45, parentAllocations: [allocation('SOC-101.5', 45)], objective: 'Interpret DNS and TLS session records using time, device, destination, process, and outcome.' }),
+          curriculumItem({ key: 'soc-07-lesson-03', title: 'Email evidence and delivery trace', durationMinutes: 45, parentAllocations: [allocation('SOC-101.3', 30), allocation('SOC-101.5', 15)], objective: 'Assess sender alignment, URL and attachment evidence, and delivery scope from the supplied trace.' }),
+          curriculumItem({ key: 'soc-07-lesson-04', title: 'Correlation workbench', durationMinutes: 30, parentAllocations: [allocation('SOC-101.5', 30)], objective: 'Correlate the delivered message with associated network observations and state the bounded scope.' }),
+        ],
         skills: ['Packet Analysis', 'DNS', 'Email Security', 'Phishing Analysis', 'Network Investigation'] },
-      'soc-08': { number: 8, week: 4, title: 'Vulnerability Management & Exposure Analysis', hours: '9–12 Hours', lessons: 14, labs: 2,
+      'soc-08': { number: 8, week: 4, title: 'Vulnerability Findings & SOC Prioritization', hours: '6 Hours 45 Minutes', durationMinutes: 405, lessons: 4, labs: 2,
         summary: 'Learn how security teams identify, validate, prioritize, and manage vulnerabilities across enterprise environments.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-08-lesson-01', title: 'Treat vulnerability data as a decision input', durationMinutes: 30, parentAllocations: [allocation('SOC-101.3', 30)], objective: 'Interpret CVE, CVSS, exploitability, asset role, and exposure as inputs to an analyst decision.' }),
+          curriculumItem({ key: 'soc-08-lesson-02', title: 'Exposure-driven remediation priority', durationMinutes: 30, parentAllocations: [allocation('SOC-101.3', 15), allocation('SOC-101.7', 15)], objective: 'Prioritize a finding using exposure, evidence of activity, business context, and available controls.' }),
+          curriculumItem({ key: 'soc-08-lesson-03', title: 'Validate before you rank', durationMinutes: 20, parentAllocations: [allocation('SOC-101.7', 20)], objective: 'Validate finding freshness, affected scope, compensating controls, and supporting telemetry before ranking.' }),
+          curriculumItem({ key: 'soc-08-lesson-04', title: 'Close the decision loop', durationMinutes: 25, parentAllocations: [allocation('SOC-101.7', 25)], objective: 'Document the disposition, owner, next action, due point, and escalation condition for a finding.' }),
+        ],
         skills: ['Vulnerability Management', 'CVSS', 'CVE', 'Risk Prioritization', 'Remediation', 'Attack Surface Management'] },
-      'soc-09': { number: 9, week: 5, title: 'Incident Response', hours: '7–9 Hours', lessons: 10, labs: 1,
+      'soc-09': { number: 9, week: 5, title: 'Incident Response', hours: '2 Hours 30 Minutes', durationMinutes: 150, lessons: 1, labs: 1,
         summary: 'Manage security incidents from initial detection through containment and recovery.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-09-lesson-01', title: 'Act on evidence, not urgency alone', durationMinutes: 30, parentAllocations: [allocation('SOC-101.6', 30)], objective: 'Choose proportionate containment, eradication, recovery, and escalation steps from confirmed incident evidence.' }),
+        ],
         skills: ['Incident Response', 'Containment', 'Eradication', 'Recovery', 'Escalation'] },
-      'soc-10': { number: 10, week: 5, title: 'Digital Evidence, Forensics & Incident Frameworks', hours: '6–8 Hours', lessons: 9, labs: 2,
+      'soc-10': { number: 10, week: 5, title: 'Incident Evidence Handling, Chain of Custody & Case Documentation', hours: '4 Hours 30 Minutes', durationMinutes: 270, lessons: 2, labs: 2,
         summary: 'Understand evidence handling, forensic concepts, and structured incident analysis.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-10-lesson-01', title: 'Post-containment evidence intake', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'Record evidence source, acquisition context, integrity controls, custody, and specialist escalation boundaries.' }),
+          curriculumItem({ key: 'soc-10-lesson-02', title: 'Attachment-to-persistence reconstruction', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'Separate observed facts, supported causal analysis, framework mapping, and explicit unknowns in a case record.' }),
+        ],
         skills: ['Digital Forensics', 'Evidence Handling', 'MITRE ATT&CK', 'Root Cause Analysis', 'Incident Analysis'] },
-      'soc-11': { number: 11, week: 6, title: 'SOC Operations, Metrics, Reporting & Communication', hours: '6–8 Hours', lessons: 10, labs: 2,
+      'soc-11': { number: 11, week: 6, title: 'SOC Operations, Metrics, Reporting & Communication', hours: '3 Hours 15 Minutes', durationMinutes: 195, lessons: 3, labs: 2,
         summary: 'Turn technical findings into actionable information for security teams, leadership, and business stakeholders.',
+        curriculumItems: [
+          curriculumItem({ key: 'soc-11-lesson-01', title: 'SOC performance and queue health', durationMinutes: 25, parentAllocations: [allocation('SOC-101.7', 25)], objective: 'Interpret alert volume, false-positive rate, backlog, service levels, and response-time trends without overstating causation.' }),
+          curriculumItem({ key: 'soc-11-lesson-02', title: 'Operations brief and shift handoff', durationMinutes: 25, parentAllocations: [allocation('SOC-101.6', 15), allocation('SOC-101.7', 10)], objective: 'Prepare an actionable shift handoff that names evidence, operational risk, owner, and next review point.' }),
+          curriculumItem({ key: 'soc-11-lesson-03', title: 'Case note, executive report, escalation and closure', durationMinutes: 25, parentAllocations: [allocation('SOC-101.6', 15), allocation('SOC-101.7', 10)], objective: 'Adapt one bounded incident record for technical case, executive, escalation, and closure audiences.' }),
+        ],
         skills: ['SOC Operations', 'Security Metrics', 'Reporting', 'Communication', 'Executive Briefing'] },
-      'soc-12': { number: 12, week: 6, title: 'SOC Analyst Capstone', hours: '8–12 Hours', lessons: 12, labs: 1, isCapstone: true,
+      'soc-12': { number: 12, week: 6, title: 'SOC Analyst Capstone', hours: '4 Hours', durationMinutes: 240, lessons: 0, labs: 1, isCapstone: true,
         summary: 'A realistic multi-stage security incident investigated end to end in the Mission Next security operations simulator.',
+        curriculumItems: [],
         skills: ['SIEM Investigation', 'Threat Hunting', 'Incident Response', 'Evidence Handling', 'Security Reporting'] },
     },
   },
@@ -275,14 +458,14 @@ const PROGRAMS = [
  * was authored before the standard existed, so this back-fills the keys it is
  * missing rather than requiring a rewrite — and guarantees all four tracks hand
  * the renderer an identical shape. */
-/* The program frame is fixed for all four tracks, so the overview stats are too.
- * A track only overrides these if its numbers genuinely differ. */
+/* Draft-track fallbacks intentionally omit hour and lab claims. Exact totals
+ * belong on the individual program only after its governing source has been
+ * mapped into the catalogue. */
 const STANDARD_STATS = [
   { icon: 'ri-calendar-line', label: 'Duration', value: '6 Weeks' },
-  { icon: 'ri-stack-line', label: 'Curriculum', value: '12 Modules' },
-  { icon: 'ri-time-line', label: 'Estimated Training', value: '80–100 Hours' },
-  { icon: 'ri-flask-line', label: 'Hands-On Training', value: '10–15 Labs + Capstone' },
+  { icon: 'ri-stack-line', label: 'Learning Experience', value: '12 Modules' },
   { icon: 'ri-global-line', label: 'Delivery', value: 'Online' },
+  { icon: 'ri-tools-line', label: 'Status', value: 'In Development' },
 ];
 
 PROGRAMS.forEach((p) => {
@@ -396,11 +579,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
   ],
   officialReferences: [
     {
-      label: 'CompTIA CySA+ V4 (CS0-004)',
-      url: 'https://www.comptia.org/en-us/certifications/cybersecurity-analyst/v4/',
-      description: 'Current certification scope: security operations, vulnerability management, incident response and management, and reporting and communication. CompTIA recommends about four years in a SOC or vulnerability-analyst role.',
-    },
-    {
       label: 'NIST NICE Workforce Framework',
       url: 'https://www.nist.gov/itl/applied-cybersecurity/nice/nice-framework-resource-center/about',
       description: 'Official work-role framework used to ground the analyst role in observable tasks, knowledge, and skills rather than a vendor product or job title.',
@@ -494,115 +672,97 @@ const MODULE_ONE_ALERT_ORIENTATION = {
 
 /* The SOC Analyst lab catalogue. `simEntry` is the ONLY place the portal knows
  * a simulator route — see PLATFORM_ARCHITECTURE.md §7.3. */
+function labRecord(spec) {
+  return {
+    kind: spec.isCapstone ? 'capstone' : 'lab',
+    classification: 'lab',
+    instructionalMinutes: spec.minutes,
+    startingState: `A reset, isolated synthetic ${spec.title.toLowerCase()} scenario with the evidence and controls required for the assigned task.`,
+    task: spec.description,
+    successCondition: `Submit the ${spec.title} performance artifact with a supported decision, complete evidence, and at least the 70% program passing standard.`,
+    escalationCondition: 'Escalate when the evidence supports harmful activity, the scope is uncertain, or the required action exceeds the entry-level analyst role.',
+    evidence: 'Saved investigation selections, written rationale, submitted artifact, score, attempt history, and completion record.',
+    assessmentMethod: 'Performance-based scenario and scored artifact; briefing, practice, submission, and embedded assessment time are included in instructionalMinutes.',
+    facultyEvaluation: 'Faculty reviews the saved artifact, evidence chain, decision, scope, and escalation against the lab criteria.',
+    securityPlusTags: [],
+    revision: SOC_CURRICULUM_REVISION,
+    ...spec,
+  };
+}
+
 const LABS = [
-  { key: 'lab-soc-environment', module: 'soc-01', title: 'Your First SOC Alert: A Guided Triage', difficulty: 'Foundational', minutes: 20,
+  labRecord({ key: 'lab-soc-environment', module: 'soc-01', title: 'Your First SOC Alert: A Guided Triage', difficulty: 'Foundational', minutes: 120,
+    parentAllocations: [allocation('SOC-101.4', 120)], objective: 'Validate one identity alert, classify it from visible evidence, and document a proportionate triage decision.',
     description: 'Learn what a SOC analyst does, follow the incident response lifecycle, and triage one clear identity alert with step-by-step coaching.',
-    skills: ['SOC Operations', 'Incident Response Lifecycle', 'Alert Triage', 'Case Notes'], portalEntry: '#/program/soc-analyst/module/1' },
-  { key: 'lab-identity-investigation', module: 'soc-02', title: 'Suspicious Authentication Investigation', difficulty: 'Foundational', minutes: 35,
+    skills: ['SOC Operations', 'Incident Response Lifecycle', 'Alert Triage', 'Case Notes'], portalEntry: '#/program/soc-analyst/module/1' }),
+  labRecord({ key: 'lab-soc-escalation', module: 'soc-01', title: 'SIEM Incident Escalation & Handoff', difficulty: 'Foundational', minutes: 60,
+    parentAllocations: [allocation('SOC-101.6', 60)], objective: 'Confirm the affected identity and produce an evidence-based escalation handoff for an authorized responder.',
+    description: 'Open the SIEM incident view, confirm the affected account, and complete the escalation handoff for identity containment.',
+    skills: ['SIEM', 'Incident Escalation', 'Case Notes'], simEntry: '#/sentinel/incidents' }),
+  labRecord({ key: 'lab-identity-investigation', module: 'soc-02', title: 'Suspicious Authentication Investigation', difficulty: 'Foundational', minutes: 180,
+    parentAllocations: [allocation('SOC-101.4', 60), allocation('SOC-101.5', 120)], objective: 'Correlate authentication, network, and access-change records to identify and escalate one risky identity pattern.',
     description: 'Review user sign-in events, analyze privilege changes, and identify risky identity behavior.',
-    skills: ['IAM', 'Sign-in Analysis', 'Privilege Escalation'], simEntry: '#/entra/risky-users' },
-  { key: 'lab-siem-triage', module: 'soc-03', title: 'SIEM Alert Triage', difficulty: 'Intermediate', minutes: 45,
+    skills: ['IAM', 'Sign-in Analysis', 'Privilege Escalation'], simEntry: '#/entra/risky-users' }),
+  labRecord({ key: 'lab-siem-triage', module: 'soc-03', title: 'SIEM Alert Triage', difficulty: 'Intermediate', minutes: 240,
+    parentAllocations: [allocation('SOC-101.4', 60), allocation('SOC-101.5', 180)], objective: 'Correlate normalized log sources into a supported timeline, alert disposition, and analyst handoff.',
     description: 'Open and triage security alerts, correlate events across multiple sources, and identify suspicious patterns.',
-    skills: ['SIEM', 'Alert Triage', 'Event Correlation'], simEntry: '#/sentinel/incidents' },
-  { key: 'lab-detection-rule', module: 'soc-04', title: 'Detection Rule Review & Enrichment', difficulty: 'Intermediate', minutes: 45,
+    skills: ['SIEM', 'Alert Triage', 'Event Correlation'], simEntry: '#/sentinel/incidents' }),
+  labRecord({ key: 'lab-detection-rule', module: 'soc-04', title: 'Detection Rule Review & Enrichment', difficulty: 'Intermediate', minutes: 120,
+    parentAllocations: [allocation('SOC-101.4', 60), allocation('SOC-101.7', 60)], objective: 'Tune one detection rule, justify threat-intelligence enrichment, and select a bounded automated monitoring action.',
     description: 'Review a detection rule, investigate matched indicators, enrich an alert with threat intelligence, and run an automated response.',
-    skills: ['Detection Engineering', 'Threat Intelligence', 'SOAR'], simEntry: '#/sentinel/analytics' },
-  { key: 'lab-endpoint-investigation', module: 'soc-05', title: 'Infected Workstation Investigation', difficulty: 'Intermediate', minutes: 50,
+    skills: ['Detection Engineering', 'Threat Intelligence', 'SOAR'], simEntry: '#/sentinel/analytics' }),
+  labRecord({ key: 'lab-endpoint-investigation', module: 'soc-05', title: 'Infected Workstation Investigation', difficulty: 'Intermediate', minutes: 120,
+    parentAllocations: [allocation('SOC-101.3', 45), allocation('SOC-101.4', 45), allocation('SOC-101.6', 30)], objective: 'Build an endpoint execution chain, assess the file and persistence evidence, and prepare a containment handoff.',
     description: 'Follow a process tree, review file and registry activity, validate file reputation, and isolate a compromised endpoint.',
-    skills: ['EDR', 'Process Analysis', 'Endpoint Containment'], simEntry: '#/defender/devices' },
-  { key: 'lab-threat-hunt', module: 'soc-06', title: 'Cross-Device Threat Hunt', difficulty: 'Advanced', minutes: 60,
+    skills: ['EDR', 'Process Analysis', 'Endpoint Containment'], simEntry: '#/defender/devices' }),
+  labRecord({ key: 'lab-threat-hunt', module: 'soc-06', title: 'Cross-Device Threat Hunt', difficulty: 'Advanced', minutes: 90,
+    parentAllocations: [allocation('SOC-101.7', 60), allocation('SOC-101.6', 30)], objective: 'Test a scoped hypothesis across endpoint and identity data, preserve the reasoning chain, and report the supported scope.',
     description: 'Develop a hunting hypothesis, hunt across multiple endpoints, and pivot between users, hosts, IP addresses, and files.',
-    skills: ['Threat Hunting', 'IOC Analysis', 'Pivoting'], simEntry: '#/defender/hunting' },
-  { key: 'lab-email-triage', module: 'soc-07', title: 'Suspicious Email Investigation', difficulty: 'Intermediate', minutes: 45,
+    skills: ['Threat Hunting', 'IOC Analysis', 'Pivoting'], simEntry: '#/defender/hunting' }),
+  labRecord({ key: 'lab-email-triage', module: 'soc-07', title: 'Suspicious Email Investigation', difficulty: 'Intermediate', minutes: 210,
+    parentAllocations: [allocation('SOC-101.3', 60), allocation('SOC-101.5', 150)], objective: 'Assess sender alignment, URLs, attachments, delivery, and recipient interaction to reach a bounded email verdict.',
     description: 'Analyze a suspicious email, inspect authentication controls, investigate URLs, and determine whether the message represents a security threat.',
-    skills: ['Email Headers', 'SPF', 'DKIM', 'DMARC', 'Threat Intelligence'], simEntry: '#/defender/email' },
-  { key: 'lab-network-investigation', module: 'soc-07', title: 'Network Investigation', difficulty: 'Intermediate', minutes: 40,
+    skills: ['Email Headers', 'SPF', 'DKIM', 'DMARC', 'Threat Intelligence'], simEntry: '#/defender/email' }),
+  labRecord({ key: 'lab-network-investigation', module: 'soc-07', title: 'Network Investigation', difficulty: 'Intermediate', minutes: 240,
+    parentAllocations: [allocation('SOC-101.5', 240)], objective: 'Analyze DNS and connection telemetry, correlate suspicious sessions to an endpoint, and document current network scope.',
     description: 'Review connection telemetry, analyze DNS activity, identify suspicious traffic, and correlate it back to an endpoint.',
-    skills: ['Packet Analysis', 'DNS', 'Network Investigation'], simEntry: '#/defender/hunting' },
-  { key: 'lab-vuln-prioritization', module: 'soc-08', title: 'Vulnerability Prioritization', difficulty: 'Intermediate', minutes: 50,
+    skills: ['Packet Analysis', 'DNS', 'Network Investigation'], simEntry: '#/defender/hunting' }),
+  labRecord({ key: 'lab-vuln-prioritization', module: 'soc-08', title: 'Vulnerability Prioritization', difficulty: 'Intermediate', minutes: 150,
+    parentAllocations: [allocation('SOC-101.3', 90), allocation('SOC-101.7', 60)], objective: 'Prioritize a vulnerability finding using exploitability, exposure, asset role, telemetry, and compensating controls.',
     description: 'Review a scan, assess CVE and CVSS data, weigh asset criticality and exploitability, and prioritize remediation.',
-    skills: ['CVE', 'CVSS', 'Risk Prioritization'], simEntry: '#/defender/vuln-management' },
-  { key: 'lab-vuln-queue', module: 'soc-08', title: 'Vulnerability Analyst Queue', difficulty: 'Advanced', minutes: 45,
+    skills: ['CVE', 'CVSS', 'Risk Prioritization'], simEntry: '#/defender/vuln-management' }),
+  labRecord({ key: 'lab-vuln-queue', module: 'soc-08', title: 'Vulnerability Analyst Queue', difficulty: 'Advanced', minutes: 150,
+    parentAllocations: [allocation('SOC-101.3', 90), allocation('SOC-101.7', 60)], objective: 'Disposition a queue of vulnerability findings and document owners, next actions, and escalation conditions.',
     description: 'Work a queue of findings and decide: fix now, schedule, compensating control, accept risk, escalate, or false positive.',
-    skills: ['Vulnerability Management', 'Risk Decisions', 'Remediation'], simEntry: '#/defender/vuln-management' },
-  { key: 'lab-active-incident', module: 'soc-09', title: 'Active Security Incident', difficulty: 'Advanced', minutes: 60,
+    skills: ['Vulnerability Management', 'Risk Decisions', 'Remediation'], simEntry: '#/defender/vuln-management' }),
+  labRecord({ key: 'lab-active-incident', module: 'soc-09', title: 'Active Security Incident', difficulty: 'Advanced', minutes: 120,
+    parentAllocations: [allocation('SOC-101.6', 120)], objective: 'Validate and scope an incident, recommend proportionate response actions, and produce a complete escalation handoff.',
     description: 'Validate an incident, determine scope and severity, contain the endpoint, disable the account, block the indicator, and verify recovery.',
-    skills: ['Incident Response', 'Containment', 'Recovery'], simEntry: '#/defender/incidents' },
-  { key: 'lab-evidence-collection', module: 'soc-10', title: 'Evidence Collection & Chain of Custody', difficulty: 'Intermediate', minutes: 40,
+    skills: ['Incident Response', 'Containment', 'Recovery'], simEntry: '#/defender/incidents' }),
+  labRecord({ key: 'lab-evidence-collection', module: 'soc-10', title: 'Evidence Collection & Chain of Custody', difficulty: 'Intermediate', minutes: 90,
+    parentAllocations: [allocation('SOC-101.6', 90)], objective: 'Select appropriate incident evidence and complete an integrity and chain-of-custody record for specialist review.',
     description: 'Identify and acquire evidence, generate a hash, record acquisition time, and complete a chain-of-custody record.',
-    skills: ['Evidence Handling', 'Hash Validation', 'Chain of Custody'], simEntry: '#/defender/incidents' },
-  { key: 'lab-attack-mapping', module: 'soc-10', title: 'ATT&CK Attack Mapping', difficulty: 'Intermediate', minutes: 35,
+    skills: ['Evidence Handling', 'Hash Validation', 'Chain of Custody'], simEntry: '#/defender/incidents' }),
+  labRecord({ key: 'lab-attack-mapping', module: 'soc-10', title: 'ATT&CK Attack Mapping', difficulty: 'Intermediate', minutes: 150,
+    parentAllocations: [allocation('SOC-101.3', 150)], objective: 'Reconstruct a supported incident timeline and use ATT&CK as a framework for demonstrated adversary behavior.',
     description: 'Map observed attacker behavior to attack stage, ATT&CK tactic and technique, supporting evidence, and analyst conclusion.',
-    skills: ['MITRE ATT&CK', 'Incident Analysis'], simEntry: '#/defender/incidents' },
-  { key: 'lab-exec-report', module: 'soc-11', title: 'Executive Incident Report', difficulty: 'Advanced', minutes: 50,
+    skills: ['MITRE ATT&CK', 'Incident Analysis'], simEntry: '#/defender/incidents' }),
+  labRecord({ key: 'lab-exec-report', module: 'soc-11', title: 'Executive Incident Report', difficulty: 'Advanced', minutes: 60,
+    parentAllocations: [allocation('SOC-101.6', 60)], objective: 'Translate a bounded technical incident record into accurate case, escalation, executive, and closure communication.',
     description: 'Transform technical evidence into an executive summary, timeline, impact assessment, root cause, and recommendations.',
-    skills: ['Reporting', 'Executive Briefing', 'Communication'], simEntry: '#/defender/incidents' },
-  { key: 'lab-soc-metrics', module: 'soc-11', title: 'SOC Metrics Dashboard', difficulty: 'Intermediate', minutes: 30,
+    skills: ['Reporting', 'Executive Briefing', 'Communication'], simEntry: '#/defender/incidents' }),
+  labRecord({ key: 'lab-soc-metrics', module: 'soc-11', title: 'SOC Metrics Dashboard', difficulty: 'Intermediate', minutes: 60,
+    parentAllocations: [allocation('SOC-101.7', 60)], objective: 'Interpret SOC workload and response metrics, identify an operational risk, and prepare an actionable shift handoff.',
     description: 'Review alert volume, false-positive rate, vulnerability backlog, MTTD and MTTR, and identify areas requiring improvement.',
-    skills: ['Security Metrics', 'SOC Operations'], simEntry: '#/sentinel/workbooks' },
-  { key: 'lab-capstone', module: 'soc-12', title: 'SOC Analyst Capstone', difficulty: 'Advanced', minutes: 600, isCapstone: true,
+    skills: ['Security Metrics', 'SOC Operations'], simEntry: '#/sentinel/workbooks' }),
+  labRecord({ key: 'lab-capstone', module: 'soc-12', title: 'SOC Analyst Capstone', difficulty: 'Advanced', minutes: 240, isCapstone: true,
+    parentAllocations: [allocation('SOC-101.8', 240)], objective: 'Produce a defensible end-to-end incident record by applying competencies taught in Modules 01–11.',
+    startingState: 'A reset, isolated synthetic incident with twelve assessment stages and no new instructional content.',
+    successCondition: 'Complete the integrated investigation and scored analyst report at or above the 70% program standard with no critical safety error.',
+    escalationCondition: 'Escalate within the case record when evidence supports harmful activity, scope remains uncertain, or action requires incident-owner authority.',
+    evidence: 'Saved twelve-stage investigation state, selected evidence, queries, timeline, scope, response plan, final report, rubric score, attempts, and completion record.',
+    assessmentMethod: 'One integrated Prove assessment; all briefing, execution, submission, and scoring activity is included in the 240 instructional minutes.',
+    facultyEvaluation: 'Faculty applies the capstone rubric to investigation, technical execution, triage, evidence handling, documentation, escalation, analysis, and reporting.',
     description: 'A twelve-stage security investigation spanning email, identity, endpoint, network, threat intelligence, hunting, vulnerability analysis, response, evidence, and reporting.',
-    skills: ['Full Investigation Lifecycle'], simEntry: '#/defender/home' },
-];
-
-/* ---------------------------------------------------------------------------
- * DEMO ACCOUNTS — prototype only.
- *
- * This is a mock of Supabase auth so the entitlement behavior can be reviewed
- * before the real project is wired up. There is no password hashing, no token,
- * and no security value here; every account is fictional and local-only.
- * Agent 39 (SPRINT_PLAN.md) replaces this wholesale with supabase.auth.
- *
- * `enrollments` mirrors the real table: status, access_mode, and — for
- * access_mode 'partial' — the entitled module keys.
- *
- * Sign in with the bare username (user1) or the full email. Password matches
- * the username in every case. Each account covers one entitlement scenario.
- * ------------------------------------------------------------------------ */
-
-const DEMO_USERS = [
-  {
-    username: 'user1',
-    password: 'user1',
-    email: 'user1@mntacademy.test',
-    name: 'Helpdesk Student',
-    note: 'IT Help Desk & Career Accelerator — other three locked',
-    enrollments: [
-      { programSlug: 'it-support', status: 'active', accessMode: 'full', purchasedAt: '2026-06-15' },
-    ],
-    progress: {},
-  },
-  {
-    username: 'user2',
-    password: 'user2',
-    email: 'user2@mntacademy.test',
-    name: 'SOC Analyst Student',
-    note: 'Security Operation Center (SOC) Analyst — other three locked',
-    enrollments: [
-      { programSlug: 'soc-analyst', status: 'active', accessMode: 'full', purchasedAt: '2026-07-01' },
-    ],
-    progress: { 'soc-01': 'complete', 'soc-02': 'complete', 'soc-03': 'complete', 'soc-04': 'complete', 'soc-05': 'in_progress' },
-  },
-  {
-    username: 'user3',
-    password: 'user3',
-    email: 'user3@mntacademy.test',
-    name: 'AI Engineering Student',
-    note: 'Foundations of AI & Machine Learning — other three locked',
-    enrollments: [
-      { programSlug: 'ai-ml', status: 'active', accessMode: 'full', purchasedAt: '2026-07-20' },
-    ],
-    progress: {},
-  },
-  {
-    username: 'user4',
-    password: 'user4',
-    email: 'user4@mntacademy.test',
-    name: 'Electrical Engineering Student',
-    note: 'Electrical Engineering Essentials — other three locked',
-    enrollments: [
-      { programSlug: 'electrical', status: 'active', accessMode: 'full', purchasedAt: '2026-08-05' },
-    ],
-    progress: {},
-  },
+    skills: ['Full Investigation Lifecycle'], simEntry: '#/defender/home' }),
 ];

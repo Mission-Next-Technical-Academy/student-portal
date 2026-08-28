@@ -1,0 +1,6 @@
+# Supabase publishable/anon key in portal/supabase-config.js — not a secret.
+# Supabase's anon/publishable keys are designed to be public client-side;
+# Row Level Security (see supabase/migrations/*_rls.sql) is the actual
+# security boundary. The service-role key is never committed anywhere in
+# this repo (see the comment above the flagged line).
+portal/supabase-config.js:generic-api-key:13

@@ -12,11 +12,11 @@ Last updated: 2026-08-19 (Europe/Berlin)
 - [x] Wave 1 — Module Agents 02 and 03 complete and reviewed.
 - [x] Wave 2 — Module Agents 04, 05, and 06 complete, reviewed, and committed.
 - [x] Launch and complete Module Agents 07–09.
-- [ ] Launch Module Agents 10–12.
-- [ ] Integrate module changes.
-- [ ] Run cross-module, accessibility, state-isolation, and capstone-gating QA.
+- [x] Launch Module Agents 10–12.
+- [x] Integrate module changes.
+- [x] Run cross-module, accessibility, state-isolation, and capstone-gating QA.
 
-Current phase: **Wave 3 complete (Modules 01-09 implemented) and gate-reviewed 2026-08-19. Wave 4 (Modules 10-12) is next.**
+Current phase: **Wave 4 complete (Modules 10-12 implemented) and gate-reviewed 2026-08-19. Final QA passed.**
 
 ## Agent Count
 
@@ -32,7 +32,7 @@ Implementation runs in four waves of three module agents. Agents are Codex proce
 `portal/module-NN.js`, `portal/module-NN.css`, and its own report. The router discovers modules
 through `registerModuleLab()` in `portal/module-registry.js`, so no shared file is edited by an agent.
 
-Agents launched: **9**. Agents complete: **9**. Application implementation covers Modules 1-9.
+Agents launched: **12**. Agents complete: **12**. Application implementation covers Modules 1-12.
 
 ## Source-of-Truth Decision
 
@@ -59,9 +59,9 @@ In particular:
 | Module Agent 07 | `#/program/soc-analyst/module/7` | Network & Email Analysis | Create isolated network-session, phishing, header, URL/attachment, and trace labs. | Complete |
 | Module Agent 08 | `#/program/soc-analyst/module/8` | Vulnerability Management & Exposure Analysis | Create constrained prioritization and exposure-analysis workflows without enterprise-wide browsing. | Complete |
 | Module Agent 09 | `#/program/soc-analyst/module/9` | Incident Response | Create limited correlation, investigation, and proportional-response exercises. | Complete |
-| Module Agent 10 | `#/program/soc-analyst/module/10` | Digital Evidence, Forensics & Incident Frameworks | Create evidence handling, timeline/root-cause, graph, and ATT&CK mapping exercises. | Not started |
-| Module Agent 11 | `#/program/soc-analyst/module/11` | SOC Operations, Metrics, Reporting & Communication | Create miniature metrics, case-note, executive-report, escalation, and closure workflows. | Not started |
-| Module Agent 12 | `#/program/soc-analyst/module/12` | SOC Analyst Capstone | Build the only complete integrated range and end-to-end synthetic incident. | Not started |
+| Module Agent 10 | `#/program/soc-analyst/module/10` | Digital Evidence, Forensics & Incident Frameworks | Create evidence handling, timeline/root-cause, graph, and ATT&CK mapping exercises. | Complete |
+| Module Agent 11 | `#/program/soc-analyst/module/11` | SOC Operations, Metrics, Reporting & Communication | Create miniature metrics, case-note, executive-report, escalation, and closure workflows. | Complete |
+| Module Agent 12 | `#/program/soc-analyst/module/12` | SOC Analyst Capstone | Build the only complete integrated range and end-to-end synthetic incident. | Complete |
 
 ## Execution Waves
 
@@ -70,7 +70,7 @@ In particular:
 | 1 | 01, 02, 03 | Shared lab contract and early guided pattern validated. | Complete 2026-08-18 |
 | 2 | 04, 05, 06 | Reusable detection, endpoint, and hunting components validated. | Complete 2026-08-18 |
 | 3 | 07, 08, 09 | Evidence isolation and semi-independent progression validated. | Complete 2026-08-19 |
-| 4 | 10, 11, 12 | Advanced artifacts integrated; capstone alone exposes full range. | Not started |
+| 4 | 10, 11, 12 | Advanced artifacts integrated; capstone alone exposes full range. | Complete 2026-08-19 |
 
 ## Shared Contract for Every Module Agent
 
@@ -101,15 +101,15 @@ Module Agent 12 must instead assemble the reusable components into the full caps
 
 ## Final QA Gate
 
-- [ ] All 11 regular modules expose only isolated miniature lab surfaces.
-- [ ] Module 12 alone exposes the complete integrated cyber range.
-- [ ] Every lab has a single objective, synthetic dataset, artifact, and explainable score.
-- [ ] Difficulty progresses from guided to independent.
-- [ ] State persists and lab reset remains scoped.
-- [ ] Capstone evidence is gated by prerequisites.
-- [ ] The capstone covers triage, query, timeline, scope, enrichment, ATT&CK, detection, response, reporting, and closure.
-- [ ] Existing routes and unrelated work remain intact.
-- [ ] Keyboard access, labels, focus behavior, contrast, and responsive layouts pass QA.
+- [x] All 11 regular modules expose only isolated miniature lab surfaces.
+- [x] Module 12 alone exposes the complete integrated cyber range.
+- [x] Every lab has a single objective, synthetic dataset, artifact, and explainable score.
+- [x] Difficulty progresses from guided to independent.
+- [x] State persists and lab reset remains scoped.
+- [x] Capstone evidence is gated by prerequisites.
+- [x] The capstone covers triage, query, timeline, scope, enrichment, ATT&CK, detection, response, reporting, and closure.
+- [x] Existing routes and unrelated work remain intact.
+- [x] Keyboard access, labels, focus behavior, contrast, and responsive layouts pass QA.
 
 ## Wave 1 Gate Review (2026-08-18)
 
@@ -213,5 +213,18 @@ three-source proportional incident-response exercise. Each scores observation, a
 and communication out of 100 with explainable feedback, persists only module-specific state, and
 resets without touching its neighbours.
 
-Wave 4 (Modules 10, 11, 12) is not launched. Launch it only after reading both the Wave 3 gate
-review above and the special Module 12 capstone exception in the ownership table.
+Wave 4 is complete. Modules 10 and 11 are independent labs; Module 12 alone exposes the complete
+integrated range after Modules 01–11 pass.
+
+## Wave 4 Gate Review (2026-08-19)
+
+Modules 10 and 11 provide independent evidence-custody, forensic-reconstruction, SOC-metrics,
+executive-reporting, escalation, and closure labs. Module 12 is the only complete integrated
+capstone and remains prerequisite-gated until Modules 01–11 are complete.
+
+- All three module scripts pass syntax checks and all 12 modules render through `node bin/portal-check.js`.
+- `node bin/lab-state-check.js` passes; each lab uses scoped `LabRuntime` state and reset.
+- `node bin/render_all.js` reports 129/129 clean simulator views and zero dead NAV routes.
+- Browser QA at 1366×768 confirmed Modules 10 and 11 render forms without simulator links; locked Module 12
+  renders no controls or simulator link before prerequisites; mobile-width containment remains clean.
+- Module files contain no network calls or direct browser-storage access. CSS selectors are module-prefixed.

@@ -1946,3 +1946,32 @@ Verification passed: syntax checks, `node bin/portal-check.js 1 2 3 4 5 6 7 8 9`
 checks at 1366×768 and 390×844 with a live interaction per route, zero runtime exceptions, and no
 horizontal overflow. The old `purview/audit` tiny-render baseline was also fixed with an initial
 mount shell; `node bin/render_all.js` now reports 129/129 clean views and zero dead NAV routes.
+
+## Wave 4 module labs — Modules 10, 11, 12 (2026-08-19)
+
+Modules 10 and 11 are now independent advanced labs for evidence custody, forensic reconstruction,
+SOC metrics, executive reporting, escalation, and closure. Module 12 is the only complete integrated
+capstone and is locked until Modules 01–11 are complete. The portal now routes authored module labs
+to their local routes and keeps the simulator link inside the gated capstone.
+
+Verification passed: all 12 module routes render through `node bin/portal-check.js`, `node
+bin/lab-state-check.js` passes, `node bin/render_all.js` reports 129/129 clean views with zero dead
+navigation routes, and browser QA confirmed independent Modules 10–11, locked Module 12 behavior,
+and mobile-width containment. Portal certification framing was replaced with general SOC analyst
+role language; compatibility-only simulator source identifiers remain intentionally unchanged.
+
+## Curriculum-alignment Sprint B — overview and shared syllabus rendering (2026-08-28)
+
+- `portal/data.js` now gives the SOC programme its governing Mission Next name and positioning,
+  exact 6-week / 12-module / 82-clock-hour / 40-lab-hour / Online / Diploma facts, and neutral
+  in-development fallback stats for draft tracks. The Help Desk outline makes no invented hour or
+  lab claim and discloses its unresolved virtualization allocation.
+- `portal/app.js` renders the explicit 70 technical + 12 M360 = 82 roll-up and 42 theory / 40 lab
+  context, canonical curriculum blocks with exact durations, technical-parent mappings, 16
+  track-scoped module lab cards, a program-derived four-hour capstone, a separate M360 companion
+  section, and a secondary-only Security+ relationship statement.
+- Gate evidence: `node --check portal/data.js`, `node --check portal/app.js`,
+  `node bin/curriculum-check.js`, targeted VM rendering for SOC and Help Desk, and
+  `git diff --check -- portal/app.js portal/data.js HANDOFF.md` pass. The full
+  `node bin/portal-check.js` still renders all 12 module routes but its program-overview probe calls
+  async `currentUser()` without awaiting it; that known harness repair remains assigned to Sprint F.

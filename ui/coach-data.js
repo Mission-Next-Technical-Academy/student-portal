@@ -44,10 +44,10 @@ const MODULE_COACHES = [
         target: 'tr[data-alert-id="A1701"]',
         require: true,
         title: 'Start at the alert',
-        instruction: 'Open the alert <strong>Successful sign-in after repeated failures</strong> on j.santos.',
+        instruction: 'Next Step: open <strong>Successful sign-in after repeated failures</strong> on j.santos.',
         body: 'This is the alert queue — the analyst\'s inbox. Your case is <strong>Successful sign-in after repeated failures</strong> on <strong>j.santos@missionnextlabs.example</strong>. Open it. Everything else is dimmed because this lab is one case; in a real queue you would pick by severity, age, and asset.',
-        waitLabel: 'I have opened the alert',
-        nudge: 'Click the highlighted alert row to open it.',
+        waitLabel: 'Next Step: Opened the alert',
+        nudge: 'Click the alert row to open it.',
         check: () => {
           const panel = document.getElementById('panel-alert');
           return Boolean(panel && !panel.classList.contains('hidden'));
@@ -62,10 +62,10 @@ const MODULE_COACHES = [
         target: '#panel-alert [data-pivot="signin-logs"]',
         require: true,
         title: 'Read the claim, then go to the log',
-        instruction: 'Read the alert pane, then choose <strong>Investigate sign-ins for this account</strong>.',
-        body: 'The pane claims eight failures then a success, one source address, and an unmanaged browser. That is a lead, not proof the session was unauthorized. Note the Medium severity, then follow the highlighted pivot to the <strong>sign-in log</strong> that recorded the activity. In a SIEM the first question is always "which log would record this?"',
-        waitLabel: 'I am in the sign-in log',
-        nudge: 'Use the highlighted "Investigate sign-ins for this account" button in the alert pane.',
+        instruction: 'Next Step: choose <strong>Investigate sign-ins for this account</strong>.',
+        body: 'The pane claims eight failures then a success, one source address, and an unmanaged browser. That is a lead, not proof the session was unauthorized. Note the Medium severity, then follow the pivot to the <strong>sign-in log</strong> that recorded the activity. In a SIEM the first question is always "which log would record this?"',
+        waitLabel: 'Next Step: In the sign-in log',
+        nudge: 'Use the button in the alert pane to open the sign-in log.',
         check: () => location.hash === '#/entra/sign-in-logs',
       },
       {
@@ -73,21 +73,21 @@ const MODULE_COACHES = [
         target: '#signin-user-filter',
         require: true,
         title: 'Narrow the log to one account',
-        instruction: 'Set the <strong>User</strong> filter to j.santos@missionnextlabs.example.',
+        instruction: 'Next Step: set the <strong>User</strong> filter to j.santos@missionnextlabs.example.',
         // No `do` here on purpose: filtering a log is the one motion every SOC
         // analyst repeats all day, so the student performs it. The coach
         // spotlights the control and waits instead of doing it for them.
-        body: 'The tenant log mixes every user together. Use the highlighted <strong>User</strong> filter and choose <strong>j.santos@missionnextlabs.example</strong>. A burst of failures is invisible in mixed traffic and obvious once you filter — so make the log show you one account.',
-        waitLabel: 'I have set the filter',
-        nudge: 'Not filtered yet — open the highlighted User dropdown and pick j.santos@missionnextlabs.example.',
+        body: 'The tenant log mixes every user together. Use the <strong>User</strong> filter and choose <strong>j.santos@missionnextlabs.example</strong>. A burst of failures is invisible in mixed traffic and obvious once you filter — so make the log show you one account.',
+        waitLabel: 'Next Step: Filter set',
+        nudge: 'Open the User dropdown and pick j.santos@missionnextlabs.example.',
         check: () => sessionStorage.getItem('defender-lab.signin.user') === 'j.santos@missionnextlabs.example',
       },
       {
         route: '#/entra/sign-in-logs',
         target: '.signin-row[data-signin-id="SL-019"]',
         require: true,
-        waitLabel: 'Next: find the success',
-        nudge: 'Read the failure rows, then click the highlighted 09:09:41 Success row.',
+        waitLabel: 'Next Step: Find the success',
+        nudge: 'Read the failure rows, then click the 09:09:41 Success row.',
         check: () => {
           const title = document.getElementById('technique-title');
           const panel = document.getElementById('panel-technique');
@@ -95,14 +95,14 @@ const MODULE_COACHES = [
             && title && title.textContent.includes('SL-019'));
         },
         title: 'Read the pattern, then open the success',
-        instruction: 'Read the eight Failure rows, then open the highlighted 09:09:41 <strong>Success</strong>.',
-        body: 'The eight failures from 09:02–09:08 all came from 185.220.101.24. At 09:09:41 the same IP succeeded. That change—from blocked attempts to obtained access—is the critical fact. Open the highlighted success to inspect whether its context fits the account owner.',
+        instruction: 'Next Step: read the eight Failure rows, then open the 09:09:41 <strong>Success</strong>.',
+        body: 'The eight failures from 09:02–09:08 all came from 185.220.101.24. At 09:09:41 the same IP succeeded. That change—from blocked attempts to obtained access—is the critical fact. Open the success to inspect whether its context fits the account owner.',
       },
       {
         route: '#/entra/sign-in-logs',
         target: null,
         title: 'You have the facts',
-        instruction: 'You have the evidence. Take it back to Module 1 and record your verdict.',
+        instruction: 'Next Step: return to Module 1 and record your verdict, priority, and handoff note.',
         body: 'Three facts, one log: access succeeded; Location is <strong>Bucharest, RO</strong>; Device info shows <strong>Managed: No</strong> and <strong>Join type: Not registered</strong>; and Basic info shows <strong>Sign-in risk: High</strong>. The fourth fact — the account owner reached by phone, denying the activity — is waiting for you in the module, the way a service-desk callback would reach you. Together that is a confirmed unauthorized access incident, not a suspicious-but-unproven alert. Go back to Module 1 and record your verdict, priority, and case note.',
         finish: { label: 'Back to Module 1' },
       },

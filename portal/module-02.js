@@ -34,8 +34,8 @@ const MODULE_TWO_FOUNDATIONS = [
 
 const MODULE_TWO_LAB = {
   title: 'Trust-path review: unexpected privileged access',
-  minutes: 35,
-  passingScore: 80,
+  minutes: 180,
+  passingScore: 70,
   scenario: 'A routine access review found several unusual-looking records. Determine which pattern requires escalation without treating every unfamiliar event as malicious.',
   stations: [
     { id: 'signins', label: 'Sign-ins', icon: 'ri-login-circle-line', instruction: 'Compare identity type, method, device state, and outcome. Select records that materially support your conclusion.' },
@@ -248,10 +248,11 @@ function moduleTwoLabDynamic() {
 
 function viewModuleTwo(user, program) {
   moduleTwoLoad(user);
+  const module = program.modules['soc-02'];
   return `<div class="m02-shell">
     <header class="m02-topbar"><a class="m02-brand" href="#/program/${esc(program.slug)}" aria-label="Back to SOC Analyst program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div class="m02-top-actions"><span class="m02-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Isolated simulation · fictional data</span><a class="m02-exit" href="#/program/${esc(program.slug)}"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header>
     <main class="m02-main">
-      <section class="m02-hero" aria-labelledby="m02-title"><div><p class="m02-kicker">Module 02 · Week 1 foundations</p><h1 id="m02-title">Network, Identity &amp; Security Foundations</h1><p class="m02-lede">Build a practical trust model, then correlate identity, authentication, network, and role-change facts without confusing unusual activity with malicious activity.</p><a class="m02-hero-action" href="#m02-foundations"><i class="ri-compass-3-line" aria-hidden="true"></i> Start the foundations</a></div><dl class="m02-progress" aria-label="Saved module progress"><div><dt>Foundation topics</dt><dd>8</dd></div><div><dt>Guided lab</dt><dd>${MODULE_TWO_LAB.minutes} min</dd></div><div><dt>Lab status</dt><dd id="m02-status">${moduleTwoState.completed ? 'Complete' : moduleTwoState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m02-hero" aria-labelledby="m02-title"><div><p class="m02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1 foundations</p><h1 id="m02-title">${esc(module.title)}</h1><p class="m02-lede">Build a practical trust model, then correlate identity, authentication, network, and role-change facts without confusing unusual activity with malicious activity.</p><a class="m02-hero-action" href="#m02-foundations"><i class="ri-compass-3-line" aria-hidden="true"></i> Start the foundations</a></div><dl class="m02-progress" aria-label="Saved module progress"><div><dt>Foundation topics</dt><dd>${module.lessons}</dd></div><div><dt>Guided lab</dt><dd>${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)}</dd></div><div><dt>Lab status</dt><dd id="m02-status">${moduleTwoState.completed ? 'Complete' : moduleTwoState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <section class="m02-objective" aria-labelledby="m02-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m02-kicker">One measurable objective</p><h2 id="m02-objective-title">Correlate authentication, network context, and authorization changes to identify one risky identity and document a proportionate escalation.</h2></div></section>
 
@@ -259,7 +260,7 @@ function viewModuleTwo(user, program) {
 
       <section class="m02-section" aria-labelledby="m02-model-title"><div class="m02-section-heading"><span>2</span><div><p class="m02-kicker">Reusable reasoning pattern</p><h2 id="m02-model-title">The five-step trust model</h2></div></div>${moduleTwoTrustModel()}<div class="m02-principle"><i class="ri-scales-3-line" aria-hidden="true"></i><p><strong>Analyst principle:</strong> “Outside the network” is not a verdict, and “inside the network” is not proof of trust. Combine identity, authentication, device, route, resource, and authorization evidence.</p></div></section>
 
-      <section class="m02-section m02-lab-section" id="m02-guided-lab" aria-labelledby="m02-lab-title"><div class="m02-section-heading"><span>3</span><div><p class="m02-kicker">Guided · assisted investigation · ${MODULE_TWO_LAB.minutes} minutes</p><h2 id="m02-lab-title">Suspicious authentication investigation</h2></div></div><div id="m02-lab-dynamic">${moduleTwoLabDynamic()}</div></section>
+      <section class="m02-section m02-lab-section" id="m02-guided-lab" aria-labelledby="m02-lab-title"><div class="m02-section-heading"><span>3</span><div><p class="m02-kicker">Guided · assisted investigation · ${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)} instructional time</p><h2 id="m02-lab-title">Suspicious authentication investigation</h2></div></div><div id="m02-lab-dynamic">${moduleTwoLabDynamic()}</div></section>
     </main>
   </div>`;
 }
@@ -439,7 +440,15 @@ function wireModuleTwoLab() {
     moduleTwoState.validationError = '';
     moduleTwoState.lastSubmittedAt = new Date().toISOString();
     moduleTwoState.resetArmed = false;
-    if (result.score >= MODULE_TWO_LAB.passingScore) {
+    const passed = result.score >= MODULE_TWO_LAB.passingScore;
+    if (typeof recordLabAttempt === 'function') {
+      recordLabAttempt(moduleTwoUser, MODULE_TWO_CATALOG_LAB_KEY, {
+        state: passed ? 'complete' : 'in_progress',
+        score: result.score,
+        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleTwoState.attempts },
+      });
+    }
+    if (passed) {
       moduleTwoState.completed = true;
       if (!moduleTwoState.flags.includes(MODULE_TWO_FLAG)) moduleTwoState.flags.push(MODULE_TWO_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTwoUser, 'soc-analyst', 'soc-02', MODULE_TWO_CATALOG_LAB_KEY);
