@@ -1423,7 +1423,7 @@ function viewProgram(user, slug) {
           <div class="bg-white/[0.06] border border-white/10 rounded-xl px-6 py-5">
             <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">Prior instruction trace</p>
             <p class="text-white text-sm leading-relaxed">
-              Draws on competencies from all 11 prior modules: SOC operations and analyst workflow (M01), network and identity foundations (M02), SIEM and log analysis (M03), detection engineering (M04), endpoint investigation (M05), threat hunting (M06), network and email analysis (M07), vulnerability prioritization (M08), incident response (M09), evidence handling (M10), and SOC metrics/reporting (M11).
+              Draws on competencies from all 11 prior modules: SOC operations and analyst workflow (M01), network and identity foundations (M02), SIEM and log analysis (M03), detection rule tuning (M04), endpoint investigation (M05), threat hunting (M06), network and email analysis (M07), vulnerability prioritization (M08), incident response (M09), evidence handling (M10), and SOC metrics/reporting (M11).
             </p>
           </div>
         </div>
@@ -1681,7 +1681,7 @@ function viewAdmin(user, rows, error, activeStudents) {
                              data-track="${esc(row.track_code)}" data-progress="${row.percent_complete}" data-started="${row.modules_complete > 0 ? '1' : '0'}">
                            <td class="px-6 py-4 text-sm text-gray-900 font-mono">${esc(row.student_id)}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug)}</td>
+                           <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
                            <td class="px-6 py-4 text-sm">
                              <div class="flex items-center gap-2">
                                <div class="h-1.5 w-24 bg-gray-100 rounded-full overflow-hidden">
@@ -1742,7 +1742,7 @@ function viewAdmin(user, rows, error, activeStudents) {
 
 async function render() {
   const app = document.getElementById('app');
-  const hash = location.hash || '#/login';
+  let hash = location.hash || '#/login';
   const user = await currentUser();
 
   // In-page anchors (#sec-labs, #sec-capstone) share the hash with the router.

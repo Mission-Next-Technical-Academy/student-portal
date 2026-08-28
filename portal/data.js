@@ -246,7 +246,7 @@ const PROGRAMS = [
     ],
     skills: [
       'SIEM', 'XDR', 'Threat Detection', 'Incident Response', 'Threat Hunting',
-      'Vulnerability Management', 'Network Analysis', 'Email Security', 'Security Operations',
+      'Vulnerability Prioritization', 'Network Analysis', 'Email Security', 'Security Operations',
     ],
     weekGroups: [
       { number: 1, label: 'Week 1 — SOC Operations, Network, Identity & Security Foundations', modules: ['soc-01', 'soc-02'] },
@@ -308,7 +308,7 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-04-lesson-03', title: 'Threat intelligence desk', durationMinutes: 30, parentAllocations: [allocation('SOC-101.4', 30)], objective: 'Use source quality, recency, and observed context to enrich rather than replace the evidence.' }),
           curriculumItem({ key: 'soc-04-lesson-04', title: 'Automation boundary', durationMinutes: 30, parentAllocations: [allocation('SOC-101.7', 30)], objective: 'Choose a bounded automated action that preserves review and avoids unsupported disruption.' }),
         ],
-        skills: ['Detection Engineering', 'Threat Intelligence', 'SOAR', 'Automation', 'Regex'] },
+        skills: ['Detection Rules', 'Threat Intelligence', 'SOAR', 'Automation', 'Regex'] },
       'soc-05': { number: 5, week: 3, title: 'Endpoint & Malware Investigation', hours: '4 Hours 30 Minutes', durationMinutes: 270, lessons: 10, labs: 1,
         summary: 'Investigate suspicious activity occurring on endpoints.',
         curriculumItems: [
@@ -343,14 +343,14 @@ const PROGRAMS = [
         ],
         skills: ['Packet Analysis', 'DNS', 'Email Security', 'Phishing Analysis', 'Network Investigation'] },
       'soc-08': { number: 8, week: 4, title: 'Vulnerability Findings & SOC Prioritization', hours: '6 Hours 45 Minutes', durationMinutes: 405, lessons: 4, labs: 2,
-        summary: 'Learn how security teams identify, validate, prioritize, and manage vulnerabilities across enterprise environments.',
+        summary: 'Learn how a SOC analyst validates, prioritizes, and routes vulnerability findings for remediation ownership.',
         curriculumItems: [
           curriculumItem({ key: 'soc-08-lesson-01', title: 'Treat vulnerability data as a decision input', durationMinutes: 30, parentAllocations: [allocation('SOC-101.3', 30)], objective: 'Interpret CVE, CVSS, exploitability, asset role, and exposure as inputs to an analyst decision.' }),
           curriculumItem({ key: 'soc-08-lesson-02', title: 'Exposure-driven remediation priority', durationMinutes: 30, parentAllocations: [allocation('SOC-101.3', 15), allocation('SOC-101.7', 15)], objective: 'Prioritize a finding using exposure, evidence of activity, business context, and available controls.' }),
           curriculumItem({ key: 'soc-08-lesson-03', title: 'Validate before you rank', durationMinutes: 20, parentAllocations: [allocation('SOC-101.7', 20)], objective: 'Validate finding freshness, affected scope, compensating controls, and supporting telemetry before ranking.' }),
           curriculumItem({ key: 'soc-08-lesson-04', title: 'Close the decision loop', durationMinutes: 25, parentAllocations: [allocation('SOC-101.7', 25)], objective: 'Document the disposition, owner, next action, due point, and escalation condition for a finding.' }),
         ],
-        skills: ['Vulnerability Management', 'CVSS', 'CVE', 'Risk Prioritization', 'Remediation', 'Attack Surface Management'] },
+        skills: ['Vulnerability Prioritization', 'CVSS', 'CVE', 'Risk Prioritization', 'Remediation', 'Attack Surface Management'] },
       'soc-09': { number: 9, week: 5, title: 'Incident Response', hours: '2 Hours 30 Minutes', durationMinutes: 150, lessons: 1, labs: 1,
         summary: 'Manage security incidents from initial detection through containment and recovery.',
         curriculumItems: [
@@ -358,12 +358,12 @@ const PROGRAMS = [
         ],
         skills: ['Incident Response', 'Containment', 'Eradication', 'Recovery', 'Escalation'] },
       'soc-10': { number: 10, week: 5, title: 'Incident Evidence Handling, Chain of Custody & Case Documentation', hours: '4 Hours 30 Minutes', durationMinutes: 270, lessons: 2, labs: 2,
-        summary: 'Understand evidence handling, forensic concepts, and structured incident analysis.',
+        summary: 'Understand evidence handling, chain-of-custody concepts, and structured incident analysis.',
         curriculumItems: [
           curriculumItem({ key: 'soc-10-lesson-01', title: 'Post-containment evidence intake', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'Record evidence source, acquisition context, integrity controls, custody, and specialist escalation boundaries.' }),
           curriculumItem({ key: 'soc-10-lesson-02', title: 'Attachment-to-persistence reconstruction', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'Separate observed facts, supported causal analysis, framework mapping, and explicit unknowns in a case record.' }),
         ],
-        skills: ['Digital Forensics', 'Evidence Handling', 'MITRE ATT&CK', 'Root Cause Analysis', 'Incident Analysis'] },
+        skills: ['Chain of Custody', 'Evidence Handling', 'MITRE ATT&CK', 'Root Cause Analysis', 'Incident Analysis'] },
       'soc-11': { number: 11, week: 6, title: 'SOC Operations, Metrics, Reporting & Communication', hours: '3 Hours 15 Minutes', durationMinutes: 195, lessons: 3, labs: 2,
         summary: 'Turn technical findings into actionable information for security teams, leadership, and business stakeholders.',
         curriculumItems: [
@@ -710,7 +710,7 @@ const LABS = [
   labRecord({ key: 'lab-detection-rule', module: 'soc-04', title: 'Detection Rule Review & Enrichment', difficulty: 'Intermediate', minutes: 120,
     parentAllocations: [allocation('SOC-101.4', 60), allocation('SOC-101.7', 60)], objective: 'Tune one detection rule, justify threat-intelligence enrichment, and select a bounded automated monitoring action.',
     description: 'Review a detection rule, investigate matched indicators, enrich an alert with threat intelligence, and run an automated response.',
-    skills: ['Detection Engineering', 'Threat Intelligence', 'SOAR'], simEntry: '#/sentinel/analytics' }),
+    skills: ['Detection Rules', 'Threat Intelligence', 'SOAR'], simEntry: '#/sentinel/analytics' }),
   labRecord({ key: 'lab-endpoint-investigation', module: 'soc-05', title: 'Infected Workstation Investigation', difficulty: 'Intermediate', minutes: 120,
     parentAllocations: [allocation('SOC-101.3', 45), allocation('SOC-101.4', 45), allocation('SOC-101.6', 30)], objective: 'Build an endpoint execution chain, assess the file and persistence evidence, and prepare a containment handoff.',
     description: 'Follow a process tree, review file and registry activity, validate file reputation, and isolate a compromised endpoint.',
@@ -734,7 +734,7 @@ const LABS = [
   labRecord({ key: 'lab-vuln-queue', module: 'soc-08', title: 'Vulnerability Analyst Queue', difficulty: 'Advanced', minutes: 150,
     parentAllocations: [allocation('SOC-101.3', 90), allocation('SOC-101.7', 60)], objective: 'Disposition a queue of vulnerability findings and document owners, next actions, and escalation conditions.',
     description: 'Work a queue of findings and decide: fix now, schedule, compensating control, accept risk, escalate, or false positive.',
-    skills: ['Vulnerability Management', 'Risk Decisions', 'Remediation'], simEntry: '#/defender/vuln-management' }),
+    skills: ['Vulnerability Prioritization', 'Risk Decisions', 'Remediation'], simEntry: '#/defender/vuln-management' }),
   labRecord({ key: 'lab-active-incident', module: 'soc-09', title: 'Active Security Incident', difficulty: 'Advanced', minutes: 120,
     parentAllocations: [allocation('SOC-101.6', 120)], objective: 'Validate and scope an incident, recommend proportionate response actions, and produce a complete escalation handoff.',
     description: 'Validate an incident, determine scope and severity, contain the endpoint, disable the account, block the indicator, and verify recovery.',

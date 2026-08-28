@@ -1,7 +1,8 @@
 # Mission Next Technical Academy SOC Analyst Course — Latest Progress
 
-Status date: 2026-08-19
-Status: Wave 4 implemented and gate-reviewed; course servers left running for local review
+Status date: 2026-08-28
+Status: Curriculum-alignment wave (Sprints A-H, admin redirect, H.1) complete and
+QA-swept (Sprint G); local dev servers stopped after the sweep
 Current direction: General SOC Analyst training—not SC-200 certification training
 
 ## Current project direction
@@ -186,6 +187,22 @@ Routes and workflow behavior were not changed.
 - The interface uses the fixed self-reference **Me**, so it requires no
   current-user lookup or identity refresh.
 
+### 11. Curriculum-alignment wave (2026-08-28)
+
+A separate, later body of work covers the `portal/` (Supabase-backed student
+portal) half of this project rather than the `ui/` simulator this section
+otherwise documents: sprints A-H plus an admin-only redirect and an H.1
+drill-down brought the SOC program's labels, hours, lab catalogue, M360
+boundary, records export, and admin dashboard into alignment with
+`CURRICULUM_ALIGNMENT_ARCHITECTURE.md`, followed by a Sprint G QA sweep that
+fixed a live-breaking admin-render bug and several prohibited-language
+leftovers. Full detail, gate evidence, and screenshot locations are in
+`HANDOFF.md`'s "Curriculum-alignment Sprints C-H, admin redirect, H.1, and
+Sprint G QA sweep" entry and `CURRICULUM_ALIGNMENT_ARCHITECTURE.md` section 0.
+Nothing from this wave is committed to git history beyond commits `57ac7cc`,
+`e4903e1`, and `227bb5c` (all local, not pushed as of this sweep), and nothing
+is deployed.
+
 ## Current technical state
 
 The application remains a static single-page app built with vanilla HTML, CSS,
@@ -258,17 +275,12 @@ fixtures, saved queries, result sets, and exercises can be migrated together.
 
 ## Recommended next work
 
-1. Define and publish a general SOC Analyst curriculum map covering:
-   - alert intake and prioritization;
-   - incident triage and case ownership;
-   - evidence, entity, and timeline analysis;
-   - endpoint and identity response;
-   - threat hunting and query reasoning;
-   - detection creation and tuning;
-   - SIEM/SOAR investigation and automation;
-   - cloud and SaaS investigation;
-   - data protection and insider-risk response;
-   - documentation, escalation, and shift handoff.
+1. ~~Define and publish a general SOC Analyst curriculum map~~ — done by the
+   curriculum-alignment wave (§11 above): `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`
+   plus the generated `CURRICULUM_MAP.md` are now that map. What remains is not
+   defining it but getting it externally approved — see that architecture
+   doc's section 9 "Release boundary" for the outstanding curriculum-lead,
+   compliance-reviewer, and faculty sign-offs.
 2. Use that curriculum map—not `ExamObjectives.md`—to decide future features.
 3. Perform a fresh visual walkthrough at 1366×768 and a larger desktop
    resolution after future layout changes.

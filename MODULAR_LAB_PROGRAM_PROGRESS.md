@@ -228,3 +228,17 @@ capstone and remains prerequisite-gated until Modules 01–11 are complete.
 - Browser QA at 1366×768 confirmed Modules 10 and 11 render forms without simulator links; locked Module 12
   renders no controls or simulator link before prerequisites; mobile-width containment remains clean.
 - Module files contain no network calls or direct browser-storage access. CSS selectors are module-prefixed.
+
+## Curriculum-alignment wave note (2026-08-28)
+
+This program's own scope — parallel module-agent implementation — closed at
+Wave 4 above. A later, separate initiative (sprints A-H, admin redirect,
+H.1, and a Sprint G QA sweep; see `CURRICULUM_ALIGNMENT_ARCHITECTURE.md` and
+`HANDOFF.md`) renamed several of these modules' labels to remove
+certification/specialization framing (notably Modules 04, 08, and 10 — the
+Module 10 label above, "evidence-custody, forensic-reconstruction," predates
+that rename and now reads "Incident Evidence Handling, Chain of Custody &
+Case Documentation" learner-facing) and reconciled hours/labs to the approved
+82-clock-hour baseline. Stable module/lab keys, routes, and saved-state
+namespaces from this program were confirmed unchanged by that later wave
+(diffed against pre-wave commit `873df15`).

@@ -1975,3 +1975,126 @@ role language; compatibility-only simulator source identifiers remain intentiona
   `git diff --check -- portal/app.js portal/data.js HANDOFF.md` pass. The full
   `node bin/portal-check.js` still renders all 12 module routes but its program-overview probe calls
   async `currentUser()` without awaiting it; that known harness repair remains assigned to Sprint F.
+
+## Curriculum-alignment Sprints C-H, admin redirect, H.1, and Sprint G QA sweep (2026-08-28)
+
+Sprints C through H.1 and this QA sweep all landed after Sprint B, closing out
+`CURRICULUM_ALIGNMENT_ARCHITECTURE.md`'s sprint list end to end.
+
+- **Sprint C** — Module 01/04/05/06/08/10/12 H1s and copy now match the
+  approved-scope labels (`Detection Rules, Threat Intelligence & Automated
+  Monitoring`, `Vulnerability Findings & SOC Prioritization`, `Incident
+  Evidence Handling, Chain of Custody & Case Documentation`, etc.); Module 05
+  and 06 carry explicit non-specialist/non-occupation guardrail copy; ATT&CK
+  reads as a framework; all pass thresholds normalized to 70%.
+- **Sprint D** — exact lab instructional durations, the 16+1 lab
+  reconciliation, evidence/evaluation display, and Module 12's four-hour
+  capstone rubric + prior-instruction trace.
+- **Sprint E** — a visibly separate M360-101 12-hour companion section with
+  its own progress namespace, independent from technical module tracking.
+- **Sprint F** — per-student export record (grades, progress, capstone,
+  faculty evaluation) with unverified fields explicitly labeled; async test
+  harness fix in `bin/portal-check.js`; a broken Module 11 asset reference
+  fixed.
+- **Sprint H** — admin dashboard rebuilt with summary tiles, sort-by-progress
+  (not provisioning order), a per-track filter, and a default-off
+  "hide not-started" toggle; confirmed zero-progress students render as real
+  rows both in the `admin_student_progress` view and in `viewAdmin()`.
+- **Admin-only redirect** — the router now sends any `user.isAdmin` session to
+  `#/admin` instead of ever rendering `viewPortal()`, on every navigation path
+  (post-login default, typed `#/portal`, a stale link, a module/program
+  route) — not just the post-login landing spot. `#/admin` itself stays
+  reachable from the header nav. Commit `e4903e1`.
+- **Sprint H.1** — a student-detail dropdown on the admin dashboard, populated
+  only with students who have real progress (`modules_complete > 0` or at
+  least one lab/capstone attempt). Selecting one loads per-module status/%,
+  per-lab score (joined against `portal/data.js`'s lab catalogue for the
+  human-readable title), and per-stage capstone detail plus the rubric
+  scorecard when present. Building this surfaced a real gap: `module_progress`
+  / `lab_attempts` / `capstone_submissions` only carried "own row" RLS
+  policies, so admin queries against them — including Sprint H's own
+  dashboard rollups — were silently admin-scoped instead of seeing all
+  students. Fix is in `supabase/migrations/20260828170000_admin_student_detail.sql`
+  (additive `create policy` + a new `admin_student_activity` view; no
+  drop/alter of a live table) — **written but not applied to the live
+  database.** Commit `227bb5c`.
+- **Sprint G (this sweep)** — full syntax/render/browser QA, a prohibited-
+  language scan, a stable-key diff audit, and an exact-hours reconciliation.
+  Commands run and all passing after fixes below: `node --check` on every
+  non-vendor `.js` under `portal/` and `ui/`; `node bin/portal-check.js`;
+  `node bin/lab-state-check.js`; `node bin/curriculum-check.js`
+  (`70 technical (30 theory + 40 lab) + 12 M360 = 82`; parents
+  `3/10/10/12/14/9/8/4`; `16 non-capstone (2,160 min) + 1 capstone (240 min) =
+  40 lab hours`; reconciles exactly to architecture-doc section 2/3, no
+  discrepancy found); `node bin/render_all.js` (129/129, 0 dead routes).
+  Browser QA (Chrome via the claude-in-chrome MCP tools, admin session from
+  `bin/.roster-output/ADMIN-*.csv`, student session from a `SOCAN` roster
+  CSV — `user2`/`user2` from `bin/dev.sh`'s printed demo credentials is
+  stale and no longer authenticates) confirmed: `#/admin` renders the
+  dashboard (not the catalogue) for an admin on both desktop and a 390px
+  mobile viewport (emulated via an in-page same-origin iframe, since the
+  window manager in this environment would not honor OS-level window
+  resizes); the "hide not-started" toggle and track filter behave correctly;
+  the student-detail section renders its graceful empty state ("No students
+  have recorded progress yet.") since the live test DB currently has zero
+  students with real progress, so the actual select-a-student → load-detail
+  flow could not be exercised end to end — that remains an item for real
+  authenticated-session testing per section 9; a student login lands on the
+  catalogue (not redirected) and Module 1 renders cleanly on both viewports
+  with the correct approved label and zero console errors.
+
+  Bugs found and fixed as part of this sweep (all mechanical, not judgment
+  calls):
+  - `portal/app.js`'s `render()` declared `const hash` but the admin-redirect
+    block (added by the Sprint H section's redirect work) reassigned it,
+    throwing `TypeError: Assignment to constant variable` and leaving every
+    admin session on a blank page — `#/admin` never actually painted despite
+    the redirect otherwise working. Changed to `let hash`. This was live in
+    the working tree since commit `e4903e1` and would have broken every real
+    admin login; caught only by loading the page in a browser.
+  - The admin table's Program column printed the literal string `"null"` for
+    the ADMIN account's own row (no `program_slug`). Falls back to `—` like
+    the neighboring Capstone/Last Active columns.
+  - Prohibited-language leftovers from before the Sprint C rename, found by
+    grepping `portal/data.js` and `portal/module-*.js` for "Detection
+    Engineering," "Vulnerability Management," and "Forensics"/"Digital
+    Forensics" per architecture-doc section 4/5: `Detection Engineering` as a
+    skill-chip tag on Module 04 and its lab (now `Detection Rules`);
+    `Vulnerability Management` as a skill-chip tag on the program card,
+    Module 08, and its second lab, plus in Module 08's summary line ("...
+    manage vulnerabilities across enterprise environments" — directly
+    contradicted Module 08's own in-page disclaimer that the analyst does
+    not administer an enterprise vulnerability program); `Digital Forensics`
+    as a skill-chip tag on Module 10, plus "forensic concepts" in its
+    summary line (now `Chain of Custody` / "chain-of-custody concepts").
+    Also `detection engineering (M04)` in two separate prior-instruction-
+    trace strings — one in `portal/module-12.js`'s own capstone view, a
+    second, differently-worded copy in `portal/app.js`'s program-overview
+    capstone card — both now read `detection rule tuning (M04)`; and a
+    Module 12 rubric fieldset legend literally read "Detection engineering"
+    while the rubric's own domain list above it calls that domain
+    "Detection" — legend corrected to match. All hits were confirmed live in
+    the browser after the fix (module/lab cards, program overview, capstone
+    view) and the four gate commands above were re-run clean after every
+    edit. Everything else the grep surfaced was an acceptable bounded/role-
+    external usage (e.g. "vulnerability management" as a downstream team
+    Module 08 explicitly says the analyst does *not* run; "threat hunters"
+    named as a role outside this program; forensic evidence-type labels and
+    IDs inside Module 10's bounded-practice disclaimer).
+  - Stable-key diff audit (`git diff 873df15..HEAD -- portal/data.js
+    ui/coach-data.js`, `873df15` confirmed as the pre-alignment-wave baseline
+    from `git log`): `soc-01`..`soc-12` module keys, `portalEntry`/`simEntry`
+    routes, and `ui/coach-data.js`'s `completionToken`/`home` route
+    identifiers are byte-identical to baseline. The only lab-key change is
+    the addition of `lab-soc-escalation` — additive, and already called out
+    in architecture-doc section 5 as "the locally identified 16th lab
+    pending curriculum sign-off," not a rename. `portal/module-registry.js`,
+    `portal/lab-runtime.js`, and `ui/data.js` have zero diff in this range.
+
+  Screenshots saved to `.agent-logs/sprint-g-screenshots/` (not committed —
+  no existing convention in this repo commits binary screenshot evidence
+  into git; prior sessions' screenshot evidence lives only in session logs).
+
+  Not fixed, flagged instead (real design/compliance judgment calls, not
+  bugs): none found this sweep beyond what section 9 already tracks as
+  external-approval gates.
