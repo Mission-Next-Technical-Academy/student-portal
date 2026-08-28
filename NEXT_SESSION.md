@@ -2,50 +2,64 @@
 
 ## URGENT handoff (2026-08-28, later session — read before anything else)
 
-The curriculum-alignment wave is now fully closed out. Commit `57ac7cc` (Sprints
-A-F + H's admin dashboard rebuild + backend schema-simplification migrations)
-was already pushed to `origin/master` as of the start of this session. Three
-more commits landed **this session, all local only, none pushed**:
+The curriculum-alignment wave is fully closed out, pushed, and **live**.
+`git log --oneline -6` on `master` should read `d341ee6`, `0d5dac1`, `2de91d2`,
+`0ef74c8`, `227bb5c`, `e4903e1`, `57ac7cc` — all pushed to `origin/master`,
+all deployed via the Pages workflow, both migrations applied to the live
+Supabase project. If any of that isn't true when you're reading this,
+something regressed — treat it as news, not the expected state.
 
-1. `e4903e1` — **Admin-only redirect.** Router now sends any `user.isAdmin`
+1. `e4903e1` — **Admin-only redirect.** Router sends any `user.isAdmin`
    session to `#/admin` on every navigation path, not just post-login.
 2. `227bb5c` — **Sprint H.1, student detail drill-down.** Dropdown + detail
-   panel on the admin dashboard. Building it surfaced a real gap: `module_progress`
-   / `lab_attempts` / `capstone_submissions` only had "own row" RLS policies, so
-   admin queries against them (including Sprint H's own dashboard rollups) were
-   silently seeing only the admin's own data. Fix is in
-   `supabase/migrations/20260828170000_admin_student_detail.sql` — **applied
-   to the live database** (confirmed via `supabase migration list` showing it
-   in the Remote column, and `supabase db diff --linked` returning "No schema
-   changes found").
+   panel on the admin dashboard. Surfaced a real gap: `module_progress` /
+   `lab_attempts` / `capstone_submissions` only had "own row" RLS policies,
+   so admin queries against them were silently admin-scoped. Fixed by
+   `supabase/migrations/20260828170000_admin_student_detail.sql`.
 3. `0ef74c8` — **Sprint G, final QA sweep.** Full syntax/render/browser pass,
-   prohibited-language scan, stable-key diff audit, exact-hours reconciliation
-   — all clean. Found and fixed two real bugs along the way: `render()`'s
-   admin-redirect block reassigned a `const hash`, which threw and left every
-   admin session on a blank page since `e4903e1` landed (fixed to `let`, so if
-   you're reading this before `e4903e1`+`0ef74c8` are both applied, the admin
-   redirect alone is not safe to rely on) — and several prohibited-language
-   leftovers from before the Sprint C rename ("Detection Engineering",
-   "Vulnerability Management", "Digital Forensics" in skill-tag chips and
-   summary copy). Full list in `HANDOFF.md`'s dated entry.
+   prohibited-language scan, stable-key diff, exact-hours reconciliation —
+   all clean. Fixed a `const hash` reassignment in `render()`'s admin-redirect
+   block that threw and left every admin session on a blank page, plus
+   several prohibited-language leftovers from before the Sprint C rename.
+4. `d341ee6` — **Fix: in-progress students invisible on the admin dashboard.**
+   Found via **real live UAT after deploy** (not a synthetic test): logged in
+   as an actual admin and an actual SOCAN student against the deployed site
+   + live Supabase project, opened Module 1 as the student (a genuine
+   `module_progress` row with `state = 'in_progress'` was written), then
+   checked the admin dashboard — it still read Not Started 81 / In Progress 0.
+   Root cause: `course_progress` only ever counted `state = 'complete'`, never
+   `'in_progress'`, so a student who'd started but not finished anything was
+   indistinguishable from one who'd never logged in — true for most active
+   students most of the time in a 12-module course. Fixed by
+   `supabase/migrations/20260828180000_course_progress_in_progress_count.sql`
+   (adds `modules_in_progress`, appended at the end of each view's column
+   list — `create or replace view` errors [42P16] if you insert a new column
+   anywhere but the end) plus the matching `portal/app.js` changes. **Re-verified
+   live after this fix deployed**: dashboard correctly read Not Started 80 /
+   In Progress 1, and the H.1 dropdown/detail panel correctly showed the test
+   student's real module status. Test student `8987495051-SOCAN` (roster CSV
+   in `bin/.roster-output/`) now legitimately has that in-progress row in the
+   live DB — harmless (rotatable training account, no real PII), left as-is
+   unless you want it cleared.
 
-**Nothing from this session is pushed.** `git log --oneline -4` from `master`
-should show `0ef74c8`, `227bb5c`, `e4903e1`, `57ac7cc` in that order — confirm
-before assuming any of this is live. Pushing `e4903e1`/`227bb5c`/`0ef74c8`
-(and separately, applying the new migration) both remain site-owner-gated
-actions per the standing rule in `architecture.md`.
-
-`CURRICULUM_ALIGNMENT_ARCHITECTURE.md` section 0 now shows every sprint
-(A-H, the redirect, H.1, G) as done, each with its commit hash. Release
-readiness is still gated on external sign-offs — see that doc's section 9
-"Release boundary" (Form 301 comparison, curriculum-lead/compliance-
+`CURRICULUM_ALIGNMENT_ARCHITECTURE.md` section 0 shows every sprint (A-H, the
+redirect, H.1, G) as done, each with its commit hash — the in-progress fix
+above isn't a lettered sprint, it's a live-UAT finding, not yet reflected there.
+Release readiness is still gated on external sign-offs — see that doc's
+section 9 "Release boundary" (Form 301 comparison, curriculum-lead/compliance-
 reviewer/faculty approval) — none of that changes just because the repo is
-now internally consistent.
+now internally consistent and live.
 
-Also still true from the prior session, unchanged: Sprint H.1's live
-select-a-student flow could not be exercised end-to-end because the test
-DB currently has zero students with real progress — that needs a real
-authenticated session with actual student activity to verify.
+A new `Reportingrequirements.txt` file (CIE reporting/recordkeeping
+requirements) appeared in the repo root this session, untracked — not
+something this session wrote or committed; leaving it alone as reference
+material unless told otherwise.
+
+Also worth knowing: `supabase db push` is consistently blocked for the
+assistant by Claude Code's auto-mode classifier (a live/destructive-action
+gate) — every migration this session (`20260828170000`, `20260828180000`)
+needed the site owner to run `supabase db push` themselves in their own
+terminal. Plan for that step explicitly in any future migration work.
 
 ---
 
