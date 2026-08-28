@@ -1580,7 +1580,7 @@ function viewAdmin(user, rows, error, activeStudents) {
   activeStudents = activeStudents || [];
   // Summary statistics
   let totalStudents = rows.length;
-  let notStarted = rows.filter((r) => r.modules_complete === 0).length;
+  let notStarted = rows.filter((r) => r.modules_complete === 0 && (r.modules_in_progress || 0) === 0).length;
   let complete = rows.filter((r) => r.percent_complete >= 100).length;
   let inProgress = totalStudents - notStarted - complete;
   let avgComplete = totalStudents > 0
@@ -1678,7 +1678,7 @@ function viewAdmin(user, rows, error, activeStudents) {
                      <tbody id="admin-table-body">
                        ${rows.map((row) => `
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row"
-                             data-track="${esc(row.track_code)}" data-progress="${row.percent_complete}" data-started="${row.modules_complete > 0 ? '1' : '0'}">
+                             data-track="${esc(row.track_code)}" data-progress="${row.percent_complete}" data-started="${(row.modules_complete > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}">
                            <td class="px-6 py-4 text-sm text-gray-900 font-mono">${esc(row.student_id)}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
@@ -1719,7 +1719,7 @@ function viewAdmin(user, rows, error, activeStudents) {
                           <label for="student-detail-select" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Select a Student</label>
                           <select id="student-detail-select" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 w-full sm:w-96">
                             <option value="">Choose a student…</option>
-                            ${activeStudents.map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)} (${r.modules_complete}/${r.modules_total} modules)</option>`).join('')}
+                            ${activeStudents.map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)} (${r.modules_complete}/${r.modules_total} modules${r.modules_complete === 0 && (r.modules_in_progress || 0) > 0 ? ', in progress' : ''})</option>`).join('')}
                           </select>
                         </div>
                         <div id="student-detail-panel"></div>`
@@ -1800,7 +1800,7 @@ async function render() {
         .from('admin_student_activity')
         .select('*');
       activeStudents = (activityRows || [])
-        .filter((r) => (r.modules_complete || 0) > 0 || (r.lab_attempts_count || 0) > 0 || (r.capstone_submissions_count || 0) > 0)
+        .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || (r.lab_attempts_count || 0) > 0 || (r.capstone_submissions_count || 0) > 0)
         .sort((a, b) => a.student_id.localeCompare(b.student_id));
 
       app.innerHTML = viewAdmin(user, sorted, error, activeStudents);
