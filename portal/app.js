@@ -1736,6 +1736,14 @@ async function render() {
     // fall through and render the portal
   }
 
+  // Admin-only redirect: admins must never see the student portal/catalogue,
+  // whether they land there by default, type #/portal directly, follow a stale link,
+  // or any other navigation path. Redirect them to #/admin instead.
+  if (user.isAdmin && hash !== '#/admin') {
+    history.replaceState(null, '', '#/admin');
+    hash = '#/admin';
+  }
+
   if (hash === '#/admin') {
     if (!user.isAdmin) {
       history.replaceState(null, '', '#/portal');
