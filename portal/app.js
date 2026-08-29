@@ -233,156 +233,2060 @@ function m360CompletionSummary(user) {
   return { completed, total };
 }
 
-/* ------------------------------------------------ student record export */
-/* Builds a complete, exportable student record covering grades, attendance,
- * progress, artifacts, faculty evaluation, capstone, and outcome. All fields
- * without real backing data sources are explicitly marked "not yet collected"
- * per architecture.md Sprint F. */
+/* ----------------------------------------- admin dashboard local state */
 
-async function buildStudentExportRecord(user, program) {
-  if (!user || !user.enrollments.length) return null;
+/* Report history is kept in browser storage as a convenience only. The
+ * institutional report-generation audit lives in Supabase once the local
+ * report_generation_audit migration is deliberately applied. */
+const ADMIN_DASHBOARD_STATE_KEY = 'mnt.portal.admin-dashboard.v1';
 
-  const enrollment = user.enrollments[0];
-  const now = new Date().toISOString();
+function loadAdminDashboardState() {
+  const fallback = { reportRuns: [] };
+  try {
+    const saved = JSON.parse(localStorage.getItem(ADMIN_DASHBOARD_STATE_KEY) || 'null');
+    if (!saved || typeof saved !== 'object') return fallback;
+    return {
+      reportRuns: Array.isArray(saved.reportRuns) ? saved.reportRuns : [],
+    };
+  } catch (_) {
+    return fallback;
+  }
+}
 
-  // Module grades: collected from localStorage engagement + lab attempts
-  const moduleScores = [];
-  const moduleKeys = Object.keys(program.modules || {});
-  for (const moduleKey of moduleKeys) {
-    const module = program.modules[moduleKey];
-    const engagement = loadModuleEngagement(user);
-    const completed = engagement.completedLabs.some((id) => id.startsWith(`${program.slug}:${moduleKey}`));
-    moduleScores.push({
-      moduleKey,
-      title: module.title,
-      completed: completed ? true : false,
-      status: completed ? 'complete' : 'not started'
+function saveAdminDashboardState(state) {
+  localStorage.setItem(ADMIN_DASHBOARD_STATE_KEY, JSON.stringify(state));
+}
+
+async function updateAdminEnrollmentRemote(studentId, enrolled) {
+  const { error: enrollmentError } = await mntSupabase
+    .from('students')
+    .update({ is_enrolled: enrolled })
+    .eq('student_id', studentId);
+  if (enrollmentError) return enrollmentError;
+
+  return null;
+}
+
+/* Workstreams C1/C5: planning dates and the effective-dated geography
+ * classification are saved through the narrow admin RPC introduced by
+ * 20260829125000_enrollment_reporting_history.sql. The RPC preserves prior
+ * enrollment episodes; this UI never edits a historical withdrawal. */
+async function updateAdminEnrollmentPlanRemote(studentId, fields) {
+  const { error } = await mntSupabase.rpc('admin_update_current_enrollment_plan', {
+    p_student_id: studentId,
+    p_scheduled_start_date: fields.scheduledStartDate || null,
+    p_scheduled_completion_date: fields.scheduledCompletionDate || null,
+    p_geography_classification: fields.geographyClassification || null,
+    p_geography_source_reference: fields.geographySourceReference || null,
+  });
+  return error || null;
+}
+
+function applyAdminDashboardState(row) {
+  return {
+    ...row,
+    enrolled: row.is_enrolled !== false,
+    adminStateLabel: row.is_enrolled !== false ? 'Enrolled' : 'Disenrolled',
+    // From admin_student_progress (20260829110000_enrollment_dates.sql):
+    // status is the view's computed 'completed'/'withdrawn'/'active'/
+    // 'not_yet_started' enum; the three dates pass through as-is (null until
+    // stamped, or until an admin sets scheduled_start_date directly in the
+    // DB — no dashboard input for that one yet, see the migration's TODO).
+    status: row.status || null,
+    enrollmentDate: row.enrollment_date || null,
+    withdrawalDate: row.withdrawal_date || null,
+    completionDate: row.completion_date || null,
+    scheduledStartDate: row.scheduled_start_date || null,
+    scheduledCompletionDate: row.scheduled_completion_date || null,
+    programVersionCode: row.program_version_code || null,
+    credentialCode: row.credential_code || null,
+    credentialName: row.credential_name || null,
+    geographyClassification: row.geography_classification || null,
+  };
+}
+
+function filterAdminDashboardRows(rows) {
+  return rows
+    .filter((row) => row.track_code !== 'ADMIN')
+    .map((row) => applyAdminDashboardState(row));
+}
+
+function adminDashboardSummary(rows) {
+  const enrolledRows = rows.filter((row) => row.enrolled !== false);
+  const notEnrolled = rows.length - enrolledRows.length;
+  const notStarted = enrolledRows.filter((row) => row.modules_complete === 0 && (row.modules_in_progress || 0) === 0).length;
+  const complete = enrolledRows.filter((row) => row.percent_complete >= 100).length;
+  const inProgress = enrolledRows.length - notStarted - complete;
+  const avgComplete = enrolledRows.length
+    ? enrolledRows.reduce((sum, row) => sum + (row.percent_complete || 0), 0) / enrolledRows.length
+    : 0;
+  return { totalAccounts: rows.length, enrolled: enrolledRows.length, notEnrolled, notStarted, inProgress, complete, avgComplete };
+}
+
+/* --------------------------------------------------- D1: academic status */
+/* Replaces the old `percent_complete >= 100 → Complete` / `> 0 → In
+ * progress` / else `Not started` logic (remediation plan D1). Precedence:
+ * completed > withdrawn > active > not yet started. "Leave/paused" and
+ * "administrative access disabled" are not implemented anywhere in this
+ * schema, so they are intentionally omitted rather than invented.
+ *
+ * Prefers the authoritative admin_student_progress.status column (view-
+ * computed, from the enrollment-dates migration) when present. Falls back to
+ * a degraded — but still honest — derivation from percent_complete/enrolled
+ * when that column isn't live yet, WITHOUT collapsing "withdrawn" and "never
+ * enrolled" into each other (the exact confusion the remediation plan's D1
+ * and §3 table call out: "Do not use 'Not enrolled' as a substitute for
+ * 'Withdrawn'"). A single `is_enrolled` boolean genuinely cannot distinguish
+ * those two cases without enrollment_date/withdrawal_date, so the fallback
+ * says so explicitly instead of guessing. */
+function deriveAcademicStatus(row) {
+  if (row.status) return row.status; // 'completed' | 'withdrawn' | 'active' | 'not_yet_started'
+  const percent = row.percent_complete || 0;
+  if (percent >= 100) return 'completed';
+  if (row.enrolled === false) {
+    return (row.withdrawalDate || row.enrollmentDate) ? 'withdrawn' : 'withdrawn_or_never_enrolled';
+  }
+  if ((row.modules_complete || 0) > 0 || (row.modules_in_progress || 0) > 0) return 'active';
+  return 'not_yet_started';
+}
+
+function academicStatusLabel(status) {
+  switch (status) {
+    case 'completed': return 'Completed';
+    case 'credential_awarded': return 'Credential awarded';
+    case 'withdrawn': return 'Withdrawn';
+    case 'active': return 'Active';
+    case 'not_yet_started': return 'Not yet started';
+    case 'withdrawn_or_never_enrolled': return 'Withdrawn or never enrolled (unconfirmed — enrollment-dates migration not live)';
+    default: return 'Unknown';
+  }
+}
+
+/* ------------------------------------------- G1: data-backed compliance */
+/* Replaces the old adminReportingRequirements(), which was a static array
+ * that returned the same seven hard-coded statuses regardless of what data
+ * actually exists (ASSESSMENT_REPORTING_SPEC.md §1c). This inspects the
+ * cohort rows actually passed in and the known state of the schema/code to
+ * decide each status, so a future migration/feature landing (Agents 5-7)
+ * naturally upgrades a requirement's status once the underlying field is
+ * really there — nothing here needs to be hand-flipped back to "covered."
+ *
+ * Returns one entry per Reportingrequirements.txt requirement:
+ * { id, requirement, status: covered|partial|missing|not_applicable|unknown,
+ *   requiredFields, availableFields, missingFields, sourceTables, note,
+ *   lastChecked }. `context.queryError` marks every requirement `unknown`
+ * rather than silently treating a failed cohort query as "missing" (G3). */
+function evaluateReportingCompliance(rows, context) {
+  rows = Array.isArray(rows) ? rows : [];
+  context = context || {};
+  const lastChecked = context.generatedAt || new Date().toISOString();
+  const queryFailed = !!context.queryError;
+  const n = rows.length;
+
+  function presentCount(getter) {
+    return rows.filter((r) => {
+      const v = getter(r);
+      return v !== null && v !== undefined && v !== '';
+    }).length;
+  }
+
+  function req({ id, requirement, requiredFields, dynamicallyPresent, staticallyMissing, sourceTables, note }) {
+    if (queryFailed) {
+      return { id, requirement, status: 'unknown', requiredFields, availableFields: [], missingFields: requiredFields, sourceTables, note: `Cohort data query failed (${context.queryError}); compliance cannot be verified this run.`, lastChecked };
+    }
+    if (n === 0) {
+      return { id, requirement, status: 'unknown', requiredFields, availableFields: [], missingFields: requiredFields, sourceTables, note: 'No student rows in scope for this report run — cannot verify field coverage.', lastChecked };
+    }
+    const dynamicAvailable = dynamicallyPresent.filter((f) => presentCount(f.get) === n).map((f) => f.field);
+    const dynamicPartial = dynamicallyPresent.filter((f) => { const c = presentCount(f.get); return c > 0 && c < n; }).map((f) => f.field);
+    const dynamicMissing = dynamicallyPresent.filter((f) => presentCount(f.get) === 0).map((f) => f.field);
+    const availableFields = dynamicAvailable;
+    const missingFields = [...dynamicMissing, ...dynamicPartial.map((f) => `${f} (present for some but not all rows in scope)`), ...staticallyMissing];
+    let status;
+    if (missingFields.length === 0) status = 'covered';
+    else if (availableFields.length === 0 && dynamicPartial.length === 0) status = 'missing';
+    else status = 'partial';
+    return { id, requirement, status, requiredFields, availableFields, missingFields, sourceTables, note, lastChecked };
+  }
+
+  return [
+    req({
+      id: 'student_program_linkage',
+      requirement: 'Student-to-program linkage',
+      requiredFields: ['student_id', 'program', 'credential', 'enrollment_date', 'scheduled_start_date', 'completion_date', 'academic_status', 'student name or documented lawful substitute'],
+      dynamicallyPresent: [
+        { field: 'student_id', get: (r) => r.student_id },
+        { field: 'program', get: (r) => r.program_slug },
+        { field: 'credential', get: (r) => r.credentialName || r.credential_name },
+        { field: 'enrollment_date', get: (r) => r.enrollmentDate },
+        { field: 'scheduled_start_date', get: (r) => r.scheduledStartDate || r.scheduled_start_date },
+        { field: 'completion_date', get: (r) => r.completionDate },
+        { field: 'academic_status', get: (r) => r.status },
+      ],
+      staticallyMissing: ['student name or documented lawful substitute (students remain anonymized-ID-only; an approved identity-record integration is still required)'],
+      sourceTables: ['students', 'enrollment_periods', 'program_versions', 'admin_student_progress (view)'],
+      note: 'Credential, planned start, and program-version fields are defined by the local enrollment-reporting migration and appear after that migration is deliberately deployed and populated. This report does not substitute a login ID for an approved identity record.',
+    }),
+    req({
+      id: 'clock_hours_attendance',
+      requirement: 'Clock hours and attendance',
+      requiredFields: ['required_program_hours', 'attempted_clock_hours', 'attended_instructional_hours', 'course_start_completion_dates', 'hour_reconciliation'],
+      dynamicallyPresent: [],
+      staticallyMissing: ['durable fixed-credit awards are local-migration dependent; reports must mark hours as missing/unavailable when student_course_hour_awards is not deployed or populated', 'observed attendance/session records are intentionally not inferred from browser activity'],
+      sourceTables: ['portal/data.js program.compliance', 'program_course_hours', 'student_course_hour_awards', 'student_hour_reconciliation'],
+      note: 'Required program hours are defined in code and the approved fixed-credit migration now models attempted/credited hours. Reports still must not infer official attendance from last_active or open-browser time.',
+    }),
+    req({
+      id: 'grades_assessments_progress',
+      requirement: 'Grades, assessments, and progress',
+      requiredFields: ['module_scores', 'capstone_score', 'grade_scale', 'pass_fail_per_module', 'assessment_attempt_history', 'rubric_scoring_engine_version', 'correction_override_trail'],
+      dynamicallyPresent: [
+        { field: 'module_progress_percent', get: (r) => (r.percent_complete !== null && r.percent_complete !== undefined) ? r.percent_complete : null },
+        { field: 'capstone_score', get: (r) => r.capstone_overall_score },
+      ],
+      staticallyMissing: ['rubric/scoring-engine version stamped per attempt (Agent 7)', 'correction/override trail (Agent 7)', 'grade scale as a queryable value (documented in ASSESSMENT_REPORTING_SPEC.md §2, not stored — Agent 5)'],
+      sourceTables: ['module_progress', 'lab_attempts', 'capstone_submissions', 'capstone_scorecard'],
+      note: 'Real scores are live-read per student (buildTranscriptData). Cohort-level percent/capstone score are present; per-attempt versioning and correction trail are not.',
+    }),
+    req({
+      id: 'labs_competency_outcomes',
+      requirement: 'Labs and competency outcomes',
+      requiredFields: ['lab_completion_and_date', 'rubric_result', 'evidence_artifact', 'evaluator_reviewer', 'supervision_method'],
+      dynamicallyPresent: [
+        { field: 'modules_complete (proxy for recorded lab/module activity)', get: (r) => (r.modules_complete || 0) > 0 ? true : null },
+      ],
+      staticallyMissing: ['other-module evidence artifacts remain incomplete; Module 12 capstone writes append-only portfolio artifacts after the artifact migration is deployed', 'evaluator_reviewer is capstone-only and depends on the local review migration being deployed', 'supervision_method is capstone-review scoped and not a general module-lab field'],
+      sourceTables: ['lab_attempts', 'portfolio_artifacts', 'capstone_reviews'],
+      note: 'Completion, date, and rubric-category score are captured per attempt. Capstone artifact and optional faculty-review support exists in the local migration/code path; non-capstone artifact persistence and evaluator/supervision coverage remain partial.',
+    }),
+    req({
+      id: 'current_academic_transcript',
+      requirement: 'Current academic transcript',
+      requiredFields: ['human_readable_individual_transcript_pdf'],
+      dynamicallyPresent: [],
+      staticallyMissing: [],
+      sourceTables: ['buildTranscriptData()', 'renderTranscriptPdf()', 'student detail Download Transcript (PDF) action'],
+      note: 'A human-readable, per-student PDF transcript is available from the admin student detail panel and the student portal. It is separate from the cohort report and from secondary JSON exports.',
+    }),
+    req({
+      id: 'annual_reporting',
+      requirement: 'Annual reporting (Form 801-style counts)',
+      requiredFields: ['reporting_period_bounds', 'withdrawn_during_period', 'completions_credentials_during_period', 'continuing_enrollment_at_period_end', 'completion_within_150pct_time', 'florida_non_florida_counts'],
+      dynamicallyPresent: [],
+      staticallyMissing: ['period-bounded counts are not yet queried by this current-roster PDF builder; use/administer admin_enrollment_reporting after the enrollment-reporting migration is deployed'],
+      sourceTables: ['reporting_periods', 'enrollment_periods', 'credential_awards', 'student_geography_classifications', 'admin_enrollment_reporting (view)'],
+      note: 'The source schema now distinguishes enrollment epochs, awards, planned completion, and geography. The existing cohort PDF remains a current-roster report until a later renderer consumes the historical reporting view.',
+    }),
+    req({
+      id: 'inspection_availability',
+      requirement: 'Records available for CIE inspection',
+      requiredFields: ['durable_server_side_report_storage', 'report_generation_audit_trail', 'authorized_controlled_retrieval'],
+      dynamicallyPresent: [],
+      staticallyMissing: ['durable report-file storage remains external/download-based; only report metadata and hash are modeled', 'server-side audit exists only after the local report-generation audit migration is deliberately applied'],
+      sourceTables: ['report_generation_audit', 'finalize_report_generation_audit()', 'localStorage (convenience-only recent history)'],
+      note: 'On-screen admin drill-down works for captured data. The local migration adds authorized report-run audit metadata and integrity hashes, but downloaded PDFs still need an institutional retention/storage procedure.',
+    }),
+  ];
+}
+
+/* --------------------------------------------------------------- G2/B1/D4 */
+/* Pure data builder for the cohort/annual report — no PDF/DOM work here
+ * (that stays in downloadAdminReport(), Agent 4's territory). Splits out of
+ * the old buildAdminReport(), which mixed dashboard metrics, a hard-coded
+ * compliance table, and a roster into one function with no scope awareness.
+ *
+ * D4 fix: previously the report always ran against the full, unfiltered
+ * `dashboardRows` regardless of what the admin had selected in the Track
+ * filter / Hide Not Started controls. This now takes those two values and
+ * (a) actually filters the roster by them and (b) records the applied scope
+ * on the returned object so the PDF can print what was actually included —
+ * "generate report for current filters" is the option implemented; "for all
+ * students" is available by passing no filters. */
+function buildCohortReportData(rows, options) {
+  rows = Array.isArray(rows) ? rows : [];
+  options = options || {};
+  const trackFilter = options.trackFilter || '';
+  const hideNotStarted = !!options.hideNotStarted;
+  const generatedAt = new Date().toISOString();
+
+  const scopedRows = rows.filter((row) => {
+    const trackMatch = !trackFilter || row.track_code === trackFilter;
+    const started = (row.modules_complete || 0) > 0 || (row.modules_in_progress || 0) > 0;
+    const startedMatch = !hideNotStarted || started;
+    return trackMatch && startedMatch;
+  });
+
+  // D1 fix applied per row, then rolled up into cohort counts. Distinguishes
+  // withdrawn from not-yet-started instead of the old two-bucket
+  // enrolled/notEnrolled split that conflated "withdrawn" with "never
+  // enrolled" (remediation plan §3, D1).
+  const statuses = scopedRows.map((row) => deriveAcademicStatus(row));
+  const summary = {
+    totalAccounts: scopedRows.length,
+    enrolled: scopedRows.filter((r) => r.enrolled !== false).length,
+    completed: statuses.filter((s) => s === 'completed' || s === 'credential_awarded').length,
+    credentialAwarded: statuses.filter((s) => s === 'credential_awarded').length,
+    active: statuses.filter((s) => s === 'active').length,
+    withdrawn: statuses.filter((s) => s === 'withdrawn').length,
+    withdrawnOrNeverEnrolled: statuses.filter((s) => s === 'withdrawn_or_never_enrolled').length,
+    notYetStarted: statuses.filter((s) => s === 'not_yet_started').length,
+    avgComplete: scopedRows.length
+      ? scopedRows.reduce((sum, r) => sum + (r.percent_complete || 0), 0) / scopedRows.length
+      : 0,
+  };
+
+  const state = loadAdminDashboardState();
+  const reportingRequirements = evaluateReportingCompliance(scopedRows, {
+    generatedAt,
+    queryError: options.sourceQueryError || null,
+  });
+  // An official record is allowed only when the source query succeeded and
+  // every required field is verified for this scope. Current known gaps make
+  // this report a draft today; the label changes only when data earns it.
+  const recordStatus = !options.sourceQueryError && reportingRequirements.length > 0
+    && reportingRequirements.every((requirement) => requirement.status === 'covered')
+    ? 'official'
+    : 'draft';
+
+  return {
+    reportType: 'cohort_annual_report',
+    generatedAt,
+    asOf: generatedAt,
+    sourceDataCutoff: generatedAt,
+    recordStatus,
+    templateVersion: REPORT_TEMPLATE_VERSION,
+    source: 'admin_student_progress (Supabase) + local admin dashboard report-run history',
+    excludedAccounts: ['ADMIN'],
+    scope: {
+      trackFilter: trackFilter || null,
+      hideNotStarted,
+      totalRowsBeforeFilter: rows.length,
+      totalRowsAfterFilter: scopedRows.length,
+      // Annual reporting requires a reporting-period start/end (remediation
+      // plan B1, C5). No UI or schema for that exists yet — recorded as null
+      // rather than silently omitted, so the PDF can print "no period set."
+      reportingPeriodStart: options.reportingPeriodStart || null,
+      reportingPeriodEnd: options.reportingPeriodEnd || null,
+    },
+    summary,
+    reportingRequirements,
+    students: scopedRows.map((row) => {
+      const status = deriveAcademicStatus(row);
+      return {
+        studentId: row.student_id,
+        track: row.track_code,
+        program: row.program_slug || '—',
+        enrolled: row.enrolled !== false,
+        academicStatus: status,
+        progressState: academicStatusLabel(status),
+        modulesComplete: row.modules_complete,
+        modulesTotal: row.modules_total,
+        percentComplete: row.percent_complete,
+        capstoneScore: row.capstone_overall_score,
+        lastActive: row.last_active,
+        scheduledStartDate: row.scheduledStartDate || row.scheduled_start_date || null,
+        scheduledCompletionDate: row.scheduledCompletionDate || row.scheduled_completion_date || null,
+        programVersionCode: row.programVersionCode || row.program_version_code || null,
+        credential: row.credentialName || row.credential_name || null,
+        geographyClassification: row.geographyClassification || row.geography_classification || null,
+      };
+    }),
+    annualReportingGaps: 'This dashboard roster is a current-state view. Period-bounded Form 801 calculations must be run from admin_enrollment_reporting after the enrollment-reporting migration is deliberately deployed; do not infer them from this roster.',
+    stateSnapshot: state,
+  };
+}
+
+function storeAdminReportRun(report) {
+  const state = loadAdminDashboardState();
+  state.reportRuns = [
+    {
+      generatedAt: report.generatedAt,
+      summary: report.summary,
+    },
+    ...(state.reportRuns || []),
+  ].slice(0, 10);
+  saveAdminDashboardState(state);
+}
+
+/* Fetches assets/logo.png once and caches it as a data URI so jsPDF's
+ * addImage() (which wants a data URI or raw base64, not a URL) can embed it.
+ * Cached at module scope — repeat "Generate Report" clicks in the same
+ * session reuse it instead of re-fetching. */
+let _adminReportLogoDataUri = null;
+async function loadAdminReportLogoDataUri() {
+  if (_adminReportLogoDataUri) return _adminReportLogoDataUri;
+  try {
+    const res = await fetch('assets/logo.png');
+    if (!res.ok) throw new Error(`Logo request returned HTTP ${res.status}`);
+    const blob = await res.blob();
+    _adminReportLogoDataUri = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    console.error('Could not load assets/logo.png for the PDF report header', err);
+    _adminReportLogoDataUri = null;
+  }
+  return _adminReportLogoDataUri;
+}
+
+/* Fail before a report run is recorded if the locally vendored PDF runtime is
+ * unavailable. This turns a vague TypeError into an actionable admin-facing
+ * message and protects the "successful report" history from false entries. */
+function assertPdfRuntime() {
+  if (!window.jspdf || typeof window.jspdf.jsPDF !== 'function') {
+    throw new Error('The local PDF generator did not load. Refresh the portal and try again.');
+  }
+  const probe = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
+  if (typeof probe.autoTable !== 'function') {
+    throw new Error('The local PDF table renderer did not load. Refresh the portal and try again.');
+  }
+}
+
+/* ============================================================ Agent 4: PDF renderers
+ * Workstream E (presentation quality) + the renderer half of G2 (separate
+ * builders from renderers). Everything below takes a pure data object from
+ * one of Agent 3's builders (buildCohortReportData / buildTranscriptData /
+ * buildEvidencePacketData) and turns it into a jsPDF document. None of these
+ * functions query Supabase or touch the DOM — that stays in the builders and
+ * in the thin download*Pdf() wrappers at the end of this section. */
+
+const PDF_NAVY = [30, 58, 95];
+const PDF_ORANGE = [249, 115, 22];
+const PDF_GREEN = [22, 163, 74], PDF_GREEN_BG = [220, 252, 231];
+const PDF_AMBER = [180, 83, 9], PDF_AMBER_BG = [255, 247, 237];
+const PDF_RED = [185, 28, 28], PDF_RED_BG = [254, 226, 226];
+const PDF_SLATE = [71, 85, 105], PDF_SLATE_BG = [241, 245, 249];
+const PDF_BLUE = [29, 78, 216], PDF_BLUE_BG = [219, 234, 254];
+const PDF_GRAY = [107, 114, 128];
+
+/* Version the rendered record independently of the portal bundle.  A future
+ * layout or field change must advance this value so an audit row can be tied
+ * to the exact record template that was downloaded. */
+const REPORT_TEMPLATE_VERSION = 'reporting-pdf-v1.2';
+
+/* Five-state compliance styling shared by the cohort report's requirements
+ * table and its legend (G1: never collapse partial/missing/unknown into one
+ * "not covered" bucket — a reader must be able to tell them apart). */
+const PDF_COMPLIANCE_STYLE = {
+  covered: { label: 'Covered', fg: PDF_GREEN, bg: PDF_GREEN_BG, def: 'All required fields verified present for every record in this report’s scope.' },
+  partial: { label: 'Partial', fg: PDF_AMBER, bg: PDF_AMBER_BG, def: 'Some, but not all, required fields are available.' },
+  missing: { label: 'Missing', fg: PDF_RED, bg: PDF_RED_BG, def: 'None of the required fields exist in the current system.' },
+  not_applicable: { label: 'N/A', fg: PDF_SLATE, bg: PDF_SLATE_BG, def: 'This requirement does not apply to the current scope.' },
+  unknown: { label: 'Unknown', fg: PDF_BLUE, bg: PDF_BLUE_BG, def: 'Could not be verified this run (query failure or empty scope) — not the same as "covered."' },
+};
+
+const REPORT_AUDIT_UNAVAILABLE = 'report_audit_unavailable';
+
+/* Report IDs are generated client-side and persisted to the Supabase audit
+ * table when the local report-generation audit migration is deployed.
+ * Timestamp + random suffix keeps this unique enough to correlate a printed
+ * PDF back to a specific generation event in local/draft runs. */
+function newReportId(prefix) {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+  const rand = Math.random().toString(16).slice(2, 8).toUpperCase();
+  return `${prefix}-${stamp}-${rand}`;
+}
+
+function reportClassificationLabel(report) {
+  return report && report.recordStatus === 'official' ? 'OFFICIAL RECORD' : 'DRAFT / INTERNAL REVIEW';
+}
+
+function complianceGapOwner(requirementId) {
+  const owners = {
+    student_program_linkage: 'Registrar / LMS administrator',
+    clock_hours_attendance: 'Compliance leadership / LMS administrator',
+    grades_assessments_progress: 'Academic lead / assessment owner',
+    labs_competency_outcomes: 'Faculty evaluator / portfolio owner',
+    current_academic_transcript: 'Portal engineering',
+    annual_reporting: 'Registrar / compliance reporting owner',
+    inspection_availability: 'Operations / records custodian',
+  };
+  return owners[requirementId] || 'Compliance owner';
+}
+
+function complianceGapTarget(requirement) {
+  if (!requirement || requirement.status === 'covered') return 'Validate each reporting period';
+  if (requirement.status === 'unknown') return 'Resolve query/scope before relying on report';
+  return 'Before external CIE reporting';
+}
+
+/* The database audit table is the institutional record.  Browser storage is
+ * only a convenience history and is deliberately never used as evidence that
+ * a report was generated.  Keep the payload to operational metadata: never
+ * send roster rows, student artifacts, or the browser-local stateSnapshot. */
+function reportAuditPayload(report, reportId) {
+  return {
+    report_id: reportId,
+    report_type: report.reportType,
+    scope_parameters: {
+      trackFilter: report.scope && report.scope.trackFilter || null,
+      hideNotStarted: !!(report.scope && report.scope.hideNotStarted),
+      reportingPeriodStart: report.scope && report.scope.reportingPeriodStart || null,
+      reportingPeriodEnd: report.scope && report.scope.reportingPeriodEnd || null,
+      totalRowsBeforeFilter: report.scope && report.scope.totalRowsBeforeFilter || 0,
+      totalRowsAfterFilter: report.scope && report.scope.totalRowsAfterFilter || 0,
+    },
+    source_data_cutoff: report.asOf,
+    report_classification: report.recordStatus || 'draft',
+    template_version: REPORT_TEMPLATE_VERSION,
+  };
+}
+
+async function assertReportGenerationAuthorized() {
+  const user = await currentUser();
+  if (!user || !user.isAdmin) throw new Error('Only authorized administrators may generate student-record reports.');
+  return user;
+}
+
+async function startReportGenerationAudit(report, reportId) {
+  const { data, error } = await mntSupabase
+    .from('report_generation_audit')
+    .insert(reportAuditPayload(report, reportId))
+    .select('id')
+    .single();
+  if (error || !data) {
+    const auditError = new Error('The server-side report audit record is unavailable; the local report-generation audit migration may not be applied.');
+    auditError.code = REPORT_AUDIT_UNAVAILABLE;
+    auditError.originalError = error || null;
+    throw auditError;
+  }
+  return data.id;
+}
+
+function safeReportFailureReason(error) {
+  // Avoid preserving stack traces, query text, or student information in the
+  // audit log. The detailed browser error is not exposed to the UI either.
+  const text = error && error.message ? String(error.message) : 'PDF generation failed';
+  return text.slice(0, 500);
+}
+
+async function finalizeReportGenerationAudit(auditId, outcome) {
+  const { error } = await mntSupabase.rpc('finalize_report_generation_audit', {
+    p_audit_id: auditId,
+    p_generation_status: outcome.status,
+    p_file_sha256: outcome.fileHash || null,
+    p_storage_reference: outcome.storageReference || null,
+    p_failure_reason: outcome.failureReason || null,
+  });
+  if (error) throw new Error('The server-side report audit record could not be finalized.');
+}
+
+function reportAuditUnavailable(error) {
+  return !!(error && (error.code === REPORT_AUDIT_UNAVAILABLE
+    || /report_generation_audit|finalize_report_generation_audit|audit migration/i.test(String(error.message || ''))));
+}
+
+async function sha256Hex(arrayBuffer) {
+  if (!window.crypto || !window.crypto.subtle) throw new Error('This browser cannot calculate the report integrity hash.');
+  const digest = await window.crypto.subtle.digest('SHA-256', arrayBuffer);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/* Date/time WITH the viewer's timezone name, per E2 ("generated timestamp
+ * and timezone"). toLocaleString() alone omits the zone. */
+function formatGeneratedTimestamp(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (isNaN(d.getTime())) return '—';
+  try {
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'long' }).format(d);
+  } catch (err) {
+    return d.toLocaleString();
+  }
+}
+
+/* E4: meaningful PDF title/author/subject/keywords/creation-date metadata,
+ * not just visible on-page text. */
+function applyPdfMetadata(doc, { title, subject, reportId }) {
+  doc.setProperties({
+    title,
+    subject,
+    author: 'Mission Next Technical Academy',
+    creator: 'Mission Next Technical Academy Portal',
+    keywords: `Mission Next Technical Academy, ${reportId}, CIE reporting, student records`,
+  });
+}
+
+function fmtVal(v, dash = '—') { return (v === null || v === undefined || v === '') ? dash : String(v); }
+function fmtPct(v) { return (v === null || v === undefined) ? '—' : `${Math.round(Number(v))}%`; }
+function fmtDate(v) { if (!v) return '—'; const d = new Date(v); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString(); }
+function fmtDateTime(v) { if (!v) return '—'; const d = new Date(v); return isNaN(d.getTime()) ? '—' : d.toLocaleString(); }
+function fmtScore(v) { return (v === null || v === undefined) ? '—' : (typeof v === 'number' ? v.toFixed(1) : String(v)); }
+
+/* Repeats on EVERY page of `doc`, recomputing page width/height per page
+ * rather than assuming one fixed size — the cohort report switches from
+ * portrait to landscape mid-document for the roster table (E1), so a footer
+ * loop that captured pageWidth once at the top would mis-center on those
+ * pages. Implements E2's "page X of Y", confidentiality classification, and
+ * report ID; and (when supplied) the data-source/"as of" note. */
+function stampPdfFooters(doc, { reportId, confidentiality, dataSourceNote }) {
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const w = doc.internal.pageSize.getWidth();
+    const h = doc.internal.pageSize.getHeight();
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(40, h - 34, w - 40, h - 34);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text(confidentiality || 'CONFIDENTIAL — Student education record. Not for public distribution.', 40, h - 22);
+    doc.text(`Report ID: ${reportId}`, 40, h - 12);
+    doc.text(`Page ${i} of ${pageCount}`, w - 40, h - 12, { align: 'right' });
+    if (dataSourceNote) {
+      doc.text(dataSourceNote, w / 2, h - 22, { align: 'center', maxWidth: w - 260 });
+    }
+  }
+}
+
+/* Common header block: logo (left) + institution name/title/report-type
+ * lines (right), used at the top of the first page of every report type.
+ * Returns the Y position immediately below the header rule so callers can
+ * keep laying out from there. Institution name is printed as real text (not
+ * only baked into the logo image) per E2, so it still appears even when the
+ * logo asset fails to load (A3: "generate without the logo, show a
+ * warning" — the warning itself is surfaced by the caller via admin-report-status). */
+async function drawPdfHeader(doc, { title, reportTypeLabel, metaLines }) {
+  const marginX = 40;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let cursorY = 40;
+  const logoDataUri = await loadAdminReportLogoDataUri();
+  if (logoDataUri) {
+    const logoW = 130;
+    const logoH = logoW * (174 / 1024); // source asset is 1024x174
+    try {
+      doc.addImage(logoDataUri, 'PNG', marginX, cursorY, logoW, logoH);
+    } catch (err) {
+      console.error('Could not embed logo in PDF report', err);
+    }
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text('Mission Next Technical Academy', marginX, cursorY + 46);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(17);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text(title, pageWidth - marginX, 50, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...PDF_ORANGE);
+  doc.text(reportTypeLabel, pageWidth - marginX, 64, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...PDF_GRAY);
+  let metaY = 78;
+  metaLines.forEach((line) => {
+    doc.text(line, pageWidth - marginX, metaY, { align: 'right' });
+    metaY += 12;
+  });
+
+  cursorY = Math.max(cursorY + 60, metaY + 6);
+  doc.setDrawColor(...PDF_ORANGE);
+  doc.setLineWidth(2);
+  doc.line(marginX, cursorY, pageWidth - marginX, cursorY);
+  return cursorY + 22;
+}
+
+function ensureSpace(doc, cursorY, needed) {
+  if (cursorY + needed > doc.internal.pageSize.getHeight() - 60) {
+    doc.addPage();
+    return 40;
+  }
+  return cursorY;
+}
+
+/* --------------------------------------------------------------- E: cohort */
+/* renderCohortPdf(): pure renderer for buildCohortReportData()'s output.
+ * Portrait for the cover/summary/compliance pages (E1), then switches to
+ * landscape for the roster so a realistic student count never has to be
+ * crushed into nine columns on a portrait page. autoTable repeats its head
+ * row on every page it spans by default, satisfying "repeat table headers on
+ * every page" without extra work. Returns the jsPDF `doc` — does not save
+ * it; see downloadAdminReport() below for the save step. */
+async function renderCohortPdf(cohortData, reportId) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' });
+  const marginX = 40;
+
+  applyPdfMetadata(doc, {
+    title: 'Mission Next Technical Academy — Cohort / Annual Progress Report',
+    subject: `Cohort/annual progress report covering ${cohortData.students.length} student account(s) in scope`,
+    reportId,
+  });
+
+  const scope = cohortData.scope || {};
+  const periodLine = (scope.reportingPeriodStart || scope.reportingPeriodEnd)
+    ? `Reporting period: ${fmtDate(scope.reportingPeriodStart)} – ${fmtDate(scope.reportingPeriodEnd)}`
+    : 'Reporting period: not set (no reporting-period control exists yet — see Annual Reporting gap below)';
+  const scopeLine = `Program/cohort scope: ${scope.trackFilter ? `Track ${scope.trackFilter}` : 'All tracks'}` +
+    `${scope.hideNotStarted ? ', Not Started hidden' : ''} — ${scope.totalRowsAfterFilter} of ${scope.totalRowsBeforeFilter} accounts included`;
+
+  let cursorY = await drawPdfHeader(doc, {
+    title: 'Cohort / Annual Progress Report',
+    reportTypeLabel: 'REPORT TYPE: COHORT / ANNUAL REPORTING SUMMARY',
+    metaLines: [
+      `Report ID: ${reportId}`,
+      `Record status: ${reportClassificationLabel(cohortData)}`,
+      `Template: ${cohortData.templateVersion || REPORT_TEMPLATE_VERSION}`,
+      `Generated: ${formatGeneratedTimestamp(cohortData.generatedAt)}`,
+      `As of: ${formatGeneratedTimestamp(cohortData.asOf)}`,
+      periodLine,
+    ],
+  });
+
+  // ---- Scope/filters box (D4/E2: the report must visibly print what it was
+  // actually run against, not just imply "all students"). ---------------------
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(marginX, cursorY, doc.internal.pageSize.getWidth() - marginX * 2, 34, 4, 4, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text(scopeLine, marginX + 10, cursorY + 14, { maxWidth: doc.internal.pageSize.getWidth() - marginX * 2 - 20 });
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...PDF_GRAY);
+  doc.text(`Data source: ${cohortData.source}. Excluded accounts: ${(cohortData.excludedAccounts || []).join(', ') || 'none'}.`, marginX + 10, cursorY + 27, { maxWidth: doc.internal.pageSize.getWidth() - marginX * 2 - 20 });
+  cursorY += 46;
+
+  // ---- Cohort Summary stat grid ------------------------------------------
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text('Cohort Summary', marginX, cursorY);
+  cursorY += 14;
+  const pageWidth1 = doc.internal.pageSize.getWidth();
+
+  if (cohortData.recordStatus !== 'official') {
+    doc.setFillColor(...PDF_AMBER_BG);
+    doc.setDrawColor(...PDF_AMBER);
+    doc.roundedRect(marginX, cursorY, pageWidth1 - marginX * 2, 23, 4, 4, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...PDF_AMBER);
+    doc.text('DRAFT / INTERNAL REVIEW — required source-data checks are not fully verified. This is not an official academic or annual-reporting record.', marginX + 9, cursorY + 14, { maxWidth: pageWidth1 - marginX * 2 - 18 });
+    cursorY += 32;
+  }
+
+  const s = cohortData.summary;
+  const stats = [
+    ['Total Accounts', s.totalAccounts],
+    ['Enrolled', s.enrolled],
+    ['Not Yet Started', s.notYetStarted],
+    ['Active', s.active],
+    ['Completed', s.completed],
+    ['Withdrawn', s.withdrawn + (s.withdrawnOrNeverEnrolled || 0)],
+    ['Avg % Complete', `${s.avgComplete.toFixed(0)}%`],
+  ];
+  const statBoxW = (pageWidth1 - marginX * 2 - 6 * 8) / 7;
+  const statBoxH = 48;
+  stats.forEach((stat, i) => {
+    const x = marginX + i * (statBoxW + 8);
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(x, cursorY, statBoxW, statBoxH, 4, 4, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(...PDF_NAVY);
+    doc.text(String(stat[1]), x + statBoxW / 2, cursorY + 22, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.3);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text(String(stat[0]).toUpperCase(), x + statBoxW / 2, cursorY + 36, { align: 'center', maxWidth: statBoxW - 4 });
+  });
+  cursorY += statBoxH + 18;
+
+  // ---- Annual-reporting gap note (B1/C5 — no reporting-period counts exist
+  // yet). Printed plainly rather than silently omitted. ------------------
+  if (cohortData.annualReportingGaps) {
+    cursorY = ensureSpace(doc, cursorY, 40);
+    doc.setFillColor(...PDF_AMBER_BG);
+    doc.setDrawColor(...PDF_AMBER);
+    doc.roundedRect(marginX, cursorY, pageWidth1 - marginX * 2, 34, 4, 4, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...PDF_AMBER);
+    doc.text('Annual reporting note:', marginX + 10, cursorY + 13);
+    doc.setFont('helvetica', 'normal');
+    doc.text(cohortData.annualReportingGaps, marginX + 10, cursorY + 24, { maxWidth: pageWidth1 - marginX * 2 - 20 });
+    cursorY += 46;
+  }
+
+  // ---- CIE reporting-requirements compliance table + legend --------------
+  doc.addPage('letter', 'portrait');
+  cursorY = 40;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text('CIE Minimum LMS Reporting Requirements — Compliance', marginX, cursorY);
+  cursorY += 16;
+
+  // Legend: never let a reader mistake "unknown"/"missing" for "covered" —
+  // the plan explicitly forbids unsupported green "Covered" badges (G1/§3).
+  doc.setFontSize(7.3);
+  const legendEntries = Object.entries(PDF_COMPLIANCE_STYLE);
+  let legendX = marginX;
+  legendEntries.forEach(([, style]) => {
+    doc.setFillColor(...style.bg);
+    doc.setDrawColor(...style.fg);
+    doc.roundedRect(legendX, cursorY, 68, 14, 3, 3, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...style.fg);
+    doc.text(style.label, legendX + 34, cursorY + 9.5, { align: 'center' });
+    legendX += 74;
+  });
+  cursorY += 22;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.6);
+  doc.setTextColor(...PDF_GRAY);
+  legendEntries.forEach(([key, style]) => {
+    doc.text(`${style.label}: ${style.def}`, marginX, cursorY);
+    cursorY += 9;
+  });
+  cursorY += 8;
+
+  doc.autoTable({
+    startY: cursorY,
+    margin: { left: marginX, right: marginX },
+    head: [['Requirement', 'Status', 'Missing / Gap Fields', 'Note']],
+    body: cohortData.reportingRequirements.map((r) => [
+      r.requirement,
+      r.status,
+      (r.missingFields || []).length ? r.missingFields.join('; ') : '—',
+      r.note || '',
+    ]),
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 5, valign: 'top', lineColor: [226, 232, 240], lineWidth: 0.5, overflow: 'linebreak' },
+    headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    columnStyles: {
+      0: { cellWidth: 105 },
+      1: { cellWidth: 46, halign: 'center' },
+      2: { cellWidth: 175 },
+      3: { cellWidth: 'auto' },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 1) {
+        const raw = data.cell.raw;
+        const style = PDF_COMPLIANCE_STYLE[raw] || PDF_COMPLIANCE_STYLE.unknown;
+        data.cell.styles.fillColor = style.bg;
+        data.cell.styles.textColor = style.fg;
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.text = [style.label];
+      }
+    },
+  });
+
+  // ---- Student roster: landscape, wide table, empty-cohort handling ------
+  doc.addPage('letter', 'landscape');
+  cursorY = 40;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text(`Student Roster (${cohortData.students.length} in scope)`, marginX, cursorY);
+  cursorY += 8;
+
+  if (cohortData.students.length === 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text('No student accounts matched the selected scope/filters for this report run.', marginX, cursorY + 20);
+  } else {
+    doc.autoTable({
+      startY: cursorY + 6,
+      margin: { left: marginX, right: marginX },
+      head: [['Student ID', 'Track', 'Program', 'Academic Status', 'Enrolled', 'Modules', '% Complete', 'Capstone Score', 'Last Active']],
+      body: cohortData.students.map((st) => [
+        st.studentId,
+        st.track || '—',
+        st.program,
+        st.progressState,
+        st.enrolled ? 'Enrolled' : 'Not enrolled',
+        `${fmtVal(st.modulesComplete)}/${fmtVal(st.modulesTotal)}`,
+        fmtPct(st.percentComplete),
+        st.capstoneScore === null || st.capstoneScore === undefined ? '—' : fmtScore(st.capstoneScore),
+        st.lastActive ? new Date(st.lastActive).toLocaleDateString() : '—',
+      ]),
+      theme: 'striped',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 5, lineColor: [226, 232, 240], lineWidth: 0.3 },
+      headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      showHead: 'everyPage',
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 4) {
+          data.cell.styles.textColor = data.cell.raw === 'Enrolled' ? PDF_GREEN : PDF_GRAY;
+        }
+      },
     });
   }
 
-  // Capstone: Module 12 state if it exists
-  const capstoneModule = program.modules['soc-12'];
-  let capstoneRecord = {
-    title: capstoneModule ? capstoneModule.title : 'N/A',
-    status: 'not yet collected — backend capstone data export not implemented',
-    score: null,
-    stages: [],
-    rubricsApplied: []
+  stampPdfFooters(doc, {
+    reportId,
+    confidentiality: 'CONFIDENTIAL — Student education records. Distribute only to authorized personnel.',
+    dataSourceNote: `Source: ${cohortData.source} — as of ${formatGeneratedTimestamp(cohortData.asOf)}`,
+  });
+
+  return doc;
+}
+
+async function renderComplianceGapPdf(report, reportId) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape' });
+  applyPdfMetadata(doc, {
+    title: 'Mission Next Technical Academy — Internal Compliance Gap Report',
+    subject: `Internal compliance-gap report for ${report.scope.totalRowsAfterFilter} student account(s) in scope`,
+    reportId,
+  });
+
+  let cursorY = await drawPdfHeader(doc, {
+    title: 'Internal Compliance Gap Report',
+    reportTypeLabel: 'REPORT TYPE: INTERNAL COMPLIANCE GAP REPORT',
+    metaLines: [
+      `Report ID: ${reportId}`,
+      `Generated: ${formatGeneratedTimestamp(report.generatedAt)}`,
+      `Scope: ${report.scope.trackFilter || 'All tracks'}; ${report.scope.totalRowsAfterFilter} of ${report.scope.totalRowsBeforeFilter} account(s)`,
+      `Period: ${report.scope.reportingPeriodStart || 'Not set'} to ${report.scope.reportingPeriodEnd || 'Not set'}`,
+    ],
+  });
+
+  const marginX = 36;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFillColor(...PDF_AMBER_BG);
+  doc.setDrawColor(...PDF_AMBER);
+  doc.roundedRect(marginX, cursorY, pageWidth - marginX * 2, 40, 4, 4, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...PDF_AMBER);
+  doc.text('Internal use only. This report identifies gaps; it must not be sent as proof that a requirement is covered unless the Status column says Covered and the evidence/source columns support that status.', marginX + 10, cursorY + 17, { maxWidth: pageWidth - marginX * 2 - 20 });
+  cursorY += 56;
+
+  doc.autoTable({
+    startY: cursorY,
+    margin: { left: marginX, right: marginX },
+    head: [['Requirement', 'Status', 'Data source', 'Evidence included', 'Missing fields', 'Owner', 'Remediation target', 'Last validation']],
+    body: report.reportingRequirements.map((r) => {
+      const style = PDF_COMPLIANCE_STYLE[r.status] || PDF_COMPLIANCE_STYLE.unknown;
+      return [
+        r.requirement,
+        style.label,
+        (r.sourceTables || []).join('; ') || 'Not recorded',
+        (r.availableFields || []).join('; ') || 'None verified',
+        (r.missingFields || []).join('; ') || 'None',
+        complianceGapOwner(r.id),
+        complianceGapTarget(r),
+        fmtDateTime(r.lastChecked),
+      ];
+    }),
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 7, cellPadding: 4, lineColor: [226, 232, 240], lineWidth: 0.35, overflow: 'linebreak', valign: 'top' },
+    headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+    columnStyles: {
+      0: { cellWidth: 92 },
+      1: { cellWidth: 50, fontStyle: 'bold' },
+      2: { cellWidth: 118 },
+      3: { cellWidth: 112 },
+      4: { cellWidth: 156 },
+      5: { cellWidth: 82 },
+      6: { cellWidth: 82 },
+      7: { cellWidth: 70 },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 1) {
+        const raw = String(data.cell.raw || '').toLowerCase();
+        const statusKey = Object.keys(PDF_COMPLIANCE_STYLE).find((k) => PDF_COMPLIANCE_STYLE[k].label.toLowerCase() === raw) || 'unknown';
+        data.cell.styles.textColor = PDF_COMPLIANCE_STYLE[statusKey].fg;
+      }
+    },
+  });
+
+  stampPdfFooters(doc, {
+    reportId,
+    confidentiality: 'INTERNAL — Compliance remediation planning. Do not use as an external attestation.',
+    dataSourceNote: `Source: ${report.source} — as of ${formatGeneratedTimestamp(report.asOf)}`,
+  });
+  return doc;
+}
+
+async function downloadComplianceGapReport(report) {
+  assertPdfRuntime();
+  await assertReportGenerationAuthorized();
+  const reportId = newReportId('CG');
+  const doc = await renderComplianceGapPdf(report, reportId);
+  const dateStamp = new Date().toISOString().slice(0, 10);
+  await doc.save(`internal-compliance-gap-report-${dateStamp}-${reportId}.pdf`, { returnPromise: true });
+  return reportId;
+}
+
+/* Thin wrapper: build reportId + filename, render, save. Keeps the actual
+ * generation logic (renderCohortPdf) independently callable/testable per
+ * G2. */
+async function downloadAdminReport(report) {
+  assertPdfRuntime();
+  await assertReportGenerationAuthorized();
+  const reportId = newReportId('CR');
+  let auditId = null;
+  let auditWarning = null;
+  try {
+    auditId = await startReportGenerationAudit(report, reportId);
+  } catch (error) {
+    if (!reportAuditUnavailable(error)) throw error;
+    auditWarning = 'Server-side audit migration unavailable; downloaded PDF is draft-only and must not be treated as a durable institutional record.';
+  }
+  try {
+    const doc = await renderCohortPdf(report, reportId);
+    if (auditWarning) {
+      doc.setPage(1);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...PDF_AMBER);
+      doc.text(auditWarning, 40, doc.internal.pageSize.getHeight() - 46, {
+        maxWidth: doc.internal.pageSize.getWidth() - 80,
+      });
+    }
+    const pdfBytes = doc.output('arraybuffer');
+    const fileHash = await sha256Hex(pdfBytes);
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    const filename = `cohort-annual-report-${dateStamp}-${reportId}.pdf`;
+    // jsPDF's promise resolves after it has handed the browser the download.
+    await doc.save(filename, { returnPromise: true });
+    if (auditId) {
+      await finalizeReportGenerationAudit(auditId, {
+        status: 'succeeded',
+        fileHash,
+        storageReference: `browser-download:${filename}`,
+      });
+    }
+    return { reportId, fileHash, recordStatus: report.recordStatus || 'draft', auditWarning };
+  } catch (error) {
+    if (auditId) {
+      try {
+        await finalizeReportGenerationAudit(auditId, {
+          status: 'failed',
+          failureReason: safeReportFailureReason(error),
+        });
+      } catch (_) {
+        // The user sees a generic failure below. Do not leak implementation
+        // details or student data through the console/status area.
+      }
+    }
+    throw error;
+  }
+}
+
+/* ----------------------------------------------------------- B2: transcript */
+/* renderTranscriptPdf(): pure renderer for buildTranscriptData()'s output.
+ * Portrait letter throughout (E1). Every field in plan §5 Workstream B2 is
+ * either printed from real data or explicitly labeled as missing/not
+ * recorded — nothing here is fabricated. Fields B2 requires that
+ * buildTranscriptData() cannot currently supply (a verified legal student
+ * name, attempted/attended clock hours) are called out by name so a later
+ * agent knows exactly what's still missing; see the final report-back for
+ * the pointer to Agent 5/6. */
+async function renderTranscriptPdf(transcriptData, reportId) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' });
+  const marginX = 40;
+
+  const programTitle = transcriptData.program ? transcriptData.program.title : 'No program on file';
+  applyPdfMetadata(doc, {
+    title: `Mission Next Technical Academy — Academic Transcript — ${transcriptData.studentId}`,
+    subject: `Individual academic transcript for student ${transcriptData.studentId} (${programTitle})`,
+    reportId,
+  });
+
+  let cursorY = await drawPdfHeader(doc, {
+    title: 'Academic Transcript',
+    reportTypeLabel: 'REPORT TYPE: INDIVIDUAL ACADEMIC TRANSCRIPT',
+    metaLines: [
+      `Transcript ID: ${reportId}`,
+      `Generated: ${formatGeneratedTimestamp(transcriptData.generatedAt)}`,
+      `As of: ${formatGeneratedTimestamp(transcriptData.asOf)}`,
+    ],
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const colGap = 16;
+  const colW = (pageWidth - marginX * 2 - colGap) / 2;
+
+  function kvBlock(x, y, w, pairs) {
+    let yy = y;
+    pairs.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(...PDF_GRAY);
+      doc.text(label.toUpperCase(), x, yy);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor(...PDF_NAVY);
+      doc.text(String(value), x, yy + 11, { maxWidth: w });
+      yy += 28;
+    });
+    return yy;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text('Student & Program Identification', marginX, cursorY);
+  cursorY += 12;
+
+  const leftPairs = [
+    ['Student Identifier', transcriptData.studentId],
+    ['Student Name', 'Not available — this system identifies students by anonymized ID only; no verified legal-name field exists yet (see follow-up notes)'],
+    ['Track / Program', `${fmtVal(transcriptData.track)} — ${programTitle}`],
+    ['Credential', transcriptData.program ? fmtVal(transcriptData.program.credential, 'Not recorded') : 'Not recorded'],
+    ['Curriculum Revision', transcriptData.program ? fmtVal(transcriptData.program.curriculumRevision, 'Not recorded') : 'Not recorded'],
+  ];
+  const rightPairs = [
+    ['Current Academic Status', transcriptData.enrollment.statusLabel],
+    ['Enrollment Date', fmtDate(transcriptData.enrollment.enrollmentDate)],
+    ['Scheduled Start Date', fmtDate(transcriptData.enrollment.scheduledStartDate)],
+    ['Completion / Graduation Date', fmtDate(transcriptData.enrollment.completionDate)],
+    ['Withdrawal Date', fmtDate(transcriptData.enrollment.withdrawalDate)],
+  ];
+  const leftEnd = kvBlock(marginX, cursorY, colW, leftPairs);
+  const rightEnd = kvBlock(marginX + colW + colGap, cursorY, colW, rightPairs);
+  cursorY = Math.max(leftEnd, rightEnd) + 4;
+
+  cursorY = ensureSpace(doc, cursorY, 90);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text('Program Hours', marginX, cursorY);
+  cursorY += 12;
+  const hoursPairs = transcriptData.requiredProgramHours ? [
+    ['Required Program Hours (Total)', fmtVal(transcriptData.requiredProgramHours.total)],
+    ['Technical / Lab / Career Hours', `${fmtVal(transcriptData.requiredProgramHours.technical)} / ${fmtVal(transcriptData.requiredProgramHours.lab)} / ${fmtVal(transcriptData.requiredProgramHours.career)}`],
+  ] : [['Required Program Hours', 'Not available — no program on file']];
+  const hoursPairs2 = [
+    ['Attempted Clock Hours (Fixed Credit)', fmtVal(transcriptData.attemptedClockHours, 'Not recorded')],
+    ['Credited Instructional Hours (Fixed Credit)', fmtVal(transcriptData.attendedInstructionalHours, 'Not recorded')],
+  ];
+  const hLeftEnd = kvBlock(marginX, cursorY, colW, hoursPairs);
+  const hRightEnd = kvBlock(marginX + colW + colGap, cursorY, colW, hoursPairs2);
+  cursorY = Math.max(hLeftEnd, hRightEnd);
+  if (transcriptData.hoursNote) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7);
+    doc.setTextColor(...PDF_AMBER);
+    doc.text(transcriptData.hoursNote, marginX, cursorY, { maxWidth: pageWidth - marginX * 2 });
+    cursorY += 20;
+  }
+
+  // ---- Module-by-module table --------------------------------------------
+  cursorY = ensureSpace(doc, cursorY, 60);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text(`Course / Module Record — Grade scale: ${fmtVal(transcriptData.gradeScale)}`, marginX, cursorY, { maxWidth: pageWidth - marginX * 2 });
+  cursorY += 10;
+
+  if (!transcriptData.modules || transcriptData.modules.length === 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text('No module records available for this student/program.', marginX, cursorY + 14);
+    cursorY += 30;
+  } else {
+    doc.autoTable({
+      startY: cursorY + 6,
+      margin: { left: marginX, right: marginX },
+      head: [['Module', 'Start Date', 'Completion Date', 'Attempted / Attended Hrs', 'Score', 'Grade']],
+      body: transcriptData.modules.map((m) => [
+        m.title,
+        fmtDate(m.startedAt),
+        fmtDate(m.completedAt),
+        `${fmtVal(m.attemptedHours, '0')} / ${fmtVal(m.attendedHours, '0')}`,
+        fmtScore(m.score),
+        m.grade,
+      ]),
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 5, lineColor: [226, 232, 240], lineWidth: 0.4 },
+      headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 5) {
+          const raw = data.cell.raw;
+          data.cell.styles.textColor = raw === 'Pass' ? PDF_GREEN : (raw === 'Fail' ? PDF_RED : PDF_GRAY);
+          data.cell.styles.fontStyle = 'bold';
+        }
+      },
+    });
+    cursorY = doc.lastAutoTable.finalY + 20;
+  }
+
+  // ---- Progress & outcome summary ----------------------------------------
+  cursorY = ensureSpace(doc, cursorY, 130);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text('Progress, Grades & Final Outcome', marginX, cursorY);
+  cursorY += 12;
+  const outcomePairs = [
+    ['Progress Percentage', fmtPct(transcriptData.progressPercentage)],
+    ['Academic Average', transcriptData.academicAverage === null ? 'Not available' : fmtScore(transcriptData.academicAverage)],
+    ['Capstone Outcome', fmtVal(transcriptData.capstoneOutcome)],
+    ['Total Credited Hours', fmtVal(transcriptData.attendedInstructionalHours, 'Not recorded')],
+  ];
+  const outcomePairs2 = [
+    ['Program Completion (verifiable conditions)', transcriptData.programCompletionAssessment.status === 'all_currently_verifiable_conditions_met' ? 'All currently-verifiable conditions met' : 'Incomplete'],
+    ['Credential Award Status', fmtVal(transcriptData.credentialAwardStatus)],
+  ];
+  const oLeftEnd = kvBlock(marginX, cursorY, colW, outcomePairs);
+  const oRightEnd = kvBlock(marginX + colW + colGap, cursorY, colW, outcomePairs2);
+  cursorY = Math.max(oLeftEnd, oRightEnd);
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7);
+  doc.setTextColor(...PDF_AMBER);
+  doc.text(transcriptData.programCompletionAssessment.note, marginX, cursorY, { maxWidth: pageWidth - marginX * 2 });
+  cursorY += 26;
+
+  // ---- Certification / signature block -----------------------------------
+  cursorY = ensureSpace(doc, cursorY, 100);
+  doc.setDrawColor(...PDF_NAVY);
+  doc.setLineWidth(0.75);
+  doc.roundedRect(marginX, cursorY, pageWidth - marginX * 2, 88, 4, 4);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text('Certification', marginX + 12, cursorY + 16);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...PDF_GRAY);
+  doc.text('This transcript reflects data currently recorded in the Mission Next Technical Academy learning management system as of the date above. It is not a certified official transcript of record until signed below by an authorized institutional official.', marginX + 12, cursorY + 29, { maxWidth: pageWidth - marginX * 2 - 24 });
+  doc.setDrawColor(...PDF_GRAY);
+  doc.line(marginX + 12, cursorY + 68, marginX + 220, cursorY + 68);
+  doc.line(marginX + 250, cursorY + 68, marginX + 340, cursorY + 68);
+  doc.line(marginX + 370, cursorY + 68, pageWidth - marginX - 12, cursorY + 68);
+  doc.setFontSize(7);
+  doc.text('Authorized Signature', marginX + 12, cursorY + 78);
+  doc.text('Title', marginX + 250, cursorY + 78);
+  doc.text('Date', marginX + 370, cursorY + 78);
+
+  stampPdfFooters(doc, {
+    reportId,
+    confidentiality: 'CONFIDENTIAL — FERPA-protected student education record. Distribute only to the student or authorized personnel.',
+    dataSourceNote: `Source: Supabase (live query at export time) — as of ${formatGeneratedTimestamp(transcriptData.asOf)}`,
+  });
+
+  return doc;
+}
+
+async function downloadTranscriptPdf(studentId, identity) {
+  assertPdfRuntime();
+  const transcriptData = await buildTranscriptData(studentId, identity);
+  const reportId = newReportId('TR');
+  const doc = await renderTranscriptPdf(transcriptData, reportId);
+  const dateStamp = new Date().toISOString().slice(0, 10);
+  doc.save(`transcript-${studentId}-${dateStamp}-${reportId}.pdf`);
+  return reportId;
+}
+
+/* ------------------------------------------------------------- B3: evidence */
+/* renderEvidencePdf(): pure renderer for buildEvidencePacketData()'s output.
+ * Portrait letter, accompanies (never replaces) the transcript. Evaluator/
+ * supervision fields legitimately read "not recorded" here — that is Agent
+ * 3's honest data, not a rendering shortcut (Agent 7 owns actually building
+ * that workflow). */
+async function renderEvidencePdf(evidenceData, reportId) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' });
+  const marginX = 40;
+
+  applyPdfMetadata(doc, {
+    title: `Mission Next Technical Academy — Supporting Evidence Record — ${evidenceData.studentId}`,
+    subject: `Lab/competency supporting-evidence record for student ${evidenceData.studentId}`,
+    reportId,
+  });
+
+  let cursorY = await drawPdfHeader(doc, {
+    title: 'Supporting Evidence Record',
+    reportTypeLabel: 'REPORT TYPE: INDIVIDUAL SUPPORTING-EVIDENCE RECORD',
+    metaLines: [
+      `Record ID: ${reportId}`,
+      `Student ID: ${evidenceData.studentId}`,
+      `Track: ${fmtVal(evidenceData.track)}`,
+      `Generated: ${formatGeneratedTimestamp(evidenceData.generatedAt)}`,
+    ],
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text(`Labs & Activities (${evidenceData.labs.length})`, marginX, cursorY);
+  cursorY += 8;
+
+  if (evidenceData.labs.length === 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text('No lab attempts recorded for this student.', marginX, cursorY + 16);
+    cursorY += 30;
+  } else {
+    doc.autoTable({
+      startY: cursorY + 6,
+      margin: { left: marginX, right: marginX },
+      head: [['Module', 'Lab', 'Status', 'Completed', 'Score', 'Evaluator', 'Supervision']],
+      body: evidenceData.labs.map((l) => [
+        l.moduleTitle,
+        l.labTitle,
+        l.completionStatus,
+        fmtDate(l.completedAt),
+        fmtScore(l.score),
+        l.evaluatorReviewer || 'Not requested',
+        l.supervisionMethod || 'Not recorded',
+      ]),
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 4.5, lineColor: [226, 232, 240], lineWidth: 0.4, overflow: 'linebreak' },
+      headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.8 },
+      columnStyles: { 5: { textColor: PDF_AMBER }, 6: { textColor: PDF_AMBER } },
+    });
+    cursorY = doc.lastAutoTable.finalY + 18;
+
+    // ---- Rubric-category breakdown, flattened across all labs -------------
+    const rubricRows = [];
+    evidenceData.labs.forEach((l) => {
+      if (l.rubricBreakdown && typeof l.rubricBreakdown === 'object') {
+        Object.entries(l.rubricBreakdown).forEach(([k, v]) => {
+          if (typeof v === 'number' || typeof v === 'string') rubricRows.push([l.labTitle, k, String(v)]);
+        });
+      }
+    });
+    if (rubricRows.length) {
+      cursorY = ensureSpace(doc, cursorY, 40);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...PDF_NAVY);
+      doc.text('Rubric-Category / Competency Breakdown', marginX, cursorY);
+      doc.autoTable({
+        startY: cursorY + 6,
+        margin: { left: marginX, right: marginX },
+        head: [['Lab', 'Rubric Category / Competency', 'Value']],
+        body: rubricRows,
+        theme: 'striped',
+        styles: { font: 'helvetica', fontSize: 7.3, cellPadding: 4 },
+        headStyles: { fillColor: PDF_SLATE, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+      });
+      cursorY = doc.lastAutoTable.finalY + 20;
+    }
+  }
+
+  // ---- Artifact / evaluator provenance note -------------------------------
+  cursorY = ensureSpace(doc, cursorY, 40);
+  doc.setFillColor(...PDF_AMBER_BG);
+  doc.setDrawColor(...PDF_AMBER);
+  doc.roundedRect(marginX, cursorY, pageWidth - marginX * 2, 32, 4, 4, 'FD');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.3);
+  doc.setTextColor(...PDF_AMBER);
+  doc.text('Capstone submissions are retained as append-only portfolio artifacts with database-calculated SHA-256 digests. Faculty review is optional for the capstone; a missing review is not approval. Other module artifacts are not yet included in this record.', marginX + 10, cursorY + 18, { maxWidth: pageWidth - marginX * 2 - 20 });
+  cursorY += 46;
+
+  // ---- Capstone section -----------------------------------------------
+  cursorY = ensureSpace(doc, cursorY, 140);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text('Capstone', marginX, cursorY);
+  cursorY += 12;
+  const cap = evidenceData.capstone;
+  if (!cap || cap.status === 'not_applicable') {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text(cap ? cap.statusLabel : 'Not applicable — this track has no capstone module.', marginX, cursorY + 14);
+    cursorY += 30;
+  } else {
+    const colGap = 16;
+    const colW = (pageWidth - marginX * 2 - colGap) / 2;
+    function kv(x, y, w, pairs) {
+      let yy = y;
+      pairs.forEach(([label, value]) => {
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...PDF_GRAY);
+        doc.text(label.toUpperCase(), x, yy);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF_NAVY);
+        doc.text(String(value), x, yy + 11, { maxWidth: w });
+        yy += 26;
+      });
+      return yy;
+    }
+    const gate = cap.criticalErrorGate || {};
+    const critList = gate.criticalErrorsOnPassingSubmission || gate.criticalErrorsOnLatestAttempt;
+    const leftEnd = kv(marginX, cursorY, colW, [
+      ['Final Outcome', cap.statusLabel],
+      ['Score', fmtScore(cap.score)],
+      ['Submitted', fmtDate(cap.submittedAt)],
+    ]);
+    const rightEnd = kv(marginX + colW + colGap, cursorY, colW, [
+      ['Critical-Error Result', (critList && critList.length) ? `${critList.length} critical error(s) recorded — disqualifying` : 'Zero critical errors on record'],
+      ['Faculty Review', cap.review ? `${cap.review.status}${cap.review.outcome ? ` · ${cap.review.outcome}` : ''}` : 'Not requested'],
+      ['Supervision Method', cap.review ? cap.review.supervisionMethod : 'Optional faculty review'],
+    ]);
+    cursorY = Math.max(leftEnd, rightEnd);
+
+    if (cap.scorecard) {
+      cursorY = ensureSpace(doc, cursorY, 60);
+      const dims = [
+        ['Investigation', cap.scorecard.investigationAccuracy],
+        ['Detection', cap.scorecard.detectionScore],
+        ['Threat Hunting', cap.scorecard.threatHuntingScore],
+        ['Incident Response', cap.scorecard.incidentResponseScore],
+        ['Vulnerability', cap.scorecard.vulnerabilityScore],
+        ['Reporting', cap.scorecard.reportingScore],
+      ];
+      doc.autoTable({
+        startY: cursorY + 4,
+        margin: { left: marginX, right: marginX },
+        head: [dims.map((d) => d[0])],
+        body: [dims.map((d) => fmtScore(d[1]))],
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 5, halign: 'center' },
+        headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+      });
+      cursorY = doc.lastAutoTable.finalY + 14;
+    }
+  }
+
+  // ---- Corrections / overrides -------------------------------------------
+  cursorY = ensureSpace(doc, cursorY, 50);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text('Corrections / Overrides', marginX, cursorY);
+  cursorY += 12;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...PDF_GRAY);
+  const correctionsText = (evidenceData.correctionsOrOverrides && evidenceData.correctionsOrOverrides.length)
+    ? `${evidenceData.correctionsOrOverrides.length} correction(s)/override(s) on record.`
+    : (evidenceData.correctionsNote || 'None on record.');
+  doc.text(correctionsText, marginX, cursorY, { maxWidth: pageWidth - marginX * 2 });
+
+  stampPdfFooters(doc, {
+    reportId,
+    confidentiality: 'CONFIDENTIAL — FERPA-protected student education record. Distribute only to the student or authorized personnel.',
+    dataSourceNote: `Source: Supabase (live query at export time) — as of ${formatGeneratedTimestamp(evidenceData.asOf)}`,
+  });
+
+  return doc;
+}
+
+async function downloadEvidencePdf(studentId, identity) {
+  assertPdfRuntime();
+  const evidenceData = await buildEvidencePacketData(studentId, identity);
+  const reportId = newReportId('EV');
+  const doc = await renderEvidencePdf(evidenceData, reportId);
+  const dateStamp = new Date().toISOString().slice(0, 10);
+  doc.save(`evidence-record-${studentId}-${dateStamp}-${reportId}.pdf`);
+  return reportId;
+}
+
+/* ------------------------------------------------ per-student data layer */
+/* Shared Supabase fetch used by both buildTranscriptData() and
+ * buildEvidencePacketData() (G2: split data acquisition from the old
+ * monolithic buildStudentExportRecord(), without re-running five queries
+ * twice per report). Same four-table + students pattern as the Sprint H.1
+ * admin drill-down and the original buildStudentExportRecord(). */
+async function fetchStudentProgressBundle(userId, trackCode) {
+  if (!userId || !trackCode) {
+    const error = 'userId/trackCode missing — could not query Supabase progress tables for this student';
+    console.error('fetchStudentProgressBundle:', error);
+    return { error, moduleProgressRows: [], labAttemptRows: [], capstoneSubmissionRows: [], scorecardRow: null, artifactRows: [], capstoneReviewRows: [], studentRow: null };
+  }
+  // students is queried directly (not through admin_student_progress, which
+  // is admin_only() gated) so this works for a student reading their own
+  // record — students_self_read (20260828120000_students_admin.sql) already
+  // grants that.
+  const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes, studentRes, hourAwardRes] = await Promise.all([
+    mntSupabase.from('module_progress').select('*').eq('user_id', userId).eq('track_code', trackCode),
+    mntSupabase.from('lab_attempts').select('*').eq('user_id', userId).eq('track_code', trackCode),
+    mntSupabase.from('capstone_submissions').select('*').eq('user_id', userId).eq('track_code', trackCode).order('stage', { ascending: true }),
+    mntSupabase.from('capstone_scorecard').select('*').eq('user_id', userId).eq('track_code', trackCode).maybeSingle(),
+    mntSupabase.from('portfolio_artifacts').select('*').eq('user_id', userId).eq('track_code', trackCode).order('submitted_at', { ascending: false }),
+    mntSupabase.from('capstone_reviews').select('*').eq('user_id', userId).eq('track_code', trackCode).order('created_at', { ascending: false }),
+    mntSupabase.from('students').select('is_enrolled, enrollment_date, withdrawal_date, scheduled_start_date, completion_date').eq('user_id', userId).maybeSingle(),
+    // Added by the local-only fixed-credit migration. Keep a missing, not-yet-
+    // applied table separate from the core academic-data query status.
+    mntSupabase.from('student_course_hour_awards').select('*').eq('user_id', userId).eq('track_code', trackCode),
+  ]);
+  const errors = [];
+  if (moduleRes.error) errors.push(`module_progress: ${moduleRes.error.message}`);
+  if (labRes.error) errors.push(`lab_attempts: ${labRes.error.message}`);
+  if (capstoneRes.error) errors.push(`capstone_submissions: ${capstoneRes.error.message}`);
+  if (scorecardRes.error) errors.push(`capstone_scorecard: ${scorecardRes.error.message}`);
+  if (artifactRes.error) errors.push(`portfolio_artifacts: ${artifactRes.error.message}`);
+  if (reviewRes.error) errors.push(`capstone_reviews: ${reviewRes.error.message}`);
+  if (studentRes.error) errors.push(`students: ${studentRes.error.message}`);
+  if (hourAwardRes.error) console.warn('fetchStudentProgressBundle: fixed-credit awards unavailable:', hourAwardRes.error.message);
+  if (errors.length) errors.forEach((e) => console.error('fetchStudentProgressBundle:', e));
+  return {
+    error: errors.length ? errors.join('; ') : null,
+    moduleProgressRows: moduleRes.data || [],
+    labAttemptRows: labRes.data || [],
+    capstoneSubmissionRows: capstoneRes.data || [],
+    scorecardRow: scorecardRes.data || null,
+    artifactRows: artifactRes.data || [],
+    capstoneReviewRows: reviewRes.data || [],
+    studentRow: studentRes.data || null,
+    hourAwardRows: hourAwardRes.data || [],
+    hourAwardError: hourAwardRes.error ? hourAwardRes.error.message : null,
   };
+}
 
-  // Progress summary
-  const engagement = loadModuleEngagement(user);
-  const completedCount = moduleScores.filter((m) => m.completed).length;
-  const totalModules = moduleScores.length;
+/* Per-module grades: real module_progress state/percent, plus each module's
+ * best lab_attempts score (LABS' `module` field maps lab_key -> module_key).
+ * `result` (rubric-category breakdown jsonb) is kept on each lab attempt for
+ * buildEvidencePacketData() — the old buildStudentExportRecord() dropped it. */
+function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
+  const moduleKeys = Object.keys(program.modules || {});
+  return moduleKeys.map((moduleKey) => {
+    const module = program.modules[moduleKey];
+    const progressRow = moduleProgressRows.find((m) => m.module_key === moduleKey) || null;
+    const labKeysForModule = LABS.filter((l) => l.module === moduleKey).map((l) => l.key);
+    const attemptsForModule = labAttemptRows.filter((l) => labKeysForModule.includes(l.lab_key));
+    const bestAttempt = attemptsForModule.reduce((best, a) => {
+      const aScore = a.score === null || a.score === undefined ? -Infinity : Number(a.score);
+      const bestScore = best && best.score !== null && best.score !== undefined ? Number(best.score) : -Infinity;
+      return aScore > bestScore ? a : best;
+    }, null);
+    const state = progressRow ? progressRow.state : 'not_started';
+    return {
+      moduleKey,
+      title: module.title,
+      state,
+      status: adminStateLabel(state),
+      percent: progressRow ? progressRow.percent : 0,
+      startedAt: progressRow ? progressRow.started_at : null,
+      completedAt: progressRow ? progressRow.completed_at : null,
+      completed: state === 'complete',
+      creditMinutes: Number(module.creditMinutes || module.durationMinutes || 0),
+      bestLabScore: bestAttempt && bestAttempt.score !== null && bestAttempt.score !== undefined ? Number(bestAttempt.score) : null,
+      labAttempts: attemptsForModule.map((a) => ({
+        labKey: a.lab_key,
+        title: adminLabLabel(a.lab_key),
+        state: a.state,
+        score: a.score === null || a.score === undefined ? null : Number(a.score),
+        startedAt: a.started_at,
+        completedAt: a.completed_at,
+        rubricResult: a.result || null,
+      })),
+    };
+  });
+}
 
-  // M360 progress (separate)
-  const m360Progress = loadM360Progress(user);
-
-  // Faculty evaluation: not yet collected (no real data source exists)
-  const facultyEvaluation = {
-    status: 'not yet collected',
-    comments: null,
-    recommendedActions: null,
-    sourceData: 'No faculty evaluation data collection implemented'
-  };
-
-  // Attendance/time evidence: marked not verified
-  const attendanceEvidence = {
-    status: 'not yet collected',
-    totalInstructionalMinutes: 0,
-    lastActiveDate: null,
-    attendancePercentage: null,
-    sourceData: 'Attendance tracking not implemented'
-  };
-
-  // Outcome: simple pass/fail against 70%
-  const overallPercent = totalModules > 0 ? (completedCount / totalModules) * 100 : 0;
-  const passingThreshold = 70;
-  const outcome = overallPercent >= passingThreshold ? 'pass' : 'in progress';
+/* Decision 2 / Option 1: fixed course credit, not time tracking. Attempted
+ * means a student started or completed an approved technical module; credited
+ * instructional hours mean the module is complete. Browser-open time,
+ * last_active, and idle time are deliberately excluded. */
+function computeFixedCreditHours(program, moduleScores, awardRows, awardError) {
+  const toHours = (minutes) => Number((minutes / 60).toFixed(2));
+  const technicalRequiredMinutes = moduleScores.reduce((sum, m) => sum + m.creditMinutes, 0);
+  const attemptedMinutes = moduleScores
+    .filter((m) => m.state === 'in_progress' || m.completed)
+    .reduce((sum, m) => sum + m.creditMinutes, 0);
+  const calculatedCreditedMinutes = moduleScores
+    .filter((m) => m.completed)
+    .reduce((sum, m) => sum + m.creditMinutes, 0);
+  const durableTechnicalMinutes = (awardRows || [])
+    .filter((award) => award.classification === 'technical')
+    .reduce((sum, award) => sum + Number(award.credit_minutes || 0), 0);
+  const durableCareerMinutes = (awardRows || [])
+    .filter((award) => award.classification === 'career_readiness')
+    .reduce((sum, award) => sum + Number(award.credit_minutes || 0), 0);
+  const hasDurableAwards = !awardError;
+  const careerRequiredMinutes = program && program.careerReadiness
+    ? Number(program.careerReadiness.durationMinutes || 0)
+    : 0;
+  const programRequiredMinutes = program && program.compliance
+    ? Number(program.compliance.totalHours || 0) * 60
+    : technicalRequiredMinutes + careerRequiredMinutes;
+  const creditedTechnicalMinutes = hasDurableAwards ? durableTechnicalMinutes : calculatedCreditedMinutes;
+  const creditedProgramMinutes = creditedTechnicalMinutes + durableCareerMinutes;
 
   return {
+    model: 'fixed_credit_per_course',
+    attemptedClockHours: toHours(attemptedMinutes),
+    creditedInstructionalHours: toHours(creditedTechnicalMinutes),
+    source: hasDurableAwards
+      ? 'student_course_hour_awards (Supabase fixed-credit awards)'
+      : 'Calculated from Supabase module_progress plus approved portal/data.js creditMinutes; the durable award migration is not available in this environment.',
+    modules: moduleScores.map((m) => ({
+      moduleKey: m.moduleKey,
+      attemptedHours: (m.state === 'in_progress' || m.completed) ? toHours(m.creditMinutes) : 0,
+      creditedHours: m.completed ? toHours(m.creditMinutes) : 0,
+    })),
+    reconciliation: {
+      technicalRequiredHours: toHours(technicalRequiredMinutes),
+      careerReadinessRequiredHours: toHours(careerRequiredMinutes),
+      programRequiredHours: toHours(programRequiredMinutes),
+      technicalAllocationMatchesProgram: technicalRequiredMinutes + careerRequiredMinutes === programRequiredMinutes,
+      attemptedTechnicalHours: toHours(attemptedMinutes),
+      creditedTechnicalHours: toHours(creditedTechnicalMinutes),
+      creditedCareerReadinessHours: toHours(durableCareerMinutes),
+      creditedProgramHours: toHours(creditedProgramMinutes),
+      fullyReconciledForCompletion: creditedProgramMinutes === programRequiredMinutes,
+      note: careerRequiredMinutes
+        ? 'Technical module allocations reconcile to 70 hours. The separately catalogued 12-hour M360 companion brings the approved programme baseline to 82 hours, but its browser-local checklist is not durable evidence and is not counted as an institutional credit award.'
+        : 'All approved programme hours are allocated across the available course records.',
+    },
+  };
+}
+
+/* Capstone: Module 12's real data when this track has a capstone module.
+ * recordCapstoneSubmission() only ever writes a capstone_submissions row on
+ * an actual pass (70%+ AND zero critical errors) — capstone_submissions has
+ * no `state` column, so a row's mere existence already means "passed." The
+ * critical-error gate itself is not a boolean column anywhere in the schema;
+ * the rubric engine's criticalErrors array rides inside jsonb on
+ * capstone_submissions.answers.criticalErrors (a passing attempt, expected
+ * empty) and on lab_attempts.result.criticalErrors (every capstone attempt,
+ * pass or fail). */
+function computeCapstoneRecord(program, labAttemptRows, capstoneSubmissionRows, scorecardRow, artifactRows = [], capstoneReviewRows = []) {
+  const capstoneModule = program.modules['soc-12'];
+  if (!capstoneModule) {
+    return {
+      title: 'N/A',
+      status: 'not_applicable',
+      statusLabel: 'Not applicable — this track has no capstone module',
+      score: null,
+      stages: [],
+      scorecard: null,
+      criticalErrorGate: null,
+      rubricsApplied: [],
+    };
+  }
+  const capstoneLabAttempts = labAttemptRows
+    .filter((l) => l.lab_key === 'lab-capstone')
+    .slice()
+    .sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0));
+  const latestCapstoneAttempt = capstoneLabAttempts[0] || null;
+  const passingSubmission = capstoneSubmissionRows.find((c) => c.stage === 12) || null;
+  const criticalErrorsOnPassingSubmission = passingSubmission && passingSubmission.answers && Array.isArray(passingSubmission.answers.criticalErrors)
+    ? passingSubmission.answers.criticalErrors
+    : null;
+  const criticalErrorsOnLatestAttempt = latestCapstoneAttempt && latestCapstoneAttempt.result && Array.isArray(latestCapstoneAttempt.result.criticalErrors)
+    ? latestCapstoneAttempt.result.criticalErrors
+    : null;
+
+  const capstoneArtifacts = artifactRows.filter((a) => a.lab_key === 'lab-capstone');
+  const latestArtifact = capstoneArtifacts[0] || null;
+  const latestReview = latestArtifact ? capstoneReviewRows.find((r) => r.artifact_id === latestArtifact.id) : null;
+  return {
+    title: capstoneModule.title,
+    status: passingSubmission ? 'passed' : (capstoneLabAttempts.length ? 'in_progress' : 'not_started'),
+    statusLabel: passingSubmission
+      ? 'Complete — passed (70%+ and zero critical errors)'
+      : (capstoneLabAttempts.length ? 'In progress — attempted, not yet passed' : 'Not started'),
+    score: passingSubmission
+      ? Number(passingSubmission.score)
+      : (latestCapstoneAttempt && latestCapstoneAttempt.score !== null && latestCapstoneAttempt.score !== undefined ? Number(latestCapstoneAttempt.score) : null),
+    submittedAt: passingSubmission ? passingSubmission.submitted_at : null,
+    scorecard: scorecardRow ? {
+      overallScore: scorecardRow.overall_score,
+      investigationAccuracy: scorecardRow.investigation_accuracy,
+      detectionScore: scorecardRow.detection_score,
+      threatHuntingScore: scorecardRow.threat_hunting_score,
+      incidentResponseScore: scorecardRow.incident_response_score,
+      vulnerabilityScore: scorecardRow.vulnerability_score,
+      reportingScore: scorecardRow.reporting_score,
+      stagesSubmitted: scorecardRow.stages_submitted,
+    } : null,
+    stages: capstoneSubmissionRows.map((c) => ({
+      stage: c.stage,
+      score: c.score === null || c.score === undefined ? null : Number(c.score),
+      submittedAt: c.submitted_at,
+    })),
+    criticalErrorGate: {
+      note: 'Module 12 requires 70% (7/10 domains) AND zero critical errors to pass. capstone_submissions has no boolean critical-error column; the criticalErrors array from the rubric engine is instead carried inside jsonb — see the two fields below.',
+      criticalErrorsOnPassingSubmission,
+      criticalErrorsOnLatestAttempt,
+      latestAttemptState: latestCapstoneAttempt ? latestCapstoneAttempt.state : null,
+      latestAttemptCompletedAt: latestCapstoneAttempt ? latestCapstoneAttempt.completed_at : null,
+      totalAttempts: capstoneLabAttempts.length,
+    },
+    rubricsApplied: ['Triage', 'Query', 'Timeline', 'Scope', 'Enrichment', 'ATT&CK', 'Detection', 'Response', 'Reporting', 'Closure'],
+    artifacts: capstoneArtifacts.map((a) => ({ id: a.id, title: a.title, submittedAt: a.submitted_at, contentSha256: a.content_sha256 })),
+    review: latestReview ? { status: latestReview.review_status, outcome: latestReview.official_outcome, reviewedBy: latestReview.reviewed_by, reviewedAt: latestReview.reviewed_at, notes: latestReview.reviewer_notes, supervisionMethod: latestReview.supervision_method } : { status: latestArtifact ? 'not_requested' : 'not_available', outcome: null, reviewedBy: null, reviewedAt: null, notes: null, supervisionMethod: 'optional faculty review' },
+  };
+}
+
+/* D1 for an individual student — same precedence as deriveAcademicStatus()
+ * above (completed > withdrawn > active > not yet started), computed from a
+ * raw students-row read instead of the admin_student_progress view (a
+ * student reading their own record can't use that view — it's admin-gated).
+ * Two independent implementations of the same precedence logic is a known
+ * consistency risk (ASSESSMENT_REPORTING_SPEC.md §1b row 1.6); keeping both
+ * versions' precedence order textually identical is the mitigation until
+ * the view becomes readable from both sides. */
+function deriveStudentEnrollmentStatus(studentRow, moduleScores) {
+  const totalModules = moduleScores.length;
+  const completedCount = moduleScores.filter((m) => m.completed).length;
+  const isFullyComplete = totalModules > 0 && completedCount === totalModules;
+  const derivedCompletionDate = isFullyComplete
+    ? moduleScores.reduce((latest, m) => {
+        if (!m.completedAt) return latest;
+        return (!latest || new Date(m.completedAt) > new Date(latest)) ? m.completedAt : latest;
+      }, null)
+    : null;
+  const status = isFullyComplete
+    ? 'completed'
+    : (studentRow && studentRow.is_enrolled === false && studentRow.enrollment_date)
+      ? 'withdrawn'
+      : (studentRow && studentRow.is_enrolled)
+        ? 'active'
+        : 'not_yet_started';
+  return {
+    status,
+    statusLabel: academicStatusLabel(status),
+    enrollmentDate: studentRow ? studentRow.enrollment_date : null,
+    withdrawalDate: studentRow ? studentRow.withdrawal_date : null,
+    completionDate: (studentRow && studentRow.completion_date) || derivedCompletionDate,
+    scheduledStartDate: studentRow ? studentRow.scheduled_start_date : null,
+    sourceNote: 'Read directly from students (own row, RLS self-read). status/completionDate use the same precedence as deriveAcademicStatus()/the admin_student_progress view.',
+  };
+}
+
+/* --------------------------------------------------------------- D2 + D3 */
+/* D3 fix: the old code computed a single "outcome" (pass/in-progress) from
+ * the PERCENTAGE OF MODULES MARKED COMPLETE — that is a progress metric, not
+ * a grade, and the remediation plan calls this out explicitly. This function
+ * instead returns five genuinely separate values:
+ *   - progressPercentage: modules-complete / modules-total (unchanged metric,
+ *     correctly labeled as progress, not outcome)
+ *   - academicAverage: mean of recorded best-lab-scores across modules that
+ *     HAVE a score (a real average of grades, independent of how many
+ *     modules a student has even attempted yet)
+ *   - moduleGrades: per-module Pass/Fail/Not attempted against the 70%
+ *     threshold (ASSESSMENT_REPORTING_SPEC.md §2) — a grade, not a percent
+ *   - capstoneOutcome: capstoneRecord.status, already its own field
+ *   - programCompletionAssessment (D2): a proper multi-condition object —
+ *     required modules, required labs, required assessments passed, capstone
+ *     passed, zero critical errors, PLUS required-hours and evaluator-
+ *     approval recorded as "not available" rather than silently skipped or
+ *     fabricated as true, since no data source exists for either yet
+ *     (COMPLIANCE_DECISIONS_NEEDED.md Decisions 1 & 2 — Agents 6/7). This
+ *     status is therefore never a claim of official CIE program completion,
+ *     only of what this system can currently verify. */
+function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, hourRecord) {
+  const totalModules = moduleScores.length;
+  const completedCount = moduleScores.filter((m) => m.completed).length;
+  const progressPercentage = totalModules > 0 ? (completedCount / totalModules) * 100 : 0;
+
+  const passingThreshold = (program.compliance && program.compliance.passingPercent) || 70;
+  const scored = moduleScores.filter((m) => m.bestLabScore !== null);
+  const academicAverage = scored.length
+    ? scored.reduce((sum, m) => sum + m.bestLabScore, 0) / scored.length
+    : null;
+
+  const moduleGrades = moduleScores.map((m) => ({
+    moduleKey: m.moduleKey,
+    title: m.title,
+    score: m.bestLabScore,
+    grade: m.bestLabScore === null ? 'Not attempted' : (m.bestLabScore >= passingThreshold ? 'Pass' : 'Fail'),
+  }));
+
+  const hasCapstone = capstoneRecord.status !== 'not_applicable';
+  const requiredModulesComplete = totalModules > 0 && completedCount === totalModules;
+  // No independent lab-completion signal exists apart from module completion
+  // in this schema (lab_attempts feed module_progress, not a separate
+  // required-labs table) — documented as a known limitation rather than
+  // inventing a stricter check this data can't actually support.
+  const requiredLabsComplete = requiredModulesComplete;
+  const requiredAssessmentsPassed = moduleGrades.every((g) => g.grade !== 'Fail');
+  const capstonePassed = hasCapstone ? capstoneRecord.status === 'passed' : true;
+  const zeroCriticalErrors = hasCapstone
+    ? !(capstoneRecord.criticalErrorGate
+        && capstoneRecord.criticalErrorGate.criticalErrorsOnPassingSubmission
+        && capstoneRecord.criticalErrorGate.criticalErrorsOnPassingSubmission.length > 0)
+    : true;
+
+  const requiredHoursSatisfied = !!(hourRecord && hourRecord.reconciliation && hourRecord.reconciliation.fullyReconciledForCompletion);
+  const evaluatorApprovalObtained = hasCapstone
+    ? (capstoneRecord.review && capstoneRecord.review.status === 'approved')
+    : 'not_applicable';
+  const verifiableConditionsMet = requiredModulesComplete && requiredLabsComplete && requiredAssessmentsPassed && capstonePassed && zeroCriticalErrors && requiredHoursSatisfied && (evaluatorApprovalObtained === true || evaluatorApprovalObtained === 'not_applicable');
+
+  return {
+    progressPercentage: Number(progressPercentage.toFixed(1)),
+    academicAverage: academicAverage === null ? null : Number(academicAverage.toFixed(1)),
+    moduleGrades,
+    gradeScale: `${passingThreshold}/100 passing threshold per module (ASSESSMENT_REPORTING_SPEC.md §2)`,
+    capstoneOutcome: capstoneRecord.status,
+    programCompletionAssessment: {
+      status: verifiableConditionsMet ? 'all_currently_verifiable_conditions_met' : 'incomplete',
+      note: verifiableConditionsMet
+        ? 'All currently recorded conditions (required modules, fixed-credit hours, labs, assessments, capstone pass, and zero critical errors) are met. This is NOT an official CIE program-completion or credential determination until the institution records credential award and any required evaluator approval.'
+        : 'One or more currently-verifiable completion conditions are not met.',
+      conditions: {
+        requiredModulesComplete,
+        requiredLabsComplete,
+        requiredAssessmentsPassed,
+        capstonePassed,
+        zeroCriticalErrors,
+        requiredHoursSatisfied,
+        evaluatorApprovalObtained,
+        credentialAwardEvent: 'not recorded here — credential_awards exists in the local enrollment-reporting migration, but the migration may not be deployed or populated',
+      },
+    },
+    credentialAwardStatus: 'not recorded in transcript query — credential_awards exists in the local enrollment-reporting migration and requires deployment/population before awards appear here',
+  };
+}
+
+/* --------------------------------------------------------------- G2 / B2 */
+/* Pure(ish) data builder for an individual academic transcript — one Supabase
+ * round trip via fetchStudentProgressBundle(), no PDF/DOM work (Agent 4).
+ * `identity` carries what the caller already has in hand (a student's own
+ * session, or an admin row) so this function never needs to re-derive
+ * userId/trackCode/program itself. */
+async function buildTranscriptData(studentId, identity) {
+  identity = identity || {};
+  const { userId, trackCode, program } = identity;
+  const generatedAt = new Date().toISOString();
+  const bundle = await fetchStudentProgressBundle(userId, trackCode);
+  const moduleScores = program ? computeModuleScores(program, bundle.moduleProgressRows, bundle.labAttemptRows) : [];
+  const capstoneRecord = program
+    ? computeCapstoneRecord(program, bundle.labAttemptRows, bundle.capstoneSubmissionRows, bundle.scorecardRow, bundle.artifactRows, bundle.capstoneReviewRows)
+    : { title: 'N/A', status: 'not_applicable', statusLabel: 'No program supplied', score: null, stages: [], scorecard: null, criticalErrorGate: null, rubricsApplied: [] };
+  const enrollmentStatus = deriveStudentEnrollmentStatus(bundle.studentRow, moduleScores);
+  const fixedCreditHours = computeFixedCreditHours(program, moduleScores, bundle.hourAwardRows, bundle.hourAwardError);
+  const grades = assessProgressGradesCompletion(program || { modules: {}, compliance: {} }, moduleScores, capstoneRecord, fixedCreditHours);
+
+  return {
+    reportType: 'individual_academic_transcript',
+    generatedAt,
+    asOf: generatedAt,
+    institution: { name: 'Mission Next Technical Academy' },
+    studentId,
+    track: trackCode || null,
+    program: program ? {
+      slug: program.slug,
+      title: (program.compliance && program.compliance.programName) || program.title,
+      credential: (program.compliance && program.compliance.credential) || null,
+      curriculumRevision: (program.compliance && program.compliance.revision) || null,
+    } : null,
+    enrollment: enrollmentStatus,
+    requiredProgramHours: program && program.compliance ? {
+      total: program.compliance.totalHours || null,
+      technical: program.compliance.technicalHours || null,
+      lab: program.compliance.labHours || null,
+      career: program.compliance.careerHours || null,
+      source: 'portal/data.js program.compliance (static, authoritative)',
+    } : null,
+    attemptedClockHours: fixedCreditHours.attemptedClockHours,
+    attendedInstructionalHours: fixedCreditHours.creditedInstructionalHours,
+    fixedCreditHours,
+    hoursNote: `Fixed-credit model: attempted hours are approved credits for started or completed technical modules; credited instructional hours are approved credits for completed technical modules. ${fixedCreditHours.reconciliation.note}`,
+    gradeScale: grades.gradeScale,
+    modules: moduleScores.map((m) => ({
+      moduleKey: m.moduleKey,
+      title: m.title,
+      startedAt: m.startedAt,
+      completedAt: m.completedAt,
+      progressState: m.status,
+      percentComplete: m.percent,
+      attemptedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).attemptedHours || 0,
+      attendedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).creditedHours || 0,
+      score: m.bestLabScore,
+      grade: (grades.moduleGrades.find((g) => g.moduleKey === m.moduleKey) || {}).grade || 'Not attempted',
+    })),
+    progressPercentage: grades.progressPercentage,
+    academicAverage: grades.academicAverage,
+    capstoneOutcome: grades.capstoneOutcome,
+    capstone: capstoneRecord,
+    programCompletionAssessment: grades.programCompletionAssessment,
+    credentialAwardStatus: grades.credentialAwardStatus,
+    dataProvenance: {
+      gradesStatus: 'verified from Supabase module_progress and lab_attempts (live query at export time)',
+      capstoneStatus: program && program.modules && program.modules['soc-12']
+        ? 'verified from Supabase capstone_submissions and capstone_scorecard (live query at export time)'
+        : 'not applicable — this track has no capstone module',
+      enrollmentStatusSource: bundle.studentRow
+        ? 'verified from Supabase students (own row, live query at export time)'
+        : 'students row not found or query failed — enrollment fields default to not_yet_started/null',
+      supabaseFetchError: bundle.error,
+    },
+  };
+}
+
+/* --------------------------------------------------------------- G2 / B3 */
+/* Pure(ish) data builder for the supporting-evidence record (labs, rubric
+ * breakdowns, capstone critical-error detail, evaluator/artifact fields).
+ * Accompanies buildTranscriptData(), never overloads it (plan B3). Shares
+ * the same fetch (fetchStudentProgressBundle) rather than re-querying. */
+async function buildEvidencePacketData(studentId, identity) {
+  identity = identity || {};
+  const { userId, trackCode, program } = identity;
+  const generatedAt = new Date().toISOString();
+  const bundle = await fetchStudentProgressBundle(userId, trackCode);
+  const moduleScores = program ? computeModuleScores(program, bundle.moduleProgressRows, bundle.labAttemptRows) : [];
+  const capstoneRecord = program
+    ? computeCapstoneRecord(program, bundle.labAttemptRows, bundle.capstoneSubmissionRows, bundle.scorecardRow, bundle.artifactRows, bundle.capstoneReviewRows)
+    : { title: 'N/A', status: 'not_applicable', statusLabel: 'No program supplied', score: null, stages: [], scorecard: null, criticalErrorGate: null, rubricsApplied: [] };
+
+  const labs = moduleScores.flatMap((m) =>
+    m.labAttempts.map((a) => ({
+      moduleKey: m.moduleKey,
+      moduleTitle: m.title,
+      labKey: a.labKey,
+      labTitle: a.title,
+      state: a.state,
+      completionStatus: adminStateLabel(a.state),
+      startedAt: a.startedAt,
+      completedAt: a.completedAt,
+      score: a.score,
+      rubricBreakdown: a.rubricResult,
+      competenciesEvaluated: a.rubricResult && typeof a.rubricResult === 'object' ? Object.keys(a.rubricResult) : [],
+      submittedArtifactReference: (() => { const artifact = bundle.artifactRows.find((x) => x.lab_key === a.labKey); return artifact ? `Portfolio artifact ${artifact.id}` : 'No durable artifact recorded for this attempt'; })(),
+      artifactIntegrityMetadata: (() => { const artifact = bundle.artifactRows.find((x) => x.lab_key === a.labKey); return artifact && artifact.content_sha256 ? `SHA-256 ${artifact.content_sha256}` : 'Not available'; })(),
+      evaluatorReviewer: a.labKey === 'lab-capstone' ? capstoneRecord.review.reviewedBy : 'Not applicable — optional faculty review begins with capstone',
+      reviewDate: a.labKey === 'lab-capstone' ? capstoneRecord.review.reviewedAt : null,
+      reviewNotes: a.labKey === 'lab-capstone' ? capstoneRecord.review.notes : null,
+      supervisionMethod: a.labKey === 'lab-capstone' ? capstoneRecord.review.supervisionMethod : 'Automated scoring; no faculty review required for this module',
+    }))
+  );
+
+  return {
+    reportType: 'individual_supporting_evidence_record',
+    generatedAt,
+    asOf: generatedAt,
+    studentId,
+    track: trackCode || null,
+    labs,
+    capstone: {
+      ...capstoneRecord,
+      evaluatorReviewer: capstoneRecord.review.reviewedBy,
+      supervisionMethod: capstoneRecord.review.supervisionMethod,
+    },
+    correctionsOrOverrides: [],
+    correctionsNote: 'No correction/override recording mechanism exists yet — a corrected score or evaluator override would have no field to land in (Agent 5/7).',
+    dataProvenance: {
+      labsStatus: 'verified from Supabase lab_attempts (live query at export time, including rubric result jsonb)',
+      artifactsStatus: 'capstone submission snapshots and database-calculated SHA-256 digests are read from portfolio_artifacts; other module artifacts are not yet in scope',
+      evaluatorStatus: 'optional instructor review is available for capstone artifacts; a missing review is reported as not requested, not as approval',
+      supabaseFetchError: bundle.error,
+    },
+  };
+}
+
+/* ---------------------------------------------------- legacy JSON export */
+/* The student-facing "Export my record" button. Per the remediation plan
+ * (A4/G2), this now assembles its JSON payload from the two real builders
+ * (buildTranscriptData + buildEvidencePacketData) instead of running its own
+ * inline Supabase queries and status/grade logic — that logic used to be
+ * duplicated here and in the old buildStudentExportRecord(), both now
+ * retired in favor of the shared builders above.
+ *
+ * This stays a secondary, clearly-labeled machine-readable export (plan A4:
+ * "Never label JSON as an academic transcript"). The primary human-readable
+ * PDF transcript button now calls buildTranscriptData()/renderTranscriptPdf()
+ * directly; this function remains only for the optional secondary data file. */
+async function exportStudentRecord(user, program) {
+  if (!user || !user.enrollments.length) {
+    console.error('Could not build student export record: no active enrollment');
+    return null;
+  }
+  const identity = { userId: user.userId, trackCode: user.trackCode, program };
+  const [transcript, evidence] = await Promise.all([
+    buildTranscriptData(user.username, identity),
+    buildEvidencePacketData(user.username, identity),
+  ]);
+
+  const record = {
+    _label: 'Machine-readable data export — NOT the official transcript. See transcript.reportType for the individual academic transcript data, and evidence.reportType for the supporting-evidence record.',
+    exportedAt: new Date().toISOString(),
     studentId: user.username,
     email: user.email,
     track: user.trackCode,
     program: program.slug,
-    exportedAt: now,
-
-    // Curriculum mapping
-    programTitle: program.compliance?.programName || program.title,
-    totalHours: program.compliance?.totalHours || 82,
-    technicalHours: program.compliance?.technicalHours || 70,
-    labHours: program.compliance?.labHours || 40,
-
-    // Grades and assessment
-    grades: {
-      modules: moduleScores,
-      capstone: capstoneRecord,
-      overallPercentComplete: overallPercent.toFixed(1)
-    },
-
-    // Progress tracking
-    progress: {
-      modulesComplete: completedCount,
-      modulesTotal: totalModules,
-      m360ItemsComplete: m360Progress.completedItems.length,
-      m360ItemsTotal: 8,
-      status: completedCount > 0 ? 'in progress' : 'not started'
-    },
-
-    // Artifacts: persisted lab state and selections
-    artifacts: {
-      status: 'persisted in student localStorage under lab-specific keys',
-      sourceData: 'LabRuntime.save() per module',
-      note: 'Artifacts not exported — access via browser storage inspection'
-    },
-
-    // Attendance and time evidence
-    attendanceEvidence,
-
-    // Faculty evaluation
-    facultyEvaluation,
-
-    // Capstone assessment
-    capstone: capstoneRecord,
-
-    // Final outcome
-    outcome: {
-      status: outcome,
-      percentComplete: overallPercent.toFixed(1),
-      passingThreshold,
-      message: outcome === 'pass'
-        ? 'Student has met the course completion threshold.'
-        : 'Student is in progress. Completion requires all modules marked complete.'
-    },
-
-    // Data verification note
-    dataVerification: {
-      gradesStatus: 'verified from localStorage module engagement',
-      attendanceStatus: 'not yet collected',
-      artifactsStatus: 'persisted but not exported',
-      facultyEvaluationStatus: 'not yet collected',
-      capstoneStatus: 'not yet collected',
-      note: 'This record represents available client-side data only. Backend attendance, faculty evaluation, and capstone rubric data are marked not yet collected per architecture.md Sprint F.'
-    }
+    transcript,
+    evidence,
   };
-}
 
-async function exportStudentRecord(user, program) {
-  const record = await buildStudentExportRecord(user, program);
-  if (!record) {
-    console.error('Could not build student export record');
-    return null;
-  }
   const json = JSON.stringify(record, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `student-record-${record.studentId}-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `student-record-${user.username}-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  return record;
+}
+
+/* --------------------------------------------------- A4: student-facing PDF */
+/* "Download Transcript (PDF)"/"Download Evidence Record (PDF)" — the primary
+ * student-facing actions per plan A4 ("Never label JSON as an academic
+ * transcript... Download transcript (PDF) / optional secondary Download
+ * data (JSON)"). Global, reached the same way exportStudentRecord() already
+ * was: viewProgram() sets window.__mntCurrentUser/__mntCurrentProgram on
+ * every render since inline onclick handlers lose the lexical closure once
+ * innerHTML is set. */
+async function downloadStudentTranscriptPdf(user, program) {
+  if (!user || !user.enrollments.length) {
+    console.error('Could not build transcript: no active enrollment');
+    return null;
+  }
+  const identity = { userId: user.userId, trackCode: user.trackCode, program };
+  return downloadTranscriptPdf(user.username, identity);
+}
+
+async function downloadStudentEvidencePdf(user, program) {
+  if (!user || !user.enrollments.length) {
+    console.error('Could not build evidence record: no active enrollment');
+    return null;
+  }
+  const identity = { userId: user.userId, trackCode: user.trackCode, program };
+  return downloadEvidencePdf(user.username, identity);
+}
+
+/* ------------------------------------------------------- admin snapshot */
+/* "Save Progress File" — an admin-triggered, recoverable JSON snapshot of
+ * one student's full transcript + evidence record, built from the same
+ * buildTranscriptData()/buildEvidencePacketData() Supabase reads as the
+ * student's own export. Exists so a disenrollment is never a one-way door:
+ * ADMIN_RESET_FLOW.md documents pasting this file's contents to a connected
+ * AI agent to restore a student who was disenrolled by mistake. Available
+ * as a standalone per-row button, and always run automatically before an
+ * enrolled -> disenrolled toggle (see wireAdmin) so the snapshot exists
+ * before the state change that made it necessary. */
+async function buildStudentSnapshotRecord(studentId, identity) {
+  const [transcript, evidence] = await Promise.all([
+    buildTranscriptData(studentId, identity),
+    buildEvidencePacketData(studentId, identity),
+  ]);
+  return {
+    _label: 'Admin-captured recoverable progress snapshot — paste into ADMIN_RESET_FLOW.md\'s agent prompt to restore this student if a disenrollment was a mistake.',
+    capturedAt: new Date().toISOString(),
+    studentId,
+    track: identity ? identity.trackCode : null,
+    transcript,
+    evidence,
+  };
+}
+
+function downloadJsonFile(payload, filename) {
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function downloadStudentSnapshot(studentId, identity) {
+  const record = await buildStudentSnapshotRecord(studentId, identity);
+  downloadJsonFile(record, `student-progress-snapshot-${studentId}-${new Date().toISOString().slice(0, 10)}.json`);
   return record;
 }
 
@@ -506,6 +2410,9 @@ function recordLabAttempt(user, labKey, { state, score = null, result = {} } = {
       state,
       score,
       result,
+      rubric_version: 'soc-analyst-rubric-v1',
+      scoring_engine_version: 'portal-client-scorer-v1',
+      pass_threshold: 70,
       started_at: now,
       completed_at: state === 'complete' ? now : null,
     })
@@ -513,6 +2420,29 @@ function recordLabAttempt(user, labKey, { state, score = null, result = {} } = {
       if (error) console.error('lab_attempts insert failed', labKey, error);
     })
     .catch((err) => console.error('lab_attempts insert threw', labKey, err));
+}
+
+/* An artifact is an immutable, server-stored snapshot of a submission.  This
+ * intentionally inserts for every submit; browser LabRuntime state remains a
+ * working draft only and is never presented as the institutional record. */
+function persistPortfolioArtifact(user, { moduleKey, labKey, kind, title, content, rubricVersion = 'soc-analyst-rubric-v1', scoringEngineVersion = 'portal-client-scorer-v1', passThreshold = 70 } = {}) {
+  if (!user || !user.userId || !user.trackCode || !content) return Promise.resolve(null);
+  return mntSupabase.from('portfolio_artifacts').insert({
+    user_id: user.userId,
+    track_code: user.trackCode,
+    module_key: moduleKey || null,
+    lab_key: labKey || null,
+    kind: kind || 'capstone_report',
+    title: title || 'Submitted portfolio artifact',
+    content,
+    submitted_by: user.userId,
+    rubric_version: rubricVersion,
+    scoring_engine_version: scoringEngineVersion,
+    pass_threshold: passThreshold,
+  }).select('id').single().then(({ data, error }) => {
+    if (error) { console.error('portfolio_artifacts insert failed', error); return null; }
+    return data;
+  }).catch((err) => { console.error('portfolio_artifacts insert threw', err); return null; });
 }
 
 /* --------------------------------------------------------- capstone_submissions (Supabase) */
@@ -545,7 +2475,7 @@ function recordLabAttempt(user, labKey, { state, score = null, result = {} } = {
  * an in-progress/failed attempt, so a failed submit is not written here (it is
  * still captured by module-12.js's existing recordLabAttempt() call for
  * lab_key 'lab-capstone', which does log every attempt, pass or fail). */
-function recordCapstoneSubmission(user, { score, answers = {} } = {}) {
+function recordCapstoneSubmission(user, { score, answers = {}, criticalErrorCount = 0 } = {}) {
   if (!user || !user.userId || !user.trackCode) return;
   mntSupabase
     .from('capstone_submissions')
@@ -556,6 +2486,11 @@ function recordCapstoneSubmission(user, { score, answers = {} } = {}) {
         stage: 12,
         score,
         answers,
+        critical_error_count: criticalErrorCount,
+        passed_critical_error_gate: criticalErrorCount === 0,
+        rubric_version: 'soc-analyst-capstone-v1',
+        scoring_engine_version: 'portal-client-scorer-v1',
+        pass_threshold: 70,
         submitted_at: new Date().toISOString(),
       },
       { onConflict: 'user_id,track_code,stage' }
@@ -1236,10 +3171,20 @@ function viewProgram(user, slug) {
           <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div class="h-full bg-[#f97316] rounded-full transition-all" style="width: ${prog.percent}%"></div>
           </div>
-          <button type="button" onclick="exportStudentRecord(window.__mntCurrentUser, window.__mntCurrentProgram)"
-            class="mt-4 text-xs font-semibold text-[#1e3a5f]/70 hover:text-[#1e3a5f] inline-flex items-center gap-1.5">
-            <i class="ri-download-2-line"></i> Export my record (JSON)
-          </button>
+          <div class="mt-4 flex flex-wrap items-center gap-4">
+            <button type="button" id="student-transcript-pdf-btn" onclick="downloadStudentTranscriptPdf(window.__mntCurrentUser, window.__mntCurrentProgram)"
+              class="text-sm font-semibold bg-[#1e3a5f] hover:bg-[#16304f] text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 cursor-pointer">
+              <i class="ri-file-text-line"></i> Download Transcript (PDF)
+            </button>
+            <button type="button" id="student-evidence-pdf-btn" onclick="downloadStudentEvidencePdf(window.__mntCurrentUser, window.__mntCurrentProgram)"
+              class="text-xs font-semibold text-[#1e3a5f]/70 hover:text-[#1e3a5f] inline-flex items-center gap-1.5">
+              <i class="ri-file-list-3-line"></i> Download Evidence Record (PDF)
+            </button>
+            <button type="button" onclick="exportStudentRecord(window.__mntCurrentUser, window.__mntCurrentProgram)"
+              class="text-xs font-semibold text-gray-400 hover:text-gray-600 inline-flex items-center gap-1.5">
+              <i class="ri-download-2-line"></i> Download data (JSON, secondary)
+            </button>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
@@ -1578,13 +3523,16 @@ function viewNotFound(user) {
 
 function viewAdmin(user, rows, error, activeStudents) {
   activeStudents = activeStudents || [];
-  // Summary statistics
+  // Summary statistics are based on the local dashboard state, not the raw
+  // backend rows. The ADMIN account is filtered out upstream.
   let totalStudents = rows.length;
-  let notStarted = rows.filter((r) => r.modules_complete === 0 && (r.modules_in_progress || 0) === 0).length;
-  let complete = rows.filter((r) => r.percent_complete >= 100).length;
-  let inProgress = totalStudents - notStarted - complete;
-  let avgComplete = totalStudents > 0
-    ? rows.reduce((sum, r) => sum + (r.percent_complete || 0), 0) / totalStudents
+  const enrolledRows = rows.filter((r) => r.enrolled !== false);
+  let notEnrolled = totalStudents - enrolledRows.length;
+  let notStarted = enrolledRows.filter((r) => r.modules_complete === 0 && (r.modules_in_progress || 0) === 0).length;
+  let complete = enrolledRows.filter((r) => r.percent_complete >= 100).length;
+  let inProgress = enrolledRows.length - notStarted - complete;
+  let avgComplete = enrolledRows.length > 0
+    ? enrolledRows.reduce((sum, r) => sum + (r.percent_complete || 0), 0) / enrolledRows.length
     : 0;
 
   // Track options for filter
@@ -1598,7 +3546,7 @@ function viewAdmin(user, rows, error, activeStudents) {
         <div class="mb-8">
           <h1 class="text-3xl font-bold text-[#1e3a5f] mb-4">Student Progress</h1>
           <div class="w-12 h-1 bg-[#f97316] rounded-full mb-4"></div>
-          <p class="text-gray-500 text-base">Admin dashboard for monitoring student progress across all programs.</p>
+          <p class="text-gray-500 text-base">Admin dashboard for monitoring student progress across all programs. The ADMIN account is excluded from the student-account counts and table.</p>
         </div>
 
         ${
@@ -1621,10 +3569,18 @@ function viewAdmin(user, rows, error, activeStudents) {
                </div>`
             : `<div>
                  <!-- Summary tiles -->
-                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+                 <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                    <div class="bg-white border border-gray-200 rounded-xl p-5">
-                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Total Students</p>
+                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Total Student Accounts</p>
                      <p class="text-3xl font-bold text-[#1e3a5f]">${totalStudents}</p>
+                   </div>
+                   <div class="bg-white border border-gray-200 rounded-xl p-5">
+                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Enrolled</p>
+                     <p class="text-3xl font-bold text-[#1e3a5f]">${enrolledRows.length}</p>
+                   </div>
+                   <div class="bg-white border border-gray-200 rounded-xl p-5">
+                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Not Enrolled</p>
+                     <p class="text-3xl font-bold text-gray-400">${notEnrolled}</p>
                    </div>
                    <div class="bg-white border border-gray-200 rounded-xl p-5">
                      <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Not Started</p>
@@ -1638,28 +3594,76 @@ function viewAdmin(user, rows, error, activeStudents) {
                      <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Complete</p>
                      <p class="text-3xl font-bold text-[#22c55e]">${complete}</p>
                    </div>
-                   <div class="bg-white border border-gray-200 rounded-xl p-5">
-                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Avg. Complete</p>
-                     <p class="text-3xl font-bold text-[#1e3a5f]">${avgComplete.toFixed(0)}%</p>
-                   </div>
+                 </div>
+                 <div class="bg-[#f8fafc] border border-gray-200 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                   <p class="text-sm text-gray-600">Average progress across enrolled student accounts: <strong class="text-[#1e3a5f]">${avgComplete.toFixed(0)}%</strong></p>
+                   <p class="text-xs text-gray-500">Report exports capture the current enrollment state from Supabase and a local export history in this browser.</p>
                  </div>
 
                  <!-- Controls -->
-                 <div class="flex flex-col sm:flex-row gap-4 mb-6 items-start sm:items-center justify-between">
-                   <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-1">
-                     <div>
-                       <label for="track-filter" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Filter by Track</label>
-                       <select id="track-filter" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
-                         <option value="">All Tracks</option>
-                         ${trackOptions.map((track) => `<option value="${esc(track)}">${esc(track)}</option>`).join('')}
-                       </select>
+                 <div class="flex flex-col gap-4 mb-6">
+                   <div class="flex flex-col sm:flex-row gap-3 sm:items-end sm:justify-between">
+                     <div class="flex flex-col sm:flex-row gap-3 sm:items-end flex-wrap">
+                       <div>
+                         <label for="track-filter" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Filter by Track</label>
+                         <select id="track-filter" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
+                           <option value="">All Tracks</option>
+                           ${trackOptions.map((track) => `<option value="${esc(track)}">${esc(track)}</option>`).join('')}
+                         </select>
+                       </div>
+                       <div class="flex items-center gap-3 pb-1.5">
+                         <input type="checkbox" id="hide-not-started" class="w-4 h-4 rounded border-gray-200 text-[#f97316] cursor-pointer" />
+                         <label for="hide-not-started" class="text-sm text-gray-600 cursor-pointer">Hide Not Started</label>
+                       </div>
+                     </div>
+                     <div class="flex flex-wrap gap-3">
+                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#c2410c] hover:text-[#9a3412] hover:border-[#f97316] hover:bg-[#fff7ed] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-save-progress-file" type="button" title="Download one recoverable progress snapshot for every student in the current filtered scope">Save Progress File (All Students)</button>
+                       <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-generate-report" type="button">Preview &amp; Generate Report</button>
                      </div>
                    </div>
-                   <div class="flex items-center gap-3">
-                     <input type="checkbox" id="hide-not-started" class="w-4 h-4 rounded border-gray-200 text-[#f97316] cursor-pointer" />
-                     <label for="hide-not-started" class="text-sm text-gray-600 cursor-pointer">Hide Not Started</label>
-                   </div>
+                   <div id="admin-report-status" class="text-sm text-gray-500"></div>
+                   <div id="admin-report-preview"></div>
                  </div>
+
+                 <section class="bg-white border border-gray-200 rounded-xl p-5 mb-6" aria-labelledby="annual-reporting-scope-heading">
+                   <div class="flex flex-col lg:flex-row lg:items-end gap-4">
+                     <div class="lg:flex-1">
+                       <h2 id="annual-reporting-scope-heading" class="text-sm font-bold text-[#1e3a5f]">Annual reporting scope</h2>
+                       <p class="text-xs text-gray-500 mt-1">These dates print on the cohort report. Period-based Form 801 counts require the enrollment-history migration and its reporting view; the current dashboard roster is not a historical source.</p>
+                     </div>
+                     <label class="text-xs font-semibold text-gray-600">Period start
+                       <input id="reporting-period-start" type="date" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                     </label>
+                     <label class="text-xs font-semibold text-gray-600">Period end
+                       <input id="reporting-period-end" type="date" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                     </label>
+                   </div>
+                 </section>
+
+                 <section class="bg-white border border-gray-200 rounded-xl p-5 mb-6" aria-labelledby="academic-record-heading">
+                   <h2 id="academic-record-heading" class="text-sm font-bold text-[#1e3a5f]">Current enrollment planning record</h2>
+                   <p class="text-xs text-gray-500 mt-1 mb-4">Set scheduled dates and the reporting geography for an active enrollment. Saving does not overwrite a withdrawal or prior enrollment episode.</p>
+                   <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
+                     <label class="text-xs font-semibold text-gray-600">Student
+                       <select id="admin-planning-student" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                         <option value="">Select an active student…</option>
+                         ${rows.filter((r) => r.enrolled !== false).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                       </select>
+                     </label>
+                     <label class="text-xs font-semibold text-gray-600">Scheduled start
+                       <input id="admin-planning-start" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                     </label>
+                     <label class="text-xs font-semibold text-gray-600">Scheduled completion
+                       <input id="admin-planning-completion" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                     </label>
+                     <label class="text-xs font-semibold text-gray-600">Reporting geography
+                       <select id="admin-planning-geography" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                         <option value="">Not recorded</option><option value="florida">Florida</option><option value="non_florida">Non-Florida</option><option value="unknown">Unknown / verify</option>
+                       </select>
+                     </label>
+                     <button type="button" data-action="admin-save-enrollment-plan" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm">Save planning record</button>
+                   </div>
+                 </section>
 
                  <!-- Table -->
                  <div class="overflow-x-auto">
@@ -1669,19 +3673,34 @@ function viewAdmin(user, rows, error, activeStudents) {
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Student ID</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Track</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Program</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Enrollment</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Progress</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Modules</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Capstone</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Last Active</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
                        </tr>
                      </thead>
                      <tbody id="admin-table-body">
                        ${rows.map((row) => `
-                         <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row"
-                             data-track="${esc(row.track_code)}" data-progress="${row.percent_complete}" data-started="${(row.modules_complete > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}">
+                         <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
+                             data-track="${esc(row.track_code)}" data-progress="${row.percent_complete}" data-started="${(row.modules_complete > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
                            <td class="px-6 py-4 text-sm text-gray-900 font-mono">${esc(row.student_id)}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
+                           <td class="px-6 py-4 text-sm">
+                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${row.enrolled !== false ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
+                               <span class="w-1.5 h-1.5 rounded-full ${row.enrolled !== false ? 'bg-green-500' : 'bg-gray-400'}"></span>
+                               ${row.adminStateLabel}
+                             </span>
+                             ${
+                               row.enrolled !== false && row.enrollmentDate
+                                 ? `<div class="text-xs text-gray-400 mt-1">Since ${new Date(row.enrollmentDate).toLocaleDateString()}</div>`
+                                 : (row.enrolled === false && row.withdrawalDate
+                                     ? `<div class="text-xs text-gray-400 mt-1">Since ${new Date(row.withdrawalDate).toLocaleDateString()}</div>`
+                                     : '')
+                             }
+                           </td>
                            <td class="px-6 py-4 text-sm">
                              <div class="flex items-center gap-2">
                                <div class="h-1.5 w-24 bg-gray-100 rounded-full overflow-hidden">
@@ -1693,6 +3712,16 @@ function viewAdmin(user, rows, error, activeStudents) {
                            <td class="px-6 py-4 text-sm text-gray-600">${row.modules_complete} / ${row.modules_total}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${row.capstone_overall_score !== null ? row.capstone_overall_score.toFixed(2) : '—'}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${row.last_active !== null ? new Date(row.last_active).toLocaleDateString() : '—'}</td>
+                           <td class="px-6 py-4 text-sm">
+                             <label class="inline-flex items-center gap-2 cursor-pointer">
+                               <input type="checkbox" class="sr-only peer" data-admin-enrollment="${esc(row.student_id)}" ${row.enrolled !== false ? 'checked' : ''} aria-label="Enrollment for ${esc(row.student_id)}" />
+                               <span class="relative w-10 h-5 rounded-full bg-gray-300 peer-checked:bg-[#22c55e] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
+                               <span class="text-xs font-semibold text-gray-600">${row.adminStateLabel}</span>
+                             </label>
+                           </td>
+                           <td class="px-6 py-4 text-sm whitespace-nowrap">
+                             <button type="button" data-admin-snapshot="${esc(row.student_id)}" class="text-xs font-semibold text-[#1e3a5f] hover:underline" title="Download a recoverable progress snapshot for this student">Save Progress File</button>
+                           </td>
                          </tr>
                        `).join('')}
                      </tbody>
@@ -1771,8 +3800,9 @@ async function render() {
     hash = '#/admin';
   }
 
+  let dashboardRows = [];
+  let activeStudents = [];
   if (hash === '#/admin') {
-    let activeStudents = [];
     if (!user.isAdmin) {
       history.replaceState(null, '', '#/portal');
       app.innerHTML = viewPortal(user);
@@ -1792,6 +3822,8 @@ async function render() {
         return bActive - aActive;
       });
 
+      dashboardRows = filterAdminDashboardRows(sorted);
+
       // Sprint H.1: student detail drill-down. admin_student_activity carries
       // user_id (so per-student detail selects don't need a second lookup)
       // and lab/capstone attempt counts (so "has real progress" reflects lab
@@ -1799,14 +3831,15 @@ async function render() {
       const { data: activityRows } = await mntSupabase
         .from('admin_student_activity')
         .select('*');
-      activeStudents = (activityRows || [])
-        .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || (r.lab_attempts_count || 0) > 0 || (r.capstone_submissions_count || 0) > 0)
+      const activityRowMap = new Map((activityRows || []).map((row) => [row.student_id, row]));
+      activeStudents = dashboardRows
+        .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || (activityRowMap.get(r.student_id)?.lab_attempts_count || 0) > 0 || (activityRowMap.get(r.student_id)?.capstone_submissions_count || 0) > 0)
         .sort((a, b) => a.student_id.localeCompare(b.student_id));
 
-      app.innerHTML = viewAdmin(user, sorted, error, activeStudents);
+      app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents);
     }
     wireCommon();
-    wireAdmin(activeStudents);
+    wireAdmin(dashboardRows, activeStudents);
     window.scrollTo(0, 0);
     return;
   }
@@ -1882,11 +3915,20 @@ function wireCommon() {
   wireRegisteredModuleLabs();
 }
 
-function wireAdmin(activeStudents) {
+function wireAdmin(dashboardRows, activeStudents) {
+  dashboardRows = dashboardRows || [];
   activeStudents = activeStudents || [];
   const trackFilter = document.getElementById('track-filter');
   const hideNotStarted = document.getElementById('hide-not-started');
+  const reportingPeriodStart = document.getElementById('reporting-period-start');
+  const reportingPeriodEnd = document.getElementById('reporting-period-end');
+  const planningStudent = document.getElementById('admin-planning-student');
+  const planningStart = document.getElementById('admin-planning-start');
+  const planningCompletion = document.getElementById('admin-planning-completion');
+  const planningGeography = document.getElementById('admin-planning-geography');
+  const savePlanningButton = document.querySelector('[data-action="admin-save-enrollment-plan"]');
   const tableRows = document.querySelectorAll('.admin-table-row');
+  const status = document.getElementById('admin-report-status');
 
   function applyFilters() {
     const selectedTrack = trackFilter ? trackFilter.value : '';
@@ -1906,6 +3948,266 @@ function wireAdmin(activeStudents) {
   if (trackFilter) trackFilter.addEventListener('change', applyFilters);
   if (hideNotStarted) hideNotStarted.addEventListener('change', applyFilters);
 
+  function dateInputValue(value) {
+    return value ? String(value).slice(0, 10) : '';
+  }
+
+  function populatePlanningRecord() {
+    const row = dashboardRows.find((item) => item.student_id === (planningStudent && planningStudent.value));
+    if (!row) return;
+    if (planningStart) planningStart.value = dateInputValue(row.scheduledStartDate);
+    if (planningCompletion) planningCompletion.value = dateInputValue(row.scheduledCompletionDate);
+    if (planningGeography) planningGeography.value = row.geographyClassification || '';
+  }
+
+  if (planningStudent) planningStudent.addEventListener('change', populatePlanningRecord);
+  if (savePlanningButton) savePlanningButton.addEventListener('click', async () => {
+    const studentId = planningStudent && planningStudent.value;
+    if (!studentId) {
+      if (status) status.textContent = 'Choose an active student before saving a planning record.';
+      return;
+    }
+    savePlanningButton.disabled = true;
+    if (status) status.textContent = `Saving the current enrollment planning record for ${studentId}...`;
+    const error = await updateAdminEnrollmentPlanRemote(studentId, {
+      scheduledStartDate: planningStart && planningStart.value,
+      scheduledCompletionDate: planningCompletion && planningCompletion.value,
+      geographyClassification: planningGeography && planningGeography.value,
+      geographySourceReference: 'admin dashboard',
+    });
+    savePlanningButton.disabled = false;
+    if (error) {
+      if (status) status.textContent = `Could not save the planning record: ${error.message || 'the enrollment-reporting migration may not be deployed yet.'}`;
+      return;
+    }
+    if (status) status.textContent = `Saved the current enrollment planning record for ${studentId}.`;
+    render();
+  });
+
+  function identityForRow(row) {
+    const program = PROGRAMS.find((p) => p.slug === row.program_slug) || null;
+    return { userId: row.user_id, trackCode: row.track_code, program };
+  }
+
+  const tableBody = document.getElementById('admin-table-body');
+  if (tableBody) {
+    tableBody.addEventListener('click', async (event) => {
+      const snapshotBtn = event.target.closest('[data-admin-snapshot]');
+      if (!snapshotBtn) return;
+      const studentId = snapshotBtn.getAttribute('data-admin-snapshot');
+      const row = dashboardRows.find((item) => item.student_id === studentId);
+      const message = document.getElementById('admin-report-status');
+      if (!row) return;
+      snapshotBtn.disabled = true;
+      if (message) message.textContent = `Saving progress file for ${studentId}...`;
+      try {
+        await downloadStudentSnapshot(studentId, identityForRow(row));
+        if (message) message.textContent = `Progress file saved for ${studentId}.`;
+      } catch (err) {
+        console.error('downloadStudentSnapshot failed', err);
+        if (message) message.textContent = `Could not save the progress file for ${studentId} — see console for details.`;
+      } finally {
+        snapshotBtn.disabled = false;
+      }
+    });
+
+    tableBody.addEventListener('change', async (event) => {
+      const toggle = event.target.closest('[data-admin-enrollment]');
+      if (!toggle) return;
+      const studentId = toggle.getAttribute('data-admin-enrollment');
+      const row = dashboardRows.find((item) => item.student_id === studentId);
+      const message = document.getElementById('admin-report-status');
+      if (!row) return;
+
+      const desired = toggle.checked;
+
+      // Going enrolled -> disenrolled: capture a recoverable progress
+      // snapshot first, unconditionally, in place of a confirm() popup.
+      // This never deletes module_progress/lab_attempts/capstone data —
+      // disenrollment only ever flips students.is_enrolled — but the
+      // snapshot file is what makes ADMIN_RESET_FLOW.md's "restore a
+      // mistaken disenrollment" workflow possible after the fact. If the
+      // snapshot can't be captured, the disenroll does not proceed.
+      if (!desired) {
+        toggle.disabled = true;
+        if (message) message.textContent = `Saving progress file for ${studentId} before disenrolling...`;
+        try {
+          await downloadStudentSnapshot(studentId, identityForRow(row));
+        } catch (err) {
+          console.error('Pre-disenroll snapshot failed', err);
+          toggle.disabled = false;
+          toggle.checked = true;
+          if (message) message.textContent = `Could not save a progress file for ${studentId} — disenrollment cancelled. See console for details.`;
+          return;
+        }
+      }
+
+      toggle.disabled = true;
+      if (message) message.textContent = `Saving enrollment for ${studentId}...`;
+      const error = await updateAdminEnrollmentRemote(studentId, desired);
+      toggle.disabled = false;
+      if (error) {
+        toggle.checked = !desired;
+        if (message) message.textContent = `Could not save enrollment for ${studentId}: ${error.message || 'Supabase rejected the update.'}`;
+        return;
+      }
+
+      row.is_enrolled = desired;
+      row.enrolled = desired;
+      row.adminStateLabel = desired ? 'Enrolled' : 'Disenrolled';
+      render();
+      const nextMessage = document.getElementById('admin-report-status');
+      if (nextMessage) nextMessage.textContent = desired
+        ? `${studentId} is now enrolled.`
+        : `${studentId} is now disenrolled. Progress file saved.`;
+    });
+  }
+
+  /* E5: report preview/confirmation. "Preview & Generate Report" no longer
+   * downloads immediately — it builds the cohort data (buildCohortReportData
+   * is cheap/synchronous, it only reads dashboardRows already in memory) and
+   * shows report type, scope/filters, included record count, and known
+   * missing-data warnings inline, with an explicit confirm step before the
+   * PDF actually generates. Deliberately a plain inline panel, not a modal
+   * component, per the remediation plan's "keep it simple" instruction. */
+  const bulkButtons = document.querySelectorAll('[data-action="admin-generate-report"]');
+  bulkButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const preview = document.getElementById('admin-report-preview');
+      if (!preview) return;
+      // D4: preview/generate for the admin's *current* filters, not always
+      // the full dashboardRows — matches what's visible in the table now.
+      const report = buildCohortReportData(dashboardRows, {
+        trackFilter: trackFilter ? trackFilter.value : '',
+        hideNotStarted: hideNotStarted ? hideNotStarted.checked : false,
+        reportingPeriodStart: reportingPeriodStart ? reportingPeriodStart.value : null,
+        reportingPeriodEnd: reportingPeriodEnd ? reportingPeriodEnd.value : null,
+      });
+      const warnings = report.reportingRequirements.filter((r) => r.status !== 'covered');
+      preview.innerHTML = `
+        <div class="mt-3 bg-white border border-gray-200 rounded-xl p-5">
+          <p class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">Report Preview</p>
+          <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-700 mb-3">
+            <p><strong>Report type:</strong> Cohort / Annual Progress Report</p>
+            <p><strong>Included records:</strong> ${report.scope.totalRowsAfterFilter} of ${report.scope.totalRowsBeforeFilter} accounts</p>
+            <p><strong>Program/cohort scope:</strong> ${esc(report.scope.trackFilter || 'All tracks')}</p>
+            <p><strong>Filters:</strong> ${report.scope.hideNotStarted ? 'Not Started hidden' : 'None'}</p>
+            <p><strong>Reporting period:</strong> ${esc(report.scope.reportingPeriodStart || 'Not set')} – ${esc(report.scope.reportingPeriodEnd || 'Not set')}</p>
+          </div>
+          ${warnings.length ? `
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+              <p class="text-xs font-semibold text-amber-800 mb-1">${warnings.length} of ${report.reportingRequirements.length} CIE requirements are not fully covered by current data:</p>
+              <ul class="text-xs text-amber-700 list-disc pl-4 space-y-0.5">
+                ${warnings.map((w) => `<li>${esc(w.requirement)} — ${esc(w.status)}</li>`).join('')}
+              </ul>
+            </div>` : ''}
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 text-xs text-slate-700">
+            <strong>Confidential student records:</strong> Download only on an approved device, share only with authorized personnel, and store or delete the file under the institution's records-retention policy. This report is labeled <strong>${esc(reportClassificationLabel(report))}</strong>.
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button type="button" data-action="admin-confirm-generate-report" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Confirm &amp; Download PDF</button>
+            <button type="button" data-action="admin-download-compliance-gap-pdf" class="bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Download Internal Gap Report (PDF)</button>
+            <button type="button" data-action="admin-download-report-json" class="bg-white border border-gray-200 text-gray-600 hover:text-gray-900 font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Download data (JSON, secondary)</button>
+            <button type="button" data-action="admin-cancel-report-preview" class="text-gray-400 hover:text-gray-600 text-sm px-2 cursor-pointer">Cancel</button>
+          </div>
+        </div>`;
+
+      preview.querySelector('[data-action="admin-cancel-report-preview"]').addEventListener('click', () => {
+        preview.innerHTML = '';
+      });
+
+      preview.querySelector('[data-action="admin-download-report-json"]').addEventListener('click', () => {
+        // Browser state is implementation detail, not an institutional
+        // export. Keep it out of even the explicitly secondary JSON file.
+        const { stateSnapshot, ...exportableReport } = report;
+        const json = JSON.stringify({ _label: 'Machine-readable cohort report data — NOT the official PDF report.', ...exportableReport }, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cohort-report-data-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+
+      preview.querySelector('[data-action="admin-download-compliance-gap-pdf"]').addEventListener('click', async (event) => {
+        const gapBtn = event.currentTarget;
+        gapBtn.disabled = true;
+        if (status) status.textContent = 'Generating internal compliance-gap PDF...';
+        try {
+          const reportId = await downloadComplianceGapReport(report);
+          if (status) status.textContent = `Downloaded internal compliance-gap PDF ${reportId}.`;
+        } catch (err) {
+          if (status) status.textContent = `Could not generate the internal compliance-gap PDF: ${safeReportFailureReason(err)}`;
+        } finally {
+          gapBtn.disabled = false;
+        }
+      });
+
+      preview.querySelector('[data-action="admin-confirm-generate-report"]').addEventListener('click', async (event) => {
+        const confirmBtn = event.currentTarget;
+        confirmBtn.disabled = true;
+        btn.disabled = true;
+        if (status) status.textContent = 'Creating an authorized server-side audit record and generating the PDF...';
+        try {
+          const result = await downloadAdminReport(report);
+          // Convenience-only browser history follows a successful durable
+          // audit finalization; it is not an institutional audit record.
+          storeAdminReportRun(report);
+          if (status) status.textContent = `Downloaded ${result.recordStatus} PDF report ${result.reportId}. Integrity hash: ${result.fileHash.slice(0, 12)}…${result.auditWarning ? ` ${result.auditWarning}` : ''}`;
+          preview.innerHTML = '';
+        } catch (err) {
+          if (status) status.textContent = `Could not generate an authorized PDF report: ${safeReportFailureReason(err)}`;
+        } finally {
+          confirmBtn.disabled = false;
+          btn.disabled = false;
+        }
+      });
+    });
+  });
+
+  /* Workstream I: one combined recovery file for the students in the
+   * currently selected scope. Sequential reads deliberately avoid fanning a
+   * large cohort into dozens of simultaneous Supabase requests; unlike the
+   * per-student snapshot this creates one download, not N browser prompts. */
+  const saveAllButtons = document.querySelectorAll('[data-action="admin-save-progress-file"]');
+  saveAllButtons.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const selectedTrack = trackFilter ? trackFilter.value : '';
+      const hideNotStartedChecked = hideNotStarted ? hideNotStarted.checked : false;
+      const scopedRows = dashboardRows.filter((row) => {
+        const trackMatch = !selectedTrack || row.track_code === selectedTrack;
+        const started = (row.modules_complete || 0) > 0 || (row.modules_in_progress || 0) > 0;
+        return trackMatch && (!hideNotStartedChecked || started);
+      });
+      btn.disabled = true;
+      if (status) status.textContent = `Preparing progress files for 0 of ${scopedRows.length} student account(s)…`;
+      try {
+        const snapshots = [];
+        for (let i = 0; i < scopedRows.length; i++) {
+          const row = scopedRows[i];
+          if (status) status.textContent = `Preparing progress files for ${i + 1} of ${scopedRows.length}: ${row.student_id}…`;
+          snapshots.push(await buildStudentSnapshotRecord(row.student_id, identityForRow(row)));
+        }
+        const capturedAt = new Date().toISOString();
+        downloadJsonFile({
+          _label: 'Admin-captured recoverable progress snapshots for the current filtered scope. This is a recovery file, not an official transcript or report.',
+          capturedAt,
+          scope: { trackFilter: selectedTrack || null, hideNotStarted: hideNotStartedChecked, includedAccounts: snapshots.length },
+          snapshots,
+        }, `student-progress-snapshots-${capturedAt.slice(0, 10)}.json`);
+        if (status) status.textContent = `Saved one recovery file containing ${snapshots.length} student progress snapshot(s). No progress data was changed.`;
+      } catch (err) {
+        console.error('Bulk progress snapshot failed', err);
+        if (status) status.textContent = 'Could not create the combined progress file. No enrollment or progress data was changed.';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
   // Sprint H.1: student detail drill-down.
   const detailSelect = document.getElementById('student-detail-select');
   if (detailSelect) {
@@ -1918,11 +4220,13 @@ function wireAdmin(activeStudents) {
       if (!row) { panel.innerHTML = ''; return; }
 
       panel.innerHTML = `<div class="text-sm text-gray-400 py-6">Loading…</div>`;
-      const [moduleRes, labRes, capstoneRes, scorecardRes] = await Promise.all([
+      const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes] = await Promise.all([
         mntSupabase.from('module_progress').select('*').eq('user_id', row.user_id),
         mntSupabase.from('lab_attempts').select('*').eq('user_id', row.user_id),
         mntSupabase.from('capstone_submissions').select('*').eq('user_id', row.user_id).order('stage', { ascending: true }),
         mntSupabase.from('capstone_scorecard').select('*').eq('user_id', row.user_id).maybeSingle(),
+        mntSupabase.from('portfolio_artifacts').select('*').eq('user_id', row.user_id).eq('lab_key', 'lab-capstone').order('submitted_at', { ascending: false }),
+        mntSupabase.from('capstone_reviews').select('*').eq('user_id', row.user_id).order('created_at', { ascending: false }),
       ]);
 
       // Still the currently-selected student? A fast re-select before this
@@ -1934,9 +4238,65 @@ function wireAdmin(activeStudents) {
         moduleRes.data || [],
         labRes.data || [],
         capstoneRes.data || [],
-        scorecardRes.data || null
+        scorecardRes.data || null,
+        artifactRes.data || [],
+        reviewRes.data || []
       );
     });
+
+    // Agent 4 / B2+B3: per-student "Download Transcript (PDF)" and "Download
+    // Evidence Record (PDF)" buttons live inside renderStudentDetail()'s
+    // markup (data-transcript-pdf/data-evidence-pdf). The panel element
+    // itself persists across re-renders (only its innerHTML changes on each
+    // student selection), so one delegated listener here covers every
+    // student without re-binding per render.
+    const detailPanel = document.getElementById('student-detail-panel');
+    if (detailPanel) {
+      detailPanel.addEventListener('click', async (event) => {
+        const transcriptBtn = event.target.closest('[data-transcript-pdf]');
+        const evidenceBtn = event.target.closest('[data-evidence-pdf]');
+        const trigger = transcriptBtn || evidenceBtn;
+        if (!trigger) return;
+        const studentId = trigger.getAttribute('data-transcript-pdf') || trigger.getAttribute('data-evidence-pdf');
+        const row = activeStudents.find((r) => r.student_id === studentId);
+        if (!row) return;
+        const identity = { userId: row.user_id, trackCode: row.track_code, program: PROGRAMS.find((p) => p.slug === row.program_slug) || null };
+        trigger.disabled = true;
+        const originalText = trigger.textContent;
+        trigger.textContent = 'Generating…';
+        try {
+          if (transcriptBtn) await downloadTranscriptPdf(studentId, identity);
+          else await downloadEvidencePdf(studentId, identity);
+        } catch (err) {
+          console.error('Per-student PDF generation failed', err);
+          trigger.textContent = 'Failed — see console';
+          setTimeout(() => { trigger.textContent = originalText; }, 2500);
+          trigger.disabled = false;
+          return;
+        }
+        trigger.textContent = originalText;
+        trigger.disabled = false;
+      });
+      detailPanel.addEventListener('submit', async (event) => {
+        const form = event.target.closest('[data-capstone-review-form]');
+        if (!form) return;
+        event.preventDefault();
+        const artifactId = form.getAttribute('data-artifact-id');
+        const studentId = form.getAttribute('data-student-id');
+        const row = activeStudents.find((r) => r.student_id === studentId);
+        if (!artifactId || !row || !user.userId) return;
+        const reviewStatus = form.elements.review_status.value;
+        const outcome = reviewStatus === 'approved' ? form.elements.official_outcome.value : (reviewStatus === 'changes_requested' ? 'changes_requested' : null);
+        const payload = { artifact_id: artifactId, user_id: row.user_id, track_code: row.track_code, review_status: reviewStatus, official_outcome: outcome, reviewer_notes: form.elements.reviewer_notes.value.trim() || null, supervision_method: 'optional faculty review' };
+        if (reviewStatus === 'approved' || reviewStatus === 'changes_requested') { payload.reviewed_by = user.userId; payload.reviewed_at = new Date().toISOString(); }
+        const existingId = form.getAttribute('data-review-id');
+        const query = existingId ? mntSupabase.from('capstone_reviews').update(payload).eq('id', existingId) : mntSupabase.from('capstone_reviews').insert(payload);
+        const { error: reviewError } = await query;
+        const status = form.querySelector('[data-review-status]');
+        if (reviewError) { if (status) status.textContent = `Could not save review: ${reviewError.message}`; return; }
+        if (status) status.textContent = 'Review saved. Re-select the student to refresh the evidence summary.';
+      });
+    }
   }
 }
 
@@ -1973,7 +4333,7 @@ function adminDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—';
 }
 
-function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow) {
+function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = []) {
   const moduleSection = moduleRows.length === 0
     ? `<p class="text-sm text-gray-400">No module progress recorded.</p>`
     : `<div class="overflow-x-auto">
@@ -2060,12 +4420,29 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
              <p class="text-lg font-semibold text-[#1e3a5f]">${adminScore(value)}</p>
            </div>`).join('')}
        </div>`;
+  const capstoneArtifact = artifactRows[0] || null;
+  const capstoneReview = capstoneArtifact ? reviewRows.find((review) => review.artifact_id === capstoneArtifact.id) : null;
+  const reviewSection = !capstoneArtifact
+    ? `<p class="text-sm text-gray-500 mt-4">No durable capstone artifact is available for review yet.</p>`
+    : `<form data-capstone-review-form data-artifact-id="${esc(capstoneArtifact.id)}" data-review-id="${esc(capstoneReview ? capstoneReview.id : '')}" data-student-id="${esc(row.student_id)}" class="mt-5 border border-[#fed7aa] bg-[#fff7ed] rounded-xl p-4">
+         <p class="text-sm font-semibold text-[#9a3412]">Optional faculty review · latest submitted capstone artifact</p>
+         <p class="text-xs text-gray-600 mt-1">Artifact ${esc(capstoneArtifact.id)} · submitted ${adminDate(capstoneArtifact.submitted_at)} · SHA-256 ${esc(capstoneArtifact.content_sha256 || 'pending')}</p>
+         <div class="grid sm:grid-cols-2 gap-3 mt-3"><label class="text-xs font-semibold text-gray-600">Review status<select name="review_status" class="mt-1 block w-full border border-gray-300 rounded px-2 py-1.5"><option value="pending" ${capstoneReview && capstoneReview.review_status === 'pending' ? 'selected' : ''}>Pending</option><option value="approved" ${capstoneReview && capstoneReview.review_status === 'approved' ? 'selected' : ''}>Approved</option><option value="changes_requested" ${capstoneReview && capstoneReview.review_status === 'changes_requested' ? 'selected' : ''}>Changes requested</option></select></label><label class="text-xs font-semibold text-gray-600">Official outcome<select name="official_outcome" class="mt-1 block w-full border border-gray-300 rounded px-2 py-1.5"><option value="approved" ${capstoneReview && capstoneReview.official_outcome === 'approved' ? 'selected' : ''}>Approved</option><option value="approved_with_notes" ${capstoneReview && capstoneReview.official_outcome === 'approved_with_notes' ? 'selected' : ''}>Approved with notes</option></select></label></div>
+         <label class="block text-xs font-semibold text-gray-600 mt-3">Reviewer notes<textarea name="reviewer_notes" class="mt-1 block w-full border border-gray-300 rounded px-2 py-1.5" rows="3">${esc(capstoneReview ? capstoneReview.reviewer_notes || '' : '')}</textarea></label>
+         <div class="flex items-center gap-3 mt-3"><button type="submit" class="text-xs font-semibold bg-[#1e3a5f] hover:bg-[#16304f] text-white px-3 py-2 rounded-lg">Save review</button><span data-review-status class="text-xs text-gray-600"></span></div>
+       </form>`;
 
   return `
     <div class="bg-white border border-gray-200 rounded-xl p-6">
-      <div class="mb-6 pb-4 border-b border-gray-100">
-        <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}</p>
-        <p class="text-xs text-gray-500 mt-1">${esc(row.program_slug || row.track_code)} · ${row.modules_complete}/${row.modules_total} modules · ${row.percent_complete}% complete</p>
+      <div class="mb-6 pb-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}</p>
+          <p class="text-xs text-gray-500 mt-1">${esc(row.program_slug || row.track_code)} · ${row.modules_complete}/${row.modules_total} modules · ${row.percent_complete}% complete</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" data-transcript-pdf="${esc(row.student_id)}" class="text-xs font-semibold bg-[#1e3a5f] hover:bg-[#16304f] text-white px-3 py-2 rounded-lg whitespace-nowrap cursor-pointer" title="Individual academic transcript (Workstream B2)">Download Transcript (PDF)</button>
+          <button type="button" data-evidence-pdf="${esc(row.student_id)}" class="text-xs font-semibold bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] px-3 py-2 rounded-lg whitespace-nowrap cursor-pointer" title="Supporting evidence record — labs, rubric breakdown, capstone (Workstream B3)">Download Evidence Record (PDF)</button>
+        </div>
       </div>
       <h3 class="text-base font-semibold text-[#1e3a5f] mb-3">Modules</h3>
       ${moduleSection}
@@ -2074,6 +4451,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
       <h3 class="text-base font-semibold text-[#1e3a5f] mt-8 mb-3">Capstone</h3>
       ${capstoneSection}
       ${scorecardSection}
+      ${reviewSection}
     </div>`;
 }
 

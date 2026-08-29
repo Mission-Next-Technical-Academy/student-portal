@@ -1,4 +1,10 @@
-# MNT Academy Platform — Sprint & Agent Plan
+# MNT Academy Platform — Historical Sprint & Agent Plan
+
+> **Archived status (2026-08-29):** This plan describes the earlier platform
+> build sequence and is retained for history. Its old status board is no longer
+> authoritative. The implemented state, current scope, and release boundary
+> are maintained in `LATEST_PROGRESS.md`, `architecture.md`, and
+> `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`.
 
 Companion to `PLATFORM_ARCHITECTURE.md`. Date: 2026-08-17.
 Agent numbering continues from the historical run in `PRODUCT_ARCHITECTURE_PLAN.md`

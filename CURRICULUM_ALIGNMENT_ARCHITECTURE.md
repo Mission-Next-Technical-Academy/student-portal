@@ -125,7 +125,7 @@ The IT Help Desk skeleton's 12 module labels already match that program's recomm
 
 ## 6. Canonical curriculum data contract
 
-Keep display catalogue data in `portal/data.js`; the pending backend simplification intentionally removes duplicate catalogue tables. Extend the program with a curriculum record shaped as follows (plain JavaScript, no build step):
+Keep display catalogue data in `portal/data.js`; the backend simplification (now applied live, see §0 note above) intentionally removed the duplicate catalogue tables. Extend the program with a curriculum record shaped as follows (plain JavaScript, no build step):
 
 ```js
 program.compliance = {

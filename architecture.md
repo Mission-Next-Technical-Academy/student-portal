@@ -7,8 +7,13 @@ that one no longer matches reality in several places and is too large to safely
 hand to a fresh session cold. **This file is the source of truth going forward.**
 Paste it into a new session to resume this work with no reconstruction needed.
 
-Last updated: 2026-08-28, mid-session, by the session that did the Supabase
-connection + auth rewrite + this redesign.
+Last updated: 2026-08-29. Sprints 1-6 are all done: migration
+`20260828160000_simplify_schema.sql` is pushed and applied to the live
+project (confirmed via `supabase migration list` — shows on both Local and
+Remote), the Sprint 2-4 frontend wiring is committed and live as part of
+`57ac7cc`, and all 81 accounts are provisioned. Nothing left blocking in this
+workstream — see the sprint sections below for what's still unverified vs.
+confirmed live.
 
 ---
 
@@ -214,7 +219,7 @@ the current state. Sprints 2-4 below close this gap.
 
 ## 3. Sprints
 
-### Sprint 1 — the big simplification migration (schema only, no frontend) — ✅ DONE, not yet pushed
+### Sprint 1 — the big simplification migration (schema only, no frontend) — ✅ DONE, pushed & applied live
 Written to `supabase/migrations/20260828160000_simplify_schema.sql`. Reviewed
 against every existing migration for column/type/policy convention match and
 dependency ordering (views → identity → old progress/capstone/portfolio →
@@ -222,9 +227,11 @@ enrollment layer → catalogue, child-before-parent → old uuid-signature acces
 functions, then recreated new). Confirmed via grep: no frontend code
 (`portal/`, `ui/`) calls `my_module_access` or either access function
 directly — RLS-only usage — so dropping/retyping them is not a frontend
-regression. **Not executed against any real Postgres** (not local, not
-remote) — static/manual review only, flagged explicitly by the agent that
-wrote it. Two things worth knowing before Sprint 2 code assumes this schema:
+regression. **Pushed and applied to the live project** (confirmed 2026-08-29
+via `supabase migration list` — `20260828160000` shows on both Local and
+Remote; the site owner ran `supabase db push` themselves, since Claude Code's
+auto-mode classifier blocks it as a destructive action). Two things worth
+knowing before Sprint 2 code assumes this schema:
 `has_module_access(p_track_code text default null)` takes a track_code
 directly (not a program slug) since rows now carry `track_code` natively;
 `has_program_access(p_program_slug text)` is the slug-taking variant for any
@@ -262,7 +269,7 @@ worth a coding agent building it against a written-out column list rather
 than improvising, and a careful review before it's pushed live (this drops
 tables — irreversible on the live project without a backup/rollback plan).
 
-### Sprint 2 — wire `module_progress` writes into the portal — ✅ DONE, not yet pushed
+### Sprint 2 — wire `module_progress` writes into the portal — ✅ DONE, pushed & live-verified
 Built in `portal/app.js` only, verified (`node --check` clean, diff reviewed).
 `buildUserFromSession()` now surfaces `user.userId`/`user.trackCode` (both
 already fetched by the existing `students` query, previously discarded — no
@@ -273,9 +280,11 @@ already-`complete` row back to `in_progress`), `markModuleCompleteRemote()`
 (called from `markModuleLabComplete` when a fresh `moduleCompletion()` check
 now returns `complete: true`). Fire-and-forget, every write guarded on
 `user.userId && user.trackCode`, errors logged not swallowed. localStorage
-engagement tracking untouched — this is purely additive. **Not tested against
-a real Supabase session** (no local stack running this session) — code
-review only.
+engagement tracking untouched — this is purely additive. **Live-verified**
+2026-08-28: real UAT (`d341ee6`) logged in as an actual SOCAN student against
+the deployed site + live project, opened Module 1, and a genuine
+`module_progress` row with `state = 'in_progress'` was written and correctly
+surfaced on the admin dashboard — the write path works end to end.
 
 **Recon done, findings below — no further investigation needed, just build:**
 - Every module (all 12) funnels through exactly two functions in
@@ -295,7 +304,7 @@ review only.
   track_code, state, percent, completed_at)` keyed by `module_key` text, not
   `module_id` uuid — update accordingly.
 
-### Sprint 3 — wire `lab_attempts` writes — ✅ DONE (the "already-scored" half only), not yet pushed
+### Sprint 3 — wire `lab_attempts` writes — ✅ DONE (the "already-scored" half only), pushed & live
 Scoped deliberately to the half this sprint's own note called out: wired what
 every module already computes in-page, did NOT build the simulator→portal
 `postMessage` contract for modules 2-12 (`ui/mnt-lab-harness.js` still
@@ -311,8 +320,10 @@ signal (no score, `result: {source: 'mnt-coach-complete'}`) — reuses the
 existing signal, does not add a new contract. Ran concurrently with the
 Sprint 2 agent; correctly discovered and reused `user.userId`/`user.trackCode`
 from Sprint 2's `buildUserFromSession()` change instead of duplicating it —
-verified no edit conflict in the diff. **Not tested against a real Supabase
-session** — code review only, same caveat as Sprint 2.
+verified no edit conflict in the diff. Code is live and pushed as of
+`57ac7cc`; unlike Sprint 2's `module_progress` write, no live UAT has
+specifically exercised a `lab_attempts` insert yet — still worth a real
+smoke test (submit a module lab as a real student, confirm the row lands).
 
 **Recon done:** only Module 1 has a real simulator→portal signal today
 (`moduleOneReceiveCoachCompletion` in `portal/module-01.js` ~line 894,
@@ -328,7 +339,7 @@ just Module 1) is bigger than it first looks — scope this sprint carefully,
 possibly split "wire what already reports a result" (Module 1) from "build
 the missing contract for the other 11."
 
-### Sprint 4 — capstone flow + `capstone_submissions` writes — ✅ DONE (simple version), not yet pushed
+### Sprint 4 — capstone flow + `capstone_submissions` writes — ✅ DONE (simple version), pushed & live
 Scope resolved with the site owner: build the simple version, not a 12-stage
 wizard. A concurrent curriculum-planning workstream
 (`CURRICULUM_ALIGNMENT_ARCHITECTURE.md`, a different agent/session working on
@@ -349,8 +360,10 @@ reuses everything Module 12's scorer already computes (raw form responses,
 report text, ten-domain breakdown, critical errors, hint penalty) — nothing
 invented. `node --check` clean on both touched files. Only `portal/app.js`
 and `portal/module-12.js` touched — did not touch `portal/data.js` (owned by
-the concurrent curriculum workstream) or any other module file. **Not tested
-against a real Supabase session** — same caveat as Sprints 2/3.
+the concurrent curriculum workstream) or any other module file. Code is live
+and pushed as of `57ac7cc`; like Sprint 3, no live UAT has specifically
+exercised a `capstone_submissions` write yet — still worth a real pass
+attempt through Module 12 to confirm the upsert lands.
 
 **Note on the concurrent curriculum workstream:** a separate agent/session is
 running `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`'s sprint plan against this
@@ -365,32 +378,28 @@ Sprints 1-4 here. But its future edits to the same module files (especially
 made against the current file state, not a stale copy — flag this if
 briefing that workstream's next agent.
 
-### Sprint 5 — commit and deploy
-Stage exactly the file list in §2, commit, push to `master`. **Site-owner
-confirmation required before this runs** — it's a live, public deploy.
+### Sprint 5 — commit and deploy — ✅ DONE
+Landed as `57ac7cc` ("Curriculum alignment sprints A-H + backend schema
+simplification"), pushed to `master`, deployed live via the Pages workflow.
 
-### Sprint 6 — provision the remaining accounts
-`node bin/provision-students.js SOCAN 20` / `HDESK 20` / `AIENG 20` /
-`ELECT 20`, then move the resulting roster CSVs to the vault. **Requires the
-service-role key, which must be typed directly into the site owner's own
-terminal — never pasted into a chat session.** Not delegable to an agent.
-Blocked on Sprint 5 landing first if you want provisioned students to be
-able to actually log into the *live* site rather than just the local one —
-provisioning itself only needs the live Supabase project, not the deployed
-frontend, so it can technically run before or after Sprint 5, but there's no
-point having live student accounts if the deployed login page still runs the
-old mock code.
+### Sprint 6 — provision the remaining accounts — ✅ DONE
+All 81 accounts provisioned (`ADMIN 1`, `SOCAN 20`, `HDESK 20`, `AIENG 20`,
+`ELECT 20`), run directly by the site owner in their own terminal with the
+service-role key, per the standing rule that this step is not delegable to
+an agent. Roster CSVs sit in `bin/.roster-output/` (gitignored) — still
+worth moving to a real password manager before handing any out to actual
+students, since the only copy of each password is currently a single
+un-backed-up CSV.
 
 ---
 
 ## 4. Order of operations
 
-Sprints 1-4 — **done**. All four: code-reviewed (syntax-checked, diffs read),
-not yet tested against a real Supabase session (no local stack running this
-session), not committed, not pushed. Remaining: Sprint 5 (site owner pushes;
-also the first point Sprints 1-4 could be smoke-tested against a real
-session) → Sprint 6 (site owner provisions, in their own terminal — **ELECT
-already provisioned this session, ahead of Sprint 5**; see roster-CSV note
-below). Separately unscoped, not in this sprint list: the simulator→portal
-result contract for modules 2-12 (`ui/mnt-lab-harness.js`), deliberately left
-out of Sprint 3.
+Sprints 1-6 — **all done**. Migration pushed and applied live, frontend
+wiring committed and deployed as `57ac7cc`, all 81 accounts provisioned.
+Sprint 2's `module_progress` write path has been live-UAT-verified; Sprints
+3/4's `lab_attempts`/`capstone_submissions` writes are live and pushed but
+not yet specifically smoke-tested with a real student attempt — worth doing
+opportunistically, not blocking. Separately unscoped, not in this sprint
+list: the simulator→portal result contract for modules 2-12
+(`ui/mnt-lab-harness.js`), deliberately left out of Sprint 3.

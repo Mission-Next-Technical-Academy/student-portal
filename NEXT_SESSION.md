@@ -1,5 +1,81 @@
 # Next session — start here
 
+## Session 2026-08-29 (current) — admin dashboard runtime fix
+
+The admin route in `portal/app.js` had a render-path scope bug and a half-migrated enrollment flow. This session fixed both: `dashboardRows` now survives the admin render branch, and the enrollment toggle writes `students.is_enrolled` directly to Supabase on change with an inline disenrollment confirm. The stale local pending/save-button flow was removed; report export still works and now reflects the remote enrollment state plus local report-run history.
+
+User follow-up: the reset flow should not be a plain confirm popup. The requested shape is:
+
+- reset the student progress for real,
+- capture a recoverable student snapshot before the reset,
+- present that snapshot in a polished in-page modal using the same typography as the rest of the portal,
+- make the report copyable so it can be pasted into an AI if the reset was accidental.
+
+## Session 2026-08-29 (later) — live demo-data generation + concurrent-edit note
+
+Two things happened this session, run alongside a **separate, concurrent
+Codex-driven session editing this same repo at the same time** (visible in
+`HANDOFF.md`'s "Admin enrollment toggle refinement" / "Admin dashboard
+follow-up" entries dated the same day) — read that concurrency note before
+touching `portal/app.js`'s admin dashboard code.
+
+**1. Real demo progress data generated via the actual app UI, not direct DB
+writes.** To make the admin dashboard show believable multi-student, multi-
+completion-level data live, four already-provisioned SOCAN training accounts
+were driven through Modules 1-3 for real (genuine coach/console completion,
+correct evidence/query/timeline answers sourced from `portal/data.js` and
+each `module-0N.js`'s own answer key, real form submits) — not synthetic
+Supabase inserts. All three modules passed for every account (Module 1:
+100/100 coached result, Module 2: 75/100, Module 3: 100/100), confirmed live
+via the admin `#/admin` dashboard and the Sprint H.1 student-detail
+drill-down. Accounts used (credentials in `bin/.roster-output/SOCAN-*.csv`):
+`8987495051-SOCAN`, `4437023872-SOCAN`, `9334491415-SOCAN`,
+`5520852787-SOCAN`. All four currently sit at 3/12 modules (25%) — the
+original plan was to differentiate them further (targets ~100/50/35/25%) but
+the session was stopped before Module 4 was attempted for any account. This
+is genuinely live in Supabase, not a display trick — it will persist until
+someone resets it.
+
+Mechanically: Module 1 needed one deliberate shortcut — the coach's
+completion signal is a crossorigin `postMessage` from the simulator
+(`127.0.0.1:8767`) back to a popup window, and this environment's browser
+automation could not get a real popup past Chrome's popup blocker after
+repeated attempts. Instead of skipping Module 1, `moduleOneReceiveCoachCompletion()`
+(the same handler the real postMessage would call) was invoked directly from
+the portal's own page context — same code path, same `recordLabAttempt`/
+`LabRuntime` calls a real message would trigger, just without physically
+driving the simulator tab. Modules 2 and 3 were driven with no shortcuts:
+real station reviews, a real KQL-style query typed into Module 3's editor,
+real evidence-checkbox and timeline-reorder interactions, real radio/textarea
+answers.
+
+**2. `ASSESSMENT_REPORTING_SPEC.md` added** — maps `Reportingrequirements.txt`
+(CIE minimum LMS requirements) against actual current state: which of the 7
+requirements are met, which are genuine gaps (attendance/clock-hours,
+enrollment/withdrawal status and dates, an evaluator/supervision concept,
+Form 801 reporting counts), and documents every SOC module's real assessment
+format (rubric categories, weights, 70/100 pass threshold, Module 12's
+ten-domain-plus-critical-error-gate shape) read directly from the module
+source, not invented.
+
+**Concurrent-edit note, important:** a `portal/app.js` edit made earlier
+this session (a per-student "Reset Progress" button, `data-admin-reset` /
+`setAdminResetProgress`) was **superseded and removed** by the concurrent
+Codex session's own admin-dashboard rework — confirmed by re-grepping the
+file: `data-admin-reset` and `setAdminResetProgress` no longer exist in
+`portal/app.js`. That concurrent session made a reasoned call (documented in
+`HANDOFF.md`'s "Audit correction" entry) that the local-storage-only
+reset/enrollment approach was fundamentally flawed — a display mask, not a
+real reset, browser-specific, no test coverage — and replaced it with a real
+`students.is_enrolled` column (`supabase/migrations/20260829100000_admin_enrollment.sql`,
+already pushed and confirmed live per that session's own notes) plus a
+Supabase-backed enrollment toggle. **Do not re-add a local-only reset
+button** — if a per-student progress reset is still wanted, it should follow
+the same real-backend pattern that migration established, not the
+`localStorage` pattern it replaced.
+
+---
+
 ## URGENT handoff (2026-08-28, later session — read before anything else)
 
 The curriculum-alignment wave is fully closed out, pushed, and **live**.
@@ -144,49 +220,49 @@ Full detail is in `HANDOFF.md` (bottom four sections) and
    gradient reached the briefs and read heavier than the ramp calls for at week 1-2.
    Left as built; revisit if they feel steep in use.
 
-## Auth, backend simplification, and provisioning (as of 2026-08-28, later session)
+4. **Admin enrollment reset model** — enrollment persistence is live through
+   `students.is_enrolled`, but disenrollment must not delete assessment history.
+   Design an append-only reset/status log (or equivalent enrollment epoch) before
+   completing the Save flow. Add the planned Save progress file export after
+   that model is settled.
+
+## Auth, backend simplification, and provisioning — ✅ DONE (as of 2026-08-29)
 
 **`architecture.md` at the repo root is the authoritative, current doc for all of this —
 read that first, it supersedes everything below and the old `SPRINT_PLAN.md` numbering for
-this workstream.** Summary of where things actually stand:
+this workstream.** All six sprints are now complete and live:
 
-**Sprints 1-4 (the backend-simplification + persistence-wiring wave) are all built and
-code-reviewed, but NOT yet applied anywhere live and NOT yet committed to git:**
 - Sprint 1 — `supabase/migrations/20260828160000_simplify_schema.sql`: drops
   `profiles`/`enrollments`/`module_entitlements`/`programs`/`modules`/`labs`, rewrites
   `module_progress`/`lab_attempts`/`capstone_submissions`/`portfolio_artifacts` to key by
   `module_key`/`lab_key`/`track_code` text instead of uuid FKs, redefines `course_progress`
-  as a live rollup view. Written, reviewed, syntax/dependency-order checked — **never run
-  against local or remote Postgres.**
-- Sprint 2 — `module_progress` writes wired into `portal/app.js` (additive, localStorage
-  behavior unchanged).
+  as a live rollup view. **Pushed and applied to the live project** — confirmed 2026-08-29
+  via `supabase migration list` (`20260828160000` shows on both Local and Remote). The site
+  owner ran `supabase db push` themselves, since Claude Code's auto-mode classifier blocks it
+  as a destructive action.
+- Sprint 2 — `module_progress` writes wired into `portal/app.js`. **Live-verified**: the
+  `d341ee6` UAT session generated a genuine `in_progress` `module_progress` row from a real
+  student login, proving the write path works end to end.
 - Sprint 3 — `lab_attempts` writes wired into `portal/app.js` + all 12 `module-*.js` files
   (the "already-scored" half only — the simulator→portal result contract for modules 2-12
-  was deliberately left unbuilt, still a future sprint).
-- Sprint 4 — `capstone_submissions` writes wired into `portal/module-12.js` (simple version:
-  one upserted row per student at `stage=12`, not a 12-stage UI — this matches a separate
-  concurrent curriculum-planning doc's framing, see below).
-- All four: `node --check` clean on every touched file. **Not tested against a real Supabase
-  session** — no local dev stack was running this session.
+  is still unbuilt, a future sprint). Pushed and live; not yet specifically smoke-tested with
+  a real lab submission.
+- Sprint 4 — `capstone_submissions` writes wired into `portal/module-12.js` (one upserted row
+  per student at `stage=12`). Pushed and live; not yet specifically smoke-tested with a real
+  Module 12 pass.
+- Sprint 5 — commit + push + deploy. Landed as `57ac7cc`, live on `master`, deployed via the
+  Pages workflow.
+- Sprint 6 — provisioning. All 81 accounts exist (`ADMIN 1`, `SOCAN 20`, `HDESK 20`,
+  `AIENG 20`, `ELECT 20`), run directly by the site owner in their own terminal (not
+  delegated, per the standing rule on the service-role key). Roster CSVs sit in
+  `bin/.roster-output/` (gitignored). Still worth moving to a real password manager before
+  handing any out to actual students, mainly so the only copy of each password isn't a single
+  un-backed-up CSV.
 
-**BLOCKED: `supabase db push` was denied by Claude Code's auto-mode classifier** (a live,
-destructive action — this migration drops tables). The CLI is already logged in and linked
-to the live project (`eokvngifirjgfozzbieu`) and `supabase migration list` confirms exactly
-one migration is pending (`20260828160000`) — it's ready to push, it just needs the site
-owner to either run `supabase db push` themselves in their own terminal, or grant a Bash
-permission rule for it. **This is the actual next step, first thing next session** — nothing
-else (frontend smoke test against a real session, git commit, Sprint 5 deploy) can happen
-until this lands.
-
-**Provisioning (Sprint 6) — done, all 81 accounts exist**, run directly by the site owner in
-their own terminal this session (not delegated, per the standing rule on the service-role
-key): `ADMIN 1`, `SOCAN 20`, `HDESK 20`, `AIENG 20`, `ELECT 20`. Roster CSVs sit in
-`bin/.roster-output/` (gitignored, confirmed not at commit risk). Site owner's call: fine to
-leave them there for now rather than urgently vault them — these are rotatable, no-real-PII
-training accounts (random login IDs, no names/emails), low enough stakes that the usual
-"move to vault immediately" urgency doesn't apply here. Still worth moving to a real password
-manager before handing any out to actual students, mainly so the only copy of each password
-isn't a single un-backed-up CSV.
+**Nothing blocking left in this workstream.** Worthwhile next step, not urgent: a real smoke
+test of Sprint 3/4's writes (submit a module lab and pass Module 12 as a real student, confirm
+`lab_attempts`/`capstone_submissions` rows land) — Sprint 2's write path is already proven live,
+these two aren't yet.
 
 **Important side effect of that provisioning run, fixed this session:**
 `bin/provision-students.js` (pre-fix) wrote every non-ADMIN account into `public.enrollments`

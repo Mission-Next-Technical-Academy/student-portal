@@ -459,6 +459,26 @@ function wireModuleTwelveLab() {
         },
       });
     }
+    const artifactContent = {
+      responses: moduleTwelveState.answers,
+      executiveSummary: moduleTwelveState.executiveSummary,
+      analystNarrative: moduleTwelveState.analystNarrative,
+      closureNote: moduleTwelveState.closureNote,
+      score: result.score,
+      breakdown: result.breakdown,
+      feedback: result.feedback,
+      criticalErrors: result.criticalErrors,
+      hintPenalty: result.hintPenalty,
+      attemptNumber: moduleTwelveState.attempts,
+      passedAutomatedGate: moduleTwelveState.completed,
+    };
+    if (typeof persistPortfolioArtifact === 'function') {
+      persistPortfolioArtifact(moduleTwelveUser, {
+        moduleKey: 'soc-12', labKey: MODULE_TWELVE_CATALOG_KEY,
+        kind: 'capstone_report', title: `SOC Analyst Capstone — attempt ${moduleTwelveState.attempts}`,
+        content: artifactContent, rubricVersion: 'soc-analyst-capstone-v1',
+      });
+    }
     if (moduleTwelveState.completed) {
       if (!moduleTwelveState.flags.includes(MODULE_TWELVE_FLAG)) moduleTwelveState.flags.push(MODULE_TWELVE_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTwelveUser, 'soc-analyst', 'soc-12', MODULE_TWELVE_CATALOG_KEY);
@@ -471,17 +491,8 @@ function wireModuleTwelveLab() {
       if (typeof recordCapstoneSubmission === 'function') {
         recordCapstoneSubmission(moduleTwelveUser, {
           score: result.score,
-          answers: {
-            responses: moduleTwelveState.answers,
-            executiveSummary: moduleTwelveState.executiveSummary,
-            analystNarrative: moduleTwelveState.analystNarrative,
-            closureNote: moduleTwelveState.closureNote,
-            breakdown: result.breakdown,
-            feedback: result.feedback,
-            criticalErrors: result.criticalErrors,
-            hintPenalty: result.hintPenalty,
-            attempts: moduleTwelveState.attempts,
-          },
+          answers: artifactContent,
+          criticalErrorCount: result.criticalErrors.length,
         });
       }
     } else if (typeof markModuleLabComplete === 'function') {

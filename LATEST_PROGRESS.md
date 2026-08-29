@@ -1,8 +1,9 @@
 # Mission Next Technical Academy SOC Analyst Course — Latest Progress
 
-Status date: 2026-08-28
-Status: Curriculum-alignment wave (Sprints A-H, admin redirect, H.1) complete and
-QA-swept (Sprint G); local dev servers stopped after the sweep
+Status date: 2026-08-29
+Status: Reporting/PDF remediation cleanup sprint complete locally; curriculum
+alignment remains QA-swept, and reporting migrations are written-only until
+explicitly applied.
 Current direction: General SOC Analyst training—not SC-200 certification training
 
 ## Current project direction
@@ -45,6 +46,23 @@ The course is isolated from the original lab and can run beside both older
 projects without a port conflict.
 
 ## Latest completed work
+
+### 0. Reporting/PDF remediation cleanup (2026-08-29)
+
+- The portal now has separate PDF paths for cohort/annual progress,
+  individual transcript, individual supporting evidence, and internal
+  compliance-gap reporting.
+- Added the written-only
+  `supabase/migrations/20260829133000_report_generation_audit.sql` migration
+  for report-generation audit metadata and finalization.
+- The admin cohort PDF attempts durable audit logging when the migration is
+  live, but still downloads a draft-only PDF with an explicit warning when the
+  local audit migration has not been applied.
+- JSON exports remain secondary machine-readable files, not the default human
+  report.
+- Validation passed for syntax, portal checks, route rendering, whitespace, and
+  HTTP 200 on ports 8768/8767. Authenticated PDF inspection and the full
+  edge-case matrix still require a deployed/mocked reporting schema.
 
 ### 1. Independent course copy
 

@@ -4,8 +4,9 @@ A hands-on training platform for Security Operations Center analyst work: alert
 triage, incident investigation, threat hunting, detection engineering, identity
 and endpoint response, vulnerability management, and reporting.
 
-Everything is static files. No build step, no server runtime, no database
-required to run it — a browser and Python 3 are the whole toolchain.
+Everything is plain HTML, CSS, and JavaScript with no build step. The portal
+uses the configured Supabase project for authenticated deployments; the local
+static servers provide the complete browser experience without a build.
 
 ## Quick start
 
@@ -17,9 +18,9 @@ bin/dev.sh stop     # shut both down
 
 Then open <http://127.0.0.1:8768/#/login> and sign in as **`user2` / `user2`**.
 
-Demo accounts are in `portal/data.js`; the password always equals the username.
-Each is enrolled in exactly one of the four tracks, so you can see both the
-unlocked and locked states:
+Provisioned training accounts are listed in the local, gitignored roster
+output. Do not put their credentials in documentation or source. The SOC
+Analyst track is the published track; the other tracks remain outline-only:
 
 | Account | Enrolled track | Status |
 |---|---|---|
@@ -63,10 +64,10 @@ bin/              dev.sh, launch.sh, qa-sweep.sh, render_all.js
 
 ### Two things to know before changing code
 
-**The mock auth is a stand-in, not the design.** `portal/app.js` gates access in
-the browser purely so the entitlement UI can be reviewed. The real authority is
-the `has_module_access()` SQL function and RLS policies in
-`supabase/migrations/`. The UI must never be the authority on access.
+**Authentication and authorization have two layers.** `portal/app.js` resolves
+the signed-in user and renders the appropriate catalogue or admin surface. The
+real authority is the `students` record plus the SQL/RLS policies in
+`supabase/migrations/`; the UI must never be treated as the access boundary.
 
 **Module lab state is namespaced per lab and per student.**
 `lab-runtime.js` keys on `mnt-portal.lab-state.v1.<labId>.<anonymousStudentId>`,
@@ -81,10 +82,9 @@ only task-relevant controls; **module 12 alone** exposes the complete integrated
 range. Do not leak future evidence, full navigation, or the capstone storyline
 into an earlier module.
 
-Module 1 (`#/program/soc-analyst/module/1`) is implemented. The remaining
-modules have their curriculum outline, objectives, and skills defined in
-`portal/data.js` but no lab surface yet — the per-module plan and shared lab
-contract are in `MODULAR_LAB_PROGRAM_PROGRESS.md`.
+All 12 module routes are implemented. The per-module plan, shared lab contract,
+and verification history are in `MODULAR_LAB_PROGRAM_PROGRESS.md` and
+`HANDOFF.md`.
 
 ## Deployment
 

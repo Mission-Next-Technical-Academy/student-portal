@@ -1,0 +1,78 @@
+Mission Next LMS Minimum CIE Reporting & Recordkeeping Requirements
+
+Purpose
+This document defines the minimum Learning Management System (LMS) capabilities needed to support Commission for Independent Education (CIE) student-record requirements, inspections, and annual reporting. It is intentionally limited to academic data that should be generated or retained by the LMS. Other institutional systems may hold admissions, financial, placement, and permanent administrative records as long as records can be joined to the same student and produced when required.
+
+Minimum CIE LMS Requirements
+
+1. Maintain student-to-program linkage
+The LMS must maintain or reliably export:
+Unique student identifier and student name
+Program and credential
+Enrollment date and scheduled start date
+Completion/graduation date when applicable
+Current academic status sufficient to identify active, completed, or withdrawn students
+Why: CIE requires a current academic transcript for each student and Form 801 reporting by licensed program. [Rule 6E-1.003(63); Rule 6E-2.004; Form 801]
+
+2. Track approved clock hours and attendance
+The LMS must maintain or reliably export:
+Required program hours
+Attempted clock hours by course
+Total hours attended/instructional time
+Course start and completion dates
+Hour totals that reconcile to the institution's approved program structure
+Why: CIE's transcript definition requires required hours, attempted credit or clock hours, course dates, and total hours attended. [Rule 6E-1.003(63)]
+
+3. Track grades, assessments, and academic progress
+The LMS must maintain or reliably export:
+Courses taken
+Grade scale and course grades
+Assessment results
+Module/course completion and current progress
+Why: CIE requires records of progress, and nontraditional delivery must provide for examination and evaluation of student work and recordkeeping. [Rule 6E-1.003(63); Rule 6E-2.0041(1)(c)]
+
+4. Document required labs and competency outcomes
+For any course requiring hands-on or equivalent lab experience, the LMS or linked academic record must capture:
+Lab or activity completed
+Date/completion status
+Supervision or evaluator information where applicable
+Meaningful competency evaluation/result
+Submitted evidence or artifact where the course requires one
+Why: CIE requires hands-on or equivalent experiences in nontraditional programs to be available to each enrolled student, documented in the student's file, appropriately supervised, and meaningfully evaluated. [Rule 6E-2.0041(9)]
+
+5. Produce and preserve a current academic transcript/record
+The system must support a human-readable student academic export containing the required transcript fields and academic history. Historical records must remain available even if course content is later revised, archived, or removed from the active LMS.
+Why: CIE requires an academic transcript to be maintained, kept current, and retained permanently for each student in a nontraditional program. [Rule 6E-2.0041(11)]
+
+6. Support annual CIE student-data reporting
+The LMS must provide the academic/status data needed to determine, by program:
+Students enrolled during the reporting period
+Students withdrawn during the reporting period
+Students who completed and earned the approved credential
+Students still enrolled at the end of the reporting period
+Graduates who completed within one and one-half times their initial enrollment timeframe
+Florida/non-Florida reporting must be supportable through the LMS or a linked institutional record using the same student identifier.
+Why: CIE Form 801 requires licensed institutions to report enrollment, withdrawals, graduates, continuing enrollment, Florida/non-Florida counts, and graduation-rate data by program. [Rule 6E-2.004; Form 801]
+
+7. Make academic records available for inspection
+Authorized institutional users must be able to retrieve student academic records and supporting evidence when requested for CIE review. The LMS does not need to be the permanent archive for every institutional document, but its academic records must be retrievable and capable of export to the institution's permanent student file.
+Why: CIE requires student files for nontraditional programs to be maintained and available to the Commission upon request. [Rule 6E-2.0041(11)]
+
+What May Remain Outside the LMS
+The following Form 801 or institutional record items do not need to be rebuilt inside the LMS if another controlled institutional system maintains them and they can be tied to the same student identifier:
+Applications received, qualified applicants, and accepted applicants
+Enrollment agreements and admissions documentation
+Financial, tuition, and refund records
+Detailed withdrawal-reason documentation
+Placement/employment, postsecondary-enrollment, professional-licensure, military-service, and other graduate-outcome documentation
+The LMS should remain the primary source for academic activity, hours, grades, progress, assessments, labs, and completion evidence. Administrative systems can supply the remaining Form 801 and permanent-file data.
+
+Source References
+Rule 6E-1.003, F.A.C. — Definition of Terms; transcript minimum fields
+Rule 6E-2.004, F.A.C. — Standards and Procedures for Licensure; incorporates CIE Form 801
+Rule 6E-2.0041, F.A.C. — Delivery of Programs Through Nontraditional Assessments, Modes and Methods; recordkeeping, labs, and student records
+CIE Form 801 — Annual Student Data Collection for Licensed Institutions
+
+Implementation Standard
+If a feature does not support one of the requirements above or an approved program requirement, it is a product enhancement rather than a CIE reporting minimum. The launch priority is accurate, durable, student-level academic data that can be traced to the approved program, exported for the permanent record, and combined with administrative data for CIE reporting.
+

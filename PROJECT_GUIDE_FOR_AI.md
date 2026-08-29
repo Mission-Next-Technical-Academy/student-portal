@@ -12,8 +12,9 @@ Read `LATEST_PROGRESS.md` first for the newest scope and implementation status.
 - **Project name:** Mission_Next_Technical_Academy_SOC_Analyst_course
 - **Publication brand:** Mission Next Technical Academy Labs
 - **Project root:** `/home/alex/Mission_Next_Technical_Academy_SOC_Analyst_course`
-- **Local URL:** `http://127.0.0.1:8767/`
-- **Dedicated port:** `8767`
+- **Local portal URL:** `http://127.0.0.1:8768/#/login`
+- **Local simulator URL:** `http://127.0.0.1:8767/`
+- **Dedicated ports:** `8768` (portal), `8767` (simulator)
 - **Original source project:** `/home/alex/defender-lab` on port `8765`
 - **Companion SC-200 study app:** `/home/alex/sc-200_app` on port `8766`
 - **Git branch:** `master`
@@ -74,11 +75,11 @@ cd "/home/alex/Mission_Next_Technical_Academy_SOC_Analyst_course"
 ./bin/launch.sh
 ```
 
-The launcher starts a detached Python server from `ui/`, writes its process ID
-to `.server.pid`, logs to `.server.log`, and opens the course in the default
-browser.
+The launcher starts both detached Python servers through `bin/dev.sh`, writes
+`.portal.pid` and `.simulator.pid`, logs to `.portal.log` and `.simulator.log`,
+and opens the portal login page in the default browser.
 
-Manual start:
+Manual start (simulator only):
 
 ```bash
 cd "/home/alex/Mission_Next_Technical_Academy_SOC_Analyst_course/ui"
@@ -93,19 +94,16 @@ curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8767/
 
 A healthy instance returns `200`.
 
-To stop only this course's detached server, first confirm that the PID belongs
-to the course and then terminate it:
+To stop both detached servers, use `bin/dev.sh stop`. If a process needs manual
+inspection, first confirm that its PID belongs to this course:
 
 ```bash
-pid=$(cat "/home/alex/Mission_Next_Technical_Academy_SOC_Analyst_course/.server.pid")
-readlink -f "/proc/$pid/cwd"
-ps -p "$pid" -o args=
-kill "$pid"
+bin/dev.sh status
+ps -p "$(cat .portal.pid)" -o args=
 ```
 
-The working directory must end in
-`Mission_Next_Technical_Academy_SOC_Analyst_course/ui`, and the process should
-be `python3 -m http.server 8767 --bind 127.0.0.1`.
+The portal process should be `bin/serve.py 8768 ... --directory .../portal` and
+the simulator process should be `bin/serve.py 8767 ... --directory .../ui`.
 
 ## Desktop integration
 

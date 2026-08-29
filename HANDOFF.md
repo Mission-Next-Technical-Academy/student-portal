@@ -35,6 +35,80 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-08-29 reporting/PDF final cleanup sprint:
+  - Added the written-only `20260829133000_report_generation_audit.sql`
+    migration for server-side report-generation audit metadata, report IDs,
+    request scope, requesting admin, status/failure reason, template version,
+    file SHA-256, storage reference, and the
+    `finalize_report_generation_audit()` RPC. No Supabase migration was
+    applied or pushed.
+  - Updated `portal/app.js` so the cohort PDF uses the durable audit table
+    when available, but does not block local draft PDF generation when the
+    unapplied audit migration is absent. Draft PDFs get an explicit
+    audit-unavailable warning and remain non-official.
+  - Added a distinct internal compliance-gap PDF from the admin report preview
+    with requirement, status, source, evidence included, missing fields,
+    owner, remediation target, and last validation date. It reuses
+    `evaluateReportingCompliance()` and does not convert partial/missing/
+    unknown requirements into covered claims.
+  - Refreshed `ASSESSMENT_REPORTING_SPEC.md` and
+    `REPORTING_REMEDIATION_CONTINUATION.md` to reflect the current state:
+    transcript/evidence/cohort/gap PDFs exist, JSON is secondary, fixed-credit
+    and credential-award schemas are local-only until deployed, and durable PDF
+    storage/annual historical reporting still need operational follow-up.
+  - Validation passed: `node --check portal/app.js`,
+    `node --check portal/data.js`, `node --check portal/module-12.js`,
+    `node bin/portal-check.js`, `node bin/render_all.js` (`129/129`, dead NAV
+    routes: 0), `git diff --check`, and HTTP 200 checks for ports 8768/8767.
+    Authenticated admin PDF inspection and the full edge-case matrix were not
+    rerun because the needed Supabase migrations remain unapplied by rule.
+
+- 2026-08-29 Agent 5 enrollment and annual-reporting source schema:
+  - Added the unapplied `20260829125000_enrollment_reporting_history.sql`
+    migration: versioned programs, append-only enrollment episodes,
+    effective-dated Florida/non-Florida classification records, credential
+    awards, reporting periods, and admin reporting views. It backfills only
+    the single historical epoch the old schema can evidence; it never invents
+    earlier withdrawals or deletes academic records.
+  - The existing enrollment toggle now has a migration-owned history trigger;
+    re-enrollment produces a new episode instead of overwriting a withdrawal.
+    The dashboard adds a current-enrollment planning form (scheduled dates and
+    reporting geography) and report-period controls. These surfaces clearly
+    fail safely until the migration is deliberately deployed.
+  - `supabase migration list` confirms 20260829110000, 20260829120000,
+    20260829125000, and 20260829130000 are local only; no migration was pushed.
+    `node --check portal/app.js`, `git diff --check`, and linked `supabase db
+    lint` passed.
+
+- 2026-08-29 Workstream I bulk progress snapshot:
+  - Replaced the disabled placeholder with **Save Progress File (All
+    Students)** on the admin dashboard.
+  - The action honors the selected track and Hide Not Started filter, gathers
+    recoverable transcript/evidence snapshots sequentially, and downloads one
+    combined JSON recovery file with scope and count. It only reads records;
+    it never changes enrollment or progress data.
+
+- 2026-08-29 reporting/PDF implementation completion:
+  - Completed the local PDF reporting path in `portal/`: cohort/annual report,
+    individual academic transcript, and supporting-evidence record renderers
+    use vendored jsPDF and AutoTable; JSON is clearly secondary.
+  - Added admin report preview/confirmation, scope and missing-data warnings,
+    report IDs, metadata, branded headers, page/confidentiality footers, and
+    landscape roster pagination. A report run is recorded in local history
+    only after its PDF save completes; durable audit records remain Agent 8's
+    server-side work.
+  - Added early, actionable checks for missing PDF runtime dependencies and a
+    failed logo response while retaining logo-free PDF generation as a safe
+    fallback.
+  - Verified in a fresh headless browser runtime: vendored jsPDF/AutoTable
+    loaded; cohort, transcript, and evidence PDFs each emitted `%PDF-` data
+    with PDF title metadata. A 500-record cohort rendered to 22 pages with
+    `showHead: 'everyPage'` across its 20-page landscape roster table.
+  - Known data-model limits are printed as missing rather than fabricated:
+    verified legal name, attendance/clock hours, evaluator/supervision and
+    artifact provenance, credential-award records, and durable audit storage.
+    The separate internal compliance-gap report remains a future report type.
+
 - 2026-08-17 final Mission Next Labs tenant migration:
   - Replaced all 453 references to the inherited example tenant across source
     fixtures, rendered views, actions, identifiers, and supporting documents.
@@ -2098,3 +2172,372 @@ Sprints C through H.1 and this QA sweep all landed after Sprint B, closing out
   Not fixed, flagged instead (real design/compliance judgment calls, not
   bugs): none found this sweep beyond what section 9 already tracks as
   external-approval gates.
+
+## Admin dashboard follow-up (2026-08-29)
+
+Requested next-sprint scope, not implemented yet:
+
+- Rename `Total Students` to `Total Student Accounts`.
+- Exclude the `ADMIN` account from the dashboard totals and main table.
+- Add local-only enrollment toggles plus per-student and bulk reset-progress actions.
+- Keep the state in browser storage instead of adding schema work.
+- Add a `Generate Report` action that uses `Reportingrequirements.txt` as the content brief.
+
+Implementation note: there is no portal toast helper in this app, so any new actions should use inline UI, buttons, or `confirm()` dialogs instead of relying on a missing notification API.
+
+Update, 2026-08-29: the portal admin surface was moved to local-only state with `ADMIN` filtered out of the main cohort view, enrollment badges/toggles and reset-progress actions wired into `localStorage`, and a `Generate Report` export added that captures the reporting-requirements brief in the downloaded JSON. Syntax checks passed on `portal/app.js`, `portal/data.js`, and `portal/module-12.js`.
+
+Audit correction, 2026-08-29: the above completion note was too strong. The admin dashboard work is still incomplete. The latest runtime audit found a `dashboardRows` scope bug in `portal/app.js` that can break admin wiring after render, the per-student enrollment toggle currently re-saves the existing state instead of flipping it, reset behavior is only a display mask rather than a real progress reset, and the report export is still only a partial cohort snapshot rather than a requirements-complete academic export. The local-storage approach is also browser-specific and there is no behavioral test coverage for these controls yet.
+
+## Admin enrollment toggle refinement (2026-08-29)
+
+The admin table now exposes enrollment as the only per-student control. The
+separate Actions column, per-student reset controls, and bulk enrollment/reset
+buttons were removed. New students default to **Disenrolled**; any account with
+visual progress (`modules_complete`, in-progress modules, non-zero completion,
+capstone score, or activity timestamp) defaults to **Enrolled**, including
+`8987495051-SOCAN`. Explicit local toggle choices remain in
+`mnt.portal.admin-dashboard.v1`; the state is still browser-local and does not
+change Supabase enrollment.
+
+Verification: `node --check portal/app.js`, `node bin/portal-check.js`, and
+`git diff --check` pass.
+
+Follow-up correction: enrollment is now persisted to Supabase as
+`students.is_enrolled`; the local value is only an optimistic cache and
+fallback for the browser. Migration `20260829100000_admin_enrollment.sql` was
+applied to the remote project and is confirmed in `supabase migration list`.
+
+## Enrollment reset design parked (2026-08-29)
+
+The requested Save flow needs one product/data-model decision before it is
+finished: disenrolling must not destroy a student's history. Do not add or
+apply a migration that deletes `module_progress`, `lab_attempts`, or
+`capstone_submissions`. The preferred next-sprint direction is an append-only
+log/status schema (or equivalent reset event) that preserves the original
+records while allowing the dashboard to show the current enrollment epoch and
+an intentionally reset view. The irreversible confirmation copy remains a
+product requirement, but the destructive implementation is parked pending
+that schema decision.
+
+Also planned for a later sprint: a small **Save progress file** export that
+captures the preserved progress history and reset/enrollment events. The
+current button is intentionally only a placeholder.
+
+## Admin dashboard runtime fix (2026-08-29, current session)
+
+- Fixed the `dashboardRows` scope bug in `portal/app.js` so the admin route
+  can render and wire events without throwing after the initial view update.
+- Switched the enrollment control to save `students.is_enrolled` directly on
+  toggle, with an inline confirm for disenrollment and a live status message.
+- Removed the stale pending/save-button pattern from the table row UI.
+- Kept the report export path intact; the downloaded JSON now reflects the
+  current remote enrollment state plus the local report-run history only.
+- Added `ADMIN_RESET_FLOW.md` as a copy/paste operator runbook for recovering
+  a student after a mistaken disenrollment, including the snapshot-before-reset
+  requirement and the no-history-deletion guardrail.
+- Restyled the admin report controls as native portal buttons with the same
+  orange/navy/white treatment used elsewhere on the page, so `Save progress
+  file` and `Generate Report` read as distinct visible actions instead of a
+  bespoke grouped control.
+
+## Student export rewrite: `buildStudentExportRecord()` now reads Supabase (2026-08-29)
+
+Per `ASSESSMENT_REPORTING_SPEC.md` §4 item 1 (its top-priority next step),
+`buildStudentExportRecord()` (`portal/app.js:367`) no longer builds grades
+from `localStorage` engagement — it queries `module_progress`, `lab_attempts`,
+`capstone_submissions`, and the `capstone_scorecard` view for the logged-in
+student (`user.userId` + `user.trackCode`), mirroring the Sprint H.1 admin
+drill-down's four-table `Promise.all` pattern.
+
+- Module grades: for each `program.modules` key, the matching `module_progress`
+  row supplies `state`/`percent`/`startedAt`/`completedAt`; `LABS` (from
+  `portal/data.js`) maps each module to its lab_key(s), and the highest score
+  among that module's `lab_attempts` rows is surfaced as `bestLabScore` — the
+  documented "unlimited attempts, best score shown" convention
+  (`ASSESSMENT_REPORTING_SPEC.md` §2). Full per-attempt history is included
+  too (`labAttempts: [...]`), not just the best score.
+- `overallPercentComplete`/`progress.modulesComplete`/the pass/in-progress
+  `outcome` now all derive from real `module_progress` completion counts.
+- Capstone (`soc-12` track only): real data from `capstone_scorecard`
+  (`overallScore` + the six named dimension scores + `stagesSubmitted`) and
+  raw `capstone_submissions` (per-stage `score`/`submittedAt`).
+  **Schema finding**: the Module 12 critical-error gate (70%+ AND zero
+  critical errors) is *not* a boolean column anywhere, but the data does
+  exist — it was not actually missing, just nested. `module-12.js` writes the
+  rubric engine's `criticalErrors` array into two jsonb homes:
+  `capstone_submissions.answers.criticalErrors` on the one row that gets
+  written (only on an actual pass, so this is expected empty by construction)
+  and `lab_attempts.result.criticalErrors` on *every* `lab-capstone` attempt,
+  pass or fail — the only source that shows critical-error failures on
+  earlier attempts. The export now surfaces both under
+  `capstone.criticalErrorGate` (`criticalErrorsOnPassingSubmission`,
+  `criticalErrorsOnLatestAttempt`, plus latest-attempt state/date and total
+  attempt count) with a note explaining there's no literal boolean gate
+  column. Nothing was invented — this is a direct read of jsonb fields that
+  were already being written.
+- `attendanceEvidence` and `facultyEvaluation` were left untouched — those
+  are genuine gaps per `ASSESSMENT_REPORTING_SPEC.md` §1 rows 2 and 4, not
+  stale claims. `dataVerification.gradesStatus`/`capstoneStatus` now say
+  "verified from Supabase ... (live query at export time)";
+  `attendanceStatus`/`facultyEvaluationStatus` still say "not yet collected."
+  A `supabaseFetchError` field was added (null in the normal case) in case
+  `user.userId`/`trackCode` is ever missing, so a query-skip is visible in
+  the exported JSON rather than silently under-reporting.
+- `exportStudentRecord()`/the "Export my record (JSON)" button's call site
+  were not touched — the function's external contract (async, same return
+  shape's top-level keys) is unchanged.
+
+Verification: `node --check portal/app.js` passes; `node bin/portal-check.js`
+passes (all 12 modules + program overview OK). This could not be exercised
+against a live logged-in browser session in this environment — no browser
+automation was run against it — so the new Supabase query logic and
+jsonb field paths (`answers.criticalErrors`, `result.criticalErrors`) were
+verified by careful read-through against the schema in
+`supabase/migrations/20260828160000_simplify_schema.sql` and against the
+exact write paths in `portal/module-12.js` and `portal/app.js`'s
+`recordLabAttempt()`/`recordCapstoneSubmission()`, not by a live end-to-end
+export/download test. Recommend a real logged-in-student export as the first
+follow-up verification step next session.
+
+## Enrollment/status dates (2026-08-29)
+
+Closes `ASSESSMENT_REPORTING_SPEC.md` §1 requirement #1's GAP row (student
+status/date fields) as narrowly as the existing schema supports. New
+migration file: `supabase/migrations/20260829110000_enrollment_dates.sql`,
+built on top of (not editing) `20260829100000_admin_enrollment.sql`.
+
+**This migration is written but not applied to the live project — it needs a
+deliberate `supabase db push` decision, same as every migration file in this
+repo.** No `supabase db push` was run in this session; nothing was tested
+against a live database.
+
+- Adds four nullable columns to `public.students`: `enrollment_date`,
+  `withdrawal_date` (both `timestamptz`), `scheduled_start_date` (`date`),
+  `completion_date` (`timestamptz`).
+- New trigger `public.stamp_enrollment_dates()`, fired `before update ... when
+  (old.is_enrolled is distinct from new.is_enrolled)`: sets
+  `enrollment_date = coalesce(old.enrollment_date, now())` when `is_enrolled`
+  flips true (so a re-enrollment after a withdrawal keeps the original
+  enrollment date), and sets `withdrawal_date = now()` when it flips false.
+  This runs regardless of which code path flips the column — today that's
+  only `updateAdminEnrollmentRemote()` (`portal/app.js:259`), but the dates
+  get stamped correctly even if a future code path flips `is_enrolled`
+  directly.
+- **`completion_date` design decision**: no trigger owns it. "Complete" is a
+  cross-table condition (`module_progress` reaching 100% of that student's 12
+  modules), which a students-row trigger has no reliable way to track without
+  adding trigger surface to the much hotter `module_progress` table instead.
+  The `students.completion_date` column exists only as a nullable permanence
+  anchor for a future archival step (CIE requirement #5: records "must remain
+  available even if archived") — nothing writes it in this migration, so it
+  stays null today. The rebuilt `admin_student_progress` view computes it live
+  instead: `coalesce(s.completion_date, <max module_progress.completed_at
+  when percent_complete >= 100>)`.
+- `admin_student_progress` also gains a computed `status` column:
+  `'completed'` (percent_complete >= 100) outranks `'withdrawn'` (not
+  is_enrolled and enrollment_date is not null), which outranks `'active'`
+  (is_enrolled), else `'not_yet_started'` — completed intentionally outranks
+  withdrawn so a student who finishes and is later disenrolled still reads as
+  completed, not withdrawn.
+- Grants: extends the existing `grant update (is_enrolled)` to also cover
+  `enrollment_date, withdrawal_date, scheduled_start_date` (all admin-write,
+  gated by the existing `students_admin_update` RLS policy — not repeated).
+  `completion_date` is deliberately not grant-writable yet; nothing sets it in
+  this pass. No new read policy was needed — `students_self_read`
+  (`20260828120000_students_admin.sql`) already covers a student's own full
+  row, new columns included.
+- **`scheduled_start_date` UI: not built this pass.** It's the one field with
+  no automatic source (a program-planning input, not derived from activity).
+  The column is admin-writable via the grant above, but there is no dashboard
+  input for it — reachable only via direct DB/Supabase access today. Flagged
+  with a `-- TODO` comment in the migration itself, not left silently
+  unreachable.
+
+`portal/app.js` changes:
+
+- `applyAdminDashboardState()` (line 269) now passes through `row.status`,
+  `row.enrollmentDate`, `row.withdrawalDate`, `row.completionDate` from the
+  view.
+- The admin table's Enrollment column (around line 1949) gets a small
+  "Since {date}" line under the existing Enrolled/Disenrolled pill — enrolled
+  rows show `enrollmentDate`, disenrolled rows show `withdrawalDate`. Reuses
+  the existing `text-gray-400`/pill styling already in that table; no new
+  style language, no layout redesign.
+- `buildStudentExportRecord()` (`portal/app.js:367`) adds an `enrollmentStatus`
+  block (`status`, `enrollmentDate`, `withdrawalDate`, `completionDate`,
+  `scheduledStartDate`). This reads `students` directly (a new
+  `.select('is_enrolled, enrollment_date, withdrawal_date,
+  scheduled_start_date, completion_date').eq('user_id', ...)` query added to
+  the existing four-way `Promise.all`), **not** `admin_student_progress` —
+  confirmed that view's `where public.is_admin()` clause returns nothing for
+  a student querying their own row, so it can't be reused here. `status`/
+  `completionDate` are computed client-side using the same precedence as the
+  view's SQL, since the view itself is unreachable from this code path.
+  `dataVerification` gains an `enrollmentStatusSource` note mirroring the
+  existing grades/capstone verification notes.
+
+Verification: `node --check portal/app.js` passes; `node bin/portal-check.js`
+passes (all 12 modules + program overview OK). As instructed, **the migration
+was not applied to or tested against the live Supabase project** — it was
+reviewed by careful read-through against the RLS/trigger/view idioms already
+in `20260828120000_students_admin.sql`, `20260829100000_admin_enrollment.sql`,
+and the `handle_new_user()`/`touch_updated_at()` trigger examples in
+`20260817090000_catalogue.sql`/`20260817090100_enrollment.sql`, not by
+executing it. `ASSESSMENT_REPORTING_SPEC.md` §1 row 1 was updated to reflect
+the new (unapplied) columns — not marked fully closed, since the migration
+still needs a deliberate push decision and `scheduled_start_date` has no UI.
+
+## Admin report buttons + PDF export (2026-08-29)
+
+Two fixes requested directly by Alex, both scoped to `portal/app.js` /
+`portal/index.html`, UI-only (no schema/Supabase changes, nothing committed).
+
+**Fix 1 — invisible "Save progress file" / "Generate Report" buttons.** This
+was already fixed by the time this session started: a concurrent session's
+"Admin dashboard runtime fix" entry above ("Restyled the admin report
+controls as native portal buttons...") had already replaced the originally
+reported `class="btn btn-secondary btn-sm"` / `class="btn btn-primary
+btn-sm"` (undefined classes, no CSS anywhere in `portal/`, hence invisible —
+the originally-diagnosed root cause) with `admin-report-action`/
+`admin-report-action--primary`/`--secondary` classes that **do** have real
+CSS backing them, added directly to `portal/index.html` (`.admin-report-actions`
+/ `.admin-report-action` block, lines 84-134): a bordered pill-group
+container, navy-on-white primary button, white/navy-outline secondary
+button, and a distinct amber/orange `:disabled` treatment so "Save progress
+file" reads as disabled rather than just differently blank. Re-grepped the
+whole `portal/` tree for `class="btn`, `btn-primary`, `btn-secondary`, and
+`btn-sm` — zero remaining matches anywhere, on these two buttons or any
+other. No `.btn`-class bug exists elsewhere in the app; nothing further to
+fix here.
+
+**Fix 2 — "Generate Report" now produces a real branded PDF, not JSON.**
+Alex's ask was explicit: no JSON, "pretty," "high level," a PDF, the Mission
+Next logo, and visibly structured around `Reportingrequirements.txt`.
+
+- Vendored jsPDF 2.5.1 (UMD) and jsPDF-AutoTable 3.8.2 into `portal/vendor/`
+  as `jspdf-2.5.1.umd.min.js` (364,463 bytes) and
+  `jspdf-autotable-3.8.2.min.js` (38,976 bytes), fetched from
+  `cdnjs.cloudflare.com` with `curl -sSL -o` (not just a HEAD check — real
+  content downloaded and verified). Added local `<script>` tags for both in
+  `portal/index.html` right after `vendor/tailwind.js`, using the same
+  `?v=YYYYMMDD` cache-busting convention already in use (`?v=20260829`). No
+  CDN reference ships in the page; this is the real-library path, not the
+  print-fallback — the sandboxed network access worked fine for a real
+  binary-sized download, confirmed before writing any generation code.
+- `downloadAdminReport(report)` (`portal/app.js`) was rewritten from a
+  three-line `Blob([JSON.stringify(...)])` download into an `async` function
+  that builds a one-to-few-page PDF via `jsPDF` + `doc.autoTable(...)`:
+  - **Header**: `assets/logo.png` embedded via a new
+    `loadAdminReportLogoDataUri()` helper (`fetch` → `blob` → `FileReader`
+    → data URI, module-scope cached so repeat clicks in one session don't
+    re-fetch), plus report title and a "Generated {timestamp}" line, an
+    orange divider rule matching the brand accent.
+  - **Cohort summary**: `report.summary`'s seven metrics (total accounts,
+    enrolled, not enrolled, not started, in progress, complete, avg %
+    complete) as a row of rounded stat boxes, not a raw dump.
+  - **CIE compliance table**: `report.reportingRequirements` (from the
+    existing `adminReportingRequirements()`, reused unchanged as the mapping
+    source of truth) rendered via `autoTable` with a status column
+    color-coded green/"Covered" vs. amber/"Partial" — this is the part that
+    visibly ties the export back to `Reportingrequirements.txt`.
+  - **Student roster**: `report.students[]` as a striped `autoTable` (student
+    ID, track, program, enrollment, progress state, modules complete/total,
+    percent, capstone score, last active), small font, alternating row
+    shading, auto-paginates on its own if the roster is long.
+  - Footer page numbers on every page.
+  - Filename changed from `student-accounts-report-YYYY-MM-DD.json` to the
+    same date-stamped `.pdf`.
+- The button click handler (`wireAdmin()`, `[data-action="admin-generate-report"]`)
+  is now `async`, disables the button and shows "Generating PDF report..."
+  while `downloadAdminReport` runs, and on success sets
+  `admin-report-status` to "Downloaded PDF report generated {timestamp}."
+  (previously "Generated report at..." implying JSON); errors are caught and
+  surfaced in the status line instead of throwing silently.
+- `storeAdminReportRun()` was left untouched as instructed — it only persists
+  `generatedAt`/`summary` to local report-run history, independent of file
+  format.
+
+Verification actually run: `node --check portal/app.js` passes; `node
+bin/portal-check.js` passes (all 12 modules + program overview OK); both
+vendored files independently pass `node --check`; confirmed via `grep` that
+`portal/index.html`'s two new `<script src="vendor/...">` paths match the
+exact filenames written to `portal/vendor/`; confirmed jsPDF's UMD build
+exposes `window.jspdf.jsPDF` (grepped the minified export, `t.jsPDF=M`) and
+that jsPDF-AutoTable's UMD wrapper falls back to the `jspdf` global (`require
+("jspdf")` inside an `if(typeof exports...)` guard) when no module system is
+present, which is this app's plain-`<script>`-tag setup — so `doc.autoTable`
+is available once both scripts load in `<head>` order. **Not run: any live
+browser rendering.** There is no browser available in this environment, so
+the actual PDF layout, image embedding, table pagination, and color output
+were never visually confirmed — only code-reviewed against jsPDF/AutoTable's
+documented API shapes. Recommend a real logged-in-admin click-through as the
+first follow-up verification step next session.
+
+This is the last sprint in the current handoff chain — no further work
+started, no git commit made, no Supabase schema touched.
+# Reporting PDF gap assessment saved (2026-08-29)
+
+- Added `REPORTING_PDF_GAP_REMEDIATION_PLAN.md`, a read-only assessment converted into an executable nine-agent remediation brief covering PDF generation, CIE reporting gaps, source-data deficiencies, report architecture, durability, privacy, and QA.
+- No application code, database schema, deployment, or running service was changed in this pass.
+
+# Student login coursework redirect requirement saved (2026-08-29)
+
+- Added `STUDENT_LOGIN_COURSEWORK_REDIRECT.md`: students with an active enrolment should land on that programme's coursework overview after sign-in, rather than the catalogue. The document preserves the admin redirect, explicit walkthrough return routes, and the no-enrolment catalogue fallback.
+- Documentation only; `portal/app.js` has not been changed.
+
+# Reporting PDF remediation — Agent 7 evaluation and artifacts (2026-08-29)
+
+- Added the unapplied, additive migration
+  `supabase/migrations/20260829120000_assessment_review_and_artifacts.sql`.
+  It records rubric/scoring versions and capstone critical-error metadata,
+  turns `portfolio_artifacts` into append-only submission evidence with a
+  database-calculated SHA-256 digest, and adds RLS-protected optional
+  `capstone_reviews`. It was **not** pushed to Supabase.
+- Module 12 now submits an immutable portfolio-artifact snapshot on every
+  completed form submission (pass or fail), while its existing local draft
+  remains separate. Passing capstone records now also persist the explicit
+  critical-error count/gate and assessment-version metadata.
+- The admin student-detail panel fetches the capstone artifact/review data and
+  provides a review form for the latest artifact (pending, approved, or
+  changes requested plus outcome and notes). This is optional faculty review,
+  not an automatic completion override.
+- Transcript/evidence builders and the evidence PDF now query and disclose
+  capstone artifact IDs/digests and review state. They clearly distinguish
+  “not requested” from approval and retain the limitation that other-module
+  artifacts are not yet persisted by this workflow.
+- Verification run: `node --check portal/app.js`, `node --check
+  portal/module-12.js`, and `git diff --check` all passed. A live
+  end-to-end database/browser test remains pending the deliberate migration
+  deployment decision.
+
+# Reporting PDF remediation — Agent 6 fixed credit hours (2026-08-29)
+
+- Implemented the approved Decision 2, Option 1 model: fixed course credit,
+  not time-on-task tracking. `portal/data.js` now carries explicit credit
+  minutes for all twelve SOC technical modules; they total 4,200 minutes / 70
+  hours. The separately catalogued M360 companion remains 720 minutes / 12
+  hours, so the approved programme baseline reconciles exactly to 4,920
+  minutes / 82 hours without falsely assigning career-readiness credit to a
+  technical SOC module.
+- Added the unapplied, additive migration
+  `supabase/migrations/20260829130000_fixed_credit_hours.sql`. It defines the
+  approved allocation catalogue, immutable per-student fixed-credit awards,
+  an award trigger on completed `module_progress` rows, a historical backfill,
+  RLS, and a student hour-reconciliation view. It was **not** pushed to
+  Supabase. The migration deliberately does not infer attendance from tab-open
+  time, `last_active`, or an idle browser.
+- Transcript data/PDF output now reports attempted fixed credits for started
+  or completed technical modules and credited instructional hours for completed
+  modules, including per-module values and a reconciliation note. Before the
+  local migration is deliberately applied, the transcript falls back to a
+  clearly labeled calculation from durable module-progress rows; it does not
+  pretend a credit-award table exists. The browser-local M360 checklist is
+  explicitly excluded from durable awarded hours, so a full 82-hour completion
+  claim remains unavailable until that companion course has durable completion
+  evidence.
+- Verification run: `node --check portal/app.js`, `node --check
+  portal/data.js`, `node bin/portal-check.js`, a programmatic allocation check
+  (`70 technical + 12 companion = 82`), and `git diff --check` all passed. No
+  live database or browser test was run; the migration deployment remains an
+  explicit authorized follow-up.

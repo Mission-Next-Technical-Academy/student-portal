@@ -257,7 +257,7 @@ const PROGRAMS = [
       { number: 6, label: 'Week 6 — SOC Operations & Capstone', modules: ['soc-11', 'soc-12'] },
     ],
     modules: {
-      'soc-01': { number: 1, week: 1, title: 'SOC Operations Foundations', hours: '8 Hours', durationMinutes: 480, lessons: 9, labs: 2,
+      'soc-01': { number: 1, week: 1, title: 'SOC Operations Foundations', hours: '8 Hours', durationMinutes: 480, creditMinutes: 480, lessons: 9, labs: 2,
         summary: 'Start from the beginning: learn what a SOC analyst does, how security signals become incidents, and where triage fits in the response lifecycle.',
         objectives: ['Explain the SOC analyst role and complete one coached, evidence-based alert triage and handoff.'],
         topics: [{ items: ['SOC purpose and analyst roles', 'Events, alerts, and incidents', 'SIEM, EDR, and XDR basics', 'Incident response lifecycle', 'Triage and escalation'] }],
@@ -278,7 +278,7 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-01-lesson-09', title: 'Document and escalate', durationMinutes: 30, parentAllocations: [allocation('SOC-101.1', 30)], objective: 'Write a concise handoff that separates observations, analysis, scope, and the requested next action.' }),
         ],
         skills: ['SOC Operations', 'SIEM', 'XDR', 'Alert Triage', 'Incident Response Lifecycle', 'Security Architecture'] },
-      'soc-02': { number: 2, week: 1, title: 'Network, Identity & Security Foundations', hours: '11 Hours', durationMinutes: 660, lessons: 8, labs: 1,
+      'soc-02': { number: 2, week: 1, title: 'Network, Identity & Security Foundations', hours: '11 Hours', durationMinutes: 660, creditMinutes: 660, lessons: 8, labs: 1,
         summary: 'Understand how networks, identities, access controls, and modern security architectures affect security operations.',
         curriculumItems: [
           curriculumItem({ key: 'soc-02-lesson-01', title: 'Network paths', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Interpret a connection using its source, destination, route, protocol, trust zone, and outcome.' }),
@@ -291,7 +291,7 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-02-lesson-08', title: 'Zero Trust reasoning', durationMinutes: 60, parentAllocations: [allocation('SOC-101.2', 60)], objective: 'Combine identity, device, network, resource, and risk signals to recommend a proportionate control.' }),
         ],
         skills: ['IAM', 'Zero Trust', 'MFA', 'RBAC', 'PKI', 'Network Security'] },
-      'soc-03': { number: 3, week: 2, title: 'SIEM & Log Analysis', hours: '7 Hours 45 Minutes', durationMinutes: 465, lessons: 4, labs: 1,
+      'soc-03': { number: 3, week: 2, title: 'SIEM & Log Analysis', hours: '7 Hours 45 Minutes', durationMinutes: 465, creditMinutes: 465, lessons: 4, labs: 1,
         summary: 'Learn how analysts use centralized security telemetry to identify and investigate suspicious activity.',
         curriculumItems: [
           curriculumItem({ key: 'soc-03-lesson-01', title: 'Read logs as linked observations', durationMinutes: 45, parentAllocations: [allocation('SOC-101.4', 45)], objective: 'Relate individual log observations to a detection claim while preserving source and time context.' }),
@@ -300,7 +300,7 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-03-lesson-04', title: 'Build the analyst handoff', durationMinutes: 60, parentAllocations: [allocation('SOC-101.4', 60)], objective: 'Document a supported alert disposition, scope, evidence chain, and escalation request.' }),
         ],
         skills: ['SIEM', 'Log Analysis', 'Alert Triage', 'Event Correlation', 'Detection'] },
-      'soc-04': { number: 4, week: 2, title: 'Detection Rules, Threat Intelligence & Automated Monitoring', hours: '5 Hours', durationMinutes: 300, lessons: 4, labs: 1,
+      'soc-04': { number: 4, week: 2, title: 'Detection Rules, Threat Intelligence & Automated Monitoring', hours: '5 Hours', durationMinutes: 300, creditMinutes: 300, lessons: 4, labs: 1,
         summary: 'Learn how detections are created, enriched, prioritized, and automated.',
         curriculumItems: [
           curriculumItem({ key: 'soc-04-lesson-01', title: 'Balance coverage, fidelity, and action', durationMinutes: 60, parentAllocations: [allocation('SOC-101.4', 60)], objective: 'Explain how detection coverage, false-positive cost, and response risk shape a rule decision.' }),
@@ -309,7 +309,7 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-04-lesson-04', title: 'Automation boundary', durationMinutes: 30, parentAllocations: [allocation('SOC-101.7', 30)], objective: 'Choose a bounded automated action that preserves review and avoids unsupported disruption.' }),
         ],
         skills: ['Detection Rules', 'Threat Intelligence', 'SOAR', 'Automation', 'Regex'] },
-      'soc-05': { number: 5, week: 3, title: 'Endpoint & Malware Investigation', hours: '4 Hours 30 Minutes', durationMinutes: 270, lessons: 10, labs: 1,
+      'soc-05': { number: 5, week: 3, title: 'Endpoint & Malware Investigation', hours: '4 Hours 30 Minutes', durationMinutes: 270, creditMinutes: 270, lessons: 10, labs: 1,
         summary: 'Investigate suspicious activity occurring on endpoints.',
         curriculumItems: [
           curriculumItem({ key: 'soc-05-lesson-01', title: 'Read endpoint telemetry', durationMinutes: 15, parentAllocations: [allocation('SOC-101.4', 15)], objective: 'Distinguish observed endpoint behavior from a product verdict or inferred intent.' }),
@@ -324,7 +324,7 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-05-lesson-10', title: 'Write a useful handoff', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'Prepare an endpoint handoff that separates observation, interpretation, and requested action.' }),
         ],
         skills: ['EDR', 'XDR', 'Malware Analysis', 'Endpoint Investigation', 'Process Analysis'] },
-      'soc-06': { number: 6, week: 3, title: 'Threat Hunting & Investigation', hours: '2 Hours 45 Minutes', durationMinutes: 165, lessons: 4, labs: 1,
+      'soc-06': { number: 6, week: 3, title: 'Threat Hunting & Investigation', hours: '2 Hours 45 Minutes', durationMinutes: 165, creditMinutes: 165, lessons: 4, labs: 1,
         summary: 'Move beyond individual alerts and proactively search for evidence of malicious activity.',
         curriculumItems: [
           curriculumItem({ key: 'soc-06-lesson-01', title: 'Start with a testable hypothesis', durationMinutes: 15, parentAllocations: [allocation('SOC-101.7', 15)], objective: 'State an observable hunting hypothesis that available data can support or disprove.' }),
@@ -333,7 +333,7 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-06-lesson-04', title: 'Map behavior after validation', durationMinutes: 25, parentAllocations: [allocation('SOC-101.7', 10), allocation('SOC-101.6', 15)], objective: 'Map only demonstrated adversary behavior and document the investigation limits.' }),
         ],
         skills: ['Threat Hunting', 'IOC Analysis', 'Correlation', 'Investigation', 'Behavior Analytics'] },
-      'soc-07': { number: 7, week: 4, title: 'Network & Email Analysis', hours: '10 Hours', durationMinutes: 600, lessons: 4, labs: 2,
+      'soc-07': { number: 7, week: 4, title: 'Network & Email Analysis', hours: '10 Hours', durationMinutes: 600, creditMinutes: 600, lessons: 4, labs: 2,
         summary: 'Analyze network traffic and email evidence during security investigations.',
         curriculumItems: [
           curriculumItem({ key: 'soc-07-lesson-01', title: 'Follow identity, artifact, delivery, and session', durationMinutes: 30, parentAllocations: [allocation('SOC-101.3', 30)], objective: 'Relate sender identity, message artifacts, delivery, and subsequent network activity without assuming causation.' }),
@@ -342,7 +342,7 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-07-lesson-04', title: 'Correlation workbench', durationMinutes: 30, parentAllocations: [allocation('SOC-101.5', 30)], objective: 'Correlate the delivered message with associated network observations and state the bounded scope.' }),
         ],
         skills: ['Packet Analysis', 'DNS', 'Email Security', 'Phishing Analysis', 'Network Investigation'] },
-      'soc-08': { number: 8, week: 4, title: 'Vulnerability Findings & SOC Prioritization', hours: '6 Hours 45 Minutes', durationMinutes: 405, lessons: 4, labs: 2,
+      'soc-08': { number: 8, week: 4, title: 'Vulnerability Findings & SOC Prioritization', hours: '6 Hours 45 Minutes', durationMinutes: 405, creditMinutes: 405, lessons: 4, labs: 2,
         summary: 'Learn how a SOC analyst validates, prioritizes, and routes vulnerability findings for remediation ownership.',
         curriculumItems: [
           curriculumItem({ key: 'soc-08-lesson-01', title: 'Treat vulnerability data as a decision input', durationMinutes: 30, parentAllocations: [allocation('SOC-101.3', 30)], objective: 'Interpret CVE, CVSS, exploitability, asset role, and exposure as inputs to an analyst decision.' }),
@@ -351,20 +351,20 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-08-lesson-04', title: 'Close the decision loop', durationMinutes: 25, parentAllocations: [allocation('SOC-101.7', 25)], objective: 'Document the disposition, owner, next action, due point, and escalation condition for a finding.' }),
         ],
         skills: ['Vulnerability Prioritization', 'CVSS', 'CVE', 'Risk Prioritization', 'Remediation', 'Attack Surface Management'] },
-      'soc-09': { number: 9, week: 5, title: 'Incident Response', hours: '2 Hours 30 Minutes', durationMinutes: 150, lessons: 1, labs: 1,
+      'soc-09': { number: 9, week: 5, title: 'Incident Response', hours: '2 Hours 30 Minutes', durationMinutes: 150, creditMinutes: 150, lessons: 1, labs: 1,
         summary: 'Manage security incidents from initial detection through containment and recovery.',
         curriculumItems: [
           curriculumItem({ key: 'soc-09-lesson-01', title: 'Act on evidence, not urgency alone', durationMinutes: 30, parentAllocations: [allocation('SOC-101.6', 30)], objective: 'Choose proportionate containment, eradication, recovery, and escalation steps from confirmed incident evidence.' }),
         ],
         skills: ['Incident Response', 'Containment', 'Eradication', 'Recovery', 'Escalation'] },
-      'soc-10': { number: 10, week: 5, title: 'Incident Evidence Handling, Chain of Custody & Case Documentation', hours: '4 Hours 30 Minutes', durationMinutes: 270, lessons: 2, labs: 2,
+      'soc-10': { number: 10, week: 5, title: 'Incident Evidence Handling, Chain of Custody & Case Documentation', hours: '4 Hours 30 Minutes', durationMinutes: 270, creditMinutes: 270, lessons: 2, labs: 2,
         summary: 'Understand evidence handling, chain-of-custody concepts, and structured incident analysis.',
         curriculumItems: [
           curriculumItem({ key: 'soc-10-lesson-01', title: 'Post-containment evidence intake', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'Record evidence source, acquisition context, integrity controls, custody, and specialist escalation boundaries.' }),
           curriculumItem({ key: 'soc-10-lesson-02', title: 'Attachment-to-persistence reconstruction', durationMinutes: 15, parentAllocations: [allocation('SOC-101.6', 15)], objective: 'Separate observed facts, supported causal analysis, framework mapping, and explicit unknowns in a case record.' }),
         ],
         skills: ['Chain of Custody', 'Evidence Handling', 'MITRE ATT&CK', 'Root Cause Analysis', 'Incident Analysis'] },
-      'soc-11': { number: 11, week: 6, title: 'SOC Operations, Metrics, Reporting & Communication', hours: '3 Hours 15 Minutes', durationMinutes: 195, lessons: 3, labs: 2,
+      'soc-11': { number: 11, week: 6, title: 'SOC Operations, Metrics, Reporting & Communication', hours: '3 Hours 15 Minutes', durationMinutes: 195, creditMinutes: 195, lessons: 3, labs: 2,
         summary: 'Turn technical findings into actionable information for security teams, leadership, and business stakeholders.',
         curriculumItems: [
           curriculumItem({ key: 'soc-11-lesson-01', title: 'SOC performance and queue health', durationMinutes: 25, parentAllocations: [allocation('SOC-101.7', 25)], objective: 'Interpret alert volume, false-positive rate, backlog, service levels, and response-time trends without overstating causation.' }),
@@ -372,7 +372,7 @@ const PROGRAMS = [
           curriculumItem({ key: 'soc-11-lesson-03', title: 'Case note, executive report, escalation and closure', durationMinutes: 25, parentAllocations: [allocation('SOC-101.6', 15), allocation('SOC-101.7', 10)], objective: 'Adapt one bounded incident record for technical case, executive, escalation, and closure audiences.' }),
         ],
         skills: ['SOC Operations', 'Security Metrics', 'Reporting', 'Communication', 'Executive Briefing'] },
-      'soc-12': { number: 12, week: 6, title: 'SOC Analyst Capstone', hours: '4 Hours', durationMinutes: 240, lessons: 0, labs: 1, isCapstone: true,
+      'soc-12': { number: 12, week: 6, title: 'SOC Analyst Capstone', hours: '4 Hours', durationMinutes: 240, creditMinutes: 240, lessons: 0, labs: 1, isCapstone: true,
         summary: 'A realistic multi-stage security incident investigated end to end in the Mission Next security operations simulator.',
         curriculumItems: [],
         skills: ['SIEM Investigation', 'Threat Hunting', 'Incident Response', 'Evidence Handling', 'Security Reporting'] },
