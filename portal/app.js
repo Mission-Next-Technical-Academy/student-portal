@@ -401,7 +401,7 @@ function evaluateReportingCompliance(rows, context) {
     const dynamicPartial = dynamicallyPresent.filter((f) => { const c = presentCount(f.get); return c > 0 && c < n; }).map((f) => f.field);
     const dynamicMissing = dynamicallyPresent.filter((f) => presentCount(f.get) === 0).map((f) => f.field);
     const availableFields = dynamicAvailable;
-    const missingFields = [...dynamicMissing, ...dynamicPartial.map((f) => `${f} (present for some but not all rows in scope)`), ...staticallyMissing];
+    const missingFields = [...dynamicMissing, ...dynamicPartial.map((f) => `${f} — recorded for some students in this report but not all`), ...staticallyMissing];
     let status;
     if (missingFields.length === 0) status = 'covered';
     else if (availableFields.length === 0 && dynamicPartial.length === 0) status = 'missing';
@@ -415,49 +415,49 @@ function evaluateReportingCompliance(rows, context) {
       requirement: 'Student-to-program linkage',
       requiredFields: ['student_id', 'program', 'credential', 'enrollment_date', 'scheduled_start_date', 'completion_date', 'academic_status', 'student name or documented lawful substitute'],
       dynamicallyPresent: [
-        { field: 'student_id', get: (r) => r.student_id },
-        { field: 'program', get: (r) => r.program_slug },
-        { field: 'credential', get: (r) => r.credentialName || r.credential_name },
-        { field: 'enrollment_date', get: (r) => r.enrollmentDate },
-        { field: 'scheduled_start_date', get: (r) => r.scheduledStartDate || r.scheduled_start_date },
-        { field: 'completion_date', get: (r) => r.completionDate },
-        { field: 'academic_status', get: (r) => r.status },
+        { field: 'Student ID', get: (r) => r.student_id },
+        { field: 'Program', get: (r) => r.program_slug },
+        { field: 'Credential', get: (r) => r.credentialName || r.credential_name },
+        { field: 'Enrollment date', get: (r) => r.enrollmentDate },
+        { field: 'Scheduled start date', get: (r) => r.scheduledStartDate || r.scheduled_start_date },
+        { field: 'Completion date', get: (r) => r.completionDate },
+        { field: 'Academic status', get: (r) => r.status },
       ],
-      staticallyMissing: ['student name or documented lawful substitute (students remain anonymized-ID-only; an approved identity-record integration is still required)'],
+      staticallyMissing: ['Student name (or an approved documented substitute) — students are currently tracked by an anonymized ID only, and a verified identity record has not been integrated yet'],
       sourceTables: ['students', 'enrollment_periods', 'program_versions', 'admin_student_progress (view)'],
-      note: 'Credential, planned start, and program-version fields are defined by the local enrollment-reporting migration and appear after that migration is deliberately deployed and populated. This report does not substitute a login ID for an approved identity record.',
+      note: 'Credential, planned start date, and program-version data are now available from the academy\'s enrollment records. This report does not substitute a student ID for a verified identity record.',
     }),
     req({
       id: 'clock_hours_attendance',
       requirement: 'Clock hours and attendance',
       requiredFields: ['required_program_hours', 'attempted_clock_hours', 'attended_instructional_hours', 'course_start_completion_dates', 'hour_reconciliation'],
       dynamicallyPresent: [],
-      staticallyMissing: ['durable fixed-credit awards are local-migration dependent; reports must mark hours as missing/unavailable when student_course_hour_awards is not deployed or populated', 'observed attendance/session records are intentionally not inferred from browser activity'],
+      staticallyMissing: ['Program hour awards depend on a database feature that must be fully deployed and populated before hours can be reported for every student', 'Attendance is not estimated from browser activity or login sessions — only verified, recorded hours are ever counted'],
       sourceTables: ['portal/data.js program.compliance', 'program_course_hours', 'student_course_hour_awards', 'student_hour_reconciliation'],
-      note: 'Required program hours are defined in code and the approved fixed-credit migration now models attempted/credited hours. Reports still must not infer official attendance from last_active or open-browser time.',
+      note: 'Required program hours are defined for each program, and the academy\'s hour-tracking system now models attempted and credited hours. Reports still must not infer official attendance from a student\'s last login or open-browser time.',
     }),
     req({
       id: 'grades_assessments_progress',
       requirement: 'Grades, assessments, and progress',
       requiredFields: ['module_scores', 'capstone_score', 'grade_scale', 'pass_fail_per_module', 'assessment_attempt_history', 'rubric_scoring_engine_version', 'correction_override_trail'],
       dynamicallyPresent: [
-        { field: 'module_progress_percent', get: (r) => (r.percent_complete !== null && r.percent_complete !== undefined) ? r.percent_complete : null },
-        { field: 'capstone_score', get: (r) => r.capstone_overall_score },
+        { field: 'Module progress percentage', get: (r) => (r.percent_complete !== null && r.percent_complete !== undefined) ? r.percent_complete : null },
+        { field: 'Capstone score', get: (r) => r.capstone_overall_score },
       ],
-      staticallyMissing: ['rubric/scoring-engine version stamped per attempt (Agent 7)', 'correction/override trail (Agent 7)', 'grade scale as a queryable value (documented in ASSESSMENT_REPORTING_SPEC.md §2, not stored — Agent 5)'],
+      staticallyMissing: ['The scoring-engine version used for each attempt is not yet stamped and stored per record', 'A record of grade corrections or overrides is not yet tracked', 'The grading scale is defined in program documentation but is not yet stored as report-queryable data'],
       sourceTables: ['module_progress', 'lab_attempts', 'capstone_submissions', 'capstone_scorecard'],
-      note: 'Real scores are live-read per student (buildTranscriptData). Cohort-level percent/capstone score are present; per-attempt versioning and correction trail are not.',
+      note: 'Each student\'s real scores are read live from their record. Cohort-level completion percentage and capstone score are present; per-attempt scoring-version history and a correction trail are not.',
     }),
     req({
       id: 'labs_competency_outcomes',
       requirement: 'Labs and competency outcomes',
       requiredFields: ['lab_completion_and_date', 'rubric_result', 'evidence_artifact', 'evaluator_reviewer', 'supervision_method'],
       dynamicallyPresent: [
-        { field: 'modules_complete (proxy for recorded lab/module activity)', get: (r) => (r.modules_complete || 0) > 0 ? true : null },
+        { field: 'Modules completed (used as a proxy for recorded lab/module activity)', get: (r) => (r.modules_complete || 0) > 0 ? true : null },
       ],
-      staticallyMissing: ['other-module evidence artifacts remain incomplete; Module 12 capstone writes append-only portfolio artifacts after the artifact migration is deployed', 'evaluator_reviewer is capstone-only and depends on the local review migration being deployed', 'supervision_method is capstone-review scoped and not a general module-lab field'],
+      staticallyMissing: ['Submitted evidence artifacts are captured for the capstone module only; other modules do not yet retain one', 'An evaluator/reviewer is recorded for capstone reviews only, not for every lab or module', 'A supervision method is recorded for capstone reviews only, not as a general module-lab field'],
       sourceTables: ['lab_attempts', 'portfolio_artifacts', 'capstone_reviews'],
-      note: 'Completion, date, and rubric-category score are captured per attempt. Capstone artifact and optional faculty-review support exists in the local migration/code path; non-capstone artifact persistence and evaluator/supervision coverage remain partial.',
+      note: 'Completion, date, and rubric-category score are captured per attempt. Capstone artifact submission and optional faculty review are supported; evidence and evaluator/supervision coverage for other modules remain partial.',
     }),
     req({
       id: 'current_academic_transcript',
@@ -468,25 +468,128 @@ function evaluateReportingCompliance(rows, context) {
       sourceTables: ['buildTranscriptData()', 'renderTranscriptPdf()', 'student detail Download Transcript (PDF) action'],
       note: 'A human-readable, per-student PDF transcript is available from the admin student detail panel and the student portal. It is separate from the cohort report and from secondary JSON exports.',
     }),
-    req({
-      id: 'annual_reporting',
-      requirement: 'Annual reporting (Form 801-style counts)',
-      requiredFields: ['reporting_period_bounds', 'withdrawn_during_period', 'completions_credentials_during_period', 'continuing_enrollment_at_period_end', 'completion_within_150pct_time', 'florida_non_florida_counts'],
-      dynamicallyPresent: [],
-      staticallyMissing: ['period-bounded counts are not yet queried by this current-roster PDF builder; use/administer admin_enrollment_reporting after the enrollment-reporting migration is deployed'],
-      sourceTables: ['reporting_periods', 'enrollment_periods', 'credential_awards', 'student_geography_classifications', 'admin_enrollment_reporting (view)'],
-      note: 'The source schema now distinguishes enrollment epochs, awards, planned completion, and geography. The existing cohort PDF remains a current-roster report until a later renderer consumes the historical reporting view.',
-    }),
+    (() => {
+      const id = 'annual_reporting';
+      const requirement = 'Annual reporting (Form 801-style counts)';
+      const requiredFields = ['reporting_period_bounds', 'withdrawn_during_period', 'completions_credentials_during_period', 'continuing_enrollment_at_period_end', 'completion_within_150pct_time', 'florida_non_florida_counts'];
+      const sourceTables = ['reporting_periods', 'enrollment_periods', 'credential_awards', 'student_geography_classifications', 'admin_enrollment_reporting (view)'];
+      if (queryFailed) {
+        return { id, requirement, status: 'unknown', requiredFields, availableFields: [], missingFields: requiredFields, sourceTables, note: `Cohort data query failed (${context.queryError}); compliance cannot be verified this run.`, lastChecked };
+      }
+      const annualCounts = context.annualCounts || null;
+      // I2: this is now a real, live-calculated requirement (see
+      // fetchAnnualReportingCounts()), not a permanent placeholder — status
+      // reflects whether a period is set, the query succeeded, and whether
+      // every counted student has a verified Florida/non-Florida geography.
+      if (!annualCounts) {
+        return {
+          id, requirement, status: 'missing', requiredFields, availableFields: [],
+          missingFields: ['No reporting period is selected above — choose a period start and end to calculate enrolled, withdrawn, completed, still-enrolled, and 150%-time counts for that window.'],
+          sourceTables,
+          note: 'The underlying enrollment-history data distinguishes enrollment epochs, credential awards, planned completion, and geography, and this report can calculate real period-bounded counts as soon as a reporting period is chosen above.',
+          lastChecked,
+        };
+      }
+      if (annualCounts.queryError) {
+        return { id, requirement, status: 'unknown', requiredFields, availableFields: [], missingFields: requiredFields, sourceTables, note: `The reporting-period query failed (${annualCounts.queryError}); annual counts cannot be verified this run.`, lastChecked };
+      }
+      const totalEnrolledDuring = annualCounts.enrolledDuringPeriod || 0;
+      if (totalEnrolledDuring === 0) {
+        return {
+          id, requirement, status: 'unknown', requiredFields, availableFields: [],
+          missingFields: ['No enrollment episodes matched the selected reporting period and scope, so counts cannot be verified for this run.'],
+          sourceTables,
+          note: 'Enrolled, withdrawn, completed, still-enrolled, and 150%-time counts are calculated live from enrollment-episode history for the selected reporting period, but no episodes fell inside it for this scope.',
+          lastChecked,
+        };
+      }
+      const geo = annualCounts.byGeography || {};
+      const knownGeo = (geo.florida || 0) + (geo.non_florida || 0);
+      const geographyComplete = knownGeo === totalEnrolledDuring;
+      const availableFields = ['withdrawn_during_period', 'completions_credentials_during_period', 'continuing_enrollment_at_period_end', 'completion_within_150pct_time'];
+      const missingFields = geographyComplete ? [] : [`Florida/non-Florida classification is missing or unverified for ${totalEnrolledDuring - knownGeo} of ${totalEnrolledDuring} students enrolled during this period — record each student's reporting geography on the planning form above before this count can be certified.`];
+      return {
+        id, requirement, status: missingFields.length === 0 ? 'covered' : 'partial',
+        requiredFields, availableFields, missingFields, sourceTables,
+        note: geographyComplete
+          ? 'Enrolled, withdrawn, completed, still-enrolled, and 150%-time counts are calculated live from enrollment-episode history for the selected reporting period. Florida/non-Florida geography is recorded for every student counted.'
+          : 'Enrolled, withdrawn, completed, still-enrolled, and 150%-time counts are calculated live from enrollment-episode history for the selected reporting period. See the geography gap noted for this run.',
+        lastChecked,
+      };
+    })(),
     req({
       id: 'inspection_availability',
       requirement: 'Records available for CIE inspection',
       requiredFields: ['durable_server_side_report_storage', 'report_generation_audit_trail', 'authorized_controlled_retrieval'],
       dynamicallyPresent: [],
-      staticallyMissing: ['durable report-file storage remains external/download-based; only report metadata and hash are modeled', 'server-side audit exists only after the local report-generation audit migration is deliberately applied'],
+      staticallyMissing: ['Generated report files are currently saved by whoever downloads them, not stored centrally — the system retains only the report\'s metadata and an integrity hash, not the file itself', 'A server-side audit trail of report generation is only available once that database feature has been deployed'],
       sourceTables: ['report_generation_audit', 'finalize_report_generation_audit()', 'localStorage (convenience-only recent history)'],
-      note: 'On-screen admin drill-down works for captured data. The local migration adds authorized report-run audit metadata and integrity hashes, but downloaded PDFs still need an institutional retention/storage procedure.',
+      note: 'On-screen admin drill-down works for captured data. Authorized report-run audit metadata and integrity hashes are now recorded, but downloaded PDFs still need an institutional retention/storage procedure.',
     }),
   ];
+}
+
+/* ------------------------------------------------------------------- I2 */
+/* Real period-bounded Form 801 counts, queried live from the already-
+ * deployed admin_enrollment_reporting view (one row per enrollment episode;
+ * see 20260829125000_enrollment_reporting_history.sql). Returns null when
+ * no reporting period is selected (nothing to compute — caller/compliance
+ * table treats that as "missing", not zero), { queryError } if the query
+ * fails (never silently treated as zero either), or the computed buckets.
+ * Episodes are the counting unit, not distinct students — a re-enrollment
+ * is a second episode, matching the migration's append-only episode model. */
+async function fetchAnnualReportingCounts(periodStart, periodEnd, trackFilter) {
+  if (!periodStart || !periodEnd) return null;
+  let query = mntSupabase.from('admin_enrollment_reporting').select('*');
+  if (trackFilter) query = query.eq('track_code', trackFilter);
+  const { data, error } = await query;
+  if (error) return { queryError: error.message };
+
+  const rows = data || [];
+  const startDate = new Date(`${periodStart}T00:00:00.000Z`);
+  const endDate = new Date(`${periodEnd}T23:59:59.999Z`);
+  const toDate = (v) => (v ? new Date(v) : null);
+
+  const enrolledDuring = rows.filter((r) => {
+    const enrolledAt = toDate(r.enrolled_at);
+    const withdrawnAt = toDate(r.withdrawn_at);
+    return enrolledAt && enrolledAt <= endDate && (!withdrawnAt || withdrawnAt >= startDate);
+  });
+  const withdrawnDuring = rows.filter((r) => {
+    const withdrawnAt = toDate(r.withdrawn_at);
+    return withdrawnAt && withdrawnAt >= startDate && withdrawnAt <= endDate;
+  });
+  const completedDuring = rows.filter((r) => {
+    const completionAt = toDate(r.completion_date);
+    return completionAt && completionAt >= startDate && completionAt <= endDate;
+  });
+  const stillEnrolledAtEnd = rows.filter((r) => {
+    const enrolledAt = toDate(r.enrolled_at);
+    const withdrawnAt = toDate(r.withdrawn_at);
+    const completionAt = toDate(r.completion_date);
+    return enrolledAt && enrolledAt <= endDate && (!withdrawnAt || withdrawnAt > endDate) && (!completionAt || completionAt > endDate);
+  });
+  const completedWithin150pct = completedDuring.filter((r) => {
+    const completionAt = toDate(r.completion_date);
+    const deadline = toDate(r.completion_150pct_deadline);
+    return completionAt && deadline && completionAt <= deadline;
+  });
+  const byGeography = {};
+  enrolledDuring.forEach((r) => {
+    const key = r.geography_classification || 'not_recorded';
+    byGeography[key] = (byGeography[key] || 0) + 1;
+  });
+
+  return {
+    queryError: null,
+    totalEpisodesInScope: rows.length,
+    enrolledDuringPeriod: enrolledDuring.length,
+    withdrawnDuringPeriod: withdrawnDuring.length,
+    completedDuringPeriod: completedDuring.length,
+    completedWithin150pct: completedWithin150pct.length,
+    stillEnrolledAtPeriodEnd: stillEnrolledAtEnd.length,
+    byGeography,
+  };
 }
 
 /* --------------------------------------------------------------- G2/B1/D4 */
@@ -539,6 +642,7 @@ function buildCohortReportData(rows, options) {
   const reportingRequirements = evaluateReportingCompliance(scopedRows, {
     generatedAt,
     queryError: options.sourceQueryError || null,
+    annualCounts: options.annualCounts || null,
   });
   // An official record is allowed only when the source query succeeded and
   // every required field is verified for this scope. Current known gaps make
@@ -555,7 +659,7 @@ function buildCohortReportData(rows, options) {
     sourceDataCutoff: generatedAt,
     recordStatus,
     templateVersion: REPORT_TEMPLATE_VERSION,
-    source: 'admin_student_progress (Supabase) + local admin dashboard report-run history',
+    source: 'the academy\'s admin enrollment and progress records',
     excludedAccounts: ['ADMIN'],
     scope: {
       trackFilter: trackFilter || null,
@@ -584,6 +688,8 @@ function buildCohortReportData(rows, options) {
         percentComplete: row.percent_complete,
         capstoneScore: row.capstone_overall_score,
         lastActive: row.last_active,
+        enrollmentDate: row.enrollmentDate || row.enrollment_date || null,
+        completionDate: row.completionDate || row.completion_date || null,
         scheduledStartDate: row.scheduledStartDate || row.scheduled_start_date || null,
         scheduledCompletionDate: row.scheduledCompletionDate || row.scheduled_completion_date || null,
         programVersionCode: row.programVersionCode || row.program_version_code || null,
@@ -591,7 +697,8 @@ function buildCohortReportData(rows, options) {
         geographyClassification: row.geographyClassification || row.geography_classification || null,
       };
     }),
-    annualReportingGaps: 'This dashboard roster is a current-state view. Period-bounded Form 801 calculations must be run from admin_enrollment_reporting after the enrollment-reporting migration is deliberately deployed; do not infer them from this roster.',
+    annualCounts: options.annualCounts || null,
+    annualReportingGaps: 'This roster reflects each student\'s current enrollment state, not a reporting-period snapshot. Set a reporting period start and end above to calculate official Form 801 counts (enrolled, withdrawn, and completed within that period) — do not infer period-bounded counts from the totals above.',
     stateSnapshot: state,
   };
 }
@@ -951,7 +1058,7 @@ async function renderCohortPdf(cohortData, reportId) {
   doc.text(scopeLine, marginX + 10, cursorY + 14, { maxWidth: doc.internal.pageSize.getWidth() - marginX * 2 - 20 });
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...PDF_GRAY);
-  doc.text(`Data source: ${cohortData.source}. Excluded accounts: ${(cohortData.excludedAccounts || []).join(', ') || 'none'}.`, marginX + 10, cursorY + 27, { maxWidth: doc.internal.pageSize.getWidth() - marginX * 2 - 20 });
+  doc.text(`Source: ${cohortData.source}.`, marginX + 10, cursorY + 27, { maxWidth: doc.internal.pageSize.getWidth() - marginX * 2 - 20 });
   cursorY += 46;
 
   // ---- Cohort Summary stat grid ------------------------------------------
@@ -1001,9 +1108,56 @@ async function renderCohortPdf(cohortData, reportId) {
   });
   cursorY += statBoxH + 18;
 
-  // ---- Annual-reporting gap note (B1/C5 — no reporting-period counts exist
-  // yet). Printed plainly rather than silently omitted. ------------------
-  if (cohortData.annualReportingGaps) {
+  // ---- Annual reporting: real period-bounded counts (I2) when a period was
+  // selected and the query succeeded; otherwise the plain-language gap
+  // disclaimer, never silently omitted either way. ------------------------
+  const annualCounts = cohortData.annualCounts;
+  if (annualCounts && !annualCounts.queryError) {
+    cursorY = ensureSpace(doc, cursorY, 92);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(...PDF_NAVY);
+    doc.text('Annual Reporting — Period-Bounded Counts', marginX, cursorY);
+    cursorY += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text(`For ${fmtDate(scope.reportingPeriodStart)} – ${fmtDate(scope.reportingPeriodEnd)}. Counts are by enrollment episode, so a student who re-enrolled during this window is counted once per episode.`, marginX, cursorY, { maxWidth: pageWidth1 - marginX * 2 });
+    cursorY += 14;
+
+    const annualStats = [
+      ['Enrolled During Period', annualCounts.enrolledDuringPeriod],
+      ['Withdrawn During Period', annualCounts.withdrawnDuringPeriod],
+      ['Completed During Period', annualCounts.completedDuringPeriod],
+      ['Completed Within 150% Time', annualCounts.completedWithin150pct],
+      ['Still Enrolled At Period End', annualCounts.stillEnrolledAtPeriodEnd],
+    ];
+    const annualBoxW = (pageWidth1 - marginX * 2 - 4 * 8) / 5;
+    const annualBoxH = 48;
+    annualStats.forEach((stat, i) => {
+      const x = marginX + i * (annualBoxW + 8);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(x, cursorY, annualBoxW, annualBoxH, 4, 4, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(...PDF_NAVY);
+      doc.text(String(stat[1]), x + annualBoxW / 2, cursorY + 22, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.1);
+      doc.setTextColor(...PDF_GRAY);
+      doc.text(String(stat[0]).toUpperCase(), x + annualBoxW / 2, cursorY + 36, { align: 'center', maxWidth: annualBoxW - 4 });
+    });
+    cursorY += annualBoxH + 12;
+
+    const geo = annualCounts.byGeography || {};
+    const unknownGeo = (geo.not_recorded || 0) + (geo.unknown || 0);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text(`Florida/non-Florida, of ${annualCounts.enrolledDuringPeriod} enrolled during period: Florida ${geo.florida || 0}, Non-Florida ${geo.non_florida || 0}, Not yet recorded ${unknownGeo}.`, marginX, cursorY, { maxWidth: pageWidth1 - marginX * 2 });
+    cursorY += 18;
+  } else if (cohortData.annualReportingGaps) {
     cursorY = ensureSpace(doc, cursorY, 40);
     doc.setFillColor(...PDF_AMBER_BG);
     doc.setDrawColor(...PDF_AMBER);
@@ -1013,7 +1167,12 @@ async function renderCohortPdf(cohortData, reportId) {
     doc.setTextColor(...PDF_AMBER);
     doc.text('Annual reporting note:', marginX + 10, cursorY + 13);
     doc.setFont('helvetica', 'normal');
-    doc.text(cohortData.annualReportingGaps, marginX + 10, cursorY + 24, { maxWidth: pageWidth1 - marginX * 2 - 20 });
+    doc.text(
+      annualCounts && annualCounts.queryError
+        ? `Could not calculate period-bounded counts this run: ${annualCounts.queryError}. Do not infer annual counts from the totals above.`
+        : cohortData.annualReportingGaps,
+      marginX + 10, cursorY + 24, { maxWidth: pageWidth1 - marginX * 2 - 20 },
+    );
     cursorY += 46;
   }
 
@@ -1023,8 +1182,13 @@ async function renderCohortPdf(cohortData, reportId) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(...PDF_NAVY);
-  doc.text('CIE Minimum LMS Reporting Requirements — Compliance', marginX, cursorY);
-  cursorY += 16;
+  doc.text('CIE LMS Reporting Requirements — Compliance', marginX, cursorY);
+  cursorY += 12;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(...PDF_GRAY);
+  doc.text('Evaluated against the academy\'s CIE Minimum LMS Reporting & Recordkeeping Requirements (Rules 6E-1.003, 6E-2.004, 6E-2.0041; CIE Form 801).', marginX, cursorY);
+  cursorY += 14;
 
   // Legend: never let a reader mistake "unknown"/"missing" for "covered" —
   // the plan explicitly forbids unsupported green "Covered" badges (G1/§3).
@@ -1052,7 +1216,7 @@ async function renderCohortPdf(cohortData, reportId) {
 
   doc.autoTable({
     startY: cursorY,
-    margin: { left: marginX, right: marginX },
+    margin: { left: marginX, right: marginX, bottom: 60 },
     head: [['Requirement', 'Status', 'Missing / Gap Fields', 'Note']],
     body: cohortData.reportingRequirements.map((r) => [
       r.requirement,
@@ -1098,7 +1262,7 @@ async function renderCohortPdf(cohortData, reportId) {
   } else {
     doc.autoTable({
       startY: cursorY + 6,
-      margin: { left: marginX, right: marginX },
+      margin: { left: marginX, right: marginX, bottom: 60 },
       head: [['Student ID', 'Track', 'Program', 'Academic Status', 'Enrolled', 'Modules', '% Complete', 'Capstone Score', 'Last Active']],
       body: cohortData.students.map((st) => [
         st.studentId,
@@ -1122,6 +1286,41 @@ async function renderCohortPdf(cohortData, reportId) {
         }
       },
     });
+
+    // ---- Student-to-program linkage detail: a second, compact table so the
+    // "Student-to-program linkage" compliance verdict above has visible
+    // backing evidence in the document itself, not just an unverifiable
+    // covered/partial badge (audit finding, NEXT_SESSION.md 2026-08-31). ----
+    cursorY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : cursorY) + 20;
+    cursorY = ensureSpace(doc, cursorY, 60);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...PDF_NAVY);
+    doc.text('Student-to-Program Linkage Detail', marginX, cursorY);
+    cursorY += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text('Backing evidence for the "Student-to-program linkage" compliance requirement above — credential, enrollment date, scheduled start, and completion date, per student in scope.', marginX, cursorY + 8, { maxWidth: doc.internal.pageSize.getWidth() - marginX * 2 });
+    cursorY += 16;
+
+    doc.autoTable({
+      startY: cursorY,
+      margin: { left: marginX, right: marginX, bottom: 60 },
+      head: [['Student ID', 'Credential', 'Enrollment Date', 'Scheduled Start Date', 'Completion Date']],
+      body: cohortData.students.map((st) => [
+        st.studentId,
+        st.credential || '—',
+        st.enrollmentDate ? new Date(st.enrollmentDate).toLocaleDateString() : '—',
+        st.scheduledStartDate ? new Date(st.scheduledStartDate).toLocaleDateString() : '—',
+        st.completionDate ? new Date(st.completionDate).toLocaleDateString() : '—',
+      ]),
+      theme: 'striped',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 5, lineColor: [226, 232, 240], lineWidth: 0.3 },
+      headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      showHead: 'everyPage',
+    });
   }
 
   stampPdfFooters(doc, {
@@ -1131,6 +1330,104 @@ async function renderCohortPdf(cohortData, reportId) {
   });
 
   return doc;
+}
+
+/* --------------------------------------------------------- I: progress snapshot PDF */
+/* renderProgressSnapshotPdf(): human-readable companion to the JSON recovery
+ * file the bulk "Save Progress File (All Students)" button downloads. The
+ * JSON stays the restore-workflow artifact (ADMIN_RESET_FLOW.md); this is a
+ * plain roster table for a human to skim, styled after the cohort report's
+ * header/footer/roster conventions but deliberately lighter — no compliance
+ * table, no audit trail (see downloadProgressSnapshotPdf() below): it's a
+ * working reference snapshot, not a durable institutional record. */
+async function renderProgressSnapshotPdf(scopedRows, options, reportId) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape' });
+  const marginX = 40;
+
+  applyPdfMetadata(doc, {
+    title: 'Mission Next Technical Academy — Student Progress Snapshot',
+    subject: `Student progress snapshot covering ${scopedRows.length} student account(s) in scope`,
+    reportId,
+  });
+
+  const scopeLine = `Scope: ${options.trackFilter ? `Track ${options.trackFilter}` : 'All tracks'}` +
+    `${options.hideNotStarted ? ', Not Started hidden' : ''}, enrolled students only — ${scopedRows.length} account(s) included`;
+
+  let cursorY = await drawPdfHeader(doc, {
+    title: 'Student Progress Snapshot',
+    reportTypeLabel: 'REPORT TYPE: PROGRESS SNAPSHOT (WORKING REFERENCE)',
+    metaLines: [
+      `Report ID: ${reportId}`,
+      `Generated: ${formatGeneratedTimestamp(options.capturedAt)}`,
+    ],
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFillColor(...PDF_AMBER_BG);
+  doc.setDrawColor(...PDF_AMBER);
+  doc.roundedRect(marginX, cursorY, pageWidth - marginX * 2, 24, 4, 4, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...PDF_AMBER);
+  doc.text('Working reference snapshot — not an official record and not a substitute for the Cohort / Annual Progress Report.', marginX + 9, cursorY + 15, { maxWidth: pageWidth - marginX * 2 - 18 });
+  cursorY += 32;
+
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(marginX, cursorY, pageWidth - marginX * 2, 20, 4, 4, 'FD');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...PDF_NAVY);
+  doc.text(scopeLine, marginX + 10, cursorY + 13, { maxWidth: pageWidth - marginX * 2 - 20 });
+  cursorY += 32;
+
+  cursorY = ensureSpace(doc, cursorY, 20);
+
+  if (scopedRows.length === 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_GRAY);
+    doc.text('No enrolled student accounts matched the selected scope for this snapshot.', marginX, cursorY + 14);
+  } else {
+    doc.autoTable({
+      startY: cursorY,
+      margin: { left: marginX, right: marginX, bottom: 60 },
+      head: [['Student ID', 'Track', 'Program', 'Enrollment', '% Complete', 'Modules', 'Capstone Score', 'Last Active']],
+      body: scopedRows.map((row) => [
+        row.student_id,
+        row.track_code || '—',
+        row.program_slug || '—',
+        row.adminStateLabel || (row.enrolled !== false ? 'Enrolled' : 'Disenrolled'),
+        fmtPct(row.percent_complete),
+        `${fmtVal(row.modules_complete)}/${fmtVal(row.modules_total)}`,
+        (row.capstone_overall_score === null || row.capstone_overall_score === undefined) ? '—' : fmtScore(row.capstone_overall_score),
+        row.last_active ? new Date(row.last_active).toLocaleDateString() : '—',
+      ]),
+      theme: 'striped',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 5, lineColor: [226, 232, 240], lineWidth: 0.3 },
+      headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      showHead: 'everyPage',
+    });
+  }
+
+  stampPdfFooters(doc, {
+    reportId,
+    confidentiality: 'CONFIDENTIAL — Student education records. Distribute only to authorized personnel.',
+    dataSourceNote: `Source: admin dashboard current-state roster — as of ${formatGeneratedTimestamp(options.capturedAt)}`,
+  });
+
+  return doc;
+}
+
+async function downloadProgressSnapshotPdf(scopedRows, options) {
+  assertPdfRuntime();
+  const reportId = newReportId('PS');
+  const doc = await renderProgressSnapshotPdf(scopedRows, options, reportId);
+  const dateStamp = new Date(options.capturedAt).toISOString().slice(0, 10);
+  await doc.save(`student-progress-snapshots-${dateStamp}.pdf`, { returnPromise: true });
+  return reportId;
 }
 
 async function renderComplianceGapPdf(report, reportId) {
@@ -1166,7 +1463,7 @@ async function renderComplianceGapPdf(report, reportId) {
 
   doc.autoTable({
     startY: cursorY,
-    margin: { left: marginX, right: marginX },
+    margin: { left: marginX, right: marginX, bottom: 60 },
     head: [['Requirement', 'Status', 'Data source', 'Evidence included', 'Missing fields', 'Owner', 'Remediation target', 'Last validation']],
     body: report.reportingRequirements.map((r) => {
       const style = PDF_COMPLIANCE_STYLE[r.status] || PDF_COMPLIANCE_STYLE.unknown;
@@ -1394,7 +1691,7 @@ async function renderTranscriptPdf(transcriptData, reportId) {
   } else {
     doc.autoTable({
       startY: cursorY + 6,
-      margin: { left: marginX, right: marginX },
+      margin: { left: marginX, right: marginX, bottom: 60 },
       head: [['Module', 'Start Date', 'Completion Date', 'Attempted / Attended Hrs', 'Score', 'Grade']],
       body: transcriptData.modules.map((m) => [
         m.title,
@@ -1530,7 +1827,7 @@ async function renderEvidencePdf(evidenceData, reportId) {
   } else {
     doc.autoTable({
       startY: cursorY + 6,
-      margin: { left: marginX, right: marginX },
+      margin: { left: marginX, right: marginX, bottom: 60 },
       head: [['Module', 'Lab', 'Status', 'Completed', 'Score', 'Evaluator', 'Supervision']],
       body: evidenceData.labs.map((l) => [
         l.moduleTitle,
@@ -1565,7 +1862,7 @@ async function renderEvidencePdf(evidenceData, reportId) {
       doc.text('Rubric-Category / Competency Breakdown', marginX, cursorY);
       doc.autoTable({
         startY: cursorY + 6,
-        margin: { left: marginX, right: marginX },
+        margin: { left: marginX, right: marginX, bottom: 60 },
         head: [['Lab', 'Rubric Category / Competency', 'Value']],
         body: rubricRows,
         theme: 'striped',
@@ -1641,7 +1938,7 @@ async function renderEvidencePdf(evidenceData, reportId) {
       ];
       doc.autoTable({
         startY: cursorY + 4,
-        margin: { left: marginX, right: marginX },
+        margin: { left: marginX, right: marginX, bottom: 60 },
         head: [dims.map((d) => d[0])],
         body: [dims.map((d) => fmtScore(d[1]))],
         theme: 'grid',
@@ -1858,6 +2155,7 @@ function computeCapstoneRecord(program, labAttemptRows, capstoneSubmissionRows, 
       scorecard: null,
       criticalErrorGate: null,
       rubricsApplied: [],
+      review: { status: 'not_applicable', outcome: null, reviewedBy: null, reviewedAt: null, notes: null, supervisionMethod: null },
     };
   }
   const capstoneLabAttempts = labAttemptRows
@@ -2126,7 +2424,7 @@ async function buildEvidencePacketData(studentId, identity) {
   const moduleScores = program ? computeModuleScores(program, bundle.moduleProgressRows, bundle.labAttemptRows) : [];
   const capstoneRecord = program
     ? computeCapstoneRecord(program, bundle.labAttemptRows, bundle.capstoneSubmissionRows, bundle.scorecardRow, bundle.artifactRows, bundle.capstoneReviewRows)
-    : { title: 'N/A', status: 'not_applicable', statusLabel: 'No program supplied', score: null, stages: [], scorecard: null, criticalErrorGate: null, rubricsApplied: [] };
+    : { title: 'N/A', status: 'not_applicable', statusLabel: 'No program supplied', score: null, stages: [], scorecard: null, criticalErrorGate: null, rubricsApplied: [], review: { status: 'not_applicable', outcome: null, reviewedBy: null, reviewedAt: null, notes: null, supervisionMethod: null } };
 
   const labs = moduleScores.flatMap((m) =>
     m.labAttempts.map((a) => ({
@@ -2448,7 +2746,7 @@ function persistPortfolioArtifact(user, { moduleKey, labKey, kind, title, conten
 /* --------------------------------------------------------- capstone_submissions (Supabase) */
 /* architecture.md §3 Sprint 4, scope confirmed against CURRICULUM_ALIGNMENT_ARCHITECTURE.md
  * §5 ("12 stages remain one Prove assessment"): there is no 12-stage capstone
- * flow, and none is being built here. Module 12 (portal/module-12.js) IS the
+ * flow, and none is being built here. Module 12 (portal/soc-analyst-module-12.js) IS the
  * capstone, graded once by its own moduleTwelveScore(). `stage` in the schema
  * is a 1-12 check constraint left over from an earlier per-stage design, but
  * since the capstone is always module 12, this always writes stage = 12 — a
@@ -2473,7 +2771,7 @@ function persistPortfolioArtifact(user, { moduleKey, labKey, kind, title, conten
  * errors are logged, never swallowed; never awaited by the caller. Call this
  * only on an actual pass — capstone_submissions has no `state` column to mark
  * an in-progress/failed attempt, so a failed submit is not written here (it is
- * still captured by module-12.js's existing recordLabAttempt() call for
+ * still captured by soc-analyst-module-12.js's existing recordLabAttempt() call for
  * lab_key 'lab-capstone', which does log every attempt, pass or fail). */
 function recordCapstoneSubmission(user, { score, answers = {}, criticalErrorCount = 0 } = {}) {
   if (!user || !user.userId || !user.trackCode) return;
@@ -3521,6 +3819,15 @@ function viewNotFound(user) {
   </section></main>${footer()}`;
 }
 
+// Persists the admin table's active sort column/direction across the full
+// app.innerHTML rebuilds render() does on every admin data refresh (enrollment
+// toggle, planning-record save, re-poll) — a DOM/element-local variable would
+// reset to the default sort on every one of those, same class of bug as the
+// pre-existing track-filter/hide-not-started reset weakness (NEXT_SESSION.md
+// 2026-08-31 sortable-columns sprint). null key = default modules_complete/
+// last_active sort (unchanged from before this feature existed).
+let adminTableSort = { key: null, dir: 1 };
+
 function viewAdmin(user, rows, error, activeStudents) {
   activeStudents = activeStudents || [];
   // Summary statistics are based on the local dashboard state, not the raw
@@ -3670,14 +3977,14 @@ function viewAdmin(user, rows, error, activeStudents) {
                    <table class="w-full border-collapse">
                      <thead>
                        <tr class="border-b border-gray-200 bg-gray-50">
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Student ID</th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Track</th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Program</th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Enrollment</th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Progress</th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Modules</th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Capstone</th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Last Active</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="studentId">Student ID<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="track">Track<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="program">Program<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="progress">Progress<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="modules">Modules<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="capstone">Capstone<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="lastActive">Last Active<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
                        </tr>
                      </thead>
@@ -3870,15 +4177,22 @@ function wireLogin() {
     e.preventDefault();
     const email = form.email.value;
     const password = form.password.value;
-    if (await signIn(email, password)) {
+    const user = await signIn(email, password);
+    if (user) {
       // A completed console walkthrough can return in its own tab after the
       // original module tab was closed. Preserve that verified return route;
-      // ordinary sign-ins still land on the portal home.
+      // ordinary sign-ins land on the student's active programme instead of
+      // the #/portal catalogue (STUDENT_LOGIN_COURSEWORK_REDIRECT.md). Admins
+      // are sent on to #/admin by render()'s admin-only rule regardless of
+      // where we land them here. A student with no active enrolment (or one
+      // not yet mapped to a programme) still falls back to #/portal.
       const coachReturn = new URLSearchParams(location.search).get('coachComplete');
       const returnToModule = coachReturn === 'm01' && location.hash === '#/program/soc-analyst/module/1';
+      const activeEnrollment = user.enrollments.find((e) => e.status === 'active');
+      const destination = activeEnrollment ? '#/program/' + activeEnrollment.programSlug : '#/portal';
       history.replaceState(null, '', returnToModule
         ? location.pathname + location.search + location.hash
-        : '#/portal');
+        : destination);
       render();
     } else {
       document.getElementById('login-error').classList.remove('hidden');
@@ -3930,6 +4244,83 @@ function wireAdmin(dashboardRows, activeStudents) {
   const tableRows = document.querySelectorAll('.admin-table-row');
   const status = document.getElementById('admin-report-status');
 
+  // Sortable column headers. rowPairs zips each rendered <tr> with the
+  // dashboardRows entry it was built from (same order — viewAdmin rendered
+  // them from this exact array) so sorting never needs a Supabase re-fetch
+  // or a full render(): it just reorders existing DOM nodes.
+  const sortHeaders = document.querySelectorAll('[data-sort-key]');
+  const tableBodyEl = document.getElementById('admin-table-body');
+  const rowPairs = Array.from(tableRows).map((el, i) => ({ el, row: dashboardRows[i] }));
+  const sortGetters = {
+    studentId: (r) => r.student_id || '',
+    track: (r) => r.track_code || '',
+    program: (r) => r.program_slug || '',
+    enrollment: (r) => (r.enrolled !== false ? 1 : 0),
+    progress: (r) => (r.percent_complete === null || r.percent_complete === undefined ? null : r.percent_complete),
+    modules: (r) => (r.modules_complete === null || r.modules_complete === undefined ? null : r.modules_complete),
+    capstone: (r) => (r.capstone_overall_score === null || r.capstone_overall_score === undefined ? null : r.capstone_overall_score),
+    lastActive: (r) => (r.last_active ? new Date(r.last_active).getTime() : null),
+  };
+
+  function compareRows(a, b, key, dir) {
+    const get = sortGetters[key];
+    if (!get) return 0;
+    const aVal = get(a.row);
+    const bVal = get(b.row);
+    if (typeof aVal === 'string' || typeof bVal === 'string') {
+      return String(aVal).localeCompare(String(bVal)) * dir;
+    }
+    // Nulls (e.g. no capstone score yet, never active) always sort to one
+    // consistent end regardless of direction, per the sprint's null-handling
+    // requirement — never `new Date(null)`, never let a reversed sort
+    // scatter blanks through the middle of the table.
+    const aNull = aVal === null || aVal === undefined;
+    const bNull = bVal === null || bVal === undefined;
+    if (aNull && bNull) return 0;
+    if (aNull) return 1;
+    if (bNull) return -1;
+    return (aVal - bVal) * dir;
+  }
+
+  function updateSortArrows() {
+    sortHeaders.forEach((th) => {
+      const arrow = th.querySelector('[data-sort-arrow]');
+      if (!arrow) return;
+      arrow.textContent = th.dataset.sortKey === adminTableSort.key ? (adminTableSort.dir === 1 ? '▲' : '▼') : '';
+    });
+  }
+
+  function applySort() {
+    if (!adminTableSort.key || !tableBodyEl || rowPairs.length === 0) return;
+    rowPairs.sort((a, b) => compareRows(a, b, adminTableSort.key, adminTableSort.dir));
+    rowPairs.forEach((pair) => tableBodyEl.appendChild(pair.el));
+    updateSortArrows();
+    applyFilters();
+  }
+
+  sortHeaders.forEach((th) => {
+    th.setAttribute('tabindex', '0');
+    th.setAttribute('role', 'button');
+    const activate = () => {
+      const key = th.dataset.sortKey;
+      if (adminTableSort.key === key) {
+        adminTableSort.dir *= -1;
+      } else {
+        adminTableSort = { key, dir: 1 };
+      }
+      applySort();
+    };
+    th.addEventListener('click', activate);
+    th.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+    });
+  });
+
+  // Re-apply a sort chosen before this render() (e.g. before an enrollment
+  // toggle triggered a full rebuild) so it survives the rebuild instead of
+  // silently resetting to the default modules_complete/last_active order.
+  applySort();
+
   function applyFilters() {
     const selectedTrack = trackFilter ? trackFilter.value : '';
     const hideNotStartedChecked = hideNotStarted ? hideNotStarted.checked : false;
@@ -3980,8 +4371,9 @@ function wireAdmin(dashboardRows, activeStudents) {
       if (status) status.textContent = `Could not save the planning record: ${error.message || 'the enrollment-reporting migration may not be deployed yet.'}`;
       return;
     }
-    if (status) status.textContent = `Saved the current enrollment planning record for ${studentId}.`;
-    render();
+    await render();
+    const nextStatus = document.getElementById('admin-report-status');
+    if (nextStatus) nextStatus.textContent = `Saved the current enrollment planning record for ${studentId}.`;
   });
 
   function identityForRow(row) {
@@ -4072,16 +4464,25 @@ function wireAdmin(dashboardRows, activeStudents) {
    * component, per the remediation plan's "keep it simple" instruction. */
   const bulkButtons = document.querySelectorAll('[data-action="admin-generate-report"]');
   bulkButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const preview = document.getElementById('admin-report-preview');
       if (!preview) return;
       // D4: preview/generate for the admin's *current* filters, not always
       // the full dashboardRows — matches what's visible in the table now.
+      const periodStart = reportingPeriodStart ? reportingPeriodStart.value : null;
+      const periodEnd = reportingPeriodEnd ? reportingPeriodEnd.value : null;
+      const activeTrackFilter = trackFilter ? trackFilter.value : '';
+      btn.disabled = true;
+      if (periodStart && periodEnd && status) status.textContent = 'Calculating period-bounded annual counts…';
+      const annualCounts = await fetchAnnualReportingCounts(periodStart, periodEnd, activeTrackFilter);
+      btn.disabled = false;
+      if (status) status.textContent = '';
       const report = buildCohortReportData(dashboardRows, {
-        trackFilter: trackFilter ? trackFilter.value : '',
+        trackFilter: activeTrackFilter,
         hideNotStarted: hideNotStarted ? hideNotStarted.checked : false,
-        reportingPeriodStart: reportingPeriodStart ? reportingPeriodStart.value : null,
-        reportingPeriodEnd: reportingPeriodEnd ? reportingPeriodEnd.value : null,
+        reportingPeriodStart: periodStart,
+        reportingPeriodEnd: periodEnd,
+        annualCounts,
       });
       const warnings = report.reportingRequirements.filter((r) => r.status !== 'covered');
       preview.innerHTML = `
@@ -4180,7 +4581,7 @@ function wireAdmin(dashboardRows, activeStudents) {
       const scopedRows = dashboardRows.filter((row) => {
         const trackMatch = !selectedTrack || row.track_code === selectedTrack;
         const started = (row.modules_complete || 0) > 0 || (row.modules_in_progress || 0) > 0;
-        return trackMatch && (!hideNotStartedChecked || started);
+        return trackMatch && (!hideNotStartedChecked || started) && row.enrolled !== false;
       });
       btn.disabled = true;
       if (status) status.textContent = `Preparing progress files for 0 of ${scopedRows.length} student account(s)…`;
@@ -4198,7 +4599,9 @@ function wireAdmin(dashboardRows, activeStudents) {
           scope: { trackFilter: selectedTrack || null, hideNotStarted: hideNotStartedChecked, includedAccounts: snapshots.length },
           snapshots,
         }, `student-progress-snapshots-${capturedAt.slice(0, 10)}.json`);
-        if (status) status.textContent = `Saved one recovery file containing ${snapshots.length} student progress snapshot(s). No progress data was changed.`;
+        if (status) status.textContent = `Saving a readable PDF summary for ${scopedRows.length} student account(s)…`;
+        await downloadProgressSnapshotPdf(scopedRows, { trackFilter: selectedTrack || null, hideNotStarted: hideNotStartedChecked, capturedAt });
+        if (status) status.textContent = `Saved a recovery file and a readable PDF summary for ${snapshots.length} student progress snapshot(s). No progress data was changed.`;
       } catch (err) {
         console.error('Bulk progress snapshot failed', err);
         if (status) status.textContent = 'Could not create the combined progress file. No enrollment or progress data was changed.';

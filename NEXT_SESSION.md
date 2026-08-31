@@ -1,5 +1,18 @@
 # Next session — start here
 
+## Session 2026-08-31 (later, done) — cohort PDF linkage detail + sortable admin columns
+
+Both sprints below are done and verified — see
+`archive/completed-feature-notes/COHORT_PDF_LINKAGE_AND_SORTABLE_COLUMNS_2026-08-31.md`
+for the full write-up. Short version: the cohort PDF now prints a
+"Student-to-Program Linkage Detail" table (credential, enrollment date,
+scheduled start, completion date) backing the compliance badge that used to
+claim those fields without showing them; the admin table's 8 column headers
+are now clickable sort controls with a persisted, null-safe sort that
+survives `render()`'s full DOM rebuilds. Both verified live against the
+running dev server; `node --check portal/app.js` and
+`node bin/portal-check.js` clean.
+
 ## Session 2026-08-31 — Help Desk status check, git/Supabase sync audit, markdown cleanup
 
 **Help Desk (`it-support`/HDESK) course — status: not started beyond

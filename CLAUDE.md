@@ -14,3 +14,8 @@ linked remote project (`supabase migration list --linked`) —
 `REPORTING_REMEDIATION_CONTINUATION.md` still said the four newest
 migrations were "written only, not pushed"; that claim was stale, now
 corrected inline in that file.
+
+Doc lifecycle rule (`archive/README.md` "When to archive a doc"): once every
+task/checkbox in a root-level md doc — including a `NEXT_SESSION.md` sprint
+entry — is done and verified, move it into `archive/` with `git mv` rather
+than leaving it at the root. Don't archive anything still partially open.

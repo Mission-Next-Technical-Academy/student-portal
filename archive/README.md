@@ -6,6 +6,28 @@ deleted — full history is in git (`git log --follow -- archive/...`). None
 of this governs current decisions; see `NEXT_SESSION.md` and
 `CURRICULUM_ALIGNMENT_ARCHITECTURE.md` §0 at the repo root for that.
 
+## When to archive a doc
+
+Standing rule, not a one-time cleanup: whenever every task/checkbox tracked
+in a root-level markdown doc is complete (or the doc explicitly self-marks
+itself done/superseded), move that file into `archive/` — don't leave
+finished planning docs sitting at the root next to the ones still tracking
+open work. This applies to sprint entries added to `NEXT_SESSION.md` too:
+once a sprint entry's work is done and verified, it should move out of the
+active top of `NEXT_SESSION.md` into `archive/` (or be folded into a dated
+`archive/completed-feature-notes/` write-up) rather than accumulate
+indefinitely at the top of that file.
+
+- Use `git mv`, never delete — full history stays intact
+  (`git log --follow -- archive/<path>`).
+- File into the existing category it fits (`legacy-sc200-simulator/` for
+  pre-Mission-Next SC-200 material, `completed-feature-notes/` for shipped
+  feature/fix write-ups) or start a new category if neither fits.
+- Add an entry describing the file and why it's done to the matching section
+  below (or a new section) — don't just move the file silently.
+- If a doc is only *partially* done (some items still open), it stays at the
+  root; don't archive a doc with open items just to tidy up.
+
 ## `legacy-sc200-simulator/`
 
 Docs from the pre-Mission-Next SC-200 study/lab project and its early
@@ -42,6 +64,9 @@ of archiving:
   "Initial Access" evidence marker and auto-populating the final report from
   evidence) — worth a look if Module 7's evidence/report flow is revisited,
   but they didn't block shipping and aren't tracked elsewhere.
+- `COHORT_PDF_LINKAGE_AND_SORTABLE_COLUMNS_2026-08-31.md` — the cohort PDF's
+  Student-to-Program Linkage Detail table and the admin dashboard's sortable
+  column headers, both implemented and verified live this session.
 
 ## Still active, not archived
 
