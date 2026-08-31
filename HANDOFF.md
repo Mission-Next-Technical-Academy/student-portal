@@ -35,6 +35,17 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-08-31 portal refresh-progress fix:
+  - Committed and deployed `d7738d9` (`Persist module completion badges across
+    refresh`). `portal/app.js` now reads the signed-in student's
+    `module_progress` rows once per page session and treats a remote
+    `complete` state as completion when rendering module badges. This makes
+    completed work durable across browser refreshes and devices rather than
+    relying only on localStorage.
+  - Verified against `8987495051-SOCAN` through the student-authenticated RLS
+    path: `soc-01`, `soc-02`, and `soc-03` return `complete`; the Pages run
+    33436615308 completed successfully.
+
 - 2026-08-29 reporting/PDF final cleanup sprint:
   - Added the written-only `20260829133000_report_generation_audit.sql`
     migration for server-side report-generation audit metadata, report IDs,
