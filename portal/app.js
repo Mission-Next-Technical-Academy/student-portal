@@ -102,6 +102,12 @@ async function buildUserFromSession(session) {
     // _cachedUser caching as everything else on this object.
     userId: session.user.id,
     trackCode: studentRow ? studentRow.track_code : null,
+    // The fetch above ran, but this object never carried the result to its
+    // caller — moduleCompletion() read user.remoteModuleProgress and always
+    // got undefined, so the database fallback this commit was supposed to
+    // add silently never fired: badges still went gray on every refresh or
+    // new device, exactly the bug this was meant to fix.
+    remoteModuleProgress,
   };
 }
 
