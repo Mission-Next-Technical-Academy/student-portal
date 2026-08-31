@@ -5,7 +5,8 @@
 #   bin/run-module-agents.sh -t 4 5 6     each agent in its own terminal window
 #
 # Parallel is safe because of the registry refactor: an agent writes only
-# portal/module-NN.js, portal/module-NN.css and .agent-logs/module-NN-report.md.
+# portal/soc-analyst-module-NN.js, portal/soc-analyst-module-NN.css and
+# .agent-logs/module-NN-report.md.
 # Nothing shared is edited, so there is nothing to serialize. The orchestrator
 # reviews and commits; agents never run git.
 #
@@ -36,7 +37,7 @@ Read first, in this order:
   MODULE_STANDARD.md               — the canonical module shape, non-negotiable.
   MNT_DESIGN_TOKENS.md             — colors, type, spacing.
   PROJECT_GUIDE_FOR_AI.md          — house rules and code patterns.
-  portal/module-01.js + module-labs.css — the reference implementation. Match its depth,
+  portal/soc-analyst-module-01.js + module-labs.css — the reference implementation. Match its depth,
                                      structure and quality. Do not copy it verbatim and do
                                      not produce a reskin of it.
   portal/lab-runtime.js            — the only sanctioned state store (LabRuntime.load /
@@ -47,11 +48,11 @@ Read first, in this order:
 
 YOU MAY WRITE EXACTLY THREE FILES. Editing anything else breaks the other agents
 running right now:
-  portal/module-${nn}.js
-  portal/module-${nn}.css      (prefix every selector .m${nn}- so it cannot leak)
+  portal/soc-analyst-module-${nn}.js
+  portal/soc-analyst-module-${nn}.css      (prefix every selector .m${nn}- so it cannot leak)
   .agent-logs/module-${nn}-report.md
 
-portal/module-${nn}.js must end with:
+portal/soc-analyst-module-${nn}.js must end with:
   registerModuleLab({ program: 'soc-analyst', moduleNumber: ${n}, moduleKey: 'soc-${nn}',
     view: <your view fn>, wire: <your wire fn> });
 view(user, program) returns the module's full HTML as a string; wire() runs after every
@@ -85,7 +86,7 @@ Hard rules:
 - Scoring must be explainable — show the student why they got what they got.
 
 Before you finish:
-1. node --check portal/module-${nn}.js
+1. node --check portal/soc-analyst-module-${nn}.js
 2. node bin/portal-check.js ${n}          (must print "module ${n}  OK")
 3. Write .agent-logs/module-${nn}-report.md: what you built, the scoring model, the
    storage key, and the verification you ran. Match HANDOFF.md's style; the orchestrator

@@ -57,18 +57,18 @@ const EXPECTED_LABS = [
 ];
 
 const EXPECTED_RUNTIME_IDS = {
-  'module-01.js': ['m01-first-soc-alert-v2'],
-  'module-02.js': ['m02-trust-path-review-v1'],
-  'module-03.js': ['m03-siem-signal-room-v1'],
-  'module-04.js': ['m04-detection-enrichment-v1'],
-  'module-05.js': ['m05-endpoint-chain-v1'],
-  'module-06.js': ['m06-hypothesis-hunt-v1'],
-  'module-07.js': ['m07-network-email-investigation-v1'],
-  'module-08.js': ['m08-exposure-prioritization-v1', 'm08-vulnerability-queue-v1'],
-  'module-09.js': ['m09-proportional-response-v1'],
-  'module-10.js': ['m10-evidence-custody-v1', 'm10-forensic-mapping-v1'],
-  'module-11.js': ['m11-soc-metrics-v1', 'm11-executive-report-v1'],
-  'module-12.js': ['m12-integrated-capstone-v1'],
+  'soc-analyst-module-01.js': ['m01-first-soc-alert-v2'],
+  'soc-analyst-module-02.js': ['m02-trust-path-review-v1'],
+  'soc-analyst-module-03.js': ['m03-siem-signal-room-v1'],
+  'soc-analyst-module-04.js': ['m04-detection-enrichment-v1'],
+  'soc-analyst-module-05.js': ['m05-endpoint-chain-v1'],
+  'soc-analyst-module-06.js': ['m06-hypothesis-hunt-v1'],
+  'soc-analyst-module-07.js': ['m07-network-email-investigation-v1'],
+  'soc-analyst-module-08.js': ['m08-exposure-prioritization-v1', 'm08-vulnerability-queue-v1'],
+  'soc-analyst-module-09.js': ['m09-proportional-response-v1'],
+  'soc-analyst-module-10.js': ['m10-evidence-custody-v1', 'm10-forensic-mapping-v1'],
+  'soc-analyst-module-11.js': ['m11-soc-metrics-v1', 'm11-executive-report-v1'],
+  'soc-analyst-module-12.js': ['m12-integrated-capstone-v1'],
 };
 
 const errors = [];
@@ -319,7 +319,7 @@ if (program) {
     if (Array.isArray(lab.parentAllocations)) addParentMinutes(parentRollup, lab);
 
     const moduleNumber = String(program.modules[lab.module] && program.modules[lab.module].number).padStart(2, '0');
-    const moduleFile = path.join(ROOT, 'portal', `module-${moduleNumber}.js`);
+    const moduleFile = path.join(ROOT, 'portal', `soc-analyst-module-${moduleNumber}.js`);
     assert(fs.existsSync(moduleFile), `${label} module file is missing`);
     if (fs.existsSync(moduleFile)) {
       const moduleSource = fs.readFileSync(moduleFile, 'utf8');

@@ -108,7 +108,7 @@ ctx.URLSearchParams = URLSearchParams;
 ctx.URL = URL;
 
 const files = ['data.js', 'lab-runtime.js', 'module-registry.js',
-  ...fs.readdirSync(PORTAL).filter((f) => /^module-\d\d\.js$/.test(f)).sort(),
+  ...fs.readdirSync(PORTAL).filter((f) => /-module-\d\d\.js$/.test(f)).sort(),
   'app.js'];
 
 for (const file of files) {

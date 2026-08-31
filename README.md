@@ -54,7 +54,11 @@ portal/
   data.js         Catalogue: 4 programs x 12 modules, the LABS array, demo accounts
   app.js          Hash router, mock auth, entitlement gating, all portal views
   lab-runtime.js  Per-lab localStorage isolation — one lab's reset cannot wipe another's
-  module-01.js    Module 1's self-contained miniature lab
+  soc-analyst-module-01.js  Module 1's self-contained miniature lab. Filenames are
+                    program-prefixed (soc-analyst-, it-support-, ai-ml-,
+                    electrical-) so no two tracks' modules ever share a name;
+                    only soc-analyst has real content, the other three tracks
+                    have a blank module-01 stub claiming their registry slot.
   module-labs.css Lab styling
 ui/               The simulator (inherited SC-200 lab, rebranded)
 supabase/         Postgres schema + RLS for the real backend that replaces mock auth
