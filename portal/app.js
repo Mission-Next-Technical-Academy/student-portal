@@ -67,6 +67,29 @@ async function buildUserFromSession(session) {
     ? [{ programSlug, status: 'active', accessMode: 'full', modules: [], purchasedAt: null }]
     : [];
 
+  // moduleCompletion() previously judged "complete" from browser-local
+  // engagement (localStorage) alone, with no fallback to the module_progress
+  // rows Supabase actually holds. That meant a student's real progress
+  // (written from whichever browser/device they did the work on) went
+  // invisible — back to gray/"Not Started" — the moment they opened the
+  // portal from a different browser or cleared storage, even though the
+  // database, admin dashboard, and Last Active all agreed the module was
+  // done. Fetched once per session here, alongside the studentRow query
+  // already run for every login, and cached on the user object the same way.
+  let remoteModuleProgress = {};
+  if (studentRow && studentRow.track_code) {
+    const { data: progressRows, error: progressError } = await mntSupabase
+      .from('module_progress')
+      .select('module_key, state')
+      .eq('user_id', userId)
+      .eq('track_code', studentRow.track_code);
+    if (progressError) {
+      console.error('buildUserFromSession: module_progress fetch failed', progressError);
+    } else {
+      remoteModuleProgress = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.state]));
+    }
+  }
+
   return {
     email: session.user.email,
     username: studentRow ? studentRow.student_id : session.user.email,
@@ -2802,11 +2825,20 @@ function recordCapstoneSubmission(user, { score, answers = {}, criticalErrorCoun
 function moduleCompletion(program, moduleKey, user) {
   const module = program.modules[moduleKey];
   const fixtureState = (user.progress || {})[moduleKey] || 'not_started';
+  // The database's own record of this module, independent of which browser/
+  // device the student is on right now. A 'complete' row here only ever gets
+  // written (markModuleCompleteRemote) after this same completeness check
+  // already passed once on whichever device did the work, so trusting it
+  // outright — rather than re-deriving from local engagement — can't
+  // falsely mark an untouched module complete.
+  const remoteState = (user.remoteModuleProgress || {})[moduleKey];
+  const remoteComplete = remoteState === 'complete';
   const engagement = loadModuleEngagement(user);
   const moduleId = moduleEngagementId(program.slug, moduleKey);
   const labs = programLabs(program).filter((lab) => lab.module === moduleKey);
-  const contentOpened = fixtureState === 'complete' || engagement.openedModules.includes(moduleId);
-  const allLabsComplete = labs.every((lab) => {
+  const contentOpened = fixtureState === 'complete' || remoteComplete || remoteState === 'in_progress'
+    || engagement.openedModules.includes(moduleId);
+  const allLabsComplete = remoteComplete || labs.every((lab) => {
     const engagementComplete = engagement.completedLabs.includes(moduleLabEngagementId(program.slug, moduleKey, lab.key));
     if (moduleKey === 'soc-01' && (lab.key === 'lab-soc-environment' || lab.key === 'lab-soc-escalation')) {
       const guidedLabState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
