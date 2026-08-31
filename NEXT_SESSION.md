@@ -1,5 +1,60 @@
 # Next session — start here
 
+## Session 2026-08-31 — Help Desk status check, git/Supabase sync audit, markdown cleanup
+
+**Help Desk (`it-support`/HDESK) course — status: not started beyond
+labels/reference docs, and git and Supabase agree on that.**
+
+- Git: `portal/data.js`'s `it-support` program entry has `isPublished: false`
+  and its 12 modules are built via the `skeleton()` helper — module titles
+  only, `status: 'draft'`, `summary: 'Curriculum content for this module is
+  being authored.'` No lesson, lab, or assessment content exists for this
+  track anywhere in `portal/` or `ui/`. (`ui/helpdesk.js` /
+  `ui/helpdesk-data.js` are unrelated — they're part of the old SC-200
+  simulator's ticket-queue widget, last touched 2026-08-17, not an IT Help
+  Desk course track.)
+- Supabase (live, confirmed via `supabase db query --linked`): 20 `HDESK`
+  track_code student accounts exist (provisioned alongside SOCAN/AIENG/ELECT
+  per `bin/provision-students.js`), and `module_progress`'s `track_code`
+  check constraint already accepts `'HDESK'`. No module_progress rows exist
+  for them, which is consistent with there being no course content to
+  attempt yet — not a bug.
+- Reference material only, not build work: the four Form 301/curriculum docs
+  under `MNT Academy - IT Help Desk Curriculum Build-.../` (and the matching
+  `.zip`) are source material for a future Help Desk curriculum build, per
+  `CURRICULUM_ALIGNMENT_ARCHITECTURE.md` §1: "The IT Help Desk skeleton's 12
+  module labels already match that program's recommended mapping, but it is
+  not publishable... This SOC wave must not invent that missing Help Desk
+  decision." That's still true — nothing in this session changed it.
+- **Conclusion: no sync problem for Help Desk specifically** — both sides
+  correctly reflect "not built yet." If a Help Desk build sprint is wanted,
+  it starts from zero (no existing lesson data to migrate or reconcile).
+
+**Supabase migration sync, checked broadly (not just Help Desk):** all 16
+local migration files under `supabase/migrations/` are applied on the linked
+remote project (`supabase migration list --linked` — Local and Remote match
+on every timestamp through `20260829133000`). Two handoff docs
+(`REPORTING_REMEDIATION_CONTINUATION.md`, and this file's own prior wording)
+still described the four newest migrations as unpushed — that was stale;
+corrected in place. If you're ever unsure whether a migration is live, that
+command is the fast check — no need to re-derive it from doc trails.
+
+**Markdown cleanup:** moved 15 completed/historical root-level docs into
+`archive/legacy-sc200-simulator/` and `archive/completed-feature-notes/`
+(see `archive/README.md` for the full list and reasoning). Nothing was
+deleted — git history is intact. Root now holds only docs that are either
+current/open work or still-accurate reference material for shipped code.
+Two files were checked and confirmed **still open, not archived**:
+`STUDENT_LOGIN_COURSEWORK_REDIRECT.md` (the redirect it specs is not present
+in `wireLogin()` in `portal/app.js` — still just a spec) and the polished
+in-page reset/snapshot modal requested in the session below (no
+`reset-modal`/snapshot-modal code found in `portal/app.js` either — still
+just `ADMIN_RESET_FLOW.md`'s manual AI-agent runbook as a workaround).
+
+None of this changed any code — it's a documentation/organization pass only.
+The two open items above (student post-login redirect, admin reset modal)
+remain the actual next-session work, same as they were before this pass.
+
 ## Session 2026-08-29 (current) — admin dashboard runtime fix
 
 The admin route in `portal/app.js` had a render-path scope bug and a half-migrated enrollment flow. This session fixed both: `dashboardRows` now survives the admin render branch, and the enrollment toggle writes `students.is_enrolled` directly to Supabase on change with an inline disenrollment confirm. The stale local pending/save-button flow was removed; report export still works and now reflects the remote enrollment state plus local report-run history.

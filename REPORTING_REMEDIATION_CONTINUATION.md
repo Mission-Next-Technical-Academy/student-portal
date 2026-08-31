@@ -1,16 +1,27 @@
 # Reporting/PDF remediation — continuation handoff
 
-Date: 2026-08-29  
+Date: 2026-08-29
 Status: final cleanup sprint complete; committed locally. Do not delete
-`REPORTING_PDF_GAP_REMEDIATION_PLAN.md` yet because unapplied migrations and
-operational retention decisions remain.
+`REPORTING_PDF_GAP_REMEDIATION_PLAN.md` yet because operational retention
+decisions remain (see below).
+
+**2026-08-31 correction:** this file's "unapplied migrations" language below
+is stale. `supabase migration list --linked` now shows all of
+`20260829120000`, `20260829125000`, `20260829130000`, and `20260829133000`
+applied on both Local and Remote — the site owner has since run
+`supabase db push`. Item 1 under "Remaining operational work" is done;
+items 2-5 (annual-report query wiring, legal-name source, PDF-byte retention
+policy, full browser QA pass) are still open.
 
 ## Direction
 
 Finish every applicable workstream in `REPORTING_PDF_GAP_REMEDIATION_PLAN.md`,
 then run the Agent 9 QA matrix and verify the acceptance criteria in section
-12. Migrations are **written only**: do not run `supabase db push` or alter
-the live Supabase project without explicit user approval.
+12. ~~Migrations are **written only**: do not run `supabase db push` or alter
+the live Supabase project without explicit user approval.~~ (2026-08-31: the
+site owner has since pushed all of them — see correction above. This
+sentence is left for historical context; it no longer describes the current
+state.)
 
 ## Completed in this session
 
@@ -52,8 +63,9 @@ the live Supabase project without explicit user approval.
 
 ## Remaining operational work
 
-1. Apply/review the written Supabase migrations through the authorized database
-   process. They were not pushed to Supabase or applied by this sprint.
+1. ~~Apply/review the written Supabase migrations through the authorized
+   database process.~~ **Done, confirmed 2026-08-31** via
+   `supabase migration list --linked`.
 2. Integrate `admin_enrollment_reporting` into a true historical annual report
    query once the enrollment-history migration is live.
 3. Add the approved student legal-name/lawful-substitute source.
