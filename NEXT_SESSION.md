@@ -1,6 +1,6 @@
 # Next session — start here
 
-## Session 2026-09-01 (latest, done — needs a push) — idle sign-out had no server-side enforcement
+## Session 2026-09-01 (done — pushed and verified live) — idle sign-out had no server-side enforcement
 
 Site owner tested the idle timer directly: left a real admin tab open,
 checked back over an hour later, and it was still signed in and still
@@ -51,13 +51,14 @@ enforcement.sql`:
   writing this entry — applied cleanly, `close_idle_site_sessions()` ran
   without error. `node --check portal/app.js` clean.
 
-**Not yet pushed.** Needs `supabase db push` before the sweep actually runs
-— until then, the client-side timer alone is still all that exists (same
-gap as before, not made worse). Keep `MNT_IDLE_TIMEOUT_MS` (portal/app.js)
-and the `interval '60 minutes'` in `close_idle_site_sessions()` in sync by
-hand if the timeout duration ever changes — they're two independent
-definitions of "60 minutes," one in JS and one in SQL, not a shared
-constant.
+**Pushed** (`supabase db push`) and confirmed live against the linked
+project: `site_sessions.last_seen_at` exists, `close_idle_site_sessions()`
+exists, and the `close-idle-site-sessions` pg_cron job is registered and
+active on a `*/5 * * * *` schedule. The sweep is now the real
+server-side backstop. Keep `MNT_IDLE_TIMEOUT_MS` (portal/app.js) and the
+`interval '60 minutes'` in `close_idle_site_sessions()` in sync by hand if
+the timeout duration ever changes — they're two independent definitions of
+"60 minutes," one in JS and one in SQL, not a shared constant.
 
 ## Session 2026-09-01 (done — both pieces deployed) — idle timer migration pushed + record-login-geo actually deployed
 

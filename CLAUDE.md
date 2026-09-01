@@ -8,13 +8,13 @@ opened the session stayed alive and unthrottled. Fixed with a heartbeat
 column plus a `pg_cron` sweep, `close_idle_site_sessions()`, mirroring
 `archive_expired_cohorts()`'s guard pattern
 (`supabase/migrations/20260901150000_site_sessions_idle_enforcement.sql`) —
-**not yet pushed**, needs `supabase db push`. Separately, "Generate New
-Cohort" no longer takes an end date (always start date + 6 weeks) and a
-legacy-account credential backfill both shipped and are already deployed —
-see `NEXT_SESSION.md` for the two other still-open migrations
-(`20260901140000_site_sessions_idle_timeout.sql`'s own push status is
-resolved; the new `20260901150000` one above is the current gap). Older
-open items: a student reported no green "complete" badges on modules after
+**pushed and confirmed live** (`supabase db push`, then verified directly:
+`site_sessions.last_seen_at` exists, `close_idle_site_sessions()` exists,
+and the `close-idle-site-sessions` pg_cron job is registered and active on
+a `*/5 * * * *` schedule). Separately, "Generate New Cohort" no longer
+takes an end date (always start date + 6 weeks) and a legacy-account
+credential backfill both shipped and are already deployed. Older open
+items: a student reported no green "complete" badges on modules after
 refreshing the portal, not yet reproduced — environment, account, and
 console-error details are still needed from the user before this can be
 debugged. The admin per-student reset still needs a polished in-page
