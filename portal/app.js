@@ -156,10 +156,41 @@ function recordLoginEvent(user) {
   mntSupabase
     .from('login_events')
     .insert({ user_id: user.userId, student_id: user.username || null, track_code: user.trackCode || null })
-    .then(({ error }) => {
+    .select('id')
+    .single()
+    .then(({ data, error }) => {
       if (error) console.error('login_events insert failed', error);
+      else if (data && data.id) recordLoginGeo(data.id);
     })
     .catch((err) => console.error('login_events insert threw', err));
+}
+
+/* Location enrichment for the row recordLoginEvent() just inserted (supabase/
+ * functions/record-login-geo, 20260901130000_login_event_geo.sql). Separate,
+ * fire-and-forget follow-up call rather than columns the client inserts
+ * itself: the client can't see, and must never be trusted to report, its own
+ * IP — the Edge Function reads the real request IP server-side instead. Same
+ * session-access idiom as callAdminProvision() below. Never throws past this
+ * function: a failed lookup only means the Activity Monitor shows no
+ * location for this sign-in, never a broken login. */
+function recordLoginGeo(loginEventId) {
+  mntSupabase.auth.getSession()
+    .then(({ data: { session } }) => {
+      const accessToken = session && session.access_token;
+      if (!accessToken) return;
+      return fetch(`${MNT_SUPABASE_URL}/functions/v1/record-login-geo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ login_event_id: loginEventId }),
+      });
+    })
+    .then((res) => {
+      if (res && !res.ok) console.error('record-login-geo request failed', res.status);
+    })
+    .catch((err) => console.error('record-login-geo threw', err));
 }
 
 /* Hours-on-site tracking (supabase/migrations/20260901122000_activity_monitor_
@@ -181,7 +212,7 @@ function recordSiteSessionStart(user) {
     .catch((err) => console.error('site_sessions insert threw', err));
 }
 
-async function signOut() {
+async function signOut(reason = 'user_signed_out') {
   // Close this student's own open site_sessions row(s) before the sign-out
   // call below invalidates the session auth.uid() depends on. Best-effort,
   // non-blocking: wrapped so a failed/erroring close can never stop the real
@@ -189,12 +220,16 @@ async function signOut() {
   // specific row id (see recordSiteSessionStart) so a student with more than
   // one open tab/session gets every open row closed here, matching the
   // site_sessions_self_close RLS policy's own using()/with check() shape.
+  // reason defaults to the manual-click case; wireIdleSignOut() below passes
+  // 'idle_timeout' instead so the Activity Monitor can tell the two apart —
+  // both are the only values the self-close RLS policy accepts
+  // (20260901140000_site_sessions_idle_timeout.sql).
   try {
     const outgoingUser = await currentUser();
     if (outgoingUser && outgoingUser.userId) {
       const { error } = await mntSupabase
         .from('site_sessions')
-        .update({ ended_at: new Date().toISOString(), ended_reason: 'user_signed_out' })
+        .update({ ended_at: new Date().toISOString(), ended_reason: reason })
         .eq('user_id', outgoingUser.userId)
         .is('ended_at', null);
       if (error) console.error('site_sessions self-close failed', error);
@@ -217,6 +252,33 @@ async function signOut() {
   // sitting one Back press away.
   history.replaceState(null, '', '#/login');
   render();
+}
+
+/* Auto sign-out after MNT_IDLE_TIMEOUT_MS of no mouse/keyboard/touch/scroll
+ * activity — site-owner request: previously signOut() only ever fired from
+ * an explicit click (or an admin's admin_force_sign_out()), so a browser
+ * left open kept its session alive indefinitely. Wired once at startup, not
+ * re-wired on every render() (these are document-level listeners, so they
+ * survive render()'s DOM rebuilds on their own). The timer keeps running
+ * whether or not anyone is signed in; the actual signOut() call only fires
+ * if currentUser() resolves to a real session, so idle time on the login
+ * screen itself is a no-op beyond resetting a timer nothing is watching. */
+const MNT_IDLE_TIMEOUT_MS = 60 * 60 * 1000;
+let _idleTimer = null;
+
+function resetIdleTimer() {
+  if (_idleTimer) clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(async () => {
+    const user = await currentUser();
+    if (user) await signOut('idle_timeout');
+  }, MNT_IDLE_TIMEOUT_MS);
+}
+
+function wireIdleSignOut() {
+  ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach((evt) => {
+    document.addEventListener(evt, resetIdleTimer, { passive: true });
+  });
+  resetIdleTimer();
 }
 
 /* ------------------------------------------------------------ entitlement */
@@ -3035,10 +3097,14 @@ function header(user) {
         ${
           user
             ? `<div class="flex items-center gap-2">
-                 <a href="#/portal" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 group">
-                   My Programs
-                   <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
-                 </a>
+                 ${
+                   user.isAdmin
+                     ? ''
+                     : `<a href="#/portal" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 group">
+                          My Programs
+                          <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
+                        </a>`
+                 }
                  ${
                    user.isAdmin
                      ? `<a href="#/admin" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 group">
@@ -4147,6 +4213,18 @@ function formatSiteMinutes(totalMinutes) {
   return hours > 0 ? `${hours}h ${remainder}m` : `${remainder}m`;
 }
 
+/* "City, Region, Country" for a login_events row, from the geo_* columns
+ * supabase/functions/record-login-geo fills in shortly after the sign-in row
+ * is inserted (20260901130000_login_event_geo.sql). Any of the three can be
+ * missing (a coarser lookup, or a provider that didn't return one), so this
+ * joins only whatever is present rather than showing blank commas; returns
+ * '—' when nothing has landed yet (enrichment is async and best-effort — see
+ * this tab's own "not proof of anything by itself" framing). */
+function formatLoginLocation(ev) {
+  const parts = [ev.geo_city, ev.geo_region, ev.geo_country].filter(Boolean);
+  return parts.length ? parts.join(', ') : '—';
+}
+
 function viewAdmin(user, rows, error, activeStudents, extra) {
   const cheatingFlagsByUserId = (extra && extra.cheatingFlagsByUserId) || new Map();
   const loginEvents = (extra && extra.loginEvents) || [];
@@ -4310,15 +4388,13 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    <div id="admin-generate-cohort-panel" class="bg-white border border-gray-200 rounded-xl p-5 mb-4" hidden>
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate New Cohort</h3>
                      <p class="text-xs text-gray-500 mb-4">Creates a named cohort and immediately batch-generates the chosen number of student accounts per track into it. Every generated password appears once, in the roster table below — copy it now, it is not shown again.</p>
-                     <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
+                     <div class="grid sm:grid-cols-2 gap-3 mb-4">
                        <label class="text-xs font-semibold text-gray-600">Cohort name
                          <input id="gen-cohort-name" type="text" placeholder="e.g. Fall 2026 intake" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
                        </label>
                        <label class="text-xs font-semibold text-gray-600">Start date
                          <input id="gen-cohort-start" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">End date
-                         <input id="gen-cohort-end" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                         <span class="block mt-1 text-xs font-normal text-gray-400">Cohort runs exactly 6 weeks from this date — end date is set automatically.</span>
                        </label>
                      </div>
                      <p class="text-xs font-semibold text-gray-600 mb-2">Students per track (0 = none)</p>
@@ -4494,7 +4570,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           <div class="mb-6">
             <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Student Activity Monitor</h2>
             <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-            <p class="text-gray-500 text-sm">Recent sign-ins across every student, newest first. Visibility only — like the clock-hours requirement above, this is never used for attendance, instructional-time, or compliance calculations. "Site time" below is the same: how long a student's browser session was open, not instructional or credited time.</p>
+            <p class="text-gray-500 text-sm">Recent sign-ins across every student, newest first.</p>
           </div>
           <div id="admin-activity-status" class="text-sm text-gray-500 mb-3"></div>
           ${
@@ -4514,6 +4590,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                        <tr class="border-b border-gray-200 bg-gray-50">
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Student ID</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Track</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]" title="Approximate, IP-based lookup — not a precise address">Location</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Signed in</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]" title="Operational visibility only — not instructional or credited hours">Site time</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
@@ -4529,6 +4606,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                              ${cheatingFlagsByStudentId.has(ev.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(ev.student_id).join(' · '))}">Review</span>` : ''}
                            </td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(ev.track_code || '—')}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600" ${ev.ip_address ? `title="${esc(ev.ip_address)}"` : ''}>${esc(formatLoginLocation(ev))}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${new Date(ev.occurred_at).toLocaleString()}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${hoursRow ? esc(formatSiteMinutes(hoursRow.total_minutes)) : '—'}</td>
                            <td class="px-6 py-3 text-sm whitespace-nowrap">
@@ -4725,7 +4803,7 @@ async function render() {
       // below has the target id admin_force_sign_out(target_user_id) needs.
       const { data: loginEvents, error: loginEventsError } = await mntSupabase
         .from('login_events')
-        .select('user_id, student_id, track_code, occurred_at')
+        .select('user_id, student_id, track_code, occurred_at, ip_address, geo_city, geo_region, geo_country')
         .order('occurred_at', { ascending: false })
         .limit(500);
       if (loginEventsError) console.error('login_events fetch failed', loginEventsError);
@@ -4947,7 +5025,6 @@ Track:      ${esc(account.track_code)}</pre>
     generateCohortSubmitBtn.addEventListener('click', async () => {
       const nameInput = document.getElementById('gen-cohort-name');
       const startInput = document.getElementById('gen-cohort-start');
-      const endInput = document.getElementById('gen-cohort-end');
       const resultEl = document.getElementById('admin-generate-cohort-result');
       const statusEl = document.getElementById('admin-generate-cohort-status');
       if (!nameInput || !resultEl) return;
@@ -4958,8 +5035,8 @@ Track:      ${esc(account.track_code)}</pre>
         counts[track] = input ? Math.max(0, Math.floor(Number(input.value) || 0)) : 0;
       });
 
-      if (!nameInput.value.trim() || !startInput.value || !endInput.value) {
-        if (statusEl) statusEl.textContent = 'Name, start date, and end date are all required.';
+      if (!nameInput.value.trim() || !startInput.value) {
+        if (statusEl) statusEl.textContent = 'Name and start date are both required.';
         return;
       }
       if (Object.values(counts).every((n) => n === 0)) {
@@ -4974,7 +5051,6 @@ Track:      ${esc(account.track_code)}</pre>
         const result = await callAdminProvision('create_cohort', {
           name: nameInput.value.trim(),
           start_date: startInput.value,
-          end_date: endInput.value,
           counts,
         });
         if (statusEl) {
@@ -5714,3 +5790,4 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
 window.addEventListener('hashchange', render);
 window.addEventListener('message', dispatchModuleLabMessage);
 document.addEventListener('DOMContentLoaded', render);
+document.addEventListener('DOMContentLoaded', wireIdleSignOut);

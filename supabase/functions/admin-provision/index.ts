@@ -242,7 +242,7 @@ async function handleCreateUser(
 // ----------------------------------------------------------- create_cohort
 //
 // Body: { action: "create_cohort", name: string, start_date: string,
-//          end_date: string, counts: { SOCAN?, HDESK?, AIENG?, ELECT? } }
+//          counts: { SOCAN?, HDESK?, AIENG?, ELECT? } }
 // Creates one cohort row, then batch-generates accounts per track, each
 // with cohort_id set to the new cohort and is_enrolled true (see the
 // design note in provisioning.ts). Per-account failures are collected, not
@@ -257,36 +257,39 @@ async function handleCreateCohort(
 ): Promise<Response> {
   const name = body.name;
   const startDate = body.start_date;
-  const endDate = body.end_date;
   const counts = body.counts;
 
   if (typeof name !== 'string' || name.trim().length === 0) {
     return jsonResponse({ error: '"name" is required' }, 400);
   }
-  if (typeof startDate !== 'string' || typeof endDate !== 'string') {
+  if (typeof startDate !== 'string') {
     return jsonResponse(
-      { error: '"start_date" and "end_date" are required' },
+      { error: '"start_date" is required' },
       400,
     );
   }
 
-  // Mirrors the DB check constraint `check (end_date >= start_date)` on
-  // public.cohorts (20260901120000_cohort_lifecycle_schema.sql) so the
-  // caller gets a clear 400 instead of a raw Postgres constraint error.
-  const startMs = Date.parse(startDate);
-  const endMs = Date.parse(endDate);
-  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+  // Every published track is fixed at 6 weeks (42 days), so end_date is
+  // always derived from start_date rather than accepted from the caller.
+  // Parse start_date as UTC midnight and add exactly 42 * 24h in
+  // milliseconds — never construct a local-time Date and add calendar
+  // days — so the result can't drift by a day across timezones (e.g. a
+  // server running behind UTC rolling "2026-09-01" back to "2026-08-31"
+  // before the addition). This also makes the DB's own
+  // `check (end_date >= start_date)` constraint on public.cohorts
+  // (20260901120000_cohort_lifecycle_schema.sql) always satisfied by
+  // construction, so the old explicit end_date >= start_date guard above
+  // is no longer reachable and has been removed rather than kept as dead
+  // code — the safety it provided is now structural, not a runtime check.
+  const startUtcMs = Date.parse(`${startDate}T00:00:00.000Z`);
+  if (Number.isNaN(startUtcMs)) {
     return jsonResponse(
-      { error: '"start_date"/"end_date" must be valid dates' },
+      { error: '"start_date" must be a valid date (YYYY-MM-DD)' },
       400,
     );
   }
-  if (endMs < startMs) {
-    return jsonResponse(
-      { error: 'end_date must be on or after start_date' },
-      400,
-    );
-  }
+  const endUtcMs = startUtcMs + 42 * 24 * 60 * 60 * 1000;
+  const endDate = new Date(endUtcMs).toISOString().slice(0, 10);
 
   const requestedCounts =
     counts && typeof counts === 'object' ? counts as Record<string, unknown> : {};
