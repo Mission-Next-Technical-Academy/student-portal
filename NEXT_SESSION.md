@@ -1,5 +1,197 @@
 # Next session — start here
 
+## Session 2026-09-01 (later, done — needs the site owner's deployment steps) — cohort/user lifecycle: generate users/cohorts, auto-archive on expiry, Activity Monitor hours + force sign-out
+
+Full write-up: `COHORT_USER_LIFECYCLE_SPRINT_PLAN.md` (about to be archived to
+`archive/completed-feature-notes/` since every sprint box in it is now checked).
+Short version: three site-owner-requested admin panel features, built across six
+sprints this session, all code/migrations written and locally verified, **nothing
+pushed or deployed yet** — that's the one remaining step, and it's the site owner's
+to run (matches this repo's standing rule: `supabase db push` and anything
+service-role-key-adjacent is never delegated).
+
+**What was built:**
+1. **"Generate New User" / "Generate New Cohort"** admin buttons — create one
+   account, or a whole named cohort (start/end date + a chosen student count per
+   track) in one action. Needed a real backend, not just a DB write: creating a
+   Supabase Auth user requires the service-role key, which must never reach the
+   browser — so this is the repo's first Supabase Edge Function
+   (`supabase/functions/admin-provision/`), admin-JWT-gated, called from
+   `portal/app.js`'s new panels.
+2. **Automatic cohort-expiry archival** — a daily `pg_cron` job
+   (`archive_expired_cohorts()`) that, once a cohort's end date passes, freezes a
+   summary of each real student into `cohort_archive_snapshots` (visible in the new
+   admin "Archived Students" tab), closes their `enrollment_periods` episode, and
+   flips `is_enrolled` false — **never touches `module_progress`/`lab_attempts`/
+   `capstone_submissions`/`completion_reporting_snapshots`**, which stay
+   permanent/append-only per this repo's existing compliance rule. Separately, any
+   account in that same cohort that was generated but genuinely never used (never
+   enrolled, zero activity anywhere) is deleted outright — there's no compliance data
+   to protect for those. An admin can also trigger the sweep on demand from the new
+   Cohorts tab instead of waiting for the daily run.
+3. **Activity Monitor additions** (mid-session addition, requested after Sprint 1 was
+   already running): a per-student "site time" figure (`site_sessions` table, a new
+   table separate from the pre-existing append-only `login_events`) and a "Sign out"
+   button that revokes a student's session server-side
+   (`admin_force_sign_out()` — deletes their `auth.sessions` row, which blocks
+   re-auth past their next token refresh/reload; it does not instantly kill an
+   already-issued access token still live in their browser, a documented, accepted
+   limitation). Both are explicitly labeled operational-visibility-only in the UI —
+   never wired into attendance/compliance, matching how `login_events` already
+   documents itself.
+
+**One real bug caught and fixed mid-session, worth knowing about:** the archival
+function originally read student stats from `public.admin_student_progress`, whose
+own view definition ends `where public.is_admin()`. That check depends on
+`auth.uid()`, which is only ever set inside a real PostgREST/JWT request — under the
+`pg_cron` call path (the actual daily production path) there is no JWT, so that
+filter would have silently zeroed out every archived-student snapshot, forever, with
+no error. Fixed by inlining the same `course_progress`/`capstone_scorecard`
+derivation directly instead of routing through that admin-gated view. Worth
+remembering as a general pattern: a `where public.is_admin()`-gated view is not safe
+to query from inside a `pg_cron`-invoked function, even a `security definer` one —
+`security definer` only changes which role's table *privileges* apply, not whether
+`auth.uid()` resolves to anything.
+
+**Deployment steps — none of this is live until the site owner runs, in their own
+terminal, in this order:**
+1. `supabase db push` — applies the four new migrations (
+   `20260901120000_cohort_lifecycle_schema.sql`,
+   `20260901121000_cohort_archival_engine.sql`,
+   `20260901122000_activity_monitor_sessions.sql`, plus whatever order the two
+   unrelated pending migrations from the concurrent session land in —
+   `supabase migration list --linked` is the way to confirm what's actually live
+   afterward, not this file).
+2. If `create extension if not exists pg_cron;` doesn't take effect: enable `pg_cron`
+   via Dashboard → Database → Extensions first, then re-run the push (or just the
+   cron-scheduling statements) — expected on some hosted projects, not a bug.
+3. `supabase functions deploy admin-provision`.
+4. `supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...` on the linked project (the
+   function reads it server-side only; it is not committed anywhere and never appears
+   in `portal/`).
+5. Confirm the cron job registered: `select * from cron.job;` in the SQL editor —
+   should show `archive-expired-cohorts` at `0 6 * * *`.
+6. Smoke-test once live: use "Generate New Cohort" with a 1-day-ago end date (or
+   generate a normal cohort and manually update its `end_date` in the SQL editor) to
+   verify the archival sweep and the Archived Students tab actually round-trip against
+   real data before trusting the daily cron silently.
+
+**Not done, deliberately out of scope this pass:** no CSV/file download for a
+generated roster (on-screen click-to-select table only); no UI to edit/delete a
+cohort after creation; `admin_force_sign_out()`'s `auth.sessions` DELETE has a
+documented Edge-Function fallback noted in its own migration comment in case the
+hosted project's grants block it — untested against the live project since nothing
+is pushed yet.
+
+## Session 2026-09-01 (open, needs a push decision) — completion/score integrity migration written, not yet applied
+
+A bug-bounty-style pass found that `module_progress`, `lab_attempts`, and
+`capstone_submissions` RLS (`user_id = auth.uid()` ownership only) let a
+student write their own `state='complete'` and `score` values directly via
+the same Supabase client call the app already uses
+(`markModuleCompleteRemote()` / `upsertModuleProgress()`,
+`portal/app.js:2704`/`2665`) — nothing server-side ever checked that a
+completion or score reflected real lab work. Since
+`20260901090000_completion_reporting_snapshot.sql`, that write is no longer
+just a UI badge: it triggers an immutable clock-hour credit award
+(`student_course_hour_awards`) and freezes an append-only official
+compliance snapshot used by the CIE/Form 801 PDFs — so this was a path to a
+forged official completion record, not just a cosmetic bug.
+
+**Fix written:** `supabase/migrations/20260901103000_completion_integrity_guards.sql`.
+Adds same-row CHECK constraints (a lab attempt can't be `complete` with a
+scored, failing result; a capstone score can't be `complete`-shaped without
+passing its own critical-error gate; `module_progress` can't claim `complete`
+without `percent=100` and a `completed_at`) plus two triggers: one blocking a
+module from reaching `complete` unless the student's distinct count of
+*completed* lab attempts in that track is at least the number of modules
+they're claiming complete (closes the free/instant full-track forgery; it's
+a ratio floor, not a per-module proof — see the migration's own header for
+what it does *not* solve, and why: the modules/labs catalogue that would let
+SQL verify a specific lab belongs to a specific module was deliberately
+dropped in `20260828160000_simplify_schema.sql` in favor of
+`portal/data.js`), and one making a completed module immutable except for an
+admin.
+
+**Verified safe, not yet pushed.** Every constraint was checked against the
+*live* linked project inside a transaction that was rolled back (nothing
+committed) before this file was written: 0 existing violations except 4
+`lab-soc-environment` (ungraded walkthrough) rows with a null score, which
+is why the score check allows null rather than requiring a passing number.
+The guard logic itself was then attack-tested the same way (rolled back,
+zero persisted changes): a fresh account with zero lab attempts is blocked
+from faking even one module (let alone a batch of 12); a student with one
+genuine passing lab can legitimately complete one module but not a second;
+a low-score lab attempt marked `complete` is rejected; reverting a completed
+module is rejected. `supabase migration list --linked` still shows this file
+as local-only (matches `20260829130000_fixed_credit_hours.sql`'s convention
+of staying unpushed until an authorized operator reviews it) — **this
+session did not run `supabase db push`**, since that's a live change to a
+production DB with real student data and needs an explicit go-ahead, not an
+assumed one.
+
+**Next session / whoever reviews this:** read the migration's header
+comment, confirm the ratio-floor tradeoff is acceptable (it stops
+zero-effort forgery but not a determined attacker fabricating one
+plausible-looking lab attempt per claimed module), then `supabase db push`
+if so. If tighter enforcement is wanted later, the real fix is moving lab
+grading server-side or reintroducing a lab_key→module_key mapping table —
+both bigger, separate decisions, deliberately not made here.
+
+## Session 2026-08-31 (open, blocked on info) — student reports no completion badges after refresh
+
+**Symptom, in the user's words:** "no green lights on completed modules" after
+refreshing the portal. Not yet reproduced — the report came in with no
+environment or account attached, and the session ended before that follow-up
+arrived.
+
+**What "green lights" means in this codebase:** the `complete` state in
+`STATE_STYLES` (`portal/app.js` ~line 3152), rendered by `moduleCard()`. Its
+source of truth is `moduleCompletion()` (`portal/app.js:2866-2892`): a module
+counts as complete when `contentOpened && allLabsComplete`, drawing on (a)
+`loadModuleEngagement(user)` / localStorage, keyed by
+`moduleEngagementId(program.slug, moduleKey)` = `` `${programSlug}:${moduleKey}` ``,
+and (b) `user.remoteModuleProgress[moduleKey]` from Supabase. Module 1 has an
+extra special case requiring `LabRuntime`'s own `consoleCompleted` flag.
+
+**What this session did immediately before the report, and why it's probably
+unrelated:** renamed `portal/module-NN.{js,css}` to
+`portal/soc-analyst-module-NN.{js,css}` (program-prefixed, to keep every
+track's module filenames distinct — see the two commits below) and pushed.
+None of `moduleCompletion()`'s data sources are filename-keyed, so a rename
+alone shouldn't blank out completion state. GitHub Pages redeployed
+successfully right after the push (`gh run list --workflow=pages.yml`: run
+33429625933, completed success, 2026-08-31T19:16:10Z) — so if the user
+refreshed a live-site tab *before* that redeploy landed, that alone could
+explain a stale/broken page and would not be a real regression. This is a
+hypothesis, not a confirmed cause.
+
+**Relevant commits:** `b1697a8` (cohort PDF linkage detail + sortable admin
+columns — unrelated feature work, bundled the file renames in because `git
+mv` auto-stages), `78ee752` (the module rename itself, new
+it-support/ai-ml/electrical module-1 stubs, and every reference to the old
+filenames updated — `index.html`, `bin/curriculum-check.js`,
+`bin/portal-check.js`, `bin/run-module-agents.sh`). Both verified clean with
+`node bin/curriculum-check.js` and `node bin/portal-check.js` before pushing.
+
+**Still needed before this can be debugged — ask the user:**
+1. Local dev server (`127.0.0.1:8768`) or the live/deployed portal?
+2. Which student login, and which specific module(s) should show complete
+   but don't?
+3. Any red errors in the browser console (F12 → Console) on page load —
+   especially a 404 on a `soc-analyst-module-*.js` file, which would mean the
+   rename broke a reference this session missed.
+
+**Once that's known, check in this order:** (1) console/network tab for a
+404 on any renamed portal file, (2) that tab's `localStorage` for the
+`moduleEngagement` entry and the specific `moduleId` key, (3) the student's
+`remoteModuleProgress` row in Supabase for that module, (4) step through
+`moduleCompletion()` at `portal/app.js:2866` with real values to see which of
+`contentOpened` / `allLabsComplete` is false.
+
+Local dev servers were running at the time of the report: portal on
+`127.0.0.1:8768` (pid 29253), simulator on `127.0.0.1:8767` (pid 29247).
+
 ## Session 2026-08-31 (later, done) — cohort PDF linkage detail + sortable admin columns
 
 Both sprints below are done and verified — see

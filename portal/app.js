@@ -54,16 +54,22 @@ async function buildUserFromSession(session) {
 
   const { data: studentRow } = await mntSupabase
     .from('students')
-    .select('student_id, track_code, is_admin')
+    .select('student_id, track_code, is_admin, is_enrolled')
     .eq('user_id', userId)
     .single();
 
   // Access is derived from students.track_code, not a joined enrollments row —
   // see the TRACK_CODE_TO_PROGRAM_SLUG comment above. Provisioning only ever
   // creates full-track access today, so this is always a single active,
-  // full-access enrollment (or none, for ADMIN / an unrecognized track).
+  // full-access enrollment (or none, for ADMIN / an unrecognized track / a
+  // disenrolled student). Disenrollment (admin dashboard, wireAdmin) only
+  // ever flips students.is_enrolled — it never deletes the row or the
+  // student's progress history — so a disenrolled student still
+  // authenticates fine; they just come out of this with no active
+  // enrollment, which hasProgramAccess()/viewNoAccess() turn into a locked
+  // "You are not enrolled in this program" screen instead of real access.
   const programSlug = studentRow ? TRACK_CODE_TO_PROGRAM_SLUG[studentRow.track_code] : null;
-  const enrollments = programSlug
+  const enrollments = programSlug && studentRow.is_enrolled !== false
     ? [{ programSlug, status: 'active', accessMode: 'full', modules: [], purchasedAt: null }]
     : [];
 
@@ -102,11 +108,6 @@ async function buildUserFromSession(session) {
     // _cachedUser caching as everything else on this object.
     userId: session.user.id,
     trackCode: studentRow ? studentRow.track_code : null,
-    // The fetch above ran, but this object never carried the result to its
-    // caller — moduleCompletion() read user.remoteModuleProgress and always
-    // got undefined, so the database fallback this commit was supposed to
-    // add silently never fired: badges still went gray on every refresh or
-    // new device, exactly the bug this was meant to fix.
     remoteModuleProgress,
   };
 }
@@ -137,10 +138,70 @@ async function signIn(identifier, password) {
   if (error || !data.session) return null;
   _cachedUser = null;
   _cachedUserPromise = null;
-  return await currentUser();
+  const user = await currentUser();
+  recordLoginEvent(user);
+  recordSiteSessionStart(user);
+  return user;
+}
+
+/* Student Activity Monitor data source (supabase/migrations/20260901110000_
+ * login_events.sql). Fires once per actual signIn() call, never on a session
+ * restore (currentUser() alone, e.g. a page refresh), so this reflects real
+ * sign-in actions, not every render(). Fire-and-forget/self-row/error-logged
+ * — same convention as upsertModuleProgress. Visibility only: never read
+ * anywhere as attendance or instructional time (see the migration comment
+ * and computeFixedCreditHours() above). */
+function recordLoginEvent(user) {
+  if (!user || !user.userId) return;
+  mntSupabase
+    .from('login_events')
+    .insert({ user_id: user.userId, student_id: user.username || null, track_code: user.trackCode || null })
+    .then(({ error }) => {
+      if (error) console.error('login_events insert failed', error);
+    })
+    .catch((err) => console.error('login_events insert threw', err));
+}
+
+/* Hours-on-site tracking (supabase/migrations/20260901122000_activity_monitor_
+ * sessions.sql, COHORT_USER_LIFECYCLE_SPRINT_PLAN.md Sprint 4 addendum). Opens
+ * one site_sessions row per real signIn() call — same fire-and-forget/self-
+ * row/error-logged pattern as recordLoginEvent(), and deliberately a separate
+ * table/call from it: site_sessions tracks session *duration* (closed later by
+ * signOut() below or admin_force_sign_out()), which login_events' append-only
+ * design forbids. Operational visibility only — never attendance/instructional
+ * time, same framing as the migration's own table comment. */
+function recordSiteSessionStart(user) {
+  if (!user || !user.userId) return;
+  mntSupabase
+    .from('site_sessions')
+    .insert({ user_id: user.userId, student_id: user.username || null, track_code: user.trackCode || null })
+    .then(({ error }) => {
+      if (error) console.error('site_sessions insert failed', error);
+    })
+    .catch((err) => console.error('site_sessions insert threw', err));
 }
 
 async function signOut() {
+  // Close this student's own open site_sessions row(s) before the sign-out
+  // call below invalidates the session auth.uid() depends on. Best-effort,
+  // non-blocking: wrapped so a failed/erroring close can never stop the real
+  // sign-out from completing. Filters on ended_at is null rather than a
+  // specific row id (see recordSiteSessionStart) so a student with more than
+  // one open tab/session gets every open row closed here, matching the
+  // site_sessions_self_close RLS policy's own using()/with check() shape.
+  try {
+    const outgoingUser = await currentUser();
+    if (outgoingUser && outgoingUser.userId) {
+      const { error } = await mntSupabase
+        .from('site_sessions')
+        .update({ ended_at: new Date().toISOString(), ended_reason: 'user_signed_out' })
+        .eq('user_id', outgoingUser.userId)
+        .is('ended_at', null);
+      if (error) console.error('site_sessions self-close failed', error);
+    }
+  } catch (err) {
+    console.error('site_sessions self-close threw', err);
+  }
   await mntSupabase.auth.signOut();
   _cachedUser = null;
   _cachedUserPromise = null;
@@ -331,6 +392,13 @@ function applyAdminDashboardState(row) {
     credentialCode: row.credential_code || null,
     credentialName: row.credential_name || null,
     geographyClassification: row.geography_classification || null,
+    // From admin_student_progress (20260901090000_completion_reporting_
+    // snapshot.sql, appended columns): fixed curriculum-credit minutes
+    // awarded per completed module, not measured attendance/session time —
+    // see student_hour_reconciliation. Nullable until that migration lands.
+    creditedTechnicalMinutes: row.credited_technical_minutes ?? null,
+    creditedCareerMinutes: row.credited_career_minutes ?? null,
+    creditedProgramMinutes: row.credited_program_minutes ?? null,
   };
 }
 
@@ -460,10 +528,14 @@ function evaluateReportingCompliance(rows, context) {
       id: 'clock_hours_attendance',
       requirement: 'Clock hours and attendance',
       requiredFields: ['required_program_hours', 'attempted_clock_hours', 'attended_instructional_hours', 'course_start_completion_dates', 'hour_reconciliation'],
-      dynamicallyPresent: [],
-      staticallyMissing: ['Program hour awards depend on a database feature that must be fully deployed and populated before hours can be reported for every student', 'Attendance is not estimated from browser activity or login sessions — only verified, recorded hours are ever counted'],
-      sourceTables: ['portal/data.js program.compliance', 'program_course_hours', 'student_course_hour_awards', 'student_hour_reconciliation'],
-      note: 'Required program hours are defined for each program, and the academy\'s hour-tracking system now models attempted and credited hours. Reports still must not infer official attendance from a student\'s last login or open-browser time.',
+      dynamicallyPresent: [
+        { field: 'Credited technical minutes', get: (r) => (r.credited_technical_minutes !== null && r.credited_technical_minutes !== undefined) ? r.credited_technical_minutes : null },
+        { field: 'Credited program minutes (technical + career-readiness)', get: (r) => (r.credited_program_minutes !== null && r.credited_program_minutes !== undefined) ? r.credited_program_minutes : null },
+        { field: 'Course start/completion dates', get: (r) => r.completionDate || r.completion_date || r.scheduledStartDate || r.scheduled_start_date || null },
+      ],
+      staticallyMissing: ['Credited minutes are fixed per-module curriculum allocations recorded on module completion, not measured attendance, session time, or browser-open duration — no time-based attendance tracking exists or is planned', 'Career-readiness (M360) completion is not yet a durable award — see student_course_hour_awards migration note'],
+      sourceTables: ['portal/data.js program.compliance', 'program_course_hours', 'student_course_hour_awards', 'student_hour_reconciliation', 'admin_student_progress (view)'],
+      note: 'Required program hours are defined for each program, and completed modules now award durable, per-student fixed-credit minutes (student_course_hour_awards, live). This is a curriculum-credit model, not measured attendance — a student\'s last login or open-browser time is never counted as instructional time.',
     }),
     req({
       id: 'grades_assessments_progress',
@@ -727,7 +799,7 @@ function buildCohortReportData(rows, options) {
       };
     }),
     annualCounts: options.annualCounts || null,
-    annualReportingGaps: 'This roster reflects each student\'s current enrollment state, not a reporting-period snapshot. Set a reporting period start and end above to calculate official Form 801 counts (enrolled, withdrawn, and completed within that period) — do not infer period-bounded counts from the totals above.',
+    annualReportingGaps: 'This roster reflects each student\'s current enrollment state, not a reporting-period snapshot. Set a reporting period start and end in the admin dashboard before generating this report to calculate official Form 801 counts (enrolled, withdrawn, and completed within that period) — do not infer period-bounded counts from the totals in this report.',
     stateSnapshot: state,
   };
 }
@@ -959,22 +1031,33 @@ function fmtScore(v) { return (v === null || v === undefined) ? '—' : (typeof 
  * report ID; and (when supplied) the data-source/"as of" note. */
 function stampPdfFooters(doc, { reportId, confidentiality, dataSourceNote }) {
   const pageCount = doc.internal.getNumberOfPages();
+  // Stacked rows, not two texts sharing one y (the old dataSourceNote/
+  // confidentiality pair both sat on h-22 and visually collided on every
+  // page). Reserve an extra row when dataSourceNote is present instead of
+  // overlaying it on top of the confidentiality line. Height (not just
+  // width) differs per page here — the cohort report mixes portrait and
+  // landscape pages — so it's computed fresh inside the loop, never hoisted.
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     const w = doc.internal.pageSize.getWidth();
     const h = doc.internal.pageSize.getHeight();
+    const sep = dataSourceNote ? h - 46 : h - 34;
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.5);
-    doc.line(40, h - 34, w - 40, h - 34);
+    doc.line(40, sep, w - 40, sep);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(...PDF_GRAY);
-    doc.text(confidentiality || 'CONFIDENTIAL — Student education record. Not for public distribution.', 40, h - 22);
-    doc.text(`Report ID: ${reportId}`, 40, h - 12);
-    doc.text(`Page ${i} of ${pageCount}`, w - 40, h - 12, { align: 'right' });
+    let rowY = sep;
     if (dataSourceNote) {
-      doc.text(dataSourceNote, w / 2, h - 22, { align: 'center', maxWidth: w - 260 });
+      rowY += 12;
+      doc.text(dataSourceNote, w / 2, rowY, { align: 'center', maxWidth: w - 80 });
     }
+    rowY += 12;
+    doc.text(confidentiality || 'CONFIDENTIAL — Student education record. Not for public distribution.', 40, rowY);
+    doc.text(`Page ${i} of ${pageCount}`, w - 40, rowY, { align: 'right' });
+    rowY += 10;
+    doc.text(`Report ID: ${reportId}`, 40, rowY);
   }
 }
 
@@ -1099,14 +1182,22 @@ async function renderCohortPdf(cohortData, reportId) {
   const pageWidth1 = doc.internal.pageSize.getWidth();
 
   if (cohortData.recordStatus !== 'official') {
-    doc.setFillColor(...PDF_AMBER_BG);
-    doc.setDrawColor(...PDF_AMBER);
-    doc.roundedRect(marginX, cursorY, pageWidth1 - marginX * 2, 23, 4, 4, 'FD');
+    // Box height follows the actual wrapped line count instead of a fixed
+    // guess — a hardcoded 23pt fit one line, but this sentence wraps to two
+    // at report-page width, so the box border used to cut through the text.
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
+    const draftLines = doc.splitTextToSize(
+      'DRAFT / INTERNAL REVIEW — required source-data checks are not fully verified. This is not an official academic or annual-reporting record.',
+      pageWidth1 - marginX * 2 - 18,
+    );
+    const draftBoxH = draftLines.length * 10 + 8;
+    doc.setFillColor(...PDF_AMBER_BG);
+    doc.setDrawColor(...PDF_AMBER);
+    doc.roundedRect(marginX, cursorY, pageWidth1 - marginX * 2, draftBoxH, 4, 4, 'FD');
     doc.setTextColor(...PDF_AMBER);
-    doc.text('DRAFT / INTERNAL REVIEW — required source-data checks are not fully verified. This is not an official academic or annual-reporting record.', marginX + 9, cursorY + 14, { maxWidth: pageWidth1 - marginX * 2 - 18 });
-    cursorY += 32;
+    doc.text(draftLines, marginX + 9, cursorY + 12);
+    cursorY += draftBoxH + 9;
   }
 
   const s = cohortData.summary;
@@ -1188,21 +1279,27 @@ async function renderCohortPdf(cohortData, reportId) {
     cursorY += 18;
   } else if (cohortData.annualReportingGaps) {
     cursorY = ensureSpace(doc, cursorY, 40);
-    doc.setFillColor(...PDF_AMBER_BG);
-    doc.setDrawColor(...PDF_AMBER);
-    doc.roundedRect(marginX, cursorY, pageWidth1 - marginX * 2, 34, 4, 4, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...PDF_AMBER);
-    doc.text('Annual reporting note:', marginX + 10, cursorY + 13);
     doc.setFont('helvetica', 'normal');
-    doc.text(
+    doc.setFontSize(8);
+    const noteBodyLines = doc.splitTextToSize(
       annualCounts && annualCounts.queryError
         ? `Could not calculate period-bounded counts this run: ${annualCounts.queryError}. Do not infer annual counts from the totals above.`
         : cohortData.annualReportingGaps,
-      marginX + 10, cursorY + 24, { maxWidth: pageWidth1 - marginX * 2 - 20 },
+      pageWidth1 - marginX * 2 - 20,
     );
-    cursorY += 46;
+    // Same dynamic-height fix as the DRAFT banner above: a fixed 34pt fit
+    // this note's old two-line wording, but not the three lines it wraps to
+    // now, so the border used to slice through the last line.
+    const noteBoxH = 16 + noteBodyLines.length * 10 + 6;
+    doc.setFillColor(...PDF_AMBER_BG);
+    doc.setDrawColor(...PDF_AMBER);
+    doc.roundedRect(marginX, cursorY, pageWidth1 - marginX * 2, noteBoxH, 4, 4, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...PDF_AMBER);
+    doc.text('Annual reporting note:', marginX + 10, cursorY + 13);
+    doc.setFont('helvetica', 'normal');
+    doc.text(noteBodyLines, marginX + 10, cursorY + 24);
+    cursorY += noteBoxH + 12;
   }
 
   // ---- CIE reporting-requirements compliance table + legend --------------
@@ -1298,7 +1395,11 @@ async function renderCohortPdf(cohortData, reportId) {
         st.track || '—',
         st.program,
         st.progressState,
-        st.enrolled ? 'Enrolled' : 'Not enrolled',
+        // Not "Not enrolled" — Academic Status already distinguishes
+        // withdrawn from never-started (see deriveAcademicStatus's own
+        // comment on this exact collapsing risk); repeating a blunt
+        // enrolled/not-enrolled flag here just restates or contradicts it.
+        st.enrolled ? 'Enrolled' : '—',
         `${fmtVal(st.modulesComplete)}/${fmtVal(st.modulesTotal)}`,
         fmtPct(st.percentComplete),
         st.capstoneScore === null || st.capstoneScore === undefined ? '—' : fmtScore(st.capstoneScore),
@@ -3866,7 +3967,161 @@ function viewNotFound(user) {
 // last_active sort (unchanged from before this feature existed).
 let adminTableSort = { key: null, dir: 1 };
 
-function viewAdmin(user, rows, error, activeStudents) {
+// Persists which admin tab is showing across a full render() rebuild — same
+// reason as adminTableSort above (the "Run archive sweep now" action calls
+// render() to pick up the refreshed cohorts list, and without this the admin
+// would land back on the Student Progress tab every time). Client-side tab
+// clicks in wireAdmin() below update this directly (no re-render needed for
+// those); only a full render() reads it, in viewAdmin().
+let adminActiveTab = 'progress';
+
+/* ------------------------------------------------- completion-speed review flags */
+/* Bug-bounty finding, 2026-09-01 (NEXT_SESSION.md, supabase/migrations/
+ * 20260901103000_completion_integrity_guards.sql): that migration's guard
+ * trigger stops a student from marking a module complete with zero recorded
+ * lab work, but it can't prove a *specific* completed lab attempt belongs to
+ * a *specific* completed module — the DB-side modules/labs catalogue that
+ * would let it was deliberately dropped in favor of portal/data.js
+ * (20260828160000_simplify_schema.sql). A determined student could still
+ * fabricate one plausible-looking lab_attempts row per module they want to
+ * fake. What that kind of forgery can't fake is time: module_progress.
+ * started_at is stamped the moment a student first opens a module's content
+ * (markModuleContentOpened -> markModuleInProgressRemote), and completed_at
+ * when they finish it — a human reading real curriculum content (150-720
+ * credited minutes per SOC module, per program_course_hours) cannot compress
+ * that to seconds, but a scripted direct-API forgery naturally does.
+ *
+ * This is a REVIEW signal, not a verdict — flagged accounts need a human
+ * look, not automatic action. It also has real, legitimate explanations:
+ * a student who already knows the material (prior experience, re-taking
+ * after a reset), reviewed the content in an earlier session before this
+ * server-recorded started_at, or has multiple tabs/devices open can all
+ * trip the same threshold. The admin UI says this explicitly wherever the
+ * flag appears — never present it as confirmed misconduct. */
+const FAST_MODULE_COMPLETION_MS = 3 * 60 * 1000;   // 3 minutes start-to-finish
+const FAST_TRACK_COMPLETION_MS = 24 * 60 * 60 * 1000; // 24 hours enrollment-to-completion
+
+function formatDuration(ms) {
+  if (ms < 60 * 1000) return `${Math.max(1, Math.round(ms / 1000))} sec`;
+  if (ms < 60 * 60 * 1000) return `${Math.round(ms / (60 * 1000))} min`;
+  if (ms < 24 * 60 * 60 * 1000) return `${(ms / (60 * 60 * 1000)).toFixed(1)} hr`;
+  return `${(ms / (24 * 60 * 60 * 1000)).toFixed(1)} days`;
+}
+
+/* moduleProgressRows: bulk-fetched, admin-visible 'complete' rows across all
+ * students (module_progress_admin_read policy). Returns Map<user_id,
+ * reason[]> — only students with at least one review-worthy signal appear. */
+function buildCheatingReviewFlags(dashboardRows, moduleProgressRows) {
+  const flags = new Map();
+  const addReason = (userId, reason) => {
+    if (!flags.has(userId)) flags.set(userId, []);
+    flags.get(userId).push(reason);
+  };
+
+  (moduleProgressRows || []).forEach((row) => {
+    if (row.state !== 'complete' || !row.started_at || !row.completed_at) return;
+    const elapsedMs = new Date(row.completed_at).getTime() - new Date(row.started_at).getTime();
+    if (elapsedMs >= 0 && elapsedMs < FAST_MODULE_COMPLETION_MS) {
+      addReason(row.user_id, `Module ${row.module_key} marked complete ${formatDuration(elapsedMs)} after being opened`);
+    }
+  });
+
+  (dashboardRows || []).forEach((row) => {
+    if (!row.user_id || !row.enrollmentDate || !row.completionDate) return;
+    const elapsedMs = new Date(row.completionDate).getTime() - new Date(row.enrollmentDate).getTime();
+    if (elapsedMs >= 0 && elapsedMs < FAST_TRACK_COMPLETION_MS && (row.modules_complete || 0) >= (row.modules_total || 12)) {
+      addReason(row.user_id, `Entire track completed ${formatDuration(elapsedMs)} after enrollment`);
+    }
+  });
+
+  return flags;
+}
+
+/* ----------------------------------------- admin-provision Edge Function */
+
+/* Calls supabase/functions/admin-provision (COHORT_USER_LIFECYCLE_SPRINT_
+ * PLAN.md Sprint 3/4) for the "Generate New User" and "Generate New Cohort"
+ * admin panel actions. Reuses the exact session-access idiom already used by
+ * currentUser() above (mntSupabase.auth.getSession()) rather than inventing a
+ * new one. The function URL is derived from MNT_SUPABASE_URL exactly as the
+ * sprint plan specifies — that constant is declared in
+ * portal/supabase-config.js, a sibling plain <script> loaded before this
+ * file, so it is already in scope here the same way mntSupabase itself is. */
+async function callAdminProvision(action, payload) {
+  const { data: { session } } = await mntSupabase.auth.getSession();
+  const accessToken = session && session.access_token;
+  if (!accessToken) throw new Error('No active admin session. Sign in again and retry.');
+
+  const res = await fetch(`${MNT_SUPABASE_URL}/functions/v1/admin-provision`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    // Fall through with body still null — handled below.
+  }
+  if (!res.ok) {
+    throw new Error((body && body.error) || `admin-provision request failed (status ${res.status}).`);
+  }
+  if (!body) throw new Error('admin-provision returned an unexpected empty response.');
+  return body;
+}
+
+/* One-click-to-select-all for the plaintext credential blocks below, per the
+ * sprint plan's "copyable... plain text selection is fine — do not add a
+ * clipboard-API dependency" instruction. Re-wired every time a result panel's
+ * innerHTML is replaced, since DOM nodes (and any listeners on them) are
+ * discarded on each re-render — same rule as every other post-render wiring
+ * step in this file. */
+function wireSelectAllBlocks(container) {
+  if (!container) return;
+  container.querySelectorAll('[data-select-all]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
+  });
+}
+
+/* Readable "3h 20m" formatting for admin_site_hours_by_student.total_minutes.
+ * Deliberately labeled "site time" everywhere it's shown in the UI, never
+ * "hours" alone — matches site_sessions' own migration comment that this is
+ * operational visibility only, not an instructional/credited/attendance
+ * figure (that remains computeFixedCreditHours() elsewhere in this file). */
+function formatSiteMinutes(totalMinutes) {
+  const minutes = Math.max(0, Math.round(Number(totalMinutes) || 0));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return hours > 0 ? `${hours}h ${remainder}m` : `${remainder}m`;
+}
+
+function viewAdmin(user, rows, error, activeStudents, extra) {
+  const cheatingFlagsByUserId = (extra && extra.cheatingFlagsByUserId) || new Map();
+  const loginEvents = (extra && extra.loginEvents) || [];
+  const cohorts = (extra && extra.cohorts) || [];
+  const cohortStudentCounts = (extra && extra.cohortStudentCounts) || new Map();
+  const archivedStudents = (extra && extra.archivedStudents) || [];
+  const siteHoursByStudentId = (extra && extra.siteHoursByStudentId) || new Map();
+  const activeCohorts = cohorts.filter((c) => !c.archived_at);
+  const activeTab = (extra && extra.activeTab) || 'progress';
+  const tabIsActive = (key) => key === activeTab;
+  const tabBtnClass = (key) =>
+    `admin-tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 cursor-pointer ${
+      tabIsActive(key) ? 'border-[#1e3a5f] text-[#1e3a5f]' : 'border-transparent text-gray-500 hover:text-[#1e3a5f]'
+    }`;
+  const cheatingFlagsByStudentId = new Map(
+    rows.filter((r) => cheatingFlagsByUserId.has(r.user_id)).map((r) => [r.student_id, cheatingFlagsByUserId.get(r.user_id)])
+  );
   activeStudents = activeStudents || [];
   // Summary statistics are based on the local dashboard state, not the raw
   // backend rows. The ADMIN account is filtered out upstream.
@@ -3894,6 +4149,16 @@ function viewAdmin(user, rows, error, activeStudents) {
           <p class="text-gray-500 text-base">Admin dashboard for monitoring student progress across all programs. The ADMIN account is excluded from the student-account counts and table.</p>
         </div>
 
+        <div class="flex gap-2 border-b border-gray-200 mb-8 flex-wrap" role="tablist">
+          <button type="button" role="tab" aria-selected="${tabIsActive('progress')}" data-admin-tab="progress" class="${tabBtnClass('progress')}">Student Progress</button>
+          <button type="button" role="tab" aria-selected="${tabIsActive('activity')}" data-admin-tab="activity" class="${tabBtnClass('activity')}">
+            Student Activity Monitor${cheatingFlagsByStudentId.size ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">${cheatingFlagsByStudentId.size}</span>` : ''}
+          </button>
+          <button type="button" role="tab" aria-selected="${tabIsActive('cohorts')}" data-admin-tab="cohorts" class="${tabBtnClass('cohorts')}">Cohorts</button>
+          <button type="button" role="tab" aria-selected="${tabIsActive('archived')}" data-admin-tab="archived" class="${tabBtnClass('archived')}">Archived Students</button>
+        </div>
+
+        <div id="admin-tab-panel-progress" ${tabIsActive('progress') ? '' : 'hidden'}>
         ${
           error
             ? `<div class="bg-red-50 border border-red-200 rounded-xl p-6 mb-8">
@@ -3962,10 +4227,78 @@ function viewAdmin(user, rows, error, activeStudents) {
                        </div>
                      </div>
                      <div class="flex flex-wrap gap-3">
+                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-user" type="button">Generate New User</button>
+                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-cohort" type="button">Generate New Cohort</button>
                        <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#c2410c] hover:text-[#9a3412] hover:border-[#f97316] hover:bg-[#fff7ed] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-save-progress-file" type="button" title="Download one recoverable progress snapshot for every student in the current filtered scope">Save Progress File (All Students)</button>
                        <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-generate-report" type="button">Preview &amp; Generate Report</button>
                      </div>
                    </div>
+
+                   <!-- Sprint 4: "Generate New User" — one auto-enrolled student
+                        account on demand, via supabase/functions/admin-provision.
+                        COHORT_USER_LIFECYCLE_SPRINT_PLAN.md. -->
+                   <div id="admin-generate-user-panel" class="bg-white border border-gray-200 rounded-xl p-5 mb-4" hidden>
+                     <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate New User</h3>
+                     <p class="text-xs text-gray-500 mb-4">Creates one auto-enrolled student account immediately. The password is shown once, below — copy it now, it is not shown again.</p>
+                     <div class="grid sm:grid-cols-3 gap-3 items-end">
+                       <label class="text-xs font-semibold text-gray-600">Track
+                         <select id="gen-user-track" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                           <option value="SOCAN">SOCAN — SOC Analyst</option>
+                           <option value="HDESK">HDESK — IT Support</option>
+                           <option value="AIENG">AIENG — AI/ML</option>
+                           <option value="ELECT">ELECT — Electrical</option>
+                           <option value="ADMIN">ADMIN</option>
+                         </select>
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Cohort (optional)
+                         <select id="gen-user-cohort" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                           <option value="">No cohort</option>
+                           ${activeCohorts.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
+                         </select>
+                       </label>
+                       <button type="button" data-action="admin-generate-user-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate</button>
+                     </div>
+                     <div id="admin-generate-user-status" class="text-sm text-gray-500 mt-3"></div>
+                     <div id="admin-generate-user-result" class="mt-3"></div>
+                   </div>
+
+                   <!-- Sprint 4: "Generate New Cohort" — names a cohort and
+                        batch-generates a chosen student count per track into it
+                        in one action, via the same Edge Function. -->
+                   <div id="admin-generate-cohort-panel" class="bg-white border border-gray-200 rounded-xl p-5 mb-4" hidden>
+                     <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate New Cohort</h3>
+                     <p class="text-xs text-gray-500 mb-4">Creates a named cohort and immediately batch-generates the chosen number of student accounts per track into it. Every generated password appears once, in the roster table below — copy it now, it is not shown again.</p>
+                     <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
+                       <label class="text-xs font-semibold text-gray-600">Cohort name
+                         <input id="gen-cohort-name" type="text" placeholder="e.g. Fall 2026 intake" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Start date
+                         <input id="gen-cohort-start" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">End date
+                         <input id="gen-cohort-end" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                     </div>
+                     <p class="text-xs font-semibold text-gray-600 mb-2">Students per track (0 = none)</p>
+                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                       <label class="text-xs font-semibold text-gray-600">SOCAN
+                         <input id="gen-cohort-count-SOCAN" type="number" min="0" step="1" value="0" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">HDESK
+                         <input id="gen-cohort-count-HDESK" type="number" min="0" step="1" value="0" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">AIENG
+                         <input id="gen-cohort-count-AIENG" type="number" min="0" step="1" value="0" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">ELECT
+                         <input id="gen-cohort-count-ELECT" type="number" min="0" step="1" value="0" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                     </div>
+                     <button type="button" data-action="admin-generate-cohort-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate cohort</button>
+                     <div id="admin-generate-cohort-status" class="text-sm text-gray-500 mt-3"></div>
+                     <div id="admin-generate-cohort-result" class="mt-3"></div>
+                   </div>
+
                    <div id="admin-report-status" class="text-sm text-gray-500"></div>
                    <div id="admin-report-preview"></div>
                  </div>
@@ -4030,7 +4363,10 @@ function viewAdmin(user, rows, error, activeStudents) {
                        ${rows.map((row) => `
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
                              data-track="${esc(row.track_code)}" data-progress="${row.percent_complete}" data-started="${(row.modules_complete > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
-                           <td class="px-6 py-4 text-sm text-gray-900 font-mono">${esc(row.student_id)}</td>
+                           <td class="px-6 py-4 text-sm text-gray-900 font-mono">
+                             ${esc(row.student_id)}
+                             ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
+                           </td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
                            <td class="px-6 py-4 text-sm">
@@ -4100,6 +4436,146 @@ function viewAdmin(user, rows, error, activeStudents) {
                  }
                </div>`
         }
+        </div>
+
+        <div id="admin-tab-panel-activity" ${tabIsActive('activity') ? '' : 'hidden'}>
+          <div class="mb-6">
+            <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Student Activity Monitor</h2>
+            <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
+            <p class="text-gray-500 text-sm">Recent sign-ins across every student, newest first. Visibility only — like the clock-hours requirement above, this is never used for attendance, instructional-time, or compliance calculations. "Site time" below is the same: how long a student's browser session was open, not instructional or credited time.</p>
+          </div>
+          <div id="admin-activity-status" class="text-sm text-gray-500 mb-3"></div>
+          ${
+            cheatingFlagsByStudentId.size
+              ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                   <p class="text-sm font-semibold text-amber-800 mb-1">${cheatingFlagsByStudentId.size} student account(s) flagged for review</p>
+                   <p class="text-xs text-amber-700">Unusually fast module or track completion relative to the curriculum's credited time. This is a heuristic, not proof of misconduct — a fast completion can also mean the student already knew the material, reviewed it in an earlier session before this one, or has multiple tabs/devices open. Verify with the student before acting. Hover a "Review" tag below for the specific reason, or open the student in the Student Progress tab's Student Detail section.</p>
+                 </div>`
+              : ''
+          }
+          ${
+            loginEvents.length === 0
+              ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No sign-ins recorded yet.</p></div>`
+              : `<div class="overflow-x-auto">
+                   <table class="w-full border-collapse">
+                     <thead>
+                       <tr class="border-b border-gray-200 bg-gray-50">
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Student ID</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Track</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Signed in</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]" title="Operational visibility only — not instructional or credited hours">Site time</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       ${loginEvents.map((ev) => {
+                         const hoursRow = siteHoursByStudentId.get(ev.student_id);
+                         return `
+                         <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                           <td class="px-6 py-3 text-sm text-gray-900 font-mono">
+                             ${esc(ev.student_id || '—')}
+                             ${cheatingFlagsByStudentId.has(ev.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(ev.student_id).join(' · '))}">Review</span>` : ''}
+                           </td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${esc(ev.track_code || '—')}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${new Date(ev.occurred_at).toLocaleString()}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${hoursRow ? esc(formatSiteMinutes(hoursRow.total_minutes)) : '—'}</td>
+                           <td class="px-6 py-3 text-sm whitespace-nowrap">
+                             ${ev.user_id ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id || 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
+                           </td>
+                         </tr>`;
+                       }).join('')}
+                     </tbody>
+                   </table>
+                 </div>`
+          }
+        </div>
+
+        <div id="admin-tab-panel-cohorts" ${tabIsActive('cohorts') ? '' : 'hidden'}>
+          <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Cohorts</h2>
+              <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
+              <p class="text-gray-500 text-sm">Named intake groups with a start/end window. An expired cohort archives automatically once a day; use the button below to run that sweep on demand for testing.</p>
+            </div>
+            <button type="button" data-action="admin-run-archive-sweep" class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all whitespace-nowrap cursor-pointer">Run archive sweep now</button>
+          </div>
+          <div id="admin-archive-sweep-status" class="text-sm text-gray-500 mb-4"></div>
+          ${
+            cohorts.length === 0
+              ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No cohorts created yet.</p></div>`
+              : `<div class="overflow-x-auto">
+                   <table class="w-full border-collapse">
+                     <thead>
+                       <tr class="border-b border-gray-200 bg-gray-50">
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Name</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Start</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">End</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Status</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Students</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       ${cohorts.map((c) => `
+                         <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                           <td class="px-6 py-3 text-sm text-gray-900">${esc(c.name)}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${esc(c.start_date)}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${esc(c.end_date)}</td>
+                           <td class="px-6 py-3 text-sm">
+                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${c.archived_at ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-700'}">
+                               <span class="w-1.5 h-1.5 rounded-full ${c.archived_at ? 'bg-gray-400' : 'bg-green-500'}"></span>
+                               ${c.archived_at ? 'Archived' : 'Active'}
+                             </span>
+                           </td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${cohortStudentCounts.get(c.id) || 0}</td>
+                         </tr>`).join('')}
+                     </tbody>
+                   </table>
+                 </div>`
+          }
+        </div>
+
+        <div id="admin-tab-panel-archived" ${tabIsActive('archived') ? '' : 'hidden'}>
+          <div class="mb-6">
+            <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Archived Students</h2>
+            <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
+            <p class="text-gray-500 text-sm">Read-only historical view. One row per student archived out of an expired cohort — see the site's cohort archival design notes for what is and isn't frozen here. This is not the compliance-of-record table.</p>
+          </div>
+          ${
+            archivedStudents.length === 0
+              ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No archived students yet.</p></div>`
+              : `<div class="overflow-x-auto">
+                   <table class="w-full border-collapse">
+                     <thead>
+                       <tr class="border-b border-gray-200 bg-gray-50">
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Student ID</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Cohort</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Track</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Program</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Modules</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Progress</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Capstone</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Status at archive</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Archived</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       ${archivedStudents.map((r) => `
+                         <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                           <td class="px-6 py-3 text-sm text-gray-900 font-mono">${esc(r.student_id)}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${esc(r.cohort_name || '—')}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${esc(r.track_code || '—')}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${esc(r.program_slug || '—')}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${r.modules_complete ?? '—'} / ${r.modules_total ?? '—'}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${r.percent_complete !== null && r.percent_complete !== undefined ? esc(String(r.percent_complete)) + '%' : '—'}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${r.capstone_overall_score !== null && r.capstone_overall_score !== undefined ? esc(Number(r.capstone_overall_score).toFixed(2)) : '—'}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${esc(r.status_at_archive || '—')}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${r.archived_at ? new Date(r.archived_at).toLocaleDateString() : '—'}</td>
+                         </tr>`).join('')}
+                     </tbody>
+                   </table>
+                 </div>`
+          }
+        </div>
 
         <div class="mt-8">
           <a href="#/portal" class="inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-6 py-3 rounded-xl transition-colors">
@@ -4147,6 +4623,7 @@ async function render() {
 
   let dashboardRows = [];
   let activeStudents = [];
+  let cheatingFlagsByUserId = new Map();
   if (hash === '#/admin') {
     if (!user.isAdmin) {
       history.replaceState(null, '', '#/portal');
@@ -4181,10 +4658,74 @@ async function render() {
         .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || (activityRowMap.get(r.student_id)?.lab_attempts_count || 0) > 0 || (activityRowMap.get(r.student_id)?.capstone_submissions_count || 0) > 0)
         .sort((a, b) => a.student_id.localeCompare(b.student_id));
 
-      app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents);
+      // Completion-speed review flags (see buildCheatingReviewFlags above):
+      // module_progress_admin_read already lets an admin read every
+      // student's completed rows in one query, no per-student round trip.
+      const { data: completedModuleRows } = await mntSupabase
+        .from('module_progress')
+        .select('user_id, module_key, track_code, started_at, completed_at')
+        .eq('state', 'complete');
+      cheatingFlagsByUserId = buildCheatingReviewFlags(dashboardRows, completedModuleRows);
+
+      // Student Activity Monitor tab: recent sign-ins across every student,
+      // newest first. login_events_admin_read (20260901110000_login_events.sql).
+      // user_id is included (not shown as a column) so the "Sign out" button
+      // below has the target id admin_force_sign_out(target_user_id) needs.
+      const { data: loginEvents, error: loginEventsError } = await mntSupabase
+        .from('login_events')
+        .select('user_id, student_id, track_code, occurred_at')
+        .order('occurred_at', { ascending: false })
+        .limit(500);
+      if (loginEventsError) console.error('login_events fetch failed', loginEventsError);
+
+      // Sprint 4 (COHORT_USER_LIFECYCLE_SPRINT_PLAN.md): cohorts + hours-on-
+      // site + archived students. Same non-fatal, error-logged pattern as
+      // every other admin-only fetch above — a failure here degrades only
+      // its own tab, never the whole admin dashboard.
+      const { data: cohortRows, error: cohortsError } = await mntSupabase
+        .from('cohorts')
+        .select('*')
+        .order('start_date', { ascending: false });
+      if (cohortsError) console.error('cohorts fetch failed', cohortsError);
+      const cohorts = cohortRows || [];
+
+      // Per-cohort student counts: admin_student_progress doesn't carry
+      // cohort_id, so this is the "second, simplest correct query" the
+      // sprint plan calls out rather than extending that view.
+      const { data: cohortMemberRows, error: cohortMembersError } = await mntSupabase
+        .from('students')
+        .select('cohort_id')
+        .not('cohort_id', 'is', null);
+      if (cohortMembersError) console.error('students.cohort_id fetch failed', cohortMembersError);
+      const cohortStudentCounts = new Map();
+      (cohortMemberRows || []).forEach((r) => {
+        cohortStudentCounts.set(r.cohort_id, (cohortStudentCounts.get(r.cohort_id) || 0) + 1);
+      });
+
+      const { data: archivedStudentRows, error: archivedStudentsError } = await mntSupabase
+        .from('admin_archived_students')
+        .select('*')
+        .order('archived_at', { ascending: false });
+      if (archivedStudentsError) console.error('admin_archived_students fetch failed', archivedStudentsError);
+
+      const { data: siteHoursRows, error: siteHoursError } = await mntSupabase
+        .from('admin_site_hours_by_student')
+        .select('*');
+      if (siteHoursError) console.error('admin_site_hours_by_student fetch failed', siteHoursError);
+      const siteHoursByStudentId = new Map((siteHoursRows || []).map((r) => [r.student_id, r]));
+
+      app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, {
+        cheatingFlagsByUserId,
+        loginEvents: loginEvents || [],
+        cohorts,
+        cohortStudentCounts,
+        archivedStudents: archivedStudentRows || [],
+        siteHoursByStudentId,
+        activeTab: adminActiveTab,
+      });
     }
     wireCommon();
-    wireAdmin(dashboardRows, activeStudents);
+    wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId);
     window.scrollTo(0, 0);
     return;
   }
@@ -4267,9 +4808,215 @@ function wireCommon() {
   wireRegisteredModuleLabs();
 }
 
-function wireAdmin(dashboardRows, activeStudents) {
+function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
   dashboardRows = dashboardRows || [];
   activeStudents = activeStudents || [];
+  cheatingFlagsByUserId = cheatingFlagsByUserId || new Map();
+
+  const tabButtons = document.querySelectorAll('[data-admin-tab]');
+  const tabPanels = {
+    progress: document.getElementById('admin-tab-panel-progress'),
+    activity: document.getElementById('admin-tab-panel-activity'),
+    cohorts: document.getElementById('admin-tab-panel-cohorts'),
+    archived: document.getElementById('admin-tab-panel-archived'),
+  };
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.adminTab;
+      adminActiveTab = target; // persists the selection across a future full render() (see its declaration)
+      tabButtons.forEach((b) => {
+        const active = b.dataset.adminTab === target;
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+        b.classList.toggle('border-[#1e3a5f]', active);
+        b.classList.toggle('text-[#1e3a5f]', active);
+        b.classList.toggle('border-transparent', !active);
+        b.classList.toggle('text-gray-500', !active);
+      });
+      Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
+    });
+  });
+
+  /* Sprint 4 (COHORT_USER_LIFECYCLE_SPRINT_PLAN.md): "Generate New User" /
+   * "Generate New Cohort" panel toggles. Plain show/hide of the inline panel
+   * built in viewAdmin — no modal component, matching this file's existing
+   * "keep it simple" pattern for admin-report-preview et al. */
+  const toggleGenerateUserBtn = document.querySelector('[data-action="admin-toggle-generate-user"]');
+  const generateUserPanel = document.getElementById('admin-generate-user-panel');
+  if (toggleGenerateUserBtn && generateUserPanel) {
+    toggleGenerateUserBtn.addEventListener('click', () => { generateUserPanel.hidden = !generateUserPanel.hidden; });
+  }
+  const toggleGenerateCohortBtn = document.querySelector('[data-action="admin-toggle-generate-cohort"]');
+  const generateCohortPanel = document.getElementById('admin-generate-cohort-panel');
+  if (toggleGenerateCohortBtn && generateCohortPanel) {
+    toggleGenerateCohortBtn.addEventListener('click', () => { generateCohortPanel.hidden = !generateCohortPanel.hidden; });
+  }
+
+  /* "Generate New User": one account, via admin-provision's create_user
+   * action. The password is shown exactly once, in this response — never
+   * stored client-side beyond this render, never logged. */
+  const generateUserSubmitBtn = document.querySelector('[data-action="admin-generate-user-submit"]');
+  if (generateUserSubmitBtn) {
+    generateUserSubmitBtn.addEventListener('click', async () => {
+      const trackSelect = document.getElementById('gen-user-track');
+      const cohortSelect = document.getElementById('gen-user-cohort');
+      const resultEl = document.getElementById('admin-generate-user-result');
+      const statusEl = document.getElementById('admin-generate-user-status');
+      if (!trackSelect || !resultEl) return;
+      generateUserSubmitBtn.disabled = true;
+      if (statusEl) statusEl.textContent = 'Creating account…';
+      resultEl.innerHTML = '';
+      try {
+        const account = await callAdminProvision('create_user', {
+          track_code: trackSelect.value,
+          cohort_id: cohortSelect && cohortSelect.value ? cohortSelect.value : null,
+        });
+        if (statusEl) statusEl.textContent = '';
+        resultEl.innerHTML = `
+          <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p class="text-xs font-semibold text-green-800 mb-2">Account created — copy this now, it is not shown again.</p>
+            <pre data-select-all tabindex="0" class="bg-white border border-green-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(account.student_id)}
+Password:   ${esc(account.password)}
+Track:      ${esc(account.track_code)}</pre>
+          </div>`;
+        wireSelectAllBlocks(resultEl);
+      } catch (err) {
+        if (statusEl) statusEl.textContent = '';
+        resultEl.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">${esc(err && err.message ? err.message : String(err))}</div>`;
+      } finally {
+        generateUserSubmitBtn.disabled = false;
+      }
+    });
+  }
+
+  /* "Generate New Cohort": names a cohort and batch-generates the chosen
+   * per-track counts into it in one admin-provision create_cohort call. */
+  const generateCohortSubmitBtn = document.querySelector('[data-action="admin-generate-cohort-submit"]');
+  if (generateCohortSubmitBtn) {
+    generateCohortSubmitBtn.addEventListener('click', async () => {
+      const nameInput = document.getElementById('gen-cohort-name');
+      const startInput = document.getElementById('gen-cohort-start');
+      const endInput = document.getElementById('gen-cohort-end');
+      const resultEl = document.getElementById('admin-generate-cohort-result');
+      const statusEl = document.getElementById('admin-generate-cohort-status');
+      if (!nameInput || !resultEl) return;
+
+      const counts = {};
+      ['SOCAN', 'HDESK', 'AIENG', 'ELECT'].forEach((track) => {
+        const input = document.getElementById(`gen-cohort-count-${track}`);
+        counts[track] = input ? Math.max(0, Math.floor(Number(input.value) || 0)) : 0;
+      });
+
+      if (!nameInput.value.trim() || !startInput.value || !endInput.value) {
+        if (statusEl) statusEl.textContent = 'Name, start date, and end date are all required.';
+        return;
+      }
+      if (Object.values(counts).every((n) => n === 0)) {
+        if (statusEl) statusEl.textContent = 'Enter at least one positive per-track count.';
+        return;
+      }
+
+      generateCohortSubmitBtn.disabled = true;
+      if (statusEl) statusEl.textContent = 'Creating cohort and generating accounts…';
+      resultEl.innerHTML = '';
+      try {
+        const result = await callAdminProvision('create_cohort', {
+          name: nameInput.value.trim(),
+          start_date: startInput.value,
+          end_date: endInput.value,
+          counts,
+        });
+        if (statusEl) {
+          statusEl.textContent = `Cohort created with ${result.roster.length} account(s)${result.failures.length ? `, ${result.failures.length} failure(s)` : ''}.`;
+        }
+        resultEl.innerHTML = `
+          <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
+            <p class="text-sm font-semibold text-green-800">Cohort "${esc(result.cohort_name)}" created.</p>
+            <p class="text-xs text-amber-700 mt-1 font-semibold">This roster contains plaintext passwords. Copy them now and move them to your password vault — they will not be shown again.</p>
+          </div>
+          ${result.failures.length ? `
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-xs text-amber-700">
+              <p class="font-semibold mb-1">${result.failures.length} account(s) failed to create:</p>
+              <ul class="list-disc pl-4 space-y-0.5">${result.failures.map((f) => `<li>${esc(f.track_code)}: ${esc(f.error)}</li>`).join('')}</ul>
+            </div>` : ''}
+          <div class="overflow-x-auto">
+            <table data-select-all tabindex="0" title="Click to select the whole roster table" class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-gray-200 bg-gray-50">
+                  <th class="text-left px-3 py-2 font-semibold text-[#1e3a5f]">Student ID</th>
+                  <th class="text-left px-3 py-2 font-semibold text-[#1e3a5f]">Password</th>
+                  <th class="text-left px-3 py-2 font-semibold text-[#1e3a5f]">Track</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.roster.map((a) => `<tr class="border-b border-gray-100"><td class="px-3 py-2 font-mono">${esc(a.student_id)}</td><td class="px-3 py-2 font-mono">${esc(a.password)}</td><td class="px-3 py-2">${esc(a.track_code)}</td></tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+        wireSelectAllBlocks(resultEl);
+      } catch (err) {
+        if (statusEl) statusEl.textContent = '';
+        resultEl.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">${esc(err && err.message ? err.message : String(err))}</div>`;
+      } finally {
+        generateCohortSubmitBtn.disabled = false;
+      }
+    });
+  }
+
+  /* Cohorts tab: "Run archive sweep now" — admin-callable RPC wrapper around
+   * archive_expired_cohorts() for on-demand testing, per the sprint plan (the
+   * daily pg_cron schedule is the production path; this is so an admin
+   * doesn't have to wait for it). A full render() afterward is the simplest
+   * correct way to refresh the cohorts list/counts and the now-possibly-
+   * changed Student Progress/Archived Students data; adminActiveTab (see its
+   * declaration) keeps the admin looking at the Cohorts tab through that
+   * rebuild instead of bouncing back to Student Progress. */
+  const archiveSweepBtn = document.querySelector('[data-action="admin-run-archive-sweep"]');
+  if (archiveSweepBtn) {
+    archiveSweepBtn.addEventListener('click', async () => {
+      const sweepStatus = document.getElementById('admin-archive-sweep-status');
+      archiveSweepBtn.disabled = true;
+      if (sweepStatus) sweepStatus.textContent = 'Running archive sweep…';
+      try {
+        const { error: sweepError } = await mntSupabase.rpc('archive_expired_cohorts');
+        if (sweepError) throw sweepError;
+        if (sweepStatus) sweepStatus.textContent = 'Archive sweep completed. Refreshing…';
+        await render();
+        return; // render() rebuilt the DOM and re-wired everything; this node set is stale now.
+      } catch (err) {
+        archiveSweepBtn.disabled = false;
+        if (sweepStatus) sweepStatus.textContent = `Archive sweep failed: ${err && err.message ? err.message : String(err)}`;
+      }
+    });
+  }
+
+  /* Activity Monitor tab: per-row "Sign out" button, calling
+   * admin_force_sign_out() (20260901122000_activity_monitor_sessions.sql) via
+   * RPC. A real, immediate action against a real student's session, so this
+   * always confirms first and gives disabled/status feedback either way —
+   * never a silent one-click. */
+  const activityStatus = document.getElementById('admin-activity-status');
+  document.querySelectorAll('[data-force-signout]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const targetUserId = btn.getAttribute('data-force-signout');
+      const label = btn.getAttribute('data-force-signout-student') || 'this student';
+      if (!confirm(`Force sign out ${label}? They will be blocked from staying signed in past their next token refresh or page reload.`)) return;
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Signing out…';
+      if (activityStatus) activityStatus.textContent = `Signing out ${label}…`;
+      try {
+        const { error: signOutError } = await mntSupabase.rpc('admin_force_sign_out', { target_user_id: targetUserId });
+        if (signOutError) throw signOutError;
+        btn.textContent = 'Signed out';
+        if (activityStatus) activityStatus.textContent = `${label} was signed out.`;
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        if (activityStatus) activityStatus.textContent = `Could not sign out ${label}: ${err && err.message ? err.message : String(err)}`;
+      }
+    });
+  });
+
   const trackFilter = document.getElementById('track-filter');
   const hideNotStarted = document.getElementById('hide-not-started');
   const reportingPeriodStart = document.getElementById('reporting-period-start');
@@ -4681,7 +5428,8 @@ function wireAdmin(dashboardRows, activeStudents) {
         capstoneRes.data || [],
         scorecardRes.data || null,
         artifactRes.data || [],
-        reviewRes.data || []
+        reviewRes.data || [],
+        cheatingFlagsByUserId.get(row.user_id) || []
       );
     });
 
@@ -4774,7 +5522,7 @@ function adminDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—';
 }
 
-function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = []) {
+function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = []) {
   const moduleSection = moduleRows.length === 0
     ? `<p class="text-sm text-gray-400">No module progress recorded.</p>`
     : `<div class="overflow-x-auto">
@@ -4873,8 +5621,18 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
          <div class="flex items-center gap-3 mt-3"><button type="submit" class="text-xs font-semibold bg-[#1e3a5f] hover:bg-[#16304f] text-white px-3 py-2 rounded-lg">Save review</button><span data-review-status class="text-xs text-gray-600"></span></div>
        </form>`;
 
+  const reviewFlagSection = reviewFlagReasons.length === 0 ? '' : `
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+      <p class="text-sm font-semibold text-amber-800 mb-1">Flagged for review — unusually fast completion</p>
+      <ul class="text-xs text-amber-700 list-disc pl-4 space-y-0.5 mb-2">
+        ${reviewFlagReasons.map((r) => `<li>${esc(r)}</li>`).join('')}
+      </ul>
+      <p class="text-xs text-amber-700">This is a heuristic, not proof of misconduct — a fast completion can also mean the student already knew the material, reviewed it in an earlier session before this one, or has multiple tabs/devices open. Verify with the student before taking any action.</p>
+    </div>`;
+
   return `
     <div class="bg-white border border-gray-200 rounded-xl p-6">
+      ${reviewFlagSection}
       <div class="mb-6 pb-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}</p>
