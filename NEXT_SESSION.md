@@ -1,5 +1,131 @@
 # Next session — start here
 
+## Session 2026-09-01 (latest, done — both pieces now deployed)
+
+Site owner looked at the Student Activity Monitor and asked two questions
+that both traced back to work that was written but not yet live. Both are
+now fixed, deployed, and verified:
+
+1. **"Shouldn't the 1-hour idle timer have signed these out?"** It hadn't,
+   because `20260901140000_site_sessions_idle_timeout.sql` (see the "auto
+   sign-out on inactivity" entry below) was still local-only — the
+   client-side timer in `portal/app.js` was already running, but a real
+   idle sign-out would have failed the `site_sessions_self_close`
+   RLS/CHECK constraint. Ran `supabase db push --linked` (site owner
+   approved; the auto-mode classifier blocks this as a production DB
+   action when attempted unprompted). CLI printed a non-fatal warning
+   ("failed to cache migrations catalog" / missing
+   `pgdelta-target-ca.crt`) from its local delta-catalog step, unrelated to
+   whether the migration applied — confirmed applied via a fresh
+   `supabase migration list --linked`, `20260901140000` now matches on
+   Local and Remote.
+2. **"Why is the Location column always `—`?"** Because `record-login-geo`
+   was never actually deployed as an Edge Function, contrary to what the
+   "completion/score integrity migration" entry's first correction had
+   claimed (now further corrected there). `supabase functions list` showed
+   only `admin-provision` as ACTIVE; 0 of 10 `login_events` rows had
+   `ip_address` populated. Ran
+   `supabase functions deploy record-login-geo --project-ref eokvngifirjgfozzbieu`
+   — now `ACTIVE` per `supabase functions list`. The client call
+   (`recordLoginGeo()`, `portal/app.js:176`) correctly passes the session's
+   real `access_token` as a Bearer token, satisfying both the function
+   gateway's `verify_jwt: true` and the function's own internal auth check.
+
+**Note for whoever looks at the Activity Monitor next:** neither fix
+backfills existing rows — the idle timer only starts protecting sessions
+that are active from now on, and Location only populates for sign-ins that
+happen after this deploy. The rows already visible in the site owner's
+screenshot (all before this push) will keep showing `—` and won't
+retroactively get idle-timed-out.
+
+## Session 2026-09-01 (done — needs a deploy) — cohort default duration + legacy credential backfill
+
+Two site-owner-requested mini-sprints, each done via a spawned subagent
+(reviewed and verified after the fact, not blindly trusted):
+
+1. **Cohorts are always exactly 6 weeks now — no End Date field.** Every
+   published track is a fixed 6-week/12-module curriculum (README.md,
+   MODULE_STANDARD.md, CURRICULUM_MAP.md, CURRICULUM_ALIGNMENT_
+   ARCHITECTURE.md all agree, "no track deviates"), so requiring an admin
+   to separately type an end date when generating a cohort was one
+   unnecessary field. Removed `#gen-cohort-end` from the "Generate New
+   Cohort" admin panel (`portal/app.js`) and its wiring; `supabase/
+   functions/admin-provision/index.ts`'s `handleCreateCohort` now computes
+   `end_date` itself as `start_date + 42 days` (UTC-safe math, not
+   calendar-day arithmetic that could drift a day across timezones) instead
+   of accepting it from the request. No schema/migration change — `public.
+   cohorts.end_date` and its `check (end_date >= start_date)` constraint
+   are untouched, just always satisfied by construction now. `node --check
+   portal/app.js` clean; `deno check` skipped (Deno not installed in this
+   environment) — worth running once before or during the deploy below if
+   Deno is available where the site owner runs it.
+   **Not yet deployed** — the code change alone does nothing live until:
+   ```
+   supabase functions deploy admin-provision --project-ref eokvngifirjgfozzbieu
+   ```
+   No `supabase db push` needed for this one.
+
+2. **Backfilled plaintext passwords for 8 pre-`student_credentials`
+   accounts.** The admin panel's "view credentials" action was showing "No
+   stored password for this account" for any account created by the older
+   `bin/provision-students.js` script (2026-08-28) before `public.
+   student_credentials` existed — e.g. `5520852787-SOCAN`, the account the
+   site owner actually hit. Those passwords were never lost, just never
+   written to Supabase — they're in the gitignored `bin/.roster-output/
+   *.csv` roster files the script itself wrote at creation time. Backfilled
+   via a verified, pre/post-counted `supabase db query --linked` insert
+   (`insert ... on conflict (student_id) do nothing` — never overwrites an
+   existing row): of 81 distinct student_ids across the 5 CSVs, 8 existed in
+   `public.students` with no `student_credentials` row and got backfilled
+   (`7355312413-ADMIN`, `3073074090-AIENG`, `5364909556-AIENG`,
+   `9752398313-AIENG`, `8987495051-SOCAN`, `4437023872-SOCAN`,
+   `9334491415-SOCAN`, `5520852787-SOCAN`); the other 73 no longer exist in
+   `public.students` at all (they're the same 73 zero-activity disenrolled
+   accounts already deleted per `HANDOFF_ADMIN_CREDENTIALS_VIEW.md`), so
+   nothing was inserted for those — correct, not a gap. Spot-checked
+   `5520852787-SOCAN` against its CSV row: matches exactly. **Already live**
+   — this was a direct data write against the linked production database,
+   not a migration; nothing further to push or deploy for this one.
+
+## Session 2026-09-01 (done) — auto sign-out on inactivity
+
+Site owner asked for session control: no auto sign-out existed after login,
+only the manual "Sign out" button and admin `admin_force_sign_out()`. Added a
+60-minute client-side inactivity timer (`portal/app.js`: `MNT_IDLE_TIMEOUT_MS`,
+`resetIdleTimer()`, `wireIdleSignOut()`, wired at `DOMContentLoaded`) that
+calls the existing `signOut()` — now `signOut(reason = 'user_signed_out')` —
+with `reason: 'idle_timeout'` so the Activity Monitor's `site_sessions` rows
+can distinguish a walked-away session from a real click. Needed a schema
+change: `site_sessions.ended_reason` and the `site_sessions_self_close` RLS
+policy only allowed `'user_signed_out'`/`'admin_forced'`/`'superseded'` —
+widened by `supabase/migrations/20260901140000_site_sessions_idle_timeout.sql`.
+**Not yet pushed** — needs `supabase db push` before the idle-timeout path
+will actually work in production (until then, a real idle sign-out attempt
+would fail the CHECK constraint). `node --check portal/app.js` clean;
+`bin/portal-check.js` currently can't run past `signIn()` for an unrelated,
+pre-existing reason (see below), so this wasn't exercised through that
+harness — verify manually in a browser (or fix the harness) before trusting
+it fully.
+
+Also confirmed while answering "where is the Location/IP column": it already
+existed (Student Activity Monitor tab, `portal/app.js` `formatLoginLocation()`
+and the "Location" header, fed by `login_events.geo_city/geo_region/
+geo_country` + `record-login-geo`) — not a gap, just not committed yet (see
+the correction below). Trimmed the tab's over-long caption paragraph per the
+site owner's request mid-session.
+
+**`bin/portal-check.js` is currently broken past any `signIn()` call** —
+unrelated to this session's work, pre-existing in the uncommitted
+`recordLoginEvent()` code: the test harness's stub Supabase mock's `insert()`
+returns `{ error: null }` directly, but `recordLoginEvent()` chains
+`.select('id').single()` after it, which the stub doesn't support
+(`TypeError: ...insert(...).select is not a function`). Confirmed via
+`git stash` that the harness passes clean without today's `portal/app.js`
+changes reverted — i.e. this is a mock-vs-real-client gap introduced whenever
+`recordLoginEvent()`'s `.select().single()` chain was added, not something
+this session's idle-timeout edits caused. Worth fixing the stub (or the call)
+next time `bin/portal-check.js` needs to actually run end to end.
+
 ## Session 2026-09-01 (later, done — needs the site owner's deployment steps) — cohort/user lifecycle: generate users/cohorts, auto-archive on expiry, Activity Monitor hours + force sign-out
 
 Full write-up: `COHORT_USER_LIFECYCLE_SPRINT_PLAN.md` (about to be archived to
@@ -83,7 +209,7 @@ documented Edge-Function fallback noted in its own migration comment in case the
 hosted project's grants block it — untested against the live project since nothing
 is pushed yet.
 
-## Session 2026-09-01 (open, needs a push decision) — completion/score integrity migration written, not yet applied
+## Session 2026-09-01 (done — now pushed; correction below) — completion/score integrity migration
 
 A bug-bounty-style pass found that `module_progress`, `lab_attempts`, and
 `capstone_submissions` RLS (`user_id = auth.uid()` ownership only) let a
@@ -113,30 +239,49 @@ dropped in `20260828160000_simplify_schema.sql` in favor of
 `portal/data.js`), and one making a completed module immutable except for an
 admin.
 
-**Verified safe, not yet pushed.** Every constraint was checked against the
-*live* linked project inside a transaction that was rolled back (nothing
-committed) before this file was written: 0 existing violations except 4
-`lab-soc-environment` (ungraded walkthrough) rows with a null score, which
-is why the score check allows null rather than requiring a passing number.
-The guard logic itself was then attack-tested the same way (rolled back,
-zero persisted changes): a fresh account with zero lab attempts is blocked
-from faking even one module (let alone a batch of 12); a student with one
-genuine passing lab can legitimately complete one module but not a second;
-a low-score lab attempt marked `complete` is rejected; reverting a completed
-module is rejected. `supabase migration list --linked` still shows this file
-as local-only (matches `20260829130000_fixed_credit_hours.sql`'s convention
-of staying unpushed until an authorized operator reviews it) — **this
-session did not run `supabase db push`**, since that's a live change to a
-production DB with real student data and needs an explicit go-ahead, not an
-assumed one.
+**Correction, 2026-09-01 (later session):** the paragraph above said this
+session deliberately did not push and left the file local-only pending
+review. That's now stale — `supabase migration list --linked` shows
+`20260901103000` (this file), plus `20260901110000_login_events.sql` and
+`20260901130000_login_event_geo.sql`, all matched on Local and Remote, i.e.
+**already applied to the live database**. Only the git commit never
+happened: `git status` still shows all three as untracked. So the guard
+logic described above (attack-tested pre-push, 0 existing violations) is
+live and protecting real student data right now, but the migration files
+themselves aren't in version control yet — the working tree and the
+database have drifted apart. Whoever picks this up next should `git add`
+and commit those three files so git matches what's actually deployed, rather
+than re-reviewing them as if they were still pending. Confirmed via
+`supabase migration list --linked` and `supabase db query --linked` on
+2026-09-01.
 
-**Next session / whoever reviews this:** read the migration's header
-comment, confirm the ratio-floor tradeoff is acceptable (it stops
-zero-effort forgery but not a determined attacker fabricating one
-plausible-looking lab attempt per claimed module), then `supabase db push`
-if so. If tighter enforcement is wanted later, the real fix is moving lab
-grading server-side or reintroducing a lab_key→module_key mapping table —
-both bigger, separate decisions, deliberately not made here.
+**Correction, 2026-09-01 (later still):** the "`record-login-geo`, also live
+but uncommitted" claim two lines up is itself wrong — `supabase functions
+list --project-ref eokvngifirjgfozzbieu` shows only `admin-provision` as
+ACTIVE; `record-login-geo` was never deployed. Confirmed against data too:
+`select count(*) filter (where ip_address is not null), count(*) from
+public.login_events` returns `0` of `10` rows with an IP — the migration
+(`20260901130000_login_event_geo.sql`, columns only) is live, but nothing
+has ever populated them because the function that would call `fetch()` to
+this Edge Function 404s. This is why the Student Activity Monitor's
+Location column shows `—` for every row. **Still needs:**
+`supabase functions deploy record-login-geo --project-ref eokvngifirjgfozzbieu`.
+
+Original attack-testing note, still accurate as a description of what the
+guards do: every constraint was checked against the live linked project
+inside a transaction that was rolled back (nothing committed) before this
+file was written — 0 existing violations except 4 `lab-soc-environment`
+(ungraded walkthrough) rows with a null score, which is why the score check
+allows null rather than requiring a passing number. The guard logic itself
+was then attack-tested the same way (rolled back, zero persisted changes): a
+fresh account with zero lab attempts is blocked from faking even one module
+(let alone a batch of 12); a student with one genuine passing lab can
+legitimately complete one module but not a second; a low-score lab attempt
+marked `complete` is rejected; reverting a completed module is rejected.
+
+If tighter enforcement is wanted later, the real fix is moving lab grading
+server-side or reintroducing a lab_key→module_key mapping table — both
+bigger, separate decisions, deliberately not made here.
 
 ## Session 2026-08-31 (open, blocked on info) — student reports no completion badges after refresh
 
