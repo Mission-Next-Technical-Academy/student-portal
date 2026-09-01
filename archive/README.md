@@ -67,6 +67,12 @@ of archiving:
 - `COHORT_PDF_LINKAGE_AND_SORTABLE_COLUMNS_2026-08-31.md` — the cohort PDF's
   Student-to-Program Linkage Detail table and the admin dashboard's sortable
   column headers, both implemented and verified live this session.
+- `COHORT_USER_LIFECYCLE_SPRINT_PLAN_2026-09-01.md` — "Generate New User"/"Generate
+  New Cohort" admin buttons, automatic cohort-expiry archival (`pg_cron` +
+  `archive_expired_cohorts()`, never touching the compliance-of-record tables), and
+  Activity Monitor site-time/force-sign-out. All six sprints code-complete and locally
+  verified; see `NEXT_SESSION.md`'s 2026-09-01 entry for the still-open deployment
+  checklist (migrations, Edge Function deploy, secrets, cron) — not yet pushed/live.
 
 ## Still active, not archived
 
