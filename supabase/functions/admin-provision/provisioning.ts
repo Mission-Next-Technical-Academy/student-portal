@@ -196,5 +196,20 @@ export async function provisionOneAccount(
     );
   }
 
+  // Admin-only plaintext copy for the admin panel's "view credentials"
+  // action (20260901130100_student_credentials.sql) — see that migration's
+  // header for why this exists alongside Supabase Auth's own hash.
+  // Deliberately non-fatal: the students row above is already fully valid,
+  // and the caller still gets this password back in the return value below
+  // (today's one-time-reveal panel) even if this insert happens to fail.
+  const { error: credentialsError } = await serviceClient
+    .from('student_credentials')
+    .insert({ student_id: studentId, password });
+  if (credentialsError) {
+    console.error(
+      `student_credentials insert failed for ${studentId}: ${credentialsError.message}`,
+    );
+  }
+
   return { student_id: studentId, password, track_code: trackCode };
 }

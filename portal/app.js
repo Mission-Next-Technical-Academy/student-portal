@@ -4093,6 +4093,48 @@ function wireSelectAllBlocks(container) {
   });
 }
 
+async function toggleCredentialsPanel(studentId, btn) {
+  const panel = document.querySelector(`[data-cred-panel="${studentId}"]`);
+  const inner = document.querySelector(`[data-cred-panel-inner="${studentId}"]`);
+  const chevron = document.querySelector(`[data-cred-chevron="${studentId}"]`);
+  if (!panel || !inner) return;
+
+  const isOpen = btn.getAttribute('aria-expanded') === 'true';
+  if (isOpen) {
+    panel.style.maxHeight = '0px';
+    btn.setAttribute('aria-expanded', 'false');
+    if (chevron) chevron.style.transform = '';
+    return;
+  }
+
+  btn.setAttribute('aria-expanded', 'true');
+  if (chevron) chevron.style.transform = 'rotate(90deg)';
+  if (!inner.dataset.loaded) {
+    inner.innerHTML = '<p class="text-sm text-gray-400">Loading credentials…</p>';
+    panel.style.maxHeight = '48px';
+    const { data, error } = await mntSupabase
+      .from('student_credentials')
+      .select('password, created_at')
+      .eq('student_id', studentId)
+      .maybeSingle();
+
+    if (error) {
+      inner.innerHTML = `<p class="text-sm text-red-600">Could not load credentials — ${esc(error.message)}</p>`;
+    } else if (!data) {
+      inner.innerHTML = '<p class="text-sm text-gray-500">No stored password for this account — it was likely created before this feature existed, or the write failed at creation time.</p>';
+    } else {
+      inner.innerHTML = `
+        <p class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">Login Credentials</p>
+        <pre data-select-all tabindex="0" class="inline-block bg-white border border-gray-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(studentId)}
+Password:   ${esc(data.password)}</pre>
+        <p class="text-xs text-gray-400 mt-2">Generated ${new Date(data.created_at).toLocaleDateString()}</p>`;
+      wireSelectAllBlocks(inner);
+    }
+    inner.dataset.loaded = '1';
+  }
+  panel.style.maxHeight = `${panel.scrollHeight}px`;
+}
+
 /* Readable "3h 20m" formatting for admin_site_hours_by_student.total_minutes.
  * Deliberately labeled "site time" everywhere it's shown in the UI, never
  * "hours" alone — matches site_sessions' own migration comment that this is
@@ -4364,7 +4406,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
                              data-track="${esc(row.track_code)}" data-progress="${row.percent_complete}" data-started="${(row.modules_complete > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
                            <td class="px-6 py-4 text-sm text-gray-900 font-mono">
-                             ${esc(row.student_id)}
+                             <button type="button" data-view-credentials="${esc(row.student_id)}" aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
+                               <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
+                               ${esc(row.student_id)}
+                             </button>
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
                            </td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
@@ -4402,6 +4447,13 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                            </td>
                            <td class="px-6 py-4 text-sm whitespace-nowrap">
                              <button type="button" data-admin-snapshot="${esc(row.student_id)}" class="text-xs font-semibold text-[#1e3a5f] hover:underline" title="Download a recoverable progress snapshot for this student">Save Progress File</button>
+                           </td>
+                         </tr>
+                         <tr class="admin-cred-row" data-cred-row="${esc(row.student_id)}">
+                           <td colspan="10" class="p-0 border-b border-gray-100">
+                             <div class="overflow-hidden transition-[max-height] duration-300 ease-out" style="max-height: 0" data-cred-panel="${esc(row.student_id)}">
+                               <div class="px-6 py-4 bg-[#f9fbfd]" data-cred-panel-inner="${esc(row.student_id)}"></div>
+                             </div>
                            </td>
                          </tr>
                        `).join('')}
@@ -5169,6 +5221,11 @@ Track:      ${esc(account.track_code)}</pre>
   const tableBody = document.getElementById('admin-table-body');
   if (tableBody) {
     tableBody.addEventListener('click', async (event) => {
+      const credBtn = event.target.closest('[data-view-credentials]');
+      if (credBtn) {
+        await toggleCredentialsPanel(credBtn.getAttribute('data-view-credentials'), credBtn);
+        return;
+      }
       const snapshotBtn = event.target.closest('[data-admin-snapshot]');
       if (!snapshotBtn) return;
       const studentId = snapshotBtn.getAttribute('data-admin-snapshot');

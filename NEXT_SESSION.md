@@ -5,10 +5,10 @@
 Full write-up: `COHORT_USER_LIFECYCLE_SPRINT_PLAN.md` (about to be archived to
 `archive/completed-feature-notes/` since every sprint box in it is now checked).
 Short version: three site-owner-requested admin panel features, built across six
-sprints this session, all code/migrations written and locally verified, **nothing
-pushed or deployed yet** — that's the one remaining step, and it's the site owner's
-to run (matches this repo's standing rule: `supabase db push` and anything
-service-role-key-adjacent is never delegated).
+sprints this session. On 2026-09-01, all listed migrations were pushed and
+`admin-provision` was deployed; its remote registry state is ACTIVE. The
+remaining work is the operational smoke-test checklist below, including cron
+registration and a logged-in admin flow.
 
 **What was built:**
 1. **"Generate New User" / "Generate New Cohort"** admin buttons — create one

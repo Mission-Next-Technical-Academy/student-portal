@@ -35,6 +35,23 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-09-01 admin credential lookup: completed the admin
+  Student Progress row expander in `portal/app.js`. It fetches the new
+  admin-RLS-protected `student_credentials` row only after an admin clicks a
+  Student ID, then shows a clean, selectable credential block with a
+  slide-down transition; old accounts clearly state that no password was
+  retained. The migration is
+  `20260901130100_student_credentials.sql` (renamed from `130000` to avoid a
+  collision with `20260901130000_login_event_geo.sql`), and
+  `admin-provision` now retains a non-fatal service-role copy for newly
+  generated training accounts. All six pending migrations were applied to the
+  linked project, and `admin-provision` is active after a successful
+  server-side-bundled deployment. Its unauthenticated endpoint correctly
+  rejects with HTTP 401. `node --check portal/app.js`, `git diff --check`,
+  and the HTTP 200 check on port 8768 pass. A logged-in admin browser test is
+  still needed; `node bin/portal-check.js` remains blocked by an unrelated
+  uncommitted login-geo change whose mock insert builder lacks `.select()`.
+
 - 2026-08-31 portal refresh-progress fix:
   - Committed and deployed `d7738d9` (`Persist module completion badges across
     refresh`). `portal/app.js` now reads the signed-in student's
