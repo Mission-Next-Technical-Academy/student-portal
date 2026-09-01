@@ -18,8 +18,22 @@
 //   supabase functions deploy record-login-geo
 // No `supabase secrets set` needed beyond what Supabase auto-injects
 // (SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY — same as
-// admin-provision) — the geolocation provider used below (ipapi.co) needs
+// admin-provision) — the geolocation provider used below (ip-api.com) needs
 // no API key at this project's request volume.
+//
+// 2026-09-01 correction: originally called ipapi.co, this function's
+// documented first choice. Confirmed live (curl against ipapi.co directly)
+// that its free tier is rate-limited — almost certainly because Supabase
+// Edge Functions share a small pool of egress IPs across a huge number of
+// unrelated projects, so ipapi.co's free-tier limit gets exhausted almost
+// immediately for anyone calling it from there, independent of this
+// project's own traffic volume. Every real sign-in was silently getting
+// `{city: null, region: null, country: null}` back — worse, lookupGeo()'s
+// `if (data.error) return empty;` branch didn't log anything, so this
+// failure was completely invisible until traced by hand. Switched to
+// ip-api.com, this function's own already-documented fallback plan
+// (confirmed working directly against the same IP), and added logging on
+// the failure branch so a future provider outage isn't silent again.
 //
 // esm.sh import pinned to major version 2, same reasoning as admin-
 // provision/index.ts: matches the v2 client library used elsewhere in this
@@ -39,38 +53,48 @@ function jsonResponse(body: unknown, status: number): Response {
   });
 }
 
-// ipapi.co's JSON shape for a successful lookup. Reserved/private ranges
-// and rate-limited/errored calls come back with an `error: true` field
-// instead (or the fetch itself throws) — handled by the try/catch in
-// lookupGeo() below, never by trusting these fields to always be present.
-interface IpapiResponse {
+// ip-api.com's JSON shape for a successful lookup (`status: "success"`). A
+// failed lookup (reserved/private IP, invalid IP, or the free tier's own
+// rate limit — 45 requests/minute, per-source-IP, far more headroom than
+// ipapi.co's) comes back HTTP 200 with `status: "fail"` and a `message`
+// instead of ever using an HTTP error status, so status is what must be
+// checked — never res.ok alone. HTTP-only on the free tier (no HTTPS) —
+// see the file header comment for why that's an accepted tradeoff for data
+// this low-sensitivity.
+interface IpApiComResponse {
+  status?: string;
+  message?: string;
   city?: string;
-  region?: string;
-  country_name?: string;
-  error?: boolean;
-  reason?: string;
+  regionName?: string;
+  country?: string;
 }
 
 // Best-effort only: any failure here (network error, rate limit, reserved/
 // private IP, malformed response) must never propagate — the caller only
-// loses the location fields, not the login_events row itself. If ipapi.co
-// ever becomes unreliable in practice, ip-api.com is the documented
-// fallback (free, no key, but HTTP-only on its free tier — a mild
-// downgrade for data this low-sensitivity, not a blocker).
+// loses the location fields, not the login_events row itself. Every
+// failure branch logs first, though — the previous ipapi.co version's
+// silent `if (data.error) return empty;` was exactly how the last outage
+// went unnoticed (see the file header comment).
 async function lookupGeo(ip: string): Promise<{ city: string | null; region: string | null; country: string | null }> {
   const empty = { city: null, region: null, country: null };
   try {
-    const res = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`);
-    if (!res.ok) return empty;
-    const data = await res.json() as IpapiResponse;
-    if (data.error) return empty;
+    const res = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}`);
+    if (!res.ok) {
+      console.error('record-login-geo: ip-api.com HTTP error', res.status);
+      return empty;
+    }
+    const data = await res.json() as IpApiComResponse;
+    if (data.status !== 'success') {
+      console.error('record-login-geo: ip-api.com lookup failed', data.message || data.status || 'unknown reason');
+      return empty;
+    }
     return {
       city: data.city || null,
-      region: data.region || null,
-      country: data.country_name || null,
+      region: data.regionName || null,
+      country: data.country || null,
     };
   } catch (err) {
-    console.error('record-login-geo: geolocation lookup failed', err instanceof Error ? err.message : String(err));
+    console.error('record-login-geo: geolocation lookup threw', err instanceof Error ? err.message : String(err));
     return empty;
   }
 }

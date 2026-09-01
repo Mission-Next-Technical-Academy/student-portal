@@ -274,11 +274,45 @@ function resetIdleTimer() {
   }, MNT_IDLE_TIMEOUT_MS);
 }
 
+/* Server-side backstop for the timer above (supabase/migrations/20260901150000_
+ * site_sessions_idle_enforcement.sql, close_idle_site_sessions() + its
+ * pg_cron sweep). resetIdleTimer() alone only closes a session if THIS
+ * browser tab is still alive, unthrottled, and running past this feature's
+ * ship date — nothing catches a closed/backgrounded/pre-existing tab. The
+ * cron sweep instead measures idleness against site_sessions.last_seen_at,
+ * which this function bumps on the same real-activity events as
+ * resetIdleTimer(), throttled so it writes at most once per
+ * MNT_HEARTBEAT_INTERVAL_MS rather than on every mousemove. */
+const MNT_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+let _lastHeartbeatAt = 0;
+
+function maybeSendHeartbeat() {
+  const now = Date.now();
+  if (now - _lastHeartbeatAt < MNT_HEARTBEAT_INTERVAL_MS) return;
+  _lastHeartbeatAt = now;
+  currentUser().then((user) => {
+    if (!user || !user.userId) return;
+    mntSupabase
+      .from('site_sessions')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('user_id', user.userId)
+      .is('ended_at', null)
+      .then(({ error }) => {
+        if (error) console.error('site_sessions heartbeat failed', error);
+      })
+      .catch((err) => console.error('site_sessions heartbeat threw', err));
+  });
+}
+
 function wireIdleSignOut() {
   ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach((evt) => {
-    document.addEventListener(evt, resetIdleTimer, { passive: true });
+    document.addEventListener(evt, () => {
+      resetIdleTimer();
+      maybeSendHeartbeat();
+    }, { passive: true });
   });
   resetIdleTimer();
+  maybeSendHeartbeat();
 }
 
 /* ------------------------------------------------------------ entitlement */
@@ -1811,8 +1845,10 @@ async function renderTranscriptPdf(transcriptData, reportId) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9.5);
       doc.setTextColor(...PDF_NAVY);
-      doc.text(String(value), x, yy + 11, { maxWidth: w });
-      yy += 28;
+      const lines = doc.splitTextToSize(String(value), w);
+      doc.text(lines, x, yy + 11);
+      const valueHeight = lines.length * (9.5 * 1.15);
+      yy += Math.max(28, 11 + valueHeight + 6);
     });
     return yy;
   }
@@ -1825,10 +1861,9 @@ async function renderTranscriptPdf(transcriptData, reportId) {
 
   const leftPairs = [
     ['Student Identifier', transcriptData.studentId],
-    ['Student Name', 'Not available — this system identifies students by anonymized ID only; no verified legal-name field exists yet (see follow-up notes)'],
+    ['Student Name', 'Not available — this system identifies students by anonymized ID only'],
     ['Track / Program', `${fmtVal(transcriptData.track)} — ${programTitle}`],
     ['Credential', transcriptData.program ? fmtVal(transcriptData.program.credential, 'Not recorded') : 'Not recorded'],
-    ['Curriculum Revision', transcriptData.program ? fmtVal(transcriptData.program.curriculumRevision, 'Not recorded') : 'Not recorded'],
   ];
   const rightPairs = [
     ['Current Academic Status', transcriptData.enrollment.statusLabel],
@@ -1847,9 +1882,14 @@ async function renderTranscriptPdf(transcriptData, reportId) {
   doc.setTextColor(...PDF_NAVY);
   doc.text('Program Hours', marginX, cursorY);
   cursorY += 12;
-  const hoursPairs = transcriptData.requiredProgramHours ? [
-    ['Required Program Hours (Total)', fmtVal(transcriptData.requiredProgramHours.total)],
-    ['Technical / Lab / Career Hours', `${fmtVal(transcriptData.requiredProgramHours.technical)} / ${fmtVal(transcriptData.requiredProgramHours.lab)} / ${fmtVal(transcriptData.requiredProgramHours.career)}`],
+  const rp = transcriptData.requiredProgramHours;
+  // rp.technical (70) is technical+lab combined per portal/data.js's
+  // compliance schema; lecture-only hours are that minus lab (40), so this
+  // row's three numbers are truly additive: 30 + 40 + 12 = 82 (rp.total).
+  const lectureOnlyHours = (rp && rp.technical != null && rp.lab != null) ? rp.technical - rp.lab : null;
+  const hoursPairs = rp ? [
+    ['Required Program Hours (Total)', fmtVal(rp.total)],
+    ['Technical / Lab / Career Hours', `${fmtVal(lectureOnlyHours)} / ${fmtVal(rp.lab)} / ${fmtVal(rp.career)}`],
   ] : [['Required Program Hours', 'Not available — no program on file']];
   const hoursPairs2 = [
     ['Attempted Clock Hours (Fixed Credit)', fmtVal(transcriptData.attemptedClockHours, 'Not recorded')],
@@ -1862,8 +1902,9 @@ async function renderTranscriptPdf(transcriptData, reportId) {
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(7);
     doc.setTextColor(...PDF_AMBER);
-    doc.text(transcriptData.hoursNote, marginX, cursorY, { maxWidth: pageWidth - marginX * 2 });
-    cursorY += 20;
+    const noteLines = doc.splitTextToSize(transcriptData.hoursNote, pageWidth - marginX * 2);
+    doc.text(noteLines, marginX, cursorY);
+    cursorY += noteLines.length * (7 * 1.15) + 10;
   }
 
   // ---- Module-by-module table --------------------------------------------
@@ -4201,11 +4242,12 @@ Password:   ${esc(data.password)}</pre>
   panel.style.maxHeight = `${panel.scrollHeight}px`;
 }
 
-/* Readable "3h 20m" formatting for admin_site_hours_by_student.total_minutes.
- * Deliberately labeled "site time" everywhere it's shown in the UI, never
- * "hours" alone — matches site_sessions' own migration comment that this is
- * operational visibility only, not an instructional/credited/attendance
- * figure (that remains computeFixedCreditHours() elsewhere in this file). */
+/* Readable "3h 20m" formatting for a single admin_site_sessions row's own
+ * duration_minutes. Deliberately labeled "site time" everywhere it's shown
+ * in the UI, never "hours" alone — matches site_sessions' own migration
+ * comment that this is operational visibility only, not an
+ * instructional/credited/attendance figure (that remains
+ * computeFixedCreditHours() elsewhere in this file). */
 function formatSiteMinutes(totalMinutes) {
   const minutes = Math.max(0, Math.round(Number(totalMinutes) || 0));
   const hours = Math.floor(minutes / 60);
@@ -4231,7 +4273,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const cohorts = (extra && extra.cohorts) || [];
   const cohortStudentCounts = (extra && extra.cohortStudentCounts) || new Map();
   const archivedStudents = (extra && extra.archivedStudents) || [];
-  const siteHoursByStudentId = (extra && extra.siteHoursByStudentId) || new Map();
+  const siteSessionsByStudentId = (extra && extra.siteSessionsByStudentId) || new Map();
   const activeCohorts = cohorts.filter((c) => !c.archived_at);
   const activeTab = (extra && extra.activeTab) || 'progress';
   const tabIsActive = (key) => key === activeTab;
@@ -4258,6 +4300,37 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // Track options for filter
   const trackSet = new Set(rows.map((r) => r.track_code));
   const trackOptions = Array.from(trackSet).sort();
+
+  // Pairs each login_events row with its own admin_site_sessions row for the
+  // Activity Monitor table below. The two tables share no foreign key —
+  // recordLoginEvent() and recordSiteSessionStart() are two independent
+  // fire-and-forget inserts from the same signIn() call (portal/app.js) — so
+  // this matches by nearest started_at to occurred_at, per student, within a
+  // tight tolerance (the two inserts land within a couple seconds of each
+  // other in practice). usedSiteSessionIds prevents the same site_sessions
+  // row (e.g. from a rapid double sign-in) from being claimed by two
+  // different login_events rows. A login from before the site_sessions
+  // table existed (or a row that never matched) correctly finds nothing.
+  const SITE_SESSION_MATCH_TOLERANCE_MS = 30 * 1000;
+  const usedSiteSessionIds = new Set();
+  const matchSiteSession = (ev) => {
+    const candidates = (siteSessionsByStudentId.get(ev.student_id) || [])
+      .filter((s) => !usedSiteSessionIds.has(s.id));
+    if (candidates.length === 0) return null;
+    const evMs = new Date(ev.occurred_at).getTime();
+    let best = null;
+    let bestDiffMs = Infinity;
+    candidates.forEach((s) => {
+      const diffMs = Math.abs(new Date(s.started_at).getTime() - evMs);
+      if (diffMs < bestDiffMs) {
+        bestDiffMs = diffMs;
+        best = s;
+      }
+    });
+    if (!best || bestDiffMs > SITE_SESSION_MATCH_TOLERANCE_MS) return null;
+    usedSiteSessionIds.add(best.id);
+    return best;
+  };
 
   return `${header(user)}
   <main class="pt-16">
@@ -4592,13 +4665,14 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Track</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]" title="Approximate, IP-based lookup — not a precise address">Location</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Signed in</th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]" title="Operational visibility only — not instructional or credited hours">Site time</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]">Signed out</th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]" title="This sign-in's own session length — not a running or cumulative total">Site time</th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
                        </tr>
                      </thead>
                      <tbody>
                        ${loginEvents.map((ev) => {
-                         const hoursRow = siteHoursByStudentId.get(ev.student_id);
+                         const siteSession = matchSiteSession(ev);
                          return `
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                            <td class="px-6 py-3 text-sm text-gray-900 font-mono">
@@ -4608,7 +4682,8 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(ev.track_code || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600" ${ev.ip_address ? `title="${esc(ev.ip_address)}"` : ''}>${esc(formatLoginLocation(ev))}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${new Date(ev.occurred_at).toLocaleString()}</td>
-                           <td class="px-6 py-3 text-sm text-gray-600">${hoursRow ? esc(formatSiteMinutes(hoursRow.total_minutes)) : '—'}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? (siteSession.ended_at ? new Date(siteSession.ended_at).toLocaleString() : '<span class="text-green-600 font-semibold">Still signed in</span>') : '—'}</td>
+                           <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? esc(formatSiteMinutes(siteSession.duration_minutes)) : '—'}</td>
                            <td class="px-6 py-3 text-sm whitespace-nowrap">
                              ${ev.user_id ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id || 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
                            </td>
@@ -4838,11 +4913,22 @@ async function render() {
         .order('archived_at', { ascending: false });
       if (archivedStudentsError) console.error('admin_archived_students fetch failed', archivedStudentsError);
 
-      const { data: siteHoursRows, error: siteHoursError } = await mntSupabase
-        .from('admin_site_hours_by_student')
-        .select('*');
-      if (siteHoursError) console.error('admin_site_hours_by_student fetch failed', siteHoursError);
-      const siteHoursByStudentId = new Map((siteHoursRows || []).map((r) => [r.student_id, r]));
+      // Per-row session data for the Activity Monitor table (matched to each
+      // login_events row by matchSiteSession() inside viewAdmin) — replaces
+      // the old admin_site_hours_by_student aggregate, which showed one
+      // per-student lifetime total repeated identically on every one of that
+      // student's rows instead of that specific sign-in's own duration.
+      const { data: siteSessionRows, error: siteSessionsError } = await mntSupabase
+        .from('admin_site_sessions')
+        .select('*')
+        .order('started_at', { ascending: false });
+      if (siteSessionsError) console.error('admin_site_sessions fetch failed', siteSessionsError);
+      const siteSessionsByStudentId = new Map();
+      (siteSessionRows || []).forEach((r) => {
+        const list = siteSessionsByStudentId.get(r.student_id) || [];
+        list.push(r);
+        siteSessionsByStudentId.set(r.student_id, list);
+      });
 
       app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, {
         cheatingFlagsByUserId,
@@ -4850,7 +4936,7 @@ async function render() {
         cohorts,
         cohortStudentCounts,
         archivedStudents: archivedStudentRows || [],
-        siteHoursByStudentId,
+        siteSessionsByStudentId,
         activeTab: adminActiveTab,
       });
     }

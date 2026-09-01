@@ -1,6 +1,65 @@
 # Next session — start here
 
-## Session 2026-09-01 (latest, done — both pieces now deployed)
+## Session 2026-09-01 (latest, done — needs a push) — idle sign-out had no server-side enforcement
+
+Site owner tested the idle timer directly: left a real admin tab open,
+checked back over an hour later, and it was still signed in and still
+showing as one open `site_sessions` row (69 minutes idle at check time).
+Root cause, confirmed against the live DB (`supabase db query --linked`):
+the idle timer from the "auto sign-out on inactivity" entry below is
+**entirely client-side** — a `setTimeout` in one browser tab. It only ever
+fires if that exact tab is still open, not backgrounded/throttled/discarded
+by the browser to save memory, and running the code version that shipped
+after that tab's last full reload (a JS change never retroactively attaches
+to an already-open tab). If any of those isn't true, nothing is watching
+the clock and the session sits open forever — there was no server-side
+backstop at all, unlike `admin_force_sign_out()` which actually revokes
+`auth.sessions`.
+
+Also traced the site owner's other question ("why does the Activity Monitor
+only show my own login?") to the data, not a bug: only 6 `site_sessions`
+rows exist total, all `7355312413-ADMIN` — no other account has ever
+actually signed in through the real login flow yet (expected pre-November).
+One stray `login_events` row for `8987495051-SOCAN` at 09:50 UTC has no
+matching `site_sessions` row because that login happened before
+`20260901122000_activity_monitor_sessions.sql` had been pushed yet that same
+day — a one-time deploy-ordering artifact, not a current defect.
+
+**Fix, site owner approved building real enforcement (not just documenting
+the limitation):** `supabase/migrations/20260901150000_site_sessions_idle_
+enforcement.sql`:
+- `site_sessions.last_seen_at` — a heartbeat column, bumped by
+  `portal/app.js`'s new `maybeSendHeartbeat()` on the same real-activity
+  events `resetIdleTimer()` already listens for, throttled to roughly once
+  per 5 minutes (`MNT_HEARTBEAT_INTERVAL_MS`).
+- `site_sessions_self_close` replaced with `site_sessions_self_update`, a
+  single RLS policy covering both the heartbeat write (ended_at stays null)
+  and the existing self-close write (ended_at set, ended_reason
+  `user_signed_out`/`idle_timeout` only).
+- `close_idle_site_sessions()` — same `is_admin() OR current_user =
+  'postgres'` guard idiom as `archive_expired_cohorts()`
+  (`20260901121000_cohort_archival_engine.sql`), so it works both as an
+  admin-callable RPC and as a JWT-less `pg_cron` job. Force-closes any open
+  session whose `last_seen_at` (falling back to `started_at` for a
+  pre-migration row that never got a heartbeat) is older than 60 minutes,
+  then revokes the student's real `auth.sessions` row **only if they have no
+  other still-open session** — an idle tab timing out must never sign out a
+  genuinely active tab the same student has open elsewhere. Registered on
+  `pg_cron` every 5 minutes (`close-idle-site-sessions`), not daily like the
+  cohort sweep — this is a security control, not once-a-day housekeeping.
+- Tested in a rolled-back transaction against the live linked project before
+  writing this entry — applied cleanly, `close_idle_site_sessions()` ran
+  without error. `node --check portal/app.js` clean.
+
+**Not yet pushed.** Needs `supabase db push` before the sweep actually runs
+— until then, the client-side timer alone is still all that exists (same
+gap as before, not made worse). Keep `MNT_IDLE_TIMEOUT_MS` (portal/app.js)
+and the `interval '60 minutes'` in `close_idle_site_sessions()` in sync by
+hand if the timeout duration ever changes — they're two independent
+definitions of "60 minutes," one in JS and one in SQL, not a shared
+constant.
+
+## Session 2026-09-01 (done — both pieces deployed) — idle timer migration pushed + record-login-geo actually deployed
 
 Site owner looked at the Student Activity Monitor and asked two questions
 that both traced back to work that was written but not yet live. Both are

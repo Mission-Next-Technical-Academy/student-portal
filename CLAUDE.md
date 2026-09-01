@@ -2,18 +2,19 @@
 
 **Before doing anything else this session, read `NEXT_SESSION.md`.** Its
 top-of-file handoff block is the current entry point for unfinished work
-(as of 2026-09-01: "Generate New Cohort" no longer takes an end date — it's
-now always start date + 6 weeks, computed in `admin-provision`'s
-`handleCreateCohort` — but that Edge Function still needs
-`supabase functions deploy admin-provision --project-ref eokvngifirjgfozzbieu`
-before the change is live. A 60-minute auto sign-out on inactivity was also
-added to `portal/app.js`, but its migration (`20260901140000_site_sessions_
-idle_timeout.sql`) is not yet pushed — it'll fail its own RLS check until
-`supabase db push` runs. Also flagged: three prior migrations plus the
-`record-login-geo` function are already live on the remote database but
-still uncommitted in git — `NEXT_SESSION.md`'s completion-integrity-guards
-entry had gone stale claiming otherwise, now corrected inline. Older open
-items: a student reported no green "complete" badges on modules after
+(as of 2026-09-01: the idle sign-out timer turned out to have no
+server-side enforcement — it only ever worked if the exact browser tab that
+opened the session stayed alive and unthrottled. Fixed with a heartbeat
+column plus a `pg_cron` sweep, `close_idle_site_sessions()`, mirroring
+`archive_expired_cohorts()`'s guard pattern
+(`supabase/migrations/20260901150000_site_sessions_idle_enforcement.sql`) —
+**not yet pushed**, needs `supabase db push`. Separately, "Generate New
+Cohort" no longer takes an end date (always start date + 6 weeks) and a
+legacy-account credential backfill both shipped and are already deployed —
+see `NEXT_SESSION.md` for the two other still-open migrations
+(`20260901140000_site_sessions_idle_timeout.sql`'s own push status is
+resolved; the new `20260901150000` one above is the current gap). Older
+open items: a student reported no green "complete" badges on modules after
 refreshing the portal, not yet reproduced — environment, account, and
 console-error details are still needed from the user before this can be
 debugged. The admin per-student reset still needs a polished in-page
