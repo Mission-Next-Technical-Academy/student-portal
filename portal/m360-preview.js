@@ -150,10 +150,10 @@
     const accepted = week1.status === 'accepted' && week1.accepted;
     const source = accepted ? week1.accepted : week1.draft;
     const rows = [
-      ['Target direction', textOrPrompt(source.direction, 'Build your Week 1 direction to preview it here.')],
-      ['Strengths + evidence', strengthsText(source) || '<span class="empty">Add three evidence-backed strengths in Build It.</span>'],
-      ['Translated experience', textOrPrompt(source.translation, 'Translate one experience in Build It.')],
-      ['Professional brand statement', textOrPrompt(source.brandStatement, 'Draft your professional brand statement in Build It.')],
+      ['Target direction', textOrPrompt(source.direction, 'Practice your Week 1 direction to preview it here.')],
+      ['Strengths + evidence', strengthsText(source) || '<span class="empty">Add three evidence-backed strengths in Practice It.</span>'],
+      ['Translated experience', textOrPrompt(source.translation, 'Translate one experience in Practice It.')],
+      ['Professional brand statement', textOrPrompt(source.brandStatement, 'Draft your professional brand statement in Practice It.')],
       ['Next test', textOrPrompt(source.nextStep, 'Optional: name the next action that will test your direction.')]
     ];
     document.getElementById('portfolioPreview').innerHTML = rows.map(([label, value]) => `
