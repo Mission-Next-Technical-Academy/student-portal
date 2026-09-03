@@ -8,6 +8,7 @@
   <link rel="icon" href="assets/logo.png" />
   <link rel="stylesheet" href="m360/assets/mission-next-tokens.css?v=20260903" />
   <link rel="stylesheet" href="m360-preview.css?v=20260903b" />
+  <link rel="stylesheet" href="m360-demo-refinements.css?v=20260903" />
 </head>
 <body>
   <div class="shell">
@@ -30,7 +31,7 @@
         <div class="hero-content">
           <div class="eyebrow">Week 1 · Direction to Proof</div>
           <img class="signal-line" src="m360/assets/Signal_Line.svg" alt="" aria-hidden="true" />
-          <h1 id="page-title">Career Direction &amp; Professional Brand</h1>
+          <h1 id="page-title">Career Direction &amp; <span class="hero-accent">Professional Brand</span></h1>
           <p>Choose a credible near-term direction, connect it to evidence you can support, and build the first accepted artifact in your M360 Portfolio.</p>
           <div class="hero-meta" aria-label="Week 1 learning model">
             <span class="meta-chip">Learn it.</span>
@@ -94,6 +95,14 @@
               <div class="learning-item"><strong>Evidence</strong><span>Choose three capabilities you can support with real examples.</span></div>
               <div class="learning-item"><strong>Translation</strong><span>Make one experience understandable without inflating what happened.</span></div>
               <div class="learning-item"><strong>Brand</strong><span>Connect direction, capability, and proof in language you can reuse.</span></div>
+            </div>
+            <div class="companion-card no-print">
+              <div>
+                <div class="mini-kicker">Optional companion</div>
+                <h3>Week 1 Student Workbook</h3>
+                <p>The fillable workbook goes deeper with examples, practice, reflection, and personal notes. Your official work and portfolio progress stay in M360; the PDF is yours to keep and use for deeper practice.</p>
+              </div>
+              <a class="btn btn-secondary" href="https://drive.google.com/file/d/126bSFtNYx3kHUouA5Lxwgrb5doL1X7l-/view?usp=drivesdk" target="_blank" rel="noopener noreferrer">Download Week 1 Workbook (PDF)</a>
             </div>
           </div>
         </section>
@@ -168,6 +177,13 @@
                   <p class="resource-note">If the language could describe almost anyone, add specificity. If it sounds inflated, narrow the claim.</p>
                 </div>
               </details>
+            </div>
+            <div class="workbook-resource no-print">
+              <div class="workbook-resource-copy">
+                <span class="resource-icon">PDF</span>
+                <span><strong>Week 1 Student Workbook</strong><small>Optional detailed companion for deeper practice and personal reference.</small></span>
+              </div>
+              <a class="btn btn-quiet" href="https://drive.google.com/file/d/126bSFtNYx3kHUouA5Lxwgrb5doL1X7l-/view?usp=drivesdk" target="_blank" rel="noopener noreferrer">Open workbook</a>
             </div>
           </div>
         </section>
@@ -297,7 +313,7 @@
             <img class="portfolio-watermark" src="m360/assets/MNTA_Mark_Watermark_10pct.png" alt="" aria-hidden="true" />
             <div class="portfolio-cover-copy">
               <div class="step-label light-label">Prove It</div>
-              <h2>Your M360 Portfolio starts here.</h2>
+              <h2>Your M360 <span class="portfolio-accent">Portfolio</span> starts here.</h2>
               <p>Prove It is not another assignment screen. It is the portfolio view of the accepted work you are carrying forward.</p>
             </div>
             <div class="portfolio-cover-stat">
@@ -330,10 +346,11 @@
             <div id="portfolioRoadmap" class="portfolio-roadmap"></div>
 
             <div class="portfolio-actions no-print">
-              <button id="printPortfolioBtn" class="btn btn-primary" type="button">Download / print portfolio preview</button>
+              <button id="printPortfolioBtn" class="btn btn-primary" type="button">Download current portfolio (PDF)</button>
               <button id="resetAcceptanceBtn" class="btn btn-secondary" type="button">Demo: return Week 1 to draft</button>
               <a class="btn btn-quiet" href="#build">Return to Build It</a>
             </div>
+            <p class="portfolio-download-note no-print">Use this at any point to keep a copy of your current portfolio state, even if Week 1 is still in draft. M360 remains the primary portfolio record.</p>
 
             <div class="qa-banner no-print"><strong>Isolation remains intact:</strong> this prototype loads only M360-specific HTML, CSS, JavaScript, and brand assets. It does not load <code>app.js</code>, <code>data.js</code>, Supabase, the module registry, labs, technical-course styles, or technical progress functions.</div>
           </div>
