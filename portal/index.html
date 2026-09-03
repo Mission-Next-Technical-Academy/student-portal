@@ -91,6 +91,29 @@
       .acc-body > div { overflow: hidden; }
       [aria-expanded="true"] + .acc-body { grid-template-rows: 1fr; }
       [aria-expanded="true"] .acc-chev { transform: rotate(180deg); }
+
+      /* Diploma certificate overlay (admin "Generate Diploma", see
+         openDiplomaCertificate() in app.js). The overlay is built and torn
+         down entirely at runtime — this block only governs how it prints:
+         one landscape page, colors forced on, everything else hidden. */
+      #diploma-overlay, #diploma-overlay * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      /* Preview-time sizing: an actual 11x8.5 (US Letter landscape) rectangle,
+         not just a max-width box, so what's on screen already reads as the
+         real page shape instead of a taller/narrower placeholder. */
+      #diploma-certificate { aspect-ratio: 11 / 8.5; }
+      @media print {
+        /* Explicit physical dimensions — "landscape" alone leaves the actual
+           paper size up to the browser/OS default, which is not guaranteed
+           to be Letter. This pins it to US Letter (8.5x11) turned sideways. */
+        @page { size: 11in 8.5in; margin: 0; }
+        body > *:not(#diploma-overlay) { display: none !important; }
+        #diploma-overlay { position: static !important; background: #fff !important; padding: 0 !important; }
+        .diploma-no-print { display: none !important; }
+        /* On-screen the certificate is capped at max-w-4xl so it fits a
+           browser viewport; at print time let it fill the actual page
+           instead of staying pinned to that screen-only cap. */
+        #diploma-certificate { max-width: none !important; width: 11in !important; height: 8.5in !important; }
+      }
     </style>
   </head>
 
@@ -120,6 +143,6 @@
     <script src="it-support-module-01.js?v=20260831"></script>
     <script src="ai-ml-module-01.js?v=20260831"></script>
     <script src="electrical-module-01.js?v=20260831"></script>
-    <script src="app.js?v=20260829d"></script>
+    <script src="app.js?v=20260903b"></script>
   </body>
 </html>

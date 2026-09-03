@@ -4423,6 +4423,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                        <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-user" type="button">Generate New User</button>
                        <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-cohort" type="button">Generate New Cohort</button>
                        <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#c2410c] hover:text-[#9a3412] hover:border-[#f97316] hover:bg-[#fff7ed] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-save-progress-file" type="button" title="Download one recoverable progress snapshot for every student in the current filtered scope">Save Progress File (All Students)</button>
+                       <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-diploma" type="button">Generate Diploma</button>
                        <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-generate-report" type="button">Preview &amp; Generate Report</button>
                      </div>
                    </div>
@@ -4488,6 +4489,36 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                      <button type="button" data-action="admin-generate-cohort-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate cohort</button>
                      <div id="admin-generate-cohort-status" class="text-sm text-gray-500 mt-3"></div>
                      <div id="admin-generate-cohort-result" class="mt-3"></div>
+                   </div>
+
+                   <!-- "Generate Diploma" — renders a print-ready diploma for
+                        one student. The typed name exists only in the DOM for
+                        this render and is discarded (never sent to Supabase
+                        or any storage) when the certificate closes; see
+                        openDiplomaCertificate() / closeDiplomaCertificate(). -->
+                   <div id="admin-generate-diploma-panel" class="bg-white border border-gray-200 rounded-xl p-5 mb-4" hidden>
+                     <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Diploma</h3>
+                     <p class="text-xs text-gray-500 mb-4">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every module (including the module 12 capstone) are eligible. The name below is used only to render this one diploma — it is never saved to the student's account or any database.</p>
+                     <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end mb-3">
+                       <label class="text-xs font-semibold text-gray-600 xl:col-span-2">Student
+                         <select id="diploma-student-select" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                           <option value="">Select a student…</option>
+                           ${rows.filter((r) => r.enrolled !== false && (r.percent_complete || 0) >= 100).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                         </select>
+                         ${rows.filter((r) => r.enrolled !== false && (r.percent_complete || 0) >= 100).length === 0 ? '<span class="block mt-1 text-xs text-gray-400">No enrolled student has completed every module (including the capstone) yet.</span>' : ''}
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">First name
+                         <input id="diploma-first-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Middle name (optional)
+                         <input id="diploma-middle-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Last name
+                         <input id="diploma-last-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <button type="button" data-action="admin-generate-diploma-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate Diploma</button>
+                     </div>
+                     <div id="admin-generate-diploma-status" class="text-sm text-gray-500"></div>
                    </div>
 
                    <div id="admin-report-status" class="text-sm text-gray-500"></div>
@@ -5024,6 +5055,115 @@ function wireCommon() {
   wireRegisteredModuleLabs();
 }
 
+/* "Generate Diploma" (admin panel). Diploma title is derived from the
+ * account's track_code — the four active programs below. The typed student
+ * name is intentionally never part of any data model: it lives only in the
+ * DOM node openDiplomaCertificate() builds, and closeDiplomaCertificate()
+ * removes that node outright (not just hides it) so nothing survives the
+ * close, a refresh, or a storage inspection. */
+const DIPLOMA_TITLES_BY_TRACK = {
+  SOCAN: 'Security Operation Center (SOC) Analyst',
+  HDESK: 'Professional Diploma in Help Desk & IT Support',
+  AIENG: 'Professional Diploma in Artificial Intelligence & Machine Learning Engineering',
+  ELECT: 'Professional Diploma in Electrical Engineering Technology',
+};
+
+function ordinalSuffix(n) {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1: return `${n}st`;
+    case 2: return `${n}nd`;
+    case 3: return `${n}rd`;
+    default: return `${n}th`;
+  }
+}
+
+function diplomaAwardedLine(date) {
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return `Awarded ${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/* Fixed-size Letter diploma.  All dimensions use the physical page, so the
+ * preview and the printed result share the same geometry. */
+const DIPLOMA_MARK_PATHS = [
+  'M0 404 0 964 193 1070 193 651 500 836 807 651 807 1070 1000 964 1000 404 500 705Z',
+  'M0 193 0 321 500 622 1000 321 1000 193 500 494Z',
+  'M0 0 0 128 500 429 1000 128 1000 0 500 301Z',
+];
+const DIPLOMA_SWOOP = 'M0 1839 C699 1836 1397 1793 1746 1763 C2096 1735 2445 1647 2794 1539 L2794 2159 L0 2159 Z';
+
+function diplomaMarkSvg(fill = '#1e3a5f') {
+  return `<svg viewBox="0 0 1000 1070" aria-hidden="true">${DIPLOMA_MARK_PATHS.map((d) => `<path d="${d}" fill="${fill}"/>`).join('')}</svg>`;
+}
+
+function diplomaSealSvg() {
+  return `<svg viewBox="0 0 200 200" role="img" aria-label="Official seal of Mission Next Technical Academy">
+    <defs><path id="diplomaSealTop" d="M100 100m-87 0a87 87 0 1 1 174 0"/><path id="diplomaSealBottom" d="M100 100m85 0a85 85 0 1 1-170 0"/></defs>
+    <circle cx="100" cy="100" r="97" fill="none" stroke="#c9cdd4" stroke-width="5"/><circle cx="100" cy="100" r="94" fill="#0c1e32"/><circle cx="100" cy="100" r="91" fill="none" stroke="#f97316" stroke-width="2"/><circle cx="100" cy="100" r="72" fill="none" stroke="#c9cdd4" stroke-width="3"/><circle cx="100" cy="100" r="70" fill="#16304f"/>
+    <text fill="#fff" font-family="Space Grotesk,sans-serif" font-size="15" font-weight="700" letter-spacing="4.2"><textPath href="#diplomaSealTop" startOffset="50%" text-anchor="middle">MISSION NEXT</textPath></text><text fill="#fff" font-family="Space Grotesk,sans-serif" font-size="11" font-weight="600" letter-spacing="3.7"><textPath href="#diplomaSealBottom" startOffset="50%" text-anchor="middle">TECHNICAL ACADEMY</textPath></text>
+    <g transform="translate(62 60) scale(.075)">${DIPLOMA_MARK_PATHS.map((d) => `<path d="${d}" fill="#fff"/>`).join('')}</g>
+  </svg>`;
+}
+
+function diplomaArtworkSvg() {
+  const nodes = [[30,40],[110,20],[200,60],[280,30],[160,110],[60,150],[260,160],[300,220],[120,210],[210,270],[40,280]];
+  const edges = [[0,1],[1,2],[2,3],[2,4],[4,5],[5,0],[5,8],[8,9],[9,7],[6,7],[8,10],[4,6]];
+  const pattern = (id, light) => `<pattern id="${id}" width="640" height="640" patternUnits="userSpaceOnUse" viewBox="0 0 320 320"><g stroke="${light ? 'rgba(30,58,95,.06)' : 'rgba(255,255,255,.08)'}" stroke-width="1">${edges.map(([a,b], i) => `<line x1="${nodes[a][0]}" y1="${nodes[a][1]}" x2="${nodes[b][0]}" y2="${nodes[b][1]}" stroke="${i === 11 ? 'rgba(249,115,22,.35)' : ''}"/>`).join('')}</g>${nodes.map(([x,y], i) => `<circle cx="${x}" cy="${y}" r="${i % 3 ? 2 : 2.6}" fill="${i === 4 ? 'rgba(249,115,22,.4)' : (light ? 'rgba(30,58,95,.16)' : 'rgba(255,255,255,.22)')}"/>`).join('')}</pattern>`;
+  const ghost = DIPLOMA_MARK_PATHS.map((d) => `<path d="${d}"/>`).join('');
+  return `<svg viewBox="0 0 2794 2159" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="diplomaSwoopGradient" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a1628"/><stop offset=".45" stop-color="#1e3a5f"/><stop offset="1" stop-color="#0f2440"/></linearGradient><clipPath id="diplomaSwoopClip"><path d="${DIPLOMA_SWOOP}"/></clipPath>${pattern('diplomaStarsLight', true)}${pattern('diplomaStarsDark', false)}</defs><g transform="translate(626 255) scale(1.542)" fill="#e9edf3">${ghost}</g><rect width="2794" height="2159" fill="url(#diplomaStarsLight)"/><path d="${DIPLOMA_SWOOP}" fill="url(#diplomaSwoopGradient)"/><g clip-path="url(#diplomaSwoopClip)"><g transform="translate(626 255) scale(1.542)" fill="#274b76">${ghost}</g><rect width="2794" height="2159" fill="url(#diplomaStarsDark)"/></g><path d="M0 1839C699 1836 1397 1793 1746 1763C2096 1735 2445 1647 2794 1539" fill="none" stroke="#f97316" stroke-width="12"/><rect x="90" y="90" width="2614" height="1979" fill="none" stroke="#1e3a5f" stroke-width="11"/><rect x="124" y="124" width="2546" height="1911" fill="none" stroke="#1e3a5f" stroke-width="3"/></svg>`;
+}
+
+function buildDiplomaCertificateHtml({ fullName, diplomaTitle, awardedLine, studentId }) {
+  return `<style id="diploma-runtime-style">
+    #diploma-certificate{position:relative;width:min(100%,279.4mm);height:215.9mm;background:#fff;color:#1e3a5f;overflow:hidden;font-family:Inter,Segoe UI,sans-serif;box-shadow:0 18px 48px rgba(30,58,95,.25)}#diploma-certificate *{box-sizing:border-box}.dip-art{position:absolute;inset:0}.dip-art svg{display:block;width:100%;height:100%}.dip-content{position:absolute;inset:20mm 26mm 60mm;display:grid;grid-template-rows:17mm 10mm 26mm 8mm 14mm 18mm 1fr 27mm;text-align:center}.dip-row{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center}.dip-logo{height:15mm;max-width:100%;object-fit:contain}.dip-copy{margin:0;color:#4b5563;font-size:11pt;line-height:1.5;max-width:170mm}.dip-name{max-width:100%;font-family:'Space Grotesk',Segoe UI,sans-serif;font-size:44pt;font-weight:700;line-height:1.05;letter-spacing:-.015em;white-space:nowrap;transform-origin:center}.dip-rule{width:12mm;height:1mm;margin-top:5mm;background:#f97316;border-radius:999px}.dip-connective,.dip-recognition{margin:0;color:#6b7280;font-size:10pt;line-height:1.6}.dip-program{margin:0;max-width:210mm;font-family:'Space Grotesk',Segoe UI,sans-serif;font-size:17pt;font-weight:700;line-height:1.25;letter-spacing:.03em;text-transform:uppercase}.dip-date{margin:3mm 0 0;font-size:10pt;font-weight:600}.dip-signatures{display:grid;grid-template-columns:1fr 34mm 1fr;align-items:end;width:100%}.dip-sig{display:flex;flex-direction:column;align-items:center}.dip-sig-mark{height:8mm;display:flex;align-items:flex-end;font-family:'Space Grotesk',sans-serif;font-size:15pt;font-style:italic}.dip-sig-mark img{height:11mm;max-width:55mm;object-fit:contain}.dip-sig-rule{width:66mm;height:.3mm;margin-top:2mm;background:#1e3a5f}.dip-sig-title{margin-top:2.4mm;font-size:7.5pt;font-weight:600;letter-spacing:.16em;text-transform:uppercase}.dip-seal{width:30mm;height:30mm}.dip-seal svg{width:100%;height:100%}.dip-record{position:absolute;left:26mm;right:26mm;bottom:18mm;display:flex;align-items:flex-end;gap:12mm;padding-top:3mm;border-top:.3mm solid rgba(255,255,255,.15)}.dip-field-k{margin-bottom:1mm;color:rgba(255,255,255,.55);font-size:6pt;font-weight:600;letter-spacing:.16em;text-transform:uppercase}.dip-field-v{color:#fff;font-size:8.5pt;font-weight:500;white-space:nowrap}.dip-qr{margin-left:auto;width:17mm;height:17mm;border-radius:2mm;background:#fff;padding:1.4mm}@media print{#diploma-certificate{box-shadow:none}}
+  </style><div id="diploma-certificate"><div class="dip-art">${diplomaArtworkSvg()}</div><div class="dip-content"><div class="dip-row"><img class="dip-logo" src="assets/logo.png" alt="Mission Next Technical Academy"></div><div class="dip-row"><p class="dip-copy">Upon the recommendation of the faculty and by the authority of the Academy, this diploma is conferred upon</p></div><div class="dip-row"><div class="dip-name">${esc(fullName)}</div><div class="dip-rule"></div></div><div class="dip-row"><p class="dip-connective">who has completed the prescribed programme of study in</p></div><div class="dip-row"><h1 class="dip-program">${esc(diplomaTitle)}</h1></div><div class="dip-row"><p class="dip-recognition">Awarded for completion of the coursework, hands-on laboratory exercises, and capstone assessment of Mission Next Technical Academy.</p><p class="dip-date">${esc(awardedLine)}</p></div><div class="dip-row"></div><div class="dip-row"><div class="dip-signatures"><div class="dip-sig"><div class="dip-sig-mark">Randy Gilbert</div><div class="dip-sig-rule"></div><div class="dip-sig-title">Cofounder &amp; CEO</div></div><div class="dip-seal">${diplomaSealSvg()}</div><div class="dip-sig"><div class="dip-sig-mark">Pablo Perez</div><div class="dip-sig-rule"></div><div class="dip-sig-title">Founder</div></div></div></div></div><div class="dip-record"><div><div class="dip-field-k">Student ID</div><div class="dip-field-v">${esc(studentId)}</div></div><div><div class="dip-field-k">Issued</div><div class="dip-field-v">${esc(new Date().toISOString().slice(0, 10))}</div></div><div><div class="dip-field-k">Verify at</div><div class="dip-field-v">mntacademy.com/verify</div></div></div></div>`;
+}
+
+function closeDiplomaCertificate() {
+  const existing = document.getElementById('diploma-overlay');
+  if (existing) existing.remove();
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', diplomaEscHandler);
+}
+
+function diplomaEscHandler(e) {
+  if (e.key === 'Escape') closeDiplomaCertificate();
+}
+
+function openDiplomaCertificate({ fullName, diplomaTitle, studentId }) {
+  closeDiplomaCertificate();
+  const awardedLine = diplomaAwardedLine(new Date());
+  const overlay = document.createElement('div');
+  overlay.id = 'diploma-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:60;background:rgba(15,23,42,0.7);display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:2rem 1rem;';
+  overlay.innerHTML = `
+    <div class="diploma-no-print w-full max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-3 mb-4">
+      <p class="text-white text-xs sm:text-sm">Preview only — this name is never saved. Use Print to save it as a PDF.</p>
+      <div class="flex gap-2">
+        <button type="button" data-action="diploma-print" class="bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Print / Save as PDF</button>
+        <button type="button" data-action="diploma-close" class="bg-white text-gray-700 font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Close</button>
+      </div>
+    </div>
+    ${buildDiplomaCertificateHtml({ fullName, diplomaTitle, awardedLine, studentId })}
+  `;
+  document.body.appendChild(overlay);
+  const fitName = () => {
+    const name = overlay.querySelector('.dip-name');
+    if (!name) return;
+    name.style.transform = 'scale(1)';
+    const available = name.parentElement.clientWidth;
+    if (name.scrollWidth > available) name.style.transform = `scale(${(available / name.scrollWidth).toFixed(4)})`;
+  };
+  requestAnimationFrame(fitName);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitName);
+  document.body.style.overflow = 'hidden';
+  overlay.querySelector('[data-action="diploma-close"]').addEventListener('click', closeDiplomaCertificate);
+  overlay.querySelector('[data-action="diploma-print"]').addEventListener('click', () => window.print());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeDiplomaCertificate(); });
+  document.addEventListener('keydown', diplomaEscHandler);
+}
+
 function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
   dashboardRows = dashboardRows || [];
   activeStudents = activeStudents || [];
@@ -5065,6 +5205,53 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
   const generateCohortPanel = document.getElementById('admin-generate-cohort-panel');
   if (toggleGenerateCohortBtn && generateCohortPanel) {
     toggleGenerateCohortBtn.addEventListener('click', () => { generateCohortPanel.hidden = !generateCohortPanel.hidden; });
+  }
+  const toggleGenerateDiplomaBtn = document.querySelector('[data-action="admin-toggle-generate-diploma"]');
+  const generateDiplomaPanel = document.getElementById('admin-generate-diploma-panel');
+  if (toggleGenerateDiplomaBtn && generateDiplomaPanel) {
+    toggleGenerateDiplomaBtn.addEventListener('click', () => { generateDiplomaPanel.hidden = !generateDiplomaPanel.hidden; });
+  }
+
+  /* "Generate Diploma": looks up the selected student's track_code (already
+   * in dashboardRows — no extra fetch) to pick the matching diploma title,
+   * then hands the typed name straight to openDiplomaCertificate() and
+   * clears the fields immediately after. Nothing here is written to
+   * Supabase or browser storage. */
+  const generateDiplomaSubmitBtn = document.querySelector('[data-action="admin-generate-diploma-submit"]');
+  if (generateDiplomaSubmitBtn) {
+    generateDiplomaSubmitBtn.addEventListener('click', () => {
+      const studentSelect = document.getElementById('diploma-student-select');
+      const firstInput = document.getElementById('diploma-first-name');
+      const middleInput = document.getElementById('diploma-middle-name');
+      const lastInput = document.getElementById('diploma-last-name');
+      const statusEl = document.getElementById('admin-generate-diploma-status');
+      if (!studentSelect || !firstInput || !lastInput) return;
+
+      const studentId = studentSelect.value;
+      const first = firstInput.value.trim();
+      const middle = middleInput ? middleInput.value.trim() : '';
+      const last = lastInput.value.trim();
+
+      if (!studentId) { if (statusEl) statusEl.textContent = 'Select a student first.'; return; }
+      if (!first || !last) { if (statusEl) statusEl.textContent = 'First and last name are required.'; return; }
+
+      const row = dashboardRows.find((r) => r.student_id === studentId);
+      // Re-check eligibility against the live dashboard rows, not just the
+      // <select>'s already-filtered options — a stale/tampered DOM should
+      // never be able to generate a diploma for an incomplete student.
+      if (!row || row.enrolled === false || (row.percent_complete || 0) < 100) {
+        if (statusEl) statusEl.textContent = 'This student has not completed every module (including the capstone) yet — diploma not available.';
+        return;
+      }
+      const diplomaTitle = (row && DIPLOMA_TITLES_BY_TRACK[row.track_code]) || 'Diploma of Completion';
+      const fullName = [first, middle, last].filter(Boolean).join(' ');
+
+      openDiplomaCertificate({ fullName, diplomaTitle, studentId });
+      if (statusEl) statusEl.textContent = '';
+      firstInput.value = '';
+      if (middleInput) middleInput.value = '';
+      lastInput.value = '';
+    });
   }
 
   /* "Generate New User": one account, via admin-provision's create_user
