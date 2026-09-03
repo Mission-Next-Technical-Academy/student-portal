@@ -3,341 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Isolated Mission Next M360 101 Week 1 portfolio-first prototype." />
   <title>M360 101 — Week 1 Preview | Mission Next Technical Academy</title>
   <link rel="icon" href="assets/logo.png" />
-  <style>
-    :root {
-      --mission-blue: #1F4E79;
-      --mission-blue-dark: #123754;
-      --signal-orange: #F26A2E;
-      --steel-gray: #3A3F45;
-      --light-slate: #E6EDF3;
-      --electric-blue: #2F80ED;
-      --cyber-teal: #00A6A6;
-      --white: #FFFFFF;
-      --ink: #162432;
-      --muted: #667787;
-      --success: #18794E;
-      --shadow: 0 18px 42px rgba(18, 55, 84, 0.10);
-      --radius: 18px;
-    }
-
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      background-color: #f8fbfd;
-      background-image:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Ccircle cx='16' cy='16' r='2.5' fill='rgba%2831%2C78%2C121%2C0.16%29'/%3E%3Ccircle cx='96' cy='48' r='2' fill='rgba%2831%2C78%2C121%2C0.11%29'/%3E%3Ccircle cx='200' cy='24' r='2.5' fill='rgba%2831%2C78%2C121%2C0.11%29'/%3E%3Ccircle cx='300' cy='80' r='2' fill='rgba%2831%2C78%2C121%2C0.15%29'/%3E%3Ccircle cx='48' cy='140' r='2' fill='rgba%2831%2C78%2C121%2C0.11%29'/%3E%3Ccircle cx='160' cy='110' r='3' fill='rgba%28242%2C106%2C46%2C0.22%29'/%3E%3Ccircle cx='260' cy='160' r='2' fill='rgba%2831%2C78%2C121%2C0.11%29'/%3E%3Ccircle cx='100' cy='220' r='2.5' fill='rgba%2831%2C78%2C121%2C0.11%29'/%3E%3Ccircle cx='220' cy='260' r='2' fill='rgba%2831%2C78%2C121%2C0.11%29'/%3E%3Ccircle cx='310' cy='240' r='2.5' fill='rgba%2831%2C78%2C121%2C0.15%29'/%3E%3Ccircle cx='30' cy='290' r='2' fill='rgba%2831%2C78%2C121%2C0.11%29'/%3E%3Cline x1='16' y1='16' x2='96' y2='48' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='96' y1='48' x2='200' y2='24' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='200' y1='24' x2='300' y2='80' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='96' y1='48' x2='160' y2='110' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='300' y1='80' x2='260' y2='160' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='160' y1='110' x2='48' y2='140' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='160' y1='110' x2='260' y2='160' stroke='rgba%28242%2C106%2C46%2C0.095%29' stroke-width='1'/%3E%3Cline x1='48' y1='140' x2='100' y2='220' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='220' y2='260' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='310' y2='240' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='100' y1='220' x2='30' y2='290' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3Cline x1='100' y1='220' x2='220' y2='260' stroke='rgba%2831%2C78%2C121%2C0.055%29' stroke-width='1'/%3E%3C/svg%3E");
-      background-size: 320px 320px;
-      font-family: "Open Sans", "Segoe UI", Arial, sans-serif;
-    }
-
-    h1, h2, h3, h4, .brand-name, .eyebrow, .step-label {
-      font-family: Roboto, "Segoe UI", Arial, sans-serif;
-    }
-
-    button, input, textarea { font: inherit; }
-    button { cursor: pointer; }
-
-    .shell { min-height: 100vh; }
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      background: rgba(255,255,255,.96);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(31,78,121,.12);
-    }
-    .topbar-inner {
-      max-width: 1180px;
-      margin: 0 auto;
-      min-height: 72px;
-      padding: 12px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      min-width: 0;
-    }
-    .brand img {
-      width: 48px;
-      height: 48px;
-      object-fit: contain;
-      border-radius: 10px;
-    }
-    .brand-name {
-      color: var(--mission-blue-dark);
-      font-weight: 800;
-      letter-spacing: .02em;
-      line-height: 1.05;
-    }
-    .brand-sub {
-      display: block;
-      color: var(--steel-gray);
-      font-size: 12px;
-      margin-top: 4px;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-    }
-    .preview-pill {
-      border: 1px solid rgba(242,106,46,.28);
-      background: rgba(242,106,46,.08);
-      color: #A84317;
-      border-radius: 999px;
-      padding: 8px 12px;
-      font-size: 12px;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-
-    .hero-wrap {
-      max-width: 1180px;
-      margin: 28px auto 0;
-      padding: 0 24px;
-    }
-    .hero {
-      position: relative;
-      overflow: hidden;
-      border-radius: 24px;
-      padding: 44px;
-      color: white;
-      background: linear-gradient(135deg, var(--mission-blue-dark) 0%, var(--mission-blue) 58%, #255f91 100%);
-      box-shadow: var(--shadow);
-    }
-    .hero::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      opacity: .86;
-      background-image:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Ccircle cx='16' cy='16' r='2.5' fill='rgba%28255%2C255%2C255%2C0.24%29'/%3E%3Ccircle cx='96' cy='48' r='2' fill='rgba%28255%2C255%2C255%2C0.18%29'/%3E%3Ccircle cx='200' cy='24' r='2.5' fill='rgba%28255%2C255%2C255%2C0.18%29'/%3E%3Ccircle cx='300' cy='80' r='2' fill='rgba%28255%2C255%2C255%2C0.24%29'/%3E%3Ccircle cx='48' cy='140' r='2' fill='rgba%28255%2C255%2C255%2C0.18%29'/%3E%3Ccircle cx='160' cy='110' r='3' fill='rgba%28242%2C106%2C46%2C0.5%29'/%3E%3Ccircle cx='260' cy='160' r='2' fill='rgba%28255%2C255%2C255%2C0.18%29'/%3E%3Ccircle cx='100' cy='220' r='2.5' fill='rgba%28255%2C255%2C255%2C0.18%29'/%3E%3Ccircle cx='220' cy='260' r='2' fill='rgba%28255%2C255%2C255%2C0.18%29'/%3E%3Ccircle cx='310' cy='240' r='2.5' fill='rgba%28255%2C255%2C255%2C0.24%29'/%3E%3Cline x1='16' y1='16' x2='96' y2='48' stroke='rgba%28255%2C255%2C255%2C0.075%29' stroke-width='1'/%3E%3Cline x1='96' y1='48' x2='200' y2='24' stroke='rgba%28255%2C255%2C255%2C0.075%29' stroke-width='1'/%3E%3Cline x1='200' y1='24' x2='300' y2='80' stroke='rgba%28255%2C255%2C255%2C0.075%29' stroke-width='1'/%3E%3Cline x1='96' y1='48' x2='160' y2='110' stroke='rgba%28255%2C255%2C255%2C0.075%29' stroke-width='1'/%3E%3Cline x1='300' y1='80' x2='260' y2='160' stroke='rgba%28255%2C255%2C255%2C0.075%29' stroke-width='1'/%3E%3Cline x1='160' y1='110' x2='48' y2='140' stroke='rgba%28255%2C255%2C255%2C0.075%29' stroke-width='1'/%3E%3Cline x1='160' y1='110' x2='260' y2='160' stroke='rgba%28242%2C106%2C46%2C0.16%29' stroke-width='1'/%3E%3C/svg%3E");
-      background-size: 320px 320px;
-    }
-    .hero::after {
-      content: "";
-      position: absolute;
-      width: 360px;
-      height: 620px;
-      right: -120px;
-      top: -180px;
-      transform: rotate(28deg);
-      border-left: 9px solid var(--signal-orange);
-      border-right: 34px solid rgba(255,255,255,.06);
-    }
-    .hero-content { position: relative; z-index: 2; max-width: 760px; }
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: .16em;
-      text-transform: uppercase;
-      color: #dceaf5;
-    }
-    .eyebrow::before { content: ""; width: 32px; height: 3px; background: var(--signal-orange); border-radius: 999px; }
-    .hero h1 { margin: 18px 0 12px; font-size: clamp(34px, 5vw, 58px); line-height: 1.02; letter-spacing: -.025em; }
-    .hero p { margin: 0; max-width: 710px; color: rgba(255,255,255,.88); font-size: 17px; line-height: 1.7; }
-    .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
-    .meta-chip { padding: 9px 12px; border-radius: 999px; background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.16); font-size: 13px; font-weight: 700; }
-
-    .main {
-      max-width: 1180px;
-      margin: 26px auto 64px;
-      padding: 0 24px;
-      display: grid;
-      grid-template-columns: 260px minmax(0, 1fr);
-      gap: 26px;
-      align-items: start;
-    }
-    .sidebar {
-      position: sticky;
-      top: 96px;
-      border: 1px solid rgba(31,78,121,.11);
-      border-radius: var(--radius);
-      background: rgba(255,255,255,.95);
-      box-shadow: 0 10px 30px rgba(18,55,84,.06);
-      padding: 16px;
-    }
-    .sidebar-title { font-weight: 800; color: var(--mission-blue-dark); margin: 4px 6px 12px; }
-    .nav-link {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      border: 0;
-      border-radius: 12px;
-      background: transparent;
-      color: var(--steel-gray);
-      padding: 11px 12px;
-      text-align: left;
-      font-weight: 700;
-      text-decoration: none;
-    }
-    .nav-link:hover { background: var(--light-slate); color: var(--mission-blue-dark); }
-    .nav-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mission-blue); box-shadow: 0 0 0 4px rgba(31,78,121,.08); }
-    .nav-link.prove .nav-dot { background: var(--cyber-teal); }
-
-    .content { display: grid; gap: 22px; }
-    .card {
-      background: rgba(255,255,255,.97);
-      border: 1px solid rgba(31,78,121,.10);
-      border-radius: var(--radius);
-      box-shadow: 0 10px 30px rgba(18,55,84,.055);
-      overflow: hidden;
-    }
-    .card-header { padding: 24px 26px 18px; border-bottom: 1px solid rgba(31,78,121,.09); }
-    .card-body { padding: 24px 26px 28px; }
-    .step-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--mission-blue);
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: .13em;
-      text-transform: uppercase;
-    }
-    .step-label::before { content: ""; width: 24px; height: 3px; border-radius: 999px; background: var(--signal-orange); }
-    h2 { margin: 8px 0 6px; color: var(--mission-blue-dark); font-size: 28px; line-height: 1.15; }
-    h3 { margin: 0 0 8px; color: var(--mission-blue-dark); font-size: 18px; }
-    .subtle { color: var(--muted); line-height: 1.65; margin: 0; }
-    .learning-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
-    .learning-item { border-left: 4px solid var(--mission-blue); border-radius: 12px; background: #f7fafc; padding: 16px; line-height: 1.55; }
-    .learning-item strong { color: var(--mission-blue-dark); }
-
-    .live-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
-    .live-card { position: relative; padding: 20px; border-radius: 16px; border: 1px solid rgba(31,78,121,.12); background: linear-gradient(180deg,#fff,#f7fafc); }
-    .live-card::before { content: ""; position: absolute; left: 0; top: 18px; bottom: 18px; width: 4px; border-radius: 999px; background: var(--signal-orange); }
-    .live-card.coaching::before { background: var(--cyber-teal); }
-    .live-tag { color: var(--steel-gray); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-    .live-card h3 { margin: 6px 0 8px; }
-    .live-card p { margin: 0; color: var(--muted); line-height: 1.55; }
-
-    .workspace-note { background: rgba(230,237,243,.62); border-radius: 14px; padding: 15px 17px; color: var(--steel-gray); line-height: 1.55; margin-bottom: 20px; }
-    .workspace-section { padding: 20px 0; border-top: 1px solid rgba(31,78,121,.09); }
-    .workspace-section:first-of-type { border-top: 0; padding-top: 0; }
-    .workspace-kicker { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--mission-blue); font-weight: 800; margin-bottom: 5px; }
-    label { display: block; font-weight: 800; color: var(--mission-blue-dark); margin-bottom: 7px; }
-    .help { display: block; color: var(--muted); font-size: 13px; margin-top: 6px; line-height: 1.45; }
-    .field { margin-bottom: 18px; }
-    input[type="text"], textarea {
-      width: 100%;
-      border: 1px solid #cbd8e3;
-      background: #fff;
-      border-radius: 12px;
-      padding: 12px 13px;
-      color: var(--ink);
-      outline: none;
-      transition: border-color .15s, box-shadow .15s;
-    }
-    textarea { min-height: 110px; resize: vertical; line-height: 1.5; }
-    input:focus, textarea:focus { border-color: var(--electric-blue); box-shadow: 0 0 0 4px rgba(47,128,237,.11); }
-    .strength-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
-    .strength-card { border: 1px solid #dbe4eb; border-radius: 14px; padding: 15px; background: #fbfdff; }
-    .strength-card .field:last-child { margin-bottom: 0; }
-    .mini-title { font-family: Roboto, "Segoe UI", Arial, sans-serif; font-weight: 800; color: var(--mission-blue-dark); margin-bottom: 12px; }
-
-    .formula {
-      border-radius: 14px;
-      background: var(--mission-blue-dark);
-      color: white;
-      padding: 16px 18px;
-      margin: 12px 0 18px;
-      font-family: "JetBrains Mono", Consolas, monospace;
-      line-height: 1.55;
-      font-size: 13px;
-    }
-    .formula .accent { color: #ffb189; }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-      padding-top: 4px;
-    }
-    .btn {
-      border-radius: 11px;
-      border: 1px solid transparent;
-      padding: 11px 15px;
-      font-weight: 800;
-    }
-    .btn-primary { background: var(--mission-blue); color: white; }
-    .btn-primary:hover { background: var(--mission-blue-dark); }
-    .btn-secondary { border-color: #c8d6e1; background: white; color: var(--mission-blue-dark); }
-    .btn-danger { border-color: rgba(242,106,46,.25); background: rgba(242,106,46,.07); color: #a84317; }
-    .save-state { font-size: 13px; color: var(--muted); margin-left: auto; }
-    .save-state.saved { color: var(--success); font-weight: 700; }
-
-    .portfolio {
-      border: 1px solid rgba(0,166,166,.22);
-      background: linear-gradient(180deg, rgba(0,166,166,.05), rgba(255,255,255,.94));
-    }
-    .portfolio-preview { display: grid; gap: 14px; }
-    .portfolio-row { display: grid; grid-template-columns: 170px 1fr; gap: 16px; padding: 13px 0; border-bottom: 1px solid rgba(31,78,121,.08); }
-    .portfolio-row:last-child { border-bottom: 0; }
-    .portfolio-key { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--cyber-teal); }
-    .portfolio-value { color: var(--steel-gray); line-height: 1.5; white-space: pre-wrap; }
-    .portfolio-value.empty { color: #98a7b4; font-style: italic; }
-
-    .qa-banner {
-      margin-top: 20px;
-      border-radius: 14px;
-      border: 1px dashed rgba(31,78,121,.25);
-      padding: 14px 16px;
-      color: var(--steel-gray);
-      background: rgba(255,255,255,.62);
-      font-size: 13px;
-      line-height: 1.55;
-    }
-
-    @media (max-width: 900px) {
-      .main { grid-template-columns: 1fr; }
-      .sidebar { position: static; display: none; }
-      .hero { padding: 34px 28px; }
-      .learning-grid, .live-grid, .strength-grid { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 600px) {
-      .topbar-inner, .hero-wrap, .main { padding-left: 16px; padding-right: 16px; }
-      .hero { padding: 30px 22px; border-radius: 18px; }
-      .card-header, .card-body { padding-left: 20px; padding-right: 20px; }
-      .preview-pill { display: none; }
-      .portfolio-row { grid-template-columns: 1fr; gap: 4px; }
-      .save-state { width: 100%; margin-left: 0; }
-    }
-  </style>
+  <link rel="stylesheet" href="m360/assets/mission-next-tokens.css?v=20260903" />
+  <link rel="stylesheet" href="m360-preview.css?v=20260903b" />
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <div class="topbar-inner">
-        <div class="brand">
-          <img src="assets/logo.png" alt="Mission Next Technical Academy logo" />
+        <div class="brand" aria-label="Mission Next Technical Academy M360 101">
+          <img class="brand-mark" src="assets/logo.png" alt="" aria-hidden="true" />
           <div>
             <div class="brand-name">MISSION NEXT</div>
-            <span class="brand-sub">Technical Academy · M360 101</span>
+            <div class="brand-sub">Technical Academy · M360 101</div>
           </div>
         </div>
-        <div class="preview-pill">Isolated Week 1 Preview · No LMS data connection</div>
+        <div class="preview-pill">Standalone prototype · No LMS data connection</div>
       </div>
     </header>
 
     <div class="hero-wrap">
-      <section class="hero">
+      <section class="hero" aria-labelledby="page-title">
+        <img class="hero-watermark" src="m360/assets/MNTA_Mark_Watermark_10pct.png" alt="" aria-hidden="true" />
         <div class="hero-content">
           <div class="eyebrow">Week 1 · Direction to Proof</div>
-          <h1>Career Direction &amp; Professional Brand</h1>
-          <p>Define a practical starting direction, identify strengths you can support with evidence, translate one experience into professional language, and draft a brand statement you can reuse throughout M360.</p>
-          <div class="hero-meta">
+          <img class="signal-line" src="m360/assets/Signal_Line.svg" alt="" aria-hidden="true" />
+          <h1 id="page-title">Career Direction &amp; Professional Brand</h1>
+          <p>Choose a credible near-term direction, connect it to evidence you can support, and build the first accepted artifact in your M360 Portfolio.</p>
+          <div class="hero-meta" aria-label="Week 1 learning model">
             <span class="meta-chip">Learn it.</span>
             <span class="meta-chip">Practice it.</span>
             <span class="meta-chip">Prove it.</span>
@@ -347,29 +42,58 @@
       </section>
     </div>
 
+    <section class="journey-wrap" aria-label="M360 six-week progression">
+      <div class="journey-card">
+        <div class="journey-heading">
+          <div>
+            <div class="mini-kicker">Your six-week build</div>
+            <h2>Every week adds to one portfolio.</h2>
+          </div>
+          <div class="journey-progress" id="journeyProgress">0 of 6 artifacts portfolio ready</div>
+        </div>
+        <ol class="journey-steps">
+          <li class="journey-step active"><span class="week-number">01</span><strong>Direction</strong><small>Brand + evidence</small></li>
+          <li class="journey-step"><span class="week-number">02</span><strong>Signal</strong><small>Professional profile</small></li>
+          <li class="journey-step"><span class="week-number">03</span><strong>Connection</strong><small>Outreach + learning</small></li>
+          <li class="journey-step"><span class="week-number">04</span><strong>Evidence</strong><small>Targeted resume</small></li>
+          <li class="journey-step"><span class="week-number">05</span><strong>Voice</strong><small>Interview stories</small></li>
+          <li class="journey-step"><span class="week-number">06</span><strong>Proof</strong><small>Career Spotlight</small></li>
+        </ol>
+      </div>
+    </section>
+
     <main class="main">
       <aside class="sidebar" aria-label="Week 1 navigation">
+        <div class="sidebar-watermark" aria-hidden="true"></div>
         <div class="sidebar-title">Week 1</div>
         <a class="nav-link" href="#brief"><span class="nav-dot"></span>Week Brief</a>
         <a class="nav-link" href="#learn"><span class="nav-dot"></span>Learn It</a>
-        <a class="nav-link" href="#live"><span class="nav-dot"></span>Live Sessions</a>
-        <a class="nav-link" href="#workspace"><span class="nav-dot"></span>Build Workspace</a>
-        <a class="nav-link prove" href="#portfolio"><span class="nav-dot"></span>Portfolio Preview</a>
+        <a class="nav-link" href="#live"><span class="nav-dot"></span>Live Instruction</a>
+        <a class="nav-link" href="#build"><span class="nav-dot"></span>Build It</a>
+        <a class="nav-link prove" href="#prove"><span class="nav-dot"></span>Prove It</a>
+
+        <div class="my-m360">
+          <div class="my-m360-label">MY M360</div>
+          <div class="my-m360-row"><span>Week 1 artifact</span><strong id="sidebarWeek1Status">Draft</strong></div>
+          <div class="my-m360-row"><span>Portfolio</span><strong id="sidebarPortfolioCount">0 / 6</strong></div>
+          <div class="progress-track"><span id="sidebarProgressBar"></span></div>
+          <p>Build privately. Carry forward accepted work.</p>
+        </div>
       </aside>
 
       <div class="content">
         <section id="brief" class="card">
           <div class="card-header">
             <div class="step-label">Week Brief</div>
-            <h2>Start with direction, not a perfect job title.</h2>
-            <p class="subtle">You do not need every answer today. You do need a useful starting point you can test, refine, and support with evidence.</p>
+            <h2>Start with a working direction, not a forever answer.</h2>
+            <p class="subtle">Week 1 creates the language and evidence base you will reuse in LinkedIn, resume development, interview practice, networking, and Career Spotlight.</p>
           </div>
           <div class="card-body">
-            <div class="learning-grid">
-              <div class="learning-item"><strong>Direction:</strong> name the role family, problem space, environment, tools, or kind of work you are moving toward.</div>
-              <div class="learning-item"><strong>Evidence:</strong> identify at least three strengths or capabilities and the examples that make them believable.</div>
-              <div class="learning-item"><strong>Translation:</strong> rewrite one experience in plain professional language without unexplained jargon.</div>
-              <div class="learning-item"><strong>Brand:</strong> draft a clear statement that connects your direction, strengths, and evidence.</div>
+            <div class="learning-grid compact-grid">
+              <div class="learning-item"><strong>Direction</strong><span>Name the role family, problems, environment, or kind of work you are moving toward.</span></div>
+              <div class="learning-item"><strong>Evidence</strong><span>Choose three capabilities you can support with real examples.</span></div>
+              <div class="learning-item"><strong>Translation</strong><span>Make one experience understandable without inflating what happened.</span></div>
+              <div class="learning-item"><strong>Brand</strong><span>Connect direction, capability, and proof in language you can reuse.</span></div>
             </div>
           </div>
         </section>
@@ -377,222 +101,247 @@
         <section id="learn" class="card">
           <div class="card-header">
             <div class="step-label">Learn It</div>
-            <h2>Your professional brand is a pattern, not a slogan.</h2>
-            <p class="subtle">A useful brand helps someone understand the kind of work you are moving toward, the capabilities you bring, and the evidence behind those claims.</p>
+            <h2>Learn a few useful ideas before the live session.</h2>
+            <p class="subtle">This section is intentionally short. Learn the concepts, inspect strong examples, and bring questions to live instruction. The live session connects the pieces before you build.</p>
           </div>
           <div class="card-body">
-            <h3>Use one rule throughout this week</h3>
-            <div class="formula"><span class="accent">Evidence beats adjectives.</span> Replace vague claims with examples, outcomes, tools, decisions, responsibilities, or work products that show the capability.</div>
-            <p class="subtle">Exploration is acceptable. If you are still deciding, name what you are exploring. The goal is a direction strong enough to guide LinkedIn, resume, networking, and interview work later in M360.</p>
+            <div class="learn-cards">
+              <article class="lesson-card">
+                <div class="lesson-number">01</div>
+                <div class="lesson-copy">
+                  <div class="lesson-tag">Direction</div>
+                  <h3>Direction is a working hypothesis.</h3>
+                  <p>You do not need a perfect job title. You need a next move specific enough to guide what you practice, what evidence you collect, and what you investigate next.</p>
+                  <div class="compare-box">
+                    <div><span class="compare-label weak">Broad</span><p>“I want to work in technology.”</p></div>
+                    <div><span class="compare-label strong">Focused</span><p>“I am exploring entry-level support roles where I can diagnose user issues, document fixes, and build toward systems administration.”</p></div>
+                  </div>
+                  <details>
+                    <summary>Why the focused version works</summary>
+                    <p>It names a starting lane, useful work, and a logical next direction without pretending the decision is permanent.</p>
+                  </details>
+                </div>
+              </article>
+
+              <article class="lesson-card">
+                <div class="lesson-number">02</div>
+                <div class="lesson-copy">
+                  <div class="lesson-tag">Evidence</div>
+                  <h3>Strengths require receipts.</h3>
+                  <p>A capability becomes credible when you can point to where and how you used it. Replace broad adjectives with a capability, context, and proof.</p>
+                  <div class="compare-box">
+                    <div><span class="compare-label weak">Weak</span><p>“I am a strong problem solver.”</p></div>
+                    <div><span class="compare-label strong">Stronger</span><p>“I troubleshoot unclear issues by asking focused questions, testing likely causes, and documenting the resolution.”</p></div>
+                  </div>
+                  <details>
+                    <summary>What makes evidence useful</summary>
+                    <p>Use examples from work, school, labs, projects, volunteering, caregiving, community leadership, or current coursework. The proof should be yours and supportable.</p>
+                  </details>
+                </div>
+              </article>
+            </div>
+
+            <div class="resource-heading">
+              <div class="mini-kicker">Week 1 resources</div>
+              <h3>Keep these open during instruction and coaching.</h3>
+            </div>
+            <div class="resource-grid">
+              <details class="resource-card">
+                <summary>
+                  <span class="resource-icon">A</span>
+                  <span><strong>Direction Decision Card</strong><small>Compare options without forcing certainty.</small></span>
+                </summary>
+                <div class="resource-body">
+                  <p>Compare a direction using five criteria:</p>
+                  <ul><li>Interest</li><li>Demonstrated strengths</li><li>Entry requirements</li><li>Access to practice</li><li>Next-step clarity</li></ul>
+                  <p class="resource-note">A low score is not failure. It tells you what to investigate.</p>
+                </div>
+              </details>
+              <details class="resource-card">
+                <summary>
+                  <span class="resource-icon">B</span>
+                  <span><strong>Translation + Brand Check</strong><small>Keep claims accurate and understandable.</small></span>
+                </summary>
+                <div class="resource-body">
+                  <p><strong>Translation:</strong> context → action → result/learning → capability.</p>
+                  <p><strong>10-second check:</strong> Can someone identify your direction, useful work, and evidence after one read?</p>
+                  <p class="resource-note">If the language could describe almost anyone, add specificity. If it sounds inflated, narrow the claim.</p>
+                </div>
+              </details>
+            </div>
           </div>
         </section>
 
         <section id="live" class="card">
           <div class="card-header">
-            <div class="step-label">Live Sessions</div>
-            <h2>Instruction first. Coaching second.</h2>
-            <p class="subtle">Both sessions are instructor-led on Google Meet. M360 attendance and clock hours are recorded outside this preview and outside the LMS workflow.</p>
+            <div class="step-label">Live Instruction</div>
+            <h2>Use the live sessions to connect, question, and refine.</h2>
+            <p class="subtle">The pre-work gives you the pieces. Live instruction ties them together; the coaching session moves directly into the portfolio build.</p>
           </div>
           <div class="card-body">
             <div class="live-grid">
               <article class="live-card">
-                <div class="live-tag">Session 1 · Instruction</div>
-                <h3>Career Direction &amp; Professional Brand</h3>
-                <p>Learn the Week 1 concepts, review examples across career paths, and begin identifying evidence that supports how you want to position yourself.</p>
+                <div class="live-tag">Session 1 · Instruction · 60 min</div>
+                <h3>Connect direction, evidence, and professional language.</h3>
+                <ul class="clean-list">
+                  <li>Test a working direction without forcing certainty.</li>
+                  <li>Diagnose vague claims and unsupported strengths.</li>
+                  <li>Review examples across Help Desk, SOC, AI/ML, and career-pivot contexts.</li>
+                  <li>Translate experience accurately for a professional audience.</li>
+                </ul>
               </article>
               <article class="live-card coaching">
-                <div class="live-tag">Session 2 · Coaching</div>
-                <h3>Build your Week 1 proof</h3>
-                <p>Work directly in the workspace below while the instructor coaches, challenges vague language, and helps you strengthen the evidence behind your statements.</p>
+                <div class="live-tag">Session 2 · Coaching · 60 min</div>
+                <h3>Build the Week 1 portfolio artifact with an instructor.</h3>
+                <ul class="clean-list">
+                  <li>Work directly in the Build It workspace.</li>
+                  <li>Challenge vague language with “What is the example behind that?”</li>
+                  <li>Refine the brand statement until it is specific, believable, and reusable.</li>
+                  <li>Prepare the artifact for instructor review and acceptance.</li>
+                </ul>
               </article>
             </div>
+            <div class="live-note">M360 attendance and clock hours remain outside this prototype. This page does not write to technical-course attendance, time, progress, or grade data.</div>
           </div>
         </section>
 
-        <section id="workspace" class="card">
+        <section id="build" class="card build-card">
           <div class="card-header">
-            <div class="step-label">Practice It · Build It</div>
-            <h2>Week 1 Coaching Workspace</h2>
-            <p class="subtle">This preview saves only in this browser using localStorage. It does not connect to Supabase, grades, attendance, technical progress, or any technical-course data.</p>
+            <div class="step-label">Build It</div>
+            <h2>Build the first part of your M360 Portfolio.</h2>
+            <p class="subtle">Build It is your working space. Drafts can change. In production, only instructor-accepted work moves into Prove It as a portfolio-ready artifact.</p>
           </div>
           <div class="card-body">
-            <div class="workspace-note"><strong>How to use this:</strong> Draft during the coaching session. Keep the language specific. You can leave this page and return later; your draft will remain on this device.</div>
+            <div class="architecture-note">
+              <div><strong>Career Operating Portfolio</strong><span>Private drafts, evidence, practice, feedback, and revisions.</span></div>
+              <div class="architecture-arrow">→</div>
+              <div><strong>Showcase Portfolio</strong><span>Accepted reusable artifacts carried forward through Week 6.</span></div>
+            </div>
 
             <div class="workspace-section">
-              <div class="workspace-kicker">Practice</div>
+              <div class="workspace-kicker">01 · Direction</div>
               <div class="field">
-                <label for="direction">1. What kind of work are you moving toward?</label>
-                <textarea id="direction" data-m360 placeholder="Examples: IT support in a service desk environment; security monitoring and incident triage; data analysis and applied machine learning; operations or project coordination."></textarea>
-                <span class="help">A role family or type of work is enough. You are allowed to refine this later.</span>
+                <label for="direction">Target direction summary <span class="portfolio-field">Portfolio field</span></label>
+                <textarea id="direction" data-m360 placeholder="Write 2–3 sentences that name the role family or type of work, the problems or tasks you want to handle, and the environment or next move you want to test."></textarea>
+                <span class="help">Exploratory is okay if it is specific enough to guide your next step.</span>
+              </div>
+              <div class="field">
+                <label for="nextStep">One next step you will test before Week 2</label>
+                <input id="nextStep" data-m360 type="text" placeholder="Example: Review three support-role postings and compare common requirements." />
               </div>
             </div>
 
             <div class="workspace-section">
-              <div class="workspace-kicker">Build</div>
-              <h3>2. Identify three strengths and the evidence behind each.</h3>
-              <p class="subtle" style="margin-bottom:16px">Evidence can come from work, school, service, labs, projects, volunteer work, independent learning, or current coursework.</p>
+              <div class="workspace-kicker">02 · Evidence</div>
+              <h3>Choose three relevant strengths and prove each one.</h3>
+              <p class="subtle">Use different capabilities. For each one ask: Is it useful in the direction I chose? Can I prove it? Can I explain it plainly?</p>
               <div class="strength-grid">
                 <div class="strength-card">
                   <div class="mini-title">Strength 1</div>
-                  <div class="field"><label for="strength1">Strength</label><input id="strength1" data-m360 type="text" placeholder="e.g., troubleshooting" /></div>
-                  <div class="field"><label for="evidence1">Evidence</label><textarea id="evidence1" data-m360 placeholder="What have you done that demonstrates it?"></textarea></div>
+                  <div class="field"><label for="strength1">Capability</label><input id="strength1" data-m360 type="text" placeholder="e.g., structured troubleshooting" /></div>
+                  <div class="field"><label for="evidence1">Evidence</label><textarea id="evidence1" data-m360 placeholder="Where and how did you demonstrate it?"></textarea></div>
                 </div>
                 <div class="strength-card">
                   <div class="mini-title">Strength 2</div>
-                  <div class="field"><label for="strength2">Strength</label><input id="strength2" data-m360 type="text" placeholder="e.g., documentation" /></div>
-                  <div class="field"><label for="evidence2">Evidence</label><textarea id="evidence2" data-m360 placeholder="What have you done that demonstrates it?"></textarea></div>
+                  <div class="field"><label for="strength2">Capability</label><input id="strength2" data-m360 type="text" placeholder="e.g., clear documentation" /></div>
+                  <div class="field"><label for="evidence2">Evidence</label><textarea id="evidence2" data-m360 placeholder="Where and how did you demonstrate it?"></textarea></div>
                 </div>
                 <div class="strength-card">
                   <div class="mini-title">Strength 3</div>
-                  <div class="field"><label for="strength3">Strength</label><input id="strength3" data-m360 type="text" placeholder="e.g., analysis" /></div>
-                  <div class="field"><label for="evidence3">Evidence</label><textarea id="evidence3" data-m360 placeholder="What have you done that demonstrates it?"></textarea></div>
+                  <div class="field"><label for="strength3">Capability</label><input id="strength3" data-m360 type="text" placeholder="e.g., pattern recognition" /></div>
+                  <div class="field"><label for="evidence3">Evidence</label><textarea id="evidence3" data-m360 placeholder="Where and how did you demonstrate it?"></textarea></div>
                 </div>
               </div>
             </div>
 
             <div class="workspace-section">
-              <div class="workspace-kicker">Build</div>
+              <div class="workspace-kicker">03 · Translation</div>
               <div class="field">
-                <label for="translation">3. Translate one experience into plain professional language.</label>
-                <textarea id="translation" data-m360 placeholder="Describe what you did, the responsibility you held, the problem you solved, the tools you used, or the outcome—without unexplained jargon."></textarea>
-                <span class="help">The goal is clarity for a professional audience, not erasing your background.</span>
+                <label for="translation">Translate one experience <span class="portfolio-field">Portfolio field</span></label>
+                <textarea id="translation" data-m360 placeholder="Use context → action → result/learning → capability. Keep the original facts intact and remove unexplained insider language."></textarea>
+                <span class="help">Good translation makes experience understandable. It does not turn it into a different job.</span>
               </div>
             </div>
 
             <div class="workspace-section">
-              <div class="workspace-kicker">Prove</div>
-              <h3>4. Draft your professional brand statement.</h3>
-              <div class="formula">I am moving toward <span class="accent">[direction]</span>, bringing strengths in <span class="accent">[capabilities]</span>, supported by evidence such as <span class="accent">[examples]</span>.</div>
+              <div class="workspace-kicker">04 · Brand</div>
+              <h3>Draft an evidence-based professional brand statement.</h3>
+              <div class="formula">Who you are becoming + the work/problems you focus on + how you approach the work + the evidence that makes it believable.</div>
               <div class="field">
-                <label for="brandStatement">Your draft</label>
-                <textarea id="brandStatement" data-m360 placeholder="Write the version you would want to carry forward into LinkedIn, resume, interview practice, and Career Spotlight."></textarea>
+                <label for="brandStatement">Professional brand statement <span class="portfolio-field">Portfolio field</span></label>
+                <textarea id="brandStatement" data-m360 placeholder="Write 2–3 sentences. Keep it specific, believable, evidence-backed, and natural enough to say out loud."></textarea>
+              </div>
+              <div class="quality-check">
+                <span>10-second check:</span>
+                <label><input type="checkbox" data-quality /> Direction is clear</label>
+                <label><input type="checkbox" data-quality /> Evidence is present</label>
+                <label><input type="checkbox" data-quality /> No unsupported expertise</label>
+                <label><input type="checkbox" data-quality /> Sounds natural</label>
               </div>
             </div>
 
+            <div id="validationMessage" class="validation-message" role="status" aria-live="polite"></div>
             <div class="actions">
               <button id="saveBtn" class="btn btn-primary" type="button">Save draft</button>
-              <button id="refreshPortfolioBtn" class="btn btn-secondary" type="button">Refresh portfolio preview</button>
-              <button id="clearBtn" class="btn btn-danger" type="button">Clear local draft</button>
+              <button id="previewPortfolioBtn" class="btn btn-secondary" type="button">Preview in Prove It</button>
+              <button id="acceptDemoBtn" class="btn btn-tertiary" type="button">Demo: simulate instructor acceptance</button>
+              <button id="clearBtn" class="btn btn-quiet" type="button">Clear local demo</button>
               <span id="saveState" class="save-state">Draft stays on this device only.</span>
             </div>
+            <p class="demo-boundary"><strong>Prototype boundary:</strong> the acceptance button exists only so you can test the portfolio lifecycle. In production, acceptance belongs to the instructor/reviewer workflow, not the student.</p>
           </div>
         </section>
 
-        <section id="portfolio" class="card portfolio">
-          <div class="card-header">
-            <div class="step-label">Prove It</div>
-            <h2>Week 1 Portfolio Preview</h2>
-            <p class="subtle">This shows how accepted Week 1 work can later feed the M360 portfolio without asking the student to re-enter the same information.</p>
+        <section id="prove" class="card portfolio-card">
+          <div class="portfolio-cover">
+            <img class="portfolio-watermark" src="m360/assets/MNTA_Mark_Watermark_10pct.png" alt="" aria-hidden="true" />
+            <div class="portfolio-cover-copy">
+              <div class="step-label light-label">Prove It</div>
+              <h2>Your M360 Portfolio starts here.</h2>
+              <p>Prove It is not another assignment screen. It is the portfolio view of the accepted work you are carrying forward.</p>
+            </div>
+            <div class="portfolio-cover-stat">
+              <span id="portfolioReadyCount">0 / 6</span>
+              <small>artifacts portfolio ready</small>
+            </div>
           </div>
           <div class="card-body">
-            <div id="portfolioPreview" class="portfolio-preview"></div>
-            <div class="qa-banner"><strong>Prototype boundary:</strong> this page is intentionally standalone. It does not load <code>app.js</code>, <code>data.js</code>, Supabase, the module registry, labs, technical-course CSS, or technical progress functions. The only persistence is browser localStorage under an M360-preview key.</div>
+            <div class="portfolio-mode-note">
+              <strong id="portfolioModeTitle">Working preview</strong>
+              <span id="portfolioModeText">You are viewing the current Week 1 draft. It is not yet part of the accepted showcase portfolio.</span>
+            </div>
+
+            <div class="artifact-card" id="week1Artifact">
+              <div class="artifact-heading">
+                <div>
+                  <div class="artifact-week">WEEK 1 · DIRECTION</div>
+                  <h3>Career Direction &amp; Professional Brand</h3>
+                </div>
+                <span id="week1ArtifactStatus" class="status-badge draft">Draft</span>
+              </div>
+              <div id="portfolioPreview" class="portfolio-preview"></div>
+            </div>
+
+            <div class="portfolio-roadmap-heading">
+              <div class="mini-kicker">Build with the end in mind</div>
+              <h3>The final portfolio closes the loop across all six weeks.</h3>
+              <p class="subtle">Only accepted reusable artifacts belong here. Private networking details, rough drafts, and unsupported claims stay out of the showcase portfolio.</p>
+            </div>
+            <div id="portfolioRoadmap" class="portfolio-roadmap"></div>
+
+            <div class="portfolio-actions no-print">
+              <button id="printPortfolioBtn" class="btn btn-primary" type="button">Download / print portfolio preview</button>
+              <button id="resetAcceptanceBtn" class="btn btn-secondary" type="button">Demo: return Week 1 to draft</button>
+              <a class="btn btn-quiet" href="#build">Return to Build It</a>
+            </div>
+
+            <div class="qa-banner no-print"><strong>Isolation remains intact:</strong> this prototype loads only M360-specific HTML, CSS, JavaScript, and brand assets. It does not load <code>app.js</code>, <code>data.js</code>, Supabase, the module registry, labs, technical-course styles, or technical progress functions.</div>
           </div>
         </section>
       </div>
     </main>
   </div>
 
-  <script>
-    (() => {
-      const STORAGE_KEY = 'mnt.m360.preview.week1.v1';
-      const fields = Array.from(document.querySelectorAll('[data-m360]'));
-      const saveState = document.getElementById('saveState');
-      const portfolioPreview = document.getElementById('portfolioPreview');
-
-      function readForm() {
-        return fields.reduce((acc, field) => {
-          acc[field.id] = field.value.trim();
-          return acc;
-        }, {});
-      }
-
-      function saveForm(showMessage = true) {
-        const payload = { ...readForm(), savedAt: new Date().toISOString() };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-        if (showMessage) {
-          saveState.textContent = 'Saved locally at ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-          saveState.classList.add('saved');
-        }
-        renderPortfolio(payload);
-      }
-
-      function loadForm() {
-        try {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) return;
-          const payload = JSON.parse(raw);
-          fields.forEach(field => { if (typeof payload[field.id] === 'string') field.value = payload[field.id]; });
-        } catch (error) {
-          console.warn('Unable to load M360 preview draft.', error);
-        }
-      }
-
-      function valueOrEmpty(value) {
-        return value && value.trim() ? value.trim() : '';
-      }
-
-      function strengthSummary(data) {
-        const rows = [1,2,3].map(i => {
-          const strength = valueOrEmpty(data['strength' + i]);
-          const evidence = valueOrEmpty(data['evidence' + i]);
-          if (!strength && !evidence) return '';
-          return strength + (evidence ? ' — ' + evidence : '');
-        }).filter(Boolean);
-        return rows.join('\n');
-      }
-
-      function renderPortfolio(data = readForm()) {
-        const rows = [
-          ['Target direction', valueOrEmpty(data.direction)],
-          ['Strengths + evidence', strengthSummary(data)],
-          ['Translated experience', valueOrEmpty(data.translation)],
-          ['Professional brand statement', valueOrEmpty(data.brandStatement)]
-        ];
-        portfolioPreview.innerHTML = rows.map(([label, value]) => `
-          <div class="portfolio-row">
-            <div class="portfolio-key">${label}</div>
-            <div class="portfolio-value ${value ? '' : 'empty'}">${escapeHtml(value || 'Add this in the Week 1 workspace to preview it here.')}</div>
-          </div>
-        `).join('');
-      }
-
-      function escapeHtml(value) {
-        return String(value)
-          .replaceAll('&', '&amp;')
-          .replaceAll('<', '&lt;')
-          .replaceAll('>', '&gt;')
-          .replaceAll('"', '&quot;')
-          .replaceAll("'", '&#039;');
-      }
-
-      let autosaveTimer;
-      fields.forEach(field => {
-        field.addEventListener('input', () => {
-          saveState.textContent = 'Unsaved changes…';
-          saveState.classList.remove('saved');
-          clearTimeout(autosaveTimer);
-          autosaveTimer = setTimeout(() => saveForm(false), 650);
-        });
-      });
-
-      document.getElementById('saveBtn').addEventListener('click', () => saveForm(true));
-      document.getElementById('refreshPortfolioBtn').addEventListener('click', () => {
-        renderPortfolio();
-        document.getElementById('portfolio').scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-      document.getElementById('clearBtn').addEventListener('click', () => {
-        if (!window.confirm('Clear the Week 1 preview draft stored on this device?')) return;
-        localStorage.removeItem(STORAGE_KEY);
-        fields.forEach(field => { field.value = ''; });
-        renderPortfolio();
-        saveState.textContent = 'Local preview draft cleared.';
-        saveState.classList.remove('saved');
-      });
-
-      loadForm();
-      renderPortfolio();
-    })();
-  </script>
+  <script src="m360-preview.js?v=20260903b"></script>
 </body>
 </html>
