@@ -5,9 +5,11 @@
   const weekNumber = Number(script && script.dataset.week);
   const localScript = script && script.dataset.localScript;
   const isWeek1 = weekNumber === 1;
-  const localKey = isWeek1 ? 'mnt.m360.preview.portfolio.v3' : 'mnt.m360.course.mock.v1';
+  const legacyLocalKey = isWeek1 ? 'mnt.m360.preview.portfolio.v3' : 'mnt.m360.course.mock.v1';
   const schemaVersion = isWeek1 ? 3 : 1;
   const RELEASED_WEEKS = [1, 2, 3, 4, 5, 6];
+  let localKey = null;
+  let currentUserId = null;
 
   if (!RELEASED_WEEKS.includes(weekNumber) || !localScript) {
     console.error('M360 production bridge: invalid week configuration.');
@@ -20,6 +22,17 @@
 
   function deepClone(value) {
     return value == null ? value : JSON.parse(JSON.stringify(value));
+  }
+
+  function userScopedKey(userId) {
+    const workspace = isWeek1 ? 'week1' : 'course';
+    return `mnt.m360.${workspace}.v1.${userId}`;
+  }
+
+  function markOwnedState(state) {
+    state.m360Production = true;
+    state.cacheOwnerUserId = currentUserId;
+    return state;
   }
 
   function hasMeaningfulContent(payload) {
@@ -68,9 +81,23 @@
   }
 
   function localState() {
-    const parsed = safeParse(localStorage.getItem(localKey));
-    if (parsed && parsed.weeks) return parsed;
-    return { schemaVersion, updatedAt: null, weeks: {} };
+    if (!localKey || !currentUserId) return { schemaVersion, updatedAt: null, weeks: {} };
+    const working = safeParse(localStorage.getItem(legacyLocalKey));
+    if (working && working.weeks && working.cacheOwnerUserId === currentUserId) return working;
+    const scoped = safeParse(localStorage.getItem(localKey));
+    if (scoped && scoped.weeks && scoped.cacheOwnerUserId === currentUserId) return scoped;
+    return { schemaVersion, updatedAt: null, weeks: {}, cacheOwnerUserId: currentUserId };
+  }
+
+  function saveLocalState(state) {
+    if (!localKey || !currentUserId) return;
+    markOwnedState(state);
+    const serialized = JSON.stringify(state);
+    localStorage.setItem(localKey, serialized);
+    // Existing week scripts still use the historical key. During this guarded
+    // integration the key is only a compatibility mirror for the authenticated
+    // user's scoped cache and always carries an owner marker.
+    localStorage.setItem(legacyLocalKey, serialized);
   }
 
   function localWeek(state) {
@@ -93,33 +120,43 @@
     };
   }
 
-  function acceptedPriorWeek(row) {
-    return row ? {
-      accepted: deepClone(row.accepted_artifact_payload || null),
-      acceptedAt: row.accepted_at || null,
-      numericScore: row.numeric_score == null ? null : Number(row.numeric_score),
-      remoteUpdatedAt: row.updated_at || null
-    } : { accepted: null, acceptedAt: null };
+  function emptyRemoteWeek() {
+    return { status: 'draft', draft: {}, submitted: null, submittedAt: null, accepted: null, acceptedAt: null, reviewerFeedback: null, revisionNumber: 0 };
   }
 
   function writeRemoteState(rows) {
     const state = localState();
-    const ownRow = rows.find(row => Number(row.week_number) === weekNumber) || null;
+    for (const releasedWeek of RELEASED_WEEKS) {
+      const row = rows.find(item => Number(item.week_number) === releasedWeek) || null;
+      state.weeks[`week${releasedWeek}`] = row ? remoteToLocalWeek(row) : emptyRemoteWeek();
+    }
+    state.schemaVersion = schemaVersion;
+    state.remoteHydratedAt = new Date().toISOString();
+    saveLocalState(state);
+    return { state, ownRow: rows.find(row => Number(row.week_number) === weekNumber) || null };
+  }
 
-    if (ownRow) state.weeks[`week${weekNumber}`] = remoteToLocalWeek(ownRow);
+  function prepareScopedCache(userId) {
+    currentUserId = userId;
+    localKey = userScopedKey(userId);
 
-    if (!isWeek1) {
-      for (let prior = 1; prior < weekNumber; prior += 1) {
-        const priorRow = rows.find(row => Number(row.week_number) === prior) || null;
-        state.weeks[`week${prior}`] = acceptedPriorWeek(priorRow);
-      }
+    const scoped = safeParse(localStorage.getItem(localKey));
+    const ownedScoped = scoped && scoped.weeks && scoped.cacheOwnerUserId === userId ? scoped : null;
+    if (scoped && !ownedScoped) localStorage.removeItem(localKey);
+
+    // Historical M360 keys were not account-scoped. Never trust or upload a
+    // legacy value unless this bridge previously stamped it for this user.
+    const working = safeParse(localStorage.getItem(legacyLocalKey));
+    if (!working || working.cacheOwnerUserId !== userId) localStorage.removeItem(legacyLocalKey);
+
+    if (ownedScoped) {
+      localStorage.setItem(legacyLocalKey, JSON.stringify(ownedScoped));
     }
 
-    state.schemaVersion = schemaVersion;
-    state.m360Production = true;
-    state.remoteHydratedAt = new Date().toISOString();
-    localStorage.setItem(localKey, JSON.stringify(state));
-    return { state, ownRow };
+    if (isWeek1) {
+      localStorage.removeItem('mnt.m360.preview.portfolio.v2');
+      localStorage.removeItem('mnt.m360.preview.week1.v1');
+    }
   }
 
   function sanitizeUnverifiedLocalState() {
@@ -133,9 +170,8 @@
 
     state.weeks[key] = { ...blank, draft };
     state.schemaVersion = schemaVersion;
-    state.m360Production = true;
     state.remoteHydratedAt = new Date().toISOString();
-    localStorage.setItem(localKey, JSON.stringify(state));
+    saveLocalState(state);
     return state.weeks[key];
   }
 
@@ -189,15 +225,77 @@
     let next = '';
     if (isWeek1) {
       home = '<a class="btn btn-secondary" href="m360/">M360 Home</a>';
-      next = '<a class="btn btn-secondary" href="m360/week.html?week=2">Week 2 →</a>';
+      next = '<a class="btn btn-secondary" href="m360/week.html?week=2">Week 2 -></a>';
     } else {
-      previous = `<a class="btn btn-quiet" href="week.html?week=${weekNumber - 1}">← Week ${weekNumber - 1}</a>`;
+      previous = `<a class="btn btn-quiet" href="week.html?week=${weekNumber - 1}"><- Week ${weekNumber - 1}</a>`;
       home = '<a class="btn btn-secondary" href="index.html">M360 Home</a>';
-      if (RELEASED_WEEKS.includes(weekNumber + 1)) next = `<a class="btn btn-secondary" href="week.html?week=${weekNumber + 1}">Week ${weekNumber + 1} →</a>`;
+      if (RELEASED_WEEKS.includes(weekNumber + 1)) next = `<a class="btn btn-secondary" href="week.html?week=${weekNumber + 1}">Week ${weekNumber + 1} -></a>`;
     }
     nav.innerHTML = `${previous}${home}${next}`;
     const content = document.querySelector('.content');
     if (content) content.appendChild(nav);
+  }
+
+  function statusLabel(week, number) {
+    if (!week) return number > weekNumber ? 'Upcoming' : 'Not Started';
+    if (week.accepted) return 'Portfolio Ready';
+    if (week.status === 'submitted') return 'Submitted';
+    if (week.status === 'needs_revision') return 'Needs Revision';
+    if (week.status === 'accepted') return 'Portfolio Ready';
+    if (hasMeaningfulContent(week.draft)) return 'Not Started';
+    return number > weekNumber ? 'Upcoming' : 'Not Started';
+  }
+
+  function normalizeProductionStatuses() {
+    const state = localState();
+    for (const number of RELEASED_WEEKS) {
+      const el = document.getElementById(`sidebarWeek${number}Status`);
+      if (el) el.textContent = statusLabel(state.weeks[`week${number}`], number);
+    }
+    document.querySelectorAll('.roadmap-state').forEach(el => {
+      if (el.textContent.trim() === 'Future') el.textContent = 'Upcoming';
+      if (el.textContent.trim() === 'Not imported') el.textContent = 'Not Started';
+    });
+    document.querySelectorAll('.journey-step small, .my-m360 strong').forEach(el => {
+      if (el.textContent.trim() === 'Not imported') el.textContent = 'Not Started';
+    });
+  }
+
+  function renderInstructorFeedback() {
+    const prove = document.getElementById('prove');
+    if (!prove) return;
+    const state = localState();
+    const week = state.weeks[`week${weekNumber}`] || null;
+    const feedback = week && week.reviewerFeedback ? String(week.reviewerFeedback).trim() : '';
+    const needsRevision = Boolean(week && week.status === 'needs_revision');
+    let panel = document.getElementById('m360InstructorFeedback');
+
+    if (!feedback && !needsRevision) {
+      if (panel) panel.remove();
+      return;
+    }
+
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'm360InstructorFeedback';
+      panel.className = 'portfolio-mode-note instructor-feedback';
+      const body = prove.querySelector('.card-body');
+      if (body) body.prepend(panel);
+      else prove.prepend(panel);
+    }
+
+    const title = needsRevision ? 'Revision Requested - Instructor Feedback' : 'Instructor Feedback';
+    const message = feedback || 'Your instructor returned this assignment for revision. Review the required components and resubmit when ready.';
+    panel.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(message)}</span>`;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
   }
 
   function loadOriginalScript() {
@@ -213,7 +311,7 @@
   async function bootstrap() {
     if (!window.M360Data) {
       await loadOriginalScript();
-      setPreviewPill(`Week ${weekNumber} · preview mode`);
+      setPreviewPill(`Week ${weekNumber} - preview mode`);
       showBridgeNotice('warning', 'M360 production data adapter did not load. This page is running in local preview mode and is not the institutional record.');
       return;
     }
@@ -230,24 +328,20 @@
       return;
     }
 
+    prepareScopedCache(context.userId);
+
     const available = await M360Data.schemaAvailable();
     if (available) {
       try {
         const rows = await M360Data.loadOwnWeekRecords();
         const ownRow = rows.find(row => Number(row.week_number) === weekNumber) || null;
-        const current = localWeek(localState());
-        const localRemoteStamp = current && current.remoteUpdatedAt ? current.remoteUpdatedAt : null;
-
         if (ownRow) {
-          if (localRemoteStamp !== ownRow.updated_at || !isWeek1) writeRemoteState(rows);
+          writeRemoteState(rows);
         } else {
-          const draftOnly = sanitizeUnverifiedLocalState();
-          if (hasMeaningfulContent(draftOnly.draft)) {
-            const saved = await M360Data.saveDraft(weekNumber, draftOnly.draft, schemaVersion);
-            writeRemoteState([...rows.filter(row => Number(row.week_number) !== weekNumber), saved]);
-          } else if (!isWeek1) {
-            writeRemoteState(rows);
-          }
+          // A missing institutional row starts blank for this authenticated
+          // account. Legacy unscoped browser data is never uploaded.
+          sanitizeUnverifiedLocalState();
+          writeRemoteState(rows);
         }
       } catch (error) {
         console.error('M360 remote hydration failed', error);
@@ -257,15 +351,17 @@
     await loadOriginalScript();
     hideDemoControls();
     addCourseNavigation();
+    normalizeProductionStatuses();
+    renderInstructorFeedback();
 
     if (!available) {
-      setPreviewPill(`Week ${weekNumber} · migration pending`);
+      setPreviewPill(`Week ${weekNumber} - migration pending`);
       showBridgeNotice('warning', 'Authenticated M360 shell is active, but the durable M360 database migration has not been applied yet. Draft work remains local on this device until the migration is available; technical-course data is unaffected.');
       return;
     }
 
-    setPreviewPill(`Week ${weekNumber} · authenticated M360`);
-    showBridgeNotice('success', 'Authenticated M360 workspace. Supabase is the institutional record; browser storage is used only as a working cache for this staged integration.');
+    setPreviewPill(`Week ${weekNumber} - authenticated M360`);
+    showBridgeNotice('success', 'Authenticated M360 workspace. Supabase is the institutional record; browser storage is an account-scoped working cache only.');
 
     let remoteSaveTimer = null;
     const scheduleDraftSave = () => {
@@ -318,8 +414,9 @@
             const saved = await M360Data.submitWeek(weekNumber, week.submitted, schemaVersion);
             const state = localState();
             state.weeks[`week${weekNumber}`] = remoteToLocalWeek(saved);
-            state.m360Production = true;
-            localStorage.setItem(localKey, JSON.stringify(state));
+            saveLocalState(state);
+            normalizeProductionStatuses();
+            renderInstructorFeedback();
             showBridgeNotice('success', `Week ${weekNumber} submitted to M360 for instructor review. The submitted revision is preserved separately from future draft edits.`);
           } catch (error) {
             console.error('M360 submission failed', error);
