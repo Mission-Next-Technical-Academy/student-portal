@@ -1,0 +1,91 @@
+name: M360 Gate 6 regression checks
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/**'
+      - '.github/workflows/m360-gate6-regression-check.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'portal/m360/**'
+      - '.github/workflows/m360-gate6-regression-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360/portfolio.js
+          node --check portal/m360/m360-production-nav.js
+
+      - name: Protect technical LMS boundary
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          printf '%s\n' "$changed"
+          forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-|supabase/migrations/)'
+          if printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
+            echo '::error::Gate 6 QA fixes must not modify technical LMS runtime or database migrations.'
+            exit 1
+          fi
+
+      - name: Verify Week 6 workbook companion
+        run: |
+          set -euo pipefail
+          grep -q 'Week 6 Student Workbook' portal/m360/week6.html
+          grep -q '1RVHFVHnyFTWbWv9wDNWmsmy941g7GkEH' portal/m360/week6.html
+          grep -q 'The LMS remains the official submission, review, grade, and portfolio record.' portal/m360/week6.html
+
+      - name: Verify portfolio field contracts
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/portfolio.js').read_text()
+          required = ['a.resumeLink','a.resumeVersionDate','a.reflectionLearned','a.reflectionNext']
+          for token in required:
+              if token not in js:
+                  raise SystemExit(f'Missing corrected portfolio mapping: {token}')
+          wrong = ['a.resumeUrl','a.resumeVersion)']
+          for token in wrong:
+              if token in js:
+                  raise SystemExit(f'Stale portfolio mapping returned: {token}')
+          forbidden = [
+              'networkTargets','trackerNote','actionEvidence','actionCompleted',
+              'connectionRequest','adviceRequest','informationalRequest',
+              'technicalScenario','technicalReasoning','reviewer_feedback',
+              'module_progress','lab_attempts','site_sessions'
+          ]
+          leaked=[x for x in forbidden if x in js]
+          if leaked:
+              raise SystemExit('Portfolio assembler references excluded/private fields: '+', '.join(leaked))
+          print('Portfolio field mappings and privacy whitelist are aligned to production week contracts')
+          PY
+
+      - name: Verify persistent portfolio navigation
+        run: |
+          set -euo pipefail
+          grep -q "new URL('portfolio.html', m360Base)" portal/m360/m360-production-nav.js
+          grep -q "m360PortfolioNavLink" portal/m360/m360-production-nav.js
+          grep -q "My M360 Portfolio" portal/m360/m360-production-nav.js
+
+      - name: Preserve Gate 6 release surfaces
+        run: |
+          set -euo pipefail
+          test -f portal/m360/portfolio.html
+          test -f portal/m360/portfolio.js
+          test -f portal/m360/week6.html
+          test -f portal/m360/m360-production-nav.js
