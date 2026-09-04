@@ -6,6 +6,7 @@ on:
       - 'portal/m360/start-here.html'
       - 'portal/m360/start-here.js'
       - 'portal/m360/start-here.css'
+      - '.github/workflows/m360-wave1-integrity-check.yml'
       - '.github/workflows/m360-wave2-start-here-usability-check.yml'
 
 permissions:
@@ -26,9 +27,9 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave2-start-here-usability-check.yml|portal/m360/start-here.html|portal/m360/start-here.js|portal/m360/start-here.css)$' || true)"
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave1-integrity-check.yml|.github/workflows/m360-wave2-start-here-usability-check.yml|portal/m360/start-here.html|portal/m360/start-here.js|portal/m360/start-here.css)$' || true)"
           if [ -n "$unexpected" ]; then
-            echo '::error::Wave 2 is intentionally limited to Start Here usability surfaces.'
+            echo '::error::Wave 2 is limited to Start Here usability surfaces plus guardrail maintenance.'
             printf '%s\n' "$unexpected"
             exit 1
           fi
@@ -95,6 +96,19 @@ jobs:
           set -euo pipefail
           grep -q 'grid-template-columns:20px minmax(0,1fr)' portal/m360/start-here.css
           grep -q '.check-list input{width:16px;height:16px;margin:2px 0 0;justify-self:center}' portal/m360/start-here.css
+
+      - name: Keep Wave 1 guard reusable across later waves
+        run: |
+          set -euo pipefail
+          guard='.github/workflows/m360-wave1-integrity-check.yml'
+          grep -q "portal/m360/m360-production-bridge.js" "$guard"
+          grep -q "portal/m360/portfolio.js" "$guard"
+          grep -q "portal/m360/review-attendance.js" "$guard"
+          grep -q "portal/m360/week.html" "$guard"
+          if grep -q "portal/m360/\*\*" "$guard"; then
+            echo '::error::Wave 1 guard must protect its own surfaces without blocking unrelated later M360 waves.'
+            exit 1
+          fi
 
       - name: Preserve established product boundaries
         env:
