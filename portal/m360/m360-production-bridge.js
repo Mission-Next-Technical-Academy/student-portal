@@ -7,8 +7,9 @@
   const isWeek1 = weekNumber === 1;
   const localKey = isWeek1 ? 'mnt.m360.preview.portfolio.v3' : 'mnt.m360.course.mock.v1';
   const schemaVersion = isWeek1 ? 3 : 1;
+  const RELEASED_WEEKS = [1, 2, 3];
 
-  if (![1, 2].includes(weekNumber) || !localScript) {
+  if (!RELEASED_WEEKS.includes(weekNumber) || !localScript) {
     console.error('M360 production bridge: invalid week configuration.');
     return;
   }
@@ -26,7 +27,11 @@
     return Object.entries(payload).some(([key, value]) => {
       if (key === 'reviewChecks') return value && typeof value === 'object' && Object.values(value).some(Boolean);
       if (typeof value === 'string') return value.trim().length > 0;
-      if (Array.isArray(value)) return value.length > 0;
+      if (Array.isArray(value)) return value.some(item => {
+        if (typeof item === 'string') return item.trim().length > 0;
+        if (item && typeof item === 'object') return Object.values(item).some(v => typeof v === 'string' ? v.trim().length > 0 : Boolean(v));
+        return Boolean(item);
+      });
       return value && typeof value === 'object' ? Object.keys(value).length > 0 : Boolean(value);
     });
   }
@@ -56,6 +61,12 @@
     return { status: 'draft', draft, submitted: null, submittedAt: null, accepted: null, acceptedAt: null };
   }
 
+  function blankCurrentWeek() {
+    if (isWeek1) return blankWeek1();
+    if (weekNumber === 2) return blankWeek2();
+    return { status: 'draft', draft: {}, submitted: null, submittedAt: null, accepted: null, acceptedAt: null };
+  }
+
   function localState() {
     const parsed = safeParse(localStorage.getItem(localKey));
     if (parsed && parsed.weeks) return parsed;
@@ -82,23 +93,26 @@
     };
   }
 
+  function acceptedPriorWeek(row) {
+    return row ? {
+      accepted: deepClone(row.accepted_artifact_payload || null),
+      acceptedAt: row.accepted_at || null,
+      numericScore: row.numeric_score == null ? null : Number(row.numeric_score),
+      remoteUpdatedAt: row.updated_at || null
+    } : { accepted: null, acceptedAt: null };
+  }
+
   function writeRemoteState(rows) {
     const state = localState();
     const ownRow = rows.find(row => Number(row.week_number) === weekNumber) || null;
-    const week1Row = rows.find(row => Number(row.week_number) === 1) || null;
 
-    if (ownRow) {
-      state.weeks[`week${weekNumber}`] = remoteToLocalWeek(ownRow);
-    }
+    if (ownRow) state.weeks[`week${weekNumber}`] = remoteToLocalWeek(ownRow);
 
     if (!isWeek1) {
-      state.weeks.week1 = week1Row
-        ? {
-            accepted: deepClone(week1Row.accepted_artifact_payload || null),
-            acceptedAt: week1Row.accepted_at || null,
-            remoteUpdatedAt: week1Row.updated_at || null
-          }
-        : { accepted: null, acceptedAt: null };
+      for (let prior = 1; prior < weekNumber; prior += 1) {
+        const priorRow = rows.find(row => Number(row.week_number) === prior) || null;
+        state.weeks[`week${prior}`] = acceptedPriorWeek(priorRow);
+      }
     }
 
     state.schemaVersion = schemaVersion;
@@ -112,13 +126,11 @@
     const state = localState();
     const key = `week${weekNumber}`;
     const existing = localWeek(state);
-    const blank = isWeek1 ? blankWeek1() : blankWeek2();
+    const blank = blankCurrentWeek();
     const draft = existing && existing.draft && typeof existing.draft === 'object'
       ? { ...blank.draft, ...deepClone(existing.draft) }
       : blank.draft;
 
-    // Never promote old browser-only simulated review decisions into the
-    // institutional record. Only the learner's draft may bootstrap Supabase.
     state.weeks[key] = { ...blank, draft };
     state.schemaVersion = schemaVersion;
     state.m360Production = true;
@@ -162,7 +174,6 @@
       const el = document.getElementById(id);
       if (el) el.hidden = true;
     });
-
     document.querySelectorAll('.demo-boundary, .qa-banner').forEach(el => { el.hidden = true; });
   }
 
@@ -172,10 +183,19 @@
     nav.id = 'm360WeekNavigation';
     nav.className = 'portfolio-actions no-print';
     nav.setAttribute('aria-label', 'M360 course navigation');
-    const homeHref = isWeek1 ? 'm360/' : 'index.html';
-    const previous = isWeek1 ? '' : '<a class="btn btn-quiet" href="../m360-preview.html">← Week 1</a>';
-    const next = isWeek1 ? '<a class="btn btn-secondary" href="m360/course.html">Week 2 →</a>' : '';
-    nav.innerHTML = `${previous}<a class="btn btn-secondary" href="${homeHref}">M360 Home</a>${next}`;
+
+    let previous = '';
+    let home = '';
+    let next = '';
+    if (isWeek1) {
+      home = '<a class="btn btn-secondary" href="m360/">M360 Home</a>';
+      next = '<a class="btn btn-secondary" href="m360/week.html?week=2">Week 2 →</a>';
+    } else {
+      previous = `<a class="btn btn-quiet" href="week.html?week=${weekNumber - 1}">← Week ${weekNumber - 1}</a>`;
+      home = '<a class="btn btn-secondary" href="index.html">M360 Home</a>';
+      if (RELEASED_WEEKS.includes(weekNumber + 1)) next = `<a class="btn btn-secondary" href="week.html?week=${weekNumber + 1}">Week ${weekNumber + 1} →</a>`;
+    }
+    nav.innerHTML = `${previous}${home}${next}`;
     const content = document.querySelector('.content');
     if (content) content.appendChild(nav);
   }
@@ -219,12 +239,7 @@
         const localRemoteStamp = current && current.remoteUpdatedAt ? current.remoteUpdatedAt : null;
 
         if (ownRow) {
-          if (localRemoteStamp !== ownRow.updated_at) {
-            writeRemoteState(rows);
-          } else if (!isWeek1) {
-            // Week 2 also refreshes immutable Week 1 carry-forward state.
-            writeRemoteState(rows);
-          }
+          if (localRemoteStamp !== ownRow.updated_at || !isWeek1) writeRemoteState(rows);
         } else {
           const draftOnly = sanitizeUnverifiedLocalState();
           if (hasMeaningfulContent(draftOnly.draft)) {
@@ -270,6 +285,7 @@
 
     document.querySelectorAll('[data-m360], [data-review-check]').forEach(field => {
       field.addEventListener(field.type === 'checkbox' ? 'change' : 'input', scheduleDraftSave);
+      if (field.tagName === 'SELECT') field.addEventListener('change', scheduleDraftSave);
     });
 
     const saveButton = document.getElementById('saveBtn');
