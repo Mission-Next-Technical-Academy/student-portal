@@ -7,7 +7,7 @@
     'mnt.m360.preview.week1.v1'
   ];
   const COURSE_KEY = 'mnt.m360.course.mock.v1';
-  const RELEASED_WEEKS = [1, 2, 3, 4, 5];
+  const RELEASED_WEEKS = [1, 2, 3, 4, 5, 6];
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -115,7 +115,7 @@
       if (link && link.tagName === 'A') link.href = `week.html?week=${number}`;
     });
     document.querySelectorAll('.portfolio-link, .portfolio-home-actions .btn').forEach(link => {
-      if (link.tagName === 'A') link.href = 'week.html?week=5#prove';
+      if (link.tagName === 'A') link.href = 'portfolio.html';
     });
   }
 
@@ -146,14 +146,14 @@
   function setCurrentCard(weeks) {
     document.querySelectorAll('[data-week-card]').forEach(card => card.classList.remove('current'));
     let current = RELEASED_WEEKS.find(number => !(weeks[number] && weeks[number].accepted));
-    if (!current) current = RELEASED_WEEKS[RELEASED_WEEKS.length - 1];
+    if (!current) current = 6;
     const card = document.querySelector(`[data-week-card="${current}"]`);
     if (card) card.classList.add('current');
   }
 
-  function renderStudentState(week1, week2, week3, week4, week5, mode) {
-    const weeks = { 1: week1, 2: week2, 3: week3, 4: week4, 5: week5 };
-    const statuses = { 1: statusFor(week1), 2: statusFor(week2), 3: statusFor(week3), 4: statusFor(week4), 5: statusFor(week5) };
+  function renderStudentState(week1, week2, week3, week4, week5, week6, mode) {
+    const weeks = { 1: week1, 2: week2, 3: week3, 4: week4, 5: week5, 6: week6 };
+    const statuses = { 1: statusFor(week1), 2: statusFor(week2), 3: statusFor(week3), 4: statusFor(week4), 5: statusFor(week5), 6: statusFor(week6) };
     RELEASED_WEEKS.forEach(number => applyStatus(`week${number}Status`, statuses[number]));
     setCurrentCard(weeks);
 
@@ -170,29 +170,19 @@
     if (!continueButton || !currentStatusText) return;
 
     if (!week1 || !week1.accepted) {
-      continueButton.href = 'week.html?week=1';
-      continueButton.textContent = hasDraftContent(week1) ? 'Continue Week 1' : 'Start Week 1';
-      currentStatusText.textContent = hasDraftContent(week1) ? 'Continue building your Week 1 Direction artifact.' : 'Start with Week 1 to establish your professional direction.';
+      continueButton.href = 'week.html?week=1'; continueButton.textContent = hasDraftContent(week1) ? 'Continue Week 1' : 'Start Week 1'; currentStatusText.textContent = 'Start with Week 1 to establish your professional direction.';
     } else if (!week2 || !week2.accepted) {
-      continueButton.href = 'week.html?week=2';
-      continueButton.textContent = hasDraftContent(week2) || statuses[2].label !== 'Not Started' ? 'Continue Week 2' : 'Start Week 2';
-      currentStatusText.textContent = 'Week 1 is Portfolio Ready. Week 2 now turns that direction into a professional signal.';
+      continueButton.href = 'week.html?week=2'; continueButton.textContent = hasDraftContent(week2) || statuses[2].label !== 'Not Started' ? 'Continue Week 2' : 'Start Week 2'; currentStatusText.textContent = 'Week 1 is Portfolio Ready. Week 2 turns that direction into a professional signal.';
     } else if (!week3 || !week3.accepted) {
-      continueButton.href = 'week.html?week=3';
-      continueButton.textContent = hasDraftContent(week3) || statuses[3].label !== 'Not Started' ? 'Continue Week 3' : 'Start Week 3';
-      currentStatusText.textContent = 'Weeks 1 and 2 are Portfolio Ready. Week 3 uses connection and follow-up to test what you are learning about your target direction.';
+      continueButton.href = 'week.html?week=3'; continueButton.textContent = hasDraftContent(week3) || statuses[3].label !== 'Not Started' ? 'Continue Week 3' : 'Start Week 3'; currentStatusText.textContent = 'Weeks 1 and 2 are Portfolio Ready. Week 3 uses connection and follow-up to test what you are learning.';
     } else if (!week4 || !week4.accepted) {
-      continueButton.href = 'week.html?week=4';
-      continueButton.textContent = hasDraftContent(week4) || statuses[4].label !== 'Not Started' ? 'Continue Week 4' : 'Start Week 4';
-      currentStatusText.textContent = 'Weeks 1–3 are Portfolio Ready. Week 4 turns accepted evidence into a targeted resume for a specific opportunity.';
+      continueButton.href = 'week.html?week=4'; continueButton.textContent = hasDraftContent(week4) || statuses[4].label !== 'Not Started' ? 'Continue Week 4' : 'Start Week 4'; currentStatusText.textContent = 'Weeks 1–3 are Portfolio Ready. Week 4 turns accepted evidence into a targeted resume.';
     } else if (!week5 || !week5.accepted) {
-      continueButton.href = 'week.html?week=5';
-      continueButton.textContent = hasDraftContent(week5) || statuses[5].label !== 'Not Started' ? 'Continue Week 5' : 'Start Week 5';
-      currentStatusText.textContent = 'Weeks 1–4 are Portfolio Ready. Week 5 turns accepted evidence into interview-ready stories, practice, and a clear improvement plan.';
+      continueButton.href = 'week.html?week=5'; continueButton.textContent = hasDraftContent(week5) || statuses[5].label !== 'Not Started' ? 'Continue Week 5' : 'Start Week 5'; currentStatusText.textContent = 'Weeks 1–4 are Portfolio Ready. Week 5 turns accepted evidence into interview-ready stories and practice.';
+    } else if (!week6 || !week6.accepted) {
+      continueButton.href = 'week.html?week=6'; continueButton.textContent = hasDraftContent(week6) || statuses[6].label !== 'Not Started' ? 'Continue Week 6' : 'Start Week 6'; currentStatusText.textContent = 'Weeks 1–5 are Portfolio Ready. Week 6 brings your accepted evidence together into the Career Spotlight and 30-day plan.';
     } else {
-      continueButton.href = 'week.html?week=5';
-      continueButton.textContent = 'Review Week 5';
-      currentStatusText.textContent = 'Weeks 1–5 are Portfolio Ready. Week 6 remains Upcoming until the Career Spotlight and portfolio-assembly gate is released.';
+      continueButton.href = 'portfolio.html'; continueButton.textContent = 'Open My M360 Portfolio'; currentStatusText.textContent = 'All six M360 artifacts are Portfolio Ready. Open your portfolio to review your proof and course-completion status.';
     }
 
     const pill = document.querySelector('.preview-pill');
@@ -225,17 +215,18 @@
           remoteWeek(rows.find(row => Number(row.week_number) === 3)),
           remoteWeek(rows.find(row => Number(row.week_number) === 4)),
           remoteWeek(rows.find(row => Number(row.week_number) === 5)),
+          remoteWeek(rows.find(row => Number(row.week_number) === 6)),
           'remote'
         );
         showModeNotice('Authenticated M360 course state is loaded from the durable M360 data store. Technical-course progress remains separate.');
         return;
       }
 
-      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), 'local');
+      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), getLocalCourseWeek(6), 'local');
       showModeNotice('M360 could not confirm its durable data layer. Local working state is shown without changing technical-course data.', true);
     } catch (error) {
       console.error('M360 Course Home initialization failed', error);
-      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), 'local');
+      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), getLocalCourseWeek(6), 'local');
       showModeNotice('M360 could not reach its production data layer. Local working state is shown without changing any technical-course data.', true);
     }
   }

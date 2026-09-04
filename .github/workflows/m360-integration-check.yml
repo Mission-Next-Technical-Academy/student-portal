@@ -216,5 +216,6 @@ jobs:
           grep -q "3: {" portal/m360/week.html
           grep -q "4: {" portal/m360/week.html
           grep -q "5: {" portal/m360/week.html
-          grep -q 'RELEASED_WEEKS = \[1, 2, 3, 4, 5\]' portal/m360/m360-production-bridge.js
+          grep -q "6: {" portal/m360/week.html
+          grep -q 'RELEASED_WEEKS = \[1, 2, 3, 4, 5, 6\]' portal/m360/m360-production-bridge.js
           grep -q 'm360-entry.js?v=20260904' .github/workflows/pages.yml

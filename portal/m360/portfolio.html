@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My M360 Portfolio | Mission Next Technical Academy</title>
+  <link rel="icon" href="../assets/logo.png" />
+  <link rel="stylesheet" href="assets/mission-next-tokens.css?v=20260903" />
+  <link rel="stylesheet" href="../m360-preview.css?v=20260903b" />
+  <link rel="stylesheet" href="course.css?v=20260903" />
+  <link rel="stylesheet" href="portfolio.css?v=20260904" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar no-print"><div class="topbar-inner"><div class="brand"><img class="brand-mark" src="../assets/logo.png" alt="" /><div><div class="brand-name">MISSION NEXT</div><div class="brand-sub">Technical Academy · M360 101</div></div></div><div class="topbar-actions"><a class="topbar-link" href="index.html">M360 Home</a><button id="printPortfolioBtn" class="btn btn-primary" type="button">Download / Print Portfolio</button></div></div></header>
+
+    <main class="portfolio-shell">
+      <section class="portfolio-hero"><img class="hero-watermark" src="assets/MNTA_Mark_Watermark_10pct.png" alt="" /><div class="mini-kicker">My M360 Portfolio</div><h1>Direction to <span>Proof</span></h1><p>Your reviewer-approved professional-readiness evidence in one place. Private working material and instructor feedback are not part of this showcase view.</p><div class="portfolio-meta"><strong id="portfolioReadyCount">0 / 6 Portfolio Ready</strong><span id="portfolioCourseStatus">M360 in progress</span></div></section>
+
+      <div id="portfolioNotice" class="portfolio-notice no-print">Loading your authenticated M360 portfolio…</div>
+
+      <section class="portfolio-stage-grid" id="acceptedPortfolio">
+        <article class="portfolio-stage" data-stage="1"><div class="stage-number">01</div><div class="stage-kicker">Direction</div><h2>Career Direction &amp; Professional Brand</h2><div class="stage-status" id="stage1Status">Not Portfolio Ready</div><div class="stage-content" id="stage1Content"></div></article>
+        <article class="portfolio-stage" data-stage="2"><div class="stage-number">02</div><div class="stage-kicker">Signal</div><h2>LinkedIn &amp; Professional Presence</h2><div class="stage-status" id="stage2Status">Not Portfolio Ready</div><div class="stage-content" id="stage2Content"></div></article>
+        <article class="portfolio-stage" data-stage="3"><div class="stage-number">03</div><div class="stage-kicker">Connection</div><h2>Networking Learning</h2><div class="stage-status" id="stage3Status">Not Portfolio Ready</div><div class="stage-content" id="stage3Content"></div></article>
+        <article class="portfolio-stage" data-stage="4"><div class="stage-number">04</div><div class="stage-kicker">Evidence</div><h2>Targeted Resume Evidence</h2><div class="stage-status" id="stage4Status">Not Portfolio Ready</div><div class="stage-content" id="stage4Content"></div></article>
+        <article class="portfolio-stage" data-stage="5"><div class="stage-number">05</div><div class="stage-kicker">Voice</div><h2>Interview Preparation</h2><div class="stage-status" id="stage5Status">Not Portfolio Ready</div><div class="stage-content" id="stage5Content"></div></article>
+        <article class="portfolio-stage" data-stage="6"><div class="stage-number">06</div><div class="stage-kicker">Proof</div><h2>Career Spotlight &amp; 30-Day Plan</h2><div class="stage-status" id="stage6Status">Not Portfolio Ready</div><div class="stage-content" id="stage6Content"></div></article>
+      </section>
+
+      <section class="draft-section" id="draftSection" hidden><div class="draft-heading"><div><div class="mini-kicker">Current working state</div><h2>DRAFT — NOT YET ACCEPTED</h2></div><p>These items are included only so you can leave M360 with your current work. They are not reviewer-approved portfolio evidence.</p></div><div id="draftContent" class="draft-grid"></div></section>
+
+      <section class="portfolio-completion"><div><div class="mini-kicker">M360 course status</div><h2 id="completionHeadline">Build the six proof points.</h2><p id="completionText">Final completion requires all six assignments, a final average of 70 or higher, Career Spotlight completion, and staff-confirmed attendance verification.</p></div><div class="completion-stats"><div><span>Accepted artifacts</span><strong id="completionAccepted">0 / 6</strong></div><div><span>Final grade</span><strong id="completionGrade">—</strong></div><div><span>Attendance verified</span><strong id="completionAttendance">No</strong></div></div></section>
+
+      <div class="portfolio-footer-actions no-print"><a class="btn btn-secondary" href="index.html">← M360 Home</a><button id="printPortfolioBtnBottom" class="btn btn-primary" type="button">Download / Print Current Portfolio</button></div>
+    </main>
+  </div>
+  <script src="../vendor/supabase.js?v=20260828"></script>
+  <script src="../supabase-config.js?v=20260828"></script>
+  <script src="m360-data.js?v=20260904"></script>
+  <script src="portfolio.js?v=20260904"></script>
+</body>
+</html>
