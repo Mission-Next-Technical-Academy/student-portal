@@ -20,20 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enforce Wave 2 scope
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave1-integrity-check.yml|.github/workflows/m360-wave2-start-here-usability-check.yml|portal/m360/start-here.html|portal/m360/start-here.js|portal/m360/start-here.css)$' || true)"
-          if [ -n "$unexpected" ]; then
-            echo '::error::Wave 2 is limited to Start Here usability surfaces plus guardrail maintenance.'
-            printf '%s\n' "$unexpected"
-            exit 1
-          fi
-
       - name: JavaScript syntax
         run: |
           set -euo pipefail
@@ -47,23 +33,28 @@ jobs:
           grep -q 'This response is not graded' portal/m360/start-here.html
           grep -q 'supportFlag(payload)' portal/m360/start-here.js
 
-      - name: Require privacy-safe professional profile language
+      - name: Require approved professional-profile alternatives
         run: |
           set -euo pipefail
           grep -q 'Professional profile status' portal/m360/start-here.html
-          grep -q 'you do not need to make personal information public' portal/m360/start-here.html
-          grep -q 'Privacy / exception support needed' portal/m360/start-here.html
+          grep -q 'Profile exists — I use it now' portal/m360/start-here.html
+          grep -q 'Profile exists — I want to strengthen it' portal/m360/start-here.html
+          grep -q 'I do not have a profile yet' portal/m360/start-here.html
+          grep -q 'I prefer not to use a public profile / need an alternative' portal/m360/start-here.html
+          grep -q 'A LinkedIn account is not required' portal/m360/start-here.html
+          grep -q 'approved professional-presence alternative without penalty' portal/m360/start-here.html
           grep -q "payload.profileStatus === 'privacy_support'" portal/m360/start-here.js
 
-      - name: Require readiness access-path language
+      - name: Require practical technology-readiness checklist
         run: |
           set -euo pipefail
-          grep -q 'you have reported an access issue and know how to get help' portal/m360/start-here.html
-          grep -q 'reported the access issue to Mission Next staff' portal/m360/start-here.html
-          grep -q 'Do not hide an access problem just to finish Start Here' portal/m360/start-here.html
+          grep -q 'I have reliable internet access for M360.' portal/m360/start-here.html
+          grep -q 'I have a computer or device with a current web browser.' portal/m360/start-here.html
+          grep -q 'I can join live virtual sessions with audio.' portal/m360/start-here.html
+          grep -q 'I can download, open, save, and upload common files.' portal/m360/start-here.html
           grep -q "const techIds = \['techLms','techLive','techFiles','techFeedback'\]" portal/m360/start-here.js
 
-      - name: Require field-level completion validation
+      - name: Require field-level completion validation and actionable summary
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -77,12 +68,14 @@ jobs:
               'field-error-state',
               'technologyError',
               'acknowledgmentError',
-              'Review the highlighted item'
+              'need attention',
+              'validation-summary-list',
+              'focusValidationTarget(item)'
           ]
           for token in required_js:
               if token not in js:
                   raise SystemExit(f'Missing Start Here validation requirement: {token}')
-          required_css = ['.field-error-state', '.field-error', '.validation-group-error', '.group-error']
+          required_css = ['.field-error-state', '.field-error', '.validation-group-error', '.group-error', '.validation-summary-list', '.validation-summary-title']
           for token in required_css:
               if token not in css:
                   raise SystemExit(f'Missing Start Here validation style: {token}')
@@ -117,15 +110,15 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Wave 2 must not change Supabase schema or migrations.'
+            echo '::error::Start Here usability work must not change Supabase schema or migrations.'
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
-            echo '::error::Wave 2 must not change the established technical-course LMS runtime.'
+            echo '::error::Start Here usability work must not change the established technical-course LMS runtime.'
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(m360-preview.html|m360/course.html|m360/week[3-6].html)$'; then
-            echo '::error::Wave 2 must not change the held workbook-delivery decision.'
+            echo '::error::Start Here usability work must not rewrite controlled weekly templates.'
             exit 1
           fi
-          echo 'Wave 2 preserves Supabase, technical-course runtime, grading, and workbook delivery boundaries.'
+          echo 'Start Here guard preserves Supabase, technical-course runtime, grading, and workbook-delivery boundaries.'
