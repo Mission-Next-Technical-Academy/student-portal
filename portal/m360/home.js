@@ -7,7 +7,7 @@
     'mnt.m360.preview.week1.v1'
   ];
   const COURSE_KEY = 'mnt.m360.course.mock.v1';
-  const RELEASED_WEEKS = [1, 2, 3, 4];
+  const RELEASED_WEEKS = [1, 2, 3, 4, 5];
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -115,7 +115,7 @@
       if (link && link.tagName === 'A') link.href = `week.html?week=${number}`;
     });
     document.querySelectorAll('.portfolio-link, .portfolio-home-actions .btn').forEach(link => {
-      if (link.tagName === 'A') link.href = 'week.html?week=4#prove';
+      if (link.tagName === 'A') link.href = 'week.html?week=5#prove';
     });
   }
 
@@ -151,9 +151,9 @@
     if (card) card.classList.add('current');
   }
 
-  function renderStudentState(week1, week2, week3, week4, mode) {
-    const weeks = { 1: week1, 2: week2, 3: week3, 4: week4 };
-    const statuses = { 1: statusFor(week1), 2: statusFor(week2), 3: statusFor(week3), 4: statusFor(week4) };
+  function renderStudentState(week1, week2, week3, week4, week5, mode) {
+    const weeks = { 1: week1, 2: week2, 3: week3, 4: week4, 5: week5 };
+    const statuses = { 1: statusFor(week1), 2: statusFor(week2), 3: statusFor(week3), 4: statusFor(week4), 5: statusFor(week5) };
     RELEASED_WEEKS.forEach(number => applyStatus(`week${number}Status`, statuses[number]));
     setCurrentCard(weeks);
 
@@ -185,10 +185,14 @@
       continueButton.href = 'week.html?week=4';
       continueButton.textContent = hasDraftContent(week4) || statuses[4].label !== 'Not Started' ? 'Continue Week 4' : 'Start Week 4';
       currentStatusText.textContent = 'Weeks 1–3 are Portfolio Ready. Week 4 turns accepted evidence into a targeted resume for a specific opportunity.';
+    } else if (!week5 || !week5.accepted) {
+      continueButton.href = 'week.html?week=5';
+      continueButton.textContent = hasDraftContent(week5) || statuses[5].label !== 'Not Started' ? 'Continue Week 5' : 'Start Week 5';
+      currentStatusText.textContent = 'Weeks 1–4 are Portfolio Ready. Week 5 turns accepted evidence into interview-ready stories, practice, and a clear improvement plan.';
     } else {
-      continueButton.href = 'week.html?week=4';
-      continueButton.textContent = 'Review Week 4';
-      currentStatusText.textContent = 'Weeks 1–4 are Portfolio Ready. Week 5 remains Upcoming until the final Gate 4 slice is released.';
+      continueButton.href = 'week.html?week=5';
+      continueButton.textContent = 'Review Week 5';
+      currentStatusText.textContent = 'Weeks 1–5 are Portfolio Ready. Week 6 remains Upcoming until the Career Spotlight and portfolio-assembly gate is released.';
     }
 
     const pill = document.querySelector('.preview-pill');
@@ -220,17 +224,18 @@
           remoteWeek(rows.find(row => Number(row.week_number) === 2)),
           remoteWeek(rows.find(row => Number(row.week_number) === 3)),
           remoteWeek(rows.find(row => Number(row.week_number) === 4)),
+          remoteWeek(rows.find(row => Number(row.week_number) === 5)),
           'remote'
         );
         showModeNotice('Authenticated M360 course state is loaded from the durable M360 data store. Technical-course progress remains separate.');
         return;
       }
 
-      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), 'local');
+      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), 'local');
       showModeNotice('M360 could not confirm its durable data layer. Local working state is shown without changing technical-course data.', true);
     } catch (error) {
       console.error('M360 Course Home initialization failed', error);
-      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), 'local');
+      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), 'local');
       showModeNotice('M360 could not reach its production data layer. Local working state is shown without changing any technical-course data.', true);
     }
   }
