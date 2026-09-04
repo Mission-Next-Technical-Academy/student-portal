@@ -52,6 +52,14 @@
       </section>
       <section id="reviewQueue" class="review-queue" aria-live="polite"><div class="empty-state">Loading M360 review queue…</div></section>
 
+      <section class="course-state-section" aria-labelledby="portfolioAdminTitle">
+        <div class="course-state-heading">
+          <div><div class="mini-kicker">Portfolio access</div><h2 id="portfolioAdminTitle">Student Portfolios</h2><p>View or print each student’s read-only showcase portfolio using the same portfolio renderer students use. Only reviewer-approved portfolio evidence is shown; private working data, instructor feedback, staff verification fields, raw networking details, and technical-course data remain excluded.</p></div>
+          <div class="course-state-actions"><button id="refreshPortfolioRosterBtn" class="btn btn-secondary" type="button">Refresh portfolios</button></div>
+        </div>
+        <div id="portfolioRoster" class="course-state-roster" aria-live="polite"><div class="empty-state">Loading student portfolios…</div></div>
+      </section>
+
       <section class="course-state-section" aria-labelledby="spotlightAdminTitle">
         <div class="course-state-heading">
           <div><div class="mini-kicker">Week 6 completion</div><h2 id="spotlightAdminTitle">Career Spotlight Presentation Verification</h2><p>Presentation completion is staff-owned. Update any students who changed, then save all changed presentation statuses at once. “Not yet completed” never counts as Career Spotlight completion.</p></div>
@@ -74,6 +82,7 @@
   <script src="../supabase-config.js?v=20260828"></script>
   <script src="m360-data.js?v=20260904f"></script>
   <script src="review.js?v=20260904a"></script>
+  <script src="review-portfolios.js?v=20260904"></script>
   <script src="review-course-state.js?v=20260904"></script>
   <script src="review-attendance.js?v=20260904b"></script>
 </body>
