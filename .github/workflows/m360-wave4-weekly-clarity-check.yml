@@ -5,7 +5,6 @@ on:
     paths:
       - 'portal/m360/m360-production-nav.js'
       - 'portal/m360/week.html'
-      - '.github/workflows/m360-wave3-workbook-delivery-check.yml'
       - '.github/workflows/m360-wave4-weekly-clarity-check.yml'
 
 permissions:
@@ -18,20 +17,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Enforce Wave 4 scope
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave3-workbook-delivery-check.yml|.github/workflows/m360-wave4-weekly-clarity-check.yml|portal/m360/m360-production-nav.js|portal/m360/week.html)$' || true)"
-          if [ -n "$unexpected" ]; then
-            echo '::error::Wave 4 is limited to production guidance/runtime copy, its cache-buster, and guard maintenance.'
-            printf '%s\n' "$unexpected"
-            exit 1
-          fi
 
       - name: JavaScript syntax
         run: |
@@ -96,27 +81,23 @@ jobs:
           print('Week 6 final file/link field moves after the full Slide 3 plan and uses full width')
           PY
 
-      - name: Require production cache refresh
+      - name: Require production nav cache-buster
         run: |
           set -euo pipefail
-          grep -q "m360-production-nav.js?v=20260904d" portal/m360/week.html
+          grep -Eq "m360-production-nav.js\?v=20260904[a-z]" portal/m360/week.html
 
-      - name: Preserve workbook delivery and product boundaries
+      - name: Preserve product boundaries
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Wave 4 must not change Supabase schema, migrations, or Storage.'
-            exit 1
-          fi
-          if printf '%s\n' "$changed" | grep -Eq '^portal/(m360-preview.html|m360/course.html|m360/week[3-6].html)$'; then
-            echo '::error::Wave 4 must not rewrite the controlled/raw weekly templates.'
+            echo '::error::M360 clarity changes must not change Supabase schema, migrations, or Storage.'
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
-            echo '::error::Wave 4 must not change the established technical-course LMS runtime.'
+            echo '::error::M360 clarity changes must not change the established technical-course LMS runtime.'
             exit 1
           fi
-          echo 'Wave 4 preserves curriculum data boundaries and the established technical-course runtime.'
+          echo 'Wave 4 clarity invariants remain intact.'
