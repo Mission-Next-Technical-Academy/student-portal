@@ -118,6 +118,18 @@
     return clone(data || []);
   }
 
+  async function loadOwnCourseRecord() {
+    const context = await requireEligibleContext();
+    await requireSchema();
+    const { data, error } = await mntSupabase
+      .from('m360_course_records')
+      .select('*')
+      .eq('user_id', context.userId)
+      .maybeSingle();
+    if (error) throw new Error(publicError(error));
+    return clone(data || null);
+  }
+
   async function loadOwnCourseProgress() {
     const context = await requireEligibleContext();
     await requireSchema();
@@ -128,6 +140,19 @@
       .maybeSingle();
     if (error) throw new Error(publicError(error));
     return clone(data || null);
+  }
+
+  async function saveStartHere(payload, complete = false, acknowledgmentsComplete = false, supportFlag = false) {
+    await requireEligibleContext();
+    await requireSchema();
+    const { data, error } = await mntSupabase.rpc('m360_save_start_here', {
+      p_payload: payload || {},
+      p_complete: Boolean(complete),
+      p_acknowledgments_complete: Boolean(acknowledgmentsComplete),
+      p_support_flag: Boolean(supportFlag)
+    });
+    if (error) throw new Error(publicError(error));
+    return clone(data);
   }
 
   async function saveDraft(weekNumber, payload, schemaVersion = 1) {
@@ -211,17 +236,33 @@
     return clone(data);
   }
 
+  async function setSpotlightPresentation(userId, status, reference = '') {
+    const context = await getContext();
+    if (!context.authenticated || !context.isAdmin) throw new Error('Admin access required.');
+    await requireSchema();
+    const { data, error } = await mntSupabase.rpc('m360_admin_set_spotlight_presentation', {
+      p_user_id: userId,
+      p_status: status,
+      p_reference: reference || null
+    });
+    if (error) throw new Error(publicError(error));
+    return clone(data);
+  }
+
   window.M360Data = Object.freeze({
     ELIGIBLE_TRACKS,
     getContext,
     schemaAvailable,
     loadOwnWeekRecords,
+    loadOwnCourseRecord,
     loadOwnCourseProgress,
+    saveStartHere,
     saveDraft,
     submitWeek,
     loadSubmittedForReview,
     reviewWeek,
     setAttendance,
+    setSpotlightPresentation,
     schemaMissing
   });
 })();
