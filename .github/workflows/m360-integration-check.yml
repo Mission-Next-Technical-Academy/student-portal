@@ -1,0 +1,96 @@
+name: M360 integration checks
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/**'
+      - 'portal/m360-entry.js'
+      - 'supabase/migrations/*m360*'
+      - '.github/workflows/pages.yml'
+      - '.github/workflows/m360-integration-check.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'portal/m360/**'
+      - 'portal/m360-entry.js'
+      - 'supabase/migrations/*m360*'
+      - '.github/workflows/pages.yml'
+      - '.github/workflows/m360-integration-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360-entry.js
+          node --check portal/m360/home.js
+          node --check portal/m360/m360-data.js
+          node --check portal/m360/m360-production-bridge.js
+          node --check portal/m360/m360-production-nav.js
+          node --check portal/m360/review.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          text = Path('portal/m360/week.html').read_text()
+          scripts = re.findall(r'<script>(.*?)</script>', text, flags=re.S | re.I)
+          if len(scripts) != 1:
+              raise SystemExit(f'Expected one inline loader script in week.html; found {len(scripts)}')
+          Path('/tmp/m360-week-loader.js').write_text(scripts[0])
+          PY
+          node --check /tmp/m360-week-loader.js
+
+      - name: Protect technical LMS boundary
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          printf '%s\n' "$changed"
+          forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-)'
+          if printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
+            echo '::error::M360 Gate 3 must not modify technical LMS runtime files.'
+            exit 1
+          fi
+
+      - name: Protect technical database boundary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          sql = Path('supabase/migrations/20260904012000_m360_core.sql').read_text()
+          sql_without_comments = re.sub(r'--.*$', '', sql, flags=re.M).lower()
+          protected = [
+              'module_progress', 'lab_attempts', 'capstone_submissions',
+              'portfolio_artifacts', 'course_progress', 'sim_state'
+          ]
+          for table in protected:
+              pattern = rf'\b(alter\s+table|drop\s+table|insert\s+into|update|delete\s+from)\s+(public\.)?{re.escape(table)}\b'
+              if re.search(pattern, sql_without_comments):
+                  raise SystemExit(f'M360 migration attempts to write or alter protected technical table: {table}')
+          print('M360 migration is additive relative to protected technical tables')
+          PY
+
+      - name: Verify production shell files
+        run: |
+          set -euo pipefail
+          test -f portal/m360/index.html
+          test -f portal/m360/week.html
+          test -f portal/m360/review.html
+          test -f portal/m360/m360-data.js
+          test -f portal/m360/m360-production-bridge.js
+          test -f portal/m360/m360-production-nav.js
+          test -f portal/m360-entry.js
+          grep -q 'm360-entry.js?v=20260904' .github/workflows/pages.yml
