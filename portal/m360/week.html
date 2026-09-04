@@ -54,10 +54,10 @@
           if (!config.originalPattern.test(html)) throw new Error('Expected week script was not found');
           html = html.replace(/<head>/i, `<head><base href="${config.base}">`);
           const runtime = [
-            `<script src="${config.supabaseScript}"><\\/script>`,
-            `<script src="${config.configScript}"><\\/script>`,
-            `<script src="${config.dataScript}"><\\/script>`,
-            `<script src="${config.bridgeScript}" data-week="${week}" data-local-script="${config.localScript}"><\\/script>`
+            `<script src="${config.supabaseScript}"><\/script>`,
+            `<script src="${config.configScript}"><\/script>`,
+            `<script src="${config.dataScript}"><\/script>`,
+            `<script src="${config.bridgeScript}" data-week="${week}" data-local-script="${config.localScript}"><\/script>`
           ].join('\n');
           html = html.replace(config.originalPattern, runtime);
           document.open();
