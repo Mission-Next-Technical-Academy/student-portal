@@ -4,11 +4,15 @@ on:
   pull_request:
     paths:
       - 'portal/m360/**'
+      - 'portal/m360-entry.js'
+      - 'portal/index.html'
       - '.github/workflows/m360-gate6-regression-check.yml'
   push:
     branches: [master]
     paths:
       - 'portal/m360/**'
+      - 'portal/m360-entry.js'
+      - 'portal/index.html'
       - '.github/workflows/m360-gate6-regression-check.yml'
 
 permissions:
@@ -28,6 +32,7 @@ jobs:
           node --check portal/m360/portfolio.js
           node --check portal/m360/m360-production-nav.js
           node --check portal/m360/review-attendance.js
+          node --check portal/m360-entry.js
 
       - name: Protect technical LMS boundary
         if: github.event_name == 'pull_request'
@@ -42,6 +47,37 @@ jobs:
             echo '::error::Gate 6 QA fixes must not modify technical LMS runtime or database migrations.'
             exit 1
           fi
+
+      - name: Verify separate M360 portal routing
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path('portal/index.html').read_text()
+          entry = Path('portal/m360-entry.js').read_text()
+          app_script = 'src="app.js?v=20260903b"'
+          entry_script = 'src="m360-entry.js?v=20260904"'
+          if app_script not in html or entry_script not in html:
+              raise SystemExit('Student Portal must load app.js and the separate M360 entry overlay')
+          if html.index(entry_script) < html.index(app_script):
+              raise SystemExit('M360 entry must load after app.js so currentUser and the rendered portal are available')
+          required = [
+              "new Set(['SOCAN', 'HDESK', 'AIENG'])",
+              'M360 101 Professional Readiness',
+              'href="m360/"',
+              'suppressLegacyCareerReadiness',
+              "getElementById('sec-career-readiness')",
+              'a[href="#sec-career-readiness"]'
+          ]
+          for token in required:
+              if token not in entry:
+                  raise SystemExit(f'Missing separate M360 routing requirement: {token}')
+          forbidden_calls = [".from('module_progress')", 'toggleM360ItemCompletion(', 'saveM360Progress(']
+          leaked = [token for token in forbidden_calls if token in entry]
+          if leaked:
+              raise SystemExit('M360 entry must not call technical/legacy progress paths: ' + ', '.join(leaked))
+          print('Separate eligible-student M360 entry is loaded after app.js and legacy nested companion rendering is suppressed')
+          PY
 
       - name: Verify Week 6 workbook companion
         run: |
@@ -105,3 +141,4 @@ jobs:
           test -f portal/m360/week6.html
           test -f portal/m360/m360-production-nav.js
           test -f portal/m360/review.html
+          test -f portal/m360-entry.js
