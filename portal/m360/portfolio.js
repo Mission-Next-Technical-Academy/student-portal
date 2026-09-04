@@ -66,6 +66,7 @@
       }
       if(drafts.length){$('draftSection').hidden=false;$('draftContent').innerHTML=drafts.join('');}
       $('portfolioNotice').textContent='Authenticated portfolio loaded from reviewer-approved M360 records. Private working data, instructor feedback, raw networking details, and technical-course data are excluded.';
+      if(new URLSearchParams(location.search).get('download')==='1')setTimeout(printPortfolio,150);
     }catch(error){console.error('M360 portfolio load failed',error);$('portfolioNotice').textContent='Your M360 portfolio could not be loaded. Return to M360 Home and try again. No technical-course data was changed.';}
   }
   function printPortfolio(){window.print();}
