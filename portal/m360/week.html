@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M360 101 | Mission Next Technical Academy</title>
+  <style>
+    body{margin:0;background:#f6f9fc;color:#123754;font-family:system-ui,sans-serif}
+    .loader{min-height:100vh;display:grid;place-items:center;padding:24px;text-align:center}
+    .loader strong{display:block;font-size:20px;margin-bottom:8px}.loader span{color:#66717c}
+  </style>
+</head>
+<body>
+  <div class="loader"><div><strong>Loading M360…</strong><span>Connecting your authenticated course workspace.</span></div></div>
+  <script>
+    (() => {
+      'use strict';
+      const params = new URLSearchParams(location.search);
+      const week = Number(params.get('week'));
+      const config = {
+        1: {
+          template: '../m360-preview.html',
+          base: '../',
+          originalPattern: /<script\s+src=["']m360-preview\.js[^>]*><\/script>/i,
+          localScript: 'm360-preview.js?v=20260903c',
+          supabaseScript: 'vendor/supabase.js?v=20260828',
+          configScript: 'supabase-config.js?v=20260828',
+          dataScript: 'm360/m360-data.js?v=20260904',
+          bridgeScript: 'm360/m360-production-bridge.js?v=20260904',
+          navScript: 'm360/m360-production-nav.js?v=20260904'
+        },
+        2: {
+          template: 'course.html',
+          base: './',
+          originalPattern: /<script\s+src=["']course\.js[^>]*><\/script>/i,
+          localScript: 'course.js?v=20260903',
+          supabaseScript: '../vendor/supabase.js?v=20260828',
+          configScript: '../supabase-config.js?v=20260828',
+          dataScript: 'm360-data.js?v=20260904',
+          bridgeScript: 'm360-production-bridge.js?v=20260904',
+          navScript: 'm360-production-nav.js?v=20260904'
+        }
+      }[week];
+
+      if (!config) {
+        document.body.innerHTML = '<div class="loader"><div><strong>Week unavailable</strong><span>This M360 week has not been released.</span></div></div>';
+        return;
+      }
+
+      fetch(config.template, { cache: 'no-store' })
+        .then(response => {
+          if (!response.ok) throw new Error('Template request failed');
+          return response.text();
+        })
+        .then(html => {
+          if (!config.originalPattern.test(html)) throw new Error('Expected week script was not found');
+          html = html.replace(/<head>/i, `<head><base href="${config.base}">`);
+          const runtime = [
+            `<script src="${config.supabaseScript}"><\/script>`,
+            `<script src="${config.configScript}"><\/script>`,
+            `<script src="${config.dataScript}"><\/script>`,
+            `<script src="${config.bridgeScript}" data-week="${week}" data-local-script="${config.localScript}"><\/script>`,
+            `<script src="${config.navScript}"><\/script>`
+          ].join('\n');
+          html = html.replace(config.originalPattern, runtime);
+          document.open();
+          document.write(html);
+          document.close();
+        })
+        .catch(error => {
+          console.error('M360 week loader failed', error);
+          document.body.innerHTML = '<div class="loader"><div><strong>M360 could not load this week.</strong><span>Return to M360 Home and try again. Technical-course data was not affected.</span></div></div>';
+        });
+    })();
+  </script>
+</body>
+</html>
