@@ -23,6 +23,8 @@
           base: '../',
           originalPattern: /<script\s+src=["']m360-preview\.js[^>]*><\/script>/i,
           localScript: 'm360-preview.js?v=20260903c',
+          supabaseScript: 'vendor/supabase.js?v=20260828',
+          configScript: 'supabase-config.js?v=20260828',
           dataScript: 'm360/m360-data.js?v=20260904',
           bridgeScript: 'm360/m360-production-bridge.js?v=20260904'
         },
@@ -31,6 +33,8 @@
           base: './',
           originalPattern: /<script\s+src=["']course\.js[^>]*><\/script>/i,
           localScript: 'course.js?v=20260903',
+          supabaseScript: '../vendor/supabase.js?v=20260828',
+          configScript: '../supabase-config.js?v=20260828',
           dataScript: 'm360-data.js?v=20260904',
           bridgeScript: 'm360-production-bridge.js?v=20260904'
         }
@@ -50,8 +54,8 @@
           if (!config.originalPattern.test(html)) throw new Error('Expected week script was not found');
           html = html.replace(/<head>/i, `<head><base href="${config.base}">`);
           const runtime = [
-            '<script src="vendor/supabase.js?v=20260828"><\\/script>',
-            '<script src="supabase-config.js?v=20260828"><\\/script>',
+            `<script src="${config.supabaseScript}"><\\/script>`,
+            `<script src="${config.configScript}"><\\/script>`,
             `<script src="${config.dataScript}"><\\/script>`,
             `<script src="${config.bridgeScript}" data-week="${week}" data-local-script="${config.localScript}"><\\/script>`
           ].join('\n');
