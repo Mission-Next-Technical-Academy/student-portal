@@ -1,9 +1,7 @@
 /* Module 08 — IT Help Desk & Career Accelerator ('it-support').
- * Lesson content only; uses the shared simple-module template in
- * it-support-shared.js (itsSimpleModuleView) since this module's lab has
- * not been spec'd or built yet — see data.js's compliance.sourceNotes on
- * the it-support program entry. Content sourced from
- * Module_8_Student_Content.docx.
+ * Lesson content sourced from Module_8_Student_Content.docx. Lab is a
+ * guided walkthrough of two real tickets ('hd-m08') in the IT Service Desk
+ * simulator — see it-support-shared.js's itsRegisterCoachModule.
  */
 
 const ITS08_LESSONS = [
@@ -45,12 +43,9 @@ const ITS08_LESSONS = [
   },
 ];
 
-function viewItsModuleEight(user, program) {
-  return itsSimpleModuleView({
-    user, program, moduleKey: 'its-08', moduleNumber: 8, lessons: ITS08_LESSONS,
-    lede: 'You\'ve learned to fix specific things — now this module is about how you work: connecting to a user\'s machine responsibly, and applying a consistent method to any problem you haven\'t seen before.',
-    labPreview: 'This module\'s guided lab isn\'t built yet — it will observe a simulated remote session for consent, verification, and narration, then hand you an unfamiliar problem to work using the five-step method alone and decide whether to resolve or escalate.',
-  });
-}
-
-registerModuleLab({ program: 'it-support', moduleNumber: 8, moduleKey: 'its-08', view: viewItsModuleEight });
+itsRegisterCoachModule({
+  moduleNumber: 8, moduleKey: 'its-08', coachId: 'hd-m08', labKeys: ['lab-its-08-unfamiliar-problems'],
+  lessons: ITS08_LESSONS,
+  lede: 'You\'ve learned to fix specific things — now this module is about how you work: connecting to a user\'s machine responsibly, and applying a consistent method to any problem you haven\'t seen before.',
+  labDescription: 'Resolve two real unfamiliar-shaped tickets end to end in the IT Service Desk simulator — a broken domain trust (HD-2110) and a BitLocker recovery (HD-2111) — applying the troubleshooting method itself, not a memorized fix. A coach spotlights each step for you.',
+});

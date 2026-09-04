@@ -1,9 +1,8 @@
 /* Module 03 — IT Help Desk & Career Accelerator ('it-support').
- * Lesson content only; uses the shared simple-module template in
- * it-support-shared.js (itsSimpleModuleView) since this module's lab has
- * not been spec'd or built yet — see data.js's compliance.sourceNotes on
- * the it-support program entry. Content sourced from
- * Module_3_Student_Content.docx.
+ * Lesson content sourced from Module_3_Student_Content.docx. Lab is a
+ * guided walkthrough of a real ticket ('hd-m03') in the IT Service Desk
+ * simulator (ui/helpdesk.js + ui/coach.js) — see it-support-shared.js's
+ * itsRegisterCoachModule, the same factory Modules 4-11 use.
  */
 
 const ITS03_LESSONS = [
@@ -52,12 +51,9 @@ const ITS03_LESSONS = [
   },
 ];
 
-function viewItsModuleThree(user, program) {
-  return itsSimpleModuleView({
-    user, program, moduleKey: 'its-03', moduleNumber: 3, lessons: ITS03_LESSONS,
-    lede: 'Now that your lab environment is built and you\'ve handled your first hardware tickets, go deeper into Windows itself — efficient navigation, account and profile management, and diagnosing problems with the operating system\'s own built-in tools.',
-    labPreview: 'This module\'s guided lab isn\'t built yet — it will hand you a machine with a real account/profile issue and a boot problem to diagnose using Task Manager, Event Viewer, and the command-line toolkit from these two lessons.',
-  });
-}
-
-registerModuleLab({ program: 'it-support', moduleNumber: 3, moduleKey: 'its-03', view: viewItsModuleThree });
+itsRegisterCoachModule({
+  moduleNumber: 3, moduleKey: 'its-03', coachId: 'hd-m03', labKeys: ['lab-its-03-blank-desktop'],
+  lessons: ITS03_LESSONS,
+  lede: 'Now that your lab environment is built and you\'ve handled your first hardware tickets, go deeper into Windows itself — efficient navigation, account and profile management, and diagnosing problems with the operating system\'s own built-in tools.',
+  labDescription: 'Resolve a real corrupted-profile ticket (HD-2109) end to end in the IT Service Desk simulator: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it. A coach spotlights each step for you.',
+});

@@ -1,9 +1,7 @@
 /* Module 07 — IT Help Desk & Career Accelerator ('it-support').
- * Lesson content only; uses the shared simple-module template in
- * it-support-shared.js (itsSimpleModuleView) since this module's lab has
- * not been spec'd or built yet — see data.js's compliance.sourceNotes on
- * the it-support program entry. Content sourced from
- * Module_7_Student_Content.docx.
+ * Lesson content sourced from Module_7_Student_Content.docx. Lab is a
+ * guided walkthrough of a real ticket ('hd-m07') in the IT Service Desk
+ * simulator — see it-support-shared.js's itsRegisterCoachModule.
  */
 
 const ITS07_LESSONS = [
@@ -49,12 +47,9 @@ const ITS07_LESSONS = [
   },
 ];
 
-function viewItsModuleSeven(user, program) {
-  return itsSimpleModuleView({
-    user, program, moduleKey: 'its-07', moduleNumber: 7, lessons: ITS07_LESSONS,
-    lede: 'You\'ve covered hardware, the operating system, and the network underneath it — this module rounds out the picture with the software layer: installing it, updating it, and diagnosing it when it misbehaves.',
-    labPreview: 'This module\'s guided lab isn\'t built yet — it will ask you to install and correctly remove specified applications, then work through a full diagnostic sequence for a "computer just feels slow" ticket using Task Manager and Settings > Apps.',
-  });
-}
-
-registerModuleLab({ program: 'it-support', moduleNumber: 7, moduleKey: 'its-07', view: viewItsModuleSeven });
+itsRegisterCoachModule({
+  moduleNumber: 7, moduleKey: 'its-07', coachId: 'hd-m07', labKeys: ['lab-its-07-app-cert'],
+  lessons: ITS07_LESSONS,
+  lede: 'You\'ve covered hardware, the operating system, and the network underneath it — this module rounds out the picture with the software layer: installing it, updating it, and diagnosing it when it misbehaves.',
+  labDescription: 'Resolve one of five real, correlated tickets end to end in the IT Service Desk simulator — a shared application certificate expiry (HD-2119) — and recognize the pattern across the other four. A coach spotlights each step for you.',
+});

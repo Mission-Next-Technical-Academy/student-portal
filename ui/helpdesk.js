@@ -45,6 +45,7 @@ const HD_STATUS_NEXT = {
   'Closed':[],
 };
 const HD_DIAGNOSIS_OVERRIDES = {
+  'HD-2108':'GPO scope',
   'HD-2109':'Corrupt profile mapping',
   'HD-2118':'NTFS permission',
   'SEC-2115':'Malicious extension',

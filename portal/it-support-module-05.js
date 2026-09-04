@@ -1,9 +1,7 @@
 /* Module 05 — IT Help Desk & Career Accelerator ('it-support').
- * Lesson content only; uses the shared simple-module template in
- * it-support-shared.js (itsSimpleModuleView) since this module's lab has
- * not been spec'd or built yet — see data.js's compliance.sourceNotes on
- * the it-support program entry. Content sourced from
- * Module_5_Student_Content.docx.
+ * Lesson content sourced from Module_5_Student_Content.docx. Lab is a
+ * guided walkthrough of two real tickets ('hd-m05') in the IT Service Desk
+ * simulator — see it-support-shared.js's itsRegisterCoachModule.
  */
 
 const ITS05_LESSONS = [
@@ -82,12 +80,9 @@ const ITS05_LESSONS = [
   },
 ];
 
-function viewItsModuleFive(user, program) {
-  return itsSimpleModuleView({
-    user, program, moduleKey: 'its-05', moduleNumber: 5, lessons: ITS05_LESSONS,
-    lede: 'You\'ve already built a Windows Server VM — now you\'ll actually configure it, and start managing the directory structure that controls who has access to what across an organization.',
-    labPreview: 'This module\'s guided lab isn\'t built yet — it will hand you a broken shared-drive-access ticket and a user whose access is broken because of account, group, or OU setup, and ask you to diagnose exactly what\'s wrong using Server Manager and Active Directory Users and Computers.',
-  });
-}
-
-registerModuleLab({ program: 'it-support', moduleNumber: 5, moduleKey: 'its-05', view: viewItsModuleFive });
+itsRegisterCoachModule({
+  moduleNumber: 5, moduleKey: 'its-05', coachId: 'hd-m05', labKeys: ['lab-its-05-server-ad'],
+  lessons: ITS05_LESSONS,
+  lede: 'You\'ve already built a Windows Server VM — now you\'ll actually configure it, and start managing the directory structure that controls who has access to what across an organization.',
+  labDescription: 'Resolve two real Windows Server tickets end to end in the IT Service Desk simulator — a Group Policy scope issue (HD-2108) and a file-server disk-space incident (HD-2117) — using Server Manager and Active Directory Users and Computers. A coach spotlights each step for you.',
+});

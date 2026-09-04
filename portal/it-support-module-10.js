@@ -1,9 +1,7 @@
 /* Module 10 — IT Help Desk & Career Accelerator ('it-support').
- * Lesson content only; uses the shared simple-module template in
- * it-support-shared.js (itsSimpleModuleView) since this module's lab has
- * not been spec'd or built yet — see data.js's compliance.sourceNotes on
- * the it-support program entry. Content sourced from
- * Module_10_Student_Content.docx.
+ * Lesson content sourced from Module_10_Student_Content.docx. Lab is a
+ * guided walkthrough of the real, full ticket queue ('hd-m10') in the IT
+ * Service Desk simulator — see it-support-shared.js's itsRegisterCoachModule.
  */
 
 const ITS10_LESSONS = [
@@ -47,12 +45,9 @@ const ITS10_LESSONS = [
   },
 ];
 
-function viewItsModuleTen(user, program) {
-  return itsSimpleModuleView({
-    user, program, moduleKey: 'its-10', moduleNumber: 10, lessons: ITS10_LESSONS,
-    lede: 'Every ticket you\'ll ever work has a structure underneath it. This module teaches you that structure — the fields, the priorities, the service-level expectations — so you can move through a queue with confidence instead of guesswork.',
-    labPreview: 'This module\'s guided lab isn\'t built yet — it will hand you a set of weak ticket notes to rewrite and a full mixed queue to prioritize and sequence by impact, urgency, and SLA deadline, reusing the ticket-queue interface from Module 1.',
-  });
-}
-
-registerModuleLab({ program: 'it-support', moduleNumber: 10, moduleKey: 'its-10', view: viewItsModuleTen });
+itsRegisterCoachModule({
+  moduleNumber: 10, moduleKey: 'its-10', coachId: 'hd-m10', labKeys: ['lab-its-10-priority-queue'],
+  lessons: ITS10_LESSONS,
+  lede: 'Every ticket you\'ll ever work has a structure underneath it. This module teaches you that structure — the fields, the priorities, the service-level expectations — so you can move through a queue with confidence instead of guesswork.',
+  labDescription: 'Work the real, full ticket queue in the IT Service Desk simulator: filter it down to P1 by priority, open a real P1 ticket, and document why it sorts to the top of the shift. A coach spotlights each step for you.',
+});

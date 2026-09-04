@@ -1,9 +1,7 @@
 /* Module 04 — IT Help Desk & Career Accelerator ('it-support').
- * Lesson content only; uses the shared simple-module template in
- * it-support-shared.js (itsSimpleModuleView) since this module's lab has
- * not been spec'd or built yet — see data.js's compliance.sourceNotes on
- * the it-support program entry. Content sourced from
- * Module_4_Student_Content.docx.
+ * Lesson content sourced from Module_4_Student_Content.docx. Lab is a
+ * guided walkthrough of two real tickets ('hd-m04') in the IT Service Desk
+ * simulator — see it-support-shared.js's itsRegisterCoachModule.
  */
 
 const ITS04_LESSONS = [
@@ -84,12 +82,9 @@ const ITS04_LESSONS = [
   },
 ];
 
-function viewItsModuleFour(user, program) {
-  return itsSimpleModuleView({
-    user, program, moduleKey: 'its-04', moduleNumber: 4, lessons: ITS04_LESSONS,
-    lede: 'You\'ve built your lab environment and fixed your first hardware and printer tickets. Now it\'s time for one of the most valuable skills on any help desk: figuring out why something won\'t connect, and explaining it in plain language.',
-    labPreview: 'This module\'s guided lab isn\'t built yet — it will hand you a device showing a 169.254 APIPA address and a simulated domain-join failure to diagnose with ipconfig, ping, tracert, and nslookup, then explain in plain language to a non-technical user.',
-  });
-}
-
-registerModuleLab({ program: 'it-support', moduleNumber: 4, moduleKey: 'its-04', view: viewItsModuleFour });
+itsRegisterCoachModule({
+  moduleNumber: 4, moduleKey: 'its-04', coachId: 'hd-m04', labKeys: ['lab-its-04-connectivity'],
+  lessons: ITS04_LESSONS,
+  lede: 'You\'ve built your lab environment and fixed your first hardware and printer tickets. Now it\'s time for one of the most valuable skills on any help desk: figuring out why something won\'t connect, and explaining it in plain language.',
+  labDescription: 'Resolve two real connectivity tickets end to end in the IT Service Desk simulator — an APIPA/DHCP failure (HD-2104) and a DNS failure (HD-2105) — using the diagnostic evidence rather than guessing. A coach spotlights each step for you.',
+});

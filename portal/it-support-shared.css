@@ -123,6 +123,11 @@
 .itss-preview { margin-top: 10px; display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; color: #64748b; background: #f8fafc; border-radius: 9px; font: 12px/1.55 Inter, sans-serif; }
 .itss-preview i { flex: 0 0 auto; color: var(--its-navy); font-size: 15px; }
 
+.itss-lab-status { margin-top: 16px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 11px; font: 12.5px/1.5 Inter, sans-serif; }
+.itss-lab-status.itss-status-pass { color: var(--its-navy); background: var(--its-accent-wash); border: 1px solid var(--its-accent-border); }
+.itss-lab-status.itss-status-pending { color: #64748b; background: #fff; border: 1px dashed #cbd5e1; }
+.itss-lab-status i { flex: 0 0 auto; font-size: 18px; }
+
 .itss-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
 
 @media (max-width: 640px) {

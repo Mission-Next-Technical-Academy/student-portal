@@ -120,7 +120,19 @@ function itsSimpleLessonCard(lesson) {
   </details>`;
 }
 
-function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, lede, labPreview }) {
+function itsCoachLaunchCard({ coachId, complete }) {
+  return `<a class="itsw-evidence-button" data-its-coach-launch href="${esc(SIM_ORIGIN)}?coach=${esc(coachId)}&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
+    <i class="${complete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${complete ? 'Review the walkthrough' : 'Start guided walkthrough'}
+  </a>
+  <div class="itss-lab-status ${complete ? 'itss-status-pass' : 'itss-status-pending'}"><i class="${complete ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${complete ? 'Lab complete — resolved in the guided walkthrough.' : 'Complete the guided walkthrough in the simulator to finish this lab.'}</span></div>`;
+}
+
+/* lab: optional { coachId, description, complete }. When present, the Prove
+ * section is a launch card into the real 'coachId' guided walkthrough
+ * (state/onMessage handled by the caller — itsRegisterCoachModule below).
+ * When absent, falls back to the original "lab content in development"
+ * notice for any module that genuinely has neither. */
+function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, lede, labPreview, lab }) {
   const module = program.modules[moduleKey];
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', moduleKey);
   const numLabel = String(moduleNumber).padStart(2, '0');
@@ -133,9 +145,82 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
         <div class="itss-lesson-grid">${lessons.map(itsSimpleLessonCard).join('')}</div>
       </section>
 
-      <section class="itss-section" aria-labelledby="itss-lab-title-${numLabel}"><div class="itss-section-heading"><span>P</span><div><p class="itss-kicker">Prove</p><h2 id="itss-lab-title-${numLabel}">Guided lab</h2></div></div>
-        ${itswInDevelopment({ title: 'Lab content in development', previewText: labPreview })}
+      <section class="itss-section its-coach-lab" aria-labelledby="itss-lab-title-${numLabel}"><div class="itss-section-heading"><span>P</span><div><p class="itss-kicker">Prove${lab ? ' · guided walkthrough' : ''}</p><h2 id="itss-lab-title-${numLabel}">Guided lab</h2></div></div>
+        ${lab
+          ? `<p class="itss-instruction">${esc(lab.description)}</p>${itsCoachLaunchCard({ coachId: lab.coachId, complete: lab.complete })}`
+          : itswInDevelopment({ title: 'Lab content in development', previewText: labPreview })}
       </section>
     </main>
   </div>`;
+}
+
+/* Registers one of Modules 3-11: lesson cards (via itsSimpleModuleView)
+ * plus a single guided-coach lab. State/onMessage/registerModuleLab is
+ * handled entirely here so each module's own file only supplies content —
+ * mirrors the pattern already proven in Modules 1 and 2's own files, shared
+ * here since these 9 modules differ only in ids, content, and lab keys.
+ * config: { moduleNumber, moduleKey, coachId, labKeys: [labKey,...],
+ *   lessons, lede, labDescription } */
+function itsRegisterCoachModule(config) {
+  const { moduleNumber, moduleKey, coachId, labKeys, lessons, lede, labDescription } = config;
+  const stateId = `its-coach-${moduleKey}-v1`;
+  const defaultState = { consoleStarted: false, consoleCompleted: false };
+  let state = null;
+  let lastUser = null;
+
+  function load(user) {
+    lastUser = user;
+    state = LabRuntime.load(stateId, user, defaultState);
+    if (new URLSearchParams(location.search).get('coachComplete') === coachId) {
+      state.consoleStarted = true;
+      state.consoleCompleted = true;
+      LabRuntime.save(stateId, user, state);
+      history.replaceState(null, '', location.pathname + location.hash);
+    }
+    return state;
+  }
+
+  function view(user, program) {
+    load(user);
+    return itsSimpleModuleView({
+      user, program, moduleKey, moduleNumber, lessons, lede,
+      lab: { coachId, description: labDescription, complete: state.consoleCompleted === true },
+    });
+  }
+
+  function wire() {
+    const shell = document.querySelector('.itss-shell');
+    if (!shell) return;
+    shell.addEventListener('click', (event) => {
+      if (event.target.closest('[data-its-coach-launch]') && lastUser) {
+        state.consoleStarted = true;
+        LabRuntime.save(stateId, lastUser, state);
+      }
+    });
+  }
+
+  async function onMessage(event) {
+    if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== coachId) return;
+    if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+    const user = await currentUser();
+    if (!user) return;
+
+    const saved = LabRuntime.load(stateId, user, defaultState);
+    saved.consoleStarted = true;
+    saved.consoleCompleted = true;
+    LabRuntime.save(stateId, user, saved);
+    state = saved;
+    lastUser = user;
+
+    if (typeof markModuleLabComplete === 'function') labKeys.forEach((key) => markModuleLabComplete(user, 'it-support', moduleKey, key));
+    if (typeof recordLabAttempt === 'function') labKeys.forEach((key) => recordLabAttempt(user, key, { state: 'complete', result: { source: 'mnt-coach-complete' } }));
+
+    const mounted = Boolean(document.querySelector('.itss-shell'));
+    if (!mounted) return;
+    render();
+    const section = document.querySelector('.its-coach-lab');
+    if (section) section.scrollIntoView({ block: 'start' });
+  }
+
+  registerModuleLab({ program: 'it-support', moduleNumber, moduleKey, view, wire, onMessage });
 }

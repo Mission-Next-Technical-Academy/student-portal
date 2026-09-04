@@ -1,9 +1,7 @@
 /* Module 11 — IT Help Desk & Career Accelerator ('it-support').
- * Lesson content only; uses the shared simple-module template in
- * it-support-shared.js (itsSimpleModuleView) since this module's lab has
- * not been spec'd or built yet — see data.js's compliance.sourceNotes on
- * the it-support program entry. Content sourced from
- * Module_11_Student_Content.docx.
+ * Lesson content sourced from Module_11_Student_Content.docx. Lab is a
+ * guided walkthrough of a real ticket ('hd-m11') in the IT Service Desk
+ * simulator — see it-support-shared.js's itsRegisterCoachModule.
  */
 
 const ITS11_LESSONS = [
@@ -45,12 +43,9 @@ const ITS11_LESSONS = [
   },
 ];
 
-function viewItsModuleEleven(user, program) {
-  return itsSimpleModuleView({
-    user, program, moduleKey: 'its-11', moduleNumber: 11, lessons: ITS11_LESSONS,
-    lede: 'The technical fix is only half the job — this module is about the other half: writing it down well, communicating it clearly, and handing it off cleanly when it\'s not yours to finish.',
-    labPreview: 'This module\'s guided lab isn\'t built yet — it will have you search a knowledge base and write a complete ticket note for a new issue, then work several simulated tickets deciding resolve-vs-escalate with a clear user update for each.',
-  });
-}
-
-registerModuleLab({ program: 'it-support', moduleNumber: 11, moduleKey: 'its-11', view: viewItsModuleEleven });
+itsRegisterCoachModule({
+  moduleNumber: 11, moduleKey: 'its-11', coachId: 'hd-m11', labKeys: ['lab-its-11-handoff-documentation'],
+  lessons: ITS11_LESSONS,
+  lede: 'The technical fix is only half the job — this module is about the other half: writing it down well, communicating it clearly, and handing it off cleanly when it\'s not yours to finish.',
+  labDescription: 'Work a real ticket end to end in the IT Service Desk simulator, focused on documentation and escalation (HD-2113, an expired VPN gateway certificate) — recognize the escalation trigger and write a note a stranger could act on. A coach spotlights each step for you.',
+});

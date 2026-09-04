@@ -1,9 +1,7 @@
 /* Module 09 — IT Help Desk & Career Accelerator ('it-support').
- * Lesson content only; uses the shared simple-module template in
- * it-support-shared.js (itsSimpleModuleView) since this module's lab has
- * not been spec'd or built yet — see data.js's compliance.sourceNotes on
- * the it-support program entry. Content sourced from
- * Module_9_Student_Content.docx.
+ * Lesson content sourced from Module_9_Student_Content.docx. Lab is a
+ * guided walkthrough of two real tickets ('hd-m09') in the IT Service Desk
+ * simulator — see it-support-shared.js's itsRegisterCoachModule.
  */
 
 const ITS09_LESSONS = [
@@ -45,12 +43,9 @@ const ITS09_LESSONS = [
   },
 ];
 
-function viewItsModuleNine(user, program) {
-  return itsSimpleModuleView({
-    user, program, moduleKey: 'its-09', moduleNumber: 9, lessons: ITS09_LESSONS,
-    lede: 'Every technician is also, whether they realize it or not, a frontline defense against security threats. This module gives you the judgment to recognize when something isn\'t right — and to know exactly what to do about it.',
-    labPreview: 'This module\'s guided lab isn\'t built yet — it will hand you a set of realistic messages to sort as legitimate or needing escalation, plus a set of credential-handling and access scenarios to work through.',
-  });
-}
-
-registerModuleLab({ program: 'it-support', moduleNumber: 9, moduleKey: 'its-09', view: viewItsModuleNine });
+itsRegisterCoachModule({
+  moduleNumber: 9, moduleKey: 'its-09', coachId: 'hd-m09', labKeys: ['lab-its-09-security-incidents'],
+  lessons: ITS09_LESSONS,
+  lede: 'Every technician is also, whether they realize it or not, a frontline defense against security threats. This module gives you the judgment to recognize when something isn\'t right — and to know exactly what to do about it.',
+  labDescription: 'Work two real security-incident tickets end to end in the IT Service Desk simulator — a credential-phishing report (SEC-2114) and a malware alert (SEC-2115) — recognizing why L1 escalates rather than resolves. A coach spotlights each step for you.',
+});

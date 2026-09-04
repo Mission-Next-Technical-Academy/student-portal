@@ -1,9 +1,7 @@
 /* Module 06 — IT Help Desk & Career Accelerator ('it-support').
- * Lesson content only; uses the shared simple-module template in
- * it-support-shared.js (itsSimpleModuleView) since this module's lab has
- * not been spec'd or built yet — see data.js's compliance.sourceNotes on
- * the it-support program entry. Content sourced from
- * Module_6_Student_Content.docx.
+ * Lesson content sourced from Module_6_Student_Content.docx. Lab is a
+ * guided walkthrough of two real tickets ('hd-m06') in the IT Service Desk
+ * simulator — see it-support-shared.js's itsRegisterCoachModule.
  */
 
 const ITS06_LESSONS = [
@@ -69,12 +67,9 @@ const ITS06_LESSONS = [
   },
 ];
 
-function viewItsModuleSix(user, program) {
-  return itsSimpleModuleView({
-    user, program, moduleKey: 'its-06', moduleNumber: 6, lessons: ITS06_LESSONS,
-    lede: 'You know the structure of Active Directory now — this module puts it to work solving the identity tickets you\'ll see more than almost any other type, from password resets to modern cloud-identity scenarios.',
-    labPreview: 'This module\'s guided lab isn\'t built yet — it will hand you tickets describing locked, disabled, and expired accounts to correctly identify, a group-membership access issue to trace and fix, and a cloud-identity scenario covering an MFA reset and shared mailbox request.',
-  });
-}
-
-registerModuleLab({ program: 'it-support', moduleNumber: 6, moduleKey: 'its-06', view: viewItsModuleSix });
+itsRegisterCoachModule({
+  moduleNumber: 6, moduleKey: 'its-06', coachId: 'hd-m06', labKeys: ['lab-its-06-identity-access'],
+  lessons: ITS06_LESSONS,
+  lede: 'You know the structure of Active Directory now — this module puts it to work solving the identity tickets you\'ll see more than almost any other type, from password resets to modern cloud-identity scenarios.',
+  labDescription: 'Resolve two real identity tickets end to end in the IT Service Desk simulator — an approved group-membership restore (SR-2107) and a missing NTFS permission group (HD-2118) — verifying authorization before you act. A coach spotlights each step for you.',
+});
