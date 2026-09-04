@@ -156,7 +156,6 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           js = Path('portal/m360/week5.js').read_text()
           html = Path('portal/m360/week5.html').read_text()
@@ -170,19 +169,21 @@ jobs:
           if 'Optional — not graded' not in html or 'Optional private working material' not in html:
               raise SystemExit('Week 5 optional Practice It boundaries are not explicit')
 
-          missing_match = re.search(r'function missing\(\)\{(.*?)\}function readyCount', js, flags=re.S)
-          if not missing_match:
+          missing_start = js.find('function missing(){')
+          missing_end = js.find('function readyCount()', missing_start)
+          if missing_start < 0 or missing_end < 0:
               raise SystemExit('Could not locate Week 5 required-field validator')
-          required_validator = missing_match.group(1)
+          required_validator = js[missing_start:missing_end]
           forbidden_gates = ['professionalIntroduction', 'technicalScenario', 'technicalReasoning', 'interviewerQuestion3']
           gated = [field for field in forbidden_gates if field in required_validator]
           if gated:
               raise SystemExit('Optional Week 5 fields are incorrectly completion-gating: ' + ', '.join(gated))
 
-          proof_match = re.search(r'function renderProof\(\)\{(.*?)\}function renderReview', js, flags=re.S)
-          if not proof_match:
+          proof_start = js.find('function renderProof(){')
+          proof_end = js.find('function renderReview()', proof_start)
+          if proof_start < 0 or proof_end < 0:
               raise SystemExit('Could not locate Week 5 showcase renderProof function')
-          proof = proof_match.group(1)
+          proof = js[proof_start:proof_end]
           private_fields = ['technicalScenario', 'technicalReasoning']
           leaked = [field for field in private_fields if field in proof]
           if leaked:
