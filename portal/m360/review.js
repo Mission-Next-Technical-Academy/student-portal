@@ -93,6 +93,9 @@
       const studentId = row.student && row.student.student_id ? row.student.student_id : row.user_id;
       const track = row.student && row.student.track_code ? row.student.track_code : row.track_code;
       const priorAccepted = Boolean(row.accepted_artifact_payload);
+      const week6Note = Number(row.week_number) === 6
+        ? '<div class="review-prior"><strong>Presentation verification is separate.</strong> Score the submitted Career Spotlight package here. Record live/makeup/approved-exception presentation completion in the Career Spotlight Presentation Verification panel below.</div>'
+        : '';
       return `
         <article class="review-card" data-review-card data-user-id="${escapeHtml(row.user_id)}" data-week="${Number(row.week_number)}">
           <div class="review-card-header">
@@ -108,6 +111,7 @@
               <h4>Submitted evidence</h4>
               ${payloadRows(row.submitted_payload)}
               ${priorAccepted ? '<div class="review-prior"><strong>Prior Portfolio Ready artifact preserved.</strong> This review is evaluating a newer submitted revision; the previous accepted artifact remains intact unless this revision is accepted.</div>' : ''}
+              ${week6Note}
             </section>
             <section class="scoring-panel">
               <h4>Reviewer decision</h4>
@@ -121,17 +125,6 @@
                 <button class="btn btn-secondary" type="button" data-decision="needs_revision">Needs Revision</button>
                 <button class="btn btn-primary" type="button" data-decision="accepted">Meets Standard</button>
               </div>
-              <details class="attendance-bridge">
-                <summary>Attendance requirement bridge</summary>
-                <div class="attendance-fields">
-                  <label class="attendance-check"><input type="checkbox" data-attendance-met /> <span>Staff-confirmed M360 attendance requirement satisfied</span></label>
-                  <div class="field">
-                    <label>External record reference <span class="help">Optional internal reference; do not enter session minutes or clock hours.</span></label>
-                    <input type="text" data-attendance-reference placeholder="Example: external attendance roster reference" />
-                  </div>
-                  <button class="btn btn-quiet" type="button" data-save-attendance>Save attendance status</button>
-                </div>
-              </details>
             </section>
           </div>
         </article>`;
@@ -201,22 +194,6 @@
           }
         });
       });
-
-      const attendanceButton = card.querySelector('[data-save-attendance]');
-      attendanceButton.addEventListener('click', async () => {
-        attendanceButton.disabled = true;
-        try {
-          const met = card.querySelector('[data-attendance-met]').checked;
-          const reference = card.querySelector('[data-attendance-reference]').value.trim();
-          await M360Data.setAttendance(card.dataset.userId, met, reference);
-          showNotice(met ? 'Attendance requirement marked satisfied using the external-record bridge.' : 'Attendance requirement status cleared.', 'success');
-        } catch (error) {
-          console.error('M360 attendance bridge save failed', error);
-          showNotice(error.message || 'Unable to save the attendance requirement status.', 'error');
-        } finally {
-          attendanceButton.disabled = false;
-        }
-      });
     });
   }
 
@@ -230,7 +207,7 @@
         return;
       }
       if (!context.isAdmin) {
-        location.replace('../index.html');
+        location.replace('../index.html#/portal');
         return;
       }
       if (!(await M360Data.schemaAvailable({ refresh: true }))) {
