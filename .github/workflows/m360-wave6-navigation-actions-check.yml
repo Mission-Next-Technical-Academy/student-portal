@@ -1,0 +1,117 @@
+name: M360 Wave 6 navigation actions guard
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360-entry.js'
+      - 'portal/m360/home.js'
+      - 'portal/m360/index.html'
+      - '.github/workflows/m360-wave6-navigation-actions-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  wave6-navigation-actions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce Wave 6 scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          printf '%s\n' "$changed"
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave6-navigation-actions-check.yml|portal/m360-entry.js|portal/m360/home.js|portal/m360/index.html)$' || true)"
+          if [ -n "$unexpected" ]; then
+            echo '::error::Wave 6 is limited to the M360 My Programs entry, Course Home navigation/action runtime, cache refresh, and its guard.'
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360-entry.js
+          node --check portal/m360/home.js
+
+      - name: Require My Programs review-state priority
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('portal/m360-entry.js').read_text()
+          required = [
+              "row.review_status === 'needs_revision'",
+              "row.review_status === 'submitted'",
+              'row.accepted_artifact_payload',
+              'assignment${needsRevision === 1 ? \'\' : \'s\'} ${needsRevision === 1 ? \'needs\' : \'need\'} revision',
+              'assignment${awaitingReview === 1 ? \'\' : \'s\'} awaiting review',
+              'assignment${portfolioReady === 1 ? \'\' : \'s\'} reviewed / portfolio ready'
+          ]
+          for token in required:
+              if token not in text:
+                  raise SystemExit(f'Missing My Programs review-state requirement: {token}')
+          order = [
+              text.index('if (needsRevision > 0)'),
+              text.index('if (awaitingReview > 0)'),
+              text.index('if (portfolioReady > 0)')
+          ]
+          if order != sorted(order):
+              raise SystemExit('Review-state priority must be Needs Revision, then awaiting review, then portfolio ready.')
+          print('My Programs review-state priority is present')
+          PY
+
+      - name: Require session-safe M360 sign out
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('portal/m360/home.js').read_text()
+          required = [
+              "link.textContent = 'Sign Out';",
+              "myPrograms.insertAdjacentElement('afterend', link);",
+              ".from('site_sessions')",
+              "ended_reason: 'user_signed_out'",
+              ".is('ended_at', null)",
+              'await mntSupabase.auth.signOut();',
+              "key.startsWith('defender-lab.')",
+              "location.replace('../index.html#/login');"
+          ]
+          for token in required:
+              if token not in text:
+                  raise SystemExit(f'Missing M360 sign-out requirement: {token}')
+          close_idx = text.index(".from('site_sessions')")
+          auth_idx = text.index('await mntSupabase.auth.signOut();')
+          redirect_idx = text.index("location.replace('../index.html#/login');")
+          if not (close_idx < auth_idx < redirect_idx):
+              raise SystemExit('M360 sign out must close site sessions before auth sign-out and redirect afterward.')
+          if text.count("key.startsWith('defender-lab.')") < 2:
+              raise SystemExit('M360 sign out must purge defender-lab keys from both localStorage and sessionStorage.')
+          print('M360 Course Home sign out preserves portal session-close semantics')
+          PY
+
+      - name: Require Course Home cache refresh
+        run: |
+          set -euo pipefail
+          grep -q "home.js?v=20260904b" portal/m360/index.html
+
+      - name: Preserve technical-course and data boundaries
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
+            echo '::error::Wave 6 must not change Supabase schema, migrations, or Storage.'
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
+            echo '::error::Wave 6 must not change the established technical-course LMS runtime.'
+            exit 1
+          fi
+          echo 'Wave 6 preserves the established technical-course runtime and M360 durable-data contract.'
