@@ -3,7 +3,10 @@ name: M360 Wave 1 integrity guard
 on:
   pull_request:
     paths:
-      - 'portal/m360/**'
+      - 'portal/m360/m360-production-bridge.js'
+      - 'portal/m360/portfolio.js'
+      - 'portal/m360/review-attendance.js'
+      - 'portal/m360/week.html'
       - '.github/workflows/m360-wave1-integrity-check.yml'
 
 permissions:
@@ -16,20 +19,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Enforce Wave 1 scope
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave1-integrity-check.yml|portal/m360/m360-production-bridge.js|portal/m360/portfolio.js|portal/m360/review-attendance.js|portal/m360/week.html)$' || true)"
-          if [ -n "$unexpected" ]; then
-            echo '::error::Wave 1 is intentionally limited to P0 M360 integrity surfaces.'
-            printf '%s\n' "$unexpected"
-            exit 1
-          fi
 
       - name: JavaScript syntax
         run: |
@@ -127,11 +116,11 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Wave 1 must not change Supabase schema or migrations.'
+            echo '::error::Changes to Wave 1 protected surfaces must not also change Supabase schema or migrations.'
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(m360-preview.html|m360/course.html|m360/week[3-6].html)$'; then
             echo '::error::Workbook delivery links are held for a separate design decision.'
             exit 1
           fi
-          echo 'Wave 1 preserves Supabase schema and workbook delivery decision.'
+          echo 'Wave 1 protected invariants remain intact.'
