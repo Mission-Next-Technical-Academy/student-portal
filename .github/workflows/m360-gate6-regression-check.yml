@@ -48,7 +48,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify separate M360 portal routing and Admin launch surface
+      - name: Verify separate M360 portal routing and unified Admin launch surface
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -69,29 +69,29 @@ jobs:
               "getElementById('sec-career-readiness')",
               'a[href="#sec-career-readiness"]',
               'M360 101 Administration',
-              'Open Review Queue',
-              'Attendance Verification',
-              'm360/review.html#attendanceAdminTitle'
+              'Open M360 Administration'
           ]
           for token in required:
               if token not in entry:
                   raise SystemExit(f'Missing separate M360 routing/Admin requirement: {token}')
-          if 'ELECT' in entry.split("new Set(['SOCAN', 'HDESK', 'AIENG'])", 1)[0]:
-              raise SystemExit('Electrical track must not be added to the M360 eligible-track set')
+          stale = ['Open Review Queue</a>', 'm360/review.html#attendanceAdminTitle']
+          if any(token in entry for token in stale):
+              raise SystemExit('Admin launch card must expose one unified M360 Administration action')
           forbidden_calls = [".from('module_progress')", 'toggleM360ItemCompletion(', 'saveM360Progress(']
           leaked = [token for token in forbidden_calls if token in entry]
           if leaked:
               raise SystemExit('M360 entry must not call technical/legacy progress paths: ' + ', '.join(leaked))
-          print('Separate M360 student routing and Admin review launch surface are present without technical progress coupling')
+          print('Separate M360 student routing and one Admin administration launch surface are present without technical progress coupling')
           PY
 
-      - name: Verify in-week anchor navigation and workbook button polish
+      - name: Verify consistent week navigation and current portfolio access
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           nav = Path('portal/m360/m360-production-nav.js').read_text()
           loader = Path('portal/m360/week.html').read_text()
+          portfolio = Path('portal/m360/portfolio.js').read_text()
           required = [
               'wireSamePageAnchors',
               "a[href^=\"#\"]",
@@ -99,14 +99,24 @@ jobs:
               'history.replaceState',
               'polishWorkbookButtons',
               "button.style.textAlign = 'center'",
-              "button.style.justifyContent = 'center'"
+              'makeBrandProgramsLink',
+              "../index.html#/portal",
+              'ensureConsistentSidebar',
+              'm360ConsistentWeekRows',
+              'ensureCurrentPortfolioDownload',
+              "portfolio.html?download=1",
+              'moveWeek6FinalFileField',
+              "document.getElementById('slidesUrl')",
+              "document.getElementById('slide3Content')"
           ]
           for token in required:
               if token not in nav:
-                  raise SystemExit(f'Missing in-week navigation/workbook polish requirement: {token}')
-          if 'm360-production-nav.js?v=20260904b' not in loader:
+                  raise SystemExit(f'Missing consistency-pass navigation requirement: {token}')
+          if 'm360-production-nav.js?v=20260904c' not in loader:
               raise SystemExit('Week loader must bust the cached M360 production navigation asset')
-          print('Hash-only week navigation is intercepted locally and workbook CTA text is centered')
+          if "get('download')==='1'" not in portfolio or 'setTimeout(printPortfolio' not in portfolio:
+              raise SystemExit('Current-portfolio link must print only after authenticated portfolio rendering')
+          print('Week navigation, My Programs logo route, per-week status rows, Week 6 field flow, and current portfolio download are consistent')
           PY
 
       - name: Verify Week 6 workbook and Career Spotlight template
@@ -146,22 +156,24 @@ jobs:
           print('Portfolio field mappings and privacy whitelist are aligned to production week contracts')
           PY
 
-      - name: Verify persistent portfolio navigation
-        run: |
-          set -euo pipefail
-          grep -q "new URL('portfolio.html', m360Base)" portal/m360/m360-production-nav.js
-          grep -q "m360PortfolioNavLink" portal/m360/m360-production-nav.js
-          grep -q "My M360 Portfolio" portal/m360/m360-production-nav.js
-
-      - name: Verify independent attendance verification path
+      - name: Verify bulk attendance verification path
         run: |
           set -euo pipefail
           test -f portal/m360/review-attendance.js
           test -f portal/m360/review-attendance.css
           grep -q 'M360 Attendance Verification' portal/m360/review.html
-          grep -q 'review-attendance.js' portal/m360/review.html
+          grep -q 'saveAttendanceChangesBtn' portal/m360/review.html
+          grep -q 'Save changed attendance' portal/m360/review.html
+          grep -q 'data-roster-status' portal/m360/review-attendance.js
+          grep -q 'Not verified' portal/m360/review-attendance.js
+          grep -q 'Requirement satisfied' portal/m360/review-attendance.js
+          grep -q 'Promise.allSettled' portal/m360/review-attendance.js
           grep -q "\.from('m360_course_records')" portal/m360/review-attendance.js
           grep -q 'M360Data.setAttendance' portal/m360/review-attendance.js
+          if grep -q 'data-roster-save' portal/m360/review-attendance.js; then
+            echo '::error::Attendance roster must not retain per-student save buttons.'
+            exit 1
+          fi
           if grep -Eiq 'attendance_minutes|clock_hours|session_duration|browser_time' portal/m360/review-attendance.js portal/m360/review.html; then
             echo '::error::Attendance roster must not introduce session-level time fields.'
             exit 1
