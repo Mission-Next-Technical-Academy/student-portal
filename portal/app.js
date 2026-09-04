@@ -3636,6 +3636,8 @@ function viewProgram(user, slug) {
   const capstoneModule = capstoneEntry && capstoneEntry[1];
   const capstoneLab = capstoneModuleKey && trackLabs.find((lab) => lab.module === capstoneModuleKey && lab.isCapstone);
   const hasCapstone = Boolean(capstoneModule && capstoneLab);
+  const performanceLabMinutes = performanceLabs.reduce((sum, l) => sum + (l.instructionalMinutes || l.minutes || 0), 0);
+  const capstoneLabMinutes = hasCapstone ? (capstoneLab.instructionalMinutes || capstoneLab.minutes || 0) : 0;
   const capstonePrerequisites = Object.keys(program.modules)
     .filter((key) => !program.modules[key].isCapstone);
   const capstoneReady = hasCapstone && hasModuleAccess(user, slug, capstoneModuleKey)
@@ -3744,27 +3746,35 @@ function viewProgram(user, slug) {
 
         ${
           program.compliance
-            ? `<div class="mt-6 bg-white border border-gray-200 rounded-2xl p-7 shadow-sm">
-                 <p class="text-[#1e3a5f] font-semibold text-base mb-6">70 Hours Technical Training + 12 Hours Career Readiness = 82 Clock Hours</p>
-                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            ? (() => {
+                const c = program.compliance;
+                const hasCareer = !!c.careerHours;
+                const technicalTheory = c.technicalTheoryHours || (hasCareer ? c.theoryHours - c.careerHours : c.theoryHours);
+                const headline = hasCareer
+                  ? `${c.technicalHours} Hours Technical Training + ${c.careerHours} Hours Career Readiness = ${c.totalHours} Clock Hours`
+                  : `${c.totalHours} Approved Clock Hours`;
+                return `<div class="mt-6 bg-white border border-gray-200 rounded-2xl p-7 shadow-sm">
+                 <p class="text-[#1e3a5f] font-semibold text-base mb-6">${headline}</p>
+                 <div class="grid grid-cols-1 ${hasCareer ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6">
                    <div>
                      <p class="text-[#f97316] text-xs font-semibold uppercase tracking-widest mb-2">Technical Curriculum</p>
-                     <p class="text-[#1e3a5f] text-2xl font-bold">${program.compliance.technicalHours} Hours</p>
-                     <p class="text-gray-500 text-sm mt-1">30 technical theory + ${program.compliance.labHours} lab</p>
+                     <p class="text-[#1e3a5f] text-2xl font-bold">${c.technicalHours} Hours</p>
+                     <p class="text-gray-500 text-sm mt-1">${technicalTheory} technical theory + ${c.labHours} lab</p>
                    </div>
-                   <div>
+                   ${hasCareer ? `<div>
                      <p class="text-[#f97316] text-xs font-semibold uppercase tracking-widest mb-2">Separate Companion</p>
-                     <p class="text-[#1e3a5f] text-2xl font-bold">${program.compliance.careerHours} Hours</p>
+                     <p class="text-[#1e3a5f] text-2xl font-bold">${c.careerHours} Hours</p>
                      <p class="text-gray-500 text-sm mt-1">M360 career-readiness theory</p>
-                   </div>
+                   </div>` : ''}
                    <div>
                      <p class="text-[#f97316] text-xs font-semibold uppercase tracking-widest mb-2">Program Total</p>
-                     <p class="text-[#1e3a5f] text-2xl font-bold">${program.compliance.totalHours} Hours</p>
-                   <p class="text-gray-500 text-sm mt-1">${program.compliance.theoryHours} theory (including M360) + ${program.compliance.labHours} lab</p>
+                     <p class="text-[#1e3a5f] text-2xl font-bold">${c.totalHours} Hours</p>
+                   <p class="text-gray-500 text-sm mt-1">${c.theoryHours} theory${hasCareer ? ' (including M360)' : ''} + ${c.labHours} lab</p>
                    </div>
                  </div>
                  <p class="text-gray-400 text-xs mt-5">The technical theory/lab allocation is the current developer map and remains pending compliance sign-off.</p>
-               </div>`
+               </div>`;
+              })()
             : ''
         }
       </div>
@@ -3836,7 +3846,7 @@ function viewProgram(user, slug) {
               <div class="inline-flex items-center gap-2 bg-white/10 text-white/80 text-xs font-semibold px-4 py-1.5 rounded-full uppercase tracking-widest mb-4 border border-white/15">
                 <span class="w-1.5 h-1.5 rounded-full bg-[#f97316]"></span>Lab Environment
               </div>
-              <h3 class="text-white font-bold text-xl mb-3">Mission Next Security Operations Labs</h3>
+              <h3 class="text-white font-bold text-xl mb-3">${esc(program.title)} Labs</h3>
               <p class="text-white/55 text-sm leading-relaxed">
                 Each module opens a focused, fictional workspace with only the evidence and controls needed for its
                 learning objective. The complete interconnected range remains reserved for the final capstone.
@@ -3863,8 +3873,8 @@ function viewProgram(user, slug) {
           ${unlockedLabs.length} of ${performanceLabs.length} module labs available with your current enrollment.
         </p>
         <p class="text-gray-500 text-xs mt-3">
-          <strong>${performanceLabs.length} non-capstone labs</strong> build analytical competencies over 36 hours of hands-on investigation.
-          The <strong>capstone lab</strong> (Module 12) is a 4-hour integrated assessment. Together: 16 + 1 = 40 hours of hands-on technical training.
+          <strong>${performanceLabs.length} non-capstone labs</strong> build analytical competencies over ${formatInstructionalMinutes(performanceLabMinutes)} of hands-on investigation.
+          ${hasCapstone ? `The <strong>capstone lab</strong> (Module ${String(capstoneModule.number).padStart(2, '0')}) is a ${formatInstructionalMinutes(capstoneLabMinutes)} integrated assessment. Together: ${formatInstructionalMinutes(performanceLabMinutes + capstoneLabMinutes)} of hands-on technical training.` : ''}
         </p>
       </div>
     </section>
@@ -3883,17 +3893,11 @@ function viewProgram(user, slug) {
         <h2 class="text-3xl font-bold text-white mb-3">${esc(capstoneModule.title)}</h2>
         <div class="w-12 h-1 bg-[#f97316] rounded-full mb-6"></div>
         <p class="text-white/55 text-base max-w-2xl mb-10">
-          A full security operations investigation in which you decide the path, reconstruct the attack, act within
-          scope, and defend your final conclusion. This is the only Prove assessment and integrates all competencies
-          taught in Modules 01–11.
+          ${esc((program.capstone && program.capstone.intro) || 'A full integrated assessment that draws on everything taught in the modules before it. This is the program\'s only Prove assessment.')}
         </p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-          ${[
-            'Alert triage', 'Email analysis', 'Identity analysis', 'Endpoint analysis',
-            'Network analysis', 'Threat intelligence', 'Threat hunting', 'Exposure analysis',
-            'Incident response', 'Evidence handling', 'ATT&CK mapping', 'Final reporting',
-          ].map((capability) => `
+          ${((program.capstone && program.capstone.capabilities) || []).map((capability) => `
             <div class="flex items-center gap-4 bg-white/[0.06] border border-white/10 rounded-xl px-5 py-4">
               <span class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg bg-[#f97316]/20 text-[#f97316]" aria-hidden="true">
                 <i class="ri-checkbox-blank-circle-line"></i>
@@ -3906,13 +3910,13 @@ function viewProgram(user, slug) {
           <div class="bg-white/[0.06] border border-white/10 rounded-xl px-6 py-5">
             <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">Rubric scoring</p>
             <p class="text-white text-sm leading-relaxed">
-              Ten scored domains (Triage, Query, Timeline, Scope, Enrichment, ATT&CK, Detection, Response, Reporting, Closure) at 10 points each. Pass requires 70% (70 points) plus no critical-error gate violations.
+              ${esc((program.capstone && program.capstone.rubricSummary) || `Pass requires at least ${capstoneLab.instructionalMinutes ? '70%' : '70 points'} against the program's capstone rubric.`)}
             </p>
           </div>
           <div class="bg-white/[0.06] border border-white/10 rounded-xl px-6 py-5">
             <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">Prior instruction trace</p>
             <p class="text-white text-sm leading-relaxed">
-              Draws on competencies from all 11 prior modules: SOC operations and analyst workflow (M01), network and identity foundations (M02), SIEM and log analysis (M03), detection rule tuning (M04), endpoint investigation (M05), threat hunting (M06), network and email analysis (M07), vulnerability prioritization (M08), incident response (M09), evidence handling (M10), and SOC metrics/reporting (M11).
+              ${esc((program.capstone && program.capstone.priorTrace) || `Draws on competencies from every module before Module ${String(capstoneModule.number).padStart(2, '0')}.`)}
             </p>
           </div>
         </div>

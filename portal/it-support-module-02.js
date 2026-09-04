@@ -1,9 +1,12 @@
 /* Module 02 — IT Help Desk & Career Accelerator ('it-support').
- * Fictional scenarios and simulated interfaces; Labs 2.1/2.2 are physical
- * evidence-based labs (the student's own VirtualBox build), Labs 2.3/2.4 are
- * fully simulated, in-browser mini-apps. Lesson content sourced from
- * Module_2_Student_Content.docx; lab design from
- * MNT_HelpDesk_Module2_Lab_Specifications.docx.
+ * Fictional scenarios; no real systems involved beyond the student's own VM
+ * build. Labs 2.1/2.2 are physical, evidence-based labs (the student's own
+ * VirtualBox build) — unchanged from the original design. Labs 2.3/2.4 are a
+ * single guided walkthrough of two real print-driver tickets ('hd-m02') in
+ * the IT Service Desk simulator (ui/helpdesk.js + ui/coach.js), the same
+ * coach engine Module 1's Lab 1.2 and SOC's Module 1 already use — not a
+ * portal-embedded Device Manager/Print Spooler widget. Lesson content
+ * sourced from Module_2_Student_Content.docx.
  */
 
 const ITS02_LESSONS = [
@@ -77,7 +80,7 @@ const ITS02_LESSONS = [
       'Open Device Manager on your own lab VM and look through every category. Find the device showing a warning icon, and record its exact error code and driver date — don\'t fix it yet, just observe.',
       'Check Settings > System > Storage and note your current free space and the biggest category using it up.',
     ],
-    comingUp: 'A user reports their webcam stopped working right after an overnight update — you\'ll diagnose and fix it start to finish.',
+    comingUp: 'A stuck label printer traces back to the exact same kind of driver problem — you\'ll diagnose and fix it start to finish in the IT Service Desk simulator.',
   },
   {
     id: 'its-02-lesson-04', number: '2.4', icon: 'ri-printer-line',
@@ -98,7 +101,7 @@ const ITS02_LESSONS = [
       'On your own lab VM, send a test print job and simulate a stuck queue.',
       'Try clearing it two different ways — canceling directly from the queue, and restarting the Print Spooler — and note which one actually worked.',
     ],
-    comingUp: 'A front-desk user reports a stuck print job and an offline printer, with a guest waiting — you\'ll resolve both, in the right order, and document your fix.',
+    comingUp: 'A server-side Print Spooler crash traces back to the same root cause — you\'ll resolve it in the simulator, in the right order, and document your fix.',
   },
 ];
 
@@ -107,15 +110,11 @@ const ITS02_LAB21_KEY = 'lab-its-02-vm-build';
 const ITS02_LAB22_KEY = 'lab-its-02-vm-snapshot-server';
 const ITS02_LAB23_KEY = 'lab-its-02-device-manager';
 const ITS02_LAB24_KEY = 'lab-its-02-print-spooler';
-const ITS02_PASSING_SCORE = 70;
 
 const ITS02_DEFAULT_STATE = {
   evDesktop: null, evVmSettings: null, lab21Complete: false,
   evSnapshot: null, evPing1: null, evPing2: null, lab22Complete: false,
-  devSelectedAction: null, devNote: '', devAttempts: 0, devScore: 0, devBreakdown: null, devFeedback: [], devValidationError: '', devCompleted: false,
-  printQueueCleared: false, printSpoolerRunning: false, printOfflineFlag: true, printOrder: [], printTestResult: null, printNote: '',
-  printAttempts: 0, printScore: 0, printBreakdown: null, printFeedback: [], printValidationError: '', printCompleted: false,
-  resetArmed: false,
+  consoleStarted: false, consoleCompleted: false,
 };
 
 let its02State = null;
@@ -124,7 +123,15 @@ let its02User = null;
 function its02Load(user) {
   its02User = user;
   its02State = LabRuntime.load(ITS02_LAB_ID, user, ITS02_DEFAULT_STATE);
-  if (!Array.isArray(its02State.printOrder)) its02State.printOrder = [];
+  // Same-tab fallback for the coach's completion signal — postMessage is the
+  // primary channel (see its02ReceiveCoachCompletion) but doesn't fire if the
+  // student closed and reopened the sim tab without window.opener intact.
+  if (new URLSearchParams(location.search).get('coachComplete') === 'hd-m02') {
+    its02State.consoleStarted = true;
+    its02State.consoleCompleted = true;
+    LabRuntime.save(ITS02_LAB_ID, user, its02State);
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-02');
   return its02State;
 }
@@ -224,217 +231,46 @@ function its02CheckLab22() {
   }
 }
 
-/* ---------- Lab 2.3 — Device Manager simulation ---------- */
+/* ---------- Labs 2.3 & 2.4 — guided walkthrough in the real simulator ---------- */
 
-const ITS02_DEVICE = {
-  name: 'HD Webcam (Integrated)', category: 'Cameras', errorCode: 'Code 43',
-  brokenStatus: 'This device cannot start. (Code 43)', fixedStatus: 'This device is working properly.',
-  brokenDriverDate: '9/3/2026 (installed via Windows Update)', fixedDriverDate: '7/12/2026 (rolled back)',
-};
-
-function its02DeviceFixed() {
-  return its02State.devSelectedAction === 'rollback';
+function its02Lab34Status() {
+  const done = its02State.consoleCompleted;
+  return `<div class="its02-lab-status ${done ? 'its02-status-pass' : 'its02-status-pending'}"><i class="${done ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${done ? 'Labs 2.3 & 2.4 complete — both tickets resolved in the guided walkthrough.' : 'Complete the guided walkthrough in the simulator to finish these labs.'}</span></div>`;
 }
 
-function its02DeviceManager() {
-  const fixed = its02DeviceFixed();
-  return `<div class="its02-devmgr">
-    <div class="its02-devtree">
-      <p class="its02-devtree-category">Cameras</p>
-      <div class="its02-devtree-device its02-devtree-active"><i class="${fixed ? 'ri-checkbox-circle-fill its02-devtree-ok' : 'ri-error-warning-fill its02-devtree-warn'}" aria-hidden="true"></i> ${esc(ITS02_DEVICE.name)}</div>
-      <p class="its02-devtree-category" style="margin-top:14px">Other categories</p>
-      <div class="its02-devtree-device" style="opacity:.5;cursor:default">Display adapters</div>
-      <div class="its02-devtree-device" style="opacity:.5;cursor:default">Network adapters</div>
-    </div>
-    <div class="its02-devprops">
-      <div class="its02-devprops-tabs">
-        <button type="button" class="${its02State.devPropsTab !== 'driver' ? 'its02-tab-active' : ''}" data-its02-devtab="general">General</button>
-        <button type="button" class="${its02State.devPropsTab === 'driver' ? 'its02-tab-active' : ''}" data-its02-devtab="driver">Driver</button>
-      </div>
-      ${its02State.devPropsTab === 'driver' ? `
-        <div class="its02-devprops-field"><span>Driver Provider</span><span>Microsoft</span></div>
-        <div class="its02-devprops-field"><span>Driver Date</span><span>${esc(fixed ? ITS02_DEVICE.fixedDriverDate : ITS02_DEVICE.brokenDriverDate)}</span></div>
-        <div class="its02-devprops-field"><span>Driver Version</span><span>${fixed ? '10.0.19041.4412' : '10.0.19041.4601'}</span></div>
-      ` : `
-        <div class="its02-devprops-field"><span>Device type</span><span>Cameras</span></div>
-        <div class="its02-devprops-field"><span>Manufacturer</span><span>Generic</span></div>
-        <div class="its02-devprops-field"><span>Device status</span><span>${esc(fixed ? ITS02_DEVICE.fixedStatus : ITS02_DEVICE.brokenStatus)}</span></div>
-        ${fixed ? '' : `<div class="its02-devprops-error"><i class="ri-error-warning-line" aria-hidden="true"></i> ${esc(ITS02_DEVICE.errorCode)} — Windows stopped this device because it has reported problems.</div>`}
-      `}
-      <div class="its02-devprops-actions">
-        <button type="button" class="its02-action-primary" data-its02-devaction="rollback"><i class="ri-arrow-go-back-line" aria-hidden="true"></i> Roll Back Driver</button>
-        <button type="button" data-its02-devaction="update"><i class="ri-refresh-line" aria-hidden="true"></i> Update Driver</button>
-        <button type="button" data-its02-devaction="uninstall"><i class="ri-delete-bin-line" aria-hidden="true"></i> Uninstall Device</button>
-      </div>
-      ${its02State.devSelectedAction && its02State.devSelectedAction !== 'rollback' ? `<div class="its02-devprops-error" style="margin-top:10px"><i class="ri-information-line" aria-hidden="true"></i> ${its02State.devSelectedAction === 'update' ? 'Windows searches for a driver but finds none newer — this device already has the latest driver, so an update won’t help.' : 'Uninstalling removes the device, but Windows reinstalls the same problematic driver on reboot — the underlying conflict isn’t fixed.'}</div>` : ''}
-    </div>
-  </div>
-  <div class="its02-ticket-note">
-    <label for="its02-dev-note">Closing message to Devon R.</label>
-    <textarea id="its02-dev-note" data-its02-dev-note rows="2" placeholder="What did you find, what did you do, and is it fixed?">${esc(its02State.devNote)}</textarea>
-  </div>`;
-}
-
-function its02Lab23ScorePanel() {
-  if (its02State.devValidationError) {
-    return `<div class="its02-validation" id="its02-dev-feedback" role="alert" tabindex="-1"><i class="ri-information-line" aria-hidden="true"></i><div><strong>Complete the worksheet</strong><p>${esc(its02State.devValidationError)}</p></div></div>`;
-  }
-  if (!its02State.devAttempts || !its02State.devBreakdown) {
-    return `<div class="its02-score-empty" id="its02-dev-feedback" role="status">Diagnose the device, choose the correct fix, verify it, and write your closing message, then submit.</div>`;
-  }
-  const passed = its02State.devScore >= ITS02_PASSING_SCORE;
-  const b = its02State.devBreakdown;
-  return `<section class="its02-score ${passed ? 'its02-score-pass' : 'its02-score-remediate'}" id="its02-dev-feedback" tabindex="-1" aria-live="polite">
-    <div class="its02-score-heading"><div><p class="its02-kicker">Attempt ${its02State.devAttempts}</p><h3>${its02State.devScore}/100 — ${passed ? 'Fixed correctly' : 'Review and retry'}</h3></div><span>${its02State.devScore}</span></div>
-    <div class="its02-score-grid"><div><strong>${b.action}/60</strong><span>Correct action</span></div><div><strong>${b.note}/40</strong><span>Closing message</span></div></div>
-    <ul class="its02-feedback-list">${its02State.devFeedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
-  </section>`;
-}
-
-function its02Lab23() {
+function its02Lab34() {
+  const complete = its02State.consoleCompleted === true;
   return `<section class="its02-section its02-lab-section" id="its02-lab-2-3" aria-labelledby="its02-lab-2-3-title">
-    <div class="its02-section-heading"><span>3</span><div><p class="its02-kicker">Lab 2.3 · simulated · passing score ${ITS02_PASSING_SCORE}/100</p><h2 id="its02-lab-2-3-title">The Misbehaving Peripheral</h2></div></div>
-    <p class="its02-instruction">"My webcam stopped working after last night's Windows update. It worked fine yesterday." — Devon R.</p>
-    <div id="its02-lab23-dynamic">
-      ${its02DeviceManager()}
-      <div class="its02-worksheet-actions"><button class="its02-submit" type="button" data-its02-dev-submit><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score my fix</button></div>
-      ${its02Lab23ScorePanel()}
-    </div>
+    <div class="its02-section-heading"><span>3</span><div><p class="its02-kicker">Labs 2.3 &amp; 2.4 · guided walkthrough</p><h2 id="its02-lab-2-3-title">The Misbehaving Peripheral &amp; The Stuck Queue</h2></div></div>
+    <p class="its02-instruction">Work two real print-driver tickets end to end in the IT Service Desk simulator — a stuck label queue (HD-2106) and a crashing Print Spooler service (HD-2112) — tracing both back to the same driver crash and resolving them under change control. A coach spotlights each step for you.</p>
+    <a class="itsw-evidence-button" data-its02-console-launch href="${esc(SIM_ORIGIN)}?coach=hd-m02&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
+      <i class="${complete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${complete ? 'Review the walkthrough' : 'Start Labs 2.3 & 2.4 walkthrough'}
+    </a>
+    ${its02Lab34Status()}
   </section>`;
-}
-
-function its02RenderLab23(focusId) {
-  const root = document.getElementById('its02-lab23-dynamic');
-  if (!root) return;
-  root.innerHTML = `${its02DeviceManager()}
-    <div class="its02-worksheet-actions"><button class="its02-submit" type="button" data-its02-dev-submit><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score my fix</button></div>
-    ${its02Lab23ScorePanel()}`;
-  if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
-}
-
-function its02Lab23Score() {
-  const action = its02State.devSelectedAction === 'rollback' ? 60 : 0;
-  const note = its02State.devNote.trim();
-  const noteOk = note.length >= 20 && /(webcam|camera)/i.test(note) && /(driver|roll ?back|update)/i.test(note) && /(fix|resolv|working|restore)/i.test(note);
-  const noteScore = noteOk ? 40 : 0;
-  return {
-    score: action + noteScore,
-    breakdown: { action, note: noteScore },
-    feedback: [
-      action ? 'Correct action: Roll Back Driver undoes the driver installed by last night\'s update — the right fix, not a workaround.' : 'The correct action is Roll Back Driver — the problem started right after a driver update, so reverting it is the fix, not updating again or uninstalling.',
-      noteScore ? 'Closing message: clear and specific — names the device, the fix, and confirms it’s resolved.' : 'Closing message: write at least 20 characters naming the webcam, the driver rollback, and that it’s now working.',
-    ],
-  };
-}
-
-/* ---------- Lab 2.4 — Print Spooler / queue simulation ---------- */
-
-function its02PrintSim() {
-  const spoolerLabel = its02State.printSpoolerRunning ? 'Running' : 'Stuck';
-  return `<div class="its02-printsim">
-    <div class="its02-printsim-row">
-      <div class="its02-print-panel"><h4>Print Queue</h4>
-        <div class="its02-print-job ${its02State.printQueueCleared ? 'its02-job-clear' : 'its02-job-stuck'}"><span>${its02State.printQueueCleared ? 'Queue is empty' : 'Quarterly Report.pdf — Stuck'}</span>${its02State.printQueueCleared ? '' : `<button type="button" data-its02-print-action="cancel">Cancel Job</button>`}</div>
-      </div>
-      <div class="its02-print-panel"><h4>Services</h4>
-        <div class="its02-svc-row"><span>Print Spooler</span><span class="its02-svc-status ${its02State.printSpoolerRunning ? 'its02-svc-running' : 'its02-svc-stuck'}">${esc(spoolerLabel)}</span></div>
-        <div class="its02-printsim-actions" style="margin-top:10px"><button type="button" data-its02-print-action="restart">Restart Service</button></div>
-      </div>
-      <div class="its02-print-panel"><h4>Printer Menu</h4>
-        <div class="its02-toggle-row"><span>Use Printer Offline</span><button type="button" class="its02-toggle ${its02State.printOfflineFlag ? 'its02-toggle-on' : ''}" data-its02-print-toggle role="switch" aria-checked="${its02State.printOfflineFlag}" aria-label="Use Printer Offline"></button></div>
-      </div>
-    </div>
-    <div class="its02-printsim-actions"><button type="button" class="its02-action-primary" data-its02-print-action="test"><i class="ri-printer-line" aria-hidden="true"></i> Send Test Print</button></div>
-    ${its02State.printTestResult ? `<div class="its02-printsim-result ${its02State.printTestResult === 'success' ? 'its02-result-success' : 'its02-result-fail'}"><i class="${its02State.printTestResult === 'success' ? 'ri-checkbox-circle-line' : 'ri-error-warning-line'}" aria-hidden="true"></i> ${its02State.printTestResult === 'success' ? 'Test print completed successfully.' : 'Test print failed — check the queue, spooler, and offline setting.'}</div>` : ''}
-    <div class="its02-ticket-note">
-      <label for="its02-print-note">Ticket note to the front desk</label>
-      <textarea id="its02-print-note" data-its02-print-note rows="2" placeholder="What did you find, what did you do, and in what order?">${esc(its02State.printNote)}</textarea>
-    </div>
-  </div>`;
-}
-
-function its02Lab24ScorePanel() {
-  if (its02State.printValidationError) {
-    return `<div class="its02-validation" id="its02-print-feedback" role="alert" tabindex="-1"><i class="ri-information-line" aria-hidden="true"></i><div><strong>Complete the worksheet</strong><p>${esc(its02State.printValidationError)}</p></div></div>`;
-  }
-  if (!its02State.printAttempts || !its02State.printBreakdown) {
-    return `<div class="its02-score-empty" id="its02-print-feedback" role="status">Clear the job, restart the spooler, fix the offline flag, and verify with a test print — in that order — then submit.</div>`;
-  }
-  const passed = its02State.printScore >= ITS02_PASSING_SCORE;
-  const b = its02State.printBreakdown;
-  return `<section class="its02-score ${passed ? 'its02-score-pass' : 'its02-score-remediate'}" id="its02-print-feedback" tabindex="-1" aria-live="polite">
-    <div class="its02-score-heading"><div><p class="its02-kicker">Attempt ${its02State.printAttempts}</p><h3>${its02State.printScore}/100 — ${passed ? 'Resolved correctly' : 'Review and retry'}</h3></div><span>${its02State.printScore}</span></div>
-    <div class="its02-score-grid"><div><strong>${b.order}/30</strong><span>Correct order</span></div><div><strong>${b.offline}/20</strong><span>Offline flag fixed</span></div><div><strong>${b.test}/30</strong><span>Verified test print</span></div><div><strong>${b.note}/20</strong><span>Ticket note</span></div></div>
-    <ul class="its02-feedback-list">${its02State.printFeedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
-  </section>`;
-}
-
-function its02Lab24() {
-  return `<section class="its02-section its02-lab-section" id="its02-lab-2-4" aria-labelledby="its02-lab-2-4-title">
-    <div class="its02-section-heading"><span>4</span><div><p class="its02-kicker">Lab 2.4 · simulated · passing score ${ITS02_PASSING_SCORE}/100</p><h2 id="its02-lab-2-4-title">The Stuck Queue and the Offline Printer</h2></div></div>
-    <p class="its02-instruction">A front-desk user reports a stuck print job and an offline printer, with a guest waiting. Clear it, fix it, and verify — in the right order.</p>
-    <div id="its02-lab24-dynamic">
-      ${its02PrintSim()}
-      <div class="its02-worksheet-actions"><button class="its02-submit" type="button" data-its02-print-submit><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score my resolution</button></div>
-      ${its02Lab24ScorePanel()}
-      <div class="its02-worksheet-actions"><button class="its02-reset" type="button" data-its02-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset this module</button></div>
-      ${its02State.resetArmed ? `<div class="its02-reset-confirm" id="its02-reset-confirm" role="alert"><p><strong>Reset Module 02?</strong> All four labs — evidence, Device Manager, and print-spooler progress and scores — will be cleared.</p><div><button type="button" data-its02-reset-confirm>Yes, reset this module</button><button type="button" data-its02-reset-cancel>Cancel</button></div></div>` : ''}
-    </div>
-  </section>`;
-}
-
-function its02RenderLab24(focusId) {
-  const root = document.getElementById('its02-lab24-dynamic');
-  if (!root) return;
-  root.innerHTML = `${its02PrintSim()}
-    <div class="its02-worksheet-actions"><button class="its02-submit" type="button" data-its02-print-submit><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score my resolution</button></div>
-    ${its02Lab24ScorePanel()}
-    <div class="its02-worksheet-actions"><button class="its02-reset" type="button" data-its02-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset this module</button></div>
-    ${its02State.resetArmed ? `<div class="its02-reset-confirm" id="its02-reset-confirm" role="alert"><p><strong>Reset Module 02?</strong> All four labs — evidence, Device Manager, and print-spooler progress and scores — will be cleared.</p><div><button type="button" data-its02-reset-confirm>Yes, reset this module</button><button type="button" data-its02-reset-cancel>Cancel</button></div></div>` : ''}`;
-  if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
-}
-
-function its02Lab24Score() {
-  // its02State.printSpoolerRunning can only be true if a restart happened
-  // while the queue was already clear (see the 'restart' action handler),
-  // so checking it directly — rather than the first 'restart' in the log —
-  // correctly credits a student who restarts too early and then corrects
-  // course by canceling the job and restarting again.
-  const orderOk = its02State.printQueueCleared && its02State.printSpoolerRunning;
-  const order = orderOk ? 30 : 0;
-  const offline = !its02State.printOfflineFlag ? 20 : 0;
-  const test = its02State.printTestResult === 'success' ? 30 : 0;
-  const note = its02State.printNote.trim();
-  const noteOk = note.length >= 20 && /(spooler|queue|offline|print)/i.test(note) && /(clear|cancel|restart|fix|resolv)/i.test(note);
-  const noteScore = noteOk ? 20 : 0;
-  return {
-    score: order + offline + test + noteScore,
-    breakdown: { order, offline, test, note: noteScore },
-    feedback: [
-      order ? 'Order: Correct — the stuck job was cleared before the spooler was restarted.' : 'Order: Clear the stuck job first. Restarting the spooler while a job is still queued can hang it right back up.',
-      offline ? 'Offline flag: Corrected.' : 'Offline flag: Turn off "Use Printer Offline" — the printer itself is fine, this is a leftover Windows-side flag.',
-      test ? 'Verification: Test print succeeded.' : 'Verification: Send a test print once the queue is clear, the spooler is running, and the offline flag is off.',
-      noteScore ? 'Ticket note: Clear and specific about what was found and fixed.' : 'Ticket note: Write at least 20 characters describing the stuck queue, the spooler restart, and the offline fix.',
-    ],
-  };
 }
 
 function viewItsModuleTwo(user, program) {
   its02Load(user);
   const module = program.modules['its-02'];
+  const labsComplete = (its02State.lab21Complete ? 1 : 0) + (its02State.lab22Complete ? 1 : 0) + (its02State.consoleCompleted ? 2 : 0);
   return `<div class="its02-shell">
     <header class="its02-topbar"><a class="its02-brand" href="#/program/${esc(program.slug)}" aria-label="Back to IT Help Desk program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div class="its02-top-actions"><span class="its02-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Isolated simulation · fictional data</span><a class="its02-exit" href="#/program/${esc(program.slug)}"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header>
     <main class="its02-main">
-      <section class="its02-hero" aria-labelledby="its02-title"><div><p class="its02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its02-title">${esc(module.title)}</h1><p class="its02-lede">Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.</p></div><dl class="its02-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>4</dd></div></dl></section>
+      <section class="its02-hero" aria-labelledby="its02-title"><div><p class="its02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its02-title">${esc(module.title)}</h1><p class="its02-lede">Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.</p></div><dl class="its02-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>4</dd></div><div><dt>Labs complete</dt><dd id="its02-status">${labsComplete}/4</dd></div></dl></section>
 
       <section class="its02-section" id="its02-lessons" aria-labelledby="its02-lessons-title"><div class="its02-section-heading"><span>L</span><div><p class="its02-kicker">Learn</p><h2 id="its02-lessons-title">Four foundation lessons</h2></div></div><p class="its02-instruction">Open each lesson for the full walkthrough, then work its Try It Yourself exercise on your own lab VM.</p>${its02Lessons()}</section>
 
       ${its02Lab21()}
       ${its02Lab22()}
-      ${its02Lab23()}
-      ${its02Lab24()}
+      ${its02Lab34()}
     </main>
   </div>`;
+}
+
+function its02RenderHeroStatus() {
+  const status = document.getElementById('its02-status');
+  if (status) status.textContent = `${(its02State.lab21Complete ? 1 : 0) + (its02State.lab22Complete ? 1 : 0) + (its02State.consoleCompleted ? 2 : 0)}/4`;
 }
 
 function wireItsModuleTwoLab() {
@@ -447,140 +283,52 @@ function wireItsModuleTwoLab() {
       const file = itswReadEvidenceFile(evidenceInput);
       if (!file) return;
       const id = evidenceInput.dataset.itswEvidenceInput;
-      if (id === 'its02-ev-desktop') { its02State.evDesktop = file; its02CheckLab21(); its02Save(); its02RenderLab21(); }
-      else if (id === 'its02-ev-vmsettings') { its02State.evVmSettings = file; its02CheckLab21(); its02Save(); its02RenderLab21(); }
-      else if (id === 'its02-ev-snapshot') { its02State.evSnapshot = file; its02CheckLab22(); its02Save(); its02RenderLab22(); }
-      else if (id === 'its02-ev-ping1') { its02State.evPing1 = file; its02CheckLab22(); its02Save(); its02RenderLab22(); }
-      else if (id === 'its02-ev-ping2') { its02State.evPing2 = file; its02CheckLab22(); its02Save(); its02RenderLab22(); }
-    }
-  });
-
-  shell.addEventListener('input', (event) => {
-    if (event.target.matches('[data-its02-dev-note]')) {
-      its02State.devNote = event.target.value;
-      its02Save();
-      return;
-    }
-    if (event.target.matches('[data-its02-print-note]')) {
-      its02State.printNote = event.target.value;
-      its02Save();
+      if (id === 'its02-ev-desktop') { its02State.evDesktop = file; its02CheckLab21(); its02Save(); its02RenderLab21(); its02RenderHeroStatus(); }
+      else if (id === 'its02-ev-vmsettings') { its02State.evVmSettings = file; its02CheckLab21(); its02Save(); its02RenderLab21(); its02RenderHeroStatus(); }
+      else if (id === 'its02-ev-snapshot') { its02State.evSnapshot = file; its02CheckLab22(); its02Save(); its02RenderLab22(); its02RenderHeroStatus(); }
+      else if (id === 'its02-ev-ping1') { its02State.evPing1 = file; its02CheckLab22(); its02Save(); its02RenderLab22(); its02RenderHeroStatus(); }
+      else if (id === 'its02-ev-ping2') { its02State.evPing2 = file; its02CheckLab22(); its02Save(); its02RenderLab22(); its02RenderHeroStatus(); }
     }
   });
 
   shell.addEventListener('click', (event) => {
-    const devTab = event.target.closest('[data-its02-devtab]');
-    if (devTab) {
-      its02State.devPropsTab = devTab.dataset.its02Devtab;
+    if (event.target.closest('[data-its02-console-launch]')) {
+      its02State.consoleStarted = true;
       its02Save();
-      its02RenderLab23();
-      return;
-    }
-    const devAction = event.target.closest('[data-its02-devaction]');
-    if (devAction) {
-      its02State.devSelectedAction = devAction.dataset.its02Devaction;
-      its02State.devValidationError = '';
-      its02Save();
-      its02RenderLab23();
-      return;
-    }
-    if (event.target.closest('[data-its02-dev-submit]')) {
-      const note = document.getElementById('its02-dev-note');
-      if (note) its02State.devNote = note.value;
-      if (!its02State.devSelectedAction || !its02State.devNote.trim()) {
-        its02State.devValidationError = 'Choose an action and write your closing message before submitting.';
-        its02Save();
-        its02RenderLab23('its02-dev-feedback');
-        return;
-      }
-      const result = its02Lab23Score();
-      its02State.devAttempts += 1;
-      its02State.devScore = result.score;
-      its02State.devBreakdown = result.breakdown;
-      its02State.devFeedback = result.feedback;
-      its02State.devValidationError = '';
-      const passed = result.score >= ITS02_PASSING_SCORE;
-      if (typeof recordLabAttempt === 'function') recordLabAttempt(its02User, ITS02_LAB23_KEY, { state: passed ? 'complete' : 'in_progress', score: result.score, result: { breakdown: result.breakdown, attempts: its02State.devAttempts } });
-      if (passed) {
-        its02State.devCompleted = true;
-        if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its02User, 'it-support', 'its-02', ITS02_LAB23_KEY);
-      }
-      its02Save();
-      its02RenderLab23('its02-dev-feedback');
-      return;
-    }
-
-    const printAction = event.target.closest('[data-its02-print-action]');
-    if (printAction) {
-      const action = printAction.dataset.its02PrintAction;
-      its02State.printOrder.push(action);
-      if (action === 'cancel') {
-        its02State.printQueueCleared = true;
-      } else if (action === 'restart') {
-        its02State.printSpoolerRunning = its02State.printQueueCleared;
-      } else if (action === 'test') {
-        its02State.printTestResult = (its02State.printQueueCleared && its02State.printSpoolerRunning && !its02State.printOfflineFlag) ? 'success' : 'fail';
-      }
-      its02State.printValidationError = '';
-      its02Save();
-      its02RenderLab24();
-      return;
-    }
-    if (event.target.closest('[data-its02-print-toggle]')) {
-      its02State.printOfflineFlag = !its02State.printOfflineFlag;
-      its02State.printOrder.push('toggle-offline');
-      its02Save();
-      its02RenderLab24();
-      return;
-    }
-    if (event.target.closest('[data-its02-print-submit]')) {
-      const note = document.getElementById('its02-print-note');
-      if (note) its02State.printNote = note.value;
-      if (!its02State.printNote.trim()) {
-        its02State.printValidationError = 'Write a short ticket note describing what you found and fixed before submitting.';
-        its02Save();
-        its02RenderLab24('its02-print-feedback');
-        return;
-      }
-      const result = its02Lab24Score();
-      its02State.printAttempts += 1;
-      its02State.printScore = result.score;
-      its02State.printBreakdown = result.breakdown;
-      its02State.printFeedback = result.feedback;
-      its02State.printValidationError = '';
-      const passed = result.score >= ITS02_PASSING_SCORE;
-      if (typeof recordLabAttempt === 'function') recordLabAttempt(its02User, ITS02_LAB24_KEY, { state: passed ? 'complete' : 'in_progress', score: result.score, result: { breakdown: result.breakdown, attempts: its02State.printAttempts } });
-      if (passed) {
-        its02State.printCompleted = true;
-        if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its02User, 'it-support', 'its-02', ITS02_LAB24_KEY);
-      }
-      its02Save();
-      its02RenderLab24('its02-print-feedback');
-      return;
-    }
-
-    if (event.target.closest('[data-its02-reset]')) {
-      its02State.resetArmed = true;
-      its02Save();
-      its02RenderLab24('its02-reset-confirm');
-      return;
-    }
-    if (event.target.closest('[data-its02-reset-cancel]')) {
-      its02State.resetArmed = false;
-      its02Save();
-      its02RenderLab24();
-      return;
-    }
-    if (event.target.closest('[data-its02-reset-confirm]')) {
-      its02State = LabRuntime.reset(ITS02_LAB_ID, its02User, ITS02_DEFAULT_STATE);
-      if (typeof markModuleLabComplete === 'function') {
-        [ITS02_LAB21_KEY, ITS02_LAB22_KEY, ITS02_LAB23_KEY, ITS02_LAB24_KEY].forEach((key) => markModuleLabComplete(its02User, 'it-support', 'its-02', key, false));
-      }
-      its02RenderLab21();
-      its02RenderLab22();
-      its02RenderLab23('its02-lessons-title');
-      its02RenderLab24();
     }
   });
 }
 
-registerModuleLab({ program: 'it-support', moduleNumber: 2, moduleKey: 'its-02', view: viewItsModuleTwo, wire: wireItsModuleTwoLab });
+async function its02ReceiveCoachCompletion(event) {
+  if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== 'hd-m02') return;
+  if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+  const user = await currentUser();
+  if (!user) return;
+
+  const saved = LabRuntime.load(ITS02_LAB_ID, user, ITS02_DEFAULT_STATE);
+  saved.consoleStarted = true;
+  saved.consoleCompleted = true;
+  LabRuntime.save(ITS02_LAB_ID, user, saved);
+  its02State = saved;
+  its02User = user;
+
+  if (typeof markModuleLabComplete === 'function') {
+    markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB23_KEY);
+    markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB24_KEY);
+  }
+  if (typeof recordLabAttempt === 'function') {
+    recordLabAttempt(user, ITS02_LAB23_KEY, { state: 'complete', result: { source: 'mnt-coach-complete' } });
+    recordLabAttempt(user, ITS02_LAB24_KEY, { state: 'complete', result: { source: 'mnt-coach-complete' } });
+  }
+
+  const mounted = Boolean(document.querySelector('.its02-shell'));
+  if (!mounted) return;
+  render();
+  const section = document.getElementById('its02-lab-2-3');
+  if (section) section.scrollIntoView({ block: 'start' });
+}
+
+registerModuleLab({
+  program: 'it-support', moduleNumber: 2, moduleKey: 'its-02',
+  view: viewItsModuleTwo, wire: wireItsModuleTwoLab, onMessage: its02ReceiveCoachCompletion,
+});

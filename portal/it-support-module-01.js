@@ -1,7 +1,11 @@
 /* Module 01 — IT Help Desk & Career Accelerator ('it-support').
  * Fictional org, tickets, and policy text; no real systems are involved.
- * Lesson content sourced from Module_1_Student_Content.docx; lab design
- * from MNT_HelpDesk_Module1_Lab_Specifications.docx.
+ * Lesson content sourced from Module_1_Student_Content.docx. Lab 1.1
+ * (evidence-based, real systems) follows MNT_HelpDesk_Module1_Lab_
+ * Specifications.docx directly. Lab 1.2 is a guided walkthrough of the
+ * real 'hd-m01' ticket in the IT Service Desk simulator (ui/helpdesk.js +
+ * ui/coach.js), the same coach engine SOC's Module 1 already uses — not a
+ * portal-embedded widget.
  */
 
 const ITS01_LESSONS = [
@@ -50,7 +54,7 @@ const ITS01_LESSONS = [
       '“It says my account is locked out, too many failed attempts.” Name the category, write your first question, and decide: resolve or escalate?',
       '“My laptop has no internet, but my phone on Wi-Fi works fine.” Name the category, write your first question, and decide: resolve or escalate?',
     ],
-    comingUp: 'Work through a full simulated queue of five tickets, applying everything from this lesson for real.',
+    comingUp: 'Work Jordan Bell’s account-lockout ticket end to end in the IT Service Desk simulator, applying everything from this lesson for real.',
   },
 ];
 
@@ -62,40 +66,11 @@ const ITS01_AUP_PARAGRAPHS = [
 
 const ITS01_LAB1_ID = 'its01-lms-validation-v1';
 const ITS01_LAB1_KEY = 'lab-its-01-lms-validation';
-const ITS01_LAB2_ID = 'its01-ticket-triage-v1';
 const ITS01_LAB2_KEY = 'lab-its-01-ticket-triage';
-const ITS01_PASSING_SCORE = 70;
-
-const ITS01_CATEGORY_OPTIONS = [
-  { value: 'endpoint', label: 'Endpoint / Peripheral' },
-  { value: 'identity', label: 'Identity / Account' },
-  { value: 'network', label: 'Network' },
-  { value: 'hardware', label: 'Hardware Failure' },
-  { value: 'server', label: 'Server (Outside L1 Scope)' },
-];
-
-const ITS01_TICKETS = [
-  { id: 'HD-1042', from: 'James · Receiving', tag: 'New', message: 'Hi, this is James in Receiving. My scanner gun won’t connect to the PC anymore, it was working fine Friday.',
-    category: 'endpoint', decision: 'resolve', firstStepPattern: /cable|usb|bluetooth|pair|reconnect|reseat|driver|restart/i, reasoningPattern: /peripheral|connect|scope|l1|basic|driver|cable/i,
-    explain: 'A disconnected peripheral is a routine Endpoint ticket: reseat/re-pair the connection first, and it’s squarely within L1 scope to resolve.' },
-  { id: 'HD-1043', from: 'Priya · HR', tag: 'Urgent', message: 'This is Priya from HR. I’m locked out, too many failed attempts. I need to run payroll today.',
-    category: 'identity', decision: 'resolve', firstStepPattern: /verify|identity|confirm|unlock|reset|lockout/i, reasoningPattern: /identity|unlock|verify|l1|scope|urgent|payroll/i,
-    explain: 'An account lockout is an Identity ticket — verify the requester, then unlock. This is core L1 work, prioritized for the payroll deadline.' },
-  { id: 'HD-1044', from: 'Front Desk', tag: 'Multiple users', message: 'Front desk here — guest Wi-Fi’s been down 20 minutes, three guests have complained.',
-    category: 'network', decision: 'resolve', firstStepPattern: /access point|router|restart|reboot|wireless|wifi|signal/i, reasoningPattern: /basic|connectivity|restart|l1|scope|guest/i,
-    explain: 'A guest Wi-Fi outage is a Network ticket — start with a basic access-point restart, which is within L1 scope before any deeper investigation.' },
-  { id: 'HD-1045', from: 'Unknown Employee', tag: 'Ambiguous', message: 'Can someone look at my computer, it’s been slow and now it’s making a weird clicking noise.',
-    category: 'hardware', decision: 'escalate', firstStepPattern: /back ?up|stop using|save|data|shut ?down|power off/i, reasoningPattern: /clicking|hard drive|disk|failure|hardware|physical|replace/i,
-    explain: 'A clicking noise is a classic failing-hard-drive signal, not a software fix. Protect the data first, then escalate for hardware replacement — outside L1 scope.' },
-  { id: 'HD-1046', from: 'Department Lead', tag: 'Server', message: 'Our department file server, DEPT-FS03, just went dark. Nobody can reach the shared drive.',
-    category: 'server', decision: 'escalate', firstStepPattern: /confirm|scope|impact|multiple users|check|verify/i, reasoningPattern: /server|outside|scope|l1|infrastructure|tier ?2|tier ?3|escalat/i,
-    explain: 'A dark department file server affecting every user is server infrastructure — explicitly outside Tier 1 scope. Confirm impact, then escalate immediately.' },
-];
 
 const ITS01_DEFAULT_STATE = {
   evidence1: null, evidence2: null, aupScrolled: false, aupAcknowledged: false, lab1Complete: false,
-  activeTicket: ITS01_TICKETS[0].id, ticketResponses: {}, attempts: 0, breakdown: null, feedback: [],
-  validationError: '', resetArmed: false,
+  consoleStarted: false, consoleCompleted: false,
 };
 
 let its01State = null;
@@ -104,8 +79,15 @@ let its01User = null;
 function its01Load(user) {
   its01User = user;
   its01State = LabRuntime.load(ITS01_LAB1_ID, user, ITS01_DEFAULT_STATE);
-  if (!its01State.ticketResponses || typeof its01State.ticketResponses !== 'object') its01State.ticketResponses = {};
-  if (!ITS01_TICKETS.some((t) => t.id === its01State.activeTicket)) its01State.activeTicket = ITS01_TICKETS[0].id;
+  // Same-tab fallback for the coach's completion signal — postMessage is the
+  // primary channel (see its01ReceiveCoachCompletion) but doesn't fire if the
+  // student closed and reopened the sim tab without window.opener intact.
+  if (new URLSearchParams(location.search).get('coachComplete') === 'hd-m01') {
+    its01State.consoleStarted = true;
+    its01State.consoleCompleted = true;
+    LabRuntime.save(ITS01_LAB1_ID, user, its01State);
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-01');
   return its01State;
 }
@@ -165,54 +147,31 @@ function its01AupAck() {
   </div>`;
 }
 
-function its01TicketQueue() {
-  return itswTicketQueue({
-    tickets: ITS01_TICKETS, activeId: its01State.activeTicket, responses: its01State.ticketResponses,
-    categoryOptions: ITS01_CATEGORY_OPTIONS,
-  });
-}
-
-function its01Lab2ScorePanel() {
-  if (its01State.validationError) {
-    return `<div class="its01-validation" id="its01-feedback" role="alert" tabindex="-1"><i class="ri-information-line" aria-hidden="true"></i><div><strong>Complete the worksheet</strong><p>${esc(its01State.validationError)}</p></div></div>`;
-  }
-  if (!its01State.attempts || !its01State.breakdown) {
-    return `<div class="its01-score-empty" id="its01-feedback" role="status">Your answers save automatically as you move between tickets. Submit once all five tickets have a category, first step, decision, and reasoning.</div>`;
-  }
-  const passed = its01State.score >= ITS01_PASSING_SCORE;
-  const b = its01State.breakdown;
-  return `<section class="its01-score ${passed ? 'its01-score-pass' : 'its01-score-remediate'}" id="its01-feedback" tabindex="-1" aria-live="polite">
-    <div class="its01-score-heading"><div><p class="its01-kicker">Attempt ${its01State.attempts} · best ${its01State.bestScore}/100</p><h3>${its01State.score}/100 — ${passed ? 'Queue triaged correctly' : 'Review the feedback and retry'}</h3></div><span>${its01State.score}</span></div>
-    <div class="its01-score-grid" aria-label="Score breakdown">
-      <div><strong>${b.category}/25</strong><span>Category accuracy</span></div>
-      <div><strong>${b.firstStep}/25</strong><span>First-step reasoning</span></div>
-      <div><strong>${b.decision}/30</strong><span>Resolve/escalate decision</span></div>
-      <div><strong>${b.reasoning}/20</strong><span>Justification quality</span></div>
-    </div>
-    <ul class="its01-feedback-list">${its01State.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
-  </section>`;
+function its01Lab2Status() {
+  const done = its01State.consoleCompleted;
+  return `<div class="its01-lab-status ${done ? 'its01-status-pass' : 'its01-status-pending'}"><i class="${done ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${done ? 'Lab 1.2 complete — HD-2101 resolved in the guided walkthrough.' : 'Complete the guided walkthrough in the simulator to finish this lab.'}</span></div>`;
 }
 
 function its01Lab2() {
+  const complete = its01State.consoleCompleted === true;
   return `<section class="its01-section its01-lab-section" id="its01-lab-1-2" aria-labelledby="its01-lab-1-2-title">
-    <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Lab 1.2 · simulated · 5 tickets · passing score ${ITS01_PASSING_SCORE}/100</p><h2 id="its01-lab-1-2-title">A Day in the Life of an L1 Technician</h2></div></div>
-    <p class="its01-instruction">Categorize each ticket, state a concrete first diagnostic step, and make a resolve-or-escalate call with reasoning — using the five-step mindset from Lesson 1.2.</p>
-    <div class="its01-worksheet" id="its01-lab2-dynamic">
-      ${its01TicketQueue()}
-      <div class="its01-worksheet-actions"><button class="its01-submit" type="button" data-its01-submit><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score my triage</button><button class="its01-reset" type="button" data-its01-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset this lab only</button></div>
-      ${its01State.resetArmed ? `<div class="its01-reset-confirm" id="its01-reset-confirm" role="alert"><p><strong>Reset Module 01?</strong> Both labs, evidence, AUP acknowledgment, ticket answers, and score will be cleared.</p><div><button type="button" data-its01-reset-confirm>Yes, reset this module</button><button type="button" data-its01-reset-cancel>Cancel</button></div></div>` : ''}
-      ${its01Lab2ScorePanel()}
-    </div>
+    <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Lab 1.2 · guided walkthrough</p><h2 id="its01-lab-1-2-title">A Day in the Life of an L1 Technician</h2></div></div>
+    <p class="its01-instruction">Work Jordan Bell’s account-lockout ticket (HD-2101) end to end in the IT Service Desk simulator: read the evidence, work the troubleshooting path, diagnose against the log rather than the obvious guess, document it, and resolve it. A coach spotlights each step for you.</p>
+    <a class="itsw-evidence-button" data-its01-console-launch href="${esc(SIM_ORIGIN)}?coach=hd-m01&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
+      <i class="${complete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${complete ? 'Review the walkthrough' : 'Start Lab 1.2 walkthrough'}
+    </a>
+    ${its01Lab2Status()}
   </section>`;
 }
 
 function viewItsModuleOne(user, program) {
   its01Load(user);
   const module = program.modules['its-01'];
+  const labsComplete = (its01State.lab1Complete ? 1 : 0) + (its01State.consoleCompleted ? 1 : 0);
   return `<div class="its01-shell">
     <header class="its01-topbar"><a class="its01-brand" href="#/program/${esc(program.slug)}" aria-label="Back to IT Help Desk program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div class="its01-top-actions"><span class="its01-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Isolated simulation · fictional data</span><a class="its01-exit" href="#/program/${esc(program.slug)}"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header>
     <main class="its01-main">
-      <section class="its01-hero" aria-labelledby="its01-title"><div><p class="its01-kicker">Module 01 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its01-title">${esc(module.title)}</h1><p class="its01-lede">Get set up in the LMS and your lab environment, then build the five-step troubleshooting mindset you'll use in every module that follows.</p></div><dl class="its01-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>2</dd></div><div><dt>Lab 1.2 status</dt><dd id="its01-status">${its01State.completed ? 'Complete' : its01State.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="its01-hero" aria-labelledby="its01-title"><div><p class="its01-kicker">Module 01 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its01-title">${esc(module.title)}</h1><p class="its01-lede">Get set up in the LMS and your lab environment, then build the five-step troubleshooting mindset you'll use in every module that follows.</p></div><dl class="its01-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>2</dd></div><div><dt>Labs complete</dt><dd id="its01-status">${labsComplete}/2</dd></div></dl></section>
 
       <section class="its01-section" id="its01-lessons" aria-labelledby="its01-lessons-title"><div class="its01-section-heading"><span>L</span><div><p class="its01-kicker">Learn</p><h2 id="its01-lessons-title">Two foundation lessons</h2></div></div><p class="its01-instruction">Open each lesson for the full walkthrough, then work its Try It Yourself exercise.</p>${its01Lessons()}</section>
 
@@ -234,18 +193,12 @@ function its01RenderLab1() {
   if (statusEl) statusEl.outerHTML = its01Lab1Status();
   const ackWrap = section.querySelector('.its01-aup-ack-wrap');
   if (ackWrap) ackWrap.outerHTML = its01AupAck();
+  its01RenderHeroStatus();
 }
 
-function its01RenderLab2(focusId) {
-  const root = document.getElementById('its01-lab2-dynamic');
-  if (!root) return;
-  root.innerHTML = `${its01TicketQueue()}
-    <div class="its01-worksheet-actions"><button class="its01-submit" type="button" data-its01-submit><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score my triage</button><button class="its01-reset" type="button" data-its01-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset this lab only</button></div>
-    ${its01State.resetArmed ? `<div class="its01-reset-confirm" id="its01-reset-confirm" role="alert"><p><strong>Reset Module 01?</strong> Both labs, evidence, AUP acknowledgment, ticket answers, and score will be cleared.</p><div><button type="button" data-its01-reset-confirm>Yes, reset this module</button><button type="button" data-its01-reset-cancel>Cancel</button></div></div>` : ''}
-    ${its01Lab2ScorePanel()}`;
+function its01RenderHeroStatus() {
   const status = document.getElementById('its01-status');
-  if (status) status.textContent = its01State.completed ? 'Complete' : its01State.attempts ? 'In progress' : 'Not started';
-  if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
+  if (status) status.textContent = `${(its01State.lab1Complete ? 1 : 0) + (its01State.consoleCompleted ? 1 : 0)}/2`;
 }
 
 function its01CheckLab1Complete() {
@@ -255,28 +208,6 @@ function its01CheckLab1Complete() {
     if (typeof recordLabAttempt === 'function') recordLabAttempt(its01User, ITS01_LAB1_KEY, { state: 'complete', score: 100, result: { evidence: 2, aup: true } });
     if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its01User, 'it-support', 'its-01', ITS01_LAB1_KEY);
   }
-}
-
-function its01Score() {
-  let category = 0; let firstStep = 0; let decision = 0; let reasoning = 0;
-  const feedback = [];
-  ITS01_TICKETS.forEach((ticket) => {
-    const response = its01State.ticketResponses[ticket.id] || {};
-    const catOk = response.category === ticket.category;
-    const stepOk = ticket.firstStepPattern.test((response.firstStep || '').trim());
-    const decOk = response.decision === ticket.decision;
-    const reasonOk = ticket.reasoningPattern.test((response.reasoning || '').trim()) && (response.reasoning || '').trim().length >= 15;
-    if (catOk) category += 5;
-    if (stepOk) firstStep += 5;
-    if (decOk) decision += 6;
-    if (reasonOk) reasoning += 4;
-    if (catOk && stepOk && decOk && reasonOk) {
-      feedback.push(`${ticket.id}: Correct. ${ticket.explain}`);
-    } else {
-      feedback.push(`${ticket.id}: ${ticket.explain}`);
-    }
-  });
-  return { score: category + firstStep + decision + reasoning, breakdown: { category, firstStep, decision, reasoning }, feedback };
 }
 
 function wireItsModuleOneLab() {
@@ -302,32 +233,7 @@ function wireItsModuleOneLab() {
       its01CheckLab1Complete();
       its01Save();
       its01RenderLab1();
-      return;
     }
-
-    const field = event.target.closest('[data-itsw-field]');
-    if (field) {
-      const form = field.closest('[data-itsw-ticket-form]');
-      const ticketId = form && form.dataset.itswTicketForm;
-      if (!ticketId) return;
-      const key = field.dataset.itswField;
-      its01State.ticketResponses[ticketId] = { ...(its01State.ticketResponses[ticketId] || {}), [key]: field.value };
-      its01State.validationError = '';
-      its01State.resetArmed = false;
-      its01Save();
-    }
-  });
-
-  shell.addEventListener('input', (event) => {
-    const field = event.target.closest('[data-itsw-field]');
-    if (!field || field.tagName !== 'TEXTAREA') return;
-    const form = field.closest('[data-itsw-ticket-form]');
-    const ticketId = form && form.dataset.itswTicketForm;
-    if (!ticketId) return;
-    const key = field.dataset.itswField;
-    its01State.ticketResponses[ticketId] = { ...(its01State.ticketResponses[ticketId] || {}), [key]: field.value };
-    its01State.resetArmed = false;
-    its01Save();
   });
 
   shell.addEventListener('scroll', (event) => {
@@ -341,69 +247,39 @@ function wireItsModuleOneLab() {
   }, true);
 
   shell.addEventListener('click', (event) => {
-    const ticketButton = event.target.closest('[data-itsw-ticket-select]');
-    if (ticketButton) {
-      its01State.activeTicket = ticketButton.dataset.itswTicketSelect;
-      its01State.resetArmed = false;
+    if (event.target.closest('[data-its01-console-launch]')) {
+      its01State.consoleStarted = true;
       its01Save();
-      its01RenderLab2();
-      return;
-    }
-
-    if (event.target.closest('[data-its01-reset]')) {
-      its01State.resetArmed = true;
-      its01Save();
-      its01RenderLab2('its01-reset-confirm');
-      return;
-    }
-    if (event.target.closest('[data-its01-reset-cancel]')) {
-      its01State.resetArmed = false;
-      its01Save();
-      its01RenderLab2();
-      return;
-    }
-    if (event.target.closest('[data-its01-reset-confirm]')) {
-      its01State = LabRuntime.reset(ITS01_LAB1_ID, its01User, ITS01_DEFAULT_STATE);
-      if (typeof markModuleLabComplete === 'function') {
-        markModuleLabComplete(its01User, 'it-support', 'its-01', ITS01_LAB1_KEY, false);
-        markModuleLabComplete(its01User, 'it-support', 'its-01', ITS01_LAB2_KEY, false);
-      }
-      its01RenderLab1();
-      its01RenderLab2('its01-lessons-title');
-      return;
-    }
-
-    if (event.target.closest('[data-its01-submit]')) {
-      const missing = ITS01_TICKETS.some((ticket) => {
-        const r = its01State.ticketResponses[ticket.id] || {};
-        return !r.category || !r.decision || !(r.firstStep || '').trim() || !(r.reasoning || '').trim();
-      });
-      if (missing) {
-        its01State.validationError = 'Every ticket needs a category, first step, decision, and reasoning before you submit.';
-        its01Save();
-        its01RenderLab2('its01-feedback');
-        return;
-      }
-      const result = its01Score();
-      its01State.attempts += 1;
-      its01State.score = result.score;
-      its01State.bestScore = Math.max(its01State.bestScore || 0, result.score);
-      its01State.breakdown = result.breakdown;
-      its01State.feedback = result.feedback;
-      its01State.validationError = '';
-      its01State.resetArmed = false;
-      const passed = result.score >= ITS01_PASSING_SCORE;
-      if (typeof recordLabAttempt === 'function') {
-        recordLabAttempt(its01User, ITS01_LAB2_KEY, { state: passed ? 'complete' : 'in_progress', score: result.score, result: { breakdown: result.breakdown, attempts: its01State.attempts } });
-      }
-      if (passed) {
-        its01State.completed = true;
-        if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its01User, 'it-support', 'its-01', ITS01_LAB2_KEY);
-      }
-      its01Save();
-      its01RenderLab2('its01-feedback');
     }
   });
 }
 
-registerModuleLab({ program: 'it-support', moduleNumber: 1, moduleKey: 'its-01', view: viewItsModuleOne, wire: wireItsModuleOneLab });
+async function its01ReceiveCoachCompletion(event) {
+  if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== 'hd-m01') return;
+  if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+  const user = await currentUser();
+  if (!user) return;
+
+  const saved = LabRuntime.load(ITS01_LAB1_ID, user, ITS01_DEFAULT_STATE);
+  saved.consoleStarted = true;
+  saved.consoleCompleted = true;
+  LabRuntime.save(ITS01_LAB1_ID, user, saved);
+  its01State = saved;
+  its01User = user;
+
+  if (typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'it-support', 'its-01', ITS01_LAB2_KEY);
+  if (typeof recordLabAttempt === 'function') {
+    recordLabAttempt(user, ITS01_LAB2_KEY, { state: 'complete', result: { source: 'mnt-coach-complete' } });
+  }
+
+  const mounted = Boolean(document.querySelector('.its01-shell'));
+  if (!mounted) return;
+  render();
+  const section = document.getElementById('its01-lab-1-2');
+  if (section) section.scrollIntoView({ block: 'start' });
+}
+
+registerModuleLab({
+  program: 'it-support', moduleNumber: 1, moduleKey: 'its-01',
+  view: viewItsModuleOne, wire: wireItsModuleOneLab, onMessage: its01ReceiveCoachCompletion,
+});
