@@ -106,7 +106,7 @@ jobs:
           required_copy = [
               'Private networking details',
               'never auto-exported into the showcase portfolio',
-              'showcase preview remains sanitized'
+              'showcase portfolio remains sanitized'
           ]
           html = Path('portal/m360/week3.html').read_text()
           for phrase in required_copy:
