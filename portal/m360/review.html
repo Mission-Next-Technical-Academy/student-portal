@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="../m360-preview.css?v=20260903b" />
   <link rel="stylesheet" href="../m360-demo-refinements.css?v=20260903" />
   <link rel="stylesheet" href="review.css?v=20260904" />
-  <link rel="stylesheet" href="review-attendance.css?v=20260904" />
+  <link rel="stylesheet" href="review-attendance.css?v=20260904b" />
 </head>
 <body>
   <div class="shell">
@@ -35,8 +35,8 @@
         <div>
           <div class="eyebrow">Admin reviewer workspace</div>
           <img class="signal-line" src="assets/Signal_Line.svg" alt="" aria-hidden="true" />
-          <h1>M360 101 <span>Review Queue</span></h1>
-          <p>Review immutable student submissions, score the approved rubric, return work for revision, or mark it Meets Standard. Technical-course records are outside this workspace.</p>
+          <h1>M360 101 <span>Administration</span></h1>
+          <p>Review submitted student evidence and verify the external attendance requirement used for final M360 completion. Technical-course records are outside this workspace.</p>
         </div>
         <div class="review-hero-stat">
           <strong id="queueCount">—</strong>
@@ -48,7 +48,7 @@
 
       <section class="review-toolbar" aria-label="M360 review controls">
         <div>
-          <div class="mini-kicker">Current queue</div>
+          <div class="mini-kicker">Review Queue</div>
           <h2>Submitted M360 evidence</h2>
         </div>
         <button id="refreshQueueBtn" class="btn btn-secondary" type="button">Refresh queue</button>
@@ -63,9 +63,13 @@
           <div>
             <div class="mini-kicker">Course completion bridge</div>
             <h2 id="attendanceAdminTitle">M360 Attendance Verification</h2>
-            <p>Attendance detail stays outside the LMS. Use this panel only to confirm whether the external M360 attendance requirement has been satisfied. Do not enter session minutes or clock hours.</p>
+            <p>Attendance detail stays outside the LMS. Select whether each student’s external M360 attendance requirement has been verified as satisfied, then save all changed rows at once. Do not enter session minutes or clock hours.</p>
           </div>
-          <button id="refreshAttendanceBtn" class="btn btn-secondary" type="button">Refresh attendance</button>
+          <div class="attendance-admin-actions">
+            <button id="refreshAttendanceBtn" class="btn btn-secondary" type="button">Refresh attendance</button>
+            <button id="saveAttendanceChangesBtn" class="btn btn-primary" type="button" disabled>Save changed attendance</button>
+            <span id="attendanceSaveStatus" class="attendance-save-status" aria-live="polite"></span>
+          </div>
         </div>
         <div id="attendanceRoster" class="attendance-roster" aria-live="polite">
           <div class="empty-state">Loading eligible M360 students…</div>
@@ -78,6 +82,6 @@
   <script src="../supabase-config.js?v=20260828"></script>
   <script src="m360-data.js?v=20260904"></script>
   <script src="review.js?v=20260904"></script>
-  <script src="review-attendance.js?v=20260904"></script>
+  <script src="review-attendance.js?v=20260904b"></script>
 </body>
 </html>
