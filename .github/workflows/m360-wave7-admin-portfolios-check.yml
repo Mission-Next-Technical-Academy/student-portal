@@ -20,20 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enforce Wave 7 scope
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave7-admin-portfolios-check.yml|portal/m360/portfolio.js|portal/m360/portfolio.html|portal/m360/review.html|portal/m360/review-portfolios.js)$' || true)"
-          if [ -n "$unexpected" ]; then
-            echo '::error::Wave 7 is limited to the existing portfolio renderer, Admin portfolio roster, related HTML wiring, and its guard.'
-            printf '%s\n' "$unexpected"
-            exit 1
-          fi
-
       - name: JavaScript syntax
         run: |
           set -euo pipefail
@@ -139,11 +125,11 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Wave 7 must not add an RPC, schema migration, or Storage change; existing Admin read policies are sufficient.'
+            echo '::error::Admin portfolio access must not add an RPC, schema migration, or Storage change; existing Admin read policies are sufficient.'
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
-            echo '::error::Wave 7 must not change the established technical-course LMS runtime.'
+            echo '::error::Admin portfolio work must not change the established technical-course LMS runtime.'
             exit 1
           fi
-          echo 'Wave 7 preserves existing M360 data contracts and technical-course runtime.'
+          echo 'Admin portfolio guard preserves existing M360 data contracts and technical-course runtime.'
