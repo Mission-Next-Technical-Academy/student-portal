@@ -24,6 +24,20 @@
     return candidate && candidate.classList.contains('grid') ? candidate : null;
   }
 
+  function suppressLegacyCareerReadiness() {
+    // M360 is a separate shared course. Eligible M360 students should not see
+    // the legacy career-readiness/M360 companion section nested inside their
+    // technical program page. Removing only this rendered DOM does not alter
+    // technical PROGRAMS data, progress, labs, grades, hours, or persistence.
+    const legacySection = document.getElementById('sec-career-readiness');
+    if (legacySection) legacySection.remove();
+
+    document.querySelectorAll('#app a[href="#sec-career-readiness"]').forEach(link => {
+      const label = link.textContent.trim();
+      if (label === 'M360 Companion' || label === 'Career Readiness') link.remove();
+    });
+  }
+
   function entryMarkup() {
     return `
       <section id="${ENTRY_ID}" aria-labelledby="m360-course-entry-title" class="mb-8 overflow-hidden rounded-2xl border border-[#1e3a5f]/15 bg-white shadow-sm">
@@ -47,15 +61,18 @@
     if (renderPending) return;
     renderPending = true;
     try {
-      const grid = findProgramGrid();
-      if (!grid) return;
-      if (document.getElementById(ENTRY_ID)) return;
       if (typeof currentUser !== 'function') return;
 
       const user = await currentUser();
       if (!user || user.isAdmin) return;
       if (!ELIGIBLE_TRACKS.has(user.trackCode)) return;
       if (!technicalEnrollmentActive(user)) return;
+
+      suppressLegacyCareerReadiness();
+
+      const grid = findProgramGrid();
+      if (!grid) return;
+      if (document.getElementById(ENTRY_ID)) return;
 
       grid.insertAdjacentHTML('beforebegin', entryMarkup());
     } catch (error) {
