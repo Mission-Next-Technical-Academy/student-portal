@@ -1,0 +1,137 @@
+name: M360 Wave 8 Start Here alignment guard
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/start-here.html'
+      - 'portal/m360/start-here.js'
+      - 'portal/m360/start-here.css'
+      - 'portal/m360/review-course-state.js'
+      - 'portal/m360/review.html'
+      - '.github/workflows/m360-wave8-start-here-alignment-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  wave8-start-here-alignment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360/start-here.js
+          node --check portal/m360/review-course-state.js
+
+      - name: Require exact profile choices and no-penalty alternative
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path('portal/m360/start-here.html').read_text()
+          required = [
+              '<option value="ready">Profile exists — I use it now</option>',
+              '<option value="needs_update">Profile exists — I want to strengthen it</option>',
+              '<option value="no_profile">I do not have a profile yet</option>',
+              '<option value="privacy_support">I prefer not to use a public profile / need an alternative</option>',
+              'A LinkedIn account is not required. If you do not want a public profile, select this option. Your instructor can help you use an approved professional-presence alternative without penalty.'
+          ]
+          for token in required:
+              if token not in html:
+                  raise SystemExit(f'Missing approved Start Here profile language: {token}')
+          print('Approved profile labels and privacy alternative are exact')
+          PY
+
+      - name: Require practical technology readiness
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path('portal/m360/start-here.html').read_text()
+          js = Path('portal/m360/start-here.js').read_text()
+          required_html = [
+              'I have reliable internet access for M360.',
+              'I have a computer or device with a current web browser.',
+              'I can join live virtual sessions with audio.',
+              'I can download, open, save, and upload common files.'
+          ]
+          for token in required_html:
+              if token not in html:
+                  raise SystemExit(f'Missing technology-readiness item: {token}')
+          if "const techIds = ['techLms','techLive','techFiles','techFeedback'];" not in js:
+              raise SystemExit('Technology-readiness durable payload IDs changed unexpectedly.')
+          print('Technology-readiness checklist aligned without changing durable payload IDs')
+          PY
+
+      - name: Require count-based validation summary with navigation
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/start-here.js').read_text()
+          css = Path('portal/m360/start-here.css').read_text()
+          required_js = [
+              'const missingItems = [];',
+              'renderValidationSummary(missingItems);',
+              'need attention',
+              "link.href = `#${item.targetId}`;",
+              'focusValidationTarget(item);',
+              "firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });"
+          ]
+          for token in required_js:
+              if token not in js:
+                  raise SystemExit(f'Missing actionable validation-summary behavior: {token}')
+          for token in ['.validation-summary-title', '.validation-summary-list', '.validation-summary-list a']:
+              if token not in css:
+                  raise SystemExit(f'Missing validation-summary style: {token}')
+          print('Count-based validation summary, links, and first-invalid focus are present')
+          PY
+
+      - name: Require visible Admin support reasons
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('portal/m360/review-course-state.js').read_text()
+          required = [
+              'function supportReason(payload)',
+              'Support follow-up suggested',
+              'Networking ${networking}/5',
+              'Interview readiness ${interview}/5',
+              "p.profileStatus === 'privacy_support'",
+              "p.resumeStatus === 'support_needed'",
+              'Profile exists — I use it now',
+              'I prefer not to use a public profile / need an alternative'
+          ]
+          for token in required:
+              if token not in text:
+                  raise SystemExit(f'Missing Admin Start Here support context: {token}')
+          print('Admin Start Here roster exposes actionable support reasons and human-readable profile labels')
+          PY
+
+      - name: Require runtime cache refreshes
+        run: |
+          set -euo pipefail
+          grep -q 'start-here.css?v=20260904b' portal/m360/start-here.html
+          grep -q 'start-here.js?v=20260904b' portal/m360/start-here.html
+          grep -q 'review-course-state.js?v=20260904a' portal/m360/review.html
+
+      - name: Preserve Start Here data and product boundaries
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
+            echo '::error::Wave 8 must not change the Start Here schema, RPCs, migrations, or Storage.'
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
+            echo '::error::Wave 8 must not change the established technical-course LMS runtime.'
+            exit 1
+          fi
+          echo 'Wave 8 preserves the existing Start Here data contract, grading model, and technical-course runtime.'

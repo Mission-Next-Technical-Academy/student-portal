@@ -20,6 +20,15 @@
     evidenceSource: 'Select your strongest existing evidence source.',
     supportNeed: 'Tell us your top support need for the next six weeks.'
   };
+  const requiredSummaryLabels = {
+    targetDirection: 'Target direction',
+    profileStatus: 'Professional profile status',
+    resumeStatus: 'Current resume status',
+    networkingComfort: 'Networking comfort level',
+    interviewReadiness: 'Interview readiness level',
+    evidenceSource: 'Strongest existing evidence source',
+    supportNeed: 'Top support need'
+  };
   const techIds = ['techLms','techLive','techFiles','techFeedback'];
   const ackIds = ['ackUngraded','ackLiveAndLms','ackSixArtifacts','ackRevision','ackSpotlight','ackPortfolio'];
   let context = null;
@@ -120,43 +129,84 @@
     clearGroupError('acknowledgmentChecks', 'acknowledgmentError');
   }
 
+  function focusValidationTarget(item) {
+    const target = $(item.focusId) || $(item.targetId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof target.focus === 'function') target.focus({ preventScroll: true });
+  }
+
+  function renderValidationSummary(items) {
+    const el = $('startNotice');
+    el.className = 'start-notice error validation-summary';
+    el.replaceChildren();
+
+    const heading = document.createElement('strong');
+    heading.className = 'validation-summary-title';
+    heading.textContent = `${items.length} item${items.length === 1 ? '' : 's'} need attention`;
+    el.appendChild(heading);
+
+    const intro = document.createElement('span');
+    intro.className = 'validation-summary-intro';
+    intro.textContent = 'Review the highlighted fields before completing Start Here:';
+    el.appendChild(intro);
+
+    const list = document.createElement('ul');
+    list.className = 'validation-summary-list';
+    items.forEach(item => {
+      const li = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = `#${item.targetId}`;
+      link.textContent = item.label;
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        focusValidationTarget(item);
+      });
+      li.appendChild(link);
+      list.appendChild(li);
+    });
+    el.appendChild(list);
+  }
+
   function validateCompletion() {
     clearValidation();
     let firstInvalid = null;
-    let missingCount = 0;
+    const missingItems = [];
 
     requiredBaselineIds.forEach(id => {
       if (value(id)) return;
-      missingCount += 1;
       const invalid = markFieldInvalid(id, requiredLabels[id]);
+      missingItems.push({ label: requiredSummaryLabels[id], targetId: id, focusId: id });
       if (!firstInvalid && invalid) firstInvalid = invalid;
     });
 
     if (!technologyReady()) {
-      missingCount += 1;
       const invalid = markGroupInvalid(
         'technologyChecks',
         'technologyError',
-        'Confirm each technology-readiness item. If you have an access problem, report it to Mission Next staff before confirming the item.',
+        'Confirm each technology-readiness item. If an access issue prevents you from confirming one, contact Mission Next staff before completing Start Here.',
         techIds
       );
+      const firstUnchecked = techIds.find(id => !checked(id));
+      missingItems.push({ label: 'Technology readiness confirmations', targetId: 'technologyReadiness', focusId: firstUnchecked || 'technologyChecks' });
       if (!firstInvalid && invalid) firstInvalid = invalid;
     }
 
     if (!acknowledgmentsComplete()) {
-      missingCount += 1;
       const invalid = markGroupInvalid(
         'acknowledgmentChecks',
         'acknowledgmentError',
         'Confirm each M360 expectation before completing Start Here.',
         ackIds
       );
+      const firstUnchecked = ackIds.find(id => !checked(id));
+      missingItems.push({ label: 'M360 acknowledgments', targetId: 'acknowledgments', focusId: firstUnchecked || 'acknowledgmentChecks' });
       if (!firstInvalid && invalid) firstInvalid = invalid;
     }
 
     if (!firstInvalid) return true;
 
-    notice(`Review the highlighted item${missingCount === 1 ? '' : 's'} before completing Start Here.`, 'error');
+    renderValidationSummary(missingItems);
     requestAnimationFrame(() => {
       firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (typeof firstInvalid.focus === 'function') firstInvalid.focus({ preventScroll: true });
