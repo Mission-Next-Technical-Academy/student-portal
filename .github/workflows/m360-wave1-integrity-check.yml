@@ -1,0 +1,126 @@
+name: M360 Wave 1 integrity guard
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/m360-production-bridge.js'
+      - 'portal/m360/portfolio.js'
+      - 'portal/m360/review-attendance.js'
+      - 'portal/m360/week.html'
+      - '.github/workflows/m360-wave1-integrity-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  wave1-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360/m360-production-bridge.js
+          node --check portal/m360/portfolio.js
+          node --check portal/m360/review-attendance.js
+
+      - name: Prevent cross-account M360 cache promotion
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/m360-production-bridge.js').read_text()
+          required = [
+              'userScopedKey',
+              'cacheOwnerUserId',
+              'prepareScopedCache(context.userId)',
+              'working.cacheOwnerUserId === currentUserId',
+              'scoped.cacheOwnerUserId === currentUserId',
+              'Legacy unscoped browser data is never uploaded'
+          ]
+          for token in required:
+              if token not in js:
+                  raise SystemExit(f'Missing account-scoped cache guard: {token}')
+          forbidden = [
+              'M360Data.saveDraft(weekNumber, draftOnly.draft',
+              'if (hasMeaningfulContent(draftOnly.draft))'
+          ]
+          for token in forbidden:
+              if token in js:
+                  raise SystemExit(f'Unsafe legacy draft promotion path remains: {token}')
+          print('Account-scoped M360 cache guard present; legacy draft promotion removed')
+          PY
+
+      - name: Require all-week hydration and student feedback
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/m360-production-bridge.js').read_text()
+          required = [
+              'for (const releasedWeek of RELEASED_WEEKS)',
+              'remoteToLocalWeek(row)',
+              'Portfolio Ready',
+              'Needs Revision',
+              'Upcoming',
+              'renderInstructorFeedback',
+              'reviewerFeedback',
+              'Revision Requested - Instructor Feedback'
+          ]
+          for token in required:
+              if token not in js:
+                  raise SystemExit(f'Missing Wave 1 hydration/feedback requirement: {token}')
+          if "textContent = 'Not imported'" in js:
+              raise SystemExit('Production bridge must not output Not imported')
+          print('All-week hydration and instructor feedback guard present')
+          PY
+
+      - name: Require deterministic portfolio print readiness
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/portfolio.js').read_text()
+          required = [
+              'document.fonts.ready',
+              'waitForImages',
+              'requestAnimationFrame',
+              'await waitForPrintReady()',
+              'window.print()',
+              'setTimeout(printPortfolio,0)'
+          ]
+          for token in required:
+              if token not in js:
+                  raise SystemExit(f'Missing portfolio print-readiness guard: {token}')
+          if 'setTimeout(printPortfolio,150)' in js:
+              raise SystemExit('Legacy 150ms portfolio print race remains')
+          print('Portfolio print waits for rendered assets before opening browser PDF/print flow')
+          PY
+
+      - name: Require attendance identity confirmation
+        run: |
+          set -euo pipefail
+          grep -q 'data-student-id' portal/m360/review-attendance.js
+          grep -q 'Attendance record for this student only' portal/m360/review-attendance.js
+          grep -q 'Unsaved attendance change' portal/m360/review-attendance.js
+          grep -q 'Attendance updated for' portal/m360/review-attendance.js
+          grep -q 'M360Data.setAttendance(card.dataset.attendanceUser' portal/m360/review-attendance.js
+
+      - name: Preserve held workbook decision and Supabase schema
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
+            echo '::error::Changes to Wave 1 protected surfaces must not also change Supabase schema or migrations.'
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(m360-preview.html|m360/course.html|m360/week[3-6].html)$'; then
+            echo '::error::Workbook delivery links are held for a separate design decision.'
+            exit 1
+          fi
+          echo 'Wave 1 protected invariants remain intact.'

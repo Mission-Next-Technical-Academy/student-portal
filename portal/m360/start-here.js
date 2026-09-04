@@ -11,6 +11,24 @@
     'targetDirection','profileStatus','resumeStatus','networkingComfort',
     'interviewReadiness','evidenceSource','supportNeed'
   ];
+  const requiredLabels = {
+    targetDirection: 'Enter your current target direction, role family, or field.',
+    profileStatus: 'Select your professional profile status.',
+    resumeStatus: 'Select your current resume status.',
+    networkingComfort: 'Select your networking comfort level.',
+    interviewReadiness: 'Select your interview readiness level.',
+    evidenceSource: 'Select your strongest existing evidence source.',
+    supportNeed: 'Tell us your top support need for the next six weeks.'
+  };
+  const requiredSummaryLabels = {
+    targetDirection: 'Target direction',
+    profileStatus: 'Professional profile status',
+    resumeStatus: 'Current resume status',
+    networkingComfort: 'Networking comfort level',
+    interviewReadiness: 'Interview readiness level',
+    evidenceSource: 'Strongest existing evidence source',
+    supportNeed: 'Top support need'
+  };
   const techIds = ['techLms','techLive','techFiles','techFeedback'];
   const ackIds = ['ackUngraded','ackLiveAndLms','ackSixArtifacts','ackRevision','ackSpotlight','ackPortfolio'];
   let context = null;
@@ -33,6 +51,7 @@
     baselineIds.forEach(id => { if ($(id)) $(id).value = data[id] || ''; });
     techIds.forEach(id => { if ($(id)) $(id).checked = Boolean(data[id]); });
     ackIds.forEach(id => { if ($(id)) $(id).checked = Boolean(data[id]); });
+    clearValidation();
   }
 
   function acknowledgmentsComplete() { return ackIds.every(checked); }
@@ -49,15 +68,150 @@
     );
   }
 
-  function missingRequired() {
-    const missing = requiredBaselineIds.filter(id => !value(id)).map(id => ({
-      targetDirection: 'target direction', profileStatus: 'profile status', resumeStatus: 'resume status',
-      networkingComfort: 'networking comfort level', interviewReadiness: 'interview readiness level',
-      evidenceSource: 'strongest evidence source', supportNeed: 'top support need'
-    }[id]));
-    if (!technologyReady()) missing.push('all technology-readiness confirmations');
-    if (!acknowledgmentsComplete()) missing.push('all M360 acknowledgments');
-    return missing;
+  function clearFieldError(id) {
+    const input = $(id);
+    if (!input) return;
+    input.removeAttribute('aria-invalid');
+    const field = input.closest('.field');
+    if (!field) return;
+    field.classList.remove('field-error-state');
+    const error = field.querySelector(`[data-field-error="${id}"]`);
+    if (error) error.remove();
+  }
+
+  function markFieldInvalid(id, message) {
+    const input = $(id);
+    if (!input) return null;
+    const field = input.closest('.field');
+    input.setAttribute('aria-invalid', 'true');
+    if (field) {
+      field.classList.add('field-error-state');
+      let error = field.querySelector(`[data-field-error="${id}"]`);
+      if (!error) {
+        error = document.createElement('p');
+        error.className = 'field-error';
+        error.dataset.fieldError = id;
+        field.appendChild(error);
+      }
+      error.textContent = message;
+    }
+    return input;
+  }
+
+  function clearGroupError(groupId, errorId) {
+    const group = $(groupId);
+    const error = $(errorId);
+    if (group) group.classList.remove('validation-group-error');
+    if (error) {
+      error.textContent = '';
+      error.hidden = true;
+    }
+  }
+
+  function markGroupInvalid(groupId, errorId, message, ids) {
+    const group = $(groupId);
+    const error = $(errorId);
+    if (group) group.classList.add('validation-group-error');
+    if (error) {
+      error.textContent = message;
+      error.hidden = false;
+    }
+    const firstUnchecked = ids.map($).find(input => input && !input.checked);
+    if (firstUnchecked) firstUnchecked.setAttribute('aria-invalid', 'true');
+    return firstUnchecked || group;
+  }
+
+  function clearValidation() {
+    requiredBaselineIds.forEach(clearFieldError);
+    techIds.forEach(id => { const input = $(id); if (input) input.removeAttribute('aria-invalid'); });
+    ackIds.forEach(id => { const input = $(id); if (input) input.removeAttribute('aria-invalid'); });
+    clearGroupError('technologyChecks', 'technologyError');
+    clearGroupError('acknowledgmentChecks', 'acknowledgmentError');
+  }
+
+  function focusValidationTarget(item) {
+    const target = $(item.focusId) || $(item.targetId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof target.focus === 'function') target.focus({ preventScroll: true });
+  }
+
+  function renderValidationSummary(items) {
+    const el = $('startNotice');
+    el.className = 'start-notice error validation-summary';
+    el.replaceChildren();
+
+    const heading = document.createElement('strong');
+    heading.className = 'validation-summary-title';
+    heading.textContent = `${items.length} item${items.length === 1 ? '' : 's'} need attention`;
+    el.appendChild(heading);
+
+    const intro = document.createElement('span');
+    intro.className = 'validation-summary-intro';
+    intro.textContent = 'Review the highlighted fields before completing Start Here:';
+    el.appendChild(intro);
+
+    const list = document.createElement('ul');
+    list.className = 'validation-summary-list';
+    items.forEach(item => {
+      const li = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = `#${item.targetId}`;
+      link.textContent = item.label;
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        focusValidationTarget(item);
+      });
+      li.appendChild(link);
+      list.appendChild(li);
+    });
+    el.appendChild(list);
+  }
+
+  function validateCompletion() {
+    clearValidation();
+    let firstInvalid = null;
+    const missingItems = [];
+
+    requiredBaselineIds.forEach(id => {
+      if (value(id)) return;
+      const invalid = markFieldInvalid(id, requiredLabels[id]);
+      missingItems.push({ label: requiredSummaryLabels[id], targetId: id, focusId: id });
+      if (!firstInvalid && invalid) firstInvalid = invalid;
+    });
+
+    if (!technologyReady()) {
+      const invalid = markGroupInvalid(
+        'technologyChecks',
+        'technologyError',
+        'Confirm each technology-readiness item. If an access issue prevents you from confirming one, contact Mission Next staff before completing Start Here.',
+        techIds
+      );
+      const firstUnchecked = techIds.find(id => !checked(id));
+      missingItems.push({ label: 'Technology readiness confirmations', targetId: 'technologyReadiness', focusId: firstUnchecked || 'technologyChecks' });
+      if (!firstInvalid && invalid) firstInvalid = invalid;
+    }
+
+    if (!acknowledgmentsComplete()) {
+      const invalid = markGroupInvalid(
+        'acknowledgmentChecks',
+        'acknowledgmentError',
+        'Confirm each M360 expectation before completing Start Here.',
+        ackIds
+      );
+      const firstUnchecked = ackIds.find(id => !checked(id));
+      missingItems.push({ label: 'M360 acknowledgments', targetId: 'acknowledgments', focusId: firstUnchecked || 'acknowledgmentChecks' });
+      if (!firstInvalid && invalid) firstInvalid = invalid;
+    }
+
+    if (!firstInvalid) return true;
+
+    renderValidationSummary(missingItems);
+    requestAnimationFrame(() => {
+      firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (typeof firstInvalid.focus === 'function') firstInvalid.focus({ preventScroll: true });
+    });
+    return false;
   }
 
   function notice(message, type = '') {
@@ -73,21 +227,14 @@
     $('completionTitle').textContent = complete ? 'Start Here Complete' : 'Orientation & Baseline not yet complete';
     $('completionText').textContent = complete
       ? `Completed ${new Date(completedAt).toLocaleString()}. Week 1 is your first instructional M360 module.`
-      : 'Save anytime. Complete Start Here when the baseline, readiness checks, and acknowledgments are finished.';
+      : 'Save anytime. Complete Start Here when the required baseline fields, readiness confirmations, and acknowledgments are finished.';
     $('completeStartBtn').hidden = complete;
     $('week1Btn').hidden = !complete;
   }
 
   async function save(complete) {
     const payload = payloadFromForm();
-    if (complete) {
-      const missing = missingRequired();
-      if (missing.length) {
-        notice(`Complete before finishing Start Here: ${missing.join(', ')}.`, 'error');
-        $('baseline').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        return;
-      }
-    }
+    if (complete && !validateCompletion()) return;
 
     const saveBtn = complete ? $('completeStartBtn') : $('saveStartBtn');
     saveBtn.disabled = true;
@@ -97,6 +244,7 @@
       const row = await M360Data.saveStartHere(payload, complete, acknowledgmentsComplete(), supportFlag(payload));
       completedAt = row && row.start_here_completed_at ? row.start_here_completed_at : completedAt;
       renderCompletion();
+      if (complete) clearValidation();
       notice(complete
         ? 'Start Here is complete. Your baseline is saved and Week 1 is ready.'
         : 'Baseline saved to M360. Nothing here is graded or counted as instructional time.', 'success');
@@ -109,6 +257,32 @@
     } finally {
       saveBtn.disabled = false;
     }
+  }
+
+  function wireValidationClearing() {
+    baselineIds.forEach(id => {
+      const input = $(id);
+      if (!input) return;
+      const clearWhenValid = () => { if (value(id)) clearFieldError(id); };
+      input.addEventListener('input', clearWhenValid);
+      input.addEventListener('change', clearWhenValid);
+    });
+    techIds.forEach(id => {
+      const input = $(id);
+      if (!input) return;
+      input.addEventListener('change', () => {
+        input.removeAttribute('aria-invalid');
+        if (technologyReady()) clearGroupError('technologyChecks', 'technologyError');
+      });
+    });
+    ackIds.forEach(id => {
+      const input = $(id);
+      if (!input) return;
+      input.addEventListener('change', () => {
+        input.removeAttribute('aria-invalid');
+        if (acknowledgmentsComplete()) clearGroupError('acknowledgmentChecks', 'acknowledgmentError');
+      });
+    });
   }
 
   async function init() {
@@ -138,6 +312,7 @@
     }
   }
 
+  wireValidationClearing();
   $('saveStartBtn').addEventListener('click', () => save(false));
   $('completeStartBtn').addEventListener('click', () => save(true));
   init();

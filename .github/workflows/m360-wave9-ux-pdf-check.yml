@@ -1,0 +1,173 @@
+name: M360 Wave 9 UX and PDF guard
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/week.html'
+      - 'portal/m360/m360-ui-polish.js'
+      - 'portal/m360/portfolio.html'
+      - 'portal/m360/portfolio.css'
+      - 'portal/m360/portfolio.js'
+      - 'portal/m360/m360-portfolio-pdf.js'
+      - '.github/workflows/m360-wave5-week3-networking-check.yml'
+      - '.github/workflows/m360-wave7-admin-portfolios-check.yml'
+      - '.github/workflows/m360-wave9-ux-pdf-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  wave9-ux-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce Wave 9 scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          printf '%s\n' "$changed"
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave5-week3-networking-check.yml|.github/workflows/m360-wave7-admin-portfolios-check.yml|.github/workflows/m360-wave9-ux-pdf-check.yml|portal/m360/week.html|portal/m360/m360-ui-polish.js|portal/m360/portfolio.html|portal/m360/portfolio.css|portal/m360/portfolio.js|portal/m360/m360-portfolio-pdf.js)$' || true)"
+          if [ -n "$unexpected" ]; then
+            echo '::error::Wave 9 is limited to M360 presentation/navigation polish, portfolio PDF delivery, and guard maintenance.'
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eiq '\.(pdf|pptx?|png|jpe?g|gif|webp|zip)$'; then
+            echo '::error::Wave 9 must not add binary portfolio or slide assets to GitHub.'
+            exit 1
+          fi
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360/m360-ui-polish.js
+          node --check portal/m360/portfolio.js
+          node --check portal/m360/m360-portfolio-pdf.js
+
+      - name: Require clean lesson status and navigation presentation
+        run: |
+          set -euo pipefail
+          ui='portal/m360/m360-ui-polish.js'
+          grep -Fq '.artifact-heading{align-items:center}' "$ui"
+          grep -Fq '.artifact-heading .status-badge{align-self:center' "$ui"
+          grep -Fq 'Previous: Week ${target}' "$ui"
+          grep -Fq 'Next: Week ${target}' "$ui"
+          grep -Fq '#m360WeekNavigation{justify-content:center' "$ui"
+          if grep -Fq '<- Week' "$ui" || grep -Fq 'Week ${target} ->' "$ui"; then
+            echo '::error::ASCII arrow navigation must not return to the production presentation layer.'
+            exit 1
+          fi
+
+      - name: Require supplied Career Spotlight template targets
+        run: |
+          set -euo pipefail
+          ui='portal/m360/m360-ui-polish.js'
+          template_id='1msVm3QQ5gJ_iaoEKCtNecimjYV8PZXGHhAU5T4dul_U'
+          grep -Fq "$template_id" "$ui"
+          grep -Fq '/export/pptx' "$ui"
+          grep -Fq '/copy' "$ui"
+          grep -Fq 'Career Spotlight Student Slide Template' "$ui"
+          grep -Fq "link.target = '_blank'" "$ui"
+          grep -Fq "link.rel = 'noopener noreferrer'" "$ui"
+
+      - name: Require UI polish to load after production navigation
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path('portal/m360/week.html').read_text()
+          nav = html.find('m360-production-nav.js?v=20260904e')
+          polish = html.find('m360-ui-polish.js?v=20260904')
+          if nav < 0 or polish < 0 or polish <= nav:
+              raise SystemExit('M360 UI polish must load after production navigation so final student-facing links and labels are authoritative.')
+          print('M360 UI polish loads after production navigation')
+          PY
+
+      - name: Require branded portfolio PDF download behavior
+        run: |
+          set -euo pipefail
+          html='portal/m360/portfolio.html'
+          js='portal/m360/portfolio.js'
+          pdf='portal/m360/m360-portfolio-pdf.js'
+          grep -Fq 'class="brand portfolio-home-brand" href="index.html"' "$html"
+          grep -Fq '>Download Portfolio PDF<' "$html"
+          grep -Fq 'm360-portfolio-pdf.js?v=20260904' "$html"
+          grep -Fq 'portfolio.js?v=20260904b' "$html"
+          grep -Fq 'function downloadPortfolioPdf()' "$js"
+          grep -Fq 'window.M360PortfolioPDF.download' "$js"
+          grep -Fq "params.get('download')==='1'" "$js"
+          grep -Fq "params.get('print')==='1'" "$js"
+          grep -Fq 'Mission-Next-M360-Professional-Portfolio-' "$js"
+          grep -Fq '%PDF-1.4' "$pdf"
+          grep -Fq "type: 'application/pdf'" "$pdf"
+          grep -Fq 'anchor.download' "$pdf"
+          grep -Fq 'window.M360PortfolioPDF' "$pdf"
+
+      - name: Generate a valid PDF byte stream in CI
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const pdf = require('./portal/m360/m360-portfolio-pdf.js');
+          const bytes = pdf.build({
+            studentId: 'QA-001',
+            trackLabel: 'SOC Analyst',
+            direction: 'SOC Analyst',
+            brandStatement: 'Evidence-backed professional readiness.',
+            readyCount: 6,
+            finalGrade: 92.5,
+            courseComplete: true,
+            generatedDate: 'September 4, 2026',
+            sections: [
+              {week:1,kicker:'DIRECTION',title:'Career Direction & Professional Brand',fields:[{label:'Professional brand',value:'Evidence-backed professional readiness.'}]},
+              {week:6,kicker:'PROOF',title:'Career Spotlight & 30-Day Plan',fields:[{label:'30-day actions',bullets:['Action one','Action two','Action three']}]}
+            ]
+          });
+          const text = Buffer.from(bytes).toString('latin1');
+          if (!text.startsWith('%PDF-1.4')) throw new Error('Generated portfolio is not a PDF 1.4 byte stream.');
+          if (!text.includes('/Type /Catalog') || !text.includes('/Type /Page')) throw new Error('Generated PDF is missing required document/page objects.');
+          if (bytes.length < 2500) throw new Error('Generated PDF is unexpectedly small.');
+          console.log(`Generated branded test PDF: ${bytes.length} bytes`);
+          NODE
+
+      - name: Preserve accepted-artifact and Week 3 privacy boundaries in PDF
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('portal/m360/portfolio.js').read_text()
+          if 'function pdfFields(n,a)' not in text or 'function makePdfModel(rows,progress,identity={})' not in text:
+              raise SystemExit('Professional PDF must be built from the established accepted-artifact model.')
+          block = text.split("if(n===3)return [", 1)[1].split("if(n===4)", 1)[0]
+          forbidden = ['networkTargets', 'actionEvidence', 'trackerNote', 'connectionRequest', 'adviceRequest', 'informationalRequest', 'actionCompleted']
+          for token in forbidden:
+              if token in block:
+                  raise SystemExit(f'Private Week 3 field leaked into professional PDF: {token}')
+          required = ['showcaseInsight', 'generalizedLearning', 'showcaseFollowUp', 'generalizedFollowUp', 'sanitizedTemplate1']
+          for token in required:
+              if token not in block:
+                  raise SystemExit(f'Missing sanitized Week 3 PDF field: {token}')
+          if 'const artifact=accepted(byWeek[n]);' not in text:
+              raise SystemExit('PDF sections must be sourced from reviewer-accepted artifacts.')
+          print('Professional PDF preserves accepted-artifact and Week 3 privacy boundaries')
+          PY
+
+      - name: Preserve product and data boundaries
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
+            echo '::error::Wave 9 must not change Supabase schema, migrations, RPCs, or Storage.'
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
+            echo '::error::Wave 9 must not change the established technical-course LMS runtime.'
+            exit 1
+          fi
+          echo 'Wave 9 preserves existing M360 data contracts and technical-course runtime.'

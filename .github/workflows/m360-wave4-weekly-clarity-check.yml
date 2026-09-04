@@ -1,0 +1,103 @@
+name: M360 Wave 4 weekly clarity guard
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/m360-production-nav.js'
+      - 'portal/m360/week.html'
+      - '.github/workflows/m360-wave4-weekly-clarity-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  wave4-weekly-clarity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360/m360-production-nav.js
+
+      - name: Require Week 4 clarity corrections
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/m360-production-nav.js').read_text()
+          required = [
+              'Signals are repeated skills, tools, responsibilities, outcomes, and behaviors in the opportunity that tell you what the employer is emphasizing.',
+              'Provide at least one durable copy of your resume: a link, pasted resume text, or both.',
+              'Required only if you are not using the other option.',
+              'applyWeek4Clarity()'
+          ]
+          for token in required:
+              if token not in js:
+                  raise SystemExit(f'Missing Week 4 clarity requirement: {token}')
+          print('Week 4 opportunity-signal and durable-resume guidance present')
+          PY
+
+      - name: Require Week 5 clarity corrections
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/m360-production-nav.js').read_text()
+          required = [
+              'Write questions you would ask the interviewer about the role, team, work, expectations, or next steps.',
+              'Question you would ask the interviewer · 1',
+              'Question you would ask the interviewer · 2',
+              'What support would help you improve your next interview practice?',
+              'applyWeek5Clarity()'
+          ]
+          for token in required:
+              if token not in js:
+                  raise SystemExit(f'Missing Week 5 clarity requirement: {token}')
+          print('Week 5 interviewer-question and improvement-support guidance present')
+          PY
+
+      - name: Require Week 6 full-width final file field
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/m360-production-nav.js').read_text()
+          required = [
+              "const slide3Plan = slide3Field?.closest('.slide-plan');",
+              "slide3Plan.insertAdjacentElement('afterend', fileField);",
+              "fileField.style.width = '100%';",
+              "input.style.width = '100%';",
+              'Paste the durable link to your three-slide Career Spotlight PDF or approved file. Confirm your instructor can open it.'
+          ]
+          for token in required:
+              if token not in js:
+                  raise SystemExit(f'Missing Week 6 file-layout requirement: {token}')
+          if "slide3Field.insertAdjacentElement('afterend', fileField);" in js:
+              raise SystemExit('Week 6 final file field must not remain inside the two-column slide-plan grid')
+          print('Week 6 final file/link field moves after the full Slide 3 plan and uses full width')
+          PY
+
+      - name: Require production nav cache-buster
+        run: |
+          set -euo pipefail
+          grep -Eq "m360-production-nav.js\?v=20260904[a-z]" portal/m360/week.html
+
+      - name: Preserve product boundaries
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
+            echo '::error::M360 clarity changes must not change Supabase schema, migrations, or Storage.'
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
+            echo '::error::M360 clarity changes must not change the established technical-course LMS runtime.'
+            exit 1
+          fi
+          echo 'Wave 4 clarity invariants remain intact.'

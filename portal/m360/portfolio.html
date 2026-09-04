@@ -8,11 +8,11 @@
   <link rel="stylesheet" href="assets/mission-next-tokens.css?v=20260903" />
   <link rel="stylesheet" href="../m360-preview.css?v=20260903b" />
   <link rel="stylesheet" href="course.css?v=20260903" />
-  <link rel="stylesheet" href="portfolio.css?v=20260904" />
+  <link rel="stylesheet" href="portfolio.css?v=20260904b" />
 </head>
 <body>
   <div class="shell">
-    <header class="topbar no-print"><div class="topbar-inner"><div class="brand"><img class="brand-mark" src="../assets/logo.png" alt="" /><div><div class="brand-name">MISSION NEXT</div><div class="brand-sub">Technical Academy · M360 101</div></div></div><div class="topbar-actions"><a class="topbar-link" href="index.html">M360 Home</a><button id="printPortfolioBtn" class="btn btn-primary" type="button">Download / Print Portfolio</button></div></div></header>
+    <header class="topbar no-print"><div class="topbar-inner"><a class="brand portfolio-home-brand" href="index.html" aria-label="M360 Home" title="M360 Home"><img class="brand-mark" src="../assets/logo.png" alt="" /><div><div class="brand-name">MISSION NEXT</div><div class="brand-sub">Technical Academy · M360 101</div></div></a><div class="topbar-actions"><button id="printPortfolioBtn" class="btn btn-primary" type="button">Download Portfolio PDF</button></div></div></header>
 
     <main class="portfolio-shell">
       <section class="portfolio-hero"><img class="hero-watermark" src="assets/MNTA_Mark_Watermark_10pct.png" alt="" /><div class="mini-kicker">My M360 Portfolio</div><h1>Direction to <span>Proof</span></h1><p>Your reviewer-approved professional-readiness evidence in one place. Private working material and instructor feedback are not part of this showcase view.</p><div class="portfolio-meta"><strong id="portfolioReadyCount">0 / 6 Portfolio Ready</strong><span id="portfolioCourseStatus">M360 in progress</span></div></section>
@@ -32,12 +32,13 @@
 
       <section class="portfolio-completion"><div><div class="mini-kicker">M360 course status</div><h2 id="completionHeadline">Build the six proof points.</h2><p id="completionText">Final completion requires all six assignments, a final average of 70 or higher, Career Spotlight completion, and staff-confirmed attendance verification.</p></div><div class="completion-stats"><div><span>Accepted artifacts</span><strong id="completionAccepted">0 / 6</strong></div><div><span>Final grade</span><strong id="completionGrade">—</strong></div><div><span>Attendance verified</span><strong id="completionAttendance">No</strong></div></div></section>
 
-      <div class="portfolio-footer-actions no-print"><a class="btn btn-secondary" href="index.html">← M360 Home</a><button id="printPortfolioBtnBottom" class="btn btn-primary" type="button">Download / Print Current Portfolio</button></div>
+      <div class="portfolio-footer-actions no-print"><a class="btn btn-secondary" href="index.html">M360 Home</a><button id="printPortfolioBtnBottom" class="btn btn-primary" type="button">Download Portfolio PDF</button></div>
     </main>
   </div>
   <script src="../vendor/supabase.js?v=20260828"></script>
   <script src="../supabase-config.js?v=20260828"></script>
-  <script src="m360-data.js?v=20260904"></script>
-  <script src="portfolio.js?v=20260904"></script>
+  <script src="m360-data.js?v=20260904f"></script>
+  <script src="m360-portfolio-pdf.js?v=20260904"></script>
+  <script src="portfolio.js?v=20260904b"></script>
 </body>
 </html>

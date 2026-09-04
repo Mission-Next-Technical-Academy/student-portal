@@ -1,0 +1,94 @@
+name: M360 Wave 5 Week 3 networking guard
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/week3.js'
+      - 'portal/m360/m360-production-nav.js'
+      - 'portal/m360/week.html'
+      - '.github/workflows/m360-wave4-weekly-clarity-check.yml'
+      - '.github/workflows/m360-wave5-week3-networking-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  wave5-week3-networking:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360/week3.js
+          node --check portal/m360/m360-production-nav.js
+
+      - name: Require four-target minimum and optional expansion
+        run: |
+          set -euo pipefail
+          grep -q "const MIN_TARGETS = 4;" portal/m360/week3.js
+          grep -q "networkTargets.push(blankTarget())" portal/m360/week3.js
+          grep -q "i < MIN_TARGETS ? 'Required' : 'Optional'" portal/m360/week3.js
+          if grep -q "const MIN_TARGETS = 7;" portal/m360/week3.js; then
+            echo '::error::Week 3 still requires seven networking targets.'
+            exit 1
+          fi
+
+      - name: Preserve all required outreach drafts and one real action
+        run: |
+          set -euo pipefail
+          js='portal/m360/week3.js'
+          for token in \
+            "['Connection request', d.connectionRequest]" \
+            "['Advice request', d.adviceRequest]" \
+            "['Informational interview request', d.informationalRequest]" \
+            "['Action completed', d.actionCompleted]" \
+            "['Action evidence', d.actionEvidence]" \
+            "['Action result', d.actionResult]"
+          do
+            grep -Fq "$token" "$js" || { echo "::error::Missing required Week 3 field validation: $token"; exit 1; }
+          done
+
+      - name: Require student-facing outreach and evidence guidance
+        run: |
+          set -euo pipefail
+          nav='portal/m360/m360-production-nav.js'
+          for token in \
+            "applyWeek3Clarity()" \
+            "at least four" \
+            "minimum 4" \
+            "brief connection request" \
+            "ask one focused question" \
+            "brief learning conversation" \
+            "One real networking action is required." \
+            "a redacted screenshot, link, text record, or concise description" \
+            "A reply is not required." \
+            "No response yet"
+          do
+            grep -Fq "$token" "$nav" || { echo "::error::Missing Week 3 production guidance: $token"; exit 1; }
+          done
+
+      - name: Require current Week 3 and nav cache versions
+        run: |
+          set -euo pipefail
+          grep -q "week3.js?v=20260904a" portal/m360/week.html
+          grep -q "m360-production-nav.js?v=20260904e" portal/m360/week.html
+
+      - name: Preserve workbook delivery and product boundaries
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
+            echo '::error::M360 changes must not change Supabase schema, migrations, or Storage through this guard.'
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
+            echo '::error::M360 changes must not change the established technical-course LMS runtime.'
+            exit 1
+          fi
+          echo 'Wave 5 networking invariants remain intact across later M360 waves.'

@@ -1,0 +1,136 @@
+name: M360 Wave 7 admin portfolios guard
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/portfolio.js'
+      - 'portal/m360/portfolio.html'
+      - 'portal/m360/review.html'
+      - 'portal/m360/review-portfolios.js'
+      - '.github/workflows/m360-wave7-admin-portfolios-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  wave7-admin-portfolios:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360/portfolio.js
+          node --check portal/m360/review-portfolios.js
+
+      - name: Require Admin portfolio roster and target links
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('portal/m360/review-portfolios.js').read_text()
+          required = [
+              "if(!context.isAdmin)",
+              ".eq('is_enrolled',true)",
+              ".eq('is_admin',false)",
+              ".in('track_code',ELIGIBLE)",
+              ".from('m360_week_records')",
+              ".from('m360_course_progress')",
+              'portfolio.html?student=${target}',
+              'portfolio.html?student=${target}&amp;print=1',
+              'View Portfolio',
+              'Print Portfolio'
+          ]
+          for token in required:
+              if token not in text:
+                  raise SystemExit(f'Missing Admin portfolio roster requirement: {token}')
+          print('Admin portfolio roster and View/Print links present')
+          PY
+
+      - name: Require one showcase renderer for student and Admin views
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('portal/m360/portfolio.js').read_text()
+          required = [
+              "const targetUserId=params.get('student');",
+              "if(!ctx.isAdmin)throw new Error('Admin access required.');",
+              "function renderPortfolio(rows,progress,{adminMode=false,studentId='',trackCode=''}={})",
+              "renderPortfolio(rows||[],progress||null,{adminMode:true,studentId:student.student_id||targetUserId,trackCode:student.track_code||''});",
+              "renderPortfolio(rows,progress,{adminMode:false,studentId:identity.studentId,trackCode:identity.trackCode});",
+              'accepted portfolio evidence only',
+              "if(!adminMode)",
+              "params.get('print')==='1'"
+          ]
+          for token in required:
+              if token not in text:
+                  raise SystemExit(f'Missing shared-renderer/Admin requirement: {token}')
+          if text.count('const renderers=') != 1:
+              raise SystemExit('Student and Admin views must share exactly one portfolio renderer map.')
+          print('Student and Admin portfolio views share one showcase renderer')
+          PY
+
+      - name: Preserve Week 3 showcase privacy
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('portal/m360/portfolio.js').read_text()
+          if 'function week3(a){' not in text or 'function week4(a){' not in text:
+              raise SystemExit('Unable to isolate Week 3 renderer.')
+          body = text.split('function week3(a){', 1)[1].split('function week4(a){', 1)[0]
+          forbidden = ['networkTargets', 'actionEvidence', 'trackerNote', 'connectionRequest', 'adviceRequest', 'informationalRequest', 'actionCompleted']
+          for token in forbidden:
+              if token in body:
+                  raise SystemExit(f'Private Week 3 field leaked into showcase renderer: {token}')
+          required = ['showcaseInsight', 'generalizedLearning', 'showcaseFollowUp', 'generalizedFollowUp', 'Sanitized outreach templates']
+          for token in required:
+              if token not in body:
+                  raise SystemExit(f'Missing approved sanitized Week 3 showcase field: {token}')
+          print('Week 3 Admin/student showcase renderer remains sanitized')
+          PY
+
+      - name: Preserve deterministic Admin print readiness
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('portal/m360/portfolio.js').read_text()
+          required = ['document.fonts&&document.fonts.ready', 'await waitForImages();', 'await nextFrame();', 'window.print();', "params.get('print')==='1'"]
+          for token in required:
+              if token not in text:
+                  raise SystemExit(f'Missing portfolio print-readiness requirement: {token}')
+          if text.count('await nextFrame();') < 2:
+              raise SystemExit('Portfolio print flow must preserve two render frames before printing.')
+          print('Deterministic Admin print readiness preserved')
+          PY
+
+      - name: Require Admin page wiring and current portfolio runtime
+        run: |
+          set -euo pipefail
+          grep -q 'id="portfolioAdminTitle"' portal/m360/review.html
+          grep -q 'id="portfolioRoster"' portal/m360/review.html
+          grep -q 'review-portfolios.js?v=20260904' portal/m360/review.html
+          grep -q 'm360-data.js?v=20260904f' portal/m360/portfolio.html
+          grep -q 'm360-portfolio-pdf.js?v=20260904' portal/m360/portfolio.html
+          grep -q 'portfolio.js?v=20260904b' portal/m360/portfolio.html
+
+      - name: Preserve product and database boundaries
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
+            echo '::error::Admin portfolio access must not add an RPC, schema migration, or Storage change; existing Admin read policies are sufficient.'
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
+            echo '::error::Admin portfolio work must not change the established technical-course LMS runtime.'
+            exit 1
+          fi
+          echo 'Admin portfolio guard preserves existing M360 data contracts and technical-course runtime.'
