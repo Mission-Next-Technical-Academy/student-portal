@@ -20,6 +20,32 @@
     nav.appendChild(link);
   }
 
+  function wireSamePageAnchors() {
+    if (document.documentElement.dataset.m360AnchorFixWired === 'true') return;
+    document.documentElement.dataset.m360AnchorFixWired = 'true';
+
+    document.addEventListener('click', event => {
+      const link = event.target && event.target.closest ? event.target.closest('a[href^="#"]') : null;
+      if (!link) return;
+      const href = link.getAttribute('href');
+      if (!href || href === '#') return;
+      const id = decodeURIComponent(href.slice(1));
+      const target = document.getElementById(id);
+      if (!target) return;
+
+      event.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      history.replaceState(null, '', `${location.pathname}${location.search}#${encodeURIComponent(id)}`);
+    });
+  }
+
+  function polishWorkbookButtons() {
+    document.querySelectorAll('.companion-card .btn').forEach(button => {
+      button.style.textAlign = 'center';
+      button.style.justifyContent = 'center';
+    });
+  }
+
   function rewrite() {
     const nav = document.getElementById('m360WeekNavigation');
     if (nav) {
@@ -38,9 +64,13 @@
       back.textContent = '← Week 1';
     }
 
-    if (nav || back) return true;
+    polishWorkbookButtons();
+
+    if (nav || back || document.querySelector('.companion-card .btn')) return true;
     return false;
   }
+
+  wireSamePageAnchors();
 
   if (!rewrite()) {
     const observer = new MutationObserver(() => {

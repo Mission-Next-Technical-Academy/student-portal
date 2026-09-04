@@ -1,14 +1,16 @@
-/* Mission Next M360 101 — isolated student-dashboard entry.
+/* Mission Next M360 101 — isolated portal entry overlay.
  *
  * Loaded after app.js. This does not add M360 to PROGRAMS, enrollments,
- * module_progress, technical completion, or technical timekeeping. It only
- * renders a separate course entry for eligible, currently enrolled students.
+ * module_progress, technical completion, or technical timekeeping. It renders
+ * a separate student course entry for eligible enrolled students and a small
+ * Admin-only launch panel for the M360 review/attendance workspace.
  */
 (() => {
   'use strict';
 
   const ELIGIBLE_TRACKS = new Set(['SOCAN', 'HDESK', 'AIENG']);
   const ENTRY_ID = 'm360-course-entry';
+  const ADMIN_ENTRY_ID = 'm360-admin-entry';
   let renderPending = false;
 
   function technicalEnrollmentActive(user) {
@@ -22,6 +24,13 @@
     const sectionHeader = heading.parentElement;
     const candidate = sectionHeader && sectionHeader.nextElementSibling;
     return candidate && candidate.classList.contains('grid') ? candidate : null;
+  }
+
+  function findAdminHeadingBlock() {
+    const headings = Array.from(document.querySelectorAll('#app h1'));
+    const heading = headings.find(el => el.textContent.trim() === 'Student Progress');
+    if (!heading) return null;
+    return heading.closest('.mb-8') || heading.parentElement;
   }
 
   function suppressLegacyCareerReadiness() {
@@ -57,6 +66,32 @@
       </section>`;
   }
 
+  function adminEntryMarkup() {
+    return `
+      <section id="${ADMIN_ENTRY_ID}" aria-labelledby="m360-admin-entry-title" class="mb-8 overflow-hidden rounded-2xl border border-[#1e3a5f]/15 bg-white shadow-sm">
+        <div class="relative grid gap-5 p-6 md:grid-cols-[1fr_auto] md:items-center">
+          <div class="absolute inset-y-0 left-0 w-1.5 bg-[#f97316]" aria-hidden="true"></div>
+          <div class="pl-2">
+            <div class="mb-2 text-xs font-semibold uppercase tracking-widest text-[#f97316]">M360 101 Administration</div>
+            <h2 id="m360-admin-entry-title" class="text-xl font-bold text-[#1e3a5f]">Professional Readiness Review & Completion</h2>
+            <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600">Review submitted M360 work, return revisions, mark artifacts Meets Standard, and verify the external attendance requirement used for final M360 completion.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <a href="m360/review.html" class="inline-flex items-center justify-center rounded-xl bg-[#1e3a5f] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16304f]">Open Review Queue</a>
+            <a href="m360/review.html#attendanceAdminTitle" class="inline-flex items-center justify-center rounded-xl border border-[#1e3a5f]/20 bg-white px-5 py-3 text-sm font-semibold text-[#1e3a5f] transition hover:bg-[#f8fafc]">Attendance Verification</a>
+          </div>
+        </div>
+      </section>`;
+  }
+
+  function ensureAdminEntry() {
+    if (document.getElementById(ADMIN_ENTRY_ID)) return true;
+    const headingBlock = findAdminHeadingBlock();
+    if (!headingBlock) return false;
+    headingBlock.insertAdjacentHTML('afterend', adminEntryMarkup());
+    return true;
+  }
+
   async function ensureEntry() {
     if (renderPending) return;
     renderPending = true;
@@ -64,7 +99,13 @@
       if (typeof currentUser !== 'function') return;
 
       const user = await currentUser();
-      if (!user || user.isAdmin) return;
+      if (!user) return;
+
+      if (user.isAdmin) {
+        ensureAdminEntry();
+        return;
+      }
+
       if (!ELIGIBLE_TRACKS.has(user.trackCode)) return;
       if (!technicalEnrollmentActive(user)) return;
 
