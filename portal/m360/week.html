@@ -22,7 +22,7 @@
         supabaseScript: '../vendor/supabase.js?v=20260828',
         configScript: '../supabase-config.js?v=20260828',
         dataScript: 'm360-data.js?v=20260904',
-        bridgeScript: 'm360-production-bridge.js?v=20260904b',
+        bridgeScript: 'm360-production-bridge.js?v=20260904c',
         navScript: 'm360-production-nav.js?v=20260904'
       };
       const config = {
@@ -34,7 +34,7 @@
           supabaseScript: 'vendor/supabase.js?v=20260828',
           configScript: 'supabase-config.js?v=20260828',
           dataScript: 'm360/m360-data.js?v=20260904',
-          bridgeScript: 'm360/m360-production-bridge.js?v=20260904b',
+          bridgeScript: 'm360/m360-production-bridge.js?v=20260904c',
           navScript: 'm360/m360-production-nav.js?v=20260904'
         },
         2: {
@@ -48,6 +48,12 @@
           template: 'week3.html',
           originalPattern: /<script\s+src=["']week3\.js[^>]*><\/script>/i,
           localScript: 'week3.js?v=20260904'
+        },
+        4: {
+          ...shared,
+          template: 'week4.html',
+          originalPattern: /<script\s+src=["']week4\.js[^>]*><\/script>/i,
+          localScript: 'week4.js?v=20260904'
         }
       }[week];
 

@@ -7,7 +7,7 @@
   const isWeek1 = weekNumber === 1;
   const localKey = isWeek1 ? 'mnt.m360.preview.portfolio.v3' : 'mnt.m360.course.mock.v1';
   const schemaVersion = isWeek1 ? 3 : 1;
-  const RELEASED_WEEKS = [1, 2, 3];
+  const RELEASED_WEEKS = [1, 2, 3, 4];
 
   if (!RELEASED_WEEKS.includes(weekNumber) || !localScript) {
     console.error('M360 production bridge: invalid week configuration.');
@@ -283,7 +283,7 @@
       }, 1200);
     };
 
-    document.querySelectorAll('[data-m360], [data-review-check]').forEach(field => {
+    document.querySelectorAll('[data-m360], [data-review-check], [data-integrity-check]').forEach(field => {
       field.addEventListener(field.type === 'checkbox' ? 'change' : 'input', scheduleDraftSave);
       if (field.tagName === 'SELECT') field.addEventListener('change', scheduleDraftSave);
     });

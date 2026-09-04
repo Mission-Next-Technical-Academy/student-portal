@@ -38,6 +38,7 @@ jobs:
           node --check portal/m360/m360-production-nav.js
           node --check portal/m360/review.js
           node --check portal/m360/week3.js
+          node --check portal/m360/week4.js
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -115,6 +116,40 @@ jobs:
           print('Week 3 showcase renderer is isolated from raw networking/private evidence fields')
           PY
 
+      - name: Protect Week 4 evidence and Week 3 carry-forward boundary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          js = Path('portal/m360/week4.js').read_text()
+          html = Path('portal/m360/week4.html').read_text()
+
+          if 'const MIN_BULLETS = 3;' not in js:
+              raise SystemExit('Week 4 must require at least three evidence bullets')
+          if 'for (let i = 1; i <= 5; i += 1)' not in js:
+              raise SystemExit('Week 4 must require at least five target signals')
+          if 'Evidence integrity confirmation' not in js or 'supportable claims' not in html:
+              raise SystemExit('Week 4 evidence-integrity requirement is missing')
+
+          match = re.search(r'function renderCarryForward\(\)\s*\{(.*?)\n  \}\n\n  function artifactSource', js, flags=re.S)
+          if not match:
+              raise SystemExit('Could not locate Week 4 renderCarryForward function')
+          carry = match.group(1)
+          raw_week3_fields = [
+              'networkTargets', 'trackerNote', 'actionEvidence', 'actionCompleted',
+              'connectionRequest', 'adviceRequest', 'informationalRequest'
+          ]
+          leaked = [field for field in raw_week3_fields if field in carry]
+          if leaked:
+              raise SystemExit('Week 4 carry-forward references raw Week 3 private fields: ' + ', '.join(leaked))
+          if 'safeWeek3Insight' not in carry:
+              raise SystemExit('Week 4 must use the sanitized Week 3 insight boundary')
+
+          print('Week 4 targeting/evidence requirements and Week 3 privacy carry-forward boundary are enforced')
+          PY
+
       - name: Verify production shell files
         run: |
           set -euo pipefail
@@ -123,11 +158,15 @@ jobs:
           test -f portal/m360/week3.html
           test -f portal/m360/week3.js
           test -f portal/m360/week3.css
+          test -f portal/m360/week4.html
+          test -f portal/m360/week4.js
+          test -f portal/m360/week4.css
           test -f portal/m360/review.html
           test -f portal/m360/m360-data.js
           test -f portal/m360/m360-production-bridge.js
           test -f portal/m360/m360-production-nav.js
           test -f portal/m360-entry.js
           grep -q "3: {" portal/m360/week.html
-          grep -q 'RELEASED_WEEKS = \[1, 2, 3\]' portal/m360/m360-production-bridge.js
+          grep -q "4: {" portal/m360/week.html
+          grep -q 'RELEASED_WEEKS = \[1, 2, 3, 4\]' portal/m360/m360-production-bridge.js
           grep -q 'm360-entry.js?v=20260904' .github/workflows/pages.yml
