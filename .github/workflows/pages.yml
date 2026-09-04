@@ -39,28 +39,12 @@ jobs:
           # must survive verbatim.
           touch _site/.nojekyll
 
-          # Gate 3 M360 integration is deliberately deployment-scoped and
-          # fail-fast. The main portal application remains untouched: this
-          # inserts one additive script after app.js so eligible students see a
-          # separate M360 entry. m360-entry.js does not modify PROGRAMS,
-          # technical enrollments, module progress, labs, timekeeping, or
-          # reporting. If the portal script marker ever changes, fail the build
-          # instead of silently producing a partially integrated deployment.
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('_site/index.html')
-          text = path.read_text()
-          needle = '<script src="app.js?v=20260903b"></script>'
-          if text.count(needle) != 1:
-              raise SystemExit('Expected exactly one portal app.js marker for M360 entry injection')
-          text = text.replace(
-              needle,
-              needle + '\n    <script src="m360-entry.js?v=20260904"></script>',
-              1,
-          )
-          path.write_text(text)
-          PY
+          # Gate 3 M360 integration is deliberately deployment-scoped. The
+          # main portal application remains untouched: portal/index.html now
+          # includes the additive m360-entry.js script tag directly in
+          # source (after app.js), so no CI-side injection is needed here —
+          # the "Verify the assembled site" step below fail-fasts instead if
+          # that tag is ever missing from the assembled output.
 
       - name: Verify the assembled site
         run: |
