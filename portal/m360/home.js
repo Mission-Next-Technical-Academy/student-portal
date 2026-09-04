@@ -29,7 +29,7 @@
   async function ensureDataRuntime() {
     if (typeof supabase === 'undefined') await loadScript('../vendor/supabase.js?v=20260828');
     if (typeof mntSupabase === 'undefined') await loadScript('../supabase-config.js?v=20260828');
-    if (!window.M360Data) await loadScript('m360-data.js?v=20260904');
+    if (!window.M360Data) await loadScript('m360-data.js?v=20260904f');
     return Boolean(window.M360Data);
   }
 
@@ -139,7 +139,7 @@
     link.id = 'm360AdminReviewLink';
     link.className = 'topbar-link';
     link.href = 'review.html';
-    link.textContent = 'Review Queue';
+    link.textContent = 'M360 Administration';
     actions.prepend(link);
   }
 
@@ -151,7 +151,19 @@
     if (card) card.classList.add('current');
   }
 
-  function renderStudentState(week1, week2, week3, week4, week5, week6, mode) {
+  function renderStartHere(progress, mode) {
+    const status = document.getElementById('startHereStatus');
+    const action = document.getElementById('startHereAction');
+    const complete = Boolean(progress && progress.start_here_completed_at);
+    if (status) {
+      status.textContent = complete ? 'Complete' : mode === 'remote' ? 'Not Complete' : 'Status unavailable';
+      status.className = 'status-pill' + (complete ? ' ready' : mode === 'remote' ? ' progress' : '');
+    }
+    if (action) action.textContent = complete ? 'Review Start Here' : 'Open Start Here';
+    return complete;
+  }
+
+  function renderStudentState(week1, week2, week3, week4, week5, week6, mode, progress = null) {
     const weeks = { 1: week1, 2: week2, 3: week3, 4: week4, 5: week5, 6: week6 };
     const statuses = { 1: statusFor(week1), 2: statusFor(week2), 3: statusFor(week3), 4: statusFor(week4), 5: statusFor(week5), 6: statusFor(week6) };
     RELEASED_WEEKS.forEach(number => applyStatus(`week${number}Status`, statuses[number]));
@@ -185,6 +197,14 @@
       continueButton.href = 'portfolio.html'; continueButton.textContent = 'Open My M360 Portfolio'; currentStatusText.textContent = 'All six M360 artifacts are Portfolio Ready. Open your portfolio to review your proof and course-completion status.';
     }
 
+    const startHereComplete = renderStartHere(progress, mode);
+    if (mode === 'remote' && !startHereComplete) {
+      continueButton.href = 'start-here.html';
+      continueButton.textContent = 'Complete Start Here';
+      currentStatusText.textContent = 'Complete the ungraded Orientation & Baseline before beginning Week 1.';
+      document.querySelectorAll('[data-week-card]').forEach(card => card.classList.remove('current'));
+    }
+
     const pill = document.querySelector('.preview-pill');
     if (pill) pill.textContent = mode === 'remote' ? 'M360 Course Home · authenticated' : 'M360 Course Home · local fallback';
   }
@@ -200,15 +220,15 @@
         addAdminReviewLink();
         const button = document.getElementById('continueButton');
         const text = document.getElementById('currentStatusText');
-        if (button) { button.href = 'review.html'; button.textContent = 'Open Review Queue'; }
+        if (button) { button.href = 'review.html'; button.textContent = 'Open M360 Administration'; }
         if (text) text.textContent = 'Admin reviewer access is separate from the student M360 workspace.';
-        showModeNotice('Admin mode: use the M360 Review Queue for submitted student work. Student technical-course records are not modified from this page.');
+        showModeNotice('Admin mode: use M360 Administration for baselines, submitted work, presentation verification, and attendance verification.');
         return;
       }
-      if (!context.eligible) { location.replace('../index.html'); return; }
+      if (!context.eligible) { location.replace('../index.html#/portal'); return; }
 
       if (await M360Data.schemaAvailable()) {
-        const rows = await M360Data.loadOwnWeekRecords();
+        const [rows, progress] = await Promise.all([M360Data.loadOwnWeekRecords(), M360Data.loadOwnCourseProgress()]);
         renderStudentState(
           remoteWeek(rows.find(row => Number(row.week_number) === 1)),
           remoteWeek(rows.find(row => Number(row.week_number) === 2)),
@@ -216,17 +236,17 @@
           remoteWeek(rows.find(row => Number(row.week_number) === 4)),
           remoteWeek(rows.find(row => Number(row.week_number) === 5)),
           remoteWeek(rows.find(row => Number(row.week_number) === 6)),
-          'remote'
+          'remote', progress
         );
         showModeNotice('Authenticated M360 course state is loaded from the durable M360 data store. Technical-course progress remains separate.');
         return;
       }
 
-      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), getLocalCourseWeek(6), 'local');
+      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), getLocalCourseWeek(6), 'local', null);
       showModeNotice('M360 could not confirm its durable data layer. Local working state is shown without changing technical-course data.', true);
     } catch (error) {
       console.error('M360 Course Home initialization failed', error);
-      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), getLocalCourseWeek(6), 'local');
+      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), getLocalCourseWeek(5), getLocalCourseWeek(6), 'local', null);
       showModeNotice('M360 could not reach its production data layer. Local working state is shown without changing any technical-course data.', true);
     }
   }
