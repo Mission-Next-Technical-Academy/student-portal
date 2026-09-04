@@ -37,6 +37,7 @@ jobs:
           node --check portal/m360/m360-production-bridge.js
           node --check portal/m360/m360-production-nav.js
           node --check portal/m360/review.js
+          node --check portal/m360/week3.js
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -59,7 +60,7 @@ jobs:
           printf '%s\n' "$changed"
           forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-)'
           if printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
-            echo '::error::M360 Gate 3 must not modify technical LMS runtime files.'
+            echo '::error::M360 work must not modify technical LMS runtime files.'
             exit 1
           fi
 
@@ -83,14 +84,50 @@ jobs:
           print('M360 migration is additive relative to protected technical tables')
           PY
 
+      - name: Protect Week 3 showcase privacy boundary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          js = Path('portal/m360/week3.js').read_text()
+          match = re.search(r'function renderProof\(\)\s*\{(.*?)\n  \}\n\n  function renderReviewStatus', js, flags=re.S)
+          if not match:
+              raise SystemExit('Could not locate Week 3 showcase renderProof function')
+          proof = match.group(1)
+          private_fields = [
+              'networkTargets', 'trackerNote', 'actionEvidence', 'actionCompleted',
+              'connectionRequest', 'adviceRequest', 'informationalRequest'
+          ]
+          leaked = [field for field in private_fields if field in proof]
+          if leaked:
+              raise SystemExit('Week 3 showcase renderer references private fields: ' + ', '.join(leaked))
+          required_copy = [
+              'Private networking details',
+              'never auto-exported into the showcase portfolio',
+              'showcase preview remains sanitized'
+          ]
+          html = Path('portal/m360/week3.html').read_text()
+          for phrase in required_copy:
+              if phrase not in html:
+                  raise SystemExit(f'Missing Week 3 privacy boundary copy: {phrase}')
+          print('Week 3 showcase renderer is isolated from raw networking/private evidence fields')
+          PY
+
       - name: Verify production shell files
         run: |
           set -euo pipefail
           test -f portal/m360/index.html
           test -f portal/m360/week.html
+          test -f portal/m360/week3.html
+          test -f portal/m360/week3.js
+          test -f portal/m360/week3.css
           test -f portal/m360/review.html
           test -f portal/m360/m360-data.js
           test -f portal/m360/m360-production-bridge.js
           test -f portal/m360/m360-production-nav.js
           test -f portal/m360-entry.js
+          grep -q "3: {" portal/m360/week.html
+          grep -q 'RELEASED_WEEKS = \[1, 2, 3\]' portal/m360/m360-production-bridge.js
           grep -q 'm360-entry.js?v=20260904' .github/workflows/pages.yml
