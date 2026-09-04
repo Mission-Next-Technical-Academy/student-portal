@@ -7,7 +7,7 @@
   const isWeek1 = weekNumber === 1;
   const localKey = isWeek1 ? 'mnt.m360.preview.portfolio.v3' : 'mnt.m360.course.mock.v1';
   const schemaVersion = isWeek1 ? 3 : 1;
-  const RELEASED_WEEKS = [1, 2, 3, 4];
+  const RELEASED_WEEKS = [1, 2, 3, 4, 5];
 
   if (!RELEASED_WEEKS.includes(weekNumber) || !localScript) {
     console.error('M360 production bridge: invalid week configuration.');
