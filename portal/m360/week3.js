@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'mnt.m360.course.mock.v1';
   const SCHEMA_VERSION = 1;
-  const MIN_TARGETS = 7;
+  const MIN_TARGETS = 4;
 
   const roadmap = [
     { key: 'week1', week: '01', stage: 'Direction', title: 'Career Direction & Professional Brand', artifact: 'Professional direction + brand + evidence' },
