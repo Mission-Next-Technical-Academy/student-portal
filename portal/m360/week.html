@@ -26,7 +26,8 @@
           supabaseScript: 'vendor/supabase.js?v=20260828',
           configScript: 'supabase-config.js?v=20260828',
           dataScript: 'm360/m360-data.js?v=20260904',
-          bridgeScript: 'm360/m360-production-bridge.js?v=20260904'
+          bridgeScript: 'm360/m360-production-bridge.js?v=20260904',
+          navScript: 'm360/m360-production-nav.js?v=20260904'
         },
         2: {
           template: 'course.html',
@@ -36,7 +37,8 @@
           supabaseScript: '../vendor/supabase.js?v=20260828',
           configScript: '../supabase-config.js?v=20260828',
           dataScript: 'm360-data.js?v=20260904',
-          bridgeScript: 'm360-production-bridge.js?v=20260904'
+          bridgeScript: 'm360-production-bridge.js?v=20260904',
+          navScript: 'm360-production-nav.js?v=20260904'
         }
       }[week];
 
@@ -57,7 +59,8 @@
             `<script src="${config.supabaseScript}"><\/script>`,
             `<script src="${config.configScript}"><\/script>`,
             `<script src="${config.dataScript}"><\/script>`,
-            `<script src="${config.bridgeScript}" data-week="${week}" data-local-script="${config.localScript}"><\/script>`
+            `<script src="${config.bridgeScript}" data-week="${week}" data-local-script="${config.localScript}"><\/script>`,
+            `<script src="${config.navScript}"><\/script>`
           ].join('\n');
           html = html.replace(config.originalPattern, runtime);
           document.open();
