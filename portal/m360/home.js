@@ -26,9 +26,14 @@
     });
   }
 
-  async function ensureDataRuntime() {
+  async function ensureSupabaseRuntime() {
     if (typeof supabase === 'undefined') await loadScript('../vendor/supabase.js?v=20260828');
     if (typeof mntSupabase === 'undefined') await loadScript('../supabase-config.js?v=20260828');
+    return typeof mntSupabase !== 'undefined';
+  }
+
+  async function ensureDataRuntime() {
+    if (!(await ensureSupabaseRuntime())) return false;
     if (!window.M360Data) await loadScript('m360-data.js?v=20260904f');
     return Boolean(window.M360Data);
   }
@@ -143,6 +148,63 @@
     actions.prepend(link);
   }
 
+  async function signOutFromM360(event) {
+    if (event) event.preventDefault();
+    const control = document.getElementById('m360SignOut');
+    if (control) {
+      control.setAttribute('aria-busy', 'true');
+      control.textContent = 'Signing Out…';
+    }
+
+    try {
+      if (!(await ensureSupabaseRuntime())) throw new Error('Supabase client unavailable.');
+      try {
+        const { data: { session } } = await mntSupabase.auth.getSession();
+        const userId = session && session.user ? session.user.id : null;
+        if (userId) {
+          const { error } = await mntSupabase
+            .from('site_sessions')
+            .update({ ended_at: new Date().toISOString(), ended_reason: 'user_signed_out' })
+            .eq('user_id', userId)
+            .is('ended_at', null);
+          if (error) console.error('M360 site_sessions self-close failed', error);
+        }
+      } catch (error) {
+        console.error('M360 site_sessions self-close threw', error);
+      }
+
+      await mntSupabase.auth.signOut();
+      Object.keys(localStorage)
+        .filter(key => key.startsWith('defender-lab.'))
+        .forEach(key => localStorage.removeItem(key));
+      Object.keys(sessionStorage)
+        .filter(key => key.startsWith('defender-lab.'))
+        .forEach(key => sessionStorage.removeItem(key));
+      location.replace('../index.html#/login');
+    } catch (error) {
+      console.error('M360 sign out failed', error);
+      if (control) {
+        control.removeAttribute('aria-busy');
+        control.textContent = 'Sign Out';
+      }
+      showModeNotice('Sign out could not be completed. Please try again.', true);
+    }
+  }
+
+  function ensureSignOutControl() {
+    const actions = document.querySelector('.topbar-actions');
+    if (!actions || document.getElementById('m360SignOut')) return;
+    const link = document.createElement('a');
+    link.id = 'm360SignOut';
+    link.className = 'topbar-link';
+    link.href = '../index.html#/login';
+    link.textContent = 'Sign Out';
+    link.addEventListener('click', signOutFromM360);
+    const myPrograms = Array.from(actions.querySelectorAll('a')).find(item => item.textContent.trim() === 'My Programs');
+    if (myPrograms) myPrograms.insertAdjacentElement('afterend', link);
+    else actions.prepend(link);
+  }
+
   function setCurrentCard(weeks) {
     document.querySelectorAll('[data-week-card]').forEach(card => card.classList.remove('current'));
     let current = RELEASED_WEEKS.find(number => !(weeks[number] && weeks[number].accepted));
@@ -211,6 +273,7 @@
 
   async function initialize() {
     setProductionLinks();
+    ensureSignOutControl();
     try {
       const runtimeReady = await ensureDataRuntime();
       if (!runtimeReady) throw new Error('M360 data runtime unavailable');
