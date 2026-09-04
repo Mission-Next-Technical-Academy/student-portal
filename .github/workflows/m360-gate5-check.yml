@@ -1,0 +1,142 @@
+name: M360 Gate 5 checks
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/**'
+      - '.github/workflows/m360-gate5-check.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'portal/m360/week6.*'
+      - 'portal/m360/portfolio.*'
+      - '.github/workflows/m360-gate5-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gate 5 JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360/week6.js
+          node --check portal/m360/portfolio.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('portal/m360/week.html').read_text()
+          scripts = re.findall(r'<script>(.*?)</script>', text, flags=re.S | re.I)
+          if len(scripts) != 1:
+              raise SystemExit(f'Expected one inline M360 loader script; found {len(scripts)}')
+          Path('/tmp/m360-week-loader.js').write_text(scripts[0])
+          PY
+          node --check /tmp/m360-week-loader.js
+
+      - name: Protect technical LMS boundary
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          printf '%s\n' "$changed"
+          forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-|supabase/migrations/)'
+          if printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
+            echo '::error::Gate 5 must not modify technical LMS runtime or add a database migration.'
+            exit 1
+          fi
+
+      - name: Enforce Week 6 controlled standard
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path('portal/m360/week6.html').read_text()
+          js = Path('portal/m360/week6.js').read_text()
+          required_html = [
+              'Maximum 3 slides total',
+              'No separate fourth title slide',
+              'Professional Communication',
+              'Slide 1: Who I am / where I am going',
+              'Slide 2: What I can do / proof example',
+              'Slide 3: What is next / 30-day plan summary'
+          ]
+          for phrase in required_html:
+              if phrase not in html:
+                  raise SystemExit(f'Missing Week 6 controlled standard: {phrase}')
+          for dim in ['clarity','relevance','evidence','application','professional_communication']:
+              if dim not in js:
+                  raise SystemExit(f'Week 6 demo/review model missing rubric dimension: {dim}')
+          if "presentationStatus==='Not completed'" not in js:
+              raise SystemExit('Week 6 must treat Not completed presentation status as incomplete')
+          if "Approved Google Drive recording/link exception" not in js:
+              raise SystemExit('Week 6 approved exception path is missing')
+          print('Week 6 three-slide and five-dimension standard is enforced')
+          PY
+
+      - name: Protect Week 6 carry-forward privacy
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/week6.js').read_text()
+          start = js.find('function carryForward(){')
+          end = js.find('function prefillFromAccepted', start)
+          if start < 0 or end < 0:
+              raise SystemExit('Could not locate Week 6 carry-forward renderer')
+          carry = js[start:end]
+          forbidden = [
+              'networkTargets','trackerNote','actionEvidence','actionCompleted',
+              'connectionRequest','adviceRequest','informationalRequest',
+              'technicalScenario','technicalReasoning'
+          ]
+          leaked=[x for x in forbidden if x in carry]
+          if leaked:
+              raise SystemExit('Week 6 carry-forward references private fields: '+', '.join(leaked))
+          print('Week 6 carry-forward excludes Week 3 raw networking and Week 5 private scenario data')
+          PY
+
+      - name: Protect portfolio whitelist and read-only boundary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360/portfolio.js').read_text()
+          forbidden = [
+              'networkTargets','trackerNote','actionEvidence','actionCompleted',
+              'connectionRequest','adviceRequest','informationalRequest',
+              'technicalScenario','technicalReasoning','reviewer_feedback',
+              'module_progress','lab_attempts','site_sessions'
+          ]
+          leaked=[x for x in forbidden if x in js]
+          if leaked:
+              raise SystemExit('Portfolio assembler references excluded/private fields: '+', '.join(leaked))
+          write_calls=['saveDraft(','submitWeek(','reviewWeek(','setAttendance(']
+          writes=[x for x in write_calls if x in js]
+          if writes:
+              raise SystemExit('Portfolio must remain read-only; found: '+', '.join(writes))
+          required=['accepted_artifact_payload','loadOwnWeekRecords','loadOwnCourseProgress','DRAFT — NOT YET ACCEPTED']
+          source = js + Path('portal/m360/portfolio.html').read_text()
+          for phrase in required:
+              if phrase not in source:
+                  raise SystemExit(f'Missing portfolio architecture requirement: {phrase}')
+          print('Portfolio assembler is accepted-artifact based, privacy-whitelisted, and read-only')
+          PY
+
+      - name: Verify Gate 5 files
+        run: |
+          set -euo pipefail
+          test -f portal/m360/week6.html
+          test -f portal/m360/week6.js
+          test -f portal/m360/week6.css
+          test -f portal/m360/portfolio.html
+          test -f portal/m360/portfolio.js
+          test -f portal/m360/portfolio.css
+          grep -q "6: {" portal/m360/week.html
