@@ -11,6 +11,14 @@
   const week2Url = new URL('week.html?week=2', m360Base).href;
   const portfolioUrl = new URL('portfolio.html', m360Base).href;
   const portfolioDownloadUrl = new URL('portfolio.html?download=1', m360Base).href;
+  const workbookUrls = {
+    1: 'https://drive.google.com/file/d/1mWZrh0Lq09JOoaiCSg8Bc0sm8nn7D6Wt/view?usp=drivesdk',
+    2: 'https://drive.google.com/file/d/1NiO2TQJc5a9_Vq9AUODv8WT32JL82uIu/view?usp=drivesdk',
+    3: 'https://drive.google.com/file/d/1xvaoUfIotqbXY04_cXZdaxFkv33mzwmn/view?usp=drivesdk',
+    4: 'https://drive.google.com/file/d/15T6uaLW6pchasSjXqSIRB2kTDx-z8qIw/view?usp=drivesdk',
+    5: 'https://drive.google.com/file/d/1nhzo1LFgXKQmR3xuhABd5-zxuOavOcr7/view?usp=drivesdk',
+    6: 'https://drive.google.com/file/d/15bhDaGziLsitpOV-VPXKLIteDPTWMHGW/view?usp=drivesdk'
+  };
 
   function ensurePortfolioLink(nav) {
     if (!nav || document.getElementById('m360PortfolioNavLink')) return;
@@ -157,10 +165,23 @@
   }
 
   function polishWorkbookButtons() {
+    const workbookUrl = workbookUrls[week];
     document.querySelectorAll('.companion-card .btn').forEach(button => {
       button.style.textAlign = 'center';
       button.style.justifyContent = 'center';
     });
+    if (!workbookUrl) return false;
+
+    const workbookLinks = Array.from(document.querySelectorAll('a[href]')).filter(link => {
+      const text = link.textContent.trim().toLowerCase();
+      return text.includes('workbook') || Boolean(link.closest('.workbook-resource'));
+    });
+    workbookLinks.forEach(link => {
+      link.href = workbookUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    });
+    return workbookLinks.length > 0;
   }
 
   function rewrite() {

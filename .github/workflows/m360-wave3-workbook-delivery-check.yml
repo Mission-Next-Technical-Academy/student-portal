@@ -1,0 +1,91 @@
+name: M360 Wave 3 workbook delivery guard
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/m360-production-nav.js'
+      - '.github/workflows/m360-wave3-workbook-delivery-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  wave3-workbook-delivery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce Wave 3 scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          printf '%s\n' "$changed"
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave3-workbook-delivery-check.yml|portal/m360/m360-production-nav.js)$' || true)"
+          if [ -n "$unexpected" ]; then
+            echo '::error::Wave 3 is limited to the canonical M360 workbook delivery rewrite and its guard.'
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check portal/m360/m360-production-nav.js
+
+      - name: Require all six student-facing workbook targets
+        run: |
+          set -euo pipefail
+          nav='portal/m360/m360-production-nav.js'
+          for id in \
+            1mWZrh0Lq09JOoaiCSg8Bc0sm8nn7D6Wt \
+            1NiO2TQJc5a9_Vq9AUODv8WT32JL82uIu \
+            1xvaoUfIotqbXY04_cXZdaxFkv33mzwmn \
+            15T6uaLW6pchasSjXqSIRB2kTDx-z8qIw \
+            1nhzo1LFgXKQmR3xuhABd5-zxuOavOcr7 \
+            15bhDaGziLsitpOV-VPXKLIteDPTWMHGW
+          do
+            grep -q "$id" "$nav" || { echo "::error::Missing student-facing workbook target $id"; exit 1; }
+          done
+          grep -q 'const workbookUrls = {' "$nav"
+          grep -q "text.includes('workbook')" "$nav"
+          grep -q "link.href = workbookUrl" "$nav"
+          grep -q "link.target = '_blank'" "$nav"
+          grep -q "link.rel = 'noopener noreferrer'" "$nav"
+
+      - name: Keep internal source workbook IDs out of production delivery mapping
+        run: |
+          set -euo pipefail
+          nav='portal/m360/m360-production-nav.js'
+          for id in \
+            126bSFtNYx3kHUouA5Lxwgrb5doL1X7l- \
+            1FtGyuUjcEiKOaVYySuwbZeduRuc1CmdU \
+            1acdXRb9bBXuh2Az4lqWlYsFqdFEssUbq \
+            1Y090_Q5A0jS9XTGXE3dZbhmpB-QcSw08 \
+            1wQo-t3Sv6AY93ygM37LwYwORAojGpKlj \
+            1RVHFVHnyFTWbWv9wDNWmsmy941g7GkEH
+          do
+            if grep -q "$id" "$nav"; then
+              echo "::error::Internal source workbook ID leaked into canonical production delivery mapping: $id"
+              exit 1
+            fi
+          done
+
+      - name: Preserve established product boundaries
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
+            echo '::error::Wave 3 must not change Supabase schema, migrations, or Storage.'
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
+            echo '::error::Wave 3 must not change the established technical-course LMS runtime.'
+            exit 1
+          fi
+          echo 'Wave 3 changes only the canonical M360 workbook delivery layer.'
