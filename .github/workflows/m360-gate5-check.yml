@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - 'portal/m360/**'
+      - 'supabase/migrations/*m360*'
       - '.github/workflows/m360-gate5-check.yml'
   push:
     branches: [master]
     paths:
       - 'portal/m360/week6.*'
       - 'portal/m360/portfolio.*'
+      - 'supabase/migrations/*m360*'
       - '.github/workflows/m360-gate5-check.yml'
 
 permissions:
@@ -47,9 +49,15 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           printf '%s\n' "$changed"
-          forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-|supabase/migrations/)'
+          forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-)'
           if printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
-            echo '::error::Gate 5 must not modify technical LMS runtime or add a database migration.'
+            echo '::error::Gate 5 must not modify technical LMS runtime.'
+            exit 1
+          fi
+          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' || true)"
+          if [ -n "$unexpected_migrations" ]; then
+            echo '::error::Gate 5 permits only the reviewed M360 Start Here/Spotlight migration in this change.'
+            printf '%s\n' "$unexpected_migrations"
             exit 1
           fi
 
@@ -60,13 +68,15 @@ jobs:
           from pathlib import Path
           html = Path('portal/m360/week6.html').read_text()
           js = Path('portal/m360/week6.js').read_text()
+          admin = Path('portal/m360/review-course-state.js').read_text()
           required_html = [
               'Maximum 3 slides total',
               'No separate fourth title slide',
               'Professional Communication',
               'Who I am / where I am going',
               'What I can do / proof example',
-              'What is next / 30-day plan summary'
+              'What is next / 30-day plan summary',
+              'You do not self-report presentation status here'
           ]
           for phrase in required_html:
               if phrase not in html:
@@ -74,11 +84,12 @@ jobs:
           for dim in ['clarity','relevance','evidence','application','professional_communication']:
               if dim not in js:
                   raise SystemExit(f'Week 6 demo/review model missing rubric dimension: {dim}')
-          if "presentationStatus==='Not completed'" not in js:
-              raise SystemExit('Week 6 must treat Not completed presentation status as incomplete')
-          if "Approved Google Drive recording/link exception" not in js:
-              raise SystemExit('Week 6 approved exception path is missing')
-          print('Week 6 three-slide and five-dimension standard is enforced')
+          if 'presentationStatus' in js or 'presentationEvidence' in js:
+              raise SystemExit('Week 6 student payload must not include staff-owned presentation verification fields')
+          for state in ['not_completed','presented_live','approved_makeup_completed','approved_exception_completed']:
+              if state not in admin:
+                  raise SystemExit(f'Admin presentation verifier missing approved state: {state}')
+          print('Week 6 three-slide, five-dimension, staff-verified presentation standard is enforced')
           PY
 
       - name: Protect Week 6 carry-forward privacy
@@ -118,7 +129,7 @@ jobs:
           leaked=[x for x in forbidden if x in js]
           if leaked:
               raise SystemExit('Portfolio assembler references excluded/private fields: '+', '.join(leaked))
-          write_calls=['saveDraft(','submitWeek(','reviewWeek(','setAttendance(']
+          write_calls=['saveDraft(','submitWeek(','reviewWeek(','setAttendance(','setSpotlightPresentation(']
           writes=[x for x in write_calls if x in js]
           if writes:
               raise SystemExit('Portfolio must remain read-only; found: '+', '.join(writes))
