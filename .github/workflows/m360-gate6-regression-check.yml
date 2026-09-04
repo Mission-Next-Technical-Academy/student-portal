@@ -27,6 +27,7 @@ jobs:
           set -euo pipefail
           node --check portal/m360/portfolio.js
           node --check portal/m360/m360-production-nav.js
+          node --check portal/m360/review-attendance.js
 
       - name: Protect technical LMS boundary
         if: github.event_name == 'pull_request'
@@ -82,6 +83,20 @@ jobs:
           grep -q "m360PortfolioNavLink" portal/m360/m360-production-nav.js
           grep -q "My M360 Portfolio" portal/m360/m360-production-nav.js
 
+      - name: Verify independent attendance verification path
+        run: |
+          set -euo pipefail
+          test -f portal/m360/review-attendance.js
+          test -f portal/m360/review-attendance.css
+          grep -q 'M360 Attendance Verification' portal/m360/review.html
+          grep -q 'review-attendance.js' portal/m360/review.html
+          grep -q "\.from('m360_course_records')" portal/m360/review-attendance.js
+          grep -q 'M360Data.setAttendance' portal/m360/review-attendance.js
+          if grep -Eiq 'attendance_minutes|clock_hours|session_duration|browser_time' portal/m360/review-attendance.js portal/m360/review.html; then
+            echo '::error::Attendance roster must not introduce session-level time fields.'
+            exit 1
+          fi
+
       - name: Preserve Gate 6 release surfaces
         run: |
           set -euo pipefail
@@ -89,3 +104,4 @@ jobs:
           test -f portal/m360/portfolio.js
           test -f portal/m360/week6.html
           test -f portal/m360/m360-production-nav.js
+          test -f portal/m360/review.html
