@@ -7,7 +7,7 @@
     'mnt.m360.preview.week1.v1'
   ];
   const COURSE_KEY = 'mnt.m360.course.mock.v1';
-  const RELEASED_WEEKS = [1, 2, 3];
+  const RELEASED_WEEKS = [1, 2, 3, 4];
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -87,35 +87,35 @@
     el.className = 'status-pill' + (status.className ? ' ' + status.className : '');
   }
 
-  function releaseWeek3Card() {
-    const card = document.querySelector('[data-week-card="3"]');
+  function releaseWeekCard(number) {
+    const card = document.querySelector(`[data-week-card="${number}"]`);
     if (!card) return;
     card.classList.remove('upcoming');
     card.classList.add('available');
     const oldStatus = card.querySelector('.status-pill');
-    if (oldStatus) { oldStatus.id = 'week3Status'; oldStatus.className = 'status-pill'; oldStatus.textContent = 'Not Started'; }
+    if (oldStatus) { oldStatus.id = `week${number}Status`; oldStatus.className = 'status-pill'; oldStatus.textContent = 'Not Started'; }
     const oldAction = card.querySelector('.week-action');
     if (oldAction && oldAction.tagName !== 'A') {
       const link = document.createElement('a');
       link.className = 'week-action';
-      link.href = 'week.html?week=3';
-      link.innerHTML = 'Open Week 3 <span>→</span>';
+      link.href = `week.html?week=${number}`;
+      link.innerHTML = `Open Week ${number} <span>→</span>`;
       oldAction.replaceWith(link);
     } else if (oldAction) {
-      oldAction.href = 'week.html?week=3';
+      oldAction.href = `week.html?week=${number}`;
       oldAction.classList.remove('disabled');
       oldAction.removeAttribute('aria-disabled');
     }
   }
 
   function setProductionLinks() {
-    releaseWeek3Card();
+    RELEASED_WEEKS.filter(number => number >= 3).forEach(releaseWeekCard);
     RELEASED_WEEKS.forEach(number => {
       const link = document.querySelector(`[data-week-card="${number}"] .week-action`);
       if (link && link.tagName === 'A') link.href = `week.html?week=${number}`;
     });
     document.querySelectorAll('.portfolio-link, .portfolio-home-actions .btn').forEach(link => {
-      if (link.tagName === 'A') link.href = 'week.html?week=3#prove';
+      if (link.tagName === 'A') link.href = 'week.html?week=4#prove';
     });
   }
 
@@ -151,12 +151,10 @@
     if (card) card.classList.add('current');
   }
 
-  function renderStudentState(week1, week2, week3, mode) {
-    const weeks = { 1: week1, 2: week2, 3: week3 };
-    const statuses = { 1: statusFor(week1), 2: statusFor(week2), 3: statusFor(week3) };
-    applyStatus('week1Status', statuses[1]);
-    applyStatus('week2Status', statuses[2]);
-    applyStatus('week3Status', statuses[3]);
+  function renderStudentState(week1, week2, week3, week4, mode) {
+    const weeks = { 1: week1, 2: week2, 3: week3, 4: week4 };
+    const statuses = { 1: statusFor(week1), 2: statusFor(week2), 3: statusFor(week3), 4: statusFor(week4) };
+    RELEASED_WEEKS.forEach(number => applyStatus(`week${number}Status`, statuses[number]));
     setCurrentCard(weeks);
 
     const readyCount = RELEASED_WEEKS.filter(number => Boolean(weeks[number] && weeks[number].accepted)).length;
@@ -183,10 +181,14 @@
       continueButton.href = 'week.html?week=3';
       continueButton.textContent = hasDraftContent(week3) || statuses[3].label !== 'Not Started' ? 'Continue Week 3' : 'Start Week 3';
       currentStatusText.textContent = 'Weeks 1 and 2 are Portfolio Ready. Week 3 uses connection and follow-up to test what you are learning about your target direction.';
+    } else if (!week4 || !week4.accepted) {
+      continueButton.href = 'week.html?week=4';
+      continueButton.textContent = hasDraftContent(week4) || statuses[4].label !== 'Not Started' ? 'Continue Week 4' : 'Start Week 4';
+      currentStatusText.textContent = 'Weeks 1–3 are Portfolio Ready. Week 4 turns accepted evidence into a targeted resume for a specific opportunity.';
     } else {
-      continueButton.href = 'week.html?week=3';
-      continueButton.textContent = 'Review Week 3';
-      currentStatusText.textContent = 'Weeks 1–3 are Portfolio Ready. Week 4 remains Upcoming until the next Gate 4 slice is released.';
+      continueButton.href = 'week.html?week=4';
+      continueButton.textContent = 'Review Week 4';
+      currentStatusText.textContent = 'Weeks 1–4 are Portfolio Ready. Week 5 remains Upcoming until the final Gate 4 slice is released.';
     }
 
     const pill = document.querySelector('.preview-pill');
@@ -217,17 +219,18 @@
           remoteWeek(rows.find(row => Number(row.week_number) === 1)),
           remoteWeek(rows.find(row => Number(row.week_number) === 2)),
           remoteWeek(rows.find(row => Number(row.week_number) === 3)),
+          remoteWeek(rows.find(row => Number(row.week_number) === 4)),
           'remote'
         );
         showModeNotice('Authenticated M360 course state is loaded from the durable M360 data store. Technical-course progress remains separate.');
         return;
       }
 
-      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), 'local');
+      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), 'local');
       showModeNotice('M360 could not confirm its durable data layer. Local working state is shown without changing technical-course data.', true);
     } catch (error) {
       console.error('M360 Course Home initialization failed', error);
-      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), 'local');
+      renderStudentState(getLocalWeek1(), getLocalCourseWeek(2), getLocalCourseWeek(3), getLocalCourseWeek(4), 'local');
       showModeNotice('M360 could not reach its production data layer. Local working state is shown without changing any technical-course data.', true);
     }
   }
