@@ -23,7 +23,8 @@
         configScript: '../supabase-config.js?v=20260828',
         dataScript: 'm360-data.js?v=20260904f',
         bridgeScript: 'm360-production-bridge.js?v=20260904g',
-        navScript: 'm360-production-nav.js?v=20260904e'
+        navScript: 'm360-production-nav.js?v=20260904e',
+        polishScript: 'm360-ui-polish.js?v=20260904'
       };
       const config = {
         1: {
@@ -35,7 +36,8 @@
           configScript: 'supabase-config.js?v=20260828',
           dataScript: 'm360/m360-data.js?v=20260904f',
           bridgeScript: 'm360/m360-production-bridge.js?v=20260904g',
-          navScript: 'm360/m360-production-nav.js?v=20260904e'
+          navScript: 'm360/m360-production-nav.js?v=20260904e',
+          polishScript: 'm360/m360-ui-polish.js?v=20260904'
         },
         2: {...shared, template: 'course.html', originalPattern: /<script\s+src=["']course\.js[^>]*><\/script>/i, localScript: 'course.js?v=20260903'},
         3: {...shared, template: 'week3.html', originalPattern: /<script\s+src=["']week3\.js[^>]*><\/script>/i, localScript: 'week3.js?v=20260904a'},
@@ -59,7 +61,8 @@
             `<script src="${config.configScript}"><\/script>`,
             `<script src="${config.dataScript}"><\/script>`,
             `<script src="${config.bridgeScript}" data-week="${week}" data-local-script="${config.localScript}"><\/script>`,
-            `<script src="${config.navScript}"><\/script>`
+            `<script src="${config.navScript}"><\/script>`,
+            `<script src="${config.polishScript}"><\/script>`
           ].join('\n');
           html = html.replace(config.originalPattern, runtime);
           document.open(); document.write(html); document.close();
