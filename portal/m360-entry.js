@@ -3,7 +3,7 @@
  * Loaded after app.js. This does not add M360 to PROGRAMS, enrollments,
  * module_progress, technical completion, or technical timekeeping. It renders
  * a separate student course entry for eligible enrolled students and a small
- * Admin-only launch panel for the M360 review/attendance workspace.
+ * Admin-only launch panel for the M360 administration workspace.
  */
 (() => {
   'use strict';
@@ -74,12 +74,9 @@
           <div class="pl-2">
             <div class="mb-2 text-xs font-semibold uppercase tracking-widest text-[#f97316]">M360 101 Administration</div>
             <h2 id="m360-admin-entry-title" class="text-xl font-bold text-[#1e3a5f]">Professional Readiness Review & Completion</h2>
-            <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600">Review submitted M360 work, return revisions, mark artifacts Meets Standard, and verify the external attendance requirement used for final M360 completion.</p>
+            <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600">Use one workspace to review submitted M360 work and verify the external attendance requirement used for final course completion.</p>
           </div>
-          <div class="flex flex-wrap gap-3">
-            <a href="m360/review.html" class="inline-flex items-center justify-center rounded-xl bg-[#1e3a5f] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16304f]">Open Review Queue</a>
-            <a href="m360/review.html#attendanceAdminTitle" class="inline-flex items-center justify-center rounded-xl border border-[#1e3a5f]/20 bg-white px-5 py-3 text-sm font-semibold text-[#1e3a5f] transition hover:bg-[#f8fafc]">Attendance Verification</a>
-          </div>
+          <a href="m360/review.html" class="inline-flex items-center justify-center rounded-xl bg-[#1e3a5f] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16304f]">Open M360 Administration</a>
         </div>
       </section>`;
   }
