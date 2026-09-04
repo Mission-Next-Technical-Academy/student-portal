@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="../m360-preview.css?v=20260903b" />
   <link rel="stylesheet" href="../m360-demo-refinements.css?v=20260903" />
   <link rel="stylesheet" href="course.css?v=20260903" />
-  <link rel="stylesheet" href="start-here.css?v=20260904a" />
+  <link rel="stylesheet" href="start-here.css?v=20260904b" />
 </head>
 <body>
   <div class="shell">
@@ -77,7 +77,7 @@
           <div class="field"><label for="targetDirection">Current target direction, role family, or field <span class="portfolio-field">Required</span></label><textarea id="targetDirection" data-start-field placeholder="Exploratory is acceptable."></textarea></div>
           <div class="field"><label>Associated technical track</label><div class="read-only-field" id="technicalTrack">Loading…</div></div>
           <div class="form-grid">
-            <div class="field"><label for="profileStatus">Professional profile status <span class="portfolio-field">Required</span></label><select id="profileStatus" data-start-field aria-describedby="profilePrivacyHelp"><option value="">Select status</option><option value="ready">Ready</option><option value="needs_update">Needs update</option><option value="no_profile">No profile yet</option><option value="privacy_support">Privacy / exception support needed</option></select><p class="field-help" id="profilePrivacyHelp">LinkedIn is one common option, but you do not need to make personal information public to complete Start Here. If a public professional profile is not appropriate for you, choose Privacy / exception support needed so staff can provide an approved path.</p></div>
+            <div class="field"><label for="profileStatus">Professional profile status <span class="portfolio-field">Required</span></label><select id="profileStatus" data-start-field aria-describedby="profilePrivacyHelp"><option value="">Select status</option><option value="ready">Profile exists — I use it now</option><option value="needs_update">Profile exists — I want to strengthen it</option><option value="no_profile">I do not have a profile yet</option><option value="privacy_support">I prefer not to use a public profile / need an alternative</option></select><p class="field-help" id="profilePrivacyHelp">A LinkedIn account is not required. If you do not want a public profile, select this option. Your instructor can help you use an approved professional-presence alternative without penalty.</p></div>
             <div class="field"><label for="resumeStatus">Current resume status <span class="portfolio-field">Required</span></label><select id="resumeStatus" data-start-field><option value="">Select status</option><option value="ready">Ready</option><option value="needs_update">Needs update</option><option value="no_resume">No current resume</option><option value="support_needed">Support needed</option></select></div>
           </div>
           <div class="form-grid">
@@ -90,9 +90,9 @@
       </section>
 
       <section class="card start-card" id="technologyReadiness">
-        <div class="card-header"><div class="step-label">Technology readiness</div><h2>Confirm you can participate in the M360 workflow.</h2><p class="subtle">Readiness means you can complete the action now or you have reported an access issue and know how to get help. Do not hide an access problem just to finish Start Here.</p></div>
+        <div class="card-header"><div class="step-label">Technology readiness</div><h2>Confirm you can participate in the M360 workflow.</h2><p class="subtle">Confirm each item below. If an access issue prevents you from confirming one, contact Mission Next staff before completing Start Here.</p></div>
         <div class="card-body">
-          <div class="check-list" id="technologyChecks"><label><input type="checkbox" id="techLms" data-tech-check /> <span>I can access the Mission Next LMS, or I have reported the access issue to Mission Next staff.</span></label><label><input type="checkbox" id="techLive" data-tech-check /> <span>I can access the live-session link, or I have reported the access issue to Mission Next staff.</span></label><label><input type="checkbox" id="techFiles" data-tech-check /> <span>I can upload required files or provide approved links, or I know how to ask for help if that fails.</span></label><label><input type="checkbox" id="techFeedback" data-tech-check /> <span>I can open and review instructor feedback in the LMS, or I know how to report an access problem.</span></label></div>
+          <div class="check-list" id="technologyChecks"><label><input type="checkbox" id="techLms" data-tech-check /> <span>I have reliable internet access for M360.</span></label><label><input type="checkbox" id="techLive" data-tech-check /> <span>I have a computer or device with a current web browser.</span></label><label><input type="checkbox" id="techFiles" data-tech-check /> <span>I can join live virtual sessions with audio.</span></label><label><input type="checkbox" id="techFeedback" data-tech-check /> <span>I can download, open, save, and upload common files.</span></label></div>
           <div class="group-error" id="technologyError" role="alert" hidden></div>
         </div>
       </section>
@@ -115,6 +115,6 @@
   <script src="../vendor/supabase.js?v=20260828"></script>
   <script src="../supabase-config.js?v=20260828"></script>
   <script src="m360-data.js?v=20260904f"></script>
-  <script src="start-here.js?v=20260904a"></script>
+  <script src="start-here.js?v=20260904b"></script>
 </body>
 </html>
