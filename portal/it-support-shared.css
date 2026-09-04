@@ -1,0 +1,137 @@
+/* Shared IT Help Desk theme tokens and reusable lab widgets.
+ * Loaded once, before the per-module it-support-module-0N.css files, which
+ * consume the --its- custom properties below. Every widget class here is
+ * prefixed itsw- (IT Support Widget) so it can't collide with any m0N-/its0N-
+ * module-scoped class. This is the one deliberate exception to the
+ * codebase's per-module CSS isolation convention — the Module 1/2 lab specs
+ * explicitly call for building the evidence-upload and ticket-queue
+ * interactions once and reusing them (Modules 1, 2, and 12).
+ */
+
+:root {
+  --its-navy: #1e3a5f;
+  --its-navy-deep: #0c1e32;
+  --its-accent: #2f80ed;
+  --its-accent-hover: #1c64d1;
+  --its-accent-wash: rgba(47, 128, 237, .08);
+  --its-accent-border: rgba(47, 128, 237, .35);
+}
+
+.itsw-evidence { min-width: 0; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; }
+.itsw-evidence-head { display: flex; align-items: flex-start; gap: 12px; }
+.itsw-evidence-icon { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: var(--its-accent); border-radius: 10px; font-size: 18px; }
+.itsw-evidence-head strong { display: block; color: var(--its-navy); font-size: 13px; }
+.itsw-evidence-head p { margin: 3px 0 0; color: #64748b; font: 12px/1.55 Inter, sans-serif; }
+.itsw-evidence-status { margin-top: 12px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: #64748b; background: #fff; border: 1px dashed #cbd5e1; border-radius: 10px; font: 12px/1.5 Inter, sans-serif; }
+.itsw-evidence-status.itsw-evidence-done { color: var(--its-navy); background: var(--its-accent-wash); border: 1px solid var(--its-accent-border); }
+.itsw-evidence-status i { flex: 0 0 auto; font-size: 16px; }
+.itsw-evidence-status .itsw-evidence-file { min-width: 0; overflow-wrap: anywhere; }
+.itsw-evidence-status time { display: block; margin-top: 2px; color: #94a3b8; font-size: 11px; }
+.itsw-evidence-button { width: fit-content; margin-top: 12px; display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; color: #fff; background: var(--its-navy); border-radius: 9px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.itsw-evidence-button:hover, .itsw-evidence-button:focus-within { background: var(--its-navy-deep); }
+.itsw-evidence-button input[type="file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+
+.itsw-tickets { display: grid; grid-template-columns: minmax(220px, .34fr) minmax(0, 1fr); gap: 14px; }
+.itsw-ticket-list { min-width: 0; display: grid; gap: 8px; align-content: start; }
+.itsw-ticket-item { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 11px 12px; color: #475569; background: #fff; border: 1px solid #dbe3ed; border-radius: 11px; text-align: left; cursor: pointer; }
+.itsw-ticket-item:hover { border-color: var(--its-navy); }
+.itsw-ticket-item.itsw-ticket-active { color: var(--its-navy); background: var(--its-accent-wash); border-color: var(--its-accent); box-shadow: 0 0 0 1px var(--its-accent-border); }
+.itsw-ticket-item .itsw-ticket-num { flex: 0 0 auto; color: #94a3b8; font: 700 10px Inter, sans-serif; }
+.itsw-ticket-item .itsw-ticket-item-body { min-width: 0; }
+.itsw-ticket-item .itsw-ticket-item-body strong { display: block; overflow: hidden; color: var(--its-navy); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.itsw-ticket-item .itsw-ticket-item-body small { display: block; margin-top: 2px; overflow: hidden; color: #64748b; font: 11px Inter, sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.itsw-ticket-item .itsw-ticket-done { flex: 0 0 auto; margin-left: auto; color: var(--its-accent); font-size: 16px; }
+
+.itsw-ticket-body { min-width: 0; display: grid; gap: 12px; }
+.itsw-ticket-detail { padding: 15px 16px; background: #fff; border: 1px solid #dbe3ed; border-radius: 12px; }
+.itsw-ticket-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 9px; }
+.itsw-ticket-meta span { padding: 4px 9px; color: var(--its-navy); background: var(--its-accent-wash); border-radius: 999px; font: 700 10px Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+.itsw-ticket-message { margin: 0; color: #172033; font: 14px/1.65 Inter, sans-serif; font-style: italic; }
+.itsw-ticket-from { margin: 8px 0 0; color: #64748b; font: 12px Inter, sans-serif; }
+
+.itsw-ticket-form { display: grid; gap: 12px; padding: 15px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+.itsw-ticket-form label { display: block; color: var(--its-navy); font: 700 12px Inter, sans-serif; }
+.itsw-ticket-form select, .itsw-ticket-form textarea { width: 100%; margin-top: 6px; padding: 9px 11px; color: #172033; background: #fff; border: 1px solid #cbd5e1; border-radius: 9px; font: 13px/1.55 Inter, sans-serif; }
+.itsw-ticket-form textarea { resize: vertical; font-weight: 400; }
+.itsw-ticket-form select:focus, .itsw-ticket-form textarea:focus { outline: 3px solid var(--its-accent-wash); border-color: var(--its-accent); }
+.itsw-ticket-decision { display: flex; gap: 10px; }
+.itsw-ticket-decision label { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 10px; font-weight: 700; text-align: center; background: #fff; border: 1px solid #cbd5e1; border-radius: 9px; cursor: pointer; }
+.itsw-ticket-decision label:has(input:checked) { color: var(--its-navy); background: var(--its-accent-wash); border-color: var(--its-accent); box-shadow: 0 0 0 1px var(--its-accent-border); }
+.itsw-ticket-decision input { width: 15px; height: 15px; accent-color: var(--its-accent); }
+
+.itsw-in-development { display: flex; align-items: flex-start; gap: 12px; padding: 16px; color: #64748b; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 13px; }
+.itsw-in-development > i { flex: 0 0 auto; color: var(--its-navy); font-size: 20px; }
+.itsw-in-development strong { display: block; color: var(--its-navy); font-size: 13px; }
+.itsw-in-development p { margin: 4px 0 0; font: 12px/1.55 Inter, sans-serif; }
+
+@media (max-width: 720px) {
+  .itsw-tickets { grid-template-columns: 1fr; }
+  .itsw-ticket-decision { flex-direction: column; }
+}
+
+/* Shared "simple module" template (itss-) for Modules 3–11: lesson cards
+ * only, no interactive lab yet (see itsSimpleModuleView in
+ * it-support-shared.js). These modules are deliberately visually identical
+ * to each other by design — one shared template, not per-module isolation —
+ * since they carry no bespoke interactive content to isolate. Modules 1, 2,
+ * and 12 (which do have unique interactive labs) keep their own dedicated
+ * mNN-style CSS files instead. */
+.itss-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); overflow-x: clip; }
+.itss-topbar { min-height: 64px; padding: 10px clamp(20px, 4vw, 48px); display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(255, 255, 255, .96); border-bottom: 1px solid #e5e7eb; }
+.itss-brand img { width: auto; height: 42px; display: block; }
+.itss-top-actions { display: flex; align-items: center; gap: 16px; }
+.itss-simulation, .itss-exit { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.itss-simulation { padding: 7px 11px; color: var(--its-navy); background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; }
+.itss-exit { color: var(--its-navy); text-decoration: none; }
+.itss-exit:hover, .itss-exit:focus-visible { color: var(--its-accent); text-decoration: underline; }
+.itss-main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 80px; }
+
+.itss-hero { padding: clamp(30px, 5vw, 54px); color: #fff; background: linear-gradient(150deg, #0c1e32 0%, #1e3a5f 50%, #162d4a 100%); border-radius: 24px; box-shadow: 0 18px 48px rgba(10, 22, 40, .18); }
+.itss-hero h1 { max-width: 780px; margin: 8px 0 14px; font-size: clamp(32px, 5vw, 48px); line-height: 1.05; letter-spacing: -.025em; }
+.itss-lede { max-width: 760px; margin: 0; color: rgba(255, 255, 255, .76); font: 16px/1.75 Inter, sans-serif; }
+.itss-kicker { margin: 0; color: var(--its-accent); font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+
+.itss-section { scroll-margin-top: 20px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30, 58, 95, .05); }
+.itss-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.itss-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: var(--its-navy); border-radius: 11px; font-weight: 800; }
+.itss-section-heading > div { min-width: 0; }
+.itss-section-heading h2 { margin: 3px 0 0; color: var(--its-navy); font-size: 22px; line-height: 1.25; }
+.itss-instruction { margin: -7px 0 20px; color: #64748b; font: 14px/1.65 Inter, sans-serif; }
+
+.itss-lesson-grid { display: grid; gap: 10px; }
+.itss-lesson { min-width: 0; overflow: hidden; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; }
+.itss-lesson[open] { background: #fff; border-color: var(--its-navy); box-shadow: 0 5px 15px rgba(30, 58, 95, .06); }
+.itss-lesson summary { min-height: 78px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 15px 17px; cursor: pointer; list-style: none; }
+.itss-lesson summary::-webkit-details-marker { display: none; }
+.itss-lesson summary:hover { background: rgba(248, 250, 252, .8); }
+.itss-lesson-icon { width: 40px; height: 40px; display: grid; place-items: center; color: var(--its-navy); background: rgba(30, 58, 95, .08); border-radius: 11px; font-size: 20px; }
+.itss-lesson summary strong, .itss-lesson summary small { display: block; }
+.itss-lesson summary strong { color: var(--its-navy); font-size: 15px; }
+.itss-lesson summary small { margin-top: 4px; color: #64748b; font: 11px/1.45 Inter, sans-serif; }
+.itss-chevron { width: 30px; height: 30px; display: grid; place-items: center; color: #64748b; background: #fff; border: 1px solid #e5e7eb; border-radius: 50%; font-size: 19px; transition: transform .2s ease; }
+.itss-lesson[open] .itss-chevron { transform: rotate(180deg); }
+.itss-lesson-body { margin: 0 17px 17px 70px; }
+.itss-lesson-body h4 { margin: 16px 0 8px; color: var(--its-navy); font-size: 13px; }
+.itss-lesson-body h4:first-child { margin-top: 0; }
+.itss-lesson-body ul { margin: 0; padding-left: 18px; color: #475569; font: 13px/1.7 Inter, sans-serif; }
+.itss-lesson-topic { margin-bottom: 10px; }
+.itss-lesson-topic strong { display: block; margin-bottom: 3px; color: #334155; font-size: 12.5px; }
+.itss-lesson-topic p { margin: 0; color: #475569; font: 13px/1.7 Inter, sans-serif; }
+.itss-practice { margin-top: 14px; padding: 13px 14px; background: var(--its-accent-wash); border-left: 3px solid var(--its-accent); border-radius: 0 10px 10px 0; }
+.itss-practice strong { display: block; margin-bottom: 6px; color: var(--its-navy); font-size: 12px; }
+.itss-practice ol { margin: 0; padding-left: 18px; color: #475569; font: 12.5px/1.7 Inter, sans-serif; }
+.itss-preview { margin-top: 10px; display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; color: #64748b; background: #f8fafc; border-radius: 9px; font: 12px/1.55 Inter, sans-serif; }
+.itss-preview i { flex: 0 0 auto; color: var(--its-navy); font-size: 15px; }
+
+.itss-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .itss-main { width: min(100% - 24px, 1180px); padding-top: 22px; }
+  .itss-topbar { padding-inline: 14px; }
+  .itss-brand img { height: 34px; }
+  .itss-simulation { display: none; }
+  .itss-exit { font-size: 0; }
+  .itss-exit i { font-size: 20px; }
+  .itss-hero, .itss-section { border-radius: 16px; }
+  .itss-lesson-body { margin-left: 17px; }
+}
