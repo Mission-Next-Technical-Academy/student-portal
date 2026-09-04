@@ -54,9 +54,9 @@ jobs:
             echo '::error::Gate 5 must not modify technical LMS runtime.'
             exit 1
           fi
-          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' || true)"
+          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' | grep -v '^supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql$' || true)"
           if [ -n "$unexpected_migrations" ]; then
-            echo '::error::Gate 5 permits only the reviewed M360 Start Here/Spotlight migration in this change.'
+            echo '::error::Gate 5 permits only the two reviewed M360 Start Here/Spotlight migrations in this change.'
             printf '%s\n' "$unexpected_migrations"
             exit 1
           fi
@@ -150,4 +150,6 @@ jobs:
           test -f portal/m360/portfolio.html
           test -f portal/m360/portfolio.js
           test -f portal/m360/portfolio.css
+          test -f supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql
+          grep -q 'from anon' supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql
           grep -q "6: {" portal/m360/week.html
