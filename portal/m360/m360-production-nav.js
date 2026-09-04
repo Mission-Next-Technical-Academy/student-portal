@@ -160,6 +160,62 @@
     return true;
   }
 
+  function replaceTextIn(root, from, to) {
+    if (!root) return false;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    let changed = false;
+    while ((node = walker.nextNode())) {
+      if (node.nodeValue.includes(from)) {
+        node.nodeValue = node.nodeValue.replaceAll(from, to);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  function applyWeek3Clarity() {
+    if (week !== 3) return false;
+    let changed = false;
+
+    changed = replaceTextIn(document.getElementById('brief'), 'at least seven', 'at least four') || changed;
+    changed = replaceTextIn(document.getElementById('live'), 'at least seven', 'at least four') || changed;
+    changed = replaceTextIn(document.getElementById('practice'), 'minimum 7', 'minimum 4') || changed;
+
+    changed = ensureFieldHelp(
+      'connectionRequest',
+      'm360Week3ConnectionHelp',
+      'Use this for a brief connection request: give relevant context, make the connection purpose clear, and do not hide a job ask inside the message.'
+    ) || changed;
+    changed = ensureFieldHelp(
+      'adviceRequest',
+      'm360Week3AdviceHelp',
+      'Use this when asking for advice: ask one focused question the person is well positioned to answer.'
+    ) || changed;
+    changed = ensureFieldHelp(
+      'informationalRequest',
+      'm360Week3InformationalHelp',
+      'Use this to request a brief learning conversation about the work or field. It is not a request for a job.'
+    ) || changed;
+    changed = ensureFieldHelp(
+      'actionCompleted',
+      'm360Week3ActionHelp',
+      'Describe what you actually did. One real networking action is required.'
+    ) || changed;
+    changed = ensureFieldHelp(
+      'actionEvidence',
+      'm360Week3EvidenceHelp',
+      'Provide instructor-verifiable evidence: a redacted screenshot, link, text record, or concise description that lets your instructor verify the action. Remove unnecessary names, contact details, and private message content.'
+    ) || changed;
+    changed = ensureFieldHelp(
+      'actionResult',
+      'm360Week3ResultHelp',
+      'A reply is not required. “No response yet” is a valid result.'
+    ) || changed;
+
+    return changed;
+  }
+
   function applyWeek4Clarity() {
     if (week !== 4) return false;
     let changed = false;
@@ -305,6 +361,7 @@
 
     makeBrandProgramsLink();
     ensureCurrentPortfolioDownload();
+    applyWeek3Clarity();
     applyWeek4Clarity();
     applyWeek5Clarity();
     moveWeek6FinalFileField();
