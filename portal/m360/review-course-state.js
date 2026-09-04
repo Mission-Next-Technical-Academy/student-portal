@@ -19,10 +19,37 @@
     approved_makeup_completed: 'Approved makeup completed',
     approved_exception_completed: 'Approved recording/link exception completed'
   };
+  const profileStatusLabels = {
+    ready: 'Profile exists — I use it now',
+    needs_update: 'Profile exists — I want to strengthen it',
+    no_profile: 'I do not have a profile yet',
+    privacy_support: 'I prefer not to use a public profile / need an alternative'
+  };
+  const resumeStatusLabels = {
+    ready: 'Ready',
+    needs_update: 'Needs update',
+    no_resume: 'No current resume',
+    support_needed: 'Support needed'
+  };
 
   function valueOrDash(value) {
     const text = String(value ?? '').trim();
     return text || '—';
+  }
+
+  function displayProfileStatus(value) { return profileStatusLabels[value] || valueOrDash(value); }
+  function displayResumeStatus(value) { return resumeStatusLabels[value] || valueOrDash(value); }
+
+  function supportReason(payload) {
+    const p = payload && typeof payload === 'object' ? payload : {};
+    const reasons = [];
+    const networking = Number(p.networkingComfort || 0);
+    const interview = Number(p.interviewReadiness || 0);
+    if (networking > 0 && networking <= 2) reasons.push(`Networking ${networking}/5`);
+    if (interview > 0 && interview <= 2) reasons.push(`Interview readiness ${interview}/5`);
+    if (p.profileStatus === 'privacy_support') reasons.push('Professional-profile alternative requested');
+    if (p.resumeStatus === 'support_needed') reasons.push('Resume support requested');
+    return `Support follow-up suggested${reasons.length ? ` — ${reasons.join(' · ')}` : ''}`;
   }
 
   async function requireAdmin() {
@@ -49,8 +76,8 @@
     const p = payload && typeof payload === 'object' ? payload : {};
     const rows = [
       ['Target direction', p.targetDirection],
-      ['Profile status', p.profileStatus],
-      ['Resume status', p.resumeStatus],
+      ['Profile status', displayProfileStatus(p.profileStatus)],
+      ['Resume status', displayResumeStatus(p.resumeStatus)],
       ['Networking comfort', p.networkingComfort],
       ['Interview readiness', p.interviewReadiness],
       ['Evidence source', p.evidenceSource],
@@ -87,10 +114,12 @@
         const payload = record && record.start_here_payload || {};
         const complete = Boolean(record && record.start_here_completed_at);
         const support = Boolean(record && record.start_here_support_flag);
+        const supportHeadline = support ? supportReason(payload) : valueOrDash(payload.supportNeed);
+        const supportDetail = support ? `Top support need: ${valueOrDash(payload.supportNeed)}` : 'Top support need';
         return `<article class="course-state-card">
           <div class="course-state-student"><strong>${escapeHtml(student.student_id || student.user_id)}</strong><span>${escapeHtml(student.track_code)}</span></div>
           <div class="course-state-current ${complete ? 'complete' : ''}"><strong>${complete ? 'Start Here Complete' : 'Not complete'}</strong><span>${complete ? escapeHtml(new Date(record.start_here_completed_at).toLocaleString()) : 'Baseline still pending'}</span></div>
-          <div class="course-state-current ${support ? 'support' : ''}"><strong>${escapeHtml(valueOrDash(payload.supportNeed))}</strong><span>${support ? '<span class="support-pill">Early support signal</span>' : 'Top support need'}</span></div>
+          <div class="course-state-current ${support ? 'support' : ''}"><strong>${escapeHtml(supportHeadline)}</strong><span>${escapeHtml(supportDetail)}${support ? ' · Early support signal' : ''}</span></div>
           <div class="course-state-current"><strong>Networking ${escapeHtml(valueOrDash(payload.networkingComfort))} / 5 · Interview ${escapeHtml(valueOrDash(payload.interviewReadiness))} / 5</strong><span>${complete ? '<span class="complete-pill">Baseline captured</span>' : 'Readiness baseline'}</span></div>
           <details class="baseline-detail"><summary>View baseline details</summary><div class="baseline-detail-grid">${baselineDetails(payload)}</div></details>
         </article>`;
