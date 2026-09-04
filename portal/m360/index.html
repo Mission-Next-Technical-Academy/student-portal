@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="assets/mission-next-tokens.css?v=20260903" />
   <link rel="stylesheet" href="../m360-preview.css?v=20260903b" />
   <link rel="stylesheet" href="../m360-demo-refinements.css?v=20260903" />
-  <link rel="stylesheet" href="home.css?v=20260903" />
+  <link rel="stylesheet" href="home.css?v=20260904a" />
 </head>
 <body>
   <div class="shell">
@@ -23,8 +23,8 @@
           </div>
         </a>
         <div class="topbar-actions">
-          <a class="topbar-link" href="../index.html">Student Portal</a>
-          <span class="preview-pill">M360 Course Home · build preview</span>
+          <a class="topbar-link" href="../index.html#/portal">My Programs</a>
+          <span class="preview-pill">M360 Course Home · authenticated</span>
         </div>
       </div>
     </header>
@@ -48,9 +48,9 @@
           <div class="hero-progress-number" id="readyCount">0 / 6</div>
           <div class="hero-progress-label">Portfolio Ready</div>
           <div class="home-progress-track"><span id="homeProgressBar"></span></div>
-          <p id="currentStatusText">Start with Week 1 to establish your professional direction.</p>
-          <a class="btn btn-primary" id="continueButton" href="../m360-preview.html">Start Week 1</a>
-          <a class="portfolio-link" href="course.html#prove">View My M360 Portfolio</a>
+          <p id="currentStatusText">Complete Start Here before beginning Week 1.</p>
+          <a class="btn btn-primary" id="continueButton" href="start-here.html">Complete Start Here</a>
+          <a class="portfolio-link" href="portfolio.html">View My M360 Portfolio</a>
         </div>
       </section>
 
@@ -72,11 +72,12 @@
         <div class="orientation-copy">
           <div class="mini-kicker">Start Here · ungraded</div>
           <h2 id="orientation-title">Orientation &amp; Baseline</h2>
-          <p>Learn the M360 workflow, grading and revision model, portfolio structure, live-session expectations, and baseline questions before Week 1.</p>
+          <p>Learn the M360 workflow, grading and revision model, portfolio structure, live-session expectations, and complete a short career-readiness baseline before Week 1.</p>
         </div>
         <div class="orientation-status">
-          <span class="status-pill upcoming">Production connection pending</span>
-          <span class="small-note">The Start Here content is part of the approved course architecture and will connect here during production integration.</span>
+          <span class="status-pill" id="startHereStatus">Not Started</span>
+          <a class="btn btn-secondary" id="startHereAction" href="start-here.html">Open Start Here</a>
+          <span class="small-note">Required course setup. Not graded and not counted toward M360 instructional clock hours.</span>
         </div>
       </section>
 
@@ -91,92 +92,37 @@
 
         <div class="week-grid">
           <article class="week-card available" data-week-card="1">
-            <div class="week-card-top">
-              <div><span class="week-index">01</span><span class="stage-label">Direction</span></div>
-              <span class="status-pill" id="week1Status">Not Started</span>
-            </div>
+            <div class="week-card-top"><div><span class="week-index">01</span><span class="stage-label">Direction</span></div><span class="status-pill" id="week1Status">Not Started</span></div>
             <h3>Career Direction &amp; Professional Brand</h3>
             <p>Choose a credible near-term direction and connect it to evidence you can support.</p>
             <div class="artifact-line"><strong>Portfolio artifact</strong><span>Professional direction + brand + supporting evidence</span></div>
-            <a class="week-action" href="../m360-preview.html">Open Week 1 <span>→</span></a>
+            <a class="week-action" href="week.html?week=1">Open Week 1 <span>→</span></a>
           </article>
 
-          <article class="week-card available current" data-week-card="2">
-            <div class="week-card-top">
-              <div><span class="week-index">02</span><span class="stage-label">Signal</span></div>
-              <span class="status-pill" id="week2Status">Not Started</span>
-            </div>
+          <article class="week-card available" data-week-card="2">
+            <div class="week-card-top"><div><span class="week-index">02</span><span class="stage-label">Signal</span></div><span class="status-pill" id="week2Status">Not Started</span></div>
             <h3>LinkedIn &amp; Professional Presence</h3>
             <p>Turn Week 1 direction into a clear, searchable, evidence-backed professional signal.</p>
             <div class="artifact-line"><strong>Portfolio artifact</strong><span>Profile URL + headline + About + experience evidence</span></div>
-            <a class="week-action" href="course.html">Open Week 2 <span>→</span></a>
+            <a class="week-action" href="week.html?week=2">Open Week 2 <span>→</span></a>
           </article>
 
-          <article class="week-card upcoming" data-week-card="3">
-            <div class="week-card-top">
-              <div><span class="week-index">03</span><span class="stage-label">Connection</span></div>
-              <span class="status-pill upcoming">Upcoming</span>
-            </div>
-            <h3>Networking &amp; Professional Follow-Up</h3>
-            <p>Use relationships and professional conversations to test direction, learn, and follow up intentionally.</p>
-            <div class="artifact-line"><strong>Portfolio artifact</strong><span>Sanitized networking action + learning evidence</span></div>
-            <span class="week-action disabled" aria-disabled="true">Not released yet</span>
-          </article>
-
-          <article class="week-card upcoming" data-week-card="4">
-            <div class="week-card-top">
-              <div><span class="week-index">04</span><span class="stage-label">Evidence</span></div>
-              <span class="status-pill upcoming">Upcoming</span>
-            </div>
-            <h3>Targeted Resume Development</h3>
-            <p>Select evidence that matches an actual opportunity and make the fit easier to see.</p>
-            <div class="artifact-line"><strong>Portfolio artifact</strong><span>Targeted resume + reusable evidence bullets</span></div>
-            <span class="week-action disabled" aria-disabled="true">Not released yet</span>
-          </article>
-
-          <article class="week-card upcoming" data-week-card="5">
-            <div class="week-card-top">
-              <div><span class="week-index">05</span><span class="stage-label">Voice</span></div>
-              <span class="status-pill upcoming">Upcoming</span>
-            </div>
-            <h3>Interview Preparation &amp; Practice</h3>
-            <p>Turn written evidence into adaptable spoken proof through structured practice and feedback.</p>
-            <div class="artifact-line"><strong>Portfolio artifact</strong><span>STAR story bank + interview practice evidence</span></div>
-            <span class="week-action disabled" aria-disabled="true">Not released yet</span>
-          </article>
-
-          <article class="week-card upcoming" data-week-card="6">
-            <div class="week-card-top">
-              <div><span class="week-index">06</span><span class="stage-label">Proof</span></div>
-              <span class="status-pill upcoming">Upcoming</span>
-            </div>
-            <h3>Career Spotlight</h3>
-            <p>Curate six weeks of accepted evidence into a concise professional story and 30-day action plan.</p>
-            <div class="artifact-line"><strong>Portfolio artifact</strong><span>Career Spotlight + 30-day action plan</span></div>
-            <span class="week-action disabled" aria-disabled="true">Not released yet</span>
-          </article>
+          <article class="week-card upcoming" data-week-card="3"><div class="week-card-top"><div><span class="week-index">03</span><span class="stage-label">Connection</span></div><span class="status-pill upcoming">Upcoming</span></div><h3>Networking &amp; Professional Follow-Up</h3><p>Use relationships and professional conversations to test direction, learn, and follow up intentionally.</p><div class="artifact-line"><strong>Portfolio artifact</strong><span>Sanitized networking action + learning evidence</span></div><span class="week-action disabled" aria-disabled="true">Not released yet</span></article>
+          <article class="week-card upcoming" data-week-card="4"><div class="week-card-top"><div><span class="week-index">04</span><span class="stage-label">Evidence</span></div><span class="status-pill upcoming">Upcoming</span></div><h3>Targeted Resume Development</h3><p>Select evidence that matches an actual opportunity and make the fit easier to see.</p><div class="artifact-line"><strong>Portfolio artifact</strong><span>Targeted resume + reusable evidence bullets</span></div><span class="week-action disabled" aria-disabled="true">Not released yet</span></article>
+          <article class="week-card upcoming" data-week-card="5"><div class="week-card-top"><div><span class="week-index">05</span><span class="stage-label">Voice</span></div><span class="status-pill upcoming">Upcoming</span></div><h3>Interview Preparation &amp; Practice</h3><p>Turn written evidence into adaptable spoken proof through structured practice and feedback.</p><div class="artifact-line"><strong>Portfolio artifact</strong><span>STAR story bank + interview practice evidence</span></div><span class="week-action disabled" aria-disabled="true">Not released yet</span></article>
+          <article class="week-card upcoming" data-week-card="6"><div class="week-card-top"><div><span class="week-index">06</span><span class="stage-label">Proof</span></div><span class="status-pill upcoming">Upcoming</span></div><h3>Career Spotlight</h3><p>Curate six weeks of accepted evidence into a concise professional story and 30-day action plan.</p><div class="artifact-line"><strong>Portfolio artifact</strong><span>Career Spotlight + 30-day action plan</span></div><span class="week-action disabled" aria-disabled="true">Not released yet</span></article>
         </div>
       </section>
 
       <section class="portfolio-home card-lite" aria-labelledby="portfolio-title">
-        <div class="portfolio-home-copy">
-          <div class="mini-kicker">My M360 Portfolio</div>
-          <h2 id="portfolio-title">Your accepted work stays connected.</h2>
-          <p>The course home is the navigator. The portfolio is the accumulated professional evidence. Reviewer-approved artifacts remain preserved even when you return to a prior week and begin a new draft.</p>
-        </div>
-        <div class="portfolio-home-actions">
-          <div class="portfolio-count"><strong id="portfolioCountLarge">0</strong><span>of 6 artifacts ready</span></div>
-          <a class="btn btn-secondary" href="course.html#prove">Open Current Portfolio</a>
-        </div>
+        <div class="portfolio-home-copy"><div class="mini-kicker">My M360 Portfolio</div><h2 id="portfolio-title">Your accepted work stays connected.</h2><p>The course home is the navigator. The portfolio is the accumulated professional evidence. Reviewer-approved artifacts remain preserved even when you return to a prior week and begin a new draft.</p></div>
+        <div class="portfolio-home-actions"><div class="portfolio-count"><strong id="portfolioCountLarge">0</strong><span>of 6 artifacts ready</span></div><a class="btn btn-secondary" href="portfolio.html">Open Current Portfolio</a></div>
       </section>
 
-      <section class="navigation-note">
-        <strong>Navigation contract</strong>
-        <span>M360 Course Home is the canonical course navigator. Inside each week, students use the week sidebar for Week Brief, Learn It, Live Instruction, Practice It, and Prove It. Completed and current weeks remain revisit-able; future weeks stay visible but unavailable until released.</span>
-      </section>
+      <section class="navigation-note"><strong>Navigation contract</strong><span>M360 Course Home is the canonical course navigator. Inside each week, students use the week sidebar for Week Brief, Learn It, Live Instruction, Practice It, and Prove It. Completed and current weeks remain revisit-able; future weeks stay visible but unavailable until released.</span></section>
     </div>
   </div>
 
-  <script src="home.js?v=20260903"></script>
+  <script src="home.js?v=20260904a"></script>
 </body>
 </html>

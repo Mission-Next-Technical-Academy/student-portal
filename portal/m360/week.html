@@ -21,7 +21,7 @@
         base: './',
         supabaseScript: '../vendor/supabase.js?v=20260828',
         configScript: '../supabase-config.js?v=20260828',
-        dataScript: 'm360-data.js?v=20260904',
+        dataScript: 'm360-data.js?v=20260904f',
         bridgeScript: 'm360-production-bridge.js?v=20260904e',
         navScript: 'm360-production-nav.js?v=20260904c'
       };
@@ -33,40 +33,15 @@
           localScript: 'm360-preview.js?v=20260903c',
           supabaseScript: 'vendor/supabase.js?v=20260828',
           configScript: 'supabase-config.js?v=20260828',
-          dataScript: 'm360/m360-data.js?v=20260904',
+          dataScript: 'm360/m360-data.js?v=20260904f',
           bridgeScript: 'm360/m360-production-bridge.js?v=20260904e',
           navScript: 'm360/m360-production-nav.js?v=20260904c'
         },
-        2: {
-          ...shared,
-          template: 'course.html',
-          originalPattern: /<script\s+src=["']course\.js[^>]*><\/script>/i,
-          localScript: 'course.js?v=20260903'
-        },
-        3: {
-          ...shared,
-          template: 'week3.html',
-          originalPattern: /<script\s+src=["']week3\.js[^>]*><\/script>/i,
-          localScript: 'week3.js?v=20260904'
-        },
-        4: {
-          ...shared,
-          template: 'week4.html',
-          originalPattern: /<script\s+src=["']week4\.js[^>]*><\/script>/i,
-          localScript: 'week4.js?v=20260904'
-        },
-        5: {
-          ...shared,
-          template: 'week5.html',
-          originalPattern: /<script\s+src=["']week5\.js[^>]*><\/script>/i,
-          localScript: 'week5.js?v=20260904'
-        },
-        6: {
-          ...shared,
-          template: 'week6.html',
-          originalPattern: /<script\s+src=["']week6\.js[^>]*><\/script>/i,
-          localScript: 'week6.js?v=20260904'
-        }
+        2: {...shared, template: 'course.html', originalPattern: /<script\s+src=["']course\.js[^>]*><\/script>/i, localScript: 'course.js?v=20260903'},
+        3: {...shared, template: 'week3.html', originalPattern: /<script\s+src=["']week3\.js[^>]*><\/script>/i, localScript: 'week3.js?v=20260904'},
+        4: {...shared, template: 'week4.html', originalPattern: /<script\s+src=["']week4\.js[^>]*><\/script>/i, localScript: 'week4.js?v=20260904'},
+        5: {...shared, template: 'week5.html', originalPattern: /<script\s+src=["']week5\.js[^>]*><\/script>/i, localScript: 'week5.js?v=20260904'},
+        6: {...shared, template: 'week6.html', originalPattern: /<script\s+src=["']week6\.js[^>]*><\/script>/i, localScript: 'week6.js?v=20260904a'}
       }[week];
 
       if (!config) {
@@ -75,10 +50,7 @@
       }
 
       fetch(config.template, { cache: 'no-store' })
-        .then(response => {
-          if (!response.ok) throw new Error('Template request failed');
-          return response.text();
-        })
+        .then(response => { if (!response.ok) throw new Error('Template request failed'); return response.text(); })
         .then(html => {
           if (!config.originalPattern.test(html)) throw new Error('Expected week script was not found');
           html = html.replace(/<head>/i, `<head><base href="${config.base}">`);
@@ -90,9 +62,7 @@
             `<script src="${config.navScript}"><\/script>`
           ].join('\n');
           html = html.replace(config.originalPattern, runtime);
-          document.open();
-          document.write(html);
-          document.close();
+          document.open(); document.write(html); document.close();
         })
         .catch(error => {
           console.error('M360 week loader failed', error);

@@ -4,29 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Mission Next M360 101 admin review workspace." />
-  <title>M360 101 Review | Mission Next Technical Academy</title>
+  <title>M360 101 Administration | Mission Next Technical Academy</title>
   <link rel="icon" href="../assets/logo.png" />
   <link rel="stylesheet" href="assets/mission-next-tokens.css?v=20260903" />
   <link rel="stylesheet" href="../m360-preview.css?v=20260903b" />
   <link rel="stylesheet" href="../m360-demo-refinements.css?v=20260903" />
   <link rel="stylesheet" href="review.css?v=20260904" />
+  <link rel="stylesheet" href="review-course-state.css?v=20260904" />
   <link rel="stylesheet" href="review-attendance.css?v=20260904b" />
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand review-brand" href="index.html" aria-label="M360 101 Course Home">
+        <a class="brand review-brand" href="../index.html#/admin" aria-label="Admin Portal">
           <img class="brand-mark" src="../assets/logo.png" alt="" aria-hidden="true" />
-          <div>
-            <div class="brand-name">MISSION NEXT</div>
-            <div class="brand-sub">Technical Academy · M360 101 Review</div>
-          </div>
+          <div><div class="brand-name">MISSION NEXT</div><div class="brand-sub">Technical Academy · M360 101 Administration</div></div>
         </a>
-        <div class="review-top-actions">
-          <a class="review-top-link" href="../index.html#/admin">Admin Portal</a>
-          <a class="review-top-link" href="index.html">M360 Home</a>
-        </div>
+        <div class="review-top-actions"><a class="review-top-link" href="../index.html#/admin">Admin Portal</a><a class="review-top-link" href="index.html">M360 Home</a></div>
       </div>
     </header>
 
@@ -36,52 +31,50 @@
           <div class="eyebrow">Admin reviewer workspace</div>
           <img class="signal-line" src="assets/Signal_Line.svg" alt="" aria-hidden="true" />
           <h1>M360 101 <span>Administration</span></h1>
-          <p>Review submitted student evidence and verify the external attendance requirement used for final M360 completion. Technical-course records are outside this workspace.</p>
+          <p>Surface Start Here support needs, review submitted evidence, verify Career Spotlight presentation completion, and confirm the external attendance requirement. Technical-course records remain outside this workspace.</p>
         </div>
-        <div class="review-hero-stat">
-          <strong id="queueCount">—</strong>
-          <span>Awaiting review</span>
-        </div>
+        <div class="review-hero-stat"><strong id="queueCount">—</strong><span>Awaiting review</span></div>
       </section>
 
       <div id="reviewNotice" class="review-notice" hidden></div>
 
-      <section class="review-toolbar" aria-label="M360 review controls">
-        <div>
-          <div class="mini-kicker">Review Queue</div>
-          <h2>Submitted M360 evidence</h2>
+      <section class="course-state-section" aria-labelledby="startHereAdminTitle">
+        <div class="course-state-heading">
+          <div><div class="mini-kicker">Early support</div><h2 id="startHereAdminTitle">Start Here Baselines &amp; Support</h2><p>Use the ungraded baseline to identify support needs before Week 1. This is readiness information, not a grade or M360 clock-hour record.</p></div>
+          <div class="course-state-actions"><button id="refreshStartHereBtn" class="btn btn-secondary" type="button">Refresh baselines</button></div>
         </div>
-        <button id="refreshQueueBtn" class="btn btn-secondary" type="button">Refresh queue</button>
+        <div id="startHereRoster" class="course-state-roster" aria-live="polite"><div class="empty-state">Loading Start Here baselines…</div></div>
       </section>
 
-      <section id="reviewQueue" class="review-queue" aria-live="polite">
-        <div class="empty-state">Loading M360 review queue…</div>
+      <section class="review-toolbar" aria-label="M360 review controls">
+        <div><div class="mini-kicker">Review Queue</div><h2>Submitted M360 evidence</h2></div>
+        <button id="refreshQueueBtn" class="btn btn-secondary" type="button">Refresh queue</button>
+      </section>
+      <section id="reviewQueue" class="review-queue" aria-live="polite"><div class="empty-state">Loading M360 review queue…</div></section>
+
+      <section class="course-state-section" aria-labelledby="spotlightAdminTitle">
+        <div class="course-state-heading">
+          <div><div class="mini-kicker">Week 6 completion</div><h2 id="spotlightAdminTitle">Career Spotlight Presentation Verification</h2><p>Presentation completion is staff-owned. Update any students who changed, then save all changed presentation statuses at once. “Not yet completed” never counts as Career Spotlight completion.</p></div>
+          <div class="course-state-actions"><button id="refreshSpotlightBtn" class="btn btn-secondary" type="button">Refresh presentations</button><button id="saveSpotlightChangesBtn" class="btn btn-primary" type="button" disabled>Save changed presentation statuses</button><span id="spotlightSaveStatus" class="course-state-status" aria-live="polite"></span></div>
+        </div>
+        <div id="spotlightRoster" class="course-state-roster" aria-live="polite"><div class="empty-state">Loading Career Spotlight presentation statuses…</div></div>
       </section>
 
       <section class="attendance-admin-section" aria-labelledby="attendanceAdminTitle">
         <div class="attendance-admin-heading">
-          <div>
-            <div class="mini-kicker">Course completion bridge</div>
-            <h2 id="attendanceAdminTitle">M360 Attendance Verification</h2>
-            <p>Attendance detail stays outside the LMS. Select whether each student’s external M360 attendance requirement has been verified as satisfied, then save all changed rows at once. Do not enter session minutes or clock hours.</p>
-          </div>
-          <div class="attendance-admin-actions">
-            <button id="refreshAttendanceBtn" class="btn btn-secondary" type="button">Refresh attendance</button>
-            <button id="saveAttendanceChangesBtn" class="btn btn-primary" type="button" disabled>Save changed attendance</button>
-            <span id="attendanceSaveStatus" class="attendance-save-status" aria-live="polite"></span>
-          </div>
+          <div><div class="mini-kicker">Course completion bridge</div><h2 id="attendanceAdminTitle">M360 Attendance Verification</h2><p>Attendance detail stays outside the LMS. Select whether each student’s external M360 attendance requirement has been verified as satisfied, then save all changed rows at once. Do not enter session minutes or clock hours.</p></div>
+          <div class="attendance-admin-actions"><button id="refreshAttendanceBtn" class="btn btn-secondary" type="button">Refresh attendance</button><button id="saveAttendanceChangesBtn" class="btn btn-primary" type="button" disabled>Save changed attendance</button><span id="attendanceSaveStatus" class="attendance-save-status" aria-live="polite"></span></div>
         </div>
-        <div id="attendanceRoster" class="attendance-roster" aria-live="polite">
-          <div class="empty-state">Loading eligible M360 students…</div>
-        </div>
+        <div id="attendanceRoster" class="attendance-roster" aria-live="polite"><div class="empty-state">Loading eligible M360 students…</div></div>
       </section>
     </main>
   </div>
 
   <script src="../vendor/supabase.js?v=20260828"></script>
   <script src="../supabase-config.js?v=20260828"></script>
-  <script src="m360-data.js?v=20260904"></script>
-  <script src="review.js?v=20260904"></script>
+  <script src="m360-data.js?v=20260904f"></script>
+  <script src="review.js?v=20260904a"></script>
+  <script src="review-course-state.js?v=20260904"></script>
   <script src="review-attendance.js?v=20260904b"></script>
 </body>
 </html>

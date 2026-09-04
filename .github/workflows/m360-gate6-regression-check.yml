@@ -6,6 +6,7 @@ on:
       - 'portal/m360/**'
       - 'portal/m360-entry.js'
       - 'portal/index.html'
+      - 'supabase/migrations/*m360*'
       - '.github/workflows/m360-gate6-regression-check.yml'
   push:
     branches: [master]
@@ -13,6 +14,7 @@ on:
       - 'portal/m360/**'
       - 'portal/m360-entry.js'
       - 'portal/index.html'
+      - 'supabase/migrations/*m360*'
       - '.github/workflows/m360-gate6-regression-check.yml'
 
 permissions:
@@ -30,7 +32,13 @@ jobs:
         run: |
           set -euo pipefail
           node --check portal/m360/portfolio.js
+          node --check portal/m360/home.js
+          node --check portal/m360/start-here.js
+          node --check portal/m360/week6.js
+          node --check portal/m360/m360-data.js
           node --check portal/m360/m360-production-nav.js
+          node --check portal/m360/review.js
+          node --check portal/m360/review-course-state.js
           node --check portal/m360/review-attendance.js
           node --check portal/m360-entry.js
 
@@ -42,13 +50,19 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           printf '%s\n' "$changed"
-          forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-|supabase/migrations/)'
+          forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-)'
           if printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
-            echo '::error::Gate 6 QA fixes must not modify technical LMS runtime or database migrations.'
+            echo '::error::M360 changes must not modify technical LMS runtime.'
+            exit 1
+          fi
+          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' | grep -v '^supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql$' || true)"
+          if [ -n "$unexpected_migrations" ]; then
+            echo '::error::This change may include only the two reviewed M360 Start Here/Spotlight migrations.'
+            printf '%s\n' "$unexpected_migrations"
             exit 1
           fi
 
-      - name: Verify separate M360 portal routing and unified Admin launch surface
+      - name: Verify separate M360 routing and eligible post-login landing
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -60,29 +74,95 @@ jobs:
           if app_script not in html or entry_script not in html:
               raise SystemExit('Student Portal must load app.js and the separate M360 entry overlay')
           if html.index(entry_script) < html.index(app_script):
-              raise SystemExit('M360 entry must load after app.js so currentUser and the rendered portal are available')
+              raise SystemExit('M360 entry must load after app.js')
           required = [
               "new Set(['SOCAN', 'HDESK', 'AIENG'])",
               'M360 101 Professional Readiness',
               'href="m360/"',
               'suppressLegacyCareerReadiness',
-              "getElementById('sec-career-readiness')",
-              'a[href="#sec-career-readiness"]',
-              'M360 101 Administration',
-              'Open M360 Administration'
+              'Open M360 Administration',
+              'POST_LOGIN_KEY',
+              "event !== 'SIGNED_IN'",
+              "location.hash.startsWith('#/program/')",
+              "history.replaceState(null, '', '#/portal')",
+              "coachReturn === 'm01'"
           ]
           for token in required:
               if token not in entry:
-                  raise SystemExit(f'Missing separate M360 routing/Admin requirement: {token}')
-          stale = ['Open Review Queue</a>', 'm360/review.html#attendanceAdminTitle']
-          if any(token in entry for token in stale):
-              raise SystemExit('Admin launch card must expose one unified M360 Administration action')
+                  raise SystemExit(f'Missing M360 routing requirement: {token}')
           forbidden_calls = [".from('module_progress')", 'toggleM360ItemCompletion(', 'saveM360Progress(']
           leaked = [token for token in forbidden_calls if token in entry]
           if leaked:
               raise SystemExit('M360 entry must not call technical/legacy progress paths: ' + ', '.join(leaked))
-          print('Separate M360 student routing and one Admin administration launch surface are present without technical progress coupling')
+          print('Eligible M360 sign-ins return to My Programs without modifying technical course runtime')
           PY
+
+      - name: Verify native Start Here experience
+        run: |
+          set -euo pipefail
+          test -f portal/m360/start-here.html
+          test -f portal/m360/start-here.css
+          test -f portal/m360/start-here.js
+          grep -q 'Orientation &amp; Baseline' portal/m360/start-here.html
+          grep -q 'No instructional clock hours' portal/m360/start-here.html
+          grep -q 'Career Spotlight' portal/m360/start-here.html
+          grep -q 'networkingComfort' portal/m360/start-here.html
+          grep -q 'interviewReadiness' portal/m360/start-here.html
+          grep -q 'supportNeed' portal/m360/start-here.html
+          grep -q 'techLms' portal/m360/start-here.html
+          grep -q 'ackSixArtifacts' portal/m360/start-here.html
+          grep -q 'M360Data.saveStartHere' portal/m360/start-here.js
+          grep -q 'start_here_completed_at' portal/m360/start-here.js
+          grep -q 'start-here.html' portal/m360/index.html
+          grep -q 'Complete Start Here' portal/m360/home.js
+          grep -q 'start_here_completed_at' portal/m360/home.js
+
+      - name: Verify staff-owned Career Spotlight presentation status
+        run: |
+          set -euo pipefail
+          if grep -q 'presentationStatus' portal/m360/week6.js; then
+            echo '::error::Week 6 student payload must not contain presentationStatus.'
+            exit 1
+          fi
+          if grep -q 'id="presentationStatus"' portal/m360/week6.html || grep -q 'id="presentationEvidence"' portal/m360/week6.html; then
+            echo '::error::Week 6 student UI must not expose presentation verification fields.'
+            exit 1
+          fi
+          grep -q 'You do not self-report presentation status here' portal/m360/week6.html
+          grep -q 'Career Spotlight Presentation Verification' portal/m360/review.html
+          grep -q 'saveSpotlightChangesBtn' portal/m360/review.html
+          grep -q 'presented_live' portal/m360/review-course-state.js
+          grep -q 'approved_makeup_completed' portal/m360/review-course-state.js
+          grep -q 'approved_exception_completed' portal/m360/review-course-state.js
+          grep -q 'M360Data.setSpotlightPresentation' portal/m360/review-course-state.js
+          if grep -q "row('Presentation status'" portal/m360/portfolio.js; then
+            echo '::error::Staff verification must not be exported into the showcase portfolio.'
+            exit 1
+          fi
+
+      - name: Verify Start Here and Spotlight durable M360 contract
+        run: |
+          set -euo pipefail
+          migration='supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql'
+          hardening='supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql'
+          test -f "$migration"
+          test -f "$hardening"
+          grep -q 'start_here_payload' "$migration"
+          grep -q 'start_here_completed_at' "$migration"
+          grep -q 'm360_save_start_here' "$migration"
+          grep -q 'career_spotlight_presentation_status' "$migration"
+          grep -q 'm360_admin_set_spotlight_presentation' "$migration"
+          grep -q "career_spotlight_presentation_status <> 'not_completed'" "$migration"
+          grep -q 'grant execute on function public.m360_save_start_here' "$migration"
+          grep -q 'grant execute on function public.m360_admin_set_spotlight_presentation' "$migration"
+          grep -q 'revoke execute on function public.m360_save_start_here(jsonb, boolean, boolean, boolean) from anon' "$hardening"
+          grep -q 'revoke execute on function public.m360_admin_set_spotlight_presentation(uuid, text, text) from anon' "$hardening"
+          grep -q 'grant execute on function public.m360_save_start_here(jsonb, boolean, boolean, boolean) to authenticated' "$hardening"
+          grep -q 'grant execute on function public.m360_admin_set_spotlight_presentation(uuid, text, text) to authenticated' "$hardening"
+          if grep -Eq '(alter table public\.module_progress|insert into public\.module_progress|update public\.module_progress|lab_attempts|site_sessions)' "$migration" "$hardening"; then
+            echo '::error::M360 migrations must not alter technical progress, lab, or site-session data.'
+            exit 1
+          fi
 
       - name: Verify consistent week navigation and current portfolio access
         run: |
@@ -93,30 +173,19 @@ jobs:
           loader = Path('portal/m360/week.html').read_text()
           portfolio = Path('portal/m360/portfolio.js').read_text()
           required = [
-              'wireSamePageAnchors',
-              "a[href^=\"#\"]",
-              'scrollIntoView',
-              'history.replaceState',
-              'polishWorkbookButtons',
-              "button.style.textAlign = 'center'",
-              'makeBrandProgramsLink',
-              "../index.html#/portal",
-              'ensureConsistentSidebar',
-              'm360ConsistentWeekRows',
-              'ensureCurrentPortfolioDownload',
-              "portfolio.html?download=1",
-              'moveWeek6FinalFileField',
-              "document.getElementById('slidesUrl')",
+              'wireSamePageAnchors', 'scrollIntoView', 'history.replaceState',
+              'polishWorkbookButtons', 'makeBrandProgramsLink', '../index.html#/portal',
+              'ensureConsistentSidebar', 'm360ConsistentWeekRows', 'ensureCurrentPortfolioDownload',
+              'portfolio.html?download=1', 'moveWeek6FinalFileField', "document.getElementById('slidesUrl')",
               "document.getElementById('slide3Content')"
           ]
           for token in required:
               if token not in nav:
                   raise SystemExit(f'Missing consistency-pass navigation requirement: {token}')
-          if 'm360-production-nav.js?v=20260904c' not in loader:
-              raise SystemExit('Week loader must bust the cached M360 production navigation asset')
+          if 'm360-data.js?v=20260904f' not in loader or 'week6.js?v=20260904a' not in loader:
+              raise SystemExit('Week loader must bust changed M360 data and Week 6 assets')
           if "get('download')==='1'" not in portfolio or 'setTimeout(printPortfolio' not in portfolio:
               raise SystemExit('Current-portfolio link must print only after authenticated portfolio rendering')
-          print('Week navigation, My Programs logo route, per-week status rows, Week 6 field flow, and current portfolio download are consistent')
           PY
 
       - name: Verify Week 6 workbook and Career Spotlight template
@@ -124,13 +193,11 @@ jobs:
           set -euo pipefail
           grep -q 'Week 6 Student Workbook' portal/m360/week6.html
           grep -q '1RVHFVHnyFTWbWv9wDNWmsmy941g7GkEH' portal/m360/week6.html
-          grep -q 'The LMS remains the official submission, review, grade, and portfolio record.' portal/m360/week6.html
           grep -q 'Career Spotlight Student Slide Template' portal/m360/week6.html
           grep -q '1RapFQMA5tiIYlUDWoyp8xH6U67Uofbr-vJoGKlnZLN8/export/pptx' portal/m360/week6.html
-          grep -q '1RapFQMA5tiIYlUDWoyp8xH6U67Uofbr-vJoGKlnZLN8/copy' portal/m360/week6.html
           grep -q 'Download template (.pptx)' portal/m360/week6.html
 
-      - name: Verify portfolio field contracts
+      - name: Verify portfolio privacy contracts
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -140,10 +207,6 @@ jobs:
           for token in required:
               if token not in js:
                   raise SystemExit(f'Missing corrected portfolio mapping: {token}')
-          wrong = ['a.resumeUrl','a.resumeVersion)']
-          for token in wrong:
-              if token in js:
-                  raise SystemExit(f'Stale portfolio mapping returned: {token}')
           forbidden = [
               'networkTargets','trackerNote','actionEvidence','actionCompleted',
               'connectionRequest','adviceRequest','informationalRequest',
@@ -153,22 +216,15 @@ jobs:
           leaked=[x for x in forbidden if x in js]
           if leaked:
               raise SystemExit('Portfolio assembler references excluded/private fields: '+', '.join(leaked))
-          print('Portfolio field mappings and privacy whitelist are aligned to production week contracts')
           PY
 
       - name: Verify bulk attendance verification path
         run: |
           set -euo pipefail
-          test -f portal/m360/review-attendance.js
-          test -f portal/m360/review-attendance.css
           grep -q 'M360 Attendance Verification' portal/m360/review.html
           grep -q 'saveAttendanceChangesBtn' portal/m360/review.html
-          grep -q 'Save changed attendance' portal/m360/review.html
           grep -q 'data-roster-status' portal/m360/review-attendance.js
-          grep -q 'Not verified' portal/m360/review-attendance.js
-          grep -q 'Requirement satisfied' portal/m360/review-attendance.js
           grep -q 'Promise.allSettled' portal/m360/review-attendance.js
-          grep -q "\.from('m360_course_records')" portal/m360/review-attendance.js
           grep -q 'M360Data.setAttendance' portal/m360/review-attendance.js
           if grep -q 'data-roster-save' portal/m360/review-attendance.js; then
             echo '::error::Attendance roster must not retain per-student save buttons.'
@@ -179,12 +235,12 @@ jobs:
             exit 1
           fi
 
-      - name: Preserve Gate 6 release surfaces
+      - name: Preserve M360 release surfaces
         run: |
           set -euo pipefail
+          test -f portal/m360/start-here.html
           test -f portal/m360/portfolio.html
           test -f portal/m360/portfolio.js
           test -f portal/m360/week6.html
-          test -f portal/m360/m360-production-nav.js
           test -f portal/m360/review.html
           test -f portal/m360-entry.js

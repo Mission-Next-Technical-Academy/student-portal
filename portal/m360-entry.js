@@ -11,6 +11,7 @@
   const ELIGIBLE_TRACKS = new Set(['SOCAN', 'HDESK', 'AIENG']);
   const ENTRY_ID = 'm360-course-entry';
   const ADMIN_ENTRY_ID = 'm360-admin-entry';
+  const POST_LOGIN_KEY = 'mnt.m360.postLoginProgramsPending';
   let renderPending = false;
 
   function technicalEnrollmentActive(user) {
@@ -34,10 +35,6 @@
   }
 
   function suppressLegacyCareerReadiness() {
-    // M360 is a separate shared course. Eligible M360 students should not see
-    // the legacy career-readiness/M360 companion section nested inside their
-    // technical program page. Removing only this rendered DOM does not alter
-    // technical PROGRAMS data, progress, labs, grades, hours, or persistence.
     const legacySection = document.getElementById('sec-career-readiness');
     if (legacySection) legacySection.remove();
 
@@ -45,6 +42,24 @@
       const label = link.textContent.trim();
       if (label === 'M360 Companion' || label === 'Career Readiness') link.remove();
     });
+  }
+
+  function routeEligibleLoginToPrograms(user) {
+    if (sessionStorage.getItem(POST_LOGIN_KEY) !== '1') return false;
+    if (!user || user.isAdmin || !ELIGIBLE_TRACKS.has(user.trackCode) || !technicalEnrollmentActive(user)) {
+      sessionStorage.removeItem(POST_LOGIN_KEY);
+      return false;
+    }
+
+    if (location.hash.startsWith('#/program/')) {
+      sessionStorage.removeItem(POST_LOGIN_KEY);
+      history.replaceState(null, '', '#/portal');
+      if (typeof render === 'function') render();
+      return true;
+    }
+
+    if (location.hash === '#/portal') sessionStorage.removeItem(POST_LOGIN_KEY);
+    return false;
   }
 
   function entryMarkup() {
@@ -73,8 +88,8 @@
           <div class="absolute inset-y-0 left-0 w-1.5 bg-[#f97316]" aria-hidden="true"></div>
           <div class="pl-2">
             <div class="mb-2 text-xs font-semibold uppercase tracking-widest text-[#f97316]">M360 101 Administration</div>
-            <h2 id="m360-admin-entry-title" class="text-xl font-bold text-[#1e3a5f]">Professional Readiness Review & Completion</h2>
-            <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600">Use one workspace to review submitted M360 work and verify the external attendance requirement used for final course completion.</p>
+            <h2 id="m360-admin-entry-title" class="text-xl font-bold text-[#1e3a5f]">Professional Readiness Review &amp; Completion</h2>
+            <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600">Use one workspace to review Start Here support needs and submitted M360 work, verify Career Spotlight presentation completion, and confirm the external attendance requirement.</p>
           </div>
           <a href="m360/review.html" class="inline-flex items-center justify-center rounded-xl bg-[#1e3a5f] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16304f]">Open M360 Administration</a>
         </div>
@@ -97,6 +112,7 @@
 
       const user = await currentUser();
       if (!user) return;
+      if (routeEligibleLoginToPrograms(user)) return;
 
       if (user.isAdmin) {
         ensureAdminEntry();
@@ -114,12 +130,20 @@
 
       grid.insertAdjacentHTML('beforebegin', entryMarkup());
     } catch (error) {
-      // M360 entry is intentionally fail-soft: a problem here must never block
-      // or alter the technical-course dashboard.
       console.error('M360 dashboard entry failed', error);
     } finally {
       renderPending = false;
     }
+  }
+
+  if (typeof mntSupabase !== 'undefined' && mntSupabase.auth && typeof mntSupabase.auth.onAuthStateChange === 'function') {
+    mntSupabase.auth.onAuthStateChange((event) => {
+      if (event !== 'SIGNED_IN') return;
+      const coachReturn = new URLSearchParams(location.search).get('coachComplete');
+      if (coachReturn === 'm01') return;
+      sessionStorage.setItem(POST_LOGIN_KEY, '1');
+      setTimeout(ensureEntry, 0);
+    });
   }
 
   const observer = new MutationObserver(() => { ensureEntry(); });
