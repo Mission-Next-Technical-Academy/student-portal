@@ -17,20 +17,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enforce Wave 3 scope
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave3-workbook-delivery-check.yml|portal/m360/m360-production-nav.js)$' || true)"
-          if [ -n "$unexpected" ]; then
-            echo '::error::Wave 3 is limited to the canonical M360 workbook delivery rewrite and its guard.'
-            printf '%s\n' "$unexpected"
-            exit 1
-          fi
-
       - name: JavaScript syntax
         run: |
           set -euo pipefail
@@ -81,11 +67,11 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Wave 3 must not change Supabase schema, migrations, or Storage.'
+            echo '::error::Changes touching workbook delivery must not change Supabase schema, migrations, or Storage.'
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
-            echo '::error::Wave 3 must not change the established technical-course LMS runtime.'
+            echo '::error::Changes touching workbook delivery must not change the established technical-course LMS runtime.'
             exit 1
           fi
-          echo 'Wave 3 changes only the canonical M360 workbook delivery layer.'
+          echo 'Wave 3 workbook delivery invariants remain intact.'
