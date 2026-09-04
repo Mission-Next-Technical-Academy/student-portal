@@ -39,6 +39,7 @@ jobs:
           node --check portal/m360/review.js
           node --check portal/m360/week3.js
           node --check portal/m360/week4.js
+          node --check portal/m360/week5.js
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -150,6 +151,48 @@ jobs:
           print('Week 4 targeting/evidence requirements and Week 3 privacy carry-forward boundary are enforced')
           PY
 
+      - name: Protect Week 5 required and optional boundaries
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          js = Path('portal/m360/week5.js').read_text()
+          html = Path('portal/m360/week5.html').read_text()
+
+          if 'const MIN_STORIES=4;' not in js:
+              raise SystemExit('Week 5 must require exactly four minimum STAR stories')
+          if "['Interviewer question 1',d.interviewerQuestion1]" not in js or "['Interviewer question 2',d.interviewerQuestion2]" not in js:
+              raise SystemExit('Week 5 must require at least two interviewer questions')
+          if 'Four complete stories are required' not in html:
+              raise SystemExit('Week 5 learner-facing minimum-four story language is missing')
+          if 'Optional — not graded' not in html or 'Optional private working material' not in html:
+              raise SystemExit('Week 5 optional Practice It boundaries are not explicit')
+
+          missing_match = re.search(r'function missing\(\)\{(.*?)\}function readyCount', js, flags=re.S)
+          if not missing_match:
+              raise SystemExit('Could not locate Week 5 required-field validator')
+          required_validator = missing_match.group(1)
+          forbidden_gates = ['professionalIntroduction', 'technicalScenario', 'technicalReasoning', 'interviewerQuestion3']
+          gated = [field for field in forbidden_gates if field in required_validator]
+          if gated:
+              raise SystemExit('Optional Week 5 fields are incorrectly completion-gating: ' + ', '.join(gated))
+
+          proof_match = re.search(r'function renderProof\(\)\{(.*?)\}function renderReview', js, flags=re.S)
+          if not proof_match:
+              raise SystemExit('Could not locate Week 5 showcase renderProof function')
+          proof = proof_match.group(1)
+          private_fields = ['technicalScenario', 'technicalReasoning']
+          leaked = [field for field in private_fields if field in proof]
+          if leaked:
+              raise SystemExit('Week 5 showcase renderer references private technical scenario fields: ' + ', '.join(leaked))
+          if 'professionalIntroduction' not in proof:
+              raise SystemExit('Week 5 optional professional introduction must be permitted as reusable portfolio material')
+
+          print('Week 5 four-story minimum, optional practice, and private scenario boundaries are enforced')
+          PY
+
       - name: Verify production shell files
         run: |
           set -euo pipefail
@@ -161,6 +204,9 @@ jobs:
           test -f portal/m360/week4.html
           test -f portal/m360/week4.js
           test -f portal/m360/week4.css
+          test -f portal/m360/week5.html
+          test -f portal/m360/week5.js
+          test -f portal/m360/week5.css
           test -f portal/m360/review.html
           test -f portal/m360/m360-data.js
           test -f portal/m360/m360-production-bridge.js
@@ -168,5 +214,6 @@ jobs:
           test -f portal/m360-entry.js
           grep -q "3: {" portal/m360/week.html
           grep -q "4: {" portal/m360/week.html
-          grep -q 'RELEASED_WEEKS = \[1, 2, 3, 4\]' portal/m360/m360-production-bridge.js
+          grep -q "5: {" portal/m360/week.html
+          grep -q 'RELEASED_WEEKS = \[1, 2, 3, 4, 5\]' portal/m360/m360-production-bridge.js
           grep -q 'm360-entry.js?v=20260904' .github/workflows/pages.yml
