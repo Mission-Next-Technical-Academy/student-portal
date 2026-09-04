@@ -36,9 +36,8 @@
   }
 
   function prefillFromAccepted(w1,w2,w4,w5){
-    const s=state(), w=week(s), d={...blank(),...(w.draft||{})};
-    delete d.presentationStatus;
-    delete d.presentationEvidence;
+    const s=state(), w=week(s), prior=w.draft||{}, d=blank();
+    fieldIds.forEach(id=>{if(typeof prior[id]==='string')d[id]=prior[id];});
     if(!d.slide1Content)d.slide1Content=w1.direction||w2.headline||w1.brandStatement||'';
     if(!d.slide2Content){const bullets=Array.isArray(w4.evidenceBullets)?w4.evidenceBullets.filter(x=>x&&x.revised):[];d.slide2Content=(bullets[0]&&bullets[0].revised)||((Array.isArray(w5.starStories)&&w5.starStories[0]&&w5.starStories[0].result)||'');}
     if(!d.actionTarget)d.actionTarget=w4.targetRole||w4.targetOpportunity||w4.target||w5.targetDirection||'';
