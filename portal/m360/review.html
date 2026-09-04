@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../m360-preview.css?v=20260903b" />
   <link rel="stylesheet" href="../m360-demo-refinements.css?v=20260903" />
   <link rel="stylesheet" href="review.css?v=20260904" />
+  <link rel="stylesheet" href="review-attendance.css?v=20260904" />
 </head>
 <body>
   <div class="shell">
@@ -56,6 +57,20 @@
       <section id="reviewQueue" class="review-queue" aria-live="polite">
         <div class="empty-state">Loading M360 review queue…</div>
       </section>
+
+      <section class="attendance-admin-section" aria-labelledby="attendanceAdminTitle">
+        <div class="attendance-admin-heading">
+          <div>
+            <div class="mini-kicker">Course completion bridge</div>
+            <h2 id="attendanceAdminTitle">M360 Attendance Verification</h2>
+            <p>Attendance detail stays outside the LMS. Use this panel only to confirm whether the external M360 attendance requirement has been satisfied. Do not enter session minutes or clock hours.</p>
+          </div>
+          <button id="refreshAttendanceBtn" class="btn btn-secondary" type="button">Refresh attendance</button>
+        </div>
+        <div id="attendanceRoster" class="attendance-roster" aria-live="polite">
+          <div class="empty-state">Loading eligible M360 students…</div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -63,5 +78,6 @@
   <script src="../supabase-config.js?v=20260828"></script>
   <script src="m360-data.js?v=20260904"></script>
   <script src="review.js?v=20260904"></script>
+  <script src="review-attendance.js?v=20260904"></script>
 </body>
 </html>
