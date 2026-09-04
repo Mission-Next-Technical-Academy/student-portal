@@ -59,10 +59,10 @@ jobs:
           required = [
               "const targetUserId=params.get('student');",
               "if(!ctx.isAdmin)throw new Error('Admin access required.');",
-              "function renderPortfolio(rows,progress,{adminMode=false,studentId=''}={})",
-              "renderPortfolio(rows||[],progress||null,{adminMode:true,studentId:student.student_id||targetUserId});",
-              "renderPortfolio(rows,progress,{adminMode:false});",
-              "Only reviewer-approved portfolio evidence is shown.",
+              "function renderPortfolio(rows,progress,{adminMode=false,studentId='',trackCode=''}={})",
+              "renderPortfolio(rows||[],progress||null,{adminMode:true,studentId:student.student_id||targetUserId,trackCode:student.track_code||''});",
+              "renderPortfolio(rows,progress,{adminMode:false,studentId:identity.studentId,trackCode:identity.trackCode});",
+              'accepted portfolio evidence only',
               "if(!adminMode)",
               "params.get('print')==='1'"
           ]
@@ -94,19 +94,19 @@ jobs:
           print('Week 3 Admin/student showcase renderer remains sanitized')
           PY
 
-      - name: Preserve deterministic print readiness
+      - name: Preserve deterministic Admin print readiness
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           text = Path('portal/m360/portfolio.js').read_text()
-          required = ['document.fonts&&document.fonts.ready', 'await waitForImages();', 'await nextFrame();', 'window.print();']
+          required = ['document.fonts&&document.fonts.ready', 'await waitForImages();', 'await nextFrame();', 'window.print();', "params.get('print')==='1'"]
           for token in required:
               if token not in text:
                   raise SystemExit(f'Missing portfolio print-readiness requirement: {token}')
           if text.count('await nextFrame();') < 2:
               raise SystemExit('Portfolio print flow must preserve two render frames before printing.')
-          print('Deterministic portfolio print readiness preserved')
+          print('Deterministic Admin print readiness preserved')
           PY
 
       - name: Require Admin page wiring and current portfolio runtime
@@ -116,7 +116,8 @@ jobs:
           grep -q 'id="portfolioRoster"' portal/m360/review.html
           grep -q 'review-portfolios.js?v=20260904' portal/m360/review.html
           grep -q 'm360-data.js?v=20260904f' portal/m360/portfolio.html
-          grep -q 'portfolio.js?v=20260904a' portal/m360/portfolio.html
+          grep -q 'm360-portfolio-pdf.js?v=20260904' portal/m360/portfolio.html
+          grep -q 'portfolio.js?v=20260904b' portal/m360/portfolio.html
 
       - name: Preserve product and database boundaries
         env:

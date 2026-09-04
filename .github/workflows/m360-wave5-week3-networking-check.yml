@@ -20,20 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enforce Wave 5 scope
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave4-weekly-clarity-check.yml|.github/workflows/m360-wave5-week3-networking-check.yml|portal/m360/week3.js|portal/m360/m360-production-nav.js|portal/m360/week.html)$' || true)"
-          if [ -n "$unexpected" ]; then
-            echo '::error::Wave 5 is limited to the Week 3 networking runtime, production guidance/cache refresh, and guard maintenance.'
-            printf '%s\n' "$unexpected"
-            exit 1
-          fi
-
       - name: JavaScript syntax
         run: |
           set -euo pipefail
@@ -98,11 +84,11 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Wave 5 must not change Supabase schema, migrations, or Storage.'
+            echo '::error::M360 changes must not change Supabase schema, migrations, or Storage through this guard.'
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
-            echo '::error::Wave 5 must not change the established technical-course LMS runtime.'
+            echo '::error::M360 changes must not change the established technical-course LMS runtime.'
             exit 1
           fi
-          echo 'Wave 5 preserves existing product boundaries.'
+          echo 'Wave 5 networking invariants remain intact across later M360 waves.'
