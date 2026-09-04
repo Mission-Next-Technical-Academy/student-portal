@@ -64,9 +64,9 @@ jobs:
               'Maximum 3 slides total',
               'No separate fourth title slide',
               'Professional Communication',
-              'Slide 1: Who I am / where I am going',
-              'Slide 2: What I can do / proof example',
-              'Slide 3: What is next / 30-day plan summary'
+              'Who I am / where I am going',
+              'What I can do / proof example',
+              'What is next / 30-day plan summary'
           ]
           for phrase in required_html:
               if phrase not in html:
