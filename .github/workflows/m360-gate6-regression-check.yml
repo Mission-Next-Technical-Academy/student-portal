@@ -48,7 +48,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify separate M360 portal routing
+      - name: Verify separate M360 portal routing and Admin launch surface
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -67,24 +67,58 @@ jobs:
               'href="m360/"',
               'suppressLegacyCareerReadiness',
               "getElementById('sec-career-readiness')",
-              'a[href="#sec-career-readiness"]'
+              'a[href="#sec-career-readiness"]',
+              'M360 101 Administration',
+              'Open Review Queue',
+              'Attendance Verification',
+              'm360/review.html#attendanceAdminTitle'
           ]
           for token in required:
               if token not in entry:
-                  raise SystemExit(f'Missing separate M360 routing requirement: {token}')
+                  raise SystemExit(f'Missing separate M360 routing/Admin requirement: {token}')
+          if 'ELECT' in entry.split("new Set(['SOCAN', 'HDESK', 'AIENG'])", 1)[0]:
+              raise SystemExit('Electrical track must not be added to the M360 eligible-track set')
           forbidden_calls = [".from('module_progress')", 'toggleM360ItemCompletion(', 'saveM360Progress(']
           leaked = [token for token in forbidden_calls if token in entry]
           if leaked:
               raise SystemExit('M360 entry must not call technical/legacy progress paths: ' + ', '.join(leaked))
-          print('Separate eligible-student M360 entry is loaded after app.js and legacy nested companion rendering is suppressed')
+          print('Separate M360 student routing and Admin review launch surface are present without technical progress coupling')
           PY
 
-      - name: Verify Week 6 workbook companion
+      - name: Verify in-week anchor navigation and workbook button polish
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          nav = Path('portal/m360/m360-production-nav.js').read_text()
+          loader = Path('portal/m360/week.html').read_text()
+          required = [
+              'wireSamePageAnchors',
+              "a[href^=\"#\"]",
+              'scrollIntoView',
+              'history.replaceState',
+              'polishWorkbookButtons',
+              "button.style.textAlign = 'center'",
+              "button.style.justifyContent = 'center'"
+          ]
+          for token in required:
+              if token not in nav:
+                  raise SystemExit(f'Missing in-week navigation/workbook polish requirement: {token}')
+          if 'm360-production-nav.js?v=20260904b' not in loader:
+              raise SystemExit('Week loader must bust the cached M360 production navigation asset')
+          print('Hash-only week navigation is intercepted locally and workbook CTA text is centered')
+          PY
+
+      - name: Verify Week 6 workbook and Career Spotlight template
         run: |
           set -euo pipefail
           grep -q 'Week 6 Student Workbook' portal/m360/week6.html
           grep -q '1RVHFVHnyFTWbWv9wDNWmsmy941g7GkEH' portal/m360/week6.html
           grep -q 'The LMS remains the official submission, review, grade, and portfolio record.' portal/m360/week6.html
+          grep -q 'Career Spotlight Student Slide Template' portal/m360/week6.html
+          grep -q '1RapFQMA5tiIYlUDWoyp8xH6U67Uofbr-vJoGKlnZLN8/export/pptx' portal/m360/week6.html
+          grep -q '1RapFQMA5tiIYlUDWoyp8xH6U67Uofbr-vJoGKlnZLN8/copy' portal/m360/week6.html
+          grep -q 'Download template (.pptx)' portal/m360/week6.html
 
       - name: Verify portfolio field contracts
         run: |
