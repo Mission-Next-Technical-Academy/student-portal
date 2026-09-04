@@ -28,7 +28,7 @@
   }
 
   async function getContext({ refresh = false } = {}) {
-    if (!window.mntSupabase) {
+    if (typeof mntSupabase === 'undefined') {
       return { authenticated: false, eligible: false, schemaAvailable: false, error: 'Supabase client unavailable.' };
     }
     if (refresh) contextPromise = null;
