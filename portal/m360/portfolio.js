@@ -74,14 +74,25 @@
       {label:'Revised evidence bullets',bullets},
       {label:'Targeting note',value:a.targetingNote}
     ];}
-    if(n===5){const stories=Array.isArray(a.starStories)?a.starStories.filter(x=>x&&x.title).map(x=>`${x.title}${x.competency?` - ${x.competency}`:''}${x.result?`: ${x.result}`:''}`):[];return [
-      {label:'Target direction',value:a.targetDirection},
-      {label:'Professional introduction',value:a.professionalIntroduction},
-      {label:'STAR story bank',bullets:stories},
-      {label:'Practice reflection',value:a.practiceObservation},
-      {label:'Interviewer questions',bullets:[a.interviewerQuestion1,a.interviewerQuestion2,a.interviewerQuestion3].filter(Boolean)},
-      {label:'Improvement plan',value:a.improvementNext}
-    ];}
+    if(n===5){
+      const fields=[
+        {label:'Target direction',value:a.targetDirection},
+        {label:'Professional introduction',value:a.professionalIntroduction}
+      ];
+      const stories=Array.isArray(a.starStories)?a.starStories.filter(x=>x&&x.title):[];
+      stories.forEach((story,index)=>{
+        fields.push({label:`STAR story ${index+1}`,value:`${story.title}${story.competency?` - ${story.competency}`:''}`});
+        fields.push({label:'Situation / task / context',value:story.context});
+        fields.push({label:'Action',value:story.action});
+        fields.push({label:'Result / learning',value:story.result});
+        fields.push({label:'Interview use',value:story.interviewUse});
+      });
+      fields.push({label:'Practice reflection',value:a.practiceObservation});
+      fields.push({label:'Interviewer questions',bullets:[a.interviewerQuestion1,a.interviewerQuestion2,a.interviewerQuestion3].filter(Boolean)});
+      fields.push({label:'Improvement plan',value:a.improvementNext});
+      fields.push({label:'Support to improve',value:a.improvementSupport});
+      return fields;
+    }
     if(n===6)return [
       {label:'Career Spotlight slides',url:a.slidesUrl},
       {label:'Slide 1 / Direction',value:a.slide1Content},
