@@ -55,9 +55,9 @@ jobs:
             echo '::error::M360 changes must not modify technical LMS runtime.'
             exit 1
           fi
-          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' || true)"
+          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' | grep -v '^supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql$' || true)"
           if [ -n "$unexpected_migrations" ]; then
-            echo '::error::This change may include only the reviewed M360 Start Here/Spotlight migration.'
+            echo '::error::This change may include only the two reviewed M360 Start Here/Spotlight migrations.'
             printf '%s\n' "$unexpected_migrations"
             exit 1
           fi
@@ -144,7 +144,9 @@ jobs:
         run: |
           set -euo pipefail
           migration='supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql'
+          hardening='supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql'
           test -f "$migration"
+          test -f "$hardening"
           grep -q 'start_here_payload' "$migration"
           grep -q 'start_here_completed_at' "$migration"
           grep -q 'm360_save_start_here' "$migration"
@@ -153,8 +155,12 @@ jobs:
           grep -q "career_spotlight_presentation_status <> 'not_completed'" "$migration"
           grep -q 'grant execute on function public.m360_save_start_here' "$migration"
           grep -q 'grant execute on function public.m360_admin_set_spotlight_presentation' "$migration"
-          if grep -Eq '(alter table public\.module_progress|insert into public\.module_progress|update public\.module_progress|lab_attempts|site_sessions)' "$migration"; then
-            echo '::error::M360 migration must not alter technical progress, lab, or site-session data.'
+          grep -q 'revoke execute on function public.m360_save_start_here(jsonb, boolean, boolean, boolean) from anon' "$hardening"
+          grep -q 'revoke execute on function public.m360_admin_set_spotlight_presentation(uuid, text, text) from anon' "$hardening"
+          grep -q 'grant execute on function public.m360_save_start_here(jsonb, boolean, boolean, boolean) to authenticated' "$hardening"
+          grep -q 'grant execute on function public.m360_admin_set_spotlight_presentation(uuid, text, text) to authenticated' "$hardening"
+          if grep -Eq '(alter table public\.module_progress|insert into public\.module_progress|update public\.module_progress|lab_attempts|site_sessions)' "$migration" "$hardening"; then
+            echo '::error::M360 migrations must not alter technical progress, lab, or site-session data.'
             exit 1
           fi
 
