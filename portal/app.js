@@ -3478,6 +3478,10 @@ function programCard(program, user) {
 
 function viewPortal(user) {
   const enrolledCount = user.enrollments.filter((e) => e.status === 'active').length;
+  // The student dashboard is a personal program list, not a catalogue. The
+  // route-level entitlement checks remain in place as defense in depth, but
+  // there is no reason to advertise programs this student cannot access.
+  const visiblePrograms = PROGRAMS.filter((program) => hasProgramAccess(user, program.slug));
 
   return `
   ${header(user)}
@@ -3496,8 +3500,8 @@ function viewPortal(user) {
         <p class="text-white/55 text-base max-w-xl">
           ${
             enrolledCount
-              ? `You have ${enrolledCount} active program${enrolledCount > 1 ? 's' : ''}. Programs you have not enrolled in are shown but locked.`
-              : 'You do not have any active programs yet. Browse the catalogue below and request information to enroll.'
+              ? `You have ${enrolledCount} active program${enrolledCount > 1 ? 's' : ''}.`
+              : 'You do not currently have an active program. Contact Mission Next Technical Academy for enrollment support.'
           }
         </p>
       </div>
@@ -3508,29 +3512,24 @@ function viewPortal(user) {
         <!-- Section header copy is the live site's, verbatim. -->
         <div class="text-center mb-16">
           <div class="inline-flex items-center gap-2 bg-[#f97316]/10 text-[#f97316] text-xs font-semibold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6">
-            <span class="w-1.5 h-1.5 rounded-full bg-[#f97316]"></span>What We Offer
+            <span class="w-1.5 h-1.5 rounded-full bg-[#f97316]"></span>My Learning
           </div>
-          <h2 class="text-3xl font-bold text-[#1e3a5f] mb-4">Program Areas</h2>
+          <h2 class="text-3xl font-bold text-[#1e3a5f] mb-4">My Programs</h2>
           <div class="w-12 h-1 bg-[#f97316] rounded-full mx-auto mb-6"></div>
           <p class="text-gray-500 text-base max-w-xl mx-auto">
-            Accelerated, career-focused tracks designed to get you workforce-ready fast.
-          </p>
-          <p class="text-gray-400 text-sm mt-4">
-            <i class="ri-lock-line"></i> Locked programs require enrollment.
+            Your enrolled technical program and its included coursework.
           </p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          ${PROGRAMS.map((p) => programCard(p, user)).join('')}
+          ${visiblePrograms.map((p) => programCard(p, user)).join('')}
         </div>
 
-        <div class="text-center">
-          <a href="https://mntacademy.com/#waitlist" target="_blank" rel="noopener"
-             class="inline-block bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-8 py-3.5 rounded-xl
-                    transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer">
-            Request Information
-          </a>
-        </div>
+        ${
+          visiblePrograms.length
+            ? ''
+            : `<p class="text-center text-sm text-gray-500">No programs are available on this account right now.</p>`
+        }
       </div>
     </section>
   </main>
@@ -4851,6 +4850,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                      <tbody>
                        ${loginEvents.map((ev) => {
                          const siteSession = matchSiteSession(ev);
+                         // A forced sign-out only has meaning for this event's
+                         // still-open site session. Historical (and unmatched)
+                         // sign-ins are audit records, not actionable sessions.
+                         const canForceSignOut = Boolean(ev.user_id && siteSession && !siteSession.ended_at);
                          return `
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                            <td class="px-6 py-3 text-sm text-gray-900 font-mono">
@@ -4863,7 +4866,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                            <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? (siteSession.ended_at ? new Date(siteSession.ended_at).toLocaleString() : '<span class="text-green-600 font-semibold">Still signed in</span>') : '—'}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? esc(formatSiteMinutes(siteSession.duration_minutes)) : '—'}</td>
                            <td class="px-6 py-3 text-sm whitespace-nowrap">
-                             ${ev.user_id ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id || 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
+                             ${canForceSignOut ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id || 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
                            </td>
                          </tr>`;
                        }).join('')}
@@ -5052,8 +5055,8 @@ async function render() {
 
       // Student Activity Monitor tab: recent sign-ins across every student,
       // newest first. login_events_admin_read (20260901110000_login_events.sql).
-      // user_id is included (not shown as a column) so the "Sign out" button
-      // below has the target id admin_force_sign_out(target_user_id) needs.
+      // user_id is included (not shown as a column) so an open session's
+      // "Sign out" button has the target id admin_force_sign_out() needs.
       const { data: loginEvents, error: loginEventsError } = await mntSupabase
         .from('login_events')
         .select('user_id, student_id, track_code, occurred_at, ip_address, geo_city, geo_region, geo_country')
