@@ -130,6 +130,25 @@ async function currentUser() {
   return result;
 }
 
+/* Sign-in gates, in this order, none interchangeable
+ * (SESSION_SECURITY_SPEC.md Decision 3):
+ *   1. Supabase Auth itself (bad credentials -> null, unchanged).
+ *   2. checkLoginUeba() — MUST run before the site_sessions insert below: it
+ *      may close an already-open row (favor_new) so Decision 1's concurrency
+ *      trigger doesn't wrongly reject the new insert, and a plain/suspicious
+ *      block must never let a site_sessions row get created at all.
+ *   3. recordSiteSessionStart() — Decision 1's trigger is the actual
+ *      enforcer of the cap; the MNT_SESSION_LIMIT_REACHED sentinel here is
+ *      the fallback path for any case checkLoginUeba() didn't already catch
+ *      (e.g. an admin past their own cap, which UEBA skips entirely).
+ *   4. checkLoginGeofence() — MUST run after, since it patches/revokes by
+ *      the new row's own id.
+ * A block anywhere in 2-4 signs the just-issued Supabase Auth session back
+ * out client-side; the server side has already revoked it too (both
+ * check-login-ueba's block paths and check-login-geofence do a real
+ * auth.admin.signOut() — a client-side signOut() alone would not stop
+ * someone hitting the API directly with the credentials that already
+ * passed step 1). */
 async function signIn(identifier, password) {
   const email = identifier.includes('@')
     ? identifier.trim().toLowerCase()
@@ -139,30 +158,99 @@ async function signIn(identifier, password) {
   _cachedUser = null;
   _cachedUserPromise = null;
   const user = await currentUser();
-  recordLoginEvent(user);
-  recordSiteSessionStart(user);
+
+  const loginEventId = await recordLoginEvent(user);
+
+  if (loginEventId) {
+    const ueba = await checkLoginUeba(loginEventId);
+    if (ueba === 'block' || ueba === 'block_suspicious') {
+      // Same sentinel/message as a plain cap hit either way — never give
+      // the person signing in a way to tell "ordinary second device" apart
+      // from "flagged as suspicious" (that distinction is admin-visible
+      // only, on the login_events row itself).
+      await mntSupabase.auth.signOut();
+      return 'session_limit';
+    }
+  }
+
+  const siteSessionId = await recordSiteSessionStart(user);
+  if (siteSessionId === 'session_limit') {
+    await mntSupabase.auth.signOut();
+    return 'session_limit';
+  }
+  if (siteSessionId) {
+    const geoResult = await checkLoginGeofence(siteSessionId);
+    if (geoResult === 'geo_blocked') {
+      await mntSupabase.auth.signOut();
+      return 'geo_blocked';
+    }
+  }
+  // A null siteSessionId (insert failed for a reason other than the cap)
+  // falls through here and still returns user — a logging table's own
+  // failure must never break the golden path of an otherwise-good login.
+
   return user;
 }
 
 /* Student Activity Monitor data source (supabase/migrations/20260901110000_
  * login_events.sql). Fires once per actual signIn() call, never on a session
  * restore (currentUser() alone, e.g. a page refresh), so this reflects real
- * sign-in actions, not every render(). Fire-and-forget/self-row/error-logged
- * — same convention as upsertModuleProgress. Visibility only: never read
- * anywhere as attendance or instructional time (see the migration comment
- * and computeFixedCreditHours() above). */
-function recordLoginEvent(user) {
-  if (!user || !user.userId) return;
-  mntSupabase
-    .from('login_events')
-    .insert({ user_id: user.userId, student_id: user.username || null, track_code: user.trackCode || null })
-    .select('id')
-    .single()
-    .then(({ data, error }) => {
-      if (error) console.error('login_events insert failed', error);
-      else if (data && data.id) recordLoginGeo(data.id);
-    })
-    .catch((err) => console.error('login_events insert threw', err));
+ * sign-in actions, not every render(). Awaited (not fire-and-forget) since
+ * signIn() needs the row's id to pass to checkLoginUeba() below; the
+ * downstream geo enrichment call stays fire-and-forget exactly as before.
+ * Visibility only: never read anywhere as attendance or instructional time
+ * (see the migration comment and computeFixedCreditHours() above). */
+async function recordLoginEvent(user) {
+  if (!user || !user.userId) return null;
+  try {
+    const { data, error } = await mntSupabase
+      .from('login_events')
+      .insert({ user_id: user.userId, student_id: user.username || null, track_code: user.trackCode || null })
+      .select('id')
+      .single();
+    if (error) {
+      console.error('login_events insert failed', error);
+      return null;
+    }
+    if (data && data.id) recordLoginGeo(data.id); // fire-and-forget, unchanged
+    return (data && data.id) || null;
+  } catch (err) {
+    console.error('login_events insert threw', err);
+    return null;
+  }
+}
+
+/* UEBA-lite habitual-IP arbitration (SESSION_SECURITY_SPEC.md Decision 4,
+ * supabase/functions/check-login-ueba). Same auth.getSession() -> bearer
+ * token -> fetch(...) shape as recordLoginGeo()/checkLoginGeofence() below,
+ * but awaited: the caller needs the decision before deciding whether to
+ * even attempt the site_sessions insert. Resolves to 'allow' on any
+ * network/parse failure — fail open, matching the Edge Function's own
+ * fail-open discipline, since an infrastructure hiccup here must never lock
+ * a student out. */
+async function checkLoginUeba(loginEventId) {
+  try {
+    const { data: { session } } = await mntSupabase.auth.getSession();
+    const accessToken = session && session.access_token;
+    if (!accessToken) return 'allow';
+    const res = await fetch(`${MNT_SUPABASE_URL}/functions/v1/check-login-ueba`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ login_event_id: loginEventId }),
+    });
+    if (!res.ok) {
+      console.error('check-login-ueba request failed', res.status);
+      return 'allow';
+    }
+    const body = await res.json();
+    return (body && body.action) || 'allow';
+  } catch (err) {
+    console.error('check-login-ueba threw', err);
+    return 'allow';
+  }
 }
 
 /* Location enrichment for the row recordLoginEvent() just inserted (supabase/
@@ -195,21 +283,76 @@ function recordLoginGeo(loginEventId) {
 
 /* Hours-on-site tracking (supabase/migrations/20260901122000_activity_monitor_
  * sessions.sql, COHORT_USER_LIFECYCLE_SPRINT_PLAN.md Sprint 4 addendum). Opens
- * one site_sessions row per real signIn() call — same fire-and-forget/self-
- * row/error-logged pattern as recordLoginEvent(), and deliberately a separate
- * table/call from it: site_sessions tracks session *duration* (closed later by
- * signOut() below or admin_force_sign_out()), which login_events' append-only
- * design forbids. Operational visibility only — never attendance/instructional
- * time, same framing as the migration's own table comment. */
-function recordSiteSessionStart(user) {
-  if (!user || !user.userId) return;
-  mntSupabase
-    .from('site_sessions')
-    .insert({ user_id: user.userId, student_id: user.username || null, track_code: user.trackCode || null })
-    .then(({ error }) => {
-      if (error) console.error('site_sessions insert failed', error);
-    })
-    .catch((err) => console.error('site_sessions insert threw', err));
+ * one site_sessions row per real signIn() call, and deliberately a separate
+ * table/call from recordLoginEvent(): site_sessions tracks session *duration*
+ * (closed later by signOut() below, admin_force_sign_out(), or one of the
+ * new server-side revoke paths), which login_events' append-only design
+ * forbids. Operational visibility only — never attendance/instructional
+ * time, same framing as the migration's own table comment.
+ *
+ * Awaited (not fire-and-forget) as of SESSION_SECURITY_SPEC.md Decision 3:
+ * signIn() needs the new row's id to pass to checkLoginGeofence(), and needs
+ * to know whether the insert was refused by Decision 1's concurrency-cap
+ * trigger (enforce_site_session_concurrency(), 20260906120000_site_session_
+ * concurrency_cap.sql) so it can sign the student back out instead of
+ * treating a capped-out login as a success. Returns the new row's id on
+ * success, the literal string 'session_limit' when the trigger's own
+ * MNT_SESSION_LIMIT_REACHED: exception fired, or null on any other error
+ * (a transient DB hiccup degrades to "not gated by geofence," not a blocked
+ * login — a logging table's own failure must never break the golden path). */
+async function recordSiteSessionStart(user) {
+  if (!user || !user.userId) return null;
+  try {
+    const { data, error } = await mntSupabase
+      .from('site_sessions')
+      .insert({ user_id: user.userId, student_id: user.username || null, track_code: user.trackCode || null })
+      .select('id')
+      .single();
+    if (error) {
+      if (error.message && error.message.includes('MNT_SESSION_LIMIT_REACHED')) {
+        return 'session_limit';
+      }
+      console.error('site_sessions insert failed', error);
+      return null;
+    }
+    return (data && data.id) || null;
+  } catch (err) {
+    console.error('site_sessions insert threw', err);
+    return null;
+  }
+}
+
+/* Login geofencing (SESSION_SECURITY_SPEC.md Decision 2, supabase/functions/
+ * check-login-geofence). Same auth.getSession() -> bearer token ->
+ * fetch(...) shape as recordLoginGeo() above, but awaited and run against
+ * the new site_sessions row's own id (must run AFTER recordSiteSessionStart,
+ * unlike checkLoginUeba which must run before it — see signIn()'s own
+ * comment for why the two can't be reordered). Resolves to null on any
+ * network/parse failure — fail open, matching the Edge Function's own
+ * discipline. */
+async function checkLoginGeofence(siteSessionId) {
+  try {
+    const { data: { session } } = await mntSupabase.auth.getSession();
+    const accessToken = session && session.access_token;
+    if (!accessToken) return null;
+    const res = await fetch(`${MNT_SUPABASE_URL}/functions/v1/check-login-geofence`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ site_session_id: siteSessionId }),
+    });
+    if (!res.ok) {
+      console.error('check-login-geofence request failed', res.status);
+      return null;
+    }
+    const body = await res.json();
+    return body && body.blocked ? 'geo_blocked' : null;
+  } catch (err) {
+    console.error('check-login-geofence threw', err);
+    return null;
+  }
 }
 
 async function signOut(reason = 'user_signed_out') {
@@ -3242,7 +3385,7 @@ function viewLogin() {
           </div>
 
           <p id="login-error" class="hidden text-sm text-[#dc2626]">
-            <i class="ri-error-warning-line"></i> That email and password combination was not recognized.
+            <i class="ri-error-warning-line"></i> <span id="login-error-text">That email and password combination was not recognized.</span>
           </p>
 
           <button type="submit"
@@ -5007,8 +5150,14 @@ function wireLogin() {
     e.preventDefault();
     const email = form.email.value;
     const password = form.password.value;
-    const user = await signIn(email, password);
-    if (user) {
+    const result = await signIn(email, password);
+    // signIn() returns a user object on success, null on bad credentials
+    // (unchanged), or one of two string sentinels — 'session_limit' /
+    // 'geo_blocked' — for a login that authenticated fine but was then
+    // blocked (SESSION_SECURITY_SPEC.md Decision 3). Both sentinel cases
+    // reuse #login-error with distinct text rather than new DOM.
+    if (result && typeof result === 'object') {
+      const user = result;
       // A completed console walkthrough can return in its own tab after the
       // original module tab was closed. Preserve that verified return route;
       // ordinary sign-ins land on the student's active programme instead of
@@ -5025,6 +5174,15 @@ function wireLogin() {
         : destination);
       render();
     } else {
+      // Message text does not hardcode a session-count number: the cap
+      // differs by role (Decision 1) and the two roles must not drift out
+      // of sync with two independent hardcoded strings.
+      const messages = {
+        session_limit: 'Maximum active sessions reached for this account. Sign out on another device or tab, then try again.',
+        geo_blocked: 'Sign-in is not available from your current location.',
+      };
+      document.getElementById('login-error-text').textContent =
+        messages[result] || 'That email and password combination was not recognized.';
       document.getElementById('login-error').classList.remove('hidden');
     }
   });
