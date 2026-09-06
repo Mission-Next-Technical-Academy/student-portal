@@ -66,14 +66,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import re
           from pathlib import Path
           html = Path('portal/index.html').read_text()
           entry = Path('portal/m360-entry.js').read_text()
-          app_script = 'src="app.js?v=20260903b"'
-          entry_script = 'src="m360-entry.js?v=20260904"'
-          if app_script not in html or entry_script not in html:
+          app_match = re.search(r'src="app\.js\?v=[^"]+"', html)
+          entry_match = re.search(r'src="m360-entry\.js\?v=[^"]+"', html)
+          if not app_match or not entry_match:
               raise SystemExit('Student Portal must load app.js and the separate M360 entry overlay')
-          if html.index(entry_script) < html.index(app_script):
+          if entry_match.start() < app_match.start():
               raise SystemExit('M360 entry must load after app.js')
           required = [
               "new Set(['SOCAN', 'HDESK', 'AIENG'])",
