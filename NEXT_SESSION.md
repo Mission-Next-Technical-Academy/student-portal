@@ -771,20 +771,20 @@ the cause of any of the above, noted here so it isn't mistaken for still being u
 
 ## Conventions that matter
 
-## Session security controls — live (2026-09-06)
+## Claude next-session pointer — session security UAT (2026-09-06)
 
-- Concurrent-session enforcement, login geofencing, and the hashed-IP UEBA-lite
-  arbitration are live. Database migrations `20260906120000`, `20260906120500`,
-  `20260906121000`, `20260906122000`, and `20260906123000` all match the linked
-  project's migration history.
-- Edge Functions `check-login-geofence` and `check-login-ueba` are deployed and
-  active with JWT verification. `IP_HASH_PEPPER` is configured as a project secret;
-  do not rotate it casually, because doing so makes prior hashed-IP history
-  incomparable to new logins.
-- `SESSION_SECURITY_SPEC.md` is the implementation and operational record. Its
-  account/IP scenario acceptance checks still need an intentional UAT run using
-  dedicated test accounts and controlled IP conditions; do not exercise the block
-  paths against live students.
+Read `SESSION_SECURITY_SPEC.md` before changing session security. Its implementation is
+already live: migrations `20260906120000`, `20260906120500`, `20260906121000`,
+`20260906122000`, and `20260906123000` match the linked project, and Edge Functions
+`check-login-geofence` and `check-login-ueba` are deployed and active with JWT
+verification.
+
+The next task is the controlled acceptance/UAT list in `SESSION_SECURITY_SPEC.md`:
+exercise session-cap, same-IP, habitual-IP, suspicious-new-IP, geo-block, and geo
+fail-open behavior using dedicated test accounts and controlled IP conditions. Do not
+run intentional block-path tests against live students. `IP_HASH_PEPPER` is a live
+project secret; do not rotate it casually because that makes historical and new IP
+hashes incomparable.
 
 - Each module agent owns exactly `portal/module-NN.js` + `portal/module-NN.css`. Shared
   files (`portal/app.js`, `portal/lab-runtime.js`, `portal/module-registry.js`) are the
