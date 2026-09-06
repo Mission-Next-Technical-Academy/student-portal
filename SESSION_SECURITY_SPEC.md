@@ -1,5 +1,40 @@
 # Concurrent session cap + login geofencing
 
+## UAT finding + fix (2026-09-06, after initial deploy)
+
+Browser UAT of a real login (`8987495051-SOCAN` at `127.0.0.1:8768/#/login`)
+found that `recordSiteSessionStart()`'s insert was silently failing on every
+real sign-in since this spec's migrations went live: `site_sessions` never
+had a self-select RLS policy (only `site_sessions_admin_read`, admin-only),
+and Postgres checks an INSERT's `RETURNING` list against the table's SELECT
+policies — so the `.select('id').single()` this spec's Decision 3 added
+caused every insert to roll back with `42501 new row violates row-level
+security policy`. Confirmed live in a rolled-back transaction, with and
+without the fix. Practical effect: **login kept working (accidental fail-open,
+not the designed one), but the concurrency cap, `checkLoginGeofence()`
+(it never received a site_session id to call with), and the Activity
+Monitor's site-time/signed-out columns were all silently inert** for every
+real sign-in during that window — the trigger, the Edge Function, and their
+own isolated SQL logic were each individually correct in testing, but never
+actually exercised end-to-end until this UAT pass.
+
+Fixed by `supabase/migrations/20260906130000_site_sessions_self_select.sql`
+(adds `site_sessions_self_select`, `user_id = auth.uid()` — the student can
+now read back their own rows, same posture as the existing self-update
+policy). Verified in a rolled-back transaction: with the policy present, the
+insert-then-select round-trip succeeds.
+
+Same session, separate site-owner call: the student cap in Decision 1 below
+was raised from 1 to 2 (`20260906140000_student_session_cap_two.sql`) — a
+real student legitimately switches between two of their own devices, and a
+flat cap of 1 blocked that along with the sharing risk it was meant to
+close off. Decision 1's text below already reflects 2, not the original 1.
+
+Both migrations tested together in a rolled-back transaction against the
+linked project: self-select lets a student open 2 concurrent sessions, a 3rd
+is refused with `MNT_SESSION_LIMIT_REACHED: ... max 2`. **Not yet pushed** —
+needs `supabase db push` before either fix is live.
+
 ## Why
 
 Site owner (Alex) asked, while reviewing the admin panel's credential-viewing
@@ -25,12 +60,13 @@ for a student — see `20260901122000_activity_monitor_sessions.sql:34`):
   are 4 admin accounts, and they need to be able to check work, code, and
   commit at the same time without tripping the cap — 4 covers "everyone
   signed in at once," not a placeholder headroom number.
-- **Student (any other `track_code`, including `null`): max 1** open
-  session. Site-owner call: a training-account student has no legitimate
-  reason to be signed in from two places at once, and one-session-only
-  closes off a whole class of credential-sharing/concurrent-cheating risk
-  cheaply. Intentionally stricter than the admin cap, not a placeholder to
-  raise later.
+- **Student (any other `track_code`, including `null`): max 2** open
+  sessions (raised from 1, 2026-09-06, `20260906140000_student_session_cap_
+  two.sql`). Site-owner call: a real student legitimately switches between
+  two of their own devices (phone + laptop); a flat cap of 1 locked that out
+  along with the credential-sharing/concurrent-cheating risk it was meant to
+  close off. Two still closes off unbounded sharing cheaply while allowing
+  the one real multi-device case.
 
 A sign-in past the cap is refused outright ("lockout"), not silently
 evicting an older session — an admin investigating a compromised account
@@ -71,7 +107,7 @@ begin
   -- Admins get headroom for a few real devices; students are capped at a
   -- single concurrent session (site-owner call — see this migration's own
   -- header comment for why students are deliberately stricter).
-  v_max_sessions := case when new.track_code = 'ADMIN' then 4 else 1 end;
+  v_max_sessions := case when new.track_code = 'ADMIN' then 4 else 2 end;
 
   select count(*) into v_open_count
   from public.site_sessions
@@ -104,8 +140,8 @@ create trigger site_sessions_concurrency_cap
   `site_sessions_self_insert` policy's INSERT path.
 - Test in a rolled-back transaction against the linked project before
   pushing (same discipline as `20260901150000_...`'s own testing note), both
-  roles: for a throwaway student-track (`SOCAN`, say) `user_id`, insert 1
-  open row, confirm a 2nd raises; for a throwaway `ADMIN`-track `user_id`,
+  roles: for a throwaway student-track (`SOCAN`, say) `user_id`, insert 2
+  open rows, confirm a 3rd raises; for a throwaway `ADMIN`-track `user_id`,
   insert 4 open rows, confirm a 5th raises. For each, confirm closing one
   open row (`ended_at = now()`) lets a new insert through again.
 
@@ -480,20 +516,21 @@ these while "simplifying."
 
 ## Acceptance checks
 
-- A student account (any non-`ADMIN` `track_code`) with 1 already-open
-  `site_sessions` row is refused on a 2nd sign-in attempt **from a different,
+- A student account (any non-`ADMIN` `track_code`) with 2 already-open
+  `site_sessions` rows is refused on a 3rd sign-in attempt **from a different,
   non-habitual IP**; `wireLogin()` shows the session-limit message; no new
   `auth.sessions` row survives (the just-issued one was signed back out);
-  the account's 1 existing session is untouched.
+  the account's 2 existing sessions are untouched.
 - A student with 1 open session signs in again from the **same** IP (e.g. a
   second tab that, for some reason, calls `signIn()` again instead of
-  restoring) — this is allowed, not blocked (Decision 4 step 4).
+  restoring) — this is allowed, not blocked (Decision 4 step 4), and now sits
+  at 2 open sessions under the cap.
 - A student's open session was opened from IP A; IP B has more prior
   successful logins than IP A for that student (`user_ip_history.login_count`
   strictly greater, and at least 2). Signing in from IP B is allowed, the
   old session's row ends up with `ended_reason = 'superseded'`, and the new
   session opens normally.
-- A student with 1 open session tries a sign-in from an IP with **zero**
+- A student with 2 open sessions tries a sign-in from an IP with **zero**
   prior history on that account: the attempt is refused with the exact same
   message text as a plain cap hit, but the corresponding `login_events` row
   has `flagged_suspicious = true` and `flag_reason = 'new_ip_with_active_session'`

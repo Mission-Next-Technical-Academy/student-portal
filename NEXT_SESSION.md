@@ -1,5 +1,68 @@
 # Next session — start here
 
+## Session 2026-09-06 (open — needs a push, then more UAT) — session-security browser UAT found a real bug + student cap raised to 2
+
+Browser UAT of `SESSION_SECURITY_SPEC.md` (login at `127.0.0.1:8768/#/login`
+with a real test account, `8987495051-SOCAN`) found that **every real
+sign-in since this spec's migrations went live has been silently failing to
+write its `site_sessions` row.** Root cause: `site_sessions` never had a
+self-select RLS policy (only admin-read), and Postgres checks an INSERT's
+`RETURNING` list against SELECT policies — so `recordSiteSessionStart()`'s
+new `.select('id').single()` (added by this spec's Decision 3) rolled back
+on `42501 new row violates row-level security policy` every time. Login
+itself kept working (accidental fail-open — the code's generic-failure
+branch, not the `session_limit` path), but the concurrency-cap trigger,
+`checkLoginGeofence()` (never got an id to call with), and the Activity
+Monitor's site-time/signed-out columns were all silently inert the whole
+time. Full writeup and reasoning: `SESSION_SECURITY_SPEC.md`'s new "UAT
+finding + fix" section at the top.
+
+**Fixed, tested in rolled-back transactions against the linked project, NOT
+yet pushed:**
+- `supabase/migrations/20260906130000_site_sessions_self_select.sql` — adds
+  the missing self-select policy.
+- `supabase/migrations/20260906140000_student_session_cap_two.sql` — also
+  raises the student concurrency cap from 1 to 2 (separate site-owner call,
+  same session: a student switching between their own phone and laptop
+  shouldn't get locked out). Verified together in one rolled-back
+  transaction: 2 concurrent opens succeed, a 3rd raises
+  `MNT_SESSION_LIMIT_REACHED: ... max 2`.
+
+**Next session must:**
+1. Get the site owner to run `supabase db push` for both migrations (or run
+   it if it's not classifier-blocked in that session) — nothing above is
+   live yet.
+2. Re-run the browser UAT end-to-end after the push: confirm a real login
+   now produces a `site_sessions` row with a populated `id`, confirm
+   `checkLoginGeofence()` actually fires (check `login_events`/
+   `site_sessions.ip_hash` populate), and work through the rest of
+   `SESSION_SECURITY_SPEC.md`'s Acceptance checks list (same-IP, habitual-IP
+   favor-new, suspicious-new-IP flag, geo-block, geo fail-open) that this
+   session didn't get to — this was the original ask ("exercise session-cap,
+   same-IP, habitual-IP, suspicious-new-IP, geo-block, and geo fail-open
+   behavior") and only the plain session-cap path got real browser coverage
+   before the RLS bug above ate the rest of the session.
+3. Do not run intentional block-path tests against live students; the
+   already-used `8987495051-SOCAN`/other roster test accounts are fine
+   (rotatable training accounts, already used for this exact purpose).
+
+## Separate, lower-priority pointer — Activity Monitor log retention (not started)
+
+Site owner asked, looking at the Activity Monitor: the log list is very
+long, not sure when/if it should be scrubbed, what are the reporting
+requirements around that. Research (not a plan) is written up at
+`SESSION_LOG_RETENTION_RESEARCH.md` — short version: `site_sessions`/
+`login_events` are operational-only (this repo's own docs say so
+explicitly), no CIE rule requires keeping or purging them on any schedule
+(unlike `module_progress`/`lab_attempts`/`capstone_submissions`, which
+**are** permanent-by-compliance-rule and must never be touched by any
+retention sweep), current row counts are tiny (63/68 rows), and there's an
+open sub-question about whether `flagged_suspicious`/`geo_blocked` rows need
+longer retention than ordinary ones as a security-audit trail. Next session:
+read that doc, get the site owner's answers to its "explicitly not decided"
+list, then draft the actual retention plan (and decide whether pieces of it
+split across subagents the way `COHORT_USER_LIFECYCLE_SPRINT_PLAN` did).
+
 ## Session 2026-09-01 (done — pushed and verified live) — idle sign-out had no server-side enforcement
 
 Site owner tested the idle timer directly: left a real admin tab open,
