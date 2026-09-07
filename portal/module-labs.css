@@ -456,3 +456,9 @@
   transition: transform 0.15s ease;
 }
 .m01-siem-launch:hover { transform: translateY(-1px); }
+
+.m01-rubric { margin-top: 17px; padding: 22px; background: #f8fafc; border: 1px solid #dbe3ed; border-radius: 15px; }
+.m01-rubric h3 { margin: 4px 0 14px; color: #1e3a5f; font-size: 19px; }
+.m01-rubric-list { margin: 0; padding-left: 20px; color: #475569; font: 13px/1.7 Inter, sans-serif; }
+.m01-rubric-list li { margin-bottom: 10px; }
+.m01-rubric-list li:last-child { margin-bottom: 0; }

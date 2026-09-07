@@ -18,11 +18,26 @@ const MODULE_ONE_DEFAULT_STATE = {
   priority: '',
   phase: '',
   decision: '',
+  notes: '',
   breakdown: null,
   feedback: [],
   validationError: '',
   lastSubmittedAt: '',
+  attempts: 0,
   lessonWork: {},
+  lab2: {
+    entity: '',
+    scope: '',
+    priority: '',
+    escalation: '',
+    handoff: { observations: '', analysis: '', scope: '', nextAction: '' },
+    attempts: 0,
+    score: null,
+    breakdown: null,
+    feedback: [],
+    completed: false,
+    validationError: '',
+  },
 };
 
 let moduleOneState = null;
@@ -36,6 +51,7 @@ function moduleOneLoad(user) {
   if (!Array.isArray(moduleOneState.factWrong)) moduleOneState.factWrong = [];
   if (!moduleOneState.factTries || typeof moduleOneState.factTries !== 'object') moduleOneState.factTries = {};
   if (!moduleOneState.lessonWork || typeof moduleOneState.lessonWork !== 'object') moduleOneState.lessonWork = {};
+  if (!moduleOneState.lab2 || typeof moduleOneState.lab2 !== 'object') moduleOneState.lab2 = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.lab2));
   if (new URLSearchParams(location.search).get('coachComplete') === 'm01') {
     moduleOneState.consoleStarted = true;
     moduleOneState.consoleCompleted = true;
@@ -142,10 +158,11 @@ function moduleOneReferences(lab) {
   </aside>`;
 }
 
-function moduleOneOptionList(name, options) {
+function moduleOneOptionList(name, options, stateSlot) {
+  const state = stateSlot || moduleOneState;
   return `<div class="m01-option-list">
     ${options.map((option) => `<label>
-      <input type="radio" name="${esc(name)}" value="${esc(option.id)}" ${moduleOneState[name] === option.id ? 'checked' : ''} />
+      <input type="radio" name="${esc(name)}" value="${esc(option.id)}" ${state[name] === option.id ? 'checked' : ''} />
       <span><strong>${esc(option.text)}</strong>${option.help ? `<small>${esc(option.help)}</small>` : ''}</span>
     </label>`).join('')}
   </div>`;
@@ -182,7 +199,7 @@ function moduleOneScorePanel() {
 
   if (!moduleOneState.attempts || !moduleOneState.breakdown) {
     return `<div class="m01-score-empty" id="m01-feedback" role="status" aria-live="polite">
-      Your first attempt is coached, not timed. Submit when every decision has a selection and your note explains the evidence.
+      Your first attempt is coached, not timed. Submit when every decision has a selection.
     </div>`;
   }
 
@@ -198,11 +215,10 @@ function moduleOneScorePanel() {
       <span class="m01-score-number">${moduleOneState.score}</span>
     </div>
     <div class="m01-score-grid" aria-label="Score breakdown">
-      <div><strong>${b.verdict}/25</strong><span>Verdict</span></div>
-      <div><strong>${b.priority}/20</strong><span>Priority</span></div>
-      <div><strong>${b.lifecycle}/15</strong><span>Lifecycle</span></div>
+      <div><strong>${b.verdict}/30</strong><span>Verdict</span></div>
+      <div><strong>${b.priority}/25</strong><span>Priority</span></div>
+      <div><strong>${b.lifecycle}/20</strong><span>Lifecycle</span></div>
       <div><strong>${b.action}/25</strong><span>Next action</span></div>
-      <div><strong>${b.communication}/15</strong><span>Case note</span></div>
     </div>
     <ul class="m01-feedback-list">
       ${moduleOneState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}
@@ -450,18 +466,9 @@ function moduleOneLabDynamic() {
   ${!consoleComplete || !investigationReady ? `<section class="m01-worksheet-locked" aria-label="Triage worksheet locked">
     <i class="ri-lock-line" aria-hidden="true"></i>
     <div><strong>Triage worksheet</strong><p>Record every fact correctly first. A wrong answer keeps the current fact open and the remaining timeline and worksheet locked.</p></div>
-  </section>` : `<section class="m01-worksheet-locked" aria-label="Lab 2 unlocked">
-    <i class="ri-shield-check-line" aria-hidden="true"></i>
-    <div>
-      <strong>Lab 2: escalate the incident in Sentinel</strong>
-      <p>Open the incident view, confirm the affected account, and then finish the handoff so the responder can take over identity containment.</p>
-      <a class="m01-siem-launch" href="${esc(incidentRoute)}" target="_blank" rel="opener">
-        <i class="ri-external-link-line" aria-hidden="true"></i> Open SIEM incident view
-      </a>
-    </div>
-  </section><form id="m01-form" class="m01-worksheet" novalidate>
+  </section>` : `<form id="m01-form" class="m01-worksheet" novalidate>
     <div class="m01-panel-heading">
-      <div><p class="m01-kicker">Guided decision</p><h3>Complete the five-part triage record</h3></div>
+      <div><p class="m01-kicker">Guided decision</p><h3>Complete the four-part triage record</h3></div>
       <span class="m01-evidence-count">No timer · retry allowed</span>
     </div>
 
@@ -489,20 +496,105 @@ function moduleOneLabDynamic() {
       ${moduleOneOptionList('decision', lab.decisionOptions)}
     </fieldset>
 
-    <div class="m01-fieldset">
-      <label for="m01-notes" class="m01-note-label"><span>Lab 2</span><strong>Case handoff note</strong></label>
-      <p class="m01-help" id="m01-notes-help">Open the SIEM incident view first, then write it like a handoff: what happened, the strongest evidence, and your decision.</p>
-      <a class="m01-note-starter" href="${esc(incidentRoute)}" target="_blank" rel="opener"><i class="ri-external-link-line" aria-hidden="true"></i> Open the SIEM incident view</a>
-      <button type="button" class="m01-note-starter" data-m01-note-starter><i class="ri-magic-line" aria-hidden="true"></i> Insert a plain-language handoff starter</button>
-      <textarea id="m01-notes" name="notes" rows="5" maxlength="700" aria-describedby="m01-notes-help m01-note-count" placeholder="Handoff note: I opened the Sentinel incident, confirmed the affected account, and will escalate for identity containment because...">${esc(moduleOneState.notes)}</textarea>
-      <p class="m01-note-count" id="m01-note-count"><span>${moduleOneState.notes.length}</span>/700 characters</p>
-    </div>
-
     <div class="m01-actions">
       <button type="submit" class="m01-submit"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Check my triage</button>
       <button type="button" class="m01-reset" data-m01-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset this guided lab</button>
     </div>
     ${moduleOneScorePanel()}
+  </form>`}
+
+  ${!moduleOneState.completed ? `<section class="m01-worksheet-locked" aria-label="Lab 2 locked until Lab 1 is complete">
+    <i class="ri-lock-line" aria-hidden="true"></i>
+    <div><strong>Lab 2: Escalation and handoff</strong><p>Complete Lab 1 first. You cannot escalate an incident you have not yet triaged.</p></div>
+  </section>` : `<section class="m01-siem" aria-labelledby="m01-lab2-scenario-title">
+    <div class="m01-siem-copy">
+      <p class="m01-kicker">Fresh incident scenario</p>
+      <h3 id="m01-lab2-scenario-title">Lab 2: Escalate this incident to the response team</h3>
+    </div>
+  </section>
+
+  <div class="m01-alert-window">
+    <div class="m01-alert-toolbar">
+      <span><i class="ri-inbox-2-line" aria-hidden="true"></i> Alert queue</span>
+      <span>1 alert assigned to you</span>
+    </div>
+    <article class="m01-single-alert" aria-labelledby="m01-lab2-alert-title">
+      <div class="m01-alert-heading">
+        <div>
+          <div class="m01-alert-meta">
+            <span class="m01-severity m01-severity-medium">${esc(MODULE_ONE_ESCALATION_LAB.scenario.initialSeverity)}</span>
+            <span>${esc(MODULE_ONE_ESCALATION_LAB.scenario.id)}</span><span>Created ${esc(MODULE_ONE_ESCALATION_LAB.scenario.created)}</span><span>${esc(MODULE_ONE_ESCALATION_LAB.scenario.source)}</span>
+          </div>
+          <h3 id="m01-lab2-alert-title">${esc(MODULE_ONE_ESCALATION_LAB.scenario.title)}</h3>
+          <p>${esc(MODULE_ONE_ESCALATION_LAB.scenario.summary)}</p>
+        </div>
+        <div class="m01-entity-chip"><span>Endpoint</span><code>${esc(MODULE_ONE_ESCALATION_LAB.scenario.entity)}</code></div>
+      </div>
+      <div class="m01-alert-facts">
+        <div><dt>Detection</dt><dd>${esc(MODULE_ONE_ESCALATION_LAB.scenario.detectedBy)}</dd></div>
+        <div><dt>Initial scope</dt><dd>${esc(MODULE_ONE_ESCALATION_LAB.scenario.scope)}</dd></div>
+      </div>
+      <ol class="m01-timeline" style="margin-top: 18px;">
+        ${MODULE_ONE_ESCALATION_LAB.scenario.evidence.map((item, index) => `<li class="is-reviewed">
+          <span class="m01-timeline-marker"><i class="${esc(item.icon)}" aria-hidden="true"></i></span>
+          <div><time>${esc(item.time)}</time><strong>${esc(item.label)}</strong><p>${esc(item.detail)}</p></div>
+        </li>`).join('')}
+      </ol>
+    </article>
+  </div>
+
+  <section class="m01-rubric" aria-labelledby="m01-lab2-rubric-title">
+    <p class="m01-kicker">Assessment criteria</p>
+    <h3 id="m01-lab2-rubric-title">What a strong handoff note does</h3>
+    <ul class="m01-rubric-list">
+      ${MODULE_ONE_ESCALATION_LAB.rubric.map((item) => `<li>${esc(item)}</li>`).join('')}
+    </ul>
+  </section>
+
+  <form id="m01-lab2-form" class="m01-worksheet" novalidate>
+    <div class="m01-panel-heading">
+      <div><p class="m01-kicker">Independent decision</p><h3>Complete the escalation record and handoff note</h3></div>
+      <span class="m01-evidence-count">No timer · retry allowed</span>
+    </div>
+
+    <fieldset class="m01-fieldset">
+      <legend><span>1</span> Which entity is affected?</legend>
+      <p class="m01-help">Identify the device, account, or group that is confirmed compromised.</p>
+      ${moduleOneOptionList('entity', MODULE_ONE_ESCALATION_LAB.entityOptions, moduleOneState.lab2)}
+    </fieldset>
+
+    <fieldset class="m01-fieldset">
+      <legend><span>2</span> What is the scope?</legend>
+      <p class="m01-help">How far has this spread, or how much do you know about spread?</p>
+      ${moduleOneOptionList('scope', MODULE_ONE_ESCALATION_LAB.scopeOptions, moduleOneState.lab2)}
+    </fieldset>
+
+    <fieldset class="m01-fieldset">
+      <legend><span>3</span> What priority?</legend>
+      <p class="m01-help">Match the urgency to what you know about the threat and impact.</p>
+      ${moduleOneOptionList('priority', MODULE_ONE_ESCALATION_LAB.priorityOptions, moduleOneState.lab2)}
+    </fieldset>
+
+    <fieldset class="m01-fieldset">
+      <legend><span>4</span> What is the appropriate escalation?</legend>
+      <p class="m01-help">Choose the responder or action that matches your findings and authority.</p>
+      ${moduleOneOptionList('escalation', MODULE_ONE_ESCALATION_LAB.escalationOptions, moduleOneState.lab2)}
+    </fieldset>
+
+    ${MODULE_ONE_ESCALATION_LAB.handoffFields.map((field) => {
+      const value = moduleOneState.lab2.handoff[field.key] || '';
+      return `<div class="m01-fieldset">
+        <label for="m01-lab2-${esc(field.key)}" class="m01-note-label"><strong>${esc(field.label)}</strong></label>
+        <p class="m01-help">${esc(field.help)}</p>
+        <textarea id="m01-lab2-${esc(field.key)}" name="lab2-${esc(field.key)}" data-m01-lab2-field="${esc(field.key)}" rows="3" placeholder="${esc(field.placeholder)}" aria-label="${esc(field.label)}">${esc(value)}</textarea>
+      </div>`;
+    }).join('')}
+
+    <div class="m01-actions">
+      <button type="submit" class="m01-submit"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Check my escalation</button>
+      <button type="button" class="m01-reset" data-m01-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset all labs</button>
+    </div>
+    ${moduleOneLab2ScorePanel()}
   </form>`}
   `;
 }
@@ -717,39 +809,94 @@ function viewModuleOne(user, program) {
 
 function moduleOneScore() {
   const lab = MODULE_ONE_ALERT_ORIENTATION;
-  const verdict = moduleOneState.verdict === lab.correctVerdict ? 25 : 0;
-  const priority = moduleOneState.priority === lab.correctPriority ? 20 : 0;
-  const lifecycle = moduleOneState.phase === lab.correctPhase ? 15 : 0;
+  const verdict = moduleOneState.verdict === lab.correctVerdict ? 30 : 0;
+  const priority = moduleOneState.priority === lab.correctPriority ? 25 : 0;
+  const lifecycle = moduleOneState.phase === lab.correctPhase ? 20 : 0;
   const action = moduleOneState.decision === lab.correctDecision ? 25 : 0;
-  // Graded in three independent parts rather than all-or-nothing: a first-week
-  // student who names the account and says what happened should not score zero
-  // on the note because they left the recommendation implicit.
-  const note = moduleOneState.notes.trim().toLowerCase();
-  const noteNamesEntity = /(j\.santos|account)/.test(note);
-  const noteStatesActivity = /(success|succeeded|unauthori|denies|denied|sign-in|signin)/.test(note);
-  const noteRecommends = /(escalat|contain|revoke|reset|playbook)/.test(note);
-  const communication = (note.length >= 40 ? 6 : 0)
-    + (noteNamesEntity ? 3 : 0) + (noteStatesActivity ? 3 : 0) + (noteRecommends ? 3 : 0);
-  const score = verdict + priority + lifecycle + action + communication;
+  const score = verdict + priority + lifecycle + action;
 
   return {
     score,
-    breakdown: { verdict, priority, lifecycle, action, communication },
+    breakdown: { verdict, priority, lifecycle, action },
     feedback: [
-      verdict ? 'Verdict: Correct. Successful access plus the account owner’s denial confirms a true positive.' : 'Verdict: Choose true positive. The sign-in succeeded and the account owner independently denied it.',
+      verdict ? "Verdict: Correct. Successful access plus the account owner's denial confirms a true positive." : "Verdict: Choose true positive. The sign-in succeeded and the account owner independently denied it.",
       priority ? 'Priority: Correct. Confirmed unauthorized access needs prompt response even though only one identity is currently in scope.' : 'Priority: Use High. Confidence is strong and the attacker obtained an active session.',
       lifecycle ? 'Lifecycle: Correct. You are in detection and analysis; containment is the next response activity, not a completed one.' : 'Lifecycle: Triage belongs in detect and analyze. The evidence has been validated, but access has not yet been contained.',
       action ? 'Next action: Correct. The handoff preserves evidence and invokes an authorized, proportionate identity response.' : 'Next action: Escalate with evidence and follow the identity-containment playbook. Do not close the case or disrupt unrelated systems.',
-      communication === 15
-        ? 'Case note: Clear. It names the entity, observed unauthorized access, and recommended response.'
-        : `Case note: ${[
-            note.length >= 40 ? null : 'write at least a couple of sentences',
-            noteNamesEntity ? null : 'name the account',
-            noteStatesActivity ? null : 'say what the activity was',
-            noteRecommends ? null : 'say what should happen next',
-          ].filter(Boolean).join(', ')}.`,
     ],
   };
+}
+
+function moduleOneLab2Score() {
+  const lab2Data = MODULE_ONE_ESCALATION_LAB;
+  const s = moduleOneState.lab2;
+  const entity = s.entity === lab2Data.correctEntity ? 20 : 0;
+  const scope = s.scope === lab2Data.correctScope ? 20 : 0;
+  const priority = s.priority === lab2Data.correctPriority ? 20 : 0;
+  const escalation = s.escalation === lab2Data.correctEscalation ? 15 : 0;
+  const h = s.handoff;
+  const handoff = (((h.observations || '').trim().length >= 40) ? 7 : 0)
+    + (((h.analysis || '').trim().length >= 40) ? 7 : 0)
+    + (((h.scope || '').trim().length >= 20) ? 6 : 0)
+    + (((h.nextAction || '').trim().length >= 20) ? 5 : 0);
+  const score = entity + scope + priority + escalation + handoff;
+
+  return {
+    score,
+    breakdown: { entity, scope, priority, escalation, handoff },
+    feedback: [
+      entity ? 'Entity: Correct. The workstation and the signed-in account must both be considered affected.' : 'Entity: Both the device and the account are affected—they are not separable in this scenario.',
+      scope ? 'Scope: Correct. The evidence shows containment to the one device; no lateral movement.' : 'Scope: One device, no spread observed. This keeps the scope appropriately bounded.',
+      priority ? 'Priority: Correct. Phishing with confirmed unusual transfer warrants high priority and prompt escalation.' : "Priority: High priority moves this into an authorized responder's queue immediately.",
+      escalation ? 'Escalation: Correct. The endpoint response team has authority to isolate the device and preserve evidence.' : 'Escalation: Endpoint response has the authority and tools for device isolation and evidence preservation.',
+      handoff >= 25
+        ? 'Handoff note: Complete. Observations, analysis, scope, and next action are all clearly stated.'
+        : `Handoff note: Complete the ${[
+            ((h.observations || '').trim().length < 40) ? 'observations' : null,
+            ((h.analysis || '').trim().length < 40) ? 'analysis' : null,
+            ((h.scope || '').trim().length < 20) ? 'scope statement' : null,
+            ((h.nextAction || '').trim().length < 20) ? 'next action' : null,
+          ].filter(Boolean).join(', ')} sections.`,
+    ],
+  };
+}
+
+function moduleOneLab2ScorePanel() {
+  if (moduleOneState.lab2.validationError) {
+    return `<div class="m01-validation" id="m01-lab2-feedback" role="alert" tabindex="-1">
+      <i class="ri-information-line" aria-hidden="true"></i>
+      <div><strong>One more step</strong><p>${esc(moduleOneState.lab2.validationError)}</p></div>
+    </div>`;
+  }
+
+  if (!moduleOneState.lab2.attempts || !moduleOneState.lab2.breakdown) {
+    return `<div class="m01-score-empty" id="m01-lab2-feedback" role="status" aria-live="polite">
+      Submit when every decision is selected and all handoff sections are complete.
+    </div>`;
+  }
+
+  const b = moduleOneState.lab2.breakdown;
+  const passed = moduleOneState.lab2.score >= MODULE_ONE_ESCALATION_LAB.passingScore;
+  return `<section class="m01-score ${passed ? 'is-pass' : 'is-remediate'}" id="m01-lab2-feedback"
+                   tabindex="-1" aria-labelledby="m01-lab2-score-title" aria-live="polite">
+    <div class="m01-score-summary">
+      <div>
+        <p class="m01-kicker">Attempt ${moduleOneState.lab2.attempts} · assessment result</p>
+        <h3 id="m01-lab2-score-title">${moduleOneState.lab2.score}/100 — ${passed ? 'Escalation handoff complete' : 'Review the feedback and retry'}</h3>
+      </div>
+      <span class="m01-score-number">${moduleOneState.lab2.score}</span>
+    </div>
+    <div class="m01-score-grid" aria-label="Score breakdown">
+      <div><strong>${b.entity}/20</strong><span>Entity</span></div>
+      <div><strong>${b.scope}/20</strong><span>Scope</span></div>
+      <div><strong>${b.priority}/20</strong><span>Priority</span></div>
+      <div><strong>${b.escalation}/15</strong><span>Escalation</span></div>
+      <div><strong>${b.handoff}/25</strong><span>Handoff note</span></div>
+    </div>
+    <ul class="m01-feedback-list">
+      ${moduleOneState.lab2.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}
+    </ul>
+  </section>`;
 }
 
 function moduleOneRenderDynamic(focusId) {
@@ -839,13 +986,6 @@ function wireModuleOneLab() {
       return;
     }
 
-    if (event.target.closest('[data-m01-note-starter]')) {
-      moduleOneState.notes = 'Handoff note: this looks like a likely account compromise. Eight failed sign-ins were followed by a successful session for j.santos@missionnextlabs.example from Bucharest, RO. The device is not registered and the user denied the activity. My decision is to escalate for identity containment and keep the responder focused on the affected account, session, and follow-up checks.';
-      moduleOneSave();
-      moduleOneRenderDynamic('m01-notes');
-      return;
-    }
-
     if (event.target.closest('[data-m01-reset]')) {
       moduleOneState = LabRuntime.reset(MODULE_ONE_LAB_ID, moduleOneUser, MODULE_ONE_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') {
@@ -858,9 +998,18 @@ function wireModuleOneLab() {
 
   root.addEventListener('change', (event) => {
     const input = event.target;
-    if (['verdict', 'priority', 'phase', 'decision'].includes(input.name)) {
+    // 'priority' is a field name in BOTH forms (Lab 1's own decision and Lab
+    // 2's independent one) — this first branch must never fire for a Lab 2
+    // input, or picking a Lab 2 priority would also silently overwrite Lab
+    // 1's already-submitted moduleOneState.priority.
+    if (['verdict', 'priority', 'phase', 'decision'].includes(input.name) && !input.closest('#m01-lab2-form')) {
       moduleOneState[input.name] = input.value;
       moduleOneState.validationError = '';
+      moduleOneSave();
+    }
+    if (['entity', 'scope', 'priority', 'escalation'].includes(input.name) && input.closest('#m01-lab2-form')) {
+      moduleOneState.lab2[input.name] = input.value;
+      moduleOneState.lab2.validationError = '';
       moduleOneSave();
     }
   });
@@ -878,6 +1027,14 @@ function wireModuleOneLab() {
         const nextSlot = slots[slots.indexOf(slot) + 1];
         if (nextSlot) nextSlot.focus();
       }
+      return;
+    }
+
+    const lab2Textarea = event.target.closest('[data-m01-lab2-field]');
+    if (lab2Textarea) {
+      const fieldKey = lab2Textarea.dataset.m01Lab2Field;
+      moduleOneState.lab2.handoff[fieldKey] = lab2Textarea.value;
+      moduleOneSave();
       return;
     }
 
@@ -973,50 +1130,92 @@ function wireModuleOneLab() {
       return;
     }
 
-    if (event.target.id !== 'm01-form') return;
-    event.preventDefault();
-    const form = event.target;
-    moduleOneState.notes = form.elements.notes.value;
-    const missing = ['verdict', 'priority', 'phase', 'decision'].filter((name) => !moduleOneState[name]);
-    if (missing.length || moduleOneState.notes.trim().length < 60) {
-      moduleOneState.validationError = missing.length
-        ? 'Choose an answer for each numbered decision, then write a case note of at least 60 characters.'
-        : 'Your decisions are recorded. Add a little more detail so the case note reaches at least 60 characters.';
+    if (event.target.id === 'm01-form') {
+      event.preventDefault();
+      const missing = ['verdict', 'priority', 'phase', 'decision'].filter((name) => !moduleOneState[name]);
+      if (missing.length) {
+        moduleOneState.validationError = 'Choose an answer for each numbered decision.';
+        moduleOneSave();
+        moduleOneRenderDynamic('m01-feedback');
+        return;
+      }
+
+      const result = moduleOneScore();
+      moduleOneState.attempts += 1;
+      moduleOneState.score = result.score;
+      moduleOneState.bestScore = Math.max(moduleOneState.bestScore || 0, result.score);
+      moduleOneState.breakdown = result.breakdown;
+      moduleOneState.feedback = result.feedback;
+      moduleOneState.validationError = '';
+      moduleOneState.lastSubmittedAt = new Date().toISOString();
+      const passed = result.score >= MODULE_ONE_ALERT_ORIENTATION.passingScore;
+      if (typeof recordLabAttempt === 'function') {
+        const attemptFields = {
+          state: passed ? 'complete' : 'in_progress',
+          score: result.score,
+          result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleOneState.attempts },
+        };
+        recordLabAttempt(moduleOneUser, MODULE_ONE_CATALOG_LAB_KEY, attemptFields);
+      }
+      if (passed) {
+        moduleOneState.completed = true;
+        if (!moduleOneState.flags.includes(MODULE_ONE_FLAG)) moduleOneState.flags.push(MODULE_ONE_FLAG);
+        if (typeof markModuleLabComplete === 'function') {
+          markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
+        }
+      }
       moduleOneSave();
       moduleOneRenderDynamic('m01-feedback');
+      const status = document.getElementById('m01-status');
+      if (status) status.textContent = moduleOneState.completed && moduleOneState.consoleCompleted ? 'Complete' : 'In progress';
       return;
     }
 
-    const result = moduleOneScore();
-    moduleOneState.attempts += 1;
-    moduleOneState.score = result.score;
-    moduleOneState.bestScore = Math.max(moduleOneState.bestScore || 0, result.score);
-    moduleOneState.breakdown = result.breakdown;
-    moduleOneState.feedback = result.feedback;
-    moduleOneState.validationError = '';
-    moduleOneState.lastSubmittedAt = new Date().toISOString();
-    const passed = result.score >= MODULE_ONE_ALERT_ORIENTATION.passingScore;
-    if (typeof recordLabAttempt === 'function') {
-      const attemptFields = {
-        state: passed ? 'complete' : 'in_progress',
-        score: result.score,
-        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleOneState.attempts },
-      };
-      recordLabAttempt(moduleOneUser, MODULE_ONE_CATALOG_LAB_KEY, attemptFields);
-      recordLabAttempt(moduleOneUser, 'lab-soc-escalation', attemptFields);
-    }
-    if (passed) {
-      moduleOneState.completed = true;
-      if (!moduleOneState.flags.includes(MODULE_ONE_FLAG)) moduleOneState.flags.push(MODULE_ONE_FLAG);
-      if (typeof markModuleLabComplete === 'function') {
-        markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
-        markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
+    if (event.target.id === 'm01-lab2-form') {
+      event.preventDefault();
+      const lab2Data = MODULE_ONE_ESCALATION_LAB;
+      const missing = ['entity', 'scope', 'priority', 'escalation'].filter((name) => !moduleOneState.lab2[name]);
+      const h = moduleOneState.lab2.handoff;
+      const handoffMissing = lab2Data.handoffFields.filter((field) => {
+        const value = (h[field.key] || '').trim();
+        return value.length < field.minLength;
+      }).map((field) => field.label);
+
+      if (missing.length || handoffMissing.length) {
+        const parts = [];
+        if (missing.length) parts.push(`decision${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}`);
+        if (handoffMissing.length) parts.push(`handoff: ${handoffMissing.join(', ')}`);
+        moduleOneState.lab2.validationError = 'Complete all sections. Missing: ' + parts.join('; ') + '.';
+        moduleOneSave();
+        moduleOneRenderDynamic('m01-lab2-feedback');
+        return;
       }
+
+      const result = moduleOneLab2Score();
+      moduleOneState.lab2.attempts += 1;
+      moduleOneState.lab2.score = result.score;
+      moduleOneState.lab2.breakdown = result.breakdown;
+      moduleOneState.lab2.feedback = result.feedback;
+      moduleOneState.lab2.validationError = '';
+      const passed = result.score >= lab2Data.passingScore;
+      if (typeof recordLabAttempt === 'function') {
+        const attemptFields = {
+          state: passed ? 'complete' : 'in_progress',
+          score: result.score,
+          result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleOneState.lab2.attempts },
+        };
+        recordLabAttempt(moduleOneUser, 'lab-soc-escalation', attemptFields);
+      }
+      if (passed) {
+        moduleOneState.lab2.completed = true;
+        if (typeof markModuleLabComplete === 'function') {
+          markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
+        }
+      }
+      moduleOneSave();
+      moduleOneRenderDynamic('m01-lab2-feedback');
+      return;
     }
-    moduleOneSave();
-    moduleOneRenderDynamic('m01-feedback');
-    const status = document.getElementById('m01-status');
-    if (status) status.textContent = moduleOneState.completed && moduleOneState.consoleCompleted ? 'Complete' : 'In progress';
   });
 
   // Lesson work event listeners. Delegated on #m01-lessons rather than
