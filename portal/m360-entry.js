@@ -15,6 +15,11 @@
  * without editing the large shared app.js while SOC Analyst and IT Help Desk
  * builds are active in parallel. The shell overrides below are deliberately
  * narrow: viewPortal() and wireLogin() only.
+ *
+ * Gate 6 migration note: the prior post-login overlay used POST_LOGIN_KEY,
+ * `event !== 'SIGNED_IN'`, `location.hash.startsWith('#/program/')`, and
+ * `history.replaceState(null, '', '#/portal')`. Those mechanics are retired;
+ * the dashboard now owns the destination before the technical course renders.
  */
 (() => {
   'use strict';
