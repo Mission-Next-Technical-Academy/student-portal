@@ -17,14 +17,11 @@ file, then the row for that sprint below, then go.**
 
 ## Next action
 
-`sprint: 5b` — not started yet. Sprint 5 was split in two once its design
-work started: 5a (Lab 2's fresh-incident data) is done, written directly
-by the orchestrator rather than delegated (compliance/quality-sensitive
-scenario content, cheap to just write). 5b is the actual rendering,
-state, scoring, and wiring rebuild that makes Lab 2 use that data as its
-own independent lab — this is real coding work and the right one to hand
-to a haiku sprint. Read the "Sprint 5b" row below in full before writing
-its brief; it names every exact function/line this touches.
+`sprint: 6` — not started yet. Read "Sprint 6" row below and launch it —
+Lab 1 hardening/verification pass against the brief. Given how much
+sprint 5b already touched Lab 1's own form and scoring, treat this as a
+real verification pass, not a rubber stamp — re-read Lab 1's current code
+fresh rather than assuming it's still exactly what row 5b describes.
 
 ---
 
@@ -52,7 +49,7 @@ compliance decision**, not as an engineering task — see Sprint 8.
 | 3 | Same content shape for Lessons 7–9 | **done** | `portal/data.js` only | All 9 lessons now complete: 40 total questions, all ids unique, all correctId valid. "Turn each of the nine existing curriculum blocks into a complete learning activity" (brief) is now satisfied |
 | 4 | Module progress checklist: all 9 lessons + 2 labs, duration + real completion state (knowledge check passed AND task submitted — not "page opened") | **done** | `portal/soc-analyst-module-01.js`, `portal/module-labs.css` | New `.m01-checklist` section between hero and objective. Total confirmed prints 480 min (300 lessons + 180 labs); lesson completion reuses `moduleOneLessonComplete()`; lab completion reuses the same `loadModuleEngagement()`/`moduleLabEngagementId()` check `moduleCompletion()` in app.js already uses, so it'll automatically reflect sprint 5's fix below once that lands |
 | 5a | Lab 2's own fresh-incident data | **done** | `portal/data.js` | New standalone `MODULE_ONE_ESCALATION_LAB` const (right after `MODULE_ONE_ALERT_ORIENTATION` closes, ~line 1486): endpoint/exfiltration case (`FIN-WKS-014`, `m.reyes`, phishing-click origin — deliberately not another identity case like Lab 1's `j.santos`). Has its own `scenario.evidence` (3 items), `entityOptions`/`scopeOptions`/`priorityOptions`/`escalationOptions` + matching `correctEntity`/`correctScope`/`correctPriority`/`correctEscalation`, a `rubric` string array (4 items), and `handoffFields` (4 objects: `observations`/`analysis`/`scope`/`nextAction`, each with `label`, `help`, `minLength`, `placeholder`) for the structured handoff note. `node --check` clean. Nothing in `soc-analyst-module-01.js` reads this yet |
-| 5b | Lab 2 rebuild: render/state/scoring/wiring so Lab 2 is a real independent lab using 5a's data, not a reskin of Lab 1's form | not started | `portal/soc-analyst-module-01.js` | Lab design section + acceptance criterion 3 ("separate tasks, evidence, and completion records"). **Current state, confirmed while building sprints 4-5a:** `moduleOneLabDynamic()` (~line 346) renders Lab 1's evidence timeline, then ONE `<form id="m01-form">` (~line 462) that bundles Lab 1's verdict/priority/phase/decision fieldsets together with a single freeform "Lab 2" case-handoff textarea — one submit handler (~line 938-975) scores everything together via `moduleOneScore()` and calls `markModuleLabComplete()`/`recordLabAttempt()` for **both** `lab-soc-environment` and `lab-soc-escalation` back to back. That must become two independent forms/submits: Lab 1's form keeps only its own four fieldsets and its own submit (still marks only `lab-soc-environment`); a new Lab 2 form (evidence-review + entity/scope/priority/escalation radios via `moduleOneOptionList()` + the four `handoffFields` textareas) gets its own state slot in `MODULE_ONE_DEFAULT_STATE` (e.g. `lab2: { reviewedEvidence: [], entity: '', scope: '', priority: '', escalation: '', handoff: {}, attempts: 0, score: null, breakdown: null, feedback: [], completed: false }`), its own scoring function, its own submit handler marking only `lab-soc-escalation`, and its own persisted score/breakdown display (the "retained evidence" requirement — show the saved submission back to the learner, don't clear it). Keep the existing "Lab 2 unlocks after Lab 1" sequencing. Sprint 4's checklist already reads lab completion generically via `loadModuleEngagement()`/`moduleLabEngagementId()`, so it needs no changes and will pick this up automatically |
+| 5b | Lab 2 rebuild: render/state/scoring/wiring so Lab 2 is a real independent lab using 5a's data, not a reskin of Lab 1's form | **done** | `portal/soc-analyst-module-01.js`, `portal/module-labs.css` | Lab 2 now has its own `moduleOneState.lab2` state slot, its own `moduleOneLab2Score()`/`moduleOneLab2ScorePanel()`, its own `#m01-lab2-form` submit branch marking only `lab-soc-escalation`, and Lab 1's form no longer carries the case note (rebalanced to verdict/30+priority/25+lifecycle/20+action/25=100). **Orchestrator review before commit found and fixed two real bugs the agent introduced:** (1) `moduleOneOptionList()` had a stray line referencing an out-of-scope `option` variable — a `ReferenceError` on every single call, which would have broken rendering for BOTH labs' every fieldset (not caught by `node --check`, only by an actual render — the agent's own verification only ran `node --check` and grep, never rendered the page); (2) the pre-existing Lab-1 change-handler branch (`['verdict','priority','phase','decision'].includes(input.name)`) wasn't guarded against Lab 2 inputs, and both labs use the field name `priority` — so picking Lab 2's priority radio would have also silently overwritten Lab 1's already-scored top-level `priority`. Fixed by guarding that branch with `&& !input.closest('#m01-lab2-form')`. Also deleted one now-dead click-handler branch (`[data-m01-note-starter]`) left over from the removed Lab-1 note field. Verified after fixes with a full VM render of both the Lab-1-incomplete and Lab-1-complete states (no crash either way — the harness script is throwaway, not saved) and by calling `moduleOneScore()`/`moduleOneLab2Score()` directly with all-correct input: both total exactly 100, and Lab 1's/Lab 2's `priority` fields stayed independent. **Lesson for future sprints in this file: `node --check` only catches syntax errors, not scope/reference bugs — any sprint that touches shared rendering helpers needs an actual render smoke test before commit, not just a syntax check.** Sprint 4's checklist reads lab completion generically, so it picked this up with no changes needed |
 | 6 | Lab 1 hardening pass: verify/complete evidence checkpoints, timeline, disposition+priority+rationale, scored result, coaching against the brief — likely small diff, most of this already exists | not started | `portal/soc-analyst-module-01.js` | |
 | 7 | Program overview UX: primary action (Start/Continue/Review Module) visible on the **collapsed** module card; chevron becomes a secondary "View curriculum blocks and labs" control | not started | `portal/app.js` (`moduleCard()`, ~line 3578) | Shared component — every program's module cards render through this function. High blast radius; verify across all 4 tracks before committing, not just soc-analyst |
 | 8 | 30–45 min module assessment (event/alert/incident classification, triage choices, case-note quality) | blocked | — | Cannot proceed until someone with compliance authority decides how the assessment's minutes are carved out of the locked SOC-101.2/.6 totals. Draft the question added to `COMPLIANCE_DECISIONS_NEEDED.md` as part of this sprint, then stop |
@@ -69,7 +66,19 @@ compliance decision**, not as an engineering task — see Sprint 8.
    event-delegation wiring pattern in `wireModuleOneLab()`), and required
    verification (`node --check <file>`, `node bin/portal-check.js 1`).
 3. Read the agent's summary + `node --check` the touched files yourself.
-   Spot-check the actual diff — don't trust the summary alone.
+   Spot-check the actual diff — don't trust the summary alone. `node --check`
+   only catches syntax errors, not scope/reference bugs (sprint 5b shipped a
+   `ReferenceError` that passed `node --check` clean and would have broken
+   every options fieldset on render). Any sprint touching `soc-analyst-
+   module-01.js` rendering/wiring code needs an actual render smoke test —
+   a throwaway `node -e` script loading `data.js`, `lab-runtime.js`,
+   `module-registry.js`, `soc-analyst-module-01.js`, `app.js` into one `vm`
+   context with DOM/localStorage/mntSupabase stubs, calling `signIn()` then
+   `moduleLabFor('soc-analyst', 1).view(user, program)`, and confirming it
+   returns a string without throwing (see sprint 5b's row above and this
+   session's transcript for a working version of that harness). Data-only
+   sprints (content sprints 2, 3, 5a) don't need this — a syntax check plus
+   the structural checks their own briefs specify is enough.
 4. `git add` only the files that sprint was scoped to touch (never
    `git add -A` — this working tree also has unrelated uncommitted M360 work
    in progress; leave it alone) and commit with a message naming the sprint.
