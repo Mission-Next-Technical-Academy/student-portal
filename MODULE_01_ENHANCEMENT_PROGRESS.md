@@ -17,10 +17,10 @@ file, then the row for that sprint below, then go.**
 
 ## Next action
 
-`sprint: 3` — not started yet. Read "Sprint 3" row below and launch it
-(lesson-activity content for lessons 7-9, same data-only pattern as
-sprint 2 — used question ids l1-* through l6-* already, so l7-*/l8-*/l9-*
-are free).
+`sprint: 4` — not started yet. All nine lessons now have full activities
+(example + knowledge check + applied task); read "Sprint 4" row below and
+launch it — the module progress checklist (all 9 lessons + 2 labs, with
+duration and real completion state).
 
 ---
 
@@ -45,7 +45,7 @@ compliance decision**, not as an engineering task — see Sprint 8.
 |---|---|---|---|---|
 | 1 | Lesson-activity framework (worked example + 3–5 Q knowledge check + applied task, per lesson) + full content for Lessons 1–3 | **done** | `portal/soc-analyst-module-01.js`, `portal/data.js`, `portal/module-labs.css` | Framework: `moduleOneLessonWork(n)`, `moduleOneLessonQuizOptions(n, question)`, `moduleOneLessonComplete(lesson)`, new `lessonWork` state key. Data schema: lesson objects gain `example.scenario`, `knowledgeCheck.questions[]` ({id, prompt, options[], correctId, feedbackCorrect, feedbackIncorrect}), `appliedTask` ({prompt, placeholder}). Orchestrator review found and fixed two real bugs the agent introduced: (1) the "N of M correct" quiz summary compared raw option ids across questions instead of per-question `correctId` — could show a wrong count; (2) the new change/click/input/blur listeners were attached to `document` directly, which persists across `render()` calls, so they would have **duplicated on every re-render** (the rest of this file delegates on elements that get recreated each render, e.g. `#m01-lab-dynamic` — fixed by delegating on `#m01-lessons`, which is recreated the same way). Both fixed before commit; `node --check` clean; lessons 4-9 confirmed untouched by diff inspection. |
 | 2 | Same content shape for Lessons 4–6 | **done** | `portal/data.js` only | Clean — data-only, no rendering-framework changes needed. 14 questions (l4-q1..4, l5-q1..5, l6-q1..5), all ids unique, all correctId valid, verified against lessons 1-3/7-9 untouched |
-| 3 | Same content shape for Lessons 7–9 | not started | same three files | Closes out all 9 lessons |
+| 3 | Same content shape for Lessons 7–9 | **done** | `portal/data.js` only | All 9 lessons now complete: 40 total questions, all ids unique, all correctId valid. "Turn each of the nine existing curriculum blocks into a complete learning activity" (brief) is now satisfied |
 | 4 | Module progress checklist: all 9 lessons + 2 labs, duration + real completion state (knowledge check passed AND task submitted — not "page opened") | not started | `portal/soc-analyst-module-01.js`, `portal/module-labs.css` | Acceptance criterion 2 |
 | 5 | Lab 2 rebuild: fresh incident (not Lab 1's decision path), entity/scope/priority/escalation-boundary identification, structured handoff note (observations/analysis/scope/next action), visible rubric, retained evidence | not started | `portal/soc-analyst-module-01.js`, `portal/data.js` | Lab design section + acceptance criterion 3. Current Lab 2 reuses Lab 1's exact case — that's the thing being fixed |
 | 6 | Lab 1 hardening pass: verify/complete evidence checkpoints, timeline, disposition+priority+rationale, scored result, coaching against the brief — likely small diff, most of this already exists | not started | `portal/soc-analyst-module-01.js` | |
