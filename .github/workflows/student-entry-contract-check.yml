@@ -1,0 +1,53 @@
+name: Student entry contract
+
+on:
+  pull_request:
+    paths:
+      - 'portal/app.js'
+      - 'portal/m360-entry.js'
+      - 'unfinished_work.md'
+      - '.github/workflows/student-entry-contract-check.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'portal/app.js'
+      - 'portal/m360-entry.js'
+      - 'unfinished_work.md'
+      - '.github/workflows/student-entry-contract-check.yml'
+
+jobs:
+  verify-student-entry-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify M360 and locked-catalogue entry contract
+        run: |
+          node --check portal/m360-entry.js
+          node <<'NODE'
+          const fs = require('fs');
+          const app = fs.readFileSync('portal/app.js', 'utf8');
+          const m360 = fs.readFileSync('portal/m360-entry.js', 'utf8');
+
+          const failures = [];
+          const requireText = (source, text, label) => {
+            if (!source.includes(text)) failures.push(label);
+          };
+
+          requireText(app, 'function programCard(program, user)', 'technical programCard renderer missing');
+          requireText(app, 'hasProgramAccess(user, program.slug)', 'technical entitlement check missing');
+          if (!app.includes('>My Programs</h2>') && !app.includes('>Program Areas</h2>')) {
+            failures.push('student program-area heading no longer matches supported entry anchors');
+          }
+
+          requireText(m360, "new Set(['SOCAN', 'HDESK', 'AIENG'])", 'M360 eligibility contract changed');
+          requireText(m360, "text === 'Program Areas' || text === 'My Programs'", 'M360 program-area compatibility anchor missing');
+          requireText(m360, 'PROGRAMS.map(program => programCard(program, user))', 'full technical catalogue restoration missing');
+          requireText(m360, 'Locked programs require enrollment.', 'locked-program discovery note missing');
+          requireText(m360, "grid.insertAdjacentHTML('beforebegin', entryMarkup())", 'M360 is no longer inserted above technical cards');
+
+          if (failures.length) {
+            console.error('Student entry contract failed:');
+            failures.forEach(failure => console.error(`- ${failure}`));
+            process.exit(1);
+          }
+          NODE
