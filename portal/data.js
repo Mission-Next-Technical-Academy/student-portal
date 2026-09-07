@@ -1,4 +1,4 @@
-/* MNT Academy portal prototype — catalogue + demo accounts.
+/* MNT Academy portal — programme catalogue.
  *
  * This mirrors the shape of src/content/programs/<slug>.ts described in
  * PLATFORM_ARCHITECTURE.md §5A.2. One object per track, no cross-references,

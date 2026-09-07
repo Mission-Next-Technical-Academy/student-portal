@@ -1,14 +1,38 @@
 # Mission Next Technical Academy — Student Portal & SOC Labs
 
-A hands-on training platform for Security Operations Center analyst work: alert
-triage, incident investigation, threat hunting, detection engineering, identity
-and endpoint response, vulnerability management, and reporting.
+This is the official repository for the production site of **Mission Next
+Technical Academy**: a hands-on training platform for Security Operations
+Center analyst work, covering alert triage, incident investigation, threat
+hunting, detection engineering, identity and endpoint response, vulnerability
+management, and reporting.
 
-Everything is plain HTML, CSS, and JavaScript with no build step. The portal
-uses the configured Supabase project for authenticated deployments; the local
-static servers provide the complete browser experience without a build.
+**Live site:** <https://mission-next-technical-academy.github.io/student-portal/>
 
-## Quick start
+Everything is plain HTML, CSS, and JavaScript with no build step. Student
+accounts and progress are backed by a Supabase project (Postgres + Auth +
+Row Level Security); there is no separate application server.
+
+## Architecture
+
+Two static apps that reference each other and deploy as a single origin:
+
+| Half | Directory | Local port | What it is |
+|---|---|---|---|
+| Portal | `portal/` | 8768 | Sign-in, catalogue, curriculum, per-module lab pages |
+| Simulator | `ui/` | 8767 | The SOC lab environment — alerts, incidents, device timelines, hunting queries |
+
+The Pages workflow mounts `portal/` at `/` and `ui/` at `/sim/`. Locally they
+run as two servers so either half can be reloaded independently; `portal/app.js`
+detects which environment it's in and resolves the simulator's location
+accordingly — the only place either half hardcodes the other's address. CI
+fails the build if an unguarded `127.0.0.1:8767` reaches the deployed artifact.
+
+Student sign-in goes through Supabase Auth (`supabase.auth.signInWithPassword`),
+not a client-side mock. `students` plus the SQL/RLS policies in
+`supabase/migrations/` are the real access-control boundary — the portal UI
+must never be treated as the authority.
+
+## Local development
 
 ```bash
 bin/dev.sh          # start both halves, print URLs and demo sign-ins
@@ -16,11 +40,11 @@ bin/dev.sh status   # what is listening
 bin/dev.sh stop     # shut both down
 ```
 
-Then open <http://127.0.0.1:8768/#/login> and sign in as **`user2` / `user2`**.
-
-Provisioned training accounts are listed in the local, gitignored roster
-output. Do not put their credentials in documentation or source. The SOC
-Analyst track is the published track; the other tracks remain outline-only:
+Then open <http://127.0.0.1:8768/#/login>. Signing in locally requires the
+Supabase seed data (`supabase/seed.sql`), which creates four fixed test
+accounts — one per entitlement scenario, password equal to username. These
+exist only in a local/seeded Supabase instance and are never present in
+production:
 
 | Account | Enrolled track | Status |
 |---|---|---|
@@ -29,30 +53,16 @@ Analyst track is the published track; the other tracks remain outline-only:
 | `user3` | Foundations of AI & Machine Learning | outline only |
 | `user4` | Electrical Engineering Essentials | outline only |
 
-## How the app is put together
-
-Two static apps that reference each other:
-
-| Half | Directory | Local | What it is |
-|---|---|---|---|
-| Portal | `portal/` | :8768 | Login, catalogue, curriculum, per-module lab pages |
-| Simulator | `ui/` | :8767 | The SOC lab environment — ~30k lines of alerts, incidents, device timelines, hunting queries |
-
-They are **separate origins locally** so either half can be reloaded without
-restarting the other, and **one origin when deployed** — the Pages workflow
-mounts `portal/` at `/` and `ui/` at `/sim/`.
-
-`portal/app.js` detects which environment it is in and resolves `SIM_ORIGIN`
-accordingly. That is the only place either half hardcodes the other's location;
-CI fails the build if an unguarded `127.0.0.1:8767` reaches the deployed
-artifact.
+Real, provisioned student accounts are never listed in documentation or
+source — they're issued per-student through the admin panel and looked up
+through Supabase directly.
 
 ### Where things live
 
 ```
 portal/
-  data.js         Catalogue: 4 programs x 12 modules, the LABS array, demo accounts
-  app.js          Hash router, mock auth, entitlement gating, all portal views
+  data.js         Catalogue: 4 programs x 12 modules, the LABS array
+  app.js          Hash router, Supabase-authenticated sessions, entitlement gating, all portal views
   lab-runtime.js  Per-lab localStorage isolation — one lab's reset cannot wipe another's
   soc-analyst-module-01.js  Module 1's self-contained miniature lab. Filenames are
                     program-prefixed (soc-analyst-, it-support-, ai-ml-,
@@ -61,22 +71,17 @@ portal/
                     have a blank module-01 stub claiming their registry slot.
   module-labs.css Lab styling
 ui/               The simulator (inherited SC-200 lab, rebranded)
-supabase/         Postgres schema + RLS for the real backend that replaces mock auth
+supabase/         Postgres schema, RLS policies, and Auth-backed accounts
 local-tasks/      Fixture authoring pipeline that compiles into ui/data.js
 bin/              dev.sh, launch.sh, qa-sweep.sh, render_all.js
 ```
 
-### Two things to know before changing code
+### Lab state isolation
 
-**Authentication and authorization have two layers.** `portal/app.js` resolves
-the signed-in user and renders the appropriate catalogue or admin surface. The
-real authority is the `students` record plus the SQL/RLS policies in
-`supabase/migrations/`; the UI must never be treated as the access boundary.
-
-**Module lab state is namespaced per lab and per student.**
-`lab-runtime.js` keys on `mnt-portal.lab-state.v1.<labId>.<anonymousStudentId>`,
-so resetting one exercise cannot erase course progress or another module's work.
-New module labs should go through `LabRuntime`, not raw `localStorage`.
+Module lab state is namespaced per lab and per student. `lab-runtime.js` keys
+on `mnt-portal.lab-state.v1.<labId>.<anonymousStudentId>`, so resetting one
+exercise cannot erase course progress or another module's work. New module
+labs should go through `LabRuntime`, not raw `localStorage`.
 
 ## Curriculum status
 
