@@ -1,0 +1,89 @@
+name: My Programs shell regression check
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360-entry.js'
+      - '.github/workflows/portal-shell-my-programs-check.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'portal/m360-entry.js'
+      - '.github/workflows/portal-shell-my-programs-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JavaScript syntax
+        run: node --check portal/m360-entry.js
+
+      - name: Verify My Programs landing and locked discovery model
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path('portal/m360-entry.js').read_text()
+          required = [
+              'viewPortalWithDiscovery',
+              '>My Programs</h2>',
+              '>Program Areas</h3>',
+              'PROGRAMS.map((program) => programCard(program, user))',
+              'Locked programs require enrollment.',
+              'wireLoginToMyPrograms',
+              "coachReturn === 'm01'",
+              ": '#/portal'",
+              'm360-course-entry-slot',
+              'M360 101 Professional Readiness',
+          ]
+          for token in required:
+              if token not in js:
+                  raise SystemExit(f'Missing student-dashboard contract: {token}')
+          forbidden = [
+              'grid.innerHTML = PROGRAMS',
+              'const POST_LOGIN_KEY',
+              'rerunRequested',
+              'subtree: true',
+              ".from('module_progress')",
+              'toggleM360ItemCompletion(',
+              'saveM360Progress(',
+          ]
+          leaked = [token for token in forbidden if token in js]
+          if leaked:
+              raise SystemExit('Portal shell reintroduced a retired/high-risk path: ' + ', '.join(leaked))
+          print('My Programs shell contract is present and isolated')
+          PY
+
+      - name: Verify observer cannot self-trigger on M360 insertion
+        run: |
+          set -euo pipefail
+          grep -Fq "observer.observe(app, { childList: true });" portal/m360-entry.js
+          if grep -Fq 'subtree: true' portal/m360-entry.js; then
+            echo '::error::M360 shell must not observe subtree mutations.'
+            exit 1
+          fi
+          if grep -Fq 'rerunRequested' portal/m360-entry.js; then
+            echo '::error::M360 shell must not restore the self-rerun loop.'
+            exit 1
+          fi
+
+      - name: Protect concurrent technical builds
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          printf '%s\n' "$changed"
+          forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-|supabase/)'
+          if printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
+            echo '::error::My Programs shell fix must not modify technical runtime or Supabase.'
+            exit 1
+          fi
