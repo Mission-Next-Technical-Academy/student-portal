@@ -725,6 +725,65 @@ const MODULE_ONE_ALERT_ORIENTATION = {
       summary: 'Cybersecurity reduces the chance that technology failures or attacks harm people, operations, data, and trust.',
       detail: 'Organizations depend on identities, devices, networks, applications, cloud services, and data. Security work protects confidentiality (only authorized access), integrity (accurate and trustworthy systems and data), and availability (services work when needed). A SOC focuses on detecting and responding when those protections may be failing.',
       takeaway: 'Security exists to protect the mission—not merely to operate security tools.',
+      example: {
+        scenario: 'Mission Next Labs operates a SIEM that monitors the sign-in activity of its 200 employees. One afternoon, j.santos@missionnextlabs.example attempts a sign-in from an IP address known to be in Eastern Europe, after eight failed attempts. The employee is a project coordinator in the New York office who has never traveled. Confidentiality (who can access accounts), integrity (sign-in records are authentic), and availability (accounts are usable only by their owners) are all at risk if an attacker has compromised the password.',
+      },
+      knowledgeCheck: {
+        questions: [
+          {
+            id: 'l1-q1',
+            prompt: 'Which of these scenarios best demonstrates a threat to confidentiality?',
+            options: [
+              { id: 'a', text: 'A server crashes and takes an hour to restart.' },
+              { id: 'b', text: 'An unauthorized person reads sensitive financial reports in a shared folder.' },
+              { id: 'c', text: 'A hard drive fails and must be replaced.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Confidentiality means only the right people can access information. Unauthorized access violates confidentiality.',
+            feedbackIncorrect: 'Confidentiality is about unauthorized access to information. Look for a scenario where someone reads or sees something they should not.',
+          },
+          {
+            id: 'l1-q2',
+            prompt: 'If an attacker changes employee salary records in a payroll system without permission, which protection has been violated?',
+            options: [
+              { id: 'a', text: 'Confidentiality' },
+              { id: 'b', text: 'Integrity' },
+              { id: 'c', text: 'Availability' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Integrity means data is accurate and trustworthy. Unauthorized changes violate integrity.',
+            feedbackIncorrect: 'Integrity means you can trust data to be accurate and unaltered. Unauthorized modification breaks that trust.',
+          },
+          {
+            id: 'l1-q3',
+            prompt: 'A ransomware attack encrypts the company email servers. Employees cannot access their mail for three days. What is most affected?',
+            options: [
+              { id: 'a', text: 'Confidentiality' },
+              { id: 'b', text: 'Integrity' },
+              { id: 'c', text: 'Availability' },
+            ],
+            correctId: 'c',
+            feedbackCorrect: 'Availability means systems work when needed. An encryption attack prevents access and use, affecting availability.',
+            feedbackIncorrect: 'When services or data cannot be used or accessed, availability is at risk. Unavailable systems harm operations.',
+          },
+          {
+            id: 'l1-q4',
+            prompt: 'In the Mission Next Labs sign-in scenario, which of the three protections should the SOC team be most concerned about?',
+            options: [
+              { id: 'a', text: 'Confidentiality — the attacker might read j.santos\' email.' },
+              { id: 'b', text: 'Integrity — the attacker might change j.santos\' permissions.' },
+              { id: 'c', text: 'All three — the attacker has access to j.santos\' account and can do anything an employee can do.' },
+            ],
+            correctId: 'c',
+            feedbackCorrect: 'A compromised account is a critical risk to all three protections. The attacker can read, modify, and interfere with operations.',
+            feedbackIncorrect: 'A single compromised account threatens all three CIA protections. The attacker now acts as the legitimate user.',
+          },
+        ],
+      },
+      appliedTask: {
+        prompt: 'In one sentence, describe which CIA protection is most at risk right now if the eight failed sign-ins in the j.santos scenario represent an attacker trying to break into the account.',
+        placeholder: 'Start with: "The main risk is confidentiality/integrity/availability because..."',
+      },
     },
     {
       number: 2,
@@ -733,6 +792,77 @@ const MODULE_ONE_ALERT_ORIENTATION = {
       summary: 'A Security Operations Center is the people, processes, and technology used to monitor, detect, investigate, and respond to security threats.',
       detail: 'A SOC may be a physical room, a distributed team, or a service provider. The important idea is the function: someone continuously watches the organization\'s security signals and coordinates action when something may be wrong.',
       takeaway: 'The SOC is a team and an operating function—not a single tool.',
+      example: {
+        scenario: 'Mission Next Labs runs a SIEM that receives thousands of events per day from servers, email systems, network appliances, and endpoint detection tools. Three analysts on the SOC team monitor this flow during business hours, triaging alerts and deciding which ones need investigation or escalation. When a suspicious pattern appears — like the eight failed sign-ins followed by a successful one for j.santos@missionnextlabs.example — the SIEM automatically generates an alert. The SOC analyst reads it, gathers context from identity logs and endpoint information, decides if it represents real harm, and either closes it or escalates it to a responder.',
+      },
+      knowledgeCheck: {
+        questions: [
+          {
+            id: 'l2-q1',
+            prompt: 'What is the primary purpose of a SOC?',
+            options: [
+              { id: 'a', text: 'To operate security tools and generate reports.' },
+              { id: 'b', text: 'To monitor for threats, detect suspicious activity, investigate, and coordinate response.' },
+              { id: 'c', text: 'To approve or deny all user access requests.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'A SOC watches security signals continuously and acts on them. Its job is to detect and respond, not just operate tools.',
+            feedbackIncorrect: 'The core purpose of a SOC is the function: continuous monitoring, detection, investigation, and coordinated response to threats.',
+          },
+          {
+            id: 'l2-q2',
+            prompt: 'If Mission Next Labs\' SIEM generates an alert every time a user fails to sign in once, what problem would the SOC face?',
+            options: [
+              { id: 'a', text: 'Too many alerts, making it hard to find the real threats (false positive overload).' },
+              { id: 'b', text: 'Not enough alerts to catch attacks.' },
+              { id: 'c', text: 'The SIEM would run out of storage.' },
+            ],
+            correctId: 'a',
+            feedbackCorrect: 'Alert fatigue from too many low-quality alerts makes it hard for analysts to focus on real threats. A good SIEM rule is specific enough to catch real patterns but not so broad that it floods the queue.',
+            feedbackIncorrect: 'Too many alerts that are not real threats overwhelm analysts and make them miss actual security problems. This is called false positive overload.',
+          },
+          {
+            id: 'l2-q3',
+            prompt: 'Which of these is most likely a SOC responsibility in a typical organization?',
+            options: [
+              { id: 'a', text: 'Installing patches on all servers.' },
+              { id: 'b', text: 'Reading alerts, deciding if they represent real threats, and handing off confirmed incidents to response teams.' },
+              { id: 'c', text: 'Approving hardware purchases.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'The SOC triages alerts and investigates to determine what is real. Once an incident is confirmed, it hands off to responders who may have different expertise and authority.',
+            feedbackIncorrect: 'The SOC is the operational team that watches and first-responds to alerts. Look for the option that describes monitoring, deciding, and handing work to others.',
+          },
+          {
+            id: 'l2-q4',
+            prompt: 'Why is a SOC an operating function, not just a tool?',
+            options: [
+              { id: 'a', text: 'Because it requires people, processes, and technology working together continuously.' },
+              { id: 'b', text: 'Because every organization is required to have one by law.' },
+              { id: 'c', text: 'Because SOCs only use expensive tools.' },
+            ],
+            correctId: 'a',
+            feedbackCorrect: 'A SOC is a function: the combination of people (analysts), processes (how decisions are made), and tools (the SIEM, EDR, etc.) working as a system.',
+            feedbackIncorrect: 'A SOC is not just a tool; it is people, processes, and technology. Tools are one part, but the real work is the function of monitoring and responding.',
+          },
+          {
+            id: 'l2-q5',
+            prompt: 'In the j.santos scenario, which part of the SOC function handles the investigation after the alert is generated?',
+            options: [
+              { id: 'a', text: 'The detection rule that flagged eight failures plus one success.' },
+              { id: 'b', text: 'The SIEM tool that stores the sign-in logs.' },
+              { id: 'c', text: 'The analyst who reads the alert, gathers context, and decides next steps.' },
+            ],
+            correctId: 'c',
+            feedbackCorrect: 'Tools detect and record; people investigate and decide. The analyst is the core of the SOC function.',
+            feedbackIncorrect: 'The SIEM and rules are tools. The SOC function is what people do with that information — reading, deciding, and coordinating.',
+          },
+        ],
+      },
+      appliedTask: {
+        prompt: 'Imagine Mission Next Labs has 5,000 sign-in failures per day across all employees, and the current SIEM rule generates an alert for every single one. In 2–3 sentences, explain why this is a problem for the SOC and what a better approach might be.',
+        placeholder: 'Describe the problem (too many alerts?) and suggest a solution (filter to multiple failures in a short time? focus on specific patterns?).',
+      },
     },
     {
       number: 3,
@@ -741,6 +871,77 @@ const MODULE_ONE_ALERT_ORIENTATION = {
       summary: 'A SOC analyst turns incomplete security signals into defensible decisions.',
       detail: 'An entry-level analyst monitors the alert queue, validates what happened, gathers context, estimates scope and impact, documents evidence, closes explained activity, and escalates credible threats. Tier 2 responders handle deeper cases; detection engineers improve alert logic; threat hunters search for missed activity; and SOC leads coordinate priorities and communication.',
       takeaway: 'The job is observe, verify, decide, document, and communicate. Escalation is a successful handoff—not a failure.',
+      example: {
+        scenario: 'An analyst at Mission Next Labs receives an alert about eight failed sign-ins followed by one successful sign-in for j.santos@missionnextlabs.example from an unfamiliar country. The analyst does not have authority to reset passwords or revoke sessions themselves. Instead, the analyst verifies the facts (the sign-ins are real, the user denies them, the location and device are unusual), documents the evidence in a case note, and escalates to the Identity Response team with a recommendation to revoke the session and reset the password. The escalation is not a failure; it is a successful handoff that allows the responder to act quickly without re-investigating.',
+      },
+      knowledgeCheck: {
+        questions: [
+          {
+            id: 'l3-q1',
+            prompt: 'What is the primary job of an entry-level SOC analyst?',
+            options: [
+              { id: 'a', text: 'Verify alerts, gather evidence, decide if they represent real threats, and escalate confirmed incidents.' },
+              { id: 'b', text: 'Revoke access, reset passwords, isolate devices, and clean up malware.' },
+              { id: 'c', text: 'Write detection rules and tune the SIEM.' },
+            ],
+            correctId: 'a',
+            feedbackCorrect: 'Entry-level analysts triage and investigate. They hand off confirmed threats to specialists (responders, hunters, engineers) who have deeper authority and expertise.',
+            feedbackIncorrect: 'Entry-level analysts are investigators and triage specialists, not responders. Look for the option that describes reading alerts, gathering evidence, and handing off to others.',
+          },
+          {
+            id: 'l3-q2',
+            prompt: 'Why is escalation a successful handoff, not a failure?',
+            options: [
+              { id: 'a', text: 'Because the analyst did not solve the problem alone.' },
+              { id: 'b', text: 'Because the analyst validated the threat and handed it off to someone with more expertise or authority to act on it.' },
+              { id: 'c', text: 'Because the alert is automatically considered closed.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Escalation is successful when the analyst has verified a real threat and handed it off to the right team with clear evidence and recommendations. That is the analyst\'s job.',
+            feedbackIncorrect: 'Escalation means the analyst has done their job — they found something real and handed it to the right team to act. It is a success, not a failure.',
+          },
+          {
+            id: 'l3-q3',
+            prompt: 'In the j.santos scenario, what does the analyst do that the Identity Response team cannot do, and what does the Identity Response team do that the analyst cannot?',
+            options: [
+              { id: 'a', text: 'Analyst verifies and documents; responder revokes access and resets credentials.' },
+              { id: 'b', text: 'Analyst revokes access; responder documents.' },
+              { id: 'c', text: 'Both roles do the exact same thing.' },
+            ],
+            correctId: 'a',
+            feedbackCorrect: 'The analyst gathers evidence and investigates. The responder has higher authority and can take containment actions like revoking sessions and resetting passwords. Division of responsibility keeps everyone accountable.',
+            feedbackIncorrect: 'Analysts and responders have different roles. Look for the option that separates investigation and documentation (analyst) from response actions (responder).',
+          },
+          {
+            id: 'l3-q4',
+            prompt: 'If an analyst suspects a widespread malware infection affecting 50 devices, should they try to clean the devices themselves?',
+            options: [
+              { id: 'a', text: 'Yes, to save time and resolve the incident faster.' },
+              { id: 'b', text: 'No, they should document the evidence and escalate to the incident response or endpoint team that has the tools and authority for large-scale remediation.' },
+              { id: 'c', text: 'It depends on whether the analyst likes malware analysis.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'An analyst\'s job is to verify and escalate. Large-scale response requires specialists with the right tools and authorization. The analyst ensures the handoff is clear and evidence is preserved.',
+            feedbackIncorrect: 'Entry-level analysts investigate and document. Specialized teams handle large containment operations. Escalation is the analyst\'s responsibility.',
+          },
+          {
+            id: 'l3-q5',
+            prompt: 'Which of these is a sign that an analyst has understood the escalation boundary correctly?',
+            options: [
+              { id: 'a', text: 'The analyst tries to fix every alert without asking for help.' },
+              { id: 'b', text: 'The analyst verifies a threat, documents it clearly, and hands it to the right team with a clear recommendation.' },
+              { id: 'c', text: 'The analyst closes every alert as "false positive" to reduce work for responders.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Correct escalation is verification + documentation + handoff to the appropriate team. That is the analyst\'s scope and their full responsibility.',
+            feedbackIncorrect: 'Boundary awareness means knowing what you should do (verify and document) and what you should hand off (response actions). Clear escalation serves the mission.',
+          },
+        ],
+      },
+      appliedTask: {
+        prompt: 'Write one sentence describing when an entry-level SOC analyst should escalate an alert, and name one thing the analyst should include in the escalation handoff.',
+        placeholder: 'Start with: "An analyst should escalate when..." and end with: "...and include [evidence/recommendation/timeline] in the handoff."',
+      },
     },
     {
       number: 4,

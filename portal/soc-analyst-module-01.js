@@ -22,6 +22,7 @@ const MODULE_ONE_DEFAULT_STATE = {
   feedback: [],
   validationError: '',
   lastSubmittedAt: '',
+  lessonWork: {},
 };
 
 let moduleOneState = null;
@@ -34,6 +35,7 @@ function moduleOneLoad(user) {
   if (!Array.isArray(moduleOneState.reviewedEvidence)) moduleOneState.reviewedEvidence = [];
   if (!Array.isArray(moduleOneState.factWrong)) moduleOneState.factWrong = [];
   if (!moduleOneState.factTries || typeof moduleOneState.factTries !== 'object') moduleOneState.factTries = {};
+  if (!moduleOneState.lessonWork || typeof moduleOneState.lessonWork !== 'object') moduleOneState.lessonWork = {};
   if (new URLSearchParams(location.search).get('coachComplete') === 'm01') {
     moduleOneState.consoleStarted = true;
     moduleOneState.consoleCompleted = true;
@@ -53,19 +55,74 @@ function moduleOneSeverityClass(severity) {
 }
 
 function moduleOneLessons(lab) {
-  return `<div class="m01-lesson-grid">
-    ${lab.lessons.map((lesson) => `<details class="m01-lesson" ${lesson.number === 1 ? 'open' : ''}>
-      <summary>
-        <span class="m01-lesson-number">${String(lesson.number).padStart(2, '0')}</span>
-        <span class="m01-lesson-icon"><i class="${esc(lesson.icon)}" aria-hidden="true"></i></span>
-        <span class="m01-lesson-title"><strong>${esc(lesson.title)}</strong><small>${esc(lesson.summary)}</small></span>
-        <i class="ri-arrow-down-s-line m01-lesson-chevron" aria-hidden="true"></i>
-      </summary>
-      <div class="m01-lesson-body">
-        <p>${esc(lesson.detail)}</p>
-        <p class="m01-takeaway"><strong>Remember:</strong> ${esc(lesson.takeaway)}</p>
-      </div>
-    </details>`).join('')}
+  return `<div class="m01-lesson-grid" id="m01-lessons">
+    ${lab.lessons.map((lesson) => {
+      const work = moduleOneLessonWork(lesson.number);
+      const isOpen = work.open !== undefined ? work.open : (lesson.number === 1);
+      const isComplete = moduleOneLessonComplete(lesson);
+      return `<details class="m01-lesson" ${isOpen ? 'open' : ''} data-m01-lesson="${lesson.number}">
+        <summary>
+          <span class="m01-lesson-number">${String(lesson.number).padStart(2, '0')}</span>
+          <span class="m01-lesson-icon"><i class="${esc(lesson.icon)}" aria-hidden="true"></i></span>
+          <span class="m01-lesson-title"><strong>${esc(lesson.title)}</strong><small>${esc(lesson.summary)}</small></span>
+          ${isComplete ? '<span class="m01-lesson-complete-badge" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}
+          <i class="ri-arrow-down-s-line m01-lesson-chevron" aria-hidden="true"></i>
+        </summary>
+        <div class="m01-lesson-body">
+          <p>${esc(lesson.detail)}</p>
+          <p class="m01-takeaway"><strong>Remember:</strong> ${esc(lesson.takeaway)}</p>
+          ${lesson.example ? `
+            <div class="m01-lesson-example">
+              <p class="m01-lesson-example-label"><i class="ri-lightbulb-line" aria-hidden="true"></i> Worked example</p>
+              <p>${esc(lesson.example.scenario)}</p>
+            </div>
+          ` : ''}
+          ${lesson.knowledgeCheck ? `
+            <div class="m01-lesson-check">
+              <h4>Knowledge check</h4>
+              ${lesson.knowledgeCheck.questions.map((question) => {
+                const selectedAnswer = (work.answers || {})[question.id];
+                const answerObj = selectedAnswer ? question.options.find((o) => o.id === selectedAnswer) : null;
+                const isCorrect = selectedAnswer === question.correctId;
+                return `
+                  <div class="m01-quiz-question">
+                    <p><strong>${esc(question.prompt)}</strong></p>
+                    ${moduleOneLessonQuizOptions(lesson.number, question)}
+                    ${work.checked ? `
+                      <div class="m01-quiz-feedback ${isCorrect ? 'is-correct' : 'is-incorrect'}">
+                        ${isCorrect ? `
+                          <i class="ri-check-circle-fill" aria-hidden="true"></i>
+                          <span>${esc(question.feedbackCorrect)}</span>
+                        ` : `
+                          <i class="ri-close-circle-fill" aria-hidden="true"></i>
+                          <span>${esc(question.feedbackIncorrect)}</span>
+                        `}
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('')}
+              ${work.checked ? `
+                <p class="m01-quiz-summary">${lesson.knowledgeCheck.questions.filter((q) => (work.answers || {})[q.id] === q.correctId).length} of ${lesson.knowledgeCheck.questions.length} correct</p>
+              ` : ''}
+              <button type="button" class="m01-lesson-check-btn" data-m01-lesson-check="${lesson.number}">Check answers</button>
+            </div>
+          ` : ''}
+          ${lesson.appliedTask ? `
+            <div class="m01-lesson-task">
+              <h4>Applied task</h4>
+              <p>${esc(lesson.appliedTask.prompt)}</p>
+              <textarea class="m01-lesson-task-input" data-m01-task-lesson="${lesson.number}" placeholder="${esc(lesson.appliedTask.placeholder)}" aria-label="Task response">${esc(work.taskText || '')}</textarea>
+              ${work.taskSubmitted ? `
+                <span class="m01-lesson-task-complete"><i class="ri-check-line" aria-hidden="true"></i> Task complete</span>
+              ` : `
+                <button type="button" class="m01-lesson-task-submit" data-m01-task-submit="${lesson.number}">Mark task complete</button>
+              `}
+            </div>
+          ` : ''}
+        </div>
+      </details>`;
+    }).join('')}
   </div>`;
 }
 
@@ -92,6 +149,27 @@ function moduleOneOptionList(name, options) {
       <span><strong>${esc(option.text)}</strong>${option.help ? `<small>${esc(option.help)}</small>` : ''}</span>
     </label>`).join('')}
   </div>`;
+}
+
+function moduleOneLessonWork(number) {
+  return moduleOneState.lessonWork[String(number)] || {};
+}
+
+function moduleOneLessonQuizOptions(lessonNumber, question) {
+  const work = moduleOneLessonWork(lessonNumber);
+  const answers = work.answers || {};
+  const selectedId = answers[question.id];
+  return `<div class="m01-quiz-options">
+    ${question.options.map((option) => `<label>
+      <input type="radio" name="m01-lq-${lessonNumber}-${question.id}" value="${esc(option.id)}" data-m01-lq-lesson="${lessonNumber}" data-m01-lq-question="${question.id}" ${selectedId === option.id ? 'checked' : ''} />
+      <span>${esc(option.text)}</span>
+    </label>`).join('')}
+  </div>`;
+}
+
+function moduleOneLessonComplete(lesson) {
+  const work = moduleOneLessonWork(lesson.number);
+  return work.checked === true && work.taskSubmitted === true;
 }
 
 function moduleOneScorePanel() {
@@ -902,6 +980,93 @@ function wireModuleOneLab() {
     const status = document.getElementById('m01-status');
     if (status) status.textContent = moduleOneState.completed && moduleOneState.consoleCompleted ? 'Complete' : 'In progress';
   });
+
+  // Lesson work event listeners. Delegated on #m01-lessons rather than
+  // `document` because that element is part of moduleOneLessons()'s output
+  // and is discarded and recreated on every render() — unlike `document`,
+  // which persists, so a listener attached there would double up every time
+  // wireModuleOneLab() runs again (it runs after every render()).
+  document.querySelectorAll('[data-m01-lesson]').forEach((lessonDetails) => {
+    lessonDetails.addEventListener('toggle', () => {
+      const lessonNumber = String(lessonDetails.dataset.m01Lesson);
+      if (!moduleOneState.lessonWork[lessonNumber]) {
+        moduleOneState.lessonWork[lessonNumber] = {};
+      }
+      moduleOneState.lessonWork[lessonNumber].open = lessonDetails.open;
+      moduleOneSave();
+    });
+  });
+
+  const lessonsRoot = document.getElementById('m01-lessons');
+  if (lessonsRoot) {
+    lessonsRoot.addEventListener('change', (event) => {
+      const input = event.target;
+      if (input.dataset.m01LqLesson) {
+        const lessonNumber = String(input.dataset.m01LqLesson);
+        const questionId = input.dataset.m01LqQuestion;
+        if (!moduleOneState.lessonWork[lessonNumber]) {
+          moduleOneState.lessonWork[lessonNumber] = {};
+        }
+        if (!moduleOneState.lessonWork[lessonNumber].answers) {
+          moduleOneState.lessonWork[lessonNumber].answers = {};
+        }
+        moduleOneState.lessonWork[lessonNumber].answers[questionId] = input.value;
+        moduleOneSave();
+      }
+    });
+
+    lessonsRoot.addEventListener('click', (event) => {
+      const checkBtn = event.target.closest('[data-m01-lesson-check]');
+      if (checkBtn) {
+        const lessonNumber = String(checkBtn.dataset.m01LessonCheck);
+        if (!moduleOneState.lessonWork[lessonNumber]) {
+          moduleOneState.lessonWork[lessonNumber] = {};
+        }
+        moduleOneState.lessonWork[lessonNumber].checked = true;
+        moduleOneSave();
+        render();
+        const lessonEl = document.querySelector('[data-m01-lesson="' + lessonNumber + '"]');
+        if (lessonEl) requestAnimationFrame(() => lessonEl.scrollIntoView({ block: 'nearest' }));
+        return;
+      }
+
+      const taskSubmitBtn = event.target.closest('[data-m01-task-submit]');
+      if (taskSubmitBtn) {
+        const lessonNumber = String(taskSubmitBtn.dataset.m01TaskSubmit);
+        if (!moduleOneState.lessonWork[lessonNumber]) {
+          moduleOneState.lessonWork[lessonNumber] = {};
+        }
+        const taskText = (moduleOneState.lessonWork[lessonNumber].taskText || '').trim();
+        if (taskText.length < 15) {
+          return;
+        }
+        moduleOneState.lessonWork[lessonNumber].taskSubmitted = true;
+        moduleOneSave();
+        render();
+        const lessonEl = document.querySelector('[data-m01-lesson="' + lessonNumber + '"]');
+        if (lessonEl) requestAnimationFrame(() => lessonEl.scrollIntoView({ block: 'nearest' }));
+        return;
+      }
+    });
+
+    lessonsRoot.addEventListener('input', (event) => {
+      const textarea = event.target.closest('[data-m01-task-lesson]');
+      if (textarea) {
+        const lessonNumber = String(textarea.dataset.m01TaskLesson);
+        if (!moduleOneState.lessonWork[lessonNumber]) {
+          moduleOneState.lessonWork[lessonNumber] = {};
+        }
+        moduleOneState.lessonWork[lessonNumber].taskText = textarea.value;
+      }
+    });
+
+    lessonsRoot.addEventListener('blur', (event) => {
+      const textarea = event.target.closest('[data-m01-task-lesson]');
+      if (textarea) {
+        moduleOneSave();
+      }
+    }, true);
+  }
 }
 
 async function moduleOneReceiveCoachCompletion(event) {
