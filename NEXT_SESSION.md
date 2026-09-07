@@ -1,5 +1,26 @@
 # Next session — start here
 
+## Session 2026-09-07 (in progress) — Module 01 enhancement, sprint-by-sprint
+
+`MODULE_01_ENHANCEMENT_BRIEF.md` asks for Module 01's nine lessons, two labs,
+progress checklist, module assessment, and program-overview card action to
+be brought up to its advertised 480-minute depth. This is being worked as a
+sequence of small haiku-subagent sprints (one coding task each, reviewed and
+committed locally, never pushed) so it survives a token-limited session.
+
+**Full sprint list, live status, and the exact resumption pointer live in
+`MODULE_01_ENHANCEMENT_PROGRESS.md` — read that file's "Next action" line
+first, before anything else here.** Do not archive
+`MODULE_01_ENHANCEMENT_BRIEF.md` until every row in that sprint log is
+`done` (one item — the module assessment's minute accounting — is flagged
+`blocked` on a compliance decision, not an engineering gap; see that file's
+"Known constraint" section before touching any lesson's `durationMinutes`
+or `parentAllocations`).
+
+Nothing from this work has been pushed to `origin/master`. This repo
+auto-deploys to GitHub Pages on push, so unreviewed curriculum content
+stays local-only commits until a human explicitly asks for a push.
+
 ## Session 2026-09-06 (open — needs a push, then more UAT) — session-security browser UAT found a real bug + student cap raised to 2
 
 Browser UAT of `SESSION_SECURITY_SPEC.md` (login at `127.0.0.1:8768/#/login`
