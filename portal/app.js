@@ -49,6 +49,27 @@ function loginIdToEmail(loginId) {
 let _cachedUser = null;
 let _cachedUserPromise = null;
 
+// The initial screen must always resolve.  A stale auth token, an offline
+// browser, or an interrupted profile query should lead to the login screen,
+// never leave index.html's loading shell on screen indefinitely.
+const MNT_SESSION_RESTORE_TIMEOUT_MS = 12 * 1000;
+
+function settleWithin(promise, label) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label} timed out`)), MNT_SESSION_RESTORE_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
+function discardLocalSession() {
+  // Local scope only: no network dependency and no attempt to revoke another
+  // device's session.  This is recovery for an unusable browser-held token.
+  return mntSupabase.auth.signOut({ scope: 'local' }).catch((err) => {
+    console.error('Could not clear the local auth session', err);
+  });
+}
+
 async function buildUserFromSession(session) {
   const userId = session.user.id;
 
@@ -116,18 +137,27 @@ async function currentUser() {
   if (_cachedUser !== null) return _cachedUser;
   if (_cachedUserPromise) return _cachedUserPromise;
   _cachedUserPromise = (async () => {
-    const { data: { session } } = await mntSupabase.auth.getSession();
-    if (!session) {
+    try {
+      const { data: { session } } = await settleWithin(mntSupabase.auth.getSession(), 'Session restoration');
+      if (!session) {
+        _cachedUser = null;
+        return null;
+      }
+      const user = await settleWithin(buildUserFromSession(session), 'Account restoration');
+      _cachedUser = user;
+      return user;
+    } catch (err) {
+      console.error('Unable to restore portal session; returning to login', err);
       _cachedUser = null;
+      await discardLocalSession();
       return null;
     }
-    const user = await buildUserFromSession(session);
-    _cachedUser = user;
-    return user;
   })();
-  const result = await _cachedUserPromise;
-  _cachedUserPromise = null;
-  return result;
+  try {
+    return await _cachedUserPromise;
+  } finally {
+    _cachedUserPromise = null;
+  }
 }
 
 /* Sign-in gates, in this order, none interchangeable
@@ -4979,7 +5009,17 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
 async function render() {
   const app = document.getElementById('app');
   let hash = location.hash || '#/login';
-  const user = await currentUser();
+  // currentUser() handles expected restoration errors itself.  Retain this
+  // last-resort guard because render owns replacement of the loading shell.
+  let user = null;
+  try {
+    user = await currentUser();
+  } catch (err) {
+    console.error('Portal startup failed; returning to login', err);
+    _cachedUser = null;
+    _cachedUserPromise = null;
+    discardLocalSession();
+  }
 
   // In-page anchors (#sec-labs, #sec-capstone) share the hash with the router.
   // Only hashes beginning '#/' are routes; everything else is the browser

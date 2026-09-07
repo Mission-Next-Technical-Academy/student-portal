@@ -12,4 +12,13 @@ const MNT_SUPABASE_URL = 'https://eokvngifirjgfozzbieu.supabase.co';
 // Publishable key (Supabase's newer anon-key format) — safe to ship client-side.
 const MNT_SUPABASE_ANON_KEY = 'sb_publishable_wTS7tUFTA6Jo9Du4OVHbqA_mg4jODzz';
 
-const mntSupabase = supabase.createClient(MNT_SUPABASE_URL, MNT_SUPABASE_ANON_KEY);
+/* Keep an authenticated portal session for reloads in the current tab, but
+ * never leave it behind after the browser/tab is closed.  Supabase defaults
+ * to localStorage, which survives a browser restart and can leave an expired
+ * token for startup to restore. */
+const mntSupabase = supabase.createClient(MNT_SUPABASE_URL, MNT_SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    storage: window.sessionStorage,
+  },
+});
