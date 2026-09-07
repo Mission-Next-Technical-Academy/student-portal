@@ -21,6 +21,23 @@
 .m01-progress dt { color: rgba(255,255,255,.56); font: 10px/1.3 Inter, sans-serif; }
 .m01-progress dd { margin: 5px 0 0; font-size: 13px; font-weight: 700; white-space: nowrap; }
 
+.m01-checklist { margin-top: 22px; padding: 28px; background: #fff; border: 1px solid #dbe3ed; border-radius: 16px; box-shadow: 0 8px 24px rgba(30,58,95,.06); }
+.m01-checklist h2 { margin: 6px 0 18px; color: #1e3a5f; font-size: 20px; line-height: 1.4; }
+.m01-checklist-list { display: grid; gap: 1px; margin: 0 0 18px; padding: 0; list-style: none; overflow: hidden; background: #dbe3ed; border-radius: 12px; }
+.m01-checklist-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 16px; background: #fbfdff; color: #475569; font: 14px/1.4 Inter, sans-serif; transition: background-color .2s ease; }
+.m01-checklist-item.is-complete { background: #f0fdf4; }
+.m01-checklist-item.is-in-progress { background: #fffbf0; }
+.m01-checklist-number { width: 32px; flex: 0 0 auto; text-align: center; color: #94a3b8; font-size: 11px; font-weight: 800; }
+.m01-checklist-content { display: grid; gap: 4px; }
+.m01-checklist-content strong { color: #1e3a5f; font-size: 14px; font-weight: 600; }
+.m01-checklist-status { display: inline-block; width: fit-content; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.m01-checklist-item.is-complete .m01-checklist-status { color: #166534; background: #dcfce7; }
+.m01-checklist-item.is-in-progress .m01-checklist-status { color: #7c2d12; background: #fff7ed; }
+.m01-checklist-item.is-not-started .m01-checklist-status { color: #64748b; background: #f1f5f9; }
+.m01-checklist-duration { text-align: right; flex: 0 0 auto; color: #64748b; font-size: 13px; font-weight: 600; min-width: 100px; }
+.m01-checklist-total { margin: 0; padding: 16px; color: #1e3a5f; font: 14px/1.6 Inter, sans-serif; background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 10px; }
+.m01-checklist-total strong { color: #1e3a5f; font-weight: 700; }
+
 .m01-objective { margin-top: 22px; display: flex; align-items: flex-start; gap: 16px; padding: 22px; background: #fff; border: 1px solid #dbe3ed; border-radius: 16px; box-shadow: 0 8px 24px rgba(30,58,95,.06); }
 .m01-objective-icon { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 12px; font-size: 21px; }
 .m01-objective h2 { margin: 4px 0 8px; color: #1e3a5f; font-size: 20px; line-height: 1.4; }

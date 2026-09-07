@@ -540,6 +540,44 @@ function viewModuleOne(user, program) {
         </dl>
       </section>
 
+      <section class="m01-checklist" aria-labelledby="m01-checklist-title">
+        <p class="m01-kicker">Module progress checklist</p>
+        <h2 id="m01-checklist-title">Every required block, with its duration and status</h2>
+        <ul class="m01-checklist-list">
+          ${module.curriculumItems.map((item, index) => {
+            const lesson = MODULE_ONE_ALERT_ORIENTATION.lessons[index];
+            const isComplete = lesson && moduleOneLessonComplete(lesson);
+            const work = lesson ? moduleOneLessonWork(lesson.number) : {};
+            const hasStarted = work.checked || work.taskSubmitted;
+            const status = isComplete ? 'Complete' : (hasStarted ? 'In progress' : 'Not started');
+            const statusClass = isComplete ? 'is-complete' : (hasStarted ? 'is-in-progress' : 'is-not-started');
+            return `<li class="m01-checklist-item ${statusClass}">
+              <span class="m01-checklist-number">${String(index + 1).padStart(2, '0')}</span>
+              <div class="m01-checklist-content">
+                <strong>${esc(item.title)}</strong>
+                <span class="m01-checklist-status" aria-label="${esc(status)}">${esc(status)}</span>
+              </div>
+              <span class="m01-checklist-duration">${typeof formatInstructionalMinutes === 'function' ? formatInstructionalMinutes(item.durationMinutes) : item.durationMinutes}</span>
+            </li>`;
+          }).join('')}
+          ${moduleLabs.map((lab) => {
+            const engagementId = typeof moduleLabEngagementId === 'function' ? moduleLabEngagementId(program.slug, 'soc-01', lab.key) : null;
+            const engagement = typeof loadModuleEngagement === 'function' ? loadModuleEngagement(user) : { completedLabs: [] };
+            const isComplete = engagementId && engagement.completedLabs.includes(engagementId);
+            const statusClass = isComplete ? 'is-complete' : 'is-not-started';
+            return `<li class="m01-checklist-item ${statusClass}">
+              <span class="m01-checklist-number" style="opacity: 0;">--</span>
+              <div class="m01-checklist-content">
+                <strong>${esc(lab.title)}</strong>
+                <span class="m01-checklist-status" aria-label="${isComplete ? 'Complete' : 'Not started'}">${isComplete ? 'Complete' : 'Not started'}</span>
+              </div>
+              <span class="m01-checklist-duration">${typeof formatInstructionalMinutes === 'function' ? formatInstructionalMinutes(lab.instructionalMinutes) : lab.instructionalMinutes}</span>
+            </li>`;
+          }).join('')}
+        </ul>
+        <p class="m01-checklist-total">Total instructional time: <strong>${typeof formatInstructionalMinutes === 'function' ? formatInstructionalMinutes(module.curriculumItems.reduce((total, item) => total + item.durationMinutes, 0) + moduleLabs.reduce((total, lab) => total + lab.instructionalMinutes, 0)) : '480 Minutes'}</strong></p>
+      </section>
+
       <section class="m01-objective" aria-labelledby="m01-objective-title">
         <div class="m01-objective-icon"><i class="ri-compass-3-line" aria-hidden="true"></i></div>
         <div>
