@@ -1,10 +1,12 @@
-# Mission Next Technical Academy — Student Portal & SOC Labs
+# Mission Next Technical Academy — Hands-On Training Platform for Cybersecurity, IT Operations, AI/ML & Electrical Engineering
 
 This is the official repository for the production site of **Mission Next
-Technical Academy**: a hands-on training platform for Security Operations
-Center analyst work, covering alert triage, incident investigation, threat
-hunting, detection engineering, identity and endpoint response, vulnerability
-management, and reporting.
+Technical Academy**: a full hands-on training platform for Helpdesk
+technicians, Security Operations Center (SOC) analysts, AI and Machine
+Learning engineering, and Electrical Engineering. The platform includes
+cybersecurity and IT operations training across alert triage, incident
+investigation, threat hunting, detection engineering, identity and endpoint
+response, vulnerability management, and reporting.
 
 **Live site:** <https://mission-next-technical-academy.github.io/student-portal/>
 
