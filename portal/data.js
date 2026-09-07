@@ -1484,6 +1484,79 @@ const MODULE_ONE_ALERT_ORIENTATION = {
   correctDecision: 'escalate-identity',
 };
 
+/* Lab 2's own incident — deliberately a different entity, source, and
+ * decision path than MODULE_ONE_ALERT_ORIENTATION's Lab 1 case, per
+ * MODULE_01_ENHANCEMENT_BRIEF.md's "Use a fresh incident rather than
+ * reusing Lab 1's exact decision path." Lab 1 is an identity sign-in case;
+ * this is an endpoint/data-exfiltration case following a phishing click. */
+const MODULE_ONE_ESCALATION_LAB = {
+  id: 'M01-L02',
+  title: 'SIEM Incident Escalation & Handoff',
+  minutes: 60,
+  passingScore: 70,
+  scenario: {
+    id: 'ESC-2044',
+    source: 'SIEM correlation rule',
+    detectedBy: 'Outbound data volume spike following a phishing-link click',
+    initialSeverity: 'Medium',
+    title: 'Unusual outbound transfer after a phishing click',
+    summary: 'A workstation sent an unusually large volume of data to an external address minutes after its user opened a link in a phishing email.',
+    entity: 'FIN-WKS-014',
+    created: '13:42',
+    evidence: [
+      { id: 'esc-transfer', time: '13:42', icon: 'ri-upload-cloud-2-line', label: 'Large outbound transfer',
+        detail: 'Workstation FIN-WKS-014 sent 850 MB to an external IP address over four minutes. This device has never exceeded 50 MB of outbound traffic in a single day before.' },
+      { id: 'esc-email', time: '13:36', icon: 'ri-mail-warning-line', label: 'Phishing link clicked',
+        detail: 'The email gateway log shows m.reyes@missionnextlabs.example received and clicked a link in a message impersonating "IT Support Password Reset" six minutes before the transfer began.' },
+      { id: 'esc-process', time: '13:36', icon: 'ri-terminal-line', label: 'Suspicious process observed',
+        detail: 'EDR shows a PowerShell process spawned from the browser at the moment of the click, and that same process made the outbound connection recorded above.' },
+    ],
+    scope: 'One workstation (FIN-WKS-014) and the account signed into it are confirmed affected. No lateral movement to other devices has been observed yet.',
+  },
+  entityOptions: [
+    { id: 'device-only', text: 'The workstation only', help: 'Use this if only the machine itself is implicated.' },
+    { id: 'device-and-account', text: 'The workstation and the account signed into it', help: 'Use this when both the device and the logged-in user need to be considered part of the affected entity.' },
+    { id: 'department', text: 'The entire Finance department', help: 'Use this only if evidence shows spread beyond one device.' },
+  ],
+  scopeOptions: [
+    { id: 'one-device', text: 'Contained to one device — no evidence of spread' },
+    { id: 'multi-device', text: 'Spread to multiple devices' },
+    { id: 'network-wide', text: 'Spread across the network' },
+    { id: 'unknown', text: 'Unknown — not enough evidence yet' },
+  ],
+  priorityOptions: [
+    { id: 'high', text: 'High — begin escalation now' },
+    { id: 'medium', text: 'Medium — leave it in the normal queue' },
+    { id: 'low', text: 'Low — no prompt response needed' },
+  ],
+  escalationOptions: [
+    { id: 'isolate-self', text: 'Isolate the device myself right now' },
+    { id: 'escalate-endpoint', text: 'Escalate to the endpoint response team to isolate the device and preserve evidence' },
+    { id: 'close-alert', text: 'Close the alert — phishing emails are too common to escalate' },
+    { id: 'contact-vendor', text: 'Contact the email gateway vendor for support' },
+  ],
+  correctEntity: 'device-and-account',
+  correctScope: 'one-device',
+  correctPriority: 'high',
+  correctEscalation: 'escalate-endpoint',
+  rubric: [
+    'Observations cite specific evidence from the timeline, not a general summary.',
+    'Analysis separates what was observed from what it means.',
+    'Scope states clearly what is — and is not — confirmed affected.',
+    'The requested next action is specific and stays inside an analyst\'s authority (no containment action performed directly).',
+  ],
+  handoffFields: [
+    { key: 'observations', label: 'Observations', help: 'What did you observe? Cite the strongest evidence.', minLength: 40,
+      placeholder: 'The workstation FIN-WKS-014 sent 850 MB to an external address at 13:42, four minutes after...' },
+    { key: 'analysis', label: 'Analysis', help: 'What does this mean? Separate fact from conclusion.', minLength: 40,
+      placeholder: 'This pattern is consistent with a compromise following a phishing click because...' },
+    { key: 'scope', label: 'Scope', help: 'What is confirmed affected, and what is not?', minLength: 20,
+      placeholder: 'Confirmed affected: ... Not yet confirmed: ...' },
+    { key: 'nextAction', label: 'Requested next action', help: 'Name one specific, in-authority next step for the responder.', minLength: 20,
+      placeholder: 'Recommend the endpoint response team...' },
+  ],
+};
+
 /* The SOC Analyst lab catalogue. `simEntry` is the ONLY place the portal knows
  * a simulator route — see PLATFORM_ARCHITECTURE.md §7.3. */
 function labRecord(spec) {
