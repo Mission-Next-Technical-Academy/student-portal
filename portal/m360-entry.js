@@ -22,6 +22,7 @@
   const POST_LOGIN_KEY = 'mnt.m360.postLoginProgramsPending';
   const CATALOGUE_RESTORED_ATTR = 'data-mnt-program-catalogue-restored';
   let renderPending = false;
+  let rerunRequested = false;
   let reviewSummaryPromise = null;
 
   function technicalEnrollmentActive(user) {
@@ -50,6 +51,22 @@
     return area ? area.grid : null;
   }
 
+  function wireRestoredProgramCards(grid) {
+    if (!grid) return;
+    grid.querySelectorAll('[data-open]').forEach(el => {
+      if (el.dataset.mntEntryWired === 'true') return;
+      const go = () => { location.hash = '#/program/' + el.dataset.open; };
+      el.addEventListener('click', go);
+      el.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          go();
+        }
+      });
+      el.dataset.mntEntryWired = 'true';
+    });
+  }
+
   function restoreProgramCatalogue(user) {
     const area = findProgramArea();
     if (!area || !area.grid || !area.header) return false;
@@ -64,6 +81,11 @@
       grid.innerHTML = PROGRAMS.map(program => programCard(program, user)).join('');
       grid.setAttribute(CATALOGUE_RESTORED_ATTR, userKey);
     }
+    // app.js wires the original rendered cards before this overlay restores the
+    // full catalogue. Replacing grid.innerHTML removes those listeners, so wire
+    // only the restored data-open cards here without re-running shared portal
+    // wiring or touching technical-course runtime.
+    wireRestoredProgramCards(grid);
 
     if (heading && heading.textContent.trim() !== 'Program Areas') heading.textContent = 'Program Areas';
 
@@ -106,9 +128,9 @@
     });
   }
 
-  function routeEligibleLoginToPrograms(user) {
+  function routeStudentLoginToPrograms(user) {
     if (sessionStorage.getItem(POST_LOGIN_KEY) !== '1') return false;
-    if (!user || user.isAdmin || !ELIGIBLE_TRACKS.has(user.trackCode) || !technicalEnrollmentActive(user)) {
+    if (!user || user.isAdmin || !technicalEnrollmentActive(user)) {
       sessionStorage.removeItem(POST_LOGIN_KEY);
       return false;
     }
@@ -240,14 +262,17 @@
   }
 
   async function ensureEntry() {
-    if (renderPending) return;
+    if (renderPending) {
+      rerunRequested = true;
+      return;
+    }
     renderPending = true;
     try {
       if (typeof currentUser !== 'function') return;
 
       const user = await currentUser();
       if (!user) return;
-      if (routeEligibleLoginToPrograms(user)) return;
+      if (routeStudentLoginToPrograms(user)) return;
 
       if (user.isAdmin) {
         ensureAdminEntry();
@@ -272,6 +297,10 @@
       console.error('M360 dashboard entry failed', error);
     } finally {
       renderPending = false;
+      if (rerunRequested) {
+        rerunRequested = false;
+        setTimeout(ensureEntry, 0);
+      }
     }
   }
 
