@@ -950,6 +950,65 @@ const MODULE_ONE_ALERT_ORIENTATION = {
       summary: 'These words describe different levels of security meaning.',
       detail: 'An event is a recorded action, such as a sign-in. A signal is an event or pattern that may matter. A detection rule evaluates signals. An alert says the rule found something worth review. An incident is confirmed or strongly suspected harmful activity that requires coordinated response.',
       takeaway: 'An alert is a question. Investigation supplies the answer.',
+      example: {
+        scenario: 'The Mission Next Labs SIEM records thousands of sign-in events each day—most are routine and expected. When eight sign-in failures occur in rapid succession from Eastern Europe for j.santos@missionnextlabs.example, followed by one successful sign-in, the detection rule fires and generates an alert in the analyst queue. The alert asks: is this an attacker trying passwords, a mistyped password, or something else? Only after the analyst investigates and confirms the user did not attempt these sign-ins does the event become an incident requiring immediate coordinated response.',
+      },
+      knowledgeCheck: {
+        questions: [
+          {
+            id: 'l4-q1',
+            prompt: 'What is the main difference between an event and an alert?',
+            options: [
+              { id: 'a', text: 'An event is recorded; an alert is the system flagging that event as worth reviewing.' },
+              { id: 'b', text: 'Events only happen on important systems; alerts apply to any system.' },
+              { id: 'c', text: 'Events are faster to detect than alerts.' },
+            ],
+            correctId: 'a',
+            feedbackCorrect: 'Exactly. An event is just a recorded action. An alert means a detection rule has evaluated that action and flagged it as potentially significant.',
+            feedbackIncorrect: 'Events are facts that were recorded. Alerts are the system saying "this event may deserve attention." Look for the option that distinguishes the recorded fact from the system\'s judgment.',
+          },
+          {
+            id: 'l4-q2',
+            prompt: 'In the j.santos scenario, which of these is an event?',
+            options: [
+              { id: 'a', text: 'The detection rule that flagged eight failures in a row.' },
+              { id: 'b', text: 'Each individual sign-in attempt that failed or succeeded.' },
+              { id: 'c', text: 'The final decision to escalate to the Identity Response team.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Right. Each failed sign-in is a recorded action—an event. The detection rule evaluates those events and generates an alert.',
+            feedbackIncorrect: 'An event is what actually happened and was recorded. Look for the raw action that the SIEM captured, not the rule\'s decision about it.',
+          },
+          {
+            id: 'l4-q3',
+            prompt: 'When does an alert become an incident?',
+            options: [
+              { id: 'a', text: 'Immediately when the detection rule fires.' },
+              { id: 'b', text: 'After an analyst has investigated and confirmed harmful activity.' },
+              { id: 'c', text: 'Only if it affects more than three users or devices.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'An incident means confirmed or strongly suspected harmful activity. Investigation converts an alert (a question) into an incident (a finding).',
+            feedbackIncorrect: 'An alert is a lead that may or may not be real. An incident is confirmed harmful activity. The analyst\'s investigation determines when that transition happens.',
+          },
+          {
+            id: 'l4-q4',
+            prompt: 'Why is "an alert is a question" a useful way to think about it?',
+            options: [
+              { id: 'a', text: 'Because alerts are confusing.' },
+              { id: 'b', text: 'Because alerts don\'t confirm anything by themselves—they point to something worth checking.' },
+              { id: 'c', text: 'Because alerts always have multiple correct answers.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Exactly. An alert says "could this be harmful?" Investigation answers that question with "yes," "no," or "benign."',
+            feedbackIncorrect: 'Think of it this way: alert = "something may be wrong here," investigation = "I checked—is it actually wrong?"',
+          },
+        ],
+      },
+      appliedTask: {
+        prompt: 'From the j.santos sign-in scenario, describe one event, one alert, and one incident. In 1–2 sentences, explain how they are related.',
+        placeholder: 'Event: [the specific recorded action] Alert: [what the SIEM flagged] Incident: [what investigation confirmed]',
+      },
     },
     {
       number: 5,
@@ -958,6 +1017,77 @@ const MODULE_ONE_ALERT_ORIENTATION = {
       summary: 'Security controls collect telemetry from identities, endpoints, networks, email, applications, and cloud services.',
       detail: 'A SIEM centralizes and analyzes events from many sources. EDR monitors endpoints. XDR connects evidence across several security domains. These tools help analysts see patterns, but tools do not replace evidence-based judgment.',
       takeaway: 'Telemetry is the raw material; context turns it into meaning.',
+      example: {
+        scenario: 'Mission Next Labs runs a SIEM that pulls events from five major sources: the identity system logs all sign-ins and password attempts; EDR monitors endpoints and records process execution and file access; network sensors at the company gateway log all connections; the email security appliance logs message delivery and blocks; and cloud services like Microsoft 365 report app access and admin actions. When j.santos@missionnextlabs.example attempts to sign in from an unusual IP eight times and then succeeds, the identity system records all nine events. The SIEM normalizes them into one searchable dataset, and the detection rule queries across all telemetry sources to find patterns no single tool alone would see.',
+      },
+      knowledgeCheck: {
+        questions: [
+          {
+            id: 'l5-q1',
+            prompt: 'What is the primary job of a SIEM?',
+            options: [
+              { id: 'a', text: 'To replace all other security tools so you don\'t need them anymore.' },
+              { id: 'b', text: 'To centralize, normalize, and analyze events from many sources so analysts can correlate activity across tools.' },
+              { id: 'c', text: 'To automatically block all suspicious activity without analyst review.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'A SIEM is a hub. It connects the dots by making events from many tools searchable together.',
+            feedbackIncorrect: 'A SIEM doesn\'t replace other tools; it pulls data from them. Its job is to make patterns visible across multiple sources.',
+          },
+          {
+            id: 'l5-q2',
+            prompt: 'In the j.santos scenario, which sources would generate events about the sign-in attempts?',
+            options: [
+              { id: 'a', text: 'Only the identity system.' },
+              { id: 'b', text: 'Only the EDR on j.santos\' workstation.' },
+              { id: 'c', text: 'The identity system, possibly the EDR, and network sensors at the gateway.' },
+            ],
+            correctId: 'c',
+            feedbackCorrect: 'Multiple sources see the same activity from different angles. The SIEM pulls all those views together.',
+            feedbackIncorrect: 'Think about everywhere a sign-in attempt would be recorded: the identity provider logs it, the endpoint may see a failed login, and the network may see the connection attempt.',
+          },
+          {
+            id: 'l5-q3',
+            prompt: 'Why do analysts use a SIEM instead of logging into each tool separately to read logs?',
+            options: [
+              { id: 'a', text: 'Because dashboards are prettier than text logs.' },
+              { id: 'b', text: 'Because a SIEM can correlate events across tools and build detection rules on the complete picture, which no single tool alone would see.' },
+              { id: 'c', text: 'Because analysts are required to by law.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'The value of a SIEM is connection. One source gives one perspective; a SIEM shows patterns across perspectives.',
+            feedbackIncorrect: 'A SIEM\'s real power is making patterns visible across tools. Look for the option that mentions correlation or connecting data.',
+          },
+          {
+            id: 'l5-q4',
+            prompt: 'What is the difference between EDR and a SIEM?',
+            options: [
+              { id: 'a', text: 'EDR monitors endpoints; a SIEM centralizes events from many sources including endpoints, networks, identity, and applications.' },
+              { id: 'b', text: 'EDR is more important than a SIEM because endpoints are where attacks happen.' },
+              { id: 'c', text: 'They do the same thing; the two words are interchangeable.' },
+            ],
+            correctId: 'a',
+            feedbackCorrect: 'EDR is one source of telemetry. A SIEM is the hub that pulls from EDR and many other sources.',
+            feedbackIncorrect: 'EDR = endpoint detection (one source). SIEM = central hub for all detection sources. They are related but different.',
+          },
+          {
+            id: 'l5-q5',
+            prompt: 'If a detection rule could only see identity logs, what might it miss in the j.santos case?',
+            options: [
+              { id: 'a', text: 'Context about whether the endpoint was registered or managed by the company.' },
+              { id: 'b', text: 'Whether the source IP has been used in other attacks elsewhere on the network.' },
+              { id: 'c', text: 'Both A and B.' },
+            ],
+            correctId: 'c',
+            feedbackCorrect: 'A single source is blindered. A SIEM pulls from all sources to paint a complete picture.',
+            feedbackIncorrect: 'A rule that only sees identity logs misses endpoint context, network history, and correlations with other activity. Look for the broader answer.',
+          },
+        ],
+      },
+      appliedTask: {
+        prompt: 'Name three different sources of telemetry that might have events about the j.santos sign-in attempts, and describe what each source would record.',
+        placeholder: 'Source 1 (e.g., identity system): would record... Source 2: would record... Source 3: would record...',
+      },
     },
     {
       number: 6,
@@ -966,6 +1096,77 @@ const MODULE_ONE_ALERT_ORIENTATION = {
       summary: 'Triage is the fast, structured first review that decides whether an alert can close or needs investigation and response.',
       detail: 'Read the alert, verify observable facts, add user and asset context, check whether the action succeeded, estimate scope and impact, classify it, choose a proportional next step, and document why. A true positive is correctly detected harmful activity; a benign positive is real but authorized; a false positive is classified incorrectly.',
       takeaway: 'An alert is a lead. Triage tests that lead against evidence.',
+      example: {
+        scenario: 'An analyst at Mission Next Labs receives the j.santos alert. The triage process: Read (the alert claims eight failed sign-ins followed by a success from Eastern Europe). Verify (check the actual sign-in logs—are the events really there, is the IP correct, did the ninth attempt really succeed?). Scope (is j.santos a system administrator or a regular user? is this one account or part of a larger breach?). Decide (call the user: they deny the sign-ins entirely, so it\'s unauthorized access, not a typo, and it\'s harmful). Document (write a case note with the timeline, evidence, classification, and escalation reasoning). This entire triage takes 5–10 minutes and produces a clear true-positive classification: real, harmful, unauthorized activity requiring immediate escalation.',
+      },
+      knowledgeCheck: {
+        questions: [
+          {
+            id: 'l6-q1',
+            prompt: 'What is the first step of the triage loop?',
+            options: [
+              { id: 'a', text: 'Immediately escalate to the response team.' },
+              { id: 'b', text: 'Read the alert and understand what it claims happened.' },
+              { id: 'c', text: 'Isolate the affected device or revoke the user account.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'You cannot verify or scope what you don\'t understand. Reading the alert is always the first step.',
+            feedbackIncorrect: 'Triage starts with understanding the alert. Look for the step that means "read and comprehend."',
+          },
+          {
+            id: 'l6-q2',
+            prompt: 'In the j.santos scenario, what observable facts would the Verify step check?',
+            options: [
+              { id: 'a', text: 'The analyst checks whether j.santos\' manager approves of foreign sign-ins.' },
+              { id: 'b', text: 'The analyst checks the raw sign-in logs to confirm the failures and success actually occurred as the alert claimed.' },
+              { id: 'c', text: 'The analyst runs a malware scan on j.santos\' device.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Verify means confirming against observable evidence. The sign-in log is the observable record.',
+            feedbackIncorrect: 'Verify focuses on facts in the logs and tools, not opinions. Look for the option that means "check the actual recorded events."',
+          },
+          {
+            id: 'l6-q3',
+            prompt: 'Which is a Scope question in triage?',
+            options: [
+              { id: 'a', text: 'How long has j.santos\' account been active?' },
+              { id: 'b', text: 'Is j.santos a system administrator, or a regular user in one department?' },
+              { id: 'c', text: 'When is j.santos\' next scheduled vacation?' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Scope means "how much is affected?" The role of the account matters because an admin compromise affects more systems than a regular user compromise.',
+            feedbackIncorrect: 'Scope = the size and breadth of the harm. Look for the option about how many systems or what level of access is at risk.',
+          },
+          {
+            id: 'l6-q4',
+            prompt: 'What is the difference between a true positive, benign positive, and false positive?',
+            options: [
+              { id: 'a', text: 'They all mean the same thing; the words are interchangeable.' },
+              { id: 'b', text: 'True positive = real and harmful; benign positive = real but authorized; false positive = the alert logic or data is wrong.' },
+              { id: 'c', text: 'True positives are faster to investigate than benign positives.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'These three cover all outcomes. Knowing which one applies is the entire point of triage.',
+            feedbackIncorrect: 'The three classifications distinguish whether the alert found something real (true or benign) or found nothing real (false).',
+          },
+          {
+            id: 'l6-q5',
+            prompt: 'In the j.santos case, why is it classified as a true positive and not a benign positive?',
+            options: [
+              { id: 'a', text: 'Because the user is an important employee in the company.' },
+              { id: 'b', text: 'Because the activity is real, but the user confirms they did not authorize it—it was not an expected or approved event.' },
+              { id: 'c', text: 'Because it happened from a geographic location outside the country.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Benign means real and authorized. If the user denies it, it\'s unauthorized—that makes it true positive (real and harmful).',
+            feedbackIncorrect: 'Benign positive = real but expected/approved. True positive = real but unauthorized/harmful. User confirmation is key here.',
+          },
+        ],
+      },
+      appliedTask: {
+        prompt: 'Write one sentence each explaining when an analyst should classify an alert as true positive versus when they should close it as false positive. Then name one fact that should always be documented in the case note.',
+        placeholder: 'True positive when: ... False positive when: ... Document always: ...',
+      },
     },
     {
       number: 7,
