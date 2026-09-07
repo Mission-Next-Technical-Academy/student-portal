@@ -1175,6 +1175,65 @@ const MODULE_ONE_ALERT_ORIENTATION = {
       summary: 'Severity estimates potential harm; priority determines how quickly the team should act.',
       detail: 'Analysts consider whether the action succeeded, what was affected, business criticality, confidence, scope, and available controls. They follow the organization\'s severity matrix and playbooks. Entry-level analysts should not invent containment actions or exceed their authority; they preserve evidence and hand off clearly.',
       takeaway: 'Outcome + context + impact determine priority; the alert label alone does not.',
+      example: {
+        scenario: 'A Mission Next Labs SIEM alert flags a script deleting files on a development server at 2:15 AM. The alert is labeled "Medium severity," but the analyst notes that the server is a non-critical development machine, the deletion happened outside business hours, the files have backups, and the analyst has no authority to investigate server access logs or determine who ran the script. The analyst respects the authority boundary, documents the facts, and escalates to the infrastructure team with a note saying "Non-critical files deleted from dev server—infrastructure team should verify intended activity." Severity (potential harm) is medium, but priority (how urgently the SOC must act) is low because the scope is small and the analyst is not the right person to respond.',
+      },
+      knowledgeCheck: {
+        questions: [
+          {
+            id: 'l7-q1',
+            prompt: 'Which combination of factors should most heavily influence whether an alert gets high or low priority?',
+            options: [
+              { id: 'a', text: 'The SIEM\'s severity label alone determines priority; the analyst should follow it exactly.' },
+              { id: 'b', text: 'The outcome (did it succeed?), what was affected (one account or many?), and business impact (is the asset critical?) together determine priority.' },
+              { id: 'c', text: 'Priority should always match severity, or the SIEM tuning is broken.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Exactly. Severity is potential harm; priority is urgency. An alert might have medium severity but low priority if the scope is small and the asset is not critical.',
+            feedbackIncorrect: 'Labels are guides, not law. Real priority depends on what actually happened (outcome), the scope (how many were affected), and whether the affected asset matters (business criticality).',
+          },
+          {
+            id: 'l7-q2',
+            prompt: 'In the dev-server scenario, why is it correct for the analyst to escalate rather than try to investigate the server logs themselves?',
+            options: [
+              { id: 'a', text: 'Escalation is always faster than investigation, so efficiency requires it.' },
+              { id: 'b', text: 'The analyst respects the authority boundary—server access and response belong to the infrastructure team, not the SOC.' },
+              { id: 'c', text: 'The analyst is lazy and should not be rewarded for avoiding work.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Right. An entry-level analyst confirms what happened and hands it to the team with authority and expertise to respond. That is not laziness; that is correct boundaries.',
+            feedbackIncorrect: 'Escalation based on clear authority boundaries is a sign of a mature SOC. The analyst did their job (verify and document), and the responder does theirs (investigate and fix).',
+          },
+          {
+            id: 'l7-q3',
+            prompt: 'An alert shows that 50 user accounts attempted unusual file access from a single IP in the same minute. A different alert shows one account signed in from an unexpected country once, and the user confirmed they were traveling. Which should be higher priority?',
+            options: [
+              { id: 'a', text: 'The one-account sign-in, because sign-in alerts are always more important than file-access alerts.' },
+              { id: 'b', text: 'The 50-account file access, because scope (50 accounts) suggests a broader threat than one expected sign-in.' },
+              { id: 'c', text: 'They are tied in priority, so it does not matter which the analyst works first.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Scope matters. Fifty accounts affected beats one account, especially when that one is explained. Larger scope = higher priority.',
+            feedbackIncorrect: 'Priority reflects urgency and impact. Look for the alert that affects more people or assets, or represents unconfirmed harm.',
+          },
+          {
+            id: 'l7-q4',
+            prompt: 'What is the difference between severity and priority?',
+            options: [
+              { id: 'a', text: 'Severity is the potential harm if the activity is real; priority is how urgently the SOC should respond based on what we know now.' },
+              { id: 'b', text: 'Severity and priority are the same thing; using two words is just redundant.' },
+              { id: 'c', text: 'Priority is assigned by the SIEM; severity is decided by the analyst.' },
+            ],
+            correctId: 'a',
+            feedbackCorrect: 'Yes. A high-severity alert (could cause real harm) might be low priority if it is isolated, explained, and not urgent. Priority is what the SOC should do now.',
+            feedbackIncorrect: 'Severity = potential damage. Priority = how fast we need to move. A benign positive might be high severity (if it were real, it would be bad) but low priority (it is not real).',
+          },
+        ],
+      },
+      appliedTask: {
+        prompt: 'Write one sentence describing how an entry-level SOC analyst should decide if an alert is high priority or low priority. Name at least one factor that should influence the decision.',
+        placeholder: 'An analyst should prioritize based on [factor 1] and [factor 2], not solely on...',
+      },
     },
     {
       number: 8,
@@ -1183,6 +1242,65 @@ const MODULE_ONE_ALERT_ORIENTATION = {
       summary: 'The lifecycle organizes work before, during, and after an incident.',
       detail: 'Organizations use slightly different frameworks, but the same work appears repeatedly: prepare; detect and analyze; contain; eradicate; recover; and learn. Triage occurs mainly during detection and analysis, then hands verified findings into response.',
       takeaway: 'Triage decides whether response is needed and gives responders a reliable starting point.',
+      example: {
+        scenario: 'Mission Next Labs\' database team discovers unusual replication lag between the primary and backup databases. The SIEM generates an alert: "Database replication lag exceeds threshold" (Detect & Analyze phase). The SOC analyst verifies the lag is real, checks when it began, reviews error logs, and determines that a database team needs to investigate further. The analyst escalates with a clear note describing the timeline and evidence. The database team begins root-cause analysis—did a malicious change cause this, or is it a network issue or configuration error? (Eradicate phase). Once identified, they fix the cause and restore replication (Recover phase). Later, the database and security teams meet to discuss why the replication monitor was not more sensitive earlier, and they improve the detection threshold and on-call procedures (Learn phase). Notice that the SOC finished its job during Detect & Analyze; the responders handled the rest.',
+      },
+      knowledgeCheck: {
+        questions: [
+          {
+            id: 'l8-q1',
+            prompt: 'What are the six phases of a typical incident response lifecycle?',
+            options: [
+              { id: 'a', text: 'Report, verify, escalate, fix, close, archive.' },
+              { id: 'b', text: 'Prepare, Detect & Analyze, Contain, Eradicate, Recover, Learn.' },
+              { id: 'c', text: 'Alert, triage, response, remediation, follow-up.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Correct. Those six phases cover before an incident (Prepare), during active response (Contain, Eradicate, Recover), and afterward (Learn).',
+            feedbackIncorrect: 'The standard framework is Prepare, Detect & Analyze, Contain, Eradicate, Recover, Learn. Different organizations may use slightly different names, but the work is the same.',
+          },
+          {
+            id: 'l8-q2',
+            prompt: 'Which phase or phases does triage primarily occur in?',
+            options: [
+              { id: 'a', text: 'Only in the Prepare phase, before any incident happens.' },
+              { id: 'b', text: 'Mainly during Detect & Analyze; the analyst verifies and decides whether response is needed, then hands off to responders.' },
+              { id: 'c', text: 'During Eradicate and Recover, when the response team is actively fixing the problem.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Exactly. Triage is the analytical work that determines whether an alert is real. Once it is confirmed, the incident moves into Contain and Eradicate phases.',
+            feedbackIncorrect: 'Triage is the SOC analyst\'s primary responsibility, and it happens during Detect & Analyze. Triage decides whether response is needed and gives responders a clear starting point.',
+          },
+          {
+            id: 'l8-q3',
+            prompt: 'In the database replication scenario, which phase was the SOC team in when they generated the alert?',
+            options: [
+              { id: 'a', text: 'Prepare.' },
+              { id: 'b', text: 'Detect & Analyze.' },
+              { id: 'c', text: 'Contain.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Right. Detecting the replication lag and analyzing whether it is real or significant is the Detect & Analyze phase.',
+            feedbackIncorrect: 'The SOC team detected the problem through the alert and began analyzing it. That is Detect & Analyze. The database team\'s investigation and fix work comes after.',
+          },
+          {
+            id: 'l8-q4',
+            prompt: 'Why does the Prepare phase matter if the incident has not happened yet?',
+            options: [
+              { id: 'a', text: 'Preparation has no real impact; organizations should skip it and go straight to response when incidents happen.' },
+              { id: 'b', text: 'Preparation establishes roles, runbooks, access, playbooks, and tooling so the team can respond faster and more reliably when an incident occurs.' },
+              { id: 'c', text: 'Preparation is only for security experts; entry-level analysts do not participate.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Correct. Good preparation means clear procedures, assigned roles, and tested tooling. Bad preparation means chaos and improvisation during an actual incident.',
+            feedbackIncorrect: 'Every part of the incident response lifecycle matters. Preparation is foundational—without it, Detect & Analyze is the first time the team coordinates, and that is too late.',
+          },
+        ],
+      },
+      appliedTask: {
+        prompt: 'Describe one thing the SOC team does during the Prepare phase, one thing they do during Detect & Analyze, and briefly explain why a clear handoff between the two phases matters.',
+        placeholder: 'Prepare: [e.g., define roles, set up playbooks] Detect & Analyze: [e.g., verify alerts, gather evidence] Handoff matters because...',
+      },
     },
     {
       number: 9,
@@ -1191,6 +1309,65 @@ const MODULE_ONE_ALERT_ORIENTATION = {
       summary: 'A useful case note lets the next person act without repeating your work.',
       detail: 'State what happened, name the affected entity, cite the strongest evidence, record your classification and priority, and recommend the next authorized action. Separate observed facts from assumptions and include timestamps when they matter.',
       takeaway: 'If it is not documented, the next analyst cannot safely rely on it.',
+      example: {
+        scenario: 'An analyst at Mission Next Labs detects the j.santos suspicious sign-in case. Here is a quality case note: "Observed: Eight failed sign-in attempts to j.santos@missionnextlabs.example from 185.220.101.24 between 09:02–09:08 UTC, followed by one successful sign-in at 09:09:41 UTC from the same IP. Location: Bucharest, RO. Device status: Managed: No, Join type: Not registered, Sign-in risk: High. User confirmation (09:14 UTC): Account owner called via service desk and confirms they did not authorize any of these attempts. Assumption noted: We cannot yet determine if the device is personally owned or compromised; device investigation is out of scope for this escalation. Classification: True positive—unauthorized account access. Priority: High. Recommended action: Identity Response team should immediately revoke the current session and reset the password. Recommend investigation for lateral movement and account recovery checklist." Notice: the note lists what happened (facts and times), who is affected (j.santos), the strongest evidence (user denial + geographic + device status), the classification (true positive), the priority (high), and the exact recommended next action (revoke + reset).',
+      },
+      knowledgeCheck: {
+        questions: [
+          {
+            id: 'l9-q1',
+            prompt: 'Which of these should always be included in a SOC case note?',
+            options: [
+              { id: 'a', text: 'A story about how the analyst discovered the alert, personal opinions, and a guess about what the attacker wanted.' },
+              { id: 'b', text: 'What happened (facts and timeline), who is affected, the strongest evidence, classification, priority, and recommended next action.' },
+              { id: 'c', text: 'Only the verdict (true positive or false positive) and the name of the person who should investigate next.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Exactly. A complete case note has facts, people, evidence, decision, urgency, and direction. The next person can read it and act without calling you back.',
+            feedbackIncorrect: 'A case note is a handoff document. It must have enough detail that someone else can understand what you found and act on it immediately without re-investigating.',
+          },
+          {
+            id: 'l9-q2',
+            prompt: 'In the j.santos case note, why is "Assumption noted: the device ownership is unknown" important?',
+            options: [
+              { id: 'a', text: 'Because assumptions and facts should not be mixed—mixing them confuses responders and can lead to wrong actions.' },
+              { id: 'b', text: 'Because the analyst is admitting they did not finish the job.' },
+              { id: 'c', text: 'Because it is polite to apologize in a case note.' },
+            ],
+            correctId: 'a',
+            feedbackCorrect: 'Separating facts from assumptions lets the responder know what you verified and what still needs investigation. It builds confidence in the handoff.',
+            feedbackIncorrect: 'Clarity matters. Responders need to know: what did the analyst verify (facts), what is still uncertain (assumptions), and what should the responder investigate next.',
+          },
+          {
+            id: 'l9-q3',
+            prompt: 'What problem would happen if the j.santos case note did not include the specific times (09:02, 09:09:41, 09:14)?',
+            options: [
+              { id: 'a', text: 'None; times are not necessary in case notes.' },
+              { id: 'b', text: 'The responder would not know in what order events occurred, could confuse the timeline, and might make wrong containment decisions.' },
+              { id: 'c', text: 'It would make the case note shorter and easier to read.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'Timeline is critical. The sequence and timing of events can change the meaning. Was the successful sign-in minutes after the failures (suggests an attacker), or hours later (suggests different causes)?',
+            feedbackIncorrect: 'Timestamps anchor a case note to reality. Without them, the responder might reconstruct the timeline wrong and respond incorrectly.',
+          },
+          {
+            id: 'l9-q4',
+            prompt: 'What is the purpose of stating the recommended next action (e.g., "revoke the session and reset the password") in the case note?',
+            options: [
+              { id: 'a', text: 'To tell the responder exactly what to do and remove their need to think.' },
+              { id: 'b', text: 'To give the responder a clear starting point based on your investigation, so they can act immediately without re-investigating or calling back for details.' },
+              { id: 'c', text: 'To make the case note longer and more impressive.' },
+            ],
+            correctId: 'b',
+            feedbackCorrect: 'You investigated; you recommend based on your findings. The responder can execute immediately, overriding your recommendation only if they discover something new.',
+            feedbackIncorrect: 'Clear recommendations save time and reduce errors. The responder benefits from your investigation and can act on your evidence without starting from scratch.',
+          },
+        ],
+      },
+      appliedTask: {
+        prompt: 'Write a 2–3 sentence case note for a hypothetical alert. Include what happened (facts + time if relevant), who is affected, one piece of evidence, the classification, priority, and a recommended next action. Clearly separate any assumptions from facts.',
+        placeholder: 'Example: "Observed: [facts] at [time]. Evidence: [what verifies this]. Assumed/uncertain: [what still needs investigation]. Classification: [true/benign/false positive]. Priority: [high/medium/low]. Recommended action: [next step]."',
+      },
     },
   ],
   signalFlow: [
