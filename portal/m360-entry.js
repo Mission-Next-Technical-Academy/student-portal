@@ -4,6 +4,13 @@
  * module_progress, technical completion, or technical timekeeping. It renders
  * a separate student course entry for eligible enrolled students and a small
  * Admin-only launch panel for the M360 administration workspace.
+ *
+ * Student-dashboard compatibility contract:
+ * - keep M360 separate from the technical program catalogue;
+ * - show eligible students M360 above the technical program cards;
+ * - preserve the full technical catalogue so unenrolled programs remain visible
+ *   as locked discovery cards using app.js's existing programCard/access logic;
+ * - never grant technical access from this overlay.
  */
 (() => {
   'use strict';
@@ -13,6 +20,7 @@
   const ADMIN_ENTRY_ID = 'm360-admin-entry';
   const REVIEW_STATUS_ID = 'm360-course-review-status';
   const POST_LOGIN_KEY = 'mnt.m360.postLoginProgramsPending';
+  const CATALOGUE_RESTORED_ATTR = 'data-mnt-program-catalogue-restored';
   let renderPending = false;
   let reviewSummaryPromise = null;
 
@@ -20,13 +28,65 @@
     return Boolean(user && Array.isArray(user.enrollments) && user.enrollments.some(e => e && e.status === 'active'));
   }
 
-  function findProgramGrid() {
+  function findProgramArea() {
     const headings = Array.from(document.querySelectorAll('#app h2'));
-    const heading = headings.find(el => el.textContent.trim() === 'Program Areas');
+    const heading = headings.find(el => {
+      const text = el.textContent.trim();
+      return text === 'Program Areas' || text === 'My Programs';
+    });
     if (!heading) return null;
-    const sectionHeader = heading.parentElement;
-    const candidate = sectionHeader && sectionHeader.nextElementSibling;
-    return candidate && candidate.classList.contains('grid') ? candidate : null;
+
+    const header = heading.parentElement;
+    let grid = header && header.nextElementSibling;
+    // Once M360 is inserted it intentionally sits between the section header
+    // and the technical-program grid. Skip it when resolving the grid again.
+    if (grid && grid.id === ENTRY_ID) grid = grid.nextElementSibling;
+    if (!grid || !grid.classList.contains('grid')) return null;
+    return { grid, header, heading };
+  }
+
+  function findProgramGrid() {
+    const area = findProgramArea();
+    return area ? area.grid : null;
+  }
+
+  function restoreProgramCatalogue(user) {
+    const area = findProgramArea();
+    if (!area || !area.grid || !area.header) return false;
+
+    const { grid, header, heading } = area;
+    const userKey = user && user.userId ? String(user.userId) : 'student';
+    if (grid.getAttribute(CATALOGUE_RESTORED_ATTR) !== userKey) {
+      if (typeof PROGRAMS === 'undefined' || typeof programCard !== 'function') return false;
+      // Use the technical portal's own card renderer and entitlement logic.
+      // This restores discovery only; locked cards remain non-openable because
+      // programCard()/hasProgramAccess() continue to own technical access.
+      grid.innerHTML = PROGRAMS.map(program => programCard(program, user)).join('');
+      grid.setAttribute(CATALOGUE_RESTORED_ATTR, userKey);
+    }
+
+    if (heading && heading.textContent.trim() !== 'Program Areas') heading.textContent = 'Program Areas';
+
+    const eyebrow = header.querySelector('.uppercase.tracking-widest');
+    if (eyebrow && eyebrow.textContent.trim() !== 'What We Offer') {
+      eyebrow.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-[#f97316]"></span>What We Offer';
+    }
+
+    const description = header.querySelector('p.text-gray-500');
+    if (description) {
+      description.textContent = 'Accelerated, career-focused tracks designed to get you workforce-ready fast.';
+    }
+
+    let lockedNote = header.querySelector('[data-mnt-locked-program-note]');
+    if (!lockedNote) {
+      lockedNote = document.createElement('p');
+      lockedNote.className = 'text-gray-400 text-sm mt-4';
+      lockedNote.setAttribute('data-mnt-locked-program-note', 'true');
+      lockedNote.innerHTML = '<i class="ri-lock-line"></i> Locked programs require enrollment.';
+      header.appendChild(lockedNote);
+    }
+
+    return true;
   }
 
   function findAdminHeadingBlock() {
@@ -193,6 +253,11 @@
         ensureAdminEntry();
         return;
       }
+
+      // Restore the student-facing discovery catalogue for every student before
+      // applying the separate M360 eligibility rule. This is DOM presentation
+      // only and deliberately leaves technical entitlements in app.js.
+      restoreProgramCatalogue(user);
 
       if (!ELIGIBLE_TRACKS.has(user.trackCode)) return;
       if (!technicalEnrollmentActive(user)) return;
