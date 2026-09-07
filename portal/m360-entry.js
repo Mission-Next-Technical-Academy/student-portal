@@ -29,13 +29,6 @@
   }
 
   function findProgramArea() {
-    const markedGrid = document.querySelector(`#app [${CATALOGUE_RESTORED_ATTR}]`);
-    if (markedGrid) {
-      const header = markedGrid.previousElementSibling;
-      const heading = header && header.querySelector('h2');
-      return { grid: markedGrid, header, heading };
-    }
-
     const headings = Array.from(document.querySelectorAll('#app h2'));
     const heading = headings.find(el => {
       const text = el.textContent.trim();
@@ -44,7 +37,10 @@
     if (!heading) return null;
 
     const header = heading.parentElement;
-    const grid = header && header.nextElementSibling;
+    let grid = header && header.nextElementSibling;
+    // Once M360 is inserted it intentionally sits between the section header
+    // and the technical-program grid. Skip it when resolving the grid again.
+    if (grid && grid.id === ENTRY_ID) grid = grid.nextElementSibling;
     if (!grid || !grid.classList.contains('grid')) return null;
     return { grid, header, heading };
   }
