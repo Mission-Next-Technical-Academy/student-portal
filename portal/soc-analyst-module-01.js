@@ -18,6 +18,7 @@ const MODULE_ONE_DEFAULT_STATE = {
   priority: '',
   phase: '',
   decision: '',
+  rationale: '',
   notes: '',
   breakdown: null,
   feedback: [],
@@ -215,10 +216,11 @@ function moduleOneScorePanel() {
       <span class="m01-score-number">${moduleOneState.score}</span>
     </div>
     <div class="m01-score-grid" aria-label="Score breakdown">
-      <div><strong>${b.verdict}/30</strong><span>Verdict</span></div>
-      <div><strong>${b.priority}/25</strong><span>Priority</span></div>
-      <div><strong>${b.lifecycle}/20</strong><span>Lifecycle</span></div>
-      <div><strong>${b.action}/25</strong><span>Next action</span></div>
+      <div><strong>${b.verdict}/25</strong><span>Verdict</span></div>
+      <div><strong>${b.priority}/20</strong><span>Priority</span></div>
+      <div><strong>${b.lifecycle}/15</strong><span>Lifecycle</span></div>
+      <div><strong>${b.action}/20</strong><span>Next action</span></div>
+      <div><strong>${b.rationale}/20</strong><span>Rationale</span></div>
     </div>
     <ul class="m01-feedback-list">
       ${moduleOneState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}
@@ -468,7 +470,7 @@ function moduleOneLabDynamic() {
     <div><strong>Triage worksheet</strong><p>Record every fact correctly first. A wrong answer keeps the current fact open and the remaining timeline and worksheet locked.</p></div>
   </section>` : `<form id="m01-form" class="m01-worksheet" novalidate>
     <div class="m01-panel-heading">
-      <div><p class="m01-kicker">Guided decision</p><h3>Complete the four-part triage record</h3></div>
+      <div><p class="m01-kicker">Guided decision</p><h3>Complete the five-part triage record</h3></div>
       <span class="m01-evidence-count">No timer · retry allowed</span>
     </div>
 
@@ -495,6 +497,12 @@ function moduleOneLabDynamic() {
       <p class="m01-help">Stay inside the observed scope and your authority. Preserve evidence for the responder.</p>
       ${moduleOneOptionList('decision', lab.decisionOptions)}
     </fieldset>
+
+    <div class="m01-fieldset">
+      <label for="m01-rationale" class="m01-note-label"><strong>5</strong> Why did you make these choices?</label>
+      <p class="m01-help">In one or two sentences, explain your reasoning for the priority and next action you selected, based on the evidence.</p>
+      <textarea id="m01-rationale" name="rationale" rows="3" placeholder="Example: High priority because the access succeeded and the user denies it. Escalate because only the identity team can revoke the session and reset the password." aria-label="Rationale for your triage decisions">${esc(moduleOneState.rationale)}</textarea>
+    </div>
 
     <div class="m01-actions">
       <button type="submit" class="m01-submit"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Check my triage</button>
@@ -809,20 +817,22 @@ function viewModuleOne(user, program) {
 
 function moduleOneScore() {
   const lab = MODULE_ONE_ALERT_ORIENTATION;
-  const verdict = moduleOneState.verdict === lab.correctVerdict ? 30 : 0;
-  const priority = moduleOneState.priority === lab.correctPriority ? 25 : 0;
-  const lifecycle = moduleOneState.phase === lab.correctPhase ? 20 : 0;
-  const action = moduleOneState.decision === lab.correctDecision ? 25 : 0;
-  const score = verdict + priority + lifecycle + action;
+  const verdict = moduleOneState.verdict === lab.correctVerdict ? 25 : 0;
+  const priority = moduleOneState.priority === lab.correctPriority ? 20 : 0;
+  const lifecycle = moduleOneState.phase === lab.correctPhase ? 15 : 0;
+  const action = moduleOneState.decision === lab.correctDecision ? 20 : 0;
+  const rationale = (moduleOneState.rationale || '').trim().length >= 40 ? 20 : 0;
+  const score = verdict + priority + lifecycle + action + rationale;
 
   return {
     score,
-    breakdown: { verdict, priority, lifecycle, action },
+    breakdown: { verdict, priority, lifecycle, action, rationale },
     feedback: [
       verdict ? "Verdict: Correct. Successful access plus the account owner's denial confirms a true positive." : "Verdict: Choose true positive. The sign-in succeeded and the account owner independently denied it.",
       priority ? 'Priority: Correct. Confirmed unauthorized access needs prompt response even though only one identity is currently in scope.' : 'Priority: Use High. Confidence is strong and the attacker obtained an active session.',
       lifecycle ? 'Lifecycle: Correct. You are in detection and analysis; containment is the next response activity, not a completed one.' : 'Lifecycle: Triage belongs in detect and analyze. The evidence has been validated, but access has not yet been contained.',
       action ? 'Next action: Correct. The handoff preserves evidence and invokes an authorized, proportionate identity response.' : 'Next action: Escalate with evidence and follow the identity-containment playbook. Do not close the case or disrupt unrelated systems.',
+      rationale ? 'Rationale: Your reasoning clearly connects evidence to your priority and action choices.' : 'Rationale: Explain how the evidence supports your priority and recommended next action.',
     ],
   };
 }
@@ -1038,6 +1048,12 @@ function wireModuleOneLab() {
       return;
     }
 
+    if (event.target.id === 'm01-rationale') {
+      moduleOneState.rationale = event.target.value;
+      moduleOneSave();
+      return;
+    }
+
     if (event.target.name !== 'notes') return;
     moduleOneState.notes = event.target.value;
     const count = root.querySelector('#m01-note-count span');
@@ -1135,6 +1151,14 @@ function wireModuleOneLab() {
       const missing = ['verdict', 'priority', 'phase', 'decision'].filter((name) => !moduleOneState[name]);
       if (missing.length) {
         moduleOneState.validationError = 'Choose an answer for each numbered decision.';
+        moduleOneSave();
+        moduleOneRenderDynamic('m01-feedback');
+        return;
+      }
+
+      const rationaleLength = (moduleOneState.rationale || '').trim().length;
+      if (rationaleLength < 40) {
+        moduleOneState.validationError = 'Explain your reasoning in at least 40 characters. Why did you choose this priority and next action?';
         moduleOneSave();
         moduleOneRenderDynamic('m01-feedback');
         return;
