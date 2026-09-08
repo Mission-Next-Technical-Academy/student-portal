@@ -2504,6 +2504,10 @@ first follow-up verification step next session.
 
 This is the last sprint in the current handoff chain — no further work
 started, no git commit made, no Supabase schema touched.
+# Development session cap raised (2026-09-07)
+
+- Added and applied `supabase/migrations/20260907140000_development_session_cap_ten.sql` after the development team reported being locked out of student and admin accounts by active-session limits. It retains session recording and the existing cap error contract, but temporarily permits ten simultaneous open sessions for every account type. Restore the tighter production policy with a later migration before launch.
+
 # Reporting PDF gap assessment saved (2026-08-29)
 
 - Added `REPORTING_PDF_GAP_REMEDIATION_PLAN.md`, a read-only assessment converted into an executable nine-agent remediation brief covering PDF generation, CIE reporting gaps, source-data deficiencies, report architecture, durability, privacy, and QA.

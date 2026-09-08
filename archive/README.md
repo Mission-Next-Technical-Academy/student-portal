@@ -73,6 +73,11 @@ of archiving:
   Activity Monitor site-time/force-sign-out. All six sprints code-complete and locally
   verified; see `NEXT_SESSION.md`'s 2026-09-01 entry for the still-open deployment
   checklist (migrations, Edge Function deploy, secrets, cron) — not yet pushed/live.
+- `MULTITRACK_ADMIN_M360_PROGRESS_ARCHITECTURE.md` — completed multi-track admin
+  and M360 progress delivery: four-track M360 eligibility, the admin read model,
+  track workspaces, accessible coming-soon cards, and reviewer track filtering.
+  Static acceptance verification passed; live Supabase migration/RLS checks remain
+  a deployment-environment task.
 
 ## Still active, not archived
 

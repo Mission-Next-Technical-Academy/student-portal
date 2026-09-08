@@ -1,5 +1,52 @@
 # Next session — start here
 
+## Session 2026-09-07 (done, uncommitted) — shared topbar (Back to Programs / Sign Out / % complete) everywhere
+
+Every module-lab page (all 12 IT Support modules, all 12 SOC Analyst
+modules, the electrical/AI-ML stub modules) and every M360 week page
+(1-6) previously had its own bespoke header with no way back to the
+portal except the browser Back button, and no sign-out — closing the tab
+never actually ended the `site_sessions` row.
+
+Added one shared `moduleTopbar(user, program)` in `portal/app.js` (Tailwind,
+matches the main SPA's `header()`) and wired it into every module-lab
+`view()` — `portal/it-support-shared.js`'s `itsSimpleModuleView` covers
+Modules 3-11 in one place, Modules 1/2/12 and the electrical/AI-ML stubs
+each call it directly, and all 12 `soc-analyst-module-NN.js` files were
+edited individually (no shared factory existed for those). Uses
+`data-action="signout"`, already auto-wired by `wireCommon()`, and
+`programProgress(user, program)` for the completion percent — no new
+plumbing needed.
+
+For the M360 static pages (`m360-preview.html` / `course.html` /
+`week3-6.html`), extended the one shared runtime script all six weeks
+already load, `portal/m360/m360-production-nav.js`
+(`ensureTopbarActions()` + `syncTopbarProgress()` + a
+`signOutFromM360Topbar()` mirroring `m360/home.js`'s), plus matching CSS
+in `portal/m360-preview.css` (`.topbar-actions` / `.topbar-link` /
+`.topbar-progress*`, reusing the class names `m360/home.css` already
+uses on the M360 home page so nothing new needed inventing). Cache-bust
+query strings bumped on every file touched.
+
+Verified live in Chrome: week 1 and week 2 render the new topbar
+correctly (Back to Programs → `index.html#/portal`, working Sign Out,
+live 0% bar) and `#/program/soc-analyst/module/1` renders it too. **Not
+pushed or committed** — this is uncommitted working-tree state, same as
+the Module 01 sprint below.
+
+**Found, did not fix (pre-existing, confirmed on unmodified `git stash`
+baseline, unrelated to the above):** `week.html?week=3`, `week=4`, and
+`week=6` hang the tab indefinitely on load in this sandboxed Chrome
+session (screenshot/get_page_text/read_console_messages all time out
+after 45s+, reproducible on a fresh tab every time); `week=1` and
+`week=2` load fine. The three that hang are exactly the ones whose week
+script (`week3.js`/`week4.js`/`week6.js`) drives its own state from
+`localStorage` (`mnt.m360.course.mock.v1`) rather than Supabase —
+`week5.js` uses the same pattern and wasn't tested but is the likely 4th.
+Worth a real look before the next M360 UAT pass; wasn't chased further
+here since it reproduces identically with none of this session's changes
+applied.
+
 ## Session 2026-09-07 (in progress) — Module 01 enhancement, sprint-by-sprint
 
 `MODULE_01_ENHANCEMENT_BRIEF.md` asks for Module 01's nine lessons, two labs,
