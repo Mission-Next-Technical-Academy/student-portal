@@ -3,7 +3,8 @@
 
   const roster=document.getElementById('portfolioRoster');
   const refreshButton=document.getElementById('refreshPortfolioRosterBtn');
-  const ELIGIBLE=['SOCAN','HDESK','AIENG'];
+  const ELIGIBLE=['SOCAN','HDESK','AIENG','ELECT'];
+  const activeTrack=M360Data.getReviewerTrackFilter().trackCode;
 
   function esc(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
 
@@ -46,13 +47,14 @@
         return;
       }
 
-      const {data:students,error:studentError}=await mntSupabase
+      let studentQuery=mntSupabase
         .from('students')
         .select('user_id, student_id, track_code, is_enrolled, is_admin')
         .eq('is_enrolled',true)
         .eq('is_admin',false)
-        .in('track_code',ELIGIBLE)
-        .order('student_id',{ascending:true});
+        .in('track_code',ELIGIBLE);
+      if(activeTrack)studentQuery=studentQuery.eq('track_code',activeTrack);
+      const {data:students,error:studentError}=await studentQuery.order('student_id',{ascending:true});
       if(studentError)throw studentError;
 
       const userIds=(students||[]).map(student=>student.user_id).filter(Boolean);

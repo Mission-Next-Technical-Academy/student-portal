@@ -677,6 +677,78 @@ function filterAdminDashboardRows(rows) {
     .map((row) => applyAdminDashboardState(row));
 }
 
+/* The multi-track read model is deliberately narrower than the older
+ * reporting view.  Normalize its technical fields here so the existing
+ * administrative tools (detail drawer, exports, enrollment controls) can
+ * continue to consume one roster without issuing a second roster query. */
+function normalizeAdminProgramProgressRows(rows) {
+  return filterAdminDashboardRows(rows).map((row) => {
+    const technicalCompleted = Number(row.technical_completed || 0);
+    const technicalRequired = Number(row.technical_required || 12);
+    const technicalPercent = Number(row.technical_percent ?? (technicalCompleted * 100 / technicalRequired));
+    return {
+      ...row,
+      modules_complete: technicalCompleted,
+      modules_total: technicalRequired,
+      modules_in_progress: Number(row.technical_in_progress || 0),
+      percent_complete: technicalPercent,
+      last_active: row.technical_last_active || null,
+    };
+  });
+}
+
+const ADMIN_TRACKS = [
+  { code: 'SOCAN', eyebrow: 'SOC Analyst', title: 'SOC Analyst Administration', purpose: 'Technical progress and learner support.' },
+  { code: 'HDESK', eyebrow: 'IT Help Desk', title: 'IT Help Desk Administration', purpose: 'Technical progress and learner support.' },
+  { code: 'AIENG', eyebrow: 'AI/ML Engineering', title: 'AI/ML Administration', purpose: 'Technical progress and learner support.', comingSoon: true },
+  { code: 'ELECT', eyebrow: 'Electrical', title: 'Electrical Administration', purpose: 'Technical progress and learner support.', comingSoon: true },
+];
+
+function adminTrackMeta(trackCode) {
+  return ADMIN_TRACKS.find((track) => track.code === trackCode) || null;
+}
+
+function m360ProgressStatus(row) {
+  if (!row.m360_required) return 'Technical coursework only';
+  const technicalDone = Number(row.technical_completed || 0) >= Number(row.technical_required || 12);
+  const workDone = Number(row.work_items_completed || 0) >= Number(row.work_items_required || 18);
+  if (!technicalDone) return 'Technical coursework in progress';
+  if (!workDone) return 'Technical complete · M360 pending';
+  return row.m360_course_complete ? 'Program requirements complete' : 'M360 verification pending';
+}
+
+function adminTrackAdministrationStrip(rows, activeTrackCode = null) {
+  const allCount = rows.length;
+  const card = (track) => {
+    const count = rows.filter((row) => row.track_code === track.code).length;
+    const active = activeTrackCode === track.code;
+    return `<article class="h-full min-h-52 bg-white border ${active ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20' : 'border-gray-200'} rounded-2xl p-5 flex flex-col shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-2">${esc(track.eyebrow)}</p>
+      <h3 class="text-lg font-bold text-[#1e3a5f]">${esc(track.title)}</h3>
+      <p class="text-sm text-gray-500 mt-2 flex-1">${esc(track.purpose)}</p>
+      <div class="mt-4 flex items-center justify-between gap-2"><span class="text-xs font-semibold text-gray-500">${count} student${count === 1 ? '' : 's'}</span>${track.comingSoon ? '<span class="text-xs font-semibold text-[#9a3412] bg-[#fff7ed] border border-[#fed7aa] rounded-full px-2 py-1">Coming soon…</span>' : ''}</div>
+      <a href="#/admin/track/${track.code}" class="mt-4 inline-flex justify-center rounded-xl border border-[#1e3a5f] px-4 py-2.5 text-sm font-semibold text-[#1e3a5f] hover:bg-[#f0f4f8]">Open administration</a>
+    </article>`;
+  };
+  return `<section aria-labelledby="track-administration-title" class="mb-8"><div class="flex items-end justify-between gap-4 mb-4"><div><p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-1">Administration workspaces</p><h2 id="track-administration-title" class="text-2xl font-bold text-[#1e3a5f]">Track Administration</h2></div></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <article class="h-full min-h-52 bg-[#f8fafc] border ${!activeTrackCode ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20' : 'border-gray-200'} rounded-2xl p-5 flex flex-col shadow-sm"><p class="text-xs font-semibold uppercase tracking-widest text-[#1e3a5f] mb-2">Master roster</p><h3 class="text-lg font-bold text-[#1e3a5f]">All Students</h3><p class="text-sm text-gray-500 mt-2 flex-1">Progress across every technical track.</p><span class="mt-4 text-xs font-semibold text-gray-500">${allCount} student${allCount === 1 ? '' : 's'}</span><a href="#/admin" class="mt-4 inline-flex justify-center rounded-xl border border-[#1e3a5f] px-4 py-2.5 text-sm font-semibold text-[#1e3a5f] hover:bg-white">Open administration</a></article>
+      ${ADMIN_TRACKS.map(card).join('')}
+      <article class="h-full min-h-52 bg-white border border-[#f97316]/40 rounded-2xl p-5 flex flex-col shadow-sm"><p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-2">Cross-track review</p><h3 class="text-lg font-bold text-[#1e3a5f]">M360 Administration</h3><p class="text-sm text-gray-500 mt-2 flex-1">Review M360 evidence and verification gates for every eligible track.</p><span class="mt-4 text-xs font-semibold text-[#9a3412]">All eligible students</span><a href="m360/review.html" class="mt-4 inline-flex justify-center rounded-xl bg-[#f97316] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#ea580c]">Open administration</a></article>
+    </div></section>`;
+}
+
+function adminProgramRoster(rows) {
+  return `<section aria-labelledby="program-roster-title" class="mb-10"><div class="flex items-end justify-between gap-4 mb-4"><div><h2 id="program-roster-title" class="text-2xl font-bold text-[#1e3a5f]">Student program progress</h2><p class="text-sm text-gray-500 mt-1">One work-item bar combines technical modules and accepted M360 weeks; it is not an attendance or credential claim.</p></div></div><div class="space-y-3">${rows.map((row) => {
+    const completed = Number(row.work_items_completed || 0); const required = Number(row.work_items_required || 18); const percent = Math.max(0, Math.min(100, Number(row.work_items_percent ?? (completed * 100 / required))));
+    const m360Line = row.m360_required
+      ? (row.m360_record_exists ? `M360 ${Number(row.m360_accepted_weeks || 0)} / ${Number(row.m360_required_weeks || 6)} accepted` : 'M360: not started')
+      : 'M360: not applicable';
+    const readiness = row.m360_required ? `Start Here: ${row.m360_start_here_complete ? 'complete' : 'not started'} · Networking ${row.networking_comfort ?? '—'} / 5 · Interview ${row.interview_readiness ?? '—'} / 5` : '';
+    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" class="text-sm font-semibold text-[#1e3a5f] hover:underline">View details</button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><p class="mt-2 text-sm text-gray-600">Technical ${Number(row.technical_completed || 0)} / ${Number(row.technical_required || 12)} · ${m360Line}</p>${readiness ? `<p class="mt-1 text-xs text-gray-500">${esc(readiness)}</p>` : ''}</article>`;
+  }).join('')}</div></section>`;
+}
+
 function adminDashboardSummary(rows) {
   const enrolledRows = rows.filter((row) => row.enrolled !== false);
   const notEnrolled = rows.length - enrolledRows.length;
@@ -3344,6 +3416,47 @@ function header(user) {
   </header>`;
 }
 
+/* Shared topbar for every module-lab surface (IT Support, SOC Analyst,
+ * Electrical, AI/ML — one 'view(user, program)' function per module, see
+ * module-registry.js). Before this, each module hand-rolled its own
+ * "<header class='mNN-topbar'>" with a brand mark and a "Course overview"
+ * exit link only — no way back to the portal without the browser Back
+ * button, no sign-out, no sense of how much of the program was done.
+ * data-action="signout" is picked up by wireCommon() automatically (same
+ * attribute the main header() button uses), so no extra wiring is needed
+ * per module. */
+function moduleTopbar(user, program, options = {}) {
+  const progress = programProgress(user, program);
+  const backHref = options.backHref || '#/portal';
+  const backLabel = options.backLabel || 'Back to Programs';
+  return `
+  <header class="bg-white/95 backdrop-blur-sm border-b border-gray-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3 min-w-0">
+        <a href="${esc(backHref)}" class="flex items-center gap-1.5 text-gray-600 hover:text-[#1e3a5f] text-sm font-semibold transition-colors cursor-pointer shrink-0">
+          <i class="ri-arrow-left-line" aria-hidden="true"></i> ${esc(backLabel)}
+        </a>
+        <span class="hidden sm:block w-px h-5 bg-gray-200"></span>
+        <div class="hidden sm:flex items-center gap-2 min-w-0">
+          <img src="assets/logo.png" alt="" class="h-6 w-auto shrink-0" />
+          <span class="text-sm text-gray-500 truncate">${esc(program.title || program.cardTitle || '')}</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 shrink-0">
+        <div class="hidden md:flex items-center gap-2 w-36" aria-label="Program progress: ${progress.percent}% complete">
+          <div class="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div class="h-full rounded-full bg-[#f97316]" style="width:${progress.percent}%"></div>
+          </div>
+          <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">${progress.percent}%</span>
+        </div>
+        <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer">
+          Sign Out
+        </button>
+      </div>
+    </div>
+  </header>`;
+}
+
 function footer() {
   return `
   <footer class="border-t border-gray-100 py-10 px-8 mt-20">
@@ -3430,6 +3543,46 @@ function viewLogin() {
   </div>`;
 }
 
+/* A successful credential check is followed by profile, progress and session
+ * safety work. The form itself remains in place underneath this overlay so a
+ * failed attempt can return to exactly the values the student entered. On a
+ * successful sign-in, render() replaces #login-form with the portal view
+ * before this is called with isLoading=false — so overlay teardown must not
+ * depend on the form still existing, or the overlay is stuck forever until
+ * a hard refresh. Also: the vendored Tailwind build doesn't support the
+ * arbitrary-color opacity modifier (`bg-[#hex]/92` resolves to a fully
+ * transparent background here, verified via getComputedStyle), which left
+ * the overlay as bare backdrop-blur with no dark backing panel — hence the
+ * "background is blurred and the text blends in" report. Use an inline
+ * background-color instead of relying on that class. */
+function setLoginLoading(isLoading) {
+  const form = document.getElementById('login-form');
+
+  let overlay = document.getElementById('login-loading');
+  if (isLoading && !overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'login-loading';
+    overlay.className = 'fixed inset-0 z-50 grid place-items-center p-6 backdrop-blur-sm';
+    overlay.style.backgroundColor = 'rgba(10, 22, 40, .92)';
+    overlay.setAttribute('role', 'status');
+    overlay.setAttribute('aria-live', 'polite');
+    overlay.innerHTML = `
+      <div class="portal-loading__card text-center" aria-label="Signing you in">
+        <div class="portal-loading__mark" aria-hidden="true"><div class="portal-loading__orbit"></div></div>
+        <p class="portal-loading__eyebrow">Mission Next Technical Academy</p>
+        <h2 class="text-2xl font-bold text-white tracking-tight">Opening your learning space</h2>
+        <p class="portal-loading__message">Verifying your account and restoring your progress.</p>
+        <div class="portal-loading__line" aria-hidden="true"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+  if (form) {
+    form.setAttribute('aria-busy', String(isLoading));
+    form.querySelectorAll('input, button').forEach((element) => { element.disabled = isLoading; });
+  }
+  if (!isLoading && overlay) overlay.remove();
+}
+
 /* --------------------------------------------------------- dashboard view */
 
 function programCard(program, user) {
@@ -3493,6 +3646,10 @@ function programCard(program, user) {
         openable && program.isPublished
           ? `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-[#f97316] self-start">
                <i class="ri-arrow-right-circle-line text-sm"></i>Continue Program
+             </span>`
+          : openable && !program.isPublished && ['ai-ml', 'electrical'].includes(program.slug)
+          ? `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-[#f97316] self-start">
+               <i class="ri-time-line text-sm"></i>Coming soon…
              </span>`
           : openable
           ? `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-[#f97316] self-start">
@@ -3657,6 +3814,9 @@ function moduleCard(program, key, user) {
           }
 
           ${
+            // Curriculum/compliance review status for this parent mapping is
+            // tracked in CURRICULUM_ALIGNMENT_ARCHITECTURE.md and
+            // CURRICULUM_MAP.md, not surfaced to students here.
             parentRecords.length
               ? `<p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Technical Parent Mapping</p>
                  <div class="flex flex-col gap-2 mb-6">
@@ -3665,8 +3825,7 @@ function moduleCard(program, key, user) {
                        <p class="text-[#1e3a5f] font-semibold text-xs mb-1">${esc(parent.code)}</p>
                        <p class="text-gray-500 text-xs leading-relaxed">${esc(parent.title)}</p>
                      </div>`).join('')}
-                 </div>
-                 <p class="text-gray-400 text-xs mb-6">Developer-mapped to the required technical parents; pending comparison with the controlling Form 301.</p>`
+                 </div>`
               : ''
           }
 
@@ -3837,17 +3996,10 @@ function viewProgram(user, slug) {
         <p class="text-white/80 text-base max-w-2xl mb-3">${esc(program.tagline || '')}</p>
         <p class="text-white/55 text-base max-w-2xl">${esc(program.intro || program.description)}</p>
 
-        ${
-          program.compliance
-            ? `<div class="mt-8 inline-flex items-start gap-3 bg-white/10 border border-white/15 rounded-xl px-5 py-4 max-w-2xl">
-                 <i class="ri-file-list-3-line text-[#f97316] text-lg mt-0.5"></i>
-                 <p class="text-white/80 text-sm">
-                   Curriculum map status: <strong class="text-white">developer-mapped</strong>. Exact item and parent
-                   allocations remain pending curriculum/compliance review and comparison with the controlling Form 301.
-                 </p>
-               </div>`
-            : ''
-        }
+        <!-- Curriculum/compliance review status (developer-mapped, pending
+             comparison against the controlling Form 301) is tracked in
+             CURRICULUM_ALIGNMENT_ARCHITECTURE.md and CURRICULUM_MAP.md, not
+             shown to students on this page. -->
 
         ${
           !program.isPublished
@@ -3944,7 +4096,6 @@ function viewProgram(user, slug) {
                    <p class="text-gray-500 text-sm mt-1">${c.theoryHours} theory${hasCareer ? ' (including M360)' : ''} + ${c.labHours} lab</p>
                    </div>
                  </div>
-                 <p class="text-gray-400 text-xs mt-5">The technical theory/lab allocation is the current developer map and remains pending compliance sign-off.</p>
                </div>`;
               })()
             : ''
@@ -4148,8 +4299,7 @@ function viewProgram(user, slug) {
                      <p class="text-gray-500 text-xs">${formatInstructionalMinutes(item.durationMinutes)}</p>
                    </div>`;
                  }).join('')}
-               </div>
-               <p class="text-gray-400 text-xs mt-6">Developer-mapped structure; curriculum and compliance review remain pending.</p>`;
+               </div>`;
               })()
             : `<div class="text-center max-w-3xl mx-auto">
                  <h2 class="text-3xl font-bold text-[#1e3a5f] mb-4">Career Readiness</h2>
@@ -4452,6 +4602,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const siteSessionsByStudentId = (extra && extra.siteSessionsByStudentId) || new Map();
   const activeCohorts = cohorts.filter((c) => !c.archived_at);
   const activeTab = (extra && extra.activeTab) || 'progress';
+  const activeTrackCode = (extra && extra.activeTrackCode) || null;
+  const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
+  const rosterRows = activeTrackCode ? rows.filter((row) => row.track_code === activeTrackCode) : rows;
   const tabIsActive = (key) => key === activeTab;
   const tabBtnClass = (key) =>
     `admin-tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 cursor-pointer ${
@@ -4516,6 +4669,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           <h1 class="text-3xl font-bold text-[#1e3a5f] mb-4">Student Progress</h1>
           <div class="w-12 h-1 bg-[#f97316] rounded-full mb-4"></div>
           <p class="text-gray-500 text-base">Admin dashboard for monitoring student progress across all programs. The ADMIN account is excluded from the student-account counts and table.</p>
+          ${activeTrack ? `<div class="mt-4 flex flex-wrap items-center gap-3"><a href="#/admin" class="text-sm font-semibold text-[#1e3a5f] hover:underline">← All Students</a><span class="text-sm text-gray-500">${esc(activeTrack.title)}</span></div>` : ''}
         </div>
 
         <div class="flex gap-2 border-b border-gray-200 mb-8 flex-wrap" role="tablist">
@@ -4547,6 +4701,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                  <p class="text-gray-500 text-base">No students provisioned yet.</p>
                </div>`
             : `<div>
+                 ${adminTrackAdministrationStrip(rows, activeTrackCode)}
+                 ${activeTrack ? `<section class="bg-[#f8fafc] border border-gray-200 rounded-xl p-5 mb-6"><h2 class="text-lg font-bold text-[#1e3a5f]">${esc(activeTrack.title)} summary</h2><p class="text-sm text-gray-600 mt-1">${rosterRows.filter((r) => r.enrolled !== false).length} enrolled · ${rosterRows.filter((r) => (r.modules_complete || 0) === 0 && (r.modules_in_progress || 0) === 0).length} not started · ${rosterRows.filter((r) => (r.modules_complete || 0) >= 12).length} technical complete · ${rosterRows.filter((r) => r.m360_course_complete).length} M360 complete · ${rosterRows.filter((r) => Number(r.work_items_completed || 0) >= 18 && !r.m360_course_complete).length} verification pending</p></section>` : ''}
+                 ${adminProgramRoster(rosterRows)}
                  <!-- Summary tiles -->
                  <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                    <div class="bg-white border border-gray-200 rounded-xl p-5">
@@ -4596,18 +4753,20 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                        </div>
                      </div>
                      <div class="flex flex-wrap gap-3">
-                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-user" type="button">Generate New User</button>
-                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-cohort" type="button">Generate New Cohort</button>
+                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-user" aria-expanded="false" aria-controls="admin-generate-user-panel" type="button">Generate New User</button>
+                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-cohort" aria-expanded="false" aria-controls="admin-generate-cohort-panel" type="button">Generate New Cohort</button>
                        <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#c2410c] hover:text-[#9a3412] hover:border-[#f97316] hover:bg-[#fff7ed] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-save-progress-file" type="button" title="Download one recoverable progress snapshot for every student in the current filtered scope">Save Progress File (All Students)</button>
-                       <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-diploma" type="button">Generate Diploma</button>
-                       <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-generate-report" type="button">Preview &amp; Generate Report</button>
+                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-enrollment-planning" aria-expanded="false" aria-controls="admin-enrollment-planning-panel" type="button">Enrollment Planning</button>
+                       <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-diploma" aria-expanded="false" aria-controls="admin-generate-diploma-panel" type="button">Generate Diploma</button>
+                       <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-generate-report" aria-expanded="false" aria-controls="admin-report-preview" type="button">Preview &amp; Generate Report</button>
                      </div>
                    </div>
 
                    <!-- Sprint 4: "Generate New User" — one auto-enrolled student
                         account on demand, via supabase/functions/admin-provision.
                         COHORT_USER_LIFECYCLE_SPRINT_PLAN.md. -->
-                   <div id="admin-generate-user-panel" class="bg-white border border-gray-200 rounded-xl p-5 mb-4" hidden>
+                   <div id="admin-generate-user-panel" class="acc-body">
+                    <div><div class="bg-white border border-gray-200 rounded-xl p-5 mb-4">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate New User</h3>
                      <p class="text-xs text-gray-500 mb-4">Creates one auto-enrolled student account immediately. The password is shown once, below — copy it now, it is not shown again.</p>
                      <div class="grid sm:grid-cols-3 gap-3 items-end">
@@ -4630,12 +4789,14 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                      </div>
                      <div id="admin-generate-user-status" class="text-sm text-gray-500 mt-3"></div>
                      <div id="admin-generate-user-result" class="mt-3"></div>
+                    </div></div>
                    </div>
 
                    <!-- Sprint 4: "Generate New Cohort" — names a cohort and
                         batch-generates a chosen student count per track into it
                         in one action, via the same Edge Function. -->
-                   <div id="admin-generate-cohort-panel" class="bg-white border border-gray-200 rounded-xl p-5 mb-4" hidden>
+                   <div id="admin-generate-cohort-panel" class="acc-body">
+                    <div><div class="bg-white border border-gray-200 rounded-xl p-5 mb-4">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate New Cohort</h3>
                      <p class="text-xs text-gray-500 mb-4">Creates a named cohort and immediately batch-generates the chosen number of student accounts per track into it. Every generated password appears once, in the roster table below — copy it now, it is not shown again.</p>
                      <div class="grid sm:grid-cols-2 gap-3 mb-4">
@@ -4665,6 +4826,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                      <button type="button" data-action="admin-generate-cohort-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate cohort</button>
                      <div id="admin-generate-cohort-status" class="text-sm text-gray-500 mt-3"></div>
                      <div id="admin-generate-cohort-result" class="mt-3"></div>
+                    </div></div>
                    </div>
 
                    <!-- "Generate Diploma" — renders a print-ready diploma for
@@ -4672,7 +4834,8 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                         this render and is discarded (never sent to Supabase
                         or any storage) when the certificate closes; see
                         openDiplomaCertificate() / closeDiplomaCertificate(). -->
-                   <div id="admin-generate-diploma-panel" class="bg-white border border-gray-200 rounded-xl p-5 mb-4" hidden>
+                   <div id="admin-generate-diploma-panel" class="acc-body">
+                    <div><div class="bg-white border border-gray-200 rounded-xl p-5 mb-4">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Diploma</h3>
                      <p class="text-xs text-gray-500 mb-4">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every module (including the module 12 capstone) are eligible. The name below is used only to render this one diploma — it is never saved to the student's account or any database.</p>
                      <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end mb-3">
@@ -4695,51 +4858,56 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                        <button type="button" data-action="admin-generate-diploma-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate Diploma</button>
                      </div>
                      <div id="admin-generate-diploma-status" class="text-sm text-gray-500"></div>
+                    </div></div>
+                   </div>
+
+                   <div id="admin-enrollment-planning-panel" class="acc-body">
+                    <div><section class="bg-white border border-gray-200 rounded-xl p-5 mb-4" aria-labelledby="academic-record-heading">
+                     <h2 id="academic-record-heading" class="text-sm font-bold text-[#1e3a5f]">Current enrollment planning record</h2>
+                     <p class="text-xs text-gray-500 mt-1 mb-4">Set scheduled dates and the reporting geography for an active enrollment. Saving does not overwrite a withdrawal or prior enrollment episode.</p>
+                     <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
+                       <label class="text-xs font-semibold text-gray-600">Student
+                         <select id="admin-planning-student" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                           <option value="">Select an active student…</option>
+                           ${rows.filter((r) => r.enrolled !== false).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                         </select>
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Scheduled start
+                         <input id="admin-planning-start" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Scheduled completion
+                         <input id="admin-planning-completion" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Reporting geography
+                         <select id="admin-planning-geography" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                           <option value="">Not recorded</option><option value="florida">Florida</option><option value="non_florida">Non-Florida</option><option value="unknown">Unknown / verify</option>
+                         </select>
+                       </label>
+                       <button type="button" data-action="admin-save-enrollment-plan" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm">Save planning record</button>
+                     </div>
+                    </section></div>
                    </div>
 
                    <div id="admin-report-status" class="text-sm text-gray-500"></div>
-                   <div id="admin-report-preview"></div>
+                   <div id="admin-report-preview" class="acc-body"><div>
+                     <section class="bg-white border border-gray-200 rounded-xl p-5 mb-4" aria-labelledby="annual-reporting-scope-heading">
+                       <div class="flex flex-col lg:flex-row lg:items-end gap-4">
+                         <div class="lg:flex-1">
+                           <h2 id="annual-reporting-scope-heading" class="text-sm font-bold text-[#1e3a5f]">Annual reporting scope</h2>
+                           <p class="text-xs text-gray-500 mt-1">These dates apply only to this report. Period-based Form 801 counts require the enrollment-history migration and its reporting view; the current dashboard roster is not a historical source.</p>
+                         </div>
+                         <label class="text-xs font-semibold text-gray-600">Period start
+                           <input id="reporting-period-start" type="date" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                         </label>
+                         <label class="text-xs font-semibold text-gray-600">Period end
+                           <input id="reporting-period-end" type="date" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                         </label>
+                         <button type="button" data-action="admin-preview-report" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Preview report</button>
+                       </div>
+                     </section>
+                     <div id="admin-report-preview-inner"></div>
+                   </div></div>
                  </div>
-
-                 <section class="bg-white border border-gray-200 rounded-xl p-5 mb-6" aria-labelledby="annual-reporting-scope-heading">
-                   <div class="flex flex-col lg:flex-row lg:items-end gap-4">
-                     <div class="lg:flex-1">
-                       <h2 id="annual-reporting-scope-heading" class="text-sm font-bold text-[#1e3a5f]">Annual reporting scope</h2>
-                       <p class="text-xs text-gray-500 mt-1">These dates print on the cohort report. Period-based Form 801 counts require the enrollment-history migration and its reporting view; the current dashboard roster is not a historical source.</p>
-                     </div>
-                     <label class="text-xs font-semibold text-gray-600">Period start
-                       <input id="reporting-period-start" type="date" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                     </label>
-                     <label class="text-xs font-semibold text-gray-600">Period end
-                       <input id="reporting-period-end" type="date" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                     </label>
-                   </div>
-                 </section>
-
-                 <section class="bg-white border border-gray-200 rounded-xl p-5 mb-6" aria-labelledby="academic-record-heading">
-                   <h2 id="academic-record-heading" class="text-sm font-bold text-[#1e3a5f]">Current enrollment planning record</h2>
-                   <p class="text-xs text-gray-500 mt-1 mb-4">Set scheduled dates and the reporting geography for an active enrollment. Saving does not overwrite a withdrawal or prior enrollment episode.</p>
-                   <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
-                     <label class="text-xs font-semibold text-gray-600">Student
-                       <select id="admin-planning-student" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
-                         <option value="">Select an active student…</option>
-                         ${rows.filter((r) => r.enrolled !== false).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
-                       </select>
-                     </label>
-                     <label class="text-xs font-semibold text-gray-600">Scheduled start
-                       <input id="admin-planning-start" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                     </label>
-                     <label class="text-xs font-semibold text-gray-600">Scheduled completion
-                       <input id="admin-planning-completion" type="date" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                     </label>
-                     <label class="text-xs font-semibold text-gray-600">Reporting geography
-                       <select id="admin-planning-geography" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
-                         <option value="">Not recorded</option><option value="florida">Florida</option><option value="non_florida">Non-Florida</option><option value="unknown">Unknown / verify</option>
-                       </select>
-                     </label>
-                     <button type="button" data-action="admin-save-enrollment-plan" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm">Save planning record</button>
-                   </div>
-                 </section>
 
                  <!-- Table -->
                  <div class="overflow-x-auto">
@@ -4758,7 +4926,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                        </tr>
                      </thead>
                      <tbody id="admin-table-body">
-                       ${rows.map((row) => `
+                       ${rosterRows.map((row) => `
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
                              data-track="${esc(row.track_code)}" data-progress="${row.percent_complete}" data-started="${(row.modules_complete > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
                            <td class="px-6 py-4 text-sm text-gray-900 font-mono">
@@ -4792,7 +4960,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                              </div>
                            </td>
                            <td class="px-6 py-4 text-sm text-gray-600">${row.modules_complete} / ${row.modules_total}</td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${row.capstone_overall_score !== null ? row.capstone_overall_score.toFixed(2) : '—'}</td>
+                           <td class="px-6 py-4 text-sm text-gray-600">${row.capstone_overall_score !== null && row.capstone_overall_score !== undefined ? row.capstone_overall_score.toFixed(2) : '—'}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${row.last_active !== null ? new Date(row.last_active).toLocaleDateString() : '—'}</td>
                            <td class="px-6 py-4 text-sm">
                              <label class="inline-flex items-center gap-2 cursor-pointer">
@@ -5027,7 +5195,12 @@ async function render() {
   if (hash && !hash.startsWith('#/') && app.innerHTML.trim()) return;
 
   if (!user) {
+    // Keep the address bar aligned with the view.  Rendering the login screen
+    // alone left a protected route (for example #/admin) in the URL, which
+    // made reloads and copied links misleading.
+    if (hash !== '#/login') history.replaceState(null, '', '#/login');
     app.innerHTML = viewLogin();
+    app.setAttribute('aria-busy', 'false');
     wireLogin();
     return;
   }
@@ -5042,7 +5215,8 @@ async function render() {
   // Admin-only redirect: admins must never see the student portal/catalogue,
   // whether they land there by default, type #/portal directly, follow a stale link,
   // or any other navigation path. Redirect them to #/admin instead.
-  if (user.isAdmin && hash !== '#/admin') {
+  const adminTrackMatch = hash.match(/^#\/admin\/track\/([A-Z0-9]+)$/);
+  if (user.isAdmin && hash !== '#/admin' && !adminTrackMatch) {
     history.replaceState(null, '', '#/admin');
     hash = '#/admin';
   }
@@ -5050,27 +5224,30 @@ async function render() {
   let dashboardRows = [];
   let activeStudents = [];
   let cheatingFlagsByUserId = new Map();
-  if (hash === '#/admin') {
+  if (hash === '#/admin' || adminTrackMatch) {
     if (!user.isAdmin) {
       history.replaceState(null, '', '#/portal');
       app.innerHTML = viewPortal(user);
     } else {
+      // One authoritative roster select feeds both the master roster and the
+      // client-side filtered track workspace.  Do not add per-student M360
+      // reads here: this view is the cross-track M360 projection.
       const { data: progressRows, error } = await mntSupabase
-        .from('admin_student_progress')
+        .from('admin_student_program_progress')
         .select('*')
         .order('track_code', { ascending: true });
       const sorted = progressRows || [];
       // Sort by active progress first: modules_complete desc, then last_active desc for tiebreaker
       sorted.sort((a, b) => {
-        const aComplete = a.modules_complete || 0;
-        const bComplete = b.modules_complete || 0;
+        const aComplete = a.technical_completed || 0;
+        const bComplete = b.technical_completed || 0;
         if (bComplete !== aComplete) return bComplete - aComplete;
-        const aActive = a.last_active ? new Date(a.last_active).getTime() : 0;
-        const bActive = b.last_active ? new Date(b.last_active).getTime() : 0;
+        const aActive = a.technical_last_active ? new Date(a.technical_last_active).getTime() : 0;
+        const bActive = b.technical_last_active ? new Date(b.technical_last_active).getTime() : 0;
         return bActive - aActive;
       });
 
-      dashboardRows = filterAdminDashboardRows(sorted);
+      dashboardRows = normalizeAdminProgramProgressRows(sorted);
 
       // Sprint H.1: student detail drill-down. admin_student_activity carries
       // user_id (so per-student detail selects don't need a second lookup)
@@ -5159,10 +5336,18 @@ async function render() {
         archivedStudents: archivedStudentRows || [],
         siteSessionsByStudentId,
         activeTab: adminActiveTab,
+        activeTrackCode: adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null,
       });
     }
     wireCommon();
-    wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId);
+    const wiredRows = adminTrackMatch && adminTrackMeta(adminTrackMatch[1])
+      ? dashboardRows.filter((row) => row.track_code === adminTrackMatch[1])
+      : dashboardRows;
+    const wiredActiveStudents = adminTrackMatch && adminTrackMeta(adminTrackMatch[1])
+      ? activeStudents.filter((row) => row.track_code === adminTrackMatch[1])
+      : activeStudents;
+    wireAdmin(wiredRows, wiredActiveStudents, cheatingFlagsByUserId);
+    app.setAttribute('aria-busy', 'false');
     window.scrollTo(0, 0);
     return;
   }
@@ -5183,6 +5368,7 @@ async function render() {
   } else {
     app.innerHTML = viewPortal(user);
   }
+  app.setAttribute('aria-busy', 'false');
   wireCommon();
   window.scrollTo(0, 0);
 }
@@ -5193,7 +5379,16 @@ function wireLogin() {
     e.preventDefault();
     const email = form.email.value;
     const password = form.password.value;
-    const result = await signIn(email, password);
+    document.getElementById('login-error').classList.add('hidden');
+    setLoginLoading(true);
+    let result = null;
+    try {
+      result = await signIn(email, password);
+    } catch (err) {
+      // A transient network failure should return the form to a usable state
+      // just like an unrecognized credential pair.
+      console.error('sign-in failed unexpectedly', err);
+    }
     // signIn() returns a user object on success, null on bad credentials
     // (unchanged), or one of two string sentinels — 'session_limit' /
     // 'geo_blocked' — for a login that authenticated fine but was then
@@ -5215,8 +5410,13 @@ function wireLogin() {
       history.replaceState(null, '', returnToModule
         ? location.pathname + location.search + location.hash
         : destination);
-      render();
+      try {
+        await render();
+      } finally {
+        setLoginLoading(false);
+      }
     } else {
+      setLoginLoading(false);
       // Message text does not hardcode a session-count number: the cap
       // differs by role (Decision 1) and the two roles must not drift out
       // of sync with two independent hardcoded strings.
@@ -5233,8 +5433,14 @@ function wireLogin() {
 }
 
 function wireCommon() {
+  // Not `signOut` directly: addEventListener calls the handler with the
+  // click Event as its first argument, which would land in signOut's
+  // `reason` param instead of the default 'user_signed_out' string — the
+  // DB then rejects the site_sessions close (ended_reason check constraint
+  // wants one of a fixed set of strings), leaving the old row open to trip
+  // the next sign-in's concurrency cap.
   const signout = document.querySelector('[data-action="signout"]');
-  if (signout) signout.addEventListener('click', signOut);
+  if (signout) signout.addEventListener('click', () => signOut());
 
   // Program cards. Locked cards carry pointer-events-none, so they never fire.
   document.querySelectorAll('[data-open]').forEach((el) => {
@@ -5398,23 +5604,88 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
   });
 
   /* Sprint 4 (COHORT_USER_LIFECYCLE_SPRINT_PLAN.md): "Generate New User" /
-   * "Generate New Cohort" panel toggles. Plain show/hide of the inline panel
-   * built in viewAdmin — no modal component, matching this file's existing
-   * "keep it simple" pattern for admin-report-preview et al. */
+   * "Generate New Cohort" / "Generate Diploma" / "Preview & Generate Report"
+   * panel toggles. These share one toolbar, so only one panel may be
+   * open at a time (opening one slides the others shut) — otherwise the
+   * admin ends up with several stacked panels open at once. Each panel is
+   * an .acc-body (index.html) driven by an `is-open` class rather than the
+   * adjacent-sibling `[aria-expanded="true"] + .acc-body` rule the module
+   * accordions use, since these triggers live in a shared button row, not
+   * immediately before their panel. */
+  const adminAccordionEntries = [
+    ['admin-toggle-generate-user', 'admin-generate-user-panel'],
+    ['admin-toggle-generate-cohort', 'admin-generate-cohort-panel'],
+    ['admin-toggle-enrollment-planning', 'admin-enrollment-planning-panel'],
+    ['admin-toggle-generate-diploma', 'admin-generate-diploma-panel'],
+    ['admin-generate-report', 'admin-report-preview'],
+  ]
+    .map(([action, panelId]) => ({
+      btn: document.querySelector(`[data-action="${action}"]`),
+      panel: document.getElementById(panelId),
+    }))
+    .filter((entry) => entry.btn && entry.panel);
+
+  function closeOtherAdminPanels(exceptPanel) {
+    adminAccordionEntries.forEach(({ btn, panel }) => {
+      if (panel === exceptPanel) return;
+      panel.classList.remove('is-open');
+      btn.setAttribute('aria-expanded', 'false');
+      if (panel.id === 'admin-report-preview') {
+        const inner = document.getElementById('admin-report-preview-inner');
+        if (inner) inner.innerHTML = '';
+      }
+    });
+  }
+
   const toggleGenerateUserBtn = document.querySelector('[data-action="admin-toggle-generate-user"]');
   const generateUserPanel = document.getElementById('admin-generate-user-panel');
   if (toggleGenerateUserBtn && generateUserPanel) {
-    toggleGenerateUserBtn.addEventListener('click', () => { generateUserPanel.hidden = !generateUserPanel.hidden; });
+    toggleGenerateUserBtn.addEventListener('click', () => {
+      const willOpen = !generateUserPanel.classList.contains('is-open');
+      closeOtherAdminPanels(generateUserPanel);
+      generateUserPanel.classList.toggle('is-open', willOpen);
+      toggleGenerateUserBtn.setAttribute('aria-expanded', String(willOpen));
+    });
   }
   const toggleGenerateCohortBtn = document.querySelector('[data-action="admin-toggle-generate-cohort"]');
   const generateCohortPanel = document.getElementById('admin-generate-cohort-panel');
   if (toggleGenerateCohortBtn && generateCohortPanel) {
-    toggleGenerateCohortBtn.addEventListener('click', () => { generateCohortPanel.hidden = !generateCohortPanel.hidden; });
+    toggleGenerateCohortBtn.addEventListener('click', () => {
+      const willOpen = !generateCohortPanel.classList.contains('is-open');
+      closeOtherAdminPanels(generateCohortPanel);
+      generateCohortPanel.classList.toggle('is-open', willOpen);
+      toggleGenerateCohortBtn.setAttribute('aria-expanded', String(willOpen));
+    });
   }
   const toggleGenerateDiplomaBtn = document.querySelector('[data-action="admin-toggle-generate-diploma"]');
   const generateDiplomaPanel = document.getElementById('admin-generate-diploma-panel');
   if (toggleGenerateDiplomaBtn && generateDiplomaPanel) {
-    toggleGenerateDiplomaBtn.addEventListener('click', () => { generateDiplomaPanel.hidden = !generateDiplomaPanel.hidden; });
+    toggleGenerateDiplomaBtn.addEventListener('click', () => {
+      const willOpen = !generateDiplomaPanel.classList.contains('is-open');
+      closeOtherAdminPanels(generateDiplomaPanel);
+      generateDiplomaPanel.classList.toggle('is-open', willOpen);
+      toggleGenerateDiplomaBtn.setAttribute('aria-expanded', String(willOpen));
+    });
+  }
+  const toggleEnrollmentPlanningBtn = document.querySelector('[data-action="admin-toggle-enrollment-planning"]');
+  const enrollmentPlanningPanel = document.getElementById('admin-enrollment-planning-panel');
+  if (toggleEnrollmentPlanningBtn && enrollmentPlanningPanel) {
+    toggleEnrollmentPlanningBtn.addEventListener('click', () => {
+      const willOpen = !enrollmentPlanningPanel.classList.contains('is-open');
+      closeOtherAdminPanels(enrollmentPlanningPanel);
+      enrollmentPlanningPanel.classList.toggle('is-open', willOpen);
+      toggleEnrollmentPlanningBtn.setAttribute('aria-expanded', String(willOpen));
+    });
+  }
+  const toggleReportBtn = document.querySelector('[data-action="admin-generate-report"]');
+  const reportPanel = document.getElementById('admin-report-preview');
+  if (toggleReportBtn && reportPanel) {
+    toggleReportBtn.addEventListener('click', () => {
+      const willOpen = !reportPanel.classList.contains('is-open');
+      closeOtherAdminPanels(reportPanel);
+      reportPanel.classList.toggle('is-open', willOpen);
+      toggleReportBtn.setAttribute('aria-expanded', String(willOpen));
+    });
   }
 
   /* "Generate Diploma": looks up the selected student's track_code (already
@@ -5858,20 +6129,21 @@ Track:      ${esc(account.track_code)}</pre>
    * missing-data warnings inline, with an explicit confirm step before the
    * PDF actually generates. Deliberately a plain inline panel, not a modal
    * component, per the remediation plan's "keep it simple" instruction. */
-  const bulkButtons = document.querySelectorAll('[data-action="admin-generate-report"]');
-  bulkButtons.forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const preview = document.getElementById('admin-report-preview');
-      if (!preview) return;
+  const reportPreviewButtons = document.querySelectorAll('[data-action="admin-preview-report"]');
+  reportPreviewButtons.forEach((previewBtn) => {
+    previewBtn.addEventListener('click', async () => {
+      const previewPanel = document.getElementById('admin-report-preview');
+      const preview = document.getElementById('admin-report-preview-inner');
+      if (!preview || !previewPanel) return;
       // D4: preview/generate for the admin's *current* filters, not always
       // the full dashboardRows — matches what's visible in the table now.
       const periodStart = reportingPeriodStart ? reportingPeriodStart.value : null;
       const periodEnd = reportingPeriodEnd ? reportingPeriodEnd.value : null;
       const activeTrackFilter = trackFilter ? trackFilter.value : '';
-      btn.disabled = true;
+      previewBtn.disabled = true;
       if (periodStart && periodEnd && status) status.textContent = 'Calculating period-bounded annual counts…';
       const annualCounts = await fetchAnnualReportingCounts(periodStart, periodEnd, activeTrackFilter);
-      btn.disabled = false;
+      previewBtn.disabled = false;
       if (status) status.textContent = '';
       const report = buildCohortReportData(dashboardRows, {
         trackFilter: activeTrackFilter,
@@ -5881,6 +6153,8 @@ Track:      ${esc(account.track_code)}</pre>
         annualCounts,
       });
       const warnings = report.reportingRequirements.filter((r) => r.status !== 'covered');
+      previewPanel.classList.add('is-open');
+      if (toggleReportBtn) toggleReportBtn.setAttribute('aria-expanded', 'true');
       preview.innerHTML = `
         <div class="mt-3 bg-white border border-gray-200 rounded-xl p-5">
           <p class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">Report Preview</p>
@@ -5911,6 +6185,8 @@ Track:      ${esc(account.track_code)}</pre>
 
       preview.querySelector('[data-action="admin-cancel-report-preview"]').addEventListener('click', () => {
         preview.innerHTML = '';
+        previewPanel.classList.remove('is-open');
+        if (toggleReportBtn) toggleReportBtn.setAttribute('aria-expanded', 'false');
       });
 
       preview.querySelector('[data-action="admin-download-report-json"]').addEventListener('click', () => {
@@ -5946,7 +6222,7 @@ Track:      ${esc(account.track_code)}</pre>
       preview.querySelector('[data-action="admin-confirm-generate-report"]').addEventListener('click', async (event) => {
         const confirmBtn = event.currentTarget;
         confirmBtn.disabled = true;
-        btn.disabled = true;
+        previewBtn.disabled = true;
         if (status) status.textContent = 'Creating an authorized server-side audit record and generating the PDF...';
         try {
           const result = await downloadAdminReport(report);
@@ -5955,11 +6231,13 @@ Track:      ${esc(account.track_code)}</pre>
           storeAdminReportRun(report);
           if (status) status.textContent = `Downloaded ${result.recordStatus} PDF report ${result.reportId}. Integrity hash: ${result.fileHash.slice(0, 12)}…${result.auditWarning ? ` ${result.auditWarning}` : ''}`;
           preview.innerHTML = '';
+          previewPanel.classList.remove('is-open');
+          if (toggleReportBtn) toggleReportBtn.setAttribute('aria-expanded', 'false');
         } catch (err) {
           if (status) status.textContent = `Could not generate an authorized PDF report: ${safeReportFailureReason(err)}`;
         } finally {
           confirmBtn.disabled = false;
-          btn.disabled = false;
+          previewBtn.disabled = false;
         }
       });
     });
@@ -6009,6 +6287,14 @@ Track:      ${esc(account.track_code)}</pre>
 
   // Sprint H.1: student detail drill-down.
   const detailSelect = document.getElementById('student-detail-select');
+  document.querySelectorAll('[data-admin-progress-detail]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!detailSelect) return;
+      detailSelect.value = button.getAttribute('data-admin-progress-detail') || '';
+      detailSelect.dispatchEvent(new Event('change'));
+      detailSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
   if (detailSelect) {
     detailSelect.addEventListener('change', async () => {
       const panel = document.getElementById('student-detail-panel');

@@ -1,13 +1,22 @@
 (() => {
   'use strict';
 
-  const ELIGIBLE_TRACKS = new Set(['SOCAN', 'HDESK', 'AIENG']);
+  const ELIGIBLE_TRACKS = new Set(['SOCAN', 'HDESK', 'AIENG', 'ELECT']);
   const MISSING_SCHEMA_CODES = new Set(['42P01', '42883', 'PGRST202', 'PGRST205']);
   let contextPromise = null;
   let schemaState = null;
 
   function clone(value) {
     return value == null ? value : JSON.parse(JSON.stringify(value));
+  }
+
+  function getReviewerTrackFilter() {
+    const requested = new URLSearchParams(window.location.search).get('track');
+    const trackCode = String(requested || '').trim().toUpperCase();
+    return {
+      trackCode: ELIGIBLE_TRACKS.has(trackCode) ? trackCode : null,
+      invalid: Boolean(trackCode) && !ELIGIBLE_TRACKS.has(trackCode)
+    };
   }
 
   function schemaMissing(error) {
@@ -179,7 +188,7 @@
     return clone(data);
   }
 
-  async function loadSubmittedForReview() {
+  async function loadSubmittedForReview(trackCode = null) {
     const context = await getContext();
     if (!context.authenticated || !context.isAdmin) throw new Error('Admin access required.');
     await requireSchema();
@@ -202,10 +211,11 @@
       studentsByUser = Object.fromEntries((students || []).map(student => [student.user_id, student]));
     }
 
+    const validTrack = ELIGIBLE_TRACKS.has(trackCode) ? trackCode : null;
     return (rows || []).map(row => ({
       ...clone(row),
       student: clone(studentsByUser[row.user_id] || null)
-    }));
+    })).filter(row => !validTrack || row.student?.track_code === validTrack);
   }
 
   async function reviewWeek(userId, weekNumber, decision, rubricScores, feedback = '') {
@@ -251,6 +261,7 @@
 
   window.M360Data = Object.freeze({
     ELIGIBLE_TRACKS,
+    getReviewerTrackFilter,
     getContext,
     schemaAvailable,
     loadOwnWeekRecords,

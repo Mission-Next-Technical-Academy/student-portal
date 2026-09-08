@@ -6,8 +6,8 @@
   const link=(url,label)=>url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`:'';
   const row=(label,value)=>text(value)?`<div class="portfolio-field-row"><strong>${esc(label)}</strong><span>${esc(value)}</span></div>`:'';
   const list=(label,items)=>items&&items.length?`<div class="portfolio-field-row stacked"><strong>${esc(label)}</strong><ul>${items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'';
-  const ELIGIBLE_TRACKS=['SOCAN','HDESK','AIENG'];
-  const TRACK_LABELS={SOCAN:'SOC Analyst',HDESK:'IT Help Desk',AIENG:'AI / ML'};
+  const ELIGIBLE_TRACKS=['SOCAN','HDESK','AIENG','ELECT'];
+  const TRACK_LABELS={SOCAN:'SOC Analyst',HDESK:'IT Help Desk',AIENG:'AI / ML',ELECT:'Electrical'};
   const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   let portfolioPdfModel=null;
 

@@ -1,13 +1,14 @@
 (() => {
   'use strict';
 
-  const ELIGIBLE = ['SOCAN','HDESK','AIENG'];
+  const ELIGIBLE = ['SOCAN','HDESK','AIENG','ELECT'];
   const startRoster = document.getElementById('startHereRoster');
   const spotlightRoster = document.getElementById('spotlightRoster');
   const refreshStart = document.getElementById('refreshStartHereBtn');
   const refreshSpotlight = document.getElementById('refreshSpotlightBtn');
   const saveSpotlight = document.getElementById('saveSpotlightChangesBtn');
   const spotlightStatus = document.getElementById('spotlightSaveStatus');
+  const activeTrack = M360Data.getReviewerTrackFilter().trackCode;
 
   const escapeHtml = value => String(value ?? '')
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
@@ -61,13 +62,14 @@
   }
 
   async function eligibleStudents() {
-    const { data, error } = await mntSupabase
+    let query = mntSupabase
       .from('students')
       .select('user_id, student_id, track_code, is_enrolled, is_admin')
       .eq('is_enrolled', true)
       .eq('is_admin', false)
-      .in('track_code', ELIGIBLE)
-      .order('student_id', { ascending: true });
+      .in('track_code', ELIGIBLE);
+    if (activeTrack) query = query.eq('track_code', activeTrack);
+    const { data, error } = await query.order('student_id', { ascending: true });
     if (error) throw error;
     return data || [];
   }

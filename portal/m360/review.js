@@ -5,6 +5,8 @@
   const queueCount = document.getElementById('queueCount');
   const notice = document.getElementById('reviewNotice');
   const refreshButton = document.getElementById('refreshQueueBtn');
+  const trackFilter = document.getElementById('reviewTrackFilter');
+  const reviewTrack = M360Data.getReviewerTrackFilter();
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -80,6 +82,15 @@
     notice.hidden = true;
     notice.textContent = '';
     notice.className = 'review-notice';
+  }
+
+  function renderTrackFilter() {
+    if (!reviewTrack.trackCode) {
+      if (reviewTrack.invalid) showNotice('The requested track filter is unavailable. Showing all M360-eligible tracks.', 'error');
+      return;
+    }
+    trackFilter.hidden = false;
+    trackFilter.innerHTML = `<span><strong>Showing ${escapeHtml(reviewTrack.trackCode)}</strong> M360 records only.</span><a class="btn btn-secondary" href="review.html">All tracks</a>`;
   }
 
   function renderQueue(rows) {
@@ -216,7 +227,7 @@
         showNotice('Apply the reviewed M360 migration through the normal Supabase change process before using the reviewer queue.', 'error');
         return;
       }
-      const rows = await M360Data.loadSubmittedForReview();
+      const rows = await M360Data.loadSubmittedForReview(reviewTrack.trackCode);
       renderQueue(rows);
     } catch (error) {
       console.error('M360 review queue failed', error);
@@ -226,6 +237,7 @@
     }
   }
 
+  renderTrackFilter();
   refreshButton.addEventListener('click', loadQueue);
   loadQueue();
 })();

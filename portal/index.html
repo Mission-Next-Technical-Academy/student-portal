@@ -72,6 +72,47 @@
          opaque white and keep floating above both. */
       .mnt-band { background-color: rgba(255, 255, 255, 0.6); }
 
+      /* Authentication can include a handful of security and profile checks.
+         Keep that moment intentional instead of leaving the student wondering
+         whether their sign-in was accepted. This reuses the portal's navy,
+         orange, Space Grotesk and constellation language; the animation is
+         transform/opacity only, so it stays light on modest student devices. */
+      .portal-loading {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        position: relative;
+        padding: 2rem;
+        color: white;
+        background: radial-gradient(circle at 76% 18%, rgba(249, 115, 22, .22), transparent 25rem),
+                    radial-gradient(circle at 16% 82%, rgba(96, 165, 250, .14), transparent 26rem),
+                    linear-gradient(135deg, #0a1628, #1e3a5f 55%, #0f2440);
+      }
+      .portal-loading__stars { position: absolute; inset: 0; opacity: .72; }
+      .portal-loading__card { position: relative; z-index: 1; width: min(100%, 28rem); text-align: center; }
+      .portal-loading__mark {
+        width: 5.75rem; height: 5.75rem; margin: 0 auto 1.75rem; display: grid; place-items: center;
+        border: 1px solid rgba(255,255,255,.2); border-radius: 1.5rem; background: rgba(255,255,255,.07);
+        box-shadow: 0 0 0 10px rgba(255,255,255,.025), 0 20px 45px rgba(0,0,0,.2);
+      }
+      .portal-loading__orbit { position: relative; width: 2.5rem; height: 2.5rem; border: 2px solid rgba(255,255,255,.18); border-radius: 50%; }
+      .portal-loading__orbit::before, .portal-loading__orbit::after { content: ''; position: absolute; border-radius: 50%; }
+      .portal-loading__orbit::before { width: .55rem; height: .55rem; top: -.28rem; left: 50%; background: #f97316; box-shadow: 0 0 14px rgba(249,115,22,.85); transform: translateX(-50%); animation: portal-orbit 1.6s linear infinite; transform-origin: 0 1.55rem; }
+      .portal-loading__orbit::after { width: .36rem; height: .36rem; right: -.13rem; bottom: .1rem; background: #bfdbfe; box-shadow: 0 0 12px rgba(191,219,254,.8); animation: portal-pulse 1.6s ease-in-out infinite; }
+      .portal-loading__eyebrow { margin: 0 0 .7rem; color: #fdba74; font-size: .7rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+      .portal-loading h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2rem); line-height: 1.15; letter-spacing: -.035em; }
+      .portal-loading__copy, .portal-loading__message { margin: .8rem auto 0; max-width: 22rem; color: rgba(255,255,255,.62); font: .875rem/1.6 Inter, sans-serif; }
+      .portal-loading__line { height: 2px; width: 7.25rem; margin: 1.5rem auto 0; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.14); }
+      .portal-loading__line::after { content: ''; display: block; width: 45%; height: 100%; border-radius: inherit; background: #f97316; animation: portal-scan 1.35s ease-in-out infinite; }
+      @keyframes portal-orbit { to { transform: rotate(360deg) translateX(-50%); } }
+      @keyframes portal-pulse { 50% { transform: scale(.55); opacity: .5; } }
+      @keyframes portal-scan { 0% { transform: translateX(-120%); } 100% { transform: translateX(270%); } }
+      @media (prefers-reduced-motion: reduce) {
+        .portal-loading__orbit::before, .portal-loading__orbit::after, .portal-loading__line::after { animation: none; }
+        .portal-loading__line::after { transform: translateX(65%); }
+      }
+
       /* Locked cards used to fade with opacity, which over a star field turns
          the whole card see-through and runs the pattern through its text.
          Same washed-out result, kept opaque: desaturate the card and lay a
@@ -95,6 +136,12 @@
       .acc-body > div { overflow: hidden; }
       [aria-expanded="true"] + .acc-body { grid-template-rows: 1fr; }
       [aria-expanded="true"] .acc-chev { transform: rotate(180deg); }
+      /* Same collapse mechanics, toggled by class instead of adjacent-sibling
+         aria-expanded: the admin "Generate..." panels sit inside a shared
+         button toolbar rather than immediately after their own trigger, so
+         the `+` selector above can't reach them. See wireAdminAccordion() in
+         app.js, which enforces only one of these panels open at a time. */
+      .acc-body.is-open { grid-template-rows: 1fr; }
 
       /* Diploma certificate overlay (admin "Generate Diploma", see
          openDiplomaCertificate() in app.js). The overlay is built and torn
@@ -122,31 +169,42 @@
   </head>
 
   <body class="text-gray-900 antialiased">
-    <div id="app"><!-- rendered by app.js --></div>
+    <div id="app" aria-busy="true">
+      <div class="portal-loading" role="status" aria-live="polite" aria-label="Loading Mission Next portal">
+        <div class="mnt-stars portal-loading__stars"></div>
+        <div class="portal-loading__card">
+          <div class="portal-loading__mark" aria-hidden="true"><div class="portal-loading__orbit"></div></div>
+          <p class="portal-loading__eyebrow">Mission Next Technical Academy</p>
+          <h1>Preparing your learning space</h1>
+          <p class="portal-loading__copy">Securing your session and restoring your progress.</p>
+          <div class="portal-loading__line" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
 
     <script src="vendor/supabase.js?v=20260828"></script>
     <script src="supabase-config.js?v=20260828"></script>
     <script src="data.js?v=20260828"></script>
     <script src="lab-runtime.js?v=20260817"></script>
     <script src="module-registry.js?v=20260817"></script>
-    <script src="soc-analyst-module-01.js?v=20260828"></script>
-    <script src="soc-analyst-module-02.js?v=20260817"></script>
-    <script src="soc-analyst-module-03.js?v=20260817"></script>
-    <script src="soc-analyst-module-04.js?v=20260817"></script>
-    <script src="soc-analyst-module-05.js?v=20260817"></script>
-    <script src="soc-analyst-module-06.js?v=20260817"></script>
-    <script src="soc-analyst-module-07.js?v=20260817"></script>
-    <script src="soc-analyst-module-08.js?v=20260817"></script>
-    <script src="soc-analyst-module-09.js?v=20260817"></script>
-    <script src="soc-analyst-module-10.js?v=20260817"></script>
-    <script src="soc-analyst-module-11.js?v=20260817"></script>
-    <script src="soc-analyst-module-12.js?v=20260817"></script>
+    <script src="soc-analyst-module-01.js?v=20260907"></script>
+    <script src="soc-analyst-module-02.js?v=20260907"></script>
+    <script src="soc-analyst-module-03.js?v=20260907"></script>
+    <script src="soc-analyst-module-04.js?v=20260907"></script>
+    <script src="soc-analyst-module-05.js?v=20260907"></script>
+    <script src="soc-analyst-module-06.js?v=20260907"></script>
+    <script src="soc-analyst-module-07.js?v=20260907"></script>
+    <script src="soc-analyst-module-08.js?v=20260907"></script>
+    <script src="soc-analyst-module-09.js?v=20260907"></script>
+    <script src="soc-analyst-module-10.js?v=20260907"></script>
+    <script src="soc-analyst-module-11.js?v=20260907"></script>
+    <script src="soc-analyst-module-12.js?v=20260907"></script>
     <!-- IT Help Desk ('it-support') curriculum is being authored module by
          module; it-support-shared.js holds the evidence-upload and
          ticket-queue widgets Modules 1, 2, and 12 all reuse. -->
-    <script src="it-support-shared.js?v=20260904"></script>
-    <script src="it-support-module-01.js?v=20260904"></script>
-    <script src="it-support-module-02.js?v=20260904"></script>
+    <script src="it-support-shared.js?v=20260907"></script>
+    <script src="it-support-module-01.js?v=20260907"></script>
+    <script src="it-support-module-02.js?v=20260907"></script>
     <script src="it-support-module-03.js?v=20260904"></script>
     <script src="it-support-module-04.js?v=20260904"></script>
     <script src="it-support-module-05.js?v=20260904"></script>
@@ -156,13 +214,13 @@
     <script src="it-support-module-09.js?v=20260904"></script>
     <script src="it-support-module-10.js?v=20260904"></script>
     <script src="it-support-module-11.js?v=20260904"></script>
-    <script src="it-support-module-12.js?v=20260904"></script>
+    <script src="it-support-module-12.js?v=20260907"></script>
     <!-- Other tracks' curriculum isn't authored yet (CURRICULUM_ALIGNMENT_ARCHITECTURE.md
          §0); these register a placeholder module 1 only, so their registry slot
          exists under the correct program slug ahead of real content. -->
-    <script src="ai-ml-module-01.js?v=20260831"></script>
-    <script src="electrical-module-01.js?v=20260831"></script>
-    <script src="app.js?v=20260904"></script>
-    <script src="m360-entry.js?v=20260904"></script>
+    <script src="ai-ml-module-01.js?v=20260907"></script>
+    <script src="electrical-module-01.js?v=20260907"></script>
+    <script src="app.js?v=20260907-session-recovery"></script>
+    <script src="m360-entry.js?v=20260907"></script>
   </body>
 </html>

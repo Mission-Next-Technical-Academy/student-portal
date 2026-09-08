@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const TRACK_LABELS = { SOCAN: 'SOC Analyst', HDESK: 'IT Help Desk', AIENG: 'AI / ML' };
+  const TRACK_LABELS = { SOCAN: 'SOC Analyst', HDESK: 'IT Help Desk', AIENG: 'AI / ML', ELECT: 'Electrical' };
   const baselineIds = [
     'targetDirection','profileStatus','resumeStatus','networkingComfort','networkingNote',
     'interviewReadiness','interviewNote','evidenceSource','supportNeed'
