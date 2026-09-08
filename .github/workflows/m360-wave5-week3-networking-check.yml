@@ -75,7 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -q "week3.js?v=20260904a" portal/m360/week.html
-          grep -q "m360-production-nav.js?v=20260904e" portal/m360/week.html
+          grep -q "m360-production-nav.js?v=20260907" portal/m360/week.html
 
       - name: Preserve workbook delivery and product boundaries
         env:

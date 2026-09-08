@@ -115,7 +115,7 @@ jobs:
           grep -q 'id="portfolioAdminTitle"' portal/m360/review.html
           grep -q 'id="portfolioRoster"' portal/m360/review.html
           grep -q 'review-portfolios.js?v=20260904' portal/m360/review.html
-          grep -q 'm360-data.js?v=20260904f' portal/m360/portfolio.html
+          grep -q 'm360-data.js?v=20260907' portal/m360/portfolio.html
           grep -q 'm360-portfolio-pdf.js?v=20260904' portal/m360/portfolio.html
           grep -q 'portfolio.js?v=20260904b' portal/m360/portfolio.html
 

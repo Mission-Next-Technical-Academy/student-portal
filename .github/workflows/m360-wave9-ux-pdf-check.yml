@@ -81,7 +81,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           html = Path('portal/m360/week.html').read_text()
-          nav = html.find('m360-production-nav.js?v=20260904e')
+          nav = html.find('m360-production-nav.js?v=20260907')
           polish = html.find('m360-ui-polish.js?v=20260904')
           if nav < 0 or polish < 0 or polish <= nav:
               raise SystemExit('M360 UI polish must load after production navigation so final student-facing links and labels are authoritative.')

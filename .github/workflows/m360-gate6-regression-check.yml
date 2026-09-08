@@ -183,7 +183,7 @@ jobs:
           for token in required:
               if token not in nav:
                   raise SystemExit(f'Missing consistency-pass navigation requirement: {token}')
-          if 'm360-data.js?v=20260904f' not in loader or 'week6.js?v=20260904a' not in loader:
+          if 'm360-data.js?v=20260907' not in loader or 'week6.js?v=20260904a' not in loader:
               raise SystemExit('Week loader must bust changed M360 data and Week 6 assets')
           if "get('download')==='1'" not in portfolio or 'setTimeout(printPortfolio' not in portfolio:
               raise SystemExit('Current-portfolio link must print only after authenticated portfolio rendering')
