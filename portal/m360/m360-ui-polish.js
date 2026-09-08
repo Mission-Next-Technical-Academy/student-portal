@@ -12,6 +12,7 @@
     style.textContent = `
       .artifact-heading{align-items:center}
       .artifact-heading .status-badge{align-self:center;flex:0 0 auto;white-space:nowrap;text-align:center}
+      .status-badge.submitted,.m360-submitted-status{background:#e7f0fb!important;border-color:#8fb3d8!important;color:#123754!important;box-shadow:0 0 0 2px rgba(31,78,121,.06)}
       #m360WeekNavigation{justify-content:center;align-items:center;gap:12px;padding:8px 0 2px}
       #m360WeekNavigation .btn{display:inline-flex;align-items:center;justify-content:center;min-width:138px;text-align:center;line-height:1.2}
       @media(max-width:640px){#m360WeekNavigation{display:grid;grid-template-columns:1fr}#m360WeekNavigation .btn{width:100%}}
@@ -50,6 +51,23 @@
     return changed;
   }
 
+  function emphasizeSubmittedStatus() {
+    document.querySelectorAll('.status-badge,.roadmap-state').forEach(status => {
+      if (/^submitted\b/i.test(status.textContent.trim())) status.classList.add('m360-submitted-status');
+    });
+    const reviewLabel = document.getElementById('reviewStatusLabel');
+    if (reviewLabel) reviewLabel.classList.toggle('m360-submitted-status', /^submitted\b/i.test(reviewLabel.textContent.trim()));
+    return true;
+  }
+
+  function removeStudentAttendanceInternals() {
+    document.querySelectorAll('#live .live-note,#live .start-callout').forEach(note => {
+      const text = note.textContent.toLowerCase();
+      if (text.includes('attendance') || text.includes('clock-hour') || text.includes('clock hour')) note.remove();
+    });
+    return true;
+  }
+
   function fixCareerSpotlightTemplateLinks() {
     if (week !== 6) return false;
     const resources = Array.from(document.querySelectorAll('.workbook-resource'));
@@ -72,6 +90,8 @@
     ensureStyles();
     const navReady = rewriteCourseNavigation();
     const statusReady = centerPortfolioReadyStatus();
+    emphasizeSubmittedStatus();
+    removeStudentAttendanceInternals();
     const templateReady = week !== 6 || fixCareerSpotlightTemplateLinks();
     return navReady && templateReady && (statusReady || Boolean(document.querySelector('.artifact-heading')));
   }

@@ -116,9 +116,9 @@ jobs:
       - name: Require runtime cache refreshes
         run: |
           set -euo pipefail
-          grep -q 'start-here.css?v=20260904b' portal/m360/start-here.html
-          grep -q 'start-here.js?v=20260904b' portal/m360/start-here.html
-          grep -q 'review-course-state.js?v=20260904a' portal/m360/review.html
+          grep -q 'start-here.css?v=20260908' portal/m360/start-here.html
+          grep -q 'start-here.js?v=20260908' portal/m360/start-here.html
+          grep -q 'review-course-state.js?v=20260907' portal/m360/review.html
 
       - name: Preserve Start Here data and product boundaries
         env:
@@ -126,8 +126,10 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Wave 8 must not change the Start Here schema, RPCs, migrations, or Storage.'
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          if [ -n "$unexpected_supabase" ]; then
+            echo '::error::Wave 8 must not change the Start Here data contract or unrelated Supabase schema.'
+            printf '%s\n' "$unexpected_supabase"
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then

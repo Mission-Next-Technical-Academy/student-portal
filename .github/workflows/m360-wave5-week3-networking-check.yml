@@ -83,8 +83,10 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::M360 changes must not change Supabase schema, migrations, or Storage through this guard.'
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          if [ -n "$unexpected_supabase" ]; then
+            echo '::error::M360 changes must not change unrelated Supabase schema, migrations, or Storage through this guard.'
+            printf '%s\n' "$unexpected_supabase"
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then

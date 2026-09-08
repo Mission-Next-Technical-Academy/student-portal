@@ -109,14 +109,16 @@ jobs:
           grep -q 'Attendance updated for' portal/m360/review-attendance.js
           grep -q 'M360Data.setAttendance(card.dataset.attendanceUser' portal/m360/review-attendance.js
 
-      - name: Preserve held workbook decision and Supabase schema
+      - name: Preserve held workbook decision and product boundaries
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Changes to Wave 1 protected surfaces must not also change Supabase schema or migrations.'
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          if [ -n "$unexpected_supabase" ]; then
+            echo '::error::Changes to Wave 1 protected surfaces must not also change unrelated Supabase schema or migrations.'
+            printf '%s\n' "$unexpected_supabase"
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(m360-preview.html|m360/course.html|m360/week[3-6].html)$'; then

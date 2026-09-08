@@ -12,22 +12,22 @@
     'interviewReadiness','evidenceSource','supportNeed'
   ];
   const requiredLabels = {
-    targetDirection: 'Enter your current target direction, role family, or field.',
-    profileStatus: 'Select your professional profile status.',
-    resumeStatus: 'Select your current resume status.',
-    networkingComfort: 'Select your networking comfort level.',
-    interviewReadiness: 'Select your interview readiness level.',
-    evidenceSource: 'Select your strongest existing evidence source.',
-    supportNeed: 'Tell us your top support need for the next six weeks.'
+    targetDirection: 'Tell us the direction, role family, field, or exploratory path you are considering.',
+    profileStatus: 'Choose the option that best describes your professional profile today.',
+    resumeStatus: 'Choose the option that best describes your resume today.',
+    networkingComfort: 'Choose your current networking comfort level.',
+    interviewReadiness: 'Choose your current interview-readiness level.',
+    evidenceSource: 'Choose where your strongest examples or proof come from today.',
+    supportNeed: 'Tell us which area of support would make the biggest difference over the next six weeks.'
   };
   const requiredSummaryLabels = {
-    targetDirection: 'Target direction',
+    targetDirection: 'Current direction',
     profileStatus: 'Professional profile status',
     resumeStatus: 'Current resume status',
     networkingComfort: 'Networking comfort level',
     interviewReadiness: 'Interview readiness level',
-    evidenceSource: 'Strongest existing evidence source',
-    supportNeed: 'Top support need'
+    evidenceSource: 'Strongest proof source',
+    supportNeed: 'Top support priority'
   };
   const techIds = ['techLms','techLive','techFiles','techFeedback'];
   const ackIds = ['ackUngraded','ackLiveAndLms','ackSixArtifacts','ackRevision','ackSpotlight','ackPortfolio'];
@@ -148,7 +148,7 @@
 
     const intro = document.createElement('span');
     intro.className = 'validation-summary-intro';
-    intro.textContent = 'Review the highlighted fields before completing Start Here:';
+    intro.textContent = 'Finish the highlighted items before completing Start Here:';
     el.appendChild(intro);
 
     const list = document.createElement('ul');
@@ -184,11 +184,11 @@
       const invalid = markGroupInvalid(
         'technologyChecks',
         'technologyError',
-        'Confirm each technology-readiness item. If an access issue prevents you from confirming one, contact Mission Next staff before completing Start Here.',
+        'Check each technology item. If something is not ready yet, contact Mission Next staff so we can help before Week 1.',
         techIds
       );
       const firstUnchecked = techIds.find(id => !checked(id));
-      missingItems.push({ label: 'Technology readiness confirmations', targetId: 'technologyReadiness', focusId: firstUnchecked || 'technologyChecks' });
+      missingItems.push({ label: 'Technology check', targetId: 'technologyReadiness', focusId: firstUnchecked || 'technologyChecks' });
       if (!firstInvalid && invalid) firstInvalid = invalid;
     }
 
@@ -196,11 +196,11 @@
       const invalid = markGroupInvalid(
         'acknowledgmentChecks',
         'acknowledgmentError',
-        'Confirm each M360 expectation before completing Start Here.',
+        'Check each item so we know the M360 flow is clear before you start Week 1.',
         ackIds
       );
       const firstUnchecked = ackIds.find(id => !checked(id));
-      missingItems.push({ label: 'M360 acknowledgments', targetId: 'acknowledgments', focusId: firstUnchecked || 'acknowledgmentChecks' });
+      missingItems.push({ label: 'Quick M360 check', targetId: 'acknowledgments', focusId: firstUnchecked || 'acknowledgmentChecks' });
       if (!firstInvalid && invalid) firstInvalid = invalid;
     }
 
@@ -224,10 +224,10 @@
     const complete = Boolean(completedAt);
     const wrap = document.querySelector('.start-actions');
     if (wrap) wrap.classList.toggle('complete', complete);
-    $('completionTitle').textContent = complete ? 'Start Here Complete' : 'Orientation & Baseline not yet complete';
+    $('completionTitle').textContent = complete ? 'Start Here complete — you are ready for Week 1.' : 'You are almost ready to roll.';
     $('completionText').textContent = complete
-      ? `Completed ${new Date(completedAt).toLocaleString()}. Week 1 is your first instructional M360 module.`
-      : 'Save anytime. Complete Start Here when the required baseline fields, readiness confirmations, and acknowledgments are finished.';
+      ? `Completed ${new Date(completedAt).toLocaleString()}. Your baseline is saved and Week 1 is ready when you are.`
+      : 'Save anytime. When the required fields, technology check, and quick acknowledgments are complete, finish Start Here and head to Week 1.';
     $('completeStartBtn').hidden = complete;
     $('week1Btn').hidden = !complete;
   }
@@ -239,7 +239,7 @@
     const saveBtn = complete ? $('completeStartBtn') : $('saveStartBtn');
     saveBtn.disabled = true;
     const original = saveBtn.textContent;
-    saveBtn.textContent = complete ? 'Completing…' : 'Saving…';
+    saveBtn.textContent = complete ? 'Finishing…' : 'Saving…';
     try {
       const row = await M360Data.saveStartHere(payload, complete, acknowledgmentsComplete(), supportFlag(payload));
       completedAt = row && row.start_here_completed_at ? row.start_here_completed_at : completedAt;
@@ -247,7 +247,7 @@
       if (complete) clearValidation();
       notice(complete
         ? 'Start Here is complete. Your baseline is saved and Week 1 is ready.'
-        : 'Baseline saved to M360. Nothing here is graded or counted as instructional time.', 'success');
+        : 'Baseline saved. You can come back and finish Start Here anytime.', 'success');
       saveBtn.textContent = complete ? 'Completed' : 'Saved';
       setTimeout(() => { if (!saveBtn.hidden) saveBtn.textContent = original; }, 1200);
     } catch (error) {
@@ -302,8 +302,8 @@
       }
       renderCompletion();
       notice(completedAt
-        ? 'Your completed Start Here baseline is loaded from the M360 institutional record.'
-        : 'Your Start Here baseline is connected to the M360 institutional record. You can save and return before completing it.', 'success');
+        ? 'Your completed Start Here baseline is loaded and ready to revisit.'
+        : 'Your Start Here baseline is connected to M360. Save as you go and finish it when you are ready for Week 1.', 'success');
     } catch (error) {
       console.error('M360 Start Here initialization failed', error);
       notice(error.message || 'Start Here could not load. Return to M360 Home and try again.', 'error');

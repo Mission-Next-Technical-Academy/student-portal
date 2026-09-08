@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="review.css?v=20260904" />
   <link rel="stylesheet" href="review-course-state.css?v=20260904" />
   <link rel="stylesheet" href="review-attendance.css?v=20260904b" />
+  <link rel="stylesheet" href="review-schedule.css?v=20260908" />
 </head>
 <body>
   <div class="shell">
@@ -31,7 +32,7 @@
           <div class="eyebrow">Admin reviewer workspace</div>
           <img class="signal-line" src="assets/Signal_Line.svg" alt="" aria-hidden="true" />
           <h1>M360 101 <span>Administration</span></h1>
-          <p>Surface Start Here support needs, review submitted evidence, verify Career Spotlight presentation completion, and confirm the external attendance requirement. Technical-course records remain outside this workspace.</p>
+          <p>Manage live-session dates, surface Start Here support needs, review submitted evidence, verify Career Spotlight presentation completion, and confirm the external attendance requirement. Technical-course records remain outside this workspace.</p>
         </div>
         <div class="review-hero-stat"><strong id="queueCount">—</strong><span>Awaiting review</span></div>
       </section>
@@ -45,6 +46,15 @@
           <div class="course-state-actions"><button id="refreshStartHereBtn" class="btn btn-secondary" type="button">Refresh baselines</button></div>
         </div>
         <div id="startHereRoster" class="course-state-roster" aria-live="polite"><div class="empty-state">Loading Start Here baselines…</div></div>
+      </section>
+
+      <section class="m360-schedule-section" aria-labelledby="m360ScheduleTitle">
+        <div class="m360-schedule-heading">
+          <div><div class="mini-kicker">Live delivery</div><h2 id="m360ScheduleTitle">Live Session Schedule</h2><p>Set the date, time, and time zone students should see inside each M360 week. These values are course scheduling information only and do not record attendance or instructional time.</p></div>
+          <div class="m360-schedule-actions"><button id="refreshScheduleBtn" class="btn btn-secondary" type="button">Refresh schedule</button><button id="saveScheduleChangesBtn" class="btn btn-primary" type="button">Save schedule changes</button><span id="m360ScheduleStatus" class="m360-schedule-status" aria-live="polite"></span></div>
+        </div>
+        <div id="m360ScheduleGrid" class="m360-schedule-grid" aria-live="polite"><div class="empty-state">Loading live-session schedule…</div></div>
+        <p class="m360-schedule-help">Enter both a date and time for a session. To remove a scheduled session, clear both fields and save. Students see “Date &amp; time coming soon” until a session is scheduled.</p>
       </section>
 
       <section class="review-toolbar" aria-label="M360 review controls">
@@ -81,10 +91,11 @@
 
   <script src="../vendor/supabase.js?v=20260828"></script>
   <script src="../supabase-config.js?v=20260828"></script>
-  <script src="m360-data.js?v=20260907"></script>
+  <script src="m360-data.js?v=20260908"></script>
   <script src="review.js?v=20260904a"></script>
   <script src="review-portfolios.js?v=20260907"></script>
   <script src="review-course-state.js?v=20260907"></script>
   <script src="review-attendance.js?v=20260907"></script>
+  <script src="review-schedule.js?v=20260908"></script>
 </body>
 </html>
