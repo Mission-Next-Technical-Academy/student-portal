@@ -37,9 +37,12 @@ jobs:
           node --check portal/m360/week6.js
           node --check portal/m360/m360-data.js
           node --check portal/m360/m360-production-nav.js
+          node --check portal/m360/m360-ui-polish.js
+          node --check portal/m360/m360-session-schedule.js
           node --check portal/m360/review.js
           node --check portal/m360/review-course-state.js
           node --check portal/m360/review-attendance.js
+          node --check portal/m360/review-schedule.js
           node --check portal/m360-entry.js
 
       - name: Protect technical LMS boundary
@@ -55,9 +58,9 @@ jobs:
             echo '::error::M360 changes must not modify technical LMS runtime.'
             exit 1
           fi
-          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' | grep -v '^supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql$' || true)"
+          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' | grep -v '^supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql$' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
           if [ -n "$unexpected_migrations" ]; then
-            echo '::error::This change may include only the two reviewed M360 Start Here/Spotlight migrations.'
+            echo '::error::Unexpected migration in M360 Gate 6 scope.'
             printf '%s\n' "$unexpected_migrations"
             exit 1
           fi
@@ -104,19 +107,24 @@ jobs:
           test -f portal/m360/start-here.html
           test -f portal/m360/start-here.css
           test -f portal/m360/start-here.js
-          grep -q 'Orientation &amp; Baseline' portal/m360/start-here.html
-          grep -q 'No instructional clock hours' portal/m360/start-here.html
+          grep -q 'Start Here · Quick Setup' portal/m360/start-here.html
+          grep -q 'This is not a test' portal/m360/start-here.html
           grep -q 'Career Spotlight' portal/m360/start-here.html
           grep -q 'networkingComfort' portal/m360/start-here.html
           grep -q 'interviewReadiness' portal/m360/start-here.html
           grep -q 'supportNeed' portal/m360/start-here.html
           grep -q 'techLms' portal/m360/start-here.html
           grep -q 'ackSixArtifacts' portal/m360/start-here.html
+          grep -q 'grid-auto-flow:column' portal/m360/start-here.css
           grep -q 'M360Data.saveStartHere' portal/m360/start-here.js
           grep -q 'start_here_completed_at' portal/m360/start-here.js
           grep -q 'start-here.html' portal/m360/index.html
           grep -q 'Complete Start Here' portal/m360/home.js
           grep -q 'start_here_completed_at' portal/m360/home.js
+          if grep -q 'No instructional clock hours' portal/m360/start-here.html; then
+            echo '::error::Internal clock-hour implementation language must not be student-facing in Start Here.'
+            exit 1
+          fi
 
       - name: Verify staff-owned Career Spotlight presentation status
         run: |
@@ -165,6 +173,26 @@ jobs:
             exit 1
           fi
 
+      - name: Verify live-session scheduling remains course-level only
+        run: |
+          set -euo pipefail
+          schedule='supabase/migrations/20260908224500_m360_live_session_schedule.sql'
+          test -f "$schedule"
+          grep -q 'create table if not exists public.m360_live_sessions' "$schedule"
+          grep -q 'primary key (week_number, session_number)' "$schedule"
+          grep -q 'public.is_admin()' "$schedule"
+          grep -q 'grant select, insert, update, delete on table public.m360_live_sessions to authenticated' "$schedule"
+          if grep -Eiq '(attendance_minutes|clock_hours|session_duration|browser_time|module_progress|lab_attempts|site_sessions)' "$schedule"; then
+            echo '::error::Live-session schedule must not become attendance/timekeeping or technical-course state.'
+            exit 1
+          fi
+          grep -q 'Live Session Schedule' portal/m360/review.html
+          grep -q 'M360Data.loadLiveSessions' portal/m360/review-schedule.js
+          grep -q 'M360Data.saveLiveSession' portal/m360/review-schedule.js
+          grep -q 'M360Data.deleteLiveSession' portal/m360/review-schedule.js
+          grep -q 'Date & time coming soon' portal/m360/m360-session-schedule.js
+          grep -q 'm360-session-schedule.js?v=20260908' portal/m360/week.html
+
       - name: Verify consistent week navigation and current portfolio access
         run: |
           set -euo pipefail
@@ -183,7 +211,7 @@ jobs:
           for token in required:
               if token not in nav:
                   raise SystemExit(f'Missing consistency-pass navigation requirement: {token}')
-          if 'm360-data.js?v=20260907' not in loader or 'week6.js?v=20260904a' not in loader:
+          if 'm360-data.js?v=20260908' not in loader or 'week6.js?v=20260904a' not in loader:
               raise SystemExit('Week loader must bust changed M360 data and Week 6 assets')
           if "get('download')==='1'" not in portfolio or 'setTimeout(printPortfolio' not in portfolio:
               raise SystemExit('Current-portfolio link must print only after authenticated portfolio rendering')
