@@ -35,7 +35,7 @@ const ITS04_LESSONS = [
     topics: [
       { heading: 'ipconfig /all — Your Starting Point', body: 'Shows a device\'s IP address, subnet mask, default gateway, and DNS servers all at once — always the first move on a connectivity ticket.' },
       { heading: 'ping — Can You Reach It At All?', body: 'Pinging the default gateway tests reach to the local network; pinging a known external address (like 8.8.8.8) tests reach to the wider internet. No reply points to a connection problem; a reply from the gateway but not beyond it points further out.' },
-      { heading: 'tracert — Where Does It Actually Break?', body: 'Shows the stops a connection makes on the way to a destination, helping distinguish "something on our network" from "something out on the internet." It\'s evidence to reason from, not a guarantee — some hops don\'t respond to probes at all.' },
+      { heading: 'tracert — Where a Problem May Be Occurring', body: 'Shows the stops a connection makes on the way to a destination, helping distinguish "something on our network" from "something out on the internet." It\'s evidence to reason from, not a guarantee — some hops don\'t respond to probes at all.' },
       { heading: 'nslookup — Is This a DNS Problem?', body: 'Asks a DNS server to translate a name into an address. If ping works by raw IP but a website won\'t load by name, that\'s a strong DNS signal, and nslookup confirms it.' },
     ],
     practice: [
