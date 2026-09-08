@@ -228,19 +228,15 @@ function moduleTwelveScore() {
   };
 }
 
-function moduleTwelveHeader() {
-  return `<header class="m12-topbar">
-    <a class="m12-brand" href="#/portal" aria-label="Mission Next Technical Academy portal"><img src="assets/logo.png" alt="Mission Next Technical Academy"></a>
-    <div class="m12-top-actions"><span class="m12-simulation"><i class="ri-shield-check-line" aria-hidden="true"></i> Synthetic capstone range</span>
-      <a class="m12-exit" href="#/program/soc-analyst"><i class="ri-arrow-left-line" aria-hidden="true"></i> Exit capstone</a></div>
-  </header>`;
+function moduleTwelveHeader(user, program) {
+  return moduleTopbar(user, program);
 }
 
 function moduleTwelveLockedView(user, program) {
   const prerequisites = moduleTwelvePrerequisites(user, program);
   const complete = prerequisites.filter((item) => item.complete).length;
   const module = program.modules['soc-12'];
-  return `<div class="m12-shell">${moduleTwelveHeader()}<main class="m12-main">
+  return `<div class="m12-shell">${moduleTwelveHeader(user, program)}<main class="m12-main">
     <section class="m12-hero m12-hero-locked" aria-labelledby="m12-title">
       <div><p class="m12-kicker">Module 12 · ${formatInstructionalMinutes(module.durationMinutes)} · Independent capstone</p><h1 id="m12-title">${esc(module.title)}</h1>
       <p>The integrated range stays sealed until every preceding module is complete. This prevents future evidence and the end-to-end scenario from bypassing the course sequence.</p></div>
@@ -328,7 +324,7 @@ function viewModuleTwelve(user, program) {
   moduleTwelveLoad(user, program);
   if (!moduleTwelveUnlocked(user, program)) return moduleTwelveLockedView(user, program);
   const module = program.modules['soc-12'];
-  return `<div class="m12-shell">${moduleTwelveHeader()}<main class="m12-main">
+  return `<div class="m12-shell">${moduleTwelveHeader(user, program)}<main class="m12-main">
     <section class="m12-hero" aria-labelledby="m12-title"><div><p class="m12-kicker">Module 12 · ${formatInstructionalMinutes(module.durationMinutes)} · Final Assessment</p><h1 id="m12-title">${esc(module.title)}</h1><p class="m12-kicker">Case scenario · Operation Amber Finch</p><p>Investigate a synthetic high-priority signal across the complete Mission Next security operations range. Discover what happened, bound impact, improve detection, direct response, and close the case with a portfolio-grade report. This capstone integrates all competencies from Modules 01–11 into one independent Prove assessment.</p>
       <div class="m12-hero-actions"><a class="m12-primary" href="${esc(moduleTwelveLaunchUrl())}" target="_blank" rel="noopener" data-m12-launch><i class="ri-terminal-box-line" aria-hidden="true"></i> Open integrated simulator</a><a class="m12-secondary" href="#m12-range"><i class="ri-arrow-down-line" aria-hidden="true"></i> Investigate here</a></div><p class="m12-launch-note">${moduleTwelveState.simulatorLaunched ? 'Simulator launch recorded. Portal work remains saved separately.' : 'Opens the catalogue route in a new tab; all data is fictional.'}</p></div>
       <dl><div><dt>Case</dt><dd>INC-4821</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Pass</dt><dd>${MODULE_TWELVE_PASSING_SCORE}% (seven of ten domains) + safety gate</dd></div></dl></section>

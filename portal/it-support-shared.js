@@ -137,7 +137,7 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', moduleKey);
   const numLabel = String(moduleNumber).padStart(2, '0');
   return `<div class="itss-shell">
-    <header class="itss-topbar"><a class="itss-brand" href="#/program/${esc(program.slug)}" aria-label="Back to IT Help Desk program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div class="itss-top-actions"><span class="itss-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Isolated simulation · fictional data</span><a class="itss-exit" href="#/program/${esc(program.slug)}"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header>
+    ${moduleTopbar(user, program)}
     <main class="itss-main">
       <section class="itss-hero" aria-labelledby="itss-title-${numLabel}"><p class="itss-kicker">Module ${numLabel} · ${formatInstructionalMinutes(module.durationMinutes)} · Week ${esc(String(module.week))}</p><h1 id="itss-title-${numLabel}">${esc(module.title)}</h1><p class="itss-lede">${esc(lede)}</p></section>
 

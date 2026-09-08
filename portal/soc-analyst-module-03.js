@@ -336,10 +336,7 @@ function viewModuleThree(user, program) {
   const module = program.modules['soc-03'];
   const moduleLab = LABS.find((item) => item.key === MODULE_THREE_CATALOG_LAB_KEY);
   return `<div class="m03-shell">
-    <header class="m03-topbar">
-      <a href="#/program/${esc(program.slug)}" class="m03-brand" aria-label="Back to SOC Analyst program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a>
-      <div class="m03-top-actions"><span class="m03-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Local simulation · synthetic data</span><a href="#/program/${esc(program.slug)}" class="m03-exit"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div>
-    </header>
+    ${moduleTopbar(user, program)}
     <main class="m03-main">
       <section class="m03-hero" aria-labelledby="m03-title">
         <div><p class="m03-kicker">Module 03 · ${formatInstructionalMinutes(module.durationMinutes)} · assisted investigation</p><h1 id="m03-title">${esc(module.title)}</h1><p>Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p><a href="#m03-lab" class="m03-hero-action"><i class="ri-terminal-box-line" aria-hidden="true"></i> Enter the signal room</a></div>

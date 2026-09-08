@@ -615,15 +615,7 @@ function viewModuleOne(user, program) {
   const moduleLabMinutes = moduleLabs.reduce((total, item) => total + item.instructionalMinutes, 0);
 
   return `<div class="m01-shell">
-    <header class="m01-topbar">
-      <a href="#/program/${esc(program.slug)}" class="m01-brand" aria-label="Back to SOC Analyst program">
-        <img src="assets/logo.png" alt="Mission Next Technical Academy" />
-      </a>
-      <div class="m01-top-actions">
-        <span class="m01-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Beginner simulation · fictional data</span>
-        <a href="#/program/${esc(program.slug)}" class="m01-exit"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a>
-      </div>
-    </header>
+    ${moduleTopbar(user, program)}
 
     <main class="m01-main">
       <section class="m01-hero" aria-labelledby="m01-title">

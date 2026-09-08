@@ -6,9 +6,12 @@
  */
 
 function viewElectricalModuleOne(user, program) {
-  return `<div class="max-w-2xl mx-auto px-6 py-20 text-center">
-    <h1 class="text-2xl font-bold text-[#1e3a5f] mb-3">${esc(program.title)}</h1>
-    <p class="text-gray-500">Module 1 curriculum content is being authored.</p>
+  return `<div>
+    ${moduleTopbar(user, program)}
+    <div class="max-w-2xl mx-auto px-6 py-20 text-center">
+      <h1 class="text-2xl font-bold text-[#1e3a5f] mb-3">${esc(program.title)}</h1>
+      <p class="text-gray-500">Module 1 curriculum content is being authored.</p>
+    </div>
   </div>`;
 }
 

@@ -255,7 +255,7 @@ function viewItsModuleTwo(user, program) {
   const module = program.modules['its-02'];
   const labsComplete = (its02State.lab21Complete ? 1 : 0) + (its02State.lab22Complete ? 1 : 0) + (its02State.consoleCompleted ? 2 : 0);
   return `<div class="its02-shell">
-    <header class="its02-topbar"><a class="its02-brand" href="#/program/${esc(program.slug)}" aria-label="Back to IT Help Desk program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div class="its02-top-actions"><span class="its02-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Isolated simulation · fictional data</span><a class="its02-exit" href="#/program/${esc(program.slug)}"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header>
+    ${moduleTopbar(user, program)}
     <main class="its02-main">
       <section class="its02-hero" aria-labelledby="its02-title"><div><p class="its02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its02-title">${esc(module.title)}</h1><p class="its02-lede">Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.</p></div><dl class="its02-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>4</dd></div><div><dt>Labs complete</dt><dd id="its02-status">${labsComplete}/4</dd></div></dl></section>
 

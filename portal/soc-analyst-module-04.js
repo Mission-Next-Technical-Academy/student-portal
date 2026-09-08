@@ -311,10 +311,7 @@ function viewModuleFour(user, program) {
   const module = program.modules['soc-04'];
   const moduleLab = LABS.find((item) => item.key === MODULE_FOUR_CATALOG_LAB_KEY);
   return `<div class="m04-shell">
-    <header class="m04-topbar">
-      <a href="#/program/${esc(program.slug)}" class="m04-brand" aria-label="Back to SOC Analyst program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a>
-      <div class="m04-top-actions"><span class="m04-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Local simulation · synthetic data</span><a href="#/program/${esc(program.slug)}" class="m04-exit"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div>
-    </header>
+    ${moduleTopbar(user, program)}
     <main class="m04-main">
       <section class="m04-hero" aria-labelledby="m04-title">
         <div>${moduleFourKicker(`Module 04 · ${formatInstructionalMinutes(module.durationMinutes)} · assisted workflow`)}<h1 id="m04-title">${esc(module.title)}</h1><p>Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p><a href="#m04-lab" class="m04-hero-action"><i class="ri-equalizer-2-line" aria-hidden="true"></i> Open the detection studio</a></div>

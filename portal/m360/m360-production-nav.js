@@ -7,6 +7,7 @@
   const m360Base = new URL('./', here);
   const homeUrl = new URL('index.html', m360Base).href;
   const programsUrl = new URL('../index.html#/portal', m360Base).href;
+  const loginUrl = new URL('../index.html#/login', m360Base).href;
   const week1Url = new URL('week.html?week=1', m360Base).href;
   const week2Url = new URL('week.html?week=2', m360Base).href;
   const portfolioUrl = new URL('portfolio.html', m360Base).href;
@@ -46,6 +47,108 @@
     link.innerHTML = brand.innerHTML;
     brand.replaceWith(link);
     return true;
+  }
+
+  /* Signs a student out from any M360 week page. Mirrors m360/home.js's
+   * signOutFromM360 (close the open site_sessions row, then auth.signOut()),
+   * minus its ensureSupabaseRuntime() lazy-load — this script only ever runs
+   * after week.html has already injected vendor/supabase.js and
+   * supabase-config.js, so the 'mntSupabase' client is already a live global
+   * by the time rewrite() calls this. */
+  async function signOutFromM360Topbar(event) {
+    if (event) event.preventDefault();
+    const control = document.getElementById('m360TopbarSignOut');
+    if (control) control.textContent = 'Signing Out…';
+
+    try {
+      const { data: { session } } = await mntSupabase.auth.getSession();
+      const userId = session && session.user ? session.user.id : null;
+      if (userId) {
+        const { error } = await mntSupabase
+          .from('site_sessions')
+          .update({ ended_at: new Date().toISOString(), ended_reason: 'user_signed_out' })
+          .eq('user_id', userId)
+          .is('ended_at', null);
+        if (error) console.error('M360 site_sessions self-close failed', error);
+      }
+    } catch (error) {
+      console.error('M360 site_sessions self-close threw', error);
+    }
+
+    try {
+      await mntSupabase.auth.signOut();
+    } catch (error) {
+      console.error('M360 sign out failed', error);
+    }
+    Object.keys(localStorage).filter(key => key.startsWith('defender-lab.')).forEach(key => localStorage.removeItem(key));
+    Object.keys(sessionStorage).filter(key => key.startsWith('defender-lab.')).forEach(key => sessionStorage.removeItem(key));
+    location.href = loginUrl;
+  }
+
+  /* Adds an explicit "Back to Programs" link and "Sign Out" button to every
+   * M360 week's topbar, next to the existing preview-pill. Previously the
+   * only way back to the portal was clicking the brand mark
+   * (makeBrandProgramsLink() above), and there was no way to sign out short
+   * of closing the tab — which never actually ended the site_sessions row.
+   * Runs once per page load; idempotent via the #m360TopbarActions id. */
+  function ensureTopbarActions() {
+    const inner = document.querySelector('.topbar .topbar-inner');
+    if (!inner || document.getElementById('m360TopbarActions')) return false;
+
+    const actions = document.createElement('div');
+    actions.className = 'topbar-actions';
+    actions.id = 'm360TopbarActions';
+
+    const progress = document.createElement('div');
+    progress.className = 'topbar-progress';
+    progress.id = 'm360TopbarProgress';
+    progress.setAttribute('aria-label', 'M360 portfolio progress');
+    progress.innerHTML = '<span class="topbar-progress-track"><span id="m360TopbarProgressBar"></span></span><span class="topbar-progress-label" id="m360TopbarProgressLabel">0%</span>';
+    actions.appendChild(progress);
+
+    const back = document.createElement('a');
+    back.className = 'topbar-link';
+    back.href = programsUrl;
+    back.textContent = 'Back to Programs';
+    actions.appendChild(back);
+
+    const signOut = document.createElement('a');
+    signOut.className = 'topbar-link';
+    signOut.id = 'm360TopbarSignOut';
+    signOut.href = loginUrl;
+    signOut.textContent = 'Sign Out';
+    signOut.addEventListener('click', signOutFromM360Topbar);
+    actions.appendChild(signOut);
+
+    const pill = inner.querySelector('.preview-pill');
+    if (pill) inner.insertBefore(actions, pill);
+    else inner.appendChild(actions);
+    return true;
+  }
+
+  /* Keeps the topbar's mini progress bar in step with the "N of 6 artifacts
+   * portfolio ready" count each week script already computes and writes into
+   * #journeyProgress — that text is the one place every week (1-6) already
+   * derives a reliable done/6 count, so read it rather than re-deriving
+   * portfolio state here. Re-synced on every mutation since #journeyProgress
+   * is set asynchronously after each page's own Supabase load. */
+  function syncTopbarProgress() {
+    const source = document.getElementById('journeyProgress');
+    const bar = document.getElementById('m360TopbarProgressBar');
+    const label = document.getElementById('m360TopbarProgressLabel');
+    if (!source || !bar || !label) return;
+    const match = source.textContent.match(/(\d+)\s+of\s+(\d+)/);
+    if (!match) return;
+    const done = Number(match[1]);
+    const total = Number(match[2]) || 6;
+    const pct = Math.round((done / total) * 100);
+    bar.style.width = `${pct}%`;
+    label.textContent = `${pct}%`;
+
+    if (!source.dataset.m360TopbarProgressMirror) {
+      source.dataset.m360TopbarProgressMirror = 'true';
+      new MutationObserver(syncTopbarProgress).observe(source, { childList: true, subtree: true, characterData: true });
+    }
   }
 
   function ensureCurrentPortfolioDownload() {
@@ -360,6 +463,8 @@
     }
 
     makeBrandProgramsLink();
+    ensureTopbarActions();
+    syncTopbarProgress();
     ensureCurrentPortfolioDownload();
     applyWeek3Clarity();
     applyWeek4Clarity();

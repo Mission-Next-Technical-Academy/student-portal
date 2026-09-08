@@ -165,7 +165,7 @@ function viewItsModuleTwelve(user, program) {
   its12Load(user);
   const module = program.modules['its-12'];
   return `<div class="its12-shell">
-    <header class="its12-topbar"><a class="its12-brand" href="#/program/${esc(program.slug)}" aria-label="Back to IT Help Desk program"><img src="assets/logo.png" alt="Mission Next Technical Academy" /></a><div class="its12-top-actions"><span class="its12-simulation"><i class="ri-flask-line" aria-hidden="true"></i> Isolated simulation · fictional data</span><a class="its12-exit" href="#/program/${esc(program.slug)}"><i class="ri-arrow-left-line" aria-hidden="true"></i> Course overview</a></div></header>
+    ${moduleTopbar(user, program)}
     <main class="its12-main">
       <section class="its12-hero" aria-labelledby="its12-title"><p class="its12-kicker">Module 12 · Capstone · ${formatInstructionalMinutes(module.durationMinutes)}</p><h1 id="its12-title">${esc(module.title)}</h1><p class="its12-lede">Nothing new — this is where you prove you can do the job. A realistic queue, real resolve-or-escalate calls, a knowledge-base article, and an honest look back at your own work.</p>
         <dl class="its12-progress" aria-label="Saved capstone progress"><div><dt>Tickets</dt><dd>${ITS12_TICKETS.length}</dd></div><div><dt>Status</dt><dd id="its12-status">${its12State.completed ? 'Complete' : its12State.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
