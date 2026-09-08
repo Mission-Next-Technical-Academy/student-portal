@@ -95,7 +95,7 @@ jobs:
           grep -Fq 'class="brand portfolio-home-brand" href="index.html"' "$html"
           grep -Fq '>Download Portfolio PDF<' "$html"
           grep -Fq 'm360-portfolio-pdf.js?v=20260904' "$html"
-          grep -Fq 'portfolio.js?v=20260904b' "$html"
+          grep -Fq 'portfolio.js?v=20260907' "$html"
           grep -Fq 'function downloadPortfolioPdf()' "$js"
           grep -Fq 'window.M360PortfolioPDF.download' "$js"
           grep -Fq "params.get('download')==='1'" "$js"
