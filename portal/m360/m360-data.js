@@ -111,6 +111,12 @@
     return context;
   }
 
+  async function requireAdminContext() {
+    const context = await getContext();
+    if (!context.authenticated || !context.isAdmin) throw new Error('Admin access required.');
+    return context;
+  }
+
   async function requireSchema() {
     if (!(await schemaAvailable())) throw new Error('M360 production data migration is not available yet.');
   }
@@ -189,8 +195,7 @@
   }
 
   async function loadSubmittedForReview(trackCode = null) {
-    const context = await getContext();
-    if (!context.authenticated || !context.isAdmin) throw new Error('Admin access required.');
+    const context = await requireAdminContext();
     await requireSchema();
 
     const { data: rows, error: rowsError } = await mntSupabase
@@ -219,8 +224,7 @@
   }
 
   async function reviewWeek(userId, weekNumber, decision, rubricScores, feedback = '') {
-    const context = await getContext();
-    if (!context.authenticated || !context.isAdmin) throw new Error('Admin access required.');
+    await requireAdminContext();
     await requireSchema();
     const { data, error } = await mntSupabase.rpc('m360_admin_review_week', {
       p_user_id: userId,
@@ -234,8 +238,7 @@
   }
 
   async function setAttendance(userId, requirementMet, externalReference = '') {
-    const context = await getContext();
-    if (!context.authenticated || !context.isAdmin) throw new Error('Admin access required.');
+    await requireAdminContext();
     await requireSchema();
     const { data, error } = await mntSupabase.rpc('m360_admin_set_attendance', {
       p_user_id: userId,
@@ -247,8 +250,7 @@
   }
 
   async function setSpotlightPresentation(userId, status, reference = '') {
-    const context = await getContext();
-    if (!context.authenticated || !context.isAdmin) throw new Error('Admin access required.');
+    await requireAdminContext();
     await requireSchema();
     const { data, error } = await mntSupabase.rpc('m360_admin_set_spotlight_presentation', {
       p_user_id: userId,
@@ -257,6 +259,60 @@
     });
     if (error) throw new Error(publicError(error));
     return clone(data);
+  }
+
+  async function loadLiveSessions() {
+    const context = await getContext();
+    if (!context.authenticated) throw new Error('Sign in to view the M360 live-session schedule.');
+    const { data, error } = await mntSupabase
+      .from('m360_live_sessions')
+      .select('week_number, session_number, session_date, session_time, timezone_label, updated_at')
+      .order('week_number', { ascending: true })
+      .order('session_number', { ascending: true });
+    if (error) throw new Error(publicError(error, 'M360 live-session schedule is unavailable.'));
+    return clone(data || []);
+  }
+
+  async function saveLiveSession(weekNumber, sessionNumber, sessionDate, sessionTime, timezoneLabel = 'ET') {
+    const context = await requireAdminContext();
+    const week = Number(weekNumber);
+    const session = Number(sessionNumber);
+    const date = String(sessionDate || '').trim();
+    const time = String(sessionTime || '').trim();
+    const zone = String(timezoneLabel || 'ET').trim() || 'ET';
+    if (!Number.isInteger(week) || week < 1 || week > 6) throw new Error('Week must be between 1 and 6.');
+    if (!Number.isInteger(session) || session < 1 || session > 2) throw new Error('Session must be 1 or 2.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Enter a valid session date.');
+    if (!/^\d{2}:\d{2}/.test(time)) throw new Error('Enter a valid session time.');
+
+    const { data, error } = await mntSupabase
+      .from('m360_live_sessions')
+      .upsert({
+        week_number: week,
+        session_number: session,
+        session_date: date,
+        session_time: time.slice(0, 5),
+        timezone_label: zone.slice(0, 16),
+        updated_by: context.userId,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'week_number,session_number' })
+      .select('week_number, session_number, session_date, session_time, timezone_label, updated_at')
+      .single();
+    if (error) throw new Error(publicError(error, 'Unable to save the live-session schedule.'));
+    return clone(data);
+  }
+
+  async function deleteLiveSession(weekNumber, sessionNumber) {
+    await requireAdminContext();
+    const week = Number(weekNumber);
+    const session = Number(sessionNumber);
+    const { error } = await mntSupabase
+      .from('m360_live_sessions')
+      .delete()
+      .eq('week_number', week)
+      .eq('session_number', session);
+    if (error) throw new Error(publicError(error, 'Unable to clear the live-session schedule.'));
+    return true;
   }
 
   window.M360Data = Object.freeze({
@@ -274,6 +330,9 @@
     reviewWeek,
     setAttendance,
     setSpotlightPresentation,
+    loadLiveSessions,
+    saveLiveSession,
+    deleteLiveSession,
     schemaMissing
   });
 })();
