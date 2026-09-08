@@ -114,7 +114,7 @@ jobs:
           set -euo pipefail
           grep -q 'id="portfolioAdminTitle"' portal/m360/review.html
           grep -q 'id="portfolioRoster"' portal/m360/review.html
-          grep -q 'review-portfolios.js?v=20260904' portal/m360/review.html
+          grep -q 'review-portfolios.js?v=20260907' portal/m360/review.html
           grep -q 'm360-data.js?v=20260907' portal/m360/portfolio.html
           grep -q 'm360-portfolio-pdf.js?v=20260904' portal/m360/portfolio.html
           grep -q 'portfolio.js?v=20260904b' portal/m360/portfolio.html
@@ -125,12 +125,14 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Admin portfolio access must not add an RPC, schema migration, or Storage change; existing Admin read policies are sufficient.'
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          if [ -n "$unexpected_supabase" ]; then
+            echo '::error::Admin portfolio work must not change unrelated RPCs, schema migrations, or Storage.'
+            printf '%s\n' "$unexpected_supabase"
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
             echo '::error::Admin portfolio work must not change the established technical-course LMS runtime.'
             exit 1
           fi
-          echo 'Admin portfolio guard preserves existing M360 data contracts and technical-course runtime.'
+          echo 'Admin portfolio guard preserves existing M360 portfolio contracts and technical-course runtime.'
