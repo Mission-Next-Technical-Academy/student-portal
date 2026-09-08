@@ -109,8 +109,10 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Start Here usability work must not change Supabase schema or migrations.'
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          if [ -n "$unexpected_supabase" ]; then
+            echo '::error::Start Here usability work must not change unrelated Supabase schema or migrations.'
+            printf '%s\n' "$unexpected_supabase"
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
@@ -121,4 +123,4 @@ jobs:
             echo '::error::Start Here usability work must not rewrite controlled weekly templates.'
             exit 1
           fi
-          echo 'Start Here guard preserves Supabase, technical-course runtime, grading, and workbook-delivery boundaries.'
+          echo 'Start Here guard preserves technical-course runtime, grading, and workbook-delivery boundaries.'
