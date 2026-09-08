@@ -88,6 +88,15 @@
 .its12-score-grid span { margin-top: 2px; color: #64748b; font: 10px Inter, sans-serif; }
 .its12-feedback-list { margin: 14px 0 0; padding-left: 18px; color: #475569; font: 12px/1.65 Inter, sans-serif; }
 
+.its12-critical { margin-top: 13px; padding: 13px; color: #991b1b; background: rgba(255, 255, 255, .78); border: 1px solid #fecaca; border-radius: 9px; }
+.its12-critical strong { display: block; margin-bottom: 6px; font-size: 12px; }
+.its12-critical ul { margin: 0; padding-left: 18px; font: 12px/1.6 Inter, sans-serif; }
+
+.its12-review-badge { margin: 4px 0 0; font: 700 11px Inter, sans-serif; }
+.its12-review-badge--not_requested, .its12-review-badge--pending { color: #b45309; }
+.its12-review-badge--approved { color: #15803d; }
+.its12-review-badge--changes_requested { color: #991b1b; }
+
 .its12-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
 
 @media (max-width: 640px) {

@@ -2396,6 +2396,7 @@ async function renderEvidencePdf(evidenceData, reportId) {
       ['Final Outcome', cap.statusLabel],
       ['Score', fmtScore(cap.score)],
       ['Submitted', fmtDate(cap.submittedAt)],
+      ['Compliance Mapping', (cap.complianceMapping && cap.complianceMapping.length) ? cap.complianceMapping.map((p) => p.code).join(', ') : 'Not mapped'],
     ]);
     const rightEnd = kv(marginX + colW + colGap, cursorY, colW, [
       ['Critical-Error Result', (critList && critList.length) ? `${critList.length} critical error(s) recorded — disqualifying` : 'Zero critical errors on record'],
@@ -2419,6 +2420,18 @@ async function renderEvidencePdf(evidenceData, reportId) {
         margin: { left: marginX, right: marginX, bottom: 60 },
         head: [dims.map((d) => d[0])],
         body: [dims.map((d) => fmtScore(d[1]))],
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 5, halign: 'center' },
+        headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+      });
+      cursorY = doc.lastAutoTable.finalY + 14;
+    } else if (cap.genericBreakdown && cap.genericBreakdown.length) {
+      cursorY = ensureSpace(doc, cursorY, 60);
+      doc.autoTable({
+        startY: cursorY + 4,
+        margin: { left: marginX, right: marginX, bottom: 60 },
+        head: [cap.genericBreakdown.map((d) => d.label)],
+        body: [cap.genericBreakdown.map((d) => fmtScore(d.score))],
         theme: 'grid',
         styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 5, halign: 'center' },
         headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
@@ -2612,6 +2625,28 @@ function computeFixedCreditHours(program, moduleScores, awardRows, awardError) {
   };
 }
 
+/* Finds "the" capstone module for any program generically, instead of
+ * hardcoding SOC's 'soc-12' key — both soc-12 and its-12 already carry
+ * isCapstone: true in data.js, as does each one's capstone lab record. */
+function resolveCapstoneModule(program) {
+  const entry = Object.entries((program && program.modules) || {}).find(([, m]) => m.isCapstone);
+  if (!entry) return null;
+  const [moduleKey, module] = entry;
+  const lab = programLabs(program).find((l) => l.module === moduleKey && l.isCapstone)
+           || programLabs(program).find((l) => l.module === moduleKey);
+  return { moduleKey, module, labKey: lab ? lab.key : null };
+}
+
+/* Non-SOC capstones (currently: Help Desk's its-12) don't have a
+ * capstone_scorecard view built for their rubric shape — their breakdown
+ * rides inside capstone_submissions.answers.breakdown instead. This label
+ * map is the single place that shape gets a human-readable name, shared by
+ * computeCapstoneRecord() and the admin review UI below. */
+const ITS12_BREAKDOWN_LABELS = {
+  triage: 'Triage & Prioritization', technical: 'Technical Accuracy', communication: 'Communication',
+  escalation: 'Escalation Judgment', security: 'Security Judgment', kb: 'KB Article Quality', afterAction: 'After-Action Review',
+};
+
 /* Capstone: Module 12's real data when this track has a capstone module.
  * recordCapstoneSubmission() only ever writes a capstone_submissions row on
  * an actual pass (70%+ AND zero critical errors) — capstone_submissions has
@@ -2622,7 +2657,10 @@ function computeFixedCreditHours(program, moduleScores, awardRows, awardError) {
  * empty) and on lab_attempts.result.criticalErrors (every capstone attempt,
  * pass or fail). */
 function computeCapstoneRecord(program, labAttemptRows, capstoneSubmissionRows, scorecardRow, artifactRows = [], capstoneReviewRows = []) {
-  const capstoneModule = program.modules['soc-12'];
+  const capstoneInfo = resolveCapstoneModule(program);
+  const capstoneModule = capstoneInfo && capstoneInfo.module;
+  const capstoneLabKey = capstoneInfo && capstoneInfo.labKey;
+  const isSocCapstone = capstoneInfo && capstoneInfo.moduleKey === 'soc-12';
   if (!capstoneModule) {
     return {
       title: 'N/A',
@@ -2631,13 +2669,15 @@ function computeCapstoneRecord(program, labAttemptRows, capstoneSubmissionRows, 
       score: null,
       stages: [],
       scorecard: null,
+      genericBreakdown: null,
       criticalErrorGate: null,
       rubricsApplied: [],
+      labKey: null,
       review: { status: 'not_applicable', outcome: null, reviewedBy: null, reviewedAt: null, notes: null, supervisionMethod: null },
     };
   }
   const capstoneLabAttempts = labAttemptRows
-    .filter((l) => l.lab_key === 'lab-capstone')
+    .filter((l) => l.lab_key === capstoneLabKey)
     .slice()
     .sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0));
   const latestCapstoneAttempt = capstoneLabAttempts[0] || null;
@@ -2649,7 +2689,7 @@ function computeCapstoneRecord(program, labAttemptRows, capstoneSubmissionRows, 
     ? latestCapstoneAttempt.result.criticalErrors
     : null;
 
-  const capstoneArtifacts = artifactRows.filter((a) => a.lab_key === 'lab-capstone');
+  const capstoneArtifacts = artifactRows.filter((a) => a.lab_key === capstoneLabKey);
   const latestArtifact = capstoneArtifacts[0] || null;
   const latestReview = latestArtifact ? capstoneReviewRows.find((r) => r.artifact_id === latestArtifact.id) : null;
   return {
@@ -2662,7 +2702,7 @@ function computeCapstoneRecord(program, labAttemptRows, capstoneSubmissionRows, 
       ? Number(passingSubmission.score)
       : (latestCapstoneAttempt && latestCapstoneAttempt.score !== null && latestCapstoneAttempt.score !== undefined ? Number(latestCapstoneAttempt.score) : null),
     submittedAt: passingSubmission ? passingSubmission.submitted_at : null,
-    scorecard: scorecardRow ? {
+    scorecard: (isSocCapstone && scorecardRow) ? {
       overallScore: scorecardRow.overall_score,
       investigationAccuracy: scorecardRow.investigation_accuracy,
       detectionScore: scorecardRow.detection_score,
@@ -2672,20 +2712,28 @@ function computeCapstoneRecord(program, labAttemptRows, capstoneSubmissionRows, 
       reportingScore: scorecardRow.reporting_score,
       stagesSubmitted: scorecardRow.stages_submitted,
     } : null,
+    genericBreakdown: (!isSocCapstone && passingSubmission && passingSubmission.answers && passingSubmission.answers.breakdown)
+      ? Object.entries(passingSubmission.answers.breakdown).map(([key, value]) => ({ key, label: ITS12_BREAKDOWN_LABELS[key] || key, score: value }))
+      : null,
     stages: capstoneSubmissionRows.map((c) => ({
       stage: c.stage,
       score: c.score === null || c.score === undefined ? null : Number(c.score),
       submittedAt: c.submitted_at,
     })),
     criticalErrorGate: {
-      note: 'Module 12 requires 70% (7/10 domains) AND zero critical errors to pass. capstone_submissions has no boolean critical-error column; the criticalErrors array from the rubric engine is instead carried inside jsonb — see the two fields below.',
+      note: isSocCapstone
+        ? 'Module 12 requires 70% (7/10 domains) AND zero critical errors to pass. capstone_submissions has no boolean critical-error column; the criticalErrors array from the rubric engine is instead carried inside jsonb — see the two fields below.'
+        : 'Module 12 requires 70/100 points (across 7 scored domains) AND zero critical errors to pass. capstone_submissions has no boolean critical-error column; the criticalErrors array from the rubric engine is instead carried inside jsonb — see the two fields below.',
       criticalErrorsOnPassingSubmission,
       criticalErrorsOnLatestAttempt,
       latestAttemptState: latestCapstoneAttempt ? latestCapstoneAttempt.state : null,
       latestAttemptCompletedAt: latestCapstoneAttempt ? latestCapstoneAttempt.completed_at : null,
       totalAttempts: capstoneLabAttempts.length,
     },
-    rubricsApplied: ['Triage', 'Query', 'Timeline', 'Scope', 'Enrichment', 'ATT&CK', 'Detection', 'Response', 'Reporting', 'Closure'],
+    rubricsApplied: isSocCapstone
+      ? ['Triage', 'Query', 'Timeline', 'Scope', 'Enrichment', 'ATT&CK', 'Detection', 'Response', 'Reporting', 'Closure']
+      : Object.values(ITS12_BREAKDOWN_LABELS),
+    labKey: capstoneLabKey,
     artifacts: capstoneArtifacts.map((a) => ({ id: a.id, title: a.title, submittedAt: a.submitted_at, contentSha256: a.content_sha256 })),
     review: latestReview ? { status: latestReview.review_status, outcome: latestReview.official_outcome, reviewedBy: latestReview.reviewed_by, reviewedAt: latestReview.reviewed_at, notes: latestReview.reviewer_notes, supervisionMethod: latestReview.supervision_method } : { status: latestArtifact ? 'not_requested' : 'not_available', outcome: null, reviewedBy: null, reviewedAt: null, notes: null, supervisionMethod: 'optional faculty review' },
   };
@@ -2828,6 +2876,10 @@ async function buildTranscriptData(studentId, identity) {
   const capstoneRecord = program
     ? computeCapstoneRecord(program, bundle.labAttemptRows, bundle.capstoneSubmissionRows, bundle.scorecardRow, bundle.artifactRows, bundle.capstoneReviewRows)
     : { title: 'N/A', status: 'not_applicable', statusLabel: 'No program supplied', score: null, stages: [], scorecard: null, criticalErrorGate: null, rubricsApplied: [] };
+  const transcriptCapstoneInfo = program ? resolveCapstoneModule(program) : null;
+  capstoneRecord.complianceMapping = transcriptCapstoneInfo
+    ? moduleParentRecords(program, transcriptCapstoneInfo.module, programLabs(program).filter((l) => l.module === transcriptCapstoneInfo.moduleKey)).map((p) => ({ code: p.code, title: p.title }))
+    : [];
   const enrollmentStatus = deriveStudentEnrollmentStatus(bundle.studentRow, moduleScores);
   const fixedCreditHours = computeFixedCreditHours(program, moduleScores, bundle.hourAwardRows, bundle.hourAwardError);
   const grades = assessProgressGradesCompletion(program || { modules: {}, compliance: {} }, moduleScores, capstoneRecord, fixedCreditHours);
@@ -2878,7 +2930,7 @@ async function buildTranscriptData(studentId, identity) {
     credentialAwardStatus: grades.credentialAwardStatus,
     dataProvenance: {
       gradesStatus: 'verified from Supabase module_progress and lab_attempts (live query at export time)',
-      capstoneStatus: program && program.modules && program.modules['soc-12']
+      capstoneStatus: program && resolveCapstoneModule(program)
         ? 'verified from Supabase capstone_submissions and capstone_scorecard (live query at export time)'
         : 'not applicable — this track has no capstone module',
       enrollmentStatusSource: bundle.studentRow
@@ -2903,6 +2955,10 @@ async function buildEvidencePacketData(studentId, identity) {
   const capstoneRecord = program
     ? computeCapstoneRecord(program, bundle.labAttemptRows, bundle.capstoneSubmissionRows, bundle.scorecardRow, bundle.artifactRows, bundle.capstoneReviewRows)
     : { title: 'N/A', status: 'not_applicable', statusLabel: 'No program supplied', score: null, stages: [], scorecard: null, criticalErrorGate: null, rubricsApplied: [], review: { status: 'not_applicable', outcome: null, reviewedBy: null, reviewedAt: null, notes: null, supervisionMethod: null } };
+  const evidenceCapstoneInfo = program ? resolveCapstoneModule(program) : null;
+  capstoneRecord.complianceMapping = evidenceCapstoneInfo
+    ? moduleParentRecords(program, evidenceCapstoneInfo.module, programLabs(program).filter((l) => l.module === evidenceCapstoneInfo.moduleKey)).map((p) => ({ code: p.code, title: p.title }))
+    : [];
 
   const labs = moduleScores.flatMap((m) =>
     m.labAttempts.map((a) => ({
@@ -2919,10 +2975,10 @@ async function buildEvidencePacketData(studentId, identity) {
       competenciesEvaluated: a.rubricResult && typeof a.rubricResult === 'object' ? Object.keys(a.rubricResult) : [],
       submittedArtifactReference: (() => { const artifact = bundle.artifactRows.find((x) => x.lab_key === a.labKey); return artifact ? `Portfolio artifact ${artifact.id}` : 'No durable artifact recorded for this attempt'; })(),
       artifactIntegrityMetadata: (() => { const artifact = bundle.artifactRows.find((x) => x.lab_key === a.labKey); return artifact && artifact.content_sha256 ? `SHA-256 ${artifact.content_sha256}` : 'Not available'; })(),
-      evaluatorReviewer: a.labKey === 'lab-capstone' ? capstoneRecord.review.reviewedBy : 'Not applicable — optional faculty review begins with capstone',
-      reviewDate: a.labKey === 'lab-capstone' ? capstoneRecord.review.reviewedAt : null,
-      reviewNotes: a.labKey === 'lab-capstone' ? capstoneRecord.review.notes : null,
-      supervisionMethod: a.labKey === 'lab-capstone' ? capstoneRecord.review.supervisionMethod : 'Automated scoring; no faculty review required for this module',
+      evaluatorReviewer: a.labKey === capstoneRecord.labKey ? capstoneRecord.review.reviewedBy : 'Not applicable — optional faculty review begins with capstone',
+      reviewDate: a.labKey === capstoneRecord.labKey ? capstoneRecord.review.reviewedAt : null,
+      reviewNotes: a.labKey === capstoneRecord.labKey ? capstoneRecord.review.notes : null,
+      supervisionMethod: a.labKey === capstoneRecord.labKey ? capstoneRecord.review.supervisionMethod : 'Automated scoring; no faculty review required for this module',
     }))
   );
 
@@ -3251,7 +3307,7 @@ function persistPortfolioArtifact(user, { moduleKey, labKey, kind, title, conten
  * an in-progress/failed attempt, so a failed submit is not written here (it is
  * still captured by soc-analyst-module-12.js's existing recordLabAttempt() call for
  * lab_key 'lab-capstone', which does log every attempt, pass or fail). */
-function recordCapstoneSubmission(user, { score, answers = {}, criticalErrorCount = 0 } = {}) {
+function recordCapstoneSubmission(user, { score, answers = {}, criticalErrorCount = 0, rubricVersion = 'soc-analyst-capstone-v1' } = {}) {
   if (!user || !user.userId || !user.trackCode) return;
   mntSupabase
     .from('capstone_submissions')
@@ -3264,7 +3320,7 @@ function recordCapstoneSubmission(user, { score, answers = {}, criticalErrorCoun
         answers,
         critical_error_count: criticalErrorCount,
         passed_critical_error_gate: criticalErrorCount === 0,
-        rubric_version: 'soc-analyst-capstone-v1',
+        rubric_version: rubricVersion,
         scoring_engine_version: 'portal-client-scorer-v1',
         pass_threshold: 70,
         submitted_at: new Date().toISOString(),
@@ -6310,7 +6366,7 @@ Track:      ${esc(account.track_code)}</pre>
         mntSupabase.from('lab_attempts').select('*').eq('user_id', row.user_id),
         mntSupabase.from('capstone_submissions').select('*').eq('user_id', row.user_id).order('stage', { ascending: true }),
         mntSupabase.from('capstone_scorecard').select('*').eq('user_id', row.user_id).maybeSingle(),
-        mntSupabase.from('portfolio_artifacts').select('*').eq('user_id', row.user_id).eq('lab_key', 'lab-capstone').order('submitted_at', { ascending: false }),
+        mntSupabase.from('portfolio_artifacts').select('*').eq('user_id', row.user_id).order('submitted_at', { ascending: false }),
         mntSupabase.from('capstone_reviews').select('*').eq('user_id', row.user_id).order('created_at', { ascending: false }),
       ]);
 
@@ -6488,6 +6544,9 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
          </table>
        </div>`;
 
+  const studentProgram = PROGRAMS.find((p) => p.slug === TRACK_CODE_TO_PROGRAM_SLUG[row.track_code]);
+  const studentCapstoneInfo = studentProgram ? resolveCapstoneModule(studentProgram) : null;
+  const isSocCapstoneStudent = studentCapstoneInfo && studentCapstoneInfo.moduleKey === 'soc-12';
   const scorecardDimensions = [
     ['Overall', scorecardRow && scorecardRow.overall_score],
     ['Investigation', scorecardRow && scorecardRow.investigation_accuracy],
@@ -6497,15 +6556,25 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
     ['Vulnerability', scorecardRow && scorecardRow.vulnerability_score],
     ['Reporting', scorecardRow && scorecardRow.reporting_score],
   ];
-  const scorecardSection = !scorecardRow
-    ? ''
-    : `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+  const passingCapstoneRow = capstoneRows.find((c) => c.stage === 12) || null;
+  const genericBreakdown = passingCapstoneRow && passingCapstoneRow.answers && passingCapstoneRow.answers.breakdown
+    ? Object.entries(passingCapstoneRow.answers.breakdown).map(([key, value]) => [ITS12_BREAKDOWN_LABELS[key] || key, value])
+    : [];
+  const scorecardSection = isSocCapstoneStudent
+    ? (!scorecardRow ? '' : `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
          ${scorecardDimensions.map(([label, value]) => `
            <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
              <p class="text-xs text-gray-500 uppercase tracking-wide">${esc(label)}</p>
              <p class="text-lg font-semibold text-[#1e3a5f]">${adminScore(value)}</p>
            </div>`).join('')}
-       </div>`;
+       </div>`)
+    : (genericBreakdown.length === 0 ? '' : `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+         ${genericBreakdown.map(([label, value]) => `
+           <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+             <p class="text-xs text-gray-500 uppercase tracking-wide">${esc(label)}</p>
+             <p class="text-lg font-semibold text-[#1e3a5f]">${adminScore(value)}</p>
+           </div>`).join('')}
+       </div>`);
   const capstoneArtifact = artifactRows[0] || null;
   const capstoneReview = capstoneArtifact ? reviewRows.find((review) => review.artifact_id === capstoneArtifact.id) : null;
   const reviewSection = !capstoneArtifact
