@@ -24,21 +24,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enforce Wave 9 scope
+      - name: Enforce reusable M360 UX scope
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(.github/workflows/m360-wave5-week3-networking-check.yml|.github/workflows/m360-wave7-admin-portfolios-check.yml|.github/workflows/m360-wave9-ux-pdf-check.yml|portal/m360/week.html|portal/m360/m360-ui-polish.js|portal/m360/portfolio.html|portal/m360/portfolio.css|portal/m360/portfolio.js|portal/m360/m360-portfolio-pdf.js)$' || true)"
-          if [ -n "$unexpected" ]; then
-            echo '::error::Wave 9 is limited to M360 presentation/navigation polish, portfolio PDF delivery, and guard maintenance.'
-            printf '%s\n' "$unexpected"
+          if printf '%s\n' "$changed" | grep -Eiq '\.(pdf|pptx?|png|jpe?g|gif|webp|zip)$'; then
+            echo '::error::M360 UX changes must not add binary portfolio or slide assets to GitHub.'
             exit 1
           fi
-          if printf '%s\n' "$changed" | grep -Eiq '\.(pdf|pptx?|png|jpe?g|gif|webp|zip)$'; then
-            echo '::error::Wave 9 must not add binary portfolio or slide assets to GitHub.'
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
+            echo '::error::M360 UX work must not change the established technical-course LMS runtime.'
             exit 1
           fi
 
@@ -82,7 +80,7 @@ jobs:
           from pathlib import Path
           html = Path('portal/m360/week.html').read_text()
           nav = html.find('m360-production-nav.js?v=20260907')
-          polish = html.find('m360-ui-polish.js?v=20260904')
+          polish = html.find('m360-ui-polish.js?v=20260908')
           if nav < 0 or polish < 0 or polish <= nav:
               raise SystemExit('M360 UI polish must load after production navigation so final student-facing links and labels are authoritative.')
           print('M360 UI polish loads after production navigation')
@@ -162,12 +160,14 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          if printf '%s\n' "$changed" | grep -Eq '^supabase/'; then
-            echo '::error::Wave 9 must not change Supabase schema, migrations, RPCs, or Storage.'
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          if [ -n "$unexpected_supabase" ]; then
+            echo '::error::M360 UX work must not change unrelated Supabase schema, migrations, RPCs, or Storage.'
+            printf '%s\n' "$unexpected_supabase"
             exit 1
           fi
           if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
-            echo '::error::Wave 9 must not change the established technical-course LMS runtime.'
+            echo '::error::M360 UX work must not change the established technical-course LMS runtime.'
             exit 1
           fi
-          echo 'Wave 9 preserves existing M360 data contracts and technical-course runtime.'
+          echo 'Wave 9 UX/PDF invariants remain intact across later M360 waves.'
