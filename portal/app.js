@@ -719,22 +719,28 @@ function m360ProgressStatus(row) {
 
 function adminTrackAdministrationStrip(rows, activeTrackCode = null) {
   const allCount = rows.length;
-  const card = (track) => {
+  const tile = ({ href, active, eyebrow, title, count, accentClass }) => `<a href="${href}" class="flex items-center justify-between gap-2 rounded-xl border ${active ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20 bg-[#f0f4f8]' : 'border-gray-200 bg-white hover:border-[#1e3a5f]/40'} px-3 py-2.5 transition">
+    <span class="min-w-0">
+      <span class="block text-[10px] font-semibold uppercase tracking-widest ${accentClass || 'text-gray-500'} truncate">${esc(eyebrow)}</span>
+      <span class="block text-sm font-bold text-[#1e3a5f] truncate">${esc(title)}</span>
+    </span>
+    <span class="flex-shrink-0 text-xs font-semibold text-gray-500 whitespace-nowrap">${esc(count)}<i class="ri-arrow-right-s-line ml-0.5 align-middle" aria-hidden="true"></i></span>
+  </a>`;
+  const trackTile = (track) => {
     const count = rows.filter((row) => row.track_code === track.code).length;
-    const active = activeTrackCode === track.code;
-    return `<article class="h-full min-h-52 bg-white border ${active ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20' : 'border-gray-200'} rounded-2xl p-5 flex flex-col shadow-sm">
-      <p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-2">${esc(track.eyebrow)}</p>
-      <h3 class="text-lg font-bold text-[#1e3a5f]">${esc(track.title)}</h3>
-      <p class="text-sm text-gray-500 mt-2 flex-1">${esc(track.purpose)}</p>
-      <div class="mt-4 flex items-center justify-between gap-2"><span class="text-xs font-semibold text-gray-500">${count} student${count === 1 ? '' : 's'}</span>${track.comingSoon ? '<span class="text-xs font-semibold text-[#9a3412] bg-[#fff7ed] border border-[#fed7aa] rounded-full px-2 py-1">Coming soon…</span>' : ''}</div>
-      <a href="#/admin/track/${track.code}" class="mt-4 inline-flex justify-center rounded-xl border border-[#1e3a5f] px-4 py-2.5 text-sm font-semibold text-[#1e3a5f] hover:bg-[#f0f4f8]">Open administration</a>
-    </article>`;
+    return tile({
+      href: `#/admin/track/${track.code}`,
+      active: activeTrackCode === track.code,
+      eyebrow: track.eyebrow,
+      title: track.title,
+      count: track.comingSoon ? 'Coming soon' : `${count} student${count === 1 ? '' : 's'}`,
+    });
   };
-  return `<section aria-labelledby="track-administration-title" class="mb-8"><div class="flex items-end justify-between gap-4 mb-4"><div><p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-1">Administration workspaces</p><h2 id="track-administration-title" class="text-2xl font-bold text-[#1e3a5f]">Track Administration</h2></div></div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-      <article class="h-full min-h-52 bg-[#f8fafc] border ${!activeTrackCode ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20' : 'border-gray-200'} rounded-2xl p-5 flex flex-col shadow-sm"><p class="text-xs font-semibold uppercase tracking-widest text-[#1e3a5f] mb-2">Master roster</p><h3 class="text-lg font-bold text-[#1e3a5f]">All Students</h3><p class="text-sm text-gray-500 mt-2 flex-1">Progress across every technical track.</p><span class="mt-4 text-xs font-semibold text-gray-500">${allCount} student${allCount === 1 ? '' : 's'}</span><a href="#/admin" class="mt-4 inline-flex justify-center rounded-xl border border-[#1e3a5f] px-4 py-2.5 text-sm font-semibold text-[#1e3a5f] hover:bg-white">Open administration</a></article>
-      ${ADMIN_TRACKS.map(card).join('')}
-      <article class="h-full min-h-52 bg-white border border-[#f97316]/40 rounded-2xl p-5 flex flex-col shadow-sm"><p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-2">Cross-track review</p><h3 class="text-lg font-bold text-[#1e3a5f]">M360 Administration</h3><p class="text-sm text-gray-500 mt-2 flex-1">Review M360 evidence and verification gates for every eligible track.</p><span class="mt-4 text-xs font-semibold text-[#9a3412]">All eligible students</span><a href="m360/review.html" class="mt-4 inline-flex justify-center rounded-xl bg-[#f97316] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#ea580c]">Open administration</a></article>
+  return `<section aria-labelledby="track-administration-title" class="mb-8"><div class="flex items-end justify-between gap-4 mb-3"><div><p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-1">Administration workspaces</p><h2 id="track-administration-title" class="text-lg font-bold text-[#1e3a5f]">Track Administration</h2></div></div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
+      ${tile({ href: '#/admin', active: !activeTrackCode, eyebrow: 'Master roster', title: 'All Students', count: `${allCount} student${allCount === 1 ? '' : 's'}` })}
+      ${ADMIN_TRACKS.map(trackTile).join('')}
+      ${tile({ href: 'm360/review.html', active: false, eyebrow: 'Cross-track review', title: 'M360 Administration', count: 'Open', accentClass: 'text-[#f97316]' })}
     </div></section>`;
 }
 
