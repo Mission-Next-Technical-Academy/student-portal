@@ -81,9 +81,477 @@ const MODULE_TWO_LAB = {
   ],
 };
 
+const MODULE_TWO_QUIZ_BANKS = [
+  {
+    conceptId: 'network-paths',
+    conceptTitle: 'Network paths',
+    questions: [
+      {
+        id: 'm02-q-net-1',
+        prompt: 'An analyst reviews a sign-in event from a user account with an IP address registered in a different country from the user\'s usual location. The account successfully authenticated with the user\'s known password and security key. What is the BEST immediate assessment?',
+        options: [
+          { id: 'a', text: 'Immediately disable the account because international IP access is always suspicious.' },
+          { id: 'b', text: 'The unusual geographic location is one signal among several; authentication method, device state, and resource access should be evaluated together with the network context.' },
+          { id: 'c', text: 'The strong authentication (password + security key) proves the access is authorized, so the IP location is irrelevant.' },
+          { id: 'd', text: 'Flag this as a routine travel event and take no further action.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'A network path is one signal. Correlate it with identity, authentication method, device, resource, and authorization to form a complete picture.',
+        feedbackIncorrect: 'Geographic IP location alone does not determine risk. Combine it with other evidence: authentication success, device state, role accessed, and timing patterns.',
+      },
+      {
+        id: 'm02-q-net-2',
+        prompt: 'A service account connects to a database server from a source IP in a documented internal subnet, during scheduled maintenance hours. The authentication uses a trusted certificate. Why should this access be considered normal?',
+        options: [
+          { id: 'a', text: 'Service accounts never need review because they are non-human.' },
+          { id: 'b', text: 'The route (internal subnet), timing (scheduled), method (certificate), and context (maintenance) all align with expected behavior for that service.' },
+          { id: 'c', text: 'Only password-based authentication requires review; certificate access is always safe.' },
+          { id: 'd', text: 'IP addresses are the only factor that matters for network trust decisions.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Expected behavior includes route, timing, method, and resource context. When all align, the access fits the known pattern.',
+        feedbackIncorrect: 'Service accounts still require monitoring. Correlate the network path with the expected schedule, authentication method, and resource being accessed.',
+      },
+      {
+        id: 'm02-q-net-3',
+        prompt: 'Two sign-in attempts from the same user occur 15 minutes apart from IP addresses in different geographic regions, both using the device-based MFA. What is the MOST relevant technical question for the analyst?',
+        options: [
+          { id: 'a', text: 'Can the user physically travel between two regions in 15 minutes using an aircraft?' },
+          { id: 'b', text: 'Does the organization have documented business reasons for users to access from both regions?' },
+          { id: 'c', text: 'Is it technically possible for a single device or VPN connection to appear from two different geographic locations in that timeframe?' },
+          { id: 'd', text: 'What is the user\'s salary level?' },
+        ],
+        correctId: 'c',
+        feedbackCorrect: 'Impossible travel is a pattern worth investigating. Understanding whether the network path is feasible (VPN, cloud services, mobile networks) helps distinguish attack from legitimate travel.',
+        feedbackIncorrect: 'Analyze the network feasibility: VPN, roaming mobile networks, and cloud edge services can make geographic shifts appear instantly. Distinguish technical possibility from user behavior.',
+      },
+      {
+        id: 'm02-q-net-4',
+        prompt: 'A user successfully authenticates from the organization\'s main office network but accesses a sensitive financial system. The same user then makes an identical access request from a home IP address using a personal VPN service. Which factor MOST increases the risk profile?',
+        options: [
+          { id: 'a', text: 'The use of a VPN means the user is trying to hide and is therefore malicious.' },
+          { id: 'b', text: 'The organization cannot verify the user\'s device status, network security, and authentication posture from an unmanaged remote access point, making it harder to trust the request.' },
+          { id: 'c', text: 'Home networks are always less secure than office networks.' },
+          { id: 'd', text: 'The financial system is accessed from two different locations.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Unknown device state and network posture increase risk. The organization cannot verify security controls on an unmanaged device or network.',
+        feedbackIncorrect: 'VPN use alone does not indicate malice. The issue is visibility: from an unmanaged network, the analyst has less assurance of device and network security.',
+      },
+    ],
+  },
+  {
+    conceptId: 'identity-accounts',
+    conceptTitle: 'Identity and accounts',
+    questions: [
+      {
+        id: 'm02-q-id-1',
+        prompt: 'An analyst sees sign-in events for an account during a time when the employee is known to be on vacation with no network access. What should the analyst consider first?',
+        options: [
+          { id: 'a', text: 'The account is definitely compromised and must be disabled immediately.' },
+          { id: 'b', text: 'Verify the business context: Is this a service account, a shared account, or an account that might be accessed by a delegate or admin on the employee\'s behalf?' },
+          { id: 'c', text: 'Time zone differences might explain the activity, so no investigation is needed.' },
+          { id: 'd', text: 'Vacation status is irrelevant to security analysis.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correlate the identity type and business context with the activity. Service accounts, shared resources, and administrative actions have different risk profiles than human accounts acting alone.',
+        feedbackIncorrect: 'Unexpected timing is a signal. Determine what identity type this is and whether delegation or service behavior could explain the activity.',
+      },
+      {
+        id: 'm02-q-id-2',
+        prompt: 'An organization uses both human user accounts and service accounts to access a shared database. A security review finds that both types use the same authentication method (simple username/password stored in a configuration file). Which statement BEST describes the risk difference?',
+        options: [
+          { id: 'a', text: 'Human accounts and service accounts are equivalent; there is no difference in risk.' },
+          { id: 'b', text: 'Service accounts are used by automated systems and follow predictable patterns; human accounts are used by people and show variable patterns. Applying different trust levels to each is appropriate.' },
+          { id: 'c', text: 'Service accounts are less risky because they are non-human.' },
+          { id: 'd', text: 'Human accounts should never be used for database access.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Service and human identities behave differently. Scheduled tasks have predictable access patterns; human users show variable times, devices, and locations. Analyze each type according to its expected behavior.',
+        feedbackIncorrect: 'Human and service identities have different behavior profiles. A human account logging in at 3 AM from a new location is more surprising than a nightly service backup.',
+      },
+      {
+        id: 'm02-q-id-3',
+        prompt: 'An account used for administrative tasks shows sign-in events every 24 hours at exactly the same time, using the same device, from the same location, and always accessing the same systems. This pattern has been consistent for six months. Why is this pattern valuable for anomaly detection?',
+        options: [
+          { id: 'a', text: 'Scheduled administrative activity is suspicious and should be investigated.' },
+          { id: 'b', text: 'The predictable pattern provides a baseline; any deviation (different time, device, system, or location) is a stronger signal of compromise than random variation would be.' },
+          { id: 'c', text: 'Patterns are irrelevant; only the individual event matters.' },
+          { id: 'd', text: 'Six months of history is too old to be useful.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Baseline behavior provides context for anomalies. A deviation from a known pattern is a stronger signal than comparison to an average of inconsistent behavior.',
+        feedbackIncorrect: 'Behavioral patterns are one of the strongest signals for anomaly detection. Deviations from established baselines deserve investigation.',
+      },
+      {
+        id: 'm02-q-id-4',
+        prompt: 'A contractor account and a full-time employee account both attempt to access the same sensitive resource at the same time with valid credentials and the same IP address. What FIRST factor should the analyst verify?',
+        options: [
+          { id: 'a', text: 'Both accounts should be disabled immediately because multiple accounts are accessing the same resource.' },
+          { id: 'b', text: 'The identity type and business justification: Is there a legitimate business reason for the contractor to have access to this resource alongside the employee?' },
+          { id: 'c', text: 'The IP address must be fraudulent because it is used by two different people.' },
+          { id: 'd', text: 'The employee\'s account must be compromised if a contractor can access the same systems.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correlate identity type with authorization scope. A contractor may have legitimate access to the same systems as an employee under specific conditions.',
+        feedbackIncorrect: 'Different identity types have different approval and authorization requirements. Evaluate whether the contractor access is approved and scoped correctly.',
+      },
+    ],
+  },
+  {
+    conceptId: 'authentication',
+    conceptTitle: 'Authentication',
+    questions: [
+      {
+        id: 'm02-q-auth-1',
+        prompt: 'A user\'s account shows two sign-in attempts 30 seconds apart: the first fails with "invalid password," and the second succeeds with "legacy exception." Which pattern MOST suggests a compromise attempt?',
+        options: [
+          { id: 'a', text: 'The failed attempt alone proves an attack.' },
+          { id: 'b', text: 'The sequence of a failed stronger method followed by a weaker method succeeding is a common attack pattern: attempting forced authentication bypass when stronger authentication is denied.' },
+          { id: 'c', text: 'A successful sign-in with a legacy exception is always safe.' },
+          { id: 'd', text: 'Two sign-in attempts 30 seconds apart is normal behavior.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'A sequence matters: denied MFA followed by weak-method success suggests an attacker bypassing strong authentication after it failed.',
+        feedbackIncorrect: 'Correlate authentication method sequences. A shift from strong to weak authentication after a denial is a warning sign.',
+      },
+      {
+        id: 'm02-q-auth-2',
+        prompt: 'An organization uses hardware security keys for high-risk accounts but passwords for general accounts. A compromise investigation finds that 50 accounts with hardware keys were breached, but no password-only accounts were touched. What inference is REASONABLE?',
+        options: [
+          { id: 'a', text: 'Hardware keys are less secure than passwords.' },
+          { id: 'b', text: 'An insider who has physical access to stolen keys, or a targeted attack on the key enrollment system, is a more likely explanation than password compromise, because the hardware key requirement should have prevented a simpler attack.' },
+          { id: 'c', text: 'Password-only accounts are more secure than key-protected accounts.' },
+          { id: 'd', text: 'The hardware keys are useless and should be replaced with passwords.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'When a strong authentication method is bypassed, the attack vector must be sophisticated enough to match the method. Physical key theft or internal compromise are more likely than password guessing.',
+        feedbackIncorrect: 'When the strongest authentication method is compromised but weaker alternatives are not, consider supply-chain, insider, or system-level attacks, not user-level password guessing.',
+      },
+      {
+        id: 'm02-q-auth-3',
+        prompt: 'A user denies an MFA prompt on their registered device, then 10 minutes later successfully signs in using a password from a different device without any MFA. Which FIRST step should the analyst take?',
+        options: [
+          { id: 'a', text: 'Assume the MFA denial was a mistake and take no action.' },
+          { id: 'b', text: 'Contact the user to confirm whether they initiated the denied MFA attempt and whether they are aware of the subsequent sign-in from a new device.' },
+          { id: 'c', text: 'Immediately disable the user\'s account.' },
+          { id: 'd', text: 'MFA denials and legacy sign-ins are unrelated events.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Verify with the user first. A denied MFA followed by a legacy sign-in could be user error, but it could also indicate an attacker trying methods in sequence.',
+        feedbackIncorrect: 'Denied MFA and subsequent weak-auth success can indicate an attacker testing methods. Verify with the user before assuming it is innocent.',
+      },
+      {
+        id: 'm02-q-auth-4',
+        prompt: 'Your organization\'s authentication logs show that 200 sign-in attempts occurred with valid credentials in the past hour, but the organization has only 150 employees. Which investigation step is FIRST?',
+        options: [
+          { id: 'a', text: 'Disable all accounts because there is clearly a mass compromise.' },
+          { id: 'b', text: 'Check whether service accounts, automation, or legitimate retries after brief failures could account for the extra sign-in count before assuming a breach.' },
+          { id: 'c', text: 'All 200 attempts are definitely fraudulent.' },
+          { id: 'd', text: 'Sign-in counts are irrelevant to security analysis.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correlate authentication volume with business context. Scheduled tasks, automated retries, and service accounts can explain high sign-in counts.',
+        feedbackIncorrect: 'A high authentication volume is a signal to investigate context, not automatically proof of breach. Consider legitimate system activity first.',
+      },
+    ],
+  },
+  {
+    conceptId: 'authorization',
+    conceptTitle: 'Authorization',
+    questions: [
+      {
+        id: 'm02-q-authz-1',
+        prompt: 'A role change grants a user access to production databases. No matching change request or manager approval record exists in the system. Why is the absence of approval documentation a critical signal?',
+        options: [
+          { id: 'a', text: 'Approval documentation is optional.' },
+          { id: 'b', text: 'A role change affecting sensitive resources should follow an approval workflow. The absence of documentation means the change happened outside normal authorization controls, which is a governance and compliance violation.' },
+          { id: 'c', text: 'IT administrators never need approval to grant access.' },
+          { id: 'd', text: 'Documentation is only needed for denials, not approvals.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Authorization accountability requires documented approval. A role change without a matching request or approval is a red flag that it bypassed the control process.',
+        feedbackIncorrect: 'Privilege escalation should follow an approval process. No documentation means the change is not properly authorized or auditable.',
+      },
+      {
+        id: 'm02-q-authz-2',
+        prompt: 'A user who works in the Finance department is suddenly granted Network Administrator role. The change request references cost optimization, and the user has never had IT training. What should the analyst assess?',
+        options: [
+          { id: 'a', text: 'Role changes always make sense and should never be questioned.' },
+          { id: 'b', text: 'Whether the role scope and user background align with legitimate business need. A Finance employee with no IT training suddenly granted administrator privileges suggests the change may have been unauthorized or mistargeted.' },
+          { id: 'c', text: 'Cost optimization always justifies any role change.' },
+          { id: 'd', text: 'The user\'s job function is irrelevant to authorization.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Evaluate whether a role assignment fits the person\'s job function and whether they have the skills and oversight needed for that responsibility.',
+        feedbackIncorrect: 'A role change should align with job function and business justification. A mismatch between the user\'s role and the new privileges deserves escalation.',
+      },
+      {
+        id: 'm02-q-authz-3',
+        prompt: 'Two users in the same department have the same job title but different access levels to company resources. User A can read customer data but not export it. User B can read and export customer data. Why is this variance worth investigating?',
+        options: [
+          { id: 'a', text: 'Access levels should be identical for all employees with the same job title.' },
+          { id: 'b', text: 'Access level differences should correspond to documented authorization justifications. If there is no business reason for the difference, it may indicate over-provisioning, unauthorized escalation, or a control gap.' },
+          { id: 'c', text: 'Different access levels are always random and do not warrant investigation.' },
+          { id: 'd', text: 'Data export is never relevant to security analysis.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Access variance should have documented business justification. Unexplained differences indicate either over-provisioning or unauthorized escalation.',
+        feedbackIncorrect: 'Role-based access control should be consistent. Unexplained access differences warrant an audit of the authorization basis.',
+      },
+      {
+        id: 'm02-q-authz-4',
+        prompt: 'An analyst reviews a 30-day history and finds that a contractor account\'s permissions have been changed eight times, each time granting access to new systems without the contractor requesting access. What is the MOST concerning aspect?',
+        options: [
+          { id: 'a', text: 'Contractor accounts should be deleted.' },
+          { id: 'b', text: 'The contractor did not request the access changes, suggesting either a mistake, an authorization process failure, or unauthorized modification of the account. Contractors should request access, and IT should approve and track each change.' },
+          { id: 'c', text: 'Permissions changes never matter for contractors.' },
+          { id: 'd', text: 'Eight permission changes over 30 days is a normal rate.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Each authorization change should have a documented request and approval. Unsolicited access grants suggest the control process is failing or being bypassed.',
+        feedbackIncorrect: 'Untracked authorization changes indicate a control failure. Every access grant should be authorized and recorded by the requester and approver.',
+      },
+    ],
+  },
+  {
+    conceptId: 'mfa',
+    conceptTitle: 'MFA',
+    questions: [
+      {
+        id: 'm02-q-mfa-1',
+        prompt: 'A user\'s account shows three failed MFA prompt attempts over 2 minutes, followed immediately by a successful sign-in without MFA using a legacy exception. What does this pattern suggest?',
+        options: [
+          { id: 'a', text: 'The user forgot their MFA device at home, so the legacy exception is appropriate.' },
+          { id: 'b', text: 'The user might be having a legitimate device issue, but the pattern of denied MFA followed by weak-auth success is also consistent with an attacker attempting to bypass stronger authentication.' },
+          { id: 'c', text: 'MFA failures are always innocent and require no further review.' },
+          { id: 'd', text: 'The legacy exception means the account is compromised.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Repeated MFA denials followed by weaker authentication success can indicate either user error or an attacker testing methods. Verify with the user.',
+        feedbackIncorrect: 'Denied MFA attempts followed by legacy-method success is a warning pattern. It could be user error, but it requires user confirmation.',
+      },
+      {
+        id: 'm02-q-mfa-2',
+        prompt: 'Your organization sends MFA prompts to users\' registered devices. An investigation finds that a user was sent 50 MFA prompts in one hour, and the user denies initiating any sign-in attempts. What is the MOST likely explanation?',
+        options: [
+          { id: 'a', text: 'The MFA system is malfunctioning and all prompts are false positives.' },
+          { id: 'b', text: 'An attacker obtained or guessed the user\'s password and is attempting repeated sign-ins while the legitimate user is denying each MFA prompt. The high volume of denials is a strong signal of active attack.' },
+          { id: 'c', text: 'The user is lying and actually initiated the attempts.' },
+          { id: 'd', text: 'High MFA prompt volumes are normal behavior.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Repeated MFA prompts that a user did not initiate indicate an attacker is attempting to authenticate with the correct password but lacks the second factor. The denied prompts are the MFA system working as designed.',
+        feedbackIncorrect: 'A high volume of unauthorized MFA prompts signals an active attack. The user denying each prompt means the account is not being compromised, but the password is known to an attacker.',
+      },
+      {
+        id: 'm02-q-mfa-3',
+        prompt: 'An organization requires MFA for administrative accounts but not for general user accounts. An incident investigation finds that an attacker gained access to a general user account and used it to access sensitive non-administrative systems. Why was MFA not a defense in this scenario?',
+        options: [
+          { id: 'a', text: 'MFA would not have helped because the attacker had the password.' },
+          { id: 'b', text: 'The organization\'s MFA policy only protected administrative accounts. General user accounts lacked MFA protection, so a password compromise was sufficient for the attacker to gain access.' },
+          { id: 'c', text: 'MFA is ineffective and should not be used.' },
+          { id: 'd', text: 'The user should not have had access to sensitive systems.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'MFA\'s protection depends on which accounts require it. Limiting MFA to administrative accounts leaves general user accounts vulnerable to password compromise.',
+        feedbackIncorrect: 'MFA coverage should align with risk. An account with access to sensitive data benefits from MFA protection, whether or not it is an administrative account.',
+      },
+      {
+        id: 'm02-q-mfa-4',
+        prompt: 'A user reports that they received MFA prompts on their device at night, but they did not attempt to sign in. The user approved two of the prompts by mistake before realizing the activity was not legitimate. What should the analyst recommend?',
+        options: [
+          { id: 'a', text: 'No action is needed because the user approved the prompts, so the access is legitimate.' },
+          { id: 'b', text: 'The attacker has both the password and the second factor (because the user approved the prompts), so the account is likely fully compromised. Immediate password reset, session termination, and access review are needed.' },
+          { id: 'c', text: 'Only administrative accounts can be compromised this way.' },
+          { id: 'd', text: 'User approval of MFA prompts always means the access is legitimate.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'If an attacker triggered MFA prompts and the user mistakenly approved them, the attacker now has an authenticated session. This is a serious compromise indicator.',
+        feedbackIncorrect: 'An attacker who can trigger MFA prompts and trick the user into approving them has gained an authenticated session. This requires immediate password reset and session termination.',
+      },
+    ],
+  },
+  {
+    conceptId: 'rbac-privilege',
+    conceptTitle: 'RBAC and least privilege',
+    questions: [
+      {
+        id: 'm02-q-rbac-1',
+        prompt: 'A user\'s role includes permissions for reading reports, writing reports, approving reports, and deleting reports. The user\'s job function is to write daily status reports. Why might this role assignment violate least privilege?',
+        options: [
+          { id: 'a', text: 'The user has more permissions than necessary to perform their job, including deletion and approval authority they do not need.' },
+          { id: 'b', text: 'Least privilege is not a real security principle.' },
+          { id: 'c', text: 'A user\'s job function is irrelevant to permission assignment.' },
+          { id: 'd', text: 'The user should have even more permissions for greater efficiency.' },
+        ],
+        correctId: 'a',
+        feedbackCorrect: 'Least privilege means a user has only the permissions needed for their role. Excess permissions (deletion, approval) should be removed if not necessary.',
+        feedbackIncorrect: 'Least privilege limits access to what is needed. Over-provisioned accounts increase the blast radius if the account is compromised.',
+      },
+      {
+        id: 'm02-q-rbac-2',
+        prompt: 'An analyst reviews role assignments and finds that 30% of users in an organization have administrative privileges, but only 5% of them use those privileges in their daily work. What is the FIRST recommended action?',
+        options: [
+          { id: 'a', text: 'Remove administrative privileges from users who do not regularly use them and require them to request elevation for specific tasks when needed.' },
+          { id: 'b', text: 'Administrators are special and should never have their privileges questioned.' },
+          { id: 'c', text: 'If users have administrative access, they should use it every day.' },
+          { id: 'd', text: 'Over-provisioning is a security best practice.' },
+        ],
+        correctId: 'a',
+        feedbackCorrect: 'Privileges should match need. Users with infrequently used high-level access should use just-in-time elevation instead of standing privileges.',
+        feedbackIncorrect: 'High privilege standing access that is infrequently used increases risk without benefit. Just-in-time elevation is a better practice.',
+      },
+      {
+        id: 'm02-q-rbac-3',
+        prompt: 'An organization uses two role models: (1) a single "Super Admin" role with access to all systems, and (2) granular role-based permissions with specific scope. Why would granular RBAC be preferred for incident response?',
+        options: [
+          { id: 'a', text: 'Super Admin roles are more secure because they give users full access.' },
+          { id: 'b', text: 'Granular roles limit the blast radius of a compromise. If a Super Admin account is compromised, an attacker has access to everything. If granular roles are used, a compromised account has access only to its assigned systems.' },
+          { id: 'c', text: 'Scope does not matter to security analysis.' },
+          { id: 'd', text: 'Granular roles make incident investigation harder.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Granular RBAC limits blast radius. A compromised narrow-scope role affects only that scope; a compromised super-admin role affects the entire organization.',
+        feedbackIncorrect: 'Broad roles increase blast radius in case of compromise. Granular, scoped roles limit the damage a single compromised account can cause.',
+      },
+      {
+        id: 'm02-q-rbac-4',
+        prompt: 'A user requests permanent elevation to a sensitive role, stating they will need it "eventually" for future projects. The current project has no requirement for that access. What should the access manager decide?',
+        options: [
+          { id: 'a', text: 'Grant the access now because the user might need it later.' },
+          { id: 'b', text: 'Approve access only for the current confirmed need. When the user has a specific project that requires the sensitive role, they should request it again with business justification.' },
+          { id: 'c', text: 'Speculatively granting access violates no principles.' },
+          { id: 'd', text: 'Users should always have maximum access.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Principle of least privilege: grant access only for current, documented needs. Future needs warrant future requests with current justification.',
+        feedbackIncorrect: 'Anticipatory access grants violate least privilege. Access should match current role and responsibility, not possible future needs.',
+      },
+    ],
+  },
+  {
+    conceptId: 'pki',
+    conceptTitle: 'PKI',
+    questions: [
+      {
+        id: 'm02-q-pki-1',
+        prompt: 'A service account authenticates using a certificate issued by the organization\'s internal PKI. The certificate was issued two years ago and will expire in two months. Why is the expiration date relevant to a security review?',
+        options: [
+          { id: 'a', text: 'Certificate expiration is always a sign of a security breach.' },
+          { id: 'b', text: 'An expired certificate will break service continuity. The organization should renew the certificate on schedule to avoid service interruption, and a stale or unrenewed certificate might indicate a control or monitoring gap.' },
+          { id: 'c', text: 'Certificate expiration has no security implications.' },
+          { id: 'd', text: 'Only passwords need renewal; certificates do not.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Certificate expiration is a known event. Failure to renew on schedule indicates a process gap and risks unplanned service loss.',
+        feedbackIncorrect: 'Certificate renewal is a basic operational requirement. Stale or expired certificates indicate the organization is not tracking or renewing them on schedule.',
+      },
+      {
+        id: 'm02-q-pki-2',
+        prompt: 'An analyst reviews certificate usage and finds that a certificate issued to "database-server-prod" is being used by a different system called "database-server-staging." What is the security concern?',
+        options: [
+          { id: 'a', text: 'Certificate subject names are irrelevant to security.' },
+          { id: 'b', text: 'The certificate\'s intended subject does not match the system using it. This could indicate the certificate was misconfigured, stolen, or being misused. The correct certificate for staging should be used instead.' },
+          { id: 'c', text: 'As long as the certificate is valid, any system can use it.' },
+          { id: 'd', text: 'Production and staging systems are always interchangeable.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'A certificate\'s subject should match the system using it. Subject mismatch indicates the wrong certificate is in use, which could mask a compromise or configuration error.',
+        feedbackIncorrect: 'Certificate subject binding ensures the correct system is using the intended certificate. Subject mismatches should be investigated.',
+      },
+      {
+        id: 'm02-q-pki-3',
+        prompt: 'During an incident investigation, an analyst discovers that a root certificate private key was stored in plaintext in a configuration file. The root certificate is used to issue all internal certificates for the organization. Why is this discovery critical?',
+        options: [
+          { id: 'a', text: 'Private key storage location does not affect security.' },
+          { id: 'b', text: 'An attacker with access to the root private key can forge any certificate in the organization, breaking trust for all systems that rely on that root. This is a complete compromise of the PKI system.' },
+          { id: 'c', text: 'Plaintext storage is a convenience best practice.' },
+          { id: 'd', text: 'Only public keys need to be protected.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'A compromised root private key means an attacker can forge any certificate. This breaks the entire PKI trust model for that organization.',
+        feedbackIncorrect: 'Root private keys must be protected. Plaintext storage of a root key is a critical compromise of the PKI system.',
+      },
+      {
+        id: 'm02-q-pki-4',
+        prompt: 'A certificate issued to "mail.example.com" is used to authenticate email servers. The certificate was issued by an external, public Certificate Authority, and the certificate chain is valid. Why should an analyst still verify the Certificate Authority\'s reputation and policies?',
+        options: [
+          { id: 'a', text: 'All Certificate Authorities are equally trustworthy.' },
+          { id: 'b', text: 'A CA\'s reputation and vetting procedures affect trust in its issued certificates. A compromise, lax vetting, or historical security issues with a CA could mean its certificates are less trustworthy than those from a well-managed CA.' },
+          { id: 'c', text: 'Certificate verification only requires checking expiration date.' },
+          { id: 'd', text: 'External CAs are always more secure than internal CAs.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'CA reputation and policies matter. A compromised or low-integrity CA can issue fraudulent certificates that appear valid.',
+        feedbackIncorrect: 'Not all Certificate Authorities are equally trustworthy. Verify the CA\'s operational security, vetting procedures, and reputation.',
+      },
+    ],
+  },
+  {
+    conceptId: 'zero-trust',
+    conceptTitle: 'Zero Trust reasoning',
+    questions: [
+      {
+        id: 'm02-q-zt-1',
+        prompt: 'Traditional network security assumes that "inside the firewall is trusted" and "outside is untrusted." Zero Trust assumes every request, regardless of source, requires verification. Why is this shift important?',
+        options: [
+          { id: 'a', text: 'Firewalls are obsolete and should be removed.' },
+          { id: 'b', text: 'Internal networks can be compromised just as external ones can be. Verifying identity, device posture, and request context regardless of network location provides stronger protection than assuming internal = safe.' },
+          { id: 'c', text: 'All networks are equally risky at all times.' },
+          { id: 'd', text: 'Network location is the only security factor that matters.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Zero Trust reflects the reality that internal threats exist. Every request deserves authentication and authorization verification.',
+        feedbackIncorrect: 'Modern security recognizes that "inside the network" is not a guarantee of safety. Zero Trust verifies every access request independently.',
+      },
+      {
+        id: 'm02-q-zt-2',
+        prompt: 'A device that was compromised six months ago is now clean and repaired. The user connects it to the network and attempts to access company resources. From a Zero Trust perspective, why should the device be treated carefully on first reconnection?',
+        options: [
+          { id: 'a', text: 'The device was already compromised once, so it can be trusted now.' },
+          { id: 'b', text: 'The organization cannot be certain of the device\'s current state just because it was repaired offline. The device should be re-verified: patching status, malware scans, compliance checks, and behavioral monitoring should all occur before granting access to sensitive resources.' },
+          { id: 'c', text: 'Once a device has been repaired, no further verification is needed.' },
+          { id: 'd', text: 'Device state never changes, so historical compromise is irrelevant.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Zero Trust requires continuous verification. A previously compromised device should be re-verified before accessing resources.',
+        feedbackIncorrect: 'Previous compromise is relevant context. Verification should include current patching, compliance, and behavioral posture.',
+      },
+      {
+        id: 'm02-q-zt-3',
+        prompt: 'In a Zero Trust model, what is the advantage of requiring continuous authentication and authorization checks throughout a session, not just at sign-in?',
+        options: [
+          { id: 'a', text: 'Continuous verification adds no security value.' },
+          { id: 'b', text: 'A device or user could become compromised or non-compliant after initial sign-in. Continuous verification allows the system to detect and respond to changes in risk posture during the session.' },
+          { id: 'c', text: 'Sign-in verification is sufficient for a full day of access.' },
+          { id: 'd', text: 'Only passwords need verification; other factors do not.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Risk posture changes during a session. Continuous verification allows detection of new compromises, policy violations, or behavioral anomalies.',
+        feedbackIncorrect: 'Zero Trust includes continuous verification because user and device state can change during a session.',
+      },
+      {
+        id: 'm02-q-zt-4',
+        prompt: 'A Zero Trust policy requires multifactor authentication for all users, not just administrators. Why extend MFA beyond administrative access?',
+        options: [
+          { id: 'a', text: 'Only administrators should use MFA; general users do not need it.' },
+          { id: 'b', text: 'General user accounts often have access to customer data, financial information, or operational systems. Compromising a general user account is a viable attack path, and MFA on all accounts protects the entire user base, not just privileged roles.' },
+          { id: 'c', text: 'All accounts are equally risky regardless of access level.' },
+          { id: 'd', text: 'MFA is too inconvenient for general users.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'General user accounts often access valuable data. MFA on all accounts raises the bar for account compromise attacks.',
+        feedbackIncorrect: 'Non-administrative accounts can provide valuable access to attackers. Applying MFA broadly increases overall security.',
+      },
+    ],
+  },
+];
+
 let moduleTwoState = null;
 let moduleTwoUser = null;
 let moduleTwoReviewMode = false;
+let moduleTwoQuizState = null;
 
 function moduleTwoLoad(user) {
   moduleTwoUser = user;
@@ -94,6 +562,24 @@ function moduleTwoLoad(user) {
   if (!Array.isArray(moduleTwoState.flags)) moduleTwoState.flags = [];
   if (typeof moduleTwoState.notes !== 'string') moduleTwoState.notes = '';
   if (!MODULE_TWO_LAB.stations.some((station) => station.id === moduleTwoState.activeStation)) moduleTwoState.activeStation = 'signins';
+
+  // Initialize quiz state
+  if (!moduleTwoQuizState) {
+    const previousQuestionIds = moduleTwoState.lastQuizQuestionIds || [];
+    const selection = selectQuizQuestions(MODULE_TWO_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
+    moduleTwoQuizState = {
+      selectedQuestions: selection.selectedQuestions,
+      questionsByAnswer: selection.questionsByAnswer,
+      answers: {},
+      scored: false,
+      attempts: 0,
+      score: 0,
+      bestScore: 0,
+      feedback: [],
+      passed: false,
+    };
+  }
+
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-02');
   return moduleTwoState;
 }
@@ -106,6 +592,7 @@ function moduleTwoGetSections() {
   return [
     { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: true, scrollId: 'm02-foundations' },
     { id: 'trust-model', title: 'Trust Model', type: 'lecture', isComplete: true, scrollId: 'm02-model' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleTwoQuizState?.passed, scrollId: 'm02-knowledge-check' },
     { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleTwoState.completed, scrollId: 'm02-guided-lab' },
   ];
 }
@@ -130,6 +617,70 @@ function moduleTwoTrustModel() {
   return `<ol class="m02-trust-model" aria-label="Five-step trust decision model">
     ${items.map((item) => `<li><span>${item.number}</span><div><strong>${esc(item.title)}</strong><p>${esc(item.text)}</p></div></li>`).join('')}
   </ol>`;
+}
+
+function moduleTwoQuizQuestion(selected, index) {
+  const question = selected.question;
+  const userAnswerId = moduleTwoQuizState?.answers?.[question.id];
+  const answered = userAnswerId !== undefined;
+  return `<fieldset class="m02-quiz-question" data-question-id="${esc(question.id)}">
+    <legend><span>${index + 1}</span> ${esc(selected.conceptTitle)}: ${esc(question.prompt)}</legend>
+    <div class="m02-quiz-options">
+      ${selected.shuffledOptions.map((option, optIndex) => `<label>
+        <input type="radio" name="q-${esc(question.id)}" value="${esc(option.id)}" ${userAnswerId === option.id ? 'checked' : ''} data-m02-quiz-answer />
+        <span>${esc(option.text)}</span>
+      </label>`).join('')}
+    </div>
+  </fieldset>`;
+}
+
+function moduleTwoQuizPanel() {
+  if (!moduleTwoQuizState?.selectedQuestions || moduleTwoQuizState.selectedQuestions.length === 0) {
+    return `<div class="m02-quiz-empty" id="m02-quiz-feedback" role="status">Loading quiz...</div>`;
+  }
+
+  const selected = moduleTwoQuizState.selectedQuestions;
+  const answered = Object.keys(moduleTwoQuizState.answers || {}).length;
+  const total = selected.length;
+
+  let feedbackHtml = '';
+  if (moduleTwoQuizState.scored) {
+    const passed = moduleTwoQuizState.score >= 70;
+    feedbackHtml = `<section class="m02-quiz-score ${passed ? 'm02-quiz-pass' : 'm02-quiz-remediate'}" id="m02-quiz-feedback" tabindex="-1" aria-live="polite">
+      <div class="m02-quiz-score-heading">
+        <div>
+          <p class="m02-kicker">Attempt ${moduleTwoQuizState.attempts} · best ${moduleTwoQuizState.bestScore}/100</p>
+          <h3>${moduleTwoQuizState.score}/100 — ${passed ? 'Knowledge verified' : 'Use feedback and retry'}</h3>
+        </div>
+        <span>${moduleTwoQuizState.score}</span>
+      </div>
+      <ul class="m02-quiz-feedback-list">
+        ${(moduleTwoQuizState.feedback || []).map((fb) => `<li class="${fb.correct ? 'm02-quiz-feedback-correct' : 'm02-quiz-feedback-incorrect'}">
+          <i class="ri-${fb.correct ? 'checkbox-circle-fill' : 'information-line'}" aria-hidden="true"></i>
+          <div>
+            <strong>${fb.questionId}</strong>
+            <p>${esc(fb.message)}</p>
+          </div>
+        </li>`).join('')}
+      </ul>
+      ${!passed ? `<div class="m02-quiz-actions"><button type="button" class="m02-quiz-retry" data-m02-quiz-retry><i class="ri-refresh-line" aria-hidden="true"></i> Try different questions</button></div>` : ''}
+    </section>`;
+  } else if (answered === total) {
+    feedbackHtml = `<div class="m02-quiz-ready" id="m02-quiz-feedback" role="status">All questions answered. Submit to check your responses.</div>`;
+  } else {
+    feedbackHtml = `<div class="m02-quiz-empty" id="m02-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
+  }
+
+  return `<form class="m02-quiz-form" id="m02-quiz-form" novalidate>
+    <div class="m02-panel-heading"><div><p class="m02-kicker">Knowledge check</p><h3 id="m02-quiz-title" tabindex="-1">Verify your understanding of identity, authentication, and trust</h3></div><span>${answered}/${total} answered</span></div>
+    ${selected.map((sel, idx) => moduleTwoQuizQuestion(sel, idx)).join('')}
+    <div class="m02-quiz-actions">
+      <button class="m02-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
+        <i class="ri-checkbox-circle-line" aria-hidden="true"></i> Check my answers
+      </button>
+    </div>
+    ${feedbackHtml}
+  </form>`;
 }
 
 function moduleTwoEvidenceRecord(record, fields) {
@@ -283,11 +834,22 @@ function viewModuleTwo(user, program) {
       <section class="m02-section m02-section-body" aria-labelledby="m02-model-title">${moduleTwoTrustModel()}<div class="m02-principle"><i class="ri-scales-3-line" aria-hidden="true"></i><p><strong>Analyst principle:</strong> “Outside the network” is not a verdict, and “inside the network” is not proof of trust. Combine identity, authentication, device, route, resource, and authorization evidence.</p></div></section>
     </details>`;
 
+  const quizOpen = moduleTwoReviewMode || (moduleTwoQuizState && !moduleTwoQuizState.passed);
+  const quizSection = `
+    <details class="m02-section-collapsible" ${quizOpen ? 'open' : ''}>
+      <summary class="m02-section-summary">
+        <section class="m02-section" id="m02-knowledge-check" aria-labelledby="m02-quiz-title">
+          <div class="m02-section-heading"><span>3</span><div><p class="m02-kicker">Interactive knowledge check</p><h2 id="m02-quiz-title">Test your understanding of identity and trust concepts</h2></div></div>
+        </section>
+      </summary>
+      <section class="m02-section m02-section-body" aria-labelledby="m02-quiz-title"><div id="m02-quiz-dynamic">${moduleTwoQuizPanel()}</div></section>
+    </details>`;
+
   const labSection = `
     <details class="m02-section-collapsible" ${labOpen ? 'open' : ''}>
       <summary class="m02-section-summary">
         <section class="m02-section m02-lab-section" id="m02-guided-lab" aria-labelledby="m02-lab-title">
-          <div class="m02-section-heading"><span>3</span><div><p class="m02-kicker">Guided · assisted investigation · ${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)} instructional time</p><h2 id="m02-lab-title">Suspicious authentication investigation</h2></div></div>
+          <div class="m02-section-heading"><span>4</span><div><p class="m02-kicker">Guided · assisted investigation · ${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)} instructional time</p><h2 id="m02-lab-title">Suspicious authentication investigation</h2></div></div>
         </section>
       </summary>
       <section class="m02-section m02-lab-section m02-section-body" aria-labelledby="m02-lab-title"><div id="m02-lab-dynamic">${moduleTwoLabDynamic()}</div></section>
@@ -303,6 +865,7 @@ function viewModuleTwo(user, program) {
 
       ${foundationsSection}
       ${trustModelSection}
+      ${quizSection}
       ${labSection}
     </main>
   </div>`;
@@ -355,6 +918,66 @@ function moduleTwoUpdateSelectionSummary() {
   if (summary) summary.textContent = chosen.length ? chosen.map((item) => item.id).join(' · ') : 'Select only records that materially support your conclusion.';
 }
 
+function moduleTwoRenderQuiz(focusId) {
+  const root = document.getElementById('m02-quiz-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleTwoQuizPanel();
+  if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
+}
+
+function wireModuleTwoQuiz() {
+  const quizForm = document.getElementById('m02-quiz-form');
+  if (!quizForm) return;
+
+  quizForm.addEventListener('change', (event) => {
+    const input = event.target;
+    if (input.matches('[data-m02-quiz-answer]')) {
+      const radioGroup = input.getAttribute('name');
+      const questionId = radioGroup.replace('q-', '');
+      moduleTwoQuizState.answers[questionId] = input.value;
+    }
+  });
+
+  quizForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    // Score the quiz
+    const result = scoreQuizAttempt(
+      moduleTwoQuizState.selectedQuestions,
+      moduleTwoQuizState.questionsByAnswer,
+      moduleTwoQuizState.answers
+    );
+
+    moduleTwoQuizState.attempts += 1;
+    moduleTwoQuizState.score = result.score;
+    moduleTwoQuizState.bestScore = Math.max(moduleTwoQuizState.bestScore || 0, result.score);
+    moduleTwoQuizState.feedback = result.feedback;
+    moduleTwoQuizState.scored = true;
+    moduleTwoQuizState.passed = result.score >= 70;
+
+    // On failure, remember this attempt's question ids so "Try different
+    // questions" can steer clear of them — but keep this attempt's scored
+    // results on screen until the student chooses to retry.
+    if (!moduleTwoQuizState.passed) {
+      moduleTwoState.lastQuizQuestionIds = moduleTwoQuizState.selectedQuestions.map((s) => s.question.id);
+    }
+
+    moduleTwoSave();
+    moduleTwoRenderQuiz('m02-quiz-feedback');
+  });
+
+  quizForm.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-m02-quiz-retry]')) return;
+    const previousQuestionIds = moduleTwoState.lastQuizQuestionIds || [];
+    const selection = selectQuizQuestions(MODULE_TWO_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
+    moduleTwoQuizState.selectedQuestions = selection.selectedQuestions;
+    moduleTwoQuizState.questionsByAnswer = selection.questionsByAnswer;
+    moduleTwoQuizState.answers = {};
+    moduleTwoQuizState.scored = false;
+    moduleTwoRenderQuiz('m02-quiz-title');
+  });
+}
+
 function wireModuleTwo() {
   /* Wire the progress shell review toggle */
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
@@ -380,6 +1003,7 @@ function wireModuleTwo() {
     });
   }
 
+  wireModuleTwoQuiz();
   wireModuleTwoLab();
 }
 

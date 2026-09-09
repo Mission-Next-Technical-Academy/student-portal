@@ -1721,3 +1721,127 @@ const LABS = [
     description: 'A six-ticket integrated scenario spanning identity, endpoint, network, peripheral, server, and security issues, scored across triage, technical accuracy, communication, escalation judgment, security judgment, documentation, and reflection.',
     skills: ['Full Ticket Lifecycle', 'Prioritization', 'Resolve/Escalate Judgment', 'Knowledge Base Documentation'], portalEntry: '#/program/it-support/module/12' }),
 ];
+
+/* ---------------------------------------------------------------------------
+ * QUIZ BANK ENGINE — randomized question selection for quizzes
+ *
+ * Data shape: each concept bank is an array of 3-5 questions, each question
+ * has options, correctId, and feedback. Selection function picks one question
+ * per concept on first attempt; on retry, prefers a different question.
+ * Answer options may be shuffled, with a tracking index for scoring.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Shuffle an array using Fisher-Yates. Returns [shuffledArray, originalIndices].
+ * originalIndices[shuffledIndex] = original index in the input array.
+ */
+function shuffleArray(arr) {
+  const indices = arr.map((_, i) => i);
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return { shuffled, indices };
+}
+
+/**
+ * Select one question per concept from a quiz bank.
+ * @param {Object[]} bank - Array of concept banks: [{ conceptId, questions: [{id, prompt, options, correctId, ...}] }]
+ * @param {Object} options - Selection options
+ * @param {string[]} options.previousQuestionIds - Question IDs from the previous attempt (for retry detection)
+ * @param {boolean} options.shuffleOptions - Whether to shuffle answer options
+ * @returns {Object} { selectedQuestions: [{conceptId, question, shuffledOptions, correctIndex}], questionsByAnswer: {}}
+ */
+function selectQuizQuestions(bank, options = {}) {
+  const { previousQuestionIds = [], shuffleOptions = true } = options;
+  const selectedQuestions = [];
+  const questionsByAnswer = {}; // track selected questions by id for replay
+
+  for (const conceptBank of bank) {
+    if (!conceptBank.questions || conceptBank.questions.length === 0) continue;
+
+    let selectedQuestion = null;
+
+    // On retry, prefer a question not in previousQuestionIds
+    const untriedQuestions = conceptBank.questions.filter(
+      (q) => !previousQuestionIds.includes(q.id)
+    );
+    if (untriedQuestions.length > 0) {
+      selectedQuestion = untriedQuestions[Math.floor(Math.random() * untriedQuestions.length)];
+    } else {
+      // Fall back to any question if all have been tried
+      selectedQuestion = conceptBank.questions[Math.floor(Math.random() * conceptBank.questions.length)];
+    }
+
+    if (!selectedQuestion) continue;
+
+    let shuffledOptions = selectedQuestion.options;
+    let correctIndex = selectedQuestion.options.findIndex((opt) => opt.id === selectedQuestion.correctId);
+
+    // Optionally shuffle the answer options
+    if (shuffleOptions) {
+      const shuffleResult = shuffleArray(selectedQuestion.options);
+      shuffledOptions = shuffleResult.shuffled;
+      // Find the new index of the correct answer after shuffling
+      const originalCorrectIndex = selectedQuestion.options.findIndex((opt) => opt.id === selectedQuestion.correctId);
+      correctIndex = shuffleResult.indices.indexOf(originalCorrectIndex);
+    }
+
+    selectedQuestions.push({
+      conceptId: conceptBank.conceptId,
+      conceptTitle: conceptBank.conceptTitle,
+      question: selectedQuestion,
+      shuffledOptions,
+      correctIndex,
+    });
+
+    questionsByAnswer[selectedQuestion.id] = selectedQuestion;
+  }
+
+  return { selectedQuestions, questionsByAnswer };
+}
+
+/**
+ * Score a quiz attempt.
+ * @param {Object} selectedQuestions - From selectQuizQuestions() result
+ * @param {Object} questionsByAnswer - From selectQuizQuestions() result
+ * @param {Object} answers - { questionId: selectedOptionId }
+ * @returns {Object} { score, breakdown, feedback }
+ */
+function scoreQuizAttempt(selectedQuestions, questionsByAnswer, answers) {
+  let correct = 0;
+  const feedback = [];
+
+  for (const selected of selectedQuestions) {
+    const question = selected.question;
+    const userAnswerId = answers[question.id];
+    const isCorrect = userAnswerId === question.correctId;
+
+    if (isCorrect) {
+      correct += 1;
+      feedback.push({
+        questionId: question.id,
+        correct: true,
+        message: question.feedbackCorrect,
+      });
+    } else {
+      feedback.push({
+        questionId: question.id,
+        correct: false,
+        message: question.feedbackIncorrect,
+      });
+    }
+  }
+
+  const totalQuestions = selectedQuestions.length;
+  const score = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
+
+  return {
+    score,
+    correct,
+    total: totalQuestions,
+    feedback,
+  };
+}
