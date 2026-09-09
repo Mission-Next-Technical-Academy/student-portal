@@ -83,6 +83,7 @@ const MODULE_TWO_LAB = {
 
 let moduleTwoState = null;
 let moduleTwoUser = null;
+let moduleTwoReviewMode = false;
 
 function moduleTwoLoad(user) {
   moduleTwoUser = user;
@@ -99,6 +100,14 @@ function moduleTwoLoad(user) {
 
 function moduleTwoSave() {
   if (moduleTwoUser && moduleTwoState) LabRuntime.save(MODULE_TWO_LAB_ID, moduleTwoUser, moduleTwoState);
+}
+
+function moduleTwoGetSections() {
+  return [
+    { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: true, scrollId: 'm02-foundations' },
+    { id: 'trust-model', title: 'Trust Model', type: 'lecture', isComplete: true, scrollId: 'm02-model' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleTwoState.completed, scrollId: 'm02-guided-lab' },
+  ];
 }
 
 function moduleTwoFoundations() {
@@ -249,18 +258,52 @@ function moduleTwoLabDynamic() {
 function viewModuleTwo(user, program) {
   moduleTwoLoad(user);
   const module = program.modules['soc-02'];
+  const sections = moduleTwoGetSections();
+  const foundationsOpen = moduleTwoReviewMode || !sections[0].isComplete;
+  const trustModelOpen = moduleTwoReviewMode || !sections[1].isComplete;
+  const labOpen = moduleTwoReviewMode || !sections[2].isComplete;
+
+  const foundationsSection = `
+    <details class="m02-section-collapsible" ${foundationsOpen ? 'open' : ''}>
+      <summary class="m02-section-summary">
+        <section class="m02-section" id="m02-foundations" aria-labelledby="m02-foundations-title">
+          <div class="m02-section-heading"><span>1</span><div><p class="m02-kicker">Eight connected concepts</p><h2 id="m02-foundations-title">Read a trust decision from end to end</h2></div></div>
+        </section>
+      </summary>
+      <section class="m02-section m02-section-body" aria-labelledby="m02-foundations-title"><p class="m02-instruction">Open each concept for the analyst interpretation. The lab tests how the ideas connect; it does not test product menus or memorized definitions.</p>${moduleTwoFoundations()}</section>
+    </details>`;
+
+  const trustModelSection = `
+    <details class="m02-section-collapsible" ${trustModelOpen ? 'open' : ''}>
+      <summary class="m02-section-summary">
+        <section class="m02-section" id="m02-model" aria-labelledby="m02-model-title">
+          <div class="m02-section-heading"><span>2</span><div><p class="m02-kicker">Reusable reasoning pattern</p><h2 id="m02-model-title">The five-step trust model</h2></div></div>
+        </section>
+      </summary>
+      <section class="m02-section m02-section-body" aria-labelledby="m02-model-title">${moduleTwoTrustModel()}<div class="m02-principle"><i class="ri-scales-3-line" aria-hidden="true"></i><p><strong>Analyst principle:</strong> “Outside the network” is not a verdict, and “inside the network” is not proof of trust. Combine identity, authentication, device, route, resource, and authorization evidence.</p></div></section>
+    </details>`;
+
+  const labSection = `
+    <details class="m02-section-collapsible" ${labOpen ? 'open' : ''}>
+      <summary class="m02-section-summary">
+        <section class="m02-section m02-lab-section" id="m02-guided-lab" aria-labelledby="m02-lab-title">
+          <div class="m02-section-heading"><span>3</span><div><p class="m02-kicker">Guided · assisted investigation · ${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)} instructional time</p><h2 id="m02-lab-title">Suspicious authentication investigation</h2></div></div>
+        </section>
+      </summary>
+      <section class="m02-section m02-lab-section m02-section-body" aria-labelledby="m02-lab-title"><div id="m02-lab-dynamic">${moduleTwoLabDynamic()}</div></section>
+    </details>`;
+
   return `<div class="m02-shell">
     ${moduleTopbar(user, program)}
+    ${moduleProgressShell(sections, { reviewMode: moduleTwoReviewMode })}
     <main class="m02-main">
       <section class="m02-hero" aria-labelledby="m02-title"><div><p class="m02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1 foundations</p><h1 id="m02-title">${esc(module.title)}</h1><p class="m02-lede">Build a practical trust model, then correlate identity, authentication, network, and role-change facts without confusing unusual activity with malicious activity.</p><a class="m02-hero-action" href="#m02-foundations"><i class="ri-compass-3-line" aria-hidden="true"></i> Start the foundations</a></div><dl class="m02-progress" aria-label="Saved module progress"><div><dt>Foundation topics</dt><dd>${module.lessons}</dd></div><div><dt>Guided lab</dt><dd>${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)}</dd></div><div><dt>Lab status</dt><dd id="m02-status">${moduleTwoState.completed ? 'Complete' : moduleTwoState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <section class="m02-objective" aria-labelledby="m02-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m02-kicker">One measurable objective</p><h2 id="m02-objective-title">Correlate authentication, network context, and authorization changes to identify one risky identity and document a proportionate escalation.</h2></div></section>
 
-      <section class="m02-section" id="m02-foundations" aria-labelledby="m02-foundations-title"><div class="m02-section-heading"><span>1</span><div><p class="m02-kicker">Eight connected concepts</p><h2 id="m02-foundations-title">Read a trust decision from end to end</h2></div></div><p class="m02-instruction">Open each concept for the analyst interpretation. The lab tests how the ideas connect; it does not test product menus or memorized definitions.</p>${moduleTwoFoundations()}</section>
-
-      <section class="m02-section" aria-labelledby="m02-model-title"><div class="m02-section-heading"><span>2</span><div><p class="m02-kicker">Reusable reasoning pattern</p><h2 id="m02-model-title">The five-step trust model</h2></div></div>${moduleTwoTrustModel()}<div class="m02-principle"><i class="ri-scales-3-line" aria-hidden="true"></i><p><strong>Analyst principle:</strong> “Outside the network” is not a verdict, and “inside the network” is not proof of trust. Combine identity, authentication, device, route, resource, and authorization evidence.</p></div></section>
-
-      <section class="m02-section m02-lab-section" id="m02-guided-lab" aria-labelledby="m02-lab-title"><div class="m02-section-heading"><span>3</span><div><p class="m02-kicker">Guided · assisted investigation · ${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)} instructional time</p><h2 id="m02-lab-title">Suspicious authentication investigation</h2></div></div><div id="m02-lab-dynamic">${moduleTwoLabDynamic()}</div></section>
+      ${foundationsSection}
+      ${trustModelSection}
+      ${labSection}
     </main>
   </div>`;
 }
@@ -310,6 +353,34 @@ function moduleTwoUpdateSelectionSummary() {
   const summary = document.getElementById('m02-selection-summary');
   if (count) count.textContent = String(chosen.length);
   if (summary) summary.textContent = chosen.length ? chosen.map((item) => item.id).join(' · ') : 'Select only records that materially support your conclusion.';
+}
+
+function wireModuleTwo() {
+  /* Wire the progress shell review toggle */
+  const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
+  if (reviewToggle) {
+    reviewToggle.addEventListener('click', () => {
+      moduleTwoReviewMode = !moduleTwoReviewMode;
+
+      /* Update all collapsible sections */
+      document.querySelectorAll('.m02-section-collapsible').forEach((details) => {
+        details.open = moduleTwoReviewMode;
+      });
+
+      /* Update the button state */
+      reviewToggle.setAttribute('aria-pressed', moduleTwoReviewMode.toString());
+      const icon = reviewToggle.querySelector('i');
+      const text = reviewToggle.querySelector('span') || reviewToggle;
+      if (icon) {
+        icon.className = moduleTwoReviewMode ? 'ri-eye-off-line' : 'ri-eye-line';
+      }
+      if (text && text !== reviewToggle) {
+        text.textContent = moduleTwoReviewMode ? 'Exit Review' : 'Review Module';
+      }
+    });
+  }
+
+  wireModuleTwoLab();
 }
 
 function wireModuleTwoLab() {
@@ -459,4 +530,4 @@ function wireModuleTwoLab() {
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 2, moduleKey: 'soc-02',
-  view: viewModuleTwo, wire: wireModuleTwoLab });
+  view: viewModuleTwo, wire: wireModuleTwo });

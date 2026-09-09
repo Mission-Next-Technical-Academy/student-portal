@@ -236,3 +236,12 @@
   .m02-record-heading { align-items: flex-start; flex-direction: column; gap: 3px; }
   .m02-actions button { width: 100%; justify-content: center; }
 }
+
+/* Collapsible sections (details/summary pattern) */
+.m02-section-collapsible { margin-top: 24px; border-radius: 20px; background: #fff; border: 1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(30, 58, 95, .05); }
+.m02-section-summary { cursor: pointer; list-style: none; padding: 0; }
+.m02-section-summary::-webkit-details-marker { display: none; }
+.m02-section-collapsible[open] .m02-section-summary .m02-section { scroll-margin-top: 148px; }
+.m02-section-collapsible[open] { border-color: #1e3a5f; box-shadow: 0 8px 24px rgba(30, 58, 95, .1); }
+.m02-section-body { margin-top: 0; border-top: 1px solid #e2e8f0; }
+.m02-section-summary:hover { background: #f8fafc; }

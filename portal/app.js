@@ -3537,6 +3537,75 @@ function moduleTopbar(user, program, options = {}) {
   </header>`;
 }
 
+/* Module progress shell: a sticky sub-header showing current lesson, completed
+ * sections, overall progress %, jump-to-section links, and a "Review Module"
+ * button that toggles review mode (expands all collapsible sections).
+ *
+ * Usage:
+ *   sections: array of {id, title, type, isComplete, scrollId}
+ *   state: object with {reviewMode} flag
+ *   options: {onReviewToggle: (newValue) => void}
+ */
+function moduleProgressShell(sections, state = {}, options = {}) {
+  if (!Array.isArray(sections) || !sections.length) return '';
+
+  const reviewMode = state.reviewMode || false;
+  const currentIndex = sections.findIndex((s) => !s.isComplete);
+  const currentSection = currentIndex >= 0 ? sections[currentIndex] : sections[sections.length - 1];
+  const completedCount = sections.filter((s) => s.isComplete).length;
+  const overallPercent = Math.round((completedCount / sections.length) * 100);
+
+  const typeIcon = {
+    lecture: 'ri-book-open-line',
+    quiz: 'ri-question-line',
+    lab: 'ri-flask-line',
+    review: 'ri-eye-line',
+  };
+
+  const typeLabel = {
+    lecture: 'Lecture',
+    quiz: 'Quiz',
+    lab: 'Lab',
+    review: 'Review',
+  };
+
+  const nextIncomplete = sections.find((s) => !s.isComplete);
+  const continueText = nextIncomplete ? `Continue to ${esc(nextIncomplete.title)}` : 'Module complete';
+  const continueHref = nextIncomplete ? `#${esc(nextIncomplete.scrollId)}` : '';
+
+  return `
+  <div class="mnav-shell">
+    <div class="mnav-bar">
+      <div class="mnav-progress">
+        <span class="mnav-percent">${overallPercent}%</span>
+        <span class="mnav-label">Module progress</span>
+      </div>
+
+      <div class="mnav-chips">
+        ${sections.map((section) => {
+          const isCurrentUncomplete = section === currentSection && !section.isComplete;
+          const statusClass = section.isComplete
+            ? 'mnav-chip-complete'
+            : isCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
+          return `<a href="#${esc(section.scrollId)}" class="mnav-chip ${statusClass}" title="${esc(section.title)}">
+            <i class="${esc(typeIcon[section.type] || 'ri-file-line')}" aria-hidden="true"></i>
+            <span>${esc(section.title)}</span>
+            ${section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
+          </a>`;
+        }).join('')}
+      </div>
+
+      <div class="mnav-actions">
+        ${nextIncomplete ? `<a href="#${esc(nextIncomplete.scrollId)}" class="mnav-continue"><i class="ri-arrow-right-line" aria-hidden="true"></i> ${esc(continueText)}</a>` : ''}
+        <button class="mnav-review" type="button" data-mnav-review-toggle aria-pressed="${reviewMode}">
+          <i class="ri-eye-${reviewMode ? 'off' : 'line'}" aria-hidden="true"></i>
+          ${reviewMode ? 'Exit Review' : 'Review Module'}
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function footer() {
   return `
   <footer class="border-t border-gray-100 py-10 px-8 mt-20">

@@ -462,3 +462,44 @@
 .m01-rubric-list { margin: 0; padding-left: 20px; color: #475569; font: 13px/1.7 Inter, sans-serif; }
 .m01-rubric-list li { margin-bottom: 10px; }
 .m01-rubric-list li:last-child { margin-bottom: 0; }
+
+/* Module progress/nav shell — reusable sub-header below moduleTopbar() */
+.mnav-shell { position: sticky; top: 64px; z-index: 40; background: #fff; border-bottom: 1px solid #e5e7eb; }
+.mnav-bar { display: flex; align-items: center; gap: 24px; padding: 16px clamp(20px, 4vw, 48px); max-width: 100%; overflow-x: auto; }
+.mnav-bar::-webkit-scrollbar { height: 4px; }
+.mnav-bar::-webkit-scrollbar-track { background: transparent; }
+.mnav-bar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+.mnav-progress { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
+.mnav-percent { display: block; font-size: 18px; font-weight: 700; color: #f97316; }
+.mnav-label { display: block; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-top: 3px; }
+
+.mnav-chips { display: flex; gap: 10px; flex: 1 1 auto; min-width: 0; }
+.mnav-chip { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; transition: all .2s ease; border: 1px solid #e5e7eb; }
+.mnav-chip i { flex: 0 0 auto; font-size: 14px; }
+
+.mnav-chip-complete { color: #fff; background: #10b981; border-color: #10b981; }
+.mnav-chip-complete:hover { background: #059669; }
+
+.mnav-chip-current { color: #1e3a5f; background: #fff; border-color: #f97316; box-shadow: 0 0 0 1px rgba(249, 115, 22, .2); }
+.mnav-chip-current:hover { background: #fff8f4; }
+
+.mnav-chip-locked { color: #94a3b8; background: #f1f5f9; border-color: #cbd5e1; cursor: not-allowed; }
+.mnav-chip-locked:hover { background: #f1f5f9; }
+
+.mnav-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.mnav-continue { display: inline-flex; align-items: center; gap: 5px; padding: 8px 12px; background: #f97316; color: #fff; border-radius: 7px; font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: background .2s ease; }
+.mnav-continue:hover { background: #ea580c; }
+
+.mnav-review { display: inline-flex; align-items: center; gap: 5px; padding: 8px 12px; background: #1e3a5f; color: #fff; border: 1px solid #1e3a5f; border-radius: 7px; font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: background .2s ease; cursor: pointer; }
+.mnav-review:hover { background: #0f2440; }
+
+@media (max-width: 768px) {
+  .mnav-bar { gap: 16px; padding: 12px clamp(14px, 3vw, 24px); }
+  .mnav-chips { gap: 8px; }
+  .mnav-chip { padding: 7px 11px; font-size: 11px; }
+  .mnav-chip i { font-size: 13px; }
+  .mnav-percent { font-size: 16px; }
+  .mnav-label { font-size: 10px; }
+  .mnav-continue, .mnav-review { padding: 7px 10px; font-size: 10px; }
+}
