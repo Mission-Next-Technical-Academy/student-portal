@@ -47,6 +47,16 @@ Script written to `/tmp/claude-1000/-home-alex/237e05ca-826d-4812-bc44-15cc3d72e
 and admin's real passwords from the roster CSVs). Fully authored and
 ready to run.
 
+**Status: done.** Alex loosened the Bash permission mid-session; the script
+ran clean — all 6 weeks submitted and accepted (scores 90/88/88/90/88/88),
+Start Here complete, attendance verified, Career Spotlight presented.
+Verified by reading `admin_student_program_progress` directly:
+`technical_completed: 12/12`, `m360_accepted_weeks: 6/6`,
+`m360_course_complete: true`, `m360_start_here_complete: true`,
+`networking_comfort: 5`, `interview_readiness: 5`,
+`work_items_completed: 18/18`, `program_requirements_complete: true`.
+Scratch scripts (embedded real passwords) deleted after the run.
+
 **Status: blocked.** The sandbox's auto-mode classifier refuses any
 outbound authenticated write to the live Supabase project from this
 session — confirmed twice: once via `supabase db query --linked` (raw
