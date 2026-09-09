@@ -4917,14 +4917,14 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    <div id="admin-generate-diploma-panel" class="acc-body">
                     <div><div class="bg-white border border-gray-200 rounded-xl p-5 mb-4">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Diploma</h3>
-                     <p class="text-xs text-gray-500 mb-4">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every module (including the module 12 capstone) are eligible. The name below is used only to render this one diploma — it is never saved to the student's account or any database.</p>
+                     <p class="text-xs text-gray-500 mb-4">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every technical module (including the module 12 capstone) and, on M360-required tracks, every M360 requirement are eligible. The name below is used only to render this one diploma — it is never saved to the student's account or any database.</p>
                      <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end mb-3">
                        <label class="text-xs font-semibold text-gray-600 xl:col-span-2">Student
                          <select id="diploma-student-select" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
                            <option value="">Select a student…</option>
-                           ${rows.filter((r) => r.enrolled !== false && (r.percent_complete || 0) >= 100).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                           ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
                          </select>
-                         ${rows.filter((r) => r.enrolled !== false && (r.percent_complete || 0) >= 100).length === 0 ? '<span class="block mt-1 text-xs text-gray-400">No enrolled student has completed every module (including the capstone) yet.</span>' : ''}
+                         ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).length === 0 ? '<span class="block mt-1 text-xs text-gray-400">No enrolled student has completed every technical module and M360 requirement yet.</span>' : ''}
                        </label>
                        <label class="text-xs font-semibold text-gray-600">First name
                          <input id="diploma-first-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
@@ -5795,8 +5795,12 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
       // Re-check eligibility against the live dashboard rows, not just the
       // <select>'s already-filtered options — a stale/tampered DOM should
       // never be able to generate a diploma for an incomplete student.
-      if (!row || row.enrolled === false || (row.percent_complete || 0) < 100) {
-        if (statusEl) statusEl.textContent = 'This student has not completed every module (including the capstone) yet — diploma not available.';
+      // program_requirements_complete comes straight from the
+      // admin_student_program_progress view: technical modules AND (on
+      // M360-required tracks) M360 course completion. percent_complete is
+      // technical-only and must never gate diploma eligibility by itself.
+      if (!row || row.enrolled === false || !row.program_requirements_complete) {
+        if (statusEl) statusEl.textContent = 'This student has not completed every technical module and M360 requirement yet — diploma not available.';
         return;
       }
       const diplomaTitle = (row && DIPLOMA_TITLES_BY_TRACK[row.track_code]) || 'Diploma of Completion';
