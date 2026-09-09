@@ -47,7 +47,7 @@ mechanism (only used for the redundant top banner — the strip card in
 
 Exit criteria: `grep -n "ADMIN_ENTRY_ID\|ensureAdminEntry\|adminEntryMarkup\|findAdminHeadingBlock" portal/m360-entry.js` returns nothing. `git status --short` touches only `portal/m360-entry.js`.
 
-**Status: done** — commit `<filled in after verification>`.
+**Status: done** — commit `1108700`.
 
 ## Sprint 2 — compact the Track Administration strip into banner tiles
 
@@ -64,7 +64,7 @@ cards gone). The six links (`#/admin`, `#/admin/track/SOCAN`,
 `m360/review.html`) are all still present in the new markup. `git status
 --short` touches only `portal/app.js`.
 
-**Status: done** — commit `<filled in after verification>`.
+**Status: done** — commit `958f386`.
 
 ## Verification (both sprints)
 
@@ -74,5 +74,11 @@ cards gone). The six links (`#/admin`, `#/admin/track/SOCAN`,
 - Live check in Chrome: sign in as ADMIN, confirm exactly one "M360
   Administration" entry point remains, and the Track Administration strip
   renders as a compact row with the roster visible with less scrolling.
+  **Not done this session** — Claude-in-Chrome extension was disconnected;
+  code-level verification (diff review + `node --check`) stood in for it.
+  Next session: `./bin/dev.sh start`, sign in with an ADMIN account from
+  `bin/.roster-output/ADMIN-*.csv`, open `#/admin`, eyeball it.
 - Push to `master`, confirm GitHub Pages workflow run succeeds (this repo
-  auto-deploys on push, no manual step).
+  auto-deploys on push, no manual step). **Done** — rebased onto
+  `origin/master`'s concurrent commits (9c4a340, disjoint file regions,
+  clean rebase) and pushed as `1108700`/`958f386`.
