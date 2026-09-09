@@ -750,7 +750,7 @@ function adminProgramRosterChip(label, value, tone) {
     : tone === 'warn'
     ? 'border-[#fed7aa] bg-[#fff7ed] text-[#9a3412]'
     : 'border-gray-200 bg-gray-50 text-gray-600';
-  return `<span class="inline-flex items-center gap-1.5 rounded-md border ${toneClass} px-2 py-1 text-xs"><span class="text-[10px] font-semibold uppercase tracking-wide opacity-70">${esc(label)}</span><span class="font-bold">${esc(value)}</span></span>`;
+  return `<span class="inline-flex flex-col rounded-md border ${toneClass} px-2 py-1 text-xs leading-tight"><span class="text-[10px] font-semibold uppercase tracking-wide opacity-70">${esc(label)}</span><span class="font-bold">${esc(value)}</span></span>`;
 }
 
 function adminProgramRoster(rows) {
