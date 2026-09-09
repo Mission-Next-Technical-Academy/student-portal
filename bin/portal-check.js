@@ -12,7 +12,10 @@
 const fs = require('fs'), vm = require('vm'), path = require('path');
 const PORTAL = path.join(__dirname, '..', 'portal');
 
-const ctx = { console };
+// app.js uses route-loading timers during session restoration. Expose Node's
+// timer primitives to the browser-like VM rather than treating a valid portal
+// startup path as a test failure.
+const ctx = { console, setTimeout, clearTimeout };
 vm.createContext(ctx);
 vm.runInContext(`
   const mkStore = () => ({ _s:{}, getItem(k){ return this._s[k] ?? null; },
@@ -58,6 +61,10 @@ vm.runInContext(`
         return {
           data: { session: this._session }
         };
+      },
+      async signOut() {
+        this._session = null;
+        return { error: null };
       }
     },
     from(table) {
@@ -84,9 +91,14 @@ vm.runInContext(`
               error: null
             };
           }
+          if (this._table === 'login_events' || this._table === 'site_sessions') {
+            return { data: { id: 'stub-record-id' }, error: null };
+          }
           return { data: null, error: { message: 'No rows' } };
         },
-        insert: async function() { return { error: null }; },
+        // Supabase query builders remain chainable after insert(), as the
+        // portal's login/session recording paths use insert().select().single().
+        insert: function() { return builder; },
         upsert: async function() { return { error: null }; },
         then: function(onResolve, onReject) {
           // Support Promise-like interface for fire-and-forget calls
@@ -107,9 +119,22 @@ vm.runInContext(`
 ctx.URLSearchParams = URLSearchParams;
 ctx.URL = URL;
 
-const files = ['data.js', 'lab-runtime.js', 'module-registry.js',
-  ...fs.readdirSync(PORTAL).filter((f) => /-module-\d\d\.js$/.test(f)).sort(),
-  'app.js'];
+// Keep the harness aligned with portal/index.html's dependency order. In
+// particular, Modules 3–11 call itsRegisterCoachModule at load time, which
+// is defined by it-support-shared.js. Alphabetically loading every
+// *-module-##.js file first made the checker fail even though the browser
+// loaded the real application correctly.
+const moduleFiles = fs.readdirSync(PORTAL).filter((f) => /-module-\d\d\.js$/.test(f)).sort();
+const files = [
+  'data.js',
+  'lab-runtime.js',
+  'module-registry.js',
+  ...moduleFiles.filter((f) => f.startsWith('soc-analyst-')),
+  'it-support-shared.js',
+  ...moduleFiles.filter((f) => f.startsWith('it-support-')),
+  ...moduleFiles.filter((f) => !f.startsWith('soc-analyst-') && !f.startsWith('it-support-')),
+  'app.js',
+];
 
 for (const file of files) {
   try {

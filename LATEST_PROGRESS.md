@@ -1,6 +1,6 @@
 # Mission Next Technical Academy SOC Analyst Course — Latest Progress
 
-Status date: 2026-08-29
+Status date: 2026-09-09
 Status: Reporting/PDF remediation cleanup sprint complete locally; curriculum
 alignment remains QA-swept, and reporting migrations are written-only until
 explicitly applied.
@@ -46,6 +46,29 @@ The course is isolated from the original lab and can run beside both older
 projects without a port conflict.
 
 ## Latest completed work
+
+### Portal admin workspace routing and inclusive progress (2026-09-09)
+
+- Added the branded loading view to delayed portal route transitions, including
+  admin track switches, and prevented stale slow navigations from replacing a
+  newer route.
+- Made `#/admin` the master-roster workspace: it contains the cross-track
+  summary, management controls, table, and full Student Detail selector, but
+  no per-student programme-progress cards.
+- Made `#/admin/track/:code` track-focused: it contains only the selected
+  track's summary, programme-progress cards, and scoped Student Detail
+  selector; master-roster controls and table stay on `#/admin`.
+- Changed master-roster progress from technical-only module totals to inclusive
+  programme work items. M360-required tracks now show, for example, `12 / 18`
+  and `66.7%` until their M360 requirements are complete.
+- Compacted the master-roster summary tiles to reduce vertical scrolling.
+- Clarified repeated lab submissions in Student Detail with chronological
+  attempt numbers. Roster cards now keep Technical and M360 as first-glance
+  chips; Start Here, Networking confidence, and Interview readiness appear in
+  the expanded student record.
+- Archived the implementation/verification record at
+  `archive/completed-feature-notes/ADMIN_MASTER_ROSTER_SCOPE_SPRINT_2026-09-09.md`.
+- Validation: `node --check portal/app.js` and `git diff --check` pass.
 
 ### 0. Reporting/PDF remediation cleanup (2026-08-29)
 

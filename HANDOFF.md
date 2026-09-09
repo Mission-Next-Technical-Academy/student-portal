@@ -35,6 +35,23 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-09-09 admin progress controls compacted: put the track filter and
+  Hide Not Started toggle on their own compact row, so all management actions
+  can share the following row. The six actions now use the same equal-width
+  six-column grid and gutters as the progress summary; halved the enclosing
+  control stack gap/margin. The admin page title and concise purpose now share
+  one row; the decorative divider and long ADMIN-account implementation note
+  were removed. Administration workspace cards use the matching grid and a
+  consistent “Administration / workspace / status” label pattern.
+  Validation: `node --check portal/app.js` and `git diff --check` pass.
+
+- 2026-09-09 admin Student Detail clarification: repeated `lab_attempts` rows
+  are intentional retry history, so the table groups each lab chronologically
+  and labels multiple records as Attempt _n_ of _total_. Master-roster cards
+  now reserve their first-glance chips for Technical and M360; Start Here,
+  Networking confidence, and Interview readiness remain available in the
+  expanded M360 record.
+
 - 2026-09-01 admin credential lookup: completed the admin
   Student Progress row expander in `portal/app.js`. It fetches the new
   admin-RLS-protected `student_credentials` row only after an admin clicks a
@@ -2573,3 +2590,33 @@ started, no git commit made, no Supabase schema touched.
   (`70 technical + 12 companion = 82`), and `git diff --check` all passed. No
   live database or browser test was run; the migration deployment remains an
   explicit authorized follow-up.
+
+# Admin activity monitor window and search (2026-09-09)
+
+- Bounded the Student Activity Monitor to the most recent 72 hours at the
+  database-query level for both `login_events` and `admin_site_sessions`.
+  This prevents historical event/session rows from making the dashboard
+  increasingly slow or unwieldy while retaining a consistent session match
+  for each displayed sign-in.
+- Added an accessible activity-log search field that filters the loaded
+  72-hour rows by student ID, track, location, or the rendered date/time, and
+  announces the matching row count. No search term causes older audit history
+  to be fetched.
+- Validation: `node --check portal/app.js` and `git diff --check` pass. The
+  wider `node bin/portal-check.js` currently fails before route validation on
+  the pre-existing `it-support-module-03.js` load error: `itsRegisterCoachModule
+  is not defined`.
+
+# Portal module-check harness repair (2026-09-09)
+
+- Repaired `bin/portal-check.js`, not the coursework or portal functions. The
+  browser already loaded `it-support-shared.js` before IT Support Modules 3–11,
+  but the checker omitted that shared dependency and alphabetically loaded the
+  module files first. Its resulting `itsRegisterCoachModule is not defined`
+  error was a false failure in the harness.
+- The checker now mirrors the relevant portal script dependency order and its
+  lightweight browser/Supabase stubs support the existing route-loading timer,
+  local sign-out, and chainable sign-in/session logging flows.
+- Validation: `node --check bin/portal-check.js`, `node bin/portal-check.js`
+  (all 25 registered module views plus the program overview), and `git diff
+  --check` pass.

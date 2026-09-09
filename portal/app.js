@@ -717,6 +717,25 @@ function m360ProgressStatus(row) {
   return row.m360_course_complete ? 'Program requirements complete' : 'M360 verification pending';
 }
 
+// The master roster is a programme-level view. Its progress includes required
+// M360 work, so a SOCAN learner with technical work only reads 12/18, not 12/12.
+function programWorkItemProgress(row) {
+  const completed = Number(row.work_items_completed ?? row.modules_complete ?? 0);
+  const required = Number(row.work_items_required ?? row.modules_total ?? 12);
+  const reportedPercent = Number(row.work_items_percent);
+  const percent = Number.isFinite(reportedPercent)
+    ? reportedPercent
+    : (required > 0 ? (completed * 100 / required) : 0);
+  return { completed, required, percent: Math.max(0, Math.min(100, percent)) };
+}
+
+function programRequirementsComplete(row) {
+  if (row.program_requirements_complete !== null && row.program_requirements_complete !== undefined) {
+    return Boolean(row.program_requirements_complete);
+  }
+  return programWorkItemProgress(row).percent >= 100;
+}
+
 function adminTrackAdministrationStrip(rows, activeTrackCode = null) {
   const allCount = rows.length;
   const tile = ({ href, active, eyebrow, title, count, accentClass }) => `<a href="${href}" class="flex items-center justify-between gap-2 rounded-xl border ${active ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20 bg-[#f0f4f8]' : 'border-gray-200 bg-white hover:border-[#1e3a5f]/40'} px-3 py-2.5 transition">
@@ -731,16 +750,16 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null) {
     return tile({
       href: `#/admin/track/${track.code}`,
       active: activeTrackCode === track.code,
-      eyebrow: track.eyebrow,
-      title: track.title,
+      eyebrow: 'Administration',
+      title: track.eyebrow,
       count: track.comingSoon ? 'Coming soon' : `${count} student${count === 1 ? '' : 's'}`,
     });
   };
-  return `<section aria-labelledby="track-administration-title" class="mb-8"><div class="flex items-end justify-between gap-4 mb-3"><div><p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-1">Administration workspaces</p><h2 id="track-administration-title" class="text-lg font-bold text-[#1e3a5f]">Track Administration</h2></div></div>
-    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
-      ${tile({ href: '#/admin', active: !activeTrackCode, eyebrow: 'Master roster', title: 'All Students', count: `${allCount} student${allCount === 1 ? '' : 's'}` })}
+  return `<section aria-labelledby="track-administration-title" class="order-2 mb-4"><div class="flex items-end justify-between gap-4 border-b border-gray-200 pb-3 mb-3"><div><p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-1">Administration workspaces</p><h2 id="track-administration-title" class="text-lg font-bold text-[#1e3a5f]">Track Administration</h2></div></div>
+    <div class="grid grid-cols-3 md:grid-cols-6 gap-2">
+      ${tile({ href: '#/admin', active: !activeTrackCode, eyebrow: 'Administration', title: 'All Students', count: `${allCount} student${allCount === 1 ? '' : 's'}` })}
       ${ADMIN_TRACKS.map(trackTile).join('')}
-      ${tile({ href: 'm360/review.html', active: false, eyebrow: 'Cross-track review', title: 'M360 Administration', count: 'Open', accentClass: 'text-[#f97316]' })}
+      ${tile({ href: 'm360/review.html', active: false, eyebrow: 'Administration', title: 'M360', count: 'Open', accentClass: 'text-[#f97316]' })}
     </div></section>`;
 }
 
@@ -754,7 +773,7 @@ function adminProgramRosterChip(label, value, tone) {
 }
 
 function adminProgramRoster(rows) {
-  return `<section aria-labelledby="program-roster-title" class="mb-10"><div class="flex items-end justify-between gap-4 mb-4"><div><h2 id="program-roster-title" class="text-2xl font-bold text-[#1e3a5f]">Student program progress</h2><p class="text-sm text-gray-500 mt-1">One work-item bar combines technical modules and accepted M360 weeks; it is not an attendance or credential claim.</p></div></div><div class="space-y-3">${rows.map((row) => {
+  return `<section aria-labelledby="program-roster-title" class="order-4 mb-6"><div class="flex items-end justify-between gap-4 mb-4"><div><h2 id="program-roster-title" class="text-2xl font-bold text-[#1e3a5f]">Student program progress</h2><p class="text-sm text-gray-500 mt-1">One work-item bar combines technical modules and accepted M360 weeks; it is not an attendance or credential claim.</p></div></div><div class="space-y-3">${rows.map((row) => {
     const completed = Number(row.work_items_completed || 0); const required = Number(row.work_items_required || 18); const percent = Math.max(0, Math.min(100, Number(row.work_items_percent ?? (completed * 100 / required))));
     const technicalCompleted = Number(row.technical_completed || 0);
     const technicalRequired = Number(row.technical_required || 12);
@@ -766,21 +785,24 @@ function adminProgramRoster(rows) {
       : row.m360_record_exists
       ? adminProgramRosterChip('M360', `${m360AcceptedWeeks} / ${m360RequiredWeeks} accepted`, m360AcceptedWeeks >= m360RequiredWeeks ? 'good' : 'warn')
       : adminProgramRosterChip('M360', 'Not started', 'warn');
-    const readinessChips = row.m360_required
-      ? `<div class="mt-1.5 flex flex-wrap gap-1.5">${adminProgramRosterChip('Start Here', row.m360_start_here_complete ? 'Complete' : 'Not started', row.m360_start_here_complete ? 'good' : 'warn')}${adminProgramRosterChip('Networking', row.networking_comfort != null ? `${row.networking_comfort} / 5` : '— / 5', row.networking_comfort == null ? 'warn' : 'neutral')}${adminProgramRosterChip('Interview', row.interview_readiness != null ? `${row.interview_readiness} / 5` : '— / 5', row.interview_readiness == null ? 'warn' : 'neutral')}</div>`
-      : '';
-    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" class="text-sm font-semibold text-[#1e3a5f] hover:underline">View details</button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><div class="mt-3 flex flex-wrap gap-1.5">${technicalChip}${m360Chip}</div>${readinessChips}</article>`;
+    // Start Here / Networking / Interview readiness used to render here on
+    // every card. Alex: that level of detail belongs behind "View details",
+    // not in the always-visible summary — Technical/M360 chips are the
+    // first-glance data. renderStudentDetail() below presents the readiness
+    // fields inside the expanded record.
+    const detailId = `admin-inline-detail-${row.student_id}`;
+    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" aria-controls="${esc(detailId)}" aria-expanded="false" class="inline-flex items-center gap-1 text-sm font-semibold text-[#1e3a5f] hover:underline">View details <i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><div class="mt-3 flex flex-wrap gap-1.5">${technicalChip}${m360Chip}</div><div id="${esc(detailId)}" data-admin-inline-detail="${esc(row.student_id)}" class="grid transition-all duration-300 ease-out" style="grid-template-rows:0fr"><div class="overflow-hidden"><div class="pt-5"></div></div></div></article>`;
   }).join('')}</div></section>`;
 }
 
 function adminDashboardSummary(rows) {
   const enrolledRows = rows.filter((row) => row.enrolled !== false);
   const notEnrolled = rows.length - enrolledRows.length;
-  const notStarted = enrolledRows.filter((row) => row.modules_complete === 0 && (row.modules_in_progress || 0) === 0).length;
-  const complete = enrolledRows.filter((row) => row.percent_complete >= 100).length;
+  const notStarted = enrolledRows.filter((row) => programWorkItemProgress(row).completed === 0 && (row.modules_in_progress || 0) === 0).length;
+  const complete = enrolledRows.filter(programRequirementsComplete).length;
   const inProgress = enrolledRows.length - notStarted - complete;
   const avgComplete = enrolledRows.length
-    ? enrolledRows.reduce((sum, row) => sum + (row.percent_complete || 0), 0) / enrolledRows.length
+    ? enrolledRows.reduce((sum, row) => sum + programWorkItemProgress(row).percent, 0) / enrolledRows.length
     : 0;
   return { totalAccounts: rows.length, enrolled: enrolledRows.length, notEnrolled, notStarted, inProgress, complete, avgComplete };
 }
@@ -2217,6 +2239,34 @@ async function renderTranscriptPdf(transcriptData, reportId) {
     cursorY = doc.lastAutoTable.finalY + 20;
   }
 
+  // M360 is a programme companion with its own durable evidence stream. Keep
+  // it visible on every applicable transcript without presenting it as a
+  // technical module or silently awarding technical credit for it.
+  if (transcriptData.careerReadinessCourse) {
+    const m360 = transcriptData.careerReadinessCourse;
+    cursorY = ensureSpace(doc, cursorY, 95);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...PDF_NAVY);
+    doc.text('M360 Career Readiness Course Record', marginX, cursorY);
+    cursorY += 10;
+    doc.autoTable({
+      startY: cursorY + 6,
+      margin: { left: marginX, right: marginX, bottom: 60 },
+      head: [['Course', 'Required Hours', 'Accepted Weeks', 'Final Grade', 'Status']],
+      body: [[m360.title, fmtVal(m360.requiredHours, '—'), `${m360.acceptedWeeks} / ${m360.requiredWeeks}`, fmtScore(m360.finalGrade), m360.status]],
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 5, lineColor: [226, 232, 240], lineWidth: 0.4 },
+      headStyles: { fillColor: PDF_NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    });
+    cursorY = doc.lastAutoTable.finalY + 12;
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7);
+    doc.setTextColor(...PDF_AMBER);
+    doc.text(m360.note, marginX, cursorY, { maxWidth: pageWidth - marginX * 2 });
+    cursorY += 18;
+  }
+
   // ---- Progress & outcome summary ----------------------------------------
   cursorY = ensureSpace(doc, cursorY, 130);
   doc.setFont('helvetica', 'bold');
@@ -2514,7 +2564,7 @@ async function fetchStudentProgressBundle(userId, trackCode) {
   // is admin_only() gated) so this works for a student reading their own
   // record — students_self_read (20260828120000_students_admin.sql) already
   // grants that.
-  const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes, studentRes, hourAwardRes] = await Promise.all([
+  const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes, studentRes, hourAwardRes, m360Res] = await Promise.all([
     mntSupabase.from('module_progress').select('*').eq('user_id', userId).eq('track_code', trackCode),
     mntSupabase.from('lab_attempts').select('*').eq('user_id', userId).eq('track_code', trackCode),
     mntSupabase.from('capstone_submissions').select('*').eq('user_id', userId).eq('track_code', trackCode).order('stage', { ascending: true }),
@@ -2525,6 +2575,9 @@ async function fetchStudentProgressBundle(userId, trackCode) {
     // Added by the local-only fixed-credit migration. Keep a missing, not-yet-
     // applied table separate from the core academic-data query status.
     mntSupabase.from('student_course_hour_awards').select('*').eq('user_id', userId).eq('track_code', trackCode),
+    // M360 is a separate, durable course record. It belongs on the academic
+    // transcript without being folded into technical grades or credit hours.
+    mntSupabase.from('m360_course_progress').select('*').eq('user_id', userId).eq('track_code', trackCode).maybeSingle(),
   ]);
   const errors = [];
   if (moduleRes.error) errors.push(`module_progress: ${moduleRes.error.message}`);
@@ -2535,6 +2588,7 @@ async function fetchStudentProgressBundle(userId, trackCode) {
   if (reviewRes.error) errors.push(`capstone_reviews: ${reviewRes.error.message}`);
   if (studentRes.error) errors.push(`students: ${studentRes.error.message}`);
   if (hourAwardRes.error) console.warn('fetchStudentProgressBundle: fixed-credit awards unavailable:', hourAwardRes.error.message);
+  if (m360Res.error) console.warn('fetchStudentProgressBundle: M360 record unavailable:', m360Res.error.message);
   if (errors.length) errors.forEach((e) => console.error('fetchStudentProgressBundle:', e));
   return {
     error: errors.length ? errors.join('; ') : null,
@@ -2547,6 +2601,8 @@ async function fetchStudentProgressBundle(userId, trackCode) {
     studentRow: studentRes.data || null,
     hourAwardRows: hourAwardRes.data || [],
     hourAwardError: hourAwardRes.error ? hourAwardRes.error.message : null,
+    m360ProgressRow: m360Res.data || null,
+    m360ProgressError: m360Res.error ? m360Res.error.message : null,
   };
 }
 
@@ -2907,6 +2963,21 @@ async function buildTranscriptData(studentId, identity) {
   const enrollmentStatus = deriveStudentEnrollmentStatus(bundle.studentRow, moduleScores);
   const fixedCreditHours = computeFixedCreditHours(program, moduleScores, bundle.hourAwardRows, bundle.hourAwardError);
   const grades = assessProgressGradesCompletion(program || { modules: {}, compliance: {} }, moduleScores, capstoneRecord, fixedCreditHours);
+  const m360Eligible = ['SOCAN', 'HDESK', 'AIENG', 'ELECT'].includes(trackCode);
+  const m360 = m360Eligible ? bundle.m360ProgressRow : null;
+  const careerReadinessCourse = m360Eligible ? {
+    title: 'M360 Career Readiness Companion',
+    requiredHours: Number((program && program.careerReadiness && program.careerReadiness.durationMinutes) || 720) / 60,
+    acceptedWeeks: m360 ? Number(m360.accepted_artifact_count || 0) : 0,
+    requiredWeeks: 6,
+    finalGrade: m360 && m360.final_grade !== null && m360.final_grade !== undefined ? Number(m360.final_grade) : null,
+    startHereComplete: !!(m360 && m360.start_here_completed_at),
+    careerSpotlightComplete: !!(m360 && m360.career_spotlight_complete),
+    attendanceRequirementMet: !!(m360 && m360.attendance_requirement_met),
+    status: m360 && m360.course_complete ? 'Complete' : (m360 ? 'In progress' : 'Not started'),
+    completionDate: m360 && m360.course_complete ? (m360.attendance_verified_at || null) : null,
+    note: 'M360 is recorded separately from technical coursework. Its completion status is shown here but does not create technical credit hours.',
+  } : null;
 
   return {
     reportType: 'individual_academic_transcript',
@@ -2946,6 +3017,7 @@ async function buildTranscriptData(studentId, identity) {
       score: m.bestLabScore,
       grade: (grades.moduleGrades.find((g) => g.moduleKey === m.moduleKey) || {}).grade || 'Not attempted',
     })),
+    careerReadinessCourse,
     progressPercentage: grades.progressPercentage,
     academicAverage: grades.academicAverage,
     capstoneOutcome: grades.capstoneOutcome,
@@ -2961,6 +3033,9 @@ async function buildTranscriptData(studentId, identity) {
         ? 'verified from Supabase students (own row, live query at export time)'
         : 'students row not found or query failed — enrollment fields default to not_yet_started/null',
       supabaseFetchError: bundle.error,
+      m360Status: careerReadinessCourse
+        ? (bundle.m360ProgressError || 'verified from Supabase m360_course_progress (live query at export time)')
+        : 'not applicable for this program',
     },
   };
 }
@@ -4776,6 +4851,7 @@ function formatLoginLocation(ev) {
 function viewAdmin(user, rows, error, activeStudents, extra) {
   const cheatingFlagsByUserId = (extra && extra.cheatingFlagsByUserId) || new Map();
   const loginEvents = (extra && extra.loginEvents) || [];
+  const activityWindowHours = (extra && extra.activityWindowHours) || 72;
   const cohorts = (extra && extra.cohorts) || [];
   const cohortStudentCounts = (extra && extra.cohortStudentCounts) || new Map();
   const archivedStudents = (extra && extra.archivedStudents) || [];
@@ -4785,6 +4861,11 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const activeTrackCode = (extra && extra.activeTrackCode) || null;
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
   const rosterRows = activeTrackCode ? rows.filter((row) => row.track_code === activeTrackCode) : rows;
+  // The All Students workspace intentionally retains its cross-track detail
+  // picker. A track workspace must not expose another track's student record.
+  const detailStudents = activeTrackCode
+    ? (activeStudents || []).filter((row) => row.track_code === activeTrackCode)
+    : (activeStudents || []);
   const tabIsActive = (key) => key === activeTab;
   const tabBtnClass = (key) =>
     `admin-tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 cursor-pointer ${
@@ -4799,11 +4880,11 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   let totalStudents = rows.length;
   const enrolledRows = rows.filter((r) => r.enrolled !== false);
   let notEnrolled = totalStudents - enrolledRows.length;
-  let notStarted = enrolledRows.filter((r) => r.modules_complete === 0 && (r.modules_in_progress || 0) === 0).length;
-  let complete = enrolledRows.filter((r) => r.percent_complete >= 100).length;
+  let notStarted = enrolledRows.filter((r) => programWorkItemProgress(r).completed === 0 && (r.modules_in_progress || 0) === 0).length;
+  let complete = enrolledRows.filter(programRequirementsComplete).length;
   let inProgress = enrolledRows.length - notStarted - complete;
   let avgComplete = enrolledRows.length > 0
-    ? enrolledRows.reduce((sum, r) => sum + (r.percent_complete || 0), 0) / enrolledRows.length
+    ? enrolledRows.reduce((sum, r) => sum + programWorkItemProgress(r).percent, 0) / enrolledRows.length
     : 0;
 
   // Track options for filter
@@ -4843,16 +4924,17 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
 
   return `${header(user)}
   <main class="pt-16">
-    <section class="py-16 px-8">
+    <section class="py-8 px-8">
       <div class="max-w-6xl mx-auto">
-        <div class="mb-8">
-          <h1 class="text-3xl font-bold text-[#1e3a5f] mb-4">Student Progress</h1>
-          <div class="w-12 h-1 bg-[#f97316] rounded-full mb-4"></div>
-          <p class="text-gray-500 text-base">Admin dashboard for monitoring student progress across all programs. The ADMIN account is excluded from the student-account counts and table.</p>
-          ${activeTrack ? `<div class="mt-4 flex flex-wrap items-center gap-3"><a href="#/admin" class="text-sm font-semibold text-[#1e3a5f] hover:underline">← All Students</a><span class="text-sm text-gray-500">${esc(activeTrack.title)}</span></div>` : ''}
+        <div class="mb-3">
+          <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1 class="text-3xl font-bold text-[#1e3a5f]">Student Progress</h1>
+            <span class="text-sm text-gray-500">Monitor student progress across all programs.</span>
+          </div>
+          ${activeTrack ? `<div class="mt-2 flex flex-wrap items-center gap-3"><a href="#/admin" class="text-sm font-semibold text-[#1e3a5f] hover:underline">← All Students</a><span class="text-sm text-gray-500">${esc(activeTrack.title)}</span></div>` : ''}
         </div>
 
-        <div class="flex gap-2 border-b border-gray-200 mb-8 flex-wrap" role="tablist">
+        <div class="flex gap-2 border-b border-gray-200 mb-5 flex-wrap" role="tablist">
           <button type="button" role="tab" aria-selected="${tabIsActive('progress')}" data-admin-tab="progress" class="${tabBtnClass('progress')}">Student Progress</button>
           <button type="button" role="tab" aria-selected="${tabIsActive('activity')}" data-admin-tab="activity" class="${tabBtnClass('activity')}">
             Student Activity Monitor${cheatingFlagsByStudentId.size ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">${cheatingFlagsByStudentId.size}</span>` : ''}
@@ -4880,75 +4962,66 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                  </div>
                  <p class="text-gray-500 text-base">No students provisioned yet.</p>
                </div>`
-            : `<div>
-                 ${adminTrackAdministrationStrip(rows, activeTrackCode)}
-                 ${activeTrack ? `<section class="bg-[#f8fafc] border border-gray-200 rounded-xl p-5 mb-6"><h2 class="text-lg font-bold text-[#1e3a5f]">${esc(activeTrack.title)} summary</h2><p class="text-sm text-gray-600 mt-1">${rosterRows.filter((r) => r.enrolled !== false).length} enrolled · ${rosterRows.filter((r) => (r.modules_complete || 0) === 0 && (r.modules_in_progress || 0) === 0).length} not started · ${rosterRows.filter((r) => (r.modules_complete || 0) >= 12).length} technical complete · ${rosterRows.filter((r) => r.m360_course_complete).length} M360 complete · ${rosterRows.filter((r) => Number(r.work_items_completed || 0) >= 18 && !r.m360_course_complete).length} verification pending</p></section>` : ''}
-                 ${adminProgramRoster(rosterRows)}
-                 <!-- Summary tiles -->
-                 <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-                   <div class="bg-white border border-gray-200 rounded-xl p-5">
-                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Total Student Accounts</p>
-                     <p class="text-3xl font-bold text-[#1e3a5f]">${totalStudents}</p>
+            : `<div class="flex flex-col">
+                 ${!activeTrackCode ? `
+                 <div class="order-1 grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
+                   <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
+                     <p class="text-gray-500 text-[9px] font-semibold uppercase tracking-wide leading-tight">Total Student Accounts</p>
+                     <p class="text-base font-bold text-[#1e3a5f] leading-tight">${totalStudents}</p>
                    </div>
-                   <div class="bg-white border border-gray-200 rounded-xl p-5">
-                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Enrolled</p>
-                     <p class="text-3xl font-bold text-[#1e3a5f]">${enrolledRows.length}</p>
+                   <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
+                     <p class="text-gray-500 text-[9px] font-semibold uppercase tracking-wide leading-tight">Enrolled</p>
+                     <p class="text-base font-bold text-[#1e3a5f] leading-tight">${enrolledRows.length}</p>
                    </div>
-                   <div class="bg-white border border-gray-200 rounded-xl p-5">
-                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Not Enrolled</p>
-                     <p class="text-3xl font-bold text-gray-400">${notEnrolled}</p>
+                   <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
+                     <p class="text-gray-500 text-[9px] font-semibold uppercase tracking-wide leading-tight">Not Enrolled</p>
+                     <p class="text-base font-bold text-gray-400 leading-tight">${notEnrolled}</p>
                    </div>
-                   <div class="bg-white border border-gray-200 rounded-xl p-5">
-                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Not Started</p>
-                     <p class="text-3xl font-bold text-gray-400">${notStarted}</p>
+                   <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
+                     <p class="text-gray-500 text-[9px] font-semibold uppercase tracking-wide leading-tight">Not Started</p>
+                     <p class="text-base font-bold text-gray-400 leading-tight">${notStarted}</p>
                    </div>
-                   <div class="bg-white border border-gray-200 rounded-xl p-5">
-                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">In Progress</p>
-                     <p class="text-3xl font-bold text-[#f97316]">${inProgress}</p>
+                   <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
+                     <p class="text-gray-500 text-[9px] font-semibold uppercase tracking-wide leading-tight">In Progress</p>
+                     <p class="text-base font-bold text-[#f97316] leading-tight">${inProgress}</p>
                    </div>
-                   <div class="bg-white border border-gray-200 rounded-xl p-5">
-                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">Complete</p>
-                     <p class="text-3xl font-bold text-[#22c55e]">${complete}</p>
+                   <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
+                     <p class="text-gray-500 text-[9px] font-semibold uppercase tracking-wide leading-tight">Complete</p>
+                     <p class="text-base font-bold text-[#22c55e] leading-tight">${complete}</p>
                    </div>
-                 </div>
-                 <div class="bg-[#f8fafc] border border-gray-200 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                   <p class="text-sm text-gray-600">Average progress across enrolled student accounts: <strong class="text-[#1e3a5f]">${avgComplete.toFixed(0)}%</strong></p>
-                   <p class="text-xs text-gray-500">Report exports capture the current enrollment state from Supabase and a local export history in this browser.</p>
                  </div>
 
                  <!-- Controls -->
-                 <div class="flex flex-col gap-4 mb-6">
-                   <div class="flex flex-col sm:flex-row gap-3 sm:items-end sm:justify-between">
-                     <div class="flex flex-col sm:flex-row gap-3 sm:items-end flex-wrap">
-                       <div>
-                         <label for="track-filter" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Filter by Track</label>
-                         <select id="track-filter" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
-                           <option value="">All Tracks</option>
-                           ${trackOptions.map((track) => `<option value="${esc(track)}">${esc(track)}</option>`).join('')}
-                         </select>
-                       </div>
-                       <div class="flex items-center gap-3 pb-1.5">
-                         <input type="checkbox" id="hide-not-started" class="w-4 h-4 rounded border-gray-200 text-[#f97316] cursor-pointer" />
-                         <label for="hide-not-started" class="text-sm text-gray-600 cursor-pointer">Hide Not Started</label>
-                       </div>
+                 <div class="order-4 flex flex-col gap-1.5 mb-1.5">
+                   <div class="flex flex-wrap xl:flex-nowrap items-center gap-1.5">
+                     <div class="flex items-center gap-1.5">
+                       <label for="track-filter" class="text-[10px] font-semibold uppercase tracking-widest text-gray-600 whitespace-nowrap">Filter by Track</label>
+                       <select id="track-filter" class="border border-gray-200 rounded-lg px-2 py-1.5 text-[11px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">
+                         <option value="">All Tracks</option>
+                         ${trackOptions.map((track) => `<option value="${esc(track)}">${esc(track)}</option>`).join('')}
+                       </select>
                      </div>
-                     <div class="flex flex-wrap gap-3">
-                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-user" aria-expanded="false" aria-controls="admin-generate-user-panel" type="button">Generate New User</button>
-                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-cohort" aria-expanded="false" aria-controls="admin-generate-cohort-panel" type="button">Generate New Cohort</button>
-                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#c2410c] hover:text-[#9a3412] hover:border-[#f97316] hover:bg-[#fff7ed] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-save-progress-file" type="button" title="Download one recoverable progress snapshot for every student in the current filtered scope">Save Progress File (All Students)</button>
-                       <button class="inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-enrollment-planning" aria-expanded="false" aria-controls="admin-enrollment-planning-panel" type="button">Enrollment Planning</button>
-                       <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-toggle-generate-diploma" aria-expanded="false" aria-controls="admin-generate-diploma-panel" type="button">Generate Diploma</button>
-                       <button class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer" data-action="admin-generate-report" aria-expanded="false" aria-controls="admin-report-preview" type="button">Preview &amp; Generate Report</button>
+                     <div class="flex items-center gap-1.5 whitespace-nowrap">
+                       <input type="checkbox" id="hide-not-started" class="w-3.5 h-3.5 rounded border-gray-200 text-[#f97316] cursor-pointer" />
+                       <label for="hide-not-started" class="text-xs text-gray-600 cursor-pointer">Hide Not Started</label>
                      </div>
+                   </div>
+                   <div class="grid grid-cols-3 md:grid-cols-6 gap-2">
+                     <button class="inline-flex w-full items-center justify-center gap-1.5 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-2 py-1.5 rounded-lg text-[11px] shadow-sm transition-all cursor-pointer" data-action="admin-toggle-generate-user" aria-expanded="false" aria-controls="admin-generate-user-panel" type="button">Generate New User</button>
+                     <button class="inline-flex w-full items-center justify-center gap-1.5 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-2 py-1.5 rounded-lg text-[11px] shadow-sm transition-all cursor-pointer" data-action="admin-toggle-generate-cohort" aria-expanded="false" aria-controls="admin-generate-cohort-panel" type="button">Generate New Cohort</button>
+                     <button class="inline-flex w-full items-center justify-center gap-1.5 bg-white border border-gray-200 text-[#c2410c] hover:text-[#9a3412] hover:border-[#f97316] hover:bg-[#fff7ed] font-semibold px-2 py-1.5 rounded-lg text-[11px] shadow-sm transition-all cursor-pointer" data-action="admin-save-progress-file" type="button" title="Download one recoverable progress snapshot for every student in the current filtered scope">Save Progress File (All Students)</button>
+                     <button class="inline-flex w-full items-center justify-center gap-1.5 bg-white border border-gray-200 text-[#1e3a5f] hover:border-[#1e3a5f] hover:bg-[#f0f4f8] font-semibold px-2 py-1.5 rounded-lg text-[11px] shadow-sm transition-all cursor-pointer" data-action="admin-toggle-enrollment-planning" aria-expanded="false" aria-controls="admin-enrollment-planning-panel" type="button">Enrollment Planning</button>
+                     <button class="inline-flex w-full items-center justify-center gap-1.5 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-2.5 py-1.5 rounded-lg text-[11px] shadow-sm transition-all cursor-pointer" data-action="admin-toggle-generate-diploma" aria-expanded="false" aria-controls="admin-generate-diploma-panel" type="button">Generate Diploma</button>
+                     <button class="inline-flex w-full items-center justify-center gap-1.5 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-2.5 py-1.5 rounded-lg text-[11px] shadow-sm transition-all cursor-pointer" data-action="admin-generate-report" aria-expanded="false" aria-controls="admin-report-preview" type="button">Preview &amp; Generate Report</button>
                    </div>
 
                    <!-- Sprint 4: "Generate New User" — one auto-enrolled student
                         account on demand, via supabase/functions/admin-provision.
                         COHORT_USER_LIFECYCLE_SPRINT_PLAN.md. -->
                    <div id="admin-generate-user-panel" class="acc-body">
-                    <div><div class="bg-white border border-gray-200 rounded-xl p-5 mb-4">
+                    <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate New User</h3>
-                     <p class="text-xs text-gray-500 mb-4">Creates one auto-enrolled student account immediately. The password is shown once, below — copy it now, it is not shown again.</p>
+                     <p class="text-xs text-gray-500 mb-3">Creates one auto-enrolled student account immediately. The password is shown once, below — copy it now, it is not shown again.</p>
                      <div class="grid sm:grid-cols-3 gap-3 items-end">
                        <label class="text-xs font-semibold text-gray-600">Track
                          <select id="gen-user-track" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
@@ -4967,8 +5040,8 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                        </label>
                        <button type="button" data-action="admin-generate-user-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate</button>
                      </div>
-                     <div id="admin-generate-user-status" class="text-sm text-gray-500 mt-3"></div>
-                     <div id="admin-generate-user-result" class="mt-3"></div>
+                     <div id="admin-generate-user-status" class="text-sm text-gray-500 mt-2"></div>
+                     <div id="admin-generate-user-result" class="mt-2"></div>
                     </div></div>
                    </div>
 
@@ -4976,10 +5049,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                         batch-generates a chosen student count per track into it
                         in one action, via the same Edge Function. -->
                    <div id="admin-generate-cohort-panel" class="acc-body">
-                    <div><div class="bg-white border border-gray-200 rounded-xl p-5 mb-4">
+                    <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate New Cohort</h3>
-                     <p class="text-xs text-gray-500 mb-4">Creates a named cohort and immediately batch-generates the chosen number of student accounts per track into it. Every generated password appears once, in the roster table below — copy it now, it is not shown again.</p>
-                     <div class="grid sm:grid-cols-2 gap-3 mb-4">
+                     <p class="text-xs text-gray-500 mb-3">Creates a named cohort and immediately batch-generates the chosen number of student accounts per track into it. Every generated password appears once, in the roster table below — copy it now, it is not shown again.</p>
+                     <div class="grid sm:grid-cols-2 gap-3 mb-3">
                        <label class="text-xs font-semibold text-gray-600">Cohort name
                          <input id="gen-cohort-name" type="text" placeholder="e.g. Fall 2026 intake" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
                        </label>
@@ -4989,7 +5062,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                        </label>
                      </div>
                      <p class="text-xs font-semibold text-gray-600 mb-2">Students per track (0 = none)</p>
-                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
                        <label class="text-xs font-semibold text-gray-600">SOCAN
                          <input id="gen-cohort-count-SOCAN" type="number" min="0" step="1" value="0" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
                        </label>
@@ -5004,8 +5077,8 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                        </label>
                      </div>
                      <button type="button" data-action="admin-generate-cohort-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate cohort</button>
-                     <div id="admin-generate-cohort-status" class="text-sm text-gray-500 mt-3"></div>
-                     <div id="admin-generate-cohort-result" class="mt-3"></div>
+                     <div id="admin-generate-cohort-status" class="text-sm text-gray-500 mt-2"></div>
+                     <div id="admin-generate-cohort-result" class="mt-2"></div>
                     </div></div>
                    </div>
 
@@ -5015,9 +5088,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                         or any storage) when the certificate closes; see
                         openDiplomaCertificate() / closeDiplomaCertificate(). -->
                    <div id="admin-generate-diploma-panel" class="acc-body">
-                    <div><div class="bg-white border border-gray-200 rounded-xl p-5 mb-4">
+                    <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Diploma</h3>
-                     <p class="text-xs text-gray-500 mb-4">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every technical module (including the module 12 capstone) and, on M360-required tracks, every M360 requirement are eligible. The name below is used only to render this one diploma — it is never saved to the student's account or any database.</p>
+                     <p class="text-xs text-gray-500 mb-3">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every technical module (including the module 12 capstone) and, on M360-required tracks, every M360 requirement are eligible. The name below is used only to render this one diploma — it is never saved to the student's account or any database.</p>
                      <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end mb-3">
                        <label class="text-xs font-semibold text-gray-600 xl:col-span-2">Student
                          <select id="diploma-student-select" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
@@ -5042,9 +5115,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    </div>
 
                    <div id="admin-enrollment-planning-panel" class="acc-body">
-                    <div><section class="bg-white border border-gray-200 rounded-xl p-5 mb-4" aria-labelledby="academic-record-heading">
+                    <div><section class="bg-white border border-gray-200 rounded-xl p-4 mb-3" aria-labelledby="academic-record-heading">
                      <h2 id="academic-record-heading" class="text-sm font-bold text-[#1e3a5f]">Current enrollment planning record</h2>
-                     <p class="text-xs text-gray-500 mt-1 mb-4">Set scheduled dates and the reporting geography for an active enrollment. Saving does not overwrite a withdrawal or prior enrollment episode.</p>
+                     <p class="text-xs text-gray-500 mt-1 mb-3">Set scheduled dates and the reporting geography for an active enrollment. Saving does not overwrite a withdrawal or prior enrollment episode.</p>
                      <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
                        <label class="text-xs font-semibold text-gray-600">Student
                          <select id="admin-planning-student" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
@@ -5070,8 +5143,8 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
 
                    <div id="admin-report-status" class="text-sm text-gray-500"></div>
                    <div id="admin-report-preview" class="acc-body"><div>
-                     <section class="bg-white border border-gray-200 rounded-xl p-5 mb-4" aria-labelledby="annual-reporting-scope-heading">
-                       <div class="flex flex-col lg:flex-row lg:items-end gap-4">
+                     <section class="bg-white border border-gray-200 rounded-xl p-4 mb-3" aria-labelledby="annual-reporting-scope-heading">
+                       <div class="flex flex-col lg:flex-row lg:items-end gap-3">
                          <div class="lg:flex-1">
                            <h2 id="annual-reporting-scope-heading" class="text-sm font-bold text-[#1e3a5f]">Annual reporting scope</h2>
                            <p class="text-xs text-gray-500 mt-1">These dates apply only to this report. Period-based Form 801 counts require the enrollment-history migration and its reporting view; the current dashboard roster is not a historical source.</p>
@@ -5088,9 +5161,18 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                      <div id="admin-report-preview-inner"></div>
                    </div></div>
                  </div>
+                 ` : ''}
+                 ${adminTrackAdministrationStrip(rows, activeTrackCode)}
+                 ${activeTrack ? `<section class="order-3 bg-[#f8fafc] border border-gray-200 rounded-xl p-4 mb-4"><h2 class="text-lg font-bold text-[#1e3a5f]">${esc(activeTrack.title)} summary</h2><p class="text-sm text-gray-600 mt-1">${rosterRows.filter((r) => r.enrolled !== false).length} enrolled · ${rosterRows.filter((r) => (r.modules_complete || 0) === 0 && (r.modules_in_progress || 0) === 0).length} not started · ${rosterRows.filter((r) => (r.modules_complete || 0) >= 12).length} technical complete · ${rosterRows.filter((r) => r.m360_course_complete).length} M360 complete · ${rosterRows.filter((r) => Number(r.work_items_completed || 0) >= 18 && !r.m360_course_complete).length} verification pending</p></section>` : ''}
+                 ${activeTrackCode ? adminProgramRoster(rosterRows) : ''}
+                 ${!activeTrackCode ? `
+                 <div class="order-3 bg-[#f8fafc] border border-gray-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                   <p class="text-sm text-gray-600">Average progress across enrolled student accounts: <strong class="text-[#1e3a5f]">${avgComplete.toFixed(0)}%</strong></p>
+                   <p class="text-xs text-gray-500">Report exports capture the current enrollment state from Supabase and a local export history in this browser.</p>
+                 </div>
 
                  <!-- Table -->
-                 <div class="overflow-x-auto">
+                 <div class="order-5 overflow-x-auto">
                    <table class="w-full border-collapse">
                      <thead>
                        <tr class="border-b border-gray-200 bg-gray-50">
@@ -5099,16 +5181,18 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="program">Program<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="progress">Progress<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="modules">Modules<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="modules">Coursework<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="capstone">Capstone<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="lastActive">Last Active<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
                        </tr>
                      </thead>
                      <tbody id="admin-table-body">
-                       ${rosterRows.map((row) => `
+                       ${rosterRows.map((row) => {
+                         const programmeProgress = programWorkItemProgress(row);
+                         return `
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
-                             data-track="${esc(row.track_code)}" data-progress="${row.percent_complete}" data-started="${(row.modules_complete > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
+                             data-track="${esc(row.track_code)}" data-progress="${programmeProgress.percent}" data-started="${(programmeProgress.completed > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
                            <td class="px-6 py-4 text-sm text-gray-900 font-mono">
                              <button type="button" data-view-credentials="${esc(row.student_id)}" aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
@@ -5134,12 +5218,12 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                            <td class="px-6 py-4 text-sm">
                              <div class="flex items-center gap-2">
                                <div class="h-1.5 w-24 bg-gray-100 rounded-full overflow-hidden">
-                                 <div class="h-full rounded-full" style="width: ${row.percent_complete}%; background-color: ${row.percent_complete >= 100 ? '#22c55e' : row.percent_complete > 0 ? '#f97316' : '#d1d5db'};"></div>
+                                 <div class="h-full rounded-full" style="width: ${programmeProgress.percent}%; background-color: ${programRequirementsComplete(row) ? '#22c55e' : programmeProgress.percent > 0 ? '#f97316' : '#d1d5db'};"></div>
                                </div>
-                               <span class="text-gray-600 text-xs min-w-fit">${row.percent_complete}%</span>
+                               <span class="text-gray-600 text-xs min-w-fit">${programmeProgress.percent}%</span>
                              </div>
                            </td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${row.modules_complete} / ${row.modules_total}</td>
+                           <td class="px-6 py-4 text-sm text-gray-600">${programmeProgress.completed} / ${programmeProgress.required}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${row.capstone_overall_score !== null && row.capstone_overall_score !== undefined ? row.capstone_overall_score.toFixed(2) : '—'}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${row.last_active !== null ? new Date(row.last_active).toLocaleDateString() : '—'}</td>
                            <td class="px-6 py-4 text-sm">
@@ -5160,24 +5244,26 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                              </div>
                            </td>
                          </tr>
-                       `).join('')}
+                       `;
+                       }).join('')}
                      </tbody>
                    </table>
                  </div>
+                 ` : ''}
                </div>`
         }
 
         ${
           error
             ? ''
-            : `<div class="mt-12">
+            : `<div class="mt-8">
                  <div class="mb-6">
                    <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Student Detail</h2>
                    <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-                   <p class="text-gray-500 text-sm">Drill into one student's module, lab, and capstone record. Only students with recorded progress appear below.</p>
+                   <p class="text-gray-500 text-sm">Drill into one student's technical and M360 course record. Students with recorded technical or M360 progress appear below.</p>
                  </div>
                  ${
-                   activeStudents.length === 0
+                   detailStudents.length === 0
                      ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
                           <p class="text-gray-500 text-sm">No students have recorded progress yet.</p>
                         </div>`
@@ -5185,7 +5271,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                           <label for="student-detail-select" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Select a Student</label>
                           <select id="student-detail-select" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 w-full sm:w-96">
                             <option value="">Choose a student…</option>
-                            ${activeStudents.map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)} (${r.modules_complete}/${r.modules_total} modules${r.modules_complete === 0 && (r.modules_in_progress || 0) > 0 ? ', in progress' : ''})</option>`).join('')}
+                            ${detailStudents.map((r) => {
+                              const programmeProgress = programWorkItemProgress(r);
+                              return `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)} (${programmeProgress.completed}/${programmeProgress.required} coursework${programmeProgress.completed === 0 && (r.modules_in_progress || 0) > 0 ? ', in progress' : ''})</option>`;
+                            }).join('')}
                           </select>
                         </div>
                         <div id="student-detail-panel"></div>`
@@ -5198,9 +5287,16 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           <div class="mb-6">
             <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Student Activity Monitor</h2>
             <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-            <p class="text-gray-500 text-sm">Recent sign-ins across every student, newest first.</p>
+            <p class="text-gray-500 text-sm">Sign-ins from the last ${activityWindowHours} hours, newest first. Search by student ID, track, location, or date.</p>
           </div>
-          <div id="admin-activity-status" class="text-sm text-gray-500 mb-3"></div>
+          <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label class="relative block w-full sm:max-w-md">
+              <span class="sr-only">Search activity logs</span>
+              <input id="admin-activity-search" type="search" autocomplete="off" placeholder="Search activity logs" class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-[#1e3a5f] focus:ring-2 focus:ring-[#1e3a5f]/20">
+            </label>
+            <p id="admin-activity-result-count" class="text-sm text-gray-500" aria-live="polite">${loginEvents.length} ${loginEvents.length === 1 ? 'sign-in' : 'sign-ins'} shown</p>
+          </div>
+          <div id="admin-activity-status" class="text-sm text-gray-500 mb-3" aria-live="polite"></div>
           ${
             cheatingFlagsByStudentId.size
               ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
@@ -5233,7 +5329,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                          // sign-ins are audit records, not actionable sessions.
                          const canForceSignOut = Boolean(ev.user_id && siteSession && !siteSession.ended_at);
                          return `
-                         <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                         <tr class="admin-activity-row border-b border-gray-100 hover:bg-gray-50 transition-colors">
                            <td class="px-6 py-3 text-sm text-gray-900 font-mono">
                              ${esc(ev.student_id || '—')}
                              ${cheatingFlagsByStudentId.has(ev.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(ev.student_id).join(' · '))}">Review</span>` : ''}
@@ -5307,7 +5403,11 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           ${
             archivedStudents.length === 0
               ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No archived students yet.</p></div>`
-              : `<div class="overflow-x-auto">
+              : `<div>
+                   <label for="archived-student-search" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Search archived records</label>
+                   <input id="archived-student-search" type="search" autocomplete="off" placeholder="Student ID, cohort, track, program, or status…" class="w-full sm:max-w-xl border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 mb-4" />
+                   <p id="archived-student-search-status" class="text-xs text-gray-500 mb-3">${archivedStudents.length} archived record${archivedStudents.length === 1 ? '' : 's'}</p>
+                   <div class="overflow-x-auto">
                    <table class="w-full border-collapse">
                      <thead>
                        <tr class="border-b border-gray-200 bg-gray-50">
@@ -5324,7 +5424,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                      </thead>
                      <tbody>
                        ${archivedStudents.map((r) => `
-                         <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                         <tr data-archived-student-row data-archive-search="${esc([r.student_id, r.cohort_name, r.track_code, r.program_slug, r.status_at_archive].filter(Boolean).join(' ').toLowerCase())}" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                            <td class="px-6 py-3 text-sm text-gray-900 font-mono">${esc(r.student_id)}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.cohort_name || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.track_code || '—')}</td>
@@ -5337,7 +5437,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                          </tr>`).join('')}
                      </tbody>
                    </table>
-                 </div>`
+                 </div></div>`
           }
         </div>
 
@@ -5354,9 +5454,60 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
 
 /* ------------------------------------------------------------------ router */
 
+// Route changes can wait on several Supabase reads (the admin workspace is
+// the heaviest example).  Keep the existing branded loading treatment visible
+// during a genuine wait instead of leaving the previous route on screen.  The
+// short delay prevents a distracting flash on routes that resolve at once.
+const MNT_ROUTE_LOADING_DELAY_MS = 150;
+let routeRenderGeneration = 0;
+let routeLoadingTimer = null;
+
+function viewRouteLoading(hash) {
+  const adminRoute = /^#\/admin(?:\/|$)/.test(hash);
+  const heading = adminRoute ? 'Preparing your administrative workspace' : 'Preparing your learning space';
+  const message = adminRoute
+    ? 'Loading current student progress, cohorts, and activity.'
+    : 'Restoring your progress and course workspace.';
+
+  return `
+    <div class="portal-loading" role="status" aria-live="polite" aria-label="Loading Mission Next portal">
+      <div class="mnt-stars portal-loading__stars"></div>
+      <div class="portal-loading__card">
+        <div class="portal-loading__mark" aria-hidden="true"><div class="portal-loading__orbit"></div></div>
+        <p class="portal-loading__eyebrow">Mission Next Technical Academy</p>
+        <h1>${heading}</h1>
+        <p class="portal-loading__copy">${message}</p>
+        <div class="portal-loading__line" aria-hidden="true"></div>
+      </div>
+    </div>`;
+}
+
+function beginRouteLoading(app, hash, generation) {
+  clearTimeout(routeLoadingTimer);
+  app.setAttribute('aria-busy', 'true');
+  routeLoadingTimer = setTimeout(() => {
+    // A new hash navigation supersedes this render.  Never let a delayed
+    // callback replace the newer route's content.
+    if (generation === routeRenderGeneration) app.innerHTML = viewRouteLoading(hash);
+  }, MNT_ROUTE_LOADING_DELAY_MS);
+}
+
+function isCurrentRouteRender(generation) {
+  return generation === routeRenderGeneration;
+}
+
+function completeRouteLoading(generation) {
+  if (!isCurrentRouteRender(generation)) return false;
+  clearTimeout(routeLoadingTimer);
+  routeLoadingTimer = null;
+  return true;
+}
+
 async function render() {
   const app = document.getElementById('app');
   let hash = location.hash || '#/login';
+  const renderGeneration = ++routeRenderGeneration;
+  beginRouteLoading(app, hash, renderGeneration);
   // currentUser() handles expected restoration errors itself.  Retain this
   // last-resort guard because render owns replacement of the loading shell.
   let user = null;
@@ -5369,16 +5520,23 @@ async function render() {
     discardLocalSession();
   }
 
+  // A route may have changed while session restoration was in flight.
+  if (!isCurrentRouteRender(renderGeneration)) return;
+
   // In-page anchors (#sec-labs, #sec-capstone) share the hash with the router.
   // Only hashes beginning '#/' are routes; everything else is the browser
   // scrolling within the current view and must not trigger a re-render.
-  if (hash && !hash.startsWith('#/') && app.innerHTML.trim()) return;
+  if (hash && !hash.startsWith('#/') && app.innerHTML.trim()) {
+    completeRouteLoading(renderGeneration);
+    return;
+  }
 
   if (!user) {
     // Keep the address bar aligned with the view.  Rendering the login screen
     // alone left a protected route (for example #/admin) in the URL, which
     // made reloads and copied links misleading.
     if (hash !== '#/login') history.replaceState(null, '', '#/login');
+    if (!completeRouteLoading(renderGeneration)) return;
     app.innerHTML = viewLogin();
     app.setAttribute('aria-busy', 'false');
     wireLogin();
@@ -5407,6 +5565,7 @@ async function render() {
   if (hash === '#/admin' || adminTrackMatch) {
     if (!user.isAdmin) {
       history.replaceState(null, '', '#/portal');
+      if (!completeRouteLoading(renderGeneration)) return;
       app.innerHTML = viewPortal(user);
     } else {
       // One authoritative roster select feeds both the master roster and the
@@ -5438,7 +5597,7 @@ async function render() {
         .select('*');
       const activityRowMap = new Map((activityRows || []).map((row) => [row.student_id, row]));
       activeStudents = dashboardRows
-        .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || (activityRowMap.get(r.student_id)?.lab_attempts_count || 0) > 0 || (activityRowMap.get(r.student_id)?.capstone_submissions_count || 0) > 0)
+        .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || r.m360_record_exists || (r.m360_accepted_weeks || 0) > 0 || (activityRowMap.get(r.student_id)?.lab_attempts_count || 0) > 0 || (activityRowMap.get(r.student_id)?.capstone_submissions_count || 0) > 0)
         .sort((a, b) => a.student_id.localeCompare(b.student_id));
 
       // Completion-speed review flags (see buildCheatingReviewFlags above):
@@ -5450,13 +5609,19 @@ async function render() {
         .eq('state', 'complete');
       cheatingFlagsByUserId = buildCheatingReviewFlags(dashboardRows, completedModuleRows);
 
-      // Student Activity Monitor tab: recent sign-ins across every student,
-      // newest first. login_events_admin_read (20260901110000_login_events.sql).
+      // Student Activity Monitor: keep the operational dashboard bounded to
+      // a useful recent window rather than loading the entire audit history.
+      // The searchable table is intentionally client-filtered after this
+      // server-side window is fetched, so search never expands the query into
+      // older history. login_events_admin_read (20260901110000_login_events.sql).
       // user_id is included (not shown as a column) so an open session's
       // "Sign out" button has the target id admin_force_sign_out() needs.
+      const activityWindowHours = 72;
+      const activityWindowStart = new Date(Date.now() - activityWindowHours * 60 * 60 * 1000).toISOString();
       const { data: loginEvents, error: loginEventsError } = await mntSupabase
         .from('login_events')
         .select('user_id, student_id, track_code, occurred_at, ip_address, geo_city, geo_region, geo_country')
+        .gte('occurred_at', activityWindowStart)
         .order('occurred_at', { ascending: false })
         .limit(500);
       if (loginEventsError) console.error('login_events fetch failed', loginEventsError);
@@ -5499,6 +5664,7 @@ async function render() {
       const { data: siteSessionRows, error: siteSessionsError } = await mntSupabase
         .from('admin_site_sessions')
         .select('*')
+        .gte('started_at', activityWindowStart)
         .order('started_at', { ascending: false });
       if (siteSessionsError) console.error('admin_site_sessions fetch failed', siteSessionsError);
       const siteSessionsByStudentId = new Map();
@@ -5508,6 +5674,9 @@ async function render() {
         siteSessionsByStudentId.set(r.student_id, list);
       });
 
+      // The user can select another track while these reads are pending.  The
+      // newer render owns the screen; discard this now-stale result.
+      if (!completeRouteLoading(renderGeneration)) return;
       app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, {
         cheatingFlagsByUserId,
         loginEvents: loginEvents || [],
@@ -5515,10 +5684,12 @@ async function render() {
         cohortStudentCounts,
         archivedStudents: archivedStudentRows || [],
         siteSessionsByStudentId,
+        activityWindowHours,
         activeTab: adminActiveTab,
         activeTrackCode: adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null,
       });
     }
+    if (!isCurrentRouteRender(renderGeneration)) return;
     wireCommon();
     const wiredRows = adminTrackMatch && adminTrackMeta(adminTrackMatch[1])
       ? dashboardRows.filter((row) => row.track_code === adminTrackMatch[1])
@@ -5538,6 +5709,7 @@ async function render() {
   // A module route with no registered lab is not an error: that module simply
   // has no interactive surface built yet, so it falls through to the program
   // overview the same way it always did.
+  if (!completeRouteLoading(renderGeneration)) return;
   if (moduleLab) {
     const program = PROGRAMS.find((item) => item.slug === moduleMatch[1]);
     app.innerHTML = hasModuleAccess(user, program.slug, moduleLab.moduleKey)
@@ -6056,6 +6228,26 @@ Track:      ${esc(account.track_code)}</pre>
    * always confirms first and gives disabled/status feedback either way —
    * never a silent one-click. */
   const activityStatus = document.getElementById('admin-activity-status');
+  const activitySearch = document.getElementById('admin-activity-search');
+  const activityRows = Array.from(document.querySelectorAll('.admin-activity-row'));
+  const activityResultCount = document.getElementById('admin-activity-result-count');
+  if (activitySearch) {
+    const filterActivityRows = () => {
+      const query = activitySearch.value.trim().toLocaleLowerCase();
+      let visibleCount = 0;
+      activityRows.forEach((row) => {
+        const matches = !query || row.textContent.toLocaleLowerCase().includes(query);
+        row.hidden = !matches;
+        if (matches) visibleCount += 1;
+      });
+      if (activityResultCount) {
+        activityResultCount.textContent = query
+          ? `${visibleCount} ${visibleCount === 1 ? 'matching sign-in' : 'matching sign-ins'}`
+          : `${visibleCount} ${visibleCount === 1 ? 'sign-in' : 'sign-ins'} shown`;
+      }
+    };
+    activitySearch.addEventListener('input', filterActivityRows);
+  }
   document.querySelectorAll('[data-force-signout]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const targetUserId = btn.getAttribute('data-force-signout');
@@ -6102,8 +6294,8 @@ Track:      ${esc(account.track_code)}</pre>
     track: (r) => r.track_code || '',
     program: (r) => r.program_slug || '',
     enrollment: (r) => (r.enrolled !== false ? 1 : 0),
-    progress: (r) => (r.percent_complete === null || r.percent_complete === undefined ? null : r.percent_complete),
-    modules: (r) => (r.modules_complete === null || r.modules_complete === undefined ? null : r.modules_complete),
+    progress: (r) => programWorkItemProgress(r).percent,
+    modules: (r) => programWorkItemProgress(r).completed,
     capstone: (r) => (r.capstone_overall_score === null || r.capstone_overall_score === undefined ? null : r.capstone_overall_score),
     lastActive: (r) => (r.last_active ? new Date(r.last_active).getTime() : null),
   };
@@ -6469,14 +6661,61 @@ Track:      ${esc(account.track_code)}</pre>
     });
   });
 
-  // Sprint H.1: student detail drill-down.
+  // Sprint H.1: student detail drill-down. Track cards use the same renderer
+  // inline, so opening a record never jumps an administrator to the bottom of
+  // a long roster.
+  async function loadAdminStudentDetail(panel, studentId) {
+    if (!panel || !studentId) return;
+    const row = activeStudents.find((candidate) => candidate.student_id === studentId);
+    if (!row) { panel.innerHTML = ''; return; }
+    panel.dataset.studentId = studentId;
+    panel.innerHTML = `<div class="text-sm text-gray-400 py-6">Loading student record…</div>`;
+    const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes] = await Promise.all([
+      mntSupabase.from('module_progress').select('*').eq('user_id', row.user_id),
+      mntSupabase.from('lab_attempts').select('*').eq('user_id', row.user_id),
+      mntSupabase.from('capstone_submissions').select('*').eq('user_id', row.user_id).order('stage', { ascending: true }),
+      mntSupabase.from('capstone_scorecard').select('*').eq('user_id', row.user_id).maybeSingle(),
+      mntSupabase.from('portfolio_artifacts').select('*').eq('user_id', row.user_id).order('submitted_at', { ascending: false }),
+      mntSupabase.from('capstone_reviews').select('*').eq('user_id', row.user_id).order('created_at', { ascending: false }),
+    ]);
+    if (panel.dataset.studentId !== studentId) return;
+    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || []);
+  }
+
+  const archivedSearch = document.getElementById('archived-student-search');
+  if (archivedSearch) {
+    archivedSearch.addEventListener('input', () => {
+      const query = archivedSearch.value.trim().toLowerCase();
+      const archiveRows = Array.from(document.querySelectorAll('[data-archived-student-row]'));
+      let visible = 0;
+      archiveRows.forEach((archiveRow) => {
+        const matches = !query || (archiveRow.dataset.archiveSearch || '').includes(query);
+        archiveRow.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      const status = document.getElementById('archived-student-search-status');
+      if (status) status.textContent = `${visible} archived record${visible === 1 ? '' : 's'}${query ? ' match your search' : ''}`;
+    });
+  }
+
   const detailSelect = document.getElementById('student-detail-select');
   document.querySelectorAll('[data-admin-progress-detail]').forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
+      const studentId = button.getAttribute('data-admin-progress-detail') || '';
+      const inlinePanel = document.querySelector(`[data-admin-inline-detail="${studentId}"]`);
+      if (inlinePanel) {
+        const isOpen = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', String(!isOpen));
+        inlinePanel.style.gridTemplateRows = isOpen ? '0fr' : '1fr';
+        if (!isOpen && !inlinePanel.dataset.loaded) {
+          await loadAdminStudentDetail(inlinePanel.firstElementChild.firstElementChild, studentId);
+          inlinePanel.dataset.loaded = 'true';
+        }
+        return;
+      }
       if (!detailSelect) return;
-      detailSelect.value = button.getAttribute('data-admin-progress-detail') || '';
+      detailSelect.value = studentId;
       detailSelect.dispatchEvent(new Event('change'));
-      detailSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   });
   if (detailSelect) {
@@ -6485,33 +6724,7 @@ Track:      ${esc(account.track_code)}</pre>
       if (!panel) return;
       const studentId = detailSelect.value;
       if (!studentId) { panel.innerHTML = ''; return; }
-      const row = activeStudents.find((r) => r.student_id === studentId);
-      if (!row) { panel.innerHTML = ''; return; }
-
-      panel.innerHTML = `<div class="text-sm text-gray-400 py-6">Loading…</div>`;
-      const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes] = await Promise.all([
-        mntSupabase.from('module_progress').select('*').eq('user_id', row.user_id),
-        mntSupabase.from('lab_attempts').select('*').eq('user_id', row.user_id),
-        mntSupabase.from('capstone_submissions').select('*').eq('user_id', row.user_id).order('stage', { ascending: true }),
-        mntSupabase.from('capstone_scorecard').select('*').eq('user_id', row.user_id).maybeSingle(),
-        mntSupabase.from('portfolio_artifacts').select('*').eq('user_id', row.user_id).order('submitted_at', { ascending: false }),
-        mntSupabase.from('capstone_reviews').select('*').eq('user_id', row.user_id).order('created_at', { ascending: false }),
-      ]);
-
-      // Still the currently-selected student? A fast re-select before this
-      // resolves would otherwise let a stale response overwrite the panel.
-      if (detailSelect.value !== studentId) return;
-
-      panel.innerHTML = renderStudentDetail(
-        row,
-        moduleRes.data || [],
-        labRes.data || [],
-        capstoneRes.data || [],
-        scorecardRes.data || null,
-        artifactRes.data || [],
-        reviewRes.data || [],
-        cheatingFlagsByUserId.get(row.user_id) || []
-      );
+      await loadAdminStudentDetail(panel, studentId);
     });
 
     // Agent 4 / B2+B3: per-student "Download Transcript (PDF)" and "Download
@@ -6520,8 +6733,8 @@ Track:      ${esc(account.track_code)}</pre>
     // itself persists across re-renders (only its innerHTML changes on each
     // student selection), so one delegated listener here covers every
     // student without re-binding per render.
-    const detailPanel = document.getElementById('student-detail-panel');
-    if (detailPanel) {
+    const detailPanels = [document.getElementById('student-detail-panel'), ...document.querySelectorAll('[data-admin-inline-detail]')];
+    detailPanels.filter(Boolean).forEach((detailPanel) => {
       detailPanel.addEventListener('click', async (event) => {
         const transcriptBtn = event.target.closest('[data-transcript-pdf]');
         const evidenceBtn = event.target.closest('[data-evidence-pdf]');
@@ -6566,7 +6779,7 @@ Track:      ${esc(account.track_code)}</pre>
         if (reviewError) { if (status) status.textContent = `Could not save review: ${reviewError.message}`; return; }
         if (status) status.textContent = 'Review saved. Re-select the student to refresh the evidence summary.';
       });
-    }
+    });
   }
 }
 
@@ -6604,6 +6817,9 @@ function adminDate(value) {
 }
 
 function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = []) {
+  const m360Detail = row.m360_required
+    ? `<section class="mt-8"><h3 class="text-base font-semibold text-[#1e3a5f] mb-3">M360 Career Readiness</h3><div class="grid grid-cols-2 md:grid-cols-3 gap-3"><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Accepted weeks</p><p class="text-lg font-semibold text-[#1e3a5f]">${Number(row.m360_accepted_weeks || 0)} / ${Number(row.m360_required_weeks || 6)}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Final grade</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_final_grade == null ? '—' : esc(Number(row.m360_final_grade).toFixed(1))}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Start Here</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_start_here_complete ? 'Complete' : 'Not started'}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Networking confidence</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.networking_comfort == null ? '— / 5' : `${Number(row.networking_comfort)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Interview readiness</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.interview_readiness == null ? '— / 5' : `${Number(row.interview_readiness)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Course status</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_course_complete ? 'Complete' : 'In progress'}</p></div></div><p class="text-xs text-gray-500 mt-3">M360 is a separate career-readiness course record. It appears on the student transcript but is not technical-module credit.</p></section>`
+    : '';
   const moduleSection = moduleRows.length === 0
     ? `<p class="text-sm text-gray-400">No module progress recorded.</p>`
     : `<div class="overflow-x-auto">
@@ -6626,6 +6842,13 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
          </table>
        </div>`;
 
+  // A student can retry a lab, so lab_attempts legitimately holds more than
+  // one row per lab_key — each a real attempt, not a duplicate. Sorting
+  // groups a lab's attempts together; numbering them (oldest first) makes
+  // that repetition read as attempt history instead of looking like an error.
+  const labAttemptCounts = new Map();
+  labRows.forEach((l) => labAttemptCounts.set(l.lab_key, (labAttemptCounts.get(l.lab_key) || 0) + 1));
+  const labAttemptIndex = new Map();
   const labSection = labRows.length === 0
     ? `<p class="text-sm text-gray-400">No lab attempts recorded.</p>`
     : `<div class="overflow-x-auto">
@@ -6639,13 +6862,20 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
              </tr>
            </thead>
            <tbody>
-             ${labRows.slice().sort((a, b) => String(a.lab_key).localeCompare(String(b.lab_key))).map((l) => `
+             ${labRows.slice()
+               .sort((a, b) => String(a.lab_key).localeCompare(String(b.lab_key)) || new Date(a.started_at || a.completed_at || 0) - new Date(b.started_at || b.completed_at || 0))
+               .map((l) => {
+                 const attemptNumber = (labAttemptIndex.get(l.lab_key) || 0) + 1;
+                 labAttemptIndex.set(l.lab_key, attemptNumber);
+                 const attemptLabel = labAttemptCounts.get(l.lab_key) > 1 ? ` <span class="text-xs text-gray-400">(Attempt ${attemptNumber} of ${labAttemptCounts.get(l.lab_key)})</span>` : '';
+                 return `
                <tr class="border-b border-gray-100">
-                 <td class="px-4 py-2 text-gray-900">${esc(adminLabLabel(l.lab_key))}</td>
+                 <td class="px-4 py-2 text-gray-900">${esc(adminLabLabel(l.lab_key))}${attemptLabel}</td>
                  <td class="px-4 py-2"><span style="color:${adminStateColor(l.state)}">${adminStateLabel(l.state)}</span></td>
                  <td class="px-4 py-2 text-gray-600">${adminScore(l.score)}</td>
                  <td class="px-4 py-2 text-gray-600">${adminDate(l.completed_at)}</td>
-               </tr>`).join('')}
+               </tr>`;
+               }).join('')}
            </tbody>
          </table>
        </div>`;
@@ -6745,6 +6975,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
       ${capstoneSection}
       ${scorecardSection}
       ${reviewSection}
+      ${m360Detail}
     </div>`;
 }
 
