@@ -3606,6 +3606,37 @@ function moduleProgressShell(sections, state = {}, options = {}) {
   </div>`;
 }
 
+/* Reusable Further Reading / Sources block: renders a compact list of authoritative
+ * citations supporting the lesson content. Each source is an object with:
+ *   {title, org, url, note}
+ * where title and note are HTML-escaped, and URL is used as-is.
+ *
+ * Usage:
+ *   moduleSourcesBlock([
+ *     {title: 'Zero Trust Architecture', org: 'NIST', url: 'https://...', note: 'Foundational reference'},
+ *     ...
+ *   ])
+ */
+function moduleSourcesBlock(sources) {
+  if (!Array.isArray(sources) || !sources.length) return '';
+  return `
+    <div class="msources-block">
+      <h3 class="msources-title">Further Reading</h3>
+      <ul class="msources-list">
+        ${sources.map((source) => `
+          <li class="msources-item">
+            <a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer" class="msources-link">
+              <span class="msources-title-text">${esc(source.title)}</span>
+              <span class="msources-org">${esc(source.org)}</span>
+            </a>
+            ${source.note ? `<p class="msources-note">${esc(source.note)}</p>` : ''}
+          </li>
+        `).join('')}
+      </ul>
+    </div>
+  `;
+}
+
 function footer() {
   return `
   <footer class="border-t border-gray-100 py-10 px-8 mt-20">

@@ -548,6 +548,51 @@ const MODULE_TWO_QUIZ_BANKS = [
   },
 ];
 
+const MODULE_TWO_SOURCES = [
+  {
+    title: 'Zero Trust Architecture (SP 800-207)',
+    org: 'NIST',
+    url: 'https://csrc.nist.gov/pubs/sp/800/207/final',
+    note: 'Comprehensive guide to assuming no inherent trust, evaluating each request on identity, device, location, and risk.'
+  },
+  {
+    title: 'Zero Trust Maturity Model',
+    org: 'CISA',
+    url: 'https://www.cisa.gov/zero-trust-maturity-model',
+    note: 'Government framework for implementing zero trust principles across governance, architecture, and implementation.'
+  },
+  {
+    title: 'Digital Identity Guidelines: Authentication and Authenticator Management (SP 800-63B-4)',
+    org: 'NIST',
+    url: 'https://csrc.nist.gov/pubs/sp/800/63/b/4/final',
+    note: 'Digital identity guidelines covering authentication methods, MFA, and credential management.'
+  },
+  {
+    title: 'Authentication Cheat Sheet',
+    org: 'OWASP',
+    url: 'https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html',
+    note: 'Practical security controls and defense strategies for authentication systems.'
+  },
+  {
+    title: 'Authorization Cheat Sheet',
+    org: 'OWASP',
+    url: 'https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html',
+    note: 'Design and implementation patterns for access control and privilege management.'
+  },
+  {
+    title: 'MITRE ATT&CK — Credential Access',
+    org: 'MITRE',
+    url: 'https://attack.mitre.org/tactics/TA0006/',
+    note: 'Adversary tactics and techniques related to credential compromise—understand what defenses protect against.'
+  },
+  {
+    title: 'Security+ (SY0-701) Certification Overview & Objectives Summary',
+    org: 'CompTIA',
+    url: 'https://www.comptia.org/certifications/security',
+    note: 'Official certification page with exam domains, weightings, and a condensed objectives summary covering identity, access, and network security.'
+  },
+];
+
 let moduleTwoState = null;
 let moduleTwoUser = null;
 let moduleTwoReviewMode = false;
@@ -831,7 +876,17 @@ function viewModuleTwo(user, program) {
           <div class="m02-section-heading"><span>2</span><div><p class="m02-kicker">Reusable reasoning pattern</p><h2 id="m02-model-title">The five-step trust model</h2></div></div>
         </section>
       </summary>
-      <section class="m02-section m02-section-body" aria-labelledby="m02-model-title">${moduleTwoTrustModel()}<div class="m02-principle"><i class="ri-scales-3-line" aria-hidden="true"></i><p><strong>Analyst principle:</strong> “Outside the network” is not a verdict, and “inside the network” is not proof of trust. Combine identity, authentication, device, route, resource, and authorization evidence.</p></div></section>
+      <section class="m02-section m02-section-body" aria-labelledby="m02-model-title">${moduleTwoTrustModel()}<div class="m02-principle"><i class="ri-scales-3-line" aria-hidden="true"></i><p><strong>Analyst principle:</strong> "Outside the network" is not a verdict, and "inside the network" is not proof of trust. Combine identity, authentication, device, route, resource, and authorization evidence.</p></div></section>
+    </details>`;
+
+  const sourcesSection = `
+    <details class="m02-section-collapsible" ${moduleTwoReviewMode ? 'open' : ''}>
+      <summary class="m02-section-summary">
+        <section class="m02-section" id="m02-sources" aria-labelledby="m02-sources-title">
+          <div class="m02-section-heading"><span>3</span><div><p class="m02-kicker">Supporting resources</p><h2 id="m02-sources-title">Further reading on identity and trust</h2></div></div>
+        </section>
+      </summary>
+      <section class="m02-section m02-section-body" aria-labelledby="m02-sources-title">${moduleSourcesBlock(MODULE_TWO_SOURCES)}</section>
     </details>`;
 
   const quizOpen = moduleTwoReviewMode || (moduleTwoQuizState && !moduleTwoQuizState.passed);
@@ -839,7 +894,7 @@ function viewModuleTwo(user, program) {
     <details class="m02-section-collapsible" ${quizOpen ? 'open' : ''}>
       <summary class="m02-section-summary">
         <section class="m02-section" id="m02-knowledge-check" aria-labelledby="m02-quiz-title">
-          <div class="m02-section-heading"><span>3</span><div><p class="m02-kicker">Interactive knowledge check</p><h2 id="m02-quiz-title">Test your understanding of identity and trust concepts</h2></div></div>
+          <div class="m02-section-heading"><span>4</span><div><p class="m02-kicker">Interactive knowledge check</p><h2 id="m02-quiz-title">Test your understanding of identity and trust concepts</h2></div></div>
         </section>
       </summary>
       <section class="m02-section m02-section-body" aria-labelledby="m02-quiz-title"><div id="m02-quiz-dynamic">${moduleTwoQuizPanel()}</div></section>
@@ -849,7 +904,7 @@ function viewModuleTwo(user, program) {
     <details class="m02-section-collapsible" ${labOpen ? 'open' : ''}>
       <summary class="m02-section-summary">
         <section class="m02-section m02-lab-section" id="m02-guided-lab" aria-labelledby="m02-lab-title">
-          <div class="m02-section-heading"><span>4</span><div><p class="m02-kicker">Guided · assisted investigation · ${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)} instructional time</p><h2 id="m02-lab-title">Suspicious authentication investigation</h2></div></div>
+          <div class="m02-section-heading"><span>5</span><div><p class="m02-kicker">Guided · assisted investigation · ${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)} instructional time</p><h2 id="m02-lab-title">Suspicious authentication investigation</h2></div></div>
         </section>
       </summary>
       <section class="m02-section m02-lab-section m02-section-body" aria-labelledby="m02-lab-title"><div id="m02-lab-dynamic">${moduleTwoLabDynamic()}</div></section>
@@ -865,6 +920,7 @@ function viewModuleTwo(user, program) {
 
       ${foundationsSection}
       ${trustModelSection}
+      ${sourcesSection}
       ${quizSection}
       ${labSection}
     </main>
