@@ -27,7 +27,6 @@
   const ELIGIBLE_TRACKS = new Set(['SOCAN', 'HDESK', 'AIENG']);
   const ENTRY_ID = 'm360-course-entry';
   const ENTRY_SLOT_ID = 'm360-course-entry-slot';
-  const ADMIN_ENTRY_ID = 'm360-admin-entry';
   const REVIEW_STATUS_ID = 'm360-course-review-status';
   let ensurePending = false;
   let ensureScheduled = false;
@@ -159,13 +158,6 @@
     return document.getElementById(ENTRY_SLOT_ID);
   }
 
-  function findAdminHeadingBlock() {
-    const headings = Array.from(document.querySelectorAll('#app h1'));
-    const heading = headings.find((el) => el.textContent.trim() === 'Student Progress');
-    if (!heading) return null;
-    return heading.closest('.mb-8') || heading.parentElement;
-  }
-
   function suppressLegacyCareerReadiness() {
     const legacySection = document.getElementById('sec-career-readiness');
     if (legacySection) legacySection.remove();
@@ -194,29 +186,6 @@
           </a>
         </div>
       </section>`;
-  }
-
-  function adminEntryMarkup() {
-    return `
-      <section id="${ADMIN_ENTRY_ID}" aria-labelledby="m360-admin-entry-title" class="mb-8 overflow-hidden rounded-2xl border border-[#1e3a5f]/15 bg-white shadow-sm">
-        <div class="relative grid gap-5 p-6 md:grid-cols-[1fr_auto] md:items-center">
-          <div class="absolute inset-y-0 left-0 w-1.5 bg-[#f97316]" aria-hidden="true"></div>
-          <div class="pl-2">
-            <div class="mb-2 text-xs font-semibold uppercase tracking-widest text-[#f97316]">M360 101 Administration</div>
-            <h2 id="m360-admin-entry-title" class="text-xl font-bold text-[#1e3a5f]">Professional Readiness Review &amp; Completion</h2>
-            <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600">Use one workspace to review Start Here support needs and submitted M360 work, verify Career Spotlight presentation completion, and confirm the external attendance requirement.</p>
-          </div>
-          <a href="m360/review.html" class="inline-flex items-center justify-center rounded-xl bg-[#1e3a5f] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16304f]">Open M360 Administration</a>
-        </div>
-      </section>`;
-  }
-
-  function ensureAdminEntry() {
-    if (document.getElementById(ADMIN_ENTRY_ID)) return true;
-    const headingBlock = findAdminHeadingBlock();
-    if (!headingBlock) return false;
-    headingBlock.insertAdjacentHTML('afterend', adminEntryMarkup());
-    return true;
   }
 
   function reviewSummary(rows) {
@@ -299,10 +268,7 @@
       const user = await currentUser();
       if (!user) return;
 
-      if (user.isAdmin) {
-        ensureAdminEntry();
-        return;
-      }
+      if (user.isAdmin) return;
 
       // Technical program views retain no duplicate legacy M360 companion.
       suppressLegacyCareerReadiness();
