@@ -7,6 +7,344 @@ const MODULE_SIX_FLAG = 'M06-HUNT-SCOPE-COMPLETE';
 const MODULE_SIX_CATALOG_LAB_KEY = 'lab-threat-hunt';
 const MODULE_SIX_PASSING_SCORE = 70;
 
+const MODULE_SIX_QUIZ_BANKS = [
+  {
+    conceptId: 'testable-hypothesis',
+    conceptTitle: 'Frame a testable hypothesis',
+    questions: [
+      {
+        id: 'm06-q-hyp-1',
+        prompt: 'Which hypothesis can be effectively tested with available endpoint and sign-in data?',
+        options: [
+          { id: 'a', text: 'The entire enterprise is compromised and all users are affected.' },
+          { id: 'b', text: 'The same suspicious script behavior recurred on another device.' },
+          { id: 'c', text: 'Malware exists somewhere in the world.' },
+          { id: 'd', text: 'File hashes are always reliable indicators of intent.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Testable hypotheses name a specific behavior, entities it may affect, and evidence that would support or weaken it. Broad or unfalsifiable claims cannot guide a hunt.',
+        feedbackIncorrect: 'A testable hypothesis is narrow enough to evaluate with available data and falsifiable if the evidence does not support it.',
+      },
+      {
+        id: 'm06-q-hyp-2',
+        prompt: 'A hunt begins with observing unsigned script execution beneath a document reader, followed by a connection to an unusual address. What is the BEST hypothesis for a second pass through the data?',
+        options: [
+          { id: 'a', text: 'Every document reader is malicious.' },
+          { id: 'b', text: 'The destination address is always used by attackers.' },
+          { id: 'c', text: 'The same file fingerprint and destination combination may appear on other devices with different users.' },
+          { id: 'd', text: 'Sign-in logs are unreliable and should not be consulted.' },
+        ],
+        correctId: 'c',
+        feedbackCorrect: 'A good hypothesis narrows scope by naming specific indicators and asks whether they recur together under similar conditions. Testing this bounds the hunt and limits false positives.',
+        feedbackIncorrect: 'Build the hypothesis by generalizing from the seed observation: what pattern, if repeated, would expand the evidence set while remaining testable?',
+      },
+      {
+        id: 'm06-q-hyp-3',
+        prompt: 'Why is a hypothesis valuable in threat hunting when you have access to all raw logs?',
+        options: [
+          { id: 'a', text: 'It eliminates the need to examine data; the hypothesis alone is proof.' },
+          { id: 'b', text: 'It focuses the investigation on specific indicators and behaviors, avoiding false pivots and disconnected findings.' },
+          { id: 'c', text: 'Raw logs are always incomplete, so the hypothesis must fill the gaps.' },
+          { id: 'd', text: 'Hypotheses are required by regulation; they do not affect the hunt quality.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Hypotheses provide structure. They narrow the data set, define what evidence would be decisive, and prevent confirmation bias by stating falsifiability upfront.',
+        feedbackIncorrect: 'A hypothesis is not evidence. It is a guide to focus your search and define which findings matter.',
+      },
+      {
+        id: 'm06-q-hyp-4',
+        prompt: 'A hypothesis states: "An unusual command-line script was launched from a productivity application on two devices by different users at a similar time." Which observation would MOST weaken this hypothesis?',
+        options: [
+          { id: 'a', text: 'The script uses encoding to obscure its arguments.' },
+          { id: 'b', text: 'The application is signed and trusted by the vendor.' },
+          { id: 'c', text: 'The same command-line script appears on a management server launched by a scheduled task during approved maintenance.' },
+          { id: 'd', text: 'No network connections are observed from either device after the script runs.' },
+        ],
+        correctId: 'c',
+        feedbackCorrect: 'A weakening observation shows the suspected behavior has a benign explanation in a different context. Alternative causation undermines the malicious interpretation.',
+        feedbackIncorrect: 'Consider which finding would offer an alternative explanation for the same script execution pattern, reducing the likelihood of compromise.',
+      },
+    ],
+  },
+  {
+    conceptId: 'indicator-pivot',
+    conceptTitle: 'Use indicators as pivots',
+    questions: [
+      {
+        id: 'm06-q-piv-1',
+        prompt: 'In threat hunting, what is the BEST use of an indicator (file hash, IP address, domain)?',
+        options: [
+          { id: 'a', text: 'An indicator alone proves guilt; any match automatically confirms a compromise.' },
+          { id: 'b', text: 'An indicator narrows results and provides a starting point; behavioral context must validate the match.' },
+          { id: 'c', text: 'Indicators are always false positives and should be ignored.' },
+          { id: 'd', text: 'An indicator is used only after all other analysis is complete.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Indicators are pivots, not verdicts. A file hash or address can narrow a large data set, but matching rows must be examined for timing, parent processes, user context, and other behavioral signals.',
+        feedbackIncorrect: 'Think of an indicator as a search filter that reduces noise but does not replace behavioral analysis.',
+      },
+      {
+        id: 'm06-q-piv-2',
+        prompt: 'An unsigned file with hash "aaa..." launched from two different parent processes on two devices. What is the NEXT step?',
+        options: [
+          { id: 'a', text: 'Declare both devices compromised; no further analysis is needed.' },
+          { id: 'b', text: 'Ignore the hash match because the parent processes differ.' },
+          { id: 'c', text: 'Compare the parent processes, timing, user contexts, and network behavior to determine if the pattern is consistent.' },
+          { id: 'd', text: 'Report only the first match and close the hunt.' },
+        ],
+        correctId: 'c',
+        feedbackCorrect: 'The indicator matched twice; now evaluate whether the conditions around each match support a single malicious pattern or represent unrelated events.',
+        feedbackIncorrect: 'A repeated indicator is valuable, but consistency of the surrounding behavior determines whether the matches are meaningful.',
+      },
+      {
+        id: 'm06-q-piv-3',
+        prompt: 'A destination IP address (203.0.113.77) appears in both an endpoint query and a sign-in query. Which claim is MOST justified?',
+        options: [
+          { id: 'a', text: 'The IP address alone proves an account compromise.' },
+          { id: 'b', text: 'The shared IP suggests the endpoint activity and identity session may be part of the same event chain; verify the timing and user alignment.' },
+          { id: 'c', text: 'The address match is coincidental and unrelated.' },
+          { id: 'd', text: 'All sign-ins from this address are malicious.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Cross-source indicators strengthen an investigation. The shared destination suggests a coordinated event, but only behavioral correlation (timing, accounts, processes) confirms the link.',
+        feedbackIncorrect: 'An indicator appearing in multiple sources is a signal worth investigating, not a proof of causation.',
+      },
+      {
+        id: 'm06-q-piv-4',
+        prompt: 'Why is it risky to rely on a single indicator (file hash) to scope an incident across the enterprise?',
+        options: [
+          { id: 'a', text: 'File hashes are random and never repeat.' },
+          { id: 'b', text: 'The same bytes can be present for legitimate reasons (software updates, administrative tools) and malicious reasons. Behavioral context is required to distinguish them.' },
+          { id: 'c', text: 'Hashes are always forged by attackers.' },
+          { id: 'd', text: 'Scoping is not necessary in hunting.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'A shared file hash proves the bytes are identical, but legitimate and malicious software can have the same hash. Context (parent process, user, execution time, network behavior) separates them.',
+        feedbackIncorrect: 'An indicator is a narrow lens. Widen the view to include behavioral signals before scoping an entire organizational response.',
+      },
+    ],
+  },
+  {
+    conceptId: 'scoped-query',
+    conceptTitle: 'Construct a scoped query',
+    questions: [
+      {
+        id: 'm06-q-qry-1',
+        prompt: 'A KQL-style query is supposed to find every sign-in from IP 203.0.113.77. Which query has the correct structure?',
+        options: [
+          { id: 'a', text: 'SignInActivity | where SourceIp = 203.0.113.77 | sort by TimeGenerated asc' },
+          { id: 'b', text: 'SignInActivity | where SourceIp == "203.0.113.77" | sort by TimeGenerated asc' },
+          { id: 'c', text: 'SignInActivity | SourceIp "203.0.113.77"' },
+          { id: 'd', text: 'where SourceIp == 203.0.113.77' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct syntax: table name, pipe, where with == and quoted string value, pipe, sort by field ascending. The equality operator == and quoted value are required.',
+        feedbackIncorrect: 'Queries require: a table, a where clause with == for equality, quoted string values, and a chronological sort. Use this template for consistent results.',
+      },
+      {
+        id: 'm06-q-qry-2',
+        prompt: 'After filtering endpoint activity by file hash, 12 rows remain. Why is sorting by time ascending a necessary step?',
+        options: [
+          { id: 'a', text: 'Sorting makes the results look organized; it does not affect investigation quality.' },
+          { id: 'b', text: 'Time order reveals sequence and causation. Early executions may explain later ones, and clusters can indicate coordinated activity.' },
+          { id: 'c', text: 'Sorting is never necessary.' },
+          { id: 'd', text: 'Descending sort is better; ascending time is irrelevant.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Chronological order is critical. A timeline shows which action triggered which consequence and whether events cluster (suggesting automation) or spread (suggesting multiple independent incidents).',
+        feedbackIncorrect: 'Time sequencing is part of the evidence. Sorted data tells a story; unsorted data is just noise.',
+      },
+      {
+        id: 'm06-q-qry-3',
+        prompt: 'You query endpoint activity and get 47 results. The hypothesis was to find "the same unsigned script on two devices." Which action is BEST?',
+        options: [
+          { id: 'a', text: 'Accept all 47 rows as evidence of enterprise-wide compromise.' },
+          { id: 'b', text: 'Refine the query with additional filters (process parent, account, time window) to narrow to the most relevant rows.' },
+          { id: 'c', text: 'Ignore all results and start over with a new hypothesis.' },
+          { id: 'd', text: 'Accept the first row as sufficient proof and close the hunt.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Large result sets indicate the pivot is too broad. Add context filters (parent process, account, time proximity) to focus on rows that test the hypothesis.',
+        feedbackIncorrect: 'A successful query reduces noise. If you are still seeing benign distractors, refine the filter to improve signal.',
+      },
+      {
+        id: 'm06-q-qry-4',
+        prompt: 'A sign-in query returns two rows: one from the seed source IP at 08:47, another from the same IP at 14:33 on a different day. For a hunt focused on a single incident window, what is the appropriate action?',
+        options: [
+          { id: 'a', text: 'Keep both rows; they are both matches.' },
+          { id: 'b', text: 'Add a time filter to narrow to the incident window. The second match may be unrelated or from a different threat actor.' },
+          { id: 'c', text: 'Discard both rows because they are not in the same hour.' },
+          { id: 'd', text: 'Accept both rows without question.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Temporal scoping is part of hypothesis-led hunting. A match hours or days away may be coincidental or from a different campaign. Confine searches to the incident window.',
+        feedbackIncorrect: 'Broaden temporal scope only if the hypothesis explicitly includes prolonged persistence or follow-on activity.',
+      },
+    ],
+  },
+  {
+    conceptId: 'bookmark-discipline',
+    conceptTitle: 'Practice bookmark discipline',
+    questions: [
+      {
+        id: 'm06-q-bm-1',
+        prompt: 'A hunt yields 13 matching rows. How many should be bookmarked for the final evidence set?',
+        options: [
+          { id: 'a', text: 'All 13; more evidence is always better.' },
+          { id: 'b', text: 'Only the few rows that directly establish the hypothesis and scope; extra rows weaken the evidence set.' },
+          { id: 'c', text: 'None; bookmarks are a waste of time.' },
+          { id: 'd', text: 'At least 50 rows to meet a reporting standard.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Bookmark discipline: select only the decisive few. Unrelated benign rows create noise and distract from the core finding. Quality evidence over volume.',
+        feedbackIncorrect: 'A tight evidence set is more persuasive than a large, diluted one. Each bookmark should directly test the hypothesis.',
+      },
+      {
+        id: 'm06-q-bm-2',
+        prompt: 'Two endpoint rows show the same unsigned script. One has an expected parent process; one has an unusual parent. Which should be bookmarked?',
+        options: [
+          { id: 'a', text: 'Both; the file hash is the same.' },
+          { id: 'b', text: 'Only the benign match; it proves the script is safe.' },
+          { id: 'c', text: 'Only the unusual match; it supports the malicious hypothesis.' },
+          { id: 'd', text: 'Neither; evidence is unreliable.' },
+        ],
+        correctId: 'c',
+        feedbackCorrect: 'Bookmark what tests the hypothesis. The unusual parent-child relationship is decisive; the expected one is a distractor. Exclude noise.',
+        feedbackIncorrect: 'Each bookmark should move the investigation forward. Benign examples, even with the same hash, are not part of the evidence chain.',
+      },
+      {
+        id: 'm06-q-bm-3',
+        prompt: 'You have bookmarked four rows: two endpoints with the suspicious file and two sign-ins from the shared destination. An analyst reviews your findings. What question might they ask?',
+        options: [
+          { id: 'a', text: 'Why did you bookmark the endpoint rows but not the process names?' },
+          { id: 'b', text: 'Do the sign-in times align with the endpoint execution times, and do the accounts match?' },
+          { id: 'c', text: 'Why are the rows different table names?' },
+          { id: 'd', text: 'Bookmarks are never questioned.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'A strong evidence set connects rows across sources. The analyst expects bookmarks to form a coherent chain: same indicators, aligned timing, same entities.',
+        feedbackIncorrect: 'Bookmarks should tell a story. If cross-source rows do not corroborate each other, the evidence is weak.',
+      },
+      {
+        id: 'm06-q-bm-4',
+        prompt: 'After running two scoped queries, you have 6 results total. The hypothesis predicted 2 rows per source. What is the BEST next step?',
+        options: [
+          { id: 'a', text: 'Bookmark all 6 and report enterprise-wide compromise.' },
+          { id: 'b', text: 'Use additional context (time, account, process parent) to identify the most relevant 4 rows that test the hypothesis.' },
+          { id: 'c', text: 'Discard all 6 and start a new hunt.' },
+          { id: 'd', text: 'Bookmark only 1 row as a minimum.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Query results are a starting point. Bookmark the rows that best test the hypothesis. If you have more than expected, additional filters help identify the core signal.',
+        feedbackIncorrect: 'Numbers matter. A hypothesis that predicted 2 + 2 but yielded 3 + 3 suggests scope drift or filter issues. Refine to align with the prediction.',
+      },
+    ],
+  },
+  {
+    conceptId: 'attack-mapping',
+    conceptTitle: 'Map ATT&CK behavior precisely',
+    questions: [
+      {
+        id: 'm06-q-atk-1',
+        prompt: 'Endpoint telemetry shows a script being executed with encoded arguments. The sign-in data shows an unfamiliar client refreshing a session from an unusual address. Which TWO techniques are DIRECTLY supported by this evidence?',
+        options: [
+          { id: 'a', text: 'T1059 (Command and Scripting Interpreter) and T1078 (Valid Accounts).' },
+          { id: 'b', text: 'T1566 (Phishing) and T1204 (User Execution).' },
+          { id: 'c', text: 'T1098 (Account Manipulation) and T1555 (Credentials from Password Stores).' },
+          { id: 'd', text: 'T1082 (System Information Discovery) and T1010 (Application Window Discovery).' },
+        ],
+        correctId: 'a',
+        feedbackCorrect: 'Script execution with arguments maps to T1059. Active session from an unfamiliar source maps to T1078 (using valid account credentials). Do not infer phishing or downloads not shown in logs.',
+        feedbackIncorrect: 'Map only the techniques directly demonstrated by the telemetry. Avoid inferring delivery, download, or persistence behavior not present in the data.',
+      },
+      {
+        id: 'm06-q-atk-2',
+        prompt: 'A log shows an outbound connection from a host to an external IP. The data does NOT show what was transferred or whether a file was downloaded. Which technique should NOT be mapped?',
+        options: [
+          { id: 'a', text: 'T1071 (Application Layer Protocol) for the connection itself.' },
+          { id: 'b', text: 'T1105 (Ingress Tool Transfer) for the file download.' },
+          { id: 'c', text: 'T1203 (Exploitation for Client Execution) for the connection.' },
+          { id: 'd', text: 'Both B and C should not be mapped.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'The connection is observed; the payload transfer is not. T1105 requires evidence of file transfer, not just a network connection. Do not infer techniques absent from the logs.',
+        feedbackIncorrect: 'ATT&CK mapping should stay inside the evidence boundary. A connection alone does not prove tool transfer, exploitation, or lateral movement.',
+      },
+      {
+        id: 'm06-q-atk-3',
+        prompt: 'Why is precise ATT&CK mapping important in a threat hunt?',
+        options: [
+          { id: 'a', text: 'It replaces the need for behavioral analysis; techniques are proof on their own.' },
+          { id: 'b', text: 'It communicates to responders what specific behaviors were observed, enabling targeted detection and response.' },
+          { id: 'c', text: 'ATT&CK techniques are rarely relevant to threat hunting.' },
+          { id: 'd', text: 'Mapping ensures every possible technique is listed.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Precise mapping guides response. If you map only T1059, defenders focus on script-execution prevention. If you infer T1105, they may waste effort on network monitoring.',
+        feedbackIncorrect: 'ATT&CK is a communication tool. Accurate mapping focuses the response team on the demonstrated threat, not on speculation.',
+      },
+      {
+        id: 'm06-q-atk-4',
+        prompt: 'Two instances of a malicious script appear on different devices, both with network connections to the same external address. Each device is from a different organizational unit. What is the minimal ATT&CK set justified by the evidence?',
+        options: [
+          { id: 'a', text: 'T1059, T1078, and T1105, because multiple devices are affected.' },
+          { id: 'b', text: 'T1059 and T1078, because these are directly demonstrated. T1105 is not shown; the connection exists, but file transfer is not proven.' },
+          { id: 'c', text: 'Only T1078, because valid accounts were used.' },
+          { id: 'd', text: 'All techniques in the ATT&CK framework, because we cannot be certain.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Stick to the evidence. Script execution and valid-account usage are shown. Connection alone is not T1105. Avoid technique inflation.',
+        feedbackIncorrect: 'Number of affected devices does not justify inferring new techniques. Map only what the telemetry supports.',
+      },
+    ],
+  },
+];
+
+const MODULE_SIX_SOURCES_LIST = [
+  {
+    title: 'MITRE ATT&CK — Execution',
+    org: 'MITRE',
+    url: 'https://attack.mitre.org/tactics/TA0002/',
+    note: 'Techniques including Command and Scripting Interpreter (T1059) directly referenced in threat-hunting queries and endpoint activity analysis.',
+  },
+  {
+    title: 'MITRE ATT&CK — Privilege Escalation and Valid Accounts',
+    org: 'MITRE',
+    url: 'https://attack.mitre.org/tactics/TA0004/',
+    note: 'Valid Accounts (T1078) technique relevant to identity-based pivots and cross-source correlation of endpoint and sign-in events.',
+  },
+  {
+    title: 'Hunting Capabilities in Microsoft Sentinel',
+    org: 'Microsoft Learn',
+    url: 'https://learn.microsoft.com/en-us/azure/sentinel/hunting',
+    note: 'Practical methodology for defining a hypothesis, running queries against log data, and bookmarking decisive evidence rows.',
+  },
+  {
+    title: 'Technical Approaches to Uncovering and Remediating Malicious Activity (AA20-245A)',
+    org: 'CISA',
+    url: 'https://www.cisa.gov/news-events/cybersecurity-advisories/aa20-245a',
+    note: 'Joint government advisory on indicator searching, frequency analysis, pattern recognition, and anomaly detection across host and network evidence — the technical backbone of a hunt like this one.',
+  },
+  {
+    title: 'What Are Risk Detections? — Microsoft Entra ID Protection',
+    org: 'Microsoft Learn',
+    url: 'https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-risks',
+    note: 'Identity-based hunting signals directly relevant to this lab\'s sign-in source: unfamiliar sign-in properties, atypical/impossible travel, and anomalous-token detection.',
+  },
+  {
+    title: 'Introduction to Cyber Threat Hunting',
+    org: 'CrowdStrike',
+    url: 'https://www.crowdstrike.com/cybersecurity-101/threat-hunting/',
+    note: 'Overview of hypothesis-driven hunting methodology — forming a testable hypothesis from known TTPs, then searching an environment for matching behavior.',
+  },
+  {
+    title: 'Security+ (SY0-701) Certification Domains: Threat Hunting and Monitoring',
+    org: 'CompTIA',
+    url: 'https://www.comptia.org/certifications/security',
+    note: 'Official exam coverage of SOC analyst responsibilities in query construction, alert triage, and cross-source correlation.',
+  },
+];
+
 const MODULE_SIX_ENDPOINT_ROWS = [
   { id: 'EP-601', time: '08:31', device: 'WS-214', account: 'acct-27', process: 'doc-reader.exe', parent: 'explorer.exe', fileHash: 'ddd…', remoteIp: 'None', action: 'Opened benefits-guide.pdf', detail: 'The signed document reader opened a locally downloaded PDF. No child process or network action followed.', relevant: false },
   { id: 'EP-602', time: '08:42', device: 'WS-214', account: 'acct-27', process: 'script-runner.exe', parent: 'doc-reader.exe', fileHash: 'aaa…', remoteIp: '203.0.113.77', action: 'Encoded command and outbound connection', detail: 'An unsigned script host started beneath the document reader, used an encoded argument, and contacted the seed destination.', relevant: true },
@@ -69,6 +407,8 @@ const MODULE_SIX_DEFAULT_STATE = {
 
 let moduleSixState = null;
 let moduleSixUser = null;
+let moduleSixReviewMode = false;
+let moduleSixQuizState = null;
 
 function moduleSixFreshDefaults() {
   // LabRuntime intentionally performs a shallow merge. This lab has nested
@@ -88,6 +428,24 @@ function moduleSixLoad(user) {
   ['selectedEvidence', 'bookmarks', 'scopedDevices', 'scopedAccounts', 'techniques', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleSixState[key])) moduleSixState[key] = [];
   });
+
+  // Initialize quiz state
+  if (!moduleSixQuizState) {
+    const previousQuestionIds = moduleSixState.lastQuizQuestionIds || [];
+    const selection = selectQuizQuestions(MODULE_SIX_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
+    moduleSixQuizState = {
+      selectedQuestions: selection.selectedQuestions,
+      questionsByAnswer: selection.questionsByAnswer,
+      answers: {},
+      scored: false,
+      attempts: 0,
+      score: 0,
+      bestScore: 0,
+      feedback: [],
+      passed: false,
+    };
+  }
+
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-06');
   return moduleSixState;
 }
@@ -102,6 +460,118 @@ function moduleSixAllRows() {
 
 function moduleSixRowById(id) {
   return moduleSixAllRows().find((row) => row.id === id);
+}
+
+function moduleSixGetSections() {
+  return [
+    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm06-lecture' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSixQuizState?.passed, scrollId: 'm06-knowledge-check' },
+    { id: 'threat-hunt-lab', title: 'Threat Hunt Lab', type: 'lab', isComplete: moduleSixState.completed, scrollId: 'm06-lab' },
+    { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm06-review' },
+  ];
+}
+
+function moduleSixQuizQuestion(selected, index) {
+  const question = selected.question;
+  const userAnswerId = moduleSixQuizState?.answers?.[question.id];
+  const answered = userAnswerId !== undefined;
+  return `<fieldset class="m06-quiz-question" data-question-id="${esc(question.id)}">
+    <legend><span>${index + 1}</span> ${esc(selected.conceptTitle)}: ${esc(question.prompt)}</legend>
+    <div class="m06-quiz-options">
+      ${selected.shuffledOptions.map((option) => `<label>
+        <input type="radio" name="q-${esc(question.id)}" value="${esc(option.id)}" ${userAnswerId === option.id ? 'checked' : ''} data-m06-quiz-answer />
+        <span>${esc(option.text)}</span>
+      </label>`).join('')}
+    </div>
+  </fieldset>`;
+}
+
+function moduleSixQuizPanel() {
+  if (!moduleSixQuizState?.selectedQuestions || moduleSixQuizState.selectedQuestions.length === 0) {
+    return `<div class="m06-quiz-empty" id="m06-quiz-feedback" role="status">Loading quiz...</div>`;
+  }
+
+  const selected = moduleSixQuizState.selectedQuestions;
+  const answered = Object.keys(moduleSixQuizState.answers || {}).length;
+  const total = selected.length;
+
+  let feedbackHtml = '';
+  if (moduleSixQuizState.scored) {
+    const passed = moduleSixQuizState.score >= 70;
+    feedbackHtml = `<section class="m06-quiz-score ${passed ? 'm06-quiz-pass' : 'm06-quiz-remediate'}" id="m06-quiz-feedback" tabindex="-1" aria-live="polite">
+      <div class="m06-quiz-score-heading">
+        <div>
+          <p class="m06-kicker">Attempt ${moduleSixQuizState.attempts} · best ${moduleSixQuizState.bestScore}/100</p>
+          <h3>${moduleSixQuizState.score}/100 — ${passed ? 'Knowledge verified' : 'Use feedback and retry'}</h3>
+        </div>
+        <span>${moduleSixQuizState.score}</span>
+      </div>
+      <ul class="m06-quiz-feedback-list">
+        ${(moduleSixQuizState.feedback || []).map((fb) => `<li class="${fb.correct ? 'm06-quiz-feedback-correct' : 'm06-quiz-feedback-incorrect'}">
+          <i class="ri-${fb.correct ? 'checkbox-circle-fill' : 'information-line'}" aria-hidden="true"></i>
+          <div>
+            <strong>${fb.questionId}</strong>
+            <p>${esc(fb.message)}</p>
+          </div>
+        </li>`).join('')}
+      </ul>
+      ${!passed ? `<div class="m06-quiz-actions"><button type="button" class="m06-quiz-retry" data-m06-quiz-retry><i class="ri-refresh-line" aria-hidden="true"></i> Try different questions</button></div>` : ''}
+    </section>`;
+  } else if (answered === total) {
+    feedbackHtml = `<div class="m06-quiz-ready" id="m06-quiz-feedback" role="status">All questions answered. Submit to check your responses.</div>`;
+  } else {
+    feedbackHtml = `<div class="m06-quiz-empty" id="m06-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
+  }
+
+  return `<form class="m06-quiz-form" id="m06-quiz-form" novalidate>
+    <div class="m06-panel-heading"><div><p class="m06-kicker">Knowledge check</p><h3 id="m06-quiz-title" tabindex="-1">Test your understanding of threat hunting</h3></div><span>${answered}/${total} answered</span></div>
+    ${selected.map((sel, idx) => moduleSixQuizQuestion(sel, idx)).join('')}
+    <div class="m06-quiz-actions">
+      <button class="m06-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
+        <i class="ri-checkbox-circle-line" aria-hidden="true"></i> Check my answers
+      </button>
+    </div>
+    ${feedbackHtml}
+  </form>`;
+}
+
+function moduleSixVideoScript() {
+  return `<details class="m06-video-script">
+    <summary><strong>Video script (recording pending)</strong></summary>
+    <div class="m06-script-body">
+      <p><strong>Introduction:</strong> Welcome to hypothesis-led threat hunting. This module builds on endpoint investigation skills from Module 05 by adding a second data source: sign-in logs. Your job is to form a testable hypothesis, run two scoped queries, bookmark the few rows that establish behavior and scope, and communicate a defensible conclusion without claiming more than the data supports.</p>
+
+      <p><strong>Segment 1 — Framing a testable hypothesis.</strong> A good hypothesis names a specific behavior, the entities it may affect, and what evidence would support or weaken it. Avoid broad claims ("the enterprise is compromised") that cannot be tested with limited data. Instead, build from a seed observation: an unusual script behavior on one device, followed by a question—does it recur? Testable hypotheses are narrow enough to evaluate and falsifiable if the evidence does not appear.</p>
+
+      <p><strong>Segment 2 — Using indicators as pivots.</strong> An indicator (file hash, IP address, domain) is a search filter, not proof. A file hash helps you find related rows, but the rows must be examined for timing, parent processes, user context, and behavioral patterns. Indicators are pivots: they narrow results, but context validates the match. Never claim compromise based on an indicator alone.</p>
+
+      <p><strong>Segment 3 — Constructing a scoped query.</strong> A good query uses KQL-style syntax: table name, one where clause with equality filtering, and a chronological sort. Example: "SignInActivity | where SourceIp == '203.0.113.77' | sort by TimeGenerated asc". Query results are a starting point; if you get too many rows, refine with additional filters. If you get too few, check the pivot value or expand the time window. Queries are iterative.</p>
+
+      <p><strong>Segment 4 — Bookmarking with discipline.</strong> After querying both sources, you may have 10+ matching rows. Bookmark only the few that directly test the hypothesis. A decisive bookmark explains why that row matters; volume is not evidence quality. Unrelated rows weaken your conclusion and distract responders. In this lab, you should bookmark exactly four rows: two from endpoint activity and two from sign-in activity, all aligned in time and entities.</p>
+
+      <p><strong>Segment 5 — Mapping demonstrated ATT&CK behavior.</strong> ATT&CK techniques describe observed behavior. Map only what the telemetry demonstrates. Script execution maps to T1059; active session from an unfamiliar source maps to T1078 (Valid Accounts). Do not infer file transfer (T1105) if the logs show a connection but not a payload. Do not infer phishing (T1566) if the delivery method is absent. Precise mapping guides responders.</p>
+
+      <p><strong>Segment 6 — Scoping proportionately.</strong> State what the evidence proves and what remains unknown. This lab shows two device-account pairs with matching indicators and timing. That supports escalation of those pairs and continued hunting for the validated indicators. It does not prove enterprise-wide compromise. Proportionate response means isolate, preserve, and escalate—not destruction, not enterprise-wide lock.</p>
+
+      <p><strong>Closing:</strong> Threat hunting is disciplined exploration. You start with a seed observation, form a testable hypothesis, query available data, bookmark the decisive evidence, and escalate with confidence in what you found and why it matters. You are not responsible for detecting every attack or reversing malware; responders handle those roles. Your responsibility is to read the data correctly and hand off with precision.</p>
+    </div>
+  </details>`;
+}
+
+function moduleSixReview() {
+  return `<section class="m06-review-section">
+    <h3>Module concepts at a glance</h3>
+    <ul>
+      <li><strong>Testable hypothesis:</strong> Name a specific behavior, entities affected, and evidence that would support or weaken it. Avoid unfalsifiable claims.</li>
+      <li><strong>Indicators as pivots:</strong> File hashes, IP addresses, and domains narrow results but do not prove guilt. Context (timing, process, user, behavior) validates the match.</li>
+      <li><strong>Scoped queries:</strong> Use KQL-style syntax with table name, where clause, and chronological sort. Refine if results are too broad.</li>
+      <li><strong>Bookmark discipline:</strong> Select only the few rows that directly establish the hypothesis and scope. Quality evidence beats volume.</li>
+      <li><strong>Demonstrated ATT&CK behavior:</strong> Map only techniques directly shown in telemetry. Avoid inferring delivery, download, or exploitation methods absent from logs.</li>
+      <li><strong>Proportionate escalation:</strong> State the proven scope and recommend targeted response. This lab establishes two device-account pairs, not enterprise-wide compromise.</li>
+    </ul>
+    <h3>Before you continue</h3>
+    <p>You should now be able to form a testable hypothesis from a seed observation, query two sources with scoped filters, correlate evidence across data sources, and communicate a defensible scope and recommendation. In Module 07 and beyond, you will encounter multi-stage investigations where these skills apply across incident response workflows.</p>
+  </section>`;
 }
 
 function moduleSixConcepts() {
@@ -300,13 +770,49 @@ function viewModuleSix(user, program) {
   moduleSixLoad(user);
   const module = program.modules['soc-06'];
   const moduleLab = LABS.find((item) => item.key === MODULE_SIX_CATALOG_LAB_KEY);
+  const sections = moduleSixGetSections();
+  const lectureOpen = moduleSixReviewMode || !sections[0].isComplete;
+  const quizOpen = moduleSixReviewMode || (moduleSixQuizState && !moduleSixQuizState.passed);
+  const labOpen = moduleSixReviewMode || !sections[2].isComplete;
+  const reviewOpen = moduleSixReviewMode;
+
   return `<div class="m06-shell">
     ${moduleTopbar(user, program)}
+    ${moduleProgressShell(sections, { reviewMode: moduleSixReviewMode })}
     <main class="m06-main">
-      <section class="m06-hero" aria-labelledby="m06-title"><div><p class="m06-kicker">Module 06 · ${formatInstructionalMinutes(module.durationMinutes)} · guided SOC practice</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p><a class="m06-hero-action" href="#m06-field-guide"><i class="ri-compass-3-line" aria-hidden="true"></i> Review the hunt method</a></div><dl class="m06-progress" aria-label="Saved lab progress"><div><dt>Data sources</dt><dd>2</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(moduleLab.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
-      <section class="m06-objective" aria-labelledby="m06-objective-title"><div class="m06-objective-icon"><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m06-kicker">Measurable objective</p><h2 id="m06-objective-title">Test one cross-device execution hypothesis with two scoped queries, bookmark the four records that establish behavior and scope, and communicate a supported disposition with at least ${MODULE_SIX_PASSING_SCORE}/100.</h2></div></section>
-      <section class="m06-section" id="m06-field-guide" aria-labelledby="m06-guide-title"><div class="m06-section-heading"><span>1</span><div><p class="m06-kicker">Field guide</p><h2 id="m06-guide-title">Hunt for evidence, not confirmation</h2></div></div>${moduleSixConcepts()}<div class="m06-hunt-loop" aria-label="Hypothesis-led hunting loop"><span>Hypothesis</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Query</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Bookmark</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Decide &amp; communicate</span></div></section>
-      <section class="m06-section m06-lab-section" aria-labelledby="m06-lab-title"><div class="m06-section-heading"><span>2</span><div><p class="m06-kicker">Guided hunt surface · no full console</p><h2 id="m06-lab-title">Cross-device script recurrence</h2></div></div><div class="m06-role"><i class="ri-user-search-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst conducting a guided hunt</strong><p>You may investigate endpoint activity and sign-in activity in either order. Hints are available when you want them. Your job is to test the stated lead inside the assigned monitoring workflow, not to investigate unrelated systems.</p></div></div><div id="m06-lab-dynamic">${moduleSixLabDynamic()}</div></section>
+      <section class="m06-hero" aria-labelledby="m06-title"><div><p class="m06-kicker">Module 06 · ${formatInstructionalMinutes(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress" aria-label="Saved lab progress"><div><dt>Data sources</dt><dd>2</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(moduleLab.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+
+      <details class="m06-section-collapsible" ${lectureOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">1</span><div><p class="m06-kicker">Lecture</p><h2 id="m06-lecture">Hypothesis-led hunting foundations</h2></div></div></summary>
+        <div class="m06-section-body">
+          <div class="m06-objective" aria-labelledby="m06-objective-title"><div class="m06-objective-icon"><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m06-kicker">Measurable objective</p><h3 id="m06-objective-title">Test one cross-device execution hypothesis with two scoped queries, bookmark the four records that establish behavior and scope, and communicate a supported disposition.</h3></div></div>
+          <section class="m06-section" id="m06-field-guide" aria-labelledby="m06-guide-title"><div class="m06-section-heading"><span>a</span><div><p class="m06-kicker">Field guide</p><h3 id="m06-guide-title">Hunt for evidence, not confirmation</h3></div></div>${moduleSixConcepts()}<div class="m06-hunt-loop" aria-label="Hypothesis-led hunting loop"><span>Hypothesis</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Query</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Bookmark</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Decide &amp; communicate</span></div></section>
+          ${moduleSixVideoScript()}
+        </div>
+      </details>
+
+      <details class="m06-section-collapsible" ${quizOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">2</span><div><p class="m06-kicker">Knowledge Check</p><h2 id="m06-knowledge-check">Test your understanding of threat hunting</h2></div></div></summary>
+        <div class="m06-section-body">${moduleSixQuizPanel()}</div>
+      </details>
+
+      <details class="m06-section-collapsible" ${labOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">3</span><div><p class="m06-kicker">Threat Hunt Lab</p><h2 id="m06-lab">Cross-device script recurrence</h2></div></div></summary>
+        <div class="m06-section-body">
+          <div class="m06-role"><i class="ri-user-search-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst conducting a guided hunt</strong><p>You may investigate endpoint activity and sign-in activity in either order. Hints are available when you want them. Your job is to test the stated lead inside the assigned monitoring workflow, not to investigate unrelated systems.</p></div></div>
+          <div id="m06-lab-dynamic">${moduleSixLabDynamic()}</div>
+        </div>
+      </details>
+
+      <details class="m06-section-collapsible" ${reviewOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">4</span><div><p class="m06-kicker">Module Review</p><h2 id="m06-review">Key concepts and takeaways</h2></div></div></summary>
+        <div class="m06-section-body">${moduleSixReview()}</div>
+      </details>
+
+      <details class="m06-section-collapsible" ${moduleSixReviewMode ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">5</span><div><p class="m06-kicker">Sources &amp; Further Reading</p><h2 id="m06-sources">Authoritative references on threat hunting</h2></div></div></summary>
+        <div class="m06-section-body">${moduleSourcesBlock(MODULE_SIX_SOURCES_LIST)}</div>
+      </details>
     </main>
   </div>`;
 }
@@ -515,5 +1021,95 @@ function wireModuleSixLab() {
   });
 }
 
+function wireModuleSixQuiz() {
+  const form = document.getElementById('m06-quiz-form');
+  if (!form || !moduleSixQuizState) return;
+
+  form.addEventListener('change', (event) => {
+    if (!event.target.hasAttribute('data-m06-quiz-answer')) return;
+    const questionId = event.target.closest('[data-question-id]')?.dataset.questionId;
+    if (questionId) {
+      moduleSixQuizState.answers[questionId] = event.target.value;
+      const form = document.getElementById('m06-quiz-form');
+      if (form) form.innerHTML = moduleSixQuizPanel();
+    }
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const answers = moduleSixQuizState.answers;
+    const feedback = [];
+    let correctCount = 0;
+
+    moduleSixQuizState.selectedQuestions.forEach((selected) => {
+      const question = selected.question;
+      const userAnswerId = answers[question.id];
+      const correctOption = selected.shuffledOptions.find((o) => o.id === question.correctId);
+      const isCorrect = userAnswerId === question.correctId;
+      if (isCorrect) correctCount++;
+      feedback.push({
+        questionId: question.id,
+        correct: isCorrect,
+        message: isCorrect ? question.feedbackCorrect : question.feedbackIncorrect,
+      });
+    });
+
+    moduleSixQuizState.score = Math.round((correctCount / moduleSixQuizState.selectedQuestions.length) * 100);
+    moduleSixQuizState.attempts += 1;
+    moduleSixQuizState.bestScore = Math.max(moduleSixQuizState.bestScore || 0, moduleSixQuizState.score);
+    moduleSixQuizState.feedback = feedback;
+    moduleSixQuizState.scored = true;
+    const passed = moduleSixQuizState.score >= 70;
+    moduleSixQuizState.passed = passed;
+
+    if (!passed) {
+      moduleSixState.lastQuizQuestionIds = moduleSixQuizState.selectedQuestions.map((s) => s.question.id);
+    }
+
+    moduleSixSave();
+    const quizPanel = document.getElementById('m06-quiz-form');
+    if (quizPanel) quizPanel.innerHTML = moduleSixQuizPanel();
+  });
+
+  form.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-m06-quiz-retry]')) return;
+    event.preventDefault();
+    const previousQuestionIds = moduleSixQuizState.selectedQuestions.map((s) => s.question.id);
+    const selection = selectQuizQuestions(MODULE_SIX_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
+    moduleSixQuizState = {
+      selectedQuestions: selection.selectedQuestions,
+      questionsByAnswer: selection.questionsByAnswer,
+      answers: {},
+      scored: false,
+      attempts: moduleSixQuizState.attempts,
+      score: 0,
+      bestScore: moduleSixQuizState.bestScore,
+      feedback: [],
+      passed: false,
+    };
+    form.innerHTML = moduleSixQuizPanel();
+  });
+}
+
+function wireModuleSix() {
+  const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
+  if (reviewToggle) {
+    reviewToggle.addEventListener('click', () => {
+      moduleSixReviewMode = !moduleSixReviewMode;
+      const isOpen = moduleSixReviewMode;
+      reviewToggle.setAttribute('aria-pressed', isOpen);
+      reviewToggle.querySelector('i').className = isOpen ? 'ri-close-line' : 'ri-file-list-line';
+      const label = reviewToggle.querySelector('span');
+      if (label) label.textContent = isOpen ? 'Close review' : 'Review module';
+      document.querySelectorAll('.m06-section-collapsible').forEach((details) => {
+        if (isOpen) details.setAttribute('open', '');
+        else details.removeAttribute('open');
+      });
+    });
+  }
+  wireModuleSixQuiz();
+  wireModuleSixLab();
+}
+
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 6, moduleKey: 'soc-06',
-  view: viewModuleSix, wire: wireModuleSixLab });
+  view: viewModuleSix, wire: wireModuleSix });

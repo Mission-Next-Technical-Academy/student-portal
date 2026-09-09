@@ -160,6 +160,65 @@
 .m06-shell .m06-expert-model strong { color: #1e3a5f; font-size: 12px; }
 .m06-shell .m06-expert-model p { margin: 5px 0 0; color: #64748b; font: 11px/1.6 Inter, sans-serif; }
 .m06-shell .m06-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+.m06-shell .m06-section-badge { display: grid; place-items: center; background: #1e3a5f; font-weight: 700; border-radius: 8px; font-size: 13px; }
+
+.m06-shell .m06-section-collapsible { margin: 0; border: 0; padding: 0; }
+.m06-shell .m06-section-collapsible > summary { list-style: none; cursor: pointer; }
+.m06-shell .m06-section-collapsible > summary::-webkit-details-marker { display: none; }
+.m06-shell .m06-section-collapsible > summary .m06-section { margin: 0; padding: 18px clamp(20px, 4vw, 38px); background: #f8fafc; border: 1px solid #e5e7eb; }
+.m06-shell .m06-section-collapsible > summary .m06-section-heading { margin-bottom: 0; }
+.m06-shell .m06-section-collapsible[open] > summary .m06-section { background: #fff; border: 1px solid #dbe3ed; }
+.m06-shell .m06-section-collapsible .m06-section-body { padding: 0 clamp(20px, 4vw, 38px) clamp(23px, 4vw, 38px); }
+.m06-shell .m06-section-collapsible .m06-section-body h3 { margin-top: 22px; color: #1e3a5f; font-size: 17px; font-weight: 700; }
+.m06-shell .m06-section-collapsible .m06-section-body h3:first-child { margin-top: 0; }
+.m06-shell .m06-section-collapsible .m06-section-body p { margin: 10px 0; color: #4b5563; font: 14px/1.65 Inter, sans-serif; }
+.m06-shell .m06-section-collapsible .m06-section-body ul { margin: 12px 0; padding-left: 20px; color: #4b5563; font: 14px/1.65 Inter, sans-serif; }
+.m06-shell .m06-section-collapsible .m06-section-body li { margin: 8px 0; }
+.m06-shell .m06-section-collapsible .m06-section-body li strong { color: #334155; }
+
+.m06-shell .m06-video-script { margin: 16px 0 0; color: #4b5563; background: rgba(255,255,255,.72); border: 1px solid #dbe3ed; border-radius: 12px; }
+.m06-shell .m06-video-script summary { padding: 10px 12px; color: #1e3a5f; font-size: 11px; font-weight: 700; cursor: pointer; }
+.m06-shell .m06-script-body { padding: 0 12px 12px; color: #6b7280; font: 12px/1.65 Inter, sans-serif; }
+.m06-shell .m06-script-body p { margin: 10px 0; }
+.m06-shell .m06-script-body p:first-child { margin-top: 0; }
+.m06-shell .m06-script-body strong { color: #1e3a5f; }
+
+.m06-shell .m06-quiz-form { margin-top: 14px; }
+.m06-shell .m06-quiz-question { margin-bottom: 16px; padding: 14px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; }
+.m06-shell .m06-quiz-question legend { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 11px; color: #1e3a5f; font-size: 14px; font-weight: 700; }
+.m06-shell .m06-quiz-question legend span { width: 22px; height: 22px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 5px; font-size: 9px; }
+.m06-shell .m06-quiz-options { display: grid; gap: 8px; margin-left: 31px; }
+.m06-shell .m06-quiz-options label { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; }
+.m06-shell .m06-quiz-options input { width: 17px; height: 17px; flex: 0 0 auto; margin-top: 2px; accent-color: #f97316; }
+.m06-shell .m06-quiz-options span { color: #4b5563; font: 12px/1.55 Inter, sans-serif; }
+.m06-shell .m06-quiz-submit { min-height: 40px; margin-top: 10px; display: inline-flex; align-items: center; gap: 7px; padding: 9px 13px; color: #fff; background: #f97316; border: 1px solid #f97316; border-radius: 9px; font-size: 11px; font-weight: 800; cursor: pointer; }
+.m06-shell .m06-quiz-submit:hover { background: #ea580c; }
+.m06-shell .m06-quiz-submit:disabled { background: #cbd5e1; border-color: #cbd5e1; cursor: not-allowed; }
+.m06-shell .m06-quiz-score { margin-top: 14px; padding: 14px; border: 1px solid; border-radius: 10px; }
+.m06-shell .m06-quiz-pass { background: #eff6ff; border-color: #bfdbfe; }
+.m06-shell .m06-quiz-remediate { background: #fff7ed; border-color: #fed7aa; }
+.m06-shell .m06-quiz-score-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.m06-shell .m06-quiz-score-heading h3 { margin: 2px 0 0; color: #1e3a5f; font-size: 16px; }
+.m06-shell .m06-quiz-score-heading span { width: 48px; height: 48px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 50%; font-size: 16px; font-weight: 800; }
+.m06-shell .m06-quiz-feedback-list { margin: 10px 0 0; padding-left: 16px; color: #4b5563; font: 11px/1.55 Inter, sans-serif; }
+.m06-shell .m06-quiz-feedback-list li { margin: 8px 0; display: flex; gap: 8px; }
+.m06-shell .m06-quiz-feedback-list li i { flex: 0 0 auto; margin-top: 1px; }
+.m06-shell .m06-quiz-feedback-correct i { color: #059669; }
+.m06-shell .m06-quiz-feedback-incorrect i { color: #dc2626; }
+.m06-shell .m06-quiz-feedback-list strong { color: #334155; display: block; }
+.m06-shell .m06-quiz-feedback-list p { margin: 3px 0 0; }
+.m06-shell .m06-quiz-actions { display: flex; gap: 10px; margin-top: 10px; }
+.m06-shell .m06-quiz-retry { min-height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 8px 11px; color: #1e3a5f; background: #eef6ff; border: 1px solid #cfe2f7; border-radius: 8px; font-size: 10px; font-weight: 800; cursor: pointer; }
+.m06-shell .m06-quiz-retry:hover { background: #dbeafe; }
+.m06-shell .m06-quiz-empty { margin-top: 10px; padding: 12px; color: #6b7280; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 9px; font: 11px/1.5 Inter, sans-serif; }
+.m06-shell .m06-quiz-ready { margin-top: 10px; padding: 12px; color: #1e3a5f; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 9px; font: 11px/1.5 Inter, sans-serif; }
+
+.m06-shell .m06-review-section p { color: #4b5563; font: 14px/1.65 Inter, sans-serif; }
+.m06-shell .m06-review-section ul { margin: 12px 0; padding-left: 20px; color: #4b5563; font: 14px/1.65 Inter, sans-serif; }
+.m06-shell .m06-review-section li { margin: 8px 0; }
+.m06-shell .m06-review-section li strong { color: #334155; }
+
 .m06-shell :focus-visible { outline: 3px solid rgba(249, 115, 22, .38); outline-offset: 2px; }
 
 @media (max-width: 920px) {
