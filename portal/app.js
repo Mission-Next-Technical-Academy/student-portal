@@ -744,14 +744,32 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null) {
     </div></section>`;
 }
 
+function adminProgramRosterChip(label, value, tone) {
+  const toneClass = tone === 'good'
+    ? 'border-green-200 bg-green-50 text-green-700'
+    : tone === 'warn'
+    ? 'border-[#fed7aa] bg-[#fff7ed] text-[#9a3412]'
+    : 'border-gray-200 bg-gray-50 text-gray-600';
+  return `<span class="inline-flex items-center gap-1.5 rounded-md border ${toneClass} px-2 py-1 text-xs"><span class="text-[10px] font-semibold uppercase tracking-wide opacity-70">${esc(label)}</span><span class="font-bold">${esc(value)}</span></span>`;
+}
+
 function adminProgramRoster(rows) {
   return `<section aria-labelledby="program-roster-title" class="mb-10"><div class="flex items-end justify-between gap-4 mb-4"><div><h2 id="program-roster-title" class="text-2xl font-bold text-[#1e3a5f]">Student program progress</h2><p class="text-sm text-gray-500 mt-1">One work-item bar combines technical modules and accepted M360 weeks; it is not an attendance or credential claim.</p></div></div><div class="space-y-3">${rows.map((row) => {
     const completed = Number(row.work_items_completed || 0); const required = Number(row.work_items_required || 18); const percent = Math.max(0, Math.min(100, Number(row.work_items_percent ?? (completed * 100 / required))));
-    const m360Line = row.m360_required
-      ? (row.m360_record_exists ? `M360 ${Number(row.m360_accepted_weeks || 0)} / ${Number(row.m360_required_weeks || 6)} accepted` : 'M360: not started')
-      : 'M360: not applicable';
-    const readiness = row.m360_required ? `Start Here: ${row.m360_start_here_complete ? 'complete' : 'not started'} · Networking ${row.networking_comfort ?? '—'} / 5 · Interview ${row.interview_readiness ?? '—'} / 5` : '';
-    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" class="text-sm font-semibold text-[#1e3a5f] hover:underline">View details</button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><p class="mt-2 text-sm text-gray-600">Technical ${Number(row.technical_completed || 0)} / ${Number(row.technical_required || 12)} · ${m360Line}</p>${readiness ? `<p class="mt-1 text-xs text-gray-500">${esc(readiness)}</p>` : ''}</article>`;
+    const technicalCompleted = Number(row.technical_completed || 0);
+    const technicalRequired = Number(row.technical_required || 12);
+    const technicalChip = adminProgramRosterChip('Technical', `${technicalCompleted} / ${technicalRequired}`, technicalCompleted >= technicalRequired ? 'good' : 'neutral');
+    const m360AcceptedWeeks = Number(row.m360_accepted_weeks || 0);
+    const m360RequiredWeeks = Number(row.m360_required_weeks || 6);
+    const m360Chip = !row.m360_required
+      ? adminProgramRosterChip('M360', 'Not applicable', 'neutral')
+      : row.m360_record_exists
+      ? adminProgramRosterChip('M360', `${m360AcceptedWeeks} / ${m360RequiredWeeks} accepted`, m360AcceptedWeeks >= m360RequiredWeeks ? 'good' : 'warn')
+      : adminProgramRosterChip('M360', 'Not started', 'warn');
+    const readinessChips = row.m360_required
+      ? `<div class="mt-1.5 flex flex-wrap gap-1.5">${adminProgramRosterChip('Start Here', row.m360_start_here_complete ? 'Complete' : 'Not started', row.m360_start_here_complete ? 'good' : 'warn')}${adminProgramRosterChip('Networking', row.networking_comfort != null ? `${row.networking_comfort} / 5` : '— / 5', row.networking_comfort == null ? 'warn' : 'neutral')}${adminProgramRosterChip('Interview', row.interview_readiness != null ? `${row.interview_readiness} / 5` : '— / 5', row.interview_readiness == null ? 'warn' : 'neutral')}</div>`
+      : '';
+    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" class="text-sm font-semibold text-[#1e3a5f] hover:underline">View details</button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><div class="mt-3 flex flex-wrap gap-1.5">${technicalChip}${m360Chip}</div>${readinessChips}</article>`;
   }).join('')}</div></section>`;
 }
 
