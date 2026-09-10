@@ -3448,15 +3448,33 @@ function moduleCompletion(program, moduleKey, user) {
   const labs = programLabs(program).filter((lab) => lab.module === moduleKey);
   const contentOpened = fixtureState === 'complete' || remoteComplete || remoteState === 'in_progress'
     || engagement.openedModules.includes(moduleId);
-  const allLabsComplete = remoteComplete || labs.every((lab) => {
+  const allLabsComplete = (moduleKey !== 'soc-01' && remoteComplete) || labs.every((lab) => {
     const engagementComplete = engagement.completedLabs.includes(moduleLabEngagementId(program.slug, moduleKey, lab.key));
-    if (moduleKey === 'soc-01' && (lab.key === 'lab-soc-environment' || lab.key === 'lab-soc-escalation')) {
+    if (moduleKey === 'soc-01' && lab.key === 'lab-soc-environment') {
       const guidedLabState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
       return (engagementComplete || guidedLabState.completed) && guidedLabState.consoleCompleted === true;
     }
+    if (moduleKey === 'soc-01' && lab.key === 'lab-soc-escalation') {
+      const guidedLabState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
+      return engagementComplete || guidedLabState.lab2?.completed === true;
+    }
     return engagementComplete || fixtureState === 'complete';
   });
-  const complete = module.status !== 'draft' && contentOpened && allLabsComplete;
+  // Module 01 has learner-visible, assessed foundation lessons and a knowledge
+  // check in addition to its two labs. A historical module_progress row can
+  // be a coarse lab-only claim, so it must not override the detailed rule.
+  const moduleOneRequirementsComplete = moduleKey !== 'soc-01' || (() => {
+    const state = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
+    const lessons = MODULE_ONE_ALERT_ORIENTATION.lessons || [];
+    const lessonsComplete = lessons.every((lesson) => {
+      const work = (state.lessonWork || {})[String(lesson.number)] || {};
+      return work.checked === true && work.taskSubmitted === true;
+    });
+    return lessonsComplete && state.quiz?.passed === true
+      && state.completed === true && state.consoleCompleted === true
+      && state.lab2?.completed === true;
+  })();
+  const complete = module.status !== 'draft' && contentOpened && allLabsComplete && moduleOneRequirementsComplete;
   return { complete, contentOpened, allLabsComplete, fixtureState, module };
 }
 
@@ -4672,6 +4690,23 @@ let adminTableSort = { key: null, dir: 1 };
 // those); only a full render() reads it, in viewAdmin().
 let adminActiveTab = 'progress';
 
+// Secondary admin surfaces are deliberately loaded on first tab selection.
+// This cache is page-session state only; it contains no credentials or raw
+// query telemetry and avoids repeating the same bounded read after a render.
+const adminLazyTabData = {
+  activity: null,
+  cohorts: null,
+  archived: null,
+  queryLogging: null,
+};
+
+function resetAdminLazyTabData() {
+  adminLazyTabData.activity = null;
+  adminLazyTabData.cohorts = null;
+  adminLazyTabData.archived = null;
+  adminLazyTabData.queryLogging = null;
+}
+
 /* ------------------------------------------------- completion-speed review flags */
 /* Bug-bounty finding, 2026-09-01 (NEXT_SESSION.md, supabase/migrations/
  * 20260901103000_completion_integrity_guards.sql): that migration's guard
@@ -4865,6 +4900,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const cohortStudentCounts = (extra && extra.cohortStudentCounts) || new Map();
   const archivedStudents = (extra && extra.archivedStudents) || [];
   const siteSessionsByStudentId = (extra && extra.siteSessionsByStudentId) || new Map();
+  const queryLogging = (extra && extra.queryLogging) || { rows: [], loading: false, error: null, sinceHours: 24, feature: '' };
   const activeCohorts = cohorts.filter((c) => !c.archived_at);
   const activeTab = (extra && extra.activeTab) || 'progress';
   const activeTrackCode = (extra && extra.activeTrackCode) || null;
@@ -4945,6 +4981,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
 
         <div class="flex gap-2 border-b border-gray-200 mb-5 flex-wrap" role="tablist">
           <button type="button" role="tab" aria-selected="${tabIsActive('progress')}" data-admin-tab="progress" class="${tabBtnClass('progress')}">Student Progress</button>
+          <button type="button" role="tab" aria-selected="${tabIsActive('queryLogging')}" data-admin-tab="queryLogging" class="${tabBtnClass('queryLogging')}">Query Logging</button>
           <button type="button" role="tab" aria-selected="${tabIsActive('activity')}" data-admin-tab="activity" class="${tabBtnClass('activity')}">
             Student Activity Monitor${cheatingFlagsByStudentId.size ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">${cheatingFlagsByStudentId.size}</span>` : ''}
           </button>
@@ -5303,7 +5340,15 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
               <span class="sr-only">Search activity logs</span>
               <input id="admin-activity-search" type="search" autocomplete="off" placeholder="Search activity logs" class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-[#1e3a5f] focus:ring-2 focus:ring-[#1e3a5f]/20">
             </label>
-            <p id="admin-activity-result-count" class="text-sm text-gray-500" aria-live="polite">${loginEvents.length} ${loginEvents.length === 1 ? 'sign-in' : 'sign-ins'} shown</p>
+            <div class="flex items-center gap-3">
+              <label class="text-xs font-semibold text-gray-600 whitespace-nowrap">Rows per page
+                <select id="admin-activity-page-size" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                  ${[10, 30, 50, 100].map((n) => `<option value="${n}" ${n === 30 ? 'selected' : ''}>${n}</option>`).join('')}
+                  <option value="all">All</option>
+                </select>
+              </label>
+              <p id="admin-activity-result-count" class="text-sm text-gray-500 whitespace-nowrap" aria-live="polite">${loginEvents.length} ${loginEvents.length === 1 ? 'sign-in' : 'sign-ins'} total</p>
+            </div>
           </div>
           <div id="admin-activity-status" class="text-sm text-gray-500 mb-3" aria-live="polite"></div>
           ${
@@ -5357,6 +5402,49 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    </table>
                  </div>`
           }
+          ${
+            loginEvents.length === 0
+              ? ''
+              : `<div id="admin-activity-pagination" class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                   <p id="admin-activity-page-info" class="text-sm text-gray-500">Page 1</p>
+                   <div class="flex items-center gap-2">
+                     <button type="button" id="admin-activity-prev" class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold text-[#1e3a5f] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer" disabled>Previous</button>
+                     <button type="button" id="admin-activity-next" class="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold text-[#1e3a5f] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">Next</button>
+                   </div>
+                 </div>`
+          }
+        </div>
+
+        <div id="admin-tab-panel-queryLogging" ${tabIsActive('queryLogging') ? '' : 'hidden'}>
+          <div class="mb-6">
+            <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Query Logging</h2>
+            <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
+            <p class="text-gray-500 text-sm">Admin-only aggregate performance signals from the approved read model. This surface never displays statement text, parameters, identities, telemetry samples, or arbitrary query execution.</p>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5 text-sm text-slate-700">
+            <p class="font-semibold mb-1">Source and remediation guidance</p>
+            <p>Metrics come only from the <code class="font-mono text-xs">get_query_feature_metrics</code> aggregate RPC when its reviewed migration is available. Use the allow-listed feature and source labels to locate the owning portal/edge/RPC surface, then investigate plans and thresholds in staging. No browser query runner is provided here.</p>
+          </div>
+          <div class="flex flex-wrap items-end gap-3 mb-5">
+            <label class="text-xs font-semibold text-gray-600">Time window
+              <select id="admin-query-window" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                ${[1, 6, 24, 72, 168, 720].map((h) => `<option value="${h}" ${Number(queryLogging.sinceHours) === h ? 'selected' : ''}>Last ${h < 24 ? `${h} hour${h === 1 ? '' : 's'}` : `${h / 24} day${h === 24 ? '' : 's'}`}</option>`).join('')}
+              </select>
+            </label>
+            <label class="text-xs font-semibold text-gray-600">Feature
+              <select id="admin-query-feature" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                <option value="">All allow-listed features</option>
+                ${Array.from(new Set(queryLogging.rows.map((r) => r.feature_key).filter(Boolean))).sort().map((key) => `<option value="${esc(key)}" ${queryLogging.feature === key ? 'selected' : ''}>${esc(key)}</option>`).join('')}
+              </select>
+            </label>
+            <label class="text-xs font-semibold text-gray-600">Threshold
+              <select id="admin-query-threshold" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                <option value="all">All statuses</option><option value="investigate">Investigate or regression</option><option value="regression">Regression only</option>
+              </select>
+            </label>
+            <button type="button" data-action="admin-query-refresh" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Refresh aggregates</button>
+          </div>
+          ${queryLogging.loading ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-10 text-center text-gray-500">Loading approved aggregate metrics…</div>` : queryLogging.error ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800"><p class="font-semibold mb-1">Query Logging is unavailable</p><p>The reviewed telemetry migration or admin RPC is not available in this environment. No fallback query, raw database statistic, or sample data was requested. ${esc(queryLogging.error)}</p></div>` : queryLogging.rows.length === 0 ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-10 text-center text-gray-500">No aggregate metrics were returned for this window.</div>` : `<div class="overflow-x-auto"><table class="w-full border-collapse text-sm"><thead><tr class="border-b border-gray-200 bg-gray-50"><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Feature</th><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Source</th><th class="text-right px-4 py-3 font-semibold text-[#1e3a5f]">Calls</th><th class="text-right px-4 py-3 font-semibold text-[#1e3a5f]">Mean / p95 / max ms</th><th class="text-right px-4 py-3 font-semibold text-[#1e3a5f]">Rows</th><th class="text-right px-4 py-3 font-semibold text-[#1e3a5f]">Buffer / temp</th><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Last seen</th><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Breaches</th><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Status</th></tr></thead><tbody>${queryLogging.rows.map((r) => `<tr data-query-metric-row data-status="${esc(r.status || '')}" class="border-b border-gray-100"><td class="px-4 py-3 font-mono text-xs">${esc(r.feature_key || '—')}</td><td class="px-4 py-3">${esc(r.source || '—')}</td><td class="px-4 py-3 text-right">${Number(r.call_count || 0).toLocaleString()}</td><td class="px-4 py-3 text-right">${[r.mean_duration_ms, r.p95_duration_ms, r.max_duration_ms].map((v) => v == null ? '—' : Number(v).toFixed(1)).join(' / ')}</td><td class="px-4 py-3 text-right">${Number(r.rows_returned || 0).toLocaleString()}</td><td class="px-4 py-3 text-right">—</td><td class="px-4 py-3">${r.last_seen_at ? esc(new Date(r.last_seen_at).toLocaleString()) : '—'}</td><td class="px-4 py-3">${Number(r.threshold_breach_count || 0).toLocaleString()}</td><td class="px-4 py-3"><span class="font-semibold ${r.status === 'regression' ? 'text-red-700' : r.status === 'investigate' ? 'text-amber-700' : 'text-green-700'}">${esc(r.status || 'unknown')}</span></td></tr>`).join('')}</tbody></table></div>`}
         </div>
 
         <div id="admin-tab-panel-cohorts" ${tabIsActive('cohorts') ? '' : 'hidden'}>
@@ -5580,10 +5668,13 @@ async function render() {
       // One authoritative roster select feeds both the master roster and the
       // client-side filtered track workspace.  Do not add per-student M360
       // reads here: this view is the cross-track M360 projection.
-      const { data: progressRows, error } = await mntSupabase
+      let rosterQuery = mntSupabase
         .from('admin_student_program_progress')
-        .select('*')
+        .select('student_id, user_id, track_code, program_slug, is_enrolled, technical_completed, technical_required, technical_percent, technical_in_progress, technical_last_active, m360_required, m360_record_exists, m360_accepted_weeks, m360_required_weeks, m360_graded_weeks, m360_final_grade, m360_start_here_complete, m360_spotlight_complete, m360_attendance_complete, m360_course_complete, networking_comfort, interview_readiness, support_flag, work_items_completed, work_items_required, work_items_percent, program_requirements_complete, status, enrollment_date, withdrawal_date, completion_date, scheduled_start_date, scheduled_completion_date, program_version_code, credential_code, credential_name, geography_classification, credited_technical_minutes, credited_career_minutes, credited_program_minutes')
         .order('track_code', { ascending: true });
+      const selectedAdminTrack = adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null;
+      if (selectedAdminTrack) rosterQuery = rosterQuery.eq('track_code', selectedAdminTrack);
+      const { data: progressRows, error } = await rosterQuery;
       const sorted = progressRows || [];
       // Sort by active progress first: modules_complete desc, then last_active desc for tiebreaker
       sorted.sort((a, b) => {
@@ -5597,106 +5688,30 @@ async function render() {
 
       dashboardRows = normalizeAdminProgramProgressRows(sorted);
 
-      // Sprint H.1: student detail drill-down. admin_student_activity carries
-      // user_id (so per-student detail selects don't need a second lookup)
-      // and lab/capstone attempt counts (so "has real progress" reflects lab
-      // activity too, not just completed modules — see the migration).
-      const { data: activityRows } = await mntSupabase
-        .from('admin_student_activity')
-        .select('*');
-      const activityRowMap = new Map((activityRows || []).map((row) => [row.student_id, row]));
+      // Secondary activity, completion-speed, cohort, archive, session, and
+      // query-telemetry reads are intentionally deferred until their tab is
+      // selected. The roster view already exposes module/M360 progress, which
+      // is sufficient to preserve the default Student Detail chooser; the
+      // activity tab enriches that list with lab-only records when opened.
       activeStudents = dashboardRows
-        .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || r.m360_record_exists || (r.m360_accepted_weeks || 0) > 0 || (activityRowMap.get(r.student_id)?.lab_attempts_count || 0) > 0 || (activityRowMap.get(r.student_id)?.capstone_submissions_count || 0) > 0)
+        .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || r.m360_record_exists || (r.m360_accepted_weeks || 0) > 0)
         .sort((a, b) => a.student_id.localeCompare(b.student_id));
-
-      // Completion-speed review flags (see buildCheatingReviewFlags above):
-      // module_progress_admin_read already lets an admin read every
-      // student's completed rows in one query, no per-student round trip.
-      const { data: completedModuleRows } = await mntSupabase
-        .from('module_progress')
-        .select('user_id, module_key, track_code, started_at, completed_at')
-        .eq('state', 'complete');
-      cheatingFlagsByUserId = buildCheatingReviewFlags(dashboardRows, completedModuleRows);
-
-      // Student Activity Monitor: keep the operational dashboard bounded to
-      // a useful recent window rather than loading the entire audit history.
-      // The searchable table is intentionally client-filtered after this
-      // server-side window is fetched, so search never expands the query into
-      // older history. login_events_admin_read (20260901110000_login_events.sql).
-      // user_id is included (not shown as a column) so an open session's
-      // "Sign out" button has the target id admin_force_sign_out() needs.
-      const activityWindowHours = 72;
-      const activityWindowStart = new Date(Date.now() - activityWindowHours * 60 * 60 * 1000).toISOString();
-      const { data: loginEvents, error: loginEventsError } = await mntSupabase
-        .from('login_events')
-        .select('user_id, student_id, track_code, occurred_at, ip_address, geo_city, geo_region, geo_country')
-        .gte('occurred_at', activityWindowStart)
-        .order('occurred_at', { ascending: false })
-        .limit(500);
-      if (loginEventsError) console.error('login_events fetch failed', loginEventsError);
-
-      // Sprint 4 (COHORT_USER_LIFECYCLE_SPRINT_PLAN.md): cohorts + hours-on-
-      // site + archived students. Same non-fatal, error-logged pattern as
-      // every other admin-only fetch above — a failure here degrades only
-      // its own tab, never the whole admin dashboard.
-      const { data: cohortRows, error: cohortsError } = await mntSupabase
-        .from('cohorts')
-        .select('*')
-        .order('start_date', { ascending: false });
-      if (cohortsError) console.error('cohorts fetch failed', cohortsError);
-      const cohorts = cohortRows || [];
-
-      // Per-cohort student counts: admin_student_progress doesn't carry
-      // cohort_id, so this is the "second, simplest correct query" the
-      // sprint plan calls out rather than extending that view.
-      const { data: cohortMemberRows, error: cohortMembersError } = await mntSupabase
-        .from('students')
-        .select('cohort_id')
-        .not('cohort_id', 'is', null);
-      if (cohortMembersError) console.error('students.cohort_id fetch failed', cohortMembersError);
-      const cohortStudentCounts = new Map();
-      (cohortMemberRows || []).forEach((r) => {
-        cohortStudentCounts.set(r.cohort_id, (cohortStudentCounts.get(r.cohort_id) || 0) + 1);
-      });
-
-      const { data: archivedStudentRows, error: archivedStudentsError } = await mntSupabase
-        .from('admin_archived_students')
-        .select('*')
-        .order('archived_at', { ascending: false });
-      if (archivedStudentsError) console.error('admin_archived_students fetch failed', archivedStudentsError);
-
-      // Per-row session data for the Activity Monitor table (matched to each
-      // login_events row by matchSiteSession() inside viewAdmin) — replaces
-      // the old admin_site_hours_by_student aggregate, which showed one
-      // per-student lifetime total repeated identically on every one of that
-      // student's rows instead of that specific sign-in's own duration.
-      const { data: siteSessionRows, error: siteSessionsError } = await mntSupabase
-        .from('admin_site_sessions')
-        .select('*')
-        .gte('started_at', activityWindowStart)
-        .order('started_at', { ascending: false });
-      if (siteSessionsError) console.error('admin_site_sessions fetch failed', siteSessionsError);
-      const siteSessionsByStudentId = new Map();
-      (siteSessionRows || []).forEach((r) => {
-        const list = siteSessionsByStudentId.get(r.student_id) || [];
-        list.push(r);
-        siteSessionsByStudentId.set(r.student_id, list);
-      });
 
       // The user can select another track while these reads are pending.  The
       // newer render owns the screen; discard this now-stale result.
       if (!completeRouteLoading(renderGeneration)) return;
-      app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, {
+      if (adminLazyTabData.activity) {
+        const activityMap = new Map((adminLazyTabData.activity.activityRows || []).map((row) => [row.student_id, row]));
+        activeStudents = dashboardRows
+          .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || r.m360_record_exists || (r.m360_accepted_weeks || 0) > 0 || (activityMap.get(r.student_id)?.lab_attempts_count || 0) > 0 || (activityMap.get(r.student_id)?.capstone_submissions_count || 0) > 0)
+          .sort((a, b) => a.student_id.localeCompare(b.student_id));
+        cheatingFlagsByUserId = buildCheatingReviewFlags(dashboardRows, adminLazyTabData.activity.completedRows || []);
+      }
+      app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, applyAdminLazyData({
         cheatingFlagsByUserId,
-        loginEvents: loginEvents || [],
-        cohorts,
-        cohortStudentCounts,
-        archivedStudents: archivedStudentRows || [],
-        siteSessionsByStudentId,
-        activityWindowHours,
         activeTab: adminActiveTab,
         activeTrackCode: adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null,
-      });
+      }));
     }
     if (!isCurrentRouteRender(renderGeneration)) return;
     wireCommon();
@@ -5939,6 +5954,87 @@ function openDiplomaCertificate({ fullName, diplomaTitle, studentId }) {
   document.addEventListener('keydown', diplomaEscHandler);
 }
 
+async function loadAdminLazyTab(tab, options = {}) {
+  const now = new Date();
+  if (tab === 'queryLogging') {
+    const hours = Number(options.hours || 24);
+    const feature = options.feature || null;
+    const since = new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString();
+    const result = await mntSupabase.rpc('get_query_feature_metrics', {
+      p_since: since,
+      p_until: now.toISOString(),
+      p_feature_key: feature,
+    });
+    if (result.error) throw result.error;
+    return { rows: result.data || [], loading: false, error: null, sinceHours: hours, feature: feature || '' };
+  }
+  if (tab === 'activity') {
+    const windowHours = 72;
+    const start = new Date(now.getTime() - windowHours * 60 * 60 * 1000).toISOString();
+    const [activity, completed, logins, sessions] = await Promise.all([
+      mntSupabase.from('admin_student_activity').select('student_id, user_id, track_code, program_slug, modules_total, modules_complete, percent_complete, capstone_overall_score, lab_attempts_count, capstone_submissions_count, last_active, modules_in_progress'),
+      mntSupabase.from('module_progress').select('user_id, module_key, track_code, started_at, completed_at').eq('state', 'complete'),
+      mntSupabase.from('login_events').select('user_id, student_id, track_code, occurred_at, ip_address, geo_city, geo_region, geo_country').gte('occurred_at', start).order('occurred_at', { ascending: false }).limit(500),
+      mntSupabase.from('admin_site_sessions').select('id, user_id, student_id, track_code, started_at, ended_at, ended_reason, duration_minutes').gte('started_at', start).order('started_at', { ascending: false }),
+    ]);
+    if (logins.error) console.error('login_events fetch failed', logins.error);
+    if (sessions.error) console.error('admin_site_sessions fetch failed', sessions.error);
+    return { loginEvents: logins.data || [], siteSessionsByStudentId: groupRowsByKey(sessions.data || [], 'student_id'), activityRows: activity.data || [], cheatingFlagsByUserId: completed.error ? new Map() : completed.data, completedRows: completed.data || [], activityWindowHours: windowHours };
+  }
+  if (tab === 'cohorts') {
+    const [cohorts, members] = await Promise.all([
+      mntSupabase.from('cohorts').select('id, name, start_date, end_date, created_at, created_by, archived_at').order('start_date', { ascending: false }),
+      mntSupabase.from('students').select('cohort_id').not('cohort_id', 'is', null),
+    ]);
+    if (cohorts.error) console.error('cohorts fetch failed', cohorts.error);
+    const counts = new Map();
+    (members.data || []).forEach((r) => counts.set(r.cohort_id, (counts.get(r.cohort_id) || 0) + 1));
+    return { cohorts: cohorts.data || [], cohortStudentCounts: counts };
+  }
+  if (tab === 'archived') {
+    const result = await mntSupabase.from('admin_archived_students').select('id, user_id, student_id, cohort_id, cohort_name, cohort_start_date, cohort_end_date, track_code, program_slug, modules_total, modules_complete, percent_complete, capstone_overall_score, enrollment_date, withdrawal_date, status_at_archive, archived_at, archive_reason').order('archived_at', { ascending: false });
+    if (result.error) console.error('admin_archived_students fetch failed', result.error);
+    return { archivedStudents: result.data || [] };
+  }
+  return {};
+}
+
+function groupRowsByKey(rows, key) {
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const list = grouped.get(row[key]) || [];
+    list.push(row);
+    grouped.set(row[key], list);
+  });
+  return grouped;
+}
+
+function applyAdminLazyData(extra) {
+  const activity = adminLazyTabData.activity;
+  const cohorts = adminLazyTabData.cohorts;
+  const archived = adminLazyTabData.archived;
+  const queryLogging = adminLazyTabData.queryLogging;
+  if (activity) Object.assign(extra, activity);
+  if (cohorts) Object.assign(extra, cohorts);
+  if (archived) Object.assign(extra, archived);
+  extra.queryLogging = queryLogging || { rows: [], loading: false, error: null, sinceHours: 24, feature: '' };
+  return extra;
+}
+
+async function ensureAdminLazyTab(tab, options = {}) {
+  if (tab === 'queryLogging' && options.force) adminLazyTabData.queryLogging = null;
+  if (tab !== 'queryLogging' && adminLazyTabData[tab]) return adminLazyTabData[tab];
+  try {
+    const loaded = await loadAdminLazyTab(tab, options);
+    adminLazyTabData[tab] = loaded;
+  } catch (err) {
+    adminLazyTabData[tab] = tab === 'queryLogging'
+      ? { rows: [], loading: false, error: err && err.message ? err.message : 'The aggregate RPC could not be reached.', sinceHours: Number(options.hours || 24), feature: options.feature || '' }
+      : { error: err && err.message ? err.message : 'This tab could not be loaded.' };
+  }
+  return adminLazyTabData[tab];
+}
+
 function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
   dashboardRows = dashboardRows || [];
   activeStudents = activeStudents || [];
@@ -5947,12 +6043,13 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
   const tabButtons = document.querySelectorAll('[data-admin-tab]');
   const tabPanels = {
     progress: document.getElementById('admin-tab-panel-progress'),
+    queryLogging: document.getElementById('admin-tab-panel-queryLogging'),
     activity: document.getElementById('admin-tab-panel-activity'),
     cohorts: document.getElementById('admin-tab-panel-cohorts'),
     archived: document.getElementById('admin-tab-panel-archived'),
   };
   tabButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const target = btn.dataset.adminTab;
       adminActiveTab = target; // persists the selection across a future full render() (see its declaration)
       tabButtons.forEach((b) => {
@@ -5964,6 +6061,26 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
         b.classList.toggle('text-gray-500', !active);
       });
       Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
+      if (target !== 'progress' && !adminLazyTabData[target]) {
+        await ensureAdminLazyTab(target);
+        await render();
+      }
+    });
+  });
+
+  const queryWindow = document.getElementById('admin-query-window');
+  const queryFeature = document.getElementById('admin-query-feature');
+  const queryRefresh = document.querySelector('[data-action="admin-query-refresh"]');
+  if (queryRefresh) queryRefresh.addEventListener('click', async () => {
+    queryRefresh.disabled = true;
+    await ensureAdminLazyTab('queryLogging', { force: true, hours: queryWindow ? queryWindow.value : 24, feature: queryFeature ? queryFeature.value : '' });
+    await render();
+  });
+  const queryThreshold = document.getElementById('admin-query-threshold');
+  if (queryThreshold) queryThreshold.addEventListener('change', () => {
+    const selected = queryThreshold.value;
+    document.querySelectorAll('[data-query-metric-row]').forEach((row) => {
+      row.hidden = selected === 'all' || (selected === 'investigate' ? !['investigate', 'regression'].includes(row.dataset.status) : row.dataset.status !== selected);
     });
   });
 
@@ -6241,24 +6358,58 @@ Track:      ${esc(account.track_code)}</pre>
    * never a silent one-click. */
   const activityStatus = document.getElementById('admin-activity-status');
   const activitySearch = document.getElementById('admin-activity-search');
+  const activityPageSizeSelect = document.getElementById('admin-activity-page-size');
   const activityRows = Array.from(document.querySelectorAll('.admin-activity-row'));
   const activityResultCount = document.getElementById('admin-activity-result-count');
-  if (activitySearch) {
-    const filterActivityRows = () => {
-      const query = activitySearch.value.trim().toLocaleLowerCase();
-      let visibleCount = 0;
-      activityRows.forEach((row) => {
-        const matches = !query || row.textContent.toLocaleLowerCase().includes(query);
-        row.hidden = !matches;
-        if (matches) visibleCount += 1;
-      });
+  const activityPageInfo = document.getElementById('admin-activity-page-info');
+  const activityPrevBtn = document.getElementById('admin-activity-prev');
+  const activityNextBtn = document.getElementById('admin-activity-next');
+  if (activityRows.length) {
+    let activityPage = 1;
+
+    const activityPageSize = () => {
+      if (!activityPageSizeSelect || activityPageSizeSelect.value === 'all') return Infinity;
+      return Number(activityPageSizeSelect.value) || 30;
+    };
+
+    const renderActivityPage = () => {
+      const query = activitySearch ? activitySearch.value.trim().toLocaleLowerCase() : '';
+      const matched = activityRows.filter((row) => !query || row.textContent.toLocaleLowerCase().includes(query));
+      const pageSize = activityPageSize();
+      const totalPages = Math.max(1, Math.ceil(matched.length / pageSize));
+      activityPage = Math.min(Math.max(1, activityPage), totalPages);
+      const start = (activityPage - 1) * pageSize;
+      const end = start + pageSize;
+      const pageRows = new Set(matched.slice(start, end));
+
+      activityRows.forEach((row) => { row.hidden = !pageRows.has(row); });
+
       if (activityResultCount) {
         activityResultCount.textContent = query
-          ? `${visibleCount} ${visibleCount === 1 ? 'matching sign-in' : 'matching sign-ins'}`
-          : `${visibleCount} ${visibleCount === 1 ? 'sign-in' : 'sign-ins'} shown`;
+          ? `${matched.length} ${matched.length === 1 ? 'matching sign-in' : 'matching sign-ins'}`
+          : `${matched.length} ${matched.length === 1 ? 'sign-in' : 'sign-ins'} total`;
       }
+      if (activityPageInfo) {
+        activityPageInfo.textContent = matched.length === 0 ? 'No results' : `Page ${activityPage} of ${totalPages}`;
+      }
+      if (activityPrevBtn) activityPrevBtn.disabled = activityPage <= 1;
+      if (activityNextBtn) activityNextBtn.disabled = activityPage >= totalPages;
     };
-    activitySearch.addEventListener('input', filterActivityRows);
+
+    if (activitySearch) {
+      activitySearch.addEventListener('input', () => { activityPage = 1; renderActivityPage(); });
+    }
+    if (activityPageSizeSelect) {
+      activityPageSizeSelect.addEventListener('change', () => { activityPage = 1; renderActivityPage(); });
+    }
+    if (activityPrevBtn) {
+      activityPrevBtn.addEventListener('click', () => { activityPage -= 1; renderActivityPage(); });
+    }
+    if (activityNextBtn) {
+      activityNextBtn.addEventListener('click', () => { activityPage += 1; renderActivityPage(); });
+    }
+
+    renderActivityPage();
   }
   document.querySelectorAll('[data-force-signout]').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -6683,12 +6834,12 @@ Track:      ${esc(account.track_code)}</pre>
     panel.dataset.studentId = studentId;
     panel.innerHTML = `<div class="text-sm text-gray-400 py-6">Loading student record…</div>`;
     const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes] = await Promise.all([
-      mntSupabase.from('module_progress').select('*').eq('user_id', row.user_id),
-      mntSupabase.from('lab_attempts').select('*').eq('user_id', row.user_id),
-      mntSupabase.from('capstone_submissions').select('*').eq('user_id', row.user_id).order('stage', { ascending: true }),
-      mntSupabase.from('capstone_scorecard').select('*').eq('user_id', row.user_id).maybeSingle(),
-      mntSupabase.from('portfolio_artifacts').select('*').eq('user_id', row.user_id).order('submitted_at', { ascending: false }),
-      mntSupabase.from('capstone_reviews').select('*').eq('user_id', row.user_id).order('created_at', { ascending: false }),
+      mntSupabase.from('module_progress').select('module_key, state, percent, started_at, completed_at').eq('user_id', row.user_id).eq('track_code', row.track_code),
+      mntSupabase.from('lab_attempts').select('lab_key, state, score, started_at, completed_at, result').eq('user_id', row.user_id).eq('track_code', row.track_code),
+      mntSupabase.from('capstone_submissions').select('stage, score, submitted_at, answers').eq('user_id', row.user_id).eq('track_code', row.track_code).order('stage', { ascending: true }),
+      mntSupabase.from('capstone_scorecard').select('overall_score, investigation_accuracy, detection_score, threat_hunting_score, incident_response_score, vulnerability_score, reporting_score, stages_submitted').eq('user_id', row.user_id).eq('track_code', row.track_code).maybeSingle(),
+      mntSupabase.from('portfolio_artifacts').select('id, lab_key, submitted_at, content_sha256').eq('user_id', row.user_id).eq('track_code', row.track_code).order('submitted_at', { ascending: false }),
+      mntSupabase.from('capstone_reviews').select('id, artifact_id, review_status, official_outcome, reviewed_by, reviewed_at, reviewer_notes, supervision_method').eq('user_id', row.user_id).eq('track_code', row.track_code).order('created_at', { ascending: false }),
     ]);
     if (panel.dataset.studentId !== studentId) return;
     panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || []);

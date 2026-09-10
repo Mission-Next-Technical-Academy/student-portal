@@ -35,6 +35,62 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-09-10 Module 01 progress integrity sprint: fixed the mismatch where
+  Lab 1 alone could make the module and its top progress shell appear
+  complete while required lessons remained unfinished. Module 01 now requires
+  all nine lesson activities, a passed knowledge check, Lab 1 with its guided
+  console, and Lab 2 before any module-complete claim. Historical coarse
+  records fail closed rather than inventing missing detailed evidence. The
+  completed sprint record is archived at
+  `archive/completed-feature-notes/MODULE_PROGRESS_INTEGRITY_SPRINT_2026-09-10.md`.
+  Validation: `node --check portal/app.js`, `node --check
+  portal/soc-analyst-module-01.js`, `node bin/portal-check.js`, and
+  `git diff --check` pass.
+
+- 2026-09-10 program-card completion clarification: made the visible chevron
+  the actual, independently operable curriculum/lab disclosure button. The
+  green dot now explicitly says “Module complete” in its accessible label and
+  tooltip; it means that individual module's content and labs are complete,
+  not that the whole programme is complete. This prevents a 3/12 learner from
+  being misread as programme-complete. Validation: `node --check portal/app.js`
+  and `node bin/portal-check.js 1` pass. Commit `dc22536`.
+
+- 2026-09-10 SOC course standardization closeout: completed Sprints 13–17.
+  Module 01 now uses the shared progress/navigation and persisted randomized
+  knowledge-check pattern; shared programme cards surface Start/Continue/
+  Review actions while collapsed; Module 12 has preparation briefings and an
+  integrated alert-to-report capstone workflow. Final checks passed:
+  `node --check` for all SOC modules and shared portal files,
+  `node bin/portal-check.js`, and `git diff --check`. Archived the completed
+  standardization plan. The separate Module 01 assessment remains blocked on
+  the documented compliance decision about locked instructional minutes.
+
+- 2026-09-09 Query Performance Audit documentation closeout: recorded passing
+  local verification (`node --check portal/app.js`, `git diff --check`, and
+  `node bin/portal-check.js`) and archived the completed audit. Staging
+  `EXPLAIN (ANALYZE, BUFFERS)`, baseline collection, and migration application
+  remain external deployment gates and were not performed locally.
+
+- 2026-09-09 Query Performance Audit Sprint 2: added the admin Query Logging
+  tab after Student Progress. It uses only the admin-gated
+  `get_query_feature_metrics` aggregate RPC, with safe local time/feature/
+  status filters, aggregate-only columns, source/remediation guidance, and a
+  clear migration/RPC-unavailable state. Admin secondary reads (activity and
+  completion review, cohorts, site sessions, archived students) now load only
+  when their tab is selected and cache for the page session; the default
+  Student Progress route loads only its roster data. No migration was applied
+  or pushed. Validation: `node --check portal/app.js`, `git diff --check`.
+
+- 2026-09-09 Query Performance Audit Sprint 1 (written-only): added
+  `20260909100000_query_performance_telemetry.sql` with an allow-listed
+  feature catalog, hourly aggregates, 30-day bounded anonymous samples,
+  authenticated server-side ingestion, admin-only aggregate/p95 read RPC,
+  and a 30-day/13-month retention hook. No migration was applied or pushed;
+  portal timing and Query Logging UI remain later-sprint work. Updated
+  `QUERY_PERFORMANCE_AUDIT.md` with the Sprint 1 checklist. Validation was
+  limited to static SQL review, whitespace checks, and available local
+  tooling because no live database change was authorized.
+
 - 2026-09-09 admin progress controls compacted: put the track filter and
   Hide Not Started toggle on their own compact row, so all management actions
   can share the following row. The six actions now use the same equal-width

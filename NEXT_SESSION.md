@@ -1,5 +1,53 @@
 # Next session — start here
 
+## Session 2026-09-10 (done, pushed and verified live) — outside-perspective pentest of the admin credentials panel; found and closed an anon table-grant gap
+
+Site owner asked to pentest the admin panel's "view credentials" feature
+(`public.student_credentials`, plaintext generated passwords, see
+`20260901130100_student_credentials.sql`) from an outside attacker's
+perspective. Tested live against the linked project
+(`eokvngifirjgfozzbieu`) using only the public anon/publishable key from
+`portal/supabase-config.js` — no login, no session, exactly what anyone
+viewing the deployed site's JS or the public GitHub repo has.
+
+**Credential path itself was already solid, confirmed live, not just read
+from migrations:** unauthenticated REST calls to `student_credentials`,
+`students`, `user_ip_history`, and `sim_state` all correctly returned
+`401 permission denied`. The `admin-provision` Edge Function (mints new
+accounts/passwords) rejects both a missing `Authorization` header and a
+garbage bearer token with `401`. Full git history (not just current tree)
+was searched for the service-role key / `.env` files / any committed
+secret — none found, despite the GitHub repo being public.
+
+**Real gap found:** `login_events`, `site_sessions`, `module_progress`,
+`lab_attempts`, `capstone_submissions`, `portfolio_artifacts`, and
+`cohorts` never got the explicit `revoke all ... from anon` hardening that
+`students`/`student_credentials`/`user_ip_history`/`sim_state` already had.
+Confirmed live: all seven returned `HTTP 200` with `[]` to an anonymous
+caller instead of a permission error — anon still held Supabase's default
+auto-granted table privileges, and the only thing keeping them empty was
+every RLS policy on them keying off `user_id = auth.uid()` or `is_admin()`
+(both null/false for an anonymous caller). No data actually leaked. Same
+root cause already fixed three times in this project's history for RPC
+functions instead of tables (`20260904104000`, `20260904151000`,
+`20260906120000`) — never applied at the table level for these seven.
+
+**Fixed, pushed, and re-verified live:**
+`supabase/migrations/20260910130000_revoke_anon_operational_tables.sql` —
+explicit `revoke all ... from anon` on all seven tables. Re-ran the same
+live anon-key REST calls after push: all seven (plus `students`/
+`student_credentials`) now return `401` instead of `200`.
+
+**Note for next session:** pushing this required temporarily working
+around `supabase/migrations/20260909100000_query_performance_telemetry.sql`
+— that migration's own header says "do not apply until the telemetry
+contract, retention job, and representative plans have been reviewed," and
+it was blocking `supabase db push` (out-of-order migration check) since it
+predates migrations already live. It was marked `reverted` via
+`supabase migration repair` (site owner's explicit choice, asked at the
+time) and the file was left untouched/unapplied, still needing that review
+before it can ship on its own.
+
 ## Session 2026-09-07 (done, uncommitted) — shared topbar (Back to Programs / Sign Out / % complete) everywhere
 
 Every module-lab page (all 12 IT Support modules, all 12 SOC Analyst

@@ -108,15 +108,10 @@ function moduleOneLoad(user) {
   Object.keys(MODULE_ONE_DEFAULT_STATE.sectionOpen).forEach((key) => { if (typeof moduleOneState.sectionOpen[key] !== 'boolean') moduleOneState.sectionOpen[key] = MODULE_ONE_DEFAULT_STATE.sectionOpen[key]; });
   if (!moduleOneState.quiz || typeof moduleOneState.quiz !== 'object') moduleOneState.quiz = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.quiz));
   if (!moduleOneState.lab2 || typeof moduleOneState.lab2 !== 'object') moduleOneState.lab2 = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.lab2));
-  // Completion is durable in module_progress, but the detailed guided-lab
-  // state is browser-local. A learner who completed Module 01 in another
-  // browser must be able to review its unlocked evidence and worksheet flow.
-  if (moduleOneRemoteComplete()) {
-    moduleOneState.consoleStarted = true;
-    moduleOneState.consoleCompleted = true;
-    moduleOneState.completed = true;
-    moduleOneState.lab2.completed = true;
-  }
+  // `module_progress` historically recorded Module 01 as complete after a
+  // coarse lab-only check. Do not manufacture the missing lesson, quiz, or
+  // Lab 2 evidence from that record: the page must never show work complete
+  // merely because another layer has a stale summary badge.
   if (!moduleOneQuizState || moduleOneQuizState.userKey !== user.email) {
     const savedQuiz = moduleOneState.quiz;
     const selection = savedQuiz.selectedQuestions?.length
@@ -266,6 +261,37 @@ function moduleOneLessonQuizOptions(lessonNumber, question) {
 function moduleOneLessonComplete(lesson) {
   const work = moduleOneLessonWork(lesson.number);
   return work.checked === true && work.taskSubmitted === true;
+}
+
+function moduleOneProgress() {
+  const lessonsTotal = MODULE_ONE_ALERT_ORIENTATION.lessons.length;
+  const lessonsComplete = MODULE_ONE_ALERT_ORIENTATION.lessons.filter(moduleOneLessonComplete).length;
+  const labOneComplete = Boolean(moduleOneState?.completed && moduleOneState?.consoleCompleted);
+  const labTwoComplete = Boolean(moduleOneState?.lab2?.completed);
+  const knowledgeCheckComplete = Boolean(moduleOneQuizState?.passed);
+  const complete = lessonsComplete === lessonsTotal && knowledgeCheckComplete && labOneComplete && labTwoComplete;
+  return {
+    lessonsTotal,
+    lessonsComplete,
+    labsComplete: Number(labOneComplete) + Number(labTwoComplete),
+    knowledgeCheckComplete,
+    complete,
+    remoteRecord: moduleOneRemoteComplete(),
+  };
+}
+
+function moduleOneRefreshHeroProgress() {
+  const progress = moduleOneProgress();
+  const labCount = document.getElementById('m01-lab-count');
+  const status = document.getElementById('m01-status');
+  if (labCount) labCount.textContent = `${progress.labsComplete}/2`;
+  if (status) status.textContent = progress.complete ? 'Complete' : 'In progress';
+}
+
+function moduleOneSyncCompletion() {
+  if (moduleOneProgress().complete && typeof markModuleCompleteRemote === 'function') {
+    markModuleCompleteRemote(moduleOneUser, 'soc-01');
+  }
 }
 
 function moduleOneScorePanel() {
@@ -686,12 +712,12 @@ function moduleOneLabDynamic() {
 }
 
 function moduleOneGetSections() {
-  const remotelyComplete = moduleOneRemoteComplete();
+  const progress = moduleOneProgress();
   return [
-    { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: remotelyComplete || MODULE_ONE_ALERT_ORIENTATION.lessons.every(moduleOneLessonComplete), scrollId: 'm01-foundations' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: remotelyComplete || moduleOneQuizState?.passed, scrollId: 'm01-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Labs', type: 'lab', isComplete: remotelyComplete || Boolean(moduleOneState?.completed && moduleOneState?.lab2?.completed), scrollId: 'm01-guided-lab' },
-    { id: 'review', title: 'Module Review', type: 'review', isComplete: remotelyComplete || Boolean(moduleOneQuizState?.passed && moduleOneState?.completed && moduleOneState?.lab2?.completed), scrollId: 'm01-review' },
+    { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: progress.lessonsComplete === progress.lessonsTotal, scrollId: 'm01-foundations' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: progress.knowledgeCheckComplete, scrollId: 'm01-knowledge-check' },
+    { id: 'guided-lab', title: 'Guided Labs', type: 'lab', isComplete: progress.labsComplete === 2, scrollId: 'm01-guided-lab' },
+    { id: 'review', title: 'Module Review', type: 'review', isComplete: progress.complete, scrollId: 'm01-review' },
   ];
 }
 
@@ -726,6 +752,7 @@ function viewModuleOne(user, program) {
   const moduleLabMinutes = moduleLabs.reduce((total, item) => total + item.instructionalMinutes, 0);
   const sectionOpen = moduleOneState.sectionOpen || {};
   const openFor = (key) => moduleOneReviewMode || sectionOpen[key] === true;
+  const progress = moduleOneProgress();
 
   return `<div class="m01-shell">
     ${moduleTopbar(user, program)}
@@ -741,10 +768,12 @@ function viewModuleOne(user, program) {
         </div>
         <dl class="m01-progress" aria-label="Saved lab progress">
           <div><dt>Foundation lessons</dt><dd>${module.lessons}</dd></div>
-          <div><dt>Labs</dt><dd>${module.labs}</dd></div>
-          <div><dt>Lab status</dt><dd id="m01-status">${moduleOneState.completed && moduleOneState.consoleCompleted ? 'Complete' : 'Not complete'}</dd></div>
+          <div><dt>Labs complete</dt><dd id="m01-lab-count">${progress.labsComplete}/${module.labs}</dd></div>
+          <div><dt>Module status</dt><dd id="m01-status">${progress.complete ? 'Complete' : 'In progress'}</dd></div>
         </dl>
       </section>
+
+      ${progress.remoteRecord && !progress.complete ? '<p class="m01-progress-notice" role="status">A prior module-completion record exists, but this device does not contain the detailed lesson, knowledge-check, and lab evidence needed to display this module as complete. Continue or review the required work below.</p>' : ''}
 
       <section class="m01-checklist" aria-labelledby="m01-checklist-title">
         <p class="m01-kicker">Module progress checklist</p>
@@ -767,9 +796,9 @@ function viewModuleOne(user, program) {
             </li>`;
           }).join('')}
           ${moduleLabs.map((lab) => {
-            const engagementId = typeof moduleLabEngagementId === 'function' ? moduleLabEngagementId(program.slug, 'soc-01', lab.key) : null;
-            const engagement = typeof loadModuleEngagement === 'function' ? loadModuleEngagement(user) : { completedLabs: [] };
-            const isComplete = engagementId && engagement.completedLabs.includes(engagementId);
+            const isComplete = lab.key === MODULE_ONE_CATALOG_LAB_KEY
+              ? Boolean(moduleOneState.completed && moduleOneState.consoleCompleted)
+              : Boolean(moduleOneState.lab2?.completed);
             const statusClass = isComplete ? 'is-complete' : 'is-not-started';
             return `<li class="m01-checklist-item ${statusClass}">
               <span class="m01-checklist-number" style="opacity: 0;">--</span>
@@ -1085,6 +1114,7 @@ function wireModuleOneQuiz() {
     moduleOneQuizState.scored = true;
     moduleOneQuizState.passed = result.score >= 70;
     moduleOneSaveQuiz();
+    moduleOneSyncCompletion();
     moduleOneRenderQuiz('m01-quiz-feedback');
   });
   form.addEventListener('click', (event) => {
@@ -1392,14 +1422,14 @@ function wireModuleOneLab() {
       if (passed) {
         moduleOneState.completed = true;
         if (!moduleOneState.flags.includes(MODULE_ONE_FLAG)) moduleOneState.flags.push(MODULE_ONE_FLAG);
-        if (typeof markModuleLabComplete === 'function') {
-          markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
-        }
       }
       moduleOneSave();
+      if (passed && typeof markModuleLabComplete === 'function') {
+        markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
+      }
+      moduleOneSyncCompletion();
       moduleOneRenderDynamic('m01-feedback');
-      const status = document.getElementById('m01-status');
-      if (status) status.textContent = moduleOneState.completed && moduleOneState.consoleCompleted ? 'Complete' : 'In progress';
+      moduleOneRefreshHeroProgress();
       return;
     }
 
@@ -1440,12 +1470,14 @@ function wireModuleOneLab() {
       }
       if (passed) {
         moduleOneState.lab2.completed = true;
-        if (typeof markModuleLabComplete === 'function') {
-          markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
-        }
       }
       moduleOneSave();
+      if (passed && typeof markModuleLabComplete === 'function') {
+        markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
+      }
+      moduleOneSyncCompletion();
       moduleOneRenderDynamic('m01-lab2-feedback');
+      moduleOneRefreshHeroProgress();
       return;
     }
   });
@@ -1493,6 +1525,7 @@ function wireModuleOneLab() {
         }
         moduleOneState.lessonWork[lessonNumber].checked = true;
         moduleOneSave();
+        moduleOneSyncCompletion();
         render();
         const lessonEl = document.querySelector('[data-m01-lesson="' + lessonNumber + '"]');
         if (lessonEl) requestAnimationFrame(() => lessonEl.scrollIntoView({ block: 'nearest' }));
@@ -1511,6 +1544,7 @@ function wireModuleOneLab() {
         }
         moduleOneState.lessonWork[lessonNumber].taskSubmitted = true;
         moduleOneSave();
+        moduleOneSyncCompletion();
         render();
         const lessonEl = document.querySelector('[data-m01-lesson="' + lessonNumber + '"]');
         if (lessonEl) requestAnimationFrame(() => lessonEl.scrollIntoView({ block: 'nearest' }));

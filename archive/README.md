@@ -78,6 +78,16 @@ of archiving:
   track workspaces, accessible coming-soon cards, and reviewer track filtering.
   Static acceptance verification passed; live Supabase migration/RLS checks remain
   a deployment-environment task.
+- `QUERY_PERFORMANCE_AUDIT_2026-09-09.md` — query-shape, projection, telemetry,
+  and Query Logging audit; local verification passed, while staging plans,
+  baseline collection, and migration application remain external deployment gates.
+- `COURSE_STANDARDIZATION_SPRINT_PLAN_2026-09-10.md` — all 17 SOC course
+  standardization sprints complete and locally QA-verified. The separate
+  Module 01 assessment decision remains active in its own progress document.
+- `MODULE_PROGRESS_INTEGRITY_SPRINT_2026-09-10.md` — Module 01 completion
+  integrity audit and fix: a module can no longer be marked complete from Lab
+  1 alone or from a coarse historical summary record while its detailed work
+  is unfinished.
 
 ## Still active, not archived
 
