@@ -47,5 +47,5 @@ itsRegisterCoachModule({
   moduleNumber: 11, moduleKey: 'its-11', coachId: 'hd-m11', labKeys: ['lab-its-11-handoff-documentation'],
   lessons: ITS11_LESSONS,
   lede: 'The technical fix is only half the job — this module is about the other half: writing it down well, communicating it clearly, and handing it off cleanly when it\'s not yours to finish.',
-  labDescription: 'Work a real ticket end to end in the IT Service Desk simulator, focused on documentation and escalation (HD-2113, an expired VPN gateway certificate) — recognize the escalation trigger and write a note a stranger could act on. A coach spotlights each step for you.',
+  labDescription: 'Work two real tickets end to end in the IT Service Desk simulator, focused on documentation, escalation, and communication under pressure: HD-2113 (an expired VPN gateway certificate) — recognize the escalation trigger and write a note a stranger could act on — then HD-2124, a repeat-contact user frustrated by a stale Outlook credential, where the practice is diagnosing calmly while setting honest expectations instead of overpromising. A coach spotlights each step for you.',
 });

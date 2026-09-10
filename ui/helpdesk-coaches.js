@@ -567,19 +567,31 @@
     }
   });
 
-  /* hd-m11 — Module 11: Customer Service, Documentation & Escalation. One
-   * ticket (HD-2113, also reachable unguided from Module 4's scope) whose
+  /* hd-m11 — Module 11: Customer Service, Documentation & Escalation. Two
+   * tickets. HD-2113 (also reachable unguided from Module 4's scope) whose
    * 'Always' escalation criteria makes it a clean example of recognizing an
    * escalation trigger and writing a handoff-quality note, rather than a
-   * fixable-by-L1 ticket. */
-  hdRegisterSimpleCoach('hd-m11', 11, 'Writing the Handoff That Actually Helps', 'Work one real ticket end to end, focused on documentation and escalation: recognize the trigger, write a note a stranger could act on, and hand it off cleanly.', ['HD-2113']).steps =
+   * fixable-by-L1 ticket. HD-2124 pairs that with the module's other half —
+   * an already-frustrated, repeat-contact user with a real, diagnosable
+   * technical cause — practicing calm, plain-language, expectation-setting
+   * communication under pressure (lesson 2's 'Updating Users Without
+   * Overpromising' / 'Setting Expectations From the Start'). */
+  hdRegisterSimpleCoach('hd-m11', 11, 'Writing the Handoff That Actually Helps', 'Work two real tickets end to end, focused on documentation, escalation, and communication under pressure: recognize an escalation trigger and write a note a stranger could act on, then diagnose while calmly setting expectations for an already-frustrated, repeat-contact user.', ['HD-2113', 'HD-2124']).steps =
     hdTicketFlowSteps('HD-2113', {
-      opening: true, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/11', 'hd-m11'),
+      opening: true, isLast: false, finalStatus: 'Escalated',
       openBody: 'Kai’s VPN accepts MFA, connects for a few seconds, then drops — every time.',
       evidenceBody: 'A certificate validation failure with a NotAfter date already in the past is the clue — and it’s the gateway’s certificate, not the user’s.',
       pathBody: 'Capturing the client log and timing, then validating the certificate chain, comes before escalating — show your work, don’t just forward the ticket.',
       diagnosisBody: 'A user certificate that’s valid, paired with an expired gateway certificate, points at the gateway — not the user’s password or home network.',
       noteBody: 'This is the note a stranger has to act on: name the expired-certificate evidence, confirm other users are affected the same way, and state plainly that this needs a certificate renewal — not a per-user fix.',
       resolveBody: 'A shared gateway certificate is outside what a technician replaces alone. Escalate it with a note complete enough that the next person isn’t starting from zero.',
-    });
+    }).concat(hdTicketFlowSteps('HD-2124', {
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/11', 'hd-m11'),
+      openBody: 'Tara is calling for the second time today — Outlook keeps demanding her password and failing, and she has a client proposal waiting. She’s frustrated, and that’s the point of this one: the fix has to happen while you keep her calm and informed, not after.',
+      evidenceBody: 'Teams and the browser already accept her new password — only Outlook fails. That split, plus a Credential Manager entry that’s weeks old, is the clue: something cached is still holding the old password.',
+      pathBody: 'Confirm the scope is Outlook-only before touching anything, then go straight to the stale credential — don’t make her repeat troubleshooting she’s effectively already done for you by mentioning Teams works fine.',
+      diagnosisBody: 'A password changed this morning, other Microsoft 365 apps working, and Outlook alone still failing point at one thing: a cached credential Outlook never updated.',
+      noteBody: 'Write the note the way you’d want it read if you picked this ticket up cold: name the stale Credential Manager entry as the cause, what you removed, and that send/receive was confirmed working — not just "Outlook fixed."',
+      resolveBody: 'Close this out the way you opened it: plainly, without jargon, and without promising more than you can back up — confirm send/receive works, tell her it’s resolved, and skip the corporate hedging. That’s what actually de-escalates a second call like this one.',
+    }));
 })();

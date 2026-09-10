@@ -1,5 +1,142 @@
 # Next session — start here
 
+## Session 2026-09-10 (planning only, nothing built) — platform-wide robustness audit vs. soc-analyst baseline; read `PROGRAM_PARITY_SPRINT_PLAN.md` next
+
+Owner asked, after the Module 11 de-escalation-ticket fix logged below: are
+`it-support`/`ai-ml`/`electrical` as robust as `soc-analyst`, do they
+justify their claimed hours, and do grades/rubrics exist? Ran 3 parallel
+read-only audit agents (grading infra platform-wide; it-support vs
+soc-analyst depth; ai-ml completeness) plus direct checks on electrical.
+Findings and a 4-sprint plan (2 decision-needed, 2 build) are written up in
+full in **`PROGRAM_PARITY_SPRINT_PLAN.md` — read that file first**, this
+entry is just the pointer. Short version:
+
+- **soc-analyst**: the baseline. 70h, exact hour match, quizzes in 11/12
+  modules, real scored 10-domain capstone rubric.
+- **it-support**: capstone at full parity with soc-analyst (real 7-domain
+  scored rubric), no stub content, but **zero per-lesson knowledge-check
+  quizzes anywhere** (biggest real content gap found) and ~8-9x thinner
+  per-module authored content than soc-analyst (offset partly by a real
+  shared ticket-simulator engine, not filler). → Sprint 1.
+- **Bug found, caused by this session's own earlier edit**: adding ticket
+  HD-2124 to Module 11 (see below) bumped that module's real minutes from
+  60h→61h program-wide, but `compliance.technicalHours`/`totalHours`/`stats`
+  (`portal/data.js:173-199`, sourced from an external hour-mapping docx)
+  still say 60h — a live mismatch on the public program page. Needs an
+  owner decision (revert the minutes vs. bump the published hours), not a
+  silent fix — see Sprint 0 in the plan doc. **Not yet fixed.**
+- **ai-ml**: genuinely complete, not a stub, despite `isPublished: false`
+  (looks like a launch-timing choice) — full quiz parity with soc-analyst,
+  104.5h of real content. One real gap: the capstone's own text promises an
+  "eight-stage scored rubric" but the code hardcodes `score: 100` on
+  checklist completion regardless of content quality. → Sprint 2.
+- **electrical**: 0% built — all 12 modules are literal
+  `skeleton('eee', [...])` stubs (`portal/data.js:1112`), no lessons, no
+  labs. Needs a build-or-shelve decision before any content work, same as
+  ai-ml got its own planning doc first. → Sprint 3.
+- M360 career-readiness (resume/LinkedIn/interview prep) is real,
+  Supabase-backed, and scored identically across all 4 tracks — not part
+  of the gap.
+
+Nothing in `portal/data.js` or any module file was changed this session
+beyond the Module 11 ticket work below. Confirmed via `git status`: that
+work (`portal/data.js`, `portal/it-support-module-11.js`,
+`ui/helpdesk-coaches.js`, `ui/helpdesk-data.js`) plus this entry,
+`PROGRAM_PARITY_SPRINT_PLAN.md`, and `HELPDESK_CURRICULUM_SWEEP.md` are all
+**still uncommitted** — nothing from today has been committed or pushed.
+
+## Session 2026-09-10 (done, verified live, not yet committed) — real-repo deliverables for six AI/ML modules, plus a capstone focus-loss bug fix
+
+Same session, immediately after the 12-module AI/ML build below. Owner
+raised that an AI/ML program should require students to build and ship
+real, versioned software, not just check a box — wrote
+`AI_ML_APPLIED_BUILD_TRACK.md` as a planning doc first (three repo-hosting
+models, four open decisions), owner picked: student's own GitHub account,
+no Mission-Next-built starter templates, one small repo per project module
+with the capstone starting its own fresh repo (Model B).
+
+**Built:** a required "Repository URL" field (+ optional demo/recording
+URL) added to the hands-on lab panel in the six modules where a real
+deliverable fits — `portal/ai-ml-module-01.js`, `-03.js`, `-08.js`,
+`-09.js`, `-10.js`, `-12.js` (capstone: one final repo URL after all eight
+stages). Completion for those labs now requires a valid `http(s)://` URL in
+addition to the existing checklist + reflection; stored in the same
+`result` JSON `recordLabAttempt()` already sends, no schema change. New
+`.aim-repo-fields` CSS added once to `ai-ml-shared.css`, reused by all six.
+
+**Bug found and fixed while touching `ai-ml-module-12.js`:** the capstone's
+per-stage reflection textareas re-rendered the entire stage list on every
+keystroke (`aim12RenderCapstone()` inside the `input` handler) — would have
+dropped keyboard focus after each character typed, making the field
+effectively unusable. Fixed to match every other module's convention: save
+on `input`, re-render only on `blur`/checkbox change.
+
+**Verified:** `node -c` on all six files; live in Chrome — real
+keystroke-by-keystroke typing into Module 01's and the capstone's fields to
+specifically catch focus-loss regressions (confirmed none), an
+invalid-URL case (inline error, completion correctly blocked), and full
+completion only once the URL is valid alongside the existing checklist and
+reflection requirements. See `AI_ML_APPLIED_BUILD_TRACK.md` for the full
+decision record. Nothing committed — ask before committing/pushing.
+
+## Session 2026-09-10 (done, verified live, not yet committed) — built the AI & Machine Learning track's 12 interactive modules
+
+Owner asked to finish the work described in `AI_ML_ENGINEERING_CURRICULUM.md`
+(the full platform build, not just content) — spawning one haiku subagent per
+module sprint, reviewing/closing each out, then archiving the doc once
+complete. Recon first: `portal/ai-ml-module-01.js` was a 23-line stub
+(`isPublished: false`), `portal/data.js`'s `ai-ml` program used
+`skeleton('aim', …)` (draft-only), and no `LABS` rows existed for this track.
+Also found this track has no live SIEM-style simulator the way SOC and
+IT Help Desk (partially) do, and `MODULE_STANDARD.md`'s
+`src/content/programs/<track>.ts` schema is aspirational — the real
+convention is `portal/data.js` + one `portal/<track>-module-NN.js` per
+module, discovered via `registerModuleLab()` (`module-registry.js`).
+
+**Built:** `portal/data.js` — replaced the `ai-ml` skeleton with full `mod()`
+module entries (objectives/topics/handsOn/skills/assessment per
+`MODULE_STANDARD.md` §2) for all 12 modules, plus 12 new `LABS` rows
+(`lab-aim-01-cli-utility` … `lab-aim-12-capstone`) using `portalEntry`
+(no `simEntry` — no sandbox exists). `portal/ai-ml-shared.css` — new shared
+stylesheet (`.aim-*` classes) so all 12 module files reuse one widget set
+instead of 12 near-duplicate CSS files, same idea as
+`it-support-shared.css`. `portal/ai-ml-module-01.js` through `-12.js` — full
+rewrite of the stub plus 11 new files, each: lesson cards, a
+`selectQuizQuestions()`/`scoreQuizAttempt()`-driven knowledge check, a
+4-item fill-in-the-blank drill, and a checklist-plus-written-reflection
+hands-on lab (evidence-based, like `it-support-module-01.js`'s Lab 1.1 —
+labs run in the student's own real Python environment, not a simulated
+console). Module 12 uses a different, staged-capstone shape (8 stages, each
+its own checkbox + reflection) modeled on `soc-analyst-module-12.js`'s
+structural pattern. `portal/index.html` — added the CSS link and all 11
+missing `<script>` tags.
+
+**Verified, not just written:** `node -c` on all 12 files; no duplicate
+top-level identifiers across files (would silently break later `<script>`
+tags via redeclaration); every `LABS` lab key matches its module file
+exactly; then live in Chrome against the linked Supabase project
+(`bin/dev.sh`, signed in with a synthetic in-page user since the README's
+seed accounts only exist in a local-seeded Supabase, not this linked one):
+all 12 `moduleLabFor('ai-ml', N).view()` calls render without throwing;
+Module 01's and Module 12's full interaction loops (checkbox → reflection →
+completion status flip, quiz answer → submit → score, fill-in-blank check)
+were exercised end to end with real DOM events — no JS exceptions anywhere;
+the only console errors were expected Supabase `module_progress`/
+`lab_attempts` rejections of the synthetic user's fake ID, caught and
+logged per the existing error-handling convention, never thrown.
+
+**Deliberately not done:** `isPublished` on the `ai-ml` program stays
+`false` — making the track visible/live is the site owner's call, not made
+here. Quiz banks still ship only the curriculum doc's original 5–6
+questions/module (one variant per objective); `AI_ML_ENGINEERING_CURRICULUM.md`'s
+own "Track-Level Notes" call for 2–3 more variants per objective before this
+goes live, and that was out of scope for this session (owner chose "full
+platform build" over "content + build" when asked). Per the doc-lifecycle
+rule, `AI_ML_ENGINEERING_CURRICULUM.md` was **not archived** — updated
+in place instead — because that quiz-depth item (and video lecture
+segments, noted as out of scope entirely) are still open. Nothing in this
+session was committed to git — ask before committing/pushing.
+
 ## Session 2026-09-10 (done, verified live, not yet committed) — fixed the Activity Monitor "0 sign-ins" bug
 
 Owner asked to keep working the admin Activity Monitor until real sign-in
