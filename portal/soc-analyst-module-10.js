@@ -834,7 +834,7 @@ function moduleTenScoreMapping() {
 }
 
 function moduleTenRenderQuiz() {
-  const root = document.getElementById('m10-quiz-panel');
+  const root = document.getElementById('m10-quiz-form');
   if (!root) return;
   root.innerHTML = moduleTenQuizPanel();
 }
