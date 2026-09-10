@@ -253,7 +253,7 @@ function moduleTwelveScore() {
     ['Query', a.query === 'correlated-pivot'],
     ['Timeline', timelineCorrect],
     ['Scope', moduleTwelveSetEqual(moduleTwelveValues('scope'), ['acct-204', 'ws-204']) && a.scopeLimit === 'bounded'],
-    ['Enrichment', a.enrichment === 'correlated-malicious'],
+    ['Enrichment', a.enrichment === 'correlated-malicious' && a.exposurePriority === 'audit-policy'],
     ['ATT&CK', moduleTwelveSetEqual(moduleTwelveValues('attack'), ['T1059.007', 'T1071.001', 'T1204.001', 'T1547.001'])],
     ['Detection', a.detection === 'parent-hash-destination' && a.tuning === 'signed-approved-parent'],
     ['Response', moduleTwelveSetEqual(moduleTwelveValues('response'), ['block-ioc', 'isolate-ws204', 'preserve', 'revoke-acct204'])],
