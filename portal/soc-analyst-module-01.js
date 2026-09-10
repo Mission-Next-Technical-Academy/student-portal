@@ -93,6 +93,10 @@ let moduleOneJustCorrect = '';
 let moduleOneQuizState = null;
 let moduleOneReviewMode = false;
 
+function moduleOneRemoteComplete() {
+  return moduleOneUser?.remoteModuleProgress?.['soc-01'] === 'complete';
+}
+
 function moduleOneLoad(user) {
   moduleOneUser = user;
   moduleOneState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
@@ -104,6 +108,15 @@ function moduleOneLoad(user) {
   Object.keys(MODULE_ONE_DEFAULT_STATE.sectionOpen).forEach((key) => { if (typeof moduleOneState.sectionOpen[key] !== 'boolean') moduleOneState.sectionOpen[key] = MODULE_ONE_DEFAULT_STATE.sectionOpen[key]; });
   if (!moduleOneState.quiz || typeof moduleOneState.quiz !== 'object') moduleOneState.quiz = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.quiz));
   if (!moduleOneState.lab2 || typeof moduleOneState.lab2 !== 'object') moduleOneState.lab2 = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.lab2));
+  // Completion is durable in module_progress, but the detailed guided-lab
+  // state is browser-local. A learner who completed Module 01 in another
+  // browser must be able to review its unlocked evidence and worksheet flow.
+  if (moduleOneRemoteComplete()) {
+    moduleOneState.consoleStarted = true;
+    moduleOneState.consoleCompleted = true;
+    moduleOneState.completed = true;
+    moduleOneState.lab2.completed = true;
+  }
   if (!moduleOneQuizState || moduleOneQuizState.userKey !== user.email) {
     const savedQuiz = moduleOneState.quiz;
     const selection = savedQuiz.selectedQuestions?.length
@@ -673,11 +686,12 @@ function moduleOneLabDynamic() {
 }
 
 function moduleOneGetSections() {
+  const remotelyComplete = moduleOneRemoteComplete();
   return [
-    { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: MODULE_ONE_ALERT_ORIENTATION.lessons.every(moduleOneLessonComplete), scrollId: 'm01-foundations' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleOneQuizState?.passed, scrollId: 'm01-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Labs', type: 'lab', isComplete: Boolean(moduleOneState?.completed && moduleOneState?.lab2?.completed), scrollId: 'm01-guided-lab' },
-    { id: 'review', title: 'Module Review', type: 'review', isComplete: Boolean(moduleOneQuizState?.passed && moduleOneState?.completed && moduleOneState?.lab2?.completed), scrollId: 'm01-review' },
+    { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: remotelyComplete || MODULE_ONE_ALERT_ORIENTATION.lessons.every(moduleOneLessonComplete), scrollId: 'm01-foundations' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: remotelyComplete || moduleOneQuizState?.passed, scrollId: 'm01-knowledge-check' },
+    { id: 'guided-lab', title: 'Guided Labs', type: 'lab', isComplete: remotelyComplete || Boolean(moduleOneState?.completed && moduleOneState?.lab2?.completed), scrollId: 'm01-guided-lab' },
+    { id: 'review', title: 'Module Review', type: 'review', isComplete: remotelyComplete || Boolean(moduleOneQuizState?.passed && moduleOneState?.completed && moduleOneState?.lab2?.completed), scrollId: 'm01-review' },
   ];
 }
 
