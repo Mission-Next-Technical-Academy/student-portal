@@ -1,5 +1,67 @@
 # Next session — start here
 
+## Session 2026-09-10 (done, verified live, not yet committed) — fixed the Activity Monitor "0 sign-ins" bug
+
+Owner asked to keep working the admin Activity Monitor until real sign-in
+data actually rendered on `#/admin` in the browser (this session's own
+`ACTIVITY_MONITOR_LIVE_DEBUG_2026-09-10.md` and
+`ACTIVITY_MONITOR_PERFORMANCE_FINDINGS.md`, both written by the prior
+session, were the starting context). Logged into Chrome as
+`7355312413-ADMIN` at `127.0.0.1:8768/#/admin` and captured the Network tab
+the live-debug doc's own "next diagnostic step" called for: `login_events`,
+`admin_site_sessions`, `module_progress`, and `admin_student_activity` all
+returned **HTTP 200 with real rows** (166 `login_events`) — so the earlier
+worry about auth/RLS was a dead end, not the bug.
+
+**Actual root cause** (`portal/app.js`): `loadAdminLazyTab('activity')`
+returned a stray `cheatingFlagsByUserId: completed.data` key — a plain
+array duplicating that same return object's own `completedRows` field.
+`applyAdminLazyData()`'s `Object.assign` let that array clobber the real
+`Map` that `render()` builds via `buildCheatingReviewFlags()` a few lines
+earlier, so `viewAdmin()` threw `cheatingFlagsByUserId.has is not a
+function` before `app.innerHTML` was ever reassigned — the tab silently
+kept showing its last good render (0 rows, from before the Activity data
+existed) with no visible error. Confirmed this wasn't Activity-Monitor-only:
+once `adminLazyTabData.activity` was populated, every subsequent `#/admin`
+render hit the same clobbered value, so any tab click after opening
+Activity Monitor once would have silently broken too (verified by opening
+Cohorts right after the fix and seeing it render correctly with a clean
+console).
+
+**Fixed:** removed the bogus key from `loadAdminLazyTab`'s activity branch,
+bumped `app.js`'s cache-busting query string in `portal/index.html`.
+Verified live in Chrome: Activity Monitor now renders "166 sign-ins total"
+with real rows, Cohorts still works afterward, console clean on both.
+Full write-up moved to
+`archive/completed-feature-notes/ACTIVITY_MONITOR_CHEATING_FLAGS_CLOBBER_2026-09-10.md`
+per the doc-lifecycle rule (findings are done and verified even though the
+code change itself is still uncommitted working-tree state — ask before
+committing/pushing).
+
+**Still open, unrelated:** `ACTIVITY_MONITOR_PERFORMANCE_FINDINGS.md` (why
+the tab is *slow*, not why it showed zero rows) is a separate, still-open
+diagnosis — none of its recommended index/RPC/pruning fixes have been
+applied. Read that file before touching Activity Monitor performance.
+
+## Session 2026-09-10 — deep curriculum scenario architecture sweep (planning only, no code changed)
+
+Owner asked for a deep review of the coursework across all 12 SOC Analyst
+modules: come up with real-world, modern scenarios matching Security+ theory,
+and bring every module up to Module 1's format, all the way to the capstone.
+Read Module 1 through 12's actual source (`portal/soc-analyst-module-01.js`
+through `-12.js`), `CURRICULUM_MAP.md`, `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`,
+and `course_SOC_standardized.md` directly rather than trusting prior handoff
+summaries, and confirmed all 12 modules already have substantial content —
+the real gap is that Modules 2–11 lack Module 1's per-lesson scenario →
+theory → knowledge-check → applied-task loop and second lab, and no reviewed
+Security+ (SY0-701) domain crosswalk exists yet (`CURRICULUM_MAP.md` itself
+flags this as open). Wrote the full findings, a draft SY0-701 crosswalk, a
+real-world-modeled scenario for every module (continuing Module 1's "Mission
+Next Labs" fictional org for continuity through the capstone), and a
+sprint-by-sprint execution plan (Sprint 2 through 14) into
+`CURRICULUM_SCENARIO_ARCHITECTURE.md` — **not yet built, planning only.**
+Start the next content session there.
+
 ## Session 2026-09-10 (done, pushed and verified live) — outside-perspective pentest of the admin credentials panel; found and closed an anon table-grant gap
 
 Site owner asked to pentest the admin panel's "view credentials" feature

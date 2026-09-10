@@ -59,6 +59,16 @@ of archiving:
 - `STOPPING_POINT_2026-08-18.md` — explicitly "complete and verified."
 - `MODULAR_LAB_PROGRAM_PROGRESS.md` — Waves 1-4 complete; reconciled against
   the later curriculum-alignment wave in its own closing note.
+- `ACTIVITY_MONITOR_CHEATING_FLAGS_CLOBBER_2026-09-10.md` — the admin
+  Activity Monitor's "0 sign-ins total" bug (data fetched fine, RLS fine,
+  but the DOM never updated) traced to a stray `cheatingFlagsByUserId` key
+  in `loadAdminLazyTab('activity')`'s return value clobbering the real `Map`
+  via `Object.assign`, throwing inside `viewAdmin()` before `app.innerHTML`
+  was ever reassigned — silently broke every admin tab switch afterward, not
+  just Activity Monitor. Fixed, verified live in Chrome (166 sign-ins
+  rendering, Cohorts tab still working afterward). Left as an uncommitted
+  working-tree change for the site owner to review before committing —
+  the write-up itself is done and verified, hence archived now.
 - `PROGRESS_M07_EMAIL_KQL.md` — Module 7 email/KQL UI shipped. Two minor
   items were explicitly flagged as not done in the note itself (an
   "Initial Access" evidence marker and auto-populating the final report from

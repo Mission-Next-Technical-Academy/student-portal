@@ -6011,7 +6011,7 @@ async function loadAdminLazyTab(tab, options = {}) {
     ]));
     const readError = [activity, completed, logins, sessions].find((result) => result.error)?.error;
     if (readError) throw readError;
-    return { loginEvents: logins.data || [], siteSessionsByStudentId: groupRowsByKey(sessions.data || [], 'student_id'), activityRows: activity.data || [], cheatingFlagsByUserId: completed.error ? new Map() : completed.data, completedRows: completed.data || [], activityRowLimit: ADMIN_ACTIVITY_ROW_LIMIT };
+    return { loginEvents: logins.data || [], siteSessionsByStudentId: groupRowsByKey(sessions.data || [], 'student_id'), activityRows: activity.data || [], completedRows: completed.data || [], activityRowLimit: ADMIN_ACTIVITY_ROW_LIMIT };
   }
   if (tab === 'cohorts') {
     const [cohorts, members] = await Promise.all([
