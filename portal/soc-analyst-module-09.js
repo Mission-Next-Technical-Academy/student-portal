@@ -6,6 +6,7 @@ const MODULE_NINE_LAB_ID = 'm09-proportional-response-v1';
 const MODULE_NINE_FLAG = 'M09-INCIDENT-RESPONSE-COMPLETE';
 const MODULE_NINE_CATALOG_LAB_KEY = 'lab-active-incident';
 const MODULE_NINE_PASSING_SCORE = 70;
+const MODULE_NINE_CATALOG_MODULE = LABS.find((item) => item.key === MODULE_NINE_CATALOG_LAB_KEY);
 
 const MODULE_NINE_SOURCES = {
   endpoint: {
@@ -44,6 +45,338 @@ const MODULE_NINE_SOURCES = {
 };
 
 const MODULE_NINE_EXPECTED_EVIDENCE = ['IR-901', 'IR-902', 'IR-906', 'IR-908', 'IR-909', 'IR-911'];
+
+const MODULE_NINE_QUIZ_BANKS = [
+  {
+    conceptId: 'cross-source-correlation',
+    conceptTitle: 'Cross-source correlation',
+    questions: [
+      {
+        id: 'm09-q-corr-1',
+        prompt: 'You observe a script execution on an endpoint at 09:14 and an unfamiliar account token refresh from a different geographic location at 09:18. What is the BEST first step before linking them into one incident?',
+        options: [
+          { id: 'a', text: 'Link them immediately because they occurred within minutes of each other.' },
+          { id: 'b', text: 'Validate that both events share a common entity (account, endpoint, or network address) and check timeline overlap and behavioral context.' },
+          { id: 'c', text: 'Ignore the token refresh because account activity is normal background noise.' },
+          { id: 'd', text: 'Report both events separately to different teams without analysis.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Correlation requires shared identity, shared infrastructure, or timing tight enough to rule out coincidence—not just temporal proximity alone.',
+        feedbackIncorrect: 'Time alone does not prove correlation. You must connect the evidence through entity (endpoint, account, IP) and check whether the surrounding behavior supports a single incident.',
+      },
+      {
+        id: 'm09-q-corr-2',
+        prompt: 'Two endpoints contact the same external IP address at different times, but endpoint A does so through normal web browsing and endpoint B through an unsigned process. How does context change your assessment?',
+        options: [
+          { id: 'a', text: 'They must be part of the same attack because they shared an IP address.' },
+          { id: 'b', text: 'The shared IP alone is insufficient. The process context (signed vs. unsigned) and behavior patterns determine whether they belong to one incident or are independent.' },
+          { id: 'c', text: 'Ignore the shared address and treat them as unrelated.' },
+          { id: 'd', text: 'The destination IP is all that matters; context is irrelevant.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. A shared indicator (IP, domain, hash) is correlation material only when supported by matching behavior and entity context.',
+        feedbackIncorrect: 'Indicators alone do not prove correlation. A shared address may be coincidence if the behavior, entities, and timing differ significantly.',
+      },
+      {
+        id: 'm09-q-corr-3',
+        prompt: 'An endpoint alert shows a file downloaded and executed. A separate firewall alert shows the same user account logging in from an unusual location. Both events occurred within the same hour. What should you do before escalating as a single incident?',
+        options: [
+          { id: 'a', text: 'Escalate both immediately as a compromised endpoint and account.' },
+          { id: 'b', text: 'Verify that the download-execute and login events share the same endpoint or account identifier, and check whether the timing suggests one actor or two separate events.' },
+          { id: 'c', text: 'Dismiss the unusual location as a false positive.' },
+          { id: 'd', text: 'Treat them as separate incidents without further analysis.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Correlation requires validation that events belong to the same subject and that timing/behavior suggest a single incident, not coinciding background activity.',
+        feedbackIncorrect: 'Endpoint alerts and identity alerts can fire independently. You must connect them through a shared identifier and verify the sequence supports a unified incident story.',
+      },
+      {
+        id: 'm09-q-corr-4',
+        prompt: 'You see three evidence sources: endpoint execution, account token use, and network connection. Which of these BEST establishes correlation across all three?',
+        options: [
+          { id: 'a', text: 'The endpoint execution record, because execution is always the root cause.' },
+          { id: 'b', text: 'The network connection, because network telemetry covers all endpoints.' },
+          { id: 'c', text: 'The account token use sharing the endpoint ID and time window with the execution, plus the network connection from that endpoint to the same destination.' },
+          { id: 'd', text: 'Any single source is sufficient if it has a high confidence score.' },
+        ],
+        correctId: 'c',
+        feedbackCorrect: 'Correct. Strong correlation requires multiple sources sharing entity (endpoint or account) and timing alignment that makes coincidence unlikely.',
+        feedbackIncorrect: 'No single source type is universally sufficient. Correlation is strongest when independent sources share common identifiers and timing.',
+      },
+    ],
+  },
+  {
+    conceptId: 'scoping-uncertainty',
+    conceptTitle: 'Scoping and uncertainty',
+    questions: [
+      {
+        id: 'm09-q-scope-1',
+        prompt: 'A malware sample is found on one endpoint in a department of 150 devices. Your evidence spans only 4 hours and covers a small slice of network traffic. What is accurate to communicate?',
+        options: [
+          { id: 'a', text: 'The full department is compromised and you should assume all 150 devices are infected.' },
+          { id: 'b', text: 'One endpoint is confirmed compromised. The scope beyond that device is unproven by this limited data; continue monitoring for matches.' },
+          { id: 'c', text: 'There is no incident because only one device is affected.' },
+          { id: 'd', text: 'The wider network is definitely clean because the search found nothing elsewhere.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. State what is confirmed (one endpoint). Acknowledge what is not observed (lateral movement, wider compromise) without claiming the environment is clean.',
+        feedbackIncorrect: 'Limited evidence cannot prove enterprise-wide safety. Absence of evidence in a bounded search is not proof of absence.',
+      },
+      {
+        id: 'm09-q-scope-2',
+        prompt: 'You search for an indicator across your network and find zero matches. Can you state that no other systems are compromised?',
+        options: [
+          { id: 'a', text: 'Yes, because the search covered the entire network.' },
+          { id: 'b', text: 'No. A search of available logs and telemetry covers only what was collected. Gaps in logging, unmonitored segments, or different attacker behaviors remain possible.' },
+          { id: 'c', text: 'Yes, if the search tool is sophisticated.' },
+          { id: 'd', text: 'No, only if an executive approves the statement.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. State the search scope, tools, and time window. Do not claim the environment is clean beyond what those tools can observe.',
+        feedbackIncorrect: 'Search results are bounded by log retention, collection configuration, and tool capability. Negative results do not prove absence outside those boundaries.',
+      },
+      {
+        id: 'm09-q-scope-3',
+        prompt: 'Your lab environment shows confirmed endpoint and account compromise. Your actual incident scope is limited to those two entities. How should you frame the response?',
+        options: [
+          { id: 'a', text: 'Contain and remediate the endpoint and account; assume the wider organization is clean.' },
+          { id: 'b', text: 'Take proportionate action on confirmed entities; continue scoped monitoring for indicators; defer claims about the wider environment.' },
+          { id: 'c', text: 'Declare the entire infrastructure compromised to be safe.' },
+          { id: 'd', text: 'Do nothing until you can prove lateral movement.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Respond to confirmed scope; monitor for evidence of wider compromise without making unproven claims.',
+        feedbackIncorrect: 'Proportionate response means matching action to confirmed scope while remaining vigilant for evidence of expansion.',
+      },
+      {
+        id: 'm09-q-scope-4',
+        prompt: 'After containment, you search for the attacker\'s behavior elsewhere and find no matches. Your responders want to declare the environment clean. What is the professional boundary?',
+        options: [
+          { id: 'a', text: 'Agree with the declaration because absence of evidence is proof of absence.' },
+          { id: 'b', text: 'State that the investigation found no matches within search parameters; maintain monitoring and be prepared to adjust if future data arrives.' },
+          { id: 'c', text: 'Escalate to deny them the ability to declare safety.' },
+          { id: 'd', text: 'Accept their declaration and close all monitoring.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Report what the data shows; acknowledge search boundaries; maintain alertness without overclaiming certainty.',
+        feedbackIncorrect: 'Professional incident response requires precision: state findings, not hopes. Monitoring continues because absence in a snapshot is not proof of permanence.',
+      },
+    ],
+  },
+  {
+    conceptId: 'response-phase-discipline',
+    conceptTitle: 'Incident response phase discipline',
+    questions: [
+      {
+        id: 'm09-q-phase-1',
+        prompt: 'You have contained an infected endpoint by isolating its network access. The endpoint is no longer able to communicate. What is the NEXT phase action?',
+        options: [
+          { id: 'a', text: 'Reconnect it immediately so users can return to work.' },
+          { id: 'b', text: 'Eradicate: remove the malware, patch vulnerabilities, and validate the system is clean before recovery.' },
+          { id: 'c', text: 'Delete all logs to prevent the attacker from seeing evidence.' },
+          { id: 'd', text: 'Perform a full disk wipe without forensic analysis.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. After containment limits harm, eradication removes the foothold. Only after successful eradication does recovery restore service.',
+        feedbackIncorrect: 'Phases are sequential: contain the active threat, then eradicate the root cause, then restore service. Skipping steps allows reinfection.',
+      },
+      {
+        id: 'm09-q-phase-2',
+        prompt: 'During the eradication phase, you discover the attacker also compromised user credentials. What action belongs in this phase, and what belongs in recovery?',
+        options: [
+          { id: 'a', text: 'Eradicate: reset all credentials; Recovery: restore service immediately.' },
+          { id: 'b', text: 'Eradicate: reset credentials and revoke active sessions; Recovery: re-enable accounts and monitor for misuse.' },
+          { id: 'c', text: 'Eradicate: do nothing to credentials because they are not malware.' },
+          { id: 'd', text: 'Recovery: reset credentials before endpoint work is complete.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Eradication removes the attacker\'s access paths (credentials, sessions). Recovery carefully restores user access with monitoring.',
+        feedbackIncorrect: 'Credential reset is eradication (removes attacker access). Account re-enablement is recovery (restores legitimate access). The sequence matters.',
+      },
+      {
+        id: 'm09-q-phase-3',
+        prompt: 'Your eradication work is complete. The system has been patched, malware removed, and credentials reset. Can you reconnect the endpoint to the network now?',
+        options: [
+          { id: 'a', text: 'Yes, because eradication is finished.' },
+          { id: 'b', text: 'No. Validate that patches are installed, the system boots cleanly, and malware scans show no alerts. Only then proceed to recovery.' },
+          { id: 'c', text: 'Yes, if time-critical business needs it.' },
+          { id: 'd', text: 'No, keep it isolated forever.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Recovery requires validation that the endpoint is actually clean, not just our intention that it should be.',
+        feedbackIncorrect: 'Reconnecting before validation is how reinfection happens. Validate the eradication work before recovery.',
+      },
+      {
+        id: 'm09-q-phase-4',
+        prompt: 'What is the PRIMARY purpose of documenting lessons learned AFTER recovery is complete?',
+        options: [
+          { id: 'a', text: 'To assign blame to individuals.' },
+          { id: 'b', text: 'To identify process gaps and improve detection, response playbooks, and controls for future incidents.' },
+          { id: 'c', text: 'Lessons learned are not necessary; the incident is resolved.' },
+          { id: 'd', text: 'To present a case against a specific tool vendor.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Lessons learned (part of the "Learn" phase) improve your organization\'s ability to detect and respond to similar incidents.',
+        feedbackIncorrect: 'Post-incident review is critical. It converts reactive response into continuous improvement.',
+      },
+    ],
+  },
+  {
+    conceptId: 'proportionate-severity',
+    conceptTitle: 'Proportionate severity classification',
+    questions: [
+      {
+        id: 'm09-q-sev-1',
+        prompt: 'A malware execution and unfamiliar account session occur on a single employee workstation. No data access or lateral movement is observed. What is a proportionate severity rating?',
+        options: [
+          { id: 'a', text: 'Critical: because malware was executed.' },
+          { id: 'b', text: 'High: the incident is confirmed and requires prompt response, but the scope and impact are limited to one device and account.' },
+          { id: 'c', text: 'Low: it is only one workstation, so it is not urgent.' },
+          { id: 'd', text: 'Informational: because no data was accessed.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. High severity reflects confirmed compromise and persistence, tempered by limited scope and impact. Severity increases if lateral movement or critical assets are affected.',
+        feedbackIncorrect: 'Severity balances impact, scope, and exploitability. A single infected workstation with no data access is serious but not enterprise-wide critical.',
+      },
+      {
+        id: 'm09-q-sev-2',
+        prompt: 'An attacker compromised a workstation and used that endpoint to access a database server containing customer financial records. What severity is appropriate?',
+        options: [
+          { id: 'a', text: 'High: only one workstation was directly infected.' },
+          { id: 'b', text: 'Critical: the incident includes lateral movement and access to sensitive data on a business-critical asset.' },
+          { id: 'c', text: 'Medium: database breaches are common.' },
+          { id: 'd', text: 'Low: because the customer data was not exfiltrated.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Scope (lateral movement), impact (sensitive data systems), and criticality (financial data) elevate this to critical.',
+        feedbackIncorrect: 'Scope and impact determine severity. Access to sensitive systems or data multiplies the incident\'s business consequence.',
+      },
+      {
+        id: 'm09-q-sev-3',
+        prompt: 'A prevention control (EDR) blocked a malware execution attempt before it ran. Does this change the severity rating?',
+        options: [
+          { id: 'a', text: 'Yes: there is no severity because the malware was blocked.' },
+          { id: 'b', text: 'No: the malware still represents a threat; the control reduced impact but does not eliminate the need to understand why the endpoint was targeted.' },
+          { id: 'c', text: 'Yes: severity downgrade to informational.' },
+          { id: 'd', text: 'No: classify it as critical regardless of the control.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Prevention success is a control strength, not a reason to ignore the threat. A blocked attack still represents targeting and risk.',
+        feedbackIncorrect: 'Controls reduce impact, not severity of the underlying threat. You still need to investigate why the endpoint was chosen.',
+      },
+      {
+        id: 'm09-q-sev-4',
+        prompt: 'Your response plan is to isolate the endpoint, reset credentials, and restore the device. How should severity classification guide your response timeline?',
+        options: [
+          { id: 'a', text: 'High severity: complete containment within 2–4 hours; eradication and validation within 8 hours.' },
+          { id: 'b', text: 'High severity: defer all action until the next day.' },
+          { id: 'c', text: 'High severity: implement every possible response regardless of business impact.' },
+          { id: 'd', text: 'High severity does not affect timeline.' },
+        ],
+        correctId: 'a',
+        feedbackCorrect: 'Correct. Severity, scope, and impact determine the response timeline. High severity with confirmed compromise and active sessions requires swift but deliberate action.',
+        feedbackIncorrect: 'Severity classification should drive response tempo. High severity demands hours, not days; critical demands faster.',
+      },
+    ],
+  },
+  {
+    conceptId: 'escalation-handoff',
+    conceptTitle: 'Escalation and handoff communication',
+    questions: [
+      {
+        id: 'm09-q-hand-1',
+        prompt: 'As a Tier 1 responder, you have completed investigation and built a containment plan. What is your authority and the next step?',
+        options: [
+          { id: 'a', text: 'Execute all response actions yourself without escalation.' },
+          { id: 'b', text: 'Initiate approved playbook actions; escalate the evidence, scope, and requested specialist actions (eradication, recovery, validation) to the incident lead and system owners.' },
+          { id: 'c', text: 'Do not escalate because you have completed your work.' },
+          { id: 'd', text: 'Escalate without a clear plan or evidence.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Tier 1 authority includes investigation and initiating approved actions. Specialists own execution of eradication, identity remediation, and recovery validation.',
+        feedbackIncorrect: 'Escalation with evidence and a clear plan enables specialist teams to take action within their authority. Vague escalation wastes time.',
+      },
+      {
+        id: 'm09-q-hand-2',
+        prompt: 'You are writing a handoff to the incident lead. Which of these MUST be included for the next team to act effectively?',
+        options: [
+          { id: 'a', text: 'General statement that there is an incident; everything else is optional.' },
+          { id: 'b', text: 'Confirmed scope (endpoint and account), strongest evidence, requested containment actions, and the condition you need before recovery (e.g., "validate clean scan").' },
+          { id: 'c', text: 'A list of unrelated alerts.' },
+          { id: 'd', text: 'The incident is resolved so no handoff needed.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. A complete handoff includes what is confirmed, the evidence foundation, who should do what, and the acceptance criteria for the next phase.',
+        feedbackIncorrect: 'Vague handoffs result in wasted escalation, unclear accountability, and delayed response. Precision enables specialist action.',
+      },
+      {
+        id: 'm09-q-hand-3',
+        prompt: 'Your incident evidence names a specific account, endpoint, and correlated behavioral indicators. When you escalate, why is precision important?',
+        options: [
+          { id: 'a', text: 'It is not important; the incident lead can figure out what you meant.' },
+          { id: 'b', text: 'Precision ensures the team remediates the correct entities, avoids collateral business impact, and documents the scope for compliance and forensics.' },
+          { id: 'c', text: 'Precision slows down escalation.' },
+          { id: 'd', text: 'The incident lead prefers ambiguity to avoid accountability.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: 'Correct. Precise scope prevents both under-response (missing the actual compromise) and over-response (remediating unaffected systems).',
+        feedbackIncorrect: 'Vague scope creates risk. Specialists need exact entities so they can act with confidence and compliance.',
+      },
+      {
+        id: 'm09-q-hand-4',
+        prompt: 'What SHOULD NOT be in your handoff to the next team?',
+        options: [
+          { id: 'a', text: 'Assumptions about whether the wider environment is clean—you do not know.' },
+          { id: 'b', text: 'Blame or accusations about individuals or teams.' },
+          { id: 'c', text: 'The scope and evidence you actually found.' },
+          { id: 'd', text: 'Both A and B.' },
+        ],
+        correctId: 'd',
+        feedbackCorrect: 'Correct. Avoid claims beyond your evidence, and focus on facts, not blame. Let specialists and management handle accountability separately from response.',
+        feedbackIncorrect: 'Professional handoffs are evidence-focused. Assumptions and blame undermine the next team\'s confidence and create distraction.',
+      },
+    ],
+  },
+];
+
+const MODULE_NINE_SOURCES_LIST = [
+  {
+    title: 'Incident Response Recommendations and Considerations for Cybersecurity Risk Management (SP 800-61 Rev. 3)',
+    org: 'NIST',
+    url: 'https://csrc.nist.gov/pubs/sp/800/61/r3/final',
+    note: 'The authoritative incident response framework covering preparation, detection, analysis, containment, eradication, and recovery phases.',
+  },
+  {
+    title: 'Federal Government Cybersecurity Incident and Vulnerability Response Playbooks',
+    org: 'CISA',
+    url: 'https://www.cisa.gov/resources-tools/resources/federal-government-cybersecurity-incident-and-vulnerability-response-playbooks',
+    note: 'Standardized operational procedures for incident response, including scoping, containment, and escalation within defined authority boundaries.',
+  },
+  {
+    title: 'MITRE ATT&CK — Persistence',
+    org: 'MITRE',
+    url: 'https://attack.mitre.org/tactics/TA0003/',
+    note: 'Covers autostart/scheduled-task persistence techniques (T1547, T1053) — directly matching this module\'s startup-task evidence.',
+  },
+  {
+    title: 'MITRE ATT&CK — Command and Control',
+    org: 'MITRE',
+    url: 'https://attack.mitre.org/tactics/TA0011/',
+    note: 'Covers adversary command-and-control communication — relevant to the correlated outbound network session in this module.',
+  },
+  {
+    title: 'Guide for Cybersecurity Event Recovery (SP 800-184)',
+    org: 'NIST',
+    url: 'https://csrc.nist.gov/pubs/sp/800/184/final',
+    note: 'Planning and validation guidance for the recovery phase — deciding when it is safe to restore a contained host or re-enable an account.',
+  },
+  {
+    title: 'Security+ (SY0-701) Certification Overview & Objectives Summary',
+    org: 'CompTIA',
+    url: 'https://www.comptia.org/certifications/security',
+    note: 'Foundational security certification objectives covering incident response phases, severity classification, and scope documentation.',
+  },
+];
 const MODULE_NINE_RESPONSE_OPTIONS = {
   contain: [
     { id: 'isolate-lt73', label: 'Isolate LT-73 through the approved endpoint playbook.', help: 'Limits further network activity on the confirmed host while preserving response access.' },
@@ -68,6 +401,8 @@ const MODULE_NINE_RESPONSE_OPTIONS = {
 
 let moduleNineState = null;
 let moduleNineUser = null;
+let moduleNineQuizState = null;
+let moduleNineReviewMode = false;
 
 function moduleNineFreshDefaults() {
   return {
@@ -101,6 +436,24 @@ function moduleNineLoad(user) {
     if (!Array.isArray(moduleNineState.responsePlan[phase])) moduleNineState.responsePlan[phase] = [];
   });
   if (!MODULE_NINE_SOURCES[moduleNineState.activeSource]) moduleNineState.activeSource = 'endpoint';
+
+  // Initialize quiz state
+  if (!moduleNineQuizState) {
+    const previousQuestionIds = moduleNineState.lastQuizQuestionIds || [];
+    const selection = selectQuizQuestions(MODULE_NINE_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
+    moduleNineQuizState = {
+      selectedQuestions: selection.selectedQuestions,
+      questionsByAnswer: selection.questionsByAnswer,
+      answers: {},
+      scored: false,
+      attempts: 0,
+      score: 0,
+      bestScore: 0,
+      feedback: [],
+      passed: false,
+    };
+  }
+
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-09');
   return moduleNineState;
 }
@@ -117,6 +470,15 @@ function moduleNineRow(id) {
   return moduleNineAllRows().find((row) => row.id === id);
 }
 
+function moduleNineGetSections() {
+  return [
+    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm09-lecture' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleNineQuizState?.passed, scrollId: 'm09-knowledge-check' },
+    { id: 'incident-response-lab', title: 'Incident Response Lab', type: 'lab', isComplete: moduleNineState.completed, scrollId: 'm09-lab' },
+    { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm09-review' },
+  ];
+}
+
 function moduleNineConcepts() {
   const cards = [
     ['ri-link-m', 'Correlate before acting', 'Connect time, entity, behavior, and source. A shared address is useful only when the surrounding activity supports the relationship.'],
@@ -126,6 +488,107 @@ function moduleNineConcepts() {
   ];
   return `<div class="m09-concept-grid">${cards.map((card) => `<article><i class="${esc(card[0])}" aria-hidden="true"></i><h3>${esc(card[1])}</h3><p>${esc(card[2])}</p></article>`).join('')}</div>
     <div class="m09-lifecycle" aria-label="Incident response sequence"><span>Detect &amp; analyze</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Contain</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Eradicate</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Recover</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Learn</span></div>`;
+}
+
+function moduleNineQuizQuestion(selected, index) {
+  const question = selected.question;
+  const userAnswerId = moduleNineQuizState?.answers?.[question.id];
+  const answered = userAnswerId !== undefined;
+  return `<fieldset class="m09-quiz-question" data-question-id="${esc(question.id)}">
+    <legend><span>${index + 1}</span> ${esc(selected.conceptTitle)}: ${esc(question.prompt)}</legend>
+    <div class="m09-quiz-options">
+      ${selected.shuffledOptions.map((option) => `<label>
+        <input type="radio" name="q-${esc(question.id)}" value="${esc(option.id)}" ${userAnswerId === option.id ? 'checked' : ''} data-m09-quiz-answer />
+        <span>${esc(option.text)}</span>
+      </label>`).join('')}
+    </div>
+  </fieldset>`;
+}
+
+function moduleNineQuizPanel() {
+  if (!moduleNineQuizState?.selectedQuestions || moduleNineQuizState.selectedQuestions.length === 0) {
+    return `<div class="m09-quiz-empty" id="m09-quiz-feedback" role="status">Loading quiz…</div>`;
+  }
+
+  const selected = moduleNineQuizState.selectedQuestions;
+  const answered = Object.keys(moduleNineQuizState.answers || {}).length;
+  const total = selected.length;
+
+  let feedbackHtml = '';
+  if (moduleNineQuizState.scored) {
+    const passed = moduleNineQuizState.score >= 70;
+    feedbackHtml = `<section class="m09-quiz-score ${passed ? 'm09-quiz-pass' : 'm09-quiz-remediate'}" id="m09-quiz-feedback" tabindex="-1" aria-live="polite">
+      <div class="m09-quiz-score-heading">
+        <div>
+          <p class="m09-kicker">Attempt ${moduleNineQuizState.attempts} · best ${moduleNineQuizState.bestScore}/100</p>
+          <h3>${moduleNineQuizState.score}/100 — ${passed ? 'Knowledge verified' : 'Use feedback and retry'}</h3>
+        </div>
+        <span>${moduleNineQuizState.score}</span>
+      </div>
+      <ul class="m09-quiz-feedback-list">
+        ${(moduleNineQuizState.feedback || []).map((fb) => `<li class="${fb.correct ? 'm09-quiz-feedback-correct' : 'm09-quiz-feedback-incorrect'}">
+          <i class="ri-${fb.correct ? 'checkbox-circle-fill' : 'information-line'}" aria-hidden="true"></i>
+          <div>
+            <strong>${fb.questionId}</strong>
+            <p>${esc(fb.message)}</p>
+          </div>
+        </li>`).join('')}
+      </ul>
+      ${!passed ? `<div class="m09-quiz-actions"><button type="button" class="m09-quiz-retry" data-m09-quiz-retry><i class="ri-refresh-line" aria-hidden="true"></i> Try different questions</button></div>` : ''}
+    </section>`;
+  } else if (answered === total) {
+    feedbackHtml = `<div class="m09-quiz-ready" id="m09-quiz-feedback" role="status">All questions answered. Submit to check your responses.</div>`;
+  } else {
+    feedbackHtml = `<div class="m09-quiz-empty" id="m09-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
+  }
+
+  return `<form class="m09-quiz-form" id="m09-quiz-form" novalidate>
+    <div class="m09-panel-heading"><div><p class="m09-kicker">Knowledge check</p><h3 id="m09-quiz-title" tabindex="-1">Test your understanding of incident response principles</h3></div><span>${answered}/${total} answered</span></div>
+    ${selected.map((sel, idx) => moduleNineQuizQuestion(sel, idx)).join('')}
+    <div class="m09-quiz-actions">
+      <button class="m09-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
+        <i class="ri-checkbox-circle-line" aria-hidden="true"></i> Check my answers
+      </button>
+    </div>
+    ${feedbackHtml}
+  </form>`;
+}
+
+function moduleNineVideoScript() {
+  return `<details class="m09-video-script">
+    <summary><strong>Video script (recording pending)</strong></summary>
+    <div class="m09-script-body">
+      <p><strong>Introduction:</strong> Welcome to incident response. This module teaches you how to investigate a suspicious event, determine whether it qualifies as an incident, bound the scope, and build a response plan that matches what you actually know—without making unfounded claims about the wider environment.</p>
+
+      <p><strong>Segment 1 — Correlation across sources, not single indicators.</strong> A single event—a blocked malware execution, an unusual login—is not an incident by itself. An incident is a set of correlated observations that together prove unauthorized activity. You must connect the dots through shared entities (endpoint, account, IP address) and timing. A script execution on an endpoint at 09:14 and an unfamiliar account login from a different location at 09:18 belong to the same incident only if they share an account, endpoint, or network address and the behavior pattern makes coincidence unlikely. Single indicators can be false positives, background noise, or unrelated events. Correlation requires multiple sources supporting the same story.</p>
+
+      <p><strong>Segment 2 — State what you know, not what you hope.</strong> After investigation, you will find some evidence and not find other evidence. A scoped search across one endpoint and no others means you have confirmed one endpoint's compromise, not that the wider environment is clean. Absence of evidence in a bounded dataset is not evidence of absence. Communicate your scope and search boundaries precisely. Say "We found these entities compromised" and "We searched this data and found no matches," not "The environment is definitely clean" or "Everyone is probably compromised." This precision lets specialists and management make informed decisions about what comes next.</p>
+
+      <p><strong>Segment 3 — Incident response phases are sequential, not parallel.</strong> Containment stops active harm—isolate the infected endpoint, revoke the compromised account's active sessions. Eradication removes the root cause—remove the malware, reset credentials, patch vulnerabilities. Recovery restores service—reconnect the endpoint after validation, re-enable the account with monitoring. Do them in order. Skipping containment and jumping to eradication risks active attacks continuing. Skipping eradication and jumping to recovery reintroduces the same compromise. Each phase depends on the previous one's success.</p>
+
+      <p><strong>Segment 4 — Severity classification balances scope, impact, and evidence.</strong> Malware execution is serious, but a prevented execution on a single employee workstation is lower severity than malware running on a critical database server. Account compromise is serious, but a single account is lower severity than the compromised account used to access sensitive systems. Severity reflects the true business consequence of the incident—not panic, not minimization, but proportionate classification. High severity may warrant response within hours; critical within minutes. Low-risk events warrant standard procedures. Match your severity to what the evidence actually shows.</p>
+
+      <p><strong>Segment 5 — Escalation with evidence and a clear plan.</strong> As a Tier 1 responder, your authority includes investigation and initiating approved playbook actions (isolation, account revocation, log collection). You do not have authority to patch critical systems, reset every credential in the environment, or declare the organization clean. Your job is to investigate, correlate the evidence, define the scope, and escalate to the incident lead and system owners with a clear request: "Endpoint LT-73 and account acct-73 are confirmed compromised. Isolate LT-73, revoke acct-73 sessions, reset credentials, and validate the endpoint is clean before reconnection." That precision lets specialists execute their part without needing to guess what you meant.</p>
+
+      <p><strong>Closing:</strong> Incident response is a discipline of evidence-based decisions with clear authority boundaries. Correlate before acting. State your scope and uncertainty. Follow the phases. Classify proportionately. Escalate with precision. Your team depends on it.</p>
+    </div>
+  </details>`;
+}
+
+function moduleNineReview() {
+  return `<section class="m09-review-section">
+    <h3>Module concepts at a glance</h3>
+    <ul>
+      <li><strong>Cross-source correlation:</strong> Connect observations through shared entities (endpoint, account, IP) and timing patterns. A single indicator is not correlation—it requires multiple sources supporting the same incident story.</li>
+      <li><strong>Scoping and uncertainty:</strong> Communicate what you confirmed, what you did not observe, and what your limited search cannot prove. Absence of evidence in a bounded dataset is not proof of enterprise-wide safety.</li>
+      <li><strong>Response phase discipline:</strong> Containment stops active harm, eradication removes the root cause, recovery restores service. Complete each phase before the next. Skipping phases allows reinfection or continued compromise.</li>
+      <li><strong>Proportionate severity classification:</strong> Match severity to demonstrated scope and impact. Malware on one user endpoint is serious; malware with lateral movement to critical systems is critical. Severity drives response timeline.</li>
+      <li><strong>Escalation and handoff communication:</strong> As a Tier 1 responder, initiate approved actions and escalate the evidence, exact scope, and requested specialist actions. Precision enables the incident lead and owners to act confidently.</li>
+      <li><strong>Authority and accountability:</strong> Know your role's boundaries. You investigate and escalate; specialists and owners execute remediation and validation. Clear handoffs prevent confusion and wasted cycles.</li>
+    </ul>
+    <h3>Before you continue</h3>
+    <p>You should now be able to correlate evidence across endpoint, identity, and network sources; bound the scope of an incident based on what you actually found; classify severity proportionately; design a containment-to-recovery plan that respects response phases; and write a clear, evidence-based handoff to incident specialists. In later modules and on-the-job, you will apply these skills in rapid triage, escalation, and coordinated response scenarios.</p>
+  </section>`;
 }
 
 function moduleNineSourceTabs() {
@@ -216,13 +679,52 @@ function moduleNineDynamic() {
 function viewModuleNine(user, program) {
   moduleNineLoad(user);
   const module = program.modules['soc-09'];
-  const moduleLab = LABS.find((item) => item.key === MODULE_NINE_CATALOG_LAB_KEY);
-  return `<div class="m09-shell">${moduleTopbar(user, program)}<main class="m09-main">
-    <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · ${formatInstructionalMinutes(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p><a class="m09-primary" href="#m09-field-guide"><i class="ri-book-open-line" aria-hidden="true"></i> Review the response guide</a></div><dl aria-label="Saved lab progress"><div><dt>Evidence sources</dt><dd>3</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(moduleLab.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
-    <section class="m09-objective" aria-labelledby="m09-objective-title"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m09-kicker">Measurable objective</p><h2 id="m09-objective-title">Correlate six incident records across three sources, bound the confirmed endpoint and identity scope, and produce a proportional containment, eradication, recovery, and escalation handoff scoring at least ${MODULE_NINE_PASSING_SCORE}/100.</h2></div></section>
-    <section class="m09-section" id="m09-field-guide" aria-labelledby="m09-guide-title"><div class="m09-section-heading"><span>1</span><div><p class="m09-kicker">Response guide</p><h2 id="m09-guide-title">Act on evidence, not urgency alone</h2></div></div>${moduleNineConcepts()}</section>
-    <section class="m09-section m09-lab-section" aria-labelledby="m09-lab-title"><div class="m09-section-heading"><span>2</span><div><p class="m09-kicker">Miniature response desk · no full range navigation</p><h2 id="m09-lab-title">Active incident IR-09-44</h2></div></div><div class="m09-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: Tier 1 incident responder</strong><p>Investigate the three sources in any order. You may initiate playbook-approved containment and recommend later phases; the incident lead and system owners retain execution authority.</p></div></div><div id="m09-lab-dynamic">${moduleNineDynamic()}</div></section>
-  </main></div>`;
+  const sections = moduleNineGetSections();
+  const lectureOpen = moduleNineReviewMode || !sections[0].isComplete;
+  const quizOpen = moduleNineReviewMode || (moduleNineQuizState && !moduleNineQuizState.passed);
+  const labOpen = moduleNineReviewMode || !sections[2].isComplete;
+  const reviewOpen = moduleNineReviewMode;
+
+  return `<div class="m09-shell">
+    ${moduleTopbar(user, program)}
+    ${moduleProgressShell(sections, { reviewMode: moduleNineReviewMode })}
+    <main class="m09-main">
+      <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · ${formatInstructionalMinutes(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p><a class="m09-primary" href="#m09-lecture"><i class="ri-book-open-line" aria-hidden="true"></i> Review the response guide</a></div><dl aria-label="Saved lab progress"><div><dt>Evidence sources</dt><dd>3</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+
+      <details class="m09-section-collapsible" ${lectureOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">1</span><div><p class="m09-kicker">Lecture</p><h2 id="m09-lecture">Incident response principles: correlation, scope, and proportionate action</h2></div></div></summary>
+        <div class="m09-section-body">
+          <section class="m09-section" id="m09-field-guide" aria-labelledby="m09-guide-title"><div class="m09-section-heading"><span>a</span><div><p class="m09-kicker">Response guide</p><h3 id="m09-guide-title">Act on evidence, not urgency alone</h3></div></div>${moduleNineConcepts()}</section>
+          ${moduleNineVideoScript()}
+        </div>
+      </details>
+
+      <details class="m09-section-collapsible" ${quizOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">2</span><div><p class="m09-kicker">Knowledge Check</p><h2 id="m09-knowledge-check">Test your understanding of incident response principles</h2></div></div></summary>
+        <div class="m09-section-body">
+          ${moduleNineQuizPanel()}
+        </div>
+      </details>
+
+      <details class="m09-section-collapsible" ${labOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">3</span><div><p class="m09-kicker">Incident Response Lab</p><h2 id="m09-lab">Active incident IR-09-44</h2></div></div></summary>
+        <div class="m09-section-body">
+          <div class="m09-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: Tier 1 incident responder</strong><p>Investigate the three sources in any order. You may initiate playbook-approved containment and recommend later phases; the incident lead and system owners retain execution authority.</p></div></div>
+          <div id="m09-lab-dynamic">${moduleNineDynamic()}</div>
+        </div>
+      </details>
+
+      <details class="m09-section-collapsible" ${reviewOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">4</span><div><p class="m09-kicker">Module Review</p><h2 id="m09-review">Key concepts and takeaways</h2></div></div></summary>
+        <div class="m09-section-body">${moduleNineReview()}</div>
+      </details>
+
+      <details class="m09-section-collapsible" ${moduleNineReviewMode ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">5</span><div><p class="m09-kicker">Sources &amp; Further Reading</p><h2 id="m09-sources">Authoritative references</h2></div></div></summary>
+        <div class="m09-section-body">${moduleSourcesBlock(MODULE_NINE_SOURCES_LIST)}</div>
+      </details>
+    </main>
+  </div>`;
 }
 
 function moduleNineSelectionScore(selected, expected, points) {
@@ -273,8 +775,81 @@ function moduleNineRender(focusId) {
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
+function moduleNineRenderQuiz() {
+  const root = document.getElementById('m09-quiz-form');
+  if (!root) return;
+  const formHtml = moduleNineQuizPanel();
+  // Parse the form from the HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = formHtml;
+  const newForm = tempDiv.querySelector('form') || tempDiv.querySelector('div');
+  root.innerHTML = newForm.innerHTML;
+}
+
 function moduleNineToggleValue(list, value, checked) {
   return checked ? [...new Set([...list, value])] : list.filter((item) => item !== value);
+}
+
+function moduleNineScoreQuiz() {
+  if (!moduleNineQuizState?.selectedQuestions || moduleNineQuizState.selectedQuestions.length === 0) {
+    return null;
+  }
+  const result = scoreQuizAttempt(moduleNineQuizState.selectedQuestions, moduleNineQuizState.questionsByAnswer, moduleNineQuizState.answers);
+  return result;
+}
+
+function wireModuleNineQuiz() {
+  const quizForm = document.getElementById('m09-quiz-form');
+  if (!quizForm) return;
+
+  // Event delegation for answers (radio buttons in quiz)
+  quizForm.addEventListener('change', (event) => {
+    const input = event.target;
+    if (input.name?.startsWith('q-') && input.type === 'radio') {
+      const questionId = input.name.replace('q-', '');
+      moduleNineQuizState.answers[questionId] = input.value;
+      moduleNineRenderQuiz();
+    }
+  });
+
+  // Event delegation for submit
+  quizForm.addEventListener('submit', (event) => {
+    if (event.target.classList.contains('m09-quiz-form')) {
+      event.preventDefault();
+      const result = moduleNineScoreQuiz();
+      if (!result) return;
+
+      moduleNineQuizState.scored = true;
+      moduleNineQuizState.attempts += 1;
+      moduleNineQuizState.score = result.score;
+      moduleNineQuizState.bestScore = Math.max(moduleNineQuizState.bestScore || 0, result.score);
+      moduleNineQuizState.feedback = result.feedback;
+      moduleNineQuizState.passed = result.score >= 70;
+      moduleNineQuizState.lastQuizQuestionIds = moduleNineQuizState.selectedQuestions.map((sel) => sel.question.id);
+
+      moduleNineRenderQuiz();
+    }
+  });
+
+  // Event delegation for retry button - CRITICAL: use event delegation, not one-time querySelector
+  quizForm.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-m09-quiz-retry]')) return;
+    // Reset quiz state and select new questions
+    const previousQuestionIds = moduleNineQuizState.lastQuizQuestionIds || [];
+    const selection = selectQuizQuestions(MODULE_NINE_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
+    moduleNineQuizState = {
+      selectedQuestions: selection.selectedQuestions,
+      questionsByAnswer: selection.questionsByAnswer,
+      answers: {},
+      scored: false,
+      attempts: moduleNineQuizState.attempts,
+      score: moduleNineQuizState.score,
+      bestScore: moduleNineQuizState.bestScore,
+      feedback: [],
+      passed: moduleNineQuizState.passed,
+    };
+    moduleNineRenderQuiz();
+  });
 }
 
 function wireModuleNineLab() {
@@ -425,4 +1000,26 @@ function wireModuleNineLab() {
   });
 }
 
-registerModuleLab({ program: 'soc-analyst', moduleNumber: 9, moduleKey: 'soc-09', view: viewModuleNine, wire: wireModuleNineLab });
+function wireModuleNine() {
+  // Wire the review toggle button
+  const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
+  if (reviewToggle) {
+    reviewToggle.addEventListener('click', () => {
+      moduleNineReviewMode = !moduleNineReviewMode;
+      const isOpen = moduleNineReviewMode;
+      reviewToggle.setAttribute('aria-pressed', isOpen);
+      reviewToggle.querySelector('i').className = isOpen ? 'ri-close-line' : 'ri-file-list-line';
+      const label = reviewToggle.querySelector('span');
+      if (label) label.textContent = isOpen ? 'Close review' : 'Review module';
+      document.querySelectorAll('.m09-section-collapsible').forEach((details) => {
+        if (isOpen) details.setAttribute('open', '');
+        else details.removeAttribute('open');
+      });
+    });
+  }
+  // Wire quiz and lab components
+  wireModuleNineQuiz();
+  wireModuleNineLab();
+}
+
+registerModuleLab({ program: 'soc-analyst', moduleNumber: 9, moduleKey: 'soc-09', view: viewModuleNine, wire: wireModuleNine });
