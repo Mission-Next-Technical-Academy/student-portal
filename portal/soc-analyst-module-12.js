@@ -134,6 +134,54 @@ const MODULE_TWELVE_REQUIREMENTS = [
   ['Submission', 'Pass the independent investigation.'],
 ];
 
+// These are orientation materials for the independent range, not scored
+// stages. The capstone deliberately keeps its single integrated assessment
+// below this section rather than splitting the experience into L→Q→L units.
+const MODULE_TWELVE_PREPARATION_LECTURES = [
+  {
+    title: 'Scenario orientation',
+    focus: 'Read the case as an analyst, not as a puzzle with a hidden answer.',
+    script: 'Operation Amber Finch begins with a high-priority signal involving a user, a workstation, and a suspicious destination. Your job is to decide what the record proves, what it does not prove, and what action is safe. The expected outcome is a defensible incident record: a bounded scope, a reproducible timeline, proportionate response, and a clear recovery gate.',
+    practice: 'Before opening a console, write a one-sentence working hypothesis and list the entities and time window you will test.',
+  },
+  {
+    title: 'Environment architecture',
+    focus: 'Understand how the synthetic range connects signals, evidence, and case work.',
+    script: 'The range presents several analyst surfaces over one shared incident slice. Alert and message records establish the lead; process, endpoint, identity, and network records let you pivot and correlate; enrichment and exposure records add context; response and case records capture decisions. Treat each surface as a source with a different purpose, then join observations by entity and time rather than by a convenient story.',
+    practice: 'Use the console labels to predict the next useful pivot: alert → message → process → network/identity → scope and exposure → response → case.',
+  },
+  {
+    title: 'Rules of engagement',
+    focus: 'Operate within authorization, safety, and evidence-preservation boundaries.',
+    script: 'This is a contained training environment. Use only the supplied synthetic records and authorized response choices. Do not broaden a response beyond verified scope, delete or alter evidence, treat an unfamiliar value as malicious by itself, or close the case before recovery is validated. When evidence is incomplete, say so and record the next bounded check instead of inventing certainty.',
+    practice: 'For every proposed action, name its target, purpose, authorization, evidence impact, and validation condition.',
+  },
+  {
+    title: 'Available tools',
+    focus: 'Choose the least disruptive tool that answers the current question.',
+    script: 'The alert queue helps prioritize; message evidence explains delivery and user action; query records support repeatable pivots; endpoint data exposes process ancestry and persistence; identity and network records establish session and connection scope; enrichment tests indicator confidence; exposure identifies contributing conditions; response and case surfaces preserve decisions. A good analyst moves between these tools with a question, not by collecting every row.',
+    practice: 'Keep a short pivot log: question, source consulted, record identifier, observation, and the next question it creates.',
+  },
+  {
+    title: 'Investigation methodology',
+    focus: 'Build a timeline and test a hypothesis with independent evidence.',
+    script: 'Start with the alert, normalize timestamps, and reconstruct the sequence from user action to execution, connection, and identity activity. Corroborate important claims across sources, distinguish observed facts from interpretation, and search for matching indicators outside the first host or account. Bound the result to the available telemetry: “no match found in this search” is useful, but it is not proof that no other activity exists.',
+    practice: 'For each conclusion, retain one direct observation and one corroborating observation; record uncertainty beside the conclusion.',
+  },
+  {
+    title: 'Documentation expectations',
+    focus: 'Make another analyst able to reproduce and challenge your reasoning.',
+    script: 'The final record should contain the verdict and priority, a time-ordered narrative, affected entities, evidence identifiers, query or pivot logic, response decisions, residual uncertainty, and accountable follow-up. Write the executive summary for a decision-maker and the technical narrative for an investigator. Use precise language: observed, correlated, assessed, contained, and verified are different claims.',
+    practice: 'Draft notes while investigating. Do not wait until the end to reconstruct why a record mattered or why an action was chosen.',
+  },
+  {
+    title: 'Incident-handling workflow',
+    focus: 'Carry the case from triage through validated recovery and closure.',
+    script: 'Move through a disciplined loop: triage the signal, investigate and scope it, preserve evidence, contain the confirmed entities, eradicate the cause, recover with validation, and communicate closure with follow-up ownership. Blocking an indicator is not the same as recovering a host or identity. The case is ready to close only when the recovery evidence, policy correction, owner validation, and monitoring plan are recorded.',
+    practice: 'Before submitting, check that every response action has a target and every closure claim has a validation record.',
+  },
+];
+
 function moduleTwelveFreshDefaults() {
   return {
     activeConsole: 'queue', reviewedConsoles: [], selectedEvidence: [], stageVisits: [],
@@ -320,6 +368,14 @@ function moduleTwelveMissionStatus() {
   return `<div class="m12-requirements">${MODULE_TWELVE_REQUIREMENTS.map(([label, detail], index) => `<div class="${visited.has(label.toLowerCase()) || (index === 11 && moduleTwelveState.completed) ? 'is-seen' : ''}"><span>${String(index + 1).padStart(2,'0')}</span><p><strong>${esc(label)}</strong><small>${esc(detail)}</small></p></div>`).join('')}</div>`;
 }
 
+function moduleTwelvePreparation() {
+  return `<section class="m12-section" id="m12-preparation" aria-labelledby="m12-preparation-title">
+    <div class="m12-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m12-kicker">Capstone preparation lectures</p><h2 id="m12-preparation-title">Briefing before the independent range</h2></div></div>
+    <p class="m12-muted">These short briefings establish the operating model for the capstone. Review them before investigating; they are guidance, not additional scored stages.</p>
+    <div class="m12-requirements">${MODULE_TWELVE_PREPARATION_LECTURES.map((lecture, index) => `<div><span>${String(index + 1).padStart(2, '0')}</span><details><summary><strong>${esc(lecture.title)}</strong><small>${esc(lecture.focus)}</small></summary><p>${esc(lecture.script)}</p><p><strong>Analyst prompt:</strong> ${esc(lecture.practice)}</p><p><small>Video placeholder · 8–12 minute recording slot</small></p></details></div>`).join('')}</div>
+  </section>`;
+}
+
 function viewModuleTwelve(user, program) {
   moduleTwelveLoad(user, program);
   if (!moduleTwelveUnlocked(user, program)) return moduleTwelveLockedView(user, program);
@@ -330,6 +386,7 @@ function viewModuleTwelve(user, program) {
       <dl><div><dt>Case</dt><dd>INC-4821</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Pass</dt><dd>${MODULE_TWELVE_PASSING_SCORE}% (seven of ten domains) + safety gate</dd></div></dl></section>
     <section class="m12-objective"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Rubric scoring</p><h2>Ten scored domains (10 points each): Triage, Query, Timeline, Scope, Enrichment, ATT&CK, Detection, Response, Reporting, and Closure. Pass requires 70 points plus no critical-error violations (false triage, unsafe scope, evidence loss, or unsupported closure).</h2></div></section>
     <section class="m12-objective"><div><i class="ri-git-merge-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Prior instruction</p><h2>This capstone draws on skills from all 11 prior modules: SOC operations foundations (M01), network and identity foundations (M02), SIEM and log analysis (M03), detection rule tuning (M04), endpoint investigation (M05), threat hunting (M06), network and email analysis (M07), vulnerability prioritization (M08), incident response (M09), evidence handling and case documentation (M10), and SOC metrics and communication (M11).</h2></div></section>
+    ${moduleTwelvePreparation()}
     <section class="m12-section" aria-labelledby="m12-mission-title"><div class="m12-section-heading"><span><i class="ri-route-line" aria-hidden="true"></i></span><div><p class="m12-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div></div><p class="m12-muted">The twelve requirements may be completed in any order. They describe the deliverable, not the attacker's sequence; discover chronology from the evidence.</p>${moduleTwelveMissionStatus()}</section>
     <section class="m12-section m12-range-section" id="m12-range" aria-labelledby="m12-range-title"><div class="m12-section-heading"><span><i class="ri-dashboard-3-line" aria-hidden="true"></i></span><div><p class="m12-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div></div><div id="m12-console-root">${moduleTwelveConsole()}</div>${moduleTwelveEvidenceTray()}</section>
     <section class="m12-section m12-assessment-section">${moduleTwelveAssessment()}</section>
