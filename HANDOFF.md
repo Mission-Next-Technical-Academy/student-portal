@@ -36,8 +36,8 @@ State persists only to `localStorage` under `defender-lab.rules`.
 ## Done
 
 - 2026-09-10 Activity Monitor load-resilience remediation: bounded all four
-  monitor reads to a 72-hour/250-row operational snapshot; limited the prior
-  all-time completed-module scan to the same window; added a 12-second
+  monitor reads to a 250-row recent-activity snapshot; removed the
+  browser-clock cutoff that could exclude valid records; added a 12-second
   timeout, visible error state, and click-to-retry behavior. Added the
   written-only `20260910140000_activity_monitor_read_performance.sql` with
   indexes for global recent sessions and recent completed modules. Static
