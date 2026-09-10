@@ -40,8 +40,26 @@ committing/pushing).
 
 **Still open, unrelated:** `ACTIVITY_MONITOR_PERFORMANCE_FINDINGS.md` (why
 the tab is *slow*, not why it showed zero rows) is a separate, still-open
-diagnosis — none of its recommended index/RPC/pruning fixes have been
+diagnosis — most of its recommended index/RPC/pruning fixes have not been
 applied. Read that file before touching Activity Monitor performance.
+
+**Follow-up same session — dropped the dead telemetry migration, applied
+the index one:** reviewed the two migrations that were sitting unapplied
+against the linked project. `20260910140000_activity_monitor_read_performance.sql`
+(the two indexes recommended above) had real, verified value — applied via
+`supabase db push`, confirmed live (`supabase migration list --linked`).
+`20260909100000_query_performance_telemetry.sql` (schema/RPCs for the admin
+**Query Logging** tab) did not: grepped the whole codebase and confirmed
+nothing anywhere calls its `record_query_feature_metric` ingestion RPC —
+`archive/completed-feature-notes/QUERY_PERFORMANCE_AUDIT_2026-09-09.md`'s own
+sprint log shows "wire portal timing" was always a separate, never-started
+sprint. Applying it would only have changed the tab's error message, not
+produced real data, and its position ahead of already-applied 2026-09-10
+migrations forced a `migration repair` workaround on every push. Deleted
+(never applied to any environment — nothing to roll back) and pushed. The
+**Query Logging** tab itself was intentionally left in place, still showing
+its honest "unavailable" state — ask the site owner before removing that UI
+too if this comes up again.
 
 ## Session 2026-09-10 — deep curriculum scenario architecture sweep (planning only, no code changed)
 
