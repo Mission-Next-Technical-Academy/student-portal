@@ -4003,16 +4003,14 @@ function moduleCard(program, key, user) {
   const curriculumItems = Array.isArray(m.curriculumItems) ? m.curriculumItems : [];
   const parentRecords = moduleParentRecords(program, m, labs);
   const completionLabel = completion.complete
-    ? 'Complete: module content opened and every lab completed'
-    : 'Not complete: open the module content and complete every lab';
+    ? 'Module complete: module content opened and every lab completed'
+    : 'Module not complete: open the module content and complete every lab';
   const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' ? 'Continue Module' : 'Start Module';
 
   return `
-  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${unlocked ? '' : 'mnt-locked'}">
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${unlocked ? '' : 'mnt-locked'}" data-module-card>
     <div class="w-full p-7 flex items-start gap-5 hover:bg-gray-50/60 transition-colors">
-      <button type="button" aria-expanded="false" aria-controls="body-${esc(key)}" aria-label="View curriculum blocks and labs for ${esc(m.title)}" data-acc
-            data-program="${esc(program.slug)}" data-module="${esc(key)}"
-            class="flex-1 min-w-0 text-left flex items-start gap-5 cursor-pointer">
+      <div class="flex-1 min-w-0 flex items-start gap-5">
 
       <div class="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl bg-[#1e3a5f]/8 text-[#1e3a5f] font-bold">
         ${String(m.number).padStart(2, '0')}
@@ -4038,10 +4036,13 @@ function moduleCard(program, key, user) {
       <span class="flex items-center gap-3 shrink-0 pt-1">
         <span class="mnt-module-completion-dot w-2.5 h-2.5 rounded-full ${completion.complete ? 'bg-[#22c55e] ring-4 ring-[#dcfce7]' : 'bg-gray-300 ring-4 ring-gray-100'}"
               role="status" aria-label="${completionLabel}" title="${completionLabel}"></span>
-        <span class="w-8 h-8 grid place-items-center rounded-full bg-gray-50 border border-gray-200" aria-hidden="true">
-          <i class="ri-arrow-down-s-line acc-chev text-xl text-gray-500 transition-transform duration-200"></i>
-        </span>
       </span>
+      </div>
+      <button type="button" aria-expanded="false" aria-controls="body-${esc(key)}" aria-label="View curriculum blocks and labs for ${esc(m.title)}" title="View curriculum blocks and labs" data-acc
+              data-program="${esc(program.slug)}" data-module="${esc(key)}"
+              class="w-8 h-8 shrink-0 grid place-items-center rounded-full bg-gray-50 border border-gray-200 hover:border-[#1e3a5f] hover:bg-[#f0f4f8] cursor-pointer"
+              >
+        <i class="ri-arrow-down-s-line acc-chev text-xl text-gray-500 transition-transform duration-200" aria-hidden="true"></i>
       </button>
       ${unlocked && m.status !== 'draft'
         ? `<a href="#/program/${esc(program.slug)}/module/${m.number}"
@@ -4142,7 +4143,7 @@ function moduleCard(program, key, user) {
 function refreshModuleCompletionDot(button, user) {
   const program = PROGRAMS.find((item) => item.slug === button.dataset.program);
   if (!program || !program.modules[button.dataset.module]) return;
-  const dot = button.querySelector('.mnt-module-completion-dot');
+  const dot = button.closest('[data-module-card]')?.querySelector('.mnt-module-completion-dot');
   if (!dot) return;
   const complete = moduleCompletion(program, button.dataset.module, user).complete;
   dot.classList.toggle('bg-[#22c55e]', complete);
@@ -4150,8 +4151,8 @@ function refreshModuleCompletionDot(button, user) {
   dot.classList.toggle('bg-gray-300', !complete);
   dot.classList.toggle('ring-gray-100', !complete);
   const label = complete
-    ? 'Complete: module content opened and every lab completed'
-    : 'Not complete: open the module content and complete every lab';
+    ? 'Module complete: module content opened and every lab completed'
+    : 'Module not complete: open the module content and complete every lab';
   dot.setAttribute('aria-label', label);
   dot.title = label;
 }
@@ -5815,6 +5816,9 @@ function wireCommon() {
     btn.addEventListener('click', async () => {
       const willOpen = btn.getAttribute('aria-expanded') !== 'true';
       btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      const panel = document.getElementById(btn.getAttribute('aria-controls'));
+      if (panel) panel.classList.toggle('is-open', willOpen);
+      btn.querySelector('.acc-chev')?.classList.toggle('rotate-180', willOpen);
       if (willOpen && btn.dataset.program && btn.dataset.module) {
         const user = await currentUser();
         markModuleContentOpened(user, btn.dataset.program, btn.dataset.module);
