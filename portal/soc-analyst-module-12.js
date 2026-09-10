@@ -249,7 +249,7 @@ function moduleTwelveScore() {
   const a = moduleTwelveState.answers;
   const timelineCorrect = a.t1 === 'email' && a.t2 === 'execution' && a.t3 === 'network' && a.t4 === 'identity';
   const domains = [
-    ['Triage', a.verdict === 'true-positive' && a.severity === 'high'],
+    ['Triage', a.verdict === 'true-positive' && a.severity === 'high' && a.priority === 'p1'],
     ['Query', a.query === 'correlated-pivot'],
     ['Timeline', timelineCorrect],
     ['Scope', moduleTwelveSetEqual(moduleTwelveValues('scope'), ['acct-204', 'ws-204']) && a.scopeLimit === 'bounded'],
@@ -329,13 +329,15 @@ function moduleTwelveAssessment() {
   return `<form id="m12-assessment" class="m12-assessment" novalidate>
     <div class="m12-assessment-heading"><div><p class="m12-kicker">Portfolio artifact</p><h2>Independent incident record</h2><p>Submit conclusions in any working order. Every section is required; the labels do not reveal the underlying attack chronology.</p></div><span>Pass ${MODULE_TWELVE_PASSING_SCORE}% + no critical errors</span></div>
     <div class="m12-form-grid">
-      <fieldset><legend>Triage</legend>${moduleTwelveOption('verdict','true-positive','True-positive incident','Evidence supports unauthorized execution and identity activity.',a.verdict==='true-positive')}${moduleTwelveOption('verdict','benign-close','Benign — close alert','Treat the correlated activity as routine.',a.verdict==='benign-close')}
-        <label class="m12-select-label">Priority<select name="severity"><option value="">Choose…</option><option value="high" ${a.severity==='high'?'selected':''}>High — confirmed compromise, bounded scope</option><option value="low" ${a.severity==='low'?'selected':''}>Low — informational only</option></select></label></fieldset>
+      <fieldset><legend>Triage &amp; prioritization</legend>${moduleTwelveOption('verdict','true-positive','True-positive incident','Evidence supports unauthorized execution and identity activity.',a.verdict==='true-positive')}${moduleTwelveOption('verdict','benign-close','Benign — close alert','Treat the correlated activity as routine.',a.verdict==='benign-close')}
+        <label class="m12-select-label">Severity<select name="severity"><option value="">Choose…</option><option value="high" ${a.severity==='high'?'selected':''}>High — confirmed compromise, bounded scope</option><option value="low" ${a.severity==='low'?'selected':''}>Low — informational only</option></select></label>
+        <label class="m12-select-label">Response priority<select name="priority"><option value="">Choose…</option><option value="p1" ${a.priority==='p1'?'selected':''}>P1 — contain now; active identity and endpoint exposure</option><option value="p3" ${a.priority==='p3'?'selected':''}>P3 — queue for routine review</option></select></label></fieldset>
       <fieldset><legend>Query</legend>${moduleTwelveOption('query','correlated-pivot','Correlate hash, device, destination, and identity within the incident window','Preserves entity and time relationships across process, network, and sign-in tables.',a.query==='correlated-pivot')}${moduleTwelveOption('query','all-errors','Return every error from every table','High volume does not test the incident hypothesis.',a.query==='all-errors')}</fieldset>
       <fieldset class="m12-wide"><legend>Timeline reconstruction</legend><div class="m12-timeline-inputs">${[['t1','First'],['t2','Second'],['t3','Third'],['t4','Fourth']].map(([name,label]) => `<label>${label}<select name="${name}"><option value="">Choose event…</option><option value="email" ${a[name]==='email'?'selected':''}>Recipient opened linked document</option><option value="execution" ${a[name]==='execution'?'selected':''}>Unsigned script execution</option><option value="network" ${a[name]==='network'?'selected':''}>Correlated outbound connection</option><option value="identity" ${a[name]==='identity'?'selected':''}>Unfamiliar token refresh</option></select></label>`).join('')}</div></fieldset>
       <fieldset><legend>Scope</legend>${moduleTwelveCheck('scope','ws-204','WS-204',moduleTwelveValues('scope').includes('ws-204'))}${moduleTwelveCheck('scope','acct-204','acct-204',moduleTwelveValues('scope').includes('acct-204'))}${moduleTwelveCheck('scope','ws-118','WS-118',moduleTwelveValues('scope').includes('ws-118'))}${moduleTwelveCheck('scope','acct-091','acct-091',moduleTwelveValues('scope').includes('acct-091'))}
         <label class="m12-select-label">Scope statement<select name="scopeLimit"><option value="">Choose…</option><option value="bounded" ${a.scopeLimit==='bounded'?'selected':''}>One host/account in available telemetry; continue monitoring</option><option value="clean" ${a.scopeLimit==='clean'?'selected':''}>The entire enterprise is proven clean</option></select></label></fieldset>
-      <fieldset><legend>Enrichment</legend>${moduleTwelveOption('enrichment','correlated-malicious','High-confidence malicious in this incident','Hash, destination, redirect, timing, and behavior corroborate one another.',a.enrichment==='correlated-malicious')}${moduleTwelveOption('enrichment','ip-alone','Malicious because any unfamiliar IP is hostile','An address alone is insufficient without context.',a.enrichment==='ip-alone')}</fieldset>
+      <fieldset><legend>Enrichment &amp; vulnerability decision</legend>${moduleTwelveOption('enrichment','correlated-malicious','High-confidence malicious in this incident','Hash, destination, redirect, timing, and behavior corroborate one another.',a.enrichment==='correlated-malicious')}${moduleTwelveOption('enrichment','ip-alone','Malicious because any unfamiliar IP is hostile','An address alone is insufficient without context.',a.enrichment==='ip-alone')}
+        <label class="m12-select-label">Contributing exposure<select name="exposurePriority"><option value="">Choose…</option><option value="audit-policy" ${a.exposurePriority==='audit-policy'?'selected':''}>Prioritize WS-204 policy gap — audit-only script control</option><option value="browser-update" ${a.exposurePriority==='browser-update'?'selected':''}>Prioritize unrelated WS-118 browser update</option></select></label></fieldset>
       <fieldset class="m12-wide"><legend>ATT&amp;CK mapping</legend><div class="m12-check-grid">${[['T1204.001','User Execution: Malicious Link'],['T1059.007','JavaScript/JScript'],['T1547.001','Registry Run Keys / Startup Folder'],['T1071.001','Web Protocols'],['T1021.001','Remote Desktop Protocol']].map(([id,label]) => moduleTwelveCheck('attack',id,`${id} — ${label}`,moduleTwelveValues('attack').includes(id))).join('')}</div></fieldset>
       <fieldset><legend>Detection</legend>${moduleTwelveOption('detection','parent-hash-destination','Correlate unusual parent/child + script hash + rare destination','Behavior and indicator correlation raises precision.',a.detection==='parent-hash-destination')}${moduleTwelveOption('detection','all-script-hosts','Alert on every script-host launch','This would overwhelm the queue with routine administration.',a.detection==='all-script-hosts')}
         <label class="m12-select-label">Safe tuning<select name="tuning"><option value="">Choose…</option><option value="signed-approved-parent" ${a.tuning==='signed-approved-parent'?'selected':''}>Exclude signed inventory child only under approved parent/path</option><option value="disable" ${a.tuning==='disable'?'selected':''}>Disable detection during business hours</option></select></label></fieldset>
@@ -360,7 +362,13 @@ function moduleTwelveFeedback() {
     <div class="m12-score-grid">${moduleTwelveState.breakdown.map((item) => `<div><strong>${item.score}/10</strong><span>${esc(item.label)}</span></div>`).join('')}</div>
     ${moduleTwelveState.criticalErrors.length ? `<div class="m12-critical"><strong>Critical-error gate</strong><ul>${moduleTwelveState.criticalErrors.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
     ${moduleTwelveState.feedback.length ? `<div class="m12-remediation"><strong>Explainable scoring</strong><ul>${moduleTwelveState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '<p class="m12-perfect">All ten scored domains are supported by the submitted artifact.</p>'}
+    ${moduleTwelveReportPreview()}
     ${passed ? `<div class="m12-portfolio"><i class="ri-award-line" aria-hidden="true"></i><div><strong>Portfolio-ready capstone record earned</strong><p>The synthetic incident report, timeline, evidence decisions, response plan, and closure record remain saved to this anonymous local learner profile.</p></div></div>` : ''}</section>`;
+}
+
+function moduleTwelveReportPreview() {
+  const a = moduleTwelveState.answers;
+  return `<section class="m12-report-preview" aria-labelledby="m12-report-title"><p class="m12-kicker">Incident report output</p><h4 id="m12-report-title">INC-4821 · Operation Amber Finch</h4><dl><div><dt>Priority</dt><dd>${esc(a.priority || 'Not submitted')}</dd></div><div><dt>Scope</dt><dd>${esc(moduleTwelveValues('scope').join(', ') || 'Not submitted')}</dd></div><div><dt>Exposure decision</dt><dd>${esc(a.exposurePriority || 'Not submitted')}</dd></div><div><dt>Disposition</dt><dd>${esc(a.closure || 'Not submitted')}</dd></div></dl><h5>Executive finding</h5><p>${esc(moduleTwelveState.executiveSummary || 'Submit the assessment to generate the report finding.')}</p><h5>Technical narrative</h5><p>${esc(moduleTwelveState.analystNarrative || 'The evidence-backed technical narrative will appear here after submission.')}</p><h5>Closure and follow-up</h5><p>${esc(moduleTwelveState.closureNote || 'The recovery validation and accountable follow-up will appear here after submission.')}</p></section>`;
 }
 
 function moduleTwelveMissionStatus() {
@@ -398,7 +406,7 @@ function moduleTwelveValidation() {
   const missing = [];
   if (moduleTwelveState.reviewedConsoles.length < Object.keys(MODULE_TWELVE_CONSOLES).length) missing.push('review all ten integrated consoles');
   if (!moduleTwelveSetEqual(moduleTwelveState.selectedEvidence, MODULE_TWELVE_EVIDENCE.map((item) => item.id))) missing.push('select the six records that form the evidence chain');
-  ['verdict','severity','query','t1','t2','t3','t4','scopeLimit','enrichment','detection','tuning','closure','followup'].forEach((key) => { if (!a[key]) missing.push(`complete ${key}`); });
+  ['verdict','severity','priority','query','t1','t2','t3','t4','scopeLimit','enrichment','exposurePriority','detection','tuning','closure','followup'].forEach((key) => { if (!a[key]) missing.push(`complete ${key}`); });
   if (!moduleTwelveValues('scope').length) missing.push('identify scope');
   if (!moduleTwelveValues('attack').length) missing.push('map ATT&CK behavior');
   if (!moduleTwelveValues('response').length) missing.push('select response actions');
@@ -473,7 +481,7 @@ function wireModuleTwelveLab() {
     } else if (input.name) {
       moduleTwelveState.answers[input.name] = input.value;
     }
-    const stageMap = { verdict:'triage', severity:'triage', query:'query', t1:'timeline', t2:'timeline', t3:'timeline', t4:'timeline', scope:'scope', scopeLimit:'scope', enrichment:'enrichment', attack:'att&ck', detection:'detection', tuning:'detection', response:'response', closure:'closure', followup:'closure' };
+    const stageMap = { verdict:'triage', severity:'triage', priority:'triage', query:'query', t1:'timeline', t2:'timeline', t3:'timeline', t4:'timeline', scope:'scope', scopeLimit:'scope', enrichment:'enrichment', exposurePriority:'enrichment', attack:'att&ck', detection:'detection', tuning:'detection', response:'response', closure:'closure', followup:'closure' };
     if (stageMap[input.name] && !moduleTwelveState.stageVisits.includes(stageMap[input.name])) moduleTwelveState.stageVisits.push(stageMap[input.name]);
     moduleTwelveState.validationError = ''; moduleTwelveSave();
   });
