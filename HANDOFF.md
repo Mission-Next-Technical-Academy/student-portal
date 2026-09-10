@@ -40,8 +40,10 @@ State persists only to `localStorage` under `defender-lab.rules`.
   all-time completed-module scan to the same window; added a 12-second
   timeout, visible error state, and click-to-retry behavior. Added the
   written-only `20260910140000_activity_monitor_read_performance.sql` with
-  indexes for global recent sessions and recent completed modules. The
-  migration is not applied and the static-site changes are not deployed.
+  indexes for global recent sessions and recent completed modules. Static
+  changes were published in commits `68fe979` and `d995d11`; the index
+  migration remains unapplied because `supabase db push` would also apply the
+  separately pending telemetry migration `20260909100000`.
   Validation: `node --check portal/app.js`, `node bin/portal-check.js`, and
   `git diff --check` pass.
 
