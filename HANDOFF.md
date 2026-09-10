@@ -35,6 +35,16 @@ State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
 
+- 2026-09-10 Activity Monitor load-resilience remediation: bounded all four
+  monitor reads to a 72-hour/250-row operational snapshot; limited the prior
+  all-time completed-module scan to the same window; added a 12-second
+  timeout, visible error state, and click-to-retry behavior. Added the
+  written-only `20260910140000_activity_monitor_read_performance.sql` with
+  indexes for global recent sessions and recent completed modules. The
+  migration is not applied and the static-site changes are not deployed.
+  Validation: `node --check portal/app.js`, `node bin/portal-check.js`, and
+  `git diff --check` pass.
+
 - 2026-09-10 Module 01 progress integrity sprint: fixed the mismatch where
   Lab 1 alone could make the module and its top progress shell appear
   complete while required lessons remained unfinished. Module 01 now requires

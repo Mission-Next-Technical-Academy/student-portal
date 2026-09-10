@@ -4690,6 +4690,11 @@ let adminTableSort = { key: null, dir: 1 };
 // those); only a full render() reads it, in viewAdmin().
 let adminActiveTab = 'progress';
 
+// A tab refresh already has the roster that rendered the admin workspace.
+// Reuse it for that one immediate re-render instead of displaying the global
+// loader and issuing a duplicate roster request after the lazy tab finishes.
+let adminRosterSnapshot = null;
+
 // Secondary admin surfaces are deliberately loaded on first tab selection.
 // This cache is page-session state only; it contains no credentials or raw
 // query telemetry and avoids repeating the same bounded read after a render.
@@ -4699,6 +4704,21 @@ const adminLazyTabData = {
   archived: null,
   queryLogging: null,
 };
+
+// Activity Monitor is an operational snapshot, not an unbounded audit export.
+// Keeping every participating read within this ceiling prevents a long session
+// or completion history from holding the entire admin workspace hostage.
+const ADMIN_ACTIVITY_WINDOW_HOURS = 72;
+const ADMIN_ACTIVITY_ROW_LIMIT = 250;
+const ADMIN_ACTIVITY_LOAD_TIMEOUT_MS = 12000;
+
+function withAdminReadTimeout(label, promise, timeoutMs = ADMIN_ACTIVITY_LOAD_TIMEOUT_MS) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} took longer than ${Math.round(timeoutMs / 1000)} seconds. Please try again.`)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 function resetAdminLazyTabData() {
   adminLazyTabData.activity = null;
@@ -4896,6 +4916,8 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const cheatingFlagsByUserId = (extra && extra.cheatingFlagsByUserId) || new Map();
   const loginEvents = (extra && extra.loginEvents) || [];
   const activityWindowHours = (extra && extra.activityWindowHours) || 72;
+  const activityRowLimit = (extra && extra.activityRowLimit) || ADMIN_ACTIVITY_ROW_LIMIT;
+  const activityLoadError = (extra && extra.activityLoadError) || null;
   const cohorts = (extra && extra.cohorts) || [];
   const cohortStudentCounts = (extra && extra.cohortStudentCounts) || new Map();
   const archivedStudents = (extra && extra.archivedStudents) || [];
@@ -5333,7 +5355,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           <div class="mb-6">
             <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Student Activity Monitor</h2>
             <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-            <p class="text-gray-500 text-sm">Sign-ins from the last ${activityWindowHours} hours, newest first. Search by student ID, track, location, or date.</p>
+            <p class="text-gray-500 text-sm">Up to the ${activityRowLimit} most recent sign-ins from the last ${activityWindowHours} hours, newest first. Search by student ID, track, location, or date.</p>
           </div>
           <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <label class="relative block w-full sm:max-w-md">
@@ -5360,7 +5382,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
               : ''
           }
           ${
-            loginEvents.length === 0
+            activityLoadError
+              ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800"><p class="font-semibold mb-1">Activity Monitor could not finish loading</p><p>${esc(activityLoadError)} The monitor uses a bounded ${activityWindowHours}-hour snapshot; retry the tab to request a fresh snapshot.</p></div>`
+              : loginEvents.length === 0
               ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No sign-ins recorded yet.</p></div>`
               : `<div class="overflow-x-auto">
                    <table class="w-full border-collapse">
@@ -5600,7 +5624,7 @@ function completeRouteLoading(generation) {
   return true;
 }
 
-async function render() {
+async function render(options = {}) {
   const app = document.getElementById('app');
   let hash = location.hash || '#/login';
   const renderGeneration = ++routeRenderGeneration;
@@ -5665,28 +5689,37 @@ async function render() {
       if (!completeRouteLoading(renderGeneration)) return;
       app.innerHTML = viewPortal(user);
     } else {
-      // One authoritative roster select feeds both the master roster and the
-      // client-side filtered track workspace.  Do not add per-student M360
-      // reads here: this view is the cross-track M360 projection.
-      let rosterQuery = mntSupabase
-        .from('admin_student_program_progress')
-        .select('student_id, user_id, track_code, program_slug, is_enrolled, technical_completed, technical_required, technical_percent, technical_in_progress, technical_last_active, m360_required, m360_record_exists, m360_accepted_weeks, m360_required_weeks, m360_graded_weeks, m360_final_grade, m360_start_here_complete, m360_spotlight_complete, m360_attendance_complete, m360_course_complete, networking_comfort, interview_readiness, support_flag, work_items_completed, work_items_required, work_items_percent, program_requirements_complete, status, enrollment_date, withdrawal_date, completion_date, scheduled_start_date, scheduled_completion_date, program_version_code, credential_code, credential_name, geography_classification, credited_technical_minutes, credited_career_minutes, credited_program_minutes')
-        .order('track_code', { ascending: true });
       const selectedAdminTrack = adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null;
-      if (selectedAdminTrack) rosterQuery = rosterQuery.eq('track_code', selectedAdminTrack);
-      const { data: progressRows, error } = await rosterQuery;
-      const sorted = progressRows || [];
-      // Sort by active progress first: modules_complete desc, then last_active desc for tiebreaker
-      sorted.sort((a, b) => {
-        const aComplete = a.technical_completed || 0;
-        const bComplete = b.technical_completed || 0;
-        if (bComplete !== aComplete) return bComplete - aComplete;
-        const aActive = a.technical_last_active ? new Date(a.technical_last_active).getTime() : 0;
-        const bActive = b.technical_last_active ? new Date(b.technical_last_active).getTime() : 0;
-        return bActive - aActive;
-      });
-
-      dashboardRows = normalizeAdminProgramProgressRows(sorted);
+      const cachedRoster = options.reuseAdminRoster && adminRosterSnapshot && adminRosterSnapshot.route === hash
+        ? adminRosterSnapshot
+        : null;
+      let error = null;
+      if (cachedRoster) {
+        dashboardRows = cachedRoster.dashboardRows;
+      } else {
+        // One authoritative roster select feeds both the master roster and the
+        // client-side filtered track workspace.  Do not add per-student M360
+        // reads here: this view is the cross-track M360 projection.
+        let rosterQuery = mntSupabase
+          .from('admin_student_program_progress')
+          .select('student_id, user_id, track_code, program_slug, is_enrolled, technical_completed, technical_required, technical_percent, technical_in_progress, technical_last_active, m360_required, m360_record_exists, m360_accepted_weeks, m360_required_weeks, m360_graded_weeks, m360_final_grade, m360_start_here_complete, m360_spotlight_complete, m360_attendance_complete, m360_course_complete, networking_comfort, interview_readiness, support_flag, work_items_completed, work_items_required, work_items_percent, program_requirements_complete, status, enrollment_date, withdrawal_date, completion_date, scheduled_start_date, scheduled_completion_date, program_version_code, credential_code, credential_name, geography_classification, credited_technical_minutes, credited_career_minutes, credited_program_minutes')
+          .order('track_code', { ascending: true });
+        if (selectedAdminTrack) rosterQuery = rosterQuery.eq('track_code', selectedAdminTrack);
+        const result = await rosterQuery;
+        error = result.error;
+        const sorted = result.data || [];
+        // Sort by active progress first: modules_complete desc, then last_active desc for tiebreaker
+        sorted.sort((a, b) => {
+          const aComplete = a.technical_completed || 0;
+          const bComplete = b.technical_completed || 0;
+          if (bComplete !== aComplete) return bComplete - aComplete;
+          const aActive = a.technical_last_active ? new Date(a.technical_last_active).getTime() : 0;
+          const bActive = b.technical_last_active ? new Date(b.technical_last_active).getTime() : 0;
+          return bActive - aActive;
+        });
+        dashboardRows = normalizeAdminProgramProgressRows(sorted);
+        adminRosterSnapshot = { route: hash, dashboardRows };
+      }
 
       // Secondary activity, completion-speed, cohort, archive, session, and
       // query-telemetry reads are intentionally deferred until their tab is
@@ -5969,17 +6002,19 @@ async function loadAdminLazyTab(tab, options = {}) {
     return { rows: result.data || [], loading: false, error: null, sinceHours: hours, feature: feature || '' };
   }
   if (tab === 'activity') {
-    const windowHours = 72;
+    const windowHours = ADMIN_ACTIVITY_WINDOW_HOURS;
     const start = new Date(now.getTime() - windowHours * 60 * 60 * 1000).toISOString();
-    const [activity, completed, logins, sessions] = await Promise.all([
-      mntSupabase.from('admin_student_activity').select('student_id, user_id, track_code, program_slug, modules_total, modules_complete, percent_complete, capstone_overall_score, lab_attempts_count, capstone_submissions_count, last_active, modules_in_progress'),
-      mntSupabase.from('module_progress').select('user_id, module_key, track_code, started_at, completed_at').eq('state', 'complete'),
-      mntSupabase.from('login_events').select('user_id, student_id, track_code, occurred_at, ip_address, geo_city, geo_region, geo_country').gte('occurred_at', start).order('occurred_at', { ascending: false }).limit(500),
-      mntSupabase.from('admin_site_sessions').select('id, user_id, student_id, track_code, started_at, ended_at, ended_reason, duration_minutes').gte('started_at', start).order('started_at', { ascending: false }),
-    ]);
-    if (logins.error) console.error('login_events fetch failed', logins.error);
-    if (sessions.error) console.error('admin_site_sessions fetch failed', sessions.error);
-    return { loginEvents: logins.data || [], siteSessionsByStudentId: groupRowsByKey(sessions.data || [], 'student_id'), activityRows: activity.data || [], cheatingFlagsByUserId: completed.error ? new Map() : completed.data, completedRows: completed.data || [], activityWindowHours: windowHours };
+    const [activity, completed, logins, sessions] = await withAdminReadTimeout('Student Activity Monitor', Promise.all([
+      mntSupabase.from('admin_student_activity').select('student_id, user_id, track_code, program_slug, modules_total, modules_complete, percent_complete, capstone_overall_score, lab_attempts_count, capstone_submissions_count, last_active, modules_in_progress').limit(ADMIN_ACTIVITY_ROW_LIMIT),
+      // Review signals are scoped to the same 72-hour operational snapshot;
+      // an all-time completion scan was the largest unbounded monitor read.
+      mntSupabase.from('module_progress').select('user_id, module_key, track_code, started_at, completed_at').eq('state', 'complete').gte('completed_at', start).order('completed_at', { ascending: false }).limit(ADMIN_ACTIVITY_ROW_LIMIT),
+      mntSupabase.from('login_events').select('user_id, student_id, track_code, occurred_at, ip_address, geo_city, geo_region, geo_country').gte('occurred_at', start).order('occurred_at', { ascending: false }).limit(ADMIN_ACTIVITY_ROW_LIMIT),
+      mntSupabase.from('admin_site_sessions').select('id, user_id, student_id, track_code, started_at, ended_at, ended_reason, duration_minutes').gte('started_at', start).order('started_at', { ascending: false }).limit(ADMIN_ACTIVITY_ROW_LIMIT),
+    ]));
+    const readError = [activity, completed, logins, sessions].find((result) => result.error)?.error;
+    if (readError) throw readError;
+    return { loginEvents: logins.data || [], siteSessionsByStudentId: groupRowsByKey(sessions.data || [], 'student_id'), activityRows: activity.data || [], cheatingFlagsByUserId: completed.error ? new Map() : completed.data, completedRows: completed.data || [], activityWindowHours: windowHours, activityRowLimit: ADMIN_ACTIVITY_ROW_LIMIT };
   }
   if (tab === 'cohorts') {
     const [cohorts, members] = await Promise.all([
@@ -6023,14 +6058,16 @@ function applyAdminLazyData(extra) {
 
 async function ensureAdminLazyTab(tab, options = {}) {
   if (tab === 'queryLogging' && options.force) adminLazyTabData.queryLogging = null;
-  if (tab !== 'queryLogging' && adminLazyTabData[tab]) return adminLazyTabData[tab];
+  if (tab !== 'queryLogging' && adminLazyTabData[tab] && !(tab === 'activity' && adminLazyTabData[tab].activityLoadError)) return adminLazyTabData[tab];
   try {
     const loaded = await loadAdminLazyTab(tab, options);
     adminLazyTabData[tab] = loaded;
   } catch (err) {
     adminLazyTabData[tab] = tab === 'queryLogging'
       ? { rows: [], loading: false, error: err && err.message ? err.message : 'The aggregate RPC could not be reached.', sinceHours: Number(options.hours || 24), feature: options.feature || '' }
-      : { error: err && err.message ? err.message : 'This tab could not be loaded.' };
+      : tab === 'activity'
+        ? { loginEvents: [], siteSessionsByStudentId: new Map(), activityRows: [], completedRows: [], activityWindowHours: ADMIN_ACTIVITY_WINDOW_HOURS, activityRowLimit: ADMIN_ACTIVITY_ROW_LIMIT, activityLoadError: err && err.message ? err.message : 'This tab could not be loaded.' }
+        : { error: err && err.message ? err.message : 'This tab could not be loaded.' };
   }
   return adminLazyTabData[tab];
 }
@@ -6061,9 +6098,9 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
         b.classList.toggle('text-gray-500', !active);
       });
       Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
-      if (target !== 'progress' && !adminLazyTabData[target]) {
+      if (target !== 'progress' && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
         await ensureAdminLazyTab(target);
-        await render();
+        await render({ reuseAdminRoster: true });
       }
     });
   });
@@ -6074,7 +6111,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
   if (queryRefresh) queryRefresh.addEventListener('click', async () => {
     queryRefresh.disabled = true;
     await ensureAdminLazyTab('queryLogging', { force: true, hours: queryWindow ? queryWindow.value : 24, feature: queryFeature ? queryFeature.value : '' });
-    await render();
+    await render({ reuseAdminRoster: true });
   });
   const queryThreshold = document.getElementById('admin-query-threshold');
   if (queryThreshold) queryThreshold.addEventListener('change', () => {
