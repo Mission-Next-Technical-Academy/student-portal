@@ -4005,12 +4005,14 @@ function moduleCard(program, key, user) {
   const completionLabel = completion.complete
     ? 'Complete: module content opened and every lab completed'
     : 'Not complete: open the module content and complete every lab';
+  const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' ? 'Continue Module' : 'Start Module';
 
   return `
   <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${unlocked ? '' : 'mnt-locked'}">
-    <button aria-expanded="false" aria-controls="body-${esc(key)}" data-acc
+    <div class="w-full p-7 flex items-start gap-5 hover:bg-gray-50/60 transition-colors">
+      <button type="button" aria-expanded="false" aria-controls="body-${esc(key)}" aria-label="View curriculum blocks and labs for ${esc(m.title)}" data-acc
             data-program="${esc(program.slug)}" data-module="${esc(key)}"
-            class="w-full text-left p-7 flex items-start gap-5 hover:bg-gray-50/60 transition-colors cursor-pointer">
+            class="flex-1 min-w-0 text-left flex items-start gap-5 cursor-pointer">
 
       <div class="w-12 h-12 shrink-0 flex items-center justify-center rounded-xl bg-[#1e3a5f]/8 text-[#1e3a5f] font-bold">
         ${String(m.number).padStart(2, '0')}
@@ -4040,7 +4042,13 @@ function moduleCard(program, key, user) {
           <i class="ri-arrow-down-s-line acc-chev text-xl text-gray-500 transition-transform duration-200"></i>
         </span>
       </span>
-    </button>
+      </button>
+      ${unlocked && m.status !== 'draft'
+        ? `<a href="#/program/${esc(program.slug)}/module/${m.number}"
+             class="shrink-0 inline-flex items-center justify-center bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-4 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 text-sm cursor-pointer"
+             data-module-primary-action>${moduleActionLabel}</a>`
+        : ''}
+    </div>
 
     <div class="acc-body" id="body-${esc(key)}">
       <div>
@@ -4110,7 +4118,7 @@ function moduleCard(program, key, user) {
                  <a href="#/program/${esc(program.slug)}/module/${m.number}"
                     class="inline-block bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-6 py-2.5 rounded-xl
                            transition-all hover:-translate-y-0.5 text-sm cursor-pointer">
-                   ${state === 'complete' ? 'Review Module' : state === 'in_progress' ? 'Continue Module' : 'Start Module'}
+                   ${moduleActionLabel}
                  </a>`
               : `<div class="flex items-start gap-4 bg-[#f8fafc] border border-gray-100 rounded-xl px-5 py-4">
                    <div class="w-10 h-10 flex items-center justify-center rounded-xl bg-[#1e3a5f]/10 shrink-0">
