@@ -1,5 +1,49 @@
 # Next session — start here
 
+## ⚠ Uncommitted, finished work discovered 2026-09-10 — not from this session, needs an owner decision
+
+While closing out an unrelated session, `git status` turned up a large body
+of work that is **complete and self-verified but has never been committed —
+not once, at any point** (`CURRICULUM_SCENARIO_ARCHITECTURE.md`, its own
+master plan, isn't even in git history: `git ls-files` returns nothing for
+it). This is not stray in-progress mess; it's a finished 14-sprint build:
+
+- **Scope:** SOC Analyst modules 02–12 got real content expansion (lesson
+  loops, independent labs, a Module 12 capstone progress tracker), plus a
+  new shared `portal/soc-evidence-recall.js` formative-practice feature used
+  across modules 02–12, plus `portal/ai-ml-module-02.js` through `-12.js`
+  and `portal/ai-ml-shared.css` (the AI/ML module build — see the two
+  earlier committed-looking entries below; those describe the build but the
+  files themselves are still untracked, so don't assume "logged in
+  NEXT_SESSION.md" means "committed").
+- **Its own QA says done:** `FINAL_CURRICULUM_SCENARIO_QA_2026-09-10.md`
+  (Sprint 14) reports PASS on the locked 82-hour ledger, the Security+
+  boundary wording, `node bin/portal-check.js`, `node bin/render_all.js`,
+  `node bin/lab-state-check.js`, and `node --check` across all touched
+  files. `archive/README.md` (itself uncommitted) already logs
+  `CURRICULUM_SCENARIO_ARCHITECTURE_2026-09-10.md` as archived/complete.
+  Per-module status lives in `MODULE_0N_ENHANCEMENT_PROGRESS.md` for
+  N=02–12 (each self-reports "implemented locally... review pending").
+- **What's NOT done:** every one of those docs is explicit that curriculum/
+  compliance/faculty sign-off is still pending — that's a real open item,
+  separate from the commit question.
+- **Full untracked/modified file list:** run `git status --short` — as of
+  this note it's ~28 modified files (`portal/soc-analyst-module-*.js/css`,
+  `portal/app.js`, `portal/index.html`, `portal/module-labs.css`,
+  `HANDOFF.md`, `archive/README.md`, `portal/ai-ml-module-01.js`) plus
+  ~30 new untracked files (the `MODULE_*_ENHANCEMENT_*.md` docs, the three
+  scenario-architecture docs, `portal/soc-evidence-recall.js`,
+  `portal/ai-ml-module-02.js`…`-12.js`, `portal/ai-ml-shared.css`).
+
+**Next AI: do not run any destructive git command near these files**
+(`checkout`/`restore`/`reset`/`clean`) without stashing first — this is
+verified, wanted work, not junk. Ask the owner whether to commit it now (it
+reads as ready) or hold it pending the curriculum/compliance review those
+docs themselves flag as outstanding. This note exists purely so the next
+session doesn't discover 60 uncommitted files cold — it was not evaluated
+for correctness by whoever wrote this note, only confirmed to exist and to
+self-report as done.
+
 ## Session 2026-09-10 (planning only, nothing built) — platform-wide robustness audit vs. soc-analyst baseline; read `PROGRAM_PARITY_SPRINT_PLAN.md` next
 
 Owner asked, after the Module 11 de-escalation-ticket fix logged below: are
