@@ -3582,8 +3582,8 @@ function header(user) {
  * per module. */
 function moduleTopbar(user, program, options = {}) {
   const progress = programProgress(user, program);
-  const backHref = options.backHref || '#/portal';
-  const backLabel = options.backLabel || 'Back to Programs';
+  const backHref = options.backHref || `#/program/${program.slug}`;
+  const backLabel = options.backLabel || 'Back to Modules';
   return `
   <header class="bg-white/95 backdrop-blur-sm border-b border-gray-100">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
