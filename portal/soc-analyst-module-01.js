@@ -7,6 +7,50 @@ const MODULE_ONE_FLAG = 'M01-FIRST-ALERT-TRIAGED';
 const MODULE_ONE_CATALOG_LAB_KEY = 'lab-soc-environment';
 const MODULE_ONE_ROUTE = '#/program/soc-analyst/module/1';
 
+/* Module-level assessment bank. selectQuizQuestions() returns wrappers shaped
+ * { conceptId, conceptTitle, question, shuffledOptions, correctIndex } — the
+ * question fields are deliberately read from entry.question and options from
+ * entry.shuffledOptions below. */
+const MODULE_ONE_QUIZ_BANKS = [
+  {
+    conceptId: 'soc-protection', conceptTitle: 'What a SOC protects', questions: [
+      { id: 'm01-q-protect-1', prompt: 'A SOC analyst receives a signal that a customer-data store was accessed from an unmanaged device. Which question should anchor the first review?', options: [{ id: 'a', text: 'What evidence shows who accessed it, what they did, and whether the access was expected?' }, { id: 'b', text: 'Which team can close the alert fastest?' }, { id: 'c', text: 'Can the device be deleted immediately?' }, { id: 'd', text: 'Was the event generated during office hours?' }], correctId: 'a', feedbackCorrect: 'Correct. Start with identity, activity, expectation, and impact evidence before choosing a response.', feedbackIncorrect: 'Begin with evidence about who acted, what happened, whether it was expected, and what could be affected.' },
+      { id: 'm01-q-protect-2', prompt: 'Which statement best describes confidentiality, integrity, and availability in a SOC context?', options: [{ id: 'a', text: 'They describe protecting information from improper disclosure, improper change, and loss of access.' }, { id: 'b', text: 'They are three names for the incident queue.' }, { id: 'c', text: 'They only apply to physical security.' }, { id: 'd', text: 'They mean every alert must be treated as a breach.' }], correctId: 'a', feedbackCorrect: 'Correct. CIA frames the security property that may be at risk and helps analysts explain impact.', feedbackIncorrect: 'CIA means confidentiality, integrity, and availability: disclosure, change, and access are the three protection concerns.' },
+    ],
+  },
+  {
+    conceptId: 'soc-vocabulary', conceptTitle: 'Events, alerts, and incidents', questions: [
+      { id: 'm01-q-vocab-1', prompt: 'A login record shows one successful authentication. What is it before additional correlation?', options: [{ id: 'a', text: 'An event: a recorded activity that may or may not matter.' }, { id: 'b', text: 'A confirmed incident.' }, { id: 'c', text: 'A response action.' }, { id: 'd', text: 'A case closure.' }], correctId: 'a', feedbackCorrect: 'Correct. An event is a recorded occurrence; context may later turn it into an alert or incident.', feedbackIncorrect: 'A single recorded occurrence is an event. Analysts add context before deciding whether it deserves an alert or incident.' },
+      { id: 'm01-q-vocab-2', prompt: 'Several correlated signals indicate an account takeover and potential data access. What makes this an incident candidate?', options: [{ id: 'a', text: 'The combined evidence suggests a security-impacting situation that needs coordinated handling.' }, { id: 'b', text: 'Every event automatically becomes an incident.' }, { id: 'c', text: 'The alert has a red icon.' }, { id: 'd', text: 'The analyst has not yet reviewed the evidence.' }], correctId: 'a', feedbackCorrect: 'Correct. An incident is a coordinated security situation supported by evidence, scope, and impact.', feedbackIncorrect: 'An incident candidate needs correlated evidence that points to security impact or required coordinated response.' },
+    ],
+  },
+  {
+    conceptId: 'soc-triage', conceptTitle: 'Evidence-first triage', questions: [
+      { id: 'm01-q-triage-1', prompt: 'What is the best next step after an alert arrives with a suspicious hostname but no other context?', options: [{ id: 'a', text: 'Enrich it with identity, endpoint, network, and timing evidence before assigning a final disposition.' }, { id: 'b', text: 'Escalate it as confirmed compromise immediately.' }, { id: 'c', text: 'Dismiss it because one hostname is never useful.' }, { id: 'd', text: 'Take a disruptive action to preserve evidence.' }], correctId: 'a', feedbackCorrect: 'Correct. Enrichment converts a weak signal into a bounded evidence-based decision.', feedbackIncorrect: 'A hostname alone is weak. Add independent context before deciding severity, scope, or response.' },
+      { id: 'm01-q-triage-2', prompt: 'Which triage note is strongest?', options: [{ id: 'a', text: 'It names the observed facts, uncertainty, affected scope, decision, owner, and next verification step.' }, { id: 'b', text: 'Looks bad; investigate more.' }, { id: 'c', text: 'Closed because the alert was old.' }, { id: 'd', text: 'Probably malicious; no evidence attached.' }], correctId: 'a', feedbackCorrect: 'Correct. A useful note lets another analyst reproduce the reasoning and continue the work.', feedbackIncorrect: 'A defensible note records facts, uncertainty, scope, decision, ownership, and a verifiable next step.' },
+    ],
+  },
+  {
+    conceptId: 'soc-escalation', conceptTitle: 'Severity, priority, and boundaries', questions: [
+      { id: 'm01-q-escalate-1', prompt: 'A high-severity alert affects one test device, while a medium-severity identity signal affects a production administrator. What should influence priority most?', options: [{ id: 'a', text: 'Context such as affected asset, exposure, confidence, scope, and response urgency—not severity alone.' }, { id: 'b', text: 'The alert with the highest numeric label every time.' }, { id: 'c', text: 'Which case has the shortest title.' }, { id: 'd', text: 'The order in which alerts arrived, regardless of impact.' }], correctId: 'a', feedbackCorrect: 'Correct. Priority is a contextual decision that combines severity with impact, confidence, exposure, and time sensitivity.', feedbackIncorrect: 'Severity is an input, not the whole decision. Use asset, scope, confidence, exposure, and urgency.' },
+      { id: 'm01-q-escalate-2', prompt: 'When should a new analyst escalate?', options: [{ id: 'a', text: 'When evidence, impact, uncertainty, or required action exceeds their role boundary or playbook authority.' }, { id: 'b', text: 'Only after taking every response action themselves.' }, { id: 'c', text: 'Whenever a record contains an IP address.' }, { id: 'd', text: 'Never; escalation means the analyst failed.' }], correctId: 'a', feedbackCorrect: 'Correct. Escalation is a controlled handoff when the evidence or authority boundary calls for another owner.', feedbackIncorrect: 'Escalate when the evidence, impact, uncertainty, or action exceeds your assigned authority or playbook.' },
+    ],
+  },
+  {
+    conceptId: 'soc-lifecycle', conceptTitle: 'Response lifecycle', questions: [
+      { id: 'm01-q-lifecycle-1', prompt: 'Where does alert triage fit most directly in the response lifecycle?', options: [{ id: 'a', text: 'Detect and analyze: establish whether the signal represents a security situation and what scope is supported.' }, { id: 'b', text: 'Recovery only, after all systems are restored.' }, { id: 'c', text: 'Lessons learned only.' }, { id: 'd', text: 'It does not fit a lifecycle.' }], correctId: 'a', feedbackCorrect: 'Correct. Triage is primarily detect-and-analyze work that informs containment and later phases.', feedbackIncorrect: 'Triage belongs mainly to detect and analyze, where analysts validate signals and define supported scope.' },
+      { id: 'm01-q-lifecycle-2', prompt: 'What is the best reason to document a verification step before closing a case?', options: [{ id: 'a', text: 'Closure should be based on evidence that the risk is addressed or bounded, not just that an action was attempted.' }, { id: 'b', text: 'Documentation replaces technical validation.' }, { id: 'c', text: 'A case can only close when every alert is deleted.' }, { id: 'd', text: 'Verification is only for auditors and never helps responders.' }], correctId: 'a', feedbackCorrect: 'Correct. Verification makes closure accountable and gives the next analyst a reproducible basis for trust.', feedbackIncorrect: 'An attempted action is not proof of risk reduction. Record how the result will be checked before closure.' },
+    ],
+  },
+];
+
+const MODULE_ONE_SOURCES = [
+  { title: 'Computer Security Incident Handling Guide (SP 800-61 Rev. 3)', org: 'NIST', url: 'https://csrc.nist.gov/pubs/sp/800/61/r3/final', note: 'Incident response preparation, detection, analysis, response, and improvement.' },
+  { title: 'Cybersecurity Framework 2.0', org: 'NIST', url: 'https://www.nist.gov/cyberframework', note: 'A common vocabulary for managing cybersecurity risk and outcomes.' },
+  { title: 'Incident Response Training', org: 'FIRST', url: 'https://www.first.org/education/training', note: 'Community education resources for incident response practice.' },
+  { title: 'Security+ Exam Objectives', org: 'CompTIA', url: 'https://www.comptia.org/certifications/security', note: 'A supplementary vocabulary reference for foundational security topics.' },
+];
+
 const MODULE_ONE_DEFAULT_STATE = {
   reviewedEvidence: [],
   factTries: {},
@@ -26,6 +70,8 @@ const MODULE_ONE_DEFAULT_STATE = {
   lastSubmittedAt: '',
   attempts: 0,
   lessonWork: {},
+  sectionOpen: { foundations: true, flow: false, lifecycle: false, loop: false, lab: false, quiz: false, review: false, sources: false },
+  quiz: { selectedQuestions: [], questionsByAnswer: {}, answers: {}, scored: false, attempts: 0, score: 0, bestScore: 0, feedback: [], passed: false },
   lab2: {
     entity: '',
     scope: '',
@@ -44,6 +90,8 @@ const MODULE_ONE_DEFAULT_STATE = {
 let moduleOneState = null;
 let moduleOneUser = null;
 let moduleOneJustCorrect = '';
+let moduleOneQuizState = null;
+let moduleOneReviewMode = false;
 
 function moduleOneLoad(user) {
   moduleOneUser = user;
@@ -52,7 +100,24 @@ function moduleOneLoad(user) {
   if (!Array.isArray(moduleOneState.factWrong)) moduleOneState.factWrong = [];
   if (!moduleOneState.factTries || typeof moduleOneState.factTries !== 'object') moduleOneState.factTries = {};
   if (!moduleOneState.lessonWork || typeof moduleOneState.lessonWork !== 'object') moduleOneState.lessonWork = {};
+  if (!moduleOneState.sectionOpen || typeof moduleOneState.sectionOpen !== 'object') moduleOneState.sectionOpen = { ...MODULE_ONE_DEFAULT_STATE.sectionOpen };
+  Object.keys(MODULE_ONE_DEFAULT_STATE.sectionOpen).forEach((key) => { if (typeof moduleOneState.sectionOpen[key] !== 'boolean') moduleOneState.sectionOpen[key] = MODULE_ONE_DEFAULT_STATE.sectionOpen[key]; });
+  if (!moduleOneState.quiz || typeof moduleOneState.quiz !== 'object') moduleOneState.quiz = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.quiz));
   if (!moduleOneState.lab2 || typeof moduleOneState.lab2 !== 'object') moduleOneState.lab2 = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.lab2));
+  if (!moduleOneQuizState || moduleOneQuizState.userKey !== user.email) {
+    const savedQuiz = moduleOneState.quiz;
+    const selection = savedQuiz.selectedQuestions?.length
+      ? { selectedQuestions: savedQuiz.selectedQuestions, questionsByAnswer: savedQuiz.questionsByAnswer || {} }
+      : selectQuizQuestions(MODULE_ONE_QUIZ_BANKS, { previousQuestionIds: [], shuffleOptions: true });
+    moduleOneQuizState = {
+      userKey: user.email,
+      selectedQuestions: selection.selectedQuestions,
+      questionsByAnswer: selection.questionsByAnswer,
+      answers: savedQuiz.answers || {},
+      scored: Boolean(savedQuiz.scored), attempts: Number(savedQuiz.attempts || 0), score: Number(savedQuiz.score || 0),
+      bestScore: Number(savedQuiz.bestScore || 0), feedback: savedQuiz.feedback || [], passed: Boolean(savedQuiz.passed),
+    };
+  }
   if (new URLSearchParams(location.search).get('coachComplete') === 'm01') {
     moduleOneState.consoleStarted = true;
     moduleOneState.consoleCompleted = true;
@@ -607,15 +672,50 @@ function moduleOneLabDynamic() {
   `;
 }
 
+function moduleOneGetSections() {
+  return [
+    { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: MODULE_ONE_ALERT_ORIENTATION.lessons.every(moduleOneLessonComplete), scrollId: 'm01-foundations' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleOneQuizState?.passed, scrollId: 'm01-knowledge-check' },
+    { id: 'guided-lab', title: 'Guided Labs', type: 'lab', isComplete: Boolean(moduleOneState?.completed && moduleOneState?.lab2?.completed), scrollId: 'm01-guided-lab' },
+    { id: 'review', title: 'Module Review', type: 'review', isComplete: Boolean(moduleOneQuizState?.passed && moduleOneState?.completed && moduleOneState?.lab2?.completed), scrollId: 'm01-review' },
+  ];
+}
+
+function moduleOneQuizQuestion(entry, index) {
+  // Real selectQuizQuestions() wrapper: { conceptId, conceptTitle, question,
+  // shuffledOptions, correctIndex }. Do not read prompt/options from entry.
+  const question = entry.question;
+  const answer = moduleOneQuizState?.answers?.[question.id];
+  return `<fieldset class="m01-quiz-question" data-m01-module-question="${esc(question.id)}">
+    <legend><span>${index + 1}</span> ${esc(entry.conceptTitle)}: ${esc(question.prompt)}</legend>
+    <div class="m01-quiz-options">${entry.shuffledOptions.map((option) => `<label><input type="radio" name="m01-module-q-${esc(question.id)}" value="${esc(option.id)}" data-m01-module-answer ${answer === option.id ? 'checked' : ''} /><span>${esc(option.text)}</span></label>`).join('')}</div>
+  </fieldset>`;
+}
+
+function moduleOneQuizPanel() {
+  const selected = moduleOneQuizState?.selectedQuestions || [];
+  if (!selected.length) return `<form class="m01-module-quiz" id="m01-quiz-form" novalidate><div id="m01-quiz-feedback" role="status">Loading knowledge check…</div></form>`;
+  const answered = Object.keys(moduleOneQuizState.answers || {}).length;
+  const feedback = moduleOneQuizState.scored ? `<section class="m01-score ${moduleOneQuizState.passed ? 'is-pass' : 'is-remediate'}" id="m01-quiz-feedback" tabindex="-1" aria-live="polite"><p class="m01-kicker">Attempt ${moduleOneQuizState.attempts} · best ${moduleOneQuizState.bestScore}/100</p><h3>${moduleOneQuizState.score}/100 — ${moduleOneQuizState.passed ? 'Knowledge verified' : 'Review the coaching and retry'}</h3><ul>${(moduleOneQuizState.feedback || []).map((item) => `<li><strong>${item.correct ? 'Correct' : 'Review'} · ${esc(item.questionId)}</strong><p>${esc(item.message)}</p></li>`).join('')}</ul>${!moduleOneQuizState.passed ? '<button type="button" class="m01-quiz-retry" data-m01-quiz-retry>Try different questions</button>' : ''}</section>` : `<div id="m01-quiz-feedback" role="status">${answered}/${selected.length} answered. Submit when ready.</div>`;
+  return `<form class="m01-module-quiz" id="m01-quiz-form" novalidate><div class="m01-panel-heading"><div><p class="m01-kicker">Module knowledge check</p><h3 id="m01-quiz-title">Classify, triage, and communicate</h3></div><span>${answered}/${selected.length} answered</span></div>${selected.map(moduleOneQuizQuestion).join('')}<button type="submit" ${answered < selected.length ? 'disabled' : ''}>Check my answers</button>${feedback}</form>`;
+}
+
+function moduleOneReview() {
+  return `<div id="m01-review"><p class="m01-instruction">You are ready to review when you can separate events, alerts, and incidents; explain your evidence; choose a proportionate priority; and hand off work with an owner and verification step.</p><ul><li>Start with evidence and state uncertainty.</li><li>Use severity with context to set priority.</li><li>Escalate when impact or authority exceeds your boundary.</li><li>Close only after verification is recorded.</li></ul></div>`;
+}
+
 function viewModuleOne(user, program) {
   moduleOneLoad(user);
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const module = program.modules['soc-01'];
   const moduleLabs = LABS.filter((item) => item.module === module.key);
   const moduleLabMinutes = moduleLabs.reduce((total, item) => total + item.instructionalMinutes, 0);
+  const sectionOpen = moduleOneState.sectionOpen || {};
+  const openFor = (key) => moduleOneReviewMode || sectionOpen[key] === true;
 
   return `<div class="m01-shell">
     ${moduleTopbar(user, program)}
+    ${moduleProgressShell(moduleOneGetSections(), { reviewMode: moduleOneReviewMode })}
 
     <main class="m01-main">
       <section class="m01-hero" aria-labelledby="m01-title">
@@ -678,30 +778,30 @@ function viewModuleOne(user, program) {
         </div>
       </section>
 
-      <section class="m01-section" id="m01-foundations" aria-labelledby="m01-foundations-title">
+      <section class="m01-section m01-section-collapsible" id="m01-foundations" aria-labelledby="m01-foundations-title">
         <div class="m01-section-heading">
           <span>1</span>
           <div><p class="m01-kicker">Nine short foundation lessons</p><h2 id="m01-foundations-title">Meet security operations from the beginning</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="foundation lessons" aria-expanded="true" aria-controls="m01-foundations-body" aria-label="Collapse foundation lessons">
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="foundations" data-m01-section-label="foundation lessons" aria-expanded="${openFor('foundations')}" aria-controls="m01-foundations-body" aria-label="${openFor('foundations') ? 'Collapse' : 'Expand'} foundation lessons">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
         </div>
-        <div class="m01-section-body" id="m01-foundations-body">
+        <div class="m01-section-body" id="m01-foundations-body" ${openFor('foundations') ? '' : 'hidden'}>
           <p class="m01-instruction">Read these in order on your first visit. Each lesson gives you one idea to carry into the lab; open a lesson to see the explanation.</p>
           ${moduleOneLessons(lab)}
           ${moduleOneReferences(lab)}
         </div>
       </section>
 
-      <section class="m01-section" aria-labelledby="m01-flow-title">
+      <section class="m01-section m01-section-collapsible" aria-labelledby="m01-flow-title">
         <div class="m01-section-heading">
           <span>2</span>
           <div><p class="m01-kicker">Security architecture, without the jargon wall</p><h2 id="m01-flow-title">How activity becomes analyst work</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="activity-to-investigation flow" aria-expanded="true" aria-controls="m01-flow-body" aria-label="Collapse activity-to-investigation flow">
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="flow" data-m01-section-label="activity-to-investigation flow" aria-expanded="${openFor('flow')}" aria-controls="m01-flow-body" aria-label="${openFor('flow') ? 'Collapse' : 'Expand'} activity-to-investigation flow">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
         </div>
-        <div class="m01-section-body" id="m01-flow-body">
+        <div class="m01-section-body" id="m01-flow-body" ${openFor('flow') ? '' : 'hidden'}>
           <div class="m01-flow" aria-label="Activity-to-investigation flow">
             ${lab.signalFlow.map((step) => `<article><i class="${esc(step.icon)}" aria-hidden="true"></i><h3>${esc(step.title)}</h3><p>${esc(step.description)}</p></article>`).join('')}
           </div>
@@ -717,15 +817,15 @@ function viewModuleOne(user, program) {
         </div>
       </section>
 
-      <section class="m01-section" aria-labelledby="m01-lifecycle-title">
+      <section class="m01-section m01-section-collapsible" aria-labelledby="m01-lifecycle-title">
         <div class="m01-section-heading">
           <span>3</span>
           <div><p class="m01-kicker">The map for responding</p><h2 id="m01-lifecycle-title">Incident response lifecycle</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="incident response lifecycle" aria-expanded="true" aria-controls="m01-lifecycle-body" aria-label="Collapse incident response lifecycle">
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lifecycle" data-m01-section-label="incident response lifecycle" aria-expanded="${openFor('lifecycle')}" aria-controls="m01-lifecycle-body" aria-label="${openFor('lifecycle') ? 'Collapse' : 'Expand'} incident response lifecycle">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
         </div>
-        <div class="m01-section-body" id="m01-lifecycle-body">
+        <div class="m01-section-body" id="m01-lifecycle-body" ${openFor('lifecycle') ? '' : 'hidden'}>
           <p class="m01-instruction">Frameworks group or name phases differently. This six-part model shows the complete operational idea used in day-to-day response work. Select each phase to rotate the lifecycle and open its definition.</p>
           <div class="m01-lifecycle-wheel" style="--wheel-rotation: 0deg" data-m01-lifecycle-wheel>
             <div class="m01-wheel-track" aria-hidden="true">
@@ -752,15 +852,15 @@ function viewModuleOne(user, program) {
         </div>
       </section>
 
-      <section class="m01-section" aria-labelledby="m01-loop-title">
+      <section class="m01-section m01-section-collapsible" aria-labelledby="m01-loop-title">
         <div class="m01-section-heading">
           <span>4</span>
           <div><p class="m01-kicker">The repeatable habit</p><h2 id="m01-loop-title">Your five-step triage loop</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="five-step triage loop" aria-expanded="true" aria-controls="m01-loop-body" aria-label="Collapse five-step triage loop">
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="loop" data-m01-section-label="five-step triage loop" aria-expanded="${openFor('loop')}" aria-controls="m01-loop-body" aria-label="${openFor('loop') ? 'Collapse' : 'Expand'} five-step triage loop">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
         </div>
-        <div class="m01-section-body" id="m01-loop-body">
+        <div class="m01-section-body" id="m01-loop-body" ${openFor('loop') ? '' : 'hidden'}>
           <p class="m01-instruction">Select each step to rotate the wheel and focus on the question an analyst should answer before moving forward.</p>
           <div class="m01-triage-wheel" style="--triage-wheel-rotation: 0deg" data-m01-triage-wheel>
             <div class="m01-triage-track" aria-hidden="true">
@@ -787,21 +887,36 @@ function viewModuleOne(user, program) {
         </div>
       </section>
 
-      <section class="m01-section m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
+      <section class="m01-section m01-section-collapsible m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
         <div class="m01-section-heading">
           <span>5</span>
           <div><p class="m01-kicker">${moduleLabs.length} labs · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Lab 1 and Lab 2: your first SOC alert</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-label="lab block" aria-expanded="true" aria-controls="m01-guided-lab-body" aria-label="Collapse lab block">
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lab" data-m01-section-label="lab block" aria-expanded="${openFor('lab')}" aria-controls="m01-guided-lab-body" aria-label="${openFor('lab') ? 'Collapse' : 'Expand'} lab block">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
         </div>
-        <div class="m01-lab-body" id="m01-guided-lab-body">
+        <div class="m01-lab-body" id="m01-guided-lab-body" ${openFor('lab') ? '' : 'hidden'}>
           <div class="m01-lab-brief">
             <i class="ri-user-star-line" aria-hidden="true"></i>
             <div><strong>Two labs, one case</strong><p>Lab 1 is the guided console. Lab 2 is the handoff note. Use only the sandboxed buttons in each lab, then carry the note into the report.</p></div>
           </div>
           <div id="m01-lab-dynamic">${moduleOneLabDynamic()}</div>
         </div>
+      </section>
+
+      <section class="m01-section m01-section-collapsible" id="m01-knowledge-check" aria-labelledby="m01-knowledge-title">
+        <div class="m01-section-heading"><span>6</span><div><p class="m01-kicker">Module assessment</p><h2 id="m01-knowledge-title">Check your SOC foundations</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="quiz" data-m01-section-label="module assessment" aria-expanded="${openFor('quiz')}" aria-controls="m01-quiz-body" aria-label="${openFor('quiz') ? 'Collapse' : 'Expand'} module assessment"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
+        <div class="m01-section-body" id="m01-quiz-body" ${openFor('quiz') ? '' : 'hidden'}>${moduleOneQuizPanel()}</div>
+      </section>
+
+      <section class="m01-section m01-section-collapsible" id="m01-review-section" aria-labelledby="m01-review-title">
+        <div class="m01-section-heading"><span>7</span><div><p class="m01-kicker">Module review</p><h2 id="m01-review-title">Carry the reasoning into your next investigation</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="review" data-m01-section-label="module review" aria-expanded="${openFor('review')}" aria-controls="m01-review-body" aria-label="${openFor('review') ? 'Collapse' : 'Expand'} module review"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
+        <div class="m01-section-body" id="m01-review-body" ${openFor('review') ? '' : 'hidden'}>${moduleOneReview()}</div>
+      </section>
+
+      <section class="m01-section m01-section-collapsible" id="m01-sources-section" aria-labelledby="m01-sources-title">
+        <div class="m01-section-heading"><span>8</span><div><p class="m01-kicker">Sources &amp; Further Reading</p><h2 id="m01-sources-title">Authoritative references</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="sources" data-m01-section-label="sources and further reading" aria-expanded="${openFor('sources')}" aria-controls="m01-sources-body" aria-label="${openFor('sources') ? 'Collapse' : 'Expand'} sources and further reading"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
+        <div class="m01-section-body" id="m01-sources-body" ${openFor('sources') ? '' : 'hidden'}>${moduleSourcesBlock(MODULE_ONE_SOURCES)}</div>
       </section>
     </main>
   </div>`;
@@ -909,7 +1024,89 @@ function moduleOneRenderDynamic(focusId) {
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
+function moduleOneSaveQuiz() {
+  if (!moduleOneState || !moduleOneQuizState) return;
+  moduleOneState.quiz = {
+    selectedQuestions: moduleOneQuizState.selectedQuestions,
+    questionsByAnswer: moduleOneQuizState.questionsByAnswer,
+    answers: moduleOneQuizState.answers,
+    scored: moduleOneQuizState.scored,
+    attempts: moduleOneQuizState.attempts,
+    score: moduleOneQuizState.score,
+    bestScore: moduleOneQuizState.bestScore,
+    feedback: moduleOneQuizState.feedback,
+    passed: moduleOneQuizState.passed,
+  };
+  moduleOneSave();
+}
+
+function moduleOneRenderQuiz(focusId) {
+  const form = document.getElementById('m01-quiz-form');
+  if (!form) return;
+  // The persistent form is the render target. The nested form returned by
+  // moduleOneQuizPanel() is never inserted; this preserves its listeners.
+  form.innerHTML = moduleOneQuizPanel().replace(/^<form[^>]*>|<\/form>$/g, '');
+  if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
+}
+
+function wireModuleOneQuiz() {
+  const form = document.getElementById('m01-quiz-form');
+  if (!form || !moduleOneQuizState) return;
+  form.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-m01-module-answer]');
+    if (!input) return;
+    const questionId = input.closest('[data-m01-module-question]')?.dataset.m01ModuleQuestion;
+    if (!questionId) return;
+    moduleOneQuizState.answers[questionId] = input.value;
+    moduleOneSaveQuiz();
+    moduleOneRenderQuiz();
+  });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const result = scoreQuizAttempt(moduleOneQuizState.selectedQuestions, moduleOneQuizState.questionsByAnswer, moduleOneQuizState.answers);
+    moduleOneQuizState.attempts += 1;
+    moduleOneQuizState.score = result.score;
+    moduleOneQuizState.bestScore = Math.max(moduleOneQuizState.bestScore || 0, result.score);
+    moduleOneQuizState.feedback = result.feedback;
+    moduleOneQuizState.scored = true;
+    moduleOneQuizState.passed = result.score >= 70;
+    moduleOneSaveQuiz();
+    moduleOneRenderQuiz('m01-quiz-feedback');
+  });
+  form.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-m01-quiz-retry]')) return;
+    event.preventDefault();
+    const previousQuestionIds = moduleOneQuizState.selectedQuestions.map((entry) => entry.question.id);
+    const selection = selectQuizQuestions(MODULE_ONE_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
+    moduleOneQuizState.selectedQuestions = selection.selectedQuestions;
+    moduleOneQuizState.questionsByAnswer = selection.questionsByAnswer;
+    moduleOneQuizState.answers = {};
+    moduleOneQuizState.scored = false;
+    moduleOneQuizState.passed = false;
+    moduleOneQuizState.score = 0;
+    moduleOneSaveQuiz();
+    moduleOneRenderQuiz('m01-quiz-title');
+  });
+}
+
 function wireModuleOneLab() {
+  const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
+  if (reviewToggle) {
+    reviewToggle.addEventListener('click', () => {
+      moduleOneReviewMode = !moduleOneReviewMode;
+      document.querySelectorAll('.m01-section-collapsible').forEach((section) => {
+        const button = section.querySelector('[data-m01-section-toggle]');
+        const body = button ? document.getElementById(button.getAttribute('aria-controls')) : null;
+        if (!button || !body) return;
+        const isOpen = moduleOneReviewMode || moduleOneState.sectionOpen[button.dataset.m01SectionKey] === true;
+        button.setAttribute('aria-expanded', String(isOpen));
+        button.setAttribute('aria-label', `${isOpen ? 'Collapse' : 'Expand'} ${button.dataset.m01SectionLabel || 'section'}`);
+        body.hidden = !isOpen;
+      });
+      reviewToggle.setAttribute('aria-pressed', String(moduleOneReviewMode));
+    });
+  }
+  wireModuleOneQuiz();
   document.querySelectorAll('[data-m01-section-toggle]').forEach((sectionToggle) => {
     const sectionBody = document.getElementById(sectionToggle.getAttribute('aria-controls'));
     if (!sectionBody) return;
@@ -920,6 +1117,11 @@ function wireModuleOneLab() {
       sectionToggle.setAttribute('aria-expanded', String(!isExpanded));
       sectionToggle.setAttribute('aria-label', `${isExpanded ? 'Expand' : 'Collapse'} ${sectionLabel}`);
       sectionBody.hidden = isExpanded;
+      const sectionKey = sectionToggle.dataset.m01SectionKey;
+      if (sectionKey) {
+        moduleOneState.sectionOpen[sectionKey] = !isExpanded;
+        moduleOneSave();
+      }
     });
   });
 
