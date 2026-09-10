@@ -329,13 +329,19 @@ const MODULE_THREE_SOURCES = [
     title: 'Security+ (SY0-701) Certification Overview & Objectives Summary',
     org: 'CompTIA',
     url: 'https://www.comptia.org/certifications/security',
-    note: 'Official certification page with exam domains, weightings, and a condensed objectives summary covering incident analysis and triage.'
+    note: 'Supplementary public reference only. The §2 crosswalk is a developer draft pending curriculum, compliance, and faculty review; this study aid is not an approval, affiliation, endorsement, or pass guarantee.'
   },
   {
     title: 'What Are Risk Detections? (Impossible Travel, Atypical Travel)',
     org: 'Microsoft',
     url: 'https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-risks',
     note: 'Real-world implementation of geographic anomaly detection and impossible-travel velocity checks in identity systems.'
+  },
+  {
+    title: 'Logging Made Easy: A Guide for Small Businesses',
+    org: 'CISA',
+    url: 'https://www.cisa.gov/resources-tools/resources/logging-made-easy',
+    note: 'Practical guidance on selecting, centralizing, retaining, and reviewing logs so analysts can investigate across systems.'
   },
 ];
 
@@ -408,6 +414,46 @@ const MODULE_THREE_DEFAULT_STATE = {
   feedback: [],
   validationError: '',
   lastSubmittedAt: '',
+  notes: '',
+  lessonWork: {},
+  independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
+};
+
+/* Each catalog lesson keeps the same four-part loop used by Modules 01–02.
+ * These activities are embedded in the existing lesson minutes; they do not
+ * create a second assessment allocation. */
+const MODULE_THREE_LESSON_LOOPS = [
+  { id: 'read-logs', title: 'Read logs as linked observations', scenario: 'Mission Next Labs receives a low-severity sign-in alert for acct-428. One identity record is inconclusive, but a later cloud-resource read and mailbox token refresh share the same session family.', theory: 'Treat each record as an observation with source, time, entity, and outcome. A detection claim is stronger when independent observations agree without erasing their source context.', questions: [
+    { prompt: 'What should an analyst preserve first?', options: ['Source, timestamp, entity, and outcome for each record', 'Only the alert title', 'A verdict before opening the records'], correct: 0, feedbackCorrect: 'Keeping source and time attached prevents a later correlation from becoming an unsupported story.', feedbackIncorrect: 'Do not flatten the evidence into a verdict. Retain where each observation came from, when it occurred, and what it actually records.' },
+    { prompt: 'What does one unusual sign-in prove?', options: ['It is a lead that needs corroboration', 'The account is compromised', 'The alert is false'], correct: 0, feedbackCorrect: 'A single observation starts the investigation; it does not establish intent or impact.', feedbackIncorrect: 'One unusual record is not enough to establish compromise. Seek related identity, access, and resource observations.' },
+    { prompt: 'Which link is strongest?', options: ['Same account, session family, and close timing across sources', 'Two unrelated events on the same day', 'A matching alert color'], correct: 0, feedbackCorrect: 'Multiple aligned dimensions reduce coincidence and keep the correlation explainable.', feedbackIncorrect: 'Timing or presentation alone is weak. Correlation needs shared entities or technical linkage as well as time.' },
+  ], task: 'Write a two-sentence observation that names the source and time context you would preserve for acct-428.' },
+  { id: 'normalized-explorer', title: 'Normalized log explorer', scenario: 'An identity system calls the account field principal, the mailbox audit calls it actor, and the cloud API calls it subject. The records all refer to acct-428.', theory: 'Normalization maps equivalent source fields into a shared schema while retaining the original source. Use normalized fields for comparison, then return to raw records when details matter.', questions: [
+    { prompt: 'Why normalize these fields?', options: ['To compare one entity across source formats', 'To discard source provenance', 'To make every event look like a sign-in'], correct: 0, feedbackCorrect: 'A shared schema makes cross-source searching possible while source provenance remains available for verification.', feedbackIncorrect: 'Normalization is not data deletion or relabeling everything as one event. It is a comparable view over diverse records.' },
+    { prompt: 'What should follow a normalized match?', options: ['Confirm the raw source record and field meaning', 'Assume all matched events are malicious', 'Ignore the source system'], correct: 0, feedbackCorrect: 'The normalized match is a pivot; source verification protects against mapping errors.', feedbackIncorrect: 'A normalized match still needs source validation. Keep the original event and field semantics in the evidence chain.' },
+    { prompt: 'Which mismatch is most important to resolve?', options: ['Different time zones or clock drift between sources', 'Different row colors', 'Different analyst screen sizes'], correct: 0, feedbackCorrect: 'Clock alignment can create or hide a low-and-slow sequence, so document the time basis before concluding.', feedbackIncorrect: 'Presentation differences are irrelevant. Time basis and field semantics directly affect correlation quality.' },
+  ], task: 'Describe one normalized field and one raw-source check you would use to compare acct-428 across identity, mailbox, and cloud logs.' },
+  { id: 'query-workbench', title: 'Correlation query workbench', scenario: 'The alert window spans three days, so the obvious five-minute query returns nothing. The analyst must use a bounded account/session pivot and preserve a readable order.', theory: 'A useful query is bounded, explicit, and reproducible: define the time range, filter on a defensible pivot, project the fields needed for review, and sort to reveal the sequence.', questions: [
+    { prompt: 'What is the BEST first pivot for this case?', options: ['The normalized account plus session family across the bounded window', 'Every event in the tenant with no time limit', 'The alert severity label only'], correct: 0, feedbackCorrect: 'A defensible pivot keeps the search narrow enough to interpret while covering the slow activity window.', feedbackIncorrect: 'Unbounded searches and severity-only filters either overwhelm the analyst or omit the relationships needed to test the claim.' },
+    { prompt: 'Why project source and raw event type?', options: ['So the result remains explainable and can be verified', 'To hide irrelevant details from reviewers', 'Because raw event type is never useful'], correct: 0, feedbackCorrect: 'A compact result is still auditable when it retains source and event type.', feedbackIncorrect: 'Do not hide provenance. Keep enough fields for another analyst to reproduce and challenge the correlation.' },
+    { prompt: 'What does oldest-first sorting support?', options: ['Reconstructing sequence and dwell time', 'Proving intent automatically', 'Replacing the need for scope checks'], correct: 0, feedbackCorrect: 'Chronology helps establish order and dwell time, but it remains one part of the reasoning.', feedbackIncorrect: 'Sorting reveals sequence; it does not by itself prove intent or replace scope and context checks.' },
+  ], task: 'Draft a bounded query plan in plain language: name the pivot, time window, two fields to project, and the sort order.' },
+  { id: 'analyst-handoff', title: 'Build the analyst handoff', scenario: 'The evidence supports a suspicious low-and-slow takeover pattern, but it does not prove mailbox content was exfiltrated. A responder needs a precise handoff.', theory: 'A handoff separates observation, analysis, confirmed scope, uncertainty, and requested action. State what the evidence supports and avoid upgrading a lead into an impact claim.', questions: [
+    { prompt: 'Which scope statement is defensible?', options: ['acct-428 and the observed session family; mailbox content access remains unconfirmed', 'The whole tenant was compromised', 'No scope can be stated until the case closes'], correct: 0, feedbackCorrect: 'A useful scope is specific about what was observed and honest about what remains unknown.', feedbackIncorrect: 'Avoid both overstatement and paralysis. Name the affected entity/session and explicitly preserve the unconfirmed impact question.' },
+    { prompt: 'What belongs in the analysis field?', options: ['Why the linked observations support or weaken the detection claim', 'Only copied raw log rows', 'A response action with no rationale'], correct: 0, feedbackCorrect: 'Analysis explains the relationship between observations; it is not a duplicate event dump or an unsupported command.', feedbackIncorrect: 'Separate raw observation from interpretation. Explain the correlation and its limits before proposing action.' },
+    { prompt: 'What is the FIRST proportionate next step?', options: ['Preserve the evidence and escalate the bounded identity/session for authorized review', 'Delete the mailbox audit records', 'Disable every account in Mission Next Labs'], correct: 0, feedbackCorrect: 'Preservation and scoped escalation protect the investigation without exceeding the evidence or analyst authority.', feedbackIncorrect: 'The pattern warrants action, but broad disruption or evidence deletion exceeds the supported scope.' },
+  ], task: 'Write a short handoff sentence that separates confirmed observations, the unconfirmed mailbox-impact question, and the requested next step.' },
+];
+
+const MODULE_THREE_INDEPENDENT_LAB = {
+  title: 'Independent lab: low-and-slow cloud mailbox takeover',
+  caseId: 'CASE-MN-428',
+  scenario: 'Across three days, acct-428 shows a new refresh-token family, a mailbox search from an unfamiliar session, and a cloud-resource read. There is no single high-severity alert. Decide whether the sparse cross-source pattern warrants a scoped incident and what remains unproven.',
+  questions: [
+    { id: 'signal', label: 'Which combination is the strongest signal?', options: [{ id: 'chain', text: 'New session family plus mailbox search and cloud-resource read linked to acct-428' }, { id: 'severity', text: 'No high-severity alert means no investigation is needed' }, { id: 'ip', text: 'The unfamiliar address alone proves takeover' }], correct: 'chain' },
+    { id: 'scope', label: 'What scope is supportable now?', options: [{ id: 'bounded', text: 'acct-428 and the observed session family; mailbox content exfiltration remains unconfirmed' }, { id: 'tenant', text: 'Every Mission Next Labs identity is affected' }, { id: 'none', text: 'No scope can be recorded until the user confirms compromise' }], correct: 'bounded' },
+    { id: 'next', label: 'What is the best next step?', options: [{ id: 'preserve', text: 'Preserve identity, mailbox, and cloud records; escalate for authorized session protection and scope review' }, { id: 'close', text: 'Close because each individual event is plausible' }, { id: 'delete', text: 'Delete the session and audit records to stop further access' }], correct: 'preserve' },
+  ],
 };
 
 let moduleThreeState = null;
@@ -425,6 +471,11 @@ function moduleThreeLoad(user) {
   }
   if (!Array.isArray(moduleThreeState.feedback)) moduleThreeState.feedback = [];
   if (!Array.isArray(moduleThreeState.flags)) moduleThreeState.flags = [];
+  if (!moduleThreeState.lessonWork || typeof moduleThreeState.lessonWork !== 'object') moduleThreeState.lessonWork = {};
+  if (!moduleThreeState.independentLab || typeof moduleThreeState.independentLab !== 'object') moduleThreeState.independentLab = JSON.parse(JSON.stringify(MODULE_THREE_DEFAULT_STATE.independentLab));
+  if (!moduleThreeState.independentLab.answers || typeof moduleThreeState.independentLab.answers !== 'object') moduleThreeState.independentLab.answers = {};
+  if (!Array.isArray(moduleThreeState.independentLab.feedback)) moduleThreeState.independentLab.feedback = [];
+  if (typeof moduleThreeState.notes !== 'string') moduleThreeState.notes = '';
 
   // Initialize quiz state
   if (!moduleThreeQuizState) {
@@ -502,6 +553,31 @@ function moduleThreeFieldGuide() {
     <div><strong>AppAudit</strong><span>Actions performed inside a protected application.</span></div>
     <div><strong>SystemLog</strong><span>Host and collector health that can explain telemetry gaps.</span></div>
   </div>`;
+}
+
+function moduleThreeLessonLoop(lesson, index) {
+  const work = moduleThreeState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+  const feedback = work.feedback?.length ? `<p class="m03-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
+  return `<details class="m03-lesson-loop" ${work.taskComplete ? '' : 'open'}>
+    <summary><span class="m03-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m03-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m03-chevron" aria-hidden="true"></i>'}</summary>
+    <div class="m03-lesson-loop-body">
+      <section><p class="m03-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section>
+      <section><p class="m03-kicker">Theory</p><p>${esc(lesson.theory)}</p></section>
+      <section><p class="m03-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m03-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m03-lesson-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m03-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m03-lesson-check" data-m03-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section>
+      <section><p class="m03-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m03-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m03-lesson-task-button" data-m03-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section>
+    </div>
+  </details>`;
+}
+
+function moduleThreeLessonLoopsView() {
+  return `<section class="m03-lesson-loops" id="m03-lessons" aria-labelledby="m03-lessons-title"><div class="m03-panel-heading"><div><p class="m03-kicker">Four-part lesson loops</p><h3 id="m03-lessons-title">Practice each SIEM skill in the Mission Next Labs takeover case</h3></div><span>4 lessons</span></div>${MODULE_THREE_LESSON_LOOPS.map(moduleThreeLessonLoop).join('')}</section>`;
+}
+
+function moduleThreeIndependentLab() {
+  const state = moduleThreeState.independentLab;
+  const answered = MODULE_THREE_INDEPENDENT_LAB.questions.filter((question) => state.answers?.[question.id]).length;
+  const feedback = state.feedback?.length ? `<div class="m03-independent-feedback ${state.completed ? 'is-pass' : 'is-hint'}" role="status"><strong>${state.score}/100 — ${state.completed ? 'Independent lab complete' : 'Review and retry'}</strong><ul>${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
+  return `<section class="m03-independent-lab" id="m03-independent-lab" aria-labelledby="m03-independent-title"><div class="m03-panel-heading"><div><p class="m03-kicker">Independent · fresh decision path · included in the existing 240-minute lab allocation</p><h3 id="m03-independent-title">${esc(MODULE_THREE_INDEPENDENT_LAB.title)}</h3></div><span>${answered}/${MODULE_THREE_INDEPENDENT_LAB.questions.length} answered</span></div><p class="m03-panel-instruction">${esc(MODULE_THREE_INDEPENDENT_LAB.scenario)}</p><form id="m03-independent-form">${MODULE_THREE_INDEPENDENT_LAB.questions.map((question) => `<fieldset class="m03-independent-question"><legend>${esc(question.label)}</legend>${question.options.map((option) => `<label><input type="radio" name="m03-independent-${esc(question.id)}" value="${esc(option.id)}" data-m03-independent-answer data-question-id="${esc(question.id)}" ${state.answers?.[question.id] === option.id ? 'checked' : ''}><span>${esc(option.text)}</span></label>`).join('')}</fieldset>`).join('')}<label class="m03-note-label">Analyst note (optional)<textarea rows="3" maxlength="500" data-m03-independent-notes placeholder="Record what remains uncertain and who should own the next step…">${esc(state.notes || '')}</textarea></label><button type="submit" class="m03-independent-submit">Score independent lab</button></form>${feedback}</section>`;
 }
 
 function moduleThreeLecture() {
@@ -817,7 +893,7 @@ function moduleThreeArtifact() {
 }
 
 function moduleThreeLabDynamic() {
-  return `${moduleThreeQueue()}${moduleThreeExplorer()}${moduleThreeQueryWorkbench()}${moduleThreeArtifact()}`;
+  return `${moduleThreeQueue()}${moduleThreeExplorer()}${moduleThreeQueryWorkbench()}${moduleThreeArtifact()}${moduleThreeIndependentLab()}`;
 }
 
 function moduleThreeReview() {
@@ -856,6 +932,7 @@ function viewModuleThree(user, program) {
       </summary>
       <section class="m03-section m03-section-body" aria-labelledby="m03-lecture-title">
         ${moduleThreeVideoScript()}
+        ${moduleThreeLessonLoopsView()}
         ${moduleThreeLecture()}
         ${moduleThreeFieldGuide()}
       </section>
@@ -961,6 +1038,7 @@ function moduleThreeRenderDynamic(focusId) {
   const root = document.getElementById('m03-lab-dynamic');
   if (!root) return;
   root.innerHTML = moduleThreeLabDynamic();
+  wireModuleThreeIndependentLab();
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -1075,6 +1153,26 @@ function wireModuleThreeLab() {
   });
 
   root.addEventListener('submit', (event) => {
+    if (event.target.id === 'm03-independent-form') {
+      event.preventDefault();
+      const state = moduleThreeState.independentLab;
+      const missing = MODULE_THREE_INDEPENDENT_LAB.questions.filter((question) => !state.answers[question.id]);
+      if (missing.length) {
+        state.feedback = [`Answer all ${MODULE_THREE_INDEPENDENT_LAB.questions.length} independent-lab decisions before scoring.`];
+        state.score = 0;
+      } else {
+        const correct = MODULE_THREE_INDEPENDENT_LAB.questions.filter((question) => state.answers[question.id] === question.correct).length;
+        state.score = Math.round(correct / MODULE_THREE_INDEPENDENT_LAB.questions.length * 100);
+        state.attempts = (state.attempts || 0) + 1;
+        state.completed = state.score >= 70;
+        state.feedback = state.completed
+          ? ['You linked sparse identity, mailbox, and cloud observations, bounded the claim, and chose preservation with authorized review.']
+          : ['Use the cross-source chain, state the bounded identity/session scope, and preserve evidence before authorized session protection and review.'];
+      }
+      moduleThreeSave();
+      moduleThreeRenderDynamic('m03-independent-title');
+      return;
+    }
     if (event.target.id !== 'm03-assessment') return;
     event.preventDefault();
     moduleThreeState.notes = event.target.elements.notes.value;
@@ -1118,6 +1216,70 @@ function wireModuleThreeLab() {
     const status = document.getElementById('m03-status');
     if (status) status.textContent = moduleThreeState.completed ? 'Complete' : 'In progress';
     moduleThreeRenderDynamic('m03-score-feedback');
+  });
+}
+
+function wireModuleThreeLessons() {
+  const root = document.getElementById('m03-lessons');
+  if (!root) return;
+  root.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-m03-lesson-answer]');
+    if (!input) return;
+    const work = moduleThreeState.lessonWork[input.dataset.lessonId] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+    work.answers[input.dataset.questionIndex] = Number(input.value);
+    moduleThreeSave();
+  });
+  root.addEventListener('input', (event) => {
+    const field = event.target.closest('[data-m03-lesson-task]');
+    if (!field) return;
+    const work = moduleThreeState.lessonWork[field.dataset.m03LessonTask] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+    work.task = field.value;
+    moduleThreeSave();
+  });
+  root.addEventListener('click', (event) => {
+    const check = event.target.closest('[data-m03-lesson-check]');
+    if (check) {
+      const lesson = MODULE_THREE_LESSON_LOOPS.find((item) => item.id === check.dataset.m03LessonCheck);
+      const work = moduleThreeState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      const missing = lesson.questions.some((question, index) => work.answers?.[index] === undefined);
+      if (missing) { work.checked = false; work.feedback = [`Answer all ${lesson.questions.length} questions before checking this lesson.`]; }
+      else {
+        const correct = lesson.questions.filter((question, index) => work.answers[index] === question.correct).length;
+        work.checked = correct === lesson.questions.length;
+        work.feedback = lesson.questions.map((question, index) => {
+          const answerCorrect = work.answers[index] === question.correct;
+          return `Q${index + 1}: ${answerCorrect ? question.feedbackCorrect : question.feedbackIncorrect}`;
+        });
+        if (!work.checked) work.feedback.push(`${correct}/${lesson.questions.length} correct. Retry after comparing source, time, entity, and outcome.`);
+      }
+      moduleThreeSave();
+      const details = check.closest('details');
+      if (details) details.outerHTML = moduleThreeLessonLoop(lesson, MODULE_THREE_LESSON_LOOPS.indexOf(lesson));
+      return;
+    }
+    const taskButton = event.target.closest('[data-m03-lesson-task-submit]');
+    if (!taskButton) return;
+    const lesson = MODULE_THREE_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m03LessonTask);
+    const work = moduleThreeState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+    work.taskComplete = work.checked && (work.task || '').trim().length >= 20;
+    work.feedback = work.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];
+    moduleThreeSave();
+    const details = taskButton.closest('details');
+    if (details) details.outerHTML = moduleThreeLessonLoop(lesson, MODULE_THREE_LESSON_LOOPS.indexOf(lesson));
+  });
+}
+
+function wireModuleThreeIndependentLab() {
+  const root = document.getElementById('m03-independent-form');
+  if (!root) return;
+  root.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-m03-independent-answer]');
+    if (!input) return;
+    moduleThreeState.independentLab.answers[input.dataset.questionId] = input.value;
+    moduleThreeSave();
+  });
+  root.addEventListener('input', (event) => {
+    if (event.target.matches('[data-m03-independent-notes]')) { moduleThreeState.independentLab.notes = event.target.value; moduleThreeSave(); }
   });
 }
 
@@ -1207,7 +1369,9 @@ function wireModuleThree() {
   }
 
   wireModuleThreeQuiz();
+  wireModuleThreeLessons();
   wireModuleThreeLab();
+  wireModuleThreeIndependentLab();
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 3, moduleKey: 'soc-03',

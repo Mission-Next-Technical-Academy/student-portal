@@ -338,11 +338,37 @@ const MODULE_SIX_SOURCES_LIST = [
     note: 'Overview of hypothesis-driven hunting methodology — forming a testable hypothesis from known TTPs, then searching an environment for matching behavior.',
   },
   {
-    title: 'Security+ (SY0-701) Certification Domains: Threat Hunting and Monitoring',
+    title: 'Security+ (SY0-701) supplementary domain reference: Threat Hunting and Monitoring',
     org: 'CompTIA',
     url: 'https://www.comptia.org/certifications/security',
-    note: 'Official exam coverage of SOC analyst responsibilities in query construction, alert triage, and cross-source correlation.',
+    note: 'Supplementary public reference only. The §2 crosswalk is a developer draft pending curriculum, compliance, and faculty review; this study aid is not an approval, affiliation, endorsement, or pass guarantee.',
   },
+];
+
+// Sprint 7 learning loops: four existing lesson allocations are reshaped,
+// not expanded. The case is fictional Mission Next Labs content and is not a
+// certification, affiliation, victim, or live-indicator claim.
+const MODULE_SIX_LESSONS = [
+  { number: 1, title: 'Start with a testable hypothesis', scenario: 'A scheduled task named UpdateHealth runs weekly on ws-318, but no alert fired. The task launches a script from a user-writable folder. Begin with a question the available telemetry can support or disprove.', theory: 'A useful hunt hypothesis names the behavior, likely entities, time window, and evidence that would weaken it. Dormant persistence requires a bounded search, not a claim that every scheduled task is malicious.', task: 'Write one sentence stating what you will test on ws-318 and what finding would weaken the backdoor hypothesis.', questions: [
+    { id: 'm06-l1-q1', prompt: 'Which is the BEST first hypothesis?', options: ['Every scheduled task is malicious.', 'UpdateHealth may recur on other workstations with the same script path and unusual author.', 'The organization is definitely compromised.', 'No alert means there is no threat.'], correct: 1, good: 'It is observable, bounded, and falsifiable.', bad: 'Name a behavior and a scope that telemetry can test.' },
+    { id: 'm06-l1-q2', prompt: 'What would MOST weaken the hypothesis?', options: ['The task is documented and signed by the endpoint team.', 'The task runs weekly.', 'The task has a short name.', 'The host is online.'], correct: 0, good: 'A verified change record and signed script provide a plausible benign explanation.', bad: 'Look for evidence that explains the behavior without compromise.' },
+    { id: 'm06-l1-q3', prompt: 'Why record a time window?', options: ['To make every result malicious.', 'To reduce unrelated matches and make recurrence comparable.', 'To avoid reviewing context.', 'To replace evidence.'], correct: 1, good: 'Temporal bounds reduce noise while retaining the testable question.', bad: 'A time window is a scope control, not proof.' },
+  ] },
+  { number: 2, title: 'Pivot from behavior to related evidence', scenario: 'The seed task points to script path C:\\ProgramData\\MissionNext\\sync.ps1. A second workstation has a similar task but a different owner. Pivot across task metadata, file path, host, account, and execution history.', theory: 'Indicators are pivots rather than verdicts. Compare context around each match: creation time, author, parent process, path, signer, account, and network behavior.', task: 'List two pivots you would add after finding the same script path on a second host, and explain why each reduces uncertainty.', questions: [
+    { id: 'm06-l2-q1', prompt: 'What is the BEST use of the script path?', options: ['Treat it as proof of compromise.', 'Use it to find related tasks, then compare owners and execution context.', 'Ignore it because paths are not evidence.', 'Delete every matching file.'], correct: 1, good: 'A path narrows the hunt; surrounding behavior determines meaning.', bad: 'Pivots narrow search; they do not establish a verdict alone.' },
+    { id: 'm06-l2-q2', prompt: 'Which pivot most helps distinguish a dormant backdoor from approved maintenance?', options: ['Task color in the UI.', 'Task author plus change-ticket and script signer.', 'Number of browser tabs.', 'Hostname length.'], correct: 1, good: 'Ownership and authorization context test the benign alternative.', bad: 'Prefer pivots that establish provenance and authorization.' },
+    { id: 'm06-l2-q3', prompt: 'A matching path appears on ten hosts but only two run it from a user-writable location. What is the BEST scope?', options: ['All ten are confirmed compromised.', 'The two executions are priority findings; keep the others as leads.', 'Ignore all ten.', 'Close the hunt.'], correct: 1, good: 'Execution context separates leads from supported findings.', bad: 'Do not turn a broad match into a broad verdict.' },
+  ] },
+  { number: 3, title: 'Preserve the reasoning chain', scenario: 'The task metadata, script event, and account session are spread across three tables. A reviewer must reproduce why two hosts were escalated and three benign matches were excluded.', theory: 'A useful evidence set preserves decisive rows and the analyst reasoning that connects them. Bookmark only the minimum records needed to show recurrence, scope, and the benign comparison.', task: 'Describe the minimum evidence set you would bookmark for ws-318 and one comparison host, including the relationship between rows.', questions: [
+    { id: 'm06-l3-q1', prompt: 'What belongs in the core evidence set?', options: ['Every row returned by the query.', 'Task metadata, execution event, related account/session, and a documented benign comparison.', 'Only the task name.', 'A screenshot with no query context.'], correct: 1, good: 'The chain is reproducible and includes a meaningful comparison.', bad: 'Evidence should connect behavior, scope, and reasoning.' },
+    { id: 'm06-l3-q2', prompt: 'Why retain excluded benign matches?', options: ['To inflate the case.', 'To show the analyst tested an alternative explanation.', 'Because exclusions are always malicious.', 'They are required to prove attribution.'], correct: 1, good: 'A comparison supports a defensible disposition without overclaiming.', bad: 'Documented exclusions make the conclusion auditable.' },
+    { id: 'm06-l3-q3', prompt: 'What makes a bookmark useful to another analyst?', options: ['It has the largest row count.', 'It records why the row matters and how it connects to the hypothesis.', 'It has a severe label.', 'It is the newest row.'], correct: 1, good: 'Reason and relationship matter more than volume or labels.', bad: 'A bookmark needs context, not just a timestamp.' },
+  ] },
+  { number: 4, title: 'Map only demonstrated behavior', scenario: 'The task runs a PowerShell script and opens an outbound session, but the available rows do not show delivery, credential theft, or lateral movement. Document what the telemetry proves and what remains unknown.', theory: 'Technique mapping communicates observed behavior. Scheduled Task/Job (T1053.005) and PowerShell (T1059.001) may be supported; do not infer supply-chain compromise, tool transfer, or impact without evidence.', task: 'Write a two-line handoff: one demonstrated behavior and one unknown that requires follow-up.', questions: [
+    { id: 'm06-l4-q1', prompt: 'Which technique is directly supported by a recurring task execution?', options: ['T1053.005 Scheduled Task/Job.', 'T1486 Data Encrypted for Impact.', 'T1566 Phishing.', 'T1190 Exploit Public-Facing Application.'], correct: 0, good: 'The task execution is directly observed.', bad: 'Map the mechanism shown, not an assumed delivery or impact stage.' },
+    { id: 'm06-l4-q2', prompt: 'What is the MOST defensible statement about the outbound session?', options: ['It proves data theft.', 'It is a lead for network review; transfer and purpose are not shown.', 'It proves ransomware.', 'It should be ignored.'], correct: 1, good: 'A connection is evidence for follow-up, not proof of transfer or impact.', bad: 'Separate observed connection from unobserved content or intent.' },
+    { id: 'm06-l4-q3', prompt: 'What is the BEST handoff disposition?', options: ['Escalate the two supported host-task pairs and preserve evidence.', 'Wipe the entire fleet immediately.', 'Close because no alert fired.', 'Publish an operator attribution.'], correct: 0, good: 'The response is proportionate to the supported scope.', bad: 'Hunting findings need bounded escalation and preserved evidence.' },
+  ] },
 ];
 
 const MODULE_SIX_ENDPOINT_ROWS = [
@@ -379,6 +405,8 @@ const MODULE_SIX_SOURCES = {
 
 const MODULE_SIX_EXPECTED_BOOKMARKS = ['EP-602', 'EP-604', 'ID-612', 'ID-614'];
 const MODULE_SIX_DEFAULT_STATE = {
+  lessonWork: {},
+  independentLab: { task: '', owner: '', scope: '', disposition: '', rationale: '', completed: false, score: 0 },
   hypothesis: '',
   activeSource: 'endpoint',
   queryDrafts: {
@@ -425,6 +453,8 @@ function moduleSixLoad(user) {
   moduleSixState.queryPassed = { ...defaults.queryPassed, ...(moduleSixState.queryPassed || {}) };
   moduleSixState.queryResultIds = { ...defaults.queryResultIds, ...(moduleSixState.queryResultIds || {}) };
   moduleSixState.queryFeedback = { ...defaults.queryFeedback, ...(moduleSixState.queryFeedback || {}) };
+  moduleSixState.lessonWork = { ...defaults.lessonWork, ...(moduleSixState.lessonWork || {}) };
+  moduleSixState.independentLab = { ...defaults.independentLab, ...(moduleSixState.independentLab || {}) };
   ['selectedEvidence', 'bookmarks', 'scopedDevices', 'scopedAccounts', 'techniques', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleSixState[key])) moduleSixState[key] = [];
   });
@@ -464,11 +494,32 @@ function moduleSixRowById(id) {
 
 function moduleSixGetSections() {
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm06-lecture' },
+    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: MODULE_SIX_LESSONS.every((lesson) => moduleSixLessonComplete(lesson)), scrollId: 'm06-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSixQuizState?.passed, scrollId: 'm06-knowledge-check' },
-    { id: 'threat-hunt-lab', title: 'Threat Hunt Lab', type: 'lab', isComplete: moduleSixState.completed, scrollId: 'm06-lab' },
+    { id: 'threat-hunt-lab', title: 'Threat Hunt Labs', type: 'lab', isComplete: moduleSixState.completed && moduleSixState.independentLab.completed, scrollId: 'm06-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm06-review' },
   ];
+}
+
+function moduleSixLessonWork(number) {
+  return moduleSixState.lessonWork[String(number)] || {};
+}
+
+function moduleSixLessonComplete(lesson) {
+  const work = moduleSixLessonWork(lesson.number);
+  return Boolean(work.taskDone && lesson.questions.every((question) => work.answers?.[question.id] === question.correct));
+}
+
+function moduleSixLessonLoops() {
+  return `<div class="m06-lesson-grid" id="m06-lessons">${MODULE_SIX_LESSONS.map((lesson) => {
+    const work = moduleSixLessonWork(lesson.number);
+    const complete = moduleSixLessonComplete(lesson);
+    return `<details class="m06-lesson" ${lesson.number === 1 ? 'open' : ''} data-m06-lesson="${lesson.number}">
+      <summary><span class="m06-lesson-number">${String(lesson.number).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${complete ? 'Complete' : 'Scenario → theory → check → applied task'}</small></span>${complete ? '<span aria-label="Lesson complete">✓</span>' : ''}</summary>
+      <div class="m06-lesson-body"><div class="m06-lesson-scenario"><p class="m06-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></div><div class="m06-lesson-theory"><p class="m06-kicker">Theory</p><p>${esc(lesson.theory)}</p></div>
+      <div class="m06-lesson-check"><h4>Knowledge check</h4>${lesson.questions.map((question) => { const selected = work.answers?.[question.id]; const answered = selected !== undefined; return `<fieldset><legend>${esc(question.prompt)}</legend>${question.options.map((option, index) => `<label><input type="radio" name="m06-lesson-${lesson.number}-${question.id}" data-m06-lesson-answer data-lesson="${lesson.number}" data-question="${esc(question.id)}" value="${index}" ${selected === index ? 'checked' : ''} /><span>${esc(option)}</span></label>`).join('')}${answered ? `<p class="m06-lesson-feedback ${selected === question.correct ? 'is-pass' : 'is-remediate'}" role="status">${esc(selected === question.correct ? question.good : question.bad)}</p>` : ''}</fieldset>`; }).join('')}</div>
+      <div class="m06-lesson-task"><p class="m06-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea data-m06-lesson-task="${lesson.number}" rows="3" maxlength="600" placeholder="Apply the idea to this hunt…">${esc(work.taskText || '')}</textarea><button type="button" data-m06-lesson-submit="${lesson.number}">${complete ? 'Completed' : 'Mark task complete'}</button></div></div></details>`;
+  }).join('')}</div>`;
 }
 
 function moduleSixQuizQuestion(selected, index) {
@@ -766,6 +817,23 @@ function moduleSixLabDynamic() {
   return `${moduleSixHypothesis()}${moduleSixSourceWorkspace()}${moduleSixArtifact()}`;
 }
 
+function moduleSixIndependentLab() {
+  const lab = moduleSixState.independentLab;
+  const passed = lab.completed;
+  return `<section class="m06-panel m06-independent" id="m06-independent-lab" aria-labelledby="m06-independent-title">
+    <div class="m06-panel-heading"><div><p class="m06-kicker">Independent lab · embedded in the existing 90-minute lab allocation</p><h3 id="m06-independent-title">Dormant task backdoor review</h3></div><span class="m06-status-chip">${passed ? 'Complete' : 'Decision required'}</span></div>
+    <p class="m06-instruction"><strong>Fresh case, different decision path:</strong> Mission Next Labs has no alert for a scheduled task named <code>UpdateHealth</code> on <code>ws-318</code>. It runs weekly from a user-writable folder and was created by <code>acct-184</code>. A second host has the same task name but a signed script under approved maintenance. Choose a bounded disposition; do not treat the absence of an alert as proof of safety.</p>
+    <form id="m06-independent-form" class="m06-independent-form" novalidate>
+      <label><strong>1. Evidence to prioritize</strong><select name="task"><option value="" ${!lab.task ? 'selected' : ''}>Choose…</option><option value="task-metadata" ${lab.task === 'task-metadata' ? 'selected' : ''}>Task author, trigger, path, signer, and creation time</option><option value="all-logs" ${lab.task === 'all-logs' ? 'selected' : ''}>Every log row in the tenant</option><option value="alert-only" ${lab.task === 'alert-only' ? 'selected' : ''}>Only generated alerts</option></select></label>
+      <label><strong>2. Current scope</strong><select name="scope"><option value="" ${!lab.scope ? 'selected' : ''}>Choose…</option><option value="ws318" ${lab.scope === 'ws318' ? 'selected' : ''}>ws-318 is supported; the signed maintenance host is a comparison</option><option value="fleet" ${lab.scope === 'fleet' ? 'selected' : ''}>Every host with the task name is compromised</option><option value="none" ${lab.scope === 'none' ? 'selected' : ''}>No scope because no alert fired</option></select></label>
+      <label><strong>3. Disposition</strong><select name="disposition"><option value="" ${!lab.disposition ? 'selected' : ''}>Choose…</option><option value="escalate" ${lab.disposition === 'escalate' ? 'selected' : ''}>Escalate ws-318 for approved containment and preserve the task/script evidence</option><option value="wipe" ${lab.disposition === 'wipe' ? 'selected' : ''}>Wipe every host immediately</option><option value="close" ${lab.disposition === 'close' ? 'selected' : ''}>Close as benign because no alert exists</option></select></label>
+      <label><strong>4. Explain the reasoning (60+ characters)</strong><textarea name="rationale" rows="4" maxlength="700" placeholder="Observed behavior… comparison… bounded next action…">${esc(lab.rationale || '')}</textarea></label>
+      <button type="submit" class="m06-submit">${passed ? 'Re-score independent lab' : 'Score independent lab'}</button>
+      ${lab.score ? `<p class="m06-independent-feedback ${passed ? 'is-pass' : 'is-remediate'}" role="status"><strong>${lab.score}/100</strong> — ${passed ? 'Independent decision supported.' : 'Review the comparison and scope, then retry.'}</p>` : ''}
+    </form>
+  </section>`;
+}
+
 function viewModuleSix(user, program) {
   moduleSixLoad(user);
   const module = program.modules['soc-06'];
@@ -786,7 +854,7 @@ function viewModuleSix(user, program) {
         <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">1</span><div><p class="m06-kicker">Lecture</p><h2 id="m06-lecture">Hypothesis-led hunting foundations</h2></div></div></summary>
         <div class="m06-section-body">
           <div class="m06-objective" aria-labelledby="m06-objective-title"><div class="m06-objective-icon"><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m06-kicker">Measurable objective</p><h3 id="m06-objective-title">Test one cross-device execution hypothesis with two scoped queries, bookmark the four records that establish behavior and scope, and communicate a supported disposition.</h3></div></div>
-          <section class="m06-section" id="m06-field-guide" aria-labelledby="m06-guide-title"><div class="m06-section-heading"><span>a</span><div><p class="m06-kicker">Field guide</p><h3 id="m06-guide-title">Hunt for evidence, not confirmation</h3></div></div>${moduleSixConcepts()}<div class="m06-hunt-loop" aria-label="Hypothesis-led hunting loop"><span>Hypothesis</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Query</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Bookmark</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Decide &amp; communicate</span></div></section>
+          <section class="m06-section" id="m06-field-guide" aria-labelledby="m06-guide-title"><div class="m06-section-heading"><span>a</span><div><p class="m06-kicker">Field guide</p><h3 id="m06-guide-title">Hunt for evidence, not confirmation</h3></div></div>${moduleSixLessonLoops()}${moduleSixConcepts()}<div class="m06-hunt-loop" aria-label="Hypothesis-led hunting loop"><span>Hypothesis</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Query</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Bookmark</span><i class="ri-bookmark-line" aria-hidden="true"></i><span>Preserve</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope &amp; decide</span></div></section>
           ${moduleSixVideoScript()}
         </div>
       </details>
@@ -801,6 +869,7 @@ function viewModuleSix(user, program) {
         <div class="m06-section-body">
           <div class="m06-role"><i class="ri-user-search-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst conducting a guided hunt</strong><p>You may investigate endpoint activity and sign-in activity in either order. Hints are available when you want them. Your job is to test the stated lead inside the assigned monitoring workflow, not to investigate unrelated systems.</p></div></div>
           <div id="m06-lab-dynamic">${moduleSixLabDynamic()}</div>
+          ${moduleSixIndependentLab()}
         </div>
       </details>
 
@@ -1109,6 +1178,68 @@ function wireModuleSix() {
   }
   wireModuleSixQuiz();
   wireModuleSixLab();
+
+  const shell = document.querySelector('.m06-shell');
+  if (!shell) return;
+  shell.addEventListener('change', (event) => {
+    const answer = event.target.closest('[data-m06-lesson-answer]');
+    if (answer) {
+      const number = answer.dataset.lesson;
+      const work = moduleSixState.lessonWork[number] || (moduleSixState.lessonWork[number] = { answers: {}, taskText: '', taskDone: false });
+      work.answers = { ...(work.answers || {}), [answer.dataset.question]: Number(answer.value) };
+      moduleSixSave();
+      const list = shell.querySelector('#m06-lessons');
+      if (list) list.outerHTML = moduleSixLessonLoops();
+    }
+    if (event.target.name === 'task' || event.target.name === 'scope' || event.target.name === 'disposition') {
+      moduleSixState.independentLab[event.target.name] = event.target.value;
+      moduleSixSave();
+    }
+  });
+  shell.addEventListener('input', (event) => {
+    const task = event.target.closest('[data-m06-lesson-task]');
+    if (task) {
+      const work = moduleSixState.lessonWork[task.dataset.m06LessonTask] || (moduleSixState.lessonWork[task.dataset.m06LessonTask] = { answers: {}, taskText: '', taskDone: false });
+      work.taskText = task.value;
+      moduleSixSave();
+    }
+    if (event.target.name === 'rationale') {
+      moduleSixState.independentLab.rationale = event.target.value;
+      moduleSixSave();
+    }
+  });
+  shell.addEventListener('click', (event) => {
+    const submitLesson = event.target.closest('[data-m06-lesson-submit]');
+    if (submitLesson) {
+      const number = submitLesson.dataset.m06LessonSubmit;
+      const lesson = MODULE_SIX_LESSONS.find((item) => item.number === Number(number));
+      const work = moduleSixLessonWork(number);
+      if (!lesson || !work.taskText?.trim() || !lesson.questions.every((question) => work.answers?.[question.id] === question.correct)) {
+        submitLesson.textContent = 'Complete the check and task first';
+        return;
+      }
+      work.taskDone = true;
+      moduleSixSave();
+      const list = shell.querySelector('#m06-lessons');
+      if (list) list.outerHTML = moduleSixLessonLoops();
+    }
+  });
+  shell.addEventListener('submit', (event) => {
+    if (event.target.id !== 'm06-independent-form') return;
+    event.preventDefault();
+    const form = event.target;
+    moduleSixState.independentLab.task = form.elements.task.value;
+    moduleSixState.independentLab.scope = form.elements.scope.value;
+    moduleSixState.independentLab.disposition = form.elements.disposition.value;
+    moduleSixState.independentLab.rationale = form.elements.rationale.value;
+    const lab = moduleSixState.independentLab;
+    const valid = lab.task === 'task-metadata' && lab.scope === 'ws318' && lab.disposition === 'escalate' && lab.rationale.trim().length >= 60;
+    lab.score = valid ? 100 : 45;
+    lab.completed = valid;
+    moduleSixSave();
+    const panel = shell.querySelector('#m06-independent-lab');
+    if (panel) panel.outerHTML = moduleSixIndependentLab();
+  });
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 6, moduleKey: 'soc-06',

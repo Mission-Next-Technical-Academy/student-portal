@@ -19,6 +19,33 @@ const MODULE_TWO_DEFAULT_STATE = {
   validationError: '',
   lastSubmittedAt: '',
   resetArmed: false,
+  lessonWork: {},
+  independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
+};
+
+/* Each foundation concept now follows the Module 01 rhythm. The questions are
+ * deliberately local to the MFA-fatigue/conditional-access case so the lesson
+ * work is practice, not an additional time allocation. */
+const MODULE_TWO_LESSON_LOOPS = [
+  { id: 'network-paths', title: 'Network paths', scenario: 'Mission Next Labs sees a sign-in for acct-317 from a documentation-range address with no managed-device or approved VPN context.', theory: 'Read a path as source, destination, route, protocol, trust zone, and outcome. An unfamiliar address is a lead, not a verdict.', questions: [{ prompt: 'What should anchor the first comparison?', options: ['Route, device state, timing, and destination together', 'The address alone', 'The color of the alert'], correct: 0 }, { prompt: 'What does a successful connection prove?', options: ['Only that the control accepted the request', 'That the owner authorized it', 'That the device is safe'], correct: 0 }, { prompt: 'Which evidence is strongest?', options: ['Repeated path plus identity and resource context', 'A geographic guess', 'A single unfamiliar hostname'], correct: 0 }], task: 'Write one sentence naming the path facts you would verify before escalating acct-317.' },
+  { id: 'identity-accounts', title: 'Identity and accounts', scenario: 'The same Mission Next account label appears in interactive sign-ins while a scheduled backup identity runs normally.', theory: 'Classify the identity before judging behavior. Human, service, device, and workload identities have different owners, schedules, and expected access patterns.', questions: [{ prompt: 'What comes first?', options: ['Confirm the identity type and owner', 'Disable every account', 'Assume the account is shared'], correct: 0 }, { prompt: 'Why baseline a service identity?', options: ['Predictable behavior makes deviations visible', 'Services never need review', 'It replaces authorization'], correct: 0 }, { prompt: 'What is an account label by itself?', options: ['A clue that needs context', 'Proof of compromise', 'Proof of approval'], correct: 0 }], task: 'Describe one context check that separates acct-317 from a normal scheduled workload identity.' },
+  { id: 'authentication', title: 'Authentication', scenario: 'acct-317 receives two denied MFA prompts, then succeeds through a legacy exception from an unmanaged browser.', theory: 'Authentication tells you which proof was accepted or denied; it does not by itself establish authorization or user intent.', questions: [{ prompt: 'Which sequence merits review?', options: ['Denied stronger factor followed by weaker success', 'One approved security-key sign-in', 'A scheduled certificate renewal'], correct: 0 }, { prompt: 'What does MFA denial show?', options: ['A control blocked that attempt', 'The account is safe', 'The user is malicious'], correct: 0 }, { prompt: 'What should follow the pattern?', options: ['Verify with the user and correlate session context', 'Close the case', 'Block all addresses'], correct: 0 }], task: 'Write the authentication sequence in order and state what remains unproven.' },
+  { id: 'authorization', title: 'Authorization', scenario: 'Minutes after the suspicious sign-in, acct-317 changes from Reports Reader to Network Configuration Operator without an approval record.', theory: 'Authorization asks what the authenticated identity may do. A valid sign-in and an approved role change are separate evidence questions.', questions: [{ prompt: 'What makes this role change concerning?', options: ['Sensitive scope with no matching approval', 'The role name is long', 'The sign-in succeeded'], correct: 0 }, { prompt: 'What should an analyst correlate?', options: ['Identity, time, requested scope, owner, and approval', 'Only the role label', 'Only the source address'], correct: 0 }, { prompt: 'What is a proportionate record?', options: ['Document the change and escalate for authorized review', 'Delete the role history', 'Disable unrelated accounts'], correct: 0 }], task: 'Name the authorization evidence that would make the role change explainable.' },
+  { id: 'mfa', title: 'MFA', scenario: 'A Mission Next administrator reports an unexpected burst of push prompts and denies every prompt.', theory: 'MFA adds an independent proof, but push fatigue can exploit user approval habits. Treat repeated unsolicited prompts as a signal to verify and protect the account.', questions: [{ prompt: 'What does repeated denial suggest?', options: ['Someone may be attempting sign-in with a valid password', 'The account is definitely safe', 'The phone is compromised'], correct: 0 }, { prompt: 'What should the analyst avoid?', options: ['Calling every denied prompt proof of compromise', 'Verifying with the user', 'Reviewing conditional access'], correct: 0 }, { prompt: 'What control review fits this case?', options: ['MFA method, number matching/strong factor, and policy coverage', 'Perimeter IP blocking only', 'Removing all MFA'], correct: 0 }], task: 'Draft a two-sentence user-verification and protection recommendation for the administrator.' },
+  { id: 'rbac-least-privilege', title: 'RBAC and least privilege', scenario: 'The suspicious account now has a role that can change network policy, although its normal work only requires report reading.', theory: 'Role-based access should match job need, approval, and scope. Least privilege reduces blast radius; it does not mean every user has identical access.', questions: [{ prompt: 'What is the key comparison?', options: ['Granted permission versus documented job need', 'Role color versus department', 'Account age versus username'], correct: 0 }, { prompt: 'What evidence supports a legitimate grant?', options: ['A request, approver, purpose, and bounded scope', 'A successful password', 'A familiar display name'], correct: 0 }, { prompt: 'What should be preserved?', options: ['The role-change record and approval history', 'Only the latest sign-in', 'No records'], correct: 0 }], task: 'State the least-privilege concern in the acct-317 case without claiming more impact than the evidence shows.' },
+  { id: 'pki', title: 'PKI', scenario: 'A service certificate renewal appears beside the human account investigation, but it follows a scheduled backup path and change record.', theory: 'Certificates bind cryptographic proof to an identity or system. Validate subject, issuer, intended use, expiry, and workload context before classifying activity.', questions: [{ prompt: 'What makes the renewal plausibly normal?', options: ['Expected service, schedule, path, and change reference align', 'Certificates are always trusted', 'It happened at night'], correct: 0 }, { prompt: 'What should be checked?', options: ['Subject, issuer, use, expiry, and owner', 'Only the certificate color', 'Only the IP address'], correct: 0 }, { prompt: 'How should it affect acct-317 review?', options: ['Keep the cases separate unless evidence links them', 'Treat it as proof of compromise', 'Ignore all certificates'], correct: 0 }], task: 'List two PKI fields and one workload-context check you would record.' },
+  { id: 'zero-trust', title: 'Zero Trust reasoning', scenario: 'The response team must decide whether a conditional-access change should affect one risky identity or all remote users.', theory: 'Evaluate every request using identity, device, location, resource, and current risk. Apply the smallest control supported by evidence and verify its result.', questions: [{ prompt: 'What is the Zero Trust starting point?', options: ['No request is trusted solely because of network location', 'Inside the network means trusted', 'Outside means malicious'], correct: 0 }, { prompt: 'What makes a control proportionate?', options: ['It matches evidence, scope, impact, and authority', 'It is the broadest available action', 'It is the fastest button'], correct: 0 }, { prompt: 'What closes the loop?', options: ['Verify the control outcome and document remaining uncertainty', 'Delete the alert', 'Assume the change worked'], correct: 0 }], task: 'Recommend one scoped conditional-access review for acct-317 and name the verification signal.' },
+];
+
+const MODULE_TWO_INDEPENDENT_LAB = {
+  title: 'Independent lab: MFA push-bombing and conditional-access review',
+  caseId: 'CASE-MN-317',
+  scenario: 'Mission Next Labs administrator acct-317 reports unsolicited MFA push prompts. One prompt was denied, a legacy exception later succeeded, and a conditional-access policy currently excludes a small legacy group. Decide what to verify and how to recommend a scoped policy review.',
+  questions: [
+    { id: 'signal', label: 'What is the strongest initial signal?', options: [{ id: 'push', text: 'Unsolicited repeated prompts plus a later weaker-method success' }, { id: 'geo', text: 'The documentation-range address alone' }, { id: 'none', text: 'No signal because the first prompt was denied' }], correct: 'push' },
+    { id: 'scope', label: 'What should the policy review target first?', options: [{ id: 'acct', text: 'acct-317 and the legacy-exception path, with affected resources identified' }, { id: 'all', text: 'Every remote user immediately' }, { id: 'ip', text: 'Only the synthetic source address' }], correct: 'acct' },
+    { id: 'verify', label: 'What is the best verification step?', options: [{ id: 'verify', text: 'Confirm user activity, inspect sign-in/session records, and test the intended policy outcome through an authorized change path' }, { id: 'close', text: 'Close after the password reset request is sent' }, { id: 'delete', text: 'Delete the conditional-access exclusion' }], correct: 'verify' },
+  ],
 };
 
 const MODULE_TWO_FOUNDATIONS = [
@@ -586,10 +613,10 @@ const MODULE_TWO_SOURCES = [
     note: 'Adversary tactics and techniques related to credential compromise—understand what defenses protect against.'
   },
   {
-    title: 'Security+ (SY0-701) Certification Overview & Objectives Summary',
+    title: 'Security+ public domain overview (supplementary draft reference)',
     org: 'CompTIA',
     url: 'https://www.comptia.org/certifications/security',
-    note: 'Official certification page with exam domains, weightings, and a condensed objectives summary covering identity, access, and network security.'
+    note: 'Supplementary public reference only. The §2 crosswalk is a developer draft pending curriculum, compliance, and faculty review; this study aid is not an approval, affiliation, endorsement, or pass guarantee.'
   },
 ];
 
@@ -605,6 +632,10 @@ function moduleTwoLoad(user) {
   if (!Array.isArray(moduleTwoState.selectedEvidence)) moduleTwoState.selectedEvidence = [];
   if (!Array.isArray(moduleTwoState.feedback)) moduleTwoState.feedback = [];
   if (!Array.isArray(moduleTwoState.flags)) moduleTwoState.flags = [];
+  if (!moduleTwoState.lessonWork || typeof moduleTwoState.lessonWork !== 'object') moduleTwoState.lessonWork = {};
+  if (!moduleTwoState.independentLab || typeof moduleTwoState.independentLab !== 'object') moduleTwoState.independentLab = JSON.parse(JSON.stringify(MODULE_TWO_DEFAULT_STATE.independentLab));
+  if (!moduleTwoState.independentLab.answers || typeof moduleTwoState.independentLab.answers !== 'object') moduleTwoState.independentLab.answers = {};
+  if (!Array.isArray(moduleTwoState.independentLab.feedback)) moduleTwoState.independentLab.feedback = [];
   if (typeof moduleTwoState.notes !== 'string') moduleTwoState.notes = '';
   if (!MODULE_TWO_LAB.stations.some((station) => station.id === moduleTwoState.activeStation)) moduleTwoState.activeStation = 'signins';
 
@@ -648,7 +679,31 @@ function moduleTwoFoundations() {
       <summary><span class="m02-foundation-icon"><i class="${esc(item.icon)}" aria-hidden="true"></i></span><span><strong>${esc(item.title)}</strong><small>${esc(item.summary)}</small></span><i class="ri-arrow-down-s-line m02-chevron" aria-hidden="true"></i></summary>
       <p>${esc(item.detail)}</p>
     </details>`).join('')}
+  </div>
+  <div class="m02-lesson-loops" id="m02-lessons" aria-label="Eight lesson practice loops">
+    ${MODULE_TWO_LESSON_LOOPS.map((lesson, index) => moduleTwoLessonLoop(lesson, index)).join('')}
   </div>`;
+}
+
+function moduleTwoLessonLoop(lesson, index) {
+  const work = moduleTwoState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+  const complete = work.checked && work.taskComplete;
+  return `<details class="m02-lesson-loop" ${index === 0 || !complete ? 'open' : ''} data-m02-lesson="${esc(lesson.id)}">
+    <summary><span class="m02-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${complete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${complete ? '<i class="ri-checkbox-circle-fill m02-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m02-chevron" aria-hidden="true"></i>'}</summary>
+    <div class="m02-lesson-loop-body">
+      <section><p class="m02-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section>
+      <section><p class="m02-kicker">Theory</p><p>${esc(lesson.theory)}</p></section>
+      <section class="m02-lesson-check"><p class="m02-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m02-lesson-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m02-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${String(work.answers?.[qIndex]) === String(optionIndex) ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m02-lesson-check-button" data-m02-lesson-check="${esc(lesson.id)}">Check lesson answers</button>${work.feedback?.length ? `<ul class="m02-lesson-feedback">${work.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>` : ''}</section>
+      <section class="m02-lesson-task"><p class="m02-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m02-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m02-lesson-task-button" data-m02-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section>
+    </div>
+  </details>`;
+}
+
+function moduleTwoIndependentLab() {
+  const state = moduleTwoState.independentLab;
+  const answered = Object.keys(state.answers || {}).length;
+  const feedback = state.feedback?.length ? `<div class="m02-independent-feedback" role="status"><strong>${state.score}/100 — ${state.completed ? 'Independent lab complete' : 'Review and retry'}</strong><ul>${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
+  return `<section class="m02-independent-lab" id="m02-independent-lab" aria-labelledby="m02-independent-title"><div class="m02-panel-heading"><div><p class="m02-kicker">Independent · fresh decision path · included in the existing 180-minute lab allocation</p><h3 id="m02-independent-title">${esc(MODULE_TWO_INDEPENDENT_LAB.title)}</h3></div><span>${answered}/${MODULE_TWO_INDEPENDENT_LAB.questions.length} answered</span></div><p class="m02-independent-scenario">${esc(MODULE_TWO_INDEPENDENT_LAB.scenario)}</p><form id="m02-independent-form">${MODULE_TWO_INDEPENDENT_LAB.questions.map((question) => `<fieldset class="m02-independent-question"><legend>${esc(question.label)}</legend>${question.options.map((option) => `<label><input type="radio" name="m02-independent-${esc(question.id)}" value="${esc(option.id)}" data-m02-independent-answer data-question-id="${esc(question.id)}" ${state.answers?.[question.id] === option.id ? 'checked' : ''}><span>${esc(option.text)}</span></label>`).join('')}</fieldset>`).join('')}<label class="m02-independent-notes">Analyst note (optional)<textarea rows="3" maxlength="500" data-m02-independent-notes placeholder="Record what remains uncertain and who should own the next step…">${esc(state.notes || '')}</textarea></label><button type="submit" class="m02-independent-submit">Score independent lab</button></form>${feedback}</section>`;
 }
 
 function moduleTwoTrustModel() {
@@ -908,6 +963,7 @@ function viewModuleTwo(user, program) {
         </section>
       </summary>
       <section class="m02-section m02-lab-section m02-section-body" aria-labelledby="m02-lab-title"><div id="m02-lab-dynamic">${moduleTwoLabDynamic()}</div></section>
+      <section class="m02-section m02-section-body" aria-labelledby="m02-independent-title">${moduleTwoIndependentLab()}</section>
     </details>`;
 
   return `<div class="m02-shell">
@@ -962,6 +1018,7 @@ function moduleTwoRenderDynamic(focusId) {
   root.innerHTML = moduleTwoLabDynamic();
   const status = document.getElementById('m02-status');
   if (status) status.textContent = moduleTwoState.completed ? 'Complete' : moduleTwoState.attempts || moduleTwoState.reviewedStations.length ? 'In progress' : 'Not started';
+  if (document.querySelector('.m02-independent-lab')) moduleTwoRenderIndependent();
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -979,6 +1036,92 @@ function moduleTwoRenderQuiz(focusId) {
   if (!root) return;
   root.innerHTML = moduleTwoQuizPanel();
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
+}
+
+function moduleTwoRenderIndependent(focusId) {
+  const root = document.querySelector('.m02-independent-lab');
+  if (!root) return;
+  root.outerHTML = moduleTwoIndependentLab();
+  wireModuleTwoIndependentLab();
+  if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
+}
+
+function wireModuleTwoLessons() {
+  const root = document.getElementById('m02-lessons');
+  if (!root) return;
+  root.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-m02-lesson-answer]');
+    if (!input) return;
+    const lesson = moduleTwoState.lessonWork[input.dataset.lessonId] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+    lesson.answers[input.dataset.questionIndex] = input.value;
+    moduleTwoSave();
+  });
+  root.addEventListener('input', (event) => {
+    const field = event.target.closest('[data-m02-lesson-task]');
+    if (!field) return;
+    const lesson = moduleTwoState.lessonWork[field.dataset.m02LessonTask] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+    lesson.task = field.value;
+    moduleTwoSave();
+  });
+  root.addEventListener('click', (event) => {
+    const check = event.target.closest('[data-m02-lesson-check]');
+    if (check) {
+      const lesson = MODULE_TWO_LESSON_LOOPS.find((item) => item.id === check.dataset.m02LessonCheck);
+      const work = moduleTwoState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      const missing = lesson.questions.filter((question, index) => work.answers?.[index] === undefined).length;
+      if (missing) { work.feedback = [`Answer all ${lesson.questions.length} questions before checking this lesson.`]; work.checked = false; }
+      else {
+        // `correct` is computed from the compact question shape below; all
+        // three questions must be correct to unlock the applied task.
+        const score = lesson.questions.reduce((sum, question, index) => sum + (Number(work.answers[index]) === question.questions?.[0] ? 0 : Number(work.answers[index]) === question.correct ? 1 : 0), 0);
+        work.checked = score === lesson.questions.length;
+        work.feedback = work.checked ? ['Correct. Apply the same reasoning to the Mission Next Labs scenario.'] : [`${score}/${lesson.questions.length} correct. Re-read the theory and use the evidence context before retrying.`];
+      }
+      moduleTwoSave();
+      const details = check.closest('details');
+      if (details) details.outerHTML = moduleTwoLessonLoop(lesson, MODULE_TWO_LESSON_LOOPS.indexOf(lesson));
+      return;
+    }
+    const taskButton = event.target.closest('[data-m02-lesson-task-submit]');
+    if (taskButton) {
+      const lesson = moduleTwoState.lessonWork[taskButton.dataset.m02LessonTask] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      lesson.taskComplete = lesson.checked && (lesson.task || '').trim().length >= 20;
+      lesson.feedback = lesson.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];
+      moduleTwoSave();
+      const details = taskButton.closest('details');
+      const lessonDef = MODULE_TWO_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m02LessonTask);
+      if (details) details.outerHTML = moduleTwoLessonLoop(lessonDef, MODULE_TWO_LESSON_LOOPS.indexOf(lessonDef));
+    }
+  });
+}
+
+function wireModuleTwoIndependentLab() {
+  const root = document.getElementById('m02-independent-form');
+  if (!root) return;
+  root.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-m02-independent-answer]');
+    if (!input) return;
+    moduleTwoState.independentLab.answers[input.dataset.questionId] = input.value;
+    moduleTwoSave();
+  });
+  root.addEventListener('input', (event) => {
+    if (event.target.matches('[data-m02-independent-notes]')) { moduleTwoState.independentLab.notes = event.target.value; moduleTwoSave(); }
+  });
+  root.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const state = moduleTwoState.independentLab;
+    const missing = MODULE_TWO_INDEPENDENT_LAB.questions.filter((question) => !state.answers[question.id]);
+    if (missing.length) { state.feedback = [`Answer all ${MODULE_TWO_INDEPENDENT_LAB.questions.length} independent-lab decisions before scoring.`]; state.score = 0; }
+    else {
+      const correct = MODULE_TWO_INDEPENDENT_LAB.questions.filter((question) => state.answers[question.id] === question.correct).length;
+      state.score = Math.round(correct / MODULE_TWO_INDEPENDENT_LAB.questions.length * 100);
+      state.attempts = (state.attempts || 0) + 1;
+      state.completed = state.score >= 70;
+      state.feedback = state.completed ? ['Correctly scoped the push-bombing signal, policy review, and verification step.'] : ['Use the evidence chain: unsolicited prompts plus weaker-method success, then a scoped policy review with verification.'];
+    }
+    moduleTwoSave();
+    moduleTwoRenderIndependent('m02-independent-title');
+  });
 }
 
 function wireModuleTwoQuiz() {
@@ -1061,6 +1204,8 @@ function wireModuleTwo() {
 
   wireModuleTwoQuiz();
   wireModuleTwoLab();
+  wireModuleTwoLessons();
+  wireModuleTwoIndependentLab();
 }
 
 function wireModuleTwoLab() {

@@ -313,6 +313,29 @@
 .m01-fact-reopen:hover { border-color: #1e3a5f; }
 .m01-evidence-complete { display: flex; align-items: center; gap: 10px; padding: 12px 14px; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; font: 12px/1.45 Inter, sans-serif; }
 .m01-evidence-complete i { font-size: 19px; }
+
+/* Shared SOC evidence-recall companion. This deliberately reuses Module 01's
+   quiet case-note palette while remaining neutral enough for Modules 02–12. */
+.soc-recall { margin: 24px 0; padding: 20px; color: #1e3a5f; background: #f8fafc; border: 1px solid #dbe3ed; border-radius: 15px; }
+.soc-recall__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.soc-recall__heading h3 { margin: 3px 0 0; font-size: 18px; }
+.soc-recall__heading > span { flex: 0 0 auto; padding: 5px 8px; color: #475569; background: #e2e8f0; border-radius: 999px; font: 700 10px Inter, sans-serif; text-transform: uppercase; letter-spacing: .04em; }
+.soc-recall__eyebrow { margin: 0; color: #f97316; font: 700 10px Inter, sans-serif; text-transform: uppercase; letter-spacing: .08em; }
+.soc-recall > p { margin: 9px 0 0; color: #475569; font: 12px/1.55 Inter, sans-serif; }
+.soc-recall__sentence { padding: 13px 14px; color: #1e3a5f !important; background: #fff; border: 1px solid #dbe3ed; border-radius: 10px; font: 13px/2.35 Inter, sans-serif !important; }
+.soc-recall__blank { display: inline-flex; flex-direction: column; vertical-align: middle; margin: 0 2px; }
+.soc-recall__blank input { width: min(13rem, 38vw); min-width: 7rem; padding: 3px 7px; color: #1e3a5f; background: #fff; border: 1px solid #94a3b8; border-bottom: 2px solid #1e3a5f; border-radius: 6px; font: 700 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.soc-recall__blank input:focus-visible { outline: 2px solid #f97316; outline-offset: 1px; border-color: #f97316; }
+.soc-recall__blank small { margin-top: 2px; color: #64748b; font: 9px Inter, sans-serif; text-transform: uppercase; letter-spacing: .04em; }
+.soc-recall__actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.soc-recall__actions button { padding: 8px 12px; color: #fff; background: #1e3a5f; border: 1px solid #1e3a5f; border-radius: 8px; font: 700 11px Inter, sans-serif; cursor: pointer; }
+.soc-recall__actions button:hover, .soc-recall__actions button:focus-visible { background: #142d4b; }
+.soc-recall__actions p { flex: 1 1 20rem; margin: 0; color: #64748b; font: 11px/1.45 Inter, sans-serif; }
+.soc-recall__status { margin: 12px 0 0 !important; padding: 9px 11px; border-radius: 8px; font-weight: 700 !important; }
+.soc-recall__status.is-complete { color: #166534 !important; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.soc-recall__status.is-retry { color: #92400e !important; background: #fffbeb; border: 1px solid #fde68a; }
+.soc-recall.is-complete { border-color: #86efac; }
+@media (max-width: 600px) { .soc-recall { padding: 15px; } .soc-recall__blank input { width: min(100%, 10rem); } }
 .m01-worksheet-locked { display: flex; align-items: flex-start; gap: 12px; color: #64748b; background: #f8fafc; border-style: dashed; }
 .m01-worksheet-locked > i { font-size: 20px; }
 .m01-worksheet-locked strong { color: #1e3a5f; font-size: 13px; }

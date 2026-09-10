@@ -134,6 +134,24 @@ const MODULE_TWELVE_REQUIREMENTS = [
   ['Submission', 'Pass the independent investigation.'],
 ];
 
+// Visible continuity cues for the capstone. These are reminders of where the
+// learner practised each decision earlier; they do not create extra stages,
+// score domains, evidence, or instructional minutes.
+const MODULE_TWELVE_ARC_CALLBACKS = [
+  'M01 foundations: classify a signal before acting; M09 Cedar Lock: use lifecycle discipline under pressure.',
+  'M03 SIEM & log analysis: make the pivot reproducible and join sources by entity and time.',
+  'M03 correlation plus M10 custody: order observed events and preserve the timestamps that support them.',
+  'M02 identity scope plus M08 prioritization: name the affected host/account and bound the search result.',
+  'M04 detection/intelligence plus M08 exposure: weigh context, reachability, and the contributing control gap.',
+  'M05 endpoint and M06 hunting plus M10 mapping: map demonstrated behavior, not an imagined full chain.',
+  'M04 tuning plus M06 hypothesis testing: improve precision without hiding the behavior or disabling coverage.',
+  'M09 Operation Cedar Lock: contain proportionately, preserve evidence, then move toward recovery.',
+  'M10 chain of custody: retain identifiers, provenance, integrity, and explicit evidence boundaries.',
+  'M11 reporting: separate executive decisions from the technical narrative and state uncertainty plainly.',
+  'M09 recovery gates plus M11 ownership: verify the fix, assign follow-up, and define monitoring.',
+  'M01–M11 synthesis: submit one defensible Amber Finch record; the rubric remains the authoritative score.',
+];
+
 // These are orientation materials for the independent range, not scored
 // stages. The capstone deliberately keeps its single integrated assessment
 // below this section rather than splitting the experience into L→Q→L units.
@@ -373,7 +391,7 @@ function moduleTwelveReportPreview() {
 
 function moduleTwelveMissionStatus() {
   const visited = new Set(moduleTwelveState.stageVisits || []);
-  return `<div class="m12-requirements">${MODULE_TWELVE_REQUIREMENTS.map(([label, detail], index) => `<div class="${visited.has(label.toLowerCase()) || (index === 11 && moduleTwelveState.completed) ? 'is-seen' : ''}"><span>${String(index + 1).padStart(2,'0')}</span><p><strong>${esc(label)}</strong><small>${esc(detail)}</small></p></div>`).join('')}</div>`;
+  return `<div class="m12-stage-note"><strong>12-stage progress tracker</strong><span>Progress aid only · one integrated rubric and one capstone submission</span></div><div class="m12-requirements">${MODULE_TWELVE_REQUIREMENTS.map(([label, detail], index) => { const complete = visited.has(label.toLowerCase()) || (index === 11 && moduleTwelveState.completed); return `<div class="${complete ? 'is-seen' : ''}"><span>${String(index + 1).padStart(2,'0')}</span><p><strong>${esc(label)} ${complete ? '· reviewed' : '· open'}</strong><small>${esc(detail)}</small><em>${esc(MODULE_TWELVE_ARC_CALLBACKS[index])}</em></p></div>`; }).join('')}</div>`;
 }
 
 function moduleTwelvePreparation() {
@@ -395,7 +413,7 @@ function viewModuleTwelve(user, program) {
     <section class="m12-objective"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Rubric scoring</p><h2>Ten scored domains (10 points each): Triage, Query, Timeline, Scope, Enrichment, ATT&CK, Detection, Response, Reporting, and Closure. Pass requires 70 points plus no critical-error violations (false triage, unsafe scope, evidence loss, or unsupported closure).</h2></div></section>
     <section class="m12-objective"><div><i class="ri-git-merge-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Prior instruction</p><h2>This capstone draws on skills from all 11 prior modules: SOC operations foundations (M01), network and identity foundations (M02), SIEM and log analysis (M03), detection rule tuning (M04), endpoint investigation (M05), threat hunting (M06), network and email analysis (M07), vulnerability prioritization (M08), incident response (M09), evidence handling and case documentation (M10), and SOC metrics and communication (M11).</h2></div></section>
     ${moduleTwelvePreparation()}
-    <section class="m12-section" aria-labelledby="m12-mission-title"><div class="m12-section-heading"><span><i class="ri-route-line" aria-hidden="true"></i></span><div><p class="m12-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div></div><p class="m12-muted">The twelve requirements may be completed in any order. They describe the deliverable, not the attacker's sequence; discover chronology from the evidence.</p>${moduleTwelveMissionStatus()}</section>
+    <section class="m12-section" aria-labelledby="m12-mission-title"><div class="m12-section-heading"><span><i class="ri-route-line" aria-hidden="true"></i></span><div><p class="m12-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div></div><p class="m12-muted">The twelve requirements may be completed in any order. They describe the deliverable, not the attacker's sequence; discover chronology from the evidence. Amber Finch is the capstone composite: Cedar Lock (M09–M11) rehearsed the response, custody, and reporting handoffs, while this case asks you to integrate those decisions with the earlier identity, SIEM, detection, endpoint, hunting, network, and prioritization work.</p>${moduleTwelveMissionStatus()}</section>
     <section class="m12-section m12-range-section" id="m12-range" aria-labelledby="m12-range-title"><div class="m12-section-heading"><span><i class="ri-dashboard-3-line" aria-hidden="true"></i></span><div><p class="m12-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div></div><div id="m12-console-root">${moduleTwelveConsole()}</div>${moduleTwelveEvidenceTray()}</section>
     <section class="m12-section m12-assessment-section">${moduleTwelveAssessment()}</section>
   </main></div>`;
@@ -466,6 +484,8 @@ function wireModuleTwelveLab() {
     const input = event.target;
     if (input.name === 'executiveSummary' || input.name === 'analystNarrative' || input.name === 'closureNote') {
       moduleTwelveState[input.name] = input.value;
+      const stage = input.name === 'closureNote' ? 'closure' : 'reporting';
+      if (!moduleTwelveState.stageVisits.includes(stage)) moduleTwelveState.stageVisits.push(stage);
       const counter = document.getElementById(input.name === 'executiveSummary' ? 'm12-exec-count' : input.name === 'analystNarrative' ? 'm12-narrative-count' : 'm12-close-count');
       if (counter) counter.textContent = `${input.value.length}/${input.name === 'executiveSummary' ? 180 : input.name === 'analystNarrative' ? 260 : 100}`;
       moduleTwelveSave();
@@ -475,6 +495,7 @@ function wireModuleTwelveLab() {
     const input = event.target;
     if (input.name === 'selectedEvidence') {
       moduleTwelveState.selectedEvidence = input.checked ? [...new Set([...moduleTwelveState.selectedEvidence, input.value])] : moduleTwelveState.selectedEvidence.filter((id) => id !== input.value);
+      if (!moduleTwelveState.stageVisits.includes('evidence')) moduleTwelveState.stageVisits.push('evidence');
     } else if (['scope','attack','response'].includes(input.name)) {
       const values = moduleTwelveValues(input.name);
       moduleTwelveState.answers[input.name] = input.checked ? [...new Set([...values, input.value])] : values.filter((value) => value !== input.value);

@@ -200,12 +200,17 @@
 .m10-shell .m10-review-section li { margin: 6px 0; }
 .m10-shell .m10-review-section strong { color: #1e3a5f; font-weight: 700; }
 .m10-shell .m10-review-section p { margin: 12px 0 0; color: #475569; font: 12px/1.65 Inter, sans-serif; }
+.m10-shell .m10-loop-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 18px 0 0; }
+.m10-shell .m10-loop-grid article { min-width: 0; padding: 13px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; }
+.m10-shell .m10-loop-grid h4 { margin: 4px 0 0; color: #1e3a5f; font-size: 12px; }
+.m10-shell .m10-loop-grid p:last-child { margin: 5px 0 0; color: #64748b; font: 10px/1.5 Inter, sans-serif; }
 
 @media (max-width: 980px) {
   .m10-shell .m10-hero, .m10-shell .m10-case-brief { grid-template-columns: 1fr; }
   .m10-shell .m10-ledger-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .m10-shell .m10-sequence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .m10-shell .m10-node-map { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .m10-shell .m10-loop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .m10-shell .m10-node-map span::after { display: none; }
 }
 
@@ -218,6 +223,7 @@
   .m10-shell .m10-exit i { font-size: 19px; }
   .m10-shell .m10-hero { padding: 28px 22px; }
   .m10-shell .m10-lab { padding: 18px 14px; }
+  .m10-shell .m10-loop-grid { grid-template-columns: 1fr; }
   .m10-shell .m10-lab-heading, .m10-shell .m10-panel-heading, .m10-shell .m10-score-heading { flex-direction: column; }
   .m10-shell .m10-form-grid, .m10-shell .m10-check-grid, .m10-shell .m10-score-grid { grid-template-columns: 1fr; }
   .m10-shell .m10-quiz-options { margin: 12px 0 0 0; }

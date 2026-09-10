@@ -341,7 +341,7 @@ const MODULE_FIVE_SOURCES = [
     title: 'Security+ (SY0-701) Certification Overview & Objectives Summary',
     org: 'CompTIA',
     url: 'https://www.comptia.org/certifications/security',
-    note: 'Official certification page with exam domains and weightings, covering the incident-response and endpoint-security objectives this lab practices.',
+    note: 'Supplementary public reference only. The §2 crosswalk is a developer draft pending curriculum, compliance, and faculty review; this study aid is not an approval, affiliation, endorsement, or pass guarantee.',
   },
 ];
 
@@ -362,6 +362,8 @@ const MODULE_FIVE_DEFAULT_STATE = {
   feedback: [],
   validationError: '',
   lastSubmittedAt: '',
+  lessonWork: {},
+  independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
 };
 
 const MODULE_FIVE_LESSONS = [
@@ -376,6 +378,57 @@ const MODULE_FIVE_LESSONS = [
   { icon: 'ri-router-line', title: 'Scope proportionally', summary: 'Act on the evidence you have.', detail: 'This assisted lab contains one endpoint. Record that no second host is currently evidenced; do not convert that absence into proof that the wider environment is clean.', takeaway: 'State both the confirmed scope and its limit.' },
   { icon: 'ri-file-text-line', title: 'Write a useful handoff', summary: 'A responder needs facts and a next action.', detail: 'Name the affected endpoint, summarize the execution chain, cite decisive file or persistence evidence, and recommend a proportionate action.', takeaway: 'Observation, interpretation, and recommendation should be distinguishable.' },
 ];
+
+/* Four-part practice loops are embedded in the existing 10 x 15-minute
+ * theory allocations. They add no instructional minutes. Each loop uses the
+ * same fictional fake-CAPTCHA → PowerShell → LOLBin → persistence chain while
+ * asking the learner to apply one investigation habit. */
+const MODULE_FIVE_LESSON_LOOPS = MODULE_FIVE_LESSONS.map((lesson, index) => ({
+  ...lesson,
+  id: `m05-loop-${index + 1}`,
+  scenario: `On fictional Mission Next Labs workstation WS-LAB-27, a fake CAPTCHA prompt precedes a PowerShell launch. Review the ${lesson.title.toLowerCase()} evidence without assuming that a familiar name or a stopped file ends the investigation.`,
+  theory: lesson.detail,
+  questions: [
+    { prompt: `What is the BEST analyst question when applying “${lesson.title}” to this chain?`, options: [
+      { text: `What observable evidence supports or limits the ${lesson.title.toLowerCase()} conclusion?`, correct: true },
+      { text: 'Which disruptive action can be taken before the evidence is reviewed?', correct: false },
+      { text: 'What real organization or operator might be behind the activity?', correct: false },
+    ] },
+    { prompt: 'Which interpretation is MOST defensible from this isolated training dataset?', options: [
+      { text: 'Connect the behavior to its parent, time, path, and scope before assigning intent.', correct: true },
+      { text: 'A familiar executable name proves the action is benign.', correct: false },
+      { text: 'One suspicious endpoint proves every endpoint is affected.', correct: false },
+    ] },
+    { prompt: 'What is the BEST next step after observing the signal?', options: [
+      { text: 'Preserve the relevant evidence, state the boundary, and route proportionate response for review.', correct: true },
+      { text: 'Delete all related files immediately without recording the chain.', correct: false },
+      { text: 'Close the case because the sensor blocked one artifact.', correct: false },
+    ] },
+  ],
+  task: `Write 20–80 characters naming the ${lesson.title.toLowerCase()} fact you would record for WS-LAB-27 and why it matters.`,
+}));
+
+const MODULE_FIVE_INDEPENDENT_LAB = {
+  title: 'Independent lab: CAPTCHA-to-persistence review', caseId: 'INC-5505',
+  scenario: 'A fictional Mission Next Labs user reports a “verify you are human” page. On a separate training endpoint, the supplied timeline shows a Run dialog paste, PowerShell, a signed Windows utility used as a LOLBin, and a new startup value. A routine software updater is a nearby distractor. Decide what the evidence proves and what should be handed off.',
+  questions: [
+    { id: 'chain', label: 'Which chain best explains the supplied evidence?', options: [
+      { id: 'captcha', text: 'Fake CAPTCHA prompt → user execution → PowerShell → signed LOLBin → startup value' },
+      { id: 'updater', text: 'Routine updater → catalog refresh → no security-relevant activity' },
+      { id: 'sensor', text: 'Endpoint sensor → persistence → user action' },
+    ], correct: 'captcha' },
+    { id: 'scope', label: 'What scope is supportable now?', options: [
+      { id: 'bounded', text: 'The supplied training endpoint is affected; broader exposure is not established by this record' },
+      { id: 'all', text: 'Every Mission Next Labs endpoint is compromised' },
+      { id: 'none', text: 'No scope can be recorded until a specialist reverses the payload' },
+    ], correct: 'bounded' },
+    { id: 'next', label: 'What is the BEST first handoff action?', options: [
+      { id: 'preserve', text: 'Preserve the process and persistence evidence, isolate the confirmed endpoint through approved response, and escalate for scope review' },
+      { id: 'wipe', text: 'Wipe every endpoint that displayed a CAPTCHA' },
+      { id: 'close', text: 'Close because the utility is signed' },
+    ], correct: 'preserve' },
+  ],
+};
 
 const MODULE_FIVE_PROCESSES = [
   { id: 'p-explorer', depth: 0, time: '09:13:58', name: 'explorer.exe', pid: '4120', parent: 'userinit.exe', path: 'C:\\Windows\\explorer.exe', command: 'explorer.exe', signer: 'Trusted operating-system component', relation: 'Interactive user shell', risk: 'expected', observation: 'Expected desktop process for the local session.' },
@@ -413,6 +466,10 @@ function moduleFiveLoad(user) {
   if (!Array.isArray(moduleFiveState.reviewedSources)) moduleFiveState.reviewedSources = [];
   if (!Array.isArray(moduleFiveState.selectedEvidence)) moduleFiveState.selectedEvidence = [];
   if (!Array.isArray(moduleFiveState.flags)) moduleFiveState.flags = [];
+  if (!moduleFiveState.lessonWork || typeof moduleFiveState.lessonWork !== 'object') moduleFiveState.lessonWork = {};
+  if (!moduleFiveState.independentLab || typeof moduleFiveState.independentLab !== 'object') moduleFiveState.independentLab = JSON.parse(JSON.stringify(MODULE_FIVE_DEFAULT_STATE.independentLab));
+  if (!moduleFiveState.independentLab.answers || typeof moduleFiveState.independentLab.answers !== 'object') moduleFiveState.independentLab.answers = {};
+  if (!Array.isArray(moduleFiveState.independentLab.feedback)) moduleFiveState.independentLab.feedback = [];
 
   // Initialize quiz state
   if (!moduleFiveQuizState) {
@@ -552,13 +609,24 @@ function moduleFiveReview() {
   </section>`;
 }
 
+function moduleFiveLessonLoop(lesson, index) {
+  const work = moduleFiveState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+  const feedback = work.feedback?.length ? `<p class="m05-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
+  return `<details class="m05-lesson-loop" ${work.taskComplete ? '' : (index === 0 ? 'open' : '')}>
+    <summary><span class="m05-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m05-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m05-chevron" aria-hidden="true"></i>'}</summary>
+    <div class="m05-lesson-loop-body"><section><p class="m05-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m05-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m05-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m05-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m05-loop-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m05-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option.text)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m05-lesson-check" data-m05-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m05-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m05-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m05-lesson-task-button" data-m05-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div>
+  </details>`;
+}
+
 function moduleFiveLessonGrid() {
-  return `<div class="m05-lesson-grid">
-    ${MODULE_FIVE_LESSONS.map((lesson, index) => `<details class="m05-lesson" ${index === 0 ? 'open' : ''}>
-      <summary><span class="m05-lesson-number">${String(index + 1).padStart(2, '0')}</span><i class="${esc(lesson.icon)}" aria-hidden="true"></i><span><strong>${esc(lesson.title)}</strong><small>${esc(lesson.summary)}</small></span><i class="ri-arrow-down-s-line m05-chevron" aria-hidden="true"></i></summary>
-      <div class="m05-lesson-copy"><p>${esc(lesson.detail)}</p><p><strong>Analyst habit:</strong> ${esc(lesson.takeaway)}</p></div>
-    </details>`).join('')}
-  </div>`;
+  return `<section class="m05-lesson-loops" id="m05-lesson-loops" aria-labelledby="m05-lesson-loops-title"><div class="m05-panel-heading"><div><p class="m05-kicker">Four-part lesson loops</p><h3 id="m05-lesson-loops-title">Practice the fake-CAPTCHA execution chain</h3></div><span>10 lessons · embedded in existing theory minutes</span></div><div class="m05-lesson-grid">${MODULE_FIVE_LESSON_LOOPS.map(moduleFiveLessonLoop).join('')}</div></section>`;
+}
+
+function moduleFiveIndependentLab() {
+  const state = moduleFiveState.independentLab;
+  const answered = MODULE_FIVE_INDEPENDENT_LAB.questions.filter((q) => state.answers?.[q.id]).length;
+  const feedback = state.feedback?.length ? `<div class="m05-independent-feedback ${state.completed ? 'is-pass' : 'is-hint'}" role="status"><strong>${state.score}/100 — ${state.completed ? 'Independent lab complete' : 'Review and retry'}</strong><ul>${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
+  return `<section class="m05-independent-lab" id="m05-independent-lab" aria-labelledby="m05-independent-title"><div class="m05-panel-heading"><div><p class="m05-kicker">Independent · fresh decision path · included in existing lab minutes</p><h3 id="m05-independent-title">${esc(MODULE_FIVE_INDEPENDENT_LAB.title)}</h3></div><span>${answered}/${MODULE_FIVE_INDEPENDENT_LAB.questions.length} answered</span></div><p class="m05-panel-instruction">${esc(MODULE_FIVE_INDEPENDENT_LAB.scenario)}</p><form id="m05-independent-form">${MODULE_FIVE_INDEPENDENT_LAB.questions.map((q) => `<fieldset class="m05-independent-question"><legend>${esc(q.label)}</legend>${q.options.map((o) => `<label><input type="radio" name="m05-independent-${esc(q.id)}" value="${esc(o.id)}" data-m05-independent-answer data-question-id="${esc(q.id)}" ${state.answers?.[q.id] === o.id ? 'checked' : ''}><span>${esc(o.text)}</span></label>`).join('')}</fieldset>`).join('')}<label class="m05-note-label">Analyst note (optional)<textarea rows="3" maxlength="500" data-m05-independent-notes placeholder="Record the bounded scope and handoff boundary…">${esc(state.notes || '')}</textarea></label><button type="submit" class="m05-independent-submit">Score independent lab</button></form>${feedback}</section>`;
 }
 
 function moduleFiveEvidenceButton(evidenceId) {
@@ -680,7 +748,8 @@ function moduleFiveDynamic() {
     <div class="m05-source-panel" id="m05-source-panel" role="tabpanel" aria-labelledby="m05-tab-${esc(moduleFiveState.activeSource)}">${moduleFiveState.activeSource === 'processes' ? moduleFiveProcessSource() : moduleFiveActivitySource()}</div>
   </section>
   ${moduleFiveFindings()}
-  ${moduleFiveAssessment()}`;
+  ${moduleFiveAssessment()}
+  ${moduleFiveIndependentLab()}`;
 }
 
 function moduleFiveLecture() {
@@ -688,6 +757,8 @@ function moduleFiveLecture() {
     <div class="m05-lecture-intro">
       <p><strong>What is endpoint investigation?</strong> An EDR (Endpoint Detection and Response) system watches a workstation: it records process starts, file creation, registry changes, and prevention actions. Your job is not to prevent malware—the sensor prevents individual files. Your job is to read the chain of events, understand what happened, estimate the scope, and hand off to responders with confidence. This lab teaches analysis and triage without reverse-engineering or exploit development.</p>
     </div>
+
+    <aside class="m05-crosswalk"><strong>Supplementary Security+ crosswalk (developer draft)</strong><p>This module practices endpoint behavior analysis, secure response decisions, and evidence-aware communication that are relevant to the draft course crosswalk: threat identification, security operations, and incident response. It is a study aid only, not an endorsement, affiliation, approval, or pass guarantee.</p></aside>
 
     <h3>The investigation foundation</h3>
     <p>Every indicator recorded by EDR—a file, a process, a registry entry—is an observable fact. Before you judge whether it is malicious, ask: Where did it come from? Who (or what) created it? What did it do? A file named "update.exe" running from a user's Download folder is suspicious; the same bytes running from System32 because Windows needed them is benign. Context determines interpretation.</p>
@@ -883,6 +954,34 @@ function wireModuleFiveLab() {
   if (!root || !moduleFiveState) return;
 
   root.addEventListener('click', (event) => {
+    const lessonCheck = event.target.closest('[data-m05-lesson-check]');
+    if (lessonCheck) {
+      const lesson = MODULE_FIVE_LESSON_LOOPS.find((item) => item.id === lessonCheck.dataset.m05LessonCheck);
+      const work = moduleFiveState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      const missing = lesson.questions.some((question, index) => work.answers?.[index] === undefined);
+      if (missing) { work.checked = false; work.feedback = [`Answer all ${lesson.questions.length} questions before checking this lesson.`]; }
+      else {
+        const correct = lesson.questions.filter((question, index) => work.answers[index] === question.options.findIndex((option) => option.correct)).length;
+        work.checked = correct === lesson.questions.length;
+        work.feedback = lesson.questions.map((question, index) => work.answers[index] === question.options.findIndex((option) => option.correct) ? `Q${index + 1}: Correct — connect the observed behavior to context and scope.` : `Q${index + 1}: Revisit the evidence, parent-child relationship, and response boundary.`);
+        if (!work.checked) work.feedback.push(`${correct}/${lesson.questions.length} correct. Retry after reviewing the theory.`);
+      }
+      moduleFiveSave();
+      const details = lessonCheck.closest('details');
+      if (details) details.outerHTML = moduleFiveLessonLoop(lesson, MODULE_FIVE_LESSON_LOOPS.indexOf(lesson));
+      return;
+    }
+    const taskButton = event.target.closest('[data-m05-lesson-task-submit]');
+    if (taskButton) {
+      const lesson = MODULE_FIVE_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m05LessonTask);
+      const work = moduleFiveState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      work.taskComplete = work.checked && (work.task || '').trim().length >= 20;
+      work.feedback = work.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];
+      moduleFiveSave();
+      const details = taskButton.closest('details');
+      if (details) details.outerHTML = moduleFiveLessonLoop(lesson, MODULE_FIVE_LESSON_LOOPS.indexOf(lesson));
+      return;
+    }
     const sourceButton = event.target.closest('[data-m05-source]');
     if (sourceButton) {
       moduleFiveState.activeSource = sourceButton.dataset.m05Source;
@@ -951,6 +1050,17 @@ function wireModuleFiveLab() {
   });
 
   root.addEventListener('change', (event) => {
+    if (event.target.matches('[data-m05-lesson-answer]')) {
+      const work = moduleFiveState.lessonWork[event.target.dataset.lessonId] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      work.answers[event.target.dataset.questionIndex] = Number(event.target.value);
+      moduleFiveSave();
+      return;
+    }
+    if (event.target.matches('[data-m05-independent-answer]')) {
+      moduleFiveState.independentLab.answers[event.target.dataset.questionId] = event.target.value;
+      moduleFiveSave();
+      return;
+    }
     if (!['chain', 'fileVerdict', 'scope', 'action'].includes(event.target.name)) return;
     moduleFiveState[event.target.name] = event.target.value;
     moduleFiveState.validationError = '';
@@ -958,6 +1068,18 @@ function wireModuleFiveLab() {
   });
 
   root.addEventListener('input', (event) => {
+    const lessonField = event.target.closest('[data-m05-lesson-task]');
+    if (lessonField) {
+      const work = moduleFiveState.lessonWork[lessonField.dataset.m05LessonTask] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      work.task = lessonField.value;
+      moduleFiveSave();
+      return;
+    }
+    if (event.target.matches('[data-m05-independent-notes]')) {
+      moduleFiveState.independentLab.notes = event.target.value;
+      moduleFiveSave();
+      return;
+    }
     if (event.target.name !== 'notes') return;
     moduleFiveState.notes = event.target.value;
     moduleFiveState.validationError = '';
@@ -967,6 +1089,21 @@ function wireModuleFiveLab() {
   });
 
   root.addEventListener('submit', (event) => {
+    if (event.target.id === 'm05-independent-form') {
+      event.preventDefault();
+      const state = moduleFiveState.independentLab;
+      const missing = MODULE_FIVE_INDEPENDENT_LAB.questions.filter((q) => !state.answers?.[q.id]);
+      if (missing.length) { state.feedback = ['Answer all three independent-lab decisions before scoring.']; moduleFiveSave(); moduleFiveRenderDynamic('m05-independent-title'); return; }
+      const correct = MODULE_FIVE_INDEPENDENT_LAB.questions.filter((q) => state.answers[q.id] === q.correct).length;
+      state.score = Math.round(correct / MODULE_FIVE_INDEPENDENT_LAB.questions.length * 100);
+      state.attempts = (state.attempts || 0) + 1;
+      state.completed = state.score >= 70;
+      state.feedback = state.completed ? ['Correct. The chain, bounded scope, and evidence-preserving handoff are supported by this fictional record.'] : ['Revisit the fake-CAPTCHA-to-PowerShell chain, the scope limit, and the approval-gated handoff.'];
+      moduleFiveSave();
+      if (state.completed && typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFiveUser, 'soc-analyst', 'soc-05', 'lab-endpoint-independent');
+      moduleFiveRenderDynamic('m05-independent-title');
+      return;
+    }
     if (event.target.id !== 'm05-assessment') return;
     event.preventDefault();
     moduleFiveState.notes = event.target.elements.notes.value;

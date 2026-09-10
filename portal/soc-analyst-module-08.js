@@ -361,38 +361,86 @@ const MODULE_EIGHT_PRIORITY_SIGNALS = [
 
 const MODULE_EIGHT_QUEUE = [
   {
-    id: 'VQ-821', asset: 'remote-access-01', cve: 'CVE-2026-33102', cvss: '8.4',
-    summary: 'Internet-reachable administration portal; exploit observed; vendor fix ready.',
-    evidence: 'A reachability test succeeded from outside the lab perimeter. The exploit needs no account, the portal controls privileged remote access, and the current WAF rule only logs. The owner can deploy the tested fix today.',
+    id: 'EDGE-901', asset: 'edge-gw-07', cve: 'CVE-2026-33102', cvss: '8.4',
+    summary: 'Internet-facing edge appliance; mass-exploitation evidence; vendor fix ready.',
+    evidence: 'A reachability test succeeded from outside the fictional lab perimeter. The exploit needs no account, the appliance fronts customer identity, and the WAF only logs. The owner can deploy the tested fix today.',
     answer: 'fix-now', rationale: 'Fix now: verified exposure, active exploitation, high-impact function, weak prevention, and an available tested fix all align.',
   },
   {
-    id: 'VQ-822', asset: 'design-laptop-08', cve: 'CVE-2026-28440', cvss: '9.0',
-    summary: 'Scanner reports a vulnerable browser, but current endpoint inventory differs.',
-    evidence: 'The scan used yesterday\'s software inventory (version 129.1). A signed live inventory record and package receipt both show fixed version 132.0 installed before this queue opened.',
+    id: 'EDGE-902', asset: 'edge-gw-09', cve: 'CVE-2026-28440', cvss: '9.0',
+    summary: 'High base score on a restricted edge appliance, with current blocking control verified.',
+    evidence: 'The scan used an older appliance inventory record. A signed live version record and deployment receipt show the fixed release installed before this queue opened; the admin-only route and blocking control were independently verified.',
     answer: 'false-positive', rationale: 'Close as a validated false positive and repair the stale inventory join; do not treat one old scanner record as current state.',
   },
   {
-    id: 'VQ-823', asset: 'imaging-console-03', cve: 'CVE-2026-14418', cvss: '8.7',
-    summary: 'A vendor-supported clinical imaging console cannot take the patch for 21 days.',
-    evidence: 'The console is on an isolated VLAN with an outbound deny rule, two named operators, and jump-host-only administration. The vendor has scheduled validation in 21 days; the service owner cannot safely stop imaging today.',
+    id: 'EDGE-903', asset: 'edge-gw-11', cve: 'CVE-2026-14418', cvss: '8.7',
+    summary: 'Known-exploited appliance cannot take the supported patch for 21 days.',
+    evidence: 'The appliance is on a segmented partner network with outbound deny, named operators, and jump-host-only administration. The vendor has scheduled validation in 21 days; the service owner cannot safely stop the partner route today.',
     answer: 'compensating-control', rationale: 'Time-box and verify compensating controls until the supported patch is available; record the owner, expiry, monitoring, and retest.',
   },
   {
-    id: 'VQ-824', asset: 'archive-api-stg', cve: 'CVE-2026-09155', cvss: '7.4',
-    summary: 'Staging API has no current route, no sensitive data, and no known exploit.',
-    evidence: 'The load balancer target group is disabled and an independent reachability test fails. The approved patch window is in four days. The environment contains generated test records only.',
+    id: 'EDGE-904', asset: 'edge-gw-stg', cve: 'CVE-2026-09155', cvss: '7.4',
+    summary: 'Staging edge appliance has no current route, no sensitive data, and no known exploit.',
+    evidence: 'The load balancer target group is disabled and an independent reachability test fails. The approved patch window is in four days. The appliance carries generated test records only.',
     answer: 'schedule', rationale: 'Schedule the patch in the near maintenance window and verify both version and reachability afterward.',
   },
 ];
 
 const MODULE_EIGHT_QUEUE_EVIDENCE = [
-  { id: 'live-version', label: 'Signed live version plus deployment receipt', help: 'Corroborates that VQ-822 is already fixed.' },
+  { id: 'live-version', label: 'Signed live version plus deployment receipt', help: 'Corroborates that EDGE-902 is already fixed.' },
   { id: 'reachability', label: 'Independent external reachability test', help: 'Separates the exposed portal from the disabled staging route.' },
-  { id: 'control-owner', label: 'Control-owner confirmation with an expiry date', help: 'Makes VQ-823\'s temporary control accountable and time-bound.' },
+  { id: 'control-owner', label: 'Control-owner confirmation with an expiry date', help: 'Makes EDGE-903\'s temporary control accountable and time-bound.' },
   { id: 'cvss-only', label: 'CVSS ranking with no environment context', help: 'Useful input, but insufficient validation evidence by itself.' },
   { id: 'asset-name', label: 'Asset name similarity', help: 'A naming pattern does not prove exposure, version, or control state.' },
 ];
+
+/* Module 08 lesson contract: the four catalog lessons retain their locked
+ * minutes in portal/data.js. Scenario, theory, check, and applied response are
+ * practice embedded inside those minutes; they do not add allocation. */
+const MODULE_EIGHT_LESSON_LOOPS = [
+  { id: 'decision-input', title: 'Treat vulnerability data as a decision input', minutes: 30,
+    scenario: 'Mission Next Labs receives a scanner record for edge-gw-07. The record has a high CVSS, but the analyst cannot yet tell whether the vulnerable service is running or reachable.',
+    theory: 'CVE identifies a published weakness, CVSS describes technical severity under defined assumptions, and exploitability context estimates how practical abuse may be. None of those fields alone proves that the local asset is affected. Validate the running version, service role, exposure, and available controls before ranking it.',
+    questions: [
+      { prompt: 'What should be verified before ranking a scanner finding?', options: ['Affected version and active service path', 'Only the CVSS score', 'The scanner color'], correct: 0, good: 'Correct. Local exposure begins with proof that the affected component and path are present.', bad: 'A score is a decision input, not proof of local exposure. Verify the running version and service path.' },
+      { prompt: 'What does a CVSS base score represent?', options: ['Technical severity under stated assumptions', 'Your organization’s final remediation deadline', 'Proof of active exploitation'], correct: 0, good: 'Correct. Base severity must be combined with local context and threat evidence.', bad: 'CVSS is not your deadline and does not prove exploitation. It describes technical severity under a defined model.' },
+      { prompt: 'Which record is strongest for current state?', options: ['A signed live version check tied to the asset', 'A six-month-old scan export', 'A copied finding title'], correct: 0, good: 'Correct. Current, asset-specific evidence is more useful than stale labels.', bad: 'Prefer current, asset-specific evidence over stale exports or copied labels.' },
+    ], task: 'Write two sentences naming the local evidence you would request for edge-gw-07 before accepting the finding as current.' },
+  { id: 'exposure-priority', title: 'Exposure-driven remediation priority', minutes: 30,
+    scenario: 'Two synthetic findings compete for the next response slot: a CVSS 9.8 build runner on an admin VLAN and a CVSS 8.1 customer identity gateway with exploit requests observed from the public edge.',
+    theory: 'Prioritization is a contextual decision: validated exploitability, reachability, business impact, and control strength can outweigh a higher base score. Known-exploited status is a strong urgency signal, but it still needs local confirmation and an owned response path.',
+    questions: [
+      { prompt: 'Which finding should lead when evidence is otherwise complete?', options: ['The public identity gateway with active exploit evidence', 'Always the highest CVSS', 'The oldest record regardless of context'], correct: 0, good: 'Correct. Public reachability, active exploitation, and critical service impact raise priority.', bad: 'Do not let CVSS or age replace context. Compare exploit evidence, reachability, impact, and controls.' },
+      { prompt: 'What is a known-exploited catalog signal?', options: ['Evidence that exploitation has been observed or documented', 'A guarantee that your asset is compromised', 'A patch approval'], correct: 0, good: 'Correct. It changes urgency, but local scope still requires validation.', bad: 'Known-exploited status is not proof of compromise or a patch approval. It is a threat-urgency signal.' },
+      { prompt: 'What weakens priority most?', options: ['Verified segmentation and effective prevention', 'A critical service role', 'A reachable public listener'], correct: 0, good: 'Correct. Effective controls can reduce likelihood, though they must be verified and monitored.', bad: 'Verified controls reduce likelihood; critical role and public reachability increase it.' },
+    ], task: 'Draft a short ranking rationale that names the exploitability, exposure, impact, and control evidence you would compare.' },
+  { id: 'validate-rank', title: 'Validate before you rank', minutes: 20,
+    scenario: 'The edge inventory says edge-gw-07 is decommissioned, yet an external probe still receives a service banner and the load balancer team cannot find a shutdown record.',
+    theory: 'Conflicting sources are an investigation task, not permission to close a finding. Reconcile the asset identity, confirm whether a route is live, record source dates, and preserve the uncertainty. A false positive is a supported disposition only after current evidence explains the conflict.',
+    questions: [
+      { prompt: 'What is the safest next action?', options: ['Reconcile inventory and independently test reachability', 'Close because inventory says offline', 'Ignore the probe and trust the oldest record'], correct: 0, good: 'Correct. Conflicting evidence requires corroboration before closure or reprioritization.', bad: 'Do not close on one stale source. Reconcile identity and independently test the route.' },
+      { prompt: 'What should the analyst record?', options: ['Source, timestamp, test method, and unresolved conflict', 'Only the preferred conclusion', 'A generic “scanner error” label'], correct: 0, good: 'Correct. The record must let another analyst reproduce the reasoning.', bad: 'Preserve the evidence chain, including dates, method, and what remains uncertain.' },
+      { prompt: 'When may a false-positive disposition be defensible?', options: ['When current evidence explains why the finding no longer applies', 'Whenever an owner requests closure', 'When the score is below 9.0'], correct: 0, good: 'Correct. Closure depends on validated current state, not a request or threshold.', bad: 'A false positive needs current supporting evidence; owner preference or score alone is insufficient.' },
+    ], task: 'Write the validation steps you would use to resolve the edge-gw-07 inventory-versus-reachability conflict.' },
+  { id: 'decision-loop', title: 'Close the decision loop', minutes: 25,
+    scenario: 'The SOC has selected a synthetic edge appliance for urgent treatment. The platform owner needs an actionable handoff that includes timing, interim controls, escalation, and proof of completion.',
+    theory: 'A remediation handoff converts analysis into accountable work: name the asset and finding, state evidence and scope, assign the owner, set a due point or exception expiry, identify interim controls, and define the retest that closes or reopens the item.',
+    questions: [
+      { prompt: 'What makes a compensating control accountable?', options: ['Owner, expiry, monitoring, and retest', 'A note that says “mitigated”', 'An unassigned exception with no date'], correct: 0, good: 'Correct. Temporary risk treatment needs ownership, time bounds, monitoring, and proof.', bad: 'A temporary control is not complete without ownership, expiry, monitoring, and retest.' },
+      { prompt: 'What closes a remediation item?', options: ['Technical verification that exposure or version changed', 'Ticket creation alone', 'An informal owner message'], correct: 0, good: 'Correct. Work starts with a ticket; evidence of changed risk closes it.', bad: 'A ticket or informal message is not proof that exposure changed. Retest the technical condition.' },
+      { prompt: 'When should escalation be explicit?', options: ['When evidence supports harmful activity, uncertain scope, or action beyond analyst authority', 'Only after the patch window expires', 'Never, if the finding is high severity'], correct: 0, good: 'Correct. Escalation boundaries protect both response speed and analyst authority.', bad: 'Escalate when evidence, uncertainty, or authority requires it—not only after a deadline.' },
+    ], task: 'Write a handoff sentence naming the edge appliance owner, target timing, interim control, escalation condition, and retest.' },
+];
+
+const MODULE_EIGHT_INDEPENDENT_LAB = {
+  title: 'Independent lab: edge-appliance mass-exploitation window',
+  scenario: 'A fictional Mission Next Labs internet-facing edge appliance family, gateway cluster edge-gw-07, is being probed during a 72-hour mass-exploitation window. Three synthetic findings have different CVSS, EPSS-style likelihood, known-exploited status, service impact, and control state. Prioritize one, state what is confirmed, and hand off an owned response. No real IOCs or live systems are involved.',
+  questions: [
+    { id: 'priority', label: 'Which finding should receive the first response slot?', options: [{ id: 'gw07', text: 'EDGE-901: CVSS 8.1, EPSS-style 0.93, known-exploited, public listener, customer identity service, monitor-only WAF' }, { id: 'gw09', text: 'EDGE-902: CVSS 9.6, EPSS-style 0.21, not known-exploited, internal admin route, blocking control verified' }, { id: 'gw11', text: 'EDGE-903: CVSS 7.5, EPSS-style 0.67, known-exploited, staging route disabled and synthetic data only' }], correct: 'gw07' },
+    { id: 'evidence', label: 'Which evidence set best defends that choice?', options: [{ id: 'context', text: 'Current version, external reachability, exploit-observation summary, service criticality, and WAF mode' }, { id: 'cvss', text: 'CVSS alone because it is the most comparable number' }, { id: 'age', text: 'Finding age and a copied scanner screenshot' }], correct: 'context' },
+    { id: 'handoff', label: 'What is the proportionate next step?', options: [{ id: 'owned', text: 'Escalate to the edge-platform owner for an emergency fix, approved interim blocking, and retest within 24 hours' }, { id: 'shutdown', text: 'Disable every Mission Next Labs gateway immediately without scope validation' }, { id: 'close', text: 'Close because the exploit window is only synthetic' }], correct: 'owned' },
+  ],
+};
 
 const MODULE_EIGHT_SOURCES_LIST = [
   {
@@ -420,10 +468,10 @@ const MODULE_EIGHT_SOURCES_LIST = [
     note: 'Community-maintained catalog of software and hardware weakness types that underlie CVE-listed vulnerabilities and their classification.',
   },
   {
-    title: 'Security+ (SY0-701) Certification Overview & Objectives Summary',
+    title: 'Supplementary Security+ domain crosswalk (developer draft)',
     org: 'CompTIA',
     url: 'https://www.comptia.org/certifications/security',
-    note: 'CompTIA Security+ exam objectives covering prioritization, remediation, risk acceptance, and compensating controls.',
+    note: 'Supplementary public reference only. The §2 crosswalk is a developer draft pending curriculum, compliance, and faculty review; this study aid is not an approval, affiliation, endorsement, or pass guarantee. The core lesson teaches transferable vulnerability-prioritization reasoning.',
   },
   {
     title: 'Stakeholder-Specific Vulnerability Categorization (SSVC)',
@@ -449,7 +497,7 @@ function moduleEightPriorityFreshState() {
   return {
     reviewedFindings: [], filter: 'all', sort: 'context', activeFinding: '',
     priorityChoice: '', riskModel: '', treatment: '', timeline: '',
-    breakdown: null, feedback: [], validationError: '', lastSubmittedAt: '',
+    breakdown: null, feedback: [], validationError: '', lastSubmittedAt: '', lessonWork: {},
   };
 }
 
@@ -468,6 +516,7 @@ function moduleEightLoad(user) {
   if (!Array.isArray(moduleEightPriorityState.selectedEvidence)) moduleEightPriorityState.selectedEvidence = [];
   if (!Array.isArray(moduleEightPriorityState.feedback)) moduleEightPriorityState.feedback = [];
   if (!Array.isArray(moduleEightPriorityState.flags)) moduleEightPriorityState.flags = [];
+  if (!moduleEightPriorityState.lessonWork || typeof moduleEightPriorityState.lessonWork !== 'object') moduleEightPriorityState.lessonWork = {};
   if (!Array.isArray(moduleEightQueueState.reviewedItems)) moduleEightQueueState.reviewedItems = [];
   if (!Array.isArray(moduleEightQueueState.selectedEvidence)) moduleEightQueueState.selectedEvidence = [];
   if (!Array.isArray(moduleEightQueueState.feedback)) moduleEightQueueState.feedback = [];
@@ -519,6 +568,16 @@ function moduleEightConcepts() {
   ];
   return `<div class="m08-concept-grid">${topics.map((topic) => `<article><i class="${esc(topic[0])}" aria-hidden="true"></i><h3>${esc(topic[1])}</h3><p>${esc(topic[2])}</p></article>`).join('')}</div>
     <div class="m08-risk-model" aria-label="Contextual exposure prioritization model"><strong>Practical risk order</strong><span>Validate</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Exploitability</span><i class="ri-add-line" aria-hidden="true"></i><span>Exposure</span><i class="ri-add-line" aria-hidden="true"></i><span>Business impact</span><i class="ri-subtract-line" aria-hidden="true"></i><span>Effective controls</span></div>`;
+}
+
+function moduleEightLessonLoop(lesson, index) {
+  const work = moduleEightPriorityState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+  const feedback = work.feedback?.length ? `<p class="m08-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
+  return `<details class="m08-lesson-loop" ${work.taskComplete ? '' : 'open'}><summary><span class="m08-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${lesson.minutes} minutes · ${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m08-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line" aria-hidden="true"></i>'}</summary><div class="m08-lesson-loop-body"><section><p class="m08-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m08-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m08-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m08-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m08-lesson-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m08-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m08-lesson-check" data-m08-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m08-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m08-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m08-lesson-task-button" data-m08-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div></details>`;
+}
+
+function moduleEightLessonLoopsView() {
+  return `<section class="m08-lesson-loops" id="m08-lessons" aria-labelledby="m08-lessons-title"><div class="m08-panel-heading"><div><p class="m08-kicker">Four-part lesson loops · locked ledger preserved</p><h3 id="m08-lessons-title">Practice each vulnerability-prioritization skill</h3></div><span>4 lessons · 105 minutes</span></div>${MODULE_EIGHT_LESSON_LOOPS.map(moduleEightLessonLoop).join('')}</section>`;
 }
 
 function moduleEightGetSections() {
@@ -725,7 +784,7 @@ function moduleEightQueueScorePanel() {
   const b = state.breakdown;
   return `<section class="m08-score ${passed ? 'is-pass' : 'is-remediate'}" id="m08-queue-feedback" tabindex="-1" aria-live="polite" aria-labelledby="m08-queue-score-title"><div class="m08-score-heading"><div><p class="m08-kicker">Attempt ${state.attempts} · best ${state.bestScore}/100</p><h4 id="m08-queue-score-title">${state.score}/100 — ${passed ? 'Queue decisions ready for handoff' : 'Validate the queue before handoff'}</h4></div><span>${state.score}</span></div>
     <div class="m08-score-grid" aria-label="Queue lab score breakdown"><div><strong>${b.observation}/25</strong><span>Observation</span><small>Four reviews and validation evidence</small></div><div><strong>${b.analysis}/30</strong><span>Analysis</span><small>Four supported dispositions</small></div><div><strong>${b.decision}/25</strong><span>Decision</span><small>Ownership and closed-loop verification</small></div><div><strong>${b.communication}/20</strong><span>Communication</span><small>Actionable queue handoff</small></div></div>
-    <ul class="m08-feedback-list">${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul><div class="m08-expert-model"><strong>Expert queue reasoning</strong><p>Fix VQ-821 now; close VQ-822 only after recording the corroborated current version and repairing the stale inventory join; time-box the verified controls for VQ-823 until its supported patch; and schedule VQ-824 for the near window because independent testing confirms no route. Every item still needs an owner, due date or expiry, and a retest.</p></div></section>`;
+    <ul class="m08-feedback-list">${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul><div class="m08-expert-model"><strong>Expert queue reasoning</strong><p>Fix EDGE-901 now; close EDGE-902 only after recording the corroborated current version and repairing the stale inventory join; time-box the verified controls for EDGE-903 until its supported patch; and schedule EDGE-904 for the near window because independent testing confirms no route. Every item still needs an owner, due date or expiry, and a retest.</p></div></section>`;
 }
 
 function moduleEightQueueLab() {
@@ -734,8 +793,10 @@ function moduleEightQueueLab() {
     ['fix-now', 'Fix now'], ['schedule', 'Schedule remediation'], ['compensating-control', 'Apply / verify compensating control'],
     ['accept-risk', 'Accept risk'], ['escalate', 'Escalate for more investigation'], ['false-positive', 'Close validated false positive'],
   ];
-  return `<section class="m08-lab-card" aria-labelledby="m08-queue-title"><div class="m08-lab-heading"><div><p class="m08-kicker">Lab 2 · semi-independent · ${formatInstructionalMinutes(MODULE_EIGHT_QUEUE_MINUTES)}</p><h2 id="m08-queue-title">SOC finding decision queue</h2></div><span class="m08-lab-status">${moduleEightStatus(moduleEightQueueState)}</span></div>
-    <div class="m08-objective"><i class="ri-list-check-3" aria-hidden="true"></i><div><strong>Measurable objective</strong><p>Validate four assigned findings, give each an evidence-supported disposition, and produce an owned, time-bound, verifiable handoff with at least ${MODULE_EIGHT_PASSING_SCORE}/100.</p></div></div>
+  return `<section class="m08-lab-card" aria-labelledby="m08-queue-title"><div class="m08-lab-heading"><div><p class="m08-kicker">Lab 2 · independent fresh decision path · ${formatInstructionalMinutes(MODULE_EIGHT_QUEUE_MINUTES)}</p><h2 id="m08-queue-title">${esc(MODULE_EIGHT_INDEPENDENT_LAB.title)}</h2></div><span class="m08-lab-status">${moduleEightStatus(moduleEightQueueState)}</span></div>
+    <div class="m08-objective"><i class="ri-list-check-3" aria-hidden="true"></i><div><strong>Measurable objective</strong><p>Prioritize and disposition four synthetic edge-appliance findings from a mass-exploitation window using CVSS, EPSS-style likelihood, known-exploited context, reachability, impact, and controls; produce an owned, time-bound, verifiable handoff with at least ${MODULE_EIGHT_PASSING_SCORE}/100.</p></div></div>
+    <div class="m08-scope-note"><i class="ri-shield-keyhole-line" aria-hidden="true"></i><p><strong>Independent case boundary:</strong> This is a fresh fictional edge-appliance case. It shares the reasoning model with Lab 1 but not its exact decision path. No real IOCs or live infrastructure are used.</p></div>
+    <p class="m08-panel-instruction">${esc(MODULE_EIGHT_INDEPENDENT_LAB.scenario)}</p>
     <div class="m08-queue" aria-label="Four synthetic vulnerability queue items">${MODULE_EIGHT_QUEUE.map((item) => {
       const reviewed = moduleEightQueueState.reviewedItems.includes(item.id);
       return `<article class="${reviewed ? 'is-reviewed' : ''}"><div class="m08-queue-id"><span>${esc(item.id)}</span><code>${esc(item.cve)}</code></div><div><h3>${esc(item.asset)}</h3><p>${esc(item.summary)}</p></div><button type="button" class="m08-inspect" data-m08-queue-item="${esc(item.id)}"><i class="${reviewed ? 'ri-checkbox-circle-fill' : 'ri-search-eye-line'}" aria-hidden="true"></i>${reviewed ? 'Reviewed' : 'Inspect'}</button><label>Disposition<select name="queueDecision" data-m08-decision="${esc(item.id)}"><option value="">Choose…</option>${dispositions.map((option) => `<option value="${option[0]}" ${moduleEightQueueState.decisions[item.id] === option[0] ? 'selected' : ''}>${option[1]}</option>`).join('')}</select></label></article>`;
@@ -753,7 +814,7 @@ function moduleEightQueueLab() {
         { id: 'ticket-created', label: 'Close as soon as a ticket is created', help: 'A work request is not proof that exposure changed.' },
         { id: 'owner-says-done', label: 'Close on an informal owner message', help: 'Capture reproducible technical validation instead.' },
       ])}</fieldset>
-      <label class="m08-note-label" for="m08-queue-notes"><span>4</span><strong>Write the queue handoff</strong></label><p class="m08-help">Summarize the four dispositions, owners/timing, and what must be retested. Separate a validated false positive from accepted risk.</p><textarea id="m08-queue-notes" name="queueNotes" rows="6" maxlength="1100" aria-describedby="m08-queue-count" placeholder="VQ-821: fix now… VQ-822: close as validated false positive…">${esc(moduleEightQueueState.notes)}</textarea><p class="m08-note-count" id="m08-queue-count"><span>${moduleEightQueueState.notes.length}</span>/1100 characters</p>
+      <label class="m08-note-label" for="m08-queue-notes"><span>4</span><strong>Write the edge-appliance handoff</strong></label><p class="m08-help">Summarize the four dispositions, owners/timing, and what must be retested. Separate a validated false positive from accepted risk.</p><textarea id="m08-queue-notes" name="queueNotes" rows="6" maxlength="1100" aria-describedby="m08-queue-count" placeholder="EDGE-901: fix now… EDGE-902: close as validated false positive…">${esc(moduleEightQueueState.notes)}</textarea><p class="m08-note-count" id="m08-queue-count"><span>${moduleEightQueueState.notes.length}</span>/1100 characters</p>
       <details class="m08-hint"><summary>Need a queue hint?</summary><p>A stale record with two current-version proofs is not accepted risk. A system that cannot yet be patched still needs a time-boxed control, owner, expiry, and retest.</p></details>
       <div class="m08-actions"><button type="submit" class="m08-submit"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score queue handoff</button><button type="button" class="m08-reset" data-m08-reset-queue><i class="ri-restart-line" aria-hidden="true"></i> Reset Lab 2 only</button></div>${moduleEightQueueScorePanel()}
     </form>
@@ -783,7 +844,7 @@ function viewModuleEight(user, program) {
       <details class="m08-section-collapsible" ${lectureOpen ? 'open' : ''}>
         <summary class="m08-section"><div class="m08-section-heading"><span class="m08-section-badge">1</span><div><p class="m08-kicker">Lecture</p><h2 id="m08-lecture">Vulnerability prioritization using contextual risk</h2></div></div></summary>
         <div class="m08-section-body">
-          <section class="m08-section" id="m08-field-guide" aria-labelledby="m08-guide-title"><div class="m08-section-heading"><span>a</span><div><p class="m08-kicker">Field guide</p><h3 id="m08-guide-title">Treat vulnerability data as a decision input</h3></div></div><p class="m08-intro">The base score describes technical severity under standard assumptions. Your priority must also explain whether this instance is actually affected, reachable, exploitable, important, and protected.</p>${moduleEightConcepts()}</section>
+          <section class="m08-section" id="m08-field-guide" aria-labelledby="m08-guide-title"><div class="m08-section-heading"><span>a</span><div><p class="m08-kicker">Field guide</p><h3 id="m08-guide-title">Treat vulnerability data as a decision input</h3></div></div><p class="m08-intro">The base score describes technical severity under standard assumptions. Your priority must also explain whether this instance is actually affected, reachable, exploitable, important, and protected.</p>${moduleEightConcepts()}${moduleEightLessonLoopsView()}</section>
           ${moduleEightVideoScript()}
         </div>
       </details>
@@ -796,7 +857,7 @@ function viewModuleEight(user, program) {
       <details class="m08-section-collapsible" ${labOpen ? 'open' : ''}>
         <summary class="m08-section"><div class="m08-section-heading"><span class="m08-section-badge">3</span><div><p class="m08-kicker">Prioritization Labs</p><h2 id="m08-lab">Contextual findings analysis</h2></div></div></summary>
         <div class="m08-section-body">
-          <div class="m08-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst reviewing assigned findings</strong><p>Work only the records below, validate their context, rank what needs attention, and escalate an owned next step. You do not administer an enterprise vulnerability program, approve risk acceptance, or control other business units.</p></div></div>
+          <div class="m08-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst reviewing a synthetic edge-appliance mass-exploitation window</strong><p>Work only the fictional records below. Use CVSS, EPSS-style likelihood, known-exploited context, reachability, service impact, and controls to prioritize an owned next step. No real indicators, systems, or external actions are involved.</p></div></div>
           <div id="m08-dynamic">${moduleEightDynamic()}</div>
         </div>
       </details>
@@ -859,10 +920,10 @@ function moduleEightQueueScore() {
   const followUp = moduleEightQueueState.followUp === 'timebound-verify' ? 10 : 0;
   const note = moduleEightQueueState.notes.trim().toLowerCase();
   const communication = (note.length >= 140 ? 4 : 0)
-    + (/(vq-821|remote-access-01)/.test(note) && /(fix|patch|immediate|now)/.test(note) ? 4 : 0)
-    + (/(vq-822|design-laptop-08)/.test(note) && /(false positive|current version|132\.0|stale)/.test(note) ? 4 : 0)
-    + (/(vq-823|imaging-console-03)/.test(note) && /(compensat|segment|21 days|time.box)/.test(note) ? 4 : 0)
-    + (/(vq-824|archive-api-stg)/.test(note) && /(schedul|window|four days|4 days)/.test(note) && /(verify|retest|owner|due|expir)/.test(note) ? 4 : 0);
+    + (/(edge-901|edge-gw-07)/.test(note) && /(fix|patch|immediate|now)/.test(note) ? 4 : 0)
+    + (/(edge-902|edge-gw-09)/.test(note) && /(false positive|current version|fixed|stale)/.test(note) ? 4 : 0)
+    + (/(edge-903|edge-gw-11)/.test(note) && /(compensat|segment|21 days|time.box)/.test(note) ? 4 : 0)
+    + (/(edge-904|edge-gw-stg)/.test(note) && /(schedul|window|four days|4 days)/.test(note) && /(verify|retest|owner|due|expir)/.test(note) ? 4 : 0);
   const observation = reviews + evidence;
   const decision = workflow + followUp;
   return {
@@ -963,10 +1024,43 @@ function wireModuleEightQuiz() {
 }
 
 function wireModuleEightLab() {
-  const root = document.getElementById('m08-dynamic');
+  const root = document.querySelector('.m08-shell');
   if (!root || !moduleEightPriorityState || !moduleEightQueueState) return;
 
   root.addEventListener('click', (event) => {
+    const lessonCheck = event.target.closest('[data-m08-lesson-check]');
+    if (lessonCheck) {
+      const lesson = MODULE_EIGHT_LESSON_LOOPS.find((item) => item.id === lessonCheck.dataset.m08LessonCheck);
+      if (!lesson) return;
+      const work = moduleEightPriorityState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      const correct = lesson.questions.filter((question, index) => Number(work.answers[index]) === question.correct).length;
+      work.checked = true;
+      work.feedback = lesson.questions.map((question, index) => Number(work.answers[index]) === question.correct ? question.good : question.bad);
+      work.feedback.unshift(`${correct}/${lesson.questions.length} correct. ${correct === lesson.questions.length ? 'Now complete the applied task.' : 'Review the feedback and retry the choices.'}`);
+      moduleEightSavePriority();
+      moduleEightRender('m08-lessons');
+      return;
+    }
+    const lessonTaskButton = event.target.closest('[data-m08-lesson-task-submit]');
+    if (lessonTaskButton) {
+      const lesson = MODULE_EIGHT_LESSON_LOOPS.find((item) => item.id === lessonTaskButton.dataset.m08LessonTaskSubmit);
+      if (!lesson) return;
+      const work = moduleEightPriorityState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      const field = root.querySelector(`[data-m08-lesson-task="${lesson.id}"]`);
+      work.task = field ? field.value : work.task;
+      const correct = lesson.questions.every((question, index) => Number(work.answers[index]) === question.correct);
+      if (!correct || work.task.trim().length < 35) {
+        work.feedback = [`Finish the check with all ${lesson.questions.length} answers correct and write at least 35 characters for the applied task.`];
+        work.checked = false;
+      } else {
+        work.taskComplete = true;
+        work.feedback = ['Lesson complete. Your applied response is saved with this learner record.'];
+        work.checked = true;
+      }
+      moduleEightSavePriority();
+      moduleEightRender('m08-lessons');
+      return;
+    }
     const filter = event.target.closest('[data-m08-filter]');
     if (filter) {
       moduleEightPriorityState.filter = filter.dataset.m08Filter;
@@ -1021,6 +1115,14 @@ function wireModuleEightLab() {
   });
 
   root.addEventListener('input', (event) => {
+    const lessonField = event.target.closest('[data-m08-lesson-task]');
+    if (lessonField) {
+      const lessonId = lessonField.dataset.m08LessonTask;
+      const work = moduleEightPriorityState.lessonWork[lessonId] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      work.task = lessonField.value;
+      moduleEightSavePriority();
+      return;
+    }
     if (event.target.name === 'priorityNotes') {
       moduleEightPriorityState.notes = event.target.value;
       root.querySelector('#m08-priority-count span').textContent = String(event.target.value.length);
@@ -1035,6 +1137,13 @@ function wireModuleEightLab() {
 
   root.addEventListener('change', (event) => {
     const input = event.target;
+    if (input.matches('[data-m08-lesson-answer]')) {
+      const work = moduleEightPriorityState.lessonWork[input.dataset.lessonId] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      work.answers[input.dataset.questionIndex] = Number(input.value);
+      work.checked = false;
+      moduleEightSavePriority();
+      return;
+    }
     if (input.name === 'prioritySort') {
       moduleEightPriorityState.sort = input.value;
       moduleEightSavePriority();

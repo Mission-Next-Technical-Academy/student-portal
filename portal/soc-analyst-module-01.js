@@ -48,7 +48,7 @@ const MODULE_ONE_SOURCES = [
   { title: 'Computer Security Incident Handling Guide (SP 800-61 Rev. 3)', org: 'NIST', url: 'https://csrc.nist.gov/pubs/sp/800/61/r3/final', note: 'Incident response preparation, detection, analysis, response, and improvement.' },
   { title: 'Cybersecurity Framework 2.0', org: 'NIST', url: 'https://www.nist.gov/cyberframework', note: 'A common vocabulary for managing cybersecurity risk and outcomes.' },
   { title: 'Incident Response Training', org: 'FIRST', url: 'https://www.first.org/education/training', note: 'Community education resources for incident response practice.' },
-  { title: 'Security+ Exam Objectives', org: 'CompTIA', url: 'https://www.comptia.org/certifications/security', note: 'A supplementary vocabulary reference for foundational security topics.' },
+  { title: 'Security+ Exam Objectives', org: 'CompTIA', url: 'https://www.comptia.org/certifications/security', note: 'Supplementary public reference only. The §2 crosswalk is a developer draft pending curriculum, compliance, and faculty review; this study aid is not an approval, affiliation, endorsement, or pass guarantee.' },
 ];
 
 const MODULE_ONE_DEFAULT_STATE = {

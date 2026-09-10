@@ -1,5 +1,46 @@
 # SC-200_lab — sprint handoff
 
+## Program-header progress and downloads (2026-09-10)
+
+The shared student program-page header now places a compact **Your Progress**
+indicator beside the Mission Next logo and groups Transcript PDF, Evidence
+Report PDF, and secondary Progress Data JSON in a compact Downloads menu. The
+program page now uses a thin progress strip plus one compact at-a-glance card:
+it retains duration, delivery, credential, total hours, and the training split
+without repeating module, lab, or total-hour figures. The pattern applies to
+every program route. Validation: `node --check portal/app.js` and `node
+bin/portal-check.js` pass; portal HTTP 200 confirmed on port 8768.
+
+## Curriculum scenario architecture closeout — Sprints 13–14 (2026-09-10)
+
+Module 12 narrative pass is complete locally. `portal/soc-analyst-module-12.js`
+now shows a visible 12-stage reviewed/open tracker with explicit callbacks to
+Modules 01–11; the existing ten-domain integrated rubric remains authoritative
+for scoring and completion. Amber Finch is documented as a composite capstone,
+with M09 Operation Cedar Lock → M10 custody → M11 reporting called back as the
+rehearsal arc without importing undeclared evidence. See
+`MODULE_12_ENHANCEMENT_BRIEF.md`, `MODULE_12_ENHANCEMENT_PROGRESS.md`, and the
+Sprint 13 checkpoint in `CURRICULUM_SCENARIO_ARCHITECTURE.md`.
+
+Sprint 13 checks passed: `node --check portal/soc-analyst-module-12.js` and
+`git diff --check` on the changed Module 12/docs files. Sprint 14 then passed
+the full local QA suite; the completed architecture is archived at
+`archive/completed-feature-notes/CURRICULUM_SCENARIO_ARCHITECTURE_2026-09-10.md`.
+
+## SOC module interaction standardization (2026-09-10)
+
+Modules 02–12 now include the shared, browser-local **Evidence recall**
+fill-in-the-blank practice activity. Each uses its own fictional scenario
+facts and isolated local state; it is formative only and does not change
+instructional minutes, quiz/lab gates, module completion, or capstone scoring.
+Module 01 retains its more detailed sequential evidence-timeline version of
+the same activity. Module 12's companion appears only after its existing
+prerequisite gate opens, so no capstone evidence is disclosed early. The shared implementation is `portal/soc-evidence-recall.js`
+with presentation rules in `portal/module-labs.css`; it is mounted only on SOC
+module routes by `portal/app.js`. Verification: `node --check` for the shared
+script and app, `node bin/portal-check.js`, `node bin/lab-state-check.js`, and
+`git diff --check` pass.
+
 Local-only static-files lab. No build step, no auth, no real network calls.
 Serve this course copy from `~/Mission_Next_Technical_Academy_SOC_Analyst_course/ui/` with:
 
@@ -34,6 +75,18 @@ Single-page app with hash routing.
 State persists only to `localStorage` under `defender-lab.rules`.
 
 ## Done
+
+- 2026-09-10 curriculum scenario architecture Sprint 2 audit: reviewed the
+  required continuity documents and Modules 04, 06, 07, 10, and 11. Recorded
+  reusable phishing/detection/evidence/reporting patterns, identifier and
+  fictional-organization conflicts, and the proposed Mission Next Labs
+  `acct-###`/`ws-###`/`INC-####` conventions in
+  `SPRINT_02_SCENARIO_CONTINUITY_AUDIT_2026-09-10.md`. Drafted
+  `MODULE_02_ENHANCEMENT_BRIEF.md` for Sprint 3 only. No application code,
+  lesson minutes, catalog allocations, or Security+ tags were changed. The
+  architecture's §2 crosswalk remains pending curriculum/compliance/faculty
+  sign-off; no approval is claimed. Verification: `node --check` passed for
+  modules 02, 04, 06, 07, 10, and 11; `git diff --check` passed.
 
 - 2026-09-10 Activity Monitor load-resilience remediation: bounded all four
   monitor reads to a 250-row recent-activity snapshot; removed the
@@ -2688,3 +2741,223 @@ started, no git commit made, no Supabase schema touched.
 - Validation: `node --check bin/portal-check.js`, `node bin/portal-check.js`
   (all 25 registered module views plus the program overview), and `git diff
   --check` pass.
+## Curriculum scenario Sprint 3 — Module 02 enhancement (2026-09-10)
+
+Implemented only Module 02's Sprint 3 scope. `portal/soc-analyst-module-02.js`
+now renders eight complete scenario → theory → three-question feedback check →
+applied-task loops with browser-local persistence, and adds an independent
+fictional Mission Next Labs MFA push-bombing / conditional-access lab alongside
+the unchanged guided trust-path lab. `portal/soc-analyst-module-02.css` adds
+scoped presentation styles; `portal/data.js` records two labs while retaining
+the locked 660-minute / 11-hour allocation. The existing randomized quiz bank
+was audited and retained because it already uses scenario reasoning,
+BEST/FIRST/MOST-style prompts, plausible distractors, feedback, and retries.
+
+The Security+ public page in the Module 02 sources list is explicitly labelled
+supplementary draft reference only. The architecture's §2 crosswalk is still
+pending curriculum/compliance/faculty review and was not stated as approved,
+affiliated, or a pass claim. No real IOCs, victims, or organizations were
+introduced.
+
+Verification: `node --check portal/soc-analyst-module-02.js`, `node --check
+portal/data.js`, `node bin/portal-check.js 2`, `git diff --check`, and local
+portal HTTP 200 all pass. Full details are in
+`MODULE_02_ENHANCEMENT_PROGRESS.md`. Sprint 4+ was not started.
+
+## Curriculum scenario Sprint 4 — Module 03 enhancement (2026-09-10)
+
+Implemented only Module 03's Sprint 4 scope. `portal/soc-analyst-module-03.js`
+now renders four complete scenario → theory → three-question feedback check →
+applied-task loops for the existing SIEM lessons, with browser-local state.
+The existing assisted `svc_reports` correlation lab remains intact, and a
+separate independent low-and-slow cloud-mailbox/session takeover lab for
+fictional `CASE-MN-428` was added. Its signal, bounded-scope, and preservation
+decisions are independent of the guided lab's evidence-selection/query/
+timeline path. `portal/data.js` records two Module 03 lab surfaces while the
+465-minute module and 240-minute lab allocation remain unchanged.
+
+The randomized quiz was reviewed and retained because it already tests
+scenario-based BEST/MOST/FIRST reasoning with plausible distractors, feedback,
+and retry selection. A CISA logging source was added, and the Security+ page
+is explicitly supplementary public reference material; the developer
+crosswalk remains pending curriculum/compliance/faculty review and is not
+represented as approval, affiliation, or a pass claim.
+
+Verification: `node --check portal/soc-analyst-module-03.js`, `node --check
+portal/data.js`, `node bin/portal-check.js 3`, `node bin/render_all.js`
+(`views: 129/129 render clean; dead NAV routes: 0`), and `git diff --check`
+all pass. Full details are in `MODULE_03_ENHANCEMENT_PROGRESS.md`.
+Sprint 5 and later remain out of scope.
+
+## Curriculum scenario Sprint 6 — Module 05 enhancement (2026-09-10)
+
+Implemented only Module 05's Sprint 6 scope. `portal/soc-analyst-module-05.js`
+now renders ten scenario → theory → three-question feedback check → applied
+task loops for the endpoint-investigation topics, anchored to the fictional
+Mission Next Labs fake-CAPTCHA → PowerShell → LOLBin → persistence chain. The
+existing guided `WS-LAB-27` workbench remains intact, and a distinct
+independent CAPTCHA-to-persistence lab was added with separate chain, scope,
+and handoff decisions. `portal/data.js` records two Module 05 lab surfaces;
+the independent record is embedded in the existing 120-minute lab allocation
+with no added minutes, and Module 05 remains 270 minutes / 4 hours 30 minutes.
+
+The randomized quiz and sources were reviewed and retained for scenario
+reasoning, plausible distractors, feedback, and retry behavior. The added
+Security+ wording is explicitly supplementary developer-draft material;
+curriculum/compliance/faculty review remains pending and no endorsement,
+affiliation, approval, or pass guarantee is claimed. No real victims,
+operators, live IOCs, or real endpoint actions were added.
+
+Verification: `node --check portal/soc-analyst-module-05.js`, `node --check
+portal/data.js`, `node bin/portal-check.js 5`, `node bin/render_all.js`
+(`views: 129/129 render clean; dead NAV routes: 0`), and `git diff --check`
+all pass. Full details are in `MODULE_05_ENHANCEMENT_PROGRESS.md`. Sprint 7
+and later remain out of scope.
+
+## Curriculum scenario Sprint 5 — Module 04 enhancement (2026-09-10)
+
+Implemented only Module 04's Sprint 5 scope. `portal/soc-analyst-module-04.js`
+now renders four scenario → theory → three-question feedback check → applied
+task loops for the existing detection lessons, plus a separate independent
+fake-verification loader lab (`INC-4404`) beside the guided authentication
+detection/enrichment path. `portal/data.js` records two Module 04 lab surfaces
+while the 300-minute module and 180/120 theory-lab allocation remain unchanged.
+
+The randomized quiz and supplementary sources were retained after review; the
+developer crosswalk remains pending curriculum/compliance/faculty review and
+is not represented as approval, affiliation, or a pass claim. Verification:
+`node --check portal/soc-analyst-module-04.js`, `node --check portal/data.js`,
+`node bin/portal-check.js 4`, and `git diff --check` all pass. Full details are
+in `MODULE_04_ENHANCEMENT_PROGRESS.md`. Sprint 6 and later remain out of scope.
+
+## Curriculum scenario Sprint 7 — Module 06 enhancement (2026-09-10)
+
+Implemented only Module 06's Sprint 7 scope. The four existing threat-hunting
+lessons now use scenario → theory → feedback knowledge-check → applied-task
+loops. The existing guided cross-device hunt remains available, and an
+independent dormant scheduled-task backdoor review was added with a distinct
+comparison, scope, evidence-preservation, and escalation path. The second lab
+is embedded at `minutes: 0`; Module 06 remains 165 minutes / 2 hours 45 minutes
+with its existing 90-minute lab allocation. The crosswalk is still a
+supplementary developer draft pending review. See
+`MODULE_06_ENHANCEMENT_PROGRESS.md` for verification and continuity notes;
+Sprint 8 and later remain out of scope.
+
+## Curriculum scenario Sprint 8 — Module 07 enhancement (2026-09-10)
+
+Implemented only Module 07's Sprint 8 scope. The existing four-part lesson
+loop, randomized reasoning quiz, and email/network workbench were retained and
+upgraded around a fictional QR-phishing/vendor-invoice fraud case. The primary
+chain now covers vendor authentication misalignment, a QR/HTML artifact,
+message trace, and a first-seen `invoice-qr.example` domain correlated through
+DNS and TLS from `acct-63` on `WS-517`. A distinct independent transfer case
+was added as `lab-network-email-independent` at `minutes: 0`, preserving the
+locked Module 07 and program minute totals.
+
+The crosswalk remains a supplementary developer draft pending
+curriculum/compliance/faculty review. No real victims, live indicators,
+operators, certification endorsements, approvals, or pass guarantees were
+added. See `MODULE_07_ENHANCEMENT_PROGRESS.md` for details.
+
+Verification: `node --check portal/soc-analyst-module-07.js`,
+`node --check portal/data.js`, `node bin/portal-check.js 7`,
+`node bin/render_all.js` (`views: 129/129 render clean; dead NAV routes: 0`),
+and `git diff --check` pass. Sprint 9 and later remain out of scope.
+
+## Curriculum scenario Sprint 10 — Module 09 enhancement (2026-09-10)
+
+Module 09 is complete locally. The former identity-only response slice is now
+the active synthetic Mission Next Labs ransomware case `INC-4937` / Operation
+Cedar Lock: encryption on `ws-173`, overlapping `acct-173` activity, and
+bounded `fs-02` service disruption. The guided lab follows NIST Prepare →
+Detect & Analyze → Contain → Eradicate → Recover → Learn decisions and retains
+the evidence-backed handoff scoring.
+
+A separate independent response drill `INC-4942` has its own evidence,
+decision state, scoring, reset, and completion record. The locked Module 09
+total remains 150 minutes: 30-minute lesson, 75-minute guided lab, and
+45-minute independent lab. The stable browser-local interface is
+`MISSION_NEXT_M09_EVIDENCE_CONTRACT` (`m09-ransomware-evidence-v1`), with
+evidence IDs `M09-E01`–`M09-E08` and named consumer slices for Modules 10–12.
+Later modules must consume this contract rather than inventing a parallel case.
+
+No Modules 10–12 code was changed. No real victim, operator, attribution,
+live IOC, destructive endpoint action, or crosswalk/certification approval
+claim was added. See `MODULE_09_ENHANCEMENT_PROGRESS.md` and
+`MODULE_09_ENHANCEMENT_BRIEF.md`.
+
+Verification: `node --check portal/soc-analyst-module-09.js`,
+`node --check portal/data.js`, and `node bin/portal-check.js 9` pass. The
+repository-wide `curriculum-check.js` still reports pre-existing unrelated
+legacy catalogue/IT Support total failures; it reports no Module 09-specific
+failure after the 75/45 reallocation. Sprint 11 remains next.
+
+## Curriculum scenario Sprint 9 — Module 08 enhancement (2026-09-10)
+
+Module 08 now has four scenario → theory → feedback knowledge-check →
+applied-task loops for its existing vulnerability lessons, retaining the exact
+30/30/20/25 theory-minute ledger. Lab 1 remains the contextual six-finding
+prioritization workbench; Lab 2 is an independent fictional internet-facing
+edge-appliance mass-exploitation queue using CVSS, EPSS-style likelihood,
+known-exploited context, reachability, impact, controls, ownership, and retest
+reasoning. Both labs remain 150 minutes and the module remains 405 minutes;
+no instructional minutes were added. The crosswalk remains a supplementary
+developer draft pending curriculum/compliance/faculty review and is not
+presented as approval or affiliation. See
+`MODULE_08_ENHANCEMENT_PROGRESS.md` for verification. Sprint 10 and later
+remain out of scope.
+
+## Curriculum scenario Sprint 11 — Module 10 enhancement (2026-09-10)
+
+Module 10 now consumes the M09 `MISSION_NEXT_M09_EVIDENCE_CONTRACT` for shared
+case `INC-4937`, using only `M09-E01`–`M09-E05`; the former independent
+phishing/persistence dataset is no longer the module scenario. The custody lab
+documents evidence intake, integrity, provenance, UTC timing, transfer ledger,
+and specialist boundaries. The separate second lab reconstructs the bounded
+encryption → service-stop → containment sequence and maps only demonstrated
+ATT&CK behavior. Both lessons include four-part learning loops and source-review
+quiz reasoning; locked minutes remain unchanged. See
+`MODULE_10_ENHANCEMENT_PROGRESS.md`. Verification passed with module syntax,
+`node bin/portal-check.js 10`, and `node bin/render_all.js` (129/129, zero dead
+routes). Sprint 12 remains out of scope; no approval/certification claim, real
+victim/operator, attribution, or live IOC was added.
+
+## Portal loading-screen continuity (2026-09-10)
+
+The initial portal and all `#/admin` route loads now render the branded loading
+view immediately. The router waits across two animation frames before starting
+session restoration and roster work, ensuring the loading view actually paints
+and remains visible for the full wait instead of flashing before a heavy admin
+render. Other fast learner-route transitions retain the existing 150 ms
+anti-flash delay. Verification: `node --check portal/app.js`,
+`node bin/portal-check.js`, `git diff --check`, and HTTP 200 on port 8768.
+
+## Curriculum scenario Sprint 12 — Module 11 enhancement (2026-09-10)
+
+Module 11 now consumes the M09 `MISSION_NEXT_M09_EVIDENCE_CONTRACT` for the
+declared `INC-4937` Module 11 slice (`M09-E01`, `M09-E03`, `M09-E06`, `M09-E07`,
+`M09-E08`). The metrics lab is a post-closure SOC-health review and the
+separate executive-report lab briefs the bounded `ws-173` / `acct-173` /
+`fs-02` record without importing the Module 10 slice. All three existing
+lessons now show Scenario → Theory → Knowledge check → Applied task loops,
+including source-review reasoning and feedback. Existing two lab keys,
+separate state, 195-minute module total, and 60/60 lab allocation are
+unchanged. Crosswalk language is explicitly a supplementary developer draft
+pending review, with no approval, affiliation, endorsement, or pass claim.
+No real incident, live IOC, operator identity, attribution, or Module 12 work
+was added. Details: `MODULE_11_ENHANCEMENT_BRIEF.md` and
+`MODULE_11_ENHANCEMENT_PROGRESS.md`.
+
+## Curriculum scenario Sprint 14 — final QA (2026-09-10)
+
+Sprint 14 is complete. `FINAL_CURRICULUM_SCENARIO_QA_2026-09-10.md` records
+the direct ledger reconciliation (4,200 technical minutes + 720 M360 minutes
+= 4,920 minutes / 82 hours), the normalized supplementary-draft Security+
+boundaries, and the local end-to-end checks. `node bin/portal-check.js`,
+`node bin/render_all.js` (129/129, zero dead routes),
+`node bin/lab-state-check.js`, syntax checks, `git diff --check`, and HTTP 200
+checks pass. `node bin/curriculum-check.js` still reports 69 known
+repository-wide legacy catalogue/schema mismatches; this is documented in the
+QA artifact and was not broadened into a legacy catalogue rewrite. The
+architecture document was archived after final QA at
+`archive/completed-feature-notes/CURRICULUM_SCENARIO_ARCHITECTURE_2026-09-10.md`.

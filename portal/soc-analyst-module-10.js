@@ -191,11 +191,11 @@ const MODULE_TEN_QUIZ_BANKS = [
     questions: [
       {
         id: 'm10-q-attack-1',
-        prompt: `An incident timeline shows spearphishing attachment delivery and PowerShell execution. Should you map these to ATT&CK?`,
+        prompt: `The M09 slice shows encryption activity followed by a recovery-service stop. Should those demonstrated behaviors be mapped to ATT&CK?`,
         options: [
           { id: 'a', text: 'No. ATT&CK is only for pre-incident planning.' },
-          { id: 'b', text: 'Yes. Map T1566.001 (Spearphishing: Attachment) and T1059.001 (PowerShell) because the timeline shows direct evidence of both behaviors.' },
-          { id: 'c', text: 'Yes, and also map Ransomware (T1486) because attachments often lead to ransomware.' },
+          { id: 'b', text: 'Yes. Map T1486 (Data Encrypted for Impact) and T1489 (Service Stop) because the assigned records show both behaviors.' },
+          { id: 'c', text: 'Yes, and also map initial access and operator identity because ransomware usually has those elements.' },
           { id: 'd', text: 'Only if management requests ATT&CK mapping.' },
         ],
         correctId: 'b',
@@ -320,13 +320,13 @@ const MODULE_TEN_SOURCES_LIST = [
     title: `ATT&CK Matrix — Initial Access`,
     org: `MITRE`,
     url: `https://attack.mitre.org/tactics/TA0001/`,
-    note: `Catalog of initial-access techniques including T1566 (phishing). This module's incident begins with a delivered attachment.`,
+    note: `Framework reference used for disciplined behavior mapping; this module's shared M09 slice does not establish initial access.`,
   },
   {
     title: `ATT&CK Matrix — Execution`,
     org: `MITRE`,
     url: `https://attack.mitre.org/tactics/TA0002/`,
-    note: `Covers command execution techniques including T1059 (command and scripting interpreter). Relevant to PowerShell behavior in this module's timeline.`,
+    note: `Framework reference for behavior mapping; no command-interpreter behavior is claimed unless the assigned evidence supports it.`,
   },
   {
     title: `Electronic Crime Scene Investigation: A Guide for First Responders, Second Edition`,
@@ -338,58 +338,54 @@ const MODULE_TEN_SOURCES_LIST = [
     title: `Security+ (SY0-701) Certification Overview & Objectives Summary`,
     org: `CompTIA`,
     url: `https://www.comptia.org/certifications/security`,
-    note: `Foundational security certification covering evidence handling, chain of custody, incident response procedures, and forensic investigation principles.`,
+    note: `Supplementary public reference only. The §2 crosswalk is a developer draft pending curriculum, compliance, and faculty review; this study aid is not an approval, affiliation, endorsement, or pass guarantee.`,
   },
 ];
 
 let moduleTenQuizState = null;
 let moduleTenReviewMode = false;
 
+// M09 is the single source of truth for this case. Module 10 consumes only
+// its declared slice; it does not create a second incident or duplicate data.
+const MODULE_TEN_SHARED_CASE = (typeof window !== 'undefined' && window.MISSION_NEXT_M09_EVIDENCE_CONTRACT)
+  || { incidentId: 'INC-4937', title: 'Operation Cedar Lock', entities: { endpoint: 'ws-173', account: 'acct-173', fileServer: 'fs-02' }, consumerSlices: { module10: ['M09-E01', 'M09-E02', 'M09-E03', 'M09-E04', 'M09-E05'] } };
+
 const MODULE_TEN_ARTIFACTS = [
-  { id: 'E10-01', type: 'Memory capture', source: 'WKS-27 · live response', acquired: '2026-08-19 10:42:18Z', size: '16.0 GB', hash: '8f01…a921', handling: 'Captured to clean encrypted media; source and tool version recorded.', detail: 'Volatile capture created before power-down. The acquisition log names collector analyst-14, source WKS-27, tool build 4.2, UTC time, destination media MED-104, and SHA-256 verification.', admissible: true },
-  { id: 'E10-02', type: 'Forensic disk image', source: 'NVMe SN-X4-271', acquired: '2026-08-19 11:18:44Z', size: '512 GB', hash: 'demo-b4d9…c906', handling: 'Bit-stream image through validated read-only blocker; source and image hashes match.', detail: 'Image IMG-10-27 was acquired from NVMe SN-X4-271 with blocker WB-22. The source was placed in tamper seal S-104. A deliberately shortened synthetic SHA-256 display value was calculated twice and matched.', admissible: true },
-  { id: 'E10-03', type: 'Identity audit export', source: 'Scoped acct-27 export', acquired: '2026-08-19 11:26:09Z', size: '2.4 MB', hash: '2e77…0c14', handling: 'Native JSON export; UTC query window and export hash recorded.', detail: 'The export contains only acct-27 events from 10:00Z–11:00Z. Query, time basis, operator, output path, and SHA-256 are present in the collection record.', admissible: true },
-  { id: 'E10-04', type: 'Phone photograph', source: 'Analyst phone screen', acquired: '2026-08-19 11:31 local', size: '1 image', hash: 'Not recorded', handling: 'Personal device; no source identifier, time basis, or transfer record.', detail: 'A photograph shows one alert row but omits surrounding context. It was sent through personal messaging and has no documented provenance.', admissible: false },
-  { id: 'E10-05', type: 'Repacked archive', source: 'Unknown desktop folder', acquired: 'Unknown', size: '2.1 MB', hash: '73ab…1109', handling: 'Created after export; original file list and transformation are undocumented.', detail: 'The archive has its own hash, but there is no record of who created it, which originals it contains, or whether files were changed during repackaging.', admissible: false },
-  { id: 'E10-06', type: 'Loose USB copy', source: 'Unlabelled removable media', acquired: '2026-08-19 12:08 local', size: '512 GB', hash: 'b4d9…c906', handling: 'No media ID, seal, custodian signature, or receipt time.', detail: 'A matching short hash appears on a sticky note, but the media itself is unlabelled and never appears in the transfer ledger.', admissible: false },
+  { id: 'M09-E01', type: 'Endpoint impact telemetry', source: 'ws-173 · endpoint sensor', acquired: '2026-09-10 10:02Z', size: 'Synthetic record', hash: 'recorded fixture fingerprint', handling: 'Exported from the M09 assigned slice; source, UTC basis, and export context retained.', detail: 'Rapid file-encryption behavior is observed on ws-173. This is synthetic training evidence, not a malware sample or live IOC.', admissible: true },
+  { id: 'M09-E02', type: 'Service-control telemetry', source: 'ws-173 · endpoint sensor', acquired: '2026-09-10 10:04Z', size: 'Synthetic record', hash: 'recorded fixture fingerprint', handling: 'Collected with the same bounded incident export and UTC time basis.', detail: 'A recovery-service stop request follows the encryption activity. It supports impact behavior but does not prove every recovery point was deleted.', admissible: true },
+  { id: 'M09-E03', type: 'Containment action record', source: 'ws-173 · response log', acquired: '2026-09-10 10:06Z', size: 'Synthetic record', hash: 'recorded fixture fingerprint', handling: 'Playbook completion record linked to the assigned incident slice.', detail: 'Network isolation succeeded while a local process remained active. Isolation limits spread; it does not prove the host is clean.', admissible: true },
+  { id: 'M09-E04', type: 'Known-good baseline', source: 'ws-173 · managed backup agent', acquired: '2026-09-10 09:58Z', size: 'Synthetic record', hash: 'recorded fixture fingerprint', handling: 'Approved baseline record retained as a distractor, not incident proof.', detail: 'A signed backup process ran in its approved window. It should remain context rather than be promoted into the causal evidence set.', admissible: false },
+  { id: 'M09-E05', type: 'Identity baseline', source: 'acct-173 · managed workstation', acquired: '2026-09-10 09:58Z', size: 'Synthetic record', hash: 'recorded fixture fingerprint', handling: 'Native identity record with UTC time and registered endpoint context.', detail: 'The account authenticated from its registered workstation before impact. This is baseline context and does not identify an operator.', admissible: false },
 ];
 
 const MODULE_TEN_CUSTODY_EVENTS = [
-  { id: 'CC-101', time: '11:18:44Z', title: 'Acquire IMG-10-27', actor: 'analyst-14', receiver: 'analyst-14', control: 'WB-22 · source read-only', detail: 'Bit-stream acquisition begins after source and blocker identifiers are recorded.' },
-  { id: 'CC-102', time: '11:32:10Z', title: 'Verify and seal', actor: 'analyst-14', receiver: 'analyst-14', control: 'SHA-256 match · seal S-104', detail: 'Source and image hashes match; the source is sealed and the image is set read-only.' },
-  { id: 'CC-103', time: '12:05:27Z', title: 'Transfer sealed source', actor: 'analyst-14', receiver: 'courier-06', control: 'Both signatures · case FE-10-27', detail: 'Release and receipt timestamps, purpose, seal condition, and both custodians are recorded.' },
-  { id: 'CC-104', time: '12:44:03Z', title: 'Vault receipt', actor: 'courier-06', receiver: 'custodian-03', control: 'Seal intact · locker L-18', detail: 'The evidence custodian signs receipt and records the controlled storage location.' },
+  { id: 'CC-101', time: '10:02:00Z', title: 'Acquire M09 impact export', actor: 'analyst-14', receiver: 'analyst-14', control: 'Source ID recorded · read-only destination', detail: 'The assigned M09 impact record is copied into a controlled evidence package.' },
+  { id: 'CC-102', time: '10:08:00Z', title: 'Verify and seal', actor: 'analyst-14', receiver: 'analyst-14', control: 'Synthetic fingerprint match · seal M09-1', detail: 'The recorded fixture fingerprint is verified; the evidence package is sealed and retained read-only.' },
+  { id: 'CC-103', time: '10:15:00Z', title: 'Transfer sealed package', actor: 'analyst-14', receiver: 'case-lead-02', control: 'Both signatures · case INC-4937', detail: 'Release and receipt timestamps, purpose, seal condition, and both custodians are recorded.' },
+  { id: 'CC-104', time: '10:28:00Z', title: 'Controlled storage receipt', actor: 'case-lead-02', receiver: 'custodian-03', control: 'Seal intact · synthetic vault V-04', detail: 'The evidence custodian signs receipt and records the controlled storage location.' },
 ];
 
 const MODULE_TEN_TIMELINE = [
-  { id: 'TL-201', time: '10:02:11Z', source: 'Change log', entity: 'WKS-44', title: 'Approved browser update completed', detail: 'Signed deployment job CHG-204 completed on another workstation.', causal: false },
-  { id: 'TL-202', time: '10:14:03Z', source: 'Mail trace', entity: 'acct-61', title: 'Benefits_Update.html delivered', detail: 'An external message delivered an HTML attachment to acct-61; authentication alignment failed.', causal: true },
-  { id: 'TL-203', time: '10:16:42Z', source: 'File audit', entity: 'WKS-61', title: 'Quarterly-plan.xlsx opened', detail: 'A signed spreadsheet application opened a known internal file without child activity.', causal: false },
-  { id: 'TL-204', time: '10:17:08Z', source: 'Browser history', entity: 'WKS-61', title: 'Benefits_Update.html opened', detail: 'acct-61 opened the delivered attachment from the downloads folder.', causal: true },
-  { id: 'TL-205', time: '10:18:19Z', source: 'Process telemetry', entity: 'WKS-61', title: 'HTML viewer spawned powershell.exe', detail: 'The encoded command ran beneath the attachment viewer from a user-writable path.', causal: true },
-  { id: 'TL-206', time: '10:19:02Z', source: 'Network telemetry', entity: '203.0.113.210', title: 'Script contacted unusual destination', detail: 'The PowerShell process opened TLS to the documentation-range address; connection alone does not prove a download.', causal: true },
-  { id: 'TL-207', time: '10:22:31Z', source: 'Task audit', entity: 'Benefits Sync', title: 'New sign-in task created', detail: 'powershell.exe registered a task that launches profile-cache.bin at user sign-in.', causal: true },
-  { id: 'TL-208', time: '10:24:50Z', source: 'Admin log', entity: 'SRV-12', title: 'Backup retention task updated', detail: 'Approved automation changed a server task under ticket CHG-199.', causal: false },
-  { id: 'TL-209', time: '10:28:14Z', source: 'Identity audit', entity: 'acct-61', title: 'Unfamiliar token refresh', detail: 'An unmanaged client refreshed acct-61 from 203.0.113.210; the account owner denied this session.', causal: true },
+  { id: 'TL-301', time: '10:02Z', source: 'Endpoint sensor', entity: 'ws-173', title: 'Encryption activity detected', detail: 'M09-E01 reports rapid file-encryption behavior; this is the primary impact observation.', causal: true },
+  { id: 'TL-302', time: '10:04Z', source: 'Endpoint sensor', entity: 'ws-173', title: 'Recovery service stop request', detail: 'M09-E02 follows the encryption activity. It supports impact behavior but not deletion of every recovery point.', causal: true },
+  { id: 'TL-303', time: '10:06Z', source: 'Response log', entity: 'ws-173', title: 'Endpoint isolation succeeded', detail: 'M09-E03 records network isolation while local activity remained possible.', causal: true },
+  { id: 'TL-304', time: '09:58Z', source: 'Identity baseline', entity: 'acct-173', title: 'Managed sign-in before impact', detail: 'M09-E05 is baseline context and does not identify an operator or establish causation.', causal: false },
+  { id: 'TL-305', time: '09:58Z', source: 'Backup baseline', entity: 'ws-173', title: 'Approved backup agent activity', detail: 'M09-E04 is a known-good comparison record, not incident proof.', causal: false },
 ];
 
 const MODULE_TEN_LINKS = [
-  { id: 'L1', from: 'acct-61 mailbox', to: 'Benefits_Update.html', verb: 'delivered', supported: true },
-  { id: 'L2', from: 'Benefits_Update.html', to: 'powershell.exe', verb: 'launched', supported: true },
-  { id: 'L3', from: 'powershell.exe', to: '203.0.113.210', verb: 'connected', supported: true },
-  { id: 'L4', from: 'powershell.exe', to: 'Benefits Sync task', verb: 'created', supported: true },
-  { id: 'L5', from: '203.0.113.210', to: 'acct-61 token', verb: 'shared source', supported: true },
-  { id: 'L6', from: 'Quarterly-plan.xlsx', to: 'Benefits Sync task', verb: 'created', supported: false },
-  { id: 'L7', from: 'WKS-44 update', to: 'acct-61 token', verb: 'authorized', supported: false },
+  { id: 'L1', from: 'ws-173 encryption', to: 'recovery service', verb: 'preceded stop request', supported: true },
+  { id: 'L2', from: 'ws-173 encryption', to: 'ws-173 isolation', verb: 'triggered response', supported: true },
+  { id: 'L3', from: 'acct-173 managed sign-in', to: 'ws-173 encryption', verb: 'shares entity context', supported: false },
+  { id: 'L4', from: 'backup baseline', to: 'ws-173 encryption', verb: 'coincides only', supported: false },
+  { id: 'L5', from: 'ws-173 isolation', to: 'local process', verb: 'does not stop', supported: true },
 ];
 
 const MODULE_TEN_TECHNIQUES = [
-  { id: 'T1566.001', label: 'T1566.001 · Spearphishing Attachment', help: 'Requires evidence that an attachment delivered the initial lure.' },
-  { id: 'T1059.001', label: 'T1059.001 · PowerShell', help: 'Requires observed PowerShell execution.' },
-  { id: 'T1053.005', label: 'T1053.005 · Scheduled Task/Job: Scheduled Task', help: 'Requires creation or use of a scheduled task.' },
-  { id: 'T1078', label: 'T1078 · Valid Accounts', help: 'Requires observed use of an active account or session.' },
-  { id: 'T1105', label: 'T1105 · Ingress Tool Transfer', help: 'A connection does not, by itself, establish a transferred tool.' },
-  { id: 'T1486', label: 'T1486 · Data Encrypted for Impact', help: 'No encryption-impact evidence appears in this case slice.' },
+  { id: 'T1486', label: 'T1486 · Data Encrypted for Impact', help: 'M09-E01 directly records encryption behavior on ws-173.' },
+  { id: 'T1489', label: 'T1489 · Service Stop', help: 'M09-E02 records a recovery-service stop request.' },
+  { id: 'T1078', label: 'T1078 · Valid Accounts', help: 'Do not select: baseline sign-in alone does not establish hostile use.' },
+  { id: 'T1566.001', label: 'T1566.001 · Spearphishing Attachment', help: 'Do not select: no delivery evidence is in the M09 Module 10 slice.' },
 ];
 
 let moduleTenCustodyState = null;
@@ -504,7 +500,7 @@ function moduleTenCustodyScorePanel() {
   if (!state.attempts || !state.breakdown) return `<div class="m10-score-empty" id="m10-custody-feedback" role="status">Scoring: observation 25 · analysis 25 · decision 25 · communication 25. Pass: ${MODULE_TEN_PASSING_SCORE}/100.</div>`;
   const b = state.breakdown;
   const passed = state.score >= MODULE_TEN_PASSING_SCORE;
-  return `<section class="m10-score ${passed ? 'is-pass' : 'is-remediate'}" id="m10-custody-feedback" tabindex="-1" aria-live="polite" aria-labelledby="m10-custody-score-title"><div class="m10-score-heading"><div><p class="m10-kicker">Attempt ${state.attempts} · best ${state.bestScore}/100</p><h3 id="m10-custody-score-title">${state.score}/100 — ${passed ? 'Evidence package accepted' : 'Repair the preservation record'}</h3></div><span>${state.score}</span></div>${moduleTenScoreGrid(b)}<ul class="m10-feedback-list">${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul><div class="m10-remediation"><strong>Reference finding</strong><p>Preserve the memory capture, bit-stream disk image, and native identity export. IMG-10-27 must trace to NVMe SN-X4-271 through blocker WB-22 at 11:18:44Z, retain its matching recorded SHA-256 fingerprint, and move acquire → verify/seal → signed transfer → vault receipt. Quarantine the loose USB copy because its matching shortened display value does not repair missing custody.</p></div></section>`;
+  return `<section class="m10-score ${passed ? 'is-pass' : 'is-remediate'}" id="m10-custody-feedback" tabindex="-1" aria-live="polite" aria-labelledby="m10-custody-score-title"><div class="m10-score-heading"><div><p class="m10-kicker">Attempt ${state.attempts} · best ${state.bestScore}/100</p><h3 id="m10-custody-score-title">${state.score}/100 — ${passed ? 'Evidence package accepted' : 'Repair the preservation record'}</h3></div><span>${state.score}</span></div>${moduleTenScoreGrid(b)}<ul class="m10-feedback-list">${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul><div class="m10-remediation"><strong>Shared-case reference finding</strong><p>${esc(MODULE_TEN_SHARED_CASE.incidentId)} uses the M09 slice ${esc((MODULE_TEN_SHARED_CASE.consumerSlices.module10 || []).join(', '))}. Preserve the impact, service-control, and containment records; retain UTC context and integrity notes; keep the baseline records as context only. This lab documents intake and custody—it does not authorize specialist forensic examination.</p></div></section>`;
 }
 
 function moduleTenScoreGrid(b) {
@@ -515,15 +511,15 @@ function moduleTenCustodyLab() {
   const custodyOptions = MODULE_TEN_CUSTODY_EVENTS.map((event) => `<option value="${esc(event.id)}">${esc(event.id)} · ${esc(event.title)}</option>`).join('');
   return `<section class="m10-lab" role="tabpanel" aria-labelledby="m10-tab-custody"><div class="m10-lab-heading"><div><p class="m10-kicker">Independent lab · ${formatInstructionalMinutes(MODULE_TEN_CUSTODY_MINUTES)}</p><h2>Evidence Collection &amp; Chain of Custody</h2></div><span>${moduleTenStatus(moduleTenCustodyState)}</span></div>
     <div class="m10-objective"><i class="ri-focus-3-line" aria-hidden="true"></i><div><strong>Objective</strong><p>Produce a defensible evidence package for case FE-10-27 by selecting preserved originals, validating one acquisition record, resolving custody integrity, and communicating the disposition with at least ${MODULE_TEN_PASSING_SCORE}/100.</p></div></div>
-    <div class="m10-case-brief"><div><p class="m10-kicker">Case FE-10-27 · assigned evidence slice</p><h3>Post-containment evidence intake</h3><p>A responder collected volatile, disk, and identity artifacts from a single workstation case. Determine which package elements retain defensible provenance and whether IMG-10-27 can enter controlled analysis.</p></div><dl><div><dt>Scope</dt><dd>1 device · 1 identity</dd></div><div><dt>Time basis</dt><dd>UTC unless labelled local</dd></div><div><dt>Authority</dt><dd>Evidence intake decision</dd></div></dl></div>
+    <div class="m10-case-brief"><div><p class="m10-kicker">${esc(MODULE_TEN_SHARED_CASE.incidentId)} · M09 consumer slice</p><h3>Post-containment evidence intake</h3><p>Consume the bounded ransomware evidence established in Module 09. Determine which records support controlled preservation, what integrity context is available, and which baseline records must remain separate.</p></div><dl><div><dt>Scope</dt><dd>ws-173 · acct-173 · fs-02</dd></div><div><dt>Time basis</dt><dd>Synthetic UTC</dd></div><div><dt>Authority</dt><dd>Evidence intake decision</dd></div></dl></div>
     ${moduleTenReference()}
     <section class="m10-workbench" aria-labelledby="m10-inventory-title"><div class="m10-panel-heading"><div><p class="m10-kicker">Dataset</p><h3 id="m10-inventory-title">Acquisition package inventory</h3></div><span>${moduleTenCustodyState.inspectedArtifacts.length}/6 inspected · ${moduleTenCustodyState.selectedEvidence.length} selected</span></div>${moduleTenArtifactTable()}
-      <div class="m10-ledger"><div class="m10-panel-heading"><div><p class="m10-kicker">Custody dataset</p><h3>IMG-10-27 transfer ledger</h3></div><span>4 recorded events</span></div><div class="m10-ledger-grid">${MODULE_TEN_CUSTODY_EVENTS.map((event) => `<article><time>${esc(event.time)}</time><h4>${esc(event.title)}</h4><p>${esc(event.actor)} → ${esc(event.receiver)}</p><small>${esc(event.control)}</small><span>${esc(event.detail)}</span></article>`).join('')}</div><aside class="m10-ledger-alert"><i class="ri-error-warning-line" aria-hidden="true"></i><p><strong>Supplemental audit note:</strong> at 13:02 local, an unlabelled USB copy was opened on a review workstation. No custodian, receipt time, or media identifier appears in the ledger.</p></aside></div>
+      <div class="m10-ledger"><div class="m10-panel-heading"><div><p class="m10-kicker">Custody dataset</p><h3>${esc(MODULE_TEN_SHARED_CASE.incidentId)} evidence transfer ledger</h3></div><span>4 recorded events</span></div><div class="m10-ledger-grid">${MODULE_TEN_CUSTODY_EVENTS.map((event) => `<article><time>${esc(event.time)}</time><h4>${esc(event.title)}</h4><p>${esc(event.actor)} → ${esc(event.receiver)}</p><small>${esc(event.control)}</small><span>${esc(event.detail)}</span></article>`).join('')}</div><aside class="m10-ledger-alert"><i class="ri-error-warning-line" aria-hidden="true"></i><p><strong>Evidence boundary:</strong> the M09 consumer slice contains no unlogged copy or specialist image. Do not invent one; document only the supplied synthetic records and any custody gap that the scenario actually exposes.</p></aside></div>
     </section>
     <form class="m10-artifact" id="m10-custody-form" novalidate><div class="m10-panel-heading"><div><p class="m10-kicker">Scored artifact</p><h3>Evidence intake record</h3></div><span>Retry allowed</span></div>
       <fieldset><legend>Preserved package</legend><p class="m10-help">Use the inventory checkboxes to identify the artifacts whose provenance and acquisition records support preservation.</p><div class="m10-selection-summary">${moduleTenCustodyState.selectedEvidence.length ? moduleTenCustodyState.selectedEvidence.map((id) => `<code>${esc(id)}</code>`).join('') : '<span>No artifacts selected</span>'}</div></fieldset>
       <div class="m10-form-grid"><fieldset><legend>Image source</legend>${moduleTenRadio('sourceChoice', moduleTenCustodyState.sourceChoice, [
-        { id: 'nvme-271', label: 'NVMe SN-X4-271', help: 'Named in the IMG-10-27 acquisition record.' },
+        { id: 'ws-173', label: 'ws-173 endpoint export', help: 'Named in M09-E01 through M09-E03.' },
         { id: 'wks44', label: 'WKS-44 system disk', help: 'Appears only in another activity record.' },
         { id: 'unknown-usb', label: 'Unlabelled USB device', help: 'A later copy without provenance.' },
       ])}</fieldset><fieldset><legend>Acquisition control</legend>${moduleTenRadio('methodChoice', moduleTenCustodyState.methodChoice, [
@@ -531,11 +527,11 @@ function moduleTenCustodyLab() {
         { id: 'drag-copy', label: 'Drag files into a desktop folder', help: 'Can alter metadata and omits unallocated content.' },
         { id: 'phone-photo', label: 'Photograph the source screen', help: 'Does not acquire the underlying evidence.' },
       ])}</fieldset><fieldset><legend>Acquisition time</legend>${moduleTenRadio('timeChoice', moduleTenCustodyState.timeChoice, [
-        { id: '111844z', label: '2026-08-19 11:18:44Z', help: 'UTC time in the IMG-10-27 record.' },
+        { id: '1002z', label: '2026-09-10 10:02Z', help: 'UTC time in the M09 impact record.' },
         { id: '1131local', label: '2026-08-19 11:31 local', help: 'Belongs to the undocumented photograph.' },
         { id: 'unknown', label: 'Unknown', help: 'Would leave the image chronology unsupported.' },
       ])}</fieldset><fieldset><legend>Recorded SHA-256</legend>${moduleTenRadio('hashChoice', moduleTenCustodyState.hashChoice, [
-        { id: 'full-b4', label: 'demo-b4d9…c906', help: 'Deliberately abbreviated synthetic fingerprint recorded for IMG-10-27.' },
+        { id: 'full-b4', label: 'M09 fixture fingerprint', help: 'Use the recorded synthetic fingerprint; do not invent a live hash.' },
         { id: 'short-b4', label: 'b4d9…c906', help: 'A display abbreviation is not the complete verification record.' },
         { id: 'none', label: 'No digest required', help: 'Removes the integrity check.' },
       ])}</fieldset></div>
@@ -546,11 +542,11 @@ function moduleTenCustodyLab() {
       ])}</fieldset>
       <fieldset><legend>Custody chronology</legend><p class="m10-help">Assign one ledger event to each chronological position. Each event should appear once.</p><div class="m10-sequence-grid">${[0, 1, 2, 3].map((index) => `<label><span>Position ${index + 1}</span><select name="custodySequence" data-m10-sequence="${index}"><option value="">Choose event</option>${custodyOptions.replace(`value="${moduleTenCustodyState.custodySequence[index]}"`, `value="${moduleTenCustodyState.custodySequence[index]}" selected`)}</select></label>`).join('')}</div></fieldset>
       <div class="m10-form-grid"><fieldset><legend>Custody integrity finding</legend>${moduleTenRadio('custodyRisk', moduleTenCustodyState.custodyRisk, [
-        { id: 'usb-gap', label: 'The unlabelled USB copy has a custody and provenance gap', help: 'No media identity, custodian, transfer, or receipt supports it.' },
-        { id: 'vault-gap', label: 'The sealed vault source lacks custody', help: 'The ledger records release, receipt, seal, and locker.' },
-        { id: 'no-gap', label: 'No gap exists because a short hash matches', help: 'A hash cannot replace missing custody records.' },
+        { id: 'baseline-separate', label: 'M09-E04 and M09-E05 are baseline context, not causal evidence', help: 'Keep known-good records separate while the assigned impact records follow the ledger.' },
+        { id: 'ledger-gap', label: 'The supplied ledger has a missing handoff', help: 'The synthetic ledger is complete; do not invent a gap.' },
+        { id: 'no-gap', label: 'The assigned evidence has a complete recorded custody path', help: 'The four supplied events document acquisition, verification/seal, transfer, and receipt.' },
       ])}</fieldset><fieldset><legend>Intake decision</legend>${moduleTenRadio('preservationDecision', moduleTenCustodyState.preservationDecision, [
-        { id: 'accept-quarantine', label: 'Accept the logged originals; quarantine the USB copy pending provenance review', help: 'Preserves defensible evidence and prevents the unsupported copy from entering analysis.' },
+        { id: 'accept-quarantine', label: 'Accept M09-E01–E03 as logged evidence; retain M09-E04–E05 as baseline context', help: 'Preserves the bounded shared-case slice without promoting distractor records.' },
         { id: 'accept-all', label: 'Accept every item because more evidence is always better', help: 'Uncontrolled copies can contaminate a review.' },
         { id: 'destroy-usb', label: 'Destroy the USB immediately', help: 'Destruction exceeds intake authority and removes a potentially reviewable item.' },
       ])}</fieldset></div>
@@ -561,7 +557,7 @@ function moduleTenCustodyLab() {
 
 function moduleTenTimelineTable() {
   const active = MODULE_TEN_TIMELINE.find((item) => item.id === moduleTenMappingState.activeEvent);
-  return `<div class="m10-table-wrap"><table class="m10-data-table"><caption class="m10-visually-hidden">Synthetic forensic event dataset for case FR-10-61</caption><thead><tr><th scope="col">Timeline</th><th scope="col">UTC</th><th scope="col">Source</th><th scope="col">Entity</th><th scope="col">Observation</th><th scope="col">Context</th></tr></thead><tbody>${MODULE_TEN_TIMELINE.map((item) => {
+  return `<div class="m10-table-wrap"><table class="m10-data-table"><caption class="m10-visually-hidden">Synthetic event dataset for ${esc(MODULE_TEN_SHARED_CASE.incidentId)}</caption><thead><tr><th scope="col">Timeline</th><th scope="col">UTC</th><th scope="col">Source</th><th scope="col">Entity</th><th scope="col">Observation</th><th scope="col">Context</th></tr></thead><tbody>${MODULE_TEN_TIMELINE.map((item) => {
     const selected = moduleTenMappingState.selectedTimeline.includes(item.id);
     return `<tr class="${selected ? 'is-selected' : ''}"><td data-label="Timeline"><label class="m10-evidence-check"><input type="checkbox" name="timelineEvent" value="${esc(item.id)}" ${selected ? 'checked' : ''} /><span>${esc(item.id)}</span></label></td><td data-label="UTC"><time>${esc(item.time)}</time></td><td data-label="Source">${esc(item.source)}</td><td data-label="Entity"><code>${esc(item.entity)}</code></td><td data-label="Observation"><strong>${esc(item.title)}</strong></td><td data-label="Context"><button type="button" class="m10-inspect" data-m10-event="${esc(item.id)}" aria-expanded="${active?.id === item.id}">${active?.id === item.id ? 'Hide context' : 'Inspect context'}</button></td></tr>`;
   }).join('')}</tbody></table></div>${active ? `<aside class="m10-detail" id="m10-event-detail" tabindex="-1"><div><p class="m10-kicker">${esc(active.id)} · ${esc(active.source)}</p><h4>${esc(active.title)}</h4><p>${esc(active.detail)}</p></div><button type="button" data-m10-close-event aria-label="Close event detail"><i class="ri-close-line" aria-hidden="true"></i></button></aside>` : ''}`;
@@ -573,7 +569,20 @@ function moduleTenTimelineStrip() {
 }
 
 function moduleTenGraph() {
-  return `<section class="m10-graph" aria-labelledby="m10-graph-title"><div class="m10-panel-heading"><div><p class="m10-kicker">Relationship workspace</p><h3 id="m10-graph-title">Supported entity graph</h3></div><span>${moduleTenMappingState.selectedLinks.length}/7 links selected</span></div><div class="m10-node-map" aria-label="Entity relationship overview"><span class="is-account"><i class="ri-user-line" aria-hidden="true"></i>acct-61</span><span class="is-file"><i class="ri-file-code-line" aria-hidden="true"></i>HTML attachment</span><span class="is-process"><i class="ri-terminal-box-line" aria-hidden="true"></i>PowerShell</span><span class="is-network"><i class="ri-global-line" aria-hidden="true"></i>203.0.113.210</span><span class="is-task"><i class="ri-calendar-event-line" aria-hidden="true"></i>Benefits Sync</span></div>${moduleTenCheck('relationshipLink', moduleTenMappingState.selectedLinks, MODULE_TEN_LINKS.map((link) => ({ id: link.id, label: `${link.from} —${link.verb}→ ${link.to}`, help: 'Select only if a case record directly supports this edge.' })) )}</section>`;
+  return `<section class="m10-graph" aria-labelledby="m10-graph-title"><div class="m10-panel-heading"><div><p class="m10-kicker">Relationship workspace</p><h3 id="m10-graph-title">Supported entity graph</h3></div><span>${moduleTenMappingState.selectedLinks.length}/5 links selected</span></div><div class="m10-node-map" aria-label="Entity relationship overview"><span class="is-account"><i class="ri-user-line" aria-hidden="true"></i>acct-173</span><span class="is-file"><i class="ri-file-warning-line" aria-hidden="true"></i>encrypted files</span><span class="is-process"><i class="ri-terminal-box-line" aria-hidden="true"></i>impact activity</span><span class="is-network"><i class="ri-global-line" aria-hidden="true"></i>ws-173</span><span class="is-task"><i class="ri-server-line" aria-hidden="true"></i>fs-02</span></div>${moduleTenCheck('relationshipLink', moduleTenMappingState.selectedLinks, MODULE_TEN_LINKS.map((link) => ({ id: link.id, label: `${link.from} —${link.verb}→ ${link.to}`, help: 'Select only if a case record directly supports this edge.' })) )}</section>`;
+}
+
+function moduleTenScenarioLoops() {
+  return `<div class="m10-loop-grid" aria-label="Module 10 four-part learning loops">
+    <article><p class="m10-kicker">Lesson 1 · Scenario</p><h4>Receive the bounded M09 slice</h4><p>INC-4937 is contained in the lab slice; ws-173 impact and the two baseline records are available for intake.</p></article>
+    <article><p class="m10-kicker">Lesson 1 · Theory</p><h4>Integrity, provenance, custody</h4><p>Hash meaning, UTC basis, acquisition controls, and documented handoffs answer different review questions.</p></article>
+    <article><p class="m10-kicker">Lesson 1 · Knowledge check</p><h4>Choose what can be preserved</h4><p>Explain why M09-E01–E03 are assigned evidence while M09-E04–E05 remain context.</p></article>
+    <article><p class="m10-kicker">Lesson 1 · Applied task</p><h4>Complete the intake record</h4><p>Build a custody sequence and disposition note without adding an unobserved copy or live indicator.</p></article>
+    <article><p class="m10-kicker">Lesson 2 · Scenario</p><h4>Reconstruct the impact sequence</h4><p>Compare endpoint, service-control, isolation, and baseline records from the same synthetic incident.</p></article>
+    <article><p class="m10-kicker">Lesson 2 · Theory</p><h4>Map behavior only when demonstrated</h4><p>ATT&amp;CK organizes observed behavior; it does not supply missing access, operator, or lateral-movement facts.</p></article>
+    <article><p class="m10-kicker">Lesson 2 · Knowledge check</p><h4>Separate fact from inference</h4><p>Use source review to test whether a relationship or technique is supported, not merely plausible.</p></article>
+    <article><p class="m10-kicker">Lesson 2 · Applied task</p><h4>Write the reconstruction</h4><p>Document the bounded chain, selected techniques, scope, and explicit unknowns for specialist review.</p></article>
+  </div>`;
 }
 
 function moduleTenMappingScorePanel() {
@@ -582,21 +591,21 @@ function moduleTenMappingScorePanel() {
   if (!state.attempts || !state.breakdown) return `<div class="m10-score-empty" id="m10-mapping-feedback" role="status">Scoring: observation 25 · analysis 30 · decision 25 · communication 20. Pass: ${MODULE_TEN_PASSING_SCORE}/100.</div>`;
   const b = state.breakdown;
   const passed = state.score >= MODULE_TEN_PASSING_SCORE;
-  return `<section class="m10-score ${passed ? 'is-pass' : 'is-remediate'}" id="m10-mapping-feedback" tabindex="-1" aria-live="polite" aria-labelledby="m10-mapping-score-title"><div class="m10-score-heading"><div><p class="m10-kicker">Attempt ${state.attempts} · best ${state.bestScore}/100</p><h3 id="m10-mapping-score-title">${state.score}/100 — ${passed ? 'Reconstruction supported' : 'Separate evidence from inference'}</h3></div><span>${state.score}</span></div><div class="m10-score-grid" aria-label="Explainable score breakdown"><div><strong>${b.observation}/25</strong><span>Observation</span></div><div><strong>${b.analysis}/30</strong><span>Analysis</span></div><div><strong>${b.decision}/25</strong><span>Decision</span></div><div><strong>${b.communication}/20</strong><span>Communication</span></div></div><ul class="m10-feedback-list">${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul><div class="m10-remediation"><strong>Reference finding</strong><p>The supported chain begins with delivery and opening of Benefits_Update.html, followed by PowerShell execution, a correlated connection, task persistence, and acct-61 token use from the same address. Map only attachment delivery, PowerShell, scheduled task, and valid-account behavior. The records do not prove a tool download, ransomware impact, or broader scope.</p></div></section>`;
+  return `<section class="m10-score ${passed ? 'is-pass' : 'is-remediate'}" id="m10-mapping-feedback" tabindex="-1" aria-live="polite" aria-labelledby="m10-mapping-score-title"><div class="m10-score-heading"><div><p class="m10-kicker">Attempt ${state.attempts} · best ${state.bestScore}/100</p><h3 id="m10-mapping-score-title">${state.score}/100 — ${passed ? 'Reconstruction supported' : 'Separate evidence from inference'}</h3></div><span>${state.score}</span></div><div class="m10-score-grid" aria-label="Explainable score breakdown"><div><strong>${b.observation}/25</strong><span>Observation</span></div><div><strong>${b.analysis}/30</strong><span>Analysis</span></div><div><strong>${b.decision}/25</strong><span>Decision</span></div><div><strong>${b.communication}/20</strong><span>Communication</span></div></div><ul class="m10-feedback-list">${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul><div class="m10-remediation"><strong>Shared-case reference finding</strong><p>The supported chain is the bounded M09 sequence of encryption activity, recovery-service stop request, and endpoint isolation on ws-173. Map only demonstrated behavior; the records do not establish initial access, operator identity, exfiltration, or broader scope.</p></div></section>`;
 }
 
 function moduleTenMappingLab() {
   return `<section class="m10-lab" role="tabpanel" aria-labelledby="m10-tab-mapping"><div class="m10-lab-heading"><div><p class="m10-kicker">Independent lab · ${formatInstructionalMinutes(MODULE_TEN_MAPPING_MINUTES)}</p><h2>Incident Timeline, Cause &amp; Behavior Mapping</h2></div><span>${moduleTenStatus(moduleTenMappingState)}</span></div>
-    <div class="m10-objective"><i class="ri-focus-3-line" aria-hidden="true"></i><div><strong>Objective</strong><p>Reconstruct case FR-10-61 from nine mixed records, identify the supported causal chain, build a defensible entity graph, and use ATT&amp;CK only as a framework for demonstrated behavior, scoring at least ${MODULE_TEN_PASSING_SCORE}/100.</p></div></div>
-    <div class="m10-case-brief"><div><p class="m10-kicker">Case FR-10-61 · assigned incident slice</p><h3>Attachment-to-persistence reconstruction</h3><p>Several events occurred within 27 minutes across mail, browser, endpoint, network, task, and identity sources. Determine what belongs in the incident chronology and what the dataset proves.</p></div><dl><div><dt>Records</dt><dd>9 mixed events</dd></div><div><dt>Time basis</dt><dd>UTC</dd></div><div><dt>Question</dt><dd>Cause and behavior</dd></div></dl></div>
+    <div class="m10-objective"><i class="ri-focus-3-line" aria-hidden="true"></i><div><strong>Objective</strong><p>Reconstruct ${esc(MODULE_TEN_SHARED_CASE.incidentId)} from the five declared M09 consumer records, identify the supported impact sequence, build a defensible entity graph, and use ATT&amp;CK only as a framework for demonstrated behavior, scoring at least ${MODULE_TEN_PASSING_SCORE}/100.</p></div></div>
+    <div class="m10-case-brief"><div><p class="m10-kicker">${esc(MODULE_TEN_SHARED_CASE.incidentId)} · assigned incident slice</p><h3>Post-containment impact reconstruction</h3><p>Endpoint, response, and baseline records cover the same synthetic ransomware case. Determine what belongs in the supported chronology and what remains unknown.</p></div><dl><div><dt>Records</dt><dd>5 declared M09 records</dd></div><div><dt>Time basis</dt><dd>UTC</dd></div><div><dt>Question</dt><dd>Impact and behavior</dd></div></dl></div>
     ${moduleTenReference()}
     <section class="m10-workbench" aria-labelledby="m10-events-title"><div class="m10-panel-heading"><div><p class="m10-kicker">Dataset</p><h3 id="m10-events-title">Cross-source event records</h3></div><span>${moduleTenMappingState.selectedTimeline.length} timeline events selected</span></div>${moduleTenTimelineTable()}${moduleTenTimelineStrip()}</section>
     ${moduleTenGraph()}
     <form class="m10-artifact" id="m10-mapping-form" novalidate><div class="m10-panel-heading"><div><p class="m10-kicker">Scored artifact</p><h3>Evidence-based incident conclusion</h3></div><span>Retry allowed</span></div>
       <div class="m10-form-grid"><fieldset><legend>Supported root cause</legend>${moduleTenRadio('rootCause', moduleTenMappingState.rootCause, [
-        { id: 'attachment-open', label: 'The delivered HTML attachment was opened and launched encoded PowerShell', help: 'This is the earliest supported action leading into execution and persistence.' },
-        { id: 'browser-update', label: 'The approved browser update on WKS-44 caused the case', help: 'Different host and approved change.' },
-        { id: 'spreadsheet', label: 'Quarterly-plan.xlsx created the scheduled task', help: 'No child activity connects the workbook to the task.' },
+        { id: 'impact-chain', label: 'Encryption on ws-173 preceded a recovery-service stop and containment action', help: 'This is the supported sequence in M09-E01 through M09-E03.' },
+        { id: 'baseline-cause', label: 'The managed sign-in or backup baseline caused the case', help: 'M09-E04 and M09-E05 are context, not causal evidence.' },
+        { id: 'operator-claim', label: 'A named operator caused the case', help: 'The shared contract explicitly does not establish operator identity.' },
       ])}</fieldset><fieldset><legend>Conclusion confidence</legend>${moduleTenRadio('confidence', moduleTenMappingState.confidence, [
         { id: 'high-bounded', label: 'High for this causal chain; broader activity remains unknown', help: 'Multiple independent sources agree without extending beyond the assigned slice.' },
         { id: 'absolute', label: 'Absolute certainty about every attacker action', help: 'The records do not show intent, payload transfer, or wider activity.' },
@@ -746,6 +755,7 @@ function viewModuleTen(user, program) {
         <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">1</span><div><p class="m10-kicker">Lecture</p><h2 id="m10-lecture">Evidence acquisition, custody, timeline reconstruction, and bounded conclusions</h2></div></div></summary>
         <div class="m10-section-body">
           <section class="m10-boundary"><i class="ri-lock-2-line" aria-hidden="true"></i><p><strong>Bounded practice:</strong> this is incident evidence handling and case documentation, not a full digital-forensics program. Acquisition and specialist examination remain with authorized specialists; each exercise contains only its assigned synthetic case dataset.</p></section>
+          ${moduleTenScenarioLoops()}
           ${moduleTenVideoScript()}
         </div>
       </details>
@@ -784,52 +794,51 @@ function viewModuleTen(user, program) {
 function moduleTenScoreCustody() {
   const state = moduleTenCustodyState;
   const reviewed = Math.min(5, state.inspectedArtifacts.length);
-  const evidence = moduleTenExact(state.selectedEvidence, ['E10-01', 'E10-02', 'E10-03'], 15);
-  const riskObserved = state.custodyRisk === 'usb-gap' ? 5 : 0;
+  const evidence = moduleTenExact(state.selectedEvidence, ['M09-E01', 'M09-E02', 'M09-E03'], 15);
+  const riskObserved = state.custodyRisk === 'baseline-separate' ? 5 : 0;
   const observation = reviewed + evidence + riskObserved;
-  const acquisition = [state.sourceChoice === 'nvme-271', state.methodChoice === 'bitstream-blocker', state.timeChoice === '111844z'].filter(Boolean).length * 5;
+  const acquisition = [state.sourceChoice === 'ws-173', state.methodChoice === 'bitstream-blocker', state.timeChoice === '1002z'].filter(Boolean).length * 5;
   const integrity = (state.hashChoice === 'full-b4' ? 5 : 0) + (state.verificationChoice === 'match-integrity' ? 5 : 0);
   const analysis = acquisition + integrity;
   const sequence = state.custodySequence.join('|') === 'CC-101|CC-102|CC-103|CC-104' ? 15 : moduleTenExact(state.custodySequence.filter(Boolean), ['CC-101', 'CC-102', 'CC-103', 'CC-104'], 8);
   const disposition = state.preservationDecision === 'accept-quarantine' ? 10 : 0;
   const decision = Math.min(25, sequence + disposition);
   const communication = moduleTenNoteScore(state.notes, [
-    { pattern: /e10-01|memory/, points: 3 }, { pattern: /e10-02|img-10-27|disk image/, points: 3 }, { pattern: /e10-03|identity.*export|audit export/, points: 3 },
-    { pattern: /sn-x4-271|wb-22|write.?block|read.?only/, points: 4 }, { pattern: /11:18:44z|utc/, points: 3 }, { pattern: /sha-?256|hash.*match|matching.*hash/, points: 3 },
-    { pattern: /usb|custody gap|provenance gap/, points: 3 }, { pattern: /quarant|accept.*original|controlled analysis/, points: 3 },
+    { pattern: /m09-e01|encryption|impact/, points: 3 }, { pattern: /m09-e02|service stop/, points: 3 }, { pattern: /m09-e03|isolation|containment/, points: 3 },
+    { pattern: /ws-173|endpoint sensor|read.?only/, points: 4 }, { pattern: /10:02z|utc/, points: 3 }, { pattern: /sha-?256|hash|fingerprint|integrity/, points: 3 },
+    { pattern: /baseline|m09-e04|m09-e05|context/, points: 3 }, { pattern: /accept|separate|preserv|controlled/, points: 3 },
   ]);
   const score = observation + analysis + decision + communication;
   return { score, breakdown: { observation, analysis, decision, communication }, feedback: [
-    evidence === 15 && reviewed === 5 ? 'Observation: the three provenance-supported originals were selected after sufficient context review.' : `Observation: ${observation}/25. Inspect the inventory and preserve only E10-01, E10-02, and E10-03; identify the USB custody gap.`,
-    analysis === 25 ? 'Analysis: IMG-10-27 is tied to the named NVMe, blocker, UTC acquisition time, recorded fingerprint, and a matching-hash interpretation.' : `Analysis: ${analysis}/25. Reconcile IMG-10-27 against its source, control, exact UTC record, recorded SHA-256 fingerprint, and integrity meaning.`,
-    decision === 25 ? 'Decision: custody is chronological and the unsupported USB copy is quarantined without destroying it.' : `Decision: ${decision}/25. Order acquire, verify/seal, transfer, receipt; accept logged originals and quarantine the unsupported copy.`,
-    communication === 25 ? 'Communication: the disposition is complete, specific, and reviewable.' : `Communication: ${communication}/25. Name all accepted originals, acquisition controls, time/hash result, custody exception, and disposition.`,
+    evidence === 15 && reviewed === 5 ? 'Observation: the three M09 impact/containment records were selected after reviewing all five declared records.' : `Observation: ${observation}/25. Preserve M09-E01, M09-E02, and M09-E03; keep M09-E04 and M09-E05 as baseline context.`,
+    analysis === 25 ? 'Analysis: the ws-173 endpoint source, read-only control, UTC acquisition record, synthetic fingerprint, and integrity meaning are documented.' : `Analysis: ${analysis}/25. Reconcile the M09 endpoint source, acquisition control, UTC record, recorded fingerprint, and integrity meaning.`,
+    decision === 25 ? 'Decision: custody is chronological and baseline records remain separate from the supported impact evidence.' : `Decision: ${decision}/25. Order acquire, verify/seal, transfer, receipt; preserve the bounded M09 evidence without inventing a custody exception.`,
+    communication === 25 ? 'Communication: the disposition is complete, specific, and reviewable.' : `Communication: ${communication}/25. Name M09 evidence IDs, acquisition controls, time/hash result, baseline boundary, and disposition.`,
   ] };
 }
 
 function moduleTenScoreMapping() {
   const state = moduleTenMappingState;
-  const timeline = moduleTenExact(state.selectedTimeline, ['TL-202', 'TL-204', 'TL-205', 'TL-206', 'TL-207', 'TL-209'], 18);
-  const chronology = state.selectedTimeline.filter((id) => ['TL-202', 'TL-204', 'TL-205', 'TL-206', 'TL-207', 'TL-209'].includes(id)).length === 6 ? 7 : 0;
+  const timeline = moduleTenExact(state.selectedTimeline, ['TL-301', 'TL-302', 'TL-303'], 18);
+  const chronology = state.selectedTimeline.filter((id) => ['TL-301', 'TL-302', 'TL-303'].includes(id)).length === 3 ? 7 : 0;
   const observation = timeline + chronology;
-  const rootCause = state.rootCause === 'attachment-open' ? 12 : 0;
-  const links = moduleTenExact(state.selectedLinks, ['L1', 'L2', 'L3', 'L4', 'L5'], 12);
+  const rootCause = state.rootCause === 'impact-chain' ? 12 : 0;
+  const links = moduleTenExact(state.selectedLinks, ['L1', 'L2', 'L5'], 12);
   const confidence = state.confidence === 'high-bounded' ? 6 : 0;
   const analysis = rootCause + links + confidence;
-  const attack = moduleTenExact(state.techniques, ['T1566.001', 'T1059.001', 'T1053.005', 'T1078'], 16);
+  const attack = moduleTenExact(state.techniques, ['T1486', 'T1489'], 16);
   const framework = state.frameworkBoundary === 'facts-inference-unknowns' ? 9 : 0;
   const decision = attack + framework;
   const communication = moduleTenNoteScore(state.notes, [
-    { pattern: /attachment|benefits_update|html/, points: 3 }, { pattern: /powershell|encoded/, points: 3 }, { pattern: /203\.0\.113\.210|destination/, points: 2 },
-    { pattern: /task|persistence|benefits sync/, points: 3 }, { pattern: /acct-61|token|valid account/, points: 3 }, { pattern: /t1566|t1059|t1053|t1078|attack/, points: 3 },
-    { pattern: /unknown|does not prove|not establish|limited|no evidence/, points: 3 },
+    { pattern: /m09-e01|encryption/, points: 3 }, { pattern: /m09-e02|service stop/, points: 3 }, { pattern: /m09-e03|isolation|containment/, points: 2 },
+    { pattern: /ws-173|acct-173|fs-02/, points: 3 }, { pattern: /t1486|t1489|attack/, points: 3 }, { pattern: /unknown|does not prove|not establish|limited|no evidence|bounded/, points: 3 },
   ]);
   const score = observation + analysis + decision + communication;
   return { score, breakdown: { observation, analysis, decision, communication }, feedback: [
-    observation === 25 ? 'Observation: the six-event chronology excludes both plausible benign distractors and unrelated approved activity.' : `Observation: ${observation}/25. Retain delivery, open, PowerShell, connection, task, and token events only.`,
-    analysis === 30 ? 'Analysis: the attachment-led root cause, five supported relationships, and bounded confidence align across sources.' : `Analysis: ${analysis}/30. Anchor the cause at the opened attachment and connect only edges directly supported by records.`,
-    decision === 25 ? 'Framework mapping: four observed techniques are mapped while unknown transfer and impact behavior remain unmapped.' : `Framework mapping: ${decision}/25. Map attachment, PowerShell, scheduled task, and valid-account behavior; separate facts, inference, and unknowns.`,
-    communication === 20 ? 'Communication: the causal sequence, entities, behavior, and limitation are explicit.' : `Communication: ${communication}/20. Include the causal sequence, account/address/task entities, supported ATT&CK behavior, and an evidence limitation.`,
+    observation === 25 ? 'Observation: the three-event impact chronology excludes both baseline distractors.' : `Observation: ${observation}/25. Retain M09-E01, M09-E02, and M09-E03; keep M09-E04 and M09-E05 as context.`,
+    analysis === 30 ? 'Analysis: the encryption → service stop → isolation sequence and supported graph edges align across the M09 slice.' : `Analysis: ${analysis}/30. Anchor the conclusion in ws-173 impact and connect only directly supported edges.`,
+    decision === 25 ? 'Framework mapping: demonstrated impact/service behavior is mapped while operator identity and broader actions remain unknown.' : `Framework mapping: ${decision}/25. Map T1486 and T1489 only; separate facts, inference, and unknowns.`,
+    communication === 20 ? 'Communication: the impact sequence, entities, behavior, and limitation are explicit.' : `Communication: ${communication}/20. Include M09 IDs, ws-173/acct-173/fs-02 context, supported ATT&CK behavior, and an evidence limitation.`,
   ] };
 }
 

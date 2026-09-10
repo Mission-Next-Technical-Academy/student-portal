@@ -335,7 +335,7 @@ const MODULE_FOUR_SOURCES = [
     title: 'Security+ (SY0-701) Certification Overview & Objectives Summary',
     org: 'CompTIA',
     url: 'https://www.comptia.org/certifications/security',
-    note: 'Official certification page with exam domains, weightings, and a condensed objectives summary covering threat identification and response decision-making.',
+    note: 'Supplementary public reference only. The §2 crosswalk is a developer draft pending curriculum, compliance, and faculty review; this study aid is not an approval, affiliation, endorsement, or pass guarantee.',
   },
 ];
 
@@ -361,6 +361,56 @@ const MODULE_FOUR_DEFAULT_STATE = {
   feedback: [],
   validationError: '',
   lastSubmittedAt: '',
+  notes: '',
+  lessonWork: {},
+  independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
+};
+
+/* Four-part loops are embedded in the four existing theory allocations. The
+ * checks and short tasks are practice evidence, not extra instructional time. */
+const MODULE_FOUR_LESSON_LOOPS = [
+  { id: 'coverage-fidelity-action', title: 'Balance coverage, fidelity, and action',
+    scenario: 'Mission Next Labs receives a cluster of fake-verification reports. A broad rule catches the behavior but also fires on approved browser testing. The analyst must preserve useful coverage while reducing avoidable noise.',
+    theory: 'Coverage asks what behavior the rule can see; fidelity asks how often its signal is trustworthy; action asks what response the evidence can safely trigger. A good detection decision names all three instead of optimizing alert volume alone.',
+    questions: [
+      { prompt: 'What is the BEST first question when a rule fires often?', options: ['Which observed behaviors are expected, and which threat signal must remain covered?', 'How can the rule be disabled immediately?', 'Which alert color should be changed?'], correct: 0, feedbackCorrect: 'Correct. Establish the expected baseline and the protected threat behavior before changing logic.', feedbackIncorrect: 'Start with the baseline and required coverage. Disabling or cosmetic changes do not explain the tradeoff.' },
+      { prompt: 'A lower threshold catches more loader attempts but doubles benign browser-test alerts. What changed?', options: ['Sensitivity rose, while false-positive cost also rose.', 'Coverage fell and false positives fell.', 'Only the dashboard display changed.'], correct: 0, feedbackCorrect: 'Correct. Lower thresholds generally increase sensitivity and can increase noise.', feedbackIncorrect: 'Thresholds change detection sensitivity and the operational false-positive burden; they are not merely display settings.' },
+      { prompt: 'Which action is MOST proportionate before publishing a noisy rule change?', options: ['Test against both suspicious and known-benign examples, then monitor the rollout.', 'Publish globally with no rollback plan.', 'Remove the rule until a perfect threshold is known.'], correct: 0, feedbackCorrect: 'Correct. A bounded test and monitored rollout preserve coverage while exposing drift.', feedbackIncorrect: 'The safe path tests both sides of the tradeoff and uses a monitored, reversible rollout.' },
+    ], task: 'Write one sentence naming the coverage you would preserve and one sentence naming the benign behavior you would measure after tuning.' },
+  { id: 'detection-logic', title: 'Detection logic desk',
+    scenario: 'A credential-stealer rule groups one event per user and misses a campaign that touched five users from the same source. A managed browser retry is the deliberate benign distractor.',
+    theory: 'Grouping determines which events are counted together. Select a grouping entity, metric, window, and threshold that expose the behavior in the hypothesis without collapsing unrelated activity into one alert.',
+    questions: [
+      { prompt: 'Which grouping best exposes a multi-user spray?', options: ['Source address with a distinct-account count.', 'User account with a repeated-failure count only.', 'Alert severity with no event grouping.'], correct: 0, feedbackCorrect: 'Correct. Source grouping plus distinct accounts reveals distributed targeting.', feedbackIncorrect: 'Account-only grouping can hide a distributed pattern. Severity is not an event aggregation key.' },
+      { prompt: 'Why test a known managed-browser retry in the same window?', options: ['To confirm the tuned rule keeps a plausible benign pattern below the alert condition.', 'To prove every retry is malicious.', 'To avoid measuring false positives.'], correct: 0, feedbackCorrect: 'Correct. A tuning test needs both the intended signal and a benign counterexample.', feedbackIncorrect: 'Benign counterexamples are necessary to measure fidelity and avoid alert fatigue.' },
+      { prompt: 'The rule catches five distinct users but also one single-user retry. What is the MOST useful next step?', options: ['Inspect the grouping and exclusion context rather than raising the threshold blindly.', 'Raise the threshold until all alerts disappear.', 'Treat the retry as proof the spray is false.'], correct: 0, feedbackCorrect: 'Correct. Contextual grouping or a narrowly justified exclusion may reduce noise without losing the campaign signal.', feedbackIncorrect: 'Blind threshold changes can create false negatives. Diagnose the grouping and context first.' },
+    ], task: 'Describe the grouping, metric, and threshold you would test for the flagship campaign and why the managed retry should not drive the decision.' },
+  { id: 'threat-intelligence', title: 'Threat intelligence desk',
+    scenario: 'An active, recent indicator matches the loader delivery path, while a higher-confidence retired indicator belongs to an unrelated campaign. The alert evidence must remain primary.',
+    theory: 'Threat intelligence is contextual evidence. Evaluate exact match, behavior, source confidence, status, and freshness together; use a matching indicator to corroborate or prioritize, never as proof that every related event is malicious.',
+    questions: [
+      { prompt: 'Which indicator should receive the first analyst pivot?', options: ['The exact, active, recent match whose context fits the observed delivery behavior.', 'The oldest indicator because it has more history.', 'Any high-confidence indicator even if its value is unrelated.'], correct: 0, feedbackCorrect: 'Correct. Relevance, status, and freshness make the match useful for this alert.', feedbackIncorrect: 'Confidence alone is insufficient. Exact relevance, current status, and freshness matter.' },
+      { prompt: 'What does a matching indicator establish?', options: ['Corroborating context that still needs event and scope validation.', 'Proof that every event in the time window is malicious.', 'Permission to block all traffic immediately.'], correct: 0, feedbackCorrect: 'Correct. Intelligence strengthens a claim but does not replace telemetry review or authority checks.', feedbackIncorrect: 'An indicator is not a verdict or automatic authorization for disruptive response.' },
+      { prompt: 'What should an analyst record for a stale indicator?', options: ['Its age and historical relevance, while avoiding use as the sole current-response trigger.', 'Only its confidence score.', 'Nothing, because stale data can never help.'], correct: 0, feedbackCorrect: 'Correct. Stale data can inform context but should be bounded in current decisions.', feedbackIncorrect: 'Record freshness and limitations. Historical context can help, but stale data should not drive emergency action alone.' },
+    ], task: 'Draft a short enrichment note that names the matching indicator, its freshness/status, and the uncertainty it does not resolve.' },
+  { id: 'automation-boundary', title: 'Automation boundary',
+    scenario: 'A playbook can collect evidence, open a task, notify the queue, disable accounts, or block a source. The campaign evidence is concerning but scope is still being validated.',
+    theory: 'Automate repeatable, reversible collection and routing first. Keep disruptive identity or network changes behind a human approval gate, with an audit trail and rollback path.',
+    questions: [
+      { prompt: 'Which action is safest to run automatically first?', options: ['Preserve the alert evidence, enrich it, and create an analyst task.', 'Disable every account named in the alert.', 'Block the entire source network.'], correct: 0, feedbackCorrect: 'Correct. Evidence preservation and routing are low-risk, reversible steps.', feedbackIncorrect: 'Broad account or network disruption exceeds the evidence and needs explicit review.' },
+      { prompt: 'Why retain an approval gate?', options: ['A correct detection can still target legitimate activity or an overly broad scope.', 'Approval gates make evidence unnecessary.', 'Automation can never fail.'], correct: 0, feedbackCorrect: 'Correct. Human context is needed before high-impact changes.', feedbackIncorrect: 'Approval gates manage scope and false-positive risk; they do not replace evidence.' },
+      { prompt: 'What makes a playbook auditable?', options: ['Recorded inputs, actions, owner/approval state, and a rollback or follow-up path.', 'Only the final notification.', 'An undocumented script that runs faster.'], correct: 0, feedbackCorrect: 'Correct. A durable action record lets another analyst reconstruct and challenge the decision.', feedbackIncorrect: 'Auditability requires inputs, actions, ownership, and follow-up—not speed alone.' },
+    ], task: 'Name two low-risk automated steps and one approval-gated action for this campaign, with the reason for the boundary.' },
+];
+
+const MODULE_FOUR_INDEPENDENT_LAB = {
+  title: 'Independent lab: fake-verification loader alert', caseId: 'INC-4404',
+  scenario: 'Mission Next Labs receives a medium-confidence alert for ws-244 after acct-244 opened a fake verification page. A child process launched a script interpreter, then a browser credential store was read. A signed updater event and a help-desk test are nearby distractors. Decide what the evidence supports and how to tune the follow-up.',
+  questions: [
+    { id: 'signal', label: 'Which combination is the strongest detection signal?', options: [{ id: 'chain', text: 'Fake-verification page → script interpreter child process → browser credential-store read on ws-244' }, { id: 'signed', text: 'The signed updater alone proves the workstation is clean' }, { id: 'severity', text: 'Medium severity means no further review is needed' }], correct: 'chain' },
+    { id: 'scope', label: 'What scope is supportable now?', options: [{ id: 'bounded', text: 'acct-244 and ws-244; broader credential exposure remains unconfirmed' }, { id: 'tenant', text: 'Every Mission Next Labs endpoint is compromised' }, { id: 'none', text: 'No scope can be recorded until malware is reverse engineered' }], correct: 'bounded' },
+    { id: 'next', label: 'What is the BEST first automation decision?', options: [{ id: 'preserve', text: 'Preserve process/browser evidence, open a scoped investigation, and require approval before credential/session disruption' }, { id: 'wipe', text: 'Wipe every endpoint that visited the page' }, { id: 'close', text: 'Close because a signed updater also ran' }], correct: 'preserve' },
+  ],
 };
 
 const MODULE_FOUR_AUTH_EVENTS = [
@@ -403,6 +453,11 @@ function moduleFourLoad(user) {
   ['reviewedStations', 'selectedEvidence', 'ruleRunResults', 'automationLog', 'hintsOpened', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleFourState[key])) moduleFourState[key] = [];
   });
+  if (!moduleFourState.lessonWork || typeof moduleFourState.lessonWork !== 'object') moduleFourState.lessonWork = {};
+  if (!moduleFourState.independentLab || typeof moduleFourState.independentLab !== 'object') moduleFourState.independentLab = JSON.parse(JSON.stringify(MODULE_FOUR_DEFAULT_STATE.independentLab));
+  if (!moduleFourState.independentLab.answers || typeof moduleFourState.independentLab.answers !== 'object') moduleFourState.independentLab.answers = {};
+  if (!Array.isArray(moduleFourState.independentLab.feedback)) moduleFourState.independentLab.feedback = [];
+  if (typeof moduleFourState.notes !== 'string') moduleFourState.notes = '';
 
   // Initialize quiz state
   if (!moduleFourQuizState) {
@@ -461,11 +516,32 @@ function moduleFourVideoScript() {
   </details>`;
 }
 
+function moduleFourLessonLoop(lesson, index) {
+  const work = moduleFourState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+  const feedback = work.feedback?.length ? `<p class="m04-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
+  return `<details class="m04-lesson-loop" ${work.taskComplete ? '' : 'open'}>
+    <summary><span class="m04-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m04-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m04-chevron" aria-hidden="true"></i>'}</summary>
+    <div class="m04-lesson-loop-body"><section><p class="m04-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m04-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m04-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m04-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m04-lesson-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m04-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m04-lesson-check" data-m04-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m04-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m04-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m04-lesson-task-button" data-m04-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div>
+  </details>`;
+}
+
+function moduleFourLessonLoopsView() {
+  return `<section class="m04-lesson-loops" id="m04-lessons" aria-labelledby="m04-lessons-title"><div class="m04-panel-heading"><div><p class="m04-kicker">Four-part lesson loops</p><h3 id="m04-lessons-title">Practice detection decisions in the Mission Next Labs loader campaign</h3></div><span>4 lessons · embedded in 180 theory minutes</span></div>${MODULE_FOUR_LESSON_LOOPS.map(moduleFourLessonLoop).join('')}</section>`;
+}
+
+function moduleFourIndependentLab() {
+  const state = moduleFourState.independentLab;
+  const answered = MODULE_FOUR_INDEPENDENT_LAB.questions.filter((q) => state.answers?.[q.id]).length;
+  const feedback = state.feedback?.length ? `<div class="m04-independent-feedback ${state.completed ? 'is-pass' : 'is-hint'}" role="status"><strong>${state.score}/100 — ${state.completed ? 'Independent lab complete' : 'Review and retry'}</strong><ul>${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
+  return `<section class="m04-independent-lab" id="m04-independent-lab" aria-labelledby="m04-independent-title"><div class="m04-panel-heading"><div><p class="m04-kicker">Independent · fresh decision path · included in the existing 120-minute lab allocation</p><h3 id="m04-independent-title">${esc(MODULE_FOUR_INDEPENDENT_LAB.title)}</h3></div><span>${answered}/${MODULE_FOUR_INDEPENDENT_LAB.questions.length} answered</span></div><p class="m04-panel-instruction">${esc(MODULE_FOUR_INDEPENDENT_LAB.scenario)}</p><form id="m04-independent-form">${MODULE_FOUR_INDEPENDENT_LAB.questions.map((q) => `<fieldset class="m04-independent-question"><legend>${esc(q.label)}</legend>${q.options.map((o) => `<label><input type="radio" name="m04-independent-${esc(q.id)}" value="${esc(o.id)}" data-m04-independent-answer data-question-id="${esc(q.id)}" ${state.answers?.[q.id] === o.id ? 'checked' : ''}><span>${esc(o.text)}</span></label>`).join('')}</fieldset>`).join('')}<label class="m04-note-label">Analyst note (optional)<textarea rows="3" maxlength="500" data-m04-independent-notes placeholder="Record the bounded scope and approval boundary…">${esc(state.notes || '')}</textarea></label><button type="submit" class="m04-independent-submit">Score independent lab</button></form>${feedback}</section>`;
+}
+
 function moduleFourLecture() {
   return `<section class="m04-lecture-section">
     <div class="m04-lecture-intro">
       <p><strong>What is detection engineering?</strong> A detection rule is a logical query that aggregates security events and alerts when a pattern emerges. The challenge is that a single event can be noise (a user mistyping their password) or signal (an attacker probing multiple accounts). Detection engineers balance sensitivity—catching real threats—against specificity—avoiding false alarms. The tool is the grouping field, the aggregation metric, and the threshold. Choose them wisely, and the same telemetry reveals patterns invisible to naive rules.</p>
     </div>
+    ${moduleFourLessonLoopsView()}
 
     <h3>Grouping and aggregation: the foundation</h3>
     <p>Events do not come pre-labeled as "attack" or "benign." A detection rule decides by grouping events and counting them. The grouping field is critical: it determines which events are counted together, and which are split into separate alerts. Consider ten authentication failures:</p>
@@ -819,7 +895,7 @@ function moduleFourLabDynamic() {
     : moduleFourState.activeStation === 'intel'
       ? moduleFourIntelStation()
       : `<section class="m04-start-panel" aria-label="Choose a starting desk"><i class="ri-route-line" aria-hidden="true"></i><div><strong>Choose either desk to begin.</strong><p>This assisted lab signposts the required outputs but leaves the investigation order to you.</p></div></section>`;
-  return `${moduleFourProgressStrip()}${moduleFourStationChooser()}${station}${moduleFourArtifact()}`;
+  return `${moduleFourProgressStrip()}${moduleFourStationChooser()}${station}${moduleFourArtifact()}${moduleFourIndependentLab()}`;
 }
 
 function viewModuleFour(user, program) {
@@ -1035,6 +1111,34 @@ function wireModuleFourLab() {
   if (!root || !moduleFourState) return;
 
   root.addEventListener('click', (event) => {
+    const lessonCheck = event.target.closest('[data-m04-lesson-check]');
+    if (lessonCheck) {
+      const lesson = MODULE_FOUR_LESSON_LOOPS.find((item) => item.id === lessonCheck.dataset.m04LessonCheck);
+      const work = moduleFourState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      const missing = lesson.questions.some((question, index) => work.answers?.[index] === undefined);
+      if (missing) { work.checked = false; work.feedback = [`Answer all ${lesson.questions.length} questions before checking this lesson.`]; }
+      else {
+        const correct = lesson.questions.filter((question, index) => work.answers[index] === question.correct).length;
+        work.checked = correct === lesson.questions.length;
+        work.feedback = lesson.questions.map((question, index) => `Q${index + 1}: ${work.answers[index] === question.correct ? question.feedbackCorrect : question.feedbackIncorrect}`);
+        if (!work.checked) work.feedback.push(`${correct}/${lesson.questions.length} correct. Retry after comparing coverage, evidence, and action boundaries.`);
+      }
+      moduleFourSave();
+      const details = lessonCheck.closest('details');
+      if (details) details.outerHTML = moduleFourLessonLoop(lesson, MODULE_FOUR_LESSON_LOOPS.indexOf(lesson));
+      return;
+    }
+    const taskButton = event.target.closest('[data-m04-lesson-task-submit]');
+    if (taskButton) {
+      const lesson = MODULE_FOUR_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m04LessonTask);
+      const work = moduleFourState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      work.taskComplete = work.checked && (work.task || '').trim().length >= 20;
+      work.feedback = work.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];
+      moduleFourSave();
+      const details = taskButton.closest('details');
+      if (details) details.outerHTML = moduleFourLessonLoop(lesson, MODULE_FOUR_LESSON_LOOPS.indexOf(lesson));
+      return;
+    }
     const stationButton = event.target.closest('[data-m04-station]');
     if (stationButton) {
       moduleFourOpenStation(stationButton.dataset.m04Station);
@@ -1095,6 +1199,17 @@ function wireModuleFourLab() {
 
   root.addEventListener('change', (event) => {
     const input = event.target;
+    if (input.matches('[data-m04-lesson-answer]')) {
+      const work = moduleFourState.lessonWork[input.dataset.lessonId] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      work.answers[input.dataset.questionIndex] = Number(input.value);
+      moduleFourSave();
+      return;
+    }
+    if (input.matches('[data-m04-independent-answer]')) {
+      moduleFourState.independentLab.answers[input.dataset.questionId] = input.value;
+      moduleFourSave();
+      return;
+    }
     if (input.matches('[data-m04-evidence]')) {
       const next = new Set(moduleFourState.selectedEvidence);
       if (input.checked) next.add(input.value); else next.delete(input.value);
@@ -1133,6 +1248,18 @@ function wireModuleFourLab() {
   });
 
   root.addEventListener('input', (event) => {
+    const lessonField = event.target.closest('[data-m04-lesson-task]');
+    if (lessonField) {
+      const work = moduleFourState.lessonWork[lessonField.dataset.m04LessonTask] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      work.task = lessonField.value;
+      moduleFourSave();
+      return;
+    }
+    if (event.target.matches('[data-m04-independent-notes]')) {
+      moduleFourState.independentLab.notes = event.target.value;
+      moduleFourSave();
+      return;
+    }
     if (event.target.name !== 'notes') return;
     moduleFourState.notes = event.target.value;
     const count = root.querySelector('#m04-note-count span');
@@ -1151,6 +1278,21 @@ function wireModuleFourLab() {
   }, true);
 
   root.addEventListener('submit', (event) => {
+    if (event.target.id === 'm04-independent-form') {
+      event.preventDefault();
+      const state = moduleFourState.independentLab;
+      const missing = MODULE_FOUR_INDEPENDENT_LAB.questions.some((question) => !state.answers?.[question.id]);
+      if (missing) { state.feedback = [`Answer all ${MODULE_FOUR_INDEPENDENT_LAB.questions.length} independent-lab decisions before scoring.`]; moduleFourSave(); moduleFourRenderDynamic('m04-independent-title'); return; }
+      const correct = MODULE_FOUR_INDEPENDENT_LAB.questions.filter((question) => state.answers[question.id] === question.correct).length;
+      state.attempts += 1;
+      state.score = Math.round((correct / MODULE_FOUR_INDEPENDENT_LAB.questions.length) * 100);
+      state.completed = state.score >= 70;
+      state.feedback = MODULE_FOUR_INDEPENDENT_LAB.questions.map((question) => state.answers[question.id] === question.correct ? `${question.id}: Correct — the evidence supports a bounded, approval-aware response.` : `${question.id}: Revisit the evidence chain; do not let a nearby benign event erase the stronger sequence or justify broad disruption.`);
+      if (state.completed) state.feedback.push('Independent lab passed. You preserved evidence and kept disruptive response approval-gated.');
+      moduleFourSave();
+      moduleFourRenderDynamic('m04-independent-title');
+      return;
+    }
     if (event.target.id !== 'm04-assessment') return;
     event.preventDefault();
     moduleFourState.notes = event.target.elements.notes.value;
@@ -1196,6 +1338,49 @@ function wireModuleFourLab() {
   });
 }
 
+function wireModuleFourLessons() {
+  const root = document.getElementById('m04-lessons');
+  if (!root) return;
+  root.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-m04-lesson-answer]');
+    if (!input) return;
+    const work = moduleFourState.lessonWork[input.dataset.lessonId] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+    work.answers[input.dataset.questionIndex] = Number(input.value);
+    moduleFourSave();
+  });
+  root.addEventListener('input', (event) => {
+    const field = event.target.closest('[data-m04-lesson-task]');
+    if (!field) return;
+    const work = moduleFourState.lessonWork[field.dataset.m04LessonTask] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+    work.task = field.value;
+    moduleFourSave();
+  });
+  root.addEventListener('click', (event) => {
+    const check = event.target.closest('[data-m04-lesson-check]');
+    if (check) {
+      const lesson = MODULE_FOUR_LESSON_LOOPS.find((item) => item.id === check.dataset.m04LessonCheck);
+      const work = moduleFourState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      if (lesson.questions.some((question, index) => work.answers?.[index] === undefined)) work.feedback = [`Answer all ${lesson.questions.length} questions before checking this lesson.`];
+      else {
+        const correct = lesson.questions.filter((question, index) => work.answers[index] === question.correct).length;
+        work.checked = correct === lesson.questions.length;
+        work.feedback = lesson.questions.map((question, index) => `Q${index + 1}: ${work.answers[index] === question.correct ? question.feedbackCorrect : question.feedbackIncorrect}`);
+      }
+      moduleFourSave();
+      check.closest('details').outerHTML = moduleFourLessonLoop(lesson, MODULE_FOUR_LESSON_LOOPS.indexOf(lesson));
+      return;
+    }
+    const button = event.target.closest('[data-m04-lesson-task-submit]');
+    if (!button) return;
+    const lesson = MODULE_FOUR_LESSON_LOOPS.find((item) => item.id === button.dataset.m04LessonTask);
+    const work = moduleFourState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+    work.taskComplete = work.checked && (work.task || '').trim().length >= 20;
+    work.feedback = work.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];
+    moduleFourSave();
+    button.closest('details').outerHTML = moduleFourLessonLoop(lesson, MODULE_FOUR_LESSON_LOOPS.indexOf(lesson));
+  });
+}
+
 function wireModuleFour() {
   /* Wire the progress shell review toggle */
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
@@ -1222,6 +1407,7 @@ function wireModuleFour() {
   }
 
   wireModuleFourQuiz();
+  wireModuleFourLessons();
   wireModuleFourLab();
 }
 

@@ -6,6 +6,38 @@ const MODULE_ELEVEN_METRICS_LAB_ID = 'm11-soc-metrics-v1';
 const MODULE_ELEVEN_PASSING_SCORE = 70;
 const MODULE_ELEVEN_QUIZ_BANKS = [
   {
+    conceptId: 'shared-case-source-review',
+    conceptTitle: 'Shared-case source review and evidence boundaries',
+    questions: [
+      {
+        id: 'm11-q-source-1',
+        prompt: `The INC-4937 Module 11 slice contains M09-E01, M09-E03, M09-E06, M09-E07, and M09-E08. Which executive statement is MOST defensible after reviewing those sources?`,
+        options: [
+          { id: 'a', text: 'Ransomware was proven across the enterprise and a named operator was identified.' },
+          { id: 'b', text: 'The slice supports impact on ws-173, an overlapping acct-173 session, and fs-02 service disruption; wider compromise and operator identity remain unestablished.' },
+          { id: 'c', text: 'No incident occurred because isolation succeeded.' },
+          { id: 'd', text: 'The account owner caused the encryption because the session overlapped the timeline.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: `Correct. The bounded slice supports a concise impact and scope statement while preserving the contract's explicit unknowns. It does not establish enterprise-wide compromise, attribution, or operator identity.`,
+        feedbackIncorrect: `Use only the declared records and keep their boundaries visible. The shared slice supports bounded observations, not enterprise-wide claims, attribution, or a named operator.`,
+      },
+      {
+        id: 'm11-q-source-2',
+        prompt: `A post-closure dashboard shows an SLA dip during the INC-4937 review window. What is the BEST source-review move before briefing leadership?`,
+        options: [
+          { id: 'a', text: 'Treat the dip as proof that every queued alert was part of the ransomware case.' },
+          { id: 'b', text: 'Separate the health metric from case evidence, compare the metric window to the declared case records, and state any unscoped queue causes as unknown.' },
+          { id: 'c', text: 'Remove the dip from the report so closure appears successful.' },
+          { id: 'd', text: 'Assign the dip to a named person without reviewing the source rows.' },
+        ],
+        correctId: 'b',
+        feedbackCorrect: `Correct. A health metric is an operational signal. Compare it with the bounded case slice, preserve uncertainty, and avoid turning correlation into incident scope or blame.`,
+        feedbackIncorrect: `Metrics and case records answer different questions. Review both sources, state the relationship as a hypothesis when appropriate, and retain unknowns instead of overclaiming.`,
+      },
+    ],
+  },
+  {
     conceptId: 'metrics-vs-incident-impact',
     conceptTitle: 'Operational metrics degradation vs. specific incident proof',
     questions: [
@@ -127,15 +159,15 @@ const MODULE_ELEVEN_QUIZ_BANKS = [
     questions: [
       {
         id: 'm11-q-comm-1',
-        prompt: `A technical case note states, "NB-44 spawned unsigned script-host.exe from document-reader.exe after opening Benefits_Adjustment.zip." An executive asks, "Did we lose data?" What gap does the technical note not address for the executive?`,
+        prompt: `A technical note says "ws-173 showed encryption activity while an unfamiliar acct-173 session overlapped the window." An executive asks, "Did we lose data?" What gap does the note not address?`,
         options: [
           { id: 'a', text: 'The technical note is perfect for all audiences.' },
-          { id: 'b', text: 'The technical note lacks business impact: how many users were affected, what sensitive access occurred, and what is the operational disruption?' },
+          { id: 'b', text: 'The technical note lacks bounded business impact: affected scope, observed sensitive access or lateral movement, service effect, residual risk, and what remains unknown.' },
           { id: 'c', text: 'Executives should not ask about data loss.' },
           { id: 'd', text: 'The note is too short.' },
         ],
         correctId: 'b',
-        feedbackCorrect: `Correct. Executives need impact framing—scope (one user, one device), access result (no sensitive access observed), and operational effect (one employee used a loaner for 83 minutes).`,
+        feedbackCorrect: `Correct. Executives need impact framing—bounded entities, observed access results, service effect, residual risk, and explicit unknowns from the shared case slice.`,
         feedbackIncorrect: `Translate technical findings into business language. Connect observable behavior to business risk and recovery status.`,
       },
       {
@@ -326,7 +358,7 @@ const MODULE_ELEVEN_SOURCES_LIST = [
     title: `Security+ (SY0-701) Certification Overview & Objectives Summary`,
     org: `CompTIA`,
     url: `https://www.comptia.org/certifications/security`,
-    note: `Foundational security certification covering incident classification, SLA management, escalation procedures, and case closure — aligned with this module's core concepts.`,
+    note: `Supplementary public reference only. The §2 crosswalk is a developer draft pending curriculum, compliance, and faculty review; this study aid is not an approval, affiliation, endorsement, or pass guarantee.`,
   },
 ];
 
@@ -335,6 +367,13 @@ const MODULE_ELEVEN_METRICS_CATALOG_KEY = 'lab-soc-metrics';
 const MODULE_ELEVEN_REPORT_CATALOG_KEY = 'lab-exec-report';
 const MODULE_ELEVEN_METRICS_FLAG = 'M11-SOC-METRICS-BRIEFED';
 const MODULE_ELEVEN_REPORT_FLAG = 'M11-EXECUTIVE-REPORT-COMPLETE';
+
+// M09 is the source of truth for the shared fictional case. This fallback
+// keeps Module 11 renderable in isolation while preserving the same IDs and
+// explicit evidence boundaries used when the portal loads Module 09 first.
+const MODULE_ELEVEN_SHARED_CASE = (typeof window !== 'undefined' && window.MISSION_NEXT_M09_EVIDENCE_CONTRACT)
+  || { contractVersion: 'm09-ransomware-evidence-v1', organization: 'Mission Next Labs', incidentId: 'INC-4937', title: 'Operation Cedar Lock — active ransomware response', status: 'contained-in-lab-slice', entities: { endpoint: 'ws-173', account: 'acct-173', fileServer: 'fs-02' }, timeBasis: 'Synthetic UTC training timeline; all addresses are documentation-range fixtures.', notEstablished: ['enterprise-wide compromise', 'data exfiltration', 'specific operator identity'], consumerSlices: { module11: ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'] } };
+const MODULE_ELEVEN_SHARED_SLICE_IDS = MODULE_ELEVEN_SHARED_CASE.consumerSlices?.module11 || ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'];
 
 const MODULE_ELEVEN_WEEKLY_METRICS = [
   { week: 'Week 27', alerts: 520, closed: 500, falsePositives: 320, mttd: 12, mttr: 98, sla: 96, backlog: 18, staffed: 6 },
@@ -363,17 +402,11 @@ const MODULE_ELEVEN_RULE_METRICS = [
 ];
 
 const MODULE_ELEVEN_CASE_EVENTS = [
-  { id: 'CASE-1101', time: '11:02', source: 'Endpoint', title: 'Attachment launched an unsigned script', detail: 'On NB-44, employee-44 opened Benefits_Adjustment.zip from an external message. document-reader.exe then spawned unsigned script-host.exe.', relevant: true },
-  { id: 'CASE-1102', time: '11:04', source: 'Network', title: 'NB-44 contacted an unapproved destination', detail: 'The script created a TLS session to documentation address 203.0.113.211. The destination is not used by an approved service in this case slice.', relevant: true },
-  { id: 'CASE-1103', time: '11:08', source: 'Identity', title: 'Unfamiliar token refresh for acct-44', detail: 'An unmanaged client refreshed acct-44 from 203.0.113.211, correlating the identity activity with the endpoint destination.', relevant: true },
-  { id: 'CASE-1104', time: '11:12', source: 'Detection', title: 'Incident CASE-11-27 declared', detail: 'The analyst correlated the endpoint, network, and identity records and classified the incident as a confirmed compromise.', relevant: false },
-  { id: 'CASE-1105', time: '11:19', source: 'Response', title: 'NB-44 isolated', detail: 'Endpoint operations isolated the affected notebook through the approved playbook while preserving responder access.', relevant: true },
-  { id: 'CASE-1106', time: '11:23', source: 'Response', title: 'acct-44 sessions revoked', detail: 'Identity operations revoked active sessions and temporarily disabled the account pending credential and MFA review.', relevant: true },
-  { id: 'CASE-1107', time: '11:41', source: 'Endpoint', title: 'Persistence removed and scan completed', detail: 'Responders removed the startup entry and payload. An approved full scan completed with no additional malicious artifact.', relevant: false },
-  { id: 'CASE-1108', time: '12:18', source: 'Recovery', title: 'Credential and MFA review completed', detail: 'The account password was reset, registered MFA methods were validated, and the account was re-enabled under enhanced monitoring.', relevant: false },
-  { id: 'CASE-1109', time: '12:42', source: 'Recovery', title: 'Endpoint restored after validation', detail: 'NB-44 passed health checks and returned to service. Monitoring found no repeat indicator on the affected entities.', relevant: true },
-  { id: 'CASE-1110', time: '13:05', source: 'Scope', title: 'No sensitive access or lateral movement observed', detail: 'The scoped identity, repository, endpoint, and network searches found no sensitive-repository access or second affected host. This does not prove organization-wide absence.', relevant: true },
-  { id: 'CASE-1111', time: '13:10', source: 'Business', title: 'Operational impact recorded', detail: 'One employee and one managed notebook were affected. The employee used a loaner for 83 minutes; no customer-facing service was interrupted.', relevant: false },
+  { id: 'M09-E01', time: '10:02Z', source: 'Endpoint sensor', title: 'ws-173 encryption activity observed', detail: 'The shared M09 record reports rapid file-encryption behavior on ws-173. It is a synthetic behavior observation, not a malware sample or live indicator.', relevant: true },
+  { id: 'M09-E03', time: '10:06Z', source: 'Response log', title: 'ws-173 isolation succeeded', detail: 'The approved response record shows network isolation succeeded while local activity remained possible. Isolation limits spread; it does not prove the host is clean.', relevant: true },
+  { id: 'M09-E06', time: '10:05Z', source: 'Identity session', title: 'acct-173 unfamiliar session overlapped impact', detail: 'An unmanaged client session overlaps the encryption window. It is correlation evidence, not proof of operator identity or attribution.', relevant: true },
+  { id: 'M09-E07', time: '10:11Z', source: 'Service-desk callback', title: 'Account owner denied the remote session', detail: 'The synthetic callback records that the account owner denied the unmanaged session. It supports scope and escalation, not a named operator conclusion.', relevant: true },
+  { id: 'M09-E08', time: '10:12Z', source: 'File-share telemetry', title: 'fs-02 availability degraded', detail: 'One synthetic share became unavailable during the incident window. The record does not establish file-level encryption on fs-02 or broader lateral movement.', relevant: true },
 ];
 
 let moduleElevenQuizState = null;
@@ -585,12 +618,12 @@ function moduleElevenScorePanel(state, kind) {
   const b = state.breakdown;
   const model = kind === 'metrics'
     ? 'MTTD rose from 12 to 21 minutes, MTTR from 98 to 171 minutes, SLA attainment fell to 78%, and backlog reached 76. The main controllable driver is the noisy Unfamiliar travel rule after the access change, amplified by one planned absence. Escalate the SLA risk to the duty manager and detection owner, test a scoped tuning change, and assign the next shift to work the nine aging high-priority alerts.'
-    : 'CASE-11-27 was a confirmed compromise limited by current evidence to NB-44 and acct-44. An external archive led to unsigned script execution, a correlated destination, and an unfamiliar session. The host was isolated, sessions revoked, persistence removed, credentials reviewed, and service restored after validation. No sensitive access or lateral movement was observed in the scoped data. Close only with 24-hour monitoring and a named control-improvement owner.';
+    : `${MODULE_ELEVEN_SHARED_CASE.incidentId} is a bounded synthetic case limited by the declared M09 Module 11 slice: ws-173 impact, an overlapping acct-173 session, and fs-02 service disruption. Isolation and scope review are documented; the slice does not establish enterprise-wide compromise, exfiltration, or operator identity. Brief only what the records support, and close communication with monitoring and a named control-improvement owner.`;
   return `<section class="m11-score ${passed ? 'is-pass' : 'is-remediate'}" id="m11-feedback" tabindex="-1" aria-live="polite"><div class="m11-score-heading"><div><p class="m11-kicker">Attempt ${state.attempts} · best ${state.bestScore}/100</p><h3>${state.score}/100 — ${passed ? 'Deliverable accepted' : 'Revise and resubmit'}</h3></div><span>${state.score}</span></div><div class="m11-score-grid"><div><strong>${b.observation}/25</strong><span>Observation</span></div><div><strong>${b.analysis}/25</strong><span>Analysis</span></div><div><strong>${b.decision}/30</strong><span>Decision</span></div><div><strong>${b.communication}/20</strong><span>Communication</span></div></div><ul>${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul><div class="m11-remediation"><strong>Reference model</strong><p>${esc(model)}</p></div></section>`;
 }
 
 function moduleElevenMetricsDataset() {
-  return `<section class="m11-dataset" aria-labelledby="m11-metrics-data-title"><div class="m11-dataset-heading"><div><p class="m11-kicker">Synthetic dataset · four weekly snapshots</p><h3 id="m11-metrics-data-title">SOC performance and queue health</h3></div><span>Target: ≥90% priority SLA</span></div>
+  return `<section class="m11-dataset" aria-labelledby="m11-metrics-data-title"><div class="m11-dataset-heading"><div><p class="m11-kicker">Synthetic post-closure dataset · ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)}</p><h3 id="m11-metrics-data-title">SOC health after Operation Cedar Lock</h3></div><span>Target: ≥90% priority SLA</span></div><p class="m11-shared-note">Use the ${esc(MODULE_ELEVEN_SHARED_SLICE_IDS.join(', '))} slice to keep incident impact separate from queue-health signals. The four snapshots describe the operating window after containment; they do not establish wider compromise.</p>
     <div class="m11-table-wrap"><table class="m11-data-table"><caption class="m11-visually-hidden">Weekly synthetic SOC metrics</caption><thead><tr><th scope="col">Period</th><th scope="col">Alerts</th><th scope="col">Closed</th><th scope="col">False positives</th><th scope="col">MTTD</th><th scope="col">MTTR</th><th scope="col">Priority SLA</th><th scope="col">Backlog</th><th scope="col">Staffed</th></tr></thead><tbody>${MODULE_ELEVEN_WEEKLY_METRICS.map((row) => `<tr><th scope="row">${row.week}</th><td>${row.alerts}</td><td>${row.closed}</td><td>${row.falsePositives}</td><td>${row.mttd} min</td><td>${row.mttr} min</td><td class="${row.sla < 90 ? 'is-risk' : ''}">${row.sla}%</td><td class="${row.backlog > 50 ? 'is-risk' : ''}">${row.backlog}</td><td>${row.staffed}/6</td></tr>`).join('')}</tbody></table></div>
     <div class="m11-metric-cards">${MODULE_ELEVEN_METRIC_EVIDENCE.map((item) => { const checked = moduleElevenMetricsState.selectedEvidence.includes(item.id); return `<label class="${checked ? 'is-selected' : ''}"><input type="checkbox" name="metricsEvidence" value="${item.id}" ${checked ? 'checked' : ''} /><span><small>${item.id} · ${item.label}</small><strong>${item.value}</strong><em>${item.detail}</em></span></label>`; }).join('')}</div>
     <div class="m11-table-wrap m11-rule-table"><table class="m11-data-table"><caption>Week 30 alert-rule distribution</caption><thead><tr><th scope="col">Rule</th><th scope="col">Alerts</th><th scope="col">True positive</th><th scope="col">False positive</th><th scope="col">Pending</th><th scope="col">Median age</th></tr></thead><tbody>${MODULE_ELEVEN_RULE_METRICS.map((row) => `<tr><th scope="row">${row.rule}</th><td>${row.alerts}</td><td>${row.truePositive}</td><td>${row.falsePositive}</td><td>${row.pending}</td><td>${row.medianAge}</td></tr>`).join('')}</tbody></table></div>
@@ -627,14 +660,14 @@ function moduleElevenMetricsForm() {
 }
 
 function moduleElevenMetricsLab() {
-  return `<article class="m11-lab" aria-labelledby="m11-metrics-title"><header class="m11-casebar"><div><p class="m11-kicker">Lab 1 · ${MODULE_ELEVEN_METRICS_CATALOG_KEY} · independent</p><h2 id="m11-metrics-title" tabindex="-1">SOC Metrics Dashboard</h2><p><strong>Objective:</strong> Diagnose the material operating trend, recommend a proportionate improvement, escalate the service risk, and leave the incoming shift an evidence-based handoff.</p></div><dl><div><dt>Dataset</dt><dd>4 weeks</dd></div><div><dt>Role</dt><dd>Shift lead</dd></div><div><dt>Status</dt><dd>${moduleElevenStatus(moduleElevenMetricsState)}</dd></div></dl></header>${moduleElevenMetricsDataset()}${moduleElevenMetricsForm()}</article>`;
+  return `<article class="m11-lab" aria-labelledby="m11-metrics-title"><header class="m11-casebar"><div><p class="m11-kicker">Lab 1 · ${MODULE_ELEVEN_METRICS_CATALOG_KEY} · guided shared-case review</p><h2 id="m11-metrics-title" tabindex="-1">SOC Metrics Dashboard</h2><p><strong>Objective:</strong> Review post-closure SOC health, separate operational signals from ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} evidence, recommend a proportionate improvement, and leave the incoming shift an evidence-based handoff.</p></div><dl><div><dt>Dataset</dt><dd>4 snapshots</dd></div><div><dt>Case</dt><dd>${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)}</dd></div><div><dt>Status</dt><dd>${moduleElevenStatus(moduleElevenMetricsState)}</dd></div></dl></header>${moduleElevenMetricsDataset()}${moduleElevenMetricsForm()}</article>`;
 }
 
 function moduleElevenCaseDataset() {
   const active = MODULE_ELEVEN_CASE_EVENTS.find((item) => item.id === moduleElevenReportState.activeEvent);
-  return `<section class="m11-dataset" aria-labelledby="m11-case-data-title"><div class="m11-dataset-heading"><div><p class="m11-kicker">Synthetic dataset · CASE-11-27</p><h3 id="m11-case-data-title">Technical case record</h3></div><span>Closed-loop review</span></div>
-    <div class="m11-case-summary"><dl><div><dt>Initial severity</dt><dd>High</dd></div><div><dt>Current state</dt><dd>Recovered</dd></div><div><dt>Affected</dt><dd>NB-44 · acct-44</dd></div><div><dt>Monitoring</dt><dd>24 hours required</dd></div></dl></div>
-    <div class="m11-table-wrap"><table class="m11-data-table m11-case-table"><caption class="m11-visually-hidden">Synthetic CASE-11-27 timeline</caption><thead><tr><th scope="col">Use</th><th scope="col">Time</th><th scope="col">Source</th><th scope="col">Case event</th><th scope="col">Detail</th></tr></thead><tbody>${MODULE_ELEVEN_CASE_EVENTS.map((item) => { const selected = moduleElevenReportState.selectedEvidence.includes(item.id); return `<tr class="${selected ? 'is-selected' : ''}"><td data-label="Use"><label class="m11-evidence-check"><input type="checkbox" name="reportEvidence" value="${item.id}" ${selected ? 'checked' : ''} /><span>${item.id}</span></label></td><td data-label="Time"><time>${item.time}</time></td><td data-label="Source">${item.source}</td><td data-label="Case event"><strong>${item.title}</strong></td><td data-label="Detail"><button type="button" class="m11-inspect" data-m11-event="${item.id}" aria-expanded="${active?.id === item.id}">${active?.id === item.id ? 'Hide' : 'Inspect'}</button></td></tr>`; }).join('')}</tbody></table></div>
+  return `<section class="m11-dataset" aria-labelledby="m11-case-data-title"><div class="m11-dataset-heading"><div><p class="m11-kicker">Declared M09 consumer slice · ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)}</p><h3 id="m11-case-data-title">Executive briefing source review</h3></div><span>Bounded evidence only</span></div>
+    <p class="m11-shared-note">This lab consumes only ${esc(MODULE_ELEVEN_SHARED_SLICE_IDS.join(', '))}. The case is synthetic and local; ${esc((MODULE_ELEVEN_SHARED_CASE.notEstablished || []).join(', '))} remain unestablished.</p><div class="m11-case-summary"><dl><div><dt>Case</dt><dd>${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)}</dd></div><div><dt>Current state</dt><dd>Contained slice</dd></div><div><dt>Affected</dt><dd>${esc(MODULE_ELEVEN_SHARED_CASE.entities.endpoint)} · ${esc(MODULE_ELEVEN_SHARED_CASE.entities.account)}</dd></div><div><dt>Service context</dt><dd>${esc(MODULE_ELEVEN_SHARED_CASE.entities.fileServer)}</dd></div></dl></div>
+    <div class="m11-table-wrap"><table class="m11-data-table m11-case-table"><caption class="m11-visually-hidden">Synthetic ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} evidence slice</caption><thead><tr><th scope="col">Use</th><th scope="col">Time</th><th scope="col">Source</th><th scope="col">Case event</th><th scope="col">Detail</th></tr></thead><tbody>${MODULE_ELEVEN_CASE_EVENTS.map((item) => { const selected = moduleElevenReportState.selectedEvidence.includes(item.id); return `<tr class="${selected ? 'is-selected' : ''}"><td data-label="Use"><label class="m11-evidence-check"><input type="checkbox" name="reportEvidence" value="${item.id}" ${selected ? 'checked' : ''} /><span>${item.id}</span></label></td><td data-label="Time"><time>${item.time}</time></td><td data-label="Source">${item.source}</td><td data-label="Case event"><strong>${item.title}</strong></td><td data-label="Detail"><button type="button" class="m11-inspect" data-m11-event="${item.id}" aria-expanded="${active?.id === item.id}">${active?.id === item.id ? 'Hide' : 'Inspect'}</button></td></tr>`; }).join('')}</tbody></table></div>
     ${active ? `<aside class="m11-event-detail" id="m11-event-detail" tabindex="-1"><div><p class="m11-kicker">${active.id} · ${active.time} · ${active.source}</p><strong>${active.title}</strong><p>${active.detail}</p></div><button type="button" data-m11-close-event aria-label="Close event detail"><i class="ri-close-line" aria-hidden="true"></i></button></aside>` : ''}
   </section>`;
 }
@@ -642,9 +675,9 @@ function moduleElevenCaseDataset() {
 function moduleElevenReportForm() {
   return `<form class="m11-deliverable" id="m11-report-form" novalidate aria-labelledby="m11-report-deliverable-title"><div class="m11-deliverable-heading"><div><p class="m11-kicker">Scored deliverable</p><h3 id="m11-report-deliverable-title">Case note, executive report, escalation and closure</h3></div><span>Pass ${MODULE_ELEVEN_PASSING_SCORE}/100</span></div>
     <div class="m11-form-grid m11-form-grid-three">
-      ${moduleElevenRadio('classification', 'Case classification', [{ id: 'confirmed', label: 'Confirmed endpoint and identity compromise' }, { id: 'benign', label: 'Benign user activity' }, { id: 'enterprise', label: 'Confirmed enterprise-wide compromise' }], moduleElevenReportState)}
-      ${moduleElevenRadio('rootCause', 'Root cause', [{ id: 'archive-script', label: 'External archive opened; content process spawned an unsigned script' }, { id: 'sensor', label: 'Endpoint sensor caused the incident' }, { id: 'password', label: 'Password age alone caused the activity' }], moduleElevenReportState)}
-      ${moduleElevenRadio('impact', 'Impact statement', [{ id: 'bounded', label: 'One user and notebook; temporary disruption; no observed sensitive access or lateral movement in scope' }, { id: 'none', label: 'No impact because the endpoint was restored' }, { id: 'all-data', label: 'All organizational data was exfiltrated' }], moduleElevenReportState)}
+      ${moduleElevenRadio('classification', 'Case classification', [{ id: 'confirmed', label: 'Confirmed bounded impact and suspicious identity session' }, { id: 'benign', label: 'Benign user activity' }, { id: 'enterprise', label: 'Confirmed enterprise-wide compromise' }], moduleElevenReportState)}
+      ${moduleElevenRadio('rootCause', 'Supported conclusion', [{ id: 'impact-chain', label: 'Encryption on ws-173, overlapping acct-173 session, and fs-02 service disruption are observed' }, { id: 'sensor', label: 'The endpoint sensor caused the incident' }, { id: 'password', label: 'The account owner is the named operator' }], moduleElevenReportState)}
+      ${moduleElevenRadio('impact', 'Impact statement', [{ id: 'bounded', label: 'Bounded impact on ws-173/acct-173 with fs-02 service degradation; wider impact remains unknown' }, { id: 'none', label: 'No impact because isolation succeeded' }, { id: 'all-data', label: 'All organizational data was exfiltrated' }], moduleElevenReportState)}
       ${moduleElevenRadio('escalation', 'Escalation record', [{ id: 'incident-owners', label: 'Incident manager plus endpoint and identity owners, with evidence and requested actions' }, { id: 'none', label: 'No escalation because containment completed' }, { id: 'broadcast', label: 'Send unverified technical detail to all employees' }], moduleElevenReportState)}
       ${moduleElevenRadio('closure', 'Closure decision', [{ id: 'verified-monitor', label: 'Close after verified recovery, 24-hour monitoring, and an assigned control-improvement owner' }, { id: 'contained', label: 'Close immediately when isolation succeeds' }, { id: 'never', label: 'Keep the case open permanently despite verified recovery' }], moduleElevenReportState)}
     </div>
@@ -654,11 +687,29 @@ function moduleElevenReportForm() {
 }
 
 function moduleElevenReportLab() {
-  return `<article class="m11-lab" aria-labelledby="m11-report-title"><header class="m11-casebar"><div><p class="m11-kicker">Lab 2 · ${MODULE_ELEVEN_REPORT_CATALOG_KEY} · independent</p><h2 id="m11-report-title" tabindex="-1">Executive Incident Report</h2><p><strong>Objective:</strong> Convert the bounded technical case into an accurate case note, an audience-appropriate executive summary, an accountable escalation, and a defensible closure decision.</p></div><dl><div><dt>Dataset</dt><dd>11 events</dd></div><div><dt>Role</dt><dd>Case owner</dd></div><div><dt>Status</dt><dd>${moduleElevenStatus(moduleElevenReportState)}</dd></div></dl></header>${moduleElevenCaseDataset()}${moduleElevenReportForm()}</article>`;
+  return `<article class="m11-lab" aria-labelledby="m11-report-title"><header class="m11-casebar"><div><p class="m11-kicker">Lab 2 · ${MODULE_ELEVEN_REPORT_CATALOG_KEY} · independent briefing</p><h2 id="m11-report-title" tabindex="-1">Executive Incident Report</h2><p><strong>Objective:</strong> Independently convert the declared ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} slice into an accurate case note, audience-appropriate executive summary, accountable escalation, and defensible closure decision.</p></div><dl><div><dt>Dataset</dt><dd>${MODULE_ELEVEN_SHARED_SLICE_IDS.length} records</dd></div><div><dt>Role</dt><dd>Case owner</dd></div><div><dt>Status</dt><dd>${moduleElevenStatus(moduleElevenReportState)}</dd></div></dl></header>${moduleElevenCaseDataset()}${moduleElevenReportForm()}</article>`;
 }
 
 function moduleElevenDynamic() {
   return `${moduleElevenLabSwitcher()}${moduleElevenActiveLab === 'metrics' ? moduleElevenMetricsLab() : moduleElevenReportLab()}`;
+}
+
+function moduleElevenScenarioLoops() {
+  return `<section class="m11-loop-grid" aria-label="Module 11 four-part lesson loops">
+    <article><p class="m11-kicker">Lesson 1 · Scenario</p><h4>Review health after ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} closes</h4><p>Post-closure queue snapshots sit beside the declared ${esc(MODULE_ELEVEN_SHARED_SLICE_IDS.join(', '))} case slice. Decide which signals describe SOC health and which describe incident scope.</p></article>
+    <article><p class="m11-kicker">Lesson 1 · Theory</p><h4>Metrics are signals, not proof</h4><p>MTTD, MTTR, SLA, backlog, staffing, and false-positive rate describe operating conditions. Trace trends to a supported driver before connecting them to incident impact.</p></article>
+    <article><p class="m11-kicker">Lesson 1 · Knowledge check</p><h4>Source-review reasoning</h4><p>Use the source-review question bank to test whether a metric relationship is supported, correlated, or still unknown.</p></article>
+    <article><p class="m11-kicker">Lesson 1 · Applied task</p><h4>Brief the incoming shift</h4><p>Choose the material signals, propose a scoped improvement, name the escalation owner, and write the next verification point.</p></article>
+    <article><p class="m11-kicker">Lesson 2 · Scenario</p><h4>Turn the shared slice into an executive brief</h4><p>Read ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} through ${esc(MODULE_ELEVEN_SHARED_SLICE_IDS.join(', '))}; the briefing must preserve the bounded impact on ${esc(MODULE_ELEVEN_SHARED_CASE.entities.endpoint)} and the unresolved wider-scope questions.</p></article>
+    <article><p class="m11-kicker">Lesson 2 · Theory</p><h4>Audience and accountability</h4><p>Technical notes retain entities and evidence. Executive language states business effect, residual risk, ownership, and next action without attribution or unsupported certainty.</p></article>
+    <article><p class="m11-kicker">Lesson 2 · Knowledge check</p><h4>Separate observation from inference</h4><p>Review each shared-case record before selecting it. The quiz and evidence table reward bounded statements, not a complete story invented from typical ransomware behavior.</p></article>
+    <article><p class="m11-kicker">Lesson 2 · Applied task</p><h4>Deliver the independent report</h4><p>Write the case note, executive summary, escalation request, and closure conditions from the shared slice. Keep unknowns and the monitoring owner visible.</p></article>
+    <article><p class="m11-kicker">Lesson 3 · Scenario</p><h4>Close the communication loop</h4><p>Leadership needs a concise status after containment, while the SOC needs a measurable control-improvement handoff.</p></article>
+    <article><p class="m11-kicker">Lesson 3 · Theory</p><h4>Closure needs verification and ownership</h4><p>Containment is not closure. Confirm recovery, review monitoring results, record residual uncertainty, and assign a named control owner with a due point.</p></article>
+    <article><p class="m11-kicker">Lesson 3 · Knowledge check</p><h4>Test the closure claim</h4><p>Use the randomized reasoning quiz and source list to reject premature closure, unsupported exfiltration claims, and role-only escalation.</p></article>
+    <article><p class="m11-kicker">Lesson 3 · Applied task</p><h4>State the decision and next review</h4><p>Translate the same bounded facts into an audience-appropriate closure note with a condition that can be checked on the next review.</p></article>
+    <p class="m11-crosswalk-note"><strong>Supplementary draft crosswalk:</strong> this module primarily relates to Security+ SY0-701 Domain 5 (Security Program Management) with secondary Domain 4 (Security Operations). It is a developer-authored mapping pending curriculum/compliance/faculty review, not an approval, certification, affiliation, or pass guarantee.</p>
+  </section>`;
 }
 
 function moduleElevenVideoScript() {
@@ -691,6 +742,7 @@ function viewModuleEleven(user, program) {
 ${moduleProgressShell(sections, { reviewMode: moduleElevenReviewMode })}
 <details class="m11-section-collapsible" id="m11-lecture-section" ${lectureOpen ? 'open' : ''}><summary><span class="m11-section-badge">1</span><h2>Lecture</h2></summary><div class="m11-section-body" id="m11-lecture">
   <section class="m11-practice-note"><i class="ri-compass-3-line" aria-hidden="true"></i><div><p class="m11-kicker">Independent practice</p><h2>Read the objective and dataset, then choose your own working order.</h2><p>No prescribed sequence or pre-submission hints are provided. Scoring feedback and a reference model appear after you submit.</p></div></section>
+  ${moduleElevenScenarioLoops()}
   ${moduleElevenVideoScript()}
 </div></details>
 <details class="m11-section-collapsible" id="m11-knowledge-section" ${quizOpen ? 'open' : ''}><summary><span class="m11-section-badge">2</span><h2>Knowledge Check</h2></summary><div class="m11-section-body" id="m11-knowledge-check">
@@ -742,19 +794,19 @@ function moduleElevenMetricsScore() {
 }
 
 function moduleElevenReportScore() {
-  const observation = moduleElevenEvidenceScore(moduleElevenReportState.selectedEvidence, MODULE_ELEVEN_CASE_EVENTS, 7);
-  const analysis = (moduleElevenReportState.classification === 'confirmed' ? 8 : 0) + (moduleElevenReportState.rootCause === 'archive-script' ? 9 : 0) + (moduleElevenReportState.impact === 'bounded' ? 8 : 0);
+  const observation = moduleElevenEvidenceScore(moduleElevenReportState.selectedEvidence, MODULE_ELEVEN_CASE_EVENTS, MODULE_ELEVEN_CASE_EVENTS.length);
+  const analysis = (moduleElevenReportState.classification === 'confirmed' ? 8 : 0) + (moduleElevenReportState.rootCause === 'impact-chain' ? 9 : 0) + (moduleElevenReportState.impact === 'bounded' ? 8 : 0);
   const decision = (moduleElevenReportState.escalation === 'incident-owners' ? 15 : 0) + (moduleElevenReportState.closure === 'verified-monitor' ? 15 : 0);
   const caseNote = moduleElevenReportState.caseNote.toLowerCase();
   const executive = moduleElevenReportState.executiveSummary.toLowerCase();
-  const caseChecks = [/(nb-44).*(acct-44)|(acct-44).*(nb-44)/, /(isolate|revok|disable|remov|restore)/];
-  const executiveChecks = [/(one|1).*(user|employee|notebook|device)/, /(monitor|residual|no sensitive|no lateral)/];
+  const caseChecks = [/(ws-173).*(acct-173)|(acct-173).*(ws-173)/, /(isolate|contain|monitor|scope|fs-02)/];
+  const executiveChecks = [/(one|1).*(endpoint|host|account|device)/, /(monitor|residual|no sensitive|no lateral|unknown)/];
   const communication = [...caseChecks.map((pattern) => pattern.test(caseNote)), ...executiveChecks.map((pattern) => pattern.test(executive))].filter(Boolean).length * 5;
   return { score: observation + analysis + decision + communication, breakdown: { observation, analysis, decision, communication }, feedback: [
-    observation === 25 ? 'Observation: The chosen evidence supports execution, correlation, containment, recovery, and bounded scope.' : `Observation: ${observation}/25. Select the seven records that directly support compromise, affected entities, response, recovery, and scope; leave administrative milestones as context.`,
-    analysis === 25 ? 'Analysis: The report states a confirmed but bounded compromise, root cause, and supported business impact.' : `Analysis: ${analysis}/25. Separate confirmed scope from enterprise-wide claims and connect the external archive to unsigned script execution.`,
+    observation === 25 ? 'Observation: The chosen M09 records support impact, identity correlation, containment, service context, and bounded scope.' : `Observation: ${observation}/25. Review and select all five declared M09 Module 11 records; do not import evidence from another consumer slice.`,
+    analysis === 25 ? 'Analysis: The report states a confirmed but bounded shared-case conclusion and supported operational impact.' : `Analysis: ${analysis}/25. Separate the ws-173/acct-173/fs-02 observations from enterprise-wide or operator claims.`,
     decision === 30 ? 'Decision: Escalation names accountable owners, and closure requires verified recovery, monitoring, and follow-up ownership.' : `Decision: ${decision}/30. Escalate to the incident manager and technical owners; do not close on containment alone.`,
-    communication === 20 ? 'Communication: The technical note is traceable and the executive summary states impact and residual risk plainly.' : `Communication: ${communication}/20. Name NB-44 and acct-44 plus response actions in the case note; state one-entity impact and monitored residual risk for leaders.`,
+    communication === 20 ? 'Communication: The technical note is traceable and the executive summary states bounded impact and residual risk plainly.' : `Communication: ${communication}/20. Name ws-173 and acct-173 plus the response/scope context in the case note; state one bounded impact and monitored residual risk for leaders.`,
   ] };
 }
 
@@ -879,7 +931,7 @@ function wireModuleElevenLab() {
       moduleElevenReportState.caseNote = event.target.elements.caseNote.value;
       moduleElevenReportState.executiveSummary = event.target.elements.executiveSummary.value;
       const missing = [];
-      if (moduleElevenReportState.selectedEvidence.length < 5) missing.push('select at least five supporting case events');
+      if (moduleElevenReportState.selectedEvidence.length < MODULE_ELEVEN_CASE_EVENTS.length) missing.push(`select all ${MODULE_ELEVEN_CASE_EVENTS.length} declared supporting case events`);
       if (!moduleElevenReportState.classification || !moduleElevenReportState.rootCause || !moduleElevenReportState.impact) missing.push('complete the case analysis');
       if (!moduleElevenReportState.escalation || !moduleElevenReportState.closure) missing.push('complete escalation and closure decisions');
       if (moduleElevenReportState.caseNote.trim().length < 180) missing.push('write a 180-character technical case note');

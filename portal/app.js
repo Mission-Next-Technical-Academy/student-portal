@@ -3543,16 +3543,49 @@ function curriculumItemRow(item) {
   </div>`;
 }
 
-function header(user) {
+function header(user, options = {}) {
+  const program = options.program;
+  const progress = program ? programProgress(user, program) : null;
+  const programTools = program && progress ? `
+    <div class="hidden lg:flex items-center gap-3 pl-4 ml-4 border-l border-gray-200" aria-label="Your program progress">
+      <div class="min-w-[9.5rem]">
+        <div class="flex items-baseline justify-between gap-3 mb-1">
+          <span class="text-[10px] font-semibold uppercase tracking-widest text-[#f97316]">Your Progress</span>
+          <span class="text-xs font-bold text-[#1e3a5f] whitespace-nowrap">${progress.done} / ${progress.total} · ${progress.percent}%</span>
+        </div>
+        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden" role="progressbar" aria-label="Program progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.percent}">
+          <div class="h-full bg-[#f97316] rounded-full" style="width: ${progress.percent}%"></div>
+        </div>
+      </div>
+    </div>
+    <details class="relative shrink-0 group">
+      <summary class="list-none inline-flex items-center gap-1.5 text-xs font-semibold text-[#1e3a5f] hover:bg-[#1e3a5f]/8 px-2.5 py-1.5 rounded-lg cursor-pointer select-none" aria-label="Open program downloads">
+        <i class="ri-download-2-line" aria-hidden="true"></i> Downloads <i class="ri-arrow-down-s-line text-base leading-none transition-transform group-open:rotate-180" aria-hidden="true"></i>
+      </summary>
+      <div class="absolute left-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
+        <button type="button" id="student-transcript-pdf-btn" onclick="downloadStudentTranscriptPdf(window.__mntCurrentUser, window.__mntCurrentProgram)" class="w-full text-left text-xs font-semibold text-[#1e3a5f] hover:bg-[#1e3a5f]/8 px-3 py-2 rounded-lg inline-flex items-center gap-2 cursor-pointer">
+          <i class="ri-file-text-line" aria-hidden="true"></i> Transcript (PDF)
+        </button>
+        <button type="button" id="student-evidence-pdf-btn" onclick="downloadStudentEvidencePdf(window.__mntCurrentUser, window.__mntCurrentProgram)" class="w-full text-left text-xs font-semibold text-[#1e3a5f] hover:bg-[#1e3a5f]/8 px-3 py-2 rounded-lg inline-flex items-center gap-2 cursor-pointer">
+          <i class="ri-file-list-3-line" aria-hidden="true"></i> Evidence Report (PDF)
+        </button>
+        <button type="button" onclick="exportStudentRecord(window.__mntCurrentUser, window.__mntCurrentProgram)" class="w-full text-left text-xs font-semibold text-gray-500 hover:text-[#1e3a5f] hover:bg-[#1e3a5f]/8 px-3 py-2 rounded-lg inline-flex items-center gap-2 cursor-pointer">
+          <i class="ri-download-2-line" aria-hidden="true"></i> Progress Data (JSON)
+        </button>
+      </div>
+    </details>` : '';
   return `
   <header>
     <nav class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
       <div class="max-w-7xl mx-auto px-8 h-16 flex items-center justify-between">
         <!-- The asset is the full wordmark, so it stands alone. Pairing it with
              a "Mission Next / Technical Academy" text block would say the name twice. -->
-        <a href="#/portal" class="flex items-center cursor-pointer shrink-0">
-          <img src="assets/logo.png" alt="Mission Next Technical Academy" class="h-9 sm:h-11 w-auto" />
-        </a>
+        <div class="flex items-center min-w-0">
+          <a href="#/portal" class="flex items-center cursor-pointer shrink-0">
+            <img src="assets/logo.png" alt="Mission Next Technical Academy" class="h-9 sm:h-11 w-auto" />
+          </a>
+          ${programTools}
+        </div>
         ${
           user
             ? `<div class="flex items-center gap-2">
@@ -4256,9 +4289,14 @@ function viewProgram(user, slug) {
   const capstoneReady = hasCapstone && hasModuleAccess(user, slug, capstoneModuleKey)
     && capstonePrerequisites.every((key) => moduleCompletion(program, key, user).complete);
   const displayTitle = (program.compliance && program.compliance.programName) || program.title;
+  // Progress already states the module count, and the compliance summary owns
+  // approved/lab hours. Keep the at-a-glance card to the distinct essentials.
+  const compactStats = program.stats.filter((s) => ![
+    'Learning Experience', 'Approved Program', 'Lab Instruction',
+  ].includes(s.label));
 
   return `
-  ${header(user)}
+  ${header(user, { program })}
   <main class="pt-16">
 
     <!-- hero -->
@@ -4309,45 +4347,18 @@ function viewProgram(user, slug) {
       </div>
     </section>
 
-    <!-- progress + stats -->
-    <section class="py-12 px-8 mnt-band border-b border-gray-100">
+    <!-- concise program summary -->
+    <section class="py-8 px-8 mnt-band border-b border-gray-100">
       <div class="max-w-7xl mx-auto">
-        <div class="bg-white border border-gray-200 rounded-2xl p-7 shadow-sm mb-6">
-          <div class="flex items-center justify-between flex-wrap gap-4 mb-4">
-            <div>
-              <p class="text-[#f97316] text-xs font-semibold uppercase tracking-widest mb-1.5">Your Progress</p>
-              <h2 class="text-[#1e3a5f] font-bold text-base">Modules Completed: ${prog.done} / ${prog.total}</h2>
+        <div class="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm mb-4">
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <p class="text-[#f97316] text-[10px] font-semibold uppercase tracking-widest whitespace-nowrap">Your Progress</p>
+            <p class="text-[#1e3a5f] font-semibold text-sm whitespace-nowrap">${prog.done} of ${prog.total} modules</p>
+            <div class="flex-1 min-w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden" role="progressbar" aria-label="Program progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${prog.percent}">
+              <div class="h-full bg-[#f97316] rounded-full transition-all" style="width: ${prog.percent}%"></div>
             </div>
-            <span class="text-3xl font-bold text-[#1e3a5f]">${prog.percent}%</span>
+            <span class="text-lg font-bold text-[#1e3a5f]">${prog.percent}%</span>
           </div>
-          <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div class="h-full bg-[#f97316] rounded-full transition-all" style="width: ${prog.percent}%"></div>
-          </div>
-          <div class="mt-4 flex flex-wrap items-center gap-4">
-            <button type="button" id="student-transcript-pdf-btn" onclick="downloadStudentTranscriptPdf(window.__mntCurrentUser, window.__mntCurrentProgram)"
-              class="text-sm font-semibold bg-[#1e3a5f] hover:bg-[#16304f] text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 cursor-pointer">
-              <i class="ri-file-text-line"></i> Download Transcript (PDF)
-            </button>
-            <button type="button" id="student-evidence-pdf-btn" onclick="downloadStudentEvidencePdf(window.__mntCurrentUser, window.__mntCurrentProgram)"
-              class="text-xs font-semibold text-[#1e3a5f]/70 hover:text-[#1e3a5f] inline-flex items-center gap-1.5">
-              <i class="ri-file-list-3-line"></i> Download Evidence Record (PDF)
-            </button>
-            <button type="button" onclick="exportStudentRecord(window.__mntCurrentUser, window.__mntCurrentProgram)"
-              class="text-xs font-semibold text-gray-400 hover:text-gray-600 inline-flex items-center gap-1.5">
-              <i class="ri-download-2-line"></i> Download data (JSON, secondary)
-            </button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-          ${program.stats.map((s) => `
-            <div class="bg-white border border-gray-200 rounded-2xl p-7 shadow-sm">
-              <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-[#1e3a5f]/8 mb-4">
-                <i class="${esc(s.icon)} text-2xl text-[#1e3a5f]"></i>
-              </div>
-              <p class="text-gray-500 text-xs mb-1.5">${esc(s.label)}</p>
-              <p class="text-[#1e3a5f] font-bold text-base leading-snug">${esc(s.value)}</p>
-            </div>`).join('')}
         </div>
 
         ${
@@ -4356,31 +4367,41 @@ function viewProgram(user, slug) {
                 const c = program.compliance;
                 const hasCareer = !!c.careerHours;
                 const technicalTheory = c.technicalTheoryHours || (hasCareer ? c.theoryHours - c.careerHours : c.theoryHours);
-                const headline = hasCareer
-                  ? `${c.technicalHours} Hours Technical Training + ${c.careerHours} Hours Career Readiness = ${c.totalHours} Clock Hours`
-                  : `${c.totalHours} Approved Clock Hours`;
-                return `<div class="mt-6 bg-white border border-gray-200 rounded-2xl p-7 shadow-sm">
-                 <p class="text-[#1e3a5f] font-semibold text-base mb-6">${headline}</p>
-                 <div class="grid grid-cols-1 ${hasCareer ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6">
-                   <div>
-                     <p class="text-[#f97316] text-xs font-semibold uppercase tracking-widest mb-2">Technical Curriculum</p>
-                     <p class="text-[#1e3a5f] text-2xl font-bold">${c.technicalHours} Hours</p>
-                     <p class="text-gray-500 text-sm mt-1">${technicalTheory} technical theory + ${c.labHours} lab</p>
-                   </div>
-                   ${hasCareer ? `<div>
-                     <p class="text-[#f97316] text-xs font-semibold uppercase tracking-widest mb-2">Separate Companion</p>
-                     <p class="text-[#1e3a5f] text-2xl font-bold">${c.careerHours} Hours</p>
-                     <p class="text-gray-500 text-sm mt-1">M360 career-readiness theory</p>
-                   </div>` : ''}
-                   <div>
-                     <p class="text-[#f97316] text-xs font-semibold uppercase tracking-widest mb-2">Program Total</p>
-                     <p class="text-[#1e3a5f] text-2xl font-bold">${c.totalHours} Hours</p>
-                   <p class="text-gray-500 text-sm mt-1">${c.theoryHours} theory${hasCareer ? ' (including M360)' : ''} + ${c.labHours} lab</p>
-                   </div>
-                 </div>
-               </div>`;
+                return `<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                  <div class="grid grid-cols-2 ${compactStats.length > 2 ? 'md:grid-cols-4' : 'md:grid-cols-3'} divide-x divide-y md:divide-y-0 divide-gray-100">
+                    ${compactStats.map((s) => `
+                      <div class="flex items-center gap-2.5 px-4 py-3">
+                        <i class="${esc(s.icon)} text-base text-[#f97316]" aria-hidden="true"></i>
+                        <div>
+                          <p class="text-gray-500 text-[10px] uppercase tracking-wide">${esc(s.label)}</p>
+                          <p class="text-[#1e3a5f] font-semibold text-sm leading-snug">${esc(s.value)}</p>
+                        </div>
+                      </div>`).join('')}
+                    <div class="flex items-center gap-2.5 px-4 py-3">
+                      <i class="ri-time-line text-base text-[#f97316]" aria-hidden="true"></i>
+                      <div>
+                        <p class="text-gray-500 text-[10px] uppercase tracking-wide">Program hours</p>
+                        <p class="text-[#1e3a5f] font-semibold text-sm leading-snug">${c.totalHours} clock hours</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 bg-slate-50 border-t border-gray-100 text-xs text-gray-600">
+                    <span><strong class="text-[#1e3a5f]">${c.technicalHours}h</strong> technical training</span>
+                    ${hasCareer ? `<span><strong class="text-[#1e3a5f]">${c.careerHours}h</strong> M360 career readiness</span>` : ''}
+                    <span><strong class="text-[#1e3a5f]">${technicalTheory}h</strong> technical theory</span>
+                    <span><strong class="text-[#1e3a5f]">${c.labHours}h</strong> lab instruction</span>
+                  </div>
+                </div>`;
               })()
-            : ''
+            : `<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                <div class="grid grid-cols-2 md:grid-cols-3 divide-x divide-y md:divide-y-0 divide-gray-100">
+                  ${compactStats.map((s) => `
+                    <div class="flex items-center gap-2.5 px-4 py-3">
+                      <i class="${esc(s.icon)} text-base text-[#f97316]" aria-hidden="true"></i>
+                      <div><p class="text-gray-500 text-[10px] uppercase tracking-wide">${esc(s.label)}</p><p class="text-[#1e3a5f] font-semibold text-sm leading-snug">${esc(s.value)}</p></div>
+                    </div>`).join('')}
+                </div>
+              </div>`
         }
       </div>
     </section>
@@ -4702,7 +4723,6 @@ const adminLazyTabData = {
   activity: null,
   cohorts: null,
   archived: null,
-  queryLogging: null,
 };
 
 // Activity Monitor is an operational snapshot, not an unbounded audit export.
@@ -4723,7 +4743,6 @@ function resetAdminLazyTabData() {
   adminLazyTabData.activity = null;
   adminLazyTabData.cohorts = null;
   adminLazyTabData.archived = null;
-  adminLazyTabData.queryLogging = null;
 }
 
 /* ------------------------------------------------- completion-speed review flags */
@@ -4920,7 +4939,6 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const cohortStudentCounts = (extra && extra.cohortStudentCounts) || new Map();
   const archivedStudents = (extra && extra.archivedStudents) || [];
   const siteSessionsByStudentId = (extra && extra.siteSessionsByStudentId) || new Map();
-  const queryLogging = (extra && extra.queryLogging) || { rows: [], loading: false, error: null, sinceHours: 24, feature: '' };
   const activeCohorts = cohorts.filter((c) => !c.archived_at);
   const activeTab = (extra && extra.activeTab) || 'progress';
   const activeTrackCode = (extra && extra.activeTrackCode) || null;
@@ -5001,7 +5019,6 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
 
         <div class="flex gap-2 border-b border-gray-200 mb-5 flex-wrap" role="tablist">
           <button type="button" role="tab" aria-selected="${tabIsActive('progress')}" data-admin-tab="progress" class="${tabBtnClass('progress')}">Student Progress</button>
-          <button type="button" role="tab" aria-selected="${tabIsActive('queryLogging')}" data-admin-tab="queryLogging" class="${tabBtnClass('queryLogging')}">Query Logging</button>
           <button type="button" role="tab" aria-selected="${tabIsActive('activity')}" data-admin-tab="activity" class="${tabBtnClass('activity')}">
             Student Activity Monitor${cheatingFlagsByStudentId.size ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">${cheatingFlagsByStudentId.size}</span>` : ''}
           </button>
@@ -5437,38 +5454,6 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           }
         </div>
 
-        <div id="admin-tab-panel-queryLogging" ${tabIsActive('queryLogging') ? '' : 'hidden'}>
-          <div class="mb-6">
-            <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Query Logging</h2>
-            <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-            <p class="text-gray-500 text-sm">Admin-only aggregate performance signals from the approved read model. This surface never displays statement text, parameters, identities, telemetry samples, or arbitrary query execution.</p>
-          </div>
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5 text-sm text-slate-700">
-            <p class="font-semibold mb-1">Source and remediation guidance</p>
-            <p>Metrics come only from the <code class="font-mono text-xs">get_query_feature_metrics</code> aggregate RPC when its reviewed migration is available. Use the allow-listed feature and source labels to locate the owning portal/edge/RPC surface, then investigate plans and thresholds in staging. No browser query runner is provided here.</p>
-          </div>
-          <div class="flex flex-wrap items-end gap-3 mb-5">
-            <label class="text-xs font-semibold text-gray-600">Time window
-              <select id="admin-query-window" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
-                ${[1, 6, 24, 72, 168, 720].map((h) => `<option value="${h}" ${Number(queryLogging.sinceHours) === h ? 'selected' : ''}>Last ${h < 24 ? `${h} hour${h === 1 ? '' : 's'}` : `${h / 24} day${h === 24 ? '' : 's'}`}</option>`).join('')}
-              </select>
-            </label>
-            <label class="text-xs font-semibold text-gray-600">Feature
-              <select id="admin-query-feature" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
-                <option value="">All allow-listed features</option>
-                ${Array.from(new Set(queryLogging.rows.map((r) => r.feature_key).filter(Boolean))).sort().map((key) => `<option value="${esc(key)}" ${queryLogging.feature === key ? 'selected' : ''}>${esc(key)}</option>`).join('')}
-              </select>
-            </label>
-            <label class="text-xs font-semibold text-gray-600">Threshold
-              <select id="admin-query-threshold" class="block mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
-                <option value="all">All statuses</option><option value="investigate">Investigate or regression</option><option value="regression">Regression only</option>
-              </select>
-            </label>
-            <button type="button" data-action="admin-query-refresh" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Refresh aggregates</button>
-          </div>
-          ${queryLogging.loading ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-10 text-center text-gray-500">Loading approved aggregate metrics…</div>` : queryLogging.error ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800"><p class="font-semibold mb-1">Query Logging is unavailable</p><p>The reviewed telemetry migration or admin RPC is not available in this environment. No fallback query, raw database statistic, or sample data was requested. ${esc(queryLogging.error)}</p></div>` : queryLogging.rows.length === 0 ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-10 text-center text-gray-500">No aggregate metrics were returned for this window.</div>` : `<div class="overflow-x-auto"><table class="w-full border-collapse text-sm"><thead><tr class="border-b border-gray-200 bg-gray-50"><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Feature</th><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Source</th><th class="text-right px-4 py-3 font-semibold text-[#1e3a5f]">Calls</th><th class="text-right px-4 py-3 font-semibold text-[#1e3a5f]">Mean / p95 / max ms</th><th class="text-right px-4 py-3 font-semibold text-[#1e3a5f]">Rows</th><th class="text-right px-4 py-3 font-semibold text-[#1e3a5f]">Buffer / temp</th><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Last seen</th><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Breaches</th><th class="text-left px-4 py-3 font-semibold text-[#1e3a5f]">Status</th></tr></thead><tbody>${queryLogging.rows.map((r) => `<tr data-query-metric-row data-status="${esc(r.status || '')}" class="border-b border-gray-100"><td class="px-4 py-3 font-mono text-xs">${esc(r.feature_key || '—')}</td><td class="px-4 py-3">${esc(r.source || '—')}</td><td class="px-4 py-3 text-right">${Number(r.call_count || 0).toLocaleString()}</td><td class="px-4 py-3 text-right">${[r.mean_duration_ms, r.p95_duration_ms, r.max_duration_ms].map((v) => v == null ? '—' : Number(v).toFixed(1)).join(' / ')}</td><td class="px-4 py-3 text-right">${Number(r.rows_returned || 0).toLocaleString()}</td><td class="px-4 py-3 text-right">—</td><td class="px-4 py-3">${r.last_seen_at ? esc(new Date(r.last_seen_at).toLocaleString()) : '—'}</td><td class="px-4 py-3">${Number(r.threshold_breach_count || 0).toLocaleString()}</td><td class="px-4 py-3"><span class="font-semibold ${r.status === 'regression' ? 'text-red-700' : r.status === 'investigate' ? 'text-amber-700' : 'text-green-700'}">${esc(r.status || 'unknown')}</span></td></tr>`).join('')}</tbody></table></div>`}
-        </div>
-
         <div id="admin-tab-panel-cohorts" ${tabIsActive('cohorts') ? '' : 'hidden'}>
           <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
@@ -5574,9 +5559,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
 /* ------------------------------------------------------------------ router */
 
 // Route changes can wait on several Supabase reads (the admin workspace is
-// the heaviest example).  Keep the existing branded loading treatment visible
-// during a genuine wait instead of leaving the previous route on screen.  The
-// short delay prevents a distracting flash on routes that resolve at once.
+// the heaviest example). Keep the branded loading treatment visible while
+// that work happens rather than leaving the previous route on screen. Small
+// learner-route transitions retain a short delay to avoid needless flashes;
+// admin and the initial portal load render it immediately.
 const MNT_ROUTE_LOADING_DELAY_MS = 150;
 let routeRenderGeneration = 0;
 let routeLoadingTimer = null;
@@ -5604,11 +5590,44 @@ function viewRouteLoading(hash) {
 function beginRouteLoading(app, hash, generation) {
   clearTimeout(routeLoadingTimer);
   app.setAttribute('aria-busy', 'true');
+  const isAdminRoute = /^#\/admin(?:\/|$)/.test(hash);
+  const isInitialLoadingShell = !!app.querySelector('.portal-loading');
+  // The post-login transition (login form -> portal/program/admin) is a
+  // real, user-initiated navigation that always does at least one Supabase
+  // read. It regularly finishes under MNT_ROUTE_LOADING_DELAY_MS (the
+  // just-completed sign-in already warmed currentUser()'s cache), which
+  // otherwise skipped the loading view entirely and made the destination
+  // page appear with no visible transition at all.
+  const isLeavingLogin = !!app.querySelector('#login-form');
+  const showImmediately = isAdminRoute || isInitialLoadingShell || isLeavingLogin;
+  const showLoadingView = () => {
+    if (generation === routeRenderGeneration) app.innerHTML = viewRouteLoading(hash);
+  };
+
+  if (showImmediately) {
+    showLoadingView();
+    routeLoadingTimer = null;
+    return true;
+  }
+
   routeLoadingTimer = setTimeout(() => {
     // A new hash navigation supersedes this render.  Never let a delayed
     // callback replace the newer route's content.
-    if (generation === routeRenderGeneration) app.innerHTML = viewRouteLoading(hash);
+    showLoadingView();
   }, MNT_ROUTE_LOADING_DELAY_MS);
+  return false;
+}
+
+// A DOM replacement alone is not a guarantee that the browser has displayed
+// it: synchronous route work can replace the loader again before the next
+// paint. Two animation frames guarantee a paint boundary between showing the
+// loader and beginning the potentially expensive admin render.
+function waitForRouteLoadingPaint(generation) {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      resolve(isCurrentRouteRender(generation));
+    }));
+  });
 }
 
 function isCurrentRouteRender(generation) {
@@ -5626,7 +5645,8 @@ async function render(options = {}) {
   const app = document.getElementById('app');
   let hash = location.hash || '#/login';
   const renderGeneration = ++routeRenderGeneration;
-  beginRouteLoading(app, hash, renderGeneration);
+  const loadingShownImmediately = beginRouteLoading(app, hash, renderGeneration);
+  if (loadingShownImmediately && !await waitForRouteLoadingPaint(renderGeneration)) return;
   // currentUser() handles expected restoration errors itself.  Retain this
   // last-resort guard because render owns replacement of the loading shell.
   let user = null;
@@ -5770,6 +5790,15 @@ async function render(options = {}) {
     app.innerHTML = hasModuleAccess(user, program.slug, moduleLab.moduleKey)
       ? moduleLab.view(user, program)
       : viewNoAccess(user, program);
+    // Module 01 already has its richer sequential timeline exercise. The
+    // shared companion makes the same fill-in-the-blank evidence-recall
+    // pattern available in SOC Modules 02–12 without altering their credit
+    // minutes or their existing completion contracts.
+    const isUnlockedSocCapstone = Number(moduleMatch[2]) !== 12
+      || (typeof moduleTwelveUnlocked === 'function' && moduleTwelveUnlocked(user, program));
+    if (program.slug === 'soc-analyst' && Number(moduleMatch[2]) >= 2 && isUnlockedSocCapstone) {
+      mountSocEvidenceRecall(user, Number(moduleMatch[2]), app);
+    }
   } else if (programMatch) {
     app.innerHTML = viewProgram(user, programMatch[1]);
   } else {
@@ -5986,19 +6015,6 @@ function openDiplomaCertificate({ fullName, diplomaTitle, studentId }) {
 }
 
 async function loadAdminLazyTab(tab, options = {}) {
-  const now = new Date();
-  if (tab === 'queryLogging') {
-    const hours = Number(options.hours || 24);
-    const feature = options.feature || null;
-    const since = new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString();
-    const result = await mntSupabase.rpc('get_query_feature_metrics', {
-      p_since: since,
-      p_until: now.toISOString(),
-      p_feature_key: feature,
-    });
-    if (result.error) throw result.error;
-    return { rows: result.data || [], loading: false, error: null, sinceHours: hours, feature: feature || '' };
-  }
   if (tab === 'activity') {
     const [activity, completed, logins, sessions] = await withAdminReadTimeout('Student Activity Monitor', Promise.all([
       mntSupabase.from('admin_student_activity').select('student_id, user_id, track_code, program_slug, modules_total, modules_complete, percent_complete, capstone_overall_score, lab_attempts_count, capstone_submissions_count, last_active, modules_in_progress').limit(ADMIN_ACTIVITY_ROW_LIMIT),
@@ -6045,26 +6061,21 @@ function applyAdminLazyData(extra) {
   const activity = adminLazyTabData.activity;
   const cohorts = adminLazyTabData.cohorts;
   const archived = adminLazyTabData.archived;
-  const queryLogging = adminLazyTabData.queryLogging;
   if (activity) Object.assign(extra, activity);
   if (cohorts) Object.assign(extra, cohorts);
   if (archived) Object.assign(extra, archived);
-  extra.queryLogging = queryLogging || { rows: [], loading: false, error: null, sinceHours: 24, feature: '' };
   return extra;
 }
 
 async function ensureAdminLazyTab(tab, options = {}) {
-  if (tab === 'queryLogging' && options.force) adminLazyTabData.queryLogging = null;
-  if (tab !== 'queryLogging' && adminLazyTabData[tab] && !(tab === 'activity' && adminLazyTabData[tab].activityLoadError)) return adminLazyTabData[tab];
+  if (adminLazyTabData[tab] && !(tab === 'activity' && adminLazyTabData[tab].activityLoadError)) return adminLazyTabData[tab];
   try {
     const loaded = await loadAdminLazyTab(tab, options);
     adminLazyTabData[tab] = loaded;
   } catch (err) {
-    adminLazyTabData[tab] = tab === 'queryLogging'
-      ? { rows: [], loading: false, error: err && err.message ? err.message : 'The aggregate RPC could not be reached.', sinceHours: Number(options.hours || 24), feature: options.feature || '' }
-      : tab === 'activity'
-        ? { loginEvents: [], siteSessionsByStudentId: new Map(), activityRows: [], completedRows: [], activityRowLimit: ADMIN_ACTIVITY_ROW_LIMIT, activityLoadError: err && err.message ? err.message : 'This tab could not be loaded.' }
-        : { error: err && err.message ? err.message : 'This tab could not be loaded.' };
+    adminLazyTabData[tab] = tab === 'activity'
+      ? { loginEvents: [], siteSessionsByStudentId: new Map(), activityRows: [], completedRows: [], activityRowLimit: ADMIN_ACTIVITY_ROW_LIMIT, activityLoadError: err && err.message ? err.message : 'This tab could not be loaded.' }
+      : { error: err && err.message ? err.message : 'This tab could not be loaded.' };
   }
   return adminLazyTabData[tab];
 }
@@ -6077,7 +6088,6 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
   const tabButtons = document.querySelectorAll('[data-admin-tab]');
   const tabPanels = {
     progress: document.getElementById('admin-tab-panel-progress'),
-    queryLogging: document.getElementById('admin-tab-panel-queryLogging'),
     activity: document.getElementById('admin-tab-panel-activity'),
     cohorts: document.getElementById('admin-tab-panel-cohorts'),
     archived: document.getElementById('admin-tab-panel-archived'),
@@ -6102,21 +6112,6 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
     });
   });
 
-  const queryWindow = document.getElementById('admin-query-window');
-  const queryFeature = document.getElementById('admin-query-feature');
-  const queryRefresh = document.querySelector('[data-action="admin-query-refresh"]');
-  if (queryRefresh) queryRefresh.addEventListener('click', async () => {
-    queryRefresh.disabled = true;
-    await ensureAdminLazyTab('queryLogging', { force: true, hours: queryWindow ? queryWindow.value : 24, feature: queryFeature ? queryFeature.value : '' });
-    await render({ reuseAdminRoster: true });
-  });
-  const queryThreshold = document.getElementById('admin-query-threshold');
-  if (queryThreshold) queryThreshold.addEventListener('change', () => {
-    const selected = queryThreshold.value;
-    document.querySelectorAll('[data-query-metric-row]').forEach((row) => {
-      row.hidden = selected === 'all' || (selected === 'investigate' ? !['investigate', 'regression'].includes(row.dataset.status) : row.dataset.status !== selected);
-    });
-  });
 
   /* Sprint 4 (COHORT_USER_LIFECYCLE_SPRINT_PLAN.md): "Generate New User" /
    * "Generate New Cohort" / "Generate Diploma" / "Preview & Generate Report"

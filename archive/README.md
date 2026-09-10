@@ -98,6 +98,11 @@ of archiving:
   integrity audit and fix: a module can no longer be marked complete from Lab
   1 alone or from a coarse historical summary record while its detailed work
   is unfinished.
+- `CURRICULUM_SCENARIO_ARCHITECTURE_2026-09-10.md` — the completed 14-sprint
+  scenario-upgrade plan for the general SOC Analyst curriculum. Final QA
+  reconciled the locked 82-hour ledger and documented the remaining legacy
+  catalogue/schema findings; the associated module briefs and progress logs
+  remain at the root as implementation records.
 
 ## Still active, not archived
 

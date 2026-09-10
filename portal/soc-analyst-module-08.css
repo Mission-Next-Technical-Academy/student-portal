@@ -42,6 +42,32 @@
 .m08-shell .m08-role strong { font-size: 14px; }
 .m08-shell .m08-role p { margin: 4px 0 0; color: #64748b; font: 12px/1.55 Inter, sans-serif; }
 
+.m08-shell .m08-lesson-loops { margin-top: 22px; padding: 18px; background: #f8fafc; border: 1px solid #dbe3ed; border-radius: 15px; }
+.m08-shell .m08-lesson-loop { margin-top: 9px; background: #fff; border: 1px solid #dbe3ed; border-radius: 11px; overflow: hidden; }
+.m08-shell .m08-lesson-loop summary { display: flex; align-items: center; gap: 10px; padding: 13px 15px; color: #1e3a5f; cursor: pointer; list-style: none; }
+.m08-shell .m08-lesson-loop summary::-webkit-details-marker { display: none; }
+.m08-shell .m08-lesson-loop summary > span:nth-child(2) { flex: 1; }
+.m08-shell .m08-lesson-loop summary strong, .m08-shell .m08-lesson-loop summary small { display: block; }
+.m08-shell .m08-lesson-loop summary strong { font-size: 12px; }
+.m08-shell .m08-lesson-loop summary small { margin-top: 3px; color: #64748b; font: 10px Inter, sans-serif; }
+.m08-shell .m08-lesson-number { width: 29px; height: 29px; display: grid; place-items: center; flex: 0 0 auto; color: #fff; background: #1e3a5f; border-radius: 8px; font: 800 10px Inter, sans-serif; }
+.m08-shell .m08-lesson-done { color: #1e3a5f; font-size: 19px; }
+.m08-shell .m08-lesson-loop-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 17px; border-top: 1px solid #dbe3ed; }
+.m08-shell .m08-lesson-loop-body > section { min-width: 0; }
+.m08-shell .m08-lesson-loop-body > section:nth-child(3) { grid-column: 1 / -1; }
+.m08-shell .m08-lesson-loop-body > section:nth-child(4) { grid-column: 1 / -1; }
+.m08-shell .m08-lesson-loop-body section > p:not(.m08-kicker) { margin: 6px 0 0; color: #475569; font: 11px/1.6 Inter, sans-serif; }
+.m08-shell .m08-lesson-question { margin: 10px 0 0; padding: 0; border: 0; }
+.m08-shell .m08-lesson-question legend { color: #334155; font: 700 11px/1.45 Inter, sans-serif; }
+.m08-shell .m08-lesson-question label { display: flex; gap: 8px; margin-top: 6px; padding: 8px 9px; color: #475569; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; font: 10px/1.4 Inter, sans-serif; cursor: pointer; }
+.m08-shell .m08-lesson-question input { flex: 0 0 auto; accent-color: #f97316; }
+.m08-shell .m08-lesson-check, .m08-shell .m08-lesson-task-button { margin-top: 11px; padding: 8px 11px; color: #fff; background: #1e3a5f; border: 0; border-radius: 7px; font: 700 10px Inter, sans-serif; cursor: pointer; }
+.m08-shell .m08-lesson-task-button { background: #f97316; }
+.m08-shell .m08-lesson-loop textarea { width: 100%; margin-top: 8px; padding: 10px; resize: vertical; border: 1px solid #cbd5e1; border-radius: 8px; font: 11px/1.5 Inter, sans-serif; }
+.m08-shell .m08-lesson-feedback { margin-top: 9px !important; padding: 9px; border-radius: 8px; font-size: 10px !important; }
+.m08-shell .m08-lesson-feedback.is-pass { color: #1e3a5f !important; background: #eef6ff; border: 1px solid #cfe2f7; }
+.m08-shell .m08-lesson-feedback.is-hint { color: #9a3412 !important; background: #fff7ed; border: 1px solid #fed7aa; }
+
 .m08-shell .m08-lab-card { margin-top: 20px; padding: 26px; background: #f8fafc; border: 1px solid #dbe3ed; border-radius: 18px; }
 .m08-shell .m08-lab-card + .m08-lab-card { margin-top: 28px; border-top: 4px solid #1e3a5f; }
 .m08-shell .m08-lab-heading, .m08-shell .m08-panel-heading, .m08-shell .m08-score-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -217,6 +243,8 @@
   .m08-shell .m08-two-column { grid-template-columns: 1fr; }
   .m08-shell .m08-score-grid { grid-template-columns: repeat(2, 1fr); }
   .m08-shell .m08-detail dl { grid-template-columns: 1fr; }
+  .m08-shell .m08-lesson-loop-body { grid-template-columns: 1fr; }
+  .m08-shell .m08-lesson-loop-body > section:nth-child(3), .m08-shell .m08-lesson-loop-body > section:nth-child(4) { grid-column: auto; }
   .m08-shell .m08-table-wrap { overflow: visible; border: 0; }
   .m08-shell .m08-data-table { min-width: 0; display: block; }
   .m08-shell .m08-data-table thead { display: none; }
