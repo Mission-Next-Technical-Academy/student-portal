@@ -56,6 +56,9 @@ jobs:
           grep -Fq 'Previous: Week ${target}' "$ui"
           grep -Fq 'Next: Week ${target}' "$ui"
           grep -Fq '#m360WeekNavigation{justify-content:center' "$ui"
+          grep -Fq 'applyWeek2LinkedInModel()' "$ui"
+          grep -Fq 'Target-role language' "$ui"
+          grep -Fq 'Before-to-after summary' "$ui"
           if grep -Fq '<- Week' "$ui" || grep -Fq 'Week ${target} ->' "$ui"; then
             echo '::error::ASCII arrow navigation must not return to the production presentation layer.'
             exit 1
@@ -80,7 +83,7 @@ jobs:
           from pathlib import Path
           html = Path('portal/m360/week.html').read_text()
           nav = html.find('m360-production-nav.js?v=20260907')
-          polish = html.find('m360-ui-polish.js?v=20260908')
+          polish = html.find('m360-ui-polish.js?v=20260913')
           if nav < 0 or polish < 0 or polish <= nav:
               raise SystemExit('M360 UI polish must load after production navigation so final student-facing links and labels are authoritative.')
           print('M360 UI polish loads after production navigation')
