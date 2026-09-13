@@ -3,16 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Mission Next M360 101 admin review workspace." />
+  <meta name="description" content="Mission Next M360 101 administration workspace." />
   <title>M360 101 Administration | Mission Next Technical Academy</title>
   <link rel="icon" href="../assets/logo.png" />
   <link rel="stylesheet" href="assets/mission-next-tokens.css?v=20260903" />
   <link rel="stylesheet" href="../m360-preview.css?v=20260907" />
-  <link rel="stylesheet" href="../m360-demo-refinements.css?v=20260903" />
-  <link rel="stylesheet" href="review.css?v=20260904" />
-  <link rel="stylesheet" href="review-course-state.css?v=20260904" />
-  <link rel="stylesheet" href="review-attendance.css?v=20260904b" />
   <link rel="stylesheet" href="review-schedule.css?v=20260908" />
+  <link rel="stylesheet" href="admin-workspace.css?v=20260913" />
 </head>
 <body>
   <div class="shell">
@@ -26,76 +23,109 @@
       </div>
     </header>
 
-    <main class="review-shell">
-      <section class="review-hero">
+    <main class="m360-admin-shell">
+      <section class="m360-admin-header">
         <div>
-          <div class="eyebrow">Admin reviewer workspace</div>
-          <img class="signal-line" src="assets/Signal_Line.svg" alt="" aria-hidden="true" />
-          <h1>M360 101 <span>Administration</span></h1>
-          <p>Manage live-session dates, surface Start Here support needs, review submitted evidence, verify Career Spotlight presentation completion, and confirm the external attendance requirement. Technical-course records remain outside this workspace.</p>
+          <div class="eyebrow">Admin operations workspace</div>
+          <h1>M360 101 Administration</h1>
+          <p>Manage M360 by cohort, find students who need attention, review submitted evidence, and complete staff-owned administrative actions without scrolling through repeated rosters.</p>
         </div>
-        <div class="review-hero-stat"><strong id="queueCount">—</strong><span>Awaiting review</span></div>
+        <div class="m360-admin-links"><a href="../index.html#/admin">Admin Portal</a><a href="index.html">M360 Home</a></div>
       </section>
 
-      <div id="reviewNotice" class="review-notice" hidden></div>
-      <div id="reviewTrackFilter" class="review-track-filter" hidden aria-live="polite"></div>
+      <div id="adminNotice" class="review-notice" hidden></div>
 
-      <section class="course-state-section" aria-labelledby="startHereAdminTitle">
-        <div class="course-state-heading">
-          <div><div class="mini-kicker">Early support</div><h2 id="startHereAdminTitle">Start Here Baselines &amp; Support</h2><p>Use the ungraded baseline to identify support needs before Week 1. This is readiness information, not a grade or M360 clock-hour record.</p></div>
-          <div class="course-state-actions"><button id="refreshStartHereBtn" class="btn btn-secondary" type="button">Refresh baselines</button></div>
-        </div>
-        <div id="startHereRoster" class="course-state-roster" aria-live="polite"><div class="empty-state">Loading Start Here baselines…</div></div>
+      <section class="m360-admin-global" aria-label="M360 administration filters">
+        <label class="m360-admin-field"><span>Cohort</span><select id="cohortSelect"><option value="">Loading cohorts…</option></select></label>
+        <label class="m360-admin-field"><span>Search students</span><input id="globalStudentSearch" type="search" placeholder="Student ID or track" autocomplete="off" /></label>
+        <button id="refreshWorkspaceBtn" class="btn btn-secondary" type="button">Refresh</button>
       </section>
 
-      <section class="m360-schedule-section" aria-labelledby="m360ScheduleTitle">
-        <div class="m360-schedule-heading">
-          <div><div class="mini-kicker">Live delivery</div><h2 id="m360ScheduleTitle">Live Session Schedule</h2><p>Set the date, time, and time zone students should see inside each M360 week. These values are course scheduling information only and do not record attendance or instructional time.</p></div>
-          <div class="m360-schedule-actions"><button id="refreshScheduleBtn" class="btn btn-secondary" type="button">Refresh schedule</button><button id="saveScheduleChangesBtn" class="btn btn-primary" type="button">Save schedule changes</button><span id="m360ScheduleStatus" class="m360-schedule-status" aria-live="polite"></span></div>
+      <nav class="m360-admin-tabs" aria-label="M360 administration sections">
+        <button class="m360-admin-tab" type="button" data-admin-tab="overview" aria-selected="true">Overview</button>
+        <button class="m360-admin-tab" type="button" data-admin-tab="students" aria-selected="false">Students</button>
+        <button class="m360-admin-tab" type="button" data-admin-tab="reviews" aria-selected="false">Review Queue <span id="reviewTabCount" class="count">0</span></button>
+        <button class="m360-admin-tab" type="button" data-admin-tab="schedule" aria-selected="false">Schedule</button>
+      </nav>
+
+      <section id="overviewPanel" class="m360-admin-panel is-active" data-admin-panel="overview">
+        <div id="overviewSummary" class="m360-summary-grid"></div>
+        <div class="m360-overview-grid">
+          <article class="m360-panel-card">
+            <h2>Cohort progress</h2>
+            <p id="cohortSummaryText" class="m360-panel-sub">Loading cohort progress…</p>
+            <div id="cohortProgressRows"></div>
+          </article>
+          <article class="m360-panel-card">
+            <h2>Needs attention</h2>
+            <p class="m360-panel-sub">Operational items requiring review or staff follow-up.</p>
+            <div id="attentionList" class="m360-attention-list"></div>
+          </article>
         </div>
-        <div id="m360ScheduleGrid" class="m360-schedule-grid" aria-live="polite"><div class="empty-state">Loading live-session schedule…</div></div>
-        <p class="m360-schedule-help">Enter both a date and time for a session. To remove a scheduled session, clear both fields and save. Students see “Date &amp; time coming soon” until a session is scheduled.</p>
       </section>
 
-      <section class="review-toolbar" aria-label="M360 review controls">
-        <div><div class="mini-kicker">Review Queue</div><h2>Submitted M360 evidence</h2></div>
-        <button id="refreshQueueBtn" class="btn btn-secondary" type="button">Refresh queue</button>
-      </section>
-      <section id="reviewQueue" class="review-queue" aria-live="polite"><div class="empty-state">Loading M360 review queue…</div></section>
-
-      <section class="course-state-section" aria-labelledby="portfolioAdminTitle">
-        <div class="course-state-heading">
-          <div><div class="mini-kicker">Portfolio access</div><h2 id="portfolioAdminTitle">Student Portfolios</h2><p>View or print each student’s read-only showcase portfolio using the same portfolio renderer students use. Only reviewer-approved portfolio evidence is shown; private working data, instructor feedback, staff verification fields, raw networking details, and technical-course data remain excluded.</p></div>
-          <div class="course-state-actions"><button id="refreshPortfolioRosterBtn" class="btn btn-secondary" type="button">Refresh portfolios</button></div>
+      <section id="studentsPanel" class="m360-admin-panel" data-admin-panel="students">
+        <div class="m360-student-toolbar">
+          <label class="m360-admin-field"><span>Student search</span><input id="studentSearch" type="search" placeholder="Search student ID" autocomplete="off" /></label>
+          <label class="m360-admin-field"><span>Track</span><select id="studentTrackFilter"><option value="">All tracks</option><option value="HDESK">Help Desk</option><option value="SOCAN">SOC Analyst</option><option value="AIENG">AI / ML</option><option value="ELECT">Electrical</option></select></label>
+          <label class="m360-admin-field"><span>Week</span><select id="studentWeekFilter"><option value="">All weeks</option><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option><option value="5">Week 5</option><option value="6">Week 6</option></select></label>
+          <button id="clearStudentFiltersBtn" class="btn btn-secondary" type="button">Clear filters</button>
         </div>
-        <div id="portfolioRoster" class="course-state-roster" aria-live="polite"><div class="empty-state">Loading student portfolios…</div></div>
+        <div id="studentFilterChips" class="m360-filter-chips" aria-label="Student status filters">
+          <button class="m360-filter-chip is-active" type="button" data-student-status="all">All</button>
+          <button class="m360-filter-chip" type="button" data-student-status="attention">Needs attention</button>
+          <button class="m360-filter-chip" type="button" data-student-status="review">Awaiting review</button>
+          <button class="m360-filter-chip" type="button" data-student-status="revision">Revision</button>
+          <button class="m360-filter-chip" type="button" data-student-status="attendance">Attendance open</button>
+          <button class="m360-filter-chip" type="button" data-student-status="spotlight">Spotlight open</button>
+          <button class="m360-filter-chip" type="button" data-student-status="complete">Complete</button>
+        </div>
+        <div id="bulkBar" class="m360-bulkbar">
+          <strong id="bulkCount">0 students selected</strong>
+          <div class="m360-bulk-actions"><button id="bulkAttendanceBtn" class="btn btn-secondary" type="button">Verify Attendance</button><button id="bulkSpotlightBtn" class="btn btn-secondary" type="button">Update Spotlight</button><button id="bulkExportBtn" class="btn btn-secondary" type="button">Export</button><button id="bulkClearBtn" class="btn btn-secondary" type="button">Clear</button></div>
+        </div>
+        <div class="m360-table-wrap">
+          <table class="m360-table">
+            <thead><tr><th><input id="selectAllStudents" type="checkbox" aria-label="Select all visible students" /></th><th>Student</th><th>Track</th><th>Start Here</th><th>Progress</th><th>Review</th><th>Grade</th><th>Spotlight</th><th>Attendance</th></tr></thead>
+            <tbody id="studentTableBody"><tr><td colspan="9"><div class="m360-empty">Loading students…</div></td></tr></tbody>
+          </table>
+        </div>
       </section>
 
-      <section class="course-state-section" aria-labelledby="spotlightAdminTitle">
-        <div class="course-state-heading">
-          <div><div class="mini-kicker">Week 6 completion</div><h2 id="spotlightAdminTitle">Career Spotlight Presentation Verification</h2><p>Presentation completion is staff-owned. Update any students who changed, then save all changed presentation statuses at once. “Not yet completed” never counts as Career Spotlight completion.</p></div>
-          <div class="course-state-actions"><button id="refreshSpotlightBtn" class="btn btn-secondary" type="button">Refresh presentations</button><button id="saveSpotlightChangesBtn" class="btn btn-primary" type="button" disabled>Save changed presentation statuses</button><span id="spotlightSaveStatus" class="course-state-status" aria-live="polite"></span></div>
+      <section id="reviewsPanel" class="m360-admin-panel" data-admin-panel="reviews">
+        <div class="m360-review-toolbar">
+          <div><div class="mini-kicker">Faculty workflow</div><h2>Review Queue</h2></div>
+          <div class="m360-review-filters">
+            <button class="m360-filter-chip is-active" type="button" data-review-state="submitted">Needs Review</button>
+            <button class="m360-filter-chip" type="button" data-review-state="needs_revision">Returned for Revision</button>
+            <button class="m360-filter-chip" type="button" data-review-state="accepted">Completed</button>
+          </div>
         </div>
-        <div id="spotlightRoster" class="course-state-roster" aria-live="polite"><div class="empty-state">Loading Career Spotlight presentation statuses…</div></div>
+        <div id="reviewQueue" aria-live="polite"><div class="m360-empty">Loading review queue…</div></div>
       </section>
 
-      <section class="attendance-admin-section" aria-labelledby="attendanceAdminTitle">
-        <div class="attendance-admin-heading">
-          <div><div class="mini-kicker">Course completion bridge</div><h2 id="attendanceAdminTitle">M360 Attendance Verification</h2><p>Attendance detail stays outside the LMS. Select whether each student’s external M360 attendance requirement has been verified as satisfied, then save all changed rows at once. Do not enter session minutes or clock hours.</p></div>
-          <div class="attendance-admin-actions"><button id="refreshAttendanceBtn" class="btn btn-secondary" type="button">Refresh attendance</button><button id="saveAttendanceChangesBtn" class="btn btn-primary" type="button" disabled>Save changed attendance</button><span id="attendanceSaveStatus" class="attendance-save-status" aria-live="polite"></span></div>
-        </div>
-        <div id="attendanceRoster" class="attendance-roster" aria-live="polite"><div class="empty-state">Loading eligible M360 students…</div></div>
+      <section id="schedulePanel" class="m360-admin-panel" data-admin-panel="schedule">
+        <div class="m360-schedule-note"><strong>Current data boundary:</strong> the M360 live-session schedule is course-level today, not cohort-specific. The cohort selector does not change this schedule until the underlying schedule model is intentionally migrated.</div>
+        <section class="m360-schedule-section" aria-labelledby="m360ScheduleTitle">
+          <div class="m360-schedule-heading">
+            <div><div class="mini-kicker">Live delivery</div><h2 id="m360ScheduleTitle">Live Session Schedule</h2><p>Set the date, time, and time zone students should see inside each M360 week. These values are scheduling information only and do not record attendance or instructional time.</p></div>
+            <div class="m360-schedule-actions"><button id="refreshScheduleBtn" class="btn btn-secondary" type="button">Refresh schedule</button><button id="saveScheduleChangesBtn" class="btn btn-primary" type="button">Save schedule changes</button><span id="m360ScheduleStatus" class="m360-schedule-status" aria-live="polite"></span></div>
+          </div>
+          <div id="m360ScheduleGrid" class="m360-schedule-grid" aria-live="polite"><div class="m360-empty">Loading live-session schedule…</div></div>
+          <p class="m360-schedule-help">Enter both a date and time for a session. To remove a scheduled session, clear both fields and save. Students see “Date &amp; time coming soon” until a session is scheduled.</p>
+        </section>
       </section>
     </main>
   </div>
 
+  <div id="drawerBackdrop" class="m360-drawer-backdrop" hidden></div>
+  <aside id="studentDrawer" class="m360-drawer" aria-label="Student M360 summary" hidden></aside>
+  <div id="bulkModalBackdrop" class="m360-modal-backdrop" hidden><div id="bulkModal" class="m360-modal" role="dialog" aria-modal="true" aria-labelledby="bulkModalTitle"></div></div>
+
   <script src="../vendor/supabase.js?v=20260828"></script>
   <script src="../supabase-config.js?v=20260828"></script>
   <script src="m360-data.js?v=20260908"></script>
-  <script src="review.js?v=20260904a"></script>
-  <script src="review-portfolios.js?v=20260907"></script>
-  <script src="review-course-state.js?v=20260907"></script>
-  <script src="review-attendance.js?v=20260907"></script>
+  <script src="admin-workspace.js?v=20260913"></script>
   <script src="review-schedule.js?v=20260908"></script>
 </body>
 </html>
