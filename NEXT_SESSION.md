@@ -1,5 +1,97 @@
 # Next session — start here
 
+## 2026-09-13 (later same day) — grading UI polish, course-scoping fix, and a real curriculum-depth pushback — start with `soc-analyst-track-reimagining/STATE.md`
+
+Two small live-verified fixes to the grading system below: (1) the Track
+Administration cards repeated the literal word "ADMINISTRATION" as an
+eyebrow label on every card — redundant, and it was truncating the real
+course name ("ADMINISTR...", "SOC Anal..."). Removed it; the course name is
+now the only label (wraps instead of truncating), grid loosened to
+`grid-cols-2 md:grid-cols-3 lg:grid-cols-6`. (2) The Grading tab had been
+showing on both the cross-track "All Students" view and every track
+workspace, all tracks' pending items mixed together — owner: "grading must
+only exist inside of each course... separated for each instructor." Fixed:
+the tab/panel only render inside a specific `#/admin/track/<CODE>`
+workspace now, filtered to that track's own rows (`trackGradingQueueRows`,
+`portal/app.js`). Both confirmed live in a real browser. `node --check` and
+`bin/portal-check.js` (38/38) clean.
+
+**Bigger, same session:** after seeing the grading system live, the owner
+gave real curriculum feedback — current labs read too short/shallow for a
+claimed multi-day module ("the triage must be the entire incident response
+lifecycle"), the whole 12-module lab set likely needs a structural redo
+(ticket assignment → investigation → isolation → triage → remediation, one
+continuous multi-competency case, not disconnected drills), scoring needs
+many parameters in weighted sections rolling into one final score (real
+variance like a 72% vs. a 91% is correct behavior, not a bug to eliminate),
+and Module 1's existing guided-triage lab should become a tutorial/guided
+tour rather than the actual graded lab. Captured in the new
+`soc-analyst-track-reimagining/LAB_DEPTH_AND_SCORING_OVERHAUL.md`, with a
+`STATE.md` in that directory as the entry point — **read that first** if
+picking this up. Nothing in the curriculum itself has been rebuilt yet;
+this is planning-only, same as `VISION.md` before it.
+
+Owner asked to commit and push this session's work (both the grading
+system and this new planning doc) — see git log for what actually landed.
+
+## 2026-09-13 (Sprints 1+2 built, migration pushed and live) — Lab Grading & Notification System, own directory
+
+Owner gave a verbal CEO-level brief for a new feature: per-course-card
+admin-panel notifications ("3 Labs need grading"), where the lab is already
+pregraded by the student's actual on-the-job performance in the UI, the
+admin panel surfaces exactly what was missed and why, the instructor adds
+handwritten feedback per wrong item and sends it back to the student
+(triggering a redo), and a 70% minimum score gates pass/fail per lab, per
+module. Everything for this — the brief, a gap scan against the real
+codebase, and the sprint/decision tracker — lives in its own new directory,
+`lab-grading-notification-system/`, so it doesn't get mixed into the root
+docs above. **Read `lab-grading-notification-system/STATE.md` first** if
+picking this up.
+
+Scan confirmed real auto-scoring already exists per lab attempt
+(`recordLabAttempt()`, `portal/app.js:3332` — `score`/`result`/a hardcoded
+`pass_threshold: 70` already written per row) but **nothing** reads or
+enforces that threshold, no grading-queue/notification UI of any kind
+exists anywhere in `portal/app.js`, and the admin course-card component
+(`tile()`, line 741) is a single-line flex row with no room for a badge —
+matches the owner's own observation that the cards are too small. Full
+evidence in `lab-grading-notification-system/00_SCAN_AND_GAP_COMPARISON.md`.
+
+**Update, same day:** the owner resolved all 3 blocking decisions verbally
+(redo = full lab-attempt resubmission; feedback = instructor-authored free
+text per flagged item, never an auto-generated task list; notification
+badge = global to all admins for v1). Sprint 1 (admin panel core) got built
+— migration `20260913120000_lab_grading_review.sql`, a new "Grading" admin
+tab, per-course-card "N labs need grading" badges — and the owner then ran
+`supabase db push` themselves; **the migration is live** (confirmed via
+`supabase migration list --linked` and a direct column check). Sprint 2
+(student-facing redo) followed same session: `buildUserFromSession()` now
+fetches each student's open redos and `moduleCard()` (one shared function —
+zero edits needed across the 12 per-module files) shows a "Redo requested"
+banner with the instructor's feedback directly on that module's card.
+`node --check` clean; `bin/portal-check.js` needed a real fix (its Supabase
+stub didn't support `.not()`/`.in()`/`.order()`/`.limit()` chaining, added as
+generic no-ops) and now passes 38/38. **Also verified live in a real
+browser, full round trip, real production data:** admin sent one real
+`8987495051-SOCAN` attempt back with feedback (SOC Analyst card badge went
+38→37 live), confirmed the DB write directly, then signed in as that
+student and saw the exact feedback rendered as a red "Redo requested"
+banner on Module 02's card — also confirmed live that the module still
+shows green "Complete" alongside it (the known gap below). That training
+account's Module 02 now genuinely has an open redo, left in place as a
+demo rather than reverted. Still **not done**: wiring the
+70% `pass_threshold` into `moduleCompletion()`'s actual complete/not-complete
+logic — a module with a redo-flagged lab can still show green "Complete"
+today; that's a real, known gap, deliberately not touched given this repo's
+history of treating completion semantics as compliance-sensitive (see
+`20260901103000_completion_integrity_guards.sql`). Full detail in
+`lab-grading-notification-system/STATE.md`.
+
+Also spun out a sibling vision doc, `soc-analyst-track-reimagining/VISION.md`,
+reframing the track toward CySA+ and correcting an earlier-in-session claim
+that email header analysis wasn't built — it already is, in Module 07.
+Nothing from either sub-project was committed to git this session.
+
 ## ⚠ Uncommitted, finished work discovered 2026-09-10 — not from this session, needs an owner decision
 
 While closing out an unrelated session, `git status` turned up a large body

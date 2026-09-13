@@ -75,6 +75,15 @@ vm.runInContext(`
           builder._filters[column] = value;
           return builder;
         },
+        // Generic chainable no-ops: this harness never needs real filtering
+        // for these (every real query hits the fallback then() below, which
+        // just returns empty data), it only needs the chain to not throw —
+        // real supabase-js query builders stay chainable through all of
+        // these. Add more here if a future query shape needs one.
+        not: () => builder,
+        in: () => builder,
+        order: () => builder,
+        limit: () => builder,
         maybeSingle: async function() {
           if (this._table === 'students' && this._filters.user_id === 'stub-user2-id') {
             return {

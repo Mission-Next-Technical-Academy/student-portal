@@ -1,0 +1,206 @@
+# STATE — Lab Grading & Notification System (read this first, in this directory)
+
+**Last updated:** 2026-09-13 (later same day).
+**Status:** Sprints 1 and 2 built. Migration `20260913120000_lab_grading_review.sql`
+**is now pushed and live** on the linked project (owner ran it; confirmed via
+`supabase migration list --linked` and a live column check). Admin grading
+panel and student-facing redo banner are both wired against real, live
+schema.
+
+## Read in this order
+1. `INITIAL_BRIEF.md` — the CEO requirement, as given, verbatim-structured.
+2. `00_SCAN_AND_GAP_COMPARISON.md` — what already existed vs. the gap, before
+   this sprint's build (still accurate as a before/after reference).
+3. This file's "Sprint log" for what actually shipped.
+
+## The 3 blocking decisions — resolved by the owner, 2026-09-13
+1. **Redo granularity: whole-lab-attempt resubmission**, not per-parameter.
+   Owner's words: "we need a resubmission of the lab attempt." Built this
+   way — `redo_requested` is a flag on the attempt row, not a per-field
+   structure.
+2. **Feedback storage: instructor-authored, per flagged item, free text** —
+   not derived from a rigid per-parameter schema. Owner's framing: the
+   system's own result is a general *overview* (pass/fail per criterion,
+   fine to automate/instant), never a specific task list; the *specific*
+   corrective guidance is always handwritten by the instructor, at their
+   discretion. `lab_attempt_feedback` (one row per item: `item_label` +
+   `comment`) matches this directly.
+3. **Notification scope: global to all admins for v1** (no per-instructor/
+   cohort assignment system exists in this codebase yet to scope it
+   further) — not explicitly re-confirmed by the owner, kept as the
+   pragmatic default; revisit if multi-instructor scoping is ever needed.
+
+## What's built (Sprint 1 — admin panel core)
+- **Migration** `supabase/migrations/20260913120000_lab_grading_review.sql`:
+  adds `reviewed_at`/`reviewed_by`/`redo_requested` to `lab_attempts`, a new
+  `lab_attempt_feedback` table (append-only, one row per flagged item, RLS:
+  admin write, student read-own), an admin-update RLS policy on
+  `lab_attempts`, and the `admin_grading_queue` view (pregraded, unreviewed
+  attempts — `state='complete' and reviewed_at is null`).
+  **Verified** inside a rolled-back transaction against the linked project
+  (`supabase db query --linked --file <wrapped in BEGIN/ROLLBACK>`) —
+  applies cleanly, no errors. **Not pushed.**
+- **`portal/app.js`**: new "Grading" admin tab (eager-loaded, not lazy —
+  the badge must be visible before any tab is opened), listing every
+  pregraded, unreviewed lab attempt with its auto-scored result (raw JSON,
+  collapsible), a dynamic add-as-many feedback-item UI (label + comment per
+  wrong thing), and two actions: **Approve** (marks reviewed, no redo) and
+  **Send back for redo** (requires at least one feedback item, writes it,
+  sets `redo_requested = true`). Course-card tile (`adminTrackAdministrationStrip`/
+  `tile()`) now renders a red "N labs need grading" badge per track when its
+  pending count is above zero — the layout grew from single-line to a
+  two-row card only when there's something to show, addressing the "cards
+  are too small" observation directly.
+  **Verified:** `node --check portal/app.js` clean; `node bin/portal-check.js`
+  passes with no new failures.
+- **Not built this sprint, deliberately:** the student-facing side of a
+  redo (seeing the instructor's feedback, actually resubmitting the lab) —
+  admin panel core was the explicit scope ("it starts with that"). See
+  "Next sprint" below.
+
+## What's built (Sprint 2 — student-facing redo)
+- **`buildUserFromSession()`** (`portal/app.js`): after sign-in, fetches the
+  student's own `lab_attempts` and reduces to the single most-recent attempt
+  per `lab_key` — if that latest attempt has `redo_requested = true`, it's
+  still open (a resubmission is a new, later row via `recordLabAttempt()`,
+  which never upserts, so it naturally becomes "latest" and clears the
+  banner with no separate acknowledgment step). Attaches
+  `user.openLabRedosByModuleKey` (keyed by module, via `LABS`'s `module`
+  field) with the lab title and every `lab_attempt_feedback` item.
+- **`moduleCard()`** (the module tile on the program overview page — one
+  shared function, so this required zero edits to any of the 12 per-module
+  SOC/IT-support/AI-ML files): renders a red "Redo requested: <lab title>"
+  banner with the instructor's per-item feedback as a bullet list, right on
+  the specific module's card — same "notification on the specific card"
+  pattern as the admin side.
+- **Known limitation, not fixed this sprint:** `moduleCompletion()` (drives
+  the green "Complete" badge) does not check `redo_requested` or the 70%
+  `pass_threshold` at all — a module whose only lab attempt was sent back
+  for redo can still show green/"Complete" alongside the new red banner.
+  Wiring the 70% gate into actual completion status (and what that does to
+  the hour-credit/compliance-snapshot pipeline this repo treats very
+  carefully — see `20260901103000_completion_integrity_guards.sql`) is a
+  separate, bigger decision, deliberately not made here.
+- **Verified:** `node --check portal/app.js` clean. `bin/portal-check.js`
+  required a real fix, not just a re-run — its Supabase stub didn't support
+  `.not()`/`.in()`/`.order()`/`.limit()` chaining (only `.eq()` existed),
+  which this sprint's queries use; added generic pass-through no-ops for
+  all four (all standard supabase-js v2 methods already used elsewhere in
+  this file, e.g. `.not()` at the cohorts fetch) and confirmed 38/38 module
+  and program-overview renders pass clean.
+
+**Live browser verification, 2026-09-13 (same session), full round trip —
+real production data, real training account:**
+1. Signed in as `7355312413-ADMIN` at `127.0.0.1:8768/#/admin` — the SOC
+   Analyst course card showed a real **"38 labs need grading"** badge, and
+   the Grading tab badge matched (38).
+2. Opened the Grading tab: real pregraded attempts listed, e.g.
+   `8987495051-SOCAN` · "Suspicious Authentication Investigation" · 75% /
+   70% to pass.
+3. Added one feedback item ("Missed IOC: risky sign-in from atypical
+   location" + full guidance text) and clicked **Send back for redo**. The
+   card vanished from the queue immediately and the badge dropped 38 → 37,
+   live, no refresh needed.
+4. Confirmed directly against the linked database: `lab_attempts.reviewed_at`/
+   `redo_requested` and the new `lab_attempt_feedback` row both wrote
+   correctly with the exact text entered.
+5. Signed out, signed back in as the student (`8987495051-SOCAN`), opened
+   the SOC Analyst program page: **Module 02's card showed the red "Redo
+   requested: Suspicious Authentication Investigation" banner with the
+   exact feedback item, bullet-listed**, exactly as designed.
+6. Also visibly confirmed the known limitation below live: Module 02 still
+   showed a green "Complete" badge right next to the redo banner.
+
+This was a real write against a real student record — deliberately using
+`8987495051-SOCAN`, one of this project's existing rotatable training/UAT
+accounts (same one used for prior live UAT passes per `NEXT_SESSION.md`),
+not a real enrolled student. **That account's module 02 now genuinely shows
+an open redo** until someone (a real instructor, or a follow-up session)
+either resubmits that lab as that student or clears it — this was left in
+place rather than reverted, since it's a realistic, useful demo state, not
+accidental damage. Say the word if it should be cleared instead.
+
+## Card readability fix (2026-09-13, same session, owner feedback)
+Owner looked at the live cards and flagged that every Track Administration
+tile repeated the literal word "ADMINISTRATION" as an eyebrow label —
+redundant (the section header already says "Track Administration" once)
+and it was stealing the vertical room the real course name needed, which is
+why names were truncating ("ADMINISTR...", "SOC Anal..."). Removed the
+eyebrow line entirely from `tile()`/`adminTrackAdministrationStrip()`, made
+the course name the only label (wraps to a second line instead of
+truncating if needed), and loosened the grid from a flat `grid-cols-3
+md:grid-cols-6` to `grid-cols-2 md:grid-cols-3 lg:grid-cols-6` so each card
+gets more width at in-between sizes. Verified live: cards now read "All
+Students," "SOC Analyst," "IT Help Desk," "AI/ML Engineering" — full words,
+no truncation — with the "37 labs need grading" badge (one down from 38,
+confirming the earlier redo write persisted) sitting cleanly under the SOC
+Analyst name. `node --check` clean, `bin/portal-check.js` still 38/38.
+
+## Grading scoped to each course workspace (2026-09-13, same session, owner feedback)
+Owner asked, after opening the SOC Analyst card: "where are the labs for
+grading?" and then clarified directly — "grading must only exist inside of
+each course... separated for each instructor." The Grading tab had been
+showing on **both** the cross-track "All Students" view and every
+track-specific workspace, listing every track's pending items mixed
+together regardless of which one you were in — wrong per this framing (an
+instructor scoped to one course should only ever see that course's queue).
+
+**Fixed:** the Grading tab button and panel now render only inside a
+specific track workspace (`#/admin/track/<CODE>`) — gone entirely from "All
+Students." Its rows are filtered to `row.track_code === activeTrackCode`
+(new `trackGradingQueueRows`, viewAdmin). Also guarded: if the admin
+navigates back to "All Students" while the Grading tab was selected, the
+active-tab state now falls back to Student Progress instead of pointing at
+a tab that no longer exists in that view. The per-card "N labs need
+grading" badge stays visible from "All Students" too — that's the
+notification the whole feature is built around — but the actual grading
+workspace only opens once you're inside that course.
+
+**Verified live:** "All Students" no longer shows a Grading tab at all.
+Clicking into the SOC Analyst card shows "Grading 37" in its tab bar, and
+opening it lists only SOCAN attempts. `node --check` clean, `bin/portal-check.js`
+still 38/38.
+
+**Note for later:** "separated for each instructor" may go further than
+this — right now there's still only one admin role, not per-instructor
+accounts scoped to a specific course. This fix makes the *workspace*
+per-course; whether individual instructor logins should be restricted to
+only their assigned course(s) is a bigger access-control question, not
+addressed here.
+
+## Next sprint (not started)
+Wire the 70% `pass_threshold` into `moduleCompletion()`'s actual
+complete/not-complete logic (see "Known limitation" above) — needs an
+explicit owner decision given this repo's history of treating completion
+semantics as compliance-sensitive. This is now the only remaining open item
+from Sprints 1–2 — everything else has been built and verified live.
+
+## Working conventions for this sub-project
+- One directory, this one, for everything related to this specific feature
+  — don't scatter grading/notification docs back into the course root.
+- Sprint execution style matches the rest of this repo: one small task per
+  haiku-subagent sprint, reviewed and committed locally, never pushed
+  without being asked (`NEXT_SESSION.md`'s Module 01 entry, 2026-09-07, is
+  the reference pattern).
+- This repo auto-deploys to GitHub Pages on push to `master`, **and** this
+  session's Supabase writes hit the same live/linked project local dev
+  points at (no staging environment) — nothing from this feature is live
+  until a human explicitly says to push the migration.
+- Update this file's "Status" line and the sprint log at the end of every
+  sprint, so a token-limited session or a fresh one can resume cold — same
+  reason `NEXT_SESSION.md` exists at the course root.
+
+## Sprint log
+- 2026-09-13 — Sprint 0 (brief + scan). Done. See `INITIAL_BRIEF.md` and
+  `00_SCAN_AND_GAP_COMPARISON.md`.
+- 2026-09-13 (later same day) — Sprint 1 (admin panel core). Done, verified.
+  Owner resolved all 3 blocking decisions verbally mid-session (redo = full
+  resubmission; feedback = instructor-authored per item; notification scope
+  = global for v1).
+- 2026-09-13 (same session) — owner pushed `20260913120000_lab_grading_review.sql`
+  to the linked project (`supabase db push`, confirmed live).
+- 2026-09-13 (same session) — Sprint 2 (student-facing redo). Done.
+- 2026-09-13 (same session, Chrome connected) — full live browser
+  verification, admin send-back through to student banner, real round trip
+  against production. See "What's built" above for the exact steps. Only
+  remaining item: the 70%-completion-gate decision.

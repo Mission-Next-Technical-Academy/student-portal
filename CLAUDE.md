@@ -1,5 +1,23 @@
 # Read this first
 
+**New as of 2026-09-13:** a lab grading & notification system (per-card "N
+Labs need grading" badges scoped to each course's own workspace, pregraded-lab
+review, instructor per-mistake feedback + full-resubmission redo) was built,
+pushed, and verified live in a real browser — read
+`lab-grading-notification-system/STATE.md` first if picking this up. One
+real open item there: the 70% pass threshold isn't wired into actual
+module-completion status yet.
+
+A sibling curriculum project, `soc-analyst-track-reimagining/`, is still
+planning-only — read **that directory's `STATE.md` first**. After seeing the
+grading system live, the owner pushed back hard on lab depth and scoring:
+current labs read too shallow for a claimed multi-day module ("the triage
+must be the entire incident response lifecycle"), the whole 12-module lab
+set likely needs a structural redo, and scoring needs many weighted-section
+parameters rolling into one final score (real variance like 72% vs. 91% is
+correct, not a bug) — see `LAB_DEPTH_AND_SCORING_OVERHAUL.md`. Nothing in
+the curriculum itself has been rebuilt yet.
+
 **Before doing anything else this session, read `NEXT_SESSION.md`.** Its
 top-of-file handoff block is the current entry point for unfinished work
 (as of 2026-09-01: the idle sign-out timer turned out to have no

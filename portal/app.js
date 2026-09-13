@@ -117,6 +117,57 @@ async function buildUserFromSession(session) {
     }
   }
 
+  // Lab Grading & Notification System, Sprint 2 (see
+  // lab-grading-notification-system/STATE.md): a student's own open redos,
+  // keyed by module so moduleCard() can show the banner on the right card
+  // with zero per-module-file changes. "Open" = this lab's single most
+  // recent attempt (recordLabAttempt() never upserts — every attempt is a
+  // new row) is the one an instructor sent back. A resubmission is a brand
+  // new, later row; the moment it lands it becomes "most recent" and the
+  // redo clears on its own — no separate acknowledgment step needed.
+  let openLabRedosByModuleKey = {};
+  if (studentRow && studentRow.track_code) {
+    const { data: attemptRows, error: attemptsError } = await mntSupabase
+      .from('lab_attempts')
+      .select('id, lab_key, completed_at, redo_requested')
+      .eq('user_id', userId)
+      .eq('track_code', studentRow.track_code)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false });
+    if (attemptsError) {
+      console.error('buildUserFromSession: lab_attempts redo fetch failed', attemptsError);
+    } else {
+      const latestByLabKey = new Map();
+      (attemptRows || []).forEach((row) => {
+        if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
+      });
+      const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
+      if (openAttempts.length) {
+        const { data: feedbackRows, error: feedbackError } = await mntSupabase
+          .from('lab_attempt_feedback')
+          .select('lab_attempt_id, item_label, comment')
+          .in('lab_attempt_id', openAttempts.map((row) => row.id))
+          .order('created_at', { ascending: true });
+        if (feedbackError) console.error('buildUserFromSession: lab_attempt_feedback fetch failed', feedbackError);
+        const feedbackByAttemptId = new Map();
+        (feedbackRows || []).forEach((row) => {
+          const list = feedbackByAttemptId.get(row.lab_attempt_id) || [];
+          list.push(row);
+          feedbackByAttemptId.set(row.lab_attempt_id, list);
+        });
+        openAttempts.forEach((row) => {
+          const lab = LABS.find((l) => l.key === row.lab_key);
+          if (!lab) return; // stale/renamed lab key — nothing to point the student at
+          openLabRedosByModuleKey[lab.module] = {
+            labKey: row.lab_key,
+            labTitle: lab.title,
+            feedback: feedbackByAttemptId.get(row.id) || [],
+          };
+        });
+      }
+    }
+  }
+
   return {
     email: session.user.email,
     username: studentRow ? studentRow.student_id : session.user.email,
@@ -130,6 +181,7 @@ async function buildUserFromSession(session) {
     userId: session.user.id,
     trackCode: studentRow ? studentRow.track_code : null,
     remoteModuleProgress,
+    openLabRedosByModuleKey,
   };
 }
 
@@ -736,31 +788,100 @@ function programRequirementsComplete(row) {
   return programWorkItemProgress(row).percent >= 100;
 }
 
-function adminTrackAdministrationStrip(rows, activeTrackCode = null) {
+function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCountsByTrack = new Map()) {
   const allCount = rows.length;
-  const tile = ({ href, active, eyebrow, title, count, accentClass }) => `<a href="${href}" class="flex items-center justify-between gap-2 rounded-xl border ${active ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20 bg-[#f0f4f8]' : 'border-gray-200 bg-white hover:border-[#1e3a5f]/40'} px-3 py-2.5 transition">
-    <span class="min-w-0">
-      <span class="block text-[10px] font-semibold uppercase tracking-widest ${accentClass || 'text-gray-500'} truncate">${esc(eyebrow)}</span>
-      <span class="block text-sm font-bold text-[#1e3a5f] truncate">${esc(title)}</span>
+  // Card grows from a single row to a two-row layout only when there's a
+  // notification to show — cards with nothing pending keep the original
+  // compact layout. (2026-09-13: the original single-line px-3 py-2.5 tile
+  // had no room for this at all — see lab-grading-notification-system/
+  // 00_SCAN_AND_GAP_COMPARISON.md.)
+  // No eyebrow label here anymore (2026-09-13): every card previously
+  // repeated the literal word "Administration" — pure redundancy, since the
+  // section header right above already says "Track Administration" once for
+  // all of them — and it was eating the vertical room the real course name
+  // needed, forcing names like "AI/ML Engineering" into an ellipsis. The
+  // course name is now the only label, full words, wrapping to a second
+  // line instead of truncating if it doesn't fit on one.
+  const tile = ({ href, active, title, count, accentClass, pendingGrading }) => `<a href="${href}" class="flex flex-col gap-1.5 rounded-xl border ${active ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20 bg-[#f0f4f8]' : 'border-gray-200 bg-white hover:border-[#1e3a5f]/40'} px-3 py-2.5 transition">
+    <span class="flex items-start justify-between gap-2">
+      <span class="min-w-0 text-sm font-bold ${accentClass || 'text-[#1e3a5f]'} leading-snug">${esc(title)}</span>
+      <span class="flex-shrink-0 text-xs font-semibold text-gray-500 whitespace-nowrap">${esc(count)}<i class="ri-arrow-right-s-line ml-0.5 align-middle" aria-hidden="true"></i></span>
     </span>
-    <span class="flex-shrink-0 text-xs font-semibold text-gray-500 whitespace-nowrap">${esc(count)}<i class="ri-arrow-right-s-line ml-0.5 align-middle" aria-hidden="true"></i></span>
+    ${pendingGrading > 0 ? `<span class="inline-flex items-center gap-1 self-start rounded-full bg-[#fef2f2] text-[#b91c1c] text-[11px] font-semibold px-2 py-0.5"><i class="ri-error-warning-line" aria-hidden="true"></i>${pendingGrading} lab${pendingGrading === 1 ? '' : 's'} need grading</span>` : ''}
   </a>`;
   const trackTile = (track) => {
     const count = rows.filter((row) => row.track_code === track.code).length;
     return tile({
       href: `#/admin/track/${track.code}`,
       active: activeTrackCode === track.code,
-      eyebrow: 'Administration',
       title: track.eyebrow,
       count: track.comingSoon ? 'Coming soon' : `${count} student${count === 1 ? '' : 's'}`,
+      pendingGrading: gradingCountsByTrack.get(track.code) || 0,
     });
   };
   return `<section aria-labelledby="track-administration-title" class="order-2 mb-4"><div class="flex items-end justify-between gap-4 border-b border-gray-200 pb-3 mb-3"><div><p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-1">Administration workspaces</p><h2 id="track-administration-title" class="text-lg font-bold text-[#1e3a5f]">Track Administration</h2></div></div>
-    <div class="grid grid-cols-3 md:grid-cols-6 gap-2">
-      ${tile({ href: '#/admin', active: !activeTrackCode, eyebrow: 'Administration', title: 'All Students', count: `${allCount} student${allCount === 1 ? '' : 's'}` })}
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+      ${tile({ href: '#/admin', active: !activeTrackCode, title: 'All Students', count: `${allCount} student${allCount === 1 ? '' : 's'}` })}
       ${ADMIN_TRACKS.map(trackTile).join('')}
-      ${tile({ href: 'm360/review.html', active: false, eyebrow: 'Administration', title: 'M360', count: 'Open', accentClass: 'text-[#f97316]' })}
+      ${tile({ href: 'm360/review.html', active: false, title: 'M360', count: 'Open', accentClass: 'text-[#f97316]' })}
     </div></section>`;
+}
+
+/* Grading tab: a pregraded lab attempt is not a blank submission — score/
+ * result/pass_threshold already exist (recordLabAttempt(), pass_threshold
+ * hardcoded to 70). The auto-scored result is an OVERVIEW (pass/fail per
+ * criterion), never a specific corrective task list — the instructor writes
+ * the specific "what to do differently" by hand, per flagged item, at their
+ * discretion (owner's framing, 2026-09-13). Sending back always requests a
+ * full resubmission of the lab attempt, not a per-field patch. See
+ * lab-grading-notification-system/ for the brief and schema decisions. */
+function adminGradingQueuePanel(gradingQueueRows) {
+  if (!gradingQueueRows || gradingQueueRows.length === 0) {
+    return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Grading</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div>
+      <div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">Nothing waiting on review. Every completed lab attempt has been graded.</p></div>`;
+  }
+  return `<div class="mb-6">
+      <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Grading</h2>
+      <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
+      <p class="text-gray-500 text-sm">${gradingQueueRows.length} completed lab attempt${gradingQueueRows.length === 1 ? '' : 's'} awaiting review. The score below is the system's own pregraded result — your job is to confirm it, flag anything it missed, and (if it's not passing) send back specific, written guidance for a redo.</p>
+    </div>
+    <div class="space-y-4">
+      ${gradingQueueRows.map((row) => {
+        const threshold = row.pass_threshold ?? 70;
+        const hasScore = row.score !== null && row.score !== undefined;
+        const passing = hasScore && Number(row.score) >= Number(threshold);
+        const trackMeta = adminTrackMeta(row.track_code);
+        const resultJson = (() => { try { return JSON.stringify(row.result || {}, null, 2); } catch { return '{}'; } })();
+        return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}">
+          <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+            <div class="min-w-0">
+              <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p>
+              <p class="text-sm text-gray-600 mt-0.5">${esc(adminLabLabel(row.lab_key))} <span class="text-gray-400">·</span> ${esc(trackMeta ? trackMeta.eyebrow : row.track_code)}</p>
+              <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
+            </div>
+            <span class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${!hasScore ? 'bg-gray-100 text-gray-600' : passing ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}">
+              ${hasScore ? `${esc(String(row.score))}%` : 'No score'} <span class="opacity-60">/ ${esc(String(threshold))}% to pass</span>
+            </span>
+          </div>
+          <details class="mb-3 text-sm">
+            <summary class="cursor-pointer font-semibold text-[#1e3a5f]">System result overview (auto-scored)</summary>
+            <pre class="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-x-auto">${esc(resultJson)}</pre>
+          </details>
+          <div data-feedback-items class="space-y-2 mb-2">
+            <div class="feedback-item grid sm:grid-cols-2 gap-2">
+              <input type="text" data-feedback-label placeholder="What was wrong (instructor's own words)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
+              <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"></textarea>
+            </div>
+          </div>
+          <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
+          <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+            <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve</button>
+            <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(row.id)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Send back for redo</button>
+            <span data-grading-status class="text-xs text-gray-500"></span>
+          </div>
+        </article>`;
+      }).join('')}
+    </div>`;
 }
 
 function adminProgramRosterChip(label, value, tone) {
@@ -4057,6 +4178,7 @@ function moduleCard(program, key, user) {
     ? 'Module complete: module content opened and every lab completed'
     : 'Module not complete: open the module content and complete every lab';
   const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' ? 'Continue Module' : 'Start Module';
+  const openRedo = (user.openLabRedosByModuleKey || {})[key];
 
   return `
   <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${unlocked ? '' : 'mnt-locked'}" data-module-card>
@@ -4076,6 +4198,10 @@ function moduleCard(program, key, user) {
         </div>
         <h3 class="text-[#1e3a5f] font-bold text-base leading-snug mb-2">${esc(m.title)}</h3>
         <p class="text-gray-500 text-sm leading-relaxed mb-3">${esc(m.summary)}</p>
+        ${openRedo ? `<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+          <p class="text-xs font-semibold text-red-700 flex items-center gap-1.5"><i class="ri-error-warning-line" aria-hidden="true"></i>Redo requested: ${esc(openRedo.labTitle)}</p>
+          ${openRedo.feedback.length ? `<ul class="mt-1.5 space-y-1 text-xs text-red-700/90 list-disc list-inside">${openRedo.feedback.map((f) => `<li>${f.item_label ? `<strong>${esc(f.item_label)}:</strong> ` : ''}${esc(f.comment)}</li>`).join('')}</ul>` : `<p class="mt-1 text-xs text-red-700/80">Your instructor sent this back — open the module to see what to redo.</p>`}
+        </div>` : ''}
         <div class="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
           ${m.durationMinutes ? `<span><i class="ri-time-line"></i> ${formatInstructionalMinutes(m.durationMinutes)}</span>` : ''}
           ${curriculumItems.length ? `<span><i class="ri-book-open-line"></i> ${curriculumItems.length} Curriculum Block${curriculumItems.length === 1 ? '' : 's'}</span>` : ''}
@@ -4939,9 +5065,17 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const cohortStudentCounts = (extra && extra.cohortStudentCounts) || new Map();
   const archivedStudents = (extra && extra.archivedStudents) || [];
   const siteSessionsByStudentId = (extra && extra.siteSessionsByStudentId) || new Map();
+  const gradingQueueRows = (extra && extra.gradingQueueRows) || [];
+  const gradingCountsByTrack = new Map();
+  gradingQueueRows.forEach((row) => gradingCountsByTrack.set(row.track_code, (gradingCountsByTrack.get(row.track_code) || 0) + 1));
   const activeCohorts = cohorts.filter((c) => !c.archived_at);
-  const activeTab = (extra && extra.activeTab) || 'progress';
   const activeTrackCode = (extra && extra.activeTrackCode) || null;
+  // The Grading tab only exists inside a track workspace (below) — if the
+  // admin left that workspace (e.g. back to "All Students") while still on
+  // Grading, fall back to Student Progress rather than rendering a
+  // still-"active" tab whose panel no longer exists in the DOM at all.
+  const requestedTab = (extra && extra.activeTab) || 'progress';
+  const activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
   const rosterRows = activeTrackCode ? rows.filter((row) => row.track_code === activeTrackCode) : rows;
   // The All Students workspace intentionally retains its cross-track detail
@@ -4949,6 +5083,16 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const detailStudents = activeTrackCode
     ? (activeStudents || []).filter((row) => row.track_code === activeTrackCode)
     : (activeStudents || []);
+  // Grading lives inside each course's own workspace, not as a cross-track
+  // list — an instructor scoped to one course should only ever see that
+  // course's queue (owner's framing, 2026-09-13: "separated for each
+  // instructor"). The per-card badge on the Track Administration strip
+  // still shows from the All Students view (that's the whole point of the
+  // notification), but the actual Grading tab only exists once you're
+  // inside a specific track's workspace.
+  const trackGradingQueueRows = activeTrackCode
+    ? gradingQueueRows.filter((row) => row.track_code === activeTrackCode)
+    : [];
   const tabIsActive = (key) => key === activeTab;
   const tabBtnClass = (key) =>
     `admin-tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 cursor-pointer ${
@@ -5024,6 +5168,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           </button>
           <button type="button" role="tab" aria-selected="${tabIsActive('cohorts')}" data-admin-tab="cohorts" class="${tabBtnClass('cohorts')}">Cohorts</button>
           <button type="button" role="tab" aria-selected="${tabIsActive('archived')}" data-admin-tab="archived" class="${tabBtnClass('archived')}">Archived Students</button>
+          ${activeTrackCode ? `<button type="button" role="tab" aria-selected="${tabIsActive('grading')}" data-admin-tab="grading" class="${tabBtnClass('grading')}">
+            Grading${trackGradingQueueRows.length ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700">${trackGradingQueueRows.length}</span>` : ''}
+          </button>` : ''}
         </div>
 
         <div id="admin-tab-panel-progress" ${tabIsActive('progress') ? '' : 'hidden'}>
@@ -5245,7 +5392,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    </div></div>
                  </div>
                  ` : ''}
-                 ${adminTrackAdministrationStrip(rows, activeTrackCode)}
+                 ${adminTrackAdministrationStrip(rows, activeTrackCode, gradingCountsByTrack)}
                  ${activeTrack ? `<section class="order-3 bg-[#f8fafc] border border-gray-200 rounded-xl p-4 mb-4"><h2 class="text-lg font-bold text-[#1e3a5f]">${esc(activeTrack.title)} summary</h2><p class="text-sm text-gray-600 mt-1">${rosterRows.filter((r) => r.enrolled !== false).length} enrolled · ${rosterRows.filter((r) => (r.modules_complete || 0) === 0 && (r.modules_in_progress || 0) === 0).length} not started · ${rosterRows.filter((r) => (r.modules_complete || 0) >= 12).length} technical complete · ${rosterRows.filter((r) => r.m360_course_complete).length} M360 complete · ${rosterRows.filter((r) => Number(r.work_items_completed || 0) >= 18 && !r.m360_course_complete).length} verification pending</p></section>` : ''}
                  ${activeTrackCode ? adminProgramRoster(rosterRows) : ''}
                  ${!activeTrackCode ? `
@@ -5545,6 +5692,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           }
         </div>
 
+        ${activeTrackCode ? `<div id="admin-tab-panel-grading" ${tabIsActive('grading') ? '' : 'hidden'}>
+          ${adminGradingQueuePanel(trackGradingQueueRows)}
+        </div>` : ''}
+
         <div class="mt-8">
           <a href="#/portal" class="inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-6 py-3 rounded-xl transition-colors">
             <i class="ri-arrow-left-line"></i> Back to My Programs
@@ -5701,6 +5852,7 @@ async function render(options = {}) {
   let dashboardRows = [];
   let activeStudents = [];
   let cheatingFlagsByUserId = new Map();
+  let gradingQueueRows = [];
   if (hash === '#/admin' || adminTrackMatch) {
     if (!user.isAdmin) {
       history.replaceState(null, '', '#/portal');
@@ -5739,6 +5891,18 @@ async function render(options = {}) {
         adminRosterSnapshot = { route: hash, dashboardRows };
       }
 
+      // Grading queue: deliberately NOT cached/lazy like activity/cohorts/
+      // archived below. It backs the per-course-card "N Labs need grading"
+      // badge, which must be current on every admin render, not just after
+      // the Grading tab has been opened once. Small, bounded result set
+      // (only reviewed_at is null rows — the view itself is the queue).
+      const gradingResult = await mntSupabase
+        .from('admin_grading_queue')
+        .select('id, user_id, student_id, track_code, lab_key, score, pass_threshold, result, started_at, completed_at')
+        .order('completed_at', { ascending: true });
+      if (gradingResult.error) console.error('admin_grading_queue fetch failed', gradingResult.error);
+      gradingQueueRows = gradingResult.data || [];
+
       // Secondary activity, completion-speed, cohort, archive, session, and
       // query-telemetry reads are intentionally deferred until their tab is
       // selected. The roster view already exposes module/M360 progress, which
@@ -5762,6 +5926,7 @@ async function render(options = {}) {
         cheatingFlagsByUserId,
         activeTab: adminActiveTab,
         activeTrackCode: adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null,
+        gradingQueueRows,
       }));
     }
     if (!isCurrentRouteRender(renderGeneration)) return;
@@ -5772,7 +5937,7 @@ async function render(options = {}) {
     const wiredActiveStudents = adminTrackMatch && adminTrackMeta(adminTrackMatch[1])
       ? activeStudents.filter((row) => row.track_code === adminTrackMatch[1])
       : activeStudents;
-    wireAdmin(wiredRows, wiredActiveStudents, cheatingFlagsByUserId);
+    wireAdmin(wiredRows, wiredActiveStudents, cheatingFlagsByUserId, gradingQueueRows);
     app.setAttribute('aria-busy', 'false');
     window.scrollTo(0, 0);
     return;
@@ -6080,10 +6245,11 @@ async function ensureAdminLazyTab(tab, options = {}) {
   return adminLazyTabData[tab];
 }
 
-function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
+function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, gradingQueueRows) {
   dashboardRows = dashboardRows || [];
   activeStudents = activeStudents || [];
   cheatingFlagsByUserId = cheatingFlagsByUserId || new Map();
+  gradingQueueRows = gradingQueueRows || [];
 
   const tabButtons = document.querySelectorAll('[data-admin-tab]');
   const tabPanels = {
@@ -6091,6 +6257,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
     activity: document.getElementById('admin-tab-panel-activity'),
     cohorts: document.getElementById('admin-tab-panel-cohorts'),
     archived: document.getElementById('admin-tab-panel-archived'),
+    grading: document.getElementById('admin-tab-panel-grading'),
   };
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -6105,7 +6272,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId) {
         b.classList.toggle('text-gray-500', !active);
       });
       Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
-      if (target !== 'progress' && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
+      if (target !== 'progress' && target !== 'grading' && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
         await ensureAdminLazyTab(target);
         await render({ reuseAdminRoster: true });
       }
@@ -6379,6 +6546,80 @@ Track:      ${esc(account.track_code)}</pre>
       }
     });
   }
+
+  /* Grading tab: per-attempt "+ Add another item" (client-side only, adds a
+   * blank label/comment pair), "Approve" (mark reviewed, no redo — score is
+   * already passing), and "Send back for redo" (writes every non-blank
+   * feedback item to lab_attempt_feedback, then marks the attempt reviewed
+   * with redo_requested = true, requesting a full resubmission of the lab
+   * attempt — never a per-field patch, per the owner's framing). Both
+   * actions need the admin's own auth uid for reviewed_by/created_by, same
+   * session-access idiom callAdminProvision() already uses above. */
+  document.querySelectorAll('[data-action="admin-grading-add-item"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const container = btn.closest('article').querySelector('[data-feedback-items]');
+      const item = document.createElement('div');
+      item.className = 'feedback-item grid sm:grid-cols-2 gap-2';
+      item.innerHTML = `<input type="text" data-feedback-label placeholder="What was wrong (instructor's own words)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
+        <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"></textarea>`;
+      container.appendChild(item);
+    });
+  });
+
+  async function submitGradingDecision(attemptId, article, { redo }) {
+    const statusEl = article.querySelector('[data-grading-status]');
+    const buttons = article.querySelectorAll('button[data-action^="admin-grading-"]');
+    buttons.forEach((b) => { b.disabled = true; });
+    if (statusEl) statusEl.textContent = redo ? 'Sending back…' : 'Approving…';
+    try {
+      const { data: { session } } = await mntSupabase.auth.getSession();
+      const adminUserId = session && session.user && session.user.id;
+      if (!adminUserId) throw new Error('No active admin session. Sign in again and retry.');
+
+      const feedbackItems = Array.from(article.querySelectorAll('[data-feedback-items] .feedback-item'))
+        .map((row) => ({
+          item_label: row.querySelector('[data-feedback-label]').value.trim(),
+          comment: row.querySelector('[data-feedback-comment]').value.trim(),
+        }))
+        .filter((item) => item.item_label || item.comment);
+
+      if (redo && feedbackItems.length === 0) {
+        throw new Error('Add at least one feedback item before sending back — the student needs to know what to redo and why.');
+      }
+
+      if (feedbackItems.length > 0) {
+        const { error: feedbackError } = await mntSupabase.from('lab_attempt_feedback').insert(
+          feedbackItems.map((item) => ({
+            lab_attempt_id: attemptId,
+            item_label: item.item_label || '(untitled item)',
+            comment: item.comment,
+            created_by: adminUserId,
+          }))
+        );
+        if (feedbackError) throw feedbackError;
+      }
+
+      const { error: reviewError } = await mntSupabase
+        .from('lab_attempts')
+        .update({ reviewed_at: new Date().toISOString(), reviewed_by: adminUserId, redo_requested: !!redo })
+        .eq('id', attemptId);
+      if (reviewError) throw reviewError;
+
+      if (statusEl) statusEl.textContent = redo ? 'Sent back. Refreshing…' : 'Approved. Refreshing…';
+      await render({ reuseAdminRoster: true });
+      return; // render() rebuilt the DOM and re-wired everything; this node set is stale now.
+    } catch (err) {
+      buttons.forEach((b) => { b.disabled = false; });
+      if (statusEl) statusEl.textContent = `Failed: ${err && err.message ? err.message : String(err)}`;
+    }
+  }
+
+  document.querySelectorAll('[data-action="admin-grading-approve"]').forEach((btn) => {
+    btn.addEventListener('click', () => submitGradingDecision(btn.dataset.attemptId, btn.closest('article'), { redo: false }));
+  });
+  document.querySelectorAll('[data-action="admin-grading-send-back"]').forEach((btn) => {
+    btn.addEventListener('click', () => submitGradingDecision(btn.dataset.attemptId, btn.closest('article'), { redo: true }));
+  });
 
   /* Activity Monitor tab: per-row "Sign out" button, calling
    * admin_force_sign_out() (20260901122000_activity_monitor_sessions.sql) via
