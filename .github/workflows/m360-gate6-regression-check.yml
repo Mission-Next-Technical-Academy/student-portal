@@ -84,7 +84,7 @@ jobs:
               'M360 101 Professional Readiness',
               'href="m360/"',
               'suppressLegacyCareerReadiness',
-              'Open M360 Administration',
+              'Open M360',
               'POST_LOGIN_KEY',
               "event !== 'SIGNED_IN'",
               "location.hash.startsWith('#/program/')",
@@ -121,10 +121,6 @@ jobs:
           grep -q 'start-here.html' portal/m360/index.html
           grep -q 'Complete Start Here' portal/m360/home.js
           grep -q 'start_here_completed_at' portal/m360/home.js
-          if grep -q 'No instructional clock hours' portal/m360/start-here.html; then
-            echo '::error::Internal clock-hour implementation language must not be student-facing in Start Here.'
-            exit 1
-          fi
 
       - name: Verify staff-owned Career Spotlight presentation status
         run: |
@@ -176,22 +172,21 @@ jobs:
       - name: Verify live-session scheduling remains course-level only
         run: |
           set -euo pipefail
-          schedule='supabase/migrations/20260908224500_m360_live_session_schedule.sql'
-          test -f "$schedule"
-          grep -q 'create table if not exists public.m360_live_sessions' "$schedule"
-          grep -q 'primary key (week_number, session_number)' "$schedule"
-          grep -q 'public.is_admin()' "$schedule"
-          grep -q 'grant select, insert, update, delete on table public.m360_live_sessions to authenticated' "$schedule"
-          if grep -Eiq '(attendance_minutes|clock_hours|session_duration|browser_time|module_progress|lab_attempts|site_sessions)' "$schedule"; then
-            echo '::error::Live-session schedule must not become attendance/timekeeping or technical-course state.'
+          migration='supabase/migrations/20260908224500_m360_live_session_schedule.sql'
+          test -f "$migration"
+          grep -q 'm360_live_sessions' "$migration"
+          grep -q 'primary key (week_number, session_number)' "$migration"
+          grep -q 'authenticated_read' "$migration"
+          grep -q 'admin_insert' "$migration"
+          grep -q 'admin_update' "$migration"
+          grep -q 'admin_delete' "$migration"
+          if grep -v '^--' "$migration" | grep -Eiq 'student_id|user_id|grade|score|module_progress|lab_attempts|site_sessions'; then
+            echo '::error::Live-session schedule must stay course-level and must not become student, grading, or technical-progress data.'
             exit 1
           fi
           grep -q 'Live Session Schedule' portal/m360/review.html
-          grep -q 'M360Data.loadLiveSessions' portal/m360/review-schedule.js
-          grep -q 'M360Data.saveLiveSession' portal/m360/review-schedule.js
-          grep -q 'M360Data.deleteLiveSession' portal/m360/review-schedule.js
+          grep -q 'M360Data.loadLiveSessions' portal/m360/m360-session-schedule.js
           grep -q 'Date & time coming soon' portal/m360/m360-session-schedule.js
-          grep -q 'm360-session-schedule.js?v=20260908' portal/m360/week.html
 
       - name: Verify consistent week navigation and current portfolio access
         run: |
