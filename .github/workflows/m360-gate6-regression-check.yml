@@ -180,7 +180,7 @@ jobs:
           grep -q 'admin_insert' "$migration"
           grep -q 'admin_update' "$migration"
           grep -q 'admin_delete' "$migration"
-          if grep -Eiq 'student_id|user_id|grade|score|module_progress|lab_attempts|site_sessions' "$migration"; then
+          if grep -v '^--' "$migration" | grep -Eiq 'student_id|user_id|grade|score|module_progress|lab_attempts|site_sessions'; then
             echo '::error::Live-session schedule must stay course-level and must not become student, grading, or technical-progress data.'
             exit 1
           fi
