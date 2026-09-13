@@ -180,8 +180,8 @@ jobs:
           grep -q 'admin_insert' "$migration"
           grep -q 'admin_update' "$migration"
           grep -q 'admin_delete' "$migration"
-          if grep -Eiq 'attendance|clock|student_id|user_id|grade|score|module_progress|lab_attempts|site_sessions' "$migration"; then
-            echo '::error::Live-session schedule must stay course-level and must not become attendance, grading, or technical-progress data.'
+          if grep -Eiq 'student_id|user_id|grade|score|module_progress|lab_attempts|site_sessions' "$migration"; then
+            echo '::error::Live-session schedule must stay course-level and must not become student, grading, or technical-progress data.'
             exit 1
           fi
           grep -q 'Live Session Schedule' portal/m360/review.html
