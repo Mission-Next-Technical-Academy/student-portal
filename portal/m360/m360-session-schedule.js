@@ -57,16 +57,19 @@
   async function resolveCohortId(context) {
     const requested=String(params.get('cohort')||'').trim();
     if (context.isAdmin && requested) return requested;
-    const {data,error}=await mntSupabase.from('students').select('cohort_id').eq('user_id',context.userId).maybeSingle();
+    if (context.cohortId) return context.cohortId;
+    if (!context.isAdmin) return '';
+
+    const today=new Date().toISOString().slice(0,10);
+    const {data:cohorts,error}=await mntSupabase
+      .from('cohorts')
+      .select('id,name,start_date,end_date,archived_at')
+      .is('archived_at',null)
+      .order('start_date',{ascending:true});
     if(error)throw error;
-    if(data?.cohort_id)return data.cohort_id;
-    if(context.isAdmin){
-      const today=new Date().toISOString().slice(0,10);
-      const {data:cohorts,error:cohortError}=await mntSupabase.from('cohorts').select('id,name,start_date,end_date,archived_at').is('archived_at',null).gte('start_date',today).order('start_date',{ascending:true}).limit(10);
-      if(cohortError)throw cohortError;
-      return (cohorts||[]).find(c=>!/dev|test/i.test(c.name||''))?.id||'';
-    }
-    return '';
+    const real=(cohorts||[]).filter(c=>!/dev|test/i.test(c.name||''));
+    const active=real.find(c=>c.start_date<=today&&(!c.end_date||c.end_date>=today));
+    return active?.id||real.find(c=>c.start_date>=today)?.id||real[0]?.id||'';
   }
 
   async function init() {
@@ -76,13 +79,7 @@
       if(!context.authenticated||(!context.eligible&&!context.isAdmin))return;
       const cohortId=await resolveCohortId(context);
       if(!cohortId){render([]);return;}
-      const {data,error}=await mntSupabase.from('m360_live_sessions')
-        .select('week_number,session_number,session_date,session_time,timezone_label')
-        .eq('cohort_id',cohortId)
-        .order('week_number',{ascending:true})
-        .order('session_number',{ascending:true});
-      if(error)throw error;
-      render(data||[]);
+      render(await M360Data.loadLiveSessions(cohortId));
     }catch(error){console.warn('M360 live-session schedule unavailable',error);render([]);}
   }
 
