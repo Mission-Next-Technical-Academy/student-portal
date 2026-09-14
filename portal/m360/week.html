@@ -24,6 +24,7 @@
         dataScript: 'm360-data.js?v=20260914',
         bridgeScript: 'm360-production-bridge.js?v=20260904g',
         navScript: 'm360-production-nav.js?v=20260907',
+        polishLoaderScript: 'm360-ui-polish-loader.js?v=20260914',
         polishScript: 'm360-ui-polish.js?v=20260913',
         scheduleScript: 'm360-session-schedule.js?v=20260914'
       };
@@ -38,6 +39,7 @@
           dataScript: 'm360/m360-data.js?v=20260914',
           bridgeScript: 'm360/m360-production-bridge.js?v=20260904g',
           navScript: 'm360/m360-production-nav.js?v=20260907',
+          polishLoaderScript: 'm360/m360-ui-polish-loader.js?v=20260914',
           polishScript: 'm360/m360-ui-polish.js?v=20260913',
           scheduleScript: 'm360/m360-session-schedule.js?v=20260914'
         },
@@ -57,14 +59,15 @@
         .then(response => { if (!response.ok) throw new Error('Template request failed'); return response.text(); })
         .then(html => {
           if (!config.originalPattern.test(html)) throw new Error('Expected week script was not found');
-          html = html.replace(/<head>/i, `<head><base href="${config.base}">`);
+          const productionShellStyles = '<style id="m360ProductionShellStyles">.preview-pill,.demo-boundary,.qa-banner,#acceptDemoBtn,#needsRevisionDemoBtn,#resetAcceptanceBtn,#clearBtn,#meetsStandardBtn,#needsRevisionBtn,#resetReviewBtn,#clearWeek2Btn{display:none!important}</style>';
+          html = html.replace(/<head>/i, `<head><base href="${config.base}">${productionShellStyles}`);
           const runtime = [
             `<script src="${config.supabaseScript}"><\/script>`,
             `<script src="${config.configScript}"><\/script>`,
             `<script src="${config.dataScript}"><\/script>`,
             `<script src="${config.bridgeScript}" data-week="${week}" data-local-script="${config.localScript}"><\/script>`,
             `<script src="${config.navScript}"><\/script>`,
-            `<script src="${config.polishScript}"><\/script>`,
+            `<script src="${config.polishLoaderScript}" data-polish-src="${config.polishScript}"><\/script>`,
             `<script src="${config.scheduleScript}"><\/script>`
           ].join('\n');
           html = html.replace(config.originalPattern, runtime);
