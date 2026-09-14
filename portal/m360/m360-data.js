@@ -51,7 +51,7 @@
 
       const { data: student, error: studentError } = await mntSupabase
         .from('students')
-        .select('student_id, user_id, track_code, is_admin, is_enrolled')
+        .select('student_id, user_id, track_code, is_admin, is_enrolled, cohort_id')
         .eq('user_id', session.user.id)
         .single();
 
@@ -70,6 +70,7 @@
         userId: session.user.id,
         studentId: student.student_id,
         trackCode: student.track_code,
+        cohortId: student.cohort_id || null,
         isAdmin: Boolean(student.is_admin),
         isEnrolled: student.is_enrolled !== false,
         eligible: student.is_enrolled !== false && ELIGIBLE_TRACKS.has(student.track_code),
@@ -195,7 +196,7 @@
   }
 
   async function loadSubmittedForReview(trackCode = null) {
-    const context = await requireAdminContext();
+    await requireAdminContext();
     await requireSchema();
 
     const { data: rows, error: rowsError } = await mntSupabase
@@ -261,20 +262,31 @@
     return clone(data);
   }
 
-  async function loadLiveSessions() {
+  function scheduleCohort(context, requestedCohortId = null) {
+    const requested = String(requestedCohortId || '').trim();
+    if (context.isAdmin && requested) return requested;
+    return String(context.cohortId || '').trim();
+  }
+
+  async function loadLiveSessions(cohortId = null) {
     const context = await getContext();
     if (!context.authenticated) throw new Error('Sign in to view the M360 live-session schedule.');
+    const targetCohort = scheduleCohort(context, cohortId);
+    if (!targetCohort) return [];
     const { data, error } = await mntSupabase
       .from('m360_live_sessions')
-      .select('week_number, session_number, session_date, session_time, timezone_label, updated_at')
+      .select('cohort_id, week_number, session_number, session_date, session_time, timezone_label, updated_at')
+      .eq('cohort_id', targetCohort)
       .order('week_number', { ascending: true })
       .order('session_number', { ascending: true });
     if (error) throw new Error(publicError(error, 'M360 live-session schedule is unavailable.'));
     return clone(data || []);
   }
 
-  async function saveLiveSession(weekNumber, sessionNumber, sessionDate, sessionTime, timezoneLabel = 'ET') {
+  async function saveLiveSession(weekNumber, sessionNumber, sessionDate, sessionTime, timezoneLabel = 'ET', cohortId = null) {
     const context = await requireAdminContext();
+    const targetCohort = scheduleCohort(context, cohortId);
+    if (!targetCohort) throw new Error('Select a cohort before saving the M360 schedule.');
     const week = Number(weekNumber);
     const session = Number(sessionNumber);
     const date = String(sessionDate || '').trim();
@@ -288,6 +300,7 @@
     const { data, error } = await mntSupabase
       .from('m360_live_sessions')
       .upsert({
+        cohort_id: targetCohort,
         week_number: week,
         session_number: session,
         session_date: date,
@@ -295,20 +308,23 @@
         timezone_label: zone.slice(0, 16),
         updated_by: context.userId,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'week_number,session_number' })
-      .select('week_number, session_number, session_date, session_time, timezone_label, updated_at')
+      }, { onConflict: 'cohort_id,week_number,session_number' })
+      .select('cohort_id, week_number, session_number, session_date, session_time, timezone_label, updated_at')
       .single();
     if (error) throw new Error(publicError(error, 'Unable to save the live-session schedule.'));
     return clone(data);
   }
 
-  async function deleteLiveSession(weekNumber, sessionNumber) {
-    await requireAdminContext();
+  async function deleteLiveSession(weekNumber, sessionNumber, cohortId = null) {
+    const context = await requireAdminContext();
+    const targetCohort = scheduleCohort(context, cohortId);
+    if (!targetCohort) throw new Error('Select a cohort before clearing the M360 schedule.');
     const week = Number(weekNumber);
     const session = Number(sessionNumber);
     const { error } = await mntSupabase
       .from('m360_live_sessions')
       .delete()
+      .eq('cohort_id', targetCohort)
       .eq('week_number', week)
       .eq('session_number', session);
     if (error) throw new Error(publicError(error, 'Unable to clear the live-session schedule.'));

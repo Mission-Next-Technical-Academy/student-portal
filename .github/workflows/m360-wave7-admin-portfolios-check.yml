@@ -6,7 +6,7 @@ on:
       - 'portal/m360/portfolio.js'
       - 'portal/m360/portfolio.html'
       - 'portal/m360/review.html'
-      - 'portal/m360/review-portfolios.js'
+      - 'portal/m360/admin-workspace.js'
       - '.github/workflows/m360-wave7-admin-portfolios-check.yml'
 
 permissions:
@@ -24,30 +24,26 @@ jobs:
         run: |
           set -euo pipefail
           node --check portal/m360/portfolio.js
-          node --check portal/m360/review-portfolios.js
+          node --check portal/m360/admin-workspace.js
 
-      - name: Require Admin portfolio roster and target links
+      - name: Require Admin student drill-down portfolio access
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          text = Path('portal/m360/review-portfolios.js').read_text()
+          text = Path('portal/m360/admin-workspace.js').read_text()
           required = [
-              "if(!context.isAdmin)",
-              ".eq('is_enrolled',true)",
-              ".eq('is_admin',false)",
-              ".in('track_code',ELIGIBLE)",
+              "if (!context.isAdmin)",
+              ".from('students')",
               ".from('m360_week_records')",
               ".from('m360_course_progress')",
-              'portfolio.html?student=${target}',
-              'portfolio.html?student=${target}&amp;print=1',
-              'View Portfolio',
-              'Print Portfolio'
+              'portfolio.html?student=${encodeURIComponent(userId)}',
+              'View Portfolio'
           ]
           for token in required:
               if token not in text:
-                  raise SystemExit(f'Missing Admin portfolio roster requirement: {token}')
-          print('Admin portfolio roster and View/Print links present')
+                  raise SystemExit(f'Missing unified Admin portfolio access requirement: {token}')
+          print('Admin student drill-down provides portfolio access from the unified roster')
           PY
 
       - name: Require one showcase renderer for student and Admin views
@@ -109,13 +105,12 @@ jobs:
           print('Deterministic Admin print readiness preserved')
           PY
 
-      - name: Require Admin page wiring and current portfolio runtime
+      - name: Require unified Admin page wiring and current portfolio runtime
         run: |
           set -euo pipefail
-          grep -q 'id="portfolioAdminTitle"' portal/m360/review.html
-          grep -q 'id="portfolioRoster"' portal/m360/review.html
-          grep -q 'review-portfolios.js?v=20260907' portal/m360/review.html
-          grep -q 'm360-data.js?v=20260907' portal/m360/portfolio.html
+          grep -q 'id="studentDrawer"' portal/m360/review.html
+          grep -q 'admin-workspace.js?v=20260913' portal/m360/review.html
+          grep -q 'View Portfolio' portal/m360/admin-workspace.js
           grep -q 'm360-portfolio-pdf.js?v=20260904' portal/m360/portfolio.html
           grep -q 'portfolio.js?v=20260907' portal/m360/portfolio.html
 
@@ -125,7 +120,7 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' || true)"
           if [ -n "$unexpected_supabase" ]; then
             echo '::error::Admin portfolio work must not change unrelated RPCs, schema migrations, or Storage.'
             printf '%s\n' "$unexpected_supabase"

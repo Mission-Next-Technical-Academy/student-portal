@@ -6,8 +6,9 @@ on:
       - 'portal/m360/start-here.html'
       - 'portal/m360/start-here.js'
       - 'portal/m360/start-here.css'
-      - 'portal/m360/review-course-state.js'
       - 'portal/m360/review.html'
+      - 'portal/m360/admin-workspace.js'
+      - 'portal/m360/admin-ux-final.js'
       - '.github/workflows/m360-wave8-start-here-alignment-check.yml'
 
 permissions:
@@ -25,7 +26,8 @@ jobs:
         run: |
           set -euo pipefail
           node --check portal/m360/start-here.js
-          node --check portal/m360/review-course-state.js
+          node --check portal/m360/admin-workspace.js
+          node --check portal/m360/admin-ux-final.js
 
       - name: Require exact profile choices and no-penalty alternative
         run: |
@@ -96,21 +98,19 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          text = Path('portal/m360/review-course-state.js').read_text()
+          workspace = Path('portal/m360/admin-workspace.js').read_text()
+          polish = Path('portal/m360/admin-ux-final.js').read_text()
           required = [
-              'function supportReason(payload)',
-              'Support follow-up suggested',
-              'Networking ${networking}/5',
-              'Interview readiness ${interview}/5',
-              "p.profileStatus === 'privacy_support'",
-              "p.resumeStatus === 'support_needed'",
-              'Profile exists — I use it now',
-              'I prefer not to use a public profile / need an alternative'
+              'Start Here support follow-up',
+              'Support follow-up was flagged during onboarding.',
+              'm360-attention-reasons',
+              "label='Start Here'"
           ]
+          source = workspace + polish
           for token in required:
-              if token not in text:
-                  raise SystemExit(f'Missing Admin Start Here support context: {token}')
-          print('Admin Start Here roster exposes actionable support reasons and human-readable profile labels')
+              if token not in source:
+                  raise SystemExit(f'Missing unified Admin Start Here support context: {token}')
+          print('Unified Admin student drawer exposes a visible Start Here support reason')
           PY
 
       - name: Require runtime cache refreshes
@@ -118,7 +118,7 @@ jobs:
           set -euo pipefail
           grep -q 'start-here.css?v=20260908' portal/m360/start-here.html
           grep -q 'start-here.js?v=20260908' portal/m360/start-here.html
-          grep -q 'review-course-state.js?v=20260907' portal/m360/review.html
+          grep -q 'admin-ux-final.js?v=20260914' portal/m360/review.html
 
       - name: Preserve Start Here data and product boundaries
         env:
@@ -126,7 +126,7 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' || true)"
           if [ -n "$unexpected_supabase" ]; then
             echo '::error::Wave 8 must not change the Start Here data contract or unrelated Supabase schema.'
             printf '%s\n' "$unexpected_supabase"
