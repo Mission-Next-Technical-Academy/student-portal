@@ -1,0 +1,67 @@
+name: M360 Release Gate
+
+on:
+  pull_request:
+    paths:
+      - 'portal/m360/**'
+      - 'portal/m360-preview.*'
+      - 'supabase/migrations/**m360**'
+      - 'tests/m360-runtime.spec.js'
+      - '.github/workflows/m360-*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: M360 Release Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify academic-control migrations and UI wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f supabase/migrations/20260914221720_m360_version_enrollment_binding.sql
+          test -f supabase/migrations/20260914221910_m360_attendance_completion_records.sql
+          test -f supabase/migrations/20260914222000_m360_controlled_rpcs_and_progress.sql
+          test -f supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql
+          grep -q 'm360_admin_set_attendance_evidence' supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql
+          grep -q 'm360_admin_finalize_course' supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql
+          grep -q 'ready_to_finalize' supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql
+          grep -q 'admin-academic-controls.js' portal/m360/review.html
+          grep -q 'Record M360 Attendance Evidence' portal/m360/admin-academic-controls.js
+          grep -q 'Finalize M360 Completion' portal/m360/admin-academic-controls.js
+          ! grep -q 'Local mock adapter · not production data' portal/m360/week.html
+      - name: Verify least-privilege contract is represented in migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'revoke insert,update,delete,truncate,trigger,references on public.m360_course_records from authenticated' supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql
+          grep -q 'revoke execute on function public.m360_require_active_enrollment' supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql
+
+  browser:
+    name: M360 Browser Regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save @playwright/test@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - name: Start local portal
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/m360-http.log 2>&1 &
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:4173/portal/m360/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/m360-http.log
+          exit 1
+      - name: Run authenticated-shell browser regression
+        env:
+          M360_TEST_BASE_URL: http://127.0.0.1:4173
+        run: npx playwright test tests/m360-runtime.spec.js --reporter=line
