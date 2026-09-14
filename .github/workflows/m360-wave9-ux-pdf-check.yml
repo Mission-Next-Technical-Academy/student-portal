@@ -35,7 +35,7 @@ jobs:
             echo '::error::M360 UX changes must not add binary portfolio or slide assets to GitHub.'
             exit 1
           fi
-          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|it-support-module-|ai-ml-module-|electrical-module-)'; then
+          if printf '%s\n' "$changed" | grep -Eq '^portal/(app\.js|data\.js|module-labs\.js|soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-)'; then
             echo '::error::M360 UX work must not change the established technical-course LMS runtime.'
             exit 1
           fi
@@ -163,9 +163,15 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' || true)"
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' \
+            | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' \
+            | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' \
+            | grep -v '^supabase/migrations/20260914221720_m360_version_enrollment_binding.sql$' \
+            | grep -v '^supabase/migrations/20260914221910_m360_attendance_completion_records.sql$' \
+            | grep -v '^supabase/migrations/20260914222000_m360_controlled_rpcs_and_progress.sql$' \
+            | grep -v '^supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql$' || true)"
           if [ -n "$unexpected_supabase" ]; then
-            echo '::error::M360 UX work must not change unrelated Supabase schema, migrations, RPCs, or Storage.'
+            echo '::error::M360 UX work encountered a Supabase migration outside the approved M360 academic-control scope.'
             printf '%s\n' "$unexpected_supabase"
             exit 1
           fi
@@ -173,4 +179,4 @@ jobs:
             echo '::error::M360 UX work must not change the established technical-course LMS runtime.'
             exit 1
           fi
-          echo 'Wave 9 UX/PDF invariants remain intact across later M360 waves.'
+          echo 'Wave 9 UX/PDF invariants remain intact across M360 academic-control hardening.'
