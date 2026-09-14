@@ -25,6 +25,7 @@ jobs:
           set -euo pipefail
           node --check portal/m360/portfolio.js
           node --check portal/m360/admin-workspace.js
+          node --check portal/m360/admin-academic-controls.js
 
       - name: Require Admin student drill-down portfolio access
         run: |
@@ -110,6 +111,7 @@ jobs:
           set -euo pipefail
           grep -q 'id="studentDrawer"' portal/m360/review.html
           grep -q 'admin-workspace.js?v=20260913' portal/m360/review.html
+          grep -q 'admin-academic-controls.js?v=20260914' portal/m360/review.html
           grep -q 'View Portfolio' portal/m360/admin-workspace.js
           grep -q 'm360-portfolio-pdf.js?v=20260904' portal/m360/portfolio.html
           grep -q 'portfolio.js?v=20260907' portal/m360/portfolio.html
@@ -120,7 +122,13 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' || true)"
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' \
+            | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' \
+            | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' \
+            | grep -v '^supabase/migrations/20260914221720_m360_version_enrollment_binding.sql$' \
+            | grep -v '^supabase/migrations/20260914221910_m360_attendance_completion_records.sql$' \
+            | grep -v '^supabase/migrations/20260914222000_m360_controlled_rpcs_and_progress.sql$' \
+            | grep -v '^supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql$' || true)"
           if [ -n "$unexpected_supabase" ]; then
             echo '::error::Admin portfolio work must not change unrelated RPCs, schema migrations, or Storage.'
             printf '%s\n' "$unexpected_supabase"
