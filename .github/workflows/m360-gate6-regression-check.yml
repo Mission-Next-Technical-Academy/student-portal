@@ -39,10 +39,9 @@ jobs:
           node --check portal/m360/m360-production-nav.js
           node --check portal/m360/m360-ui-polish.js
           node --check portal/m360/m360-session-schedule.js
-          node --check portal/m360/review.js
-          node --check portal/m360/review-course-state.js
-          node --check portal/m360/review-attendance.js
           node --check portal/m360/review-schedule.js
+          node --check portal/m360/admin-workspace.js
+          node --check portal/m360/admin-ux-final.js
           node --check portal/m360-entry.js
 
       - name: Protect technical LMS boundary
@@ -58,7 +57,7 @@ jobs:
             echo '::error::M360 changes must not modify technical LMS runtime.'
             exit 1
           fi
-          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' | grep -v '^supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql$' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' | grep -v '^supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql$' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' || true)"
           if [ -n "$unexpected_migrations" ]; then
             echo '::error::Unexpected migration in M360 Gate 6 scope.'
             printf '%s\n' "$unexpected_migrations"
@@ -134,12 +133,12 @@ jobs:
             exit 1
           fi
           grep -q 'You do not self-report presentation status here' portal/m360/week6.html
-          grep -q 'Career Spotlight Presentation Verification' portal/m360/review.html
-          grep -q 'saveSpotlightChangesBtn' portal/m360/review.html
-          grep -q 'presented_live' portal/m360/review-course-state.js
-          grep -q 'approved_makeup_completed' portal/m360/review-course-state.js
-          grep -q 'approved_exception_completed' portal/m360/review-course-state.js
-          grep -q 'M360Data.setSpotlightPresentation' portal/m360/review-course-state.js
+          grep -q 'bulkSpotlightBtn' portal/m360/review.html
+          grep -q 'Update Spotlight' portal/m360/review.html
+          grep -q 'presented_live' portal/m360/admin-workspace.js
+          grep -q 'approved_makeup_completed' portal/m360/admin-workspace.js
+          grep -q 'approved_exception_completed' portal/m360/admin-workspace.js
+          grep -q 'M360Data.setSpotlightPresentation' portal/m360/admin-workspace.js
           if grep -q "row('Presentation status'" portal/m360/portfolio.js; then
             echo '::error::Staff verification must not be exported into the showcase portfolio.'
             exit 1
@@ -169,23 +168,27 @@ jobs:
             exit 1
           fi
 
-      - name: Verify live-session scheduling remains course-level only
+      - name: Verify live-session scheduling is cohort-specific and scheduling-only
         run: |
           set -euo pipefail
-          migration='supabase/migrations/20260908224500_m360_live_session_schedule.sql'
-          test -f "$migration"
-          grep -q 'm360_live_sessions' "$migration"
-          grep -q 'primary key (week_number, session_number)' "$migration"
-          grep -q 'authenticated_read' "$migration"
-          grep -q 'admin_insert' "$migration"
-          grep -q 'admin_update' "$migration"
-          grep -q 'admin_delete' "$migration"
-          if grep -v '^--' "$migration" | grep -Eiq 'student_id|user_id|grade|score|module_progress|lab_attempts|site_sessions'; then
-            echo '::error::Live-session schedule must stay course-level and must not become student, grading, or technical-progress data.'
+          base='supabase/migrations/20260908224500_m360_live_session_schedule.sql'
+          cohort='supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql'
+          test -f "$base"
+          test -f "$cohort"
+          grep -q 'm360_live_sessions' "$cohort"
+          grep -q 'add column if not exists cohort_id uuid' "$cohort"
+          grep -q 'primary key (cohort_id, week_number, session_number)' "$cohort"
+          grep -q 'm360_live_sessions_cohort_id_fkey' "$cohort"
+          grep -q 'm360_live_sessions_cohort_read' "$cohort"
+          grep -q 's.cohort_id = m360_live_sessions.cohort_id' "$cohort"
+          grep -q 'revoke truncate, references, trigger' "$cohort"
+          if grep -Eiq 'module_progress|lab_attempts|site_sessions|final_grade|numeric_score' "$cohort"; then
+            echo '::error::Live-session scheduling must remain separate from technical progress and academic grading records.'
             exit 1
           fi
-          grep -q 'Live Session Schedule' portal/m360/review.html
-          grep -q 'M360Data.loadLiveSessions' portal/m360/m360-session-schedule.js
+          grep -q 'Save Cohort Schedule' portal/m360/review.html
+          grep -q 'M360Data.loadLiveSessions(cohortId)' portal/m360/review-schedule.js
+          grep -q "eq('cohort_id', targetCohort)" portal/m360/m360-data.js
           grep -q 'Date & time coming soon' portal/m360/m360-session-schedule.js
 
       - name: Verify consistent week navigation and current portfolio access
@@ -206,7 +209,7 @@ jobs:
           for token in required:
               if token not in nav:
                   raise SystemExit(f'Missing consistency-pass navigation requirement: {token}')
-          if 'm360-data.js?v=20260908' not in loader or 'week6.js?v=20260904a' not in loader:
+          if 'm360-data.js?v=20260914' not in loader or 'week6.js?v=20260904a' not in loader:
               raise SystemExit('Week loader must bust changed M360 data and Week 6 assets')
           if "get('download')==='1'" not in portfolio or 'setTimeout(printPortfolio' not in portfolio:
               raise SystemExit('Current-portfolio link must print only after authenticated portfolio rendering')
@@ -245,17 +248,13 @@ jobs:
       - name: Verify bulk attendance verification path
         run: |
           set -euo pipefail
-          grep -q 'M360 Attendance Verification' portal/m360/review.html
-          grep -q 'saveAttendanceChangesBtn' portal/m360/review.html
-          grep -q 'data-roster-status' portal/m360/review-attendance.js
-          grep -q 'Promise.allSettled' portal/m360/review-attendance.js
-          grep -q 'M360Data.setAttendance' portal/m360/review-attendance.js
-          if grep -q 'data-roster-save' portal/m360/review-attendance.js; then
-            echo '::error::Attendance roster must not retain per-student save buttons.'
-            exit 1
-          fi
-          if grep -Eiq 'attendance_minutes|clock_hours|session_duration|browser_time' portal/m360/review-attendance.js portal/m360/review.html; then
-            echo '::error::Attendance roster must not introduce session-level time fields.'
+          grep -q 'bulkAttendanceBtn' portal/m360/review.html
+          grep -q 'Verify Attendance' portal/m360/review.html
+          grep -q 'bulkAttendanceReference' portal/m360/admin-workspace.js
+          grep -q 'M360Data.setAttendance' portal/m360/admin-workspace.js
+          grep -q 'controlled external attendance record reference' portal/m360/admin-workspace.js
+          if grep -Eiq 'attendance_minutes|clock_hours|session_duration|browser_time' portal/m360/admin-workspace.js portal/m360/review.html; then
+            echo '::error::Attendance administration must not introduce session-level time fields.'
             exit 1
           fi
 
