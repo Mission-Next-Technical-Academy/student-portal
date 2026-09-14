@@ -28,6 +28,7 @@ jobs:
           node --check portal/m360/start-here.js
           node --check portal/m360/admin-workspace.js
           node --check portal/m360/admin-ux-final.js
+          node --check portal/m360/admin-academic-controls.js
 
       - name: Require exact profile choices and no-penalty alternative
         run: |
@@ -119,6 +120,7 @@ jobs:
           grep -q 'start-here.css?v=20260908' portal/m360/start-here.html
           grep -q 'start-here.js?v=20260908' portal/m360/start-here.html
           grep -q 'admin-ux-final.js?v=20260914' portal/m360/review.html
+          grep -q 'admin-academic-controls.js?v=20260914' portal/m360/review.html
 
       - name: Preserve Start Here data and product boundaries
         env:
@@ -126,9 +128,15 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' || true)"
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' \
+            | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' \
+            | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' \
+            | grep -v '^supabase/migrations/20260914221720_m360_version_enrollment_binding.sql$' \
+            | grep -v '^supabase/migrations/20260914221910_m360_attendance_completion_records.sql$' \
+            | grep -v '^supabase/migrations/20260914222000_m360_controlled_rpcs_and_progress.sql$' \
+            | grep -v '^supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql$' || true)"
           if [ -n "$unexpected_supabase" ]; then
-            echo '::error::Wave 8 must not change the Start Here data contract or unrelated Supabase schema.'
+            echo '::error::Wave 8 encountered a Supabase migration outside the approved M360 academic-control scope.'
             printf '%s\n' "$unexpected_supabase"
             exit 1
           fi
@@ -136,4 +144,4 @@ jobs:
             echo '::error::Wave 8 must not change the established technical-course LMS runtime.'
             exit 1
           fi
-          echo 'Wave 8 preserves the existing Start Here data contract, grading model, and technical-course runtime.'
+          echo 'Wave 8 preserves Start Here student payload semantics and technical-course runtime while allowing controlled M360 academic-record hardening.'
