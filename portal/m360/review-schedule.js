@@ -6,17 +6,19 @@
   let original = new Map();
   let cohortId = '';
   let cohortName = '';
+  let refreshToken = 0;
 
   const el = id => document.getElementById(id);
   const key = (week, session) => `${week}:${session}`;
   const rowKey = row => key(Number(row.week_number), Number(row.session_number));
   const normalizeTime = value => String(value || '').trim().slice(0, 5);
+  const escapeHtml = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
 
   function selectedCohort() {
     const select = el('cohortSelect');
     return {
       id: String(select?.value || '').trim(),
-      name: String(select?.selectedOptions?.[0]?.textContent || '').replace(/ · \w{3} \d{1,2}, \d{4}.*/, '').trim()
+      name: String(select?.selectedOptions?.[0]?.textContent || '').split(' · ')[0].trim()
     };
   }
 
@@ -26,10 +28,6 @@
     cohortName = selected.name || 'Selected cohort';
     const note = el('m360ScheduleCohortNote');
     if (note) note.innerHTML = `<strong>${escapeHtml(cohortName)}</strong> schedule only. Changes here do not affect another cohort.`;
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
   }
 
   function scheduleSlot(week, session) {
@@ -66,7 +64,6 @@
   function valuesFor(week, session) {
     const slotKey = key(week, session);
     return {
-      cohort_id: cohortId,
       week_number: week,
       session_number: session,
       session_date: document.querySelector(`[data-schedule-date="${slotKey}"]`)?.value || '',
@@ -100,30 +97,30 @@
     }
   }
 
-  async function loadRows() {
-    if (!cohortId) return [];
-    const {data, error} = await mntSupabase.from('m360_live_sessions')
-      .select('cohort_id,week_number,session_number,session_date,session_time,timezone_label,updated_at')
-      .eq('cohort_id', cohortId)
-      .order('week_number',{ascending:true})
-      .order('session_number',{ascending:true});
-    if (error) throw error;
-    return data || [];
-  }
-
   async function refresh() {
     setCohortFromUi();
+    const token = ++refreshToken;
     const button = el('refreshScheduleBtn');
     if (button) button.disabled = true;
-    if (!cohortId) { hydrate([]); setStatus('Select a cohort to manage its schedule.'); if (button) button.disabled=false; return; }
+    if (!cohortId) {
+      hydrate([]);
+      setStatus('Select a cohort to manage its schedule.');
+      if (button) button.disabled = false;
+      return;
+    }
     setStatus(`Loading ${cohortName} schedule…`);
     try {
-      hydrate(await loadRows());
+      const rows = await M360Data.loadLiveSessions(cohortId);
+      if (token !== refreshToken) return;
+      hydrate(rows);
       setStatus(`${cohortName} schedule loaded.`, 'success');
     } catch (error) {
+      if (token !== refreshToken) return;
       console.error('M360 cohort schedule load failed', error);
       setStatus(error.message || 'Unable to load this cohort schedule.', 'error');
-    } finally { if (button) button.disabled = false; }
+    } finally {
+      if (token === refreshToken && button) button.disabled = false;
+    }
   }
 
   function changedSlots() {
@@ -155,32 +152,33 @@
     if (button) button.disabled=true;
     setStatus(`Saving ${changes.length} change${changes.length===1?'':'s'} to ${cohortName}…`);
     try {
-      const context=await M360Data.getContext();
       for (const item of changes) {
         if (!item.session_date && !item.session_time) {
-          const {error}=await mntSupabase.from('m360_live_sessions').delete()
-            .eq('cohort_id',cohortId).eq('week_number',item.week_number).eq('session_number',item.session_number);
-          if (error) throw error;
+          await M360Data.deleteLiveSession(item.week_number, item.session_number, cohortId);
         } else {
-          const {error}=await mntSupabase.from('m360_live_sessions').upsert({
-            cohort_id:cohortId,
-            week_number:item.week_number,
-            session_number:item.session_number,
-            session_date:item.session_date,
-            session_time:item.session_time.slice(0,5),
-            timezone_label:item.timezone_label.slice(0,16),
-            updated_by:context.userId,
-            updated_at:new Date().toISOString()
-          }, {onConflict:'cohort_id,week_number,session_number'});
-          if (error) throw error;
+          await M360Data.saveLiveSession(item.week_number, item.session_number, item.session_date, item.session_time, item.timezone_label, cohortId);
         }
       }
-      hydrate(await loadRows());
+      hydrate(await M360Data.loadLiveSessions(cohortId));
       setStatus(`${cohortName} schedule saved. Other cohorts were not changed.`, 'success');
     } catch (error) {
       console.error('M360 cohort schedule save failed', error);
       setStatus(error.message || 'Unable to save this cohort schedule.', 'error');
     } finally { if (button) button.disabled=false; }
+  }
+
+  function observeCohortPopulation() {
+    const select = el('cohortSelect');
+    if (!select) return;
+    let lastValue = select.value;
+    const observer = new MutationObserver(() => {
+      const nextValue = select.value;
+      if (nextValue && nextValue !== lastValue) {
+        lastValue = nextValue;
+        refresh();
+      }
+    });
+    observer.observe(select, {childList:true,subtree:true});
   }
 
   async function init() {
@@ -192,6 +190,7 @@
       el('refreshScheduleBtn')?.addEventListener('click', refresh);
       el('saveScheduleChangesBtn')?.addEventListener('click', saveAll);
       el('cohortSelect')?.addEventListener('change', refresh);
+      observeCohortPopulation();
       await refresh();
     } catch (error) {
       console.error('M360 cohort schedule initialization failed', error);
