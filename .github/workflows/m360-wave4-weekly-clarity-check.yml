@@ -92,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' || true)"
+          unexpected_supabase="$(printf '%s\n' "$changed" | grep '^supabase/' | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' || true)"
           if [ -n "$unexpected_supabase" ]; then
             echo '::error::M360 clarity changes must not change unrelated Supabase schema, migrations, or Storage.'
             printf '%s\n' "$unexpected_supabase"
