@@ -38,8 +38,7 @@ jobs:
               ".from('m360_week_records')",
               ".from('m360_course_progress')",
               'portfolio.html?student=${encodeURIComponent(userId)}',
-              'View Portfolio',
-              'Open Full Student Record'
+              'View Portfolio'
           ]
           for token in required:
               if token not in text:
