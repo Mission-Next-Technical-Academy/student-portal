@@ -852,6 +852,23 @@ function adminGradingQueuePanel(gradingQueueRows) {
         const passing = hasScore && Number(row.score) >= Number(threshold);
         const trackMeta = adminTrackMeta(row.track_code);
         const resultJson = (() => { try { return JSON.stringify(row.result || {}, null, 2); } catch { return '{}'; } })();
+        const resultBreakdown = row.result && typeof row.result.breakdown === 'object' && !Array.isArray(row.result.breakdown)
+          ? Object.entries(row.result.breakdown)
+          : [];
+        const hasReadableBreakdown = resultBreakdown.length > 0;
+        const resultFeedback = hasReadableBreakdown && Array.isArray(row.result.feedback)
+          ? row.result.feedback.filter((item) => typeof item === 'string' && item.trim())
+          : [];
+        const readableResult = hasReadableBreakdown ? `<div class="mb-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+            <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System score breakdown</p>
+            <dl class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">
+              ${resultBreakdown.map(([key, value]) => {
+                const label = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+                return `<div class="grid grid-cols-2 gap-3 px-3 py-2"><dt class="text-gray-600">${esc(label)}</dt><dd class="text-right font-semibold text-[#1e3a5f]">${esc(String(value))}</dd></div>`;
+              }).join('')}
+            </dl>
+            ${resultFeedback.length ? `<div class="mt-3"><p class="text-xs font-semibold text-gray-600 mb-1">Auto-scored feedback</p><ul class="list-disc space-y-1 pl-5 text-xs text-gray-600">${resultFeedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
+          </div>` : '';
         return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}">
           <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
             <div class="min-w-0">
@@ -863,8 +880,9 @@ function adminGradingQueuePanel(gradingQueueRows) {
               ${hasScore ? `${esc(String(row.score))}%` : 'No score'} <span class="opacity-60">/ ${esc(String(threshold))}% to pass</span>
             </span>
           </div>
+          ${readableResult}
           <details class="mb-3 text-sm">
-            <summary class="cursor-pointer font-semibold text-[#1e3a5f]">System result overview (auto-scored)</summary>
+            <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>
             <pre class="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-x-auto">${esc(resultJson)}</pre>
           </details>
           <div data-feedback-items class="space-y-2 mb-2">
