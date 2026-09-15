@@ -14,9 +14,13 @@ multi-day module ("the triage must be the entire incident response
 lifecycle"), the whole 12-module lab set likely needs a structural redo,
 and scoring needs many weighted-section parameters rolling into one final
 score (real variance like 72% vs. 91% is correct, not a bug) — see
-`LAB_DEPTH_AND_SCORING_OVERHAUL.md`. Nothing in the curriculum itself has
-been rebuilt yet; the next step is resolving that document's 4 open
-questions before writing a rebuild plan.
+`LAB_DEPTH_AND_SCORING_OVERHAUL.md`. **As of 2026-09-15**, the required
+code audit of Modules 02–12 against that bar is done
+(`MODULE_DEPTH_AUDIT.md`) — the sectioned/weighted scoring already exists
+in every module's code, it's just never surfaced; real gaps are narrower
+than feared. Nothing in the curriculum itself has been rebuilt yet; still
+blocked on the owner resolving the (now audit-informed) open questions
+before writing a rebuild plan.
 
 **Before doing anything else this session, read `NEXT_SESSION.md`.** Its
 top-of-file handoff block is the current entry point for unfinished work

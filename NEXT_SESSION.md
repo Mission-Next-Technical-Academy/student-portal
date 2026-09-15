@@ -18,9 +18,17 @@ Full detail: `lab-grading-notification-system/STATE.md` (now marked DONE,
 nothing left open in that directory).
 
 **Next real work:** `soc-analyst-track-reimagining/` — read that
-directory's `STATE.md` first. Still planning-only: the lab depth/scoring
-overhaul has 4 open questions that need the owner before a rebuild plan can
-be written (see `LAB_DEPTH_AND_SCORING_OVERHAUL.md`).
+directory's `STATE.md` first, then `MODULE_DEPTH_AUDIT.md` (new,
+2026-09-15): the required Module 02–12 code audit against
+`LAB_DEPTH_AND_SCORING_OVERHAUL.md`'s bar is done. Headline finding: every
+module's lab already scores as named weighted sections rolling into one
+final score with real variance — structurally close to what was asked for;
+it's just never surfaced to anyone, and containment/triage aren't always
+scored as their own stage. Also found Modules 09–12 already run one
+continuous incident across 4 modules, a design fork the original 4 open
+questions didn't anticipate. Still blocked on the owner resolving those
+questions (now audit-informed) before any rebuild plan gets written — see
+that file's own open-questions section.
 
 ## 2026-09-13 (later same day) — grading UI polish, course-scoping fix, and a real curriculum-depth pushback
 
