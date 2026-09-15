@@ -1,6 +1,28 @@
 # Next session — start here
 
-## 2026-09-13 (later same day) — grading UI polish, course-scoping fix, and a real curriculum-depth pushback — start with `soc-analyst-track-reimagining/STATE.md`
+## 2026-09-15 — redo-completion gate shipped, closes out lab-grading-notification-system — active work now `soc-analyst-track-reimagining/STATE.md`
+
+The last open item from the grading/notification system (below) is done:
+`moduleCompletion()` in `portal/app.js` now returns `complete: false` when
+a module has an open instructor-requested redo
+(`user.openLabRedosByModuleKey[moduleKey]`), so the green "Complete" badge
+can no longer show next to a red "Redo requested" banner. Built via a
+scoped `codex exec` sub-agent task (one function, reviewed/tested/committed
+by the orchestrating session), verified via `node --check` +
+`bin/portal-check.js` (38/38) and a standalone `node:vm` unit check that
+called the real `moduleCompletion()` directly and confirmed the gate alone
+flips `complete` `true → false` with every other returned field identical.
+Chrome extension wasn't connected this session so the usual live-browser
+round trip wasn't done — flag if you want that as a follow-up sanity check.
+Full detail: `lab-grading-notification-system/STATE.md` (now marked DONE,
+nothing left open in that directory).
+
+**Next real work:** `soc-analyst-track-reimagining/` — read that
+directory's `STATE.md` first. Still planning-only: the lab depth/scoring
+overhaul has 4 open questions that need the owner before a rebuild plan can
+be written (see `LAB_DEPTH_AND_SCORING_OVERHAUL.md`).
+
+## 2026-09-13 (later same day) — grading UI polish, course-scoping fix, and a real curriculum-depth pushback
 
 Two small live-verified fixes to the grading system below: (1) the Track
 Administration cards repeated the literal word "ADMINISTRATION" as an

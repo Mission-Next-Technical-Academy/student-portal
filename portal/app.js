@@ -3553,6 +3553,8 @@ function recordCapstoneSubmission(user, { score, answers = {}, criticalErrorCoun
     .catch((err) => console.error('capstone_submissions upsert threw', user.trackCode, err));
 }
 
+// An instructor-requested redo keeps the module incomplete until the learner
+// resubmits; see lab-grading-notification-system/STATE.md.
 function moduleCompletion(program, moduleKey, user) {
   const module = program.modules[moduleKey];
   const fixtureState = (user.progress || {})[moduleKey] || 'not_started';
@@ -3595,7 +3597,9 @@ function moduleCompletion(program, moduleKey, user) {
       && state.completed === true && state.consoleCompleted === true
       && state.lab2?.completed === true;
   })();
-  const complete = module.status !== 'draft' && contentOpened && allLabsComplete && moduleOneRequirementsComplete;
+  const hasOpenLabRedo = !!(user.openLabRedosByModuleKey && user.openLabRedosByModuleKey[moduleKey]);
+  const complete = module.status !== 'draft' && contentOpened && allLabsComplete
+    && moduleOneRequirementsComplete && !hasOpenLabRedo;
   return { complete, contentOpened, allLabsComplete, fixtureState, module };
 }
 

@@ -1,11 +1,13 @@
 # STATE — Lab Grading & Notification System (read this first, in this directory)
 
-**Last updated:** 2026-09-13 (later same day).
-**Status:** Sprints 1 and 2 built. Migration `20260913120000_lab_grading_review.sql`
-**is now pushed and live** on the linked project (owner ran it; confirmed via
-`supabase migration list --linked` and a live column check). Admin grading
-panel and student-facing redo banner are both wired against real, live
-schema.
+**Last updated:** 2026-09-15.
+**Status: DONE.** Sprints 1, 2, and 3 (the 70%/redo completion gate) are all
+built and verified. Migration `20260913120000_lab_grading_review.sql` is
+pushed and live on the linked project. Admin grading panel, student-facing
+redo banner, and the module-completion gate are all wired against real, live
+schema. Nothing open in this directory. Active work has moved to the sibling
+project, `../soc-analyst-track-reimagining/` — read that directory's
+`STATE.md` next.
 
 ## Read in this order
 1. `INITIAL_BRIEF.md` — the CEO requirement, as given, verbatim-structured.
@@ -168,12 +170,49 @@ per-course; whether individual instructor logins should be restricted to
 only their assigned course(s) is a bigger access-control question, not
 addressed here.
 
-## Next sprint (not started)
-Wire the 70% `pass_threshold` into `moduleCompletion()`'s actual
-complete/not-complete logic (see "Known limitation" above) — needs an
-explicit owner decision given this repo's history of treating completion
-semantics as compliance-sensitive. This is now the only remaining open item
-from Sprints 1–2 — everything else has been built and verified live.
+## Sprint 3 — redo-completion gate (2026-09-15, DONE)
+Decision made (owner said "go for it" on this thread as a whole rather than
+re-litigating the specific mechanism): `moduleCompletion()` now returns
+`complete: false` whenever `user.openLabRedosByModuleKey[moduleKey]` is set
+— i.e. an unresolved instructor-requested redo on any lab in that module
+blocks the green "Complete" badge outright, regardless of what the older
+engagement-based checks (`contentOpened`, `allLabsComplete`,
+`moduleOneRequirementsComplete`) computed. Deliberately did **not** add a
+second, independent score/pass_threshold check inside `moduleCompletion()`
+itself — the 70% threshold is already what drives the instructor's
+send-back action (which is what sets `redo_requested`), so re-checking the
+raw score here would just duplicate that gate, not add one. Once a student
+resubmits, `recordLabAttempt()`'s insert-only (never-upsert) design makes
+the new attempt the latest row, `openLabRedosByModuleKey` clears itself
+automatically (see `buildUserFromSession()`), and completion re-evaluates
+normally — no separate "clear the redo" step needed anywhere.
+
+**Built via `codex exec` as a scoped, single-function sub-agent task**
+(orchestrated, reviewed, tested, and committed by the main session — codex
+never touched git). Diff: `portal/app.js` `moduleCompletion()`, one added
+`hasOpenLabRedo` boolean ANDed into the final `complete` expression, plus a
+2-line comment; no other line touched. `node --check portal/app.js` clean;
+`bin/portal-check.js` still 38/38, no regressions.
+
+**Verified two ways** (Chrome extension wasn't connected this session, so
+the usual live-browser round trip wasn't available):
+1. `node --check` + `bin/portal-check.js` (38/38) — no regressions anywhere
+   in the 38 rendered module/program views.
+2. A standalone unit-level check loaded the real `portal/app.js` in the same
+   `node:vm` harness `bin/portal-check.js` uses and called the real,
+   unmodified `moduleCompletion()` directly for `soc-02` with a
+   synthetically-"complete" engagement state (all lessons opened, all labs
+   in `completedLabs`) — once with `openLabRedosByModuleKey` empty, once
+   with it set for `soc-02`. Result: `complete` flipped `true → false` with
+   `contentOpened`, `allLabsComplete`, `fixtureState`, and `module` all
+   byte-identical between the two runs — proof the gate is the sole cause
+   of the flip, not a side effect of something else. (Script not kept in
+   the repo — scratch verification, not a permanent test; the change itself
+   is small enough that `bin/portal-check.js` remains the durable
+   regression check.)
+
+This closes the only remaining open item from Sprints 1–2. Nothing left to
+do in this directory.
 
 ## Working conventions for this sub-project
 - One directory, this one, for everything related to this specific feature
