@@ -38,22 +38,37 @@ written.
    section before answering question 1 below.
 
 ## Next session starts here
-**Step 1 (read the real Module 02–12 content against the bar) is done —
-see `MODULE_DEPTH_AUDIT.md`.** What's left:
-1. Resolve the open questions with the owner — the original 4 from
-   `LAB_DEPTH_AND_SCORING_OVERHAUL.md`, now informed by the audit's
-   findings/recommendations, plus the new one the audit surfaced (keep the
-   09–12 cross-module incident-arc pattern, or move toward every module
-   being self-contained?).
-2. Only then write a per-module rebuild plan — not before. The audit's own
-   recommendation, if useful as a starting point: surface the existing
-   section breakdown in the UI first (shared, low-risk, feeds the grading
-   system's `lab_attempts.result` sections-shape gap too), then use Module
-   09 as the template to extend (closest to the bar already), then the
-   domain-mismatched modules (06, 08), then the rest.
+**Steps 1 and 2 are done.** The audit (`MODULE_DEPTH_AUDIT.md`) and the
+owner's answers to the open questions (2026-09-15: vary section shape by
+domain, breakdown-UI first, keep the cross-module incident-arc pattern,
+Module 1 stays numbered as a relabeled tour) are both captured in
+`REBUILD_PLAN.md`, which is now the live plan doc.
+
+**Phase 1a shipped** (admin grading queue breakdown UI — see
+`REBUILD_PLAN.md`'s Status section and this file's sprint log below).
+
+**Next up: Phase 1b** — the student-facing per-module result panels (11
+files, each currently renders its own inline feedback block with no shared
+helper). Needs a short scoping pass first: where the shared
+breakdown-rendering helper lives, and which `breakdown` object keys count
+as the top-level "section list" per module vs. sub-criteria (see
+`REBUILD_PLAN.md`'s Phase 1b note — Module 04's breakdown object mixes
+`observation/analysis/decision/communication` totals with
+`grouping/metric/threshold/...` sub-scores in the same flat object, and
+that pattern likely repeats across modules). Once scoped, Phase 1b is a
+good candidate for a parallel per-module Codex sprint, mirroring
+`bin/run-module-agents.sh`'s existing one-process-per-module pattern.
 
 ## Related project
 `../lab-grading-notification-system/` — the grading/notification system
 this overhaul's scoring model is meant to feed. Its `lab_attempts.result`
 JSON needs the "sections" shape this document calls for; don't invent a
 second, parallel scoring model.
+
+## Sprint log
+- 2026-09-15 — Module 02-12 depth audit (`MODULE_DEPTH_AUDIT.md`). Done.
+- 2026-09-15 — Owner resolved the open questions; `REBUILD_PLAN.md`
+  written as the live plan doc.
+- 2026-09-15 — Phase 1a (admin grading breakdown UI). Done, verified
+  (unit-level VM render check + node --check + bin/portal-check.js 38/38),
+  committed and pushed.
