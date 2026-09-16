@@ -559,9 +559,18 @@ function hasProgramAccess(user, slug) {
 function hasModuleAccess(user, slug, moduleKey) {
   const e = enrollmentFor(user, slug);
   if (!e) return false;
-  if (e.accessMode === 'full') return true;
-  if (e.accessMode === 'partial') return (e.modules || []).includes(moduleKey);
-  return false;
+  const entitled = e.accessMode === 'full'
+    || (e.accessMode === 'partial' && (e.modules || []).includes(moduleKey));
+  if (!entitled) return false;
+
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  if (!program || !program.modules) return true;
+  const module = program.modules[moduleKey];
+  if (!module || module.number <= 1) return true;
+  const previousModule = Object.values(program.modules)
+    .find((item) => item.number === module.number - 1);
+  if (!previousModule) return true;
+  return moduleCompletion(program, previousModule.key, user).complete;
 }
 
 const MODULE_ENGAGEMENT_PREFIX = 'mnt-portal.module-engagement.v1';
@@ -4812,7 +4821,8 @@ function viewInDevelopment(user, program) {
   ${footer()}`;
 }
 
-function viewNoAccess(user, program) {
+function viewNoAccess(user, program, reason = 'not_enrolled') {
+  const moduleLocked = reason === 'module_locked';
   return `
   ${header(user)}
   <main class="pt-16">
@@ -4821,10 +4831,12 @@ function viewNoAccess(user, program) {
         <div class="w-12 h-12 mx-auto flex items-center justify-center rounded-xl bg-[#1e3a5f]/8 mb-6">
           <i class="ri-lock-line text-2xl text-[#1e3a5f]"></i>
         </div>
-        <h1 class="text-3xl font-bold text-[#1e3a5f] mb-4">You are not enrolled in this program</h1>
+        <h1 class="text-3xl font-bold text-[#1e3a5f] mb-4">${moduleLocked ? 'Complete the previous module first' : 'You are not enrolled in this program'}</h1>
         <div class="w-12 h-1 bg-[#f97316] rounded-full mx-auto mb-6"></div>
         <p class="text-gray-500 text-base mb-8">
-          ${esc(program.cardTitle)} is not part of your current enrollment.
+          ${moduleLocked
+            ? 'You\'ll be able to open this module once the one before it is marked complete.'
+            : `${esc(program.cardTitle)} is not part of your current enrollment.`}
         </p>
         <a href="#/portal" class="inline-block bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-8 py-3.5
                                   rounded-xl transition-all hover:-translate-y-0.5 cursor-pointer">Back to My Programs</a>
@@ -5974,9 +5986,10 @@ async function render(options = {}) {
   if (!completeRouteLoading(renderGeneration)) return;
   if (moduleLab) {
     const program = PROGRAMS.find((item) => item.slug === moduleMatch[1]);
-    app.innerHTML = hasModuleAccess(user, program.slug, moduleLab.moduleKey)
+    const canAccessModule = hasModuleAccess(user, program.slug, moduleLab.moduleKey);
+    app.innerHTML = canAccessModule
       ? moduleLab.view(user, program)
-      : viewNoAccess(user, program);
+      : viewNoAccess(user, program, enrollmentFor(user, program.slug) ? 'module_locked' : 'not_enrolled');
     // Module 01 already has its richer sequential timeline exercise. The
     // shared companion makes the same fill-in-the-blank evidence-recall
     // pattern available in SOC Modules 02–12 without altering their credit
