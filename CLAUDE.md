@@ -1,10 +1,21 @@
 # Read this first
 
-**As of 2026-09-15:** the lab grading & notification system (per-card "N
+**As of 2026-09-16:** the lab grading & notification system (per-card "N
 Labs need grading" badges scoped to each course's own workspace, pregraded-lab
-review, instructor per-mistake feedback + full-resubmission redo, and now the
+review, instructor per-mistake feedback + full-resubmission redo, and the
 70%/redo module-completion gate) is fully built, pushed, and verified — see
-`lab-grading-notification-system/STATE.md` (marked DONE, nothing open there).
+`lab-grading-notification-system/STATE.md`. That same session then added
+real sequential module-access gating (a module requires every prior module
+in the program complete, not just the one before it), a cross-device
+completion beacon for Module 1 (its detailed quiz/console/lab requirements
+previously lived only in browser-local storage), and a red "Redo Requested"
+status pill. **One real gap left, permission-blocked:** three SOCAN
+training accounts need the same Module 1 beacon backfill as a fourth
+already-fixed one — the batch admin write was blocked by the harness's
+"Modify Shared Resources" classifier; see that STATE.md's last section for
+exact values. (This may also be the root cause of the older "no green
+complete badges after refreshing" report below — not confirmed, worth
+checking if it recurs.)
 
 Active work is now the sibling curriculum project,
 `soc-analyst-track-reimagining/` — read **that directory's `STATE.md`

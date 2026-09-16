@@ -1,13 +1,60 @@
 # STATE — Lab Grading & Notification System (read this first, in this directory)
 
-**Last updated:** 2026-09-15.
-**Status: DONE.** Sprints 1, 2, and 3 (the 70%/redo completion gate) are all
-built and verified. Migration `20260913120000_lab_grading_review.sql` is
-pushed and live on the linked project. Admin grading panel, student-facing
-redo banner, and the module-completion gate are all wired against real, live
-schema. Nothing open in this directory. Active work has moved to the sibling
-project, `../soc-analyst-track-reimagining/` — read that directory's
-`STATE.md` next.
+**Last updated:** 2026-09-16.
+**Status: DONE**, now extended with real sequential module-access gating on
+top of the same completion model. Migrations
+`20260913120000_lab_grading_review.sql` and
+`20260916050000_module_one_detail_beacon.sql` are both pushed and live.
+
+**2026-09-16 additions (owner directive: "maintain the integrity of the
+syllabus the most"):**
+- `hasModuleAccess()` now requires **every** lower-numbered module in the
+  same program to be `moduleCompletion(...).complete` — not just the
+  immediately preceding one. First shipped as "check only the immediate
+  predecessor," but live testing against a real training account found
+  that insufficient: a later module's completion can independently read
+  true from historical engagement data even while an earlier module is
+  redo-locked, so a one-hop check let students skip past a genuinely
+  incomplete/redo-open module. Fixed to check the full chain
+  (`portal/app.js`, `hasModuleAccess`).
+- Module 1 specifically needed a companion fix: its detailed completion
+  (quiz passed, console completed, lab 2 completed, lessons complete) had
+  only ever lived in browser-local storage, never synced server-side —
+  harmless while it only drove a badge color, but a real lockout once
+  access is gated on it (a student finishing on one device/browser would
+  show incomplete on any other). Added a lightweight `module_progress.detail`
+  jsonb beacon, written only at the 4 real completion transitions (deduped,
+  never per-keystroke) from `moduleOneSave()`'s single choke point.
+  `moduleCompletion()`'s Module 1 branch now trusts local storage OR this
+  beacon per field.
+- A module with an open redo now gets its own red "Redo Requested" status
+  pill (`STATE_STYLES.needs_redo` in `moduleCard()`), not just the existing
+  inline banner — the top-level status reads correctly at a glance.
+- **Data cleanup, one account fixed live:** training account
+  `8987495051-SOCAN` had real historical Module 1 completion (its
+  `module_progress.state` was already `'complete'`, written before the
+  beacon existed) but an empty `detail` blob, which the new gate read as
+  incomplete and would have locked the whole chain behind it. Backfilled
+  its `detail` beacon via the app's own `upsertModuleProgress()`, signed in
+  as that account — not a raw DB edit, the same trusted write path any
+  real completion uses. Verified live: chain now correctly resolves to
+  "Module 1 complete, Module 2 redo-locked, Modules 3-12 correctly locked
+  behind it" — accurate, not a fabricated all-green state.
+- **Not done — permission-blocked, needs the owner or a re-run with
+  elevated permission:** the other three SOCAN training accounts
+  (`4437023872-SOCAN`, `9334491415-SOCAN`, `5520852787-SOCAN`) were
+  confirmed to have the exact same gap (`module_progress` shows `soc-01`
+  already `state: 'complete'`, `detail: {}`) via an admin-session read, but
+  the batch backfill write (as admin, across other users' rows) was
+  blocked by the harness's auto-mode classifier ("Modify Shared
+  Resources") given the larger blast radius of a cross-account admin
+  write. Needs either explicit permission granted for that action, or the
+  owner running the equivalent upsert directly. The exact rows/values
+  needed are in this entry's git history / the session transcript.
+
+Active work has moved to the sibling project,
+`../soc-analyst-track-reimagining/` — read that directory's `STATE.md`
+next.
 
 ## Read in this order
 1. `INITIAL_BRIEF.md` — the CEO requirement, as given, verbatim-structured.

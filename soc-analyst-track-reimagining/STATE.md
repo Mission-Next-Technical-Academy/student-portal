@@ -68,11 +68,26 @@ fully done as of Phase 1a; nothing else needed here.
   between each pair's fixtures, not just a framing sentence, and are the
   right next sprints.
 
-**Next up:** Arc A or Arc B content reconciliation (see `REBUILD_PLAN.md`
-Phase 4), ideally with an owner content-review checkpoint before shipping
-— these involve actual curriculum judgment (which entities/details change
-so two modules' fixtures agree), unlike the mechanical changes shipped so
-far.
+**Live browser verification, 2026-09-16** (Chrome connected this session):
+signed in as the real `8987495051-SOCAN` training account and confirmed
+live, against production data: (1) the redo-completion gate — Module 02's
+card shows "In Progress" (not "Complete") right alongside its red "Redo
+requested" banner, exactly as designed; (2) Module 09's new ticket-
+assignment panel renders correctly (INC-4937, Tier 1 queue, SLA clock,
+role framing); (3) Module 06's "Why this hunt opened" bulletin correctly
+cites Module 05's WS-LAB-27 finding as the hunt trigger. All three were
+previously only unit/render-tested — now confirmed live in a real browser.
+
+**Owner call, 2026-09-16, on Arc B:** Modules 07+04 (email/PKI ↔
+identity/network) is "a bit of a stretch... perhaps different tickets
+here" — owner does not want that pairing forced. Arc A (02+03) is
+confirmed fine to build. **Arc B needs a different pairing** — not yet
+decided which modules; don't build 07+04 as designed in `REBUILD_PLAN.md`.
+
+**Next up:** (1) resolve what Arc B should actually pair (not 07+04) with
+the owner, (2) build Arc A (02+03) content reconciliation — real curriculum
+judgment (which entities/details change so both modules' fixtures agree),
+ideally with an owner content-review checkpoint before shipping.
 
 ## Related project
 `../lab-grading-notification-system/` — the grading/notification system
