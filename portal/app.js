@@ -570,10 +570,9 @@ function hasModuleAccess(user, slug, moduleKey) {
   if (!program || !program.modules) return true;
   const module = program.modules[moduleKey];
   if (!module || module.number <= 1) return true;
-  const previousModule = Object.values(program.modules)
-    .find((item) => item.number === module.number - 1);
-  if (!previousModule) return true;
-  return moduleCompletion(program, previousModule.key, user).complete;
+  return Object.values(program.modules)
+    .filter((item) => item.number < module.number)
+    .every((item) => moduleCompletion(program, item.key, user).complete);
 }
 
 const MODULE_ENGAGEMENT_PREFIX = 'mnt-portal.module-engagement.v1';
