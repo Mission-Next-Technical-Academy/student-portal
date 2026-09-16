@@ -93,9 +93,9 @@ only task-relevant controls; **module 12 alone** exposes the complete integrated
 range. Do not leak future evidence, full navigation, or the capstone storyline
 into an earlier module.
 
-All 12 module routes are implemented. The per-module plan, shared lab contract,
-and verification history are in `MODULAR_LAB_PROGRAM_PROGRESS.md` and
-`HANDOFF.md`.
+All 12 module routes are implemented. The shared lab contract is in
+`MODULE_STANDARD.md`; current work and retained verification history are
+indexed by `NEXT_SESSION.md` and `HANDOFF.md`.
 
 ## Deployment
 
@@ -106,12 +106,11 @@ single-origin site and publishes it to GitHub Pages. No manual deploy step.
 
 | File | What it covers |
 |---|---|
-| `MODULAR_LAB_PROGRAM_PROGRESS.md` | Per-module lab plan, shared contract, QA gate |
-| `PLATFORM_ARCHITECTURE.md` | Data model, entitlements, RLS, the real auth flow |
 | `MODULE_STANDARD.md` | The shape every module object must carry |
 | `MNT_DESIGN_TOKENS.md` | Colors, type, and components taken from the live site |
 | `LATEST_PROGRESS.md` | Current status and project direction |
-| `HANDOFF.md` | Engineering history |
+| `NEXT_SESSION.md` | Concise active handoff and next work |
+| `HANDOFF.md` | Current-handoff index; historical logs are in `archive/session-logs/` |
 | `PROJECT_GUIDE_FOR_AI.md` | Orientation for AI agents working in this repo |
 
 Legacy SC-200 files (`SC200_LAB.md`, `ExamObjectives.md`, `COVERAGE_SWEEP.md`,

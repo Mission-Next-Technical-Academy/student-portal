@@ -32,7 +32,7 @@
 .m03-shell .m03-objective { margin-top: 22px; display: flex; align-items: flex-start; gap: 16px; padding: 22px; background: #fff; border: 1px solid #dbe3ed; border-radius: 16px; box-shadow: 0 8px 24px rgba(30, 58, 95, .06); }
 .m03-shell .m03-objective > i { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 12px; font-size: 21px; }
 .m03-shell .m03-objective h2 { margin: 4px 0 0; color: #1e3a5f; font-size: 18px; line-height: 1.45; }
-.m03-shell .m03-section { scroll-margin-top: 20px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30, 58, 95, .05); }
+.m03-shell .m03-section { scroll-margin-top: 148px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30, 58, 95, .05); }
 .m03-shell .m03-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
 .m03-shell .m03-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-size: 12px; font-weight: 800; }
 .m03-shell .m03-section-heading h2 { margin: 3px 0 0; color: #1e3a5f; font-size: 23px; line-height: 1.25; }

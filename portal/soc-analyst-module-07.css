@@ -25,10 +25,10 @@
 .m07-shell .m07-objective { margin-top: 22px; display: flex; align-items: flex-start; gap: 16px; padding: 22px; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 8px 24px rgba(30,58,95,.06); }
 .m07-shell .m07-objective > i { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 12px; font-size: 21px; }
 .m07-shell .m07-objective h2 { margin: 4px 0 0; color: #1e3a5f; font-size: 18px; line-height: 1.45; }
-.m07-shell .m07-section { scroll-margin-top: 20px; margin-top: 24px; padding: clamp(23px,4vw,38px); background: #fff; border: 1px solid #e5e7eb; border-radius: 20px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
+.m07-shell .m07-section { scroll-margin-top: 148px; margin-top: 24px; padding: clamp(23px,4vw,38px); background: #fff; border: 1px solid #e5e7eb; border-radius: 20px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
 .m07-shell .m07-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
 .m07-shell .m07-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-weight: 800; }
-.m07-shell .m07-section-heading h2 { margin: 3px 0 0; color: #1e3a5f; font-size: 23px; line-height: 1.25; }
+.m07-shell .m07-section-heading h2 { scroll-margin-top: 148px; margin: 3px 0 0; color: #1e3a5f; font-size: 23px; line-height: 1.25; }
 .m07-shell .m07-concepts { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
 .m07-shell .m07-concepts article { min-width: 0; padding: 20px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 14px; }
 .m07-shell .m07-concepts i { color: #1e3a5f; font-size: 24px; }

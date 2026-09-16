@@ -26,10 +26,10 @@
 .m05-objective h2 { margin: 4px 0 6px; color: #1e3a5f; font-size: 20px; line-height: 1.35; }
 .m05-objective p:last-child { margin: 0; color: #6b7280; font: 14px/1.65 Inter, sans-serif; }
 
-.m05-section { scroll-margin-top: 20px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 1px 3px rgba(30,58,95,.07); }
+.m05-section { scroll-margin-top: 148px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 1px 3px rgba(30,58,95,.07); }
 .m05-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
 .m05-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 12px; font-weight: 700; }
-.m05-section-heading h2 { margin: 3px 0 0; color: #1e3a5f; font-size: 23px; line-height: 1.25; }
+.m05-section-heading h2 { scroll-margin-top: 148px; margin: 3px 0 0; color: #1e3a5f; font-size: 23px; line-height: 1.25; }
 .m05-section-intro { margin: -5px 0 20px; color: #6b7280; font: 14px/1.65 Inter, sans-serif; }
 
 .m05-lesson-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

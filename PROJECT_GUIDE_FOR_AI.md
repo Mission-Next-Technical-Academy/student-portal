@@ -61,7 +61,8 @@ devices, queries, and cloud resources are fictional fixtures.
    scope gate.
 6. Preserve the legacy terminal scenario in `defender.py`, `rules.json`,
    `events.jsonl`, and `run_scenario.sh`.
-7. Update `HANDOFF.md` after a meaningful work session.
+7. Update `HANDOFF.md` after a meaningful work session; archive a completed
+   entry rather than letting the active handoff grow indefinitely.
 8. Before changing navigation, read `NAV_SPEC.md`.
 9. Preserve existing user changes in the working tree. Never reset or discard
    unrelated edits.
@@ -125,8 +126,10 @@ Read in this order before implementing changes:
 
 1. `LATEST_PROGRESS.md` — current direction and most recent work.
 2. `PROJECT_GUIDE_FOR_AI.md` — this architecture and safety guide.
-3. `HANDOFF.md` — implementation history and validation details.
-4. `AGENTS.md` — legacy task history plus still-relevant safety rules.
+3. `HANDOFF.md` — current-handoff index; archived implementation history is
+   in `archive/session-logs/`.
+4. `archive/legacy-sc200-simulator/AGENTS.md` — legacy task history plus
+   still-relevant safety rules.
 5. `NAV_SPEC.md` — required source of truth before navigation changes.
 6. `SC200_LAB.md` and `ExamObjectives.md` — legacy source references only.
 
@@ -165,8 +168,8 @@ Mission_Next_Technical_Academy_SOC_Analyst_course/
 ├── SC200_LAB.md                 master project document
 ├── LATEST_PROGRESS.md           current direction and latest status
 ├── ExamObjectives.md            legacy certification reference
-├── HANDOFF.md                   chronological engineering handoff
-└── AGENTS.md                    contributor instructions and task history
+├── HANDOFF.md                   concise current-handoff index
+└── archive/                     historical plans, logs, and completed notes
 ```
 
 ### Browser load order
@@ -350,7 +353,8 @@ For meaningful interface changes, also test in a real browser:
 - There is no real login, RBAC enforcement, API, cloud tenant, email system,
   endpoint, or SIEM backend.
 - Historical certification documents retain old scope and implementation
-  decisions. Treat `LATEST_PROGRESS.md`, this guide, the latest `HANDOFF.md`
+  decisions. Treat `LATEST_PROGRESS.md`, this guide, `NEXT_SESSION.md`, and
+  the active workstream's `STATE.md`
   entries, user direction, and current code as authoritative.
 - The working tree may contain intentional user changes. Inspect `git status`
   and diffs before editing. There is no configured remote to recover from.
@@ -366,7 +370,8 @@ For meaningful interface changes, also test in a real browser:
 6. Run proportional syntax, render, HTTP, and browser checks.
 7. Compare results with the known baseline instead of assuming every old
    warning was caused by the new change.
-8. Update `HANDOFF.md` with the outcome, verification, and remaining work.
+8. Update `HANDOFF.md` with the outcome, verification, and remaining work;
+   archive the entry once it is complete.
 
 ## Branding requirements
 

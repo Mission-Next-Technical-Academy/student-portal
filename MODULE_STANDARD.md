@@ -1,7 +1,8 @@
 # MNT Academy — Standard Module Layout
 
 Status: canonical. Applies to **all four tracks**.
-Companion to `PLATFORM_ARCHITECTURE.md` §5A and `SPRINT_PLAN.md` Agent 31.
+Historical companion to `archive/legacy-sc200-simulator/PLATFORM_ARCHITECTURE.md` §5A
+and `archive/historical-plans/SPRINT_PLAN_2026-08-17.md` Agent 31.
 
 Every module in every program has the same shape. Not similar — identical. That
 is what lets one set of components render four tracks, lets four authors work in

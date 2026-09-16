@@ -41,6 +41,8 @@ product-architecture planning, explicitly classified as historical-only by
   2026-06-28 through 2026-07-07.
 - `LAB_MANAGEMENT.md` — a 2026-07-06 dev-process handoff for the old `ui/`
   simulator, superseded by `PROJECT_GUIDE_FOR_AI.md` and `HANDOFF.md`.
+- `AGENTS.md` — inherited per-agent task checklist; all current planning uses
+  the root handoff and workstream state documents instead.
 - `PRODUCT_ARCHITECTURE_PLAN.md` (2026-08-05) and `PLATFORM_ARCHITECTURE.md`
   (2026-08-17, still headed "draft v1, no implementation started" even
   though the portal/simulator unification and backend simplification it
@@ -103,6 +105,27 @@ of archiving:
   reconciled the locked 82-hour ledger and documented the remaining legacy
   catalogue/schema findings; the associated module briefs and progress logs
   remain at the root as implementation records.
+- `AI_ML_APPLIED_BUILD_TRACK_2026-09-10.md` — the repository-URL evidence
+  upgrade for six AI/ML labs, built and browser-verified; its remaining
+  human-evaluator policy question belongs to the active compliance decision
+  record, not this completed implementation.
+- `HELPDESK_CURRICULUM_SWEEP_2026-09-10.md` — completed day-one ticket-topic
+  coverage audit and the shipped HD-2124 de-escalation ticket. Its resulting
+  hour-mapping decision is tracked separately in `PROGRAM_PARITY_SPRINT_PLAN.md`.
+- `MODULE_01_ENHANCEMENT_BUGFIXES_2026-09-07.md` — completed bug-review record;
+  all fixes landed with their originating sprint commits.
+
+## `session-logs/`
+
+- `NEXT_SESSION_THROUGH_2026-09-16.md` — prior chronological next-session
+  ledger, retained whole when the active root handoff was condensed.
+- `HANDOFF_THROUGH_2026-09-10.md` — prior chronological engineering handoff,
+  retained whole for validation details and historical decisions.
+
+## `historical-plans/`
+
+- `SPRINT_PLAN_2026-08-17.md` — self-marked historical platform plan; its
+  outdated status board no longer governs work.
 
 ## Still active, not archived
 

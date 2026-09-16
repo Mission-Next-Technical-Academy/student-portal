@@ -645,7 +645,7 @@ async function toggleM360ItemCompletion(itemKey) {
     progress.completedItems.push(itemKey);
   }
   saveM360Progress(user, progress);
-  render();
+  render({ silent: true });
 }
 
 function m360CompletionSummary(user) {
@@ -5807,11 +5807,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
 /* ------------------------------------------------------------------ router */
 
 // Route changes can wait on several Supabase reads (the admin workspace is
-// the heaviest example). Keep the branded loading treatment visible while
-// that work happens rather than leaving the previous route on screen. Small
-// learner-route transitions retain a short delay to avoid needless flashes;
-// admin and the initial portal load render it immediately.
-const MNT_ROUTE_LOADING_DELAY_MS = 150;
+// the heaviest example). Keep the branded loading treatment visible
+// immediately on every navigation rather than leaving the previous route
+// on screen or gambling on load speed.
 let routeRenderGeneration = 0;
 let routeLoadingTimer = null;
 
@@ -5835,35 +5833,32 @@ function viewRouteLoading(hash) {
     </div>`;
 }
 
-function beginRouteLoading(app, hash, generation) {
+function beginRouteLoading(app, hash, generation, options = {}) {
   clearTimeout(routeLoadingTimer);
+  routeLoadingTimer = null;
   app.setAttribute('aria-busy', 'true');
-  const isAdminRoute = /^#\/admin(?:\/|$)/.test(hash);
-  const isInitialLoadingShell = !!app.querySelector('.portal-loading');
-  // The post-login transition (login form -> portal/program/admin) is a
-  // real, user-initiated navigation that always does at least one Supabase
-  // read. It regularly finishes under MNT_ROUTE_LOADING_DELAY_MS (the
-  // just-completed sign-in already warmed currentUser()'s cache), which
-  // otherwise skipped the loading view entirely and made the destination
-  // page appear with no visible transition at all.
-  const isLeavingLogin = !!app.querySelector('#login-form');
-  const showImmediately = isAdminRoute || isInitialLoadingShell || isLeavingLogin;
-  const showLoadingView = () => {
-    if (generation === routeRenderGeneration) app.innerHTML = viewRouteLoading(hash);
-  };
-
-  if (showImmediately) {
-    showLoadingView();
-    routeLoadingTimer = null;
-    return true;
-  }
-
-  routeLoadingTimer = setTimeout(() => {
-    // A new hash navigation supersedes this render.  Never let a delayed
-    // callback replace the newer route's content.
-    showLoadingView();
-  }, MNT_ROUTE_LOADING_DELAY_MS);
-  return false;
+  // A silent render is an in-place data refresh on the route already on
+  // screen (e.g. toggleM360ItemCompletion() after a checklist click) — not
+  // a navigation. Blanking the whole page with the branded takeover for
+  // that would make every small interaction feel like a fresh page load;
+  // leave the current content up and swap in the refreshed result directly.
+  if (options.silent) return false;
+  // An in-page anchor (#m01-foundations, a mnav-chip target, a lesson id)
+  // shares the hash with the router but isn't a route change — render()
+  // detects this same condition further down and returns without touching
+  // app.innerHTML, on the assumption nothing replaced it in the meantime.
+  // Showing the full-page loading takeover here first would break that
+  // assumption: render() would return having already blanked the real page,
+  // stranding the student on the loading screen forever. Skip it and let
+  // the browser's native same-page anchor scroll happen against the
+  // content that's already there.
+  if (hash && !hash.startsWith('#/') && app.innerHTML.trim()) return false;
+  // Every real navigation shows the branded loading view immediately, with
+  // no delay threshold. A silent, unstyled gap between routes reads as
+  // broken to a non-technical student even when it resolves in well under a
+  // second — always show something rather than gambling on load speed.
+  if (generation === routeRenderGeneration) app.innerHTML = viewRouteLoading(hash);
+  return true;
 }
 
 // A DOM replacement alone is not a guarantee that the browser has displayed
@@ -5893,7 +5888,7 @@ async function render(options = {}) {
   const app = document.getElementById('app');
   let hash = location.hash || '#/login';
   const renderGeneration = ++routeRenderGeneration;
-  const loadingShownImmediately = beginRouteLoading(app, hash, renderGeneration);
+  const loadingShownImmediately = beginRouteLoading(app, hash, renderGeneration, options);
   if (loadingShownImmediately && !await waitForRouteLoadingPaint(renderGeneration)) return;
   // currentUser() handles expected restoration errors itself.  Retain this
   // last-resort guard because render owns replacement of the loading shell.

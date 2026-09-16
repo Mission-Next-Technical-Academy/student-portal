@@ -35,7 +35,7 @@ trusted — only artifacts that pass mechanical checks survive:
    accuracy-review workstream in `LAB_MANAGEMENT.md`. The drafts are
    deliberately data-shaped, not prose-shaped, to keep that surface small.
 
-## Task map (feeds AGENTS.md agents)
+## Task map (feeds the legacy `archive/legacy-sc200-simulator/AGENTS.md` checklist)
 
 | Task | Fixtures | Consumed by |
 |---|---|---|

@@ -200,7 +200,7 @@ assumption ever changes.
   supabase/migrations/20260828150000_rename_course_progress.sql  (new)
   architecture.md                 (new — this file)
   ```
-  `PLATFORM_ARCHITECTURE.md`, `SPRINT_PLAN.md`, `NEXT_SESSION.md` were also
+  `PLATFORM_ARCHITECTURE.md`, `archive/historical-plans/SPRINT_PLAN_2026-08-17.md`, `NEXT_SESSION.md` were also
   edited this session with doc updates — include those too if committing.
 - **Pushing to `master` is a real, public, live-site-affecting action** — it
   should be a deliberate step the site owner confirms, not something a coding

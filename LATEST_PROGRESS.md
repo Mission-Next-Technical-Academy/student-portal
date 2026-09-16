@@ -25,7 +25,7 @@ For current decisions, use this priority order:
 1. The user's current direction and requests.
 2. `LATEST_PROGRESS.md`.
 3. `PROJECT_GUIDE_FOR_AI.md`.
-4. The latest entries in `HANDOFF.md`.
+4. `NEXT_SESSION.md` and the active workstream's `STATE.md`.
 5. Current application behavior and code.
 6. Legacy SC-200 documents only as implementation history or optional technical
    reference.
@@ -238,7 +238,7 @@ boundary, records export, and admin dashboard into alignment with
 `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`, followed by a Sprint G QA sweep that
 fixed a live-breaking admin-render bug and several prohibited-language
 leftovers. Full detail, gate evidence, and screenshot locations are in
-`HANDOFF.md`'s "Curriculum-alignment Sprints C-H, admin redirect, H.1, and
+`archive/session-logs/HANDOFF_THROUGH_2026-09-10.md`'s "Curriculum-alignment Sprints C-H, admin redirect, H.1, and
 Sprint G QA sweep" entry and `CURRICULUM_ALIGNMENT_ARCHITECTURE.md` section 0.
 Nothing from this wave is committed to git history beyond commits `57ac7cc`,
 `e4903e1`, and `227bb5c` (all local, not pushed as of this sweep), and nothing

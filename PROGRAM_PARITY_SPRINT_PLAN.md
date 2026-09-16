@@ -7,7 +7,7 @@ agents), triggered by owner asking whether `it-support`, `ai-ml`, and
 their claimed hours, and whether grades/rubrics exist. `soc-analyst` (70
 hours, 4,200 module-minutes matching exactly, per-lesson scored quizzes in
 11/12 modules, real 10-domain capstone rubric) is the baseline every other
-track is measured against. See `HELPDESK_CURRICULUM_SWEEP.md` for the
+track is measured against. See `archive/completed-feature-notes/HELPDESK_CURRICULUM_SWEEP_2026-09-10.md` for the
 earlier, narrower Day-1-ticket-topics sweep this builds on.
 
 ## Status board
@@ -162,7 +162,7 @@ to close incrementally — it is an entire unstarted program.
 
 **Before any content sprint gets scheduled here**, this needs the same
 kind of planning-first pass the AI/ML build got
-(`AI_ML_APPLIED_BUILD_TRACK.md`, written before any code, resolving open
+(`archive/completed-feature-notes/AI_ML_APPLIED_BUILD_TRACK_2026-09-10.md`, written before any code, resolving open
 decisions with the owner first): is this track still wanted for launch, on
 what timeline, and does a controlling curriculum source doc exist yet (the
 other three tracks each had one — `AI_ML_ENGINEERING_CURRICULUM.md`,

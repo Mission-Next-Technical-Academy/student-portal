@@ -65,7 +65,7 @@ VIEWS['copilot/plugins'] = () => `
 - Severity pills: `<span class="sev high">High</span>` (`sev high`,
   `sev medium`, `sev low`); status tags: `tag`, `tag orange`, `tag green`
 
-## Hard rules (same as AGENTS.md)
+## Hard rules (same as `archive/legacy-sc200-simulator/AGENTS.md`)
 
 No vendor-copied text/markup, no real URLs, no secrets, no build step,
 no network calls, fictional data only.
