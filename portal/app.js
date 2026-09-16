@@ -3977,7 +3977,7 @@ function viewLogin() {
           </div>
 
           <p id="login-error" class="hidden text-sm text-[#dc2626]">
-            <i class="ri-error-warning-line"></i> <span id="login-error-text">That email and password combination was not recognized.</span>
+            <i class="ri-error-warning-line"></i> <span id="login-error-text">That username and password combination was not recognized.</span>
           </p>
 
           <button type="submit"
@@ -6048,7 +6048,7 @@ function wireLogin() {
         geo_blocked: 'Sign-in is not available from your current location.',
       };
       document.getElementById('login-error-text').textContent =
-        messages[result] || 'That email and password combination was not recognized.';
+        messages[result] || 'That username and password combination was not recognized.';
       document.getElementById('login-error').classList.remove('hidden');
     }
   });
