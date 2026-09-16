@@ -104,16 +104,18 @@ async function buildUserFromSession(session) {
   // done. Fetched once per session here, alongside the studentRow query
   // already run for every login, and cached on the user object the same way.
   let remoteModuleProgress = {};
+  let remoteModuleDetail = {};
   if (studentRow && studentRow.track_code) {
     const { data: progressRows, error: progressError } = await mntSupabase
       .from('module_progress')
-      .select('module_key, state')
+      .select('module_key, state, detail')
       .eq('user_id', userId)
       .eq('track_code', studentRow.track_code);
     if (progressError) {
       console.error('buildUserFromSession: module_progress fetch failed', progressError);
     } else {
       remoteModuleProgress = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.state]));
+      remoteModuleDetail = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.detail || {}]));
     }
   }
 
@@ -181,6 +183,7 @@ async function buildUserFromSession(session) {
     userId: session.user.id,
     trackCode: studentRow ? studentRow.track_code : null,
     remoteModuleProgress,
+    remoteModuleDetail,
     openLabRedosByModuleKey,
   };
 }
@@ -3592,6 +3595,7 @@ function moduleCompletion(program, moduleKey, user) {
   // outright — rather than re-deriving from local engagement — can't
   // falsely mark an untouched module complete.
   const remoteState = (user.remoteModuleProgress || {})[moduleKey];
+  const remoteDetail = (user.remoteModuleDetail || {})[moduleKey] || {};
   const remoteComplete = remoteState === 'complete';
   const engagement = loadModuleEngagement(user);
   const moduleId = moduleEngagementId(program.slug, moduleKey);
@@ -3602,27 +3606,32 @@ function moduleCompletion(program, moduleKey, user) {
     const engagementComplete = engagement.completedLabs.includes(moduleLabEngagementId(program.slug, moduleKey, lab.key));
     if (moduleKey === 'soc-01' && lab.key === 'lab-soc-environment') {
       const guidedLabState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
-      return (engagementComplete || guidedLabState.completed) && guidedLabState.consoleCompleted === true;
+      return ((engagementComplete || guidedLabState.completed) && guidedLabState.consoleCompleted === true)
+        || remoteDetail.consoleCompleted === true;
     }
     if (moduleKey === 'soc-01' && lab.key === 'lab-soc-escalation') {
       const guidedLabState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
-      return engagementComplete || guidedLabState.lab2?.completed === true;
+      return engagementComplete || guidedLabState.lab2?.completed === true || remoteDetail.lab2Completed === true;
     }
     return engagementComplete || fixtureState === 'complete';
   });
   // Module 01 has learner-visible, assessed foundation lessons and a knowledge
   // check in addition to its two labs. A historical module_progress row can
   // be a coarse lab-only claim, so it must not override the detailed rule.
+  // The detail beacon from 20260916050000_module_one_detail_beacon.sql keeps
+  // each requirement portable across browsers and devices.
   const moduleOneRequirementsComplete = moduleKey !== 'soc-01' || (() => {
     const state = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
+    const moduleOneRemoteDetail = user.remoteModuleDetail?.['soc-01'] || {};
     const lessons = MODULE_ONE_ALERT_ORIENTATION.lessons || [];
     const lessonsComplete = lessons.every((lesson) => {
       const work = (state.lessonWork || {})[String(lesson.number)] || {};
       return work.checked === true && work.taskSubmitted === true;
     });
-    return lessonsComplete && state.quiz?.passed === true
-      && state.completed === true && state.consoleCompleted === true
-      && state.lab2?.completed === true;
+    return (lessonsComplete || moduleOneRemoteDetail.lessonsComplete === true)
+      && (state.quiz?.passed === true || moduleOneRemoteDetail.quizPassed === true)
+      && ((state.completed === true && state.consoleCompleted === true) || moduleOneRemoteDetail.consoleCompleted === true)
+      && (state.lab2?.completed === true || moduleOneRemoteDetail.lab2Completed === true);
   })();
   const hasOpenLabRedo = !!(user.openLabRedosByModuleKey && user.openLabRedosByModuleKey[moduleKey]);
   const complete = module.status !== 'draft' && contentOpened && allLabsComplete

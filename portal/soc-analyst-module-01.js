@@ -92,6 +92,7 @@ let moduleOneUser = null;
 let moduleOneJustCorrect = '';
 let moduleOneQuizState = null;
 let moduleOneReviewMode = false;
+let moduleOneLastSyncedDetail = null;
 
 function moduleOneRemoteComplete() {
   return moduleOneUser?.remoteModuleProgress?.['soc-01'] === 'complete';
@@ -129,15 +130,36 @@ function moduleOneLoad(user) {
   if (new URLSearchParams(location.search).get('coachComplete') === 'm01') {
     moduleOneState.consoleStarted = true;
     moduleOneState.consoleCompleted = true;
-    LabRuntime.save(MODULE_ONE_LAB_ID, user, moduleOneState);
+    moduleOneSave();
     history.replaceState(null, '', location.pathname + location.hash);
   }
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-01');
   return moduleOneState;
 }
 
+function moduleOneSyncDetailBeacon() {
+  if (!moduleOneUser || !moduleOneState) return;
+  const lessonsComplete = (MODULE_ONE_ALERT_ORIENTATION.lessons || []).every((lesson) => {
+    const work = (moduleOneState.lessonWork || {})[String(lesson.number)] || {};
+    return work.checked === true && work.taskSubmitted === true;
+  });
+  const detail = {
+    quizPassed: moduleOneState.quiz?.passed === true,
+    consoleCompleted: moduleOneState.completed === true && moduleOneState.consoleCompleted === true,
+    lab2Completed: moduleOneState.lab2?.completed === true,
+    lessonsComplete,
+  };
+  const serializedDetail = JSON.stringify(detail);
+  if (serializedDetail === moduleOneLastSyncedDetail) return;
+  upsertModuleProgress(moduleOneUser, 'soc-01', { detail });
+  moduleOneLastSyncedDetail = serializedDetail;
+}
+
 function moduleOneSave() {
-  if (moduleOneUser && moduleOneState) LabRuntime.save(MODULE_ONE_LAB_ID, moduleOneUser, moduleOneState);
+  if (moduleOneUser && moduleOneState) {
+    LabRuntime.save(MODULE_ONE_LAB_ID, moduleOneUser, moduleOneState);
+    moduleOneSyncDetailBeacon();
+  }
 }
 
 function moduleOneSeverityClass(severity) {
@@ -1581,9 +1603,9 @@ async function moduleOneReceiveCoachCompletion(event) {
   const saved = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
   saved.consoleStarted = true;
   saved.consoleCompleted = true;
-  LabRuntime.save(MODULE_ONE_LAB_ID, user, saved);
   moduleOneState = saved;
   moduleOneUser = user;
+  moduleOneSave();
 
   if (saved.completed && typeof markModuleLabComplete === 'function') {
     markModuleLabComplete(user, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
