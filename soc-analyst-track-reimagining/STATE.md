@@ -55,10 +55,24 @@ would have shown the breakdown twice. See `REBUILD_PLAN.md`'s corrected
 Phase 1b note and `MODULE_DEPTH_AUDIT.md`'s inline correction. Phase 1 is
 fully done as of Phase 1a; nothing else needed here.
 
-**Next up: Phase 2** — domain-appropriate lifecycle content for Modules 06
-(hunting) and 08 (vulnerability management), per the owner's "vary by
-domain" decision. Then Phase 3 (deepen Module 09 as the template) and
-Phase 4 (extend the rest, grouped into arcs). See `REBUILD_PLAN.md`.
+**Phases 2, 3, and the start of 4 are done as of 2026-09-16** — see
+`REBUILD_PLAN.md` for full detail:
+- Phase 2: done by inspection, no code needed (Modules 06/08 already
+  domain-appropriate, not forced IR shape).
+- Phase 3: Module 09 got its ticket-assignment framing panel. Shipped.
+  Deeper per-criterion investigative extension is NOT done — a bigger,
+  separate lift if wanted.
+- Phase 4: Arc C (Modules 05→06) connective framing shipped as proof of
+  concept. Arc A (02+03) and Arc B (07+04) are designed in
+  `REBUILD_PLAN.md` but NOT built — they need real content reconciliation
+  between each pair's fixtures, not just a framing sentence, and are the
+  right next sprints.
+
+**Next up:** Arc A or Arc B content reconciliation (see `REBUILD_PLAN.md`
+Phase 4), ideally with an owner content-review checkpoint before shipping
+— these involve actual curriculum judgment (which entities/details change
+so two modules' fixtures agree), unlike the mechanical changes shipped so
+far.
 
 ## Related project
 `../lab-grading-notification-system/` — the grading/notification system
@@ -76,3 +90,7 @@ second, parallel scoring model.
 - 2026-09-16 — Phase 1b attempted, found unnecessary, reverted before
   committing (every module's student panel already had its own score
   grid). Docs corrected. Phase 1 fully closed.
+- 2026-09-16 — Phase 2 closed by inspection (no code needed). Phase 3's
+  ticket-assignment framing shipped to Module 09. Phase 4's Arc C
+  (Modules 05→06) connective framing shipped as proof of concept; Arc A
+  and Arc B designed but not built.

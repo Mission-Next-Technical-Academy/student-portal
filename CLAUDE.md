@@ -8,19 +8,17 @@ review, instructor per-mistake feedback + full-resubmission redo, and now the
 
 Active work is now the sibling curriculum project,
 `soc-analyst-track-reimagining/` — read **that directory's `STATE.md`
-first**. After seeing the grading system live, the owner pushed back hard on
-lab depth and scoring: current labs read too shallow for a claimed
-multi-day module ("the triage must be the entire incident response
-lifecycle"), the whole 12-module lab set likely needs a structural redo,
-and scoring needs many weighted-section parameters rolling into one final
-score (real variance like 72% vs. 91% is correct, not a bug) — see
-`LAB_DEPTH_AND_SCORING_OVERHAUL.md`. **As of 2026-09-15**, the required
-code audit of Modules 02–12 against that bar is done
-(`MODULE_DEPTH_AUDIT.md`) — the sectioned/weighted scoring already exists
-in every module's code, it's just never surfaced; real gaps are narrower
-than feared. Nothing in the curriculum itself has been rebuilt yet; still
-blocked on the owner resolving the (now audit-informed) open questions
-before writing a rebuild plan.
+first**. Owner resolved all 4 open questions 2026-09-15/16 (see
+`REBUILD_PLAN.md`), and real curriculum changes have shipped: Module 09 has
+a ticket-assignment framing panel (Phase 3), and Module 06 now explains its
+hunt was triggered by Module 05's finding (Phase 4, Arc C proof of
+concept). Phases 1 and 2 are closed with no code needed beyond the admin
+grading-queue breakdown fix (`portal/app.js`) — a first attempt at a
+student-facing version was reverted after finding students already had
+this. **Still open:** Arc A (Modules 02+03) and Arc B (Modules 07+04) are
+designed but need real fixture reconciliation between each pair before
+building — flagged as needing an owner content-review checkpoint, unlike
+the mechanical changes shipped so far. See `REBUILD_PLAN.md`'s Phase 4.
 
 **Before doing anything else this session, read `NEXT_SESSION.md`.** Its
 top-of-file handoff block is the current entry point for unfinished work

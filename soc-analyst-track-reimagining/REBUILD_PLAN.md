@@ -64,25 +64,72 @@ returns `{ score, breakdown: {...}, feedback: [...] }` — none of that
   rendering shape is settled, since every module writes to a different file.
 
 ### Phase 2 — Domain-appropriate lifecycle content
-Per decision 1: keep the current `observation/analysis/decision/
-communication` (or Module 09/12-style richer) section *names* as the
-default IR-flavored shape, but let Module 06 and Module 08 use their own
-domain-fit section names instead (e.g. Module 08 vulnerability management
-might use intake/prioritization/remediation-plan/verification rather than
-intake/investigate/contain/triage). No code changes until Phase 1 ships and
-the shared rendering shape exists to build against.
+**Done by inspection, 2026-09-16, no code change needed.** Checked Module 06
+("assisted hypothesis-led threat hunt") and Module 08 ("vulnerability
+prioritization and exposure analysis") — both already describe themselves,
+in their own header comments and content, as their own domain rather than a
+forced IR shape: Module 06's decision content is hypothesis/scope/ATT&CK/
+disposition (no fake containment step), Module 08's is priority/treatment/
+timeline (remediation-focused, not incident containment). The shared
+top-level labels (Observation/Analysis/Decision/Communication) are generic
+enough to fit either domain without implying "this is incident response."
+The owner's "vary by domain" decision is already satisfied by existing
+content — nothing to build here.
 
 ### Phase 3 — Deepen the closest-to-bar module as the template
-Module 09 (ransomware, closest to the full lifecycle per the audit) gets an
-explicit ticket-assignment/intake beat added and its per-criterion
-investigative depth extended, proving the deeper pattern once before it's
-applied elsewhere.
+**Ticket-assignment beat: shipped, 2026-09-16.** Module 09 (ransomware,
+closest to the full lifecycle per the audit) now opens its lab with a
+queue-ticket panel (INC-4937, intake priority, reporting source, SLA clock)
+before the existing "Your role" briefing — the "get assigned the ticket"
+beat the bar called for and no module had. Presentational only, no scoring
+or evidence changed. Further per-criterion investigative-depth extension
+(the "several days of work" feel, beyond the intake framing) is not started
+— would need actual new evidence/decision content, a bigger lift than the
+framing addition, better scoped as its own sprint if the owner wants more
+here.
 
-### Phase 4 — Extend the rest
-Modules 02–08, grouped into arcs per decision 3 rather than 7 independent
-rebuilds — grouping specifics (which modules share an arc, and what each
-arc's incident is) still need to be worked out once Phase 3 proves the
-pattern.
+### Phase 4 — Extend the rest via cross-module arcs
+Per decision 3 (keep the arc pattern), Modules 02–08 group into a few
+multi-module arcs instead of 7 independent rebuilds. Proposed grouping,
+chosen because each pair's existing technical content is already
+compatible — this is connective narrative work, not new incident content:
+
+- **Arc C — Endpoint compromise → fleet hunt (Modules 05 + 06). Proof of
+  concept shipped, 2026-09-16.** Module 05 confirms a document-reader →
+  unsigned-script → loader chain on WS-LAB-27. Module 06's hunt already
+  searches for exactly that pattern (document reader spawning an unsigned
+  script host, then an outbound connection) on other hosts — the two labs
+  were already technically compatible, just never said so. Added one
+  framing panel to Module 06 ("Why this hunt opened") explaining the hunt
+  was triggered by Module 05's finding. No evidence, scoring, or data
+  changed.
+- **Arc A — Identity compromise → lateral movement (Modules 02 + 03). Not
+  started.** Module 02's compromised identity (IDN-317) and Module 03's
+  lateral-movement account (svc_reports) are currently unrelated fixtures.
+  Design: reframe Module 03's investigation as "the same identity family
+  compromised in Module 02, now found making internal moves" — needs the
+  entity names/details actually reconciled between the two modules (more
+  than a framing sentence, since the two labs currently use different
+  invented accounts), so this is real content work, not just a connector.
+- **Arc B — Phishing → detection-engineering response (Modules 07 + 04).
+  Not started.** Module 07's phishing case (EM-071, credential-phish
+  leading to WS-517 activity) is a natural "why this rule got built"
+  precursor to Module 04's Sentinel rule-tuning exercise — real SOC
+  practice is post-incident detection improvement. Design: frame Module
+  04's exercise as the detection gap discovered *because of* the Module 07
+  incident. Same caveat as Arc A: the two modules' fixtures aren't
+  currently the same incident, so this needs real reconciliation work, not
+  just a sentence.
+- **Module 08 stays standalone** — vulnerability management is a genuinely
+  different lifecycle (proactive, not incident response), consistent with
+  the Phase 2 finding. No arc needed.
+
+Arc A and Arc B are the concrete next sprints if this work continues —
+each needs an actual content-reconciliation pass (deciding what changes so
+the two modules' fixtures agree), which is more curriculum-authoring
+judgment than the mechanical/framing changes shipped so far this session.
+Good candidates for their own scoped sprint with a content review
+checkpoint, rather than blind parallel dispatch.
 
 ### Not scheduled yet
 The two known tool-exposure gaps (interactive CLI, PCAP analysis) from

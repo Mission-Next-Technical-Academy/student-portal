@@ -1,6 +1,51 @@
 # Next session — start here
 
-## 2026-09-15 — redo-completion gate shipped, closes out lab-grading-notification-system — active work now `soc-analyst-track-reimagining/STATE.md`
+## 2026-09-16 — SOC track reimagining: Phases 1-4 worked through, real shipped progress, one self-correction — start with `soc-analyst-track-reimagining/STATE.md`
+
+Owner resolved all 4 open questions from `LAB_DEPTH_AND_SCORING_OVERHAUL.md`
+(vary scoring sections by domain, breakdown-UI first, keep the cross-module
+incident-arc pattern, Module 1 stays numbered as a relabeled tour) —
+captured in the new `REBUILD_PLAN.md`. Then worked through every phase:
+
+- **Phase 1a** (admin grading queue breakdown UI): shipped, verified.
+- **Phase 1b: a real self-correction.** A first attempt wired a new shared
+  `renderLabScoreSections()` helper into all 11 modules' student-facing
+  result panels, assuming (per the audit) that breakdown was never shown to
+  students. That assumption was wrong — every module already renders its
+  own labeled score grid to students. The 11-file change would have shown
+  the breakdown twice, so it was reverted before committing, and
+  `MODULE_DEPTH_AUDIT.md`/`REBUILD_PLAN.md` were corrected inline. Lesson
+  for next time: verify render templates directly, not just score-function
+  return shapes, before scoping a UI change across many files.
+- **Phase 2** (domain-appropriate lifecycle content): closed by inspection,
+  no code needed — Modules 06/08 already don't force an IR shape.
+- **Phase 3** (deepen the closest-to-bar module): Module 09 now opens its
+  lab with a real ticket-assignment/queue panel (INC-4937, intake
+  priority, SLA clock) before the existing role briefing — the "get
+  assigned the ticket" beat the owner's bar called for, which no module
+  had. Presentational only.
+- **Phase 4** (cross-module arcs): designed three arc groupings in
+  `REBUILD_PLAN.md` (Arc A: Modules 02+03 identity/lateral-movement, Arc B:
+  Modules 07+04 phishing/detection-engineering, Arc C: Modules 05+06
+  endpoint/hunt). **Arc C shipped as a proof of concept** — Module 06 now
+  explains its hunt was triggered by Module 05's confirmed finding, since
+  the two labs' technical content was already compatible. **Arc A and Arc
+  B are designed but not built** — they need real fixture reconciliation
+  between each module pair (not just a framing sentence), and are flagged
+  as needing an owner content-review checkpoint before shipping, unlike the
+  mechanical changes done so far.
+
+All changes this session: `node --check` + `bin/portal-check.js` (38/38)
+clean throughout, committed in small verified increments, pushed. No
+Chrome browser round-trip available this session (extension not
+connected) — worth a live sanity pass next time it's available, especially
+for the Module 09/06 visual additions.
+
+**Next real work:** Arc A or Arc B content reconciliation — see
+`soc-analyst-track-reimagining/REBUILD_PLAN.md`'s Phase 4 section for the
+concrete design and open questions on each.
+
+## 2026-09-15 — redo-completion gate shipped, closes out lab-grading-notification-system
 
 The last open item from the grading/notification system (below) is done:
 `moduleCompletion()` in `portal/app.js` now returns `complete: false` when
