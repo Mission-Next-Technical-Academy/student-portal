@@ -143,16 +143,28 @@ function moduleOneSyncDetailBeacon() {
     const work = (moduleOneState.lessonWork || {})[String(lesson.number)] || {};
     return work.checked === true && work.taskSubmitted === true;
   });
+  // Ratchet, not overwrite: OR each field with whatever the server already
+  // has (fetched once at login — buildUserFromSession's remoteModuleDetail,
+  // no extra read here). A field only ever moves false -> true. Without
+  // this, opening Module 01 on any browser/device with empty local state
+  // (a new device, cleared storage, or an admin backfilling this same
+  // field) silently flipped previously-true fields back to false on the
+  // very next save, since this function used to write local state outright.
+  const remoteDetail = moduleOneUser.remoteModuleDetail?.['soc-01'] || {};
   const detail = {
-    quizPassed: moduleOneState.quiz?.passed === true,
-    consoleCompleted: moduleOneState.completed === true && moduleOneState.consoleCompleted === true,
-    lab2Completed: moduleOneState.lab2?.completed === true,
-    lessonsComplete,
+    quizPassed: moduleOneState.quiz?.passed === true || remoteDetail.quizPassed === true,
+    consoleCompleted: (moduleOneState.completed === true && moduleOneState.consoleCompleted === true) || remoteDetail.consoleCompleted === true,
+    lab2Completed: moduleOneState.lab2?.completed === true || remoteDetail.lab2Completed === true,
+    lessonsComplete: lessonsComplete || remoteDetail.lessonsComplete === true,
   };
   const serializedDetail = JSON.stringify(detail);
   if (serializedDetail === moduleOneLastSyncedDetail) return;
   upsertModuleProgress(moduleOneUser, 'soc-01', { detail });
   moduleOneLastSyncedDetail = serializedDetail;
+  // Keep the in-memory baseline current so a second save this same session
+  // (before a full page reload re-fetches remoteModuleDetail) still ratchets
+  // against the value we just wrote, not the stale one from page load.
+  moduleOneUser.remoteModuleDetail = { ...(moduleOneUser.remoteModuleDetail || {}), 'soc-01': detail };
 }
 
 function moduleOneSave() {
