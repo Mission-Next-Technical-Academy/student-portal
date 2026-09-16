@@ -3860,10 +3860,6 @@ function moduleProgressShell(sections, state = {}, options = {}) {
     review: 'Review',
   };
 
-  const nextIncomplete = sections.find((s) => !s.isComplete);
-  const continueText = nextIncomplete ? `Continue to ${esc(nextIncomplete.title)}` : 'Module complete';
-  const continueHref = nextIncomplete ? `#${esc(nextIncomplete.scrollId)}` : '';
-
   return `
   <div class="mnav-shell">
     <div class="mnav-bar">
@@ -3887,7 +3883,6 @@ function moduleProgressShell(sections, state = {}, options = {}) {
       </div>
 
       <div class="mnav-actions">
-        ${nextIncomplete ? `<a href="#${esc(nextIncomplete.scrollId)}" class="mnav-continue"><i class="ri-arrow-right-line" aria-hidden="true"></i> ${esc(continueText)}</a>` : ''}
         <button class="mnav-review" type="button" data-mnav-review-toggle aria-pressed="${reviewMode}">
           <i class="ri-eye-${reviewMode ? 'off' : 'line'}" aria-hidden="true"></i>
           ${reviewMode ? 'Exit Review' : 'Review Module'}

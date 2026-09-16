@@ -70,7 +70,7 @@ const MODULE_ONE_DEFAULT_STATE = {
   lastSubmittedAt: '',
   attempts: 0,
   lessonWork: {},
-  sectionOpen: { foundations: true, flow: false, lifecycle: false, loop: false, lab: false, quiz: false, review: false, sources: false },
+  sectionOpen: { checklist: false, foundations: true, flow: false, lifecycle: false, loop: false, lab: false, quiz: false, review: false, sources: false },
   quiz: { selectedQuestions: [], questionsByAnswer: {}, answers: {}, scored: false, attempts: 0, score: 0, bestScore: 0, feedback: [], passed: false },
   lab2: {
     entity: '',
@@ -824,7 +824,6 @@ function viewModuleOne(user, program) {
           <p class="m01-kicker">Module 01 · ${formatHandsOnDuration(module.durationMinutes)} · Start here</p>
           <h1 id="m01-title">${esc(module.title)}</h1>
           <p class="m01-lede">Meet the team that watches for security threats, learn the language of alerts and incidents, follow the incident response lifecycle, and triage one clear alert with a coach beside you.</p>
-          <a class="m01-hero-action" href="#m01-foundations"><i class="ri-book-open-line" aria-hidden="true"></i> Begin with the foundations</a>
         </div>
         <dl class="m01-progress" aria-label="Saved lab progress">
           <div><dt>Foundation lessons</dt><dd>${module.lessons}</dd></div>
@@ -835,9 +834,14 @@ function viewModuleOne(user, program) {
 
       ${progress.remoteRecord && !progress.complete ? '<p class="m01-progress-notice" role="status">A prior module-completion record exists, but this device does not contain the detailed lesson, knowledge-check, and lab evidence needed to display this module as complete. Continue or review the required work below.</p>' : ''}
 
-      <section class="m01-checklist" aria-labelledby="m01-checklist-title">
-        <p class="m01-kicker">Module progress checklist</p>
-        <h2 id="m01-checklist-title">Every required block, with its duration and status</h2>
+      <section class="m01-checklist m01-section-collapsible" aria-labelledby="m01-checklist-title">
+        <div class="m01-section-heading">
+          <div><p class="m01-kicker">Module progress checklist</p><h2 id="m01-checklist-title">Every required block, with its duration and status</h2></div>
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="checklist" data-m01-section-label="module progress checklist" aria-expanded="${openFor('checklist')}" aria-controls="m01-checklist-body" aria-label="${openFor('checklist') ? 'Collapse' : 'Expand'} module progress checklist">
+            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="m01-section-body" id="m01-checklist-body" ${openFor('checklist') ? '' : 'hidden'}>
         <ul class="m01-checklist-list">
           ${module.curriculumItems.map((item, index) => {
             const lesson = MODULE_ONE_ALERT_ORIENTATION.lessons[index];
@@ -871,6 +875,7 @@ function viewModuleOne(user, program) {
           }).join('')}
         </ul>
         <p class="m01-checklist-total">Total instructional time: <strong>${typeof formatInstructionalMinutes === 'function' ? formatInstructionalMinutes(module.curriculumItems.reduce((total, item) => total + item.durationMinutes, 0) + moduleLabs.reduce((total, lab) => total + lab.instructionalMinutes, 0)) : '480 Minutes'}</strong></p>
+        </div>
       </section>
 
       <section class="m01-objective" aria-labelledby="m01-objective-title">

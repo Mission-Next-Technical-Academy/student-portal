@@ -1004,7 +1004,7 @@ function viewModuleFour(user, program) {
       ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm04' })}
       <main class="m04-main">
       <section class="m04-hero" aria-labelledby="m04-title">
-        <div><p class="m04-kicker">Module 04 · ${formatHandsOnDuration(module.durationMinutes)} · assisted workflow</p><h1 id="m04-title">${esc(module.title)}</h1><p>Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p><a href="#m04-lecture" class="m04-hero-action"><i class="ri-book-open-line" aria-hidden="true"></i> Start the lecture</a></div>
+        <div><p class="m04-kicker">Module 04 · ${formatHandsOnDuration(module.durationMinutes)} · assisted workflow</p><h1 id="m04-title">${esc(module.title)}</h1><p>Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p></div>
         <dl class="m04-status" aria-label="Saved lab status"><div><dt>Primary objective</dt><dd>Tune one rule</dd></div><div><dt>Dataset</dt><dd>14 events · 4 indicators</dd></div><div><dt>Status</dt><dd id="m04-status">${complete ? 'Complete' : moduleFourState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
       </section>
 

@@ -1015,7 +1015,7 @@ function viewModuleThree(user, program) {
       ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm03' })}
       <main class="m03-main">
       <section class="m03-hero" aria-labelledby="m03-title">
-        <div><p class="m03-kicker">Module 03 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m03-title">${esc(module.title)}</h1><p>Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p><a href="#m03-lecture" class="m03-hero-action"><i class="ri-compass-3-line" aria-hidden="true"></i> Start the lecture</a></div>
+        <div><p class="m03-kicker">Module 03 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m03-title">${esc(module.title)}</h1><p>Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p></div>
         <dl class="m03-status" aria-label="Saved lab status"><div><dt>Primary objective</dt><dd>Correlate one alert</dd></div><div><dt>Dataset</dt><dd>10 events · 4 sources</dd></div><div><dt>Status</dt><dd id="m03-status">${complete ? 'Complete' : moduleThreeState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
       </section>
 
