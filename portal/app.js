@@ -4195,6 +4195,7 @@ function viewPortal(user) {
 const STATE_STYLES = {
   complete:    { label: 'Complete',    icon: 'ri-checkbox-circle-fill', cls: 'bg-[#f0fdf4] border-[#bbf7d0] text-[#15803d]' },
   in_progress: { label: 'In Progress', icon: 'ri-progress-4-line',      cls: 'bg-[#fff7ed] border-[#fed7aa] text-[#c2410c]' },
+  needs_redo:  { label: 'Redo Requested', icon: 'ri-error-warning-line', cls: 'bg-[#fef2f2] border-[#fecaca] text-[#b91c1c]' },
   not_started: { label: 'Not Started', icon: 'ri-circle-line',          cls: 'bg-gray-50 border-gray-200 text-gray-500' },
   locked:      { label: 'Locked',      icon: 'ri-lock-line',            cls: 'bg-gray-50 border-gray-200 text-gray-400' },
   draft:       { label: 'In Development', icon: 'ri-tools-line',        cls: 'bg-gray-50 border-gray-200 text-gray-400' },
@@ -4205,8 +4206,10 @@ function moduleCard(program, key, user) {
   // Locked is DERIVED here, never stored. PLATFORM_ARCHITECTURE.md §4.3.
   const unlocked = hasModuleAccess(user, program.slug, key);
   const completion = moduleCompletion(program, key, user);
+  const openRedo = (user.openLabRedosByModuleKey || {})[key];
   const state = !unlocked ? 'locked'
               : m.status === 'draft' ? 'draft'
+              : openRedo ? 'needs_redo'
               : completion.complete ? 'complete'
               : completion.contentOpened || completion.fixtureState !== 'not_started' ? 'in_progress'
               : 'not_started';
@@ -4217,8 +4220,7 @@ function moduleCard(program, key, user) {
   const completionLabel = completion.complete
     ? 'Module complete: module content opened and every lab completed'
     : 'Module not complete: open the module content and complete every lab';
-  const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' ? 'Continue Module' : 'Start Module';
-  const openRedo = (user.openLabRedosByModuleKey || {})[key];
+  const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' || state === 'needs_redo' ? 'Continue Module' : 'Start Module';
 
   return `
   <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${unlocked ? '' : 'mnt-locked'}" data-module-card>
