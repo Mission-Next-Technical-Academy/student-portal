@@ -195,9 +195,21 @@ where m.module_key = v.module_key;
 
 -- ========================================================== demo accounts
 --
--- Local only. Four test accounts, one per entitlement scenario. Each password
--- matches its username (user1/user1 … user4/user4). The portal accepts the bare
--- username; Supabase itself needs the full email.
+-- STALE / NOT WIRED TO CURRENT LOCAL DEV (confirmed 2026-09-16): this file
+-- assumes a local Supabase-CLI stack (`supabase start` + this seed), but
+-- `bin/dev.sh` never runs one — `portal/supabase-config.js` hardcodes the
+-- live production Supabase project, so local dev talks straight to
+-- production. These accounts have never been reachable through bin/dev.sh's
+-- workflow, and their `@mntacademy.test` email domain below doesn't even
+-- match the app's real `@missionnext.example` construction in
+-- `portal/app.js`'s STUDENT_EMAIL_DOMAIN. user1-4 do not work today. Left in
+-- place as a template in case a real local-Supabase workflow gets built
+-- later — don't assume it's live without re-verifying against whatever
+-- local-dev setup exists at that time.
+--
+-- Local only, if it were wired up. Four test accounts, one per entitlement
+-- scenario. Each password matches its username (user1/user1 … user4/user4).
+-- The portal accepts the bare username; Supabase itself needs the full email.
 --
 --   user1  SOC Analyst, full access, 4/12 modules complete
 --   user2  SOC Analyst, partial — Weeks 1–2 only (modules 01–04)

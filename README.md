@@ -42,22 +42,22 @@ bin/dev.sh status   # what is listening
 bin/dev.sh stop     # shut both down
 ```
 
-Then open <http://127.0.0.1:8768/#/login>. Signing in locally requires the
-Supabase seed data (`supabase/seed.sql`), which creates four fixed test
-accounts — one per entitlement scenario, password equal to username. These
-exist only in a local/seeded Supabase instance and are never present in
-production:
-
-| Account | Enrolled track | Status |
-|---|---|---|
-| `user1` | IT Help Desk & Career Accelerator | outline only |
-| **`user2`** | **Security Operations Center (SOC) Analyst** | **the built track** |
-| `user3` | Foundations of AI & Machine Learning | outline only |
-| `user4` | Electrical Engineering Essentials | outline only |
+Then open <http://127.0.0.1:8768/#/login>. `portal/supabase-config.js`
+hardcodes the live production Supabase project — local dev is not backed by
+a local or seeded Supabase instance, it talks to the same database
+production does. `supabase/seed.sql` describes four fixed test accounts
+(`user1`-`user4`, password equal to username) for a local Supabase-CLI
+stack that this repo's `bin/dev.sh` does not actually run; those accounts
+were never reachable this way (their email domain in the seed file doesn't
+even match the app's real `@missionnext.example` construction in
+`portal/app.js`) and **do not work**, against production or otherwise. Sign
+in locally with a real provisioned account instead — see below.
 
 Real, provisioned student accounts are never listed in documentation or
-source — they're issued per-student through the admin panel and looked up
-through Supabase directly.
+source — they're issued per-student through the admin panel/`bin/
+provision-students.js` and live only in the gitignored
+`bin/.roster-output/*.csv` files (or your password vault, if you've moved
+them there already) and in Supabase directly.
 
 ### Where things live
 

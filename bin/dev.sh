@@ -68,12 +68,13 @@ case "${1:-start}" in
   Portal      http://127.0.0.1:$PORTAL_PORT/#/login
   Simulator   http://127.0.0.1:$SIM_PORT/
 
-  Demo sign-ins (password == username):
-    user1  IT Help Desk        user2  SOC Analyst
-    user3  AI & ML             user4  Electrical Engineering
+  This portal talks to the live production Supabase project — there is no
+  local/seeded auth backend, so user1-4 (password == username) do NOT work
+  here and never have against production. Sign in with a real provisioned
+  account from bin/.roster-output/*.csv instead.
 
   The SOC Analyst track is the built one. Start at:
-  http://127.0.0.1:$PORTAL_PORT/#/program/soc-analyst/module/1  (sign in as user2)
+  http://127.0.0.1:$PORTAL_PORT/#/program/soc-analyst/module/1
 EOF
     ;;
   stop)
