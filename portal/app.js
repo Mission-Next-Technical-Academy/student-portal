@@ -3942,6 +3942,129 @@ function moduleQuickNavRail(items, state = {}) {
   </aside>`;
 }
 
+/* Merged replacement for moduleProgressShell() + moduleQuickNavRail(), used
+ * together on every prior module. Owner feedback live-testing Module 01,
+ * 2026-09-16: the horizontal progress bar duplicated the left rail's job
+ * and cost a full screen's worth of vertical space. This folds both into
+ * one vertical panel: overall percent + review toggle at the top, then
+ * every section in reading order as one row each; a section with granular
+ * sub-items (Foundations' 9 lessons, Guided Labs' 2 labs) nests them in a
+ * slide-out sublist behind its own arrow, closed by default except the
+ * current section.
+ *
+ * Reference implementation only — built and verified on Module 01. Not yet
+ * rolled out to modules 2-12 or other tracks; see
+ * module-completion-integrity/BRIEF.md's sibling rollout doc before
+ * replicating (that doc is completion-logic, not this nav — a matching nav
+ * rollout doc should point here the same way).
+ *
+ * Usage:
+ *   sections: same shape moduleProgressShell() took, plus optional
+ *     `items` (the moduleQuickNavRail() item shape) and `gated` (default
+ *     true — set false for read-only sections with no completion state of
+ *     their own, e.g. explanatory content between exercises; ungated rows
+ *     are always clickable and never count toward the lock chain).
+ *   state: {moduleKey, reviewMode}
+ *
+ * Which group starts expanded is recomputed fresh every full render (the
+ * section containing the student's current position) — a click on a
+ * group's own arrow toggles it directly in the DOM afterward (see
+ * wireModuleQuickNavRail()) without needing that choice fed back in here,
+ * the same way the mobile drawer toggle already works statelessly.
+ */
+function moduleUnifiedNav(sections, state = {}) {
+  if (!Array.isArray(sections) || !sections.length) return '';
+
+  const moduleKey = state.moduleKey || 'm01';
+  const reviewMode = state.reviewMode || false;
+
+  const gatedSections = sections.filter((s) => s.gated !== false);
+  const currentGatedIndex = gatedSections.findIndex((s) => !s.isComplete);
+  const currentGatedSection = currentGatedIndex >= 0 ? gatedSections[currentGatedIndex] : gatedSections[gatedSections.length - 1];
+  const completedCount = gatedSections.filter((s) => s.isComplete).length;
+  const overallPercent = gatedSections.length ? Math.round((completedCount / gatedSections.length) * 100) : 0;
+
+  const typeIcon = {
+    lecture: 'ri-book-open-line',
+    quiz: 'ri-question-line',
+    lab: 'ri-flask-line',
+    review: 'ri-eye-line',
+    read: 'ri-article-line',
+  };
+
+  const rowsHtml = sections.map((section) => {
+    const isGated = section.gated !== false;
+    const isCurrentUncomplete = isGated && section === currentGatedSection && !section.isComplete;
+    const statusClass = !isGated
+      ? 'munified-row-ungated'
+      : section.isComplete ? 'mnav-chip-complete' : isCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
+    const isLocked = statusClass === 'mnav-chip-locked';
+
+    const items = Array.isArray(section.items) ? section.items : null;
+    const hasChildren = !!(items && items.length);
+    const childCurrentIndex = hasChildren ? items.findIndex((item) => !item.isComplete) : -1;
+    const childCurrentItem = childCurrentIndex >= 0 ? items[childCurrentIndex] : (hasChildren ? items[items.length - 1] : null);
+    const childComplete = hasChildren ? items.filter((item) => item.isComplete).length : 0;
+    const groupId = `munified-group-${esc(section.id)}`;
+    const isOpen = hasChildren && section === currentGatedSection;
+
+    const rowHtml = `<a href="#${esc(section.scrollId)}" class="munified-row ${statusClass}" data-mnav-chip-scroll="${esc(section.scrollId)}" aria-disabled="${isLocked}" title="${esc(section.title)}${isLocked ? ' (complete the current section first)' : ''}">
+      <i class="${esc(typeIcon[section.type] || 'ri-file-line')}" aria-hidden="true"></i>
+      <span class="munified-row-label">${esc(section.title)}</span>
+      ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
+      ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
+    </a>`;
+
+    const toggleHtml = hasChildren
+      ? `<button class="munified-group-toggle" type="button" data-munified-group-toggle data-munified-group-key="${esc(section.id)}" aria-expanded="${isOpen}" aria-controls="${groupId}" aria-label="${isOpen ? 'Collapse' : 'Expand'} ${esc(section.title)}">
+          <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+        </button>`
+      : '';
+
+    const childrenHtml = hasChildren
+      ? `<ul class="mquick-nav-list munified-group-body" id="${groupId}" ${isOpen ? '' : 'hidden'}>
+          ${items.map((item) => {
+            const itemIsCurrentUncomplete = item === childCurrentItem && !item.isComplete;
+            const itemStatusClass = item.isComplete
+              ? 'mnav-chip-complete'
+              : itemIsCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
+            const itemLocked = itemStatusClass === 'mnav-chip-locked';
+            const itemIcon = item.kind === 'lab' ? 'ri-flask-line' : item.kind === 'quiz' ? 'ri-question-line' : 'ri-book-open-line';
+            return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link munified-child-link ${itemStatusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}${itemLocked ? ' (complete the current item first)' : ''}" aria-disabled="${itemLocked}">
+              <i class="${esc(itemIcon)}" aria-hidden="true"></i>
+              <span class="mquick-nav-label">${esc(item.title)}</span>
+              ${item.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
+            </a></li>`;
+          }).join('')}
+        </ul>`
+      : '';
+
+    return `<li class="munified-group">
+      <div class="munified-group-row">${rowHtml}${toggleHtml}</div>
+      ${childrenHtml}
+    </li>`;
+  }).join('');
+
+  return `<aside class="mquick-nav-rail munified-nav" data-mquick-nav-rail="${moduleKey}" aria-label="Module navigation">
+    <button class="mquick-nav-toggle" type="button" data-mquick-nav-toggle aria-label="Toggle navigation" aria-expanded="false" aria-controls="mquick-nav-drawer">
+      <i class="ri-menu-line" aria-hidden="true"></i>
+    </button>
+    <nav class="mquick-nav-drawer" id="mquick-nav-drawer" hidden>
+      <div class="munified-header">
+        <span class="munified-percent">${overallPercent}%</span>
+        <span class="munified-label">Module progress</span>
+        <button class="mnav-review" type="button" data-mnav-review-toggle aria-pressed="${reviewMode}">
+          <i class="ri-eye-${reviewMode ? 'off' : 'line'}" aria-hidden="true"></i>
+          ${reviewMode ? 'Exit Review' : 'Review'}
+        </button>
+      </div>
+      <ul class="mquick-nav-list munified-groups">
+        ${rowsHtml}
+      </ul>
+    </nav>
+  </aside>`;
+}
+
 /* Reusable Further Reading / Sources block: renders a compact list of authoritative
  * citations supporting the lesson content. Each source is an object with:
  *   {title, org, url, note}
@@ -6208,6 +6331,20 @@ function wireModuleQuickNavRail() {
       if (link.getAttribute('aria-disabled') === 'true') return;
       const scrollId = link.dataset.mquickNavScroll;
       const target = document.getElementById(scrollId);
+      // Opening the lesson's own <details> isn't enough if an ancestor page
+      // section is itself collapsed (data-m01-section-toggle et al) — the
+      // target stays hidden, zero-height, and scrollIntoView visibly does
+      // nothing. Expand any collapsed ancestor first by clicking its own
+      // toggle button (found via aria-controls), the same way a real click
+      // on that toggle would, so its model state stays in sync too.
+      let ancestor = target?.parentElement;
+      while (ancestor) {
+        if (ancestor.hasAttribute('hidden') && ancestor.id) {
+          const sectionToggle = document.querySelector(`[aria-controls="${ancestor.id}"]`);
+          if (sectionToggle) sectionToggle.click();
+        }
+        ancestor = ancestor.parentElement;
+      }
       if (target && target.tagName === 'DETAILS') {
         target.open = true;
       }
@@ -6220,6 +6357,19 @@ function wireModuleQuickNavRail() {
       }
       // Scroll to the element
       target?.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+
+  // Expand/collapse a munified-nav group's nested sublist (moduleUnifiedNav()).
+  // DOM-only, same as the mobile drawer toggle above: no model state to keep
+  // in sync, so a click just flips the attributes directly rather than
+  // triggering a full render().
+  document.querySelectorAll('[data-munified-group-toggle]').forEach((toggle) => {
+    toggle.addEventListener('click', () => {
+      const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+      const body = document.getElementById(toggle.getAttribute('aria-controls'));
+      toggle.setAttribute('aria-expanded', String(!isExpanded));
+      if (body) body.hidden = isExpanded;
     });
   });
 }

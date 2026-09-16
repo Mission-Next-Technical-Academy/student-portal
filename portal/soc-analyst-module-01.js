@@ -745,16 +745,6 @@ function moduleOneLabDynamic() {
   `;
 }
 
-function moduleOneGetSections() {
-  const progress = moduleOneProgress();
-  return [
-    { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: progress.lessonsComplete === progress.lessonsTotal, scrollId: 'm01-foundations' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: progress.knowledgeCheckComplete, scrollId: 'm01-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Labs', type: 'lab', isComplete: progress.labsComplete === 2, scrollId: 'm01-guided-lab' },
-    { id: 'review', title: 'Module Review', type: 'review', isComplete: progress.complete, scrollId: 'm01-review' },
-  ];
-}
-
 function moduleOneQuizQuestion(entry, index) {
   // Real selectQuizQuestions() wrapper: { conceptId, conceptTitle, question,
   // shuffledOptions, correctIndex }. Do not read prompt/options from entry.
@@ -813,6 +803,26 @@ function moduleOneGetQuickNavItems() {
   return items;
 }
 
+/* All 8 numbered page sections, for moduleUnifiedNav(). Foundations and
+ * Guided Labs nest their granular items (moduleOneGetQuickNavItems());
+ * flow/lifecycle/loop/sources are read-only explanatory content with no
+ * completion state of their own — `gated: false` marks them always
+ * navigable, excluded from the lock/current-position chain. */
+function moduleOneGetNavSections() {
+  const progress = moduleOneProgress();
+  const quickNavItems = moduleOneGetQuickNavItems();
+  return [
+    { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: progress.lessonsComplete === progress.lessonsTotal, scrollId: 'm01-foundations', items: quickNavItems.filter((i) => i.kind === 'lesson') },
+    { id: 'flow', title: 'How activity becomes analyst work', type: 'read', isComplete: null, scrollId: 'm01-flow', gated: false },
+    { id: 'lifecycle', title: 'Incident response lifecycle', type: 'read', isComplete: null, scrollId: 'm01-lifecycle', gated: false },
+    { id: 'loop', title: 'Your five-step triage loop', type: 'read', isComplete: null, scrollId: 'm01-loop', gated: false },
+    { id: 'guided-lab', title: 'Guided Labs', type: 'lab', isComplete: progress.labsComplete === 2, scrollId: 'm01-guided-lab', items: quickNavItems.filter((i) => i.kind === 'lab') },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: progress.knowledgeCheckComplete, scrollId: 'm01-knowledge-check' },
+    { id: 'review', title: 'Module Review', type: 'review', isComplete: progress.complete, scrollId: 'm01-review' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm01-sources-section', gated: false },
+  ];
+}
+
 function viewModuleOne(user, program) {
   moduleOneLoad(user);
   const lab = MODULE_ONE_ALERT_ORIENTATION;
@@ -822,14 +832,12 @@ function viewModuleOne(user, program) {
   const sectionOpen = moduleOneState.sectionOpen || {};
   const openFor = (key) => moduleOneReviewMode || sectionOpen[key] === true;
   const progress = moduleOneProgress();
-  const quickNavItems = moduleOneGetQuickNavItems();
 
   return `<div class="m01-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(moduleOneGetSections(), { reviewMode: moduleOneReviewMode })}
 
     <div class="mquick-nav-layout">
-      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm01' })}
+      ${moduleUnifiedNav(moduleOneGetNavSections(), { moduleKey: 'm01', reviewMode: moduleOneReviewMode })}
       <main class="m01-main">
       <section class="m01-hero" aria-labelledby="m01-title">
         <div>
@@ -913,7 +921,7 @@ function viewModuleOne(user, program) {
         </div>
       </section>
 
-      <section class="m01-section m01-section-collapsible" aria-labelledby="m01-flow-title">
+      <section class="m01-section m01-section-collapsible" id="m01-flow" aria-labelledby="m01-flow-title">
         <div class="m01-section-heading">
           <span>2</span>
           <div><p class="m01-kicker">Security architecture, without the jargon wall</p><h2 id="m01-flow-title">How activity becomes analyst work</h2></div>
@@ -937,7 +945,7 @@ function viewModuleOne(user, program) {
         </div>
       </section>
 
-      <section class="m01-section m01-section-collapsible" aria-labelledby="m01-lifecycle-title">
+      <section class="m01-section m01-section-collapsible" id="m01-lifecycle" aria-labelledby="m01-lifecycle-title">
         <div class="m01-section-heading">
           <span>3</span>
           <div><p class="m01-kicker">The map for responding</p><h2 id="m01-lifecycle-title">Incident response lifecycle</h2></div>
@@ -972,7 +980,7 @@ function viewModuleOne(user, program) {
         </div>
       </section>
 
-      <section class="m01-section m01-section-collapsible" aria-labelledby="m01-loop-title">
+      <section class="m01-section m01-section-collapsible" id="m01-loop" aria-labelledby="m01-loop-title">
         <div class="m01-section-heading">
           <span>4</span>
           <div><p class="m01-kicker">The repeatable habit</p><h2 id="m01-loop-title">Your five-step triage loop</h2></div>
