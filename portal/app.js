@@ -6006,7 +6006,7 @@ async function render(options = {}) {
     // minutes or their existing completion contracts.
     const isUnlockedSocCapstone = Number(moduleMatch[2]) !== 12
       || (typeof moduleTwelveUnlocked === 'function' && moduleTwelveUnlocked(user, program));
-    if (program.slug === 'soc-analyst' && Number(moduleMatch[2]) >= 2 && isUnlockedSocCapstone) {
+    if (canAccessModule && program.slug === 'soc-analyst' && Number(moduleMatch[2]) >= 2 && isUnlockedSocCapstone) {
       mountSocEvidenceRecall(user, Number(moduleMatch[2]), app);
     }
   } else if (programMatch) {
