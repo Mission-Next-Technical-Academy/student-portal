@@ -1,5 +1,32 @@
 # Module quick-nav rail + duration copy — sprint spec
 
+**Status, 2026-09-16: Sprints 1-2 DONE and pushed (`941d3f8`). Sprint 3 is
+the one open item — see that section below.** Built via two Haiku
+sub-agent sprints (Sprint 1 + partial Sprint 2 on Modules 01-02, then a
+continuation for Modules 03-12), reviewed/tested/fixed/committed by the
+orchestrating session. Two real bugs shipped by the agents and caught only
+by live browser testing before commit, both fixed:
+1. The rail's flex wrapper had an inline `overflow: hidden`, which silently
+   disables `position: sticky` on the rail inside it — the rail rendered
+   once, then vanished on the first scroll. Fixed by moving the wrapper to
+   a shared `.mquick-nav-layout` class with no `overflow` property.
+2. `.mquick-nav-drawer[hidden] { display: none; }` (an attribute selector,
+   specificity 0,2,0) outranked the desktop media query's plain class rule
+   (0,1,0), so the "persistent" desktop rail never actually appeared at
+   all regardless of viewport width. Fixed by repeating `[hidden]` in the
+   desktop override too.
+
+Verified live (Module 01, the only account not blocked by the Module 1
+beacon gap — see `NEXT_SESSION.md`): duration copy renders correctly,
+rail stays sticky through a full scroll, click-to-jump opens the target
+lesson's `<details>` and scrolls to it, current-position highlight tracks
+correctly. Modules 02-12 verified via `node bin/portal-check.js` (38/38)
+plus a script-based tag-balance check (all 12 SOC modules' rendered HTML
+has matched `<div>`/`<main>`/`<aside>` counts, `mquick-nav-rail` present
+where expected) — not a live visual check, since no test account can
+currently reach past Module 1. Do that live check first once account
+access is unblocked, before assuming modules 2-12 look right.
+
 Owner feedback, 2026-09-16, live-testing Module 01 as `4437023872-SOCAN`:
 
 1. "8 hours of lecture? That's not intent... the intent is that each module
@@ -118,7 +145,12 @@ already duplicated 12 ways — don't make that worse by writing 12 different
 rail implementations; centralize what you can in `app.js` and keep each
 module file's own addition to "call the shared renderer with my data."
 
-## Sprint 3 — remove the now-redundant CTAs (do this last, after Sprint 2 works)
+## Sprint 3 — remove the now-redundant CTAs (NOT STARTED — the next real work here)
+
+Sprint 2 is done and verified, so this is unblocked. Not started this
+session for the same reason live-checking modules 2-12 wasn't: worth doing
+alongside a real browser walkthrough rather than blind, and no unblocked
+account could reach past Module 1 this session.
 
 Once the rail exists and highlights current position, two existing buttons
 duplicate what it already does and duplicate each other:
