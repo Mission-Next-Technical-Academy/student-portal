@@ -55,6 +55,11 @@
 .m06-shell .m06-seed strong { font-size: 13px; }
 .m06-shell .m06-seed p { margin: 5px 0 0; color: rgba(255, 255, 255, .76); font: 12px/1.6 Inter, sans-serif; }
 .m06-shell .m06-seed code { color: #fff; font-weight: 800; overflow-wrap: anywhere; }
+
+.m06-shell .m06-bulletin { display: flex; align-items: flex-start; gap: 13px; padding: 15px 17px; color: #1e3a5f; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; }
+.m06-shell .m06-bulletin > i { flex: 0 0 auto; color: #f97316; font-size: 21px; }
+.m06-shell .m06-bulletin strong { font-size: 13px; }
+.m06-shell .m06-bulletin p { margin: 5px 0 0; color: #7c5a3a; font: 12px/1.6 Inter, sans-serif; }
 .m06-shell .m06-fieldset { min-width: 0; margin: 24px 0 0; padding: 0; border: 0; }
 .m06-shell .m06-fieldset legend, .m06-shell .m06-note-label { display: flex; align-items: center; gap: 9px; color: #1e3a5f; font-size: 14px; font-weight: 700; }
 .m06-shell .m06-fieldset legend > span, .m06-shell .m06-note-label > span { width: 28px; height: 26px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 7px; font-size: 10px; }
