@@ -18,13 +18,15 @@ percentages, one final score, real variance" already asks for, at the code
 level.
 
 **What's actually missing is narrower than a full rebuild:**
-1. **The section breakdown is computed but never shown.** Students and the
-   admin grading queue both only ever see a flat `X/100` — the `breakdown`
-   object (`{ observation, analysis, decision, communication }` or M12's
-   10 named domains) is right there in `recordLabAttempt()`'s `result`
-   payload and is currently thrown away visually. This is the direct fix
-   for the "`lab_attempts.result` needs a real sections shape" gap already
-   flagged in `../lab-grading-notification-system/00_SCAN_AND_GAP_COMPARISON.md`.
+1. **Correction, 2026-09-16:** this originally said the section breakdown
+   was "computed but never shown to anyone." That was only half true —
+   every module's student-facing result panel already renders its own
+   labeled `.m0N-score-grid` with named sections and per-section fractions
+   (confirmed by actually reading the render templates, not just the score
+   functions, after a first Phase 1b attempt would have duplicated it).
+   The real, narrower gap was admin-only: the grading queue only ever
+   showed a raw JSON dump of the same data. That's fixed (Phase 1a). No
+   student-facing change was needed or made.
 2. **No module has an explicit "get assigned the ticket" moment** — every
    independent lab drops the student straight into an already-framed
    scenario. `grep -c ticket` returns 0 for most modules.

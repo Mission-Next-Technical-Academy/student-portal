@@ -93,12 +93,28 @@ rebuild specifically; revisit separately.
 **Phase 1a shipped, 2026-09-15** — admin grading queue now renders the
 existing score breakdown and auto-scored feedback as readable text instead
 of a raw JSON dump (`portal/app.js`, `adminGradingQueuePanel()`), committed
-and pushed. **Phase 1b (student-facing per-module breakdown) not started**
-— it's a real 11-file change (each module renders its own feedback panel
-inline, no shared helper exists yet) and needs its own scoping pass
-(where the shared rendering helper lives, and — since each module's flat
-`breakdown` object mixes top-level section totals with sub-criteria, e.g.
-Module 04 has `observation/analysis/decision/communication` *and*
-`grouping/metric/threshold/...` in the same object — which keys count as
-"the section list" per module) before dispatching it as a sprint. Check
-`STATE.md`'s sprint log for anything shipped after this note.
+and pushed.
+
+**Phase 1b — correction, 2026-09-16: not needed, closed without shipping.**
+The original plan (this section, previous revision) claimed the section
+breakdown was "computed but never shown to anyone" and scoped an 11-file
+change to add it to every module's student-facing result panel. That claim
+was wrong for the student side — a first attempt at Phase 1b (wiring a new
+shared `renderLabScoreSections()` helper into all 11 modules) revealed that
+every module's student-facing panel *already* renders its own labeled
+`.m0N-score-grid` with named sections and per-section fractions, directly
+in the template, above the plain feedback list. The gap was real only on
+the admin side (fixed in 1a) — students already had this. The 11-file
+change was reverted before committing (it would have shown the section
+breakdown twice, once from each module's existing grid and once from the
+new shared helper). `MODULE_DEPTH_AUDIT.md`'s "never shown to anyone"
+framing is corrected inline there too.
+
+The shared `renderLabScoreSections()` helper added to `portal/lab-runtime.js`
+this session is harmless and unused — kept in place as a real building
+block for Phase 2 (new domain-appropriate modules can call it fresh
+instead of hand-rolling their own grid markup again), not reverted.
+
+**Net effect:** Phase 1 (surfacing the existing breakdown) is fully done —
+it just turned out to be one file's worth of work (1a), not two. Moving on
+to Phase 2 directly.

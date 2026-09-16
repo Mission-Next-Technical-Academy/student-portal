@@ -47,17 +47,18 @@ Module 1 stays numbered as a relabeled tour) are both captured in
 **Phase 1a shipped** (admin grading queue breakdown UI — see
 `REBUILD_PLAN.md`'s Status section and this file's sprint log below).
 
-**Next up: Phase 1b** — the student-facing per-module result panels (11
-files, each currently renders its own inline feedback block with no shared
-helper). Needs a short scoping pass first: where the shared
-breakdown-rendering helper lives, and which `breakdown` object keys count
-as the top-level "section list" per module vs. sub-criteria (see
-`REBUILD_PLAN.md`'s Phase 1b note — Module 04's breakdown object mixes
-`observation/analysis/decision/communication` totals with
-`grouping/metric/threshold/...` sub-scores in the same flat object, and
-that pattern likely repeats across modules). Once scoped, Phase 1b is a
-good candidate for a parallel per-module Codex sprint, mirroring
-`bin/run-module-agents.sh`'s existing one-process-per-module pattern.
+**Phase 1b: not needed, closed 2026-09-16.** A first attempt (parallel
+per-module Codex sprint wiring a new shared helper into all 11 files)
+surfaced that every module's student-facing panel already renders its own
+labeled score grid — the change was reverted before committing since it
+would have shown the breakdown twice. See `REBUILD_PLAN.md`'s corrected
+Phase 1b note and `MODULE_DEPTH_AUDIT.md`'s inline correction. Phase 1 is
+fully done as of Phase 1a; nothing else needed here.
+
+**Next up: Phase 2** — domain-appropriate lifecycle content for Modules 06
+(hunting) and 08 (vulnerability management), per the owner's "vary by
+domain" decision. Then Phase 3 (deepen Module 09 as the template) and
+Phase 4 (extend the rest, grouped into arcs). See `REBUILD_PLAN.md`.
 
 ## Related project
 `../lab-grading-notification-system/` — the grading/notification system
@@ -72,3 +73,6 @@ second, parallel scoring model.
 - 2026-09-15 — Phase 1a (admin grading breakdown UI). Done, verified
   (unit-level VM render check + node --check + bin/portal-check.js 38/38),
   committed and pushed.
+- 2026-09-16 — Phase 1b attempted, found unnecessary, reverted before
+  committing (every module's student panel already had its own score
+  grid). Docs corrected. Phase 1 fully closed.
