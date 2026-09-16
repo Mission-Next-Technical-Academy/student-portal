@@ -5860,10 +5860,26 @@ function beginRouteLoading(app, hash, generation, options = {}) {
 // it: synchronous route work can replace the loader again before the next
 // paint. Two animation frames guarantee a paint boundary between showing the
 // loader and beginning the potentially expensive admin render.
+//
+// requestAnimationFrame never fires while the tab isn't visible/painting
+// (backgrounded tab, minimized window, OS focus elsewhere) — waiting on it
+// unconditionally stranded students on the loading screen forever if that
+// happened mid-navigation (reported: hard-refresh, page stuck spinning with
+// no recovery). A capped fallback timer guarantees render() still moves on
+// even when no paint frame ever comes; the rAF path is still preferred and
+// wins the race in the normal (visible-tab) case, well under the cap.
 function waitForRouteLoadingPaint(generation) {
   return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
       resolve(isCurrentRouteRender(generation));
+    };
+    const fallback = setTimeout(settle, 300);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      clearTimeout(fallback);
+      settle();
     }));
   });
 }
