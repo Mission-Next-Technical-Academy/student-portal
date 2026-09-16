@@ -489,6 +489,31 @@ function moduleFourGetSections() {
   ];
 }
 
+function moduleFourGetQuickNavItems() {
+  const items = [];
+  MODULE_FOUR_LESSON_LOOPS.forEach((lesson, index) => {
+    const work = moduleFourState.lessonWork[lesson.id] || {};
+    const isComplete = work.taskComplete === true;
+    items.push({
+      id: `m04-lesson-${esc(lesson.id)}`,
+      title: lesson.title,
+      kind: 'lesson',
+      isComplete,
+      scrollId: `m04-lesson-${esc(lesson.id)}`,
+      lessonNumber: index + 1,
+    });
+  });
+  // Add the lab
+  items.push({
+    id: 'm04-lab',
+    title: 'Detection Lab',
+    kind: 'lab',
+    isComplete: moduleFourState.completed === true,
+    scrollId: 'm04-lab',
+  });
+  return items;
+}
+
 function moduleFourSave() {
   if (moduleFourUser && moduleFourState) LabRuntime.save(MODULE_FOUR_LAB_ID, moduleFourUser, moduleFourState);
 }
@@ -908,6 +933,7 @@ function viewModuleFour(user, program) {
   const quizOpen = moduleFourReviewMode || (moduleFourQuizState && !moduleFourQuizState.passed);
   const labOpen = moduleFourReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleFourReviewMode;
+  const quickNavItems = moduleFourGetQuickNavItems();
 
   const lectureSection = `
     <details class="m04-section-collapsible" ${lectureOpen ? 'open' : ''}>
@@ -974,9 +1000,11 @@ function viewModuleFour(user, program) {
   return `<div class="m04-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleFourReviewMode })}
-    <main class="m04-main">
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm04' })}
+      <main class="m04-main">
       <section class="m04-hero" aria-labelledby="m04-title">
-        <div><p class="m04-kicker">Module 04 · ${formatInstructionalMinutes(module.durationMinutes)} · assisted workflow</p><h1 id="m04-title">${esc(module.title)}</h1><p>Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p><a href="#m04-lecture" class="m04-hero-action"><i class="ri-book-open-line" aria-hidden="true"></i> Start the lecture</a></div>
+        <div><p class="m04-kicker">Module 04 · ${formatHandsOnDuration(module.durationMinutes)} · assisted workflow</p><h1 id="m04-title">${esc(module.title)}</h1><p>Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p><a href="#m04-lecture" class="m04-hero-action"><i class="ri-book-open-line" aria-hidden="true"></i> Start the lecture</a></div>
         <dl class="m04-status" aria-label="Saved lab status"><div><dt>Primary objective</dt><dd>Tune one rule</dd></div><div><dt>Dataset</dt><dd>14 events · 4 indicators</dd></div><div><dt>Status</dt><dd id="m04-status">${complete ? 'Complete' : moduleFourState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
       </section>
 
@@ -988,6 +1016,7 @@ function viewModuleFour(user, program) {
       ${reviewSection}
       ${sourcesSection}
     </main>
+    </div>
   </div>`;
 }
 

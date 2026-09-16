@@ -505,6 +505,31 @@ function moduleFiveGetSections() {
   ];
 }
 
+function moduleFiveGetQuickNavItems() {
+  const items = [];
+  MODULE_FIVE_LESSON_LOOPS.forEach((lesson, index) => {
+    const work = moduleFiveState.lessonWork[lesson.id] || {};
+    const isComplete = work.taskComplete === true;
+    items.push({
+      id: `m05-lesson-${esc(lesson.id)}`,
+      title: lesson.title,
+      kind: 'lesson',
+      isComplete,
+      scrollId: `m05-lesson-${esc(lesson.id)}`,
+      lessonNumber: index + 1,
+    });
+  });
+  // Add the lab
+  items.push({
+    id: 'm05-lab',
+    title: 'Endpoint Lab',
+    kind: 'lab',
+    isComplete: moduleFiveState.completed === true,
+    scrollId: 'm05-lab',
+  });
+  return items;
+}
+
 function moduleFiveQuizQuestion(selected, index) {
   const question = selected.question;
   const userAnswerId = moduleFiveQuizState?.answers?.[question.id];
@@ -795,12 +820,15 @@ function viewModuleFive(user, program) {
   const quizOpen = moduleFiveReviewMode || (moduleFiveQuizState && !moduleFiveQuizState.passed);
   const labOpen = moduleFiveReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleFiveReviewMode;
+  const quickNavItems = moduleFiveGetQuickNavItems();
 
   return `<div class="m05-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleFiveReviewMode })}
-    <main class="m05-main">
-      <section class="m05-hero" aria-labelledby="m05-title"><div><p class="m05-kicker">Module 05 · ${formatInstructionalMinutes(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p>Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p></div><dl><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Evidence sources</dt><dd>2</dd></div><div><dt>Lab status</dt><dd id="m05-status">${moduleFiveState.completed ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm05' })}
+      <main class="m05-main">
+      <section class="m05-hero" aria-labelledby="m05-title"><div><p class="m05-kicker">Module 05 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p>Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p></div><dl><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Evidence sources</dt><dd>2</dd></div><div><dt>Lab status</dt><dd id="m05-status">${moduleFiveState.completed ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m05-section-collapsible" ${lectureOpen ? 'open' : ''}>
         <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">1</span><div><p class="m05-kicker">Lecture</p><h2 id="m05-lecture">Endpoint investigation foundations</h2></div></div></summary>
@@ -831,6 +859,7 @@ function viewModuleFive(user, program) {
         <div class="m05-section-body">${moduleSourcesBlock(MODULE_FIVE_SOURCES)}</div>
       </details>
     </main>
+    </div>
   </div>`;
 }
 

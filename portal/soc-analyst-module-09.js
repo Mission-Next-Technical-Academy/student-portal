@@ -524,6 +524,17 @@ function moduleNineGetSections() {
   ];
 }
 
+function moduleNineGetQuickNavItems() {
+  const sections = moduleNineGetSections();
+  return sections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    kind: section.type,
+    isComplete: section.isComplete,
+    scrollId: section.scrollId,
+  }));
+}
+
 function moduleNineConcepts() {
   const cards = [
     ['ri-link-m', 'Correlate before acting', 'Connect time, entity, behavior, and source. A shared address is useful only when the surrounding activity supports the relationship.'],
@@ -769,12 +780,15 @@ function viewModuleNine(user, program) {
   const quizOpen = moduleNineReviewMode || (moduleNineQuizState && !moduleNineQuizState.passed);
   const labOpen = moduleNineReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleNineReviewMode;
+  const quickNavItems = moduleNineGetQuickNavItems();
 
   return `<div class="m09-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleNineReviewMode })}
-    <main class="m09-main">
-      <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · ${formatInstructionalMinutes(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p><a class="m09-primary" href="#m09-lecture"><i class="ri-book-open-line" aria-hidden="true"></i> Review the response guide</a></div><dl aria-label="Saved lab progress"><div><dt>Evidence sources</dt><dd>3</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm09' })}
+      <main class="m09-main">
+      <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · ${formatHandsOnDuration(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p><a class="m09-primary" href="#m09-lecture"><i class="ri-book-open-line" aria-hidden="true"></i> Review the response guide</a></div><dl aria-label="Saved lab progress"><div><dt>Evidence sources</dt><dd>3</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m09-section-collapsible" ${lectureOpen ? 'open' : ''}>
         <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">1</span><div><p class="m09-kicker">Lecture</p><h2 id="m09-lecture">Incident response principles: correlation, scope, and proportionate action</h2></div></div></summary>
@@ -810,6 +824,7 @@ function viewModuleNine(user, program) {
         <div class="m09-section-body">${moduleSourcesBlock(MODULE_NINE_SOURCES_LIST)}</div>
       </details>
     </main>
+    </div>
   </div>`;
 }
 

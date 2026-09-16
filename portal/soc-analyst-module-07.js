@@ -473,6 +473,17 @@ function moduleSevenGetSections() {
   ];
 }
 
+function moduleSevenGetQuickNavItems() {
+  const sections = moduleSevenGetSections();
+  return sections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    kind: section.type,
+    isComplete: section.isComplete,
+    scrollId: section.scrollId,
+  }));
+}
+
 function moduleSevenQuizQuestion(selected, index) {
   const question = selected.question;
   const userAnswerId = moduleSevenQuizState?.answers?.[question.id];
@@ -727,12 +738,15 @@ function viewModuleSeven(user, program) {
   const quizOpen = moduleSevenReviewMode || (moduleSevenQuizState && !moduleSevenQuizState.passed);
   const labOpen = moduleSevenReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleSevenReviewMode;
+  const quickNavItems = moduleSevenGetQuickNavItems();
 
   return `<div class="m07-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleSevenReviewMode })}
-    <main class="m07-main">
-      <section class="m07-hero" aria-labelledby="m07-title"><div><p class="m07-kicker">Module 07 · ${formatInstructionalMinutes(module.durationMinutes)} · analysis practice</p><h1 id="m07-title">${esc(module.title)}</h1><p class="m07-lede">Correlate a QR-phishing vendor invoice lure with DNS and TLS activity, distinguish meaningful artifacts from plausible benign traffic, and produce a bounded response handoff.</p></div><dl class="m07-progress" aria-label="Saved lab progress"><div><dt>Curriculum items</dt><dd>${module.lessons}</dd></div><div><dt>Labs</dt><dd>${module.labs}</dd></div><div><dt>Lab status</dt><dd id="m07-status">${moduleSevenState.completed ? 'Complete' : moduleSevenState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm07' })}
+      <main class="m07-main">
+      <section class="m07-hero" aria-labelledby="m07-title"><div><p class="m07-kicker">Module 07 · ${formatHandsOnDuration(module.durationMinutes)} · analysis practice</p><h1 id="m07-title">${esc(module.title)}</h1><p class="m07-lede">Correlate a QR-phishing vendor invoice lure with DNS and TLS activity, distinguish meaningful artifacts from plausible benign traffic, and produce a bounded response handoff.</p></div><dl class="m07-progress" aria-label="Saved lab progress"><div><dt>Curriculum items</dt><dd>${module.lessons}</dd></div><div><dt>Labs</dt><dd>${module.labs}</dd></div><div><dt>Lab status</dt><dd id="m07-status">${moduleSevenState.completed ? 'Complete' : moduleSevenState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m07-section-collapsible" ${lectureOpen ? 'open' : ''}>
         <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">1</span><div><p class="m07-kicker">Lecture</p><h2 id="m07-lecture">Email authentication and network correlation</h2></div></div></summary>
@@ -766,6 +780,7 @@ function viewModuleSeven(user, program) {
         <div class="m07-section-body">${moduleSourcesBlock(MODULE_SEVEN_SOURCES_LIST)}</div>
       </details>
     </main>
+    </div>
   </div>`;
 }
 

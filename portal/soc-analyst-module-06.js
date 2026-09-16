@@ -501,6 +501,30 @@ function moduleSixGetSections() {
   ];
 }
 
+function moduleSixGetQuickNavItems() {
+  const items = [];
+  MODULE_SIX_LESSONS.forEach((lesson) => {
+    const isComplete = moduleSixLessonComplete(lesson);
+    items.push({
+      id: `m06-lesson-${String(lesson.number).padStart(2, '0')}`,
+      title: lesson.title,
+      kind: 'lesson',
+      isComplete,
+      scrollId: `m06-lesson-${String(lesson.number).padStart(2, '0')}`,
+      lessonNumber: lesson.number,
+    });
+  });
+  // Add the lab
+  items.push({
+    id: 'm06-lab',
+    title: 'Threat Hunt Lab',
+    kind: 'lab',
+    isComplete: moduleSixState.completed === true,
+    scrollId: 'm06-lab',
+  });
+  return items;
+}
+
 function moduleSixLessonWork(number) {
   return moduleSixState.lessonWork[String(number)] || {};
 }
@@ -844,12 +868,15 @@ function viewModuleSix(user, program) {
   const quizOpen = moduleSixReviewMode || (moduleSixQuizState && !moduleSixQuizState.passed);
   const labOpen = moduleSixReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleSixReviewMode;
+  const quickNavItems = moduleSixGetQuickNavItems();
 
   return `<div class="m06-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleSixReviewMode })}
-    <main class="m06-main">
-      <section class="m06-hero" aria-labelledby="m06-title"><div><p class="m06-kicker">Module 06 · ${formatInstructionalMinutes(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress" aria-label="Saved lab progress"><div><dt>Data sources</dt><dd>2</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(moduleLab.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm06' })}
+      <main class="m06-main">
+      <section class="m06-hero" aria-labelledby="m06-title"><div><p class="m06-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress" aria-label="Saved lab progress"><div><dt>Data sources</dt><dd>2</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(moduleLab.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m06-section-collapsible" ${lectureOpen ? 'open' : ''}>
         <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">1</span><div><p class="m06-kicker">Lecture</p><h2 id="m06-lecture">Hypothesis-led hunting foundations</h2></div></div></summary>
@@ -884,6 +911,7 @@ function viewModuleSix(user, program) {
         <div class="m06-section-body">${moduleSourcesBlock(MODULE_SIX_SOURCES_LIST)}</div>
       </details>
     </main>
+    </div>
   </div>`;
 }
 

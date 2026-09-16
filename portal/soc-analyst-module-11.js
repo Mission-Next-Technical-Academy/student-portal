@@ -729,6 +729,17 @@ function moduleElevenGetSections() {
   ];
 }
 
+function moduleElevenGetQuickNavItems() {
+  const sections = moduleElevenGetSections();
+  return sections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    kind: section.type,
+    isComplete: section.isComplete,
+    scrollId: section.scrollId,
+  }));
+}
+
 function viewModuleEleven(user, program) {
   moduleElevenLoad(user);
   const module = program.modules['soc-11'];
@@ -737,8 +748,9 @@ function viewModuleEleven(user, program) {
   const quizOpen = moduleElevenReviewMode || (moduleElevenQuizState && !moduleElevenQuizState.passed);
   const labOpen = moduleElevenReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleElevenReviewMode;
+  const quickNavItems = moduleElevenGetQuickNavItems();
 
-  const html = `<div class="m11-shell">${moduleTopbar(user, program)}<main class="m11-main">
+  const html = `<div class="m11-shell">${moduleTopbar(user, program)}<div class="mquick-nav-layout">${moduleQuickNavRail(quickNavItems, { moduleKey: 'm11' })}<main class="m11-main">
 ${moduleProgressShell(sections, { reviewMode: moduleElevenReviewMode })}
 <details class="m11-section-collapsible" id="m11-lecture-section" ${lectureOpen ? 'open' : ''}><summary><span class="m11-section-badge">1</span><h2>Lecture</h2></summary><div class="m11-section-body" id="m11-lecture">
   <section class="m11-practice-note"><i class="ri-compass-3-line" aria-hidden="true"></i><div><p class="m11-kicker">Independent practice</p><h2>Read the objective and dataset, then choose your own working order.</h2><p>No prescribed sequence or pre-submission hints are provided. Scoring feedback and a reference model appear after you submit.</p></div></section>
@@ -755,7 +767,7 @@ ${moduleProgressShell(sections, { reviewMode: moduleElevenReviewMode })}
 <details class="m11-section-collapsible" id="m11-sources-section" ${moduleElevenReviewMode ? 'open' : ''}><summary><span class="m11-section-badge">5</span><h2>Sources &amp; Further Reading</h2></summary><div class="m11-section-body">
   ${moduleSourcesBlock(MODULE_ELEVEN_SOURCES_LIST)}
 </div></details>
-</main></div>`;
+</main></div></div>`;
   return html;
 }
 

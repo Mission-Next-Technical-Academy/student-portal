@@ -635,6 +635,17 @@ function moduleTenGetSections() {
   ];
 }
 
+function moduleTenGetQuickNavItems() {
+  const sections = moduleTenGetSections();
+  return sections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    kind: section.type,
+    isComplete: section.isComplete,
+    scrollId: section.scrollId,
+  }));
+}
+
 function moduleTenQuizQuestion(selected, index) {
   const question = selected.question;
   const userAnswerId = moduleTenQuizState?.answers?.[question.id];
@@ -744,12 +755,15 @@ function viewModuleTen(user, program) {
   const quizOpen = moduleTenReviewMode || (moduleTenQuizState && !moduleTenQuizState.passed);
   const labOpen = moduleTenReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleTenReviewMode;
+  const quickNavItems = moduleTenGetQuickNavItems();
 
   return `<div class="m10-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleTenReviewMode })}
-    <main class="m10-main">
-      <section class="m10-hero" aria-labelledby="m10-title"><div><p class="m10-kicker">Module 10 · ${formatInstructionalMinutes(module.durationMinutes)} · independent</p><h1 id="m10-title">${esc(module.title)}</h1><p>Preserve incident evidence, document custody, and reconstruct a separate case from chronology and demonstrated behavior. ATT&CK remains subordinate to the evidence as a behavior framework; it does not replace the case record.</p></div><dl aria-label="Module lab progress"><div><dt>Independent labs</dt><dd>${module.labs}</dd></div><div><dt>Passing score</dt><dd>${MODULE_TEN_PASSING_SCORE}</dd></div><div><dt>Completed</dt><dd id="m10-completed">${[moduleTenCustodyState, moduleTenMappingState].filter((state) => state.completed).length}/${module.labs}</dd></div></dl></section>
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm10' })}
+      <main class="m10-main">
+      <section class="m10-hero" aria-labelledby="m10-title"><div><p class="m10-kicker">Module 10 · ${formatHandsOnDuration(module.durationMinutes)} · independent</p><h1 id="m10-title">${esc(module.title)}</h1><p>Preserve incident evidence, document custody, and reconstruct a separate case from chronology and demonstrated behavior. ATT&CK remains subordinate to the evidence as a behavior framework; it does not replace the case record.</p></div><dl aria-label="Module lab progress"><div><dt>Independent labs</dt><dd>${module.labs}</dd></div><div><dt>Passing score</dt><dd>${MODULE_TEN_PASSING_SCORE}</dd></div><div><dt>Completed</dt><dd id="m10-completed">${[moduleTenCustodyState, moduleTenMappingState].filter((state) => state.completed).length}/${module.labs}</dd></div></dl></section>
 
       <details class="m10-section-collapsible" ${lectureOpen ? 'open' : ''}>
         <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">1</span><div><p class="m10-kicker">Lecture</p><h2 id="m10-lecture">Evidence acquisition, custody, timeline reconstruction, and bounded conclusions</h2></div></div></summary>
@@ -788,6 +802,7 @@ function viewModuleTen(user, program) {
         </div>
       </details>
     </main>
+    </div>
   </div>`;
 }
 

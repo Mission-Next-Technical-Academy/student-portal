@@ -688,7 +688,7 @@ function moduleTwoFoundations() {
 function moduleTwoLessonLoop(lesson, index) {
   const work = moduleTwoState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
   const complete = work.checked && work.taskComplete;
-  return `<details class="m02-lesson-loop" ${index === 0 || !complete ? 'open' : ''} data-m02-lesson="${esc(lesson.id)}">
+  return `<details class="m02-lesson-loop" id="m02-lesson-${esc(lesson.id)}" ${index === 0 || !complete ? 'open' : ''} data-m02-lesson="${esc(lesson.id)}">
     <summary><span class="m02-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${complete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${complete ? '<i class="ri-checkbox-circle-fill m02-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m02-chevron" aria-hidden="true"></i>'}</summary>
     <div class="m02-lesson-loop-body">
       <section><p class="m02-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section>
@@ -906,6 +906,23 @@ function moduleTwoLabDynamic() {
   ${allReviewed ? moduleTwoWorksheet() : `<section class="m02-locked" aria-label="Scored artifact locked"><i class="ri-lock-line" aria-hidden="true"></i><div><strong>Scored artifact locked</strong><p>Mark all four evidence stations reviewed. Your selected records remain saved as you move between stations.</p></div></section>`}`;
 }
 
+function moduleTwoGetQuickNavItems() {
+  const items = [];
+  MODULE_TWO_LESSON_LOOPS.forEach((lesson, index) => {
+    const work = moduleTwoState.lessonWork[lesson.id] || {};
+    const isComplete = work.checked && work.taskComplete;
+    items.push({
+      id: `m02-lesson-${esc(lesson.id)}`,
+      title: lesson.title,
+      kind: 'lesson',
+      isComplete,
+      scrollId: `m02-lesson-${esc(lesson.id)}`,
+      lessonNumber: index + 1,
+    });
+  });
+  return items;
+}
+
 function viewModuleTwo(user, program) {
   moduleTwoLoad(user);
   const module = program.modules['soc-02'];
@@ -913,6 +930,7 @@ function viewModuleTwo(user, program) {
   const foundationsOpen = moduleTwoReviewMode || !sections[0].isComplete;
   const trustModelOpen = moduleTwoReviewMode || !sections[1].isComplete;
   const labOpen = moduleTwoReviewMode || !sections[2].isComplete;
+  const quickNavItems = moduleTwoGetQuickNavItems();
 
   const foundationsSection = `
     <details class="m02-section-collapsible" ${foundationsOpen ? 'open' : ''}>
@@ -969,8 +987,10 @@ function viewModuleTwo(user, program) {
   return `<div class="m02-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleTwoReviewMode })}
-    <main class="m02-main">
-      <section class="m02-hero" aria-labelledby="m02-title"><div><p class="m02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1 foundations</p><h1 id="m02-title">${esc(module.title)}</h1><p class="m02-lede">Build a practical trust model, then correlate identity, authentication, network, and role-change facts without confusing unusual activity with malicious activity.</p><a class="m02-hero-action" href="#m02-foundations"><i class="ri-compass-3-line" aria-hidden="true"></i> Start the foundations</a></div><dl class="m02-progress" aria-label="Saved module progress"><div><dt>Foundation topics</dt><dd>${module.lessons}</dd></div><div><dt>Guided lab</dt><dd>${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)}</dd></div><div><dt>Lab status</dt><dd id="m02-status">${moduleTwoState.completed ? 'Complete' : moduleTwoState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm02' })}
+      <main class="m02-main">
+      <section class="m02-hero" aria-labelledby="m02-title"><div><p class="m02-kicker">Module 02 · ${formatHandsOnDuration(module.durationMinutes)} · Week 1 foundations</p><h1 id="m02-title">${esc(module.title)}</h1><p class="m02-lede">Build a practical trust model, then correlate identity, authentication, network, and role-change facts without confusing unusual activity with malicious activity.</p><a class="m02-hero-action" href="#m02-foundations"><i class="ri-compass-3-line" aria-hidden="true"></i> Start the foundations</a></div><dl class="m02-progress" aria-label="Saved module progress"><div><dt>Foundation topics</dt><dd>${module.lessons}</dd></div><div><dt>Guided lab</dt><dd>${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)}</dd></div><div><dt>Lab status</dt><dd id="m02-status">${moduleTwoState.completed ? 'Complete' : moduleTwoState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <section class="m02-objective" aria-labelledby="m02-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m02-kicker">One measurable objective</p><h2 id="m02-objective-title">Correlate authentication, network context, and authorization changes to identify one risky identity and document a proportionate escalation.</h2></div></section>
 
@@ -980,6 +1000,7 @@ function viewModuleTwo(user, program) {
       ${quizSection}
       ${labSection}
     </main>
+    </div>
   </div>`;
 }
 

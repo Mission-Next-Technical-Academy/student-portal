@@ -172,7 +172,7 @@ function moduleOneLessons(lab) {
       const work = moduleOneLessonWork(lesson.number);
       const isOpen = work.open !== undefined ? work.open : (lesson.number === 1);
       const isComplete = moduleOneLessonComplete(lesson);
-      return `<details class="m01-lesson" ${isOpen ? 'open' : ''} data-m01-lesson="${lesson.number}">
+      return `<details class="m01-lesson" id="m01-lesson-${String(lesson.number).padStart(2, '0')}" ${isOpen ? 'open' : ''} data-m01-lesson="${lesson.number}">
         <summary>
           <span class="m01-lesson-number">${String(lesson.number).padStart(2, '0')}</span>
           <span class="m01-lesson-icon"><i class="${esc(lesson.icon)}" aria-hidden="true"></i></span>
@@ -766,6 +766,41 @@ function moduleOneReview() {
   return `<div id="m01-review"><p class="m01-instruction">You are ready to review when you can separate events, alerts, and incidents; explain your evidence; choose a proportionate priority; and hand off work with an owner and verification step.</p><ul><li>Start with evidence and state uncertainty.</li><li>Use severity with context to set priority.</li><li>Escalate when impact or authority exceeds your boundary.</li><li>Close only after verification is recorded.</li></ul></div>`;
 }
 
+function moduleOneGetQuickNavItems() {
+  const lab = MODULE_ONE_ALERT_ORIENTATION;
+  const moduleLabs = LABS.filter((item) => item.module === 'm01');
+  const items = [];
+
+  // Add lessons
+  lab.lessons.forEach((lesson, index) => {
+    const isComplete = moduleOneLessonComplete(lesson);
+    items.push({
+      id: `m01-lesson-${String(lesson.number).padStart(2, '0')}`,
+      title: lesson.title,
+      kind: 'lesson',
+      isComplete,
+      scrollId: `m01-lesson-${String(lesson.number).padStart(2, '0')}`,
+      lessonNumber: lesson.number,
+    });
+  });
+
+  // Add labs
+  moduleLabs.forEach((lab) => {
+    const isComplete = lab.key === 'm01-first-soc-alert-v2'
+      ? Boolean(moduleOneState.completed && moduleOneState.consoleCompleted)
+      : Boolean(moduleOneState.lab2?.completed);
+    items.push({
+      id: `m01-lab-${esc(lab.key)}`,
+      title: lab.title,
+      kind: 'lab',
+      isComplete,
+      scrollId: 'm01-guided-lab',
+    });
+  });
+
+  return items;
+}
+
 function viewModuleOne(user, program) {
   moduleOneLoad(user);
   const lab = MODULE_ONE_ALERT_ORIENTATION;
@@ -775,15 +810,18 @@ function viewModuleOne(user, program) {
   const sectionOpen = moduleOneState.sectionOpen || {};
   const openFor = (key) => moduleOneReviewMode || sectionOpen[key] === true;
   const progress = moduleOneProgress();
+  const quickNavItems = moduleOneGetQuickNavItems();
 
   return `<div class="m01-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(moduleOneGetSections(), { reviewMode: moduleOneReviewMode })}
 
-    <main class="m01-main">
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm01' })}
+      <main class="m01-main">
       <section class="m01-hero" aria-labelledby="m01-title">
         <div>
-          <p class="m01-kicker">Module 01 · ${formatInstructionalMinutes(module.durationMinutes)} · Start here</p>
+          <p class="m01-kicker">Module 01 · ${formatHandsOnDuration(module.durationMinutes)} · Start here</p>
           <h1 id="m01-title">${esc(module.title)}</h1>
           <p class="m01-lede">Meet the team that watches for security threats, learn the language of alerts and incidents, follow the incident response lifecycle, and triage one clear alert with a coach beside you.</p>
           <a class="m01-hero-action" href="#m01-foundations"><i class="ri-book-open-line" aria-hidden="true"></i> Begin with the foundations</a>
@@ -984,6 +1022,7 @@ function viewModuleOne(user, program) {
         <div class="m01-section-body" id="m01-sources-body" ${openFor('sources') ? '' : 'hidden'}>${moduleSourcesBlock(MODULE_ONE_SOURCES)}</div>
       </section>
     </main>
+    </div>
   </div>`;
 }
 

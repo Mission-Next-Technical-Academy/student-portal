@@ -3677,6 +3677,11 @@ function formatInstructionalMinutes(minutes) {
   return `${hours} Hour${hours === 1 ? '' : 's'} ${remainder} Minutes`;
 }
 
+function formatHandsOnDuration(minutes) {
+  const base = formatInstructionalMinutes(minutes);
+  return `${base} hands-on`;
+}
+
 function moduleParentRecords(program, module, labs) {
   const codes = new Set();
   [...(module.curriculumItems || []), ...labs].forEach((record) => {
@@ -3890,6 +3895,54 @@ function moduleProgressShell(sections, state = {}, options = {}) {
       </div>
     </div>
   </div>`;
+}
+
+/* Module quick-nav rail: a persistent left sidebar on desktop, or a toggle drawer on mobile,
+ * showing all lessons and labs with their completion status. Allows jump-to-lesson navigation.
+ *
+ * Usage:
+ *   items: array of {id, title, kind, isComplete, scrollId, lessonNumber?}
+ *   state: object with {moduleKey} for styling scope
+ * Returns HTML for the rail container and the toggle button.
+ */
+function moduleQuickNavRail(items, state = {}) {
+  if (!Array.isArray(items) || !items.length) return '';
+
+  const moduleKey = state.moduleKey || 'm01';
+  const currentIndex = items.findIndex((item) => !item.isComplete);
+  const currentItem = currentIndex >= 0 ? items[currentIndex] : items[items.length - 1];
+
+  const railItemHtml = items.map((item) => {
+    const isCurrentUncomplete = item === currentItem && !item.isComplete;
+    const statusClass = item.isComplete
+      ? 'mnav-chip-complete'
+      : isCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
+
+    const icon = item.kind === 'lab' ? 'ri-flask-line'
+      : item.kind === 'quiz' ? 'ri-question-line'
+      : 'ri-book-open-line';
+
+    const label = item.kind === 'lab' ? 'Lab'
+      : item.kind === 'quiz' ? 'Quiz'
+      : (item.lessonNumber ? `Lesson ${String(item.lessonNumber).padStart(2, '0')}` : 'Lesson');
+
+    return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link ${statusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}">
+      <i class="${esc(icon)}" aria-hidden="true"></i>
+      <span class="mquick-nav-label">${esc(item.title)}</span>
+      ${item.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
+    </a></li>`;
+  }).join('');
+
+  return `<aside class="mquick-nav-rail" data-mquick-nav-rail="${moduleKey}" aria-label="Module navigation">
+    <button class="mquick-nav-toggle" type="button" data-mquick-nav-toggle aria-label="Toggle navigation" aria-expanded="false" aria-controls="mquick-nav-drawer">
+      <i class="ri-menu-line" aria-hidden="true"></i>
+    </button>
+    <nav class="mquick-nav-drawer" id="mquick-nav-drawer" hidden>
+      <ul class="mquick-nav-list">
+        ${railItemHtml}
+      </ul>
+    </nav>
+  </aside>`;
 }
 
 /* Reusable Further Reading / Sources block: renders a compact list of authoritative
@@ -4244,7 +4297,7 @@ function moduleCard(program, key, user) {
           ${openRedo.feedback.length ? `<ul class="mt-1.5 space-y-1 text-xs text-red-700/90 list-disc list-inside">${openRedo.feedback.map((f) => `<li>${f.item_label ? `<strong>${esc(f.item_label)}:</strong> ` : ''}${esc(f.comment)}</li>`).join('')}</ul>` : `<p class="mt-1 text-xs text-red-700/80">Your instructor sent this back — open the module to see what to redo.</p>`}
         </div>` : ''}
         <div class="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
-          ${m.durationMinutes ? `<span><i class="ri-time-line"></i> ${formatInstructionalMinutes(m.durationMinutes)}</span>` : ''}
+          ${m.durationMinutes ? `<span><i class="ri-time-line"></i> ${formatHandsOnDuration(m.durationMinutes)}</span>` : ''}
           ${curriculumItems.length ? `<span><i class="ri-book-open-line"></i> ${curriculumItems.length} Curriculum Block${curriculumItems.length === 1 ? '' : 's'}</span>` : ''}
           ${labs.length ? `<span><i class="ri-flask-line"></i> ${labs.length} Performance Lab${labs.length === 1 ? '' : 's'}</span>` : ''}
           <span>Week ${m.week}</span>
@@ -6112,7 +6165,42 @@ function wireCommon() {
     });
   });
 
+  wireModuleQuickNavRail();
   wireRegisteredModuleLabs();
+}
+
+function wireModuleQuickNavRail() {
+  // Toggle the drawer on mobile and handle lesson opening
+  const railToggle = document.querySelector('[data-mquick-nav-toggle]');
+  if (railToggle) {
+    railToggle.addEventListener('click', () => {
+      const isExpanded = railToggle.getAttribute('aria-expanded') === 'true';
+      railToggle.setAttribute('aria-expanded', !isExpanded);
+      const drawer = document.getElementById('mquick-nav-drawer');
+      if (drawer) drawer.hidden = isExpanded;
+    });
+  }
+
+  // Handle lesson/lab opening on link click
+  document.querySelectorAll('[data-mquick-nav-scroll]').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const scrollId = link.dataset.mquickNavScroll;
+      const target = document.getElementById(scrollId);
+      if (target && target.tagName === 'DETAILS') {
+        target.open = true;
+      }
+      // Close the drawer on mobile after clicking a link
+      const drawer = document.getElementById('mquick-nav-drawer');
+      const toggle = document.querySelector('[data-mquick-nav-toggle]');
+      if (drawer && toggle && window.innerWidth <= 920) {
+        drawer.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+      // Scroll to the element
+      target?.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
 }
 
 /* "Generate Diploma" (admin panel). Diploma title is derived from the

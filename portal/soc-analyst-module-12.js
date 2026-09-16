@@ -304,7 +304,7 @@ function moduleTwelveLockedView(user, program) {
   const module = program.modules['soc-12'];
   return `<div class="m12-shell">${moduleTwelveHeader(user, program)}<main class="m12-main">
     <section class="m12-hero m12-hero-locked" aria-labelledby="m12-title">
-      <div><p class="m12-kicker">Module 12 · ${formatInstructionalMinutes(module.durationMinutes)} · Independent capstone</p><h1 id="m12-title">${esc(module.title)}</h1>
+      <div><p class="m12-kicker">Module 12 · ${formatHandsOnDuration(module.durationMinutes)} · Independent capstone</p><h1 id="m12-title">${esc(module.title)}</h1>
       <p>The integrated range stays sealed until every preceding module is complete. This prevents future evidence and the end-to-end scenario from bypassing the course sequence.</p></div>
       <div class="m12-lock-mark"><i class="ri-lock-2-line" aria-hidden="true"></i><strong>${complete}/11</strong><span>prerequisites complete</span></div>
     </section>
@@ -402,12 +402,22 @@ function moduleTwelvePreparation() {
   </section>`;
 }
 
+function moduleTwelveGetQuickNavItems() {
+  return [
+    { id: 'preparation', title: 'Preparation', kind: 'lecture', isComplete: true, scrollId: 'm12-hero' },
+    { id: 'mission', title: 'Mission Requirements', kind: 'lab', isComplete: false, scrollId: 'm12-mission-title' },
+    { id: 'investigation', title: 'Investigation Consoles', kind: 'lab', isComplete: false, scrollId: 'm12-range' },
+    { id: 'assessment', title: 'Assessment', kind: 'lab', isComplete: false, scrollId: 'm12-assessment-section' },
+  ];
+}
+
 function viewModuleTwelve(user, program) {
   moduleTwelveLoad(user, program);
   if (!moduleTwelveUnlocked(user, program)) return moduleTwelveLockedView(user, program);
   const module = program.modules['soc-12'];
-  return `<div class="m12-shell">${moduleTwelveHeader(user, program)}<main class="m12-main">
-    <section class="m12-hero" aria-labelledby="m12-title"><div><p class="m12-kicker">Module 12 · ${formatInstructionalMinutes(module.durationMinutes)} · Final Assessment</p><h1 id="m12-title">${esc(module.title)}</h1><p class="m12-kicker">Case scenario · Operation Amber Finch</p><p>Investigate a synthetic high-priority signal across the complete Mission Next security operations range. Discover what happened, bound impact, improve detection, direct response, and close the case with a portfolio-grade report. This capstone integrates all competencies from Modules 01–11 into one independent Prove assessment.</p>
+  const quickNavItems = moduleTwelveGetQuickNavItems();
+  return `<div class="m12-shell">${moduleTwelveHeader(user, program)}<div class="mquick-nav-layout">${moduleQuickNavRail(quickNavItems, { moduleKey: 'm12' })}<main class="m12-main">
+    <section class="m12-hero" aria-labelledby="m12-title"><div><p class="m12-kicker">Module 12 · ${formatHandsOnDuration(module.durationMinutes)} · Final Assessment</p><h1 id="m12-title">${esc(module.title)}</h1><p class="m12-kicker">Case scenario · Operation Amber Finch</p><p>Investigate a synthetic high-priority signal across the complete Mission Next security operations range. Discover what happened, bound impact, improve detection, direct response, and close the case with a portfolio-grade report. This capstone integrates all competencies from Modules 01–11 into one independent Prove assessment.</p>
       <div class="m12-hero-actions"><a class="m12-primary" href="${esc(moduleTwelveLaunchUrl())}" target="_blank" rel="noopener" data-m12-launch><i class="ri-terminal-box-line" aria-hidden="true"></i> Open integrated simulator</a><a class="m12-secondary" href="#m12-range"><i class="ri-arrow-down-line" aria-hidden="true"></i> Investigate here</a></div><p class="m12-launch-note">${moduleTwelveState.simulatorLaunched ? 'Simulator launch recorded. Portal work remains saved separately.' : 'Opens the catalogue route in a new tab; all data is fictional.'}</p></div>
       <dl><div><dt>Case</dt><dd>INC-4821</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Pass</dt><dd>${MODULE_TWELVE_PASSING_SCORE}% (seven of ten domains) + safety gate</dd></div></dl></section>
     <section class="m12-objective"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Rubric scoring</p><h2>Ten scored domains (10 points each): Triage, Query, Timeline, Scope, Enrichment, ATT&CK, Detection, Response, Reporting, and Closure. Pass requires 70 points plus no critical-error violations (false triage, unsafe scope, evidence loss, or unsupported closure).</h2></div></section>
@@ -416,7 +426,7 @@ function viewModuleTwelve(user, program) {
     <section class="m12-section" aria-labelledby="m12-mission-title"><div class="m12-section-heading"><span><i class="ri-route-line" aria-hidden="true"></i></span><div><p class="m12-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div></div><p class="m12-muted">The twelve requirements may be completed in any order. They describe the deliverable, not the attacker's sequence; discover chronology from the evidence. Amber Finch is the capstone composite: Cedar Lock (M09–M11) rehearsed the response, custody, and reporting handoffs, while this case asks you to integrate those decisions with the earlier identity, SIEM, detection, endpoint, hunting, network, and prioritization work.</p>${moduleTwelveMissionStatus()}</section>
     <section class="m12-section m12-range-section" id="m12-range" aria-labelledby="m12-range-title"><div class="m12-section-heading"><span><i class="ri-dashboard-3-line" aria-hidden="true"></i></span><div><p class="m12-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div></div><div id="m12-console-root">${moduleTwelveConsole()}</div>${moduleTwelveEvidenceTray()}</section>
     <section class="m12-section m12-assessment-section">${moduleTwelveAssessment()}</section>
-  </main></div>`;
+  </main></div></div>`;
 }
 
 function moduleTwelveValidation() {

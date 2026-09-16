@@ -43,7 +43,7 @@
 .m01-objective h2 { margin: 4px 0 8px; color: #1e3a5f; font-size: 20px; line-height: 1.4; }
 .m01-objective p:last-child { margin: 0; color: #64748b; font: 14px/1.65 Inter, sans-serif; }
 
-.m01-section { scroll-margin-top: 20px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
+.m01-section { scroll-margin-top: 148px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
 .m01-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
 .m01-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-weight: 800; }
 .m01-section-heading > div { min-width: 0; }
@@ -537,4 +537,62 @@
   .mnav-percent { font-size: 16px; }
   .mnav-label { font-size: 10px; }
   .mnav-continue, .mnav-review { padding: 7px 10px; font-size: 10px; }
+}
+
+/* Wraps the rail + <main> as flex siblings. No overflow property here on
+ * purpose: overflow other than visible on this ancestor disables
+ * position: sticky on the rail inside it (a well-known CSS gotcha), so the
+ * "persistent" rail would silently stop sticking the moment you scroll past
+ * its own box. */
+.mquick-nav-layout { display: flex; gap: 24px; padding: 0 clamp(20px, 4vw, 48px); max-width: 100%; }
+
+/* Module quick-nav rail — persistent sidebar navigation across lessons and labs.
+ * Desktop (≥961px): sticky left rail next to main content.
+ * Mobile (≤920px): hidden overlay drawer toggled by a button. */
+.mquick-nav-rail { display: flex; flex-direction: column; align-items: flex-start; }
+.mquick-nav-rail::-webkit-scrollbar { width: 4px; }
+.mquick-nav-rail::-webkit-scrollbar-track { background: transparent; }
+.mquick-nav-rail::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+.mquick-nav-toggle { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: #f0f4f8; border: 1px solid #dbe3ed; border-radius: 8px; color: #1e3a5f; font-size: 18px; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
+.mquick-nav-toggle:hover { background: #e0e7f1; border-color: #cbd5e1; }
+.mquick-nav-toggle[aria-expanded="true"] { background: #1e3a5f; color: #fff; }
+
+.mquick-nav-drawer { display: flex; flex-direction: column; min-width: 220px; background: #fff; border: 1px solid #dbe3ed; border-radius: 12px; box-shadow: 0 4px 12px rgba(30, 58, 95, .1); overflow-y: auto; max-height: calc(100vh - 200px); }
+.mquick-nav-drawer[hidden] { display: none; }
+
+.mquick-nav-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.mquick-nav-link { display: flex; align-items: center; gap: 10px; padding: 10px 14px; color: inherit; text-decoration: none; border-bottom: 1px solid #f1f5f9; font-size: 12px; font-weight: 500; transition: background .2s ease, color .2s ease; }
+.mquick-nav-link:last-child { border-bottom: none; }
+.mquick-nav-link i { flex: 0 0 auto; font-size: 14px; }
+.mquick-nav-label { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.mquick-nav-link.mnav-chip-complete { color: #10b981; background: #f0fdf4; }
+.mquick-nav-link.mnav-chip-complete:hover { background: #e6fcf5; }
+
+.mquick-nav-link.mnav-chip-current { color: #f97316; background: #fff8f4; border-left: 3px solid #f97316; padding-left: 11px; }
+.mquick-nav-link.mnav-chip-current:hover { background: #fffaf5; }
+
+.mquick-nav-link.mnav-chip-locked { color: #94a3b8; background: #f8fafc; cursor: not-allowed; }
+.mquick-nav-link.mnav-chip-locked:hover { background: #f8fafc; }
+
+/* Desktop: sticky left rail visible, toggle hidden */
+@media (min-width: 961px) {
+  .mquick-nav-toggle { display: none; }
+  .mquick-nav-rail { position: sticky; top: 140px; height: fit-content; max-height: calc(100vh - 140px); margin-right: 24px; }
+  /* [hidden] repeated here on purpose: the <nav> always renders with the
+     hidden attribute (it's the mobile drawer's closed state), and an
+     attribute selector outranks a plain class selector on specificity
+     regardless of media-query nesting. Without matching it here, the base
+     `.mquick-nav-drawer[hidden] { display: none; }` rule wins and the
+     "persistent" desktop rail never actually appears. */
+  .mquick-nav-drawer, .mquick-nav-drawer[hidden] { display: flex; border: none; box-shadow: none; background: transparent; min-width: 180px; border-right: 1px solid #dbe3ed; max-height: none; overflow-y: auto; }
+}
+
+/* Mobile/narrow: fixed drawer, toggle button visible */
+@media (max-width: 920px) {
+  .mquick-nav-toggle { display: flex; position: sticky; top: 140px; z-index: 50; margin: 12px 0 0 12px; }
+  .mquick-nav-rail { align-items: auto; }
+  .mquick-nav-drawer { position: fixed; top: 100px; left: 0; width: 240px; max-height: calc(100vh - 100px); z-index: 49; box-shadow: 1px 0 8px rgba(0, 0, 0, .15); border-radius: 0; }
+  .mquick-nav-drawer[hidden] { display: none !important; }
 }

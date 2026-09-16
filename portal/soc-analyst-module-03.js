@@ -511,6 +511,31 @@ function moduleThreeGetSections() {
   ];
 }
 
+function moduleThreeGetQuickNavItems() {
+  const items = [];
+  MODULE_THREE_LESSON_LOOPS.forEach((lesson, index) => {
+    const work = moduleThreeState.lessonWork[lesson.id] || {};
+    const isComplete = work.taskComplete === true;
+    items.push({
+      id: `m03-lesson-${esc(lesson.id)}`,
+      title: lesson.title,
+      kind: 'lesson',
+      isComplete,
+      scrollId: `m03-lesson-${esc(lesson.id)}`,
+      lessonNumber: index + 1,
+    });
+  });
+  // Add the lab
+  items.push({
+    id: 'm03-lab',
+    title: 'Guided Lab',
+    kind: 'lab',
+    isComplete: moduleThreeState.completed === true,
+    scrollId: 'm03-lab',
+  });
+  return items;
+}
+
 function moduleThreeAlertTone(severity) {
   return `m03-severity m03-severity-${String(severity).toLowerCase()}`;
 }
@@ -558,7 +583,7 @@ function moduleThreeFieldGuide() {
 function moduleThreeLessonLoop(lesson, index) {
   const work = moduleThreeState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
   const feedback = work.feedback?.length ? `<p class="m03-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
-  return `<details class="m03-lesson-loop" ${work.taskComplete ? '' : 'open'}>
+  return `<details class="m03-lesson-loop" id="m03-lesson-${esc(lesson.id)}" ${work.taskComplete ? '' : 'open'}>
     <summary><span class="m03-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m03-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m03-chevron" aria-hidden="true"></i>'}</summary>
     <div class="m03-lesson-loop-body">
       <section><p class="m03-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section>
@@ -922,6 +947,7 @@ function viewModuleThree(user, program) {
   const quizOpen = moduleThreeReviewMode || (moduleThreeQuizState && !moduleThreeQuizState.passed);
   const labOpen = moduleThreeReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleThreeReviewMode;
+  const quickNavItems = moduleThreeGetQuickNavItems();
 
   const lectureSection = `
     <details class="m03-section-collapsible" ${lectureOpen ? 'open' : ''}>
@@ -985,9 +1011,11 @@ function viewModuleThree(user, program) {
   return `<div class="m03-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleThreeReviewMode })}
-    <main class="m03-main">
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm03' })}
+      <main class="m03-main">
       <section class="m03-hero" aria-labelledby="m03-title">
-        <div><p class="m03-kicker">Module 03 · ${formatInstructionalMinutes(module.durationMinutes)} · assisted investigation</p><h1 id="m03-title">${esc(module.title)}</h1><p>Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p><a href="#m03-lecture" class="m03-hero-action"><i class="ri-compass-3-line" aria-hidden="true"></i> Start the lecture</a></div>
+        <div><p class="m03-kicker">Module 03 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m03-title">${esc(module.title)}</h1><p>Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p><a href="#m03-lecture" class="m03-hero-action"><i class="ri-compass-3-line" aria-hidden="true"></i> Start the lecture</a></div>
         <dl class="m03-status" aria-label="Saved lab status"><div><dt>Primary objective</dt><dd>Correlate one alert</dd></div><div><dt>Dataset</dt><dd>10 events · 4 sources</dd></div><div><dt>Status</dt><dd id="m03-status">${complete ? 'Complete' : moduleThreeState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
       </section>
 
@@ -999,6 +1027,7 @@ function viewModuleThree(user, program) {
       ${reviewSection}
       ${sourcesSection}
     </main>
+    </div>
   </div>`;
 }
 

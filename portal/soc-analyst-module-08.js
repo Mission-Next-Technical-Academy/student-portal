@@ -589,6 +589,31 @@ function moduleEightGetSections() {
   ];
 }
 
+function moduleEightGetQuickNavItems() {
+  const items = [];
+  MODULE_EIGHT_LESSON_LOOPS.forEach((lesson, index) => {
+    const work = moduleEightPriorityState.lessonWork[lesson.id] || {};
+    const isComplete = work.taskComplete === true;
+    items.push({
+      id: `m08-lesson-${esc(lesson.id)}`,
+      title: lesson.title,
+      kind: 'lesson',
+      isComplete,
+      scrollId: `m08-lesson-${esc(lesson.id)}`,
+      lessonNumber: index + 1,
+    });
+  });
+  // Add the labs
+  items.push({
+    id: 'm08-lab',
+    title: 'Prioritization Labs',
+    kind: 'lab',
+    isComplete: moduleEightPriorityState.completed === true && moduleEightQueueState.completed === true,
+    scrollId: 'm08-lab',
+  });
+  return items;
+}
+
 function moduleEightQuizQuestion(selected, index) {
   const question = selected.question;
   const userAnswerId = moduleEightQuizState?.answers?.[question.id];
@@ -834,12 +859,15 @@ function viewModuleEight(user, program) {
   const quizOpen = moduleEightReviewMode || (moduleEightQuizState && !moduleEightQuizState.passed);
   const labOpen = moduleEightReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleEightReviewMode;
+  const quickNavItems = moduleEightGetQuickNavItems();
 
   return `<div class="m08-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleEightReviewMode })}
-    <main class="m08-main">
-      <section class="m08-hero" aria-labelledby="m08-title"><div><p class="m08-kicker">Module 08 · ${formatInstructionalMinutes(module.durationMinutes)} · SOC prioritization</p><h1 id="m08-title">${esc(module.title)}</h1><p class="m08-lede">Validate assigned findings, weigh exploitability, reachability, business impact, and controls, then prioritize and escalate them through the SOC workflow. Enterprise scanning governance, remediation-program ownership, and risk acceptance remain outside this module.</p><a class="m08-hero-action" href="#m08-lecture"><i class="ri-compass-3-line" aria-hidden="true"></i> Review the prioritization model</a></div><dl class="m08-progress" aria-label="Saved Module 08 progress"><div><dt>Scoped assets</dt><dd>10 total</dd></div><div><dt>Practical labs</dt><dd>${completeCount}/${module.labs} passed</dd></div><div><dt>Module status</dt><dd id="m08-status">${completeCount === module.labs ? 'Complete' : completeCount || moduleEightPriorityState.attempts || moduleEightQueueState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+    <div class="mquick-nav-layout">
+      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm08' })}
+      <main class="m08-main">
+      <section class="m08-hero" aria-labelledby="m08-title"><div><p class="m08-kicker">Module 08 · ${formatHandsOnDuration(module.durationMinutes)} · SOC prioritization</p><h1 id="m08-title">${esc(module.title)}</h1><p class="m08-lede">Validate assigned findings, weigh exploitability, reachability, business impact, and controls, then prioritize and escalate them through the SOC workflow. Enterprise scanning governance, remediation-program ownership, and risk acceptance remain outside this module.</p><a class="m08-hero-action" href="#m08-lecture"><i class="ri-compass-3-line" aria-hidden="true"></i> Review the prioritization model</a></div><dl class="m08-progress" aria-label="Saved Module 08 progress"><div><dt>Scoped assets</dt><dd>10 total</dd></div><div><dt>Practical labs</dt><dd>${completeCount}/${module.labs} passed</dd></div><div><dt>Module status</dt><dd id="m08-status">${completeCount === module.labs ? 'Complete' : completeCount || moduleEightPriorityState.attempts || moduleEightQueueState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m08-section-collapsible" ${lectureOpen ? 'open' : ''}>
         <summary class="m08-section"><div class="m08-section-heading"><span class="m08-section-badge">1</span><div><p class="m08-kicker">Lecture</p><h2 id="m08-lecture">Vulnerability prioritization using contextual risk</h2></div></div></summary>
@@ -872,6 +900,7 @@ function viewModuleEight(user, program) {
         <div class="m08-section-body">${moduleSourcesBlock(MODULE_EIGHT_SOURCES_LIST)}</div>
       </details>
     </main>
+    </div>
   </div>`;
 }
 
