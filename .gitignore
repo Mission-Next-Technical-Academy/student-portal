@@ -17,3 +17,8 @@ bin/.roster-output/
 
 node_modules/
 _site/
+
+# Real business documents (launch tracker, control framework) that live in
+# this working directory for convenience but are not part of the codebase.
+00 - CURRENT - MNTA November 2 MVP Launch Execution Tracker v1.0.xlsx
+00 - CURRENT - Mission Next Launch Control Framework v1.0 - November 2 MVP.docx
