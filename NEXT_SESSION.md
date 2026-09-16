@@ -1,5 +1,42 @@
 # Next session — start here
 
+## Just shipped, same day (2026-09-16), later session
+
+Sprint 3 and a new Sprint 4 from `MODULE_NAV_SIDEBAR_SPRINT.md`, committed
+as `7c59e22` — **committed but NOT pushed**, push auto-deploys to the live
+GitHub Pages site and needs explicit confirmation first:
+
+- Sprint 3: removed the now-redundant per-module hero CTAs (modules 01-04,
+  08, 09 — the other 5 SOC modules never had one, module 12's is a
+  different, functional simulator-launch button and was left alone) now
+  that the quick-nav rail covers the same "jump to current position" job.
+  Also removed the shared `.mnav-continue` "Continue to X" chip-bar link
+  from `moduleProgressShell()` — the original spec said keep it, but live
+  owner testing of Module 01 this session asked for it to go too, now that
+  the rail replaces it across all 12 modules.
+- Sprint 4 (new, from the same live owner-testing pass): Module 01's
+  "Module progress checklist" section (duration/status per item, a
+  running total) is now collapsible, closed by default, using the same
+  toggle pattern as the module's other sections — it was always fully
+  expanded and duplicated what the rail already shows. Checked: no other
+  SOC module has this section, so this was Module-01-only.
+- `node --check` on every touched file, `node bin/portal-check.js` (38/38
+  clean), and live DOM verification via `javascript_tool` on Module 01 as
+  `4437023872-SOCAN` (screenshot capture was intermittently timing out
+  this session — verified via direct DOM state checks instead, plus one
+  clean screenshot once the flakiness cleared).
+- One open judgment call, not yet resolved: the owner's live phrasing was
+  "nest it into an outer menu that says Foundations" — the checklist kept
+  its own "Module progress checklist" heading (accurate, since it lists
+  the 2 labs too, not just lessons) rather than being renamed/merged into
+  the "Foundations" section. Confirm with the owner whether that reading
+  was right, or whether they wanted it literally folded into/relabeled as
+  Foundations.
+- **Push confirmation still needed** before this reaches the live site,
+  and a live visual re-check of Module 01 (rail, collapsed checklist,
+  hero) plus a spot check of one other edited module (e.g. 08) once
+  screenshot capture is reliably working again.
+
 ## Just shipped, same day (2026-09-16)
 
 A separate session (browser-available) did a module UX pass, all pushed to

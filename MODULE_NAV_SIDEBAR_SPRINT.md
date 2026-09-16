@@ -1,9 +1,11 @@
 # Module quick-nav rail + duration copy — sprint spec
 
-**Status, 2026-09-16: Sprints 1-2 DONE and pushed (`941d3f8`). Sprint 3 is
-the one open item — see that section below.** Built via two Haiku
-sub-agent sprints (Sprint 1 + partial Sprint 2 on Modules 01-02, then a
-continuation for Modules 03-12), reviewed/tested/fixed/committed by the
+**Status, 2026-09-16: Sprints 1-3 DONE, committed (`7c59e22`), NOT yet
+pushed to `master` — needs explicit go-ahead since push auto-deploys to
+the live GitHub Pages site. Sprint 4 (new, owner feedback) also DONE in
+that same commit — see its section below.** Sprints 1-2 built via two
+Haiku sub-agent sprints (Sprint 1 + partial Sprint 2 on Modules 01-02, then
+a continuation for Modules 03-12), reviewed/tested/fixed/committed by the
 orchestrating session. Two real bugs shipped by the agents and caught only
 by live browser testing before commit, both fixed:
 1. The rail's flex wrapper had an inline `overflow: hidden`, which silently
@@ -145,12 +147,7 @@ already duplicated 12 ways — don't make that worse by writing 12 different
 rail implementations; centralize what you can in `app.js` and keep each
 module file's own addition to "call the shared renderer with my data."
 
-## Sprint 3 — remove the now-redundant CTAs (NOT STARTED — the next real work here)
-
-Sprint 2 is done and verified, so this is unblocked. Not started this
-session for the same reason live-checking modules 2-12 wasn't: worth doing
-alongside a real browser walkthrough rather than blind, and no unblocked
-account could reach past Module 1 this session.
+## Sprint 3 — remove the now-redundant CTAs (DONE, 2026-09-16, `7c59e22`)
 
 Once the rail exists and highlights current position, two existing buttons
 duplicate what it already does and duplicate each other:
@@ -162,14 +159,62 @@ duplicate what it already does and duplicate each other:
   (`portal/app.js:3885`, `.mnav-continue`) — already computes the correct
   next-incomplete destination generically, for any module.
 
-Once the rail's current-position highlight ships, remove the per-module
-hero CTA (`.m01-hero-action` and its 12 per-file equivalents) and keep only
-the shared `.mnav-continue` link plus the rail. Do not remove
-`.mnav-continue` — it's the one generic, always-correct "resume" affordance
-and the rail complements it rather than replacing it. Verify the hero
-section still reads fine with that link gone (it may need the lede
-paragraph to stand alone, or the CTA slot repurposed — use judgment, this
-is a copy/layout detail, not a functional one).
+**Correction to the original plan below: both were removed, not just the
+per-module one.** The spec as originally written said keep
+`.mnav-continue` since it's the one generic, always-correct resume
+affordance. Live owner testing of Module 01 the same day asked for it to
+go too, now that the rail's current-position highlight covers the same
+job across all 12 modules — see Sprint 4.
+
+What actually shipped: only 6 of the 12 modules had a per-module hero CTA
+to remove (`.m0N-hero-action` in modules 01-04 and 08, `.m09-primary` in
+09 — same pattern, different class name); modules 05, 06, 07, 10, 11 never
+had one, and module 12's `.m12-hero-actions` is the simulator-launch
+button, functionally different, left untouched. `.mnav-continue` was
+removed once from the shared `moduleProgressShell()` in `portal/app.js`,
+covering all 12 modules including the ones with no per-module CTA to
+begin with. Verified the hero divs still read fine with the link gone —
+the lede paragraph stands alone with no stray gap (confirmed live on
+Module 01; the other 5 are the identical pattern and passed
+`node bin/portal-check.js`'s 38/38 tag-balance check).
+
+## Sprint 4 — collapse the Module 01 progress checklist (DONE, 2026-09-16, `7c59e22`)
+
+New scope, added mid-session from live owner feedback testing Module 01 as
+`4437023872-SOCAN`: the "Module progress checklist" section
+(`soc-analyst-module-01.js`, `.m01-checklist`, right below the hero) lists
+every lesson/lab with its own duration and status, always fully expanded,
+plus a "Total instructional time" line — the owner called this out as
+redundant now that the rail (Sprint 2) already lists the same items in a
+persistent left pane, and asked for it nested/collapsed rather than always
+taking up scroll space.
+
+**Scope note: this section only exists in Module 01.** Checked all 12
+module files for the same pattern (`grep -c 'm0N-checklist"'`) — modules
+02-12 have no equivalent standalone checklist-with-durations section, so
+there was nothing to change there.
+
+What shipped: converted `.m01-checklist` to use the same
+`.m01-section-collapsible` / `.m01-section-heading` / `.m01-section-collapse`
+/ `.m01-section-body[hidden]` toggle pattern already used by every other
+module section (foundations, flow, lifecycle, etc.) — no new CSS or click-
+handler JS needed, since `wireModuleOneLab()`'s existing
+`[data-m01-section-toggle]` delegation and the review-mode
+`.m01-section-collapsible` sweep are both already generic over section
+key. Added `checklist: false` to `MODULE_ONE_DEFAULT_STATE.sectionOpen`
+(closed by default — the point was to stop it always showing). Kept the
+existing "Module progress checklist" heading text rather than renaming it
+to "Foundations" as the owner's shorthand suggested, since the section
+also lists the two labs, not just the foundation lessons — flag this if
+the owner meant the label literally, not just "make it collapse."
+
+Verified live: DOM state confirmed via `javascript_tool` (section starts
+`hidden`, toggle button starts `aria-expanded="false"`, clicking it flips
+both and reveals the list) since screenshot capture was intermittently
+timing out in this session's browser tooling (matches the pre-existing
+"`resize_window` doesn't actually resize" flakiness noted elsewhere in
+this doc's history) — a clean screenshot after the flakiness cleared also
+confirmed the collapsed heading renders correctly above the rail/hero.
 
 ## Out of scope / do not touch
 
