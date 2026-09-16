@@ -1081,6 +1081,10 @@ function wireModuleNineLab() {
       moduleNineSecondState.attempts += 1;
       moduleNineSecondState.score = result.score;
       moduleNineSecondState.feedback = result.feedback;
+      if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleNineUser, 'lab-independent-response', {
+        state: result.score >= 70 ? 'complete' : 'in_progress', score: result.score,
+        result: { notes: moduleNineSecondState.notes, attempts: moduleNineSecondState.attempts },
+      });
       if (result.score >= 70) {
         moduleNineSecondState.completed = true;
         if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleNineUser, 'soc-analyst', 'soc-09', 'lab-independent-response');

@@ -70,7 +70,14 @@ function discardLocalSession() {
   });
 }
 
-async function buildUserFromSession(session) {
+// Split from the old monolithic buildUserFromSession() so signIn() can run
+// the queries below concurrently with its login_events / UEBA / site_sessions
+// / geofence chain (SESSION_SECURITY_SPEC.md Decision 3) instead of fully
+// before it — that chain only ever reads the fields buildCoreUserFromSession()
+// returns, never the module/lab detail fetched here, so there was never a
+// reason for it to wait on them. Cuts real, otherwise-sequential network
+// round-trips off the perceived login-to-portal delay.
+async function buildCoreUserFromSession(session) {
   const userId = session.user.id;
 
   const { data: studentRow } = await mntSupabase
@@ -94,82 +101,6 @@ async function buildUserFromSession(session) {
     ? [{ programSlug, status: 'active', accessMode: 'full', modules: [], purchasedAt: null }]
     : [];
 
-  // moduleCompletion() previously judged "complete" from browser-local
-  // engagement (localStorage) alone, with no fallback to the module_progress
-  // rows Supabase actually holds. That meant a student's real progress
-  // (written from whichever browser/device they did the work on) went
-  // invisible — back to gray/"Not Started" — the moment they opened the
-  // portal from a different browser or cleared storage, even though the
-  // database, admin dashboard, and Last Active all agreed the module was
-  // done. Fetched once per session here, alongside the studentRow query
-  // already run for every login, and cached on the user object the same way.
-  let remoteModuleProgress = {};
-  let remoteModuleDetail = {};
-  if (studentRow && studentRow.track_code) {
-    const { data: progressRows, error: progressError } = await mntSupabase
-      .from('module_progress')
-      .select('module_key, state, detail')
-      .eq('user_id', userId)
-      .eq('track_code', studentRow.track_code);
-    if (progressError) {
-      console.error('buildUserFromSession: module_progress fetch failed', progressError);
-    } else {
-      remoteModuleProgress = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.state]));
-      remoteModuleDetail = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.detail || {}]));
-    }
-  }
-
-  // Lab Grading & Notification System, Sprint 2 (see
-  // lab-grading-notification-system/STATE.md): a student's own open redos,
-  // keyed by module so moduleCard() can show the banner on the right card
-  // with zero per-module-file changes. "Open" = this lab's single most
-  // recent attempt (recordLabAttempt() never upserts — every attempt is a
-  // new row) is the one an instructor sent back. A resubmission is a brand
-  // new, later row; the moment it lands it becomes "most recent" and the
-  // redo clears on its own — no separate acknowledgment step needed.
-  let openLabRedosByModuleKey = {};
-  if (studentRow && studentRow.track_code) {
-    const { data: attemptRows, error: attemptsError } = await mntSupabase
-      .from('lab_attempts')
-      .select('id, lab_key, completed_at, redo_requested')
-      .eq('user_id', userId)
-      .eq('track_code', studentRow.track_code)
-      .not('completed_at', 'is', null)
-      .order('completed_at', { ascending: false });
-    if (attemptsError) {
-      console.error('buildUserFromSession: lab_attempts redo fetch failed', attemptsError);
-    } else {
-      const latestByLabKey = new Map();
-      (attemptRows || []).forEach((row) => {
-        if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
-      });
-      const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
-      if (openAttempts.length) {
-        const { data: feedbackRows, error: feedbackError } = await mntSupabase
-          .from('lab_attempt_feedback')
-          .select('lab_attempt_id, item_label, comment')
-          .in('lab_attempt_id', openAttempts.map((row) => row.id))
-          .order('created_at', { ascending: true });
-        if (feedbackError) console.error('buildUserFromSession: lab_attempt_feedback fetch failed', feedbackError);
-        const feedbackByAttemptId = new Map();
-        (feedbackRows || []).forEach((row) => {
-          const list = feedbackByAttemptId.get(row.lab_attempt_id) || [];
-          list.push(row);
-          feedbackByAttemptId.set(row.lab_attempt_id, list);
-        });
-        openAttempts.forEach((row) => {
-          const lab = LABS.find((l) => l.key === row.lab_key);
-          if (!lab) return; // stale/renamed lab key — nothing to point the student at
-          openLabRedosByModuleKey[lab.module] = {
-            labKey: row.lab_key,
-            labTitle: lab.title,
-            feedback: feedbackByAttemptId.get(row.id) || [],
-          };
-        });
-      }
-    }
-  }
-
   return {
     email: session.user.email,
     username: studentRow ? studentRow.student_id : session.user.email,
@@ -182,10 +113,122 @@ async function buildUserFromSession(session) {
     // _cachedUser caching as everything else on this object.
     userId: session.user.id,
     trackCode: studentRow ? studentRow.track_code : null,
-    remoteModuleProgress,
-    remoteModuleDetail,
-    openLabRedosByModuleKey,
   };
+}
+
+// moduleCompletion() previously judged "complete" from browser-local
+// engagement (localStorage) alone, with no fallback to the module_progress
+// rows Supabase actually holds. That meant a student's real progress
+// (written from whichever browser/device they did the work on) went
+// invisible — back to gray/"Not Started" — the moment they opened the
+// portal from a different browser or cleared storage, even though the
+// database, admin dashboard, and Last Active all agreed the module was
+// done. Fetched once per session here, cached on the user object same as
+// buildCoreUserFromSession()'s fields.
+//
+// The queries below don't depend on each other or on anything the security
+// chain in signIn() produces — only on trackCode from the core query — so
+// they run via Promise.all rather than sequentially.
+async function fetchUserDetails(userId, trackCode) {
+  let remoteModuleProgress = {};
+  let remoteVerifiedModuleProgress = {};
+  let remoteModuleEvidence = {};
+  let remoteModuleDetail = {};
+  let openLabRedosByModuleKey = {};
+  if (!trackCode) {
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, openLabRedosByModuleKey };
+  }
+
+  const [
+    { data: progressRows, error: progressError },
+    verifiedResult,
+    evidenceResult,
+    { data: attemptRows, error: attemptsError },
+  ] = await Promise.all([
+    mntSupabase.from('module_progress').select('module_key, state, detail').eq('user_id', userId).eq('track_code', trackCode),
+    // This view is the institutional completion record.  It derives a
+    // module's status from the required, passing assessment attempts (and
+    // any declared detail requirements), rather than trusting a browser
+    // engagement flag or a historical module_progress badge.
+    mntSupabase.from('student_verified_module_progress').select('module_key, complete').eq('track_code', trackCode),
+    mntSupabase.from('module_completion_evidence').select('module_key, evidence_key').eq('track_code', trackCode),
+    // Lab Grading & Notification System, Sprint 2 (see
+    // lab-grading-notification-system/STATE.md): a student's own open redos,
+    // keyed by module so moduleCard() can show the banner on the right card
+    // with zero per-module-file changes. "Open" = this lab's single most
+    // recent attempt (recordLabAttempt() never upserts — every attempt is a
+    // new row) is the one an instructor sent back. A resubmission is a brand
+    // new, later row; the moment it lands it becomes "most recent" and the
+    // redo clears on its own — no separate acknowledgment step needed.
+    mntSupabase
+      .from('lab_attempts')
+      .select('id, lab_key, completed_at, redo_requested')
+      .eq('user_id', userId)
+      .eq('track_code', trackCode)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false }),
+  ]);
+
+  if (progressError) {
+    console.error('fetchUserDetails: module_progress fetch failed', progressError);
+  } else {
+    remoteModuleProgress = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.state]));
+    remoteModuleDetail = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.detail || {}]));
+  }
+  if (verifiedResult.error) {
+    console.error('fetchUserDetails: verified module progress fetch failed', verifiedResult.error);
+  } else {
+    remoteVerifiedModuleProgress = Object.fromEntries((verifiedResult.data || []).map((r) => [r.module_key, r.complete === true]));
+  }
+  if (evidenceResult.error) {
+    console.error('fetchUserDetails: module completion evidence fetch failed', evidenceResult.error);
+  } else {
+    remoteModuleEvidence = (evidenceResult.data || []).reduce((byModule, row) => {
+      byModule[row.module_key] = { ...(byModule[row.module_key] || {}), [row.evidence_key]: true };
+      return byModule;
+    }, {});
+  }
+
+  if (attemptsError) {
+    console.error('fetchUserDetails: lab_attempts redo fetch failed', attemptsError);
+  } else {
+    const latestByLabKey = new Map();
+    (attemptRows || []).forEach((row) => {
+      if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
+    });
+    const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
+    if (openAttempts.length) {
+      const { data: feedbackRows, error: feedbackError } = await mntSupabase
+        .from('lab_attempt_feedback')
+        .select('lab_attempt_id, item_label, comment')
+        .in('lab_attempt_id', openAttempts.map((row) => row.id))
+        .order('created_at', { ascending: true });
+      if (feedbackError) console.error('fetchUserDetails: lab_attempt_feedback fetch failed', feedbackError);
+      const feedbackByAttemptId = new Map();
+      (feedbackRows || []).forEach((row) => {
+        const list = feedbackByAttemptId.get(row.lab_attempt_id) || [];
+        list.push(row);
+        feedbackByAttemptId.set(row.lab_attempt_id, list);
+      });
+      openAttempts.forEach((row) => {
+        const lab = LABS.find((l) => l.key === row.lab_key);
+        if (!lab) return; // stale/renamed lab key — nothing to point the student at
+        openLabRedosByModuleKey[lab.module] = {
+          labKey: row.lab_key,
+          labTitle: lab.title,
+          feedback: feedbackByAttemptId.get(row.id) || [],
+        };
+      });
+    }
+  }
+
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, openLabRedosByModuleKey };
+}
+
+async function buildUserFromSession(session) {
+  const core = await buildCoreUserFromSession(session);
+  const details = await fetchUserDetails(core.userId, core.trackCode);
+  return { ...core, ...details };
 }
 
 async function currentUser() {
@@ -242,9 +285,20 @@ async function signIn(identifier, password) {
   if (error || !data.session) return null;
   _cachedUser = null;
   _cachedUserPromise = null;
-  const user = await currentUser();
+  const core = await buildCoreUserFromSession(data.session);
+  // Fired now, awaited only after the security chain below: none of
+  // recordLoginEvent/checkLoginUeba/recordSiteSessionStart/checkLoginGeofence
+  // read a student's module/lab history, only core's studentRow-derived
+  // fields — so there is no reason this has to finish before that chain even
+  // starts. This is what turns four-plus sequential round trips into two
+  // overlapping legs, and is the actual login-to-portal latency fix (the
+  // page itself was never the slow part — see fetchUserDetails() above and
+  // its doc comment). fetchUserDetails() already catches and logs its own
+  // errors rather than throwing, so a floating unawaited promise here is
+  // safe even on the rare blocked/geofenced-login path below.
+  const detailsPromise = fetchUserDetails(core.userId, core.trackCode);
 
-  const loginEventId = await recordLoginEvent(user);
+  const loginEventId = await recordLoginEvent(core);
 
   if (loginEventId) {
     const ueba = await checkLoginUeba(loginEventId);
@@ -258,7 +312,7 @@ async function signIn(identifier, password) {
     }
   }
 
-  const siteSessionId = await recordSiteSessionStart(user);
+  const siteSessionId = await recordSiteSessionStart(core);
   if (siteSessionId === 'session_limit') {
     await mntSupabase.auth.signOut();
     return 'session_limit';
@@ -274,6 +328,8 @@ async function signIn(identifier, password) {
   // falls through here and still returns user — a logging table's own
   // failure must never break the golden path of an otherwise-good login.
 
+  const user = { ...core, ...(await detailsPromise) };
+  _cachedUser = user;
   return user;
 }
 
@@ -3421,11 +3477,48 @@ function markModuleInProgressRemote(user, moduleKey) {
 }
 
 function markModuleCompleteRemote(user, moduleKey) {
-  upsertModuleProgress(user, moduleKey, {
-    state: 'complete',
-    percent: 100,
-    completed_at: new Date().toISOString(),
-  });
+  // Completion is no longer a client-side write.  The database derives it
+  // from passing attempts in student_verified_module_progress; this refresh
+  // merely lets the current page see the server's result without a relog.
+  refreshVerifiedModuleProgress(user, moduleKey);
+}
+
+async function refreshVerifiedModuleProgress(user, moduleKey = null) {
+  if (!user || !user.trackCode) return;
+  let query = mntSupabase
+    .from('student_verified_module_progress')
+    .select('module_key, complete')
+    .eq('track_code', user.trackCode);
+  if (moduleKey) query = query.eq('module_key', moduleKey);
+  try {
+    const { data, error } = await query;
+    if (error) { console.error('verified module progress refresh failed', moduleKey, error); return; }
+    const refreshed = Object.fromEntries((data || []).map((row) => [row.module_key, row.complete === true]));
+    user.remoteVerifiedModuleProgress = moduleKey
+      ? { ...(user.remoteVerifiedModuleProgress || {}), ...refreshed }
+      : refreshed;
+  } catch (err) {
+    console.error('verified module progress refresh threw', moduleKey, err);
+  }
+}
+
+function recordModuleCompletionEvidence(user, moduleKey, evidenceKeys) {
+  if (!user || !user.userId || !user.trackCode || !Array.isArray(evidenceKeys) || !evidenceKeys.length) return Promise.resolve(null);
+  const uniqueKeys = [...new Set(evidenceKeys)];
+  return mntSupabase.from('module_completion_evidence').upsert(
+    uniqueKeys.map((evidence_key) => ({ user_id: user.userId, track_code: user.trackCode, module_key: moduleKey, evidence_key })),
+    { onConflict: 'user_id,track_code,module_key,evidence_key', ignoreDuplicates: true }
+  ).then(({ error }) => {
+    if (error) { console.error('module completion evidence upsert failed', moduleKey, error); return null; }
+    user.remoteModuleEvidence = {
+      ...(user.remoteModuleEvidence || {}),
+      [moduleKey]: {
+        ...((user.remoteModuleEvidence || {})[moduleKey] || {}),
+        ...Object.fromEntries(uniqueKeys.map((key) => [key, true])),
+      },
+    };
+    return refreshVerifiedModuleProgress(user, moduleKey);
+  }).catch((err) => { console.error('module completion evidence upsert threw', moduleKey, err); return null; });
 }
 
 function markModuleContentOpened(user, programSlug, moduleKey) {
@@ -3480,9 +3573,9 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
  * upsertModuleProgress above: no session or no track_code silently skips the
  * write so local LabRuntime/engagement behavior is never affected. */
 function recordLabAttempt(user, labKey, { state, score = null, result = {} } = {}) {
-  if (!user || !user.userId || !user.trackCode) return;
+  if (!user || !user.userId || !user.trackCode) return Promise.resolve(null);
   const now = new Date().toISOString();
-  mntSupabase
+  return mntSupabase
     .from('lab_attempts')
     .insert({
       user_id: user.userId,
@@ -3498,9 +3591,14 @@ function recordLabAttempt(user, labKey, { state, score = null, result = {} } = {
       completed_at: state === 'complete' ? now : null,
     })
     .then(({ error }) => {
-      if (error) console.error('lab_attempts insert failed', labKey, error);
+      if (error) { console.error('lab_attempts insert failed', labKey, error); return null; }
+      const lab = LABS.find((item) => item.key === labKey);
+      // The insert's database trigger updates the verified read model. Fetch
+      // that result after the successful write instead of promoting local
+      // storage to an academic completion fact.
+      return refreshVerifiedModuleProgress(user, lab && lab.module);
     })
-    .catch((err) => console.error('lab_attempts insert threw', labKey, err));
+    .catch((err) => { console.error('lab_attempts insert threw', labKey, err); return null; });
 }
 
 /* An artifact is an immutable, server-stored snapshot of a submission.  This
@@ -3595,13 +3693,13 @@ function moduleCompletion(program, moduleKey, user) {
   // falsely mark an untouched module complete.
   const remoteState = (user.remoteModuleProgress || {})[moduleKey];
   const remoteDetail = (user.remoteModuleDetail || {})[moduleKey] || {};
-  const remoteComplete = remoteState === 'complete';
+  const remoteComplete = (user.remoteVerifiedModuleProgress || {})[moduleKey] === true;
   const engagement = loadModuleEngagement(user);
   const moduleId = moduleEngagementId(program.slug, moduleKey);
   const labs = programLabs(program).filter((lab) => lab.module === moduleKey);
   const contentOpened = fixtureState === 'complete' || remoteComplete || remoteState === 'in_progress'
     || engagement.openedModules.includes(moduleId);
-  const allLabsComplete = (moduleKey !== 'soc-01' && remoteComplete) || labs.every((lab) => {
+  const allLabsComplete = remoteComplete || labs.every((lab) => {
     const engagementComplete = engagement.completedLabs.includes(moduleLabEngagementId(program.slug, moduleKey, lab.key));
     if (moduleKey === 'soc-01' && lab.key === 'lab-soc-environment') {
       const guidedLabState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
@@ -3633,8 +3731,11 @@ function moduleCompletion(program, moduleKey, user) {
       && (state.lab2?.completed === true || moduleOneRemoteDetail.lab2Completed === true);
   })();
   const hasOpenLabRedo = !!(user.openLabRedosByModuleKey && user.openLabRedosByModuleKey[moduleKey]);
-  const complete = module.status !== 'draft' && contentOpened && allLabsComplete
-    && moduleOneRequirementsComplete && !hasOpenLabRedo;
+  // The UI is deliberately stricter than its old localStorage calculation:
+  // only the backend's verified assessment rollup can make a module complete.
+  // Local engagement remains useful for the in-progress affordance, never for
+  // course credit or the percentage displayed to a learner/admin.
+  const complete = module.status !== 'draft' && remoteComplete && !hasOpenLabRedo;
   return { complete, contentOpened, allLabsComplete, fixtureState, module };
 }
 

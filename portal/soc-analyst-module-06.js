@@ -1266,6 +1266,11 @@ function wireModuleSix() {
     lab.score = valid ? 100 : 45;
     lab.completed = valid;
     moduleSixSave();
+    if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleSixUser, 'lab-threat-hunt-independent', {
+      state: valid ? 'complete' : 'in_progress', score: lab.score,
+      result: { task: lab.task, scope: lab.scope, disposition: lab.disposition },
+    });
+    if (valid && typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', 'lab-threat-hunt-independent');
     const panel = shell.querySelector('#m06-independent-lab');
     if (panel) panel.outerHTML = moduleSixIndependentLab();
   });

@@ -1129,6 +1129,10 @@ function wireModuleFiveLab() {
       state.completed = state.score >= 70;
       state.feedback = state.completed ? ['Correct. The chain, bounded scope, and evidence-preserving handoff are supported by this fictional record.'] : ['Revisit the fake-CAPTCHA-to-PowerShell chain, the scope limit, and the approval-gated handoff.'];
       moduleFiveSave();
+      if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleFiveUser, 'lab-endpoint-independent', {
+        state: state.completed ? 'complete' : 'in_progress', score: state.score,
+        result: { answers: state.answers, attempts: state.attempts },
+      });
       if (state.completed && typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFiveUser, 'soc-analyst', 'soc-05', 'lab-endpoint-independent');
       moduleFiveRenderDynamic('m05-independent-title');
       return;

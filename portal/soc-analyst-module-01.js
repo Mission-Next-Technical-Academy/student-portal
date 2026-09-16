@@ -95,7 +95,7 @@ let moduleOneReviewMode = false;
 let moduleOneLastSyncedDetail = null;
 
 function moduleOneRemoteComplete() {
-  return moduleOneUser?.remoteModuleProgress?.['soc-01'] === 'complete';
+  return moduleOneUser?.remoteVerifiedModuleProgress?.['soc-01'] === true;
 }
 
 function moduleOneLoad(user) {
@@ -165,6 +165,15 @@ function moduleOneSyncDetailBeacon() {
   // (before a full page reload re-fetches remoteModuleDetail) still ratchets
   // against the value we just wrote, not the stale one from page load.
   moduleOneUser.remoteModuleDetail = { ...(moduleOneUser.remoteModuleDetail || {}), 'soc-01': detail };
+  // The backend needs each requirement, not a single aggregate boolean. This
+  // is idempotent and records only requirements the learner actually met.
+  const evidenceKeys = (MODULE_ONE_ALERT_ORIENTATION.lessons || [])
+    .filter((lesson) => moduleOneLessonComplete(lesson))
+    .map((lesson) => `lesson-${lesson.number}`);
+  if (moduleOneState.quiz?.passed === true) evidenceKeys.push('knowledge-check');
+  if (typeof recordModuleCompletionEvidence === 'function' && evidenceKeys.length) {
+    recordModuleCompletionEvidence(moduleOneUser, 'soc-01', evidenceKeys);
+  }
 }
 
 function moduleOneSave() {
@@ -294,16 +303,19 @@ function moduleOneLessonQuizOptions(lessonNumber, question) {
 
 function moduleOneLessonComplete(lesson) {
   const work = moduleOneLessonWork(lesson.number);
-  return work.checked === true && work.taskSubmitted === true;
+  return (work.checked === true && work.taskSubmitted === true)
+    || moduleOneUser?.remoteModuleEvidence?.['soc-01']?.[`lesson-${lesson.number}`] === true;
 }
 
 function moduleOneProgress() {
   const lessonsTotal = MODULE_ONE_ALERT_ORIENTATION.lessons.length;
   const lessonsComplete = MODULE_ONE_ALERT_ORIENTATION.lessons.filter(moduleOneLessonComplete).length;
-  const labOneComplete = Boolean(moduleOneState?.completed && moduleOneState?.consoleCompleted);
-  const labTwoComplete = Boolean(moduleOneState?.lab2?.completed);
-  const knowledgeCheckComplete = Boolean(moduleOneQuizState?.passed);
-  const complete = lessonsComplete === lessonsTotal && knowledgeCheckComplete && labOneComplete && labTwoComplete;
+  const verified = moduleOneRemoteComplete();
+  const labOneComplete = verified || Boolean(moduleOneState?.completed && moduleOneState?.consoleCompleted);
+  const labTwoComplete = verified || Boolean(moduleOneState?.lab2?.completed);
+  const knowledgeCheckComplete = Boolean(moduleOneQuizState?.passed)
+    || moduleOneUser?.remoteModuleEvidence?.['soc-01']?.['knowledge-check'] === true;
+  const complete = verified || (lessonsComplete === lessonsTotal && knowledgeCheckComplete && labOneComplete && labTwoComplete);
   return {
     lessonsTotal,
     lessonsComplete,
