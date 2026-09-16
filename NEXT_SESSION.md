@@ -1,5 +1,18 @@
 # Next session — start here
 
+## New workstream queued for a fresh session (owner: run via Codex)
+
+`module-completion-integrity/BRIEF.md` — spec only, NOT STARTED. Modules
+2-12 trust the coarse `module_progress.state === 'complete'` flag directly
+in `moduleCompletion()`; only Module 1 requires the stricter per-field
+detail-beacon corroboration it was given 2026-09-16. Same class of bug,
+not yet generalized. Confirmed safe to do freely right now: no real
+students enrolled yet, this environment is pre-launch staging despite
+being deployed to the production GitHub Pages repo — re-confirm that's
+still true before shipping if picked up much later. Read that file's
+"Reference implementation" section before writing any code; it points at
+the exact working Module 1 pattern to replicate.
+
 ## Just shipped, same day (2026-09-16), later session
 
 Sprint 3 and a new Sprint 4 from `MODULE_NAV_SIDEBAR_SPRINT.md`, committed
