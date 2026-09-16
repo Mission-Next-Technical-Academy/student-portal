@@ -3874,7 +3874,8 @@ function moduleProgressShell(sections, state = {}, options = {}) {
           const statusClass = section.isComplete
             ? 'mnav-chip-complete'
             : isCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
-          return `<a href="#${esc(section.scrollId)}" class="mnav-chip ${statusClass}" title="${esc(section.title)}">
+          const isLocked = statusClass === 'mnav-chip-locked';
+          return `<a href="#${esc(section.scrollId)}" class="mnav-chip ${statusClass}" title="${esc(section.title)}${isLocked ? ' (complete the current section first)' : ''}" data-mnav-chip-scroll="${esc(section.scrollId)}" aria-disabled="${isLocked}">
             <i class="${esc(typeIcon[section.type] || 'ri-file-line')}" aria-hidden="true"></i>
             <span>${esc(section.title)}</span>
             ${section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
@@ -3921,7 +3922,8 @@ function moduleQuickNavRail(items, state = {}) {
       : item.kind === 'quiz' ? 'Quiz'
       : (item.lessonNumber ? `Lesson ${String(item.lessonNumber).padStart(2, '0')}` : 'Lesson');
 
-    return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link ${statusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}">
+    const isLocked = statusClass === 'mnav-chip-locked';
+    return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link ${statusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}${isLocked ? ' (complete the current item first)' : ''}" aria-disabled="${isLocked}">
       <i class="${esc(icon)}" aria-hidden="true"></i>
       <span class="mquick-nav-label">${esc(item.title)}</span>
       ${item.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
@@ -6171,6 +6173,15 @@ function wireCommon() {
     });
   });
 
+  // The chip's color/cursor already signaled "locked," but the href still
+  // worked — a student could click straight to Guided Labs before finishing
+  // Foundations. Block navigation for anything past the current section.
+  document.querySelectorAll('[data-mnav-chip-scroll]').forEach((chip) => {
+    chip.addEventListener('click', (e) => {
+      if (chip.getAttribute('aria-disabled') === 'true') e.preventDefault();
+    });
+  });
+
   wireModuleQuickNavRail();
   wireRegisteredModuleLabs();
 }
@@ -6191,6 +6202,10 @@ function wireModuleQuickNavRail() {
   document.querySelectorAll('[data-mquick-nav-scroll]').forEach((link) => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
+      // Locked items are visually grayed out, but the link itself still
+      // worked underneath — a student could jump straight to lesson 9
+      // without opening 1-8. Stop here rather than opening/scrolling.
+      if (link.getAttribute('aria-disabled') === 'true') return;
       const scrollId = link.dataset.mquickNavScroll;
       const target = document.getElementById(scrollId);
       if (target && target.tagName === 'DETAILS') {
