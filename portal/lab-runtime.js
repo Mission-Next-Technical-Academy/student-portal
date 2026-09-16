@@ -75,3 +75,31 @@ const LabRuntime = (() => {
 
   return { anonymousStudentId, load, save, reset, storageKey };
 })();
+
+/* Shared score-section rendering for every module's independent-lab result
+ * panel. Every module's score function already returns a named breakdown
+ * (observation/analysis/decision/communication, or Module 12's own labeled
+ * array) — this only makes that existing breakdown visible instead of a
+ * flat number. See soc-analyst-track-reimagining/REBUILD_PLAN.md Phase 1b. */
+const LAB_SCORE_SECTION_ORDER = ['observation', 'analysis', 'decision', 'communication'];
+const LAB_SCORE_SECTION_LABELS = { observation: 'Observation', analysis: 'Analysis', decision: 'Decision', communication: 'Communication' };
+
+function renderLabScoreSections(result) {
+  if (!result || typeof result !== 'object') return '';
+  const breakdown = result.breakdown;
+  let sections = [];
+  if (Array.isArray(breakdown)) {
+    sections = breakdown
+      .filter((item) => item && typeof item === 'object' && 'label' in item)
+      .map((item) => ({ label: String(item.label), value: item.score }));
+  } else if (breakdown && typeof breakdown === 'object') {
+    sections = LAB_SCORE_SECTION_ORDER
+      .filter((key) => key in breakdown)
+      .map((key) => ({ label: LAB_SCORE_SECTION_LABELS[key], value: breakdown[key] }));
+  }
+  const feedback = Array.isArray(result.feedback) ? result.feedback.filter((item) => typeof item === 'string' && item.trim()) : [];
+  if (!sections.length && !feedback.length) return '';
+  const sectionsHtml = sections.length ? `<dl class="lab-score-sections grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">${sections.map((section) => `<div class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-center"><dt class="text-xs text-gray-500">${esc(section.label)}</dt><dd class="text-lg font-semibold text-[#1e3a5f]">${esc(String(section.value))}</dd></div>`).join('')}</dl>` : '';
+  const feedbackHtml = feedback.length ? `<ul class="lab-score-feedback list-disc space-y-1 pl-5 text-sm text-gray-600">${feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>` : '';
+  return `<div class="lab-score-breakdown mt-3 mb-1">${sectionsHtml}${feedbackHtml}</div>`;
+}
