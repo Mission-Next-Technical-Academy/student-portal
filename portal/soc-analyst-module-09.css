@@ -41,6 +41,17 @@
 .m09-role strong { font-size: 14px; }
 .m09-role p { margin: 4px 0 0; color: #64748b; font: 12px/1.55 Inter, sans-serif; }
 
+.m09-ticket { margin: -5px 0 16px; padding: 18px; background: #fff; border: 1px solid #dbe3ed; border-left: 4px solid #f97316; border-radius: 12px; box-shadow: 0 6px 18px rgba(30, 58, 95, .05); }
+.m09-ticket-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.m09-ticket-head > i { flex: 0 0 auto; margin-top: 2px; font-size: 20px; color: #f97316; }
+.m09-ticket-head > div:nth-child(2) { flex: 1 1 auto; }
+.m09-ticket-head h3 { margin: 3px 0 0; color: #1e3a5f; font-size: 17px; line-height: 1.3; }
+.m09-ticket-priority { flex: 0 0 auto; padding: 4px 10px; color: #b45309; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 999px; font: 800 11px/1.4 Inter, sans-serif; white-space: nowrap; }
+.m09-ticket-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 14px 0 0; }
+.m09-ticket-grid dt { color: #94a3b8; font: 10px/1.3 Inter, sans-serif; text-transform: uppercase; letter-spacing: .07em; }
+.m09-ticket-grid dd { margin: 3px 0 0; color: #1e3a5f; font: 700 13px/1.4 Inter, sans-serif; }
+.m09-ticket-note { margin: 14px 0 0; padding-top: 12px; color: #64748b; font: 12px/1.6 Inter, sans-serif; border-top: 1px dashed #e2e8f0; }
+
 .m09-workbench, .m09-artifact { overflow: hidden; background: #f8fafc; border: 1px solid #dbe3ed; border-radius: 16px; }
 .m09-casebar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; padding: 22px; color: #fff; background: #0f2741; }
 .m09-casebar h3 { margin: 5px 0 7px; font-size: 20px; }
