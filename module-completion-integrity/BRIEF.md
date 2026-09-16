@@ -4,6 +4,11 @@
 (owner intends to run this via Codex) after a live debugging session found
 the root cause below. Read this whole file before writing any code.
 
+**Owner instruction:** once every item in this doc is actually done and
+verified, `git mv` this file into `archive/` per that directory's own
+"When to archive a doc" rule — don't archive it while any part is still
+open.
+
 ## Context: no real students yet
 
 Confirmed with the owner 2026-09-16: this environment has no real student
