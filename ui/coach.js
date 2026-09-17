@@ -84,7 +84,7 @@
 
   function tourForCurrentModule() {
     const n = courseworkModuleNumber();
-    return n ? (MODULE_COACHES.find(c => c.module === n) || null) : null;
+    return n ? (MODULE_COACHES.find(c => c.module === n && c.tour === true) || null) : null;
   }
 
   // A small, always-present corner dock — two on-demand actions, neither of

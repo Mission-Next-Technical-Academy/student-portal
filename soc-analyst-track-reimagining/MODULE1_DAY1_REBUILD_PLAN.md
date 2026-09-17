@@ -263,7 +263,7 @@ reviews/tests/commits, mirrors `bin/run-module-agents.sh`)
 
 | Sprint | Scope | Files | Delegation | Status |
 |---|---|---|---|---|
-| D0 | Workspace-setup procedure checklist (new, §1) — the real opening of Module 1 | `ui/coach-data.js` (new steps/coach), `portal/soc-analyst-module-01.js` | Mechanical — Haiku/codex | Not started |
+| D0 | Workspace-setup procedure checklist (new, §1) — the real opening of Module 1 | `ui/coach-data.js` (new steps/coach), `portal/soc-analyst-module-01.js` | Mechanical — Haiku/codex | **Shipped, 2026-09-17** (commit `a4dd8cd`) — new `m01-setup` coach (tenant/connector/alert-queue), gates the existing "Lab 1" launch link via a new `workspaceSetupComplete` flag. Not yet exercised in a live browser. |
 | D1 | "What is this" orientation coach content (revised, §1b) — distinct from D0 and from the task coach | `ui/coach-data.js` (new `m01-orientation`-style coach, scoped to `m01`'s `allow` list) | Mechanical — Haiku/codex | Not started (trigger mechanism shipped, see below) |
 | D2 | Module 1 tour relabel + ungate | `portal/soc-analyst-module-01.js`, `portal/app.js` (`moduleCompletion()`) | Mechanical — Haiku/codex | Not started |
 | D3 | Cross-device state beacon (build first / alongside D5, not after) | new migration + `lab-runtime.js` | Mechanical, but design the schema against §3's needs before D5 is authored | **Shipped, 2026-09-17** (commit `3249fe8`) — `module_progress.case_state` column + `LabRuntime.loadCaseState()`/`saveCaseState()`. Plumbing only, no caller yet (D5 will call it). Not yet exercised against a live Supabase login — needs a real cross-device smoke test. |
