@@ -279,6 +279,43 @@ shape to exist first).
 
 ## Still open
 
+### Governing correction — the SIEM is the assessment, not a narrative worksheet (2026-09-17)
+
+**Owner direction, locked:** Module 1 must not assess whether a student can
+write a plausible narrative *about* triage. It assesses whether they can do
+the entry-level procedure in the simulator. The floating **Take the tour**
+control is optional orientation only; there is one Module 1 SIEM lab surface,
+not separate guided-lab and essay-form experiences.
+
+Completion must be based on a durable, instructor-reviewable simulator action
+record showing the student actually:
+
+1. verifies the workspace/data readiness appropriate to the assignment;
+2. finds and triages the assigned incident in the queue (filter/open/pivot to
+   alerts, entities, and supporting events);
+3. assigns/updates the incident as their role permits, records evidence in
+   the case, and makes the justified escalation or containment request; and
+4. leaves a final incident record the instructor can review alongside the
+   ordered action log.
+
+The multi-day requirement is therefore not met by labeling form fields “Day
+1/2/3.” It requires meaningful procedures and independently reviewable work
+across the early days of the six-week internship: workspace/data orientation,
+incident intake and evidence pivots, then supervised triage/handoff and
+feedback. Cross-device persistence must save the simulator case state and
+the action record. The current Northstar fixture (`b6bf279`) is explicitly a
+non-accepted prototype until it is rebuilt to this model.
+
+**Implementation pointer:** extend the simulator-to-portal contract around
+the existing coach/action infrastructure, capturing a scoped action/event log
+and the incident's saved fields rather than accepting a portal-only worksheet.
+Ground the procedures in Microsoft's Sentinel guidance: triage an incident by
+filtering/opening it, investigating alerts and entities, assigning ownership,
+setting status, and adding comments; use the related Defender investigation
+when the case requires that pivot. See
+[Navigate, triage, and manage Microsoft Sentinel incidents](https://learn.microsoft.com/en-us/azure/sentinel/incident-navigate-triage)
+and [Investigate incidents with Microsoft Sentinel](https://learn.microsoft.com/en-us/azure/sentinel/investigate-cases).
+
 - Exact existing instructor-contact channel to surface in §6 — needs a
   quick look at the portal for what already exists before wiring anything.
 - §3/D5's actual case narrative and complication tree isn't written yet —
