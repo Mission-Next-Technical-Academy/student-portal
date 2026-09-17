@@ -1886,61 +1886,51 @@ const MODULE_ONE_ALERT_ORIENTATION = {
   correctDecision: 'escalate-identity',
 };
 
-/* Lab 2's own incident — deliberately a different entity, source, and
- * decision path than MODULE_ONE_ALERT_ORIENTATION's Lab 1 case, per
- * MODULE_01_ENHANCEMENT_BRIEF.md's "Use a fresh incident rather than
- * reusing Lab 1's exact decision path." Lab 1 is an identity sign-in case;
- * this is an endpoint/data-exfiltration case following a phishing click. */
+/* Module 01's fixed, multi-sitting assessment fixture.  The same records,
+ * entities, and timestamps are used for every learner so an instructor can
+ * assess a decision and its downstream consequence accurately. */
 const MODULE_ONE_ESCALATION_LAB = {
-  id: 'M01-L02',
-  title: 'SIEM Incident Escalation & Handoff',
-  minutes: 60,
+  id: 'M01-DAY1-CASE',
+  title: 'Northstar Finance: multi-day incident triage',
+  minutes: 480,
   passingScore: 70,
   scenario: {
-    id: 'ESC-2044',
-    source: 'SIEM correlation rule',
-    detectedBy: 'Outbound data volume spike following a phishing-link click',
-    initialSeverity: 'Medium',
-    title: 'Unusual outbound transfer after a phishing click',
-    summary: 'A workstation sent an unusually large volume of data to an external address minutes after its user opened a link in a phishing email.',
-    entity: 'FIN-WKS-014',
-    created: '13:42',
+    id: 'NST-2407', source: 'Microsoft Sentinel correlation', detectedBy: 'Impossible-travel sign-in plus endpoint execution', initialSeverity: 'High',
+    title: 'Possible account takeover followed by endpoint execution',
+    summary: 'An identity sign-in and a workstation process chain may be connected. Establish the supported scope before asking an authorized responder to contain anything.',
+    entity: 'a.chen / LAP-442', created: 'Mon 09:18 UTC',
     evidence: [
-      { id: 'esc-transfer', time: '13:42', icon: 'ri-upload-cloud-2-line', label: 'Large outbound transfer',
-        detail: 'Workstation FIN-WKS-014 sent 850 MB to an external IP address over four minutes. This device has never exceeded 50 MB of outbound traffic in a single day before.' },
-      { id: 'esc-email', time: '13:36', icon: 'ri-mail-warning-line', label: 'Phishing link clicked',
-        detail: 'The email gateway log shows m.reyes@missionnextlabs.example received and clicked a link in a message impersonating "IT Support Password Reset" six minutes before the transfer began.' },
-      { id: 'esc-process', time: '13:36', icon: 'ri-terminal-line', label: 'Suspicious process observed',
-        detail: 'EDR shows a PowerShell process spawned from the browser at the moment of the click, and that same process made the outbound connection recorded above.' },
+      { id: 'identity', time: 'Mon 09:18', icon: 'ri-shield-user-line', label: 'Entra sign-in', detail: 'a.chen authenticated from 198.51.100.24. The managed-device claim is absent; MFA was approved after three denied prompts.' },
+      { id: 'endpoint', time: 'Mon 09:24', icon: 'ri-terminal-box-line', label: 'Endpoint process chain', detail: 'LAP-442 ran mshta.exe from the Downloads folder, then PowerShell contacted 198.51.100.24. a.chen was the interactive user.' },
+      { id: 'proxy', time: 'Mon 09:27', icon: 'ri-global-line', label: 'Proxy telemetry', detail: 'LAP-442 uploaded 34 MB to the same address. No other host has contacted it in the available time window.' },
+      { id: 'owner', time: 'Mon 09:41', icon: 'ri-phone-line', label: 'User callback', detail: 'a.chen confirms the laptop is in their possession but denies approving the MFA prompts or running the downloaded file.' },
     ],
-    scope: 'One workstation (FIN-WKS-014) and the account signed into it are confirmed affected. No lateral movement to other devices has been observed yet.',
+    scope: 'One identity and LAP-442 are confirmed involved. The available data does not establish lateral movement.',
   },
-  entityOptions: [
-    { id: 'device-only', text: 'The workstation only', help: 'Use this if only the machine itself is implicated.' },
-    { id: 'device-and-account', text: 'The workstation and the account signed into it', help: 'Use this when both the device and the logged-in user need to be considered part of the affected entity.' },
-    { id: 'department', text: 'The entire Finance department', help: 'Use this only if evidence shows spread beyond one device.' },
-  ],
-  scopeOptions: [
-    { id: 'one-device', text: 'Contained to one device — no evidence of spread' },
-    { id: 'multi-device', text: 'Spread to multiple devices' },
-    { id: 'network-wide', text: 'Spread across the network' },
-    { id: 'unknown', text: 'Unknown — not enough evidence yet' },
+  intakeOptions: [
+    { id: 'identity-and-laptop', text: 'a.chen and LAP-442 are confirmed involved; wider spread is unknown.' },
+    { id: 'laptop-only', text: 'Only LAP-442 is affected; the identity signal is unrelated.' },
+    { id: 'finance-wide', text: 'Every Finance device and identity is compromised.' },
   ],
   priorityOptions: [
-    { id: 'high', text: 'High — begin escalation now' },
-    { id: 'medium', text: 'Medium — leave it in the normal queue' },
-    { id: 'low', text: 'Low — no prompt response needed' },
+    { id: 'high', text: 'High — confirmed account misuse and active endpoint execution need prompt response.' },
+    { id: 'medium', text: 'Medium — wait for more alerts before involving responders.' },
+    { id: 'low', text: 'Low — close after noting the user callback.' },
   ],
-  escalationOptions: [
-    { id: 'isolate-self', text: 'Isolate the device myself right now' },
-    { id: 'escalate-endpoint', text: 'Escalate to the endpoint response team to isolate the device and preserve evidence' },
-    { id: 'close-alert', text: 'Close the alert — phishing emails are too common to escalate' },
-    { id: 'contact-vendor', text: 'Contact the email gateway vendor for support' },
+  containmentOptions: [
+    { id: 'authorized-containment', text: 'Escalate with the evidence: revoke a.chen’s sessions and isolate LAP-442 while preserving the endpoint.' },
+    { id: 'isolate-wrong-host', text: 'Isolate the shared file server FS-02 because Finance data may be at risk.' },
+    { id: 'warn-user', text: 'Email a.chen a detailed warning and wait for a reply before escalating.' },
   ],
-  correctEntity: 'device-and-account',
-  correctScope: 'one-device',
+  verdictOptions: [
+    { id: 'true-positive', text: 'Confirmed account takeover with endpoint compromise on the supported entities.' },
+    { id: 'false-positive', text: 'False positive; the user still has the laptop.' },
+    { id: 'enterprise-breach', text: 'Confirmed enterprise-wide breach and exfiltration.' },
+  ],
+  correctIntake: 'identity-and-laptop',
   correctPriority: 'high',
-  correctEscalation: 'escalate-endpoint',
+  correctContainment: 'authorized-containment', correctVerdict: 'true-positive',
+  criticalErrors: ['isolate-wrong-host', 'warn-user'],
   rubric: [
     'Observations cite specific evidence from the timeline, not a general summary.',
     'Analysis separates what was observed from what it means.',
@@ -1949,7 +1939,7 @@ const MODULE_ONE_ESCALATION_LAB = {
   ],
   handoffFields: [
     { key: 'observations', label: 'Observations', help: 'What did you observe? Cite the strongest evidence.', minLength: 40,
-      placeholder: 'The workstation FIN-WKS-014 sent 850 MB to an external address at 13:42, four minutes after...' },
+      placeholder: 'At 09:18 a.chen approved MFA after repeated prompts; at 09:24 LAP-442 executed...' },
     { key: 'analysis', label: 'Analysis', help: 'What does this mean? Separate fact from conclusion.', minLength: 40,
       placeholder: 'This pattern is consistent with a compromise following a phishing click because...' },
     { key: 'scope', label: 'Scope', help: 'What is confirmed affected, and what is not?', minLength: 20,
@@ -1984,10 +1974,10 @@ const LABS = [
     parentAllocations: [allocation('SOC-101.4', 120)], objective: 'Validate one identity alert, classify it from visible evidence, and document a proportionate triage decision.',
     description: 'Learn what a SOC analyst does, follow the incident response lifecycle, and triage one clear identity alert with step-by-step coaching.',
     skills: ['SOC Operations', 'Incident Response Lifecycle', 'Alert Triage', 'Case Notes'], portalEntry: '#/program/soc-analyst/module/1' }),
-  labRecord({ key: 'lab-soc-escalation', module: 'soc-01', title: 'SIEM Incident Escalation & Handoff', difficulty: 'Foundational', minutes: 60,
-    parentAllocations: [allocation('SOC-101.6', 60)], objective: 'Confirm the affected identity and produce an evidence-based escalation handoff for an authorized responder.',
-    description: 'Open the SIEM incident view, confirm the affected account, and complete the escalation handoff for identity containment.',
-    skills: ['SIEM', 'Incident Escalation', 'Case Notes'], simEntry: '#/sentinel/incidents' }),
+  labRecord({ key: 'lab-soc-escalation', module: 'soc-01', title: 'Northstar Finance: Multi-Day Incident Triage', difficulty: 'Foundational', minutes: 480,
+    parentAllocations: [allocation('SOC-101.4', 180), allocation('SOC-101.5', 180), allocation('SOC-101.6', 120)], objective: 'Correlate fixed identity, endpoint, and proxy evidence over multiple sittings; request proportionate containment; and produce a defensible handoff.',
+    description: 'Work a multi-day account-takeover and endpoint-compromise case. A containment choice changes the later evidence record; submit the complete handoff for instructor review.',
+    skills: ['SIEM', 'Identity Investigation', 'Endpoint Triage', 'Incident Escalation', 'Case Notes'], simEntry: '#/sentinel/incidents' }),
   labRecord({ key: 'lab-identity-investigation', module: 'soc-02', title: 'Suspicious Authentication Investigation', difficulty: 'Foundational', minutes: 180,
     parentAllocations: [allocation('SOC-101.4', 60), allocation('SOC-101.5', 120)], objective: 'Correlate authentication, network, and access-change records to identify and escalate one risky identity pattern.',
     description: 'Review user sign-in events, analyze privilege changes, and identify risky identity behavior.',

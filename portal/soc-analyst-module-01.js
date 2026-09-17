@@ -74,10 +74,11 @@ const MODULE_ONE_DEFAULT_STATE = {
   sectionOpen: { checklist: false, foundations: true, flow: false, lifecycle: false, loop: false, lab: false, quiz: false, review: false, sources: false },
   quiz: { selectedQuestions: [], questionsByAnswer: {}, answers: {}, scored: false, attempts: 0, score: 0, bestScore: 0, feedback: [], passed: false },
   lab2: {
-    entity: '',
-    scope: '',
+    reviewedEvidence: [],
+    intake: '',
     priority: '',
-    escalation: '',
+    containment: '',
+    verdict: '',
     handoff: { observations: '', analysis: '', scope: '', nextAction: '' },
     attempts: 0,
     score: null,
@@ -101,7 +102,7 @@ function moduleOneRemoteComplete() {
 
 function moduleOneLoad(user) {
   moduleOneUser = user;
-  moduleOneState = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
+  moduleOneState = LabRuntime.loadCaseState(MODULE_ONE_LAB_ID, 'soc-01', user, MODULE_ONE_DEFAULT_STATE);
   if (!Array.isArray(moduleOneState.reviewedEvidence)) moduleOneState.reviewedEvidence = [];
   if (!Array.isArray(moduleOneState.factWrong)) moduleOneState.factWrong = [];
   if (!moduleOneState.factTries || typeof moduleOneState.factTries !== 'object') moduleOneState.factTries = {};
@@ -110,6 +111,11 @@ function moduleOneLoad(user) {
   Object.keys(MODULE_ONE_DEFAULT_STATE.sectionOpen).forEach((key) => { if (typeof moduleOneState.sectionOpen[key] !== 'boolean') moduleOneState.sectionOpen[key] = MODULE_ONE_DEFAULT_STATE.sectionOpen[key]; });
   if (!moduleOneState.quiz || typeof moduleOneState.quiz !== 'object') moduleOneState.quiz = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.quiz));
   if (!moduleOneState.lab2 || typeof moduleOneState.lab2 !== 'object') moduleOneState.lab2 = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.lab2));
+  if (!Array.isArray(moduleOneState.lab2.reviewedEvidence)) moduleOneState.lab2.reviewedEvidence = [];
+  ['intake', 'priority', 'containment', 'verdict'].forEach((key) => {
+    if (typeof moduleOneState.lab2[key] !== 'string') moduleOneState.lab2[key] = '';
+  });
+  if (!moduleOneState.lab2.handoff || typeof moduleOneState.lab2.handoff !== 'object') moduleOneState.lab2.handoff = { ...MODULE_ONE_DEFAULT_STATE.lab2.handoff };
   // `module_progress` historically recorded Module 01 as complete after a
   // coarse lab-only check. Do not manufacture the missing lesson, quiz, or
   // Lab 2 evidence from that record: the page must never show work complete
@@ -184,7 +190,10 @@ function moduleOneSyncDetailBeacon() {
 
 function moduleOneSave() {
   if (moduleOneUser && moduleOneState) {
-    LabRuntime.save(MODULE_ONE_LAB_ID, moduleOneUser, moduleOneState);
+    // The final case can span days and devices.  Keep the whole fixture state
+    // (including reviewed records and a consequence already triggered) with
+    // the module-progress row as well as in the local recovery copy.
+    LabRuntime.saveCaseState(MODULE_ONE_LAB_ID, 'soc-01', moduleOneUser, moduleOneState);
     moduleOneSyncDetailBeacon();
   }
 }
@@ -662,15 +671,16 @@ function moduleOneLabDynamic() {
 
   <section class="m01-siem" aria-labelledby="m01-lab2-scenario-title">
     <div class="m01-siem-copy">
-      <p class="m01-kicker">Fresh incident scenario</p>
-      <h3 id="m01-lab2-scenario-title">Lab 2: Escalate this incident to the response team</h3>
+      <p class="m01-kicker">Graded case · resume across sittings</p>
+      <h3 id="m01-lab2-scenario-title">Northstar Finance: a three-sitting incident</h3>
+      <p>This fixed case unfolds over intake, containment, and handoff. Your saved evidence review and any consequence of your containment choice return with you on another device.</p>
     </div>
   </section>
 
   <div class="m01-alert-window">
     <div class="m01-alert-toolbar">
       <span><i class="ri-inbox-2-line" aria-hidden="true"></i> Alert queue</span>
-      <span>1 alert assigned to you</span>
+      <span>${moduleOneState.lab2.reviewedEvidence.length}/${MODULE_ONE_ESCALATION_LAB.scenario.evidence.length} records reviewed</span>
     </div>
     <article class="m01-single-alert" aria-labelledby="m01-lab2-alert-title">
       <div class="m01-alert-heading">
@@ -682,16 +692,16 @@ function moduleOneLabDynamic() {
           <h3 id="m01-lab2-alert-title">${esc(MODULE_ONE_ESCALATION_LAB.scenario.title)}</h3>
           <p>${esc(MODULE_ONE_ESCALATION_LAB.scenario.summary)}</p>
         </div>
-        <div class="m01-entity-chip"><span>Endpoint</span><code>${esc(MODULE_ONE_ESCALATION_LAB.scenario.entity)}</code></div>
+        <div class="m01-entity-chip"><span>Initial entities</span><code>${esc(MODULE_ONE_ESCALATION_LAB.scenario.entity)}</code></div>
       </div>
       <div class="m01-alert-facts">
         <div><dt>Detection</dt><dd>${esc(MODULE_ONE_ESCALATION_LAB.scenario.detectedBy)}</dd></div>
         <div><dt>Initial scope</dt><dd>${esc(MODULE_ONE_ESCALATION_LAB.scenario.scope)}</dd></div>
       </div>
       <ol class="m01-timeline" style="margin-top: 18px;">
-        ${MODULE_ONE_ESCALATION_LAB.scenario.evidence.map((item, index) => `<li class="is-reviewed">
+        ${MODULE_ONE_ESCALATION_LAB.scenario.evidence.map((item) => `<li class="${moduleOneState.lab2.reviewedEvidence.includes(item.id) ? 'is-reviewed' : 'is-active'}">
           <span class="m01-timeline-marker"><i class="${esc(item.icon)}" aria-hidden="true"></i></span>
-          <div><time>${esc(item.time)}</time><strong>${esc(item.label)}</strong><p>${esc(item.detail)}</p></div>
+          <div><time>${esc(item.time)}</time><strong>${esc(item.label)}</strong><p>${esc(item.detail)}</p><button type="button" class="m01-reveal" data-m01-case-evidence="${esc(item.id)}">${moduleOneState.lab2.reviewedEvidence.includes(item.id) ? 'Reviewed' : 'Record reviewed'}</button></div>
         </li>`).join('')}
       </ol>
     </article>
@@ -699,7 +709,7 @@ function moduleOneLabDynamic() {
 
   <section class="m01-rubric" aria-labelledby="m01-lab2-rubric-title">
     <p class="m01-kicker">Assessment criteria</p>
-    <h3 id="m01-lab2-rubric-title">What a strong handoff note does</h3>
+    <h3 id="m01-lab2-rubric-title">What your instructor will assess</h3>
     <ul class="m01-rubric-list">
       ${MODULE_ONE_ESCALATION_LAB.rubric.map((item) => `<li>${esc(item)}</li>`).join('')}
     </ul>
@@ -707,32 +717,34 @@ function moduleOneLabDynamic() {
 
   <form id="m01-lab2-form" class="m01-worksheet" novalidate>
     <div class="m01-panel-heading">
-      <div><p class="m01-kicker">Independent decision</p><h3>Complete the escalation record and handoff note</h3></div>
-      <span class="m01-evidence-count">No timer · retry allowed</span>
+      <div><p class="m01-kicker">Independent decision record</p><h3>Work the case across three handoffs</h3></div>
+      <span class="m01-evidence-count">Save automatically · no live score</span>
     </div>
 
     <fieldset class="m01-fieldset">
-      <legend><span>1</span> Which entity is affected?</legend>
-      <p class="m01-help">Identify the device, account, or group that is confirmed compromised.</p>
-      ${moduleOneOptionList('entity', MODULE_ONE_ESCALATION_LAB.entityOptions, moduleOneState.lab2)}
+      <legend><span>Day 1</span> Intake and supported scope</legend>
+      <p class="m01-help">Review all four records, then state only what their correlation supports.</p>
+      ${moduleOneOptionList('intake', MODULE_ONE_ESCALATION_LAB.intakeOptions, moduleOneState.lab2)}
     </fieldset>
 
     <fieldset class="m01-fieldset">
-      <legend><span>2</span> What is the scope?</legend>
-      <p class="m01-help">How far has this spread, or how much do you know about spread?</p>
-      ${moduleOneOptionList('scope', MODULE_ONE_ESCALATION_LAB.scopeOptions, moduleOneState.lab2)}
-    </fieldset>
-
-    <fieldset class="m01-fieldset">
-      <legend><span>3</span> What priority?</legend>
+      <legend><span>Day 1</span> What priority?</legend>
       <p class="m01-help">Match the urgency to what you know about the threat and impact.</p>
       ${moduleOneOptionList('priority', MODULE_ONE_ESCALATION_LAB.priorityOptions, moduleOneState.lab2)}
     </fieldset>
 
     <fieldset class="m01-fieldset">
-      <legend><span>4</span> What is the appropriate escalation?</legend>
-      <p class="m01-help">Choose the responder or action that matches your findings and authority.</p>
-      ${moduleOneOptionList('escalation', MODULE_ONE_ESCALATION_LAB.escalationOptions, moduleOneState.lab2)}
+      <legend><span>Day 2</span> Containment request</legend>
+      <p class="m01-help">This is consequential: your selection changes the Day 3 record. Stay inside the analyst role and preserve the case.</p>
+      ${moduleOneOptionList('containment', MODULE_ONE_ESCALATION_LAB.containmentOptions, moduleOneState.lab2)}
+    </fieldset>
+
+    ${moduleOneState.lab2.containment ? `<section class="m01-rubric" aria-label="Day 3 consequence"><p class="m01-kicker">Day 3 · consequence record</p><h3>${moduleOneState.lab2.containment === 'authorized-containment' ? 'Containment limited the active path' : 'A complication now needs investigation'}</h3><p>${esc(moduleOneState.lab2.containment === 'authorized-containment' ? 'Response confirms a.chen sessions were revoked and LAP-442 was isolated. The proxy shows no additional connection after 10:02 UTC; scope remains bounded pending review.' : moduleOneState.lab2.containment === 'isolate-wrong-host' ? 'FS-02 was taken offline, disrupting Finance reporting, while LAP-442 continued its external connection for 35 more minutes. The added proxy record must be included in your handoff.' : 'The detailed warning was delivered to the compromised identity. At 10:06 UTC, LAP-442 deleted the downloaded script and opened a second connection; preserve that uncertainty in the handoff.')}</p></section>` : ''}
+
+    <fieldset class="m01-fieldset">
+      <legend><span>Day 3</span> Final verdict</legend>
+      <p class="m01-help">Use the evidence and the response outcome. Do not claim a scope the fixture does not establish.</p>
+      ${moduleOneOptionList('verdict', MODULE_ONE_ESCALATION_LAB.verdictOptions, moduleOneState.lab2)}
     </fieldset>
 
     ${MODULE_ONE_ESCALATION_LAB.handoffFields.map((field) => {
@@ -745,8 +757,8 @@ function moduleOneLabDynamic() {
     }).join('')}
 
     <div class="m01-actions">
-      <button type="submit" class="m01-submit"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Check my escalation</button>
-      <button type="button" class="m01-reset" data-m01-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset all labs</button>
+      <button type="submit" class="m01-submit"><i class="ri-send-plane-2-line" aria-hidden="true"></i> Submit case for instructor review</button>
+      <button type="button" class="m01-reset" data-m01-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset practice and case</button>
     </div>
     ${moduleOneLab2ScorePanel()}
   </form>
@@ -1086,34 +1098,22 @@ function moduleOneScore() {
 function moduleOneLab2Score() {
   const lab2Data = MODULE_ONE_ESCALATION_LAB;
   const s = moduleOneState.lab2;
-  const entity = s.entity === lab2Data.correctEntity ? 20 : 0;
-  const scope = s.scope === lab2Data.correctScope ? 20 : 0;
+  const intake = s.intake === lab2Data.correctIntake ? 25 : 0;
   const priority = s.priority === lab2Data.correctPriority ? 20 : 0;
-  const escalation = s.escalation === lab2Data.correctEscalation ? 15 : 0;
+  const containment = s.containment === lab2Data.correctContainment ? 25 : 0;
+  const verdict = s.verdict === lab2Data.correctVerdict ? 15 : 0;
   const h = s.handoff;
-  const handoff = (((h.observations || '').trim().length >= 40) ? 7 : 0)
-    + (((h.analysis || '').trim().length >= 40) ? 7 : 0)
-    + (((h.scope || '').trim().length >= 20) ? 6 : 0)
-    + (((h.nextAction || '').trim().length >= 20) ? 5 : 0);
-  const score = entity + scope + priority + escalation + handoff;
+  const handoff = (((h.observations || '').trim().length >= 40) ? 4 : 0)
+    + (((h.analysis || '').trim().length >= 40) ? 4 : 0)
+    + (((h.scope || '').trim().length >= 20) ? 4 : 0)
+    + (((h.nextAction || '').trim().length >= 20) ? 3 : 0);
+  const score = intake + priority + containment + verdict + handoff;
+  const criticalErrors = lab2Data.criticalErrors.includes(s.containment) ? [s.containment] : [];
 
   return {
     score,
-    breakdown: { entity, scope, priority, escalation, handoff },
-    feedback: [
-      entity ? 'Entity: Correct. The workstation and the signed-in account must both be considered affected.' : 'Entity: Both the device and the account are affected—they are not separable in this scenario.',
-      scope ? 'Scope: Correct. The evidence shows containment to the one device; no lateral movement.' : 'Scope: One device, no spread observed. This keeps the scope appropriately bounded.',
-      priority ? 'Priority: Correct. Phishing with confirmed unusual transfer warrants high priority and prompt escalation.' : "Priority: High priority moves this into an authorized responder's queue immediately.",
-      escalation ? 'Escalation: Correct. The endpoint response team has authority to isolate the device and preserve evidence.' : 'Escalation: Endpoint response has the authority and tools for device isolation and evidence preservation.',
-      handoff >= 25
-        ? 'Handoff note: Complete. Observations, analysis, scope, and next action are all clearly stated.'
-        : `Handoff note: Complete the ${[
-            ((h.observations || '').trim().length < 40) ? 'observations' : null,
-            ((h.analysis || '').trim().length < 40) ? 'analysis' : null,
-            ((h.scope || '').trim().length < 20) ? 'scope statement' : null,
-            ((h.nextAction || '').trim().length < 20) ? 'next action' : null,
-          ].filter(Boolean).join(', ')} sections.`,
-    ],
+    breakdown: { intake, priority, containment, verdict, handoff, answers: { intake: s.intake, priority: s.priority, containment: s.containment, verdict: s.verdict }, criticalErrors },
+    feedback: [],
   };
 }
 
@@ -1127,31 +1127,20 @@ function moduleOneLab2ScorePanel() {
 
   if (!moduleOneState.lab2.attempts || !moduleOneState.lab2.breakdown) {
     return `<div class="m01-score-empty" id="m01-lab2-feedback" role="status" aria-live="polite">
-      Submit when every decision is selected and all handoff sections are complete.
+      Your instructor—not this page—will assess the submitted work. You can save and return at any point.
     </div>`;
   }
 
-  const b = moduleOneState.lab2.breakdown;
-  const passed = moduleOneState.lab2.score >= MODULE_ONE_ESCALATION_LAB.passingScore;
-  return `<section class="m01-score ${passed ? 'is-pass' : 'is-remediate'}" id="m01-lab2-feedback"
+  return `<section class="m01-score is-pass" id="m01-lab2-feedback"
                    tabindex="-1" aria-labelledby="m01-lab2-score-title" aria-live="polite">
     <div class="m01-score-summary">
       <div>
-        <p class="m01-kicker">Attempt ${moduleOneState.lab2.attempts} · assessment result</p>
-        <h3 id="m01-lab2-score-title">${moduleOneState.lab2.score}/100 — ${passed ? 'Escalation handoff complete' : 'Review the feedback and retry'}</h3>
+        <p class="m01-kicker">Submission ${moduleOneState.lab2.attempts} received</p>
+        <h3 id="m01-lab2-score-title">Your case is with your instructor</h3>
+        <p>There is no live score. Your instructor can confirm the decision, flag a production-impacting mistake, and send the complete case back with guidance if needed.</p>
       </div>
-      <span class="m01-score-number">${moduleOneState.lab2.score}</span>
+      <span class="m01-score-number"><i class="ri-inbox-archive-line" aria-hidden="true"></i></span>
     </div>
-    <div class="m01-score-grid" aria-label="Score breakdown">
-      <div><strong>${b.entity}/20</strong><span>Entity</span></div>
-      <div><strong>${b.scope}/20</strong><span>Scope</span></div>
-      <div><strong>${b.priority}/20</strong><span>Priority</span></div>
-      <div><strong>${b.escalation}/15</strong><span>Escalation</span></div>
-      <div><strong>${b.handoff}/25</strong><span>Handoff note</span></div>
-    </div>
-    <ul class="m01-feedback-list">
-      ${moduleOneState.lab2.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}
-    </ul>
   </section>`;
 }
 
@@ -1330,6 +1319,16 @@ function wireModuleOneLab() {
       return;
     }
 
+    const caseEvidence = event.target.closest('[data-m01-case-evidence]');
+    if (caseEvidence) {
+      const evidenceId = caseEvidence.dataset.m01CaseEvidence;
+      if (!moduleOneState.lab2.reviewedEvidence.includes(evidenceId)) moduleOneState.lab2.reviewedEvidence.push(evidenceId);
+      moduleOneState.lab2.validationError = '';
+      moduleOneSave();
+      moduleOneRenderDynamic('m01-lab2-scenario-title');
+      return;
+    }
+
     if (event.target.closest('[data-m01-reset]')) {
       moduleOneState = LabRuntime.reset(MODULE_ONE_LAB_ID, moduleOneUser, MODULE_ONE_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') {
@@ -1351,7 +1350,7 @@ function wireModuleOneLab() {
       moduleOneState.validationError = '';
       moduleOneSave();
     }
-    if (['entity', 'scope', 'priority', 'escalation'].includes(input.name) && input.closest('#m01-lab2-form')) {
+    if (['intake', 'priority', 'containment', 'verdict'].includes(input.name) && input.closest('#m01-lab2-form')) {
       moduleOneState.lab2[input.name] = input.value;
       moduleOneState.lab2.validationError = '';
       moduleOneSave();
@@ -1532,15 +1531,17 @@ function wireModuleOneLab() {
     if (event.target.id === 'm01-lab2-form') {
       event.preventDefault();
       const lab2Data = MODULE_ONE_ESCALATION_LAB;
-      const missing = ['entity', 'scope', 'priority', 'escalation'].filter((name) => !moduleOneState.lab2[name]);
+      const missing = ['intake', 'priority', 'containment', 'verdict'].filter((name) => !moduleOneState.lab2[name]);
+      const evidenceMissing = lab2Data.scenario.evidence.length - moduleOneState.lab2.reviewedEvidence.length;
       const h = moduleOneState.lab2.handoff;
       const handoffMissing = lab2Data.handoffFields.filter((field) => {
         const value = (h[field.key] || '').trim();
         return value.length < field.minLength;
       }).map((field) => field.label);
 
-      if (missing.length || handoffMissing.length) {
+      if (missing.length || handoffMissing.length || evidenceMissing) {
         const parts = [];
+        if (evidenceMissing) parts.push(`${evidenceMissing} evidence record${evidenceMissing === 1 ? '' : 's'} not reviewed`);
         if (missing.length) parts.push(`decision${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}`);
         if (handoffMissing.length) parts.push(`handoff: ${handoffMissing.join(', ')}`);
         moduleOneState.lab2.validationError = 'Complete all sections. Missing: ' + parts.join('; ') + '.';
@@ -1555,20 +1556,17 @@ function wireModuleOneLab() {
       moduleOneState.lab2.breakdown = result.breakdown;
       moduleOneState.lab2.feedback = result.feedback;
       moduleOneState.lab2.validationError = '';
-      const passed = result.score >= lab2Data.passingScore;
       if (typeof recordLabAttempt === 'function') {
         const attemptFields = {
-          state: passed ? 'complete' : 'in_progress',
+          state: 'complete',
           score: result.score,
-          result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleOneState.lab2.attempts },
+          result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleOneState.lab2.attempts, critical_errors: result.breakdown.criticalErrors },
         };
         recordLabAttempt(moduleOneUser, 'lab-soc-escalation', attemptFields);
       }
-      if (passed) {
-        moduleOneState.lab2.completed = true;
-      }
+      moduleOneState.lab2.completed = true;
       moduleOneSave();
-      if (passed && typeof markModuleLabComplete === 'function') {
+      if (typeof markModuleLabComplete === 'function') {
         markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
       }
       moduleOneSyncCompletion();
