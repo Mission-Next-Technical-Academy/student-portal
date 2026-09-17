@@ -4910,7 +4910,7 @@ VIEWS['sentinel/data-connectors'] = () => `
             : c.status;
           const statusClass = status === 'Connected' ? 'resolved' : status === 'Not a connector' ? 'warn' : '';
           return `
-            <tr>
+            <tr data-connector="${esc(c.name)}">
               <td><span class="status-dot ${statusClass}"></span>${esc(status)}</td>
               <td><strong>${esc(c.name)}</strong></td>
               <td>${esc(c.type)}</td>

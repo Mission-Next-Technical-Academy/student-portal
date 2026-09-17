@@ -58,6 +58,7 @@ const MODULE_ONE_DEFAULT_STATE = {
   factError: '',
   consoleStarted: false,
   consoleCompleted: false,
+  workspaceSetupComplete: false,
   verdict: '',
   priority: '',
   phase: '',
@@ -127,7 +128,12 @@ function moduleOneLoad(user) {
       bestScore: Number(savedQuiz.bestScore || 0), feedback: savedQuiz.feedback || [], passed: Boolean(savedQuiz.passed),
     };
   }
-  if (new URLSearchParams(location.search).get('coachComplete') === 'm01') {
+  const coachComplete = new URLSearchParams(location.search).get('coachComplete');
+  if (coachComplete === 'm01-setup') {
+    moduleOneState.workspaceSetupComplete = true;
+    moduleOneSave();
+    history.replaceState(null, '', location.pathname + location.hash);
+  } else if (coachComplete === 'm01') {
     moduleOneState.consoleStarted = true;
     moduleOneState.consoleCompleted = true;
     moduleOneSave();
@@ -515,6 +521,7 @@ function moduleOneLabDynamic() {
   const reviewedCount = scenario.evidence.filter((item) => reviewed.has(item.id)).length;
   const investigationReady = reviewedCount === scenario.evidence.length;
   const consoleComplete = moduleOneState.consoleCompleted === true;
+  const workspaceSetupComplete = moduleOneState.workspaceSetupComplete === true;
   const nextEvidence = scenario.evidence.find((item) => !reviewed.has(item.id));
 
   return `<div class="m01-alert-window">
@@ -559,8 +566,8 @@ function moduleOneLabDynamic() {
       eight failures and the success that followed them. Only the buttons the step allows are clickable, and
       nothing outside the sandbox is reachable until you exit. Finish Lab 1 and Lab 2 opens here.</p>
     </div>
-    <a class="m01-siem-launch" data-m01-console-launch href="${esc(SIM_ORIGIN)}?coach=m01&amp;restart=1#/defender/alerts" target="_blank" rel="opener">
-      <i class="${consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${consoleComplete ? 'Review Lab 1 walkthrough' : 'Start Lab 1 walkthrough'}
+    <a class="m01-siem-launch" data-m01-console-launch href="${esc(SIM_ORIGIN)}?coach=${workspaceSetupComplete ? 'm01' : 'm01-setup'}&amp;restart=1#/defender/alerts" target="_blank" rel="opener">
+      <i class="${workspaceSetupComplete && consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${workspaceSetupComplete ? (consoleComplete ? 'Review Lab 1 walkthrough' : 'Start Lab 1 walkthrough') : 'Start Day 1 setup'}
     </a>
   </section>
 
