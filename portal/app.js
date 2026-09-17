@@ -3723,7 +3723,7 @@ function moduleCompletion(program, moduleKey, user) {
     const lessons = MODULE_ONE_ALERT_ORIENTATION.lessons || [];
     const lessonsComplete = lessons.every((lesson) => {
       const work = (state.lessonWork || {})[String(lesson.number)] || {};
-      return work.checked === true && work.taskSubmitted === true;
+      return work.checked === true && moduleOneLessonScorePassed(lesson, work);
     });
     return (lessonsComplete || moduleOneRemoteDetail.lessonsComplete === true)
       && (state.quiz?.passed === true || moduleOneRemoteDetail.quizPassed === true)

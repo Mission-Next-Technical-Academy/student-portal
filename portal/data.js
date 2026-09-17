@@ -1218,10 +1218,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
           },
         ],
       },
-      appliedTask: {
-        prompt: 'In one sentence, describe which CIA protection is most at risk right now if the eight failed sign-ins in the j.santos scenario represent an attacker trying to break into the account.',
-        placeholder: 'Start with: "The main risk is confidentiality/integrity/availability because..."',
-      },
     },
     {
       number: 2,
@@ -1296,10 +1292,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
             feedbackIncorrect: 'The SIEM and rules are tools. The SOC function is what people do with that information — reading, deciding, and coordinating.',
           },
         ],
-      },
-      appliedTask: {
-        prompt: 'Imagine Mission Next Labs has 5,000 sign-in failures per day across all employees, and the current SIEM rule generates an alert for every single one. In 2–3 sentences, explain why this is a problem for the SOC and what a better approach might be.',
-        placeholder: 'Describe the problem (too many alerts?) and suggest a solution (filter to multiple failures in a short time? focus on specific patterns?).',
       },
     },
     {
@@ -1376,10 +1368,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
           },
         ],
       },
-      appliedTask: {
-        prompt: 'Write one sentence describing when an entry-level SOC analyst should escalate an alert, and name one thing the analyst should include in the escalation handoff.',
-        placeholder: 'Start with: "An analyst should escalate when..." and end with: "...and include [evidence/recommendation/timeline] in the handoff."',
-      },
     },
     {
       number: 4,
@@ -1442,10 +1430,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
             feedbackIncorrect: 'Think of it this way: alert = "something may be wrong here," investigation = "I checked—is it actually wrong?"',
           },
         ],
-      },
-      appliedTask: {
-        prompt: 'From the j.santos sign-in scenario, describe one event, one alert, and one incident. In 1–2 sentences, explain how they are related.',
-        placeholder: 'Event: [the specific recorded action] Alert: [what the SIEM flagged] Incident: [what investigation confirmed]',
       },
     },
     {
@@ -1522,10 +1506,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
           },
         ],
       },
-      appliedTask: {
-        prompt: 'Name three different sources of telemetry that might have events about the j.santos sign-in attempts, and describe what each source would record.',
-        placeholder: 'Source 1 (e.g., identity system): would record... Source 2: would record... Source 3: would record...',
-      },
     },
     {
       number: 6,
@@ -1601,10 +1581,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
           },
         ],
       },
-      appliedTask: {
-        prompt: 'Write one sentence each explaining when an analyst should classify an alert as true positive versus when they should close it as false positive. Then name one fact that should always be documented in the case note.',
-        placeholder: 'True positive when: ... False positive when: ... Document always: ...',
-      },
     },
     {
       number: 7,
@@ -1667,10 +1643,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
             feedbackIncorrect: 'Severity = potential damage. Priority = how fast we need to move. A benign positive might be high severity (if it were real, it would be bad) but low priority (it is not real).',
           },
         ],
-      },
-      appliedTask: {
-        prompt: 'Write one sentence describing how an entry-level SOC analyst should decide if an alert is high priority or low priority. Name at least one factor that should influence the decision.',
-        placeholder: 'An analyst should prioritize based on [factor 1] and [factor 2], not solely on...',
       },
     },
     {
@@ -1735,10 +1707,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
           },
         ],
       },
-      appliedTask: {
-        prompt: 'Describe one thing the SOC team does during the Prepare phase, one thing they do during Detect & Analyze, and briefly explain why a clear handoff between the two phases matters.',
-        placeholder: 'Prepare: [e.g., define roles, set up playbooks] Detect & Analyze: [e.g., verify alerts, gather evidence] Handoff matters because...',
-      },
     },
     {
       number: 9,
@@ -1801,10 +1769,6 @@ const MODULE_ONE_ALERT_ORIENTATION = {
             feedbackIncorrect: 'Clear recommendations save time and reduce errors. The responder benefits from your investigation and can act on your evidence without starting from scratch.',
           },
         ],
-      },
-      appliedTask: {
-        prompt: 'Write a 2–3 sentence case note for a hypothetical alert. Include what happened (facts + time if relevant), who is affected, one piece of evidence, the classification, priority, and a recommended next action. Clearly separate any assumptions from facts.',
-        placeholder: 'Example: "Observed: [facts] at [time]. Evidence: [what verifies this]. Assumed/uncertain: [what still needs investigation]. Classification: [true/benign/false positive]. Priority: [high/medium/low]. Recommended action: [next step]."',
       },
     },
   ],

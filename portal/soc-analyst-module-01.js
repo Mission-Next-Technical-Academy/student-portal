@@ -141,7 +141,7 @@ function moduleOneSyncDetailBeacon() {
   if (!moduleOneUser || !moduleOneState) return;
   const lessonsComplete = (MODULE_ONE_ALERT_ORIENTATION.lessons || []).every((lesson) => {
     const work = (moduleOneState.lessonWork || {})[String(lesson.number)] || {};
-    return work.checked === true && work.taskSubmitted === true;
+    return work.checked === true && moduleOneLessonScorePassed(lesson, work);
   });
   // Ratchet, not overwrite: OR each field with whatever the server already
   // has (fetched once at login — buildUserFromSession's remoteModuleDetail,
@@ -241,18 +241,6 @@ function moduleOneLessons(lab) {
               <button type="button" class="m01-lesson-check-btn" data-m01-lesson-check="${lesson.number}">Check answers</button>
             </div>
           ` : ''}
-          ${lesson.appliedTask ? `
-            <div class="m01-lesson-task">
-              <h4>Applied task</h4>
-              <p>${esc(lesson.appliedTask.prompt)}</p>
-              <textarea class="m01-lesson-task-input" data-m01-task-lesson="${lesson.number}" placeholder="${esc(lesson.appliedTask.placeholder)}" aria-label="Task response">${esc(work.taskText || '')}</textarea>
-              ${work.taskSubmitted ? `
-                <span class="m01-lesson-task-complete"><i class="ri-check-line" aria-hidden="true"></i> Task complete</span>
-              ` : `
-                <button type="button" class="m01-lesson-task-submit" data-m01-task-submit="${lesson.number}">Mark task complete</button>
-              `}
-            </div>
-          ` : ''}
         </div>
       </details>`;
     }).join('')}
@@ -301,9 +289,17 @@ function moduleOneLessonQuizOptions(lessonNumber, question) {
   </div>`;
 }
 
+function moduleOneLessonScorePassed(lesson, work) {
+  const questions = lesson.knowledgeCheck?.questions || [];
+  if (!questions.length) return true;
+  const answers = work.answers || {};
+  const correct = questions.filter((q) => answers[q.id] === q.correctId).length;
+  return (correct / questions.length) >= 0.8;
+}
+
 function moduleOneLessonComplete(lesson) {
   const work = moduleOneLessonWork(lesson.number);
-  return (work.checked === true && work.taskSubmitted === true)
+  return (work.checked === true && moduleOneLessonScorePassed(lesson, work))
     || moduleOneUser?.remoteModuleEvidence?.['soc-01']?.[`lesson-${lesson.number}`] === true;
 }
 
@@ -879,7 +875,7 @@ function viewModuleOne(user, program) {
             const lesson = MODULE_ONE_ALERT_ORIENTATION.lessons[index];
             const isComplete = lesson && moduleOneLessonComplete(lesson);
             const work = lesson ? moduleOneLessonWork(lesson.number) : {};
-            const hasStarted = work.checked || work.taskSubmitted;
+            const hasStarted = work.checked;
             const status = isComplete ? 'Complete' : (hasStarted ? 'In progress' : 'Not started');
             const statusClass = isComplete ? 'is-complete' : (hasStarted ? 'is-in-progress' : 'is-not-started');
             return `<li class="m01-checklist-item ${statusClass}">
@@ -928,6 +924,15 @@ function viewModuleOne(user, program) {
         </div>
         <div class="m01-section-body" id="m01-foundations-body" ${openFor('foundations') ? '' : 'hidden'}>
           <p class="m01-instruction">Read these in order on your first visit. Each lesson gives you one idea to carry into the lab; open a lesson to see the explanation.</p>
+          <div class="m01-tool-translation">
+            <strong>Tool translation</strong>
+            <dl>
+              <div><dt>SIEM</dt><dd><strong>Security Information and Event Management.</strong> Collects and analyzes security events from many sources.</dd></div>
+              <div><dt>EDR</dt><dd><strong>Endpoint Detection and Response.</strong> Records endpoint behavior and supports device investigation and response.</dd></div>
+              <div><dt>XDR</dt><dd><strong>Extended Detection and Response.</strong> Connects evidence across domains such as identity, endpoint, email, and cloud.</dd></div>
+            </dl>
+            <p>Products help organize facts. The analyst is responsible for what those facts support. The lessons below use these terms — refer back here if you need a reminder.</p>
+          </div>
           ${moduleOneLessons(lab)}
           ${moduleOneReferences(lab)}
         </div>
@@ -944,15 +949,6 @@ function viewModuleOne(user, program) {
         <div class="m01-section-body" id="m01-flow-body" ${openFor('flow') ? '' : 'hidden'}>
           <div class="m01-flow" aria-label="Activity-to-investigation flow">
             ${lab.signalFlow.map((step) => `<article><i class="${esc(step.icon)}" aria-hidden="true"></i><h3>${esc(step.title)}</h3><p>${esc(step.description)}</p></article>`).join('')}
-          </div>
-          <div class="m01-tool-translation">
-            <strong>Tool translation</strong>
-            <dl>
-              <div><dt>SIEM</dt><dd><strong>Security Information and Event Management.</strong> Collects and analyzes security events from many sources.</dd></div>
-              <div><dt>EDR</dt><dd><strong>Endpoint Detection and Response.</strong> Records endpoint behavior and supports device investigation and response.</dd></div>
-              <div><dt>XDR</dt><dd><strong>Extended Detection and Response.</strong> Connects evidence across domains such as identity, endpoint, email, and cloud.</dd></div>
-            </dl>
-            <p>Products help organize facts. The analyst is responsible for what those facts support.</p>
           </div>
         </div>
       </section>
@@ -1627,46 +1623,8 @@ function wireModuleOneLab() {
         render();
         const lessonEl = document.querySelector('[data-m01-lesson="' + lessonNumber + '"]');
         if (lessonEl) requestAnimationFrame(() => lessonEl.scrollIntoView({ block: 'nearest' }));
-        return;
-      }
-
-      const taskSubmitBtn = event.target.closest('[data-m01-task-submit]');
-      if (taskSubmitBtn) {
-        const lessonNumber = String(taskSubmitBtn.dataset.m01TaskSubmit);
-        if (!moduleOneState.lessonWork[lessonNumber]) {
-          moduleOneState.lessonWork[lessonNumber] = {};
-        }
-        const taskText = (moduleOneState.lessonWork[lessonNumber].taskText || '').trim();
-        if (taskText.length < 15) {
-          return;
-        }
-        moduleOneState.lessonWork[lessonNumber].taskSubmitted = true;
-        moduleOneSave();
-        moduleOneSyncCompletion();
-        render();
-        const lessonEl = document.querySelector('[data-m01-lesson="' + lessonNumber + '"]');
-        if (lessonEl) requestAnimationFrame(() => lessonEl.scrollIntoView({ block: 'nearest' }));
-        return;
       }
     });
-
-    lessonsRoot.addEventListener('input', (event) => {
-      const textarea = event.target.closest('[data-m01-task-lesson]');
-      if (textarea) {
-        const lessonNumber = String(textarea.dataset.m01TaskLesson);
-        if (!moduleOneState.lessonWork[lessonNumber]) {
-          moduleOneState.lessonWork[lessonNumber] = {};
-        }
-        moduleOneState.lessonWork[lessonNumber].taskText = textarea.value;
-      }
-    });
-
-    lessonsRoot.addEventListener('blur', (event) => {
-      const textarea = event.target.closest('[data-m01-task-lesson]');
-      if (textarea) {
-        moduleOneSave();
-      }
-    }, true);
   }
 }
 
