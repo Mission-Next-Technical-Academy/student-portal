@@ -134,9 +134,10 @@ async function fetchUserDetails(userId, trackCode) {
   let remoteVerifiedModuleProgress = {};
   let remoteModuleEvidence = {};
   let remoteModuleDetail = {};
+  let remoteCaseState = {};
   let openLabRedosByModuleKey = {};
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, openLabRedosByModuleKey };
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey };
   }
 
   const [
@@ -145,7 +146,7 @@ async function fetchUserDetails(userId, trackCode) {
     evidenceResult,
     { data: attemptRows, error: attemptsError },
   ] = await Promise.all([
-    mntSupabase.from('module_progress').select('module_key, state, detail').eq('user_id', userId).eq('track_code', trackCode),
+    mntSupabase.from('module_progress').select('module_key, state, detail, case_state').eq('user_id', userId).eq('track_code', trackCode),
     // This view is the institutional completion record.  It derives a
     // module's status from the required, passing assessment attempts (and
     // any declared detail requirements), rather than trusting a browser
@@ -174,6 +175,7 @@ async function fetchUserDetails(userId, trackCode) {
   } else {
     remoteModuleProgress = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.state]));
     remoteModuleDetail = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.detail || {}]));
+    remoteCaseState = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.case_state || {}]));
   }
   if (verifiedResult.error) {
     console.error('fetchUserDetails: verified module progress fetch failed', verifiedResult.error);
@@ -222,7 +224,7 @@ async function fetchUserDetails(userId, trackCode) {
     }
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, openLabRedosByModuleKey };
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey };
 }
 
 async function buildUserFromSession(session) {

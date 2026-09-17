@@ -8,6 +8,9 @@
 
 const LabRuntime = (() => {
   const PREFIX = 'mnt-portal.lab-state.v1';
+  const CASE_STATE_DEBOUNCE_MS = 1500;
+  const pendingCaseStateWrites = new Map();
+  let caseStateFlushListenersRegistered = false;
 
   function hashText(value) {
     let hash = 2166136261;
@@ -73,7 +76,67 @@ const LabRuntime = (() => {
     return fresh;
   }
 
-  return { anonymousStudentId, load, save, reset, storageKey };
+  function stateMatchesFreshDefault(labId, user, state, defaults) {
+    return JSON.stringify(state) === JSON.stringify(freshState(labId, user, defaults));
+  }
+
+  function loadCaseState(labId, moduleKey, user, defaults = {}) {
+    const localState = load(labId, user, defaults);
+    const remoteState = user && user.remoteCaseState && user.remoteCaseState[moduleKey];
+    const remoteHasState = remoteState && typeof remoteState === 'object' && !Array.isArray(remoteState)
+      && Object.keys(remoteState).length > 0;
+
+    // V1 intentionally uses an empty-local-defers-to-remote merge, not
+    // timestamps or CRDT reconciliation: one student effectively works from
+    // one active device at a time in practice, so that complexity is not yet
+    // justified. Concurrent, independently-progressed devices can conflict.
+    if (stateMatchesFreshDefault(labId, user, localState, defaults) && remoteHasState) {
+      const hydratedState = { ...localState, ...remoteState };
+      save(labId, user, hydratedState);
+      return hydratedState;
+    }
+    return localState;
+  }
+
+  function pendingCaseStateKey(labId, moduleKey, user) {
+    return `${storageKey(labId, user)}.${moduleKey}`;
+  }
+
+  function flushCaseStateWrite(key) {
+    const pending = pendingCaseStateWrites.get(key);
+    if (!pending) return;
+    if (pending.timer) clearTimeout(pending.timer);
+    pendingCaseStateWrites.delete(key);
+    upsertModuleProgress(pending.user, pending.moduleKey, { case_state: pending.state });
+  }
+
+  function flushAllCaseStateWrites() {
+    Array.from(pendingCaseStateWrites.keys()).forEach(flushCaseStateWrite);
+  }
+
+  function registerCaseStateFlushListeners() {
+    if (caseStateFlushListenersRegistered || typeof window === 'undefined' || typeof document === 'undefined') return;
+    caseStateFlushListenersRegistered = true;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) flushAllCaseStateWrites();
+    });
+    window.addEventListener('beforeunload', flushAllCaseStateWrites);
+  }
+
+  function saveCaseState(labId, moduleKey, user, state, options = {}) {
+    save(labId, user, state);
+    registerCaseStateFlushListeners();
+
+    const key = pendingCaseStateKey(labId, moduleKey, user);
+    const existing = pendingCaseStateWrites.get(key);
+    if (existing && existing.timer) clearTimeout(existing.timer);
+    const pending = { user, moduleKey, state, timer: null };
+    pending.timer = setTimeout(() => flushCaseStateWrite(key), options.debounceMs || CASE_STATE_DEBOUNCE_MS);
+    pendingCaseStateWrites.set(key, pending);
+    return state;
+  }
+
+  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState };
 })();
 
 /* Shared score-section rendering for every module's independent-lab result
