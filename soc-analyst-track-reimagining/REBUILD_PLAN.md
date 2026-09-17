@@ -30,7 +30,11 @@ to the curriculum — everything before it was planning/audit only.
    graded lab to tour/tutorial. No sequence or routing change — same
    module number, same place in the product, different framing and no
    longer gated behind the 70% pass/completion logic the way an assessed
-   lab is.
+   lab is. **Execution design (not yet built as of 2026-09-17):
+   `MODULE1_DAY1_REBUILD_PLAN.md`** — Day 1 orientation steps prepended to
+   the coach walkthrough, the actual relabel/ungate, a new multi-task
+   graded lab to replace it, mistake-mapped instructor feedback snippets,
+   and a universal floating "back to coursework" shell button.
 5. **Section weighting:** not a blocking decision — left as an
    implementation detail to set per module/arc during the actual rebuild,
    using each module's existing point weights (already real, already

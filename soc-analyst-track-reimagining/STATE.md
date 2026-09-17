@@ -109,3 +109,30 @@ second, parallel scoring model.
   ticket-assignment framing shipped to Module 09. Phase 4's Arc C
   (Modules 05→06) connective framing shipped as proof of concept; Arc A
   and Arc B designed but not built.
+- 2026-09-17 — Decision 4 (Module 1 → tour) still not executed; full
+  execution design written as `MODULE1_DAY1_REBUILD_PLAN.md`, scoped to
+  Module 1 only (Modules 2-12 untouched). Owner resolved all open
+  questions same day: the graded lab stays inside Module 1 after an
+  on-demand (not forced) tour launched from a universal floating icon;
+  "perpetual" means real cross-device state (new Supabase work, load-
+  bearing not optional); and the owner raised the bar significantly on
+  the graded lab itself — it must take hours, feel like a multi-day
+  on-the-job case, and wrong choices must produce visible in-environment
+  consequences, not just point deductions, with a reachable "ask your
+  instructor" affordance since it's meant to be hard but not impossible.
+  Same day, shipped real code (not just design): a universal corner dock
+  in `ui/coach.js`/`ui/styles.css` ("← Coursework", always present, plus
+  an on-demand "🧭 Take the tour" that relaunches a module's coach and
+  hides itself while one is running), and removed the old "Exit lab"
+  button (redundant/counter-productive now that Coursework exists — it
+  only dropped students into the full unscoped simulator). Also revised,
+  same day: Day 1's real opening should be a workspace-setup *procedure
+  checklist* (not a narrated tour), "Take the tour" should be a distinct
+  element-by-element "what is this" pass scoped only to in-scope elements
+  (not a replay of the task steps — not yet built, current button
+  relaunches the task coach as a placeholder), and the new graded lab must
+  show **no live score to the student** (grading stays server-side,
+  surfaced only through the existing instructor admin-queue feedback
+  loop). D3 (cross-device state schema) remains the recommended next
+  sprint — locked requirement, needed before D5's case content is
+  authored. Read that doc next.

@@ -5760,6 +5760,57 @@ body.coach-bar-open { padding-bottom: 104px; }
 .alert-pivot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 4px; }
 .alert-pivot .muted { font-size: 11px; }
 
+/* Universal corner dock — on-demand tour replay + a permanent escape hatch
+   back to the portal, present on every simulator view, coach-driven or
+   free-roam. Bottom-left, opposite corner from the coach's own step bar
+   (bottom-right/full-width), so the two never collide. Low-contrast until
+   hover: both actions here are secondary, not the primary flow. */
+.mnt-corner-dock {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 158;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.mnt-corner-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--fg-muted, #555);
+  border: 1px solid var(--border-strong, #d0d5dd);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.mnt-corner-btn:hover {
+  color: #1e3a5f;
+  border-color: #1e3a5f;
+  background: #fff;
+}
+.mnt-corner-btn[hidden] { display: none; }
+.mnt-corner-btn span { font-size: 13px; }
+.mnt-tour-btn { color: #1e3a5f; border-color: #b9c7d8; }
+/* The coach step bar docks full-width along the same bottom edge while a
+   walkthrough is running — lift the corner dock above it so neither covers
+   the other. */
+body.coach-bar-open .mnt-corner-dock { bottom: 112px; }
+@media (max-width: 640px) {
+  .mnt-corner-dock { left: 10px; bottom: 10px; gap: 6px; }
+  .mnt-corner-btn { padding: 7px 12px; }
+  body.coach-bar-open .mnt-corner-dock { bottom: 176px; }
+}
+
 /* Required-action lock: the step is the student's to perform, so the console
    dims behind a scrim and only the highlighted control stays live. The scrim
    never blocks clicks itself — coach.js does that in the capture phase — so it

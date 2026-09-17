@@ -59,6 +59,76 @@
     return base + completion + (hash || '');
   }
 
+  // Which module page "coursework" should return to, and which tour (if any)
+  // belongs to this module. An active coach always knows its own module
+  // directly. A coach-less launch carries it in the URL (`?module=soc-NN`,
+  // the convention Module 12's capstone already uses) or, once a coach has
+  // run at least once this tab session, in a session fallback — so exiting a
+  // tour to free-roam doesn't lose the module context the tour icon needs to
+  // offer a replay. Falls back to the program root/no-tour rather than
+  // guessing when none of those are present.
+  function courseworkModuleNumber() {
+    const coach = activeCoach();
+    if (coach) return coach.module;
+    const match = new URLSearchParams(location.search).get('module');
+    const fromUrl = match && /^soc-(\d+)$/.exec(match);
+    if (fromUrl) return Number(fromUrl[1]);
+    const fromSession = sessionStorage.getItem('mnt.coach.lastModule');
+    return fromSession ? Number(fromSession) : null;
+  }
+
+  function courseworkHref() {
+    const n = courseworkModuleNumber();
+    return n ? portalUrl(`#/program/soc-analyst/module/${n}`) : portalUrl('#/portal');
+  }
+
+  function tourForCurrentModule() {
+    const n = courseworkModuleNumber();
+    return n ? (MODULE_COACHES.find(c => c.module === n) || null) : null;
+  }
+
+  // A small, always-present corner dock — two on-demand actions, neither of
+  // which gates anything: replay this module's guided tour, or leave back to
+  // coursework. Bottom-left, opposite corner from the coach's own step bar,
+  // so the two never collide. Same shell-level mechanism every module and,
+  // eventually, every track's own lab surface can reuse — this is the one
+  // place that knows how to get back to coursework and which tour (if any)
+  // belongs to the module currently open.
+  function mountCornerDock() {
+    if (document.getElementById('mnt-corner-dock')) return;
+    const dock = document.createElement('div');
+    dock.id = 'mnt-corner-dock';
+    dock.className = 'mnt-corner-dock';
+    dock.innerHTML = `
+      <button type="button" class="mnt-corner-btn mnt-tour-btn" id="mnt-tour-btn" hidden>
+        <span aria-hidden="true">🧭</span> Take the tour
+      </button>
+      <a href="#" class="mnt-corner-btn mnt-exit-btn" id="mnt-exit-btn" title="Return to your coursework">
+        <span aria-hidden="true">←</span> Coursework
+      </a>`;
+    document.body.appendChild(dock);
+    dock.querySelector('#mnt-exit-btn').addEventListener('click', (event) => {
+      event.preventDefault();
+      returnToOpenerOrNavigate(courseworkHref());
+    });
+    dock.querySelector('#mnt-tour-btn').addEventListener('click', () => {
+      const tour = tourForCurrentModule();
+      if (!tour) return;
+      start(tour.id);
+      refreshCornerDock();
+    });
+    refreshCornerDock();
+  }
+
+  // Re-evaluated on every render (via coachAfterRender) since whether a tour
+  // is running, and which module we're on, can change without a full reload.
+  function refreshCornerDock() {
+    const btn = document.getElementById('mnt-tour-btn');
+    if (!btn) return;
+    const tour = !activeCoach() && tourForCurrentModule();
+    btn.hidden = !tour;
+  }
+
   // ---------- scope lock ----------
 
   // Called by navigate(). Returns false for anything outside the running
@@ -129,7 +199,7 @@
     const step = requiredStep();
     if (!step) return;
     const node = event.target.nodeType === 1 ? event.target : event.target.parentElement;
-    if (node && node.closest('.coach-required, #coach-panel, #toast')) return;
+    if (node && node.closest('.coach-required, #coach-panel, #toast, #mnt-corner-dock')) return;
     event.preventDefault();
     event.stopPropagation();
     if (typeof toast === 'function') {
@@ -199,7 +269,6 @@
             : `<button class="coach-btn primary" type="button" data-coach="next">${
                 gated || demoOnly ? step.actionLabel || 'Show me'
                   : (last ? 'Finish' : step.continueLabel || 'Continue')}</button>`}
-        <button class="coach-btn ghost" type="button" data-coach="exit">Exit lab</button>
       </div>`;
     watchForStepCompletion();
   }
@@ -325,6 +394,7 @@
     coach.steps.forEach(s => { s._done = false; });
     state = { id, step: 0 };
     saveState();
+    try { sessionStorage.setItem('mnt.coach.lastModule', String(coach.module)); } catch { /* private mode */ }
     goToStep(0);
     applyScopeLock();
   }
@@ -339,6 +409,7 @@
     clearSpotlight();
     applyScopeLock();
     renderPanel();
+    refreshCornerDock();
     if (coach && typeof toast === 'function') {
       toast('Coach closed — the full console is available again.');
     }
@@ -358,6 +429,21 @@
       new URL(portalUrl('')).origin);
   }
 
+  // The simulator opens as a popup (window.open from the module page), so
+  // "go back" means returning focus to that opener tab and closing this one
+  // — not just changing this window's own location — whenever an opener is
+  // still around. Falls back to navigating this tab when it isn't (e.g. a
+  // bookmarked/direct simulator URL with no opener).
+  function returnToOpenerOrNavigate(href) {
+    if (window.opener && !window.opener.closed) {
+      window.opener.focus();
+      setTimeout(() => { if (!window.closed) window.location.href = href; }, 250);
+      window.close();
+      return;
+    }
+    window.location.href = href;
+  }
+
   function finish() {
     const coach = activeCoach();
     const step = activeStep();
@@ -367,17 +453,14 @@
     stop();
     if (completionToken && window.opener && !window.opener.closed) {
       window.opener.postMessage({ type: 'mnt-coach-complete', id: completionToken }, new URL(href).origin);
-      window.opener.focus();
-      setTimeout(() => { if (!window.closed) window.location.href = href; }, 250);
-      window.close();
-      return;
     }
-    window.location.href = href;
+    returnToOpenerOrNavigate(href);
   }
 
   // ---------- mount ----------
 
   function mount() {
+    mountCornerDock();
     if (panelEl()) return;
 
     const scrim = document.createElement('div');
@@ -396,7 +479,6 @@
       if (!btn) return;
       const action = btn.dataset.coach;
       if (action === 'next') next();
-      if (action === 'exit') stop();
       if (action === 'finish') finish();
       if (action === 'refresh') hardReload();
     });
@@ -423,6 +505,7 @@
     }
     applyScopeLock();
     renderPanel();
+    refreshCornerDock();
     if (state) setTimeout(applySpotlight, 30);
   }
 
