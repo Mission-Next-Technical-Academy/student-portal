@@ -6018,6 +6018,14 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
 let routeRenderGeneration = 0;
 let routeLoadingTimer = null;
 
+// An in-page anchor is only safe to leave alone once a real route has already
+// rendered. On a cold load #m01-flow (or any copied section anchor) arrives
+// with the startup loading shell in #app; treating that shell as page content
+// strands the learner there forever.
+function hasRenderedRouteContent(app) {
+  return Boolean(app && app.innerHTML.trim() && !app.querySelector('.portal-loading'));
+}
+
 function viewRouteLoading(hash) {
   const adminRoute = /^#\/admin(?:\/|$)/.test(hash);
   const heading = adminRoute ? 'Preparing your administrative workspace' : 'Preparing your learning space';
@@ -6057,7 +6065,7 @@ function beginRouteLoading(app, hash, generation, options = {}) {
   // stranding the student on the loading screen forever. Skip it and let
   // the browser's native same-page anchor scroll happen against the
   // content that's already there.
-  if (hash && !hash.startsWith('#/') && app.innerHTML.trim()) return false;
+  if (hash && !hash.startsWith('#/') && hasRenderedRouteContent(app)) return false;
   // Every real navigation shows the branded loading view immediately, with
   // no delay threshold. A silent, unstyled gap between routes reads as
   // broken to a non-technical student even when it resolves in well under a
@@ -6129,7 +6137,7 @@ async function render(options = {}) {
   // In-page anchors (#sec-labs, #sec-capstone) share the hash with the router.
   // Only hashes beginning '#/' are routes; everything else is the browser
   // scrolling within the current view and must not trigger a re-render.
-  if (hash && !hash.startsWith('#/') && app.innerHTML.trim()) {
+  if (hash && !hash.startsWith('#/') && hasRenderedRouteContent(app)) {
     completeRouteLoading(renderGeneration);
     return;
   }
