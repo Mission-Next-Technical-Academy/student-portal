@@ -559,22 +559,18 @@ function moduleOneLabDynamic() {
 
   <section class="m01-siem ${consoleComplete ? 'is-complete' : ''}" aria-labelledby="m01-siem-title">
     <div class="m01-siem-copy">
-      <p class="m01-kicker">${consoleComplete ? 'Required walkthrough complete' : 'Required · 10 minutes'}</p>
-      <h3 id="m01-siem-title">Lab 1: investigate the alert in the console</h3>
-      <p>Every fact above came from somewhere. Open the walkthrough and the coach starts you where a real shift
-      starts — the alert queue — then has you open the alert, navigate to the sign-in log yourself, and read the
-      eight failures and the success that followed them. Only the buttons the step allows are clickable, and
-      nothing outside the sandbox is reachable until you exit. Finish Lab 1 and Lab 2 opens here.</p>
+      <p class="m01-kicker">${consoleComplete ? 'Walkthrough completed · reopen anytime' : 'Optional walkthrough · 10 minutes'}</p>
+      <h3 id="m01-siem-title">Console walkthrough: investigate an alert</h3>
+      <p>Every fact above came from somewhere. Open this guided walkthrough whenever you want to see how an
+      analyst moves from the alert queue to the alert and then to a sign-in log. It is a practice tour, not a
+      graded requirement; the assessed handoff case below is already available.</p>
     </div>
     <a class="m01-siem-launch" data-m01-console-launch href="${esc(SIM_ORIGIN)}?coach=${workspaceSetupComplete ? 'm01' : 'm01-setup'}&amp;restart=1#/defender/alerts" target="_blank" rel="opener">
-      <i class="${workspaceSetupComplete && consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${workspaceSetupComplete ? (consoleComplete ? 'Review Lab 1 walkthrough' : 'Start Lab 1 walkthrough') : 'Start Day 1 setup'}
+      <i class="${workspaceSetupComplete && consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${workspaceSetupComplete ? (consoleComplete ? 'Review console walkthrough' : 'Open console walkthrough') : 'Start Day 1 setup'}
     </a>
   </section>
 
-  ${!consoleComplete ? `<section class="m01-worksheet-locked" aria-label="Investigation timeline locked until the guided console is complete">
-    <i class="ri-lock-line" aria-hidden="true"></i>
-    <div><strong>Investigation timeline</strong><p>Next Step: finish Lab 1 in the walkthrough, then return here. You cannot write down what a log said before reading it.</p></div>
-  </section>` : `<section class="m01-evidence" aria-labelledby="m01-evidence-title">
+  ${consoleComplete ? `<section class="m01-evidence" aria-labelledby="m01-evidence-title">
     <div class="m01-panel-heading">
       <div><p class="m01-kicker">Record what the log showed</p><h3 id="m01-evidence-title">Investigation timeline</h3></div>
       <span class="m01-evidence-count">${reviewedCount}/${scenario.evidence.length} facts recorded</span>
@@ -616,7 +612,7 @@ function moduleOneLabDynamic() {
       }).join('')}
     </ol>
     ${!nextEvidence ? `<div class="m01-evidence-complete"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span><strong>Timeline recorded.</strong> Every fact came from something you read yourself. You can now make the first triage decision.</span></div>` : ''}
-  </section>`}
+  </section>` : ''}
 
   ${!consoleComplete || !investigationReady ? `<section class="m01-worksheet-locked" aria-label="Triage worksheet locked">
     <i class="ri-lock-line" aria-hidden="true"></i>
@@ -664,10 +660,7 @@ function moduleOneLabDynamic() {
     ${moduleOneScorePanel()}
   </form>`}
 
-  ${!moduleOneState.completed ? `<section class="m01-worksheet-locked" aria-label="Lab 2 locked until Lab 1 is complete">
-    <i class="ri-lock-line" aria-hidden="true"></i>
-    <div><strong>Lab 2: Escalation and handoff</strong><p>Complete Lab 1 first. You cannot escalate an incident you have not yet triaged.</p></div>
-  </section>` : `<section class="m01-siem" aria-labelledby="m01-lab2-scenario-title">
+  <section class="m01-siem" aria-labelledby="m01-lab2-scenario-title">
     <div class="m01-siem-copy">
       <p class="m01-kicker">Fresh incident scenario</p>
       <h3 id="m01-lab2-scenario-title">Lab 2: Escalate this incident to the response team</h3>
@@ -756,7 +749,7 @@ function moduleOneLabDynamic() {
       <button type="button" class="m01-reset" data-m01-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset all labs</button>
     </div>
     ${moduleOneLab2ScorePanel()}
-  </form>`}
+  </form>
   `;
 }
 
@@ -895,15 +888,17 @@ function viewModuleOne(user, program) {
             </li>`;
           }).join('')}
           ${moduleLabs.map((lab) => {
-            const isComplete = lab.key === MODULE_ONE_CATALOG_LAB_KEY
+            const isWalkthrough = lab.key === MODULE_ONE_CATALOG_LAB_KEY;
+            const isComplete = isWalkthrough
               ? Boolean(moduleOneState.completed && moduleOneState.consoleCompleted)
               : Boolean(moduleOneState.lab2?.completed);
+            const status = isWalkthrough ? 'Optional' : (isComplete ? 'Complete' : 'Not started');
             const statusClass = isComplete ? 'is-complete' : 'is-not-started';
             return `<li class="m01-checklist-item ${statusClass}">
               <span class="m01-checklist-number" style="opacity: 0;">--</span>
               <div class="m01-checklist-content">
                 <strong>${esc(lab.title)}</strong>
-                <span class="m01-checklist-status" aria-label="${isComplete ? 'Complete' : 'Not started'}">${isComplete ? 'Complete' : 'Not started'}</span>
+                <span class="m01-checklist-status" aria-label="${esc(status)}">${esc(status)}</span>
               </div>
               <span class="m01-checklist-duration">${typeof formatInstructionalMinutes === 'function' ? formatInstructionalMinutes(lab.instructionalMinutes) : lab.instructionalMinutes}</span>
             </li>`;
@@ -1033,7 +1028,7 @@ function viewModuleOne(user, program) {
       <section class="m01-section m01-section-collapsible m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
         <div class="m01-section-heading">
           <span>5</span>
-          <div><p class="m01-kicker">${moduleLabs.length} labs · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Lab 1 and Lab 2: your first SOC alert</h2></div>
+          <div><p class="m01-kicker">Optional walkthrough + assessed handoff · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
           <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lab" data-m01-section-label="lab block" aria-expanded="${openFor('lab')}" aria-controls="m01-guided-lab-body" aria-label="${openFor('lab') ? 'Collapse' : 'Expand'} lab block">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
@@ -1041,7 +1036,7 @@ function viewModuleOne(user, program) {
         <div class="m01-lab-body" id="m01-guided-lab-body" ${openFor('lab') ? '' : 'hidden'}>
           <div class="m01-lab-brief">
             <i class="ri-user-star-line" aria-hidden="true"></i>
-            <div><strong>Two labs, one case</strong><p>Lab 1 is the guided console. Lab 2 is the handoff note. Use only the sandboxed buttons in each lab, then carry the note into the report.</p></div>
+            <div><strong>One walkthrough, one assessed handoff</strong><p>The console walkthrough is available whenever you want a guided refresher. The handoff case is the graded work; it does not wait for the walkthrough.</p></div>
           </div>
           <div id="m01-lab-dynamic">${moduleOneLabDynamic()}</div>
         </div>

@@ -3714,24 +3714,6 @@ function moduleCompletion(program, moduleKey, user) {
     }
     return engagementComplete || fixtureState === 'complete';
   });
-  // Module 01 has learner-visible, assessed foundation lessons and a knowledge
-  // check in addition to its two labs. A historical module_progress row can
-  // be a coarse lab-only claim, so it must not override the detailed rule.
-  // The detail beacon from 20260916050000_module_one_detail_beacon.sql keeps
-  // each requirement portable across browsers and devices.
-  const moduleOneRequirementsComplete = moduleKey !== 'soc-01' || (() => {
-    const state = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
-    const moduleOneRemoteDetail = user.remoteModuleDetail?.['soc-01'] || {};
-    const lessons = MODULE_ONE_ALERT_ORIENTATION.lessons || [];
-    const lessonsComplete = lessons.every((lesson) => {
-      const work = (state.lessonWork || {})[String(lesson.number)] || {};
-      return work.checked === true && moduleOneLessonScorePassed(lesson, work);
-    });
-    return (lessonsComplete || moduleOneRemoteDetail.lessonsComplete === true)
-      && (state.quiz?.passed === true || moduleOneRemoteDetail.quizPassed === true)
-      && ((state.completed === true && state.consoleCompleted === true) || moduleOneRemoteDetail.consoleCompleted === true)
-      && (state.lab2?.completed === true || moduleOneRemoteDetail.lab2Completed === true);
-  })();
   const hasOpenLabRedo = !!(user.openLabRedosByModuleKey && user.openLabRedosByModuleKey[moduleKey]);
   // The UI is deliberately stricter than its old localStorage calculation:
   // only the backend's verified assessment rollup can make a module complete.
