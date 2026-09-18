@@ -928,6 +928,22 @@ function adminGradingQueuePanel(gradingQueueRows) {
         const resultFeedback = hasReadableBreakdown && Array.isArray(row.result.feedback)
           ? row.result.feedback.filter((item) => typeof item === 'string' && item.trim())
           : [];
+        // Module 01's independent case supplies structured simulator evidence.
+        // Keep it readable and editable here rather than burying competency
+        // misses in the generic raw JSON disclosure.
+        const simulatorPerformance = row.result && row.result.simulator_performance;
+        const competencyPanel = simulatorPerformance && Array.isArray(simulatorPerformance.competencies)
+          ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3">
+              <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Simulator performance assessment</p>
+              <div class="grid sm:grid-cols-2 gap-2 text-sm">${simulatorPerformance.competencies.map((item) => `<div class="rounded border ${item.passed ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'} px-3 py-2"><strong>${esc(item.label)}</strong><span class="float-right font-semibold">${esc(String(item.percentage))}% · ${item.passed ? 'Pass' : 'Developing'}</span><p class="text-xs text-gray-600 mt-1">${esc(String(item.completed))}/${esc(String(item.required))} required actions observed</p></div>`).join('')}</div>
+              <div class="mt-3 text-xs"><strong>Completed simulator actions:</strong> ${esc(String((simulatorPerformance.requirements || []).filter((item) => item.completed).length))}/${esc(String((simulatorPerformance.requirements || []).length))}</div>
+              ${(simulatorPerformance.missed_actions || []).length ? `<div class="mt-2 text-xs text-amber-800"><strong>Missed:</strong> ${esc(simulatorPerformance.missed_actions.join('; '))}</div>` : ''}
+              ${(simulatorPerformance.unsafe_actions || []).length ? `<div class="mt-2 text-xs text-red-800"><strong>Unsafe actions:</strong> ${esc(simulatorPerformance.unsafe_actions.join('; '))}</div>` : ''}
+            </div>`
+          : '';
+        const generatedRecommendation = simulatorPerformance && Array.isArray(simulatorPerformance.generated_recommendations)
+          ? simulatorPerformance.generated_recommendations.join(' ')
+          : '';
         const readableResult = hasReadableBreakdown ? `<div class="mb-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
             <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System score breakdown</p>
             <dl class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">
@@ -949,6 +965,7 @@ function adminGradingQueuePanel(gradingQueueRows) {
               ${hasScore ? `${esc(String(row.score))}%` : 'No score'} <span class="opacity-60">/ ${esc(String(threshold))}% to pass</span>
             </span>
           </div>
+          ${competencyPanel}
           ${readableResult}
           <details class="mb-3 text-sm">
             <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>
@@ -957,13 +974,13 @@ function adminGradingQueuePanel(gradingQueueRows) {
           <div data-feedback-items class="space-y-2 mb-2">
             <div class="feedback-item grid sm:grid-cols-2 gap-2">
               <input type="text" data-feedback-label placeholder="What was wrong (instructor's own words)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
-              <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"></textarea>
+              <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">${esc(generatedRecommendation)}</textarea>
             </div>
           </div>
           <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
           <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-            <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve</button>
-            <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(row.id)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Send back for redo</button>
+            <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
+            <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(row.id)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Return for remediation' : 'Send back for redo'}</button>
             <span data-grading-status class="text-xs text-gray-500"></span>
           </div>
         </article>`;

@@ -71,22 +71,11 @@ const MODULE_ONE_DEFAULT_STATE = {
   lastSubmittedAt: '',
   attempts: 0,
   lessonWork: {},
-  sectionOpen: { checklist: false, foundations: true, flow: false, lifecycle: false, loop: false, lab: false, quiz: false, review: false, sources: false },
+  sectionOpen: { checklist: false, foundations: true, lab: false, quiz: false, review: false, sources: false },
   quiz: { selectedQuestions: [], questionsByAnswer: {}, answers: {}, scored: false, attempts: 0, score: 0, bestScore: 0, feedback: [], passed: false },
-  lab2: {
-    reviewedEvidence: [],
-    intake: '',
-    priority: '',
-    containment: '',
-    verdict: '',
-    handoff: { observations: '', analysis: '', scope: '', nextAction: '' },
-    attempts: 0,
-    score: null,
-    breakdown: null,
-    feedback: [],
-    completed: false,
-    validationError: '',
-  },
+  // Retained as the completion marker for the independent simulator case.
+  lab2: { completed: false },
+  simulatorPerformance: { actions: [], submitted: false, submittedAt: '' },
 };
 
 let moduleOneState = null;
@@ -95,6 +84,49 @@ let moduleOneJustCorrect = '';
 let moduleOneQuizState = null;
 let moduleOneReviewMode = false;
 let moduleOneLastSyncedDetail = null;
+
+// The simulator is opened in a separate window but shares this origin. It
+// sends only allow-listed action records; this portal writes the attempt.
+// 'submit_for_faculty' is a second, separate message type (not an
+// allow-listed evidence action) that lets the student finish the whole
+// submission from inside the simulator, without a return trip to this tab —
+// it runs the exact same finalization as the portal-side fallback button.
+if (!window.__moduleOneSimulatorTelemetryListener) {
+  window.__moduleOneSimulatorTelemetryListener = true;
+  window.addEventListener('message', (event) => {
+    if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+    const data = event.data || {};
+    if (data.source !== 'mission-next-siem' || data.caseId !== 'NST-2407' || typeof data.action !== 'string' || !moduleOneState) return;
+    if (data.action === 'submit_for_faculty') {
+      moduleOneFinalizeSimulatorSubmission();
+      return;
+    }
+    const allowed = new Set(MODULE_ONE_SIMULATOR_REQUIREMENTS.map(([action]) => action));
+    if (!allowed.has(data.action)) return;
+    const actions = moduleOneState.simulatorPerformance?.actions || [];
+    if (!actions.some((item) => item.action === data.action)) {
+      actions.push({ action: data.action, at: new Date().toISOString() });
+      moduleOneState.simulatorPerformance.actions = actions;
+      moduleOneSave();
+      moduleOneRenderDynamic();
+    }
+  });
+}
+
+// Shared by the portal-side fallback "Complete Module" button and the
+// simulator's own "Submit Module Lab" button (postMessage action
+// 'submit_for_faculty') — one finalization path, two entry points.
+function moduleOneFinalizeSimulatorSubmission() {
+  const performance = moduleOneSimulatorPerformance();
+  if (performance.missed_actions.length || moduleOneState.simulatorPerformance.submitted) return;
+  moduleOneState.simulatorPerformance.submitted = true;
+  moduleOneState.simulatorPerformance.submittedAt = new Date().toISOString();
+  moduleOneState.lab2.completed = true;
+  moduleOneSave();
+  if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { simulator_performance: performance, breakdown: { overall: performance.score }, critical_errors: performance.unsafe_actions } });
+  if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
+  moduleOneSyncCompletion(); moduleOneRenderDynamic('m01-siem-submission'); moduleOneRefreshHeroProgress();
+}
 
 function moduleOneRemoteComplete() {
   return moduleOneUser?.remoteVerifiedModuleProgress?.['soc-01'] === true;
@@ -111,11 +143,9 @@ function moduleOneLoad(user) {
   Object.keys(MODULE_ONE_DEFAULT_STATE.sectionOpen).forEach((key) => { if (typeof moduleOneState.sectionOpen[key] !== 'boolean') moduleOneState.sectionOpen[key] = MODULE_ONE_DEFAULT_STATE.sectionOpen[key]; });
   if (!moduleOneState.quiz || typeof moduleOneState.quiz !== 'object') moduleOneState.quiz = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.quiz));
   if (!moduleOneState.lab2 || typeof moduleOneState.lab2 !== 'object') moduleOneState.lab2 = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.lab2));
-  if (!Array.isArray(moduleOneState.lab2.reviewedEvidence)) moduleOneState.lab2.reviewedEvidence = [];
-  ['intake', 'priority', 'containment', 'verdict'].forEach((key) => {
-    if (typeof moduleOneState.lab2[key] !== 'string') moduleOneState.lab2[key] = '';
-  });
-  if (!moduleOneState.lab2.handoff || typeof moduleOneState.lab2.handoff !== 'object') moduleOneState.lab2.handoff = { ...MODULE_ONE_DEFAULT_STATE.lab2.handoff };
+  if (typeof moduleOneState.lab2.completed !== 'boolean') moduleOneState.lab2.completed = false;
+  if (!moduleOneState.simulatorPerformance || typeof moduleOneState.simulatorPerformance !== 'object') moduleOneState.simulatorPerformance = { actions: [], submitted: false, submittedAt: '' };
+  if (!Array.isArray(moduleOneState.simulatorPerformance.actions)) moduleOneState.simulatorPerformance.actions = [];
   // `module_progress` historically recorded Module 01 as complete after a
   // coarse lab-only check. Do not manufacture the missing lesson, quiz, or
   // Lab 2 evidence from that record: the page must never show work complete
@@ -202,6 +232,82 @@ function moduleOneSeverityClass(severity) {
   return `m01-severity m01-severity-${String(severity).toLowerCase()}`;
 }
 
+/* Companion reading inserted inline right after the lesson it illustrates —
+ * flow after L5 (where alerts/telemetry come from), the triage loop after L6
+ * (how alert triage works), the lifecycle wheel after L8 (incident response
+ * lifecycle). These have no completion state of their own; they are part of
+ * the Foundations reading, not separate nav-rail sections. */
+function moduleOneLessonCompanion(lesson, lab) {
+  if (lesson.number === 5) {
+    return `<div class="m01-companion" id="m01-flow" aria-labelledby="m01-flow-title">
+      <p class="m01-companion-label"><i class="ri-route-line" aria-hidden="true"></i> Security architecture, without the jargon wall</p>
+      <h3 class="m01-companion-title" id="m01-flow-title">How activity becomes analyst work</h3>
+      <div class="m01-flow" aria-label="Activity-to-investigation flow">
+        ${lab.signalFlow.map((step) => `<article><i class="${esc(step.icon)}" aria-hidden="true"></i><h3>${esc(step.title)}</h3><p>${esc(step.description)}</p></article>`).join('')}
+      </div>
+    </div>`;
+  }
+  if (lesson.number === 6) {
+    return `<div class="m01-companion" id="m01-loop" aria-labelledby="m01-loop-title">
+      <p class="m01-companion-label"><i class="ri-radar-line" aria-hidden="true"></i> The repeatable habit</p>
+      <h3 class="m01-companion-title" id="m01-loop-title">Your five-step triage loop</h3>
+      <p class="m01-instruction">Select each step to rotate the wheel and focus on the question an analyst should answer before moving forward.</p>
+      <div class="m01-triage-wheel" style="--triage-wheel-rotation: 0deg" data-m01-triage-wheel>
+        <div class="m01-triage-track" aria-hidden="true">
+          ${lab.triageLoop.map((item, index) => `<span style="--triage-wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
+          <div class="m01-triage-hub">
+            <i class="ri-radar-line"></i>
+            <strong>Triage loop</strong>
+            <small data-m01-triage-hub>Step 1 · ${esc(lab.triageLoop[0].title)}</small>
+          </div>
+        </div>
+        <ol class="m01-triage-loop" aria-label="Five-step alert triage loop">
+          ${lab.triageLoop.map((item, index) => `<li data-m01-triage-card="${index}">
+            <button type="button" class="m01-triage-button" data-m01-triage-step="${index}"
+                    aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m01-triage-detail-${index + 1}">
+              <span class="m01-triage-heading"><span>${index + 1}</span><span class="m01-triage-title">${esc(item.title)}</span><i class="ri-arrow-down-s-line m01-triage-chevron" aria-hidden="true"></i></span>
+            </button>
+            <div class="m01-triage-detail" id="m01-triage-detail-${index + 1}" ${index === 0 ? '' : 'hidden'}>
+              <p>${esc(item.description)}</p>
+            </div>
+          </li>`).join('')}
+        </ol>
+      </div>
+      <div class="m01-boundary"><i class="ri-error-warning-line" aria-hidden="true"></i><p><strong>Beginner guardrail:</strong> Never take a disruptive response action just because a screen offers a button. Confirm the evidence, follow the organization's playbook, and stay inside your assigned authority.</p></div>
+    </div>`;
+  }
+  if (lesson.number === 8) {
+    return `<div class="m01-companion" id="m01-lifecycle" aria-labelledby="m01-lifecycle-title">
+      <p class="m01-companion-label"><i class="ri-cycle-line" aria-hidden="true"></i> The map for responding</p>
+      <h3 class="m01-companion-title" id="m01-lifecycle-title">Incident response lifecycle, visualized</h3>
+      <p class="m01-instruction">Frameworks group or name phases differently. This six-part model shows the complete operational idea used in day-to-day response work. Select each phase to rotate the lifecycle and open its definition.</p>
+      <div class="m01-lifecycle-wheel" style="--wheel-rotation: 0deg" data-m01-lifecycle-wheel>
+        <div class="m01-wheel-track" aria-hidden="true">
+          ${lab.lifecycle.map((phase, index) => `<span style="--wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
+          <div class="m01-wheel-hub">
+            <i class="ri-cycle-line"></i>
+            <strong>Incident response</strong>
+            <small data-m01-hub-phase>Phase 1 · ${esc(lab.lifecycle[0].title)}</small>
+          </div>
+        </div>
+        <ol class="m01-lifecycle" aria-label="Incident response phases">
+          ${lab.lifecycle.map((phase, index) => `<li data-m01-phase-card="${index}">
+            <button type="button" class="m01-phase-button" data-m01-phase="${index}"
+                    aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m01-phase-detail-${esc(phase.id)}">
+              <span class="m01-phase-heading"><span>${index + 1}</span><i class="${esc(phase.icon)}" aria-hidden="true"></i><span class="m01-phase-title">${esc(phase.title)}</span><i class="ri-arrow-down-s-line m01-phase-chevron" aria-hidden="true"></i></span>
+            </button>
+            <div class="m01-phase-detail" id="m01-phase-detail-${esc(phase.id)}" ${index === 0 ? '' : 'hidden'}>
+              <p>${esc(phase.description)}</p>
+            </div>
+          </li>`).join('')}
+        </ol>
+      </div>
+      <p class="m01-concept"><strong>Where does the SOC analyst fit?</strong> Analysts contribute across the lifecycle, but alert triage sits mainly in <em>detect &amp; analyze</em>. Triage determines whether a response is needed and gives the response team verified evidence, scope, and priority.</p>
+    </div>`;
+  }
+  return '';
+}
+
 function moduleOneLessons(lab) {
   return `<div class="m01-lesson-grid" id="m01-lessons">
     ${lab.lessons.map((lesson) => {
@@ -257,7 +363,7 @@ function moduleOneLessons(lab) {
             </div>
           ` : ''}
         </div>
-      </details>`;
+      </details>${moduleOneLessonCompanion(lesson, lab)}`;
     }).join('')}
   </div>`;
 }
@@ -341,7 +447,7 @@ function moduleOneRefreshHeroProgress() {
   const progress = moduleOneProgress();
   const labCount = document.getElementById('m01-lab-count');
   const status = document.getElementById('m01-status');
-  if (labCount) labCount.textContent = `${progress.labsComplete}/2`;
+  if (labCount) labCount.textContent = progress.labsComplete === 2 ? 'Complete' : progress.labsComplete ? 'In progress' : 'Not started';
   if (status) status.textContent = progress.complete ? 'Complete' : 'In progress';
 }
 
@@ -349,6 +455,38 @@ function moduleOneSyncCompletion() {
   if (moduleOneProgress().complete && typeof markModuleCompleteRemote === 'function') {
     markModuleCompleteRemote(moduleOneUser, 'soc-01');
   }
+}
+
+const MODULE_ONE_SIMULATOR_REQUIREMENTS = [
+  ['incident_opened', 'Open the assigned incident'], ['alert_opened:NST-2407-1', 'Review the identity alert'],
+  ['alert_opened:NST-2407-2', 'Review the endpoint alert'], ['alert_opened:NST-2407-3', 'Review the proxy alert'],
+  ['alert_opened:NST-2407-4', 'Review the user callback'], ['entity_opened:a.chen@missionnextlabs.example', 'Pivot to the affected identity'],
+  ['entity_opened:LAP-442', 'Pivot to the affected device'], ['escalated', 'Escalate within L1 authority'],
+];
+function moduleOneSimulatorPerformance() {
+  const actions = moduleOneState?.simulatorPerformance?.actions || [];
+  const found = new Set(actions.map((item) => item.action));
+  const completed = MODULE_ONE_SIMULATOR_REQUIREMENTS.filter(([key]) => found.has(key));
+  const missed = MODULE_ONE_SIMULATOR_REQUIREMENTS.filter(([key]) => !found.has(key));
+  const competencies = [
+    { key: 'observation', label: 'Observation', required: 5, completed: completed.filter(([key]) => key === 'incident_opened' || key.startsWith('alert_opened:')).length },
+    { key: 'analysis', label: 'Analysis', required: 2, completed: completed.filter(([key]) => key.startsWith('entity_opened:')).length },
+    { key: 'scope', label: 'Scope', required: 2, completed: completed.filter(([key]) => key.startsWith('entity_opened:')).length },
+    { key: 'decision_authority', label: 'Decision / Authority', required: 1, completed: completed.filter(([key]) => key === 'escalated').length },
+    { key: 'communication_handoff', label: 'Communication / Handoff', required: 1, completed: completed.filter(([key]) => key === 'escalated').length },
+  ].map((item) => ({ ...item, percentage: Math.round(item.completed * 100 / item.required), passed: item.completed >= item.required }));
+  const score = Math.round(competencies.reduce((sum, item) => sum + item.percentage, 0) / competencies.length);
+  return { actions, requirements: MODULE_ONE_SIMULATOR_REQUIREMENTS.map(([action, label]) => ({ action, label, completed: found.has(action) })), competencies, score, passed: score >= 70 && missed.length === 0, missed_actions: missed.map(([, label]) => label), unsafe_actions: actions.filter((item) => item.unsafe === true).map((item) => item.action), generated_recommendations: competencies.filter((item) => !item.passed).map((item) => `${item.label}: revisit the missing simulator evidence before resubmitting.`) };
+}
+function moduleOneSimulatorSubmissionPanel() {
+  const performance = moduleOneSimulatorPerformance(); const submitted = moduleOneState.simulatorPerformance.submitted;
+  const doneCount = performance.requirements.filter((item) => item.completed).length;
+  return `<div class="m01-score-empty" id="m01-siem-submission" role="status" aria-live="polite">
+    <strong>${submitted ? 'Submitted for faculty review' : 'Simulator performance record'}</strong>
+    <p>${doneCount}/${performance.requirements.length} required actions recorded. ${submitted ? 'Module 2 stays locked until your instructor approves the submission.' : 'Work through the procedure below inside the simulator, then use the floating Submit Module Lab button (bottom corner, follows you anywhere in the console) to send your performance for faculty review.'}</p>
+    ${!submitted ? `<ul class="m01-requirements-list">${performance.requirements.map((item) => `<li class="${item.completed ? 'is-done' : ''}"><i class="${item.completed ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'}" aria-hidden="true"></i><span>${esc(item.label)}</span></li>`).join('')}</ul>` : ''}
+    ${!submitted ? `<button type="button" class="m01-submit" data-m01-submit-simulator ${performance.missed_actions.length ? 'disabled aria-disabled="true"' : ''}>${performance.missed_actions.length ? 'Complete the procedure above first' : 'Complete Module — submit to faculty'}</button>${!performance.missed_actions.length ? '<p class="m01-help">Already back on this tab? This does the same thing as Submit Module Lab inside the simulator.</p>' : ''}` : ''}
+  </div>`;
 }
 
 function moduleOneScorePanel() {
@@ -525,7 +663,7 @@ function moduleOneBlankForm(fact) {
 function moduleOneLabDynamic() {
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const scenario = lab.scenario;
-  const incidentRoute = `${SIM_ORIGIN}#/sentinel/incidents`;
+  const incidentRoute = `${SIM_ORIGIN}?case=NST-2407&module=soc-1#/sentinel/incidents`;
   const reviewed = new Set(moduleOneState.reviewedEvidence);
   const reviewedCount = scenario.evidence.filter((item) => reviewed.has(item.id)).length;
   const investigationReady = reviewedCount === scenario.evidence.length;
@@ -671,97 +809,15 @@ function moduleOneLabDynamic() {
 
   <section class="m01-siem" aria-labelledby="m01-lab2-scenario-title">
     <div class="m01-siem-copy">
-      <p class="m01-kicker">Graded case · resume across sittings</p>
-      <h3 id="m01-lab2-scenario-title">Northstar Finance: a three-sitting incident</h3>
-      <p>This fixed case unfolds over intake, containment, and handoff. Your saved evidence review and any consequence of your containment choice return with you on another device.</p>
+      <p class="m01-kicker">Independent simulated-SIEM case · resume across sittings</p>
+      <h3 id="m01-lab2-scenario-title">Mission Next Labs: investigate the correlated incident</h3>
+      <p>Open the assigned incident in the simulated SIEM and perform the investigation there. Your incident work—not a duplicate worksheet or case note—is the assessment evidence.</p>
     </div>
+    <a class="m01-siem-launch" href="${esc(incidentRoute)}" target="_blank" rel="opener">
+      <i class="ri-external-link-line" aria-hidden="true"></i> Open Mission Next SIEM
+    </a>
+    ${moduleOneSimulatorSubmissionPanel()}
   </section>
-
-  <div class="m01-alert-window">
-    <div class="m01-alert-toolbar">
-      <span><i class="ri-inbox-2-line" aria-hidden="true"></i> Alert queue</span>
-      <span>${moduleOneState.lab2.reviewedEvidence.length}/${MODULE_ONE_ESCALATION_LAB.scenario.evidence.length} records reviewed</span>
-    </div>
-    <article class="m01-single-alert" aria-labelledby="m01-lab2-alert-title">
-      <div class="m01-alert-heading">
-        <div>
-          <div class="m01-alert-meta">
-            <span class="m01-severity m01-severity-medium">${esc(MODULE_ONE_ESCALATION_LAB.scenario.initialSeverity)}</span>
-            <span>${esc(MODULE_ONE_ESCALATION_LAB.scenario.id)}</span><span>Created ${esc(MODULE_ONE_ESCALATION_LAB.scenario.created)}</span><span>${esc(MODULE_ONE_ESCALATION_LAB.scenario.source)}</span>
-          </div>
-          <h3 id="m01-lab2-alert-title">${esc(MODULE_ONE_ESCALATION_LAB.scenario.title)}</h3>
-          <p>${esc(MODULE_ONE_ESCALATION_LAB.scenario.summary)}</p>
-        </div>
-        <div class="m01-entity-chip"><span>Initial entities</span><code>${esc(MODULE_ONE_ESCALATION_LAB.scenario.entity)}</code></div>
-      </div>
-      <div class="m01-alert-facts">
-        <div><dt>Detection</dt><dd>${esc(MODULE_ONE_ESCALATION_LAB.scenario.detectedBy)}</dd></div>
-        <div><dt>Initial scope</dt><dd>${esc(MODULE_ONE_ESCALATION_LAB.scenario.scope)}</dd></div>
-      </div>
-      <ol class="m01-timeline" style="margin-top: 18px;">
-        ${MODULE_ONE_ESCALATION_LAB.scenario.evidence.map((item) => `<li class="${moduleOneState.lab2.reviewedEvidence.includes(item.id) ? 'is-reviewed' : 'is-active'}">
-          <span class="m01-timeline-marker"><i class="${esc(item.icon)}" aria-hidden="true"></i></span>
-          <div><time>${esc(item.time)}</time><strong>${esc(item.label)}</strong><p>${esc(item.detail)}</p><button type="button" class="m01-reveal" data-m01-case-evidence="${esc(item.id)}">${moduleOneState.lab2.reviewedEvidence.includes(item.id) ? 'Reviewed' : 'Record reviewed'}</button></div>
-        </li>`).join('')}
-      </ol>
-    </article>
-  </div>
-
-  <section class="m01-rubric" aria-labelledby="m01-lab2-rubric-title">
-    <p class="m01-kicker">Assessment criteria</p>
-    <h3 id="m01-lab2-rubric-title">What your instructor will assess</h3>
-    <ul class="m01-rubric-list">
-      ${MODULE_ONE_ESCALATION_LAB.rubric.map((item) => `<li>${esc(item)}</li>`).join('')}
-    </ul>
-  </section>
-
-  <form id="m01-lab2-form" class="m01-worksheet" novalidate>
-    <div class="m01-panel-heading">
-      <div><p class="m01-kicker">Independent decision record</p><h3>Work the case across three handoffs</h3></div>
-      <span class="m01-evidence-count">Save automatically · no live score</span>
-    </div>
-
-    <fieldset class="m01-fieldset">
-      <legend><span>Day 1</span> Intake and supported scope</legend>
-      <p class="m01-help">Review all four records, then state only what their correlation supports.</p>
-      ${moduleOneOptionList('intake', MODULE_ONE_ESCALATION_LAB.intakeOptions, moduleOneState.lab2)}
-    </fieldset>
-
-    <fieldset class="m01-fieldset">
-      <legend><span>Day 1</span> What priority?</legend>
-      <p class="m01-help">Match the urgency to what you know about the threat and impact.</p>
-      ${moduleOneOptionList('priority', MODULE_ONE_ESCALATION_LAB.priorityOptions, moduleOneState.lab2)}
-    </fieldset>
-
-    <fieldset class="m01-fieldset">
-      <legend><span>Day 2</span> Containment request</legend>
-      <p class="m01-help">This is consequential: your selection changes the Day 3 record. Stay inside the analyst role and preserve the case.</p>
-      ${moduleOneOptionList('containment', MODULE_ONE_ESCALATION_LAB.containmentOptions, moduleOneState.lab2)}
-    </fieldset>
-
-    ${moduleOneState.lab2.containment ? `<section class="m01-rubric" aria-label="Day 3 consequence"><p class="m01-kicker">Day 3 · consequence record</p><h3>${moduleOneState.lab2.containment === 'authorized-containment' ? 'Containment limited the active path' : 'A complication now needs investigation'}</h3><p>${esc(moduleOneState.lab2.containment === 'authorized-containment' ? 'Response confirms a.chen sessions were revoked and LAP-442 was isolated. The proxy shows no additional connection after 10:02 UTC; scope remains bounded pending review.' : moduleOneState.lab2.containment === 'isolate-wrong-host' ? 'FS-02 was taken offline, disrupting Finance reporting, while LAP-442 continued its external connection for 35 more minutes. The added proxy record must be included in your handoff.' : 'The detailed warning was delivered to the compromised identity. At 10:06 UTC, LAP-442 deleted the downloaded script and opened a second connection; preserve that uncertainty in the handoff.')}</p></section>` : ''}
-
-    <fieldset class="m01-fieldset">
-      <legend><span>Day 3</span> Final verdict</legend>
-      <p class="m01-help">Use the evidence and the response outcome. Do not claim a scope the fixture does not establish.</p>
-      ${moduleOneOptionList('verdict', MODULE_ONE_ESCALATION_LAB.verdictOptions, moduleOneState.lab2)}
-    </fieldset>
-
-    ${MODULE_ONE_ESCALATION_LAB.handoffFields.map((field) => {
-      const value = moduleOneState.lab2.handoff[field.key] || '';
-      return `<div class="m01-fieldset">
-        <label for="m01-lab2-${esc(field.key)}" class="m01-note-label"><strong>${esc(field.label)}</strong></label>
-        <p class="m01-help">${esc(field.help)}</p>
-        <textarea id="m01-lab2-${esc(field.key)}" name="lab2-${esc(field.key)}" data-m01-lab2-field="${esc(field.key)}" rows="3" placeholder="${esc(field.placeholder)}" aria-label="${esc(field.label)}">${esc(value)}</textarea>
-      </div>`;
-    }).join('')}
-
-    <div class="m01-actions">
-      <button type="submit" class="m01-submit"><i class="ri-send-plane-2-line" aria-hidden="true"></i> Submit case for instructor review</button>
-      <button type="button" class="m01-reset" data-m01-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset practice and case</button>
-    </div>
-    ${moduleOneLab2ScorePanel()}
-  </form>
   `;
 }
 
@@ -823,21 +879,22 @@ function moduleOneGetQuickNavItems() {
   return items;
 }
 
-/* All 8 numbered page sections, for moduleUnifiedNav(). Foundations and
- * Guided Labs nest their granular items (moduleOneGetQuickNavItems());
- * flow/lifecycle/loop/sources are read-only explanatory content with no
- * completion state of their own — `gated: false` marks them always
- * navigable, excluded from the lock/current-position chain. */
+/* All 5 numbered page sections, for moduleUnifiedNav(). Foundations and
+ * Module Lab nest their granular items (moduleOneGetQuickNavItems());
+ * the flow/lifecycle/loop companion reading lives inline inside Foundations
+ * (see moduleOneLessonCompanion()), not as its own nav section — it has no
+ * completion state of its own. Knowledge Check sits between Foundations and
+ * Module Lab (matching every other module's order: read, then prove
+ * retention, then do the graded work) — sources is read-only explanatory
+ * content — `gated: false` marks it always navigable, excluded from the
+ * lock/current-position chain. */
 function moduleOneGetNavSections() {
   const progress = moduleOneProgress();
   const quickNavItems = moduleOneGetQuickNavItems();
   return [
     { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: progress.lessonsComplete === progress.lessonsTotal, scrollId: 'm01-foundations', items: quickNavItems.filter((i) => i.kind === 'lesson') },
-    { id: 'flow', title: 'How activity becomes analyst work', type: 'read', isComplete: null, scrollId: 'm01-flow', gated: false },
-    { id: 'lifecycle', title: 'Incident response lifecycle', type: 'read', isComplete: null, scrollId: 'm01-lifecycle', gated: false },
-    { id: 'loop', title: 'Your five-step triage loop', type: 'read', isComplete: null, scrollId: 'm01-loop', gated: false },
-    { id: 'guided-lab', title: 'Guided Labs', type: 'lab', isComplete: progress.labsComplete === 2, scrollId: 'm01-guided-lab', items: quickNavItems.filter((i) => i.kind === 'lab') },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: progress.knowledgeCheckComplete, scrollId: 'm01-knowledge-check' },
+    { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: progress.labsComplete === 2, scrollId: 'm01-guided-lab', items: quickNavItems.filter((i) => i.kind === 'lab') },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: progress.complete, scrollId: 'm01-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm01-sources-section', gated: false },
   ];
@@ -867,7 +924,7 @@ function viewModuleOne(user, program) {
         </div>
         <dl class="m01-progress" aria-label="Saved lab progress">
           <div><dt>Foundation lessons</dt><dd>${module.lessons}</dd></div>
-          <div><dt>Labs complete</dt><dd id="m01-lab-count">${progress.labsComplete}/${module.labs}</dd></div>
+          <div><dt>Module Lab</dt><dd id="m01-lab-count">${progress.labsComplete === 2 ? 'Complete' : progress.labsComplete ? 'In progress' : 'Not started'}</dd></div>
           <div><dt>Module status</dt><dd id="m01-status">${progress.complete ? 'Complete' : 'In progress'}</dd></div>
         </dl>
       </section>
@@ -952,95 +1009,15 @@ function viewModuleOne(user, program) {
         </div>
       </section>
 
-      <section class="m01-section m01-section-collapsible" id="m01-flow" aria-labelledby="m01-flow-title">
-        <div class="m01-section-heading">
-          <span>2</span>
-          <div><p class="m01-kicker">Security architecture, without the jargon wall</p><h2 id="m01-flow-title">How activity becomes analyst work</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="flow" data-m01-section-label="activity-to-investigation flow" aria-expanded="${openFor('flow')}" aria-controls="m01-flow-body" aria-label="${openFor('flow') ? 'Collapse' : 'Expand'} activity-to-investigation flow">
-            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
-          </button>
-        </div>
-        <div class="m01-section-body" id="m01-flow-body" ${openFor('flow') ? '' : 'hidden'}>
-          <div class="m01-flow" aria-label="Activity-to-investigation flow">
-            ${lab.signalFlow.map((step) => `<article><i class="${esc(step.icon)}" aria-hidden="true"></i><h3>${esc(step.title)}</h3><p>${esc(step.description)}</p></article>`).join('')}
-          </div>
-        </div>
-      </section>
-
-      <section class="m01-section m01-section-collapsible" id="m01-lifecycle" aria-labelledby="m01-lifecycle-title">
-        <div class="m01-section-heading">
-          <span>3</span>
-          <div><p class="m01-kicker">The map for responding</p><h2 id="m01-lifecycle-title">Incident response lifecycle</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lifecycle" data-m01-section-label="incident response lifecycle" aria-expanded="${openFor('lifecycle')}" aria-controls="m01-lifecycle-body" aria-label="${openFor('lifecycle') ? 'Collapse' : 'Expand'} incident response lifecycle">
-            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
-          </button>
-        </div>
-        <div class="m01-section-body" id="m01-lifecycle-body" ${openFor('lifecycle') ? '' : 'hidden'}>
-          <p class="m01-instruction">Frameworks group or name phases differently. This six-part model shows the complete operational idea used in day-to-day response work. Select each phase to rotate the lifecycle and open its definition.</p>
-          <div class="m01-lifecycle-wheel" style="--wheel-rotation: 0deg" data-m01-lifecycle-wheel>
-            <div class="m01-wheel-track" aria-hidden="true">
-              ${lab.lifecycle.map((phase, index) => `<span style="--wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
-              <div class="m01-wheel-hub">
-                <i class="ri-cycle-line"></i>
-                <strong>Incident response</strong>
-                <small data-m01-hub-phase>Phase 1 · ${esc(lab.lifecycle[0].title)}</small>
-              </div>
-            </div>
-            <ol class="m01-lifecycle" aria-label="Incident response phases">
-              ${lab.lifecycle.map((phase, index) => `<li data-m01-phase-card="${index}">
-                <button type="button" class="m01-phase-button" data-m01-phase="${index}"
-                        aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m01-phase-detail-${esc(phase.id)}">
-                  <span class="m01-phase-heading"><span>${index + 1}</span><i class="${esc(phase.icon)}" aria-hidden="true"></i><span class="m01-phase-title">${esc(phase.title)}</span><i class="ri-arrow-down-s-line m01-phase-chevron" aria-hidden="true"></i></span>
-                </button>
-                <div class="m01-phase-detail" id="m01-phase-detail-${esc(phase.id)}" ${index === 0 ? '' : 'hidden'}>
-                  <p>${esc(phase.description)}</p>
-                </div>
-              </li>`).join('')}
-            </ol>
-          </div>
-          <p class="m01-concept"><strong>Where does the SOC analyst fit?</strong> Analysts contribute across the lifecycle, but alert triage sits mainly in <em>detect &amp; analyze</em>. Triage determines whether a response is needed and gives the response team verified evidence, scope, and priority.</p>
-        </div>
-      </section>
-
-      <section class="m01-section m01-section-collapsible" id="m01-loop" aria-labelledby="m01-loop-title">
-        <div class="m01-section-heading">
-          <span>4</span>
-          <div><p class="m01-kicker">The repeatable habit</p><h2 id="m01-loop-title">Your five-step triage loop</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="loop" data-m01-section-label="five-step triage loop" aria-expanded="${openFor('loop')}" aria-controls="m01-loop-body" aria-label="${openFor('loop') ? 'Collapse' : 'Expand'} five-step triage loop">
-            <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
-          </button>
-        </div>
-        <div class="m01-section-body" id="m01-loop-body" ${openFor('loop') ? '' : 'hidden'}>
-          <p class="m01-instruction">Select each step to rotate the wheel and focus on the question an analyst should answer before moving forward.</p>
-          <div class="m01-triage-wheel" style="--triage-wheel-rotation: 0deg" data-m01-triage-wheel>
-            <div class="m01-triage-track" aria-hidden="true">
-              ${lab.triageLoop.map((item, index) => `<span style="--triage-wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
-              <div class="m01-triage-hub">
-                <i class="ri-radar-line"></i>
-                <strong>Triage loop</strong>
-                <small data-m01-triage-hub>Step 1 · ${esc(lab.triageLoop[0].title)}</small>
-              </div>
-            </div>
-            <ol class="m01-triage-loop" aria-label="Five-step alert triage loop">
-              ${lab.triageLoop.map((item, index) => `<li data-m01-triage-card="${index}">
-                <button type="button" class="m01-triage-button" data-m01-triage-step="${index}"
-                        aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m01-triage-detail-${index + 1}">
-                  <span class="m01-triage-heading"><span>${index + 1}</span><span class="m01-triage-title">${esc(item.title)}</span><i class="ri-arrow-down-s-line m01-triage-chevron" aria-hidden="true"></i></span>
-                </button>
-                <div class="m01-triage-detail" id="m01-triage-detail-${index + 1}" ${index === 0 ? '' : 'hidden'}>
-                  <p>${esc(item.description)}</p>
-                </div>
-              </li>`).join('')}
-            </ol>
-          </div>
-          <div class="m01-boundary"><i class="ri-error-warning-line" aria-hidden="true"></i><p><strong>Beginner guardrail:</strong> Never take a disruptive response action just because a screen offers a button. Confirm the evidence, follow the organization's playbook, and stay inside your assigned authority.</p></div>
-        </div>
+      <section class="m01-section m01-section-collapsible" id="m01-knowledge-check" aria-labelledby="m01-knowledge-title">
+        <div class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Module assessment</p><h2 id="m01-knowledge-title">Check your SOC foundations</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="quiz" data-m01-section-label="module assessment" aria-expanded="${openFor('quiz')}" aria-controls="m01-quiz-body" aria-label="${openFor('quiz') ? 'Collapse' : 'Expand'} module assessment"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
+        <div class="m01-section-body" id="m01-quiz-body" ${openFor('quiz') ? '' : 'hidden'}>${moduleOneQuizPanel()}</div>
       </section>
 
       <section class="m01-section m01-section-collapsible m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
         <div class="m01-section-heading">
-          <span>5</span>
-          <div><p class="m01-kicker">Optional walkthrough + assessed handoff · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
+          <span>3</span>
+          <div><p class="m01-kicker">Module Lab · assessed handoff · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
           <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lab" data-m01-section-label="lab block" aria-expanded="${openFor('lab')}" aria-controls="m01-guided-lab-body" aria-label="${openFor('lab') ? 'Collapse' : 'Expand'} lab block">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
@@ -1054,18 +1031,13 @@ function viewModuleOne(user, program) {
         </div>
       </section>
 
-      <section class="m01-section m01-section-collapsible" id="m01-knowledge-check" aria-labelledby="m01-knowledge-title">
-        <div class="m01-section-heading"><span>6</span><div><p class="m01-kicker">Module assessment</p><h2 id="m01-knowledge-title">Check your SOC foundations</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="quiz" data-m01-section-label="module assessment" aria-expanded="${openFor('quiz')}" aria-controls="m01-quiz-body" aria-label="${openFor('quiz') ? 'Collapse' : 'Expand'} module assessment"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
-        <div class="m01-section-body" id="m01-quiz-body" ${openFor('quiz') ? '' : 'hidden'}>${moduleOneQuizPanel()}</div>
-      </section>
-
       <section class="m01-section m01-section-collapsible" id="m01-review-section" aria-labelledby="m01-review-title">
-        <div class="m01-section-heading"><span>7</span><div><p class="m01-kicker">Module review</p><h2 id="m01-review-title">Carry the reasoning into your next investigation</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="review" data-m01-section-label="module review" aria-expanded="${openFor('review')}" aria-controls="m01-review-body" aria-label="${openFor('review') ? 'Collapse' : 'Expand'} module review"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
+        <div class="m01-section-heading"><span>4</span><div><p class="m01-kicker">Module review</p><h2 id="m01-review-title">Carry the reasoning into your next investigation</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="review" data-m01-section-label="module review" aria-expanded="${openFor('review')}" aria-controls="m01-review-body" aria-label="${openFor('review') ? 'Collapse' : 'Expand'} module review"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
         <div class="m01-section-body" id="m01-review-body" ${openFor('review') ? '' : 'hidden'}>${moduleOneReview()}</div>
       </section>
 
       <section class="m01-section m01-section-collapsible" id="m01-sources-section" aria-labelledby="m01-sources-title">
-        <div class="m01-section-heading"><span>8</span><div><p class="m01-kicker">Sources &amp; Further Reading</p><h2 id="m01-sources-title">Authoritative references</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="sources" data-m01-section-label="sources and further reading" aria-expanded="${openFor('sources')}" aria-controls="m01-sources-body" aria-label="${openFor('sources') ? 'Collapse' : 'Expand'} sources and further reading"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
+        <div class="m01-section-heading"><span>5</span><div><p class="m01-kicker">Sources &amp; Further Reading</p><h2 id="m01-sources-title">Authoritative references</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="sources" data-m01-section-label="sources and further reading" aria-expanded="${openFor('sources')}" aria-controls="m01-sources-body" aria-label="${openFor('sources') ? 'Collapse' : 'Expand'} sources and further reading"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
         <div class="m01-section-body" id="m01-sources-body" ${openFor('sources') ? '' : 'hidden'}>${moduleSourcesBlock(MODULE_ONE_SOURCES)}</div>
       </section>
     </main>
@@ -1093,55 +1065,6 @@ function moduleOneScore() {
       rationale ? 'Rationale: Your reasoning clearly connects evidence to your priority and action choices.' : 'Rationale: Explain how the evidence supports your priority and recommended next action.',
     ],
   };
-}
-
-function moduleOneLab2Score() {
-  const lab2Data = MODULE_ONE_ESCALATION_LAB;
-  const s = moduleOneState.lab2;
-  const intake = s.intake === lab2Data.correctIntake ? 25 : 0;
-  const priority = s.priority === lab2Data.correctPriority ? 20 : 0;
-  const containment = s.containment === lab2Data.correctContainment ? 25 : 0;
-  const verdict = s.verdict === lab2Data.correctVerdict ? 15 : 0;
-  const h = s.handoff;
-  const handoff = (((h.observations || '').trim().length >= 40) ? 4 : 0)
-    + (((h.analysis || '').trim().length >= 40) ? 4 : 0)
-    + (((h.scope || '').trim().length >= 20) ? 4 : 0)
-    + (((h.nextAction || '').trim().length >= 20) ? 3 : 0);
-  const score = intake + priority + containment + verdict + handoff;
-  const criticalErrors = lab2Data.criticalErrors.includes(s.containment) ? [s.containment] : [];
-
-  return {
-    score,
-    breakdown: { intake, priority, containment, verdict, handoff, answers: { intake: s.intake, priority: s.priority, containment: s.containment, verdict: s.verdict }, criticalErrors },
-    feedback: [],
-  };
-}
-
-function moduleOneLab2ScorePanel() {
-  if (moduleOneState.lab2.validationError) {
-    return `<div class="m01-validation" id="m01-lab2-feedback" role="alert" tabindex="-1">
-      <i class="ri-information-line" aria-hidden="true"></i>
-      <div><strong>One more step</strong><p>${esc(moduleOneState.lab2.validationError)}</p></div>
-    </div>`;
-  }
-
-  if (!moduleOneState.lab2.attempts || !moduleOneState.lab2.breakdown) {
-    return `<div class="m01-score-empty" id="m01-lab2-feedback" role="status" aria-live="polite">
-      Your instructor—not this page—will assess the submitted work. You can save and return at any point.
-    </div>`;
-  }
-
-  return `<section class="m01-score is-pass" id="m01-lab2-feedback"
-                   tabindex="-1" aria-labelledby="m01-lab2-score-title" aria-live="polite">
-    <div class="m01-score-summary">
-      <div>
-        <p class="m01-kicker">Submission ${moduleOneState.lab2.attempts} received</p>
-        <h3 id="m01-lab2-score-title">Your case is with your instructor</h3>
-        <p>There is no live score. Your instructor can confirm the decision, flag a production-impacting mistake, and send the complete case back with guidance if needed.</p>
-      </div>
-      <span class="m01-score-number"><i class="ri-inbox-archive-line" aria-hidden="true"></i></span>
-    </div>
-  </section>`;
 }
 
 function moduleOneRenderDynamic(focusId) {
@@ -1302,6 +1225,11 @@ function wireModuleOneLab() {
   if (!root || !moduleOneState) return;
 
   root.addEventListener('click', (event) => {
+    const simulatorSubmit = event.target.closest('[data-m01-submit-simulator]');
+    if (simulatorSubmit) {
+      moduleOneFinalizeSimulatorSubmission();
+      return;
+    }
     if (event.target.closest('[data-m01-console-launch]')) {
       moduleOneState.consoleStarted = true;
       moduleOneSave();
@@ -1319,16 +1247,6 @@ function wireModuleOneLab() {
       return;
     }
 
-    const caseEvidence = event.target.closest('[data-m01-case-evidence]');
-    if (caseEvidence) {
-      const evidenceId = caseEvidence.dataset.m01CaseEvidence;
-      if (!moduleOneState.lab2.reviewedEvidence.includes(evidenceId)) moduleOneState.lab2.reviewedEvidence.push(evidenceId);
-      moduleOneState.lab2.validationError = '';
-      moduleOneSave();
-      moduleOneRenderDynamic('m01-lab2-scenario-title');
-      return;
-    }
-
     if (event.target.closest('[data-m01-reset]')) {
       moduleOneState = LabRuntime.reset(MODULE_ONE_LAB_ID, moduleOneUser, MODULE_ONE_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') {
@@ -1341,18 +1259,9 @@ function wireModuleOneLab() {
 
   root.addEventListener('change', (event) => {
     const input = event.target;
-    // 'priority' is a field name in BOTH forms (Lab 1's own decision and Lab
-    // 2's independent one) — this first branch must never fire for a Lab 2
-    // input, or picking a Lab 2 priority would also silently overwrite Lab
-    // 1's already-submitted moduleOneState.priority.
-    if (['verdict', 'priority', 'phase', 'decision'].includes(input.name) && !input.closest('#m01-lab2-form')) {
+    if (['verdict', 'priority', 'phase', 'decision'].includes(input.name)) {
       moduleOneState[input.name] = input.value;
       moduleOneState.validationError = '';
-      moduleOneSave();
-    }
-    if (['intake', 'priority', 'containment', 'verdict'].includes(input.name) && input.closest('#m01-lab2-form')) {
-      moduleOneState.lab2[input.name] = input.value;
-      moduleOneState.lab2.validationError = '';
       moduleOneSave();
     }
   });
@@ -1370,14 +1279,6 @@ function wireModuleOneLab() {
         const nextSlot = slots[slots.indexOf(slot) + 1];
         if (nextSlot) nextSlot.focus();
       }
-      return;
-    }
-
-    const lab2Textarea = event.target.closest('[data-m01-lab2-field]');
-    if (lab2Textarea) {
-      const fieldKey = lab2Textarea.dataset.m01Lab2Field;
-      moduleOneState.lab2.handoff[fieldKey] = lab2Textarea.value;
-      moduleOneSave();
       return;
     }
 
@@ -1528,52 +1429,6 @@ function wireModuleOneLab() {
       return;
     }
 
-    if (event.target.id === 'm01-lab2-form') {
-      event.preventDefault();
-      const lab2Data = MODULE_ONE_ESCALATION_LAB;
-      const missing = ['intake', 'priority', 'containment', 'verdict'].filter((name) => !moduleOneState.lab2[name]);
-      const evidenceMissing = lab2Data.scenario.evidence.length - moduleOneState.lab2.reviewedEvidence.length;
-      const h = moduleOneState.lab2.handoff;
-      const handoffMissing = lab2Data.handoffFields.filter((field) => {
-        const value = (h[field.key] || '').trim();
-        return value.length < field.minLength;
-      }).map((field) => field.label);
-
-      if (missing.length || handoffMissing.length || evidenceMissing) {
-        const parts = [];
-        if (evidenceMissing) parts.push(`${evidenceMissing} evidence record${evidenceMissing === 1 ? '' : 's'} not reviewed`);
-        if (missing.length) parts.push(`decision${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}`);
-        if (handoffMissing.length) parts.push(`handoff: ${handoffMissing.join(', ')}`);
-        moduleOneState.lab2.validationError = 'Complete all sections. Missing: ' + parts.join('; ') + '.';
-        moduleOneSave();
-        moduleOneRenderDynamic('m01-lab2-feedback');
-        return;
-      }
-
-      const result = moduleOneLab2Score();
-      moduleOneState.lab2.attempts += 1;
-      moduleOneState.lab2.score = result.score;
-      moduleOneState.lab2.breakdown = result.breakdown;
-      moduleOneState.lab2.feedback = result.feedback;
-      moduleOneState.lab2.validationError = '';
-      if (typeof recordLabAttempt === 'function') {
-        const attemptFields = {
-          state: 'complete',
-          score: result.score,
-          result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleOneState.lab2.attempts, critical_errors: result.breakdown.criticalErrors },
-        };
-        recordLabAttempt(moduleOneUser, 'lab-soc-escalation', attemptFields);
-      }
-      moduleOneState.lab2.completed = true;
-      moduleOneSave();
-      if (typeof markModuleLabComplete === 'function') {
-        markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
-      }
-      moduleOneSyncCompletion();
-      moduleOneRenderDynamic('m01-lab2-feedback');
-      moduleOneRefreshHeroProgress();
-      return;
-    }
   });
 
   // Lesson work event listeners. Delegated on #m01-lessons rather than

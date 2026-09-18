@@ -214,9 +214,34 @@ const SEED_ALERTS = [
     event:{ user:'j.santos@missionnextlabs.example', source_ip:'185.220.101.24', country:'RO',
             failed_attempts:8, first_failure:'2026-06-28T09:02:11Z', succeeded_at:'2026-06-28T09:09:41Z',
             client_app:'Browser (unmanaged)', risk_level:'High' } },
+  // Module 01's independent SIEM performance case. These are synthetic
+  // training records; learners must correlate them in the simulator rather
+  // than copying a prewritten LMS timeline into a worksheet.
+  { id:'NST-2407-1', severity:'high', title:'Impossible-travel sign-in with MFA fatigue indicators',
+    status:'New', category:'Credential access', detectionSource:'Entra ID Protection', asset:'a.chen@missionnextlabs.example',
+    firstActivity:'2026-06-29T09:18:00Z', incidentId:'NST-2407',
+    event:{ user:'a.chen@missionnextlabs.example', source_ip:'198.51.100.24', managed_device_claim:'Absent', mfa_result:'Approved after 3 denied prompts', risk_level:'High' } },
+  { id:'NST-2407-2', severity:'high', title:'mshta.exe followed by PowerShell external connection',
+    status:'New', category:'Execution', detectionSource:'Microsoft Defender for Endpoint', asset:'LAP-442',
+    firstActivity:'2026-06-29T09:24:00Z', incidentId:'NST-2407',
+    event:{ device:'LAP-442', user:'a.chen@missionnextlabs.example', parent_process:'mshta.exe', path:'C:\\Users\\a.chen\\Downloads', process:'powershell.exe', remote_ip:'198.51.100.24' } },
+  { id:'NST-2407-3', severity:'high', title:'Unusual upload to correlated external address',
+    status:'New', category:'Exfiltration', detectionSource:'Proxy', asset:'LAP-442',
+    firstActivity:'2026-06-29T09:27:00Z', incidentId:'NST-2407',
+    event:{ device:'LAP-442', destination_ip:'198.51.100.24', uploaded_mb:34, other_hosts:'None in available window' } },
+  { id:'NST-2407-4', severity:'high', title:'User denies MFA approval and downloaded-file execution',
+    status:'New', category:'Credential access', detectionSource:'Service desk', asset:'a.chen@missionnextlabs.example',
+    firstActivity:'2026-06-29T09:41:00Z', incidentId:'NST-2407',
+    event:{ user:'a.chen@missionnextlabs.example', callback:'Laptop confirmed in possession; user denies approving MFA prompts or running the downloaded file.' } },
 ];
 
 const INCIDENTS = [
+  { id:'NST-2407', severity:'high', title:'Possible account takeover followed by endpoint execution',
+    status:'New', assignedTo:'L1-Triage', classification:'',
+    tactics:['Credential Access','Execution','Exfiltration'], alertIds:['NST-2407-1','NST-2407-2','NST-2407-3','NST-2407-4'],
+    entities:[{type:'User',name:'a.chen@missionnextlabs.example'},{type:'Device',name:'LAP-442'},{type:'IP',name:'198.51.100.24'}],
+    createdAt:'2026-06-29T09:18:00Z', alertCount:4,
+    summary:'Correlated identity, endpoint, proxy, and user-confirmation evidence supports compromise of a.chen and LAP-442. No available evidence establishes lateral movement.' },
   { id:'INC-1019', severity:'high', title:'Suspected identity attack on domain controller',
     status:'In progress', assignedTo:'Me', classification:'',
     tactics:['Credential Access','Persistence'], alertIds:['A101','A102'],

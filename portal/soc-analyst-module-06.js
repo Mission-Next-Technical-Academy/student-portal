@@ -496,7 +496,7 @@ function moduleSixGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: MODULE_SIX_LESSONS.every((lesson) => moduleSixLessonComplete(lesson)), scrollId: 'm06-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSixQuizState?.passed, scrollId: 'm06-knowledge-check' },
-    { id: 'threat-hunt-lab', title: 'Threat Hunt Labs', type: 'lab', isComplete: moduleSixState.completed && moduleSixState.independentLab.completed, scrollId: 'm06-lab' },
+    { id: 'threat-hunt-lab', title: 'Module Lab', type: 'lab', isComplete: moduleSixState.completed && moduleSixState.independentLab.completed, scrollId: 'm06-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm06-review' },
   ];
 }

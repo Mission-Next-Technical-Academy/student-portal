@@ -5801,6 +5801,8 @@ body.coach-bar-open { padding-bottom: 104px; }
 .mnt-corner-btn[hidden] { display: none; }
 .mnt-corner-btn span { font-size: 13px; }
 .mnt-tour-btn { color: #1e3a5f; border-color: #b9c7d8; }
+.mnt-submit-btn { color: #f97316; border-color: #fed7aa; background: #fff; }
+.mnt-submit-btn:hover { color: #ea580c; border-color: #f97316; }
 /* The coach step bar docks full-width along the same bottom edge while a
    walkthrough is running — lift the corner dock above it so neither covers
    the other. */

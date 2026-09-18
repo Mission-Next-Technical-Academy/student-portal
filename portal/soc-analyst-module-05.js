@@ -500,7 +500,7 @@ function moduleFiveGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm05-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleFiveQuizState?.passed, scrollId: 'm05-knowledge-check' },
-    { id: 'endpoint-lab', title: 'Endpoint Lab', type: 'lab', isComplete: moduleFiveState.completed, scrollId: 'm05-lab' },
+    { id: 'endpoint-lab', title: 'Module Lab', type: 'lab', isComplete: moduleFiveState.completed, scrollId: 'm05-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm05-review' },
   ];
 }

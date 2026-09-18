@@ -468,7 +468,7 @@ function moduleSevenGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm07-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSevenQuizState?.passed, scrollId: 'm07-knowledge-check' },
-    { id: 'investigation-lab', title: 'Investigation Lab', type: 'lab', isComplete: moduleSevenState.completed, scrollId: 'm07-lab' },
+    { id: 'investigation-lab', title: 'Module Lab', type: 'lab', isComplete: moduleSevenState.completed, scrollId: 'm07-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm07-review' },
   ];
 }

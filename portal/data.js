@@ -1891,7 +1891,7 @@ const MODULE_ONE_ALERT_ORIENTATION = {
  * assess a decision and its downstream consequence accurately. */
 const MODULE_ONE_ESCALATION_LAB = {
   id: 'M01-DAY1-CASE',
-  title: 'Northstar Finance: multi-day incident triage',
+  title: 'Mission Next Labs: multi-day incident triage',
   minutes: 480,
   passingScore: 70,
   scenario: {
@@ -1974,9 +1974,9 @@ const LABS = [
     parentAllocations: [allocation('SOC-101.4', 120)], objective: 'Validate one identity alert, classify it from visible evidence, and document a proportionate triage decision.',
     description: 'Learn what a SOC analyst does, follow the incident response lifecycle, and triage one clear identity alert with step-by-step coaching.',
     skills: ['SOC Operations', 'Incident Response Lifecycle', 'Alert Triage', 'Case Notes'], portalEntry: '#/program/soc-analyst/module/1' }),
-  labRecord({ key: 'lab-soc-escalation', module: 'soc-01', title: 'Northstar Finance: Multi-Day Incident Triage', difficulty: 'Foundational', minutes: 480,
+  labRecord({ key: 'lab-soc-escalation', module: 'soc-01', title: 'Mission Next Labs: Multi-Day Incident Triage', difficulty: 'Foundational', minutes: 480,
     parentAllocations: [allocation('SOC-101.4', 180), allocation('SOC-101.5', 180), allocation('SOC-101.6', 120)], objective: 'Correlate fixed identity, endpoint, and proxy evidence over multiple sittings; request proportionate containment; and produce a defensible handoff.',
-    description: 'Work a multi-day account-takeover and endpoint-compromise case. A containment choice changes the later evidence record; submit the complete handoff for instructor review.',
+    description: 'Perform the investigation in the simulated SIEM, correlating the incident, identity, endpoint, and proxy evidence before selecting a proportionate escalation. The handoff records the reasoning and supports faculty review; it is not a substitute for the simulator work.',
     skills: ['SIEM', 'Identity Investigation', 'Endpoint Triage', 'Incident Escalation', 'Case Notes'], simEntry: '#/sentinel/incidents' }),
   labRecord({ key: 'lab-identity-investigation', module: 'soc-02', title: 'Suspicious Authentication Investigation', difficulty: 'Foundational', minutes: 180,
     parentAllocations: [allocation('SOC-101.4', 60), allocation('SOC-101.5', 120)], objective: 'Correlate authentication, network, and access-change records to identify and escalate one risky identity pattern.',

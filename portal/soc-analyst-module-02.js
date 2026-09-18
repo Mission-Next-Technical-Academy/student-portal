@@ -669,7 +669,7 @@ function moduleTwoGetSections() {
     { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: true, scrollId: 'm02-foundations' },
     { id: 'trust-model', title: 'Trust Model', type: 'lecture', isComplete: true, scrollId: 'm02-model' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleTwoQuizState?.passed, scrollId: 'm02-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleTwoState.completed, scrollId: 'm02-guided-lab' },
+    { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: moduleTwoState.completed, scrollId: 'm02-guided-lab' },
   ];
 }
 

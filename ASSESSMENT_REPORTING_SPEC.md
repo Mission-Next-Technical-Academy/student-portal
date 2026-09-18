@@ -92,6 +92,25 @@ on fail). All 12 modules share **passing score: 70/100** (Module 12 states it
 as 70%, same threshold). Attempts are unlimited; `lab_attempts` keeps every
 attempt, `module_progress`/UI show best score.
 
+Simulator-based work is the performance artifact. Notes, worksheets, and
+handoffs document the learner's reasoning but cannot be treated as a substitute
+for completing the required investigation and decision actions in the simulated
+environment. Instructor reporting must expose competency-level strengths,
+developing areas, and missed or unsafe actions across the full six-week SOC
+experience, in addition to an overall score.
+
+### Faculty approval gate
+
+For simulator-assessed modules, learner completion submits a **pending faculty
+review** attempt. It does not post a final passing score, mark the module
+complete, or unlock the next module. The instructor review record must show
+each competency's evidence, pass/fail result, percentage, misses, and a
+generated recommendation that faculty can edit or replace with narrative
+feedback. The instructor may return the attempt for remediation or approve it.
+Only approval persists the approved score, evaluator, timestamp, competency
+feedback, and next-module release. This provides a defensible record of both
+automated performance evidence and human academic judgment.
+
 | Module | Title | Format | Rubric categories (points) | Pass |
 |---|---|---|---|---|
 | 01 | SOC Operations Foundations | Coach-guided walkthrough + fill-in-the-blank timeline + scored triage worksheet | Not category-split in the same way as 02-11 — single composite score | 70/100 |

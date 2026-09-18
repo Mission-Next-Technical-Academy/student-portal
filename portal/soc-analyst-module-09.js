@@ -518,8 +518,7 @@ function moduleNineGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm09-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleNineQuizState?.passed, scrollId: 'm09-knowledge-check' },
-    { id: 'guided-response-lab', title: 'Guided ransomware response', type: 'lab', isComplete: moduleNineState.completed, scrollId: 'm09-lab' },
-    { id: 'independent-response-lab', title: 'Independent response drill', type: 'lab', isComplete: moduleNineSecondState?.completed, scrollId: 'm09-independent-title' },
+    { id: 'module-lab', title: 'Module Lab', type: 'lab', isComplete: moduleNineState.completed && moduleNineSecondState?.completed, scrollId: 'm09-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm09-review' },
   ];
 }

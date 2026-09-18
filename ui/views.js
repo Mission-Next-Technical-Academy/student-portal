@@ -1640,6 +1640,7 @@ VIEWS['defender/incident'] = () => {
       </div>
     </div>
 
+    ${inc.id === 'NST-2407' ? `<div class="callout warning" id="m01-assigned-case-callout" style="margin-bottom:12px;"><strong>Assigned performance case.</strong> Correlate all four alerts, inspect the affected identity and device, then escalate within L1 authority. Submit from the floating button in the corner whenever you're ready — no need to come back to this page first. <button id="m01-escalate-btn" class="btn btn-primary btn-sm" onclick="recordAssignedCaseAction('NST-2407','escalated');toast('Escalation recorded for the Module 01 performance case.')">Escalate to incident response</button></div>` : ''}
     <div class="incident-command-bar">
       <button class="btn btn-secondary btn-sm" onclick="toast('Incident classified (lab stub).')">Classify</button>
       <button class="btn btn-secondary btn-sm" onclick="toast('Comment added (lab stub).')">Add comment</button>
@@ -4122,6 +4123,7 @@ VIEWS['sentinel/incidents'] = () => `
     <strong>Unified response lens:</strong> Sentinel incidents can be investigated from Defender XDR when Mission Next Labs security signals are connected.
     Keep Sentinel analytics, automation, bookmarks, and Graph context visible while using Defender XDR for the unified incident story and response actions.
   </div>
+  ${new URLSearchParams(location.search).get('case') === 'NST-2407' ? `<div class="callout warning" style="margin-top:12px;"><strong>Assigned performance case:</strong> Open the assigned incident and investigate the correlated alerts, entities, and evidence in this simulator. Your analyst actions here are the assignment.</div>` : ''}
   <div class="card" style="margin-top:16px;">
     <div class="card-toolbar"><strong>${INCIDENTS.length}</strong> incidents<span class="muted">Mapped to Defender XDR incident IDs for this lab</span></div>
     <table class="grid">

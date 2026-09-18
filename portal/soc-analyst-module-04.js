@@ -484,7 +484,7 @@ function moduleFourGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm04-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleFourQuizState?.passed, scrollId: 'm04-knowledge-check' },
-    { id: 'detection-lab', title: 'Detection Lab', type: 'lab', isComplete: moduleFourState.completed, scrollId: 'm04-lab' },
+    { id: 'detection-lab', title: 'Module Lab', type: 'lab', isComplete: moduleFourState.completed, scrollId: 'm04-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm04-review' },
   ];
 }

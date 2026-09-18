@@ -5,6 +5,15 @@ let alerts = SEED_ALERTS.map(a => ({ ...a, event: { ...a.event } }));
 let rules = loadRules();
 let lastAttackStorySelection = null;
 
+function recordAssignedCaseAction(caseId, action) {
+  if (caseId !== 'NST-2407' || !window.opener || window.opener.closed) return;
+  // Local development runs the portal and simulator on sibling ports; deployed
+  // Pages uses one origin. document.referrer gives the opener origin in both.
+  let openerOrigin = location.origin;
+  try { if (document.referrer) openerOrigin = new URL(document.referrer).origin; } catch {}
+  window.opener.postMessage({ source: 'mission-next-siem', caseId, action }, openerOrigin);
+}
+
 function loadRules() {
   const raw = localStorage.getItem('defender-lab.rules');
   if (raw) { try { return JSON.parse(raw); } catch {} }
@@ -335,6 +344,7 @@ function hidePanels() {
 function openAlert(id) {
   const a = alerts.find(x => x.id === id);
   if (!a) return;
+  if (a.incidentId === 'NST-2407') recordAssignedCaseAction('NST-2407', `alert_opened:${id}`);
   document.getElementById('alert-title').textContent = a.title;
   document.getElementById('alert-body').innerHTML = renderAlertDetail(a);
   showPanel('panel-alert');
@@ -402,6 +412,7 @@ function toggleScriptMitre(alertId) {
 function openIncident(id) {
   const inc = INCIDENTS.find(i => i.id === id);
   if (!inc) return;
+  if (id === 'NST-2407') recordAssignedCaseAction(id, 'incident_opened');
   document.getElementById('incident-title').textContent = inc.title;
   document.getElementById('incident-body').innerHTML = renderIncidentDetail(inc);
   showPanel('panel-incident');
@@ -409,6 +420,7 @@ function openIncident(id) {
 }
 
 function openIncidentPage(id) {
+  if (id === 'NST-2407') recordAssignedCaseAction(id, 'incident_opened');
   sessionStorage.setItem('defender-lab.incident.id', id);
   sessionStorage.setItem('defender-lab.incident.tab', 'attack-story');
   hidePanels();
@@ -2539,6 +2551,7 @@ function setDiscoveredTab(tab) {
 
 // ---------- Defender for Endpoint device pages ----------
 function openDevice(id, tab) {
+  if (id === 'LAP-442') recordAssignedCaseAction('NST-2407', 'entity_opened:LAP-442');
   sessionStorage.setItem('defender-lab.device.id', id);
   sessionStorage.setItem('defender-lab.device.tab', tab || 'overview');
   hidePanels();
@@ -3241,6 +3254,7 @@ function wireHuntingResults() {
 
 // ---------- Defender for Identity ↔ XDR identity pages ----------
 function openIdentity(id, tab) {
+  if (id === 'a.chen@missionnextlabs.example') recordAssignedCaseAction('NST-2407', 'entity_opened:a.chen@missionnextlabs.example');
   sessionStorage.setItem('defender-lab.identity.id', id);
   sessionStorage.setItem('defender-lab.identity.tab', tab || 'overview');
   hidePanels();

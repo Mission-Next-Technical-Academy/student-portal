@@ -103,6 +103,9 @@
       <button type="button" class="mnt-corner-btn mnt-tour-btn" id="mnt-tour-btn" hidden>
         <span aria-hidden="true">🧭</span> Take the tour
       </button>
+      <button type="button" class="mnt-corner-btn mnt-submit-btn" id="mnt-submit-btn" hidden>
+        <span aria-hidden="true">📤</span> Submit Module Lab
+      </button>
       <a href="#" class="mnt-corner-btn mnt-exit-btn" id="mnt-exit-btn" title="Return to your coursework">
         <span aria-hidden="true">←</span> Coursework
       </a>`;
@@ -117,6 +120,14 @@
       start(tour.id);
       refreshCornerDock();
     });
+    // Floating, not tied to any one page: an assigned performance case is
+    // module-level work, not "the incident view's" — the analyst should be
+    // free to move through the whole console (assets, hunting, the queue)
+    // the way a real shift works, and still submit from wherever they are.
+    dock.querySelector('#mnt-submit-btn').addEventListener('click', () => {
+      if (typeof recordAssignedCaseAction === 'function') recordAssignedCaseAction('NST-2407', 'submit_for_faculty');
+      if (typeof toast === 'function') toast('Submitted for faculty review — switch back to your course tab to confirm.');
+    });
     refreshCornerDock();
   }
 
@@ -125,6 +136,8 @@
   function refreshCornerDock() {
     const btn = document.getElementById('mnt-tour-btn');
     if (!btn) return;
+    const submitBtn = document.getElementById('mnt-submit-btn');
+    if (submitBtn) submitBtn.hidden = new URLSearchParams(location.search).get('case') !== 'NST-2407';
     const tour = !activeCoach() && tourForCurrentModule();
     btn.hidden = !tour;
   }

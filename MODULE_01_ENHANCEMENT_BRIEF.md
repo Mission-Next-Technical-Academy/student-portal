@@ -45,11 +45,71 @@ and evidence distinct.
 ### Lab 2 — Independent escalation and handoff (60 minutes)
 
 - Use a fresh incident rather than reusing Lab 1's exact decision path.
+- Make the simulated SIEM investigation the assignment. Learners must work the
+  incident, alerts, entities, and pivots in the simulator; an LMS worksheet or
+  copied timeline cannot stand in for that performance.
 - Ask the learner to identify the affected entity, likely scope, priority, and
   appropriate escalation boundary.
 - Require a structured handoff note with observations, analysis, scope, and
-  requested next action.
-- Evaluate against a visible rubric and retain the submitted evidence.
+  requested next action as the analyst's supporting record of the simulator
+  work—not as the assignment by itself.
+- Evaluate against a visible, competency-level rubric and retain the simulator
+  activity, selected decisions, handoff, score, and attempt history.
+
+## Performance assessment and faculty review
+
+This six-week, internship-style program assesses observable analyst work in a
+simulated environment. Written notes are evidence of reasoning and
+communication, but they do not replace performing the investigation in the
+SIEM.
+
+For every assessed simulator case, the saved instructor record must show:
+
+- the required SIEM actions and whether each was completed (for example:
+  incident review, alert/entity pivots, evidence correlation, supported scope,
+  triage disposition, and an in-authority escalation request);
+- a competency result for Observation, Analysis, Scope, Decision/Authority,
+  and Communication/Handoff;
+- the evidence or decision that supports each result;
+- every missed requirement, including unsafe or unsupported actions, in a
+  prominent instructor-facing feedback panel; and
+- strengths and developing areas that can be aggregated across Modules 1–12
+  for each learner's end-of-mission review.
+
+The learner-facing view may show immediate coaching. The faculty view must
+preserve the complete attempt record and make misses actionable: identify the
+competency, the expected simulator action or decision, what the learner did,
+and the suggested remediation. A final course review therefore reports both a
+score and a competency profile; it must never infer competency solely from
+opening a simulator or writing a sufficiently long note.
+
+### Faculty approval and Module 2 release
+
+The learner's **Complete Module** action submits the simulator attempt to the
+instructor. It must not itself award a passing score, mark the module passed,
+or unlock Module 2. The submission enters a `pending faculty review` state.
+
+The instructor review panel must reveal, for every assessed competency:
+
+- completion evidence from the simulated SIEM;
+- a pass/fail result and percentage for that competency and the overall
+  performance score;
+- a concise system-generated recommendation that the instructor can keep,
+  edit, or replace with hand-typed feedback; and
+- any missed, unsupported, or unsafe action, with the required remediation.
+
+The instructor must be able to add narrative feedback and choose one of two
+outcomes:
+
+1. **Return for remediation** — preserves the attempt and feedback, keeps
+   Module 2 gated, and tells the learner which competencies need more work.
+2. **Approve submission** — posts the approved passing score and competency
+   results, records the evaluator and approval time, marks Module 1 complete,
+   and unlocks Module 2.
+
+Faculty approval is deliberately separate from automated scoring. Automation
+organizes the evidence and makes missed competencies visible; the instructor
+owns the final academic decision and feedback.
 
 ## Completion and assessment
 

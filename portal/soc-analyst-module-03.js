@@ -506,7 +506,7 @@ function moduleThreeGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm03-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleThreeQuizState?.passed, scrollId: 'm03-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleThreeState.completed, scrollId: 'm03-lab' },
+    { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: moduleThreeState.completed, scrollId: 'm03-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm03-review' },
   ];
 }
