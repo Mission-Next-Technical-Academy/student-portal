@@ -32,8 +32,14 @@
 1. Run one concise live workflow: a controlled student simulator submission,
    faculty **Return for remediation**, resubmission, faculty **Approve
    submission**, then confirm Module 2 changes from locked to available.
-2. Review the full uncommitted diff before committing. Nothing is committed or
-   pushed to GitHub in this session.
+   This was deliberately paused before it wrote any UAT data on 2026-09-18;
+   it remains required before calling the faculty gate end-to-end verified.
+2. Review the full uncommitted diff before committing. **Done 2026-09-18:**
+   reviewed the complete release unit, confirmed `git diff --check`, targeted
+   `node --check`, `node bin/portal-check.js`, and linked migration parity;
+   committed as `d0b751e` (`Ship Module 1 SIEM performance assessment`) and
+   pushed `master` at the owner's direction. The worktree was clean after
+   push. Pages deployment was in progress when recorded.
 3. Self-check pane redesign (see design decision below) — new, not started.
 4. `module-completion-integrity/BRIEF.md` remains queued and unstarted; do not
    begin it until items 1-3 above are verified.
@@ -156,11 +162,11 @@ mirrors the project's established per-sprint handoff convention
 
 - [ ] **Sprint A** — Faculty gate live-workflow verification (remaining-work
   item 1 above): submit → return for remediation → resubmit → approve →
-  confirm Module 2 unlocks. Read-only/manual testing, no code changes
-  expected.
-- [ ] **Sprint B** — Diff review + commit (remaining-work item 2). Only after
-  Sprint A passes. Review the full uncommitted diff, commit; do not push
-  without asking first.
+  confirm Module 2 unlocks. Manual testing, no code changes expected. Paused
+  before submission on 2026-09-18; no UAT workflow state was changed.
+- [x] **Sprint B** — Diff review + commit (remaining-work item 2). Completed
+  2026-09-18 after owner-directed release sync: full review/check pass,
+  commit `d0b751e`, pushed to `origin/master`.
 - [ ] **Sprint C** — Self-check pane build (remaining-work item 3, the design
   decision above):
   - [ ] C1. Add `simulatorSelfCheck` to the `detail` beacon shape in
@@ -199,6 +205,15 @@ mirrors the project's established per-sprint handoff convention
   This sprint is independent of Sprints A-D (different feature area, no
   shared code) — a future session may pull it forward instead of doing it
   strictly last, at that session's discretion.
+- [ ] **Sprint F** — Microsoft wording review and resolution. Start only
+  after the critical Sprints A, C, D, and E are complete and verified. Audit
+  student-facing simulator and portal wording for unnecessary Microsoft
+  product/brand phrasing, distinguish accurate contextual references from
+  wording that should be made platform-neutral or Mission Next-specific, and
+  update approved copy without introducing copied proprietary text. Preserve
+  required attribution/disclaimer language and the existing no-proprietary-
+  code rule. Document the final wording decisions and run the normal portal
+  regression checks.
 
 When every sprint above is checked off and verified, `git mv` this file into
 `archive/` per `CLAUDE.md`'s "When to archive a doc" rule.
