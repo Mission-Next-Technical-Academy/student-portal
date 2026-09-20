@@ -411,12 +411,22 @@ function moduleTwelveGetQuickNavItems() {
   ];
 }
 
+function moduleTwelveGetSections() {
+  const complete = Boolean(moduleTwelveState.completed);
+  return [
+    { id: 'preparation', title: 'Capstone preparation', type: 'lecture', isComplete: true, scrollId: 'm12-preparation' },
+    { id: 'mission', title: 'Mission requirements', type: 'lab', isComplete: complete, scrollId: 'm12-mission-title' },
+    { id: 'investigation', title: 'Investigation consoles', type: 'lab', isComplete: complete, scrollId: 'm12-range' },
+    { id: 'assessment', title: 'Capstone submission', type: 'review', isComplete: complete, scrollId: 'm12-assessment-section' },
+  ];
+}
+
 function viewModuleTwelve(user, program) {
   moduleTwelveLoad(user, program);
   if (!moduleTwelveUnlocked(user, program)) return moduleTwelveLockedView(user, program);
   const module = program.modules['soc-12'];
-  const quickNavItems = moduleTwelveGetQuickNavItems();
-  return `<div class="m12-shell">${moduleTwelveHeader(user, program)}<div class="mquick-nav-layout">${moduleQuickNavRail(quickNavItems, { moduleKey: 'm12' })}<main class="m12-main">
+  const sections = moduleTwelveGetSections();
+  return `<div class="m12-shell">${moduleTwelveHeader(user, program)}${moduleUnifiedNav(sections, { moduleKey: 'm12' })}<div class="mquick-nav-layout"><main class="m12-main">
     <section class="m12-hero" aria-labelledby="m12-title"><div><p class="m12-kicker">Module 12 · ${formatHandsOnDuration(module.durationMinutes)} · Final Assessment</p><h1 id="m12-title">${esc(module.title)}</h1><p class="m12-kicker">Case scenario · Operation Amber Finch</p><p>Investigate a synthetic high-priority signal across the complete Mission Next security operations range. Discover what happened, bound impact, improve detection, direct response, and close the case with a portfolio-grade report. This capstone integrates all competencies from Modules 01–11 into one independent Prove assessment.</p>
       <div class="m12-hero-actions"><a class="m12-primary" href="${esc(moduleTwelveLaunchUrl())}" target="_blank" rel="noopener" data-m12-launch><i class="ri-terminal-box-line" aria-hidden="true"></i> Open integrated simulator</a><a class="m12-secondary" href="#m12-range"><i class="ri-arrow-down-line" aria-hidden="true"></i> Investigate here</a></div><p class="m12-launch-note">${moduleTwelveState.simulatorLaunched ? 'Simulator launch recorded. Portal work remains saved separately.' : 'Opens the catalogue route in a new tab; all data is fictional.'}</p></div>
       <dl><div><dt>Case</dt><dd>INC-4821</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Pass</dt><dd>${MODULE_TWELVE_PASSING_SCORE}% (seven of ten domains) + safety gate</dd></div></dl></section>

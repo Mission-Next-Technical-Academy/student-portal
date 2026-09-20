@@ -123,13 +123,24 @@ function moduleOneFinalizeSimulatorSubmission() {
   moduleOneState.simulatorPerformance.submittedAt = new Date().toISOString();
   moduleOneState.lab2.completed = true;
   moduleOneSave();
-  if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { simulator_performance: performance, breakdown: { overall: performance.score }, critical_errors: performance.unsafe_actions } });
+  if (typeof recordLabAttempt === 'function') {
+    recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { simulator_performance: performance, breakdown: { overall: performance.score }, critical_errors: performance.unsafe_actions } })
+      .then((saved) => {
+        // The new append-only attempt supersedes the returned attempt in the
+        // student UI. Faculty approval remains required by the server view.
+        if (saved && moduleOneSimulatorRedoRequested()) delete moduleOneUser.openLabRedosByModuleKey['soc-01'];
+      });
+  }
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
   moduleOneSyncCompletion(); moduleOneRenderDynamic('m01-siem-submission'); moduleOneRefreshHeroProgress();
 }
 
 function moduleOneRemoteComplete() {
   return moduleOneUser?.remoteVerifiedModuleProgress?.['soc-01'] === true;
+}
+
+function moduleOneSimulatorRedoRequested() {
+  return moduleOneUser?.openLabRedosByModuleKey?.['soc-01']?.labKey === 'lab-soc-escalation';
 }
 
 function moduleOneLoad(user) {
@@ -146,6 +157,14 @@ function moduleOneLoad(user) {
   if (typeof moduleOneState.lab2.completed !== 'boolean') moduleOneState.lab2.completed = false;
   if (!moduleOneState.simulatorPerformance || typeof moduleOneState.simulatorPerformance !== 'object') moduleOneState.simulatorPerformance = { actions: [], submitted: false, submittedAt: '' };
   if (!Array.isArray(moduleOneState.simulatorPerformance.actions)) moduleOneState.simulatorPerformance.actions = [];
+  // The returned attempt remains immutable in lab_attempts, but its saved
+  // case-state latch must not make the working case permanently unsubmitable.
+  // Scope this reset to an open redo for this exact simulator lab.
+  if (moduleOneSimulatorRedoRequested() && moduleOneState.simulatorPerformance.submitted === true) {
+    moduleOneState.simulatorPerformance.submitted = false;
+    moduleOneState.simulatorPerformance.submittedAt = '';
+    moduleOneSave();
+  }
   // `module_progress` historically recorded Module 01 as complete after a
   // coarse lab-only check. Do not manufacture the missing lesson, quiz, or
   // Lab 2 evidence from that record: the page must never show work complete
@@ -480,10 +499,11 @@ function moduleOneSimulatorPerformance() {
 }
 function moduleOneSimulatorSubmissionPanel() {
   const performance = moduleOneSimulatorPerformance(); const submitted = moduleOneState.simulatorPerformance.submitted;
+  const redoRequested = moduleOneSimulatorRedoRequested();
   const doneCount = performance.requirements.filter((item) => item.completed).length;
   return `<div class="m01-score-empty" id="m01-siem-submission" role="status" aria-live="polite">
-    <strong>${submitted ? 'Submitted for faculty review' : 'Simulator performance record'}</strong>
-    <p>${doneCount}/${performance.requirements.length} required actions recorded. ${submitted ? 'Module 2 stays locked until your instructor approves the submission.' : 'Work through the procedure below inside the simulator, then use the floating Submit Module Lab button (bottom corner, follows you anywhere in the console) to send your performance for faculty review.'}</p>
+    <strong>${submitted ? 'Submitted for faculty review' : redoRequested ? 'Returned for remediation' : 'Simulator performance record'}</strong>
+    <p>${doneCount}/${performance.requirements.length} required actions recorded. ${submitted ? 'Module 2 stays locked until your instructor approves the submission.' : redoRequested ? 'Review your instructor feedback, then submit a new performance record for faculty review.' : 'Work through the procedure below inside the simulator, then use the floating Submit Module Lab button (bottom corner, follows you anywhere in the console) to send your performance for faculty review.'}</p>
     ${!submitted ? `<ul class="m01-requirements-list">${performance.requirements.map((item) => `<li class="${item.completed ? 'is-done' : ''}"><i class="${item.completed ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'}" aria-hidden="true"></i><span>${esc(item.label)}</span></li>`).join('')}</ul>` : ''}
     ${!submitted ? `<button type="button" class="m01-submit" data-m01-submit-simulator ${performance.missed_actions.length ? 'disabled aria-disabled="true"' : ''}>${performance.missed_actions.length ? 'Complete the procedure above first' : 'Complete Module — submit to faculty'}</button>${!performance.missed_actions.length ? '<p class="m01-help">Already back on this tab? This does the same thing as Submit Module Lab inside the simulator.</p>' : ''}` : ''}
   </div>`;

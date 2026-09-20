@@ -168,8 +168,14 @@ function viewItsModuleOne(user, program) {
   its01Load(user);
   const module = program.modules['its-01'];
   const labsComplete = (its01State.lab1Complete ? 1 : 0) + (its01State.consoleCompleted ? 1 : 0);
+  const navSections = [
+    { id: 'lessons', title: 'Foundation lessons', type: 'lecture', isComplete: true, scrollId: 'its01-lessons' },
+    { id: 'environment', title: 'Environment validation', type: 'lab', isComplete: its01State.lab1Complete, scrollId: 'its01-lab-1-1' },
+    { id: 'service-desk', title: 'Service desk walkthrough', type: 'lab', isComplete: its01State.consoleCompleted, scrollId: 'its01-lab-1-2' },
+  ];
   return `<div class="its01-shell">
     ${moduleTopbar(user, program)}
+    ${moduleProgressShell(navSections, { moduleKey: 'its01' })}
     <main class="its01-main">
       <section class="its01-hero" aria-labelledby="its01-title"><div><p class="its01-kicker">Module 01 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its01-title">${esc(module.title)}</h1><p class="its01-lede">Get set up in the LMS and your lab environment, then build the five-step troubleshooting mindset you'll use in every module that follows.</p></div><dl class="its01-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>2</dd></div><div><dt>Labs complete</dt><dd id="its01-status">${labsComplete}/2</dd></div></dl></section>
 

@@ -826,7 +826,6 @@ function viewModuleFive(user, program) {
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleFiveReviewMode })}
     <div class="mquick-nav-layout">
-      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm05' })}
       <main class="m05-main">
       <section class="m05-hero" aria-labelledby="m05-title"><div><p class="m05-kicker">Module 05 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p>Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p></div><dl><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Evidence sources</dt><dd>2</dd></div><div><dt>Lab status</dt><dd id="m05-status">${moduleFiveState.completed ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 

@@ -988,7 +988,6 @@ function viewModuleTwo(user, program) {
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleTwoReviewMode })}
     <div class="mquick-nav-layout">
-      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm02' })}
       <main class="m02-main">
       <section class="m02-hero" aria-labelledby="m02-title"><div><p class="m02-kicker">Module 02 · ${formatHandsOnDuration(module.durationMinutes)} · Week 1 foundations</p><h1 id="m02-title">${esc(module.title)}</h1><p class="m02-lede">Build a practical trust model, then correlate identity, authentication, network, and role-change facts without confusing unusual activity with malicious activity.</p></div><dl class="m02-progress" aria-label="Saved module progress"><div><dt>Foundation topics</dt><dd>${module.lessons}</dd></div><div><dt>Guided lab</dt><dd>${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)}</dd></div><div><dt>Lab status</dt><dd id="m02-status">${moduleTwoState.completed ? 'Complete' : moduleTwoState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 

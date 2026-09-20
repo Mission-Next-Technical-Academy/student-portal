@@ -254,8 +254,15 @@ function viewItsModuleTwo(user, program) {
   its02Load(user);
   const module = program.modules['its-02'];
   const labsComplete = (its02State.lab21Complete ? 1 : 0) + (its02State.lab22Complete ? 1 : 0) + (its02State.consoleCompleted ? 2 : 0);
+  const navSections = [
+    { id: 'lessons', title: 'Foundation lessons', type: 'lecture', isComplete: true, scrollId: 'its02-lessons' },
+    { id: 'client-vm', title: 'Build the client VM', type: 'lab', isComplete: its02State.lab21Complete, scrollId: 'its02-lab-2-1' },
+    { id: 'recovery', title: 'Snapshot and recovery', type: 'lab', isComplete: its02State.lab22Complete, scrollId: 'its02-lab-2-2' },
+    { id: 'service-desk', title: 'Printer incident walkthrough', type: 'lab', isComplete: its02State.consoleCompleted, scrollId: 'its02-lab-2-3' },
+  ];
   return `<div class="its02-shell">
     ${moduleTopbar(user, program)}
+    ${moduleProgressShell(navSections, { moduleKey: 'its02' })}
     <main class="its02-main">
       <section class="its02-hero" aria-labelledby="its02-title"><div><p class="its02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its02-title">${esc(module.title)}</h1><p class="its02-lede">Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.</p></div><dl class="its02-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>4</dd></div><div><dt>Labs complete</dt><dd id="its02-status">${labsComplete}/4</dd></div></dl></section>
 

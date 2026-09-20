@@ -1,6 +1,22 @@
 # Module quick-nav rail + duration copy — sprint spec
 
-**Status, 2026-09-16: Sprints 1-3 DONE, committed (`7c59e22`), NOT yet
+**Status, 2026-09-20: Three-stage left-navigation sweep DONE locally.** The
+shared module navigation now makes `Learn It`, `Practice It`, and `Prove It`
+the only top-level left-rail groups; every existing navigable section is
+rendered as a child of the appropriate stage. This supersedes the previous
+flat/unified group treatment (for example, Foundations, Knowledge Check,
+Module Lab, Module Review, and Sources no longer sit as peer top-level rows).
+The shared renderer now covers all SOC, IT Support, and AI/ML module pages,
+plus Electrical's currently authored Module 01 placeholder; the M360 course
+is deliberately untouched. The original Sprints 1-4 remain complete as
+recorded below. Stage children are visibly indented (lesson
+children one level further), and the stage chevrons use a compact CSS
+slide-down/slide-up transition; `prefers-reduced-motion` disables that
+transition. No deployment or commit was performed in this sweep. Validation:
+`node --check` across portal app/module sources, `node bin/portal-check.js`
+(all modules/program overview clean), and `git diff --check` all passed.
+
+**Historical status, 2026-09-16: Sprints 1-3 DONE, committed (`7c59e22`), NOT yet
 pushed to `master` — needs explicit go-ahead since push auto-deploys to
 the live GitHub Pages site. Sprint 4 (new, owner feedback) also DONE in
 that same commit — see its section below.** Sprints 1-2 built via two
@@ -216,7 +232,7 @@ timing out in this session's browser tooling (matches the pre-existing
 this doc's history) — a clean screenshot after the flakiness cleared also
 confirmed the collapsed heading renders correctly above the rail/hero.
 
-## Out of scope / do not touch
+## Superseded scope note
 
 - `soc-analyst-track-reimagining/STATE.md` and `portal/index.html`'s
   current uncommitted edits — per `HANDOFF.md`, another session's WIP.
@@ -224,7 +240,8 @@ confirmed the collapsed heading renders correctly above the rail/hero.
   auto-format them incidentally.
 - Arc A/B curriculum reconciliation — unrelated active workstream, see
   `NEXT_SESSION.md`.
-- AI/ML module parity — fast-follow, not this sprint.
+- AI/ML module parity was a fast-follow for the original 2026-09-16 sprint;
+  it is included in the completed 2026-09-20 shared-navigation sweep above.
 
 ## Verification before commit
 

@@ -136,16 +136,21 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
   const module = program.modules[moduleKey];
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', moduleKey);
   const numLabel = String(moduleNumber).padStart(2, '0');
+  const navSections = [
+    { id: 'learn', title: 'Lessons', type: 'lecture', isComplete: true, scrollId: `itss-lessons-${numLabel}` },
+    { id: 'practice', title: 'Guided lab', type: 'lab', isComplete: lab?.complete === true, scrollId: `itss-lab-${numLabel}` },
+  ];
   return `<div class="itss-shell">
     ${moduleTopbar(user, program)}
+    ${moduleProgressShell(navSections, { moduleKey: `its${numLabel}` })}
     <main class="itss-main">
       <section class="itss-hero" aria-labelledby="itss-title-${numLabel}"><p class="itss-kicker">Module ${numLabel} · ${formatInstructionalMinutes(module.durationMinutes)} · Week ${esc(String(module.week))}</p><h1 id="itss-title-${numLabel}">${esc(module.title)}</h1><p class="itss-lede">${esc(lede)}</p></section>
 
-      <section class="itss-section" aria-labelledby="itss-lessons-title-${numLabel}"><div class="itss-section-heading"><span>L</span><div><p class="itss-kicker">Learn</p><h2 id="itss-lessons-title-${numLabel}">${lessons.length} foundation lesson${lessons.length === 1 ? '' : 's'}</h2></div></div><p class="itss-instruction">Open each lesson for the full walkthrough, then work its Try It Yourself exercise.</p>
+      <section class="itss-section" id="itss-lessons-${numLabel}" aria-labelledby="itss-lessons-title-${numLabel}"><div class="itss-section-heading"><span>L</span><div><p class="itss-kicker">Learn</p><h2 id="itss-lessons-title-${numLabel}">${lessons.length} foundation lesson${lessons.length === 1 ? '' : 's'}</h2></div></div><p class="itss-instruction">Open each lesson for the full walkthrough, then work its Try It Yourself exercise.</p>
         <div class="itss-lesson-grid">${lessons.map(itsSimpleLessonCard).join('')}</div>
       </section>
 
-      <section class="itss-section its-coach-lab" aria-labelledby="itss-lab-title-${numLabel}"><div class="itss-section-heading"><span>P</span><div><p class="itss-kicker">Prove${lab ? ' · guided walkthrough' : ''}</p><h2 id="itss-lab-title-${numLabel}">Guided lab</h2></div></div>
+      <section class="itss-section its-coach-lab" id="itss-lab-${numLabel}" aria-labelledby="itss-lab-title-${numLabel}"><div class="itss-section-heading"><span>P</span><div><p class="itss-kicker">Practice It${lab ? ' · guided walkthrough' : ''}</p><h2 id="itss-lab-title-${numLabel}">Guided lab</h2></div></div>
         ${lab
           ? `<p class="itss-instruction">${esc(lab.description)}</p>${itsCoachLaunchCard({ coachId: lab.coachId, complete: lab.complete })}`
           : itswInDevelopment({ title: 'Lab content in development', previewText: labPreview })}

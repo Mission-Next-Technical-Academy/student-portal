@@ -1012,7 +1012,6 @@ function viewModuleThree(user, program) {
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleThreeReviewMode })}
     <div class="mquick-nav-layout">
-      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm03' })}
       <main class="m03-main">
       <section class="m03-hero" aria-labelledby="m03-title">
         <div><p class="m03-kicker">Module 03 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m03-title">${esc(module.title)}</h1><p>Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p></div>

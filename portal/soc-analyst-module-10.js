@@ -761,7 +761,6 @@ function viewModuleTen(user, program) {
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleTenReviewMode })}
     <div class="mquick-nav-layout">
-      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm10' })}
       <main class="m10-main">
       <section class="m10-hero" aria-labelledby="m10-title"><div><p class="m10-kicker">Module 10 · ${formatHandsOnDuration(module.durationMinutes)} · independent</p><h1 id="m10-title">${esc(module.title)}</h1><p>Preserve incident evidence, document custody, and reconstruct a separate case from chronology and demonstrated behavior. ATT&CK remains subordinate to the evidence as a behavior framework; it does not replace the case record.</p></div><dl aria-label="Module lab progress"><div><dt>Independent labs</dt><dd>${module.labs}</dd></div><div><dt>Passing score</dt><dd>${MODULE_TEN_PASSING_SCORE}</dd></div><div><dt>Completed</dt><dd id="m10-completed">${[moduleTenCustodyState, moduleTenMappingState].filter((state) => state.completed).length}/${module.labs}</dd></div></dl></section>
 

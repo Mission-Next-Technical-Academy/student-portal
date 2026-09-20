@@ -1001,7 +1001,6 @@ function viewModuleFour(user, program) {
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleFourReviewMode })}
     <div class="mquick-nav-layout">
-      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm04' })}
       <main class="m04-main">
       <section class="m04-hero" aria-labelledby="m04-title">
         <div><p class="m04-kicker">Module 04 · ${formatHandsOnDuration(module.durationMinutes)} · assisted workflow</p><h1 id="m04-title">${esc(module.title)}</h1><p>Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p></div>

@@ -49,6 +49,9 @@
    `supabase/migrations/`, no message/inbox/compose UI in `portal/app.js` or
    any `soc-analyst-module-*.js`), and it was not previously written into
    this or any other handoff doc.
+6. Remove the coach/tour walkthrough system and the redundant "Triage
+   worksheet locked" card from Module 1 (see design decision below) — new,
+   not started.
 
 ## Design decision — self-check pane replaces live-graded checklist (owner, 2026-09-18)
 
@@ -151,6 +154,144 @@ read receipts beyond a simple `read_at` timestamp, and any change to the
 grading queue's own feedback-input mechanism — messaging is a separate
 channel from graded feedback, not a replacement for it.
 
+## Design decision — remove the coach/tour walkthrough system entirely (owner, 2026-09-18)
+
+**Ask (owner, verbatim from chat, three separate messages).**
+1. On the `m01-coach` card ("Your coach — First, verify what the alert is
+   claiming... Did access succeed? Is the context expected? What does the
+   user say?"): "this is not necessary...all those cards referencing coach
+   is not necessary...that's what the soon to be messaging system to the
+   teachers is for."
+2. On the "Optional walkthrough · 10 minutes / Console walkthrough:
+   investigate an alert" card: "this is also unnecessary....the student
+   must go into the range...and yes it must run like a range...the student
+   will be on day one of being on the job."
+3. Clarifying question asked back (scope: just the one quoted card / all
+   analytical-hint cards but keep mechanical tool orientation / the entire
+   coach+tour engine) — **owner picked "the entire coach/tour system."**
+4. On the "Triage worksheet locked — Record every fact correctly first. A
+   wrong answer keeps the current fact open and the remaining timeline and
+   worksheet locked" card: "that card is redundant."
+
+**Decision.** Remove the entire coach/tour walkthrough engine from Module 1,
+mechanical-orientation steps included, not just the analytical-hint
+content. The student goes straight into the range/simulator cold, the way
+a real analyst's first day works — no scripted step-by-step tour, no
+spotlighted "click here" guidance, no narrated investigative reasoning.
+Automated grading (unchanged), the Sprint C self-check pane, and the
+Sprint E message-instructor feature are the support mechanisms now — not a
+built-in tutorial.
+
+**What that touches, confirmed by grep on 2026-09-18:**
+- `portal/soc-analyst-module-01.js:698-705` — the `m01-coach` card ("Your
+  coach...").
+- `portal/soc-analyst-module-01.js:707-718` — the `m01-siem` "Optional
+  walkthrough" card and its launch link (`?coach=m01`/`?coach=m01-setup`).
+- `portal/soc-analyst-module-01.js:764-766` — the separate "Triage
+  worksheet locked" banner, flagged redundant on its own (it duplicates the
+  per-fact "Not recorded yet / Record the preceding fact to continue" state
+  already shown in each locked timeline row just above it, lines 755-758).
+  Remove this banner regardless of the coach removal.
+- `ui/coach.js` (555 lines) and `ui/coach-data.js` (254 lines) — the whole
+  walkthrough engine: step spotlighting, scope-lock, the corner-dock
+  "Take the tour" button, `MODULE_COACHES` step data. Confirmed via grep
+  this is currently wired to Module 1 only (`m01-setup`, `m01`,
+  `m01-orientation` — no other module references `MODULE_COACHES`), so
+  removal is contained; it does not need to be deprecated module-by-module
+  elsewhere.
+- `portal/app.js` / `ui/app.js` / `ui/views.js` / `ui/data.js` — smaller
+  hooks into the coach engine (`coachAllowsRoute`, `coachAfterRender`,
+  `mnt-coach-complete` postMessage listener at
+  `portal/soc-analyst-module-01.js:1487`). All of this was added in the
+  large `d0b751e` commit this same session — it is safe to fully remove,
+  not just hide, since nothing else in the codebase depends on it existing.
+
+**Load-bearing dependency to resolve carefully, not guess at:**
+`moduleOneState.consoleCompleted` is currently set only by the coach's
+completion postMessage (`coachComplete=m01` query param /
+`mnt-coach-complete`, handled at `soc-analyst-module-01.js:167-176` and
+`:1487-1511`), and it gates both the "Triage worksheet locked" section
+(`!consoleComplete || !investigationReady`, line 764) and one of the
+AND-ed conditions in `moduleOneProgress()`'s completion calculation (line
+435), which also writes into the `module_progress.detail` beacon's
+`consoleCompleted` field. Per `CLAUDE.md`: "Did not touch Module 1's
+actual completion-crediting logic... that's real crediting behavior, not
+display" — this sprint is the one that finally has to touch it, since its
+only trigger is being deleted. The straightforward reading of "day one,
+into the range cold" is that the worksheet should just be gated on
+`investigationReady` alone (the real work: timeline facts recorded) with
+no walkthrough-completion gate at all — but confirm this reading is
+correct and doesn't accidentally make Module 1 completion easier to fake
+or skip before shipping it; this is exactly the kind of completion-
+crediting change `CLAUDE.md` says needs care.
+
+**Explicitly out of scope:** Case 1's actual exercise (the timeline
+fill-in-the-blanks + five-part decision worksheet — `moduleOneScorePanel()`
+and the timeline list at lines ~730-762) stays. Only the coach/tour
+scaffolding around it goes.
+
+## Design decision — consolidated floating "Objectives" panel (owner
+refinement, same session, 2026-09-18) — AMENDS Sprint C and Sprint G above
+
+**Ask (owner, verbatim from chat).** "student must not NEED to click a
+drop down for EVERY step of 'Take the tour' ... It'll be more like...
+'Objectives' button that slides out and shows what the student must
+complete... and the student can work on those tasks, and check or
+uncheck them... that is why 'take the tour...submit module lab...and
+coursework can live in a floating, movable box...and tasks...a new button
+lives in there...where the student can record and keep track of
+completed work...this is necessary for the student to keep track and to
+come back to his or her work." Also, on the setup content specifically:
+"all those steps you had before were great...but fundamental first steps
+when setting up an initial workspace were not there."
+
+**What this changes.** The problem was never the informational value of
+the coach's content — the owner called the walkthrough steps "great." The
+problem is the *delivery*: a linear wizard that forces one click-through
+per step. Fix: don't just delete the corner-dock buttons per Sprint G's
+original G4 — **consolidate** "Take the tour," "Submit Module Lab," and a
+persistent completed-work tracker into **one floating, movable panel**,
+titled something like "Objectives," that slides out on demand. Inside it:
+a checklist of what the student must complete (self-check boxes, browsable
+at the student's own pace, no forced step order), the existing submit
+action, and a durable record of what's already been done that the student
+can leave and come back to. This is the same floating self-check surface
+already specified for Sprint C's `lab-soc-escalation` requirements list —
+**do not build two separate floating panels.** Build one generalized
+"Objectives" panel component and use it for both Case 1's setup/objectives
+and Case 2's simulator requirements. It inherits Sprint C's hard
+persistence requirement (cross-device/session via the `module_progress
+.detail` beacon) automatically, since that's the same underlying state.
+
+**Reconfirmed, not new:** items in this panel must never auto-complete
+based on detection (echoed again by the owner quoting the exact
+`MODULE_ONE_SIMULATOR_REQUIREMENTS` labels: "they SHOULD NOT auto
+complete...in real life...they won't"). Self-check only, per Sprint C's
+original design decision — this refinement does not change that.
+
+**New, separate content gap flagged by the owner (not yet specified —
+needs owner/faculty input before Sprint C builds off it):** the owner
+flagged the `MODULE_ONE_SIMULATOR_REQUIREMENTS` list itself as
+incomplete — "definitely missing items here" — for a realistic L1
+escalation workflow, but did not enumerate which steps are missing. Do not
+guess at additions; get the specific missing steps from the owner (or
+whoever owns SOC-01 curriculum content) before finalizing what the
+Objectives panel lists for Case 2.
+
+**Open question raised by the owner, NOT yet a decision — flag for
+explicit confirmation before building, do not implement on inference
+alone:** should Module 1 / Day 1 start on an admin/workspace-setup view
+instead of landing directly on the incidents/alerts queue — i.e., the
+student first connects the required data source(s)/connector(s), which
+then is what generates the alerts, rather than alerts simply existing on
+load? Owner's own phrasing was exploratory ("focused realism...every time
+should be admin panel? first thing should be setting up the workspace?
+no? connecting the requested items? Which then generate the alerts?"),
+not a settled instruction. This is a bigger change than the panel UI
+question above — it changes where Module 1's Case 1 starts and how/when
+alerts get seeded — so confirm it explicitly with the owner before any
+sprint touches it.
+
 ## Sprint plan for remaining work
 
 Execute in order. Each sprint gets its own coding subagent; the subagent
@@ -162,21 +303,54 @@ mirrors the project's established per-sprint handoff convention
 
 - [ ] **Sprint A** — Faculty gate live-workflow verification (remaining-work
   item 1 above): submit → return for remediation → resubmit → approve →
-  confirm Module 2 unlocks. Manual testing, no code changes expected. Paused
-  before submission on 2026-09-18; no UAT workflow state was changed.
+  confirm Module 2 unlocks. **Remediation repair completed 2026-09-18:** an
+  open redo for `lab-soc-escalation` now clears only the saved client-side
+  `simulatorPerformance.submitted` latch, preserving action evidence and the
+  append-only prior attempt so a new submission can enter the normal faculty
+  queue. The current session clears its redo banner only after the new
+  attempt saves successfully; approval remains required by the authoritative
+  verified-progress view. Local transition and portal checks passed. Live UAT
+  on `9334491415-SOCAN` remains unrun: this session has no authorized student
+  and faculty credentials or usable linked Supabase container, so no UAT data
+  was changed. Run the full controlled workflow before checking this sprint
+  off.
 - [x] **Sprint B** — Diff review + commit (remaining-work item 2). Completed
   2026-09-18 after owner-directed release sync: full review/check pass,
   commit `d0b751e`, pushed to `origin/master`.
-- [ ] **Sprint C** — Self-check pane build (remaining-work item 3, the design
-  decision above):
-  - [ ] C1. Add `simulatorSelfCheck` to the `detail` beacon shape in
+- [ ] **Sprint C** — Consolidated floating "Objectives" panel (remaining-work
+  item 3, superseded/amended by the consolidated-panel design decision
+  above — read that section before starting, it changes the shape of this
+  sprint from the original self-check-pane-only plan):
+  - [ ] C0. Get the specific missing steps for `MODULE_ONE_SIMULATOR_
+    REQUIREMENTS` from the owner/curriculum owner before building Case 2's
+    list — the owner flagged it incomplete but didn't enumerate what's
+    missing. Do not invent additions.
+  - [ ] C1. Add `simulatorSelfCheck` (Case 2) and an equivalent Case 1
+    objectives-checked field to the `detail` beacon shape in
     `moduleOneSyncDetailBeacon()`; load any existing remote value back into
     `moduleOneState` on `moduleOneLoad()`.
-  - [ ] C2. Build the floating/draggable pane in
-    `soc-analyst-module-01.js` (reuse the existing floating "Submit Module
-    Lab" button's follow-anywhere pattern for positioning): one checkbox per
-    `MODULE_ONE_SIMULATOR_REQUIREMENTS` label, state read from/written to
-    `moduleOneState`/the beacon, no green/red styling tied to correctness.
+  - [ ] C2. Build ONE floating/draggable "Objectives" panel component in
+    `soc-analyst-module-01.js` — not two separate panels. It replaces the
+    corner-dock's "Take the tour"/"Submit Module Lab" buttons (see Sprint G)
+    and shows self-check boxes for whichever case's objectives apply (Case
+    1 setup/objectives or Case 2's `MODULE_ONE_SIMULATOR_REQUIREMENTS`),
+    plus a durable "completed work" view the student can reopen anytime.
+    State read from/written to `moduleOneState`/the beacon. No green/red
+    styling tied to correctness anywhere in this panel.
+  - [ ] C2a. Owner's added spec (verbatim, 2026-09-18): the panel's task
+    state "is also reflecting in the coursework section in that card" —
+    i.e. whatever module-progress summary the student sees in the main
+    coursework/module list elsewhere in the portal must show the same
+    completion state as the Objectives panel, not a separate/out-of-sync
+    count. Both "persist on backend saves," same as SIEM actions already
+    do (`recordLabAttempt`/the `detail` beacon) — this is the same
+    persisted state surfaced in two places, not two states to keep in
+    sync by hand. Locate the actual student-facing coursework/module-list
+    card during this sprint (not yet pinned down in this handoff) and
+    read from the same source of truth as the panel.
+  - [ ] C2b. Delete the "Independent simulated-SIEM case · resume across
+    sittings" kicker line (`portal/soc-analyst-module-01.js:812`) — owner
+    flagged it as unnecessary copy, 2026-09-18. Trivial, do first.
   - [ ] C3. Remove the `.is-done` / `ri-checkbox-circle-fill` live-graded
     rendering from `moduleOneSimulatorSubmissionPanel()`. Confirm the
     submit button's `disabled` logic still reads `performance.missed_
@@ -190,21 +364,66 @@ mirrors the project's established per-sprint handoff convention
     scoring/competency panel/faculty queue are all still unchanged.
 - [ ] **Sprint D** — `module-completion-integrity/BRIEF.md` (remaining-work
   item 4). Only after Sprints A-C are done and verified.
-- [ ] **Sprint E** — "Message instructor" feature (remaining-work item 5, the
-  design decision above):
-  - [ ] E1. Migration: new `student_messages` table (or equivalent name),
+- [x] **Sprint E** — "Message instructor" feature (remaining-work item 5, the
+  design decision above). Completed 2026-09-18: deployed
+  `20260918110000_student_messages.sql` (linked migration parity confirmed),
+  added the student portal compose/thread view, and added a per-track faculty
+  Inbox tab with replies and unread tile badges. `node --check portal/app.js`,
+  `node bin/portal-check.js`, and `git diff --check` passed. The Supabase CLI
+  emitted a non-blocking local pg-delta certificate-cache warning after the
+  successful push; `supabase migration list --linked` confirms it is remote.
+  - [x] E1. Migration: new `student_messages` table (or equivalent name),
     RLS matching the established student-own / faculty-track-scoped
     pattern already used elsewhere in this project — check existing
     policies before writing new ones from scratch.
-  - [ ] E2. Student UI: compose ("Message instructor") + thread/inbox view
+  - [x] E2. Student UI: compose ("Message instructor") + thread/inbox view
     of own messages and replies.
-  - [ ] E3. Faculty UI: unread badge next to the existing per-track "N Labs
+  - [x] E3. Faculty UI: unread badge next to the existing per-track "N Labs
     need grading" badge (`portal/app.js`, `trackTile()`/
     `adminTrackAdministration()`), plus an inbox/reply view.
-  - [ ] E4. Regression pass: `node --check`, `node bin/portal-check.js`.
+  - [x] E4. Regression pass: `node --check`, `node bin/portal-check.js`.
   This sprint is independent of Sprints A-D (different feature area, no
   shared code) — a future session may pull it forward instead of doing it
   strictly last, at that session's discretion.
+- [ ] **Sprint G** — Remove the coach/tour walkthrough system (remaining-
+  work item 6, the design decision above):
+  - [ ] G1. Delete the `m01-coach` card and the `m01-siem` "Optional
+    walkthrough" card + launch link
+    (`portal/soc-analyst-module-01.js:698-718`).
+  - [ ] G2. Delete the redundant "Triage worksheet locked" banner
+    (`portal/soc-analyst-module-01.js:764-766`) — do this even if G1 is
+    somehow deferred, it's a separate, independent fix.
+  - [ ] G3. Resolve the `consoleCompleted` dependency exactly as described
+    in the design decision above (read that section again before touching
+    `moduleOneProgress()` or the `detail` beacon — this is completion-
+    crediting logic, not display).
+  - [ ] G4. Remove `ui/coach.js`'s step-by-step wizard engine (spotlighting,
+    scope-lock, the linear per-step "Next" flow) and `ui/coach-data.js`'s
+    step scripts, and their hooks in `ui/app.js`/`ui/views.js`/`ui/data.js`
+    (`coachAllowsRoute`, `coachAfterRender`, the
+    `mnt-coach-complete` postMessage listener at
+    `soc-analyst-module-01.js:1487-1511`). **Amended by the consolidated-
+    panel design decision above: do NOT just delete the corner-dock's
+    "Take the tour" and "Submit Module Lab" buttons — they get replaced by
+    Sprint C's single "Objectives" panel, not removed outright.** Confirm
+    nothing else references `MODULE_COACHES`/`startModuleCoach`/
+    `stopModuleCoach` before deleting the wizard engine itself.
+  - [ ] G5. Regression pass: `node --check`, `node bin/portal-check.js`,
+    and a manual run through Module 1 confirming Case 1's actual worksheet
+    (timeline + five-part decision) still works end to end with no wizard
+    entry point (replaced by the Objectives panel), and that `soc-01`
+    completion crediting still requires everything it required before
+    (minus the deleted walkthrough-completion gate).
+  This sprint touches the same file as Sprint C (`soc-analyst-module-01.js`)
+  and now shares a single UI component with it (the Objectives panel) —
+  build Sprint C's panel first, then have Sprint G wire the setup-step
+  removal into that same panel rather than parallel agents fighting over
+  one file.
+
+## UNVERIFIED — added by the Sprint A agent without authorization, not from
+## any owner decision in chat; flagged 2026-09-18, pending owner call on
+## whether to keep or delete
+
 - [ ] **Sprint F** — Microsoft wording review and resolution. Start only
   after the critical Sprints A, C, D, and E are complete and verified. Audit
   student-facing simulator and portal wording for unnecessary Microsoft

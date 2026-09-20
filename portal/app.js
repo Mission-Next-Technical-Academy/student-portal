@@ -136,8 +136,9 @@ async function fetchUserDetails(userId, trackCode) {
   let remoteModuleDetail = {};
   let remoteCaseState = {};
   let openLabRedosByModuleKey = {};
+  let studentMessages = [];
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey };
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, studentMessages };
   }
 
   const [
@@ -145,6 +146,7 @@ async function fetchUserDetails(userId, trackCode) {
     verifiedResult,
     evidenceResult,
     { data: attemptRows, error: attemptsError },
+    { data: messageRows, error: messagesError },
   ] = await Promise.all([
     mntSupabase.from('module_progress').select('module_key, state, detail, case_state').eq('user_id', userId).eq('track_code', trackCode),
     // This view is the institutional completion record.  It derives a
@@ -168,6 +170,14 @@ async function fetchUserDetails(userId, trackCode) {
       .eq('track_code', trackCode)
       .not('completed_at', 'is', null)
       .order('completed_at', { ascending: false }),
+    // RLS returns only this student's thread rows. Faculty replies are rows
+    // in the same table, so one query drives the student's full inbox.
+    mntSupabase
+      .from('student_messages')
+      .select('id, thread_id, subject, body, sender_role, context, created_at, read_at')
+      .eq('student_id', userId)
+      .eq('track_code', trackCode)
+      .order('created_at', { ascending: true }),
   ]);
 
   if (progressError) {
@@ -224,7 +234,13 @@ async function fetchUserDetails(userId, trackCode) {
     }
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey };
+  if (messagesError) {
+    console.error('fetchUserDetails: student_messages fetch failed', messagesError);
+  } else {
+    studentMessages = messageRows || [];
+  }
+
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, studentMessages };
 }
 
 async function buildUserFromSession(session) {
@@ -857,7 +873,7 @@ function programRequirementsComplete(row) {
   return programWorkItemProgress(row).percent >= 100;
 }
 
-function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCountsByTrack = new Map()) {
+function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCountsByTrack = new Map(), unreadMessageCountsByTrack = new Map()) {
   const allCount = rows.length;
   // Card grows from a single row to a two-row layout only when there's a
   // notification to show — cards with nothing pending keep the original
@@ -871,12 +887,13 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
   // needed, forcing names like "AI/ML Engineering" into an ellipsis. The
   // course name is now the only label, full words, wrapping to a second
   // line instead of truncating if it doesn't fit on one.
-  const tile = ({ href, active, title, count, accentClass, pendingGrading }) => `<a href="${href}" class="flex flex-col gap-1.5 rounded-xl border ${active ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20 bg-[#f0f4f8]' : 'border-gray-200 bg-white hover:border-[#1e3a5f]/40'} px-3 py-2.5 transition">
+  const tile = ({ href, active, title, count, accentClass, pendingGrading, unreadMessages }) => `<a href="${href}" class="flex flex-col gap-1.5 rounded-xl border ${active ? 'border-[#1e3a5f] ring-1 ring-[#1e3a5f]/20 bg-[#f0f4f8]' : 'border-gray-200 bg-white hover:border-[#1e3a5f]/40'} px-3 py-2.5 transition">
     <span class="flex items-start justify-between gap-2">
       <span class="min-w-0 text-sm font-bold ${accentClass || 'text-[#1e3a5f]'} leading-snug">${esc(title)}</span>
       <span class="flex-shrink-0 text-xs font-semibold text-gray-500 whitespace-nowrap">${esc(count)}<i class="ri-arrow-right-s-line ml-0.5 align-middle" aria-hidden="true"></i></span>
     </span>
     ${pendingGrading > 0 ? `<span class="inline-flex items-center gap-1 self-start rounded-full bg-[#fef2f2] text-[#b91c1c] text-[11px] font-semibold px-2 py-0.5"><i class="ri-error-warning-line" aria-hidden="true"></i>${pendingGrading} lab${pendingGrading === 1 ? '' : 's'} need grading</span>` : ''}
+    ${unreadMessages > 0 ? `<span class="inline-flex items-center gap-1 self-start rounded-full bg-[#eff6ff] text-[#1d4ed8] text-[11px] font-semibold px-2 py-0.5"><i class="ri-message-3-line" aria-hidden="true"></i>${unreadMessages} unread message${unreadMessages === 1 ? '' : 's'}</span>` : ''}
   </a>`;
   const trackTile = (track) => {
     const count = rows.filter((row) => row.track_code === track.code).length;
@@ -886,6 +903,7 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
       title: track.eyebrow,
       count: track.comingSoon ? 'Coming soon' : `${count} student${count === 1 ? '' : 's'}`,
       pendingGrading: gradingCountsByTrack.get(track.code) || 0,
+      unreadMessages: unreadMessageCountsByTrack.get(track.code) || 0,
     });
   };
   return `<section aria-labelledby="track-administration-title" class="order-2 mb-4"><div class="flex items-end justify-between gap-4 border-b border-gray-200 pb-3 mb-3"><div><p class="text-xs font-semibold uppercase tracking-widest text-[#f97316] mb-1">Administration workspaces</p><h2 id="track-administration-title" class="text-lg font-bold text-[#1e3a5f]">Track Administration</h2></div></div>
@@ -986,6 +1004,23 @@ function adminGradingQueuePanel(gradingQueueRows) {
         </article>`;
       }).join('')}
     </div>`;
+}
+
+function adminMessageInboxPanel(messageRows) {
+  const threads = new Map();
+  (messageRows || []).forEach((message) => {
+    const key = message.thread_id;
+    const thread = threads.get(key) || { studentId: message.student_id, userId: message.user_id, trackCode: message.track_code, subject: message.subject, rows: [] };
+    thread.rows.push(message);
+    threads.set(key, thread);
+  });
+  const list = Array.from(threads.entries()).sort(([, a], [, b]) => (b.rows[b.rows.length - 1]?.created_at || '').localeCompare(a.rows[a.rows.length - 1]?.created_at || ''));
+  if (!list.length) return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div><div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No messages in this course workspace yet.</p></div>`;
+  return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div><p class="text-gray-500 text-sm">Messages stay inside the portal. Replying also clears the student's unread message cue for this conversation.</p></div><div class="space-y-4">${list.map(([threadId, thread]) => `<article class="bg-white border border-gray-200 rounded-xl p-5" data-faculty-message-thread="${esc(threadId)}">
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(thread.studentId)}</p><h3 class="text-sm text-gray-700 mt-1">${esc(thread.subject)}</h3></div></div>
+    <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${message.sender_role === 'student' ? esc(thread.studentId) : 'Instructor'}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
+    <form data-faculty-message-reply data-thread-id="${esc(threadId)}" data-student-user-id="${esc(thread.userId)}" data-track-code="${esc(thread.trackCode)}" data-subject="${esc(thread.subject)}"><label class="block text-sm font-semibold text-[#1e3a5f]">Reply<textarea required rows="3" maxlength="10000" name="body" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Write a plain-text reply."></textarea></label><div class="mt-2 flex items-center gap-3"><button type="submit" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg">Send reply</button><span data-faculty-message-status class="text-xs text-gray-500" aria-live="polite"></span></div></form>
+  </article>`).join('')}</div>`;
 }
 
 function adminProgramRosterChip(label, value, tone) {
@@ -3592,7 +3627,7 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
  * upsertModuleProgress above: no session or no track_code silently skips the
  * write so local LabRuntime/engagement behavior is never affected. */
 function recordLabAttempt(user, labKey, { state, score = null, result = {} } = {}) {
-  if (!user || !user.userId || !user.trackCode) return Promise.resolve(null);
+  if (!user || !user.userId || !user.trackCode) return Promise.resolve(false);
   const now = new Date().toISOString();
   return mntSupabase
     .from('lab_attempts')
@@ -3610,14 +3645,14 @@ function recordLabAttempt(user, labKey, { state, score = null, result = {} } = {
       completed_at: state === 'complete' ? now : null,
     })
     .then(({ error }) => {
-      if (error) { console.error('lab_attempts insert failed', labKey, error); return null; }
+      if (error) { console.error('lab_attempts insert failed', labKey, error); return false; }
       const lab = LABS.find((item) => item.key === labKey);
       // The insert's database trigger updates the verified read model. Fetch
       // that result after the successful write instead of promoting local
       // storage to an academic completion fact.
-      return refreshVerifiedModuleProgress(user, lab && lab.module);
+      return refreshVerifiedModuleProgress(user, lab && lab.module).then(() => true);
     })
-    .catch((err) => { console.error('lab_attempts insert threw', labKey, err); return null; });
+    .catch((err) => { console.error('lab_attempts insert threw', labKey, err); return false; });
 }
 
 /* An artifact is an immutable, server-stored snapshot of a submission.  This
@@ -3940,6 +3975,11 @@ function moduleTopbar(user, program, options = {}) {
  *   options: {onReviewToggle: (newValue) => void}
  */
 function moduleProgressShell(sections, state = {}, options = {}) {
+  // Kept as the compatibility entry point for modules authored before the
+  // three-stage course model. Every module navigation now uses the same
+  // left rail instead of a separate horizontal progress strip.
+  return moduleUnifiedNav(sections, state);
+  /*
   if (!Array.isArray(sections) || !sections.length) return '';
 
   const reviewMode = state.reviewMode || false;
@@ -3993,6 +4033,7 @@ function moduleProgressShell(sections, state = {}, options = {}) {
       </div>
     </div>
   </div>`;
+  */
 }
 
 /* Module quick-nav rail: a persistent left sidebar on desktop, or a toggle drawer on mobile,
@@ -4094,7 +4135,19 @@ function moduleUnifiedNav(sections, state = {}) {
     read: 'ri-article-line',
   };
 
-  const rowsHtml = sections.map((section) => {
+  const phaseFor = (section) => {
+    if (section.phase) return section.phase;
+    if (section.type === 'review') return 'prove';
+    if (section.type === 'lab' || section.type === 'quiz') return 'practice';
+    return 'learn';
+  };
+  const phases = [
+    { id: 'learn', title: 'Learn It', icon: 'ri-book-open-line' },
+    { id: 'practice', title: 'Practice It', icon: 'ri-tools-line' },
+    { id: 'prove', title: 'Prove It', icon: 'ri-award-line' },
+  ].map((phase) => ({ ...phase, sections: sections.filter((section) => phaseFor(section) === phase.id) }));
+
+  const sectionRow = (section) => {
     const isGated = section.gated !== false;
     const isCurrentUncomplete = isGated && section === currentGatedSection && !section.isComplete;
     const statusClass = !isGated
@@ -4141,9 +4194,29 @@ function moduleUnifiedNav(sections, state = {}) {
         </ul>`
       : '';
 
-    return `<li class="munified-group">
+    return `<li class="munified-section">
       <div class="munified-group-row">${rowHtml}${toggleHtml}</div>
       ${childrenHtml}
+    </li>`;
+  };
+
+  const rowsHtml = phases.filter((phase) => phase.sections.length).map((phase) => {
+    const phaseId = `munified-phase-${esc(moduleKey)}-${phase.id}`;
+    const phaseContainsCurrent = phase.sections.includes(currentGatedSection);
+    // Keep the student's active stage open; Learn It is also open initially
+    // so first-time learners see where the course starts.
+    const isOpen = phaseContainsCurrent || phase.id === 'learn';
+    return `<li class="munified-group munified-phase">
+      <div class="munified-phase-row">
+        <i class="${phase.icon}" aria-hidden="true"></i>
+        <span class="munified-phase-label">${phase.title}</span>
+        <button class="munified-group-toggle" type="button" data-munified-group-toggle data-munified-group-key="${phase.id}" aria-expanded="${isOpen}" aria-controls="${phaseId}" aria-label="${isOpen ? 'Collapse' : 'Expand'} ${phase.title}">
+          <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+        </button>
+      </div>
+      <ul class="mquick-nav-list munified-phase-body${isOpen ? '' : ' is-collapsed'}" id="${phaseId}" aria-hidden="${!isOpen}">
+        ${phase.sections.map(sectionRow).join('')}
+      </ul>
     </li>`;
   }).join('');
 
@@ -4404,6 +4477,45 @@ function programCard(program, user) {
   </div>`;
 }
 
+function studentMessagesPanel(messages = []) {
+  const threads = new Map();
+  messages.forEach((message) => {
+    const thread = threads.get(message.thread_id) || { subject: message.subject, rows: [] };
+    thread.rows.push(message);
+    threads.set(message.thread_id, thread);
+  });
+  const threadList = Array.from(threads.entries()).sort(([, a], [, b]) => {
+    const aLast = a.rows[a.rows.length - 1]?.created_at || '';
+    const bLast = b.rows[b.rows.length - 1]?.created_at || '';
+    return bLast.localeCompare(aLast);
+  });
+  const formatTime = (value) => value ? new Date(value).toLocaleString() : '—';
+  return `<section class="py-2 px-8 pb-16" aria-labelledby="student-messages-title">
+    <div class="max-w-5xl mx-auto grid lg:grid-cols-5 gap-6">
+      <div class="lg:col-span-2 bg-[#f0f4f8] border border-[#bfdbfe] rounded-2xl p-6 h-fit">
+        <div class="flex items-center gap-2 mb-2"><i class="ri-message-3-line text-xl text-[#1e3a5f]" aria-hidden="true"></i><h2 id="student-messages-title" class="text-xl font-bold text-[#1e3a5f]">Message instructor</h2></div>
+        <p class="text-sm text-gray-600 mb-5">Send a plain-text question to your course instructor. Replies stay here in your portal.</p>
+        <form data-student-message-form class="space-y-3">
+          <label class="block text-sm font-semibold text-[#1e3a5f]">Subject<input name="subject" maxlength="160" required class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="What do you need help with?" /></label>
+          <label class="block text-sm font-semibold text-[#1e3a5f]">Message<textarea name="body" maxlength="10000" required rows="6" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Write your question or describe where you are stuck."></textarea></label>
+          <button type="submit" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg">Send message</button>
+          <p data-student-message-status class="text-sm" aria-live="polite"></p>
+        </form>
+      </div>
+      <div class="lg:col-span-3">
+        <h2 class="text-xl font-bold text-[#1e3a5f] mb-3">Your conversations</h2>
+        ${threadList.length ? `<div class="space-y-4">${threadList.map(([threadId, thread]) => `<article class="bg-white border border-gray-200 rounded-xl p-5" data-message-thread="${esc(threadId)}">
+          <h3 class="font-semibold text-[#1e3a5f] mb-3">${esc(thread.subject)}</h3>
+          <div class="space-y-3">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'faculty' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}">
+            <div class="flex items-center justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${message.sender_role === 'faculty' ? 'Instructor' : 'You'}</strong><span class="text-gray-500">${esc(formatTime(message.created_at))}</span></div>
+            <p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p>
+          </div>`).join('')}</div>
+        </article>`).join('')}</div>` : `<div class="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center text-sm text-gray-500">No messages yet. Start a conversation with your instructor when you need support.</div>`}
+      </div>
+    </div>
+  </section>`;
+}
+
 function viewPortal(user) {
   const enrolledCount = user.enrollments.filter((e) => e.status === 'active').length;
   // The student dashboard is a personal program list, not a catalogue. The
@@ -4460,6 +4572,7 @@ function viewPortal(user) {
         }
       </div>
     </section>
+    ${studentMessagesPanel(user.studentMessages || [])}
   </main>
   ${footer()}`;
 }
@@ -5385,8 +5498,12 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const archivedStudents = (extra && extra.archivedStudents) || [];
   const siteSessionsByStudentId = (extra && extra.siteSessionsByStudentId) || new Map();
   const gradingQueueRows = (extra && extra.gradingQueueRows) || [];
+  const unreadMessageRows = (extra && extra.unreadMessageRows) || [];
+  const facultyMessageRows = (extra && extra.facultyMessageRows) || [];
   const gradingCountsByTrack = new Map();
   gradingQueueRows.forEach((row) => gradingCountsByTrack.set(row.track_code, (gradingCountsByTrack.get(row.track_code) || 0) + 1));
+  const unreadMessageCountsByTrack = new Map();
+  unreadMessageRows.forEach((row) => unreadMessageCountsByTrack.set(row.track_code, (unreadMessageCountsByTrack.get(row.track_code) || 0) + 1));
   const activeCohorts = cohorts.filter((c) => !c.archived_at);
   const activeTrackCode = (extra && extra.activeTrackCode) || null;
   // The Grading tab only exists inside a track workspace (below) — if the
@@ -5411,6 +5528,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // inside a specific track's workspace.
   const trackGradingQueueRows = activeTrackCode
     ? gradingQueueRows.filter((row) => row.track_code === activeTrackCode)
+    : [];
+  const trackFacultyMessageRows = activeTrackCode
+    ? facultyMessageRows.filter((row) => row.track_code === activeTrackCode)
     : [];
   const tabIsActive = (key) => key === activeTab;
   const tabBtnClass = (key) =>
@@ -5489,6 +5609,8 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           <button type="button" role="tab" aria-selected="${tabIsActive('archived')}" data-admin-tab="archived" class="${tabBtnClass('archived')}">Archived Students</button>
           ${activeTrackCode ? `<button type="button" role="tab" aria-selected="${tabIsActive('grading')}" data-admin-tab="grading" class="${tabBtnClass('grading')}">
             Grading${trackGradingQueueRows.length ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700">${trackGradingQueueRows.length}</span>` : ''}
+          </button><button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')}">
+            Inbox${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">${unreadMessageCountsByTrack.get(activeTrackCode)}</span>` : ''}
           </button>` : ''}
         </div>
 
@@ -5711,7 +5833,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    </div></div>
                  </div>
                  ` : ''}
-                 ${adminTrackAdministrationStrip(rows, activeTrackCode, gradingCountsByTrack)}
+                 ${adminTrackAdministrationStrip(rows, activeTrackCode, gradingCountsByTrack, unreadMessageCountsByTrack)}
                  ${activeTrack ? `<section class="order-3 bg-[#f8fafc] border border-gray-200 rounded-xl p-4 mb-4"><h2 class="text-lg font-bold text-[#1e3a5f]">${esc(activeTrack.title)} summary</h2><p class="text-sm text-gray-600 mt-1">${rosterRows.filter((r) => r.enrolled !== false).length} enrolled · ${rosterRows.filter((r) => (r.modules_complete || 0) === 0 && (r.modules_in_progress || 0) === 0).length} not started · ${rosterRows.filter((r) => (r.modules_complete || 0) >= 12).length} technical complete · ${rosterRows.filter((r) => r.m360_course_complete).length} M360 complete · ${rosterRows.filter((r) => Number(r.work_items_completed || 0) >= 18 && !r.m360_course_complete).length} verification pending</p></section>` : ''}
                  ${activeTrackCode ? adminProgramRoster(rosterRows) : ''}
                  ${!activeTrackCode ? `
@@ -6014,6 +6136,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
         ${activeTrackCode ? `<div id="admin-tab-panel-grading" ${tabIsActive('grading') ? '' : 'hidden'}>
           ${adminGradingQueuePanel(trackGradingQueueRows)}
         </div>` : ''}
+        ${activeTrackCode ? `<div id="admin-tab-panel-messages" ${tabIsActive('messages') ? '' : 'hidden'}>
+          ${adminMessageInboxPanel(trackFacultyMessageRows)}
+        </div>` : ''}
 
         <div class="mt-8">
           <a href="#/portal" class="inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-6 py-3 rounded-xl transition-colors">
@@ -6191,6 +6316,8 @@ async function render(options = {}) {
   let activeStudents = [];
   let cheatingFlagsByUserId = new Map();
   let gradingQueueRows = [];
+  let unreadMessageRows = [];
+  let facultyMessageRows = [];
   if (hash === '#/admin' || adminTrackMatch) {
     if (!user.isAdmin) {
       history.replaceState(null, '', '#/portal');
@@ -6241,6 +6368,26 @@ async function render(options = {}) {
       if (gradingResult.error) console.error('admin_grading_queue fetch failed', gradingResult.error);
       gradingQueueRows = gradingResult.data || [];
 
+      const unreadMessagesResult = await mntSupabase
+        .from('admin_unread_student_messages')
+        .select('id, thread_id, user_id, student_id, track_code, subject, body, context, created_at')
+        .order('created_at', { ascending: true });
+      if (unreadMessagesResult.error) console.error('admin_unread_student_messages fetch failed', unreadMessagesResult.error);
+      unreadMessageRows = unreadMessagesResult.data || [];
+
+      // Full correspondence is only loaded for the selected course workspace;
+      // the cross-track admin landing needs the small unread queue only.
+      if (selectedAdminTrack) {
+        const facultyMessagesResult = await mntSupabase
+          .from('student_messages')
+          .select('id, thread_id, student_id, track_code, subject, body, sender_role, context, created_at, read_at')
+          .eq('track_code', selectedAdminTrack)
+          .order('created_at', { ascending: true });
+        if (facultyMessagesResult.error) console.error('student_messages faculty inbox fetch failed', facultyMessagesResult.error);
+        const studentIdByUserId = new Map(dashboardRows.map((row) => [row.user_id, row.student_id]));
+        facultyMessageRows = (facultyMessagesResult.data || []).map((row) => ({ ...row, user_id: row.student_id, student_id: studentIdByUserId.get(row.student_id) || 'Student' }));
+      }
+
       // Secondary activity, completion-speed, cohort, archive, session, and
       // query-telemetry reads are intentionally deferred until their tab is
       // selected. The roster view already exposes module/M360 progress, which
@@ -6265,6 +6412,8 @@ async function render(options = {}) {
         activeTab: adminActiveTab,
         activeTrackCode: adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null,
         gradingQueueRows,
+        unreadMessageRows,
+        facultyMessageRows,
       }));
     }
     if (!isCurrentRouteRender(renderGeneration)) return;
@@ -6275,7 +6424,7 @@ async function render(options = {}) {
     const wiredActiveStudents = adminTrackMatch && adminTrackMeta(adminTrackMatch[1])
       ? activeStudents.filter((row) => row.track_code === adminTrackMatch[1])
       : activeStudents;
-    wireAdmin(wiredRows, wiredActiveStudents, cheatingFlagsByUserId, gradingQueueRows);
+    wireAdmin(wiredRows, wiredActiveStudents, cheatingFlagsByUserId, gradingQueueRows, facultyMessageRows);
     app.setAttribute('aria-busy', 'false');
     window.scrollTo(0, 0);
     return;
@@ -6417,6 +6566,57 @@ function wireCommon() {
 
   wireModuleQuickNavRail();
   wireRegisteredModuleLabs();
+  wireStudentMessages();
+}
+
+function wireStudentMessages() {
+  const form = document.querySelector('[data-student-message-form]');
+  if (!form) return;
+  const statusEl = form.querySelector('[data-student-message-status]');
+
+  // Opening the inbox acknowledges faculty replies. This is intentionally the
+  // only student-side update: message rows themselves remain immutable.
+  currentUser().then(async (user) => {
+    const unreadFacultyIds = (user?.studentMessages || [])
+      .filter((message) => message.sender_role === 'faculty' && !message.read_at)
+      .map((message) => message.id);
+    if (!unreadFacultyIds.length) return;
+    const { error } = await mntSupabase
+      .from('student_messages')
+      .update({ read_at: new Date().toISOString() })
+      .in('id', unreadFacultyIds);
+    if (error) console.error('Could not mark faculty messages read', error);
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector('button[type="submit"]');
+    const subject = form.elements.subject.value.trim();
+    const body = form.elements.body.value.trim();
+    if (!subject || !body) return;
+    submit.disabled = true;
+    if (statusEl) statusEl.textContent = 'Sending…';
+    try {
+      const user = await currentUser();
+      if (!user?.userId || !user?.trackCode) throw new Error('Your session is unavailable. Sign in again and retry.');
+      const { error } = await mntSupabase.from('student_messages').insert({
+        student_id: user.userId,
+        track_code: user.trackCode,
+        subject,
+        body,
+        sender_role: 'student',
+        context: { portal_route: 'portal' },
+      });
+      if (error) throw error;
+      if (statusEl) statusEl.textContent = 'Message sent. Refreshing your inbox…';
+      _cachedUser = null;
+      _cachedUserPromise = null;
+      await render();
+    } catch (err) {
+      submit.disabled = false;
+      if (statusEl) statusEl.textContent = `Could not send: ${err && err.message ? err.message : String(err)}`;
+    }
+  });
 }
 
 function wireModuleQuickNavRail() {
@@ -6449,7 +6649,7 @@ function wireModuleQuickNavRail() {
       // on that toggle would, so its model state stays in sync too.
       let ancestor = target?.parentElement;
       while (ancestor) {
-        if (ancestor.hasAttribute('hidden') && ancestor.id) {
+        if ((ancestor.hasAttribute('hidden') || ancestor.classList?.contains('is-collapsed')) && ancestor.id) {
           const sectionToggle = document.querySelector(`[aria-controls="${ancestor.id}"]`);
           if (sectionToggle) sectionToggle.click();
         }
@@ -6479,7 +6679,14 @@ function wireModuleQuickNavRail() {
       const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
       const body = document.getElementById(toggle.getAttribute('aria-controls'));
       toggle.setAttribute('aria-expanded', String(!isExpanded));
-      if (body) body.hidden = isExpanded;
+      if (body?.classList.contains('munified-phase-body')) {
+        // Stage bodies remain in the DOM so their compact slide animation
+        // can run; nested section bodies retain the existing hidden toggle.
+        body.classList.toggle('is-collapsed', isExpanded);
+        body.setAttribute('aria-hidden', String(isExpanded));
+      } else if (body) {
+        body.hidden = isExpanded;
+      }
     });
   });
 }
@@ -6659,11 +6866,12 @@ async function ensureAdminLazyTab(tab, options = {}) {
   return adminLazyTabData[tab];
 }
 
-function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, gradingQueueRows) {
+function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, gradingQueueRows, facultyMessageRows) {
   dashboardRows = dashboardRows || [];
   activeStudents = activeStudents || [];
   cheatingFlagsByUserId = cheatingFlagsByUserId || new Map();
   gradingQueueRows = gradingQueueRows || [];
+  facultyMessageRows = facultyMessageRows || [];
 
   const tabButtons = document.querySelectorAll('[data-admin-tab]');
   const tabPanels = {
@@ -6672,6 +6880,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
     cohorts: document.getElementById('admin-tab-panel-cohorts'),
     archived: document.getElementById('admin-tab-panel-archived'),
     grading: document.getElementById('admin-tab-panel-grading'),
+    messages: document.getElementById('admin-tab-panel-messages'),
   };
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -6686,9 +6895,44 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
         b.classList.toggle('text-gray-500', !active);
       });
       Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
-      if (target !== 'progress' && target !== 'grading' && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
+      if (target !== 'progress' && target !== 'grading' && target !== 'messages' && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
         await ensureAdminLazyTab(target);
         await render({ reuseAdminRoster: true });
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-faculty-message-reply]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = form.querySelector('button[type="submit"]');
+      const statusEl = form.querySelector('[data-faculty-message-status]');
+      const body = form.elements.body.value.trim();
+      if (!body) return;
+      submit.disabled = true;
+      if (statusEl) statusEl.textContent = 'Sending…';
+      try {
+        const { error: replyError } = await mntSupabase.from('student_messages').insert({
+          thread_id: form.dataset.threadId,
+          student_id: form.dataset.studentUserId,
+          track_code: form.dataset.trackCode,
+          subject: form.dataset.subject,
+          body,
+          sender_role: 'faculty',
+        });
+        if (replyError) throw replyError;
+        const unreadStudentIds = facultyMessageRows
+          .filter((message) => message.thread_id === form.dataset.threadId && message.sender_role === 'student' && !message.read_at)
+          .map((message) => message.id);
+        if (unreadStudentIds.length) {
+          const { error: readError } = await mntSupabase.from('student_messages').update({ read_at: new Date().toISOString() }).in('id', unreadStudentIds);
+          if (readError) throw readError;
+        }
+        if (statusEl) statusEl.textContent = 'Reply sent. Refreshing…';
+        await render({ reuseAdminRoster: true });
+      } catch (err) {
+        submit.disabled = false;
+        if (statusEl) statusEl.textContent = `Could not send: ${err && err.message ? err.message : String(err)}`;
       }
     });
   });

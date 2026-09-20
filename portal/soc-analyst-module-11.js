@@ -750,8 +750,7 @@ function viewModuleEleven(user, program) {
   const reviewOpen = moduleElevenReviewMode;
   const quickNavItems = moduleElevenGetQuickNavItems();
 
-  const html = `<div class="m11-shell">${moduleTopbar(user, program)}<div class="mquick-nav-layout">${moduleQuickNavRail(quickNavItems, { moduleKey: 'm11' })}<main class="m11-main">
-${moduleProgressShell(sections, { reviewMode: moduleElevenReviewMode })}
+  const html = `<div class="m11-shell">${moduleTopbar(user, program)}${moduleProgressShell(sections, { moduleKey: 'm11', reviewMode: moduleElevenReviewMode })}<div class="mquick-nav-layout"><main class="m11-main">
 <details class="m11-section-collapsible" id="m11-lecture-section" ${lectureOpen ? 'open' : ''}><summary><span class="m11-section-badge">1</span><h2>Lecture</h2></summary><div class="m11-section-body" id="m11-lecture">
   <section class="m11-practice-note"><i class="ri-compass-3-line" aria-hidden="true"></i><div><p class="m11-kicker">Independent practice</p><h2>Read the objective and dataset, then choose your own working order.</h2><p>No prescribed sequence or pre-submission hints are provided. Scoring feedback and a reference model appear after you submit.</p></div></section>
   ${moduleElevenScenarioLoops()}

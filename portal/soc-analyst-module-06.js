@@ -874,7 +874,6 @@ function viewModuleSix(user, program) {
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(sections, { reviewMode: moduleSixReviewMode })}
     <div class="mquick-nav-layout">
-      ${moduleQuickNavRail(quickNavItems, { moduleKey: 'm06' })}
       <main class="m06-main">
       <section class="m06-hero" aria-labelledby="m06-title"><div><p class="m06-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress" aria-label="Saved lab progress"><div><dt>Data sources</dt><dd>2</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(moduleLab.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 

@@ -616,8 +616,18 @@
 
 .munified-groups { padding: 4px 0; }
 .munified-group { border-bottom: 1px solid #f8fafc; }
+.munified-phase { border-bottom: 1px solid #e2e8f0; }
+.munified-phase:last-child { border-bottom: none; }
+.munified-phase-row { display: flex; align-items: center; gap: 8px; padding: 9px 6px 8px 14px; color: #1e3a5f; background: #f8fafc; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.munified-phase-row > i { color: #f97316; font-size: 14px; }
+.munified-phase-label { flex: 1 1 auto; }
+.munified-phase-row .munified-group-toggle { margin: 0; }
+.munified-phase-body { background: #fff; overflow: hidden; max-height: 1400px; opacity: 1; transform: translateY(0); transition: max-height .22s ease, opacity .16s ease, transform .22s ease; }
+.munified-phase-body.is-collapsed { max-height: 0; opacity: 0; transform: translateY(-4px); pointer-events: none; }
 .munified-group-row { display: flex; align-items: stretch; }
 .munified-row { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 8px 6px 8px 14px; font-size: 12px; font-weight: 600; text-decoration: none; color: inherit; transition: background .2s ease, color .2s ease; }
+.munified-phase-body > .munified-section > .munified-group-row .munified-row { padding-left: 30px; }
+.munified-phase-body > .munified-section > .munified-group-row .munified-group-toggle { margin-right: 10px; }
 .munified-row i:first-child { flex: 0 0 auto; font-size: 13px; }
 .munified-row-label { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .munified-row-sub { flex: 0 0 auto; font-size: 10px; font-weight: 700; color: #94a3b8; }
@@ -637,8 +647,36 @@
 /* Nested lesson/lab sublist — smaller than a top-level group row, indented
  * under it, same complete/current/locked color language. */
 .munified-group-body { padding-left: 6px; background: #fbfdff; }
-.munified-child-link { padding: 6px 10px 6px 26px; font-size: 11px; font-weight: 500; border-bottom: none; }
+.munified-child-link { padding: 6px 10px 6px 42px; font-size: 11px; font-weight: 500; border-bottom: none; }
 .munified-child-link i:first-child { font-size: 11px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .munified-phase-body { transition: none; }
+}
+
+/* Earlier AI/ML and Help Desk pages mount the shared rail directly between
+ * their header and main element. Keep it as a true desktop left pane there
+ * while the newer SOC pages use it inside .mquick-nav-layout. */
+@media (min-width: 961px) {
+  .aim-shell > .munified-nav,
+  .itss-shell > .munified-nav,
+  .its01-shell > .munified-nav,
+  .its02-shell > .munified-nav,
+  .its12-shell > .munified-nav,
+  .eee01-shell > .munified-nav {
+    float: left;
+    margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
+  }
+  .m02-shell > .munified-nav, .m03-shell > .munified-nav,
+  .m04-shell > .munified-nav, .m05-shell > .munified-nav,
+  .m06-shell > .munified-nav, .m07-shell > .munified-nav,
+  .m08-shell > .munified-nav, .m09-shell > .munified-nav,
+  .m10-shell > .munified-nav, .m11-shell > .munified-nav,
+  .m12-shell > .munified-nav {
+    float: left;
+    margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
+  }
+}
 
 /* Desktop: sticky left rail visible, toggle hidden */
 @media (min-width: 961px) {
