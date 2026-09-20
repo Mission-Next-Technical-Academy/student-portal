@@ -396,7 +396,9 @@ mirrors the project's established per-sprint handoff convention
     Admin** or by its course role (for example, **SOC Analyst Instructor**).
     This is an author category, not a staff email/display-name exposure; SQL
     policies enforce that only admins may send as Global Admin and only an
-    assigned instructor may send as their course instructor.
+    assigned instructor may send as their course instructor. Migration
+    `20260920140000_message_sender_identity.sql` was applied to the linked
+    database on 2026-09-20.
   This sprint is independent of Sprints A-D (different feature area, no
   shared code) — a future session may pull it forward instead of doing it
   strictly last, at that session's discretion.
