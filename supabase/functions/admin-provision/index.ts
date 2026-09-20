@@ -182,6 +182,10 @@ Deno.serve(async (req: Request) => {
       return await handleCreateInstructor(serviceClient, body);
     }
 
+    if (body.action === 'delete_instructor') {
+      return await handleDeleteInstructor(serviceClient, body);
+    }
+
     if (body.action === 'create_cohort') {
       return await handleCreateCohort(serviceClient, body, verifiedUserId);
     }
@@ -281,6 +285,44 @@ async function handleCreateInstructor(
       500,
     );
   }
+}
+
+// ------------------------------------------------------ delete_instructor
+// Body: { action: "delete_instructor", student_id: "##########-SOCANINST" }
+// This is deliberately limited to dedicated course-instructor identities.
+// Learner records have their own archive/disenrollment lifecycle and must
+// never be deleted through this endpoint. Deleting the Auth user revokes all
+// active sessions and cascades to its roster, assignment, and credential rows.
+// deno-lint-ignore no-explicit-any
+async function handleDeleteInstructor(
+  serviceClient: any,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const studentId = typeof body.student_id === 'string' ? body.student_id.trim() : '';
+  if (!/^\d{10}-(SOCANINST|HDINST)$/.test(studentId)) {
+    return jsonResponse({ error: 'A dedicated instructor login ID is required.' }, 400);
+  }
+
+  const { data: account, error: accountError } = await serviceClient
+    .from('students')
+    .select('user_id, student_id, track_code, is_admin, is_instructor')
+    .eq('student_id', studentId)
+    .maybeSingle();
+
+  if (accountError) return jsonResponse({ error: 'Could not look up the instructor account.' }, 500);
+  if (!account) return jsonResponse({ error: 'Instructor account was not found.' }, 404);
+  if (
+    account.is_admin === true
+    || account.is_instructor !== true
+    || !(INSTRUCTOR_TRACK_CODES as readonly string[]).includes(account.track_code)
+  ) {
+    return jsonResponse({ error: 'Only dedicated instructor accounts can be deleted here.' }, 403);
+  }
+
+  const { error: deleteError } = await serviceClient.auth.admin.deleteUser(account.user_id);
+  if (deleteError) return jsonResponse({ error: `Could not delete instructor: ${deleteError.message}` }, 500);
+
+  return jsonResponse({ deleted: true, student_id: account.student_id }, 200);
 }
 
 // ----------------------------------------------------------- create_cohort
