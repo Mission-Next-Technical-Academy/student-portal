@@ -392,6 +392,11 @@ mirrors the project's established per-sprint handoff convention
   - [x] E5. Universal banner access: persistent student-program and module
     banners include a **Message Instructor** action. Both open the same focused
     compose pane, so every course and module uses one student/instructor thread.
+  - [x] E6. Sender identity: every reply is persistently labeled **Global
+    Admin** or by its course role (for example, **SOC Analyst Instructor**).
+    This is an author category, not a staff email/display-name exposure; SQL
+    policies enforce that only admins may send as Global Admin and only an
+    assigned instructor may send as their course instructor.
   This sprint is independent of Sprints A-D (different feature area, no
   shared code) — a future session may pull it forward instead of doing it
   strictly last, at that session's discretion.

@@ -204,7 +204,7 @@ async function fetchUserDetails(userId, trackCode) {
     // in the same table, so one query drives the student's full inbox.
     mntSupabase
       .from('student_messages')
-      .select('id, thread_id, subject, body, sender_role, context, created_at, read_at')
+      .select('id, thread_id, subject, body, sender_role, sender_identity, context, created_at, read_at')
       .eq('student_id', userId)
       .eq('track_code', trackCode)
       .order('created_at', { ascending: true }),
@@ -1053,9 +1053,16 @@ function adminMessageInboxPanel(messageRows) {
   if (!list.length) return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div><div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No messages in this course workspace yet.</p></div>`;
   return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div><p class="text-gray-500 text-sm">Messages stay inside the portal. Replying also clears the student's unread message cue for this conversation.</p></div><div class="space-y-4">${list.map(([threadId, thread]) => `<article class="bg-white border border-gray-200 rounded-xl p-5" data-faculty-message-thread="${esc(threadId)}">
     <div class="flex flex-wrap items-start justify-between gap-3 mb-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(thread.studentId)}</p><h3 class="text-sm text-gray-700 mt-1">${esc(thread.subject)}</h3></div></div>
-    <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${message.sender_role === 'student' ? esc(thread.studentId) : 'Instructor'}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
+    <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${esc(messageSenderLabel(message, thread.studentId))}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
     <form data-faculty-message-reply data-thread-id="${esc(threadId)}" data-student-user-id="${esc(thread.userId)}" data-track-code="${esc(thread.trackCode)}" data-subject="${esc(thread.subject)}"><label class="block text-sm font-semibold text-[#1e3a5f]">Reply<textarea required rows="3" maxlength="10000" name="body" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Write a plain-text reply."></textarea></label><div class="mt-2 flex items-center gap-3"><button type="submit" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg">Send reply</button><span data-faculty-message-status class="text-xs text-gray-500" aria-live="polite"></span></div></form>
   </article>`).join('')}</div>`;
+}
+
+function messageSenderLabel(message, studentLabel = 'You') {
+  if (message.sender_role === 'student') return studentLabel;
+  if (message.sender_identity === 'global_admin') return 'Global Admin';
+  const track = adminTrackMeta(message.track_code);
+  return `${track ? track.eyebrow : 'Course'} Instructor`;
 }
 
 function adminProgramRosterChip(label, value, tone) {
@@ -4518,7 +4525,7 @@ function studentMessagesPanel(messages = []) {
         ${threadList.length ? `<div class="space-y-4">${threadList.map(([threadId, thread]) => `<article class="bg-white border border-gray-200 rounded-xl p-5" data-message-thread="${esc(threadId)}">
           <h3 class="font-semibold text-[#1e3a5f] mb-3">${esc(thread.subject)}</h3>
           <div class="space-y-3">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'faculty' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}">
-            <div class="flex items-center justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${message.sender_role === 'faculty' ? 'Instructor' : 'You'}</strong><span class="text-gray-500">${esc(formatTime(message.created_at))}</span></div>
+            <div class="flex items-center justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${esc(messageSenderLabel(message))}</strong><span class="text-gray-500">${esc(formatTime(message.created_at))}</span></div>
             <p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p>
           </div>`).join('')}</div>
         </article>`).join('')}</div>` : `<div class="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center text-sm text-gray-500">No messages yet. Start a conversation with your instructor when you need support.</div>`}
@@ -5432,7 +5439,7 @@ function wireSelectAllBlocks(container) {
   });
 }
 
-async function toggleCredentialsPanel(studentId, btn) {
+async function toggleCredentialsPanel(studentId, btn, trackCode) {
   const panel = document.querySelector(`[data-cred-panel="${studentId}"]`);
   const inner = document.querySelector(`[data-cred-panel-inner="${studentId}"]`);
   const chevron = document.querySelector(`[data-cred-chevron="${studentId}"]`);
@@ -5468,6 +5475,31 @@ async function toggleCredentialsPanel(studentId, btn) {
 Password:   ${esc(data.password)}</pre>
         <p class="text-xs text-gray-400 mt-2">Generated ${new Date(data.created_at).toLocaleDateString()}</p>`;
       wireSelectAllBlocks(inner);
+    }
+    if (['SOCANINST', 'HDINST'].includes(trackCode)) {
+      const offboard = document.createElement('div');
+      offboard.className = 'mt-4 pt-4 border-t border-red-100';
+      offboard.innerHTML = `<p class="text-xs text-gray-500 mb-2">Offboarding permanently deletes this instructor account, active sessions, course assignment, and stored credential.</p>
+        <button type="button" data-delete-instructor="${esc(studentId)}" class="text-xs font-semibold text-red-700 hover:text-red-900 hover:underline">Delete instructor account</button>
+        <p data-delete-instructor-status class="text-xs mt-2" aria-live="polite"></p>`;
+      inner.appendChild(offboard);
+      const deleteButton = offboard.querySelector('[data-delete-instructor]');
+      const deleteStatus = offboard.querySelector('[data-delete-instructor-status]');
+      deleteButton.addEventListener('click', async () => {
+        if (!window.confirm(`Permanently delete ${studentId}? This cannot be undone.`)) return;
+        deleteButton.disabled = true;
+        deleteStatus.textContent = 'Deleting instructor account…';
+        try {
+          await callAdminProvision('delete_instructor', { student_id: studentId });
+          deleteStatus.className = 'text-xs mt-2 text-green-700';
+          deleteStatus.textContent = 'Instructor account deleted. Refreshing the roster…';
+          await render({ reuseAdminRoster: false });
+        } catch (deleteError) {
+          deleteButton.disabled = false;
+          deleteStatus.className = 'text-xs mt-2 text-red-700';
+          deleteStatus.textContent = `Could not delete the instructor account: ${deleteError && deleteError.message ? deleteError.message : String(deleteError)}`;
+        }
+      });
     }
     inner.dataset.loaded = '1';
   }
@@ -5889,7 +5921,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
                              data-track="${esc(row.track_code)}" data-progress="${programmeProgress.percent}" data-started="${(programmeProgress.completed > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
                            <td class="px-6 py-4 text-sm text-gray-900 font-mono">
-                             <button type="button" data-view-credentials="${esc(row.student_id)}" aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
+                             <button type="button" data-view-credentials="${esc(row.student_id)}" data-credential-track="${esc(row.track_code)}" aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
                                ${esc(row.student_id)}
                              </button>
@@ -6442,7 +6474,7 @@ async function render(options = {}) {
       if (selectedAdminTrack && (user.isAdmin || facultyMessageTrackCodes.includes(selectedAdminTrack))) {
         const facultyMessagesResult = await mntSupabase
           .from('student_messages')
-          .select('id, thread_id, student_id, track_code, subject, body, sender_role, context, created_at, read_at')
+          .select('id, thread_id, student_id, track_code, subject, body, sender_role, sender_identity, context, created_at, read_at')
           .eq('track_code', selectedAdminTrack)
           .order('created_at', { ascending: true });
         if (facultyMessagesResult.error) console.error('student_messages faculty inbox fetch failed', facultyMessagesResult.error);
@@ -6723,6 +6755,7 @@ function openInstructorMessagePane(trigger) {
         subject,
         body,
         sender_role: 'student',
+        sender_identity: 'student',
         context: { portal_route: location.hash || 'module' },
       });
       if (error) throw error;
@@ -6775,6 +6808,7 @@ function wireStudentMessages() {
         subject,
         body,
         sender_role: 'student',
+        sender_identity: 'student',
         context: { portal_route: 'portal' },
       });
       if (error) throw error;
@@ -7082,6 +7116,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
       submit.disabled = true;
       if (statusEl) statusEl.textContent = 'Sending…';
       try {
+        const sender = await currentUser();
         const { error: replyError } = await mntSupabase.from('student_messages').insert({
           thread_id: form.dataset.threadId,
           student_id: form.dataset.studentUserId,
@@ -7089,6 +7124,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
           subject: form.dataset.subject,
           body,
           sender_role: 'faculty',
+          sender_identity: sender?.isAdmin ? 'global_admin' : 'course_instructor',
         });
         if (replyError) throw replyError;
         const unreadStudentIds = facultyMessageRows
@@ -7710,7 +7746,11 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     tableBody.addEventListener('click', async (event) => {
       const credBtn = event.target.closest('[data-view-credentials]');
       if (credBtn) {
-        await toggleCredentialsPanel(credBtn.getAttribute('data-view-credentials'), credBtn);
+        await toggleCredentialsPanel(
+          credBtn.getAttribute('data-view-credentials'),
+          credBtn,
+          credBtn.getAttribute('data-credential-track'),
+        );
         return;
       }
       const snapshotBtn = event.target.closest('[data-admin-snapshot]');

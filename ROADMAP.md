@@ -88,6 +88,8 @@ compose and read plain-text threads in the portal, faculty have a scoped Inbox
 and unread badges, and the persistent shared banner on every course/module
 and student-program page opens the same focused compose pane. It is not a queued work item and
 must remain one shared message system rather than separate module-level inboxes.
+Replies identify the sender's authority as either **Global Admin** or the
+relevant course instructor without exposing staff email addresses.
 See `HANDOFF_2026-09-18_FACULTY_GATE.md` (Sprint E) for implementation and
 verification evidence.
 
