@@ -87,6 +87,55 @@ An instructor creation request must reject `ADMIN`, multiple course tracks,
 or an unassigned instructor. A general administrator is not implicitly an
 instructor for every course.
 
+## 2026-09-20 — production checklist completed for SOCAN/HDESK, AIENG/ELECT gap found
+
+While testing the student "Message Instructor" feature live (post-`fb41d91`
+deploy), found the course-scoped RLS policy
+(`20260920110000_course_scoped_faculty_messages.sql`) had gone live with
+**zero** `faculty_course_assignments` rows — every student, on every track,
+got `new row violates row-level security policy for table
+"student_messages"` on send. Root cause: this file's own checklist item 4
+("Apply these migrations and deploy the updated admin-provision Edge
+Function") had only had the migrations applied, not the Edge Function
+redeploy — `admin-provision` was still at version 3, which doesn't know the
+`create_instructor` action, so the new "Generate Account → Course
+instructor" admin UI failed with `Unknown action "create_instructor"`.
+
+Fixed, in order:
+1. Redeployed `admin-provision` (owner ran `supabase functions deploy
+   admin-provision` — blocked for the agent by the harness's own
+   auto-mode classifier as a Production Deploy action). Now at version 4.
+2. Provisioned real production instructors via the admin panel's Generate
+   Account flow: `1989457660-SOCANINST` (SOCAN, active) and
+   `6603016388-HDINST` (HDESK, active).
+3. **Bug found while provisioning:** the admin "Generate Account" Track
+   dropdown offers all four tracks (SOCAN/HDESK/AIENG/ELECT) for a Course
+   instructor account type, but the backend's `INSTRUCTOR_TRACK_CODES`
+   (`supabase/functions/admin-provision/provisioning.ts`) only ever
+   supported `SOCANINST`/`HDINST` — this file's own checklist only ever
+   scoped IT Help Desk and SOC Analyst. Selecting AIENG silently created a
+   **second HDESK instructor** (`5106545914-HDINST`) mislabeled in the
+   success panel as "Dashboard: AIENG — AI/ML" instead of erroring. No
+   frontend validation catches this. Cleaned up: deactivated that row
+   (`active = false`, not deleted — owner ran the `supabase db query`
+   update directly, blocked for the agent by the same auto-mode classifier
+   as a Modify Shared Resources action). AIENG and ELECT instructor
+   provisioning is a real, unbuilt gap — not urgent since both tracks are
+   still "Coming soon" to students (per `CLAUDE.md`'s program-parity
+   notes), but the Track dropdown should be restricted to
+   `INSTRUCTOR_TRACK_CODES`' actual courses (or the backend extended) before
+   anyone relies on it for those two tracks.
+4. **Verified live, full round trip, on GitHub Pages (not localhost):**
+   signed in as `8987495051-SOCAN`, sent a real message via the Module 1
+   "Message Instructor" pane; signed in as `1989457660-SOCANINST`, landed
+   on `#/admin/track/SOCAN` (the instructor's forced home route), saw the
+   real "Messages" tab with an unread badge, and read the message.
+   Confirms the general `7355312413-ADMIN` account intentionally does NOT
+   see the Messages tab (it queries `faculty_course_assignments` for the
+   *viewer's own* `user_id`, and admins aren't instructors) — this had
+   looked like a missing feature when compared against an earlier localhost
+   session, but is deliberate scoping already commented in the code.
+
 ## Security notes
 
 These plaintext values are intentionally limited to fictional staging access.
