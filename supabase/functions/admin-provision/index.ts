@@ -24,6 +24,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import {
   provisionOneAccount,
+  INSTRUCTOR_COURSE_BY_TRACK,
+  INSTRUCTOR_TRACK_CODES,
   TRACK_CODES,
   type ProvisionedAccount,
 } from './provisioning.ts';
@@ -176,6 +178,10 @@ Deno.serve(async (req: Request) => {
       return await handleCreateUser(serviceClient, body);
     }
 
+    if (body.action === 'create_instructor') {
+      return await handleCreateInstructor(serviceClient, body);
+    }
+
     if (body.action === 'create_cohort') {
       return await handleCreateCohort(serviceClient, body, verifiedUserId);
     }
@@ -234,6 +240,44 @@ async function handleCreateUser(
           ? err.message
           : 'Account creation failed',
       },
+      500,
+    );
+  }
+}
+
+// ------------------------------------------------------ create_instructor
+// Body: { action: "create_instructor", instructor_track_code:
+//         "SOCANINST"|"HDINST" }
+// A dedicated instructor is active immediately and receives exactly one
+// faculty_course_assignments row. It is not placed in a learner cohort.
+// The response contains the generated password once, like create_user.
+// deno-lint-ignore no-explicit-any
+async function handleCreateInstructor(
+  serviceClient: any,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const instructorTrackCode = body.instructor_track_code;
+  if (
+    typeof instructorTrackCode !== 'string'
+    || !(INSTRUCTOR_TRACK_CODES as readonly string[]).includes(instructorTrackCode)
+  ) {
+    return jsonResponse(
+      { error: `Invalid instructor_track_code. Use one of: ${INSTRUCTOR_TRACK_CODES.join(', ')}` },
+      400,
+    );
+  }
+
+  try {
+    const account = await provisionOneAccount(serviceClient, {
+      trackCode: instructorTrackCode,
+      cohortId: null,
+      isEnrolled: true,
+      instructorCourseTrack: INSTRUCTOR_COURSE_BY_TRACK[instructorTrackCode],
+    });
+    return jsonResponse(account, 200);
+  } catch (err) {
+    return jsonResponse(
+      { error: err instanceof Error ? err.message : 'Instructor creation failed' },
       500,
     );
   }

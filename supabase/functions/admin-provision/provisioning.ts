@@ -27,6 +27,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 // excluded from cohort batches by index.ts's separate COHORT_TRACK_CODES —
 // "cohorts are for students," per the sprint plan.
 export const TRACK_CODES = ['SOCAN', 'HDESK', 'AIENG', 'ELECT', 'ADMIN'];
+export const INSTRUCTOR_TRACK_CODES = ['SOCANINST', 'HDINST'] as const;
+
+export const INSTRUCTOR_COURSE_BY_TRACK: Record<string, string> = {
+  SOCANINST: 'SOCAN',
+  HDINST: 'HDESK',
+};
 
 // Same charset and length (20 chars) as bin/provision-students.js's
 // generatePassword(). No comma in the charset: that script's generated
@@ -141,6 +147,8 @@ export interface ProvisionOptions {
   trackCode: string;
   cohortId: string | null;
   isEnrolled: boolean;
+  /** Dedicated instructor accounts are assigned to exactly one course. */
+  instructorCourseTrack?: string | null;
 }
 
 export interface ProvisionedAccount {
@@ -164,7 +172,7 @@ export interface ProvisionedAccount {
 export async function provisionOneAccount(
   // deno-lint-ignore no-explicit-any
   serviceClient: any,
-  { trackCode, cohortId, isEnrolled }: ProvisionOptions,
+  { trackCode, cohortId, isEnrolled, instructorCourseTrack = null }: ProvisionOptions,
 ): Promise<ProvisionedAccount> {
   const studentId = await generateUniqueLoginId(serviceClient, trackCode);
   const password = generatePassword();
@@ -179,6 +187,7 @@ export async function provisionOneAccount(
     user_id: userId,
     track_code: trackCode,
     is_admin: trackCode === 'ADMIN',
+    is_instructor: instructorCourseTrack !== null,
     cohort_id: cohortId,
     is_enrolled: isEnrolled,
   });
@@ -194,6 +203,20 @@ export async function provisionOneAccount(
     throw new Error(
       `Auth user ${userId} created but students row insert failed: ${insertError.message}`,
     );
+  }
+
+  // A dedicated instructor is active immediately, but has no learner
+  // enrollment. This assignment is the source of truth for the one course
+  // dashboard and its messages; never infer it from the login-id suffix.
+  if (instructorCourseTrack) {
+    const { error: assignmentError } = await serviceClient
+      .from('faculty_course_assignments')
+      .insert({ user_id: userId, track_code: instructorCourseTrack, active: true });
+    if (assignmentError) {
+      throw new Error(
+        `Instructor ${studentId} created but course assignment failed: ${assignmentError.message}`,
+      );
+    }
   }
 
   // Admin-only plaintext copy for the admin panel's "view credentials"

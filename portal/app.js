@@ -89,11 +89,26 @@ function discardLocalSession() {
 async function buildCoreUserFromSession(session) {
   const userId = session.user.id;
 
-  const { data: studentRow } = await mntSupabase
-    .from('students')
-    .select('student_id, track_code, is_admin, is_enrolled, academy_orientation_completed_at')
-    .eq('user_id', userId)
-    .single();
+  // An instructor is deliberately distinct from an administrator.  The
+  // `is_instructor` flag identifies the account type while the assignment
+  // roster below is the authority for its course scope.  Do not infer either
+  // from a track code: student accounts have track codes too.
+  const [studentResult, assignmentResult] = await Promise.all([
+    mntSupabase
+      .from('students')
+      .select('student_id, track_code, is_admin, is_instructor, is_enrolled, academy_orientation_completed_at')
+      .eq('user_id', userId)
+      .single(),
+    mntSupabase
+      .from('faculty_course_assignments')
+      .select('track_code')
+      .eq('user_id', userId)
+      .eq('active', true),
+  ]);
+  const studentRow = studentResult.data;
+  if (studentResult.error) console.error('Could not load account profile', studentResult.error);
+  if (assignmentResult.error) console.error('Could not load instructor course assignments', assignmentResult.error);
+  const instructorTrackCodes = (assignmentResult.data || []).map((row) => row.track_code).filter((code) => !!adminTrackMeta(code));
 
   // Access is derived from students.track_code, not a joined enrollments row —
   // see the TRACK_CODE_TO_PROGRAM_SLUG comment above. Provisioning only ever
@@ -115,6 +130,8 @@ async function buildCoreUserFromSession(session) {
     username: studentRow ? studentRow.student_id : emailToDisplayId(session.user.email),
     name: studentRow ? studentRow.student_id : emailToDisplayId(session.user.email),
     isAdmin: !!(studentRow && studentRow.is_admin),
+    isInstructor: !!(studentRow && studentRow.is_instructor && instructorTrackCodes.length),
+    instructorTrackCodes,
     // Academy-level (not per-program) first-login orientation tour state —
     // see AcademyOrientation in orientation.js and the
     // 20260920100000_academy_orientation_state.sql migration.
@@ -258,6 +275,9 @@ async function fetchUserDetails(userId, trackCode) {
 
 async function buildUserFromSession(session) {
   const core = await buildCoreUserFromSession(session);
+  // Faculty never load learner-only progress or their own inbox as if they
+  // were a student. Their course dashboard performs its own scoped reads.
+  if (core.isInstructor && !core.isAdmin) return core;
   const details = await fetchUserDetails(core.userId, core.trackCode);
   return { ...core, ...details };
 }
@@ -327,7 +347,9 @@ async function signIn(identifier, password) {
   // its doc comment). fetchUserDetails() already catches and logs its own
   // errors rather than throwing, so a floating unawaited promise here is
   // safe even on the rare blocked/geofenced-login path below.
-  const detailsPromise = fetchUserDetails(core.userId, core.trackCode);
+  const detailsPromise = core.isInstructor && !core.isAdmin
+    ? Promise.resolve({})
+    : fetchUserDetails(core.userId, core.trackCode);
 
   const loginEventId = await recordLoginEvent(core);
 
@@ -3905,7 +3927,7 @@ function header(user, options = {}) {
           user
             ? `<div class="flex items-center gap-2">
                  ${
-                   user.isAdmin
+                   (user.isAdmin || user.isInstructor)
                      ? ''
                      : `<a href="#/portal" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 group">
                           My Programs
@@ -3916,6 +3938,14 @@ function header(user, options = {}) {
                    user.isAdmin
                      ? `<a href="#/admin" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 group">
                         Admin
+                        <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
+                      </a>`
+                     : ''
+                 }
+                 ${
+                   user.isInstructor && !user.isAdmin
+                     ? `<a href="#/admin/track/${esc(user.instructorTrackCodes[0])}" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 group">
+                        Course Dashboard
                         <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
                       </a>`
                      : ''
@@ -5465,6 +5495,7 @@ function formatLoginLocation(ev) {
 }
 
 function viewAdmin(user, rows, error, activeStudents, extra) {
+  const instructorDashboard = !!(user.isInstructor && !user.isAdmin);
   const cheatingFlagsByUserId = (extra && extra.cheatingFlagsByUserId) || new Map();
   const loginEvents = (extra && extra.loginEvents) || [];
   const activityRowLimit = (extra && extra.activityRowLimit) || ADMIN_ACTIVITY_ROW_LIMIT;
@@ -5476,6 +5507,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const gradingQueueRows = (extra && extra.gradingQueueRows) || [];
   const unreadMessageRows = (extra && extra.unreadMessageRows) || [];
   const facultyMessageRows = (extra && extra.facultyMessageRows) || [];
+  const facultyMessageTrackCodes = new Set((extra && extra.facultyMessageTrackCodes) || []);
   const gradingCountsByTrack = new Map();
   gradingQueueRows.forEach((row) => gradingCountsByTrack.set(row.track_code, (gradingCountsByTrack.get(row.track_code) || 0) + 1));
   const unreadMessageCountsByTrack = new Map();
@@ -5487,8 +5519,11 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // Grading, fall back to Student Progress rather than rendering a
   // still-"active" tab whose panel no longer exists in the DOM at all.
   const requestedTab = (extra && extra.activeTab) || 'progress';
-  const activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
+  let activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
+  if (instructorDashboard && !['progress', 'grading', 'messages'].includes(activeTab)) activeTab = 'progress';
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
+  const canManageTrackMessages = Boolean(activeTrackCode && facultyMessageTrackCodes.has(activeTrackCode));
+  if (!canManageTrackMessages && activeTab === 'messages') activeTab = 'progress';
   const rosterRows = activeTrackCode ? rows.filter((row) => row.track_code === activeTrackCode) : rows;
   // The All Students workspace intentionally retains its cross-track detail
   // picker. A track workspace must not expose another track's student record.
@@ -5570,24 +5605,24 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
       <div class="max-w-6xl mx-auto">
         <div class="mb-3">
           <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 class="text-3xl font-bold text-[#1e3a5f]">Student Progress</h1>
-            <span class="text-sm text-gray-500">Monitor student progress across all programs.</span>
+            <h1 class="text-3xl font-bold text-[#1e3a5f]">${instructorDashboard ? 'Course Dashboard' : 'Student Progress'}</h1>
+            <span class="text-sm text-gray-500">${instructorDashboard ? 'Monitor progress and support learners in your assigned course.' : 'Monitor student progress across all programs.'}</span>
           </div>
-          ${activeTrack ? `<div class="mt-2 flex flex-wrap items-center gap-3"><a href="#/admin" class="text-sm font-semibold text-[#1e3a5f] hover:underline">← All Students</a><span class="text-sm text-gray-500">${esc(activeTrack.title)}</span></div>` : ''}
+          ${activeTrack ? `<div class="mt-2 flex flex-wrap items-center gap-3">${instructorDashboard ? '' : '<a href="#/admin" class="text-sm font-semibold text-[#1e3a5f] hover:underline">← All Students</a>'}<span class="text-sm text-gray-500">${esc(activeTrack.title)}</span></div>` : ''}
         </div>
 
         <div class="flex gap-2 border-b border-gray-200 mb-5 flex-wrap" role="tablist">
           <button type="button" role="tab" aria-selected="${tabIsActive('progress')}" data-admin-tab="progress" class="${tabBtnClass('progress')}">Student Progress</button>
-          <button type="button" role="tab" aria-selected="${tabIsActive('activity')}" data-admin-tab="activity" class="${tabBtnClass('activity')}">
+          ${!instructorDashboard ? `<button type="button" role="tab" aria-selected="${tabIsActive('activity')}" data-admin-tab="activity" class="${tabBtnClass('activity')}">
             Student Activity Monitor${cheatingFlagsByStudentId.size ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">${cheatingFlagsByStudentId.size}</span>` : ''}
           </button>
           <button type="button" role="tab" aria-selected="${tabIsActive('cohorts')}" data-admin-tab="cohorts" class="${tabBtnClass('cohorts')}">Cohorts</button>
-          <button type="button" role="tab" aria-selected="${tabIsActive('archived')}" data-admin-tab="archived" class="${tabBtnClass('archived')}">Archived Students</button>
+          <button type="button" role="tab" aria-selected="${tabIsActive('archived')}" data-admin-tab="archived" class="${tabBtnClass('archived')}">Archived Students</button>` : ''}
           ${activeTrackCode ? `<button type="button" role="tab" aria-selected="${tabIsActive('grading')}" data-admin-tab="grading" class="${tabBtnClass('grading')}">
             Grading${trackGradingQueueRows.length ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700">${trackGradingQueueRows.length}</span>` : ''}
-          </button><button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')}">
-            Inbox${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">${unreadMessageCountsByTrack.get(activeTrackCode)}</span>` : ''}
-          </button>` : ''}
+          </button>${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')} inline-flex items-center gap-1.5" aria-label="Course messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? `, ${unreadMessageCountsByTrack.get(activeTrackCode)} unread` : ''}">
+            <i class="ri-notification-3-line" aria-hidden="true"></i> Messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? ` <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">${unreadMessageCountsByTrack.get(activeTrackCode)}</span>` : ''}
+          </button>` : ''}` : ''}
         </div>
 
         <div id="admin-tab-panel-progress" ${tabIsActive('progress') ? '' : 'hidden'}>
@@ -5667,9 +5702,15 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                         COHORT_USER_LIFECYCLE_SPRINT_PLAN.md. -->
                    <div id="admin-generate-user-panel" class="acc-body">
                     <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
-                     <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate New User</h3>
-                     <p class="text-xs text-gray-500 mb-3">Creates one student account immediately, unassigned and not yet enrolled (provisioning.ts's ad hoc design — only a batch-generated cohort starts enrolled). Turn it on for the student under "Enrollment Planning" below when they're ready to start. The password is shown once, below — copy it now, it is not shown again.</p>
-                     <div class="grid sm:grid-cols-3 gap-3 items-end">
+                     <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Account</h3>
+                     <p class="text-xs text-gray-500 mb-3">Create a student account or an instructor account. Student accounts begin unassigned and not enrolled. An instructor is assigned to exactly the course selected below and can only open that course dashboard. The password is shown once — copy it now.</p>
+                     <div class="grid sm:grid-cols-4 gap-3 items-end">
+                       <label class="text-xs font-semibold text-gray-600">Account type
+                         <select id="gen-user-role" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
+                           <option value="student">Student</option>
+                           <option value="instructor">Course instructor</option>
+                         </select>
+                       </label>
                        <label class="text-xs font-semibold text-gray-600">Track
                          <select id="gen-user-track" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
                            <option value="SOCAN">SOCAN — SOC Analyst</option>
@@ -5679,7 +5720,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                            <option value="ADMIN">ADMIN</option>
                          </select>
                        </label>
-                       <label class="text-xs font-semibold text-gray-600">Cohort (optional)
+                       <label id="gen-user-cohort-label" class="text-xs font-semibold text-gray-600">Cohort (optional)
                          <select id="gen-user-cohort" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
                            <option value="">No cohort</option>
                            ${activeCohorts.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
@@ -5809,7 +5850,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    </div></div>
                  </div>
                  ` : ''}
-                 ${adminTrackAdministrationStrip(rows, activeTrackCode, gradingCountsByTrack, unreadMessageCountsByTrack)}
+                 ${instructorDashboard ? '' : adminTrackAdministrationStrip(rows, activeTrackCode, gradingCountsByTrack, unreadMessageCountsByTrack)}
                  ${activeTrack ? `<section class="order-3 bg-[#f8fafc] border border-gray-200 rounded-xl p-4 mb-4"><h2 class="text-lg font-bold text-[#1e3a5f]">${esc(activeTrack.title)} summary</h2><p class="text-sm text-gray-600 mt-1">${rosterRows.filter((r) => r.enrolled !== false).length} enrolled · ${rosterRows.filter((r) => (r.modules_complete || 0) === 0 && (r.modules_in_progress || 0) === 0).length} not started · ${rosterRows.filter((r) => (r.modules_complete || 0) >= 12).length} technical complete · ${rosterRows.filter((r) => r.m360_course_complete).length} M360 complete · ${rosterRows.filter((r) => Number(r.work_items_completed || 0) >= 18 && !r.m360_course_complete).length} verification pending</p></section>` : ''}
                  ${activeTrackCode ? adminProgramRoster(rosterRows) : ''}
                  ${!activeTrackCode ? `
@@ -6116,11 +6157,11 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           ${adminMessageInboxPanel(trackFacultyMessageRows)}
         </div>` : ''}
 
-        <div class="mt-8">
+        ${!instructorDashboard ? `<div class="mt-8">
           <a href="#/portal" class="inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-6 py-3 rounded-xl transition-colors">
             <i class="ri-arrow-left-line"></i> Back to My Programs
           </a>
-        </div>
+        </div>` : ''}
       </div>
     </section>
   </main>
@@ -6279,10 +6320,19 @@ async function render(options = {}) {
     // fall through and render the portal
   }
 
-  // Admin-only redirect: admins must never see the student portal/catalogue,
-  // whether they land there by default, type #/portal directly, follow a stale link,
-  // or any other navigation path. Redirect them to #/admin instead.
-  const adminTrackMatch = hash.match(/^#\/admin\/track\/([A-Z0-9]+)$/);
+  // Administrative accounts retain the cross-course dashboard. Instructor
+  // accounts never do: their first active assignment is their one permitted
+  // destination, even if a copied #/admin or student URL is pasted directly.
+  // The database still enforces the same scope; this is the navigation guard.
+  let adminTrackMatch = hash.match(/^#\/admin\/track\/([A-Z0-9]+)$/);
+  const instructorHomeRoute = user.isInstructor && !user.isAdmin && user.instructorTrackCodes.length
+    ? `#/admin/track/${user.instructorTrackCodes[0]}`
+    : null;
+  if (instructorHomeRoute && hash !== instructorHomeRoute) {
+    history.replaceState(null, '', instructorHomeRoute);
+    hash = instructorHomeRoute;
+    adminTrackMatch = hash.match(/^#\/admin\/track\/([A-Z0-9]+)$/);
+  }
   if (user.isAdmin && hash !== '#/admin' && !adminTrackMatch) {
     history.replaceState(null, '', '#/admin');
     hash = '#/admin';
@@ -6294,13 +6344,28 @@ async function render(options = {}) {
   let gradingQueueRows = [];
   let unreadMessageRows = [];
   let facultyMessageRows = [];
+  let facultyMessageTrackCodes = [];
   if (hash === '#/admin' || adminTrackMatch) {
-    if (!user.isAdmin) {
+    if (!user.isAdmin && !user.isInstructor) {
       history.replaceState(null, '', '#/portal');
       if (!completeRouteLoading(renderGeneration)) return;
       app.innerHTML = viewPortal(user);
     } else {
       const selectedAdminTrack = adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null;
+      // This is deliberately separate from general admin access. A faculty
+      // member only receives the message control and rows for courses to
+      // which they have explicitly been assigned.
+      if (user.isInstructor && !user.isAdmin) {
+        facultyMessageTrackCodes = user.instructorTrackCodes.slice(0, 1);
+      } else {
+        const facultyAssignmentsResult = await mntSupabase
+          .from('faculty_course_assignments')
+          .select('track_code')
+          .eq('user_id', user.userId)
+          .eq('active', true);
+        if (facultyAssignmentsResult.error) console.error('faculty course assignments fetch failed', facultyAssignmentsResult.error);
+        facultyMessageTrackCodes = (facultyAssignmentsResult.data || []).map((row) => row.track_code);
+      }
       const cachedRoster = options.reuseAdminRoster && adminRosterSnapshot && adminRosterSnapshot.route === hash
         ? adminRosterSnapshot
         : null;
@@ -6311,9 +6376,18 @@ async function render(options = {}) {
         // One authoritative roster select feeds both the master roster and the
         // client-side filtered track workspace.  Do not add per-student M360
         // reads here: this view is the cross-track M360 projection.
+        // The faculty read model is assignment-scoped in SQL.  Do not use the
+        // broader admin view and merely filter it in JavaScript: that would
+        // make a direct API request capable of exposing another course.
+        const rosterView = user.isInstructor && !user.isAdmin
+          ? 'faculty_course_student_progress'
+          : 'admin_student_program_progress';
+        const rosterColumns = user.isInstructor && !user.isAdmin
+          ? 'student_id, user_id, track_code, is_enrolled, technical_completed, technical_required, technical_percent, technical_in_progress, technical_last_active, lab_attempts_count, capstone_submissions_count'
+          : 'student_id, user_id, track_code, program_slug, is_enrolled, technical_completed, technical_required, technical_percent, technical_in_progress, technical_last_active, m360_required, m360_record_exists, m360_accepted_weeks, m360_required_weeks, m360_graded_weeks, m360_final_grade, m360_start_here_complete, m360_spotlight_complete, m360_attendance_complete, m360_course_complete, networking_comfort, interview_readiness, support_flag, work_items_completed, work_items_required, work_items_percent, program_requirements_complete, status, enrollment_date, withdrawal_date, completion_date, scheduled_start_date, scheduled_completion_date, program_version_code, credential_code, credential_name, geography_classification, credited_technical_minutes, credited_career_minutes, credited_program_minutes';
         let rosterQuery = mntSupabase
-          .from('admin_student_program_progress')
-          .select('student_id, user_id, track_code, program_slug, is_enrolled, technical_completed, technical_required, technical_percent, technical_in_progress, technical_last_active, m360_required, m360_record_exists, m360_accepted_weeks, m360_required_weeks, m360_graded_weeks, m360_final_grade, m360_start_here_complete, m360_spotlight_complete, m360_attendance_complete, m360_course_complete, networking_comfort, interview_readiness, support_flag, work_items_completed, work_items_required, work_items_percent, program_requirements_complete, status, enrollment_date, withdrawal_date, completion_date, scheduled_start_date, scheduled_completion_date, program_version_code, credential_code, credential_name, geography_classification, credited_technical_minutes, credited_career_minutes, credited_program_minutes')
+          .from(rosterView)
+          .select(rosterColumns)
           .order('track_code', { ascending: true });
         if (selectedAdminTrack) rosterQuery = rosterQuery.eq('track_code', selectedAdminTrack);
         const result = await rosterQuery;
@@ -6337,10 +6411,15 @@ async function render(options = {}) {
       // badge, which must be current on every admin render, not just after
       // the Grading tab has been opened once. Small, bounded result set
       // (only reviewed_at is null rows — the view itself is the queue).
-      const gradingResult = await mntSupabase
-        .from('admin_grading_queue')
+      const gradingView = user.isInstructor && !user.isAdmin
+        ? 'faculty_grading_queue'
+        : 'admin_grading_queue';
+      let gradingQuery = mntSupabase
+        .from(gradingView)
         .select('id, user_id, student_id, track_code, lab_key, score, pass_threshold, result, started_at, completed_at')
         .order('completed_at', { ascending: true });
+      if (selectedAdminTrack) gradingQuery = gradingQuery.eq('track_code', selectedAdminTrack);
+      const gradingResult = await gradingQuery;
       if (gradingResult.error) console.error('admin_grading_queue fetch failed', gradingResult.error);
       gradingQueueRows = gradingResult.data || [];
 
@@ -6353,7 +6432,7 @@ async function render(options = {}) {
 
       // Full correspondence is only loaded for the selected course workspace;
       // the cross-track admin landing needs the small unread queue only.
-      if (selectedAdminTrack) {
+      if (selectedAdminTrack && facultyMessageTrackCodes.includes(selectedAdminTrack)) {
         const facultyMessagesResult = await mntSupabase
           .from('student_messages')
           .select('id, thread_id, student_id, track_code, subject, body, sender_role, context, created_at, read_at')
@@ -6390,6 +6469,7 @@ async function render(options = {}) {
         gradingQueueRows,
         unreadMessageRows,
         facultyMessageRows,
+        facultyMessageTrackCodes,
       }));
     }
     if (!isCurrentRouteRender(renderGeneration)) return;
@@ -6491,7 +6571,9 @@ function wireLogin() {
       const coachReturn = new URLSearchParams(location.search).get('coachComplete');
       const returnToModule = coachReturn === 'm01' && location.hash === '#/program/soc-analyst/module/1';
       const activeEnrollment = user.enrollments.find((e) => e.status === 'active');
-      const destination = activeEnrollment ? '#/program/' + activeEnrollment.programSlug : '#/portal';
+      const destination = user.isInstructor && !user.isAdmin
+        ? `#/admin/track/${user.instructorTrackCodes[0]}`
+        : (activeEnrollment ? '#/program/' + activeEnrollment.programSlug : '#/portal');
       history.replaceState(null, '', returnToModule
         ? location.pathname + location.search + location.hash
         : destination);
@@ -6533,14 +6615,12 @@ function wireCommon() {
   const signout = document.querySelector('[data-action="signout"]');
   if (signout) signout.addEventListener('click', () => signOut());
 
-  // The persistent module banner opens the existing portal inbox rather than
-  // creating a separate compose flow in every module. The marker survives
-  // the route render so the portal can scroll directly to the compose form.
+  // Keep students in their current lesson: messaging is a focused compose
+  // action, not a navigation action back to the program dashboard.
   const messageInstructor = document.querySelector('[data-message-instructor]');
   if (messageInstructor) {
     messageInstructor.addEventListener('click', () => {
-      sessionStorage.setItem('mnt-focus-instructor-messages', 'true');
-      location.hash = '#/portal';
+      openInstructorMessagePane(messageInstructor);
     });
   }
 
@@ -6580,19 +6660,77 @@ function wireCommon() {
   wireModuleQuickNavRail();
   wireRegisteredModuleLabs();
   wireStudentMessages();
-  focusInstructorMessagesFromModuleBanner();
 }
 
-function focusInstructorMessagesFromModuleBanner() {
-  if (location.hash !== '#/portal' || sessionStorage.getItem('mnt-focus-instructor-messages') !== 'true') return;
-  const panel = document.querySelector('[aria-labelledby="student-messages-title"]');
-  const subject = panel?.querySelector('input[name="subject"]');
-  if (!panel || !subject) return;
-  sessionStorage.removeItem('mnt-focus-instructor-messages');
-  requestAnimationFrame(() => {
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    subject.focus({ preventScroll: true });
+function openInstructorMessagePane(trigger) {
+  document.getElementById('instructor-message-pane')?.remove();
+
+  const pane = document.createElement('div');
+  pane.id = 'instructor-message-pane';
+  pane.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/50';
+  pane.innerHTML = `
+    <section role="dialog" aria-modal="true" aria-labelledby="instructor-message-pane-title" class="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between gap-4 border-b border-gray-200 px-6 py-4">
+        <h2 id="instructor-message-pane-title" class="text-xl font-bold text-[#1e3a5f]">Message instructor</h2>
+        <button type="button" data-close-instructor-message aria-label="Close message pane" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-[#1e3a5f]"><i class="ri-close-line text-xl" aria-hidden="true"></i></button>
+      </div>
+      <form data-instructor-message-pane-form class="space-y-4 px-6 py-5">
+        <label class="block text-sm font-semibold text-[#1e3a5f]">Subject
+          <input name="subject" maxlength="160" required class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="What do you need help with?" />
+        </label>
+        <label class="block text-sm font-semibold text-[#1e3a5f]">Message
+          <textarea name="body" maxlength="10000" required rows="7" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Write your message."></textarea>
+        </label>
+        <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">Do not post personally identifiable information(PII) into these input fields for reasons of security, and privacy. Doing so would be a violation of Academy Policy.</p>
+        <div class="flex items-center justify-between gap-3">
+          <p data-instructor-message-pane-status class="text-sm" aria-live="polite"></p>
+          <button type="submit" class="shrink-0 bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg">Send message</button>
+        </div>
+      </form>
+    </section>`;
+
+  const close = () => {
+    pane.remove();
+    trigger?.focus();
+  };
+  const form = pane.querySelector('[data-instructor-message-pane-form]');
+  const statusEl = pane.querySelector('[data-instructor-message-pane-status]');
+  const closeButton = pane.querySelector('[data-close-instructor-message]');
+  closeButton.addEventListener('click', close);
+  pane.addEventListener('click', (event) => { if (event.target === pane) close(); });
+  pane.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector('button[type="submit"]');
+    const subject = form.elements.subject.value.trim();
+    const body = form.elements.body.value.trim();
+    if (!subject || !body) return;
+    submit.disabled = true;
+    statusEl.textContent = 'Sending…';
+    try {
+      const user = await currentUser();
+      if (!user?.userId || !user?.trackCode) throw new Error('Your session is unavailable. Sign in again and retry.');
+      const { error } = await mntSupabase.from('student_messages').insert({
+        student_id: user.userId,
+        track_code: user.trackCode,
+        subject,
+        body,
+        sender_role: 'student',
+        context: { portal_route: location.hash || 'module' },
+      });
+      if (error) throw error;
+      _cachedUser = null;
+      _cachedUserPromise = null;
+      close();
+    } catch (err) {
+      submit.disabled = false;
+      statusEl.textContent = `Could not send: ${err && err.message ? err.message : String(err)}`;
+    }
   });
+
+  document.body.appendChild(pane);
+  requestAnimationFrame(() => form.elements.subject.focus());
 }
 
 function wireStudentMessages() {
@@ -7100,6 +7238,26 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
    * stored client-side beyond this render, never logged. */
   const generateUserSubmitBtn = document.querySelector('[data-action="admin-generate-user-submit"]');
   if (generateUserSubmitBtn) {
+    const accountRoleSelect = document.getElementById('gen-user-role');
+    const accountTrackSelect = document.getElementById('gen-user-track');
+    const accountCohortSelect = document.getElementById('gen-user-cohort');
+    const syncAccountTypeControls = () => {
+      if (!accountRoleSelect || !accountTrackSelect) return;
+      const instructor = accountRoleSelect.value === 'instructor';
+      // Current course-instructor dashboards exist only for SOC Analyst and
+      // IT Help Desk. The API receives the distinct credential suffix, while
+      // the UI keeps the familiar learner-facing course labels.
+      Array.from(accountTrackSelect.options).forEach((option) => {
+        option.disabled = instructor && !['SOCAN', 'HDESK'].includes(option.value);
+      });
+      if (instructor && !['SOCAN', 'HDESK'].includes(accountTrackSelect.value)) accountTrackSelect.value = 'SOCAN';
+      if (accountCohortSelect) {
+        accountCohortSelect.disabled = instructor;
+        if (instructor) accountCohortSelect.value = '';
+      }
+    };
+    if (accountRoleSelect) accountRoleSelect.addEventListener('change', syncAccountTypeControls);
+    syncAccountTypeControls();
     generateUserSubmitBtn.addEventListener('click', async () => {
       const trackSelect = document.getElementById('gen-user-track');
       const cohortSelect = document.getElementById('gen-user-cohort');
@@ -7110,17 +7268,22 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
       if (statusEl) statusEl.textContent = 'Creating account…';
       resultEl.innerHTML = '';
       try {
-        const account = await callAdminProvision('create_user', {
-          track_code: trackSelect.value,
-          cohort_id: cohortSelect && cohortSelect.value ? cohortSelect.value : null,
-        });
+        const instructor = accountRoleSelect && accountRoleSelect.value === 'instructor';
+        const account = instructor
+          ? await callAdminProvision('create_instructor', {
+            instructor_track_code: trackSelect.value === 'SOCAN' ? 'SOCANINST' : 'HDINST',
+          })
+          : await callAdminProvision('create_user', {
+            track_code: trackSelect.value,
+            cohort_id: cohortSelect && cohortSelect.value ? cohortSelect.value : null,
+          });
         if (statusEl) statusEl.textContent = '';
         resultEl.innerHTML = `
           <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p class="text-xs font-semibold text-green-800 mb-2">Account created — copy this now, it is not shown again.</p>
+            <p class="text-xs font-semibold text-green-800 mb-2">${instructor ? 'Instructor account created — it opens only its assigned course dashboard.' : 'Account created'} Copy this now; it is not shown again.</p>
             <pre data-select-all tabindex="0" class="bg-white border border-green-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(account.student_id)}
 Password:   ${esc(account.password)}
-Track:      ${esc(account.track_code)}</pre>
+Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackSelect.options[trackSelect.selectedIndex].text)}` : ''}</pre>
           </div>`;
         wireSelectAllBlocks(resultEl);
       } catch (err) {

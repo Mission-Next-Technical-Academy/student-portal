@@ -21,18 +21,22 @@ const TRACK_CODE_MAP = {
   AIENG: 'ai-ml',
   ELECT: 'electrical',
   ADMIN: null, // no program
+  // Dedicated faculty identities. Their actual course authority is written
+  // to faculty_course_assignments after their roster record is created.
+  SOCANINST: 'SOCAN',
+  HDINST: 'HDESK',
 };
 
 // Validate inputs
 const [trackCode, countStr] = process.argv.slice(2);
 
 if (!trackCode) {
-  console.error('Error: TRACKCODE required. Use one of: SOCAN, HDESK, AIENG, ELECT, ADMIN');
+  console.error('Error: TRACKCODE required. Use one of: SOCAN, HDESK, AIENG, ELECT, ADMIN, SOCANINST, HDINST');
   process.exit(1);
 }
 
 if (!TRACK_CODE_MAP.hasOwnProperty(trackCode)) {
-  console.error(`Error: Invalid TRACKCODE "${trackCode}". Use one of: SOCAN, HDESK, AIENG, ELECT, ADMIN`);
+  console.error(`Error: Invalid TRACKCODE "${trackCode}". Use one of: SOCAN, HDESK, AIENG, ELECT, ADMIN, SOCANINST, HDINST`);
   process.exit(1);
 }
 
@@ -133,12 +137,33 @@ async function insertStudent(studentId, userId, trackCode, isAdmin) {
       user_id: userId,
       track_code: trackCode,
       is_admin: isAdmin,
+      is_instructor: trackCode.endsWith('INST'),
+      // Faculty accounts are active identities, not learner enrollments.
+      is_enrolled: trackCode.endsWith('INST'),
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
     throw new Error(`Student insert failed: ${response.status} ${response.statusText} - ${error}`);
+  }
+}
+
+async function assignInstructorCourse(userId, trackCode) {
+  const courseTrack = TRACK_CODE_MAP[trackCode];
+  if (!trackCode.endsWith('INST')) return;
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/faculty_course_assignments`, {
+    method: 'POST',
+    headers: {
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({ user_id: userId, track_code: courseTrack, active: true }),
+  });
+  if (!response.ok) {
+    throw new Error(`Faculty course assignment failed: ${response.status} ${await response.text()}`);
   }
 }
 
@@ -174,6 +199,8 @@ async function provisionAccounts() {
       // Step 2: Insert into students table
       await insertStudent(studentId, userId, trackCode, isAdmin);
       console.log(`  → Inserted into students table`);
+      await assignInstructorCourse(userId, trackCode);
+      if (trackCode.endsWith('INST')) console.log(`  → Assigned to ${TRACK_CODE_MAP[trackCode]} course dashboard`);
 
       // Append to roster
       appendFileSync(rosterFile, `${studentId},${password},${userId}\n`);
