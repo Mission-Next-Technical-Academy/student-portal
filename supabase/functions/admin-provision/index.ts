@@ -291,8 +291,10 @@ async function handleCreateInstructor(
 // Body: { action: "delete_instructor", student_id: "##########-SOCANINST" }
 // This is deliberately limited to dedicated course-instructor identities.
 // Learner records have their own archive/disenrollment lifecycle and must
-// never be deleted through this endpoint. Deleting the Auth user revokes all
-// active sessions and cascades to its roster, assignment, and credential rows.
+// never be deleted through this endpoint. A non-secret offboarding archive is
+// captured before deletion and returned to the Admin Panel for download.
+// Deleting the Auth user revokes all active sessions and cascades to its
+// roster, assignment, and credential rows.
 // deno-lint-ignore no-explicit-any
 async function handleDeleteInstructor(
   serviceClient: any,
@@ -305,7 +307,7 @@ async function handleDeleteInstructor(
 
   const { data: account, error: accountError } = await serviceClient
     .from('students')
-    .select('user_id, student_id, track_code, is_admin, is_instructor')
+    .select('user_id, student_id, track_code, is_admin, is_instructor, is_enrolled')
     .eq('student_id', studentId)
     .maybeSingle();
 
@@ -319,10 +321,47 @@ async function handleDeleteInstructor(
     return jsonResponse({ error: 'Only dedicated instructor accounts can be deleted here.' }, 403);
   }
 
+  const [authResult, assignmentsResult, credentialResult] = await Promise.all([
+    serviceClient.auth.admin.getUserById(account.user_id),
+    serviceClient
+      .from('faculty_course_assignments')
+      .select('track_code, active, assigned_at')
+      .eq('user_id', account.user_id),
+    serviceClient
+      .from('student_credentials')
+      .select('created_at')
+      .eq('student_id', account.student_id)
+      .maybeSingle(),
+  ]);
+  if (assignmentsResult.error || credentialResult.error) {
+    return jsonResponse({ error: 'Could not capture the instructor archive.' }, 500);
+  }
+
+  const authUser = authResult.data && authResult.data.user;
+  const archive = {
+    record_type: 'Mission Next instructor offboarding archive',
+    archived_at: new Date().toISOString(),
+    account: {
+      student_id: account.student_id,
+      track_code: account.track_code,
+      is_instructor: true,
+      is_enrolled: account.is_enrolled,
+      auth_email: authUser && authUser.email ? authUser.email : null,
+      auth_created_at: authUser && authUser.created_at ? authUser.created_at : null,
+      last_sign_in_at: authUser && authUser.last_sign_in_at ? authUser.last_sign_in_at : null,
+      credential_record_created_at: credentialResult.data ? credentialResult.data.created_at : null,
+    },
+    faculty_course_assignments: assignmentsResult.data || [],
+    notes: [
+      'Passwords are intentionally excluded from this archive.',
+      'This record was captured immediately before the instructor Auth account was deleted.',
+    ],
+  };
+
   const { error: deleteError } = await serviceClient.auth.admin.deleteUser(account.user_id);
   if (deleteError) return jsonResponse({ error: `Could not delete instructor: ${deleteError.message}` }, 500);
 
-  return jsonResponse({ deleted: true, student_id: account.student_id }, 200);
+  return jsonResponse({ deleted: true, student_id: account.student_id, archive }, 200);
 }
 
 // ----------------------------------------------------------- create_cohort

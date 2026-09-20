@@ -87,6 +87,26 @@ An instructor creation request must reject `ADMIN`, multiple course tracks,
 or an unassigned instructor. A general administrator is not implicitly an
 instructor for every course.
 
+## Offboarding an instructor
+
+Only the academy-wide `ADMIN` panel may permanently remove a dedicated
+instructor account. Open that instructor's credential panel and use **Delete
+instructor account**. The action requires confirmation and accepts only
+`SOCANINST` or `HDINST` identities; it cannot delete learner or `ADMIN`
+accounts.
+
+Before deletion, the portal automatically downloads a JSON offboarding archive
+with the login ID, track, non-secret Auth timestamps, credential-record
+timestamp, and course-assignment history. Passwords are never included. The
+server then deletes the Auth user, revoking its sessions and cascading its
+roster, faculty-assignment, and stored-credential records.
+
+Deploy the updated `admin-provision` Edge Function before using this control:
+
+```bash
+supabase functions deploy admin-provision
+```
+
 ## 2026-09-20 — production checklist completed for SOCAN/HDESK, AIENG/ELECT gap found
 
 While testing the student "Message Instructor" feature live (post-`fb41d91`

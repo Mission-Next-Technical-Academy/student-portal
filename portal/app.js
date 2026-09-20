@@ -5479,7 +5479,7 @@ Password:   ${esc(data.password)}</pre>
     if (['SOCANINST', 'HDINST'].includes(trackCode)) {
       const offboard = document.createElement('div');
       offboard.className = 'mt-4 pt-4 border-t border-red-100';
-      offboard.innerHTML = `<p class="text-xs text-gray-500 mb-2">Offboarding permanently deletes this instructor account, active sessions, course assignment, and stored credential.</p>
+      offboard.innerHTML = `<p class="text-xs text-gray-500 mb-2">Offboarding automatically downloads a non-secret account archive, then permanently deletes this instructor account, active sessions, course assignment, and stored credential.</p>
         <button type="button" data-delete-instructor="${esc(studentId)}" class="text-xs font-semibold text-red-700 hover:text-red-900 hover:underline">Delete instructor account</button>
         <p data-delete-instructor-status class="text-xs mt-2" aria-live="polite"></p>`;
       inner.appendChild(offboard);
@@ -5490,7 +5490,12 @@ Password:   ${esc(data.password)}</pre>
         deleteButton.disabled = true;
         deleteStatus.textContent = 'Deleting instructor account…';
         try {
-          await callAdminProvision('delete_instructor', { student_id: studentId });
+          const result = await callAdminProvision('delete_instructor', { student_id: studentId });
+          if (!result.archive) throw new Error('The account was not deleted because its offboarding archive was unavailable.');
+          downloadJsonFile(
+            result.archive,
+            `instructor-offboarding-${studentId}-${new Date().toISOString().slice(0, 10)}.json`,
+          );
           deleteStatus.className = 'text-xs mt-2 text-green-700';
           deleteStatus.textContent = 'Instructor account deleted. Refreshing the roster…';
           await render({ reuseAdminRoster: false });
