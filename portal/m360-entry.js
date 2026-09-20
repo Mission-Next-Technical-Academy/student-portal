@@ -144,7 +144,7 @@
         };
         const errorText = document.getElementById('login-error-text');
         const errorBox = document.getElementById('login-error');
-        if (errorText) errorText.textContent = messages[result] || 'That email and password combination was not recognized.';
+        if (errorText) errorText.textContent = messages[result] || 'That username and password combination was not recognized.';
         if (errorBox) errorBox.classList.remove('hidden');
       });
     };
