@@ -1,20 +1,22 @@
 # Engineering handoff index
 
-For active direction, start with `NEXT_SESSION.md`, then the relevant
-workstream's `STATE.md`. Record new work here only as a concise current
-handoff; move a finished entry to `archive/session-logs/` or a focused
-completed-feature note.
+For active direction, start with `ROADMAP.md`, then the governing
+specification for its selected work item. This file records concise evidence
+for that active item only; move finished entries to `archive/session-logs/`
+or a focused completed-feature note. `NEXT_SESSION.md` is a compatibility
+pointer and must not become a second task queue.
 
 The prior chronological engineering handoff is preserved at
 `archive/session-logs/HANDOFF_THROUGH_2026-09-10.md`.
 
-## Current baseline
+## Current baseline — 2026-09-20
 
-- General SOC Analyst training is the active course direction.
-- The active curriculum task is Arc A reconciliation (Modules 02 → 03).
-- Module nav rail + duration copy sprint (2026-09-16): see
-  `MODULE_NAV_SIDEBAR_SPRINT.md` — Sprints 1-2 shipped and pushed
-  (`941d3f8`), Sprint 3 (remove now-redundant hero CTAs) not started.
-- The mnav-chip overlap fix and a loading-takeover regression it exposed
-  are fixed and pushed (`a100be4`) — no longer "current uncommitted edits"
-  to preserve; that instruction is now stale.
+- `ROADMAP.md` is the canonical delivery queue.
+- Module 1 begins with the required LMS orientation tour; the subsequent
+  assessment is simulator-first and instructor-reviewable.
+- The next substantive build is the Module 1 performance assessment after
+  orientation verification and controlled faculty-gate UAT.
+- Arc A (Modules 02 → 03) remains queued curriculum work; Arc B is undecided
+  and the old 07 → 04 proposal must not be built.
+- CI validation is `bash bin/ci-check.sh`; GitHub Pages repeats it before
+  deployment.

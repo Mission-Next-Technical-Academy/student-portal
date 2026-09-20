@@ -1,4 +1,16 @@
-# Next session — start here
+# Next session — use the canonical roadmap
+
+`ROADMAP.md` is the single active delivery queue. Read it first, select one
+unblocked roadmap item, then read only that item's governing specification.
+Do not use the historical notes below as an independent plan; some describe
+superseded Module 1 directions.
+
+Module 1 begins with the required LMS orientation tour. It is followed by a
+simulator-first, instructor-reviewable assessment—not a parallel worksheet.
+
+---
+
+# Historical session notes — reference only
 
 ## Submit button moved to the floating corner dock, later same day (2026-09-18)
 

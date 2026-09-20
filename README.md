@@ -94,8 +94,9 @@ range. Do not leak future evidence, full navigation, or the capstone storyline
 into an earlier module.
 
 All 12 module routes are implemented. The shared lab contract is in
-`MODULE_STANDARD.md`; current work and retained verification history are
-indexed by `NEXT_SESSION.md` and `HANDOFF.md`.
+`MODULE_STANDARD.md`. Start active work from `ROADMAP.md`; it defines the
+single delivery order, Module 1 direction, and CI/CD path. `HANDOFF.md`
+retains concise evidence for the active work item.
 
 ## Deployment
 
@@ -109,8 +110,9 @@ single-origin site and publishes it to GitHub Pages. No manual deploy step.
 | `MODULE_STANDARD.md` | The shape every module object must carry |
 | `MNT_DESIGN_TOKENS.md` | Colors, type, and components taken from the live site |
 | `LATEST_PROGRESS.md` | Current status and project direction |
-| `NEXT_SESSION.md` | Concise active handoff and next work |
-| `HANDOFF.md` | Current-handoff index; historical logs are in `archive/session-logs/` |
+| `ROADMAP.md` | Canonical delivery order, Module 1 direction, and CI/CD workflow |
+| `HANDOFF.md` | Evidence for the active roadmap item; historical logs are in `archive/session-logs/` |
+| `NEXT_SESSION.md` | Compatibility pointer to the roadmap, not a second task queue |
 | `PROJECT_GUIDE_FOR_AI.md` | Orientation for AI agents working in this repo |
 
 Legacy SC-200 files (`SC200_LAB.md`, `ExamObjectives.md`, `COVERAGE_SWEEP.md`,

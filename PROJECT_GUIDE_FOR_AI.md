@@ -5,7 +5,8 @@ Snapshot date: 2026-08-17
 This document gives a new AI assistant enough context to work safely and
 productively without reconstructing the project from scratch.
 
-Read `LATEST_PROGRESS.md` first for the newest scope and implementation status.
+Read `ROADMAP.md` first for the active delivery order, locked Module 1
+direction, and CI/CD workflow. Use `LATEST_PROGRESS.md` as historical context.
 
 ## Project identity
 
@@ -124,9 +125,9 @@ opens to port `8767`.
 
 Read in this order before implementing changes:
 
-1. `LATEST_PROGRESS.md` — current direction and most recent work.
+1. `ROADMAP.md` — canonical active direction, dependencies, and release flow.
 2. `PROJECT_GUIDE_FOR_AI.md` — this architecture and safety guide.
-3. `HANDOFF.md` — current-handoff index; archived implementation history is
+3. `HANDOFF.md` — evidence for the active roadmap item; archived implementation history is
    in `archive/session-logs/`.
 4. `archive/legacy-sc200-simulator/AGENTS.md` — legacy task history plus
    still-relevant safety rules.

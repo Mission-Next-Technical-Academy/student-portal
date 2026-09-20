@@ -5,7 +5,9 @@
 const fs = require('fs'), vm = require('vm'), path = require('path');
 const UI = path.join(__dirname, '..', 'ui');
 
-const ctx = { console };
+// Browser globals used by individual view renderers must be exposed to the
+// VM. This keeps a missing test stub from hiding a real route regression.
+const ctx = { console, URLSearchParams, URL };
 vm.createContext(ctx);
 vm.runInContext(`
 var localStorage = { _s:{}, getItem(k){ return this._s[k] ?? null; }, setItem(k,v){ this._s[k]=String(v); }, removeItem(k){ delete this._s[k]; } };

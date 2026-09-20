@@ -1,5 +1,10 @@
 # Read this first
 
+**Canonical execution source:** read `ROADMAP.md` before this historical
+status summary. It is the single delivery queue, locks Module 1's required
+beginning-of-course LMS orientation tour, and defines the CI/CD workflow.
+Where this file conflicts with it, `ROADMAP.md` wins.
+
 **As of 2026-09-16:** the lab grading & notification system (per-card "N
 Labs need grading" badges scoped to each course's own workspace, pregraded-lab
 review, instructor per-mistake feedback + full-resubmission redo, and the

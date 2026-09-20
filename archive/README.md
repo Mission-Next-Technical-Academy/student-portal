@@ -114,6 +114,14 @@ of archiving:
   hour-mapping decision is tracked separately in `PROGRAM_PARITY_SPRINT_PLAN.md`.
 - `MODULE_01_ENHANCEMENT_BUGFIXES_2026-09-07.md` — completed bug-review record;
   all fixes landed with their originating sprint commits.
+- `AGENT4_PDF_PROGRESS.md` — completed 2026-08-29 PDF-rendering verification
+  record. Its separately deferred policy/data-model questions remain in the
+  active reporting workstream rather than this completed implementation note.
+- `FINAL_CURRICULUM_SCENARIO_QA_2026-09-10.md` and
+  `SPRINT_02_SCENARIO_CONTINUITY_AUDIT_2026-09-10.md` — completed local QA and
+  audit records for the earlier scenario-architecture sprint. Human curriculum,
+  compliance, and faculty approval remain external gates, not unfinished work
+  in either record.
 
 ## `session-logs/`
 
@@ -121,6 +129,10 @@ of archiving:
   ledger, retained whole when the active root handoff was condensed.
 - `HANDOFF_THROUGH_2026-09-10.md` — prior chronological engineering handoff,
   retained whole for validation details and historical decisions.
+- `SESSION_DEBRIEF_2026-09-18.md` — historical live-review and implementation
+  notes from the 2026-09-18 Module 1 session. The current direction is in
+  `ROADMAP.md`; the faculty-gate handoff links here where its evidence is
+  needed.
 
 ## `historical-plans/`
 

@@ -1,5 +1,11 @@
 # Handoff — Module 1 faculty gate (2026-09-18)
 
+> **Execution precedence, 2026-09-20:** `ROADMAP.md` is the canonical active
+> queue. Module 1's LMS orientation tour is required at the beginning of the
+> module and the subsequent assessment is simulator-first. Follow this handoff
+> for faculty-gate evidence/UAT only; its older coach-removal language must not
+> be treated as authorization to remove the required orientation experience.
+
 ## Completed this session
 
 - Applied `20260918100000_module_one_faculty_performance_gate.sql` to the
@@ -12,7 +18,7 @@
 - Verified the deployed reconciliation trigger also fires when `reviewed_at`
   or `reviewed_by` changes.
 - Completed the orientation-tour wording polish and updated
-  `SESSION_DEBRIEF_2026-09-18.md` to mark it done.
+  `archive/session-logs/SESSION_DEBRIEF_2026-09-18.md` to mark it done.
 - Removed the obsolete Module 1 Lab 2 worksheet/form code. Simulator
   performance is now the only Lab 2 submission path.
 - Ran `node --check` on touched scripts, `git diff --check`, and

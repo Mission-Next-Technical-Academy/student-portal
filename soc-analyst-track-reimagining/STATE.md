@@ -1,5 +1,11 @@
 # STATE — SOC Analyst Track Reimagining (read this first, in this directory)
 
+> **Execution precedence, 2026-09-20:** start from the repository-root
+> `ROADMAP.md`. This document remains the detailed SOC workstream record. The
+> roadmap locks the required LMS orientation tour at the beginning of Module 1
+> and resolves any historical tour-versus-panel ambiguity in favor of keeping
+> that orientation experience.
+
 **Last updated:** 2026-09-15.
 **Status:** Vision, gap scan, and the full Module 02–12 depth audit are all
 done. **Nothing in the actual curriculum has been built, rebuilt, or
