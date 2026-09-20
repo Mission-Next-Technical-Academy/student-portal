@@ -4357,46 +4357,6 @@ function viewLogin() {
   </div>`;
 }
 
-/* A successful credential check is followed by profile, progress and session
- * safety work. The form itself remains in place underneath this overlay so a
- * failed attempt can return to exactly the values the student entered. On a
- * successful sign-in, render() replaces #login-form with the portal view
- * before this is called with isLoading=false — so overlay teardown must not
- * depend on the form still existing, or the overlay is stuck forever until
- * a hard refresh. Also: the vendored Tailwind build doesn't support the
- * arbitrary-color opacity modifier (`bg-[#hex]/92` resolves to a fully
- * transparent background here, verified via getComputedStyle), which left
- * the overlay as bare backdrop-blur with no dark backing panel — hence the
- * "background is blurred and the text blends in" report. Use an inline
- * background-color instead of relying on that class. */
-function setLoginLoading(isLoading) {
-  const form = document.getElementById('login-form');
-
-  let overlay = document.getElementById('login-loading');
-  if (isLoading && !overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'login-loading';
-    overlay.className = 'fixed inset-0 z-50 grid place-items-center p-6 backdrop-blur-sm';
-    overlay.style.backgroundColor = 'rgba(10, 22, 40, .92)';
-    overlay.setAttribute('role', 'status');
-    overlay.setAttribute('aria-live', 'polite');
-    overlay.innerHTML = `
-      <div class="portal-loading__card text-center" aria-label="Signing you in">
-        <div class="portal-loading__mark" aria-hidden="true"><div class="portal-loading__orbit"></div></div>
-        <p class="portal-loading__eyebrow">Mission Next Technical Academy</p>
-        <h2 class="text-2xl font-bold text-white tracking-tight">Opening your learning space</h2>
-        <p class="portal-loading__message">Verifying your account and restoring your progress.</p>
-        <div class="portal-loading__line" aria-hidden="true"></div>
-      </div>`;
-    document.body.appendChild(overlay);
-  }
-  if (form) {
-    form.setAttribute('aria-busy', String(isLoading));
-    form.querySelectorAll('input, button').forEach((element) => { element.disabled = isLoading; });
-  }
-  if (!isLoading && overlay) overlay.remove();
-}
-
 /* --------------------------------------------------------- dashboard view */
 
 function programCard(program, user) {
@@ -6468,8 +6428,24 @@ function wireLogin() {
     e.preventDefault();
     const email = form.email.value;
     const password = form.password.value;
-    document.getElementById('login-error').classList.add('hidden');
-    setLoginLoading(true);
+    const app = document.getElementById('app');
+
+    // Mount the same route loader that the portal uses *before* starting the
+    // authentication/security request chain. Previously setLoginLoading()
+    // covered the form while signIn() ran, but the full loading view was not
+    // inserted until after that chain completed. On a slow connection that
+    // made the app appear to do nothing and then flash the loader just before
+    // the destination arrived.
+    //
+    // Give this replacement a paint boundary before issuing any request. The
+    // security checks in signIn() are deliberately awaited, so without this
+    // boundary the browser is free to defer displaying the loader until those
+    // checks have already returned.
+    const loadingGeneration = ++routeRenderGeneration;
+    app.setAttribute('aria-busy', 'true');
+    app.innerHTML = viewRouteLoading('#/portal');
+    if (!await waitForRouteLoadingPaint(loadingGeneration)) return;
+
     let result = null;
     try {
       result = await signIn(email, password);
@@ -6499,13 +6475,8 @@ function wireLogin() {
       history.replaceState(null, '', returnToModule
         ? location.pathname + location.search + location.hash
         : destination);
-      try {
-        await render();
-      } finally {
-        setLoginLoading(false);
-      }
+      await render();
     } else {
-      setLoginLoading(false);
       // Message text does not hardcode a session-count number: the cap
       // differs by role (Decision 1) and the two roles must not drift out
       // of sync with two independent hardcoded strings.
@@ -6513,6 +6484,17 @@ function wireLogin() {
         session_limit: 'Maximum active sessions reached for this account. Sign out on another device or tab, then try again.',
         geo_blocked: 'Sign-in is not available from your current location.',
       };
+      // The full-page loader has replaced the form by this point. Restore a
+      // usable login view on a rejected or interrupted attempt, including the
+      // values the student had entered just as the former in-place overlay
+      // did.
+      if (!isCurrentRouteRender(loadingGeneration)) return;
+      app.innerHTML = viewLogin();
+      app.setAttribute('aria-busy', 'false');
+      const restoredForm = document.getElementById('login-form');
+      restoredForm.email.value = email;
+      restoredForm.password.value = password;
+      wireLogin();
       document.getElementById('login-error-text').textContent =
         messages[result] || 'That username and password combination was not recognized.';
       document.getElementById('login-error').classList.remove('hidden');
