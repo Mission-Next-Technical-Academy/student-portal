@@ -13,9 +13,16 @@ work—not a parallel worksheet or quiz alone—is what an instructor reviews.
 
 For the SOC Analyst track, Security+ remains the light conceptual spine and
 CySA+-territory hands-on practice provides depth. Each module should move
-through **Learn it → Practice it → Prove it → Do it**. Lifecycle and scoring
+through **Learn it → Practice it → Prove it**, where "Prove it" means
+reduced-guidance application that produces the durable, instructor-reviewable
+evidence described above — not a separate fourth stage. Lifecycle and scoring
 sections may vary by domain; threat hunting and vulnerability management must
-not be forced into a fake incident-response template.
+not be forced into a fake incident-response template. `INSTRUCTIONAL_ARCHITECTURE.md`
+is the detailed reference for this cycle: the guidance-reduction curve across
+modules 01–12, skill-carryover expectations, and the per-module "finished"
+rubric. It does not authorize reordering modules, renaming keys, or changing
+compliance-controlled hours — those remain governed by `MODULE_STANDARD.md`
+and `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`.
 
 ## Locked Module 1 sequence
 
@@ -105,6 +112,7 @@ Approved roadmap item
 | Document | Role |
 |---|---|
 | `ROADMAP.md` | Canonical delivery order, Module 1 direction, agent protocol, and CI/CD reference |
+| `INSTRUCTIONAL_ARCHITECTURE.md` | Program-wide Learn/Practice/Prove/Do pedagogy, guidance-reduction curve across modules 01–12, and the module-completion rubric |
 | `HANDOFF.md` | Concise evidence for the currently active roadmap item |
 | `NEXT_SESSION.md` | Pointer only; never a second task queue |
 | `soc-analyst-track-reimagining/VISION.md` | Strategic curriculum rationale and future tool gaps |
