@@ -26,5 +26,17 @@ The prior chronological engineering handoff is preserved at
 - Message Instructor is complete and universal: use the persistent module
   banner entry point, which opens and focuses the existing portal compose
   form. Do not add separate module-specific message threads or compose flows.
+- **Fixed and applied, 2026-09-20:** `username`/`name` in
+  `buildCoreUserFromSession()` (`portal/app.js`) no longer falls back to the
+  raw session email (domain and all) when a `students` row lookup fails —
+  `emailToDisplayId()` strips the domain instead. The specific triggering
+  account, `7634107909-SOCAN` (previously showing as
+  `7634107909-socan@missionnext.example`), was repaired live via
+  `supabase/migrations/20260920130000_fix_lowercase_socan_login_id.sql`
+  (owner ran `supabase db push`, confirmed applied). No other accounts are
+  known to be affected — same failure class as the earlier
+  Module-1-beacon-gap accounts (see
+  `lab-grading-notification-system/STATE.md`), worth a quick check if a
+  similar lowercase/`@missionnext.example` display turns up again.
 - CI validation is `bash bin/ci-check.sh`; GitHub Pages repeats it before
   deployment.
