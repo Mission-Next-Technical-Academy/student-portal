@@ -89,6 +89,13 @@
         background: radial-gradient(circle at 76% 18%, rgba(249, 115, 22, .22), transparent 25rem),
                     radial-gradient(circle at 16% 82%, rgba(96, 165, 250, .14), transparent 26rem),
                     linear-gradient(135deg, #0a1628, #1e3a5f 55%, #0f2440);
+        /* Every route (cold load via this static shell, and every later
+           in-page navigation via viewRouteLoading() in app.js, which reuses
+           this exact class) funnels through here, so this one fade covers
+           the whole app. Without it, a route that resolves in well under a
+           second reads as an abrupt flash/pop rather than an intentional
+           loading state. */
+        animation: portal-loading-fade .18s ease-out;
       }
       .portal-loading__stars { position: absolute; inset: 0; opacity: .72; }
       .portal-loading__card { position: relative; z-index: 1; width: min(100%, 28rem); text-align: center; }
@@ -106,10 +113,12 @@
       .portal-loading__copy, .portal-loading__message { margin: .8rem auto 0; max-width: 22rem; color: rgba(255,255,255,.62); font: .875rem/1.6 Inter, sans-serif; }
       .portal-loading__line { height: 2px; width: 7.25rem; margin: 1.5rem auto 0; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.14); }
       .portal-loading__line::after { content: ''; display: block; width: 45%; height: 100%; border-radius: inherit; background: #f97316; animation: portal-scan 1.35s ease-in-out infinite; }
+      @keyframes portal-loading-fade { from { opacity: 0; } to { opacity: 1; } }
       @keyframes portal-orbit { to { transform: rotate(360deg) translateX(-50%); } }
       @keyframes portal-pulse { 50% { transform: scale(.55); opacity: .5; } }
       @keyframes portal-scan { 0% { transform: translateX(-120%); } 100% { transform: translateX(270%); } }
       @media (prefers-reduced-motion: reduce) {
+        .portal-loading { animation: none; }
         .portal-loading__orbit::before, .portal-loading__orbit::after, .portal-loading__line::after { animation: none; }
         .portal-loading__line::after { transform: translateX(65%); }
       }
