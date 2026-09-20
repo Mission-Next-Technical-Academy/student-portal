@@ -5527,7 +5527,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   let activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
   if (instructorDashboard && !['progress', 'grading', 'messages'].includes(activeTab)) activeTab = 'progress';
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
-  const canManageTrackMessages = Boolean(activeTrackCode && facultyMessageTrackCodes.has(activeTrackCode));
+  // Administrators supervise every course workspace. Instructors remain
+  // limited to their explicit faculty_course_assignments.
+  const canManageTrackMessages = Boolean(activeTrackCode && (user.isAdmin || facultyMessageTrackCodes.has(activeTrackCode)));
   if (!canManageTrackMessages && activeTab === 'messages') activeTab = 'progress';
   const rosterRows = activeTrackCode ? rows.filter((row) => row.track_code === activeTrackCode) : rows;
   // The All Students workspace intentionally retains its cross-track detail
@@ -6437,7 +6439,7 @@ async function render(options = {}) {
 
       // Full correspondence is only loaded for the selected course workspace;
       // the cross-track admin landing needs the small unread queue only.
-      if (selectedAdminTrack && facultyMessageTrackCodes.includes(selectedAdminTrack)) {
+      if (selectedAdminTrack && (user.isAdmin || facultyMessageTrackCodes.includes(selectedAdminTrack))) {
         const facultyMessagesResult = await mntSupabase
           .from('student_messages')
           .select('id, thread_id, student_id, track_code, subject, body, sender_role, context, created_at, read_at')

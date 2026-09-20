@@ -383,9 +383,11 @@ mirrors the project's established per-sprint handoff convention
     policies before writing new ones from scratch.
   - [x] E2. Student UI: compose ("Message instructor") + thread/inbox view
     of own messages and replies.
-  - [x] E3. Faculty UI: unread badge next to the existing per-track "N Labs
-    need grading" badge (`portal/app.js`, `trackTile()`/
-    `adminTrackAdministration()`), plus an inbox/reply view.
+  - [x] E3. Faculty/admin UI: unread badge next to the existing per-track "N
+    Labs need grading" badge (`portal/app.js`, `trackTile()`/
+    `adminTrackAdministration()`), plus an inbox/reply view. Administrators
+    can open Messages in every course workspace; instructors remain scoped to
+    their explicit course assignments.
   - [x] E4. Regression pass: `node --check`, `node bin/portal-check.js`.
   - [x] E5. Universal banner access: persistent student-program and module
     banners include a **Message Instructor** action. Both open the same focused
