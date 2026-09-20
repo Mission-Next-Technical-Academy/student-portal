@@ -3896,8 +3896,9 @@ function header(user, options = {}) {
       </div>
     </div>
     <details class="relative shrink-0 group">
-      <summary class="list-none inline-flex items-center gap-1.5 text-xs font-semibold text-[#1e3a5f] hover:bg-[#1e3a5f]/8 px-2.5 py-1.5 rounded-lg cursor-pointer select-none" aria-label="Open program downloads">
+      <summary class="relative list-none inline-flex items-center gap-1.5 text-xs font-semibold text-[#1e3a5f] hover:bg-[#1e3a5f]/8 px-2.5 py-1.5 rounded-lg cursor-pointer select-none" aria-label="Open program downloads">
         <i class="ri-download-2-line" aria-hidden="true"></i> Downloads <i class="ri-arrow-down-s-line text-base leading-none transition-transform group-open:rotate-180" aria-hidden="true"></i>
+        <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
       </summary>
       <div class="absolute left-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 z-50">
         <button type="button" id="student-transcript-pdf-btn" onclick="downloadStudentTranscriptPdf(window.__mntCurrentUser, window.__mntCurrentProgram)" class="w-full text-left text-xs font-semibold text-[#1e3a5f] hover:bg-[#1e3a5f]/8 px-3 py-2 rounded-lg inline-flex items-center gap-2 cursor-pointer">
@@ -3933,8 +3934,9 @@ function header(user, options = {}) {
                           My Programs
                           <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
                         </a>
-                        <button type="button" data-message-instructor class="inline-flex items-center gap-1.5 text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 whitespace-nowrap">
+                        <button type="button" data-message-instructor class="relative inline-flex items-center gap-1.5 text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 whitespace-nowrap group">
                           <i class="ri-message-3-line" aria-hidden="true"></i> Message Instructor
+                          <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
                         </button>`
                  }
                  ${
