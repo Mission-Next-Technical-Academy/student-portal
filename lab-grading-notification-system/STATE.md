@@ -52,6 +52,20 @@ syllabus the most"):**
   owner running the equivalent upsert directly. The exact rows/values
   needed are in this entry's git history / the session transcript.
 
+**2026-09-20 addition:** asked to enroll `7634107909-SOCAN` (via the admin
+Enrollment Planning table). Checked live and it was already **Enrolled**
+(since 9/20/2026) — no action taken, nothing was toggled. While there,
+noticed `5520852787-SOCAN` — one of the three accounts still flagged above
+as needing the Module 1 beacon backfill — now shows **Disenrolled since
+9/17/2026**. This is the same pattern already seen once with
+`8987495051-SOCAN` (see `[[mnt-grading-notification-project]]` memory,
+2026-09-16 entry: disenrolled same day it was fixed, cause never
+confirmed, ruled out the `cohort_archival_engine` cron that time). Not
+investigated further this session — flagged for the owner. Worth checking
+whether some admin flow (or a concurrent session) is toggling
+`is_enrolled` on these specific training accounts as a side effect of
+something else.
+
 Active work has moved to the sibling project,
 `../soc-analyst-track-reimagining/` — read that directory's `STATE.md`
 next.
