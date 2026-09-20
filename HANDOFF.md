@@ -23,9 +23,9 @@ The prior chronological engineering handoff is preserved at
   orientation verification and controlled faculty-gate UAT.
 - Arc A (Modules 02 → 03) remains queued curriculum work; Arc B is undecided
   and the old 07 → 04 proposal must not be built.
-- Message Instructor is complete and universal: use the persistent module
-  banner entry point, which opens and focuses the existing portal compose
-  form. Do not add separate module-specific message threads or compose flows.
+- Message Instructor is complete and universal: the persistent student-program
+  and module banners open the same focused compose pane. Do not add separate
+  module-specific message threads or compose flows.
 - **Fixed and applied, 2026-09-20:** `username`/`name` in
   `buildCoreUserFromSession()` (`portal/app.js`) no longer falls back to the
   raw session email (domain and all) when a `students` row lookup fails —

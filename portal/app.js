@@ -3932,7 +3932,10 @@ function header(user, options = {}) {
                      : `<a href="#/portal" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 group">
                           My Programs
                           <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
-                        </a>`
+                        </a>
+                        <button type="button" data-message-instructor class="inline-flex items-center gap-1.5 text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 whitespace-nowrap">
+                          <i class="ri-message-3-line" aria-hidden="true"></i> Message Instructor
+                        </button>`
                  }
                  ${
                    user.isAdmin
@@ -6617,12 +6620,11 @@ function wireCommon() {
 
   // Keep students in their current lesson: messaging is a focused compose
   // action, not a navigation action back to the program dashboard.
-  const messageInstructor = document.querySelector('[data-message-instructor]');
-  if (messageInstructor) {
+  document.querySelectorAll('[data-message-instructor]').forEach((messageInstructor) => {
     messageInstructor.addEventListener('click', () => {
       openInstructorMessagePane(messageInstructor);
     });
-  }
+  });
 
   // Program cards. Locked cards carry pointer-events-none, so they never fire.
   document.querySelectorAll('[data-open]').forEach((el) => {

@@ -85,8 +85,8 @@ connector. Reopen them only for a regression or new owner direction.
 
 The internal **Message Instructor** capability is also complete: students
 compose and read plain-text threads in the portal, faculty have a scoped Inbox
-and unread badges, and the persistent shared banner on every course module
-links directly to the portal compose form. It is not a queued work item and
+and unread badges, and the persistent shared banner on every course/module
+and student-program page opens the same focused compose pane. It is not a queued work item and
 must remain one shared message system rather than separate module-level inboxes.
 See `HANDOFF_2026-09-18_FACULTY_GATE.md` (Sprint E) for implementation and
 verification evidence.
