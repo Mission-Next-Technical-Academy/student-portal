@@ -715,15 +715,6 @@ function moduleOneLabDynamic() {
     </article>
   </div>
 
-  <section class="m01-coach" aria-labelledby="m01-coach-title">
-    <div class="m01-coach-avatar"><i class="ri-user-voice-line" aria-hidden="true"></i></div>
-    <div>
-      <p class="m01-kicker">Your coach</p>
-      <h3 id="m01-coach-title">First, verify what the alert is claiming.</h3>
-      <p>The rule noticed a password-guessing pattern. That is only a lead. Reveal the evidence one fact at a time and ask: <strong>Did access succeed? Is the context expected? What does the user say?</strong></p>
-    </div>
-  </section>
-
   <section class="m01-siem ${consoleComplete ? 'is-complete' : ''}" aria-labelledby="m01-siem-title">
     <div class="m01-siem-copy">
       <p class="m01-kicker">${consoleComplete ? 'Walkthrough completed · reopen anytime' : 'Optional walkthrough · 10 minutes'}</p>
@@ -781,10 +772,7 @@ function moduleOneLabDynamic() {
     ${!nextEvidence ? `<div class="m01-evidence-complete"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span><strong>Timeline recorded.</strong> Every fact came from something you read yourself. You can now make the first triage decision.</span></div>` : ''}
   </section>` : ''}
 
-  ${!consoleComplete || !investigationReady ? `<section class="m01-worksheet-locked" aria-label="Triage worksheet locked">
-    <i class="ri-lock-line" aria-hidden="true"></i>
-    <div><strong>Triage worksheet</strong><p>Record every fact correctly first. A wrong answer keeps the current fact open and the remaining timeline and worksheet locked.</p></div>
-  </section>` : `<form id="m01-form" class="m01-worksheet" novalidate>
+  ${!consoleComplete || !investigationReady ? '' : `<form id="m01-form" class="m01-worksheet" novalidate>
     <div class="m01-panel-heading">
       <div><p class="m01-kicker">Guided decision</p><h3>Complete the five-part triage record</h3></div>
       <span class="m01-evidence-count">No timer · retry allowed</span>

@@ -12,11 +12,19 @@ The prior chronological engineering handoff is preserved at
 ## Current baseline — 2026-09-20
 
 - `ROADMAP.md` is the canonical delivery queue.
+- `INSTRUCTIONAL_ARCHITECTURE.md` (added 2026-09-20) is the detailed
+  Learn it → Practice it → Prove it pedagogy reference — guidance-reduction
+  curve, skill carryover, and the per-module "finished" rubric. Documentation
+  only; no code changed. It does not override `MODULE_STANDARD.md` or
+  `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`.
 - Module 1 begins with the required LMS orientation tour; the subsequent
   assessment is simulator-first and instructor-reviewable.
 - The next substantive build is the Module 1 performance assessment after
   orientation verification and controlled faculty-gate UAT.
 - Arc A (Modules 02 → 03) remains queued curriculum work; Arc B is undecided
   and the old 07 → 04 proposal must not be built.
+- Message Instructor is complete and universal: use the persistent module
+  banner entry point, which opens and focuses the existing portal compose
+  form. Do not add separate module-specific message threads or compose flows.
 - CI validation is `bash bin/ci-check.sh`; GitHub Pages repeats it before
   deployment.

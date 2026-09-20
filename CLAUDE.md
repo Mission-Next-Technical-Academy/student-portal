@@ -5,6 +5,26 @@ status summary. It is the single delivery queue, locks Module 1's required
 beginning-of-course LMS orientation tour, and defines the CI/CD workflow.
 Where this file conflicts with it, `ROADMAP.md` wins.
 
+**2026-09-20 (out-of-queue owner sprint, not a `ROADMAP.md` item):** a
+universal, program-agnostic Academy first-login orientation tour shipped —
+see `ACADEMY_ORIENTATION_SPRINT.md`, `portal/orientation.js` /
+`orientation.css`, and the `20260920100000_academy_orientation_state.sql`
+migration (already pushed to the linked Supabase project). Welcome → Academy
+nav/programs/help → the student's program → module structure → Module 1 →
+Learn It/Practice It/Prove It → how grading/review works, all fed from
+`PROGRAMS`, spotlighting real DOM, no dim/blur once the student is inside
+their program. Live-verified twice end to end as a fresh SOC Analyst
+account; the no-rail (IT Help Desk-style) fallback was verified by removing
+the rail node and re-invoking the engine directly, not against a real live
+HDESK account — worth a real pass later. **This is explicitly not**
+`ROADMAP.md` item 1's Module 1 Day 1/rules-of-engagement tour (still open,
+owned by `ui/coach.js`'s `m01-orientation` coach) — see the sprint doc's
+"Relationship to `ROADMAP.md` item 1" section before touching either system.
+Also fixed in passing: misleading "auto-enrolled" copy on the admin
+"Generate New User" panel (the provisioning behavior itself — ad hoc
+single-account creation starts unenrolled — is intentional, documented in
+`supabase/functions/admin-provision/provisioning.ts`, not a bug).
+
 **As of 2026-09-16:** the lab grading & notification system (per-card "N
 Labs need grading" badges scoped to each course's own workspace, pregraded-lab
 review, instructor per-mistake feedback + full-resubmission redo, and the

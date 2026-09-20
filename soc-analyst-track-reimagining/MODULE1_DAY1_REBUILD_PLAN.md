@@ -9,6 +9,19 @@ yet; Module 1 today is still gated and scored exactly like a graded lab.
 their own depth work is `REBUILD_PLAN.md`'s Phase 3/4 (Arc A/B), a separate
 track of work. One module at a time, starting here.
 
+**2026-09-20: see `ACADEMY_ORIENTATION_SPRINT.md` before extending this
+doc's tour mechanism.** A separate, Academy-wide first-login orientation
+(`portal/orientation.js`) now runs once, before the student ever opens
+Module 1 — LMS navigation, program discovery, module structure, then Module
+1's Learn It/Practice It/Prove It and how grading works, all discipline-
+neutral. It does not replace or overlap this doc's `m01-orientation` coach
+(the in-module "Take the tour" icon, D1 below) — that coach still owns Day 1
+framing, rules of engagement, and assigned scope once the student is
+actually inside Module 1's SIEM surface. Keep the two systems separate: the
+Academy tour must stay content-free of SOC/task-coaching language (see that
+sprint doc's own note on why), and this coach must stay scoped to `m01`'s
+`allow` list rather than growing into a second onboarding-flow engine.
+
 ## Shipped so far, 2026-09-17 (real code, not just design)
 
 - **Corner dock, `ui/coach.js`/`ui/styles.css`:** a small fixed bottom-left

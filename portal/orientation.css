@@ -1,0 +1,131 @@
+/* Universal Academy first-login orientation tour (orientation.js).
+ * Four independently-positioned mask panels dim everything except a
+ * spotlighted control, so the real element underneath stays natively
+ * clickable — no clip-path/mix-blend hacks that break on older browsers. */
+
+.mnt-orient {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  /* The root spans the full viewport, but only the mask/card children
+     should ever intercept a click — otherwise this box itself catches
+     clicks over the "hole" above the spotlighted control, since an
+     unpainted point still hit-tests to its nearest auto-pointer-events
+     ancestor. Each child that should be interactive opts back in. */
+  pointer-events: none;
+}
+
+.mnt-orient-mask {
+  position: fixed;
+  background: rgba(10, 22, 40, 0.72);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  pointer-events: auto;
+  transition: all 0.18s ease;
+}
+
+.mnt-orient-ring {
+  position: fixed;
+  border-radius: 1rem;
+  box-shadow: 0 0 0 3px #f97316, 0 0 24px rgba(249, 115, 22, 0.5);
+  pointer-events: none;
+  transition: all 0.18s ease;
+  z-index: 2001;
+}
+
+.mnt-orient-card {
+  z-index: 2002;
+  pointer-events: auto;
+  background: #ffffff;
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 60px rgba(10, 22, 40, 0.35);
+  padding: 1.75rem;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.mnt-orient-card-center {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(90vw, 26rem);
+  text-align: center;
+}
+
+.mnt-orient-card-anchored {
+  max-width: 22.5rem;
+}
+
+.mnt-orient-eyebrow {
+  color: #f97316;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin: 0 0 0.5rem;
+}
+
+.mnt-orient-title {
+  color: #1e3a5f;
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 0.6rem;
+}
+
+.mnt-orient-card-center .mnt-orient-title { font-size: 1.6rem; }
+
+.mnt-orient-body {
+  color: #475569;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0 0 1.25rem;
+  white-space: pre-line;
+}
+
+.mnt-orient-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.mnt-orient-card-center .mnt-orient-actions { justify-content: center; flex-direction: column; }
+
+.mnt-orient-next {
+  background: #f97316;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.65rem 1.5rem;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.mnt-orient-next:hover { background: #ea580c; transform: translateY(-1px); }
+
+.mnt-orient-skip {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.mnt-orient-skip:hover { color: #64748b; }
+
+.mnt-orient-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #1e3a5f;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .mnt-orient-card-anchored { width: calc(100vw - 2rem) !important; left: 1rem !important; }
+}

@@ -45,6 +45,18 @@ implementation reference is
 `soc-analyst-track-reimagining/MODULE1_DAY1_REBUILD_PLAN.md`; this section
 supersedes its former tour-versus-Objectives-panel ambiguity.
 
+**Do not confuse this with the Academy-wide first-login orientation shipped
+2026-09-20** (`ACADEMY_ORIENTATION_SPRINT.md`, `portal/orientation.js`) — a
+separate, earlier layer that runs once at first login, before the student
+ever opens Module 1: Welcome → Academy nav/programs/help → the student's
+program → that program's module structure → Module 1 → Learn It/Practice
+It/Prove It → how grading/review works. It is discipline-neutral (no SOC/
+SIEM language) and program-agnostic across all four tracks. It does **not**
+satisfy this section's requirement — Day 1 framing, rules of engagement,
+assigned scope, and the workspace walkthrough remain owned by the in-module
+`ui/coach.js` `m01-orientation` coach ("Take the tour"). Item 1 below is
+still open.
+
 ## Source-of-truth order
 
 1. This roadmap: priority, release state, decision gates, and agent workflow.
@@ -70,6 +82,14 @@ and update the historical document when that workstream is next touched.
 Completed foundations include the grading-breakdown UI, domain-appropriate
 Module 06/08 review, Module 09 ticket framing, and the Module 05→06 Arc C
 connector. Reopen them only for a regression or new owner direction.
+
+The internal **Message Instructor** capability is also complete: students
+compose and read plain-text threads in the portal, faculty have a scoped Inbox
+and unread badges, and the persistent shared banner on every course module
+links directly to the portal compose form. It is not a queued work item and
+must remain one shared message system rather than separate module-level inboxes.
+See `HANDOFF_2026-09-18_FACULTY_GATE.md` (Sprint E) for implementation and
+verification evidence.
 
 ## Agent protocol
 
@@ -117,8 +137,9 @@ Approved roadmap item
 | `NEXT_SESSION.md` | Pointer only; never a second task queue |
 | `soc-analyst-track-reimagining/VISION.md` | Strategic curriculum rationale and future tool gaps |
 | `soc-analyst-track-reimagining/REBUILD_PLAN.md` | Detailed curriculum-arc specification |
+| `ACADEMY_ORIENTATION_SPRINT.md` | Academy-wide first-login orientation tour (`portal/orientation.js`) — separate from and does not satisfy this roadmap's Module 1 orientation-tour item |
 | `soc-analyst-track-reimagining/MODULE1_DAY1_REBUILD_PLAN.md` | Detailed Module 1 implementation specification |
-| `HANDOFF_2026-09-18_FACULTY_GATE.md` | Faculty-gate implementation and UAT evidence |
+| `HANDOFF_2026-09-18_FACULTY_GATE.md` | Faculty-gate implementation/UAT and completed Message Instructor evidence |
 
 ## Current action
 

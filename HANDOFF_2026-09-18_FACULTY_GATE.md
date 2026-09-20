@@ -49,12 +49,11 @@
 3. Self-check pane redesign (see design decision below) — new, not started.
 4. `module-completion-integrity/BRIEF.md` remains queued and unstarted; do not
    begin it until items 1-3 above are verified.
-5. "Message instructor" feature (see design decision below) — new, not
-   started. Confirmed via repo-wide search on 2026-09-18: no student-to-
-   instructor messaging of any kind exists yet (no `messages` table in
-   `supabase/migrations/`, no message/inbox/compose UI in `portal/app.js` or
-   any `soc-analyst-module-*.js`), and it was not previously written into
-   this or any other handoff doc.
+5. **Done 2026-09-20:** "Message Instructor" is available in the student
+   portal and faculty Inbox, and its shared persistent module banner action
+   opens/focuses the portal compose form for every course and module. Keep one
+   shared thread/inbox system; do not create per-module messaging UIs. See
+   Sprint E below for implementation evidence.
 6. Remove the coach/tour walkthrough system and the redundant "Triage
    worksheet locked" card from Module 1 (see design decision below) — new,
    not started.
@@ -388,6 +387,10 @@ mirrors the project's established per-sprint handoff convention
     need grading" badge (`portal/app.js`, `trackTile()`/
     `adminTrackAdministration()`), plus an inbox/reply view.
   - [x] E4. Regression pass: `node --check`, `node bin/portal-check.js`.
+  - [x] E5. Universal module access: the persistent module banner includes a
+    **Message Instructor** action immediately before program progress. It
+    routes to and focuses the existing portal compose form, so every course
+    and module uses the same student/instructor message thread.
   This sprint is independent of Sprints A-D (different feature area, no
   shared code) — a future session may pull it forward instead of doing it
   strictly last, at that session's discretion.

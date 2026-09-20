@@ -82,7 +82,7 @@ async function buildCoreUserFromSession(session) {
 
   const { data: studentRow } = await mntSupabase
     .from('students')
-    .select('student_id, track_code, is_admin, is_enrolled')
+    .select('student_id, track_code, is_admin, is_enrolled, academy_orientation_completed_at')
     .eq('user_id', userId)
     .single();
 
@@ -106,6 +106,10 @@ async function buildCoreUserFromSession(session) {
     username: studentRow ? studentRow.student_id : session.user.email,
     name: studentRow ? studentRow.student_id : session.user.email,
     isAdmin: !!(studentRow && studentRow.is_admin),
+    // Academy-level (not per-program) first-login orientation tour state —
+    // see AcademyOrientation in orientation.js and the
+    // 20260920100000_academy_orientation_state.sql migration.
+    academyOrientationCompletedAt: studentRow ? studentRow.academy_orientation_completed_at : null,
     enrollments,
     // userId/trackCode: added for the module_progress write path (architecture.md
     // §3 Sprint 2). Both come from the studentRow query above, already run for
@@ -3938,7 +3942,7 @@ function moduleTopbar(user, program, options = {}) {
   const backHref = options.backHref || `#/program/${program.slug}`;
   const backLabel = options.backLabel || 'Back to Modules';
   return `
-  <header class="bg-white/95 backdrop-blur-sm border-b border-gray-100">
+  <header class="sticky top-0 z-[60] bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
       <div class="flex items-center gap-3 min-w-0">
         <a href="${esc(backHref)}" class="flex items-center gap-1.5 text-gray-600 hover:text-[#1e3a5f] text-sm font-semibold transition-colors cursor-pointer shrink-0">
@@ -3951,6 +3955,9 @@ function moduleTopbar(user, program, options = {}) {
         </div>
       </div>
       <div class="flex items-center gap-4 shrink-0">
+        <button type="button" data-message-instructor class="inline-flex items-center gap-1.5 text-[#1e3a5f] hover:bg-[#1e3a5f]/8 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer">
+          <i class="ri-message-3-line text-sm" aria-hidden="true"></i> Message Instructor
+        </button>
         <div class="hidden md:flex items-center gap-2 w-36" aria-label="Program progress: ${progress.percent}% complete">
           <div class="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
             <div class="h-full rounded-full bg-[#f97316]" style="width:${progress.percent}%"></div>
@@ -4507,7 +4514,7 @@ function viewPortal(user) {
       </div>
     </section>
 
-    <section class="py-16 px-8">
+    <section id="mnt-my-programs" class="py-16 px-8">
       <div class="max-w-7xl mx-auto">
         <!-- Section header copy is the live site's, verbatim. -->
         <div class="text-center mb-16">
@@ -4944,7 +4951,7 @@ function viewProgram(user, slug) {
       <div class="max-w-7xl mx-auto">
         <h2 class="text-3xl font-bold text-[#1e3a5f] mb-3">Curriculum</h2>
         <div class="w-12 h-1 bg-[#f97316] rounded-full mb-3"></div>
-        <div class="flex items-center justify-between gap-4 flex-wrap mb-12">
+        <div id="sec-curriculum-summary" class="flex items-center justify-between gap-4 flex-wrap mb-12">
           <p class="text-gray-500 text-base">6 Weeks · 12 Modules</p>
           <p class="inline-flex items-center gap-2 text-gray-500 text-xs">
             <span class="w-2.5 h-2.5 rounded-full bg-[#22c55e] ring-4 ring-[#dcfce7]"></span>
@@ -5652,7 +5659,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    <div id="admin-generate-user-panel" class="acc-body">
                     <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate New User</h3>
-                     <p class="text-xs text-gray-500 mb-3">Creates one auto-enrolled student account immediately. The password is shown once, below — copy it now, it is not shown again.</p>
+                     <p class="text-xs text-gray-500 mb-3">Creates one student account immediately, unassigned and not yet enrolled (provisioning.ts's ad hoc design — only a batch-generated cohort starts enrolled). Turn it on for the student under "Enrollment Planning" below when they're ready to start. The password is shown once, below — copy it now, it is not shown again.</p>
                      <div class="grid sm:grid-cols-3 gap-3 items-end">
                        <label class="text-xs font-semibold text-gray-600">Track
                          <select id="gen-user-track" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
@@ -6420,6 +6427,10 @@ async function render(options = {}) {
   app.setAttribute('aria-busy', 'false');
   wireCommon();
   window.scrollTo(0, 0);
+  // Universal Academy first-login orientation (orientation.js). Admin never
+  // sees it — that whole route branch already returned above. A no-op when
+  // the student has already completed it or no tour is in progress.
+  if (typeof AcademyOrientation !== 'undefined') AcademyOrientation.onRouteRendered(user, hash);
 }
 
 function wireLogin() {
@@ -6513,6 +6524,17 @@ function wireCommon() {
   const signout = document.querySelector('[data-action="signout"]');
   if (signout) signout.addEventListener('click', () => signOut());
 
+  // The persistent module banner opens the existing portal inbox rather than
+  // creating a separate compose flow in every module. The marker survives
+  // the route render so the portal can scroll directly to the compose form.
+  const messageInstructor = document.querySelector('[data-message-instructor]');
+  if (messageInstructor) {
+    messageInstructor.addEventListener('click', () => {
+      sessionStorage.setItem('mnt-focus-instructor-messages', 'true');
+      location.hash = '#/portal';
+    });
+  }
+
   // Program cards. Locked cards carry pointer-events-none, so they never fire.
   document.querySelectorAll('[data-open]').forEach((el) => {
     const go = () => { location.hash = '#/program/' + el.dataset.open; };
@@ -6549,6 +6571,19 @@ function wireCommon() {
   wireModuleQuickNavRail();
   wireRegisteredModuleLabs();
   wireStudentMessages();
+  focusInstructorMessagesFromModuleBanner();
+}
+
+function focusInstructorMessagesFromModuleBanner() {
+  if (location.hash !== '#/portal' || sessionStorage.getItem('mnt-focus-instructor-messages') !== 'true') return;
+  const panel = document.querySelector('[aria-labelledby="student-messages-title"]');
+  const subject = panel?.querySelector('input[name="subject"]');
+  if (!panel || !subject) return;
+  sessionStorage.removeItem('mnt-focus-instructor-messages');
+  requestAnimationFrame(() => {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    subject.focus({ preventScroll: true });
+  });
 }
 
 function wireStudentMessages() {
