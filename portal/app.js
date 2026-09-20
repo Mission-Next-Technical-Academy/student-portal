@@ -39,6 +39,15 @@ function loginIdToEmail(loginId) {
   return loginId.trim().toLowerCase() + STUDENT_EMAIL_DOMAIN;
 }
 
+/* Display-only fallback for when a students row can't be found for a
+ * session (missing/orphaned row — see admin-provision/provisioning.ts's
+ * "students row insert failed" failure mode). Never render the synthetic
+ * email's domain to a student; login IDs are otherwise always the
+ * students.student_id value, which already carries its real casing. */
+function emailToDisplayId(email) {
+  return (email || '').split('@')[0];
+}
+
 /* currentUser() resolves the Supabase session into the same plain-object shape
  * the rest of this file already expects ({ email, username, name, isAdmin,
  * enrollments: [{ programSlug, status, accessMode, modules }] }) — everything
@@ -103,8 +112,8 @@ async function buildCoreUserFromSession(session) {
 
   return {
     email: session.user.email,
-    username: studentRow ? studentRow.student_id : session.user.email,
-    name: studentRow ? studentRow.student_id : session.user.email,
+    username: studentRow ? studentRow.student_id : emailToDisplayId(session.user.email),
+    name: studentRow ? studentRow.student_id : emailToDisplayId(session.user.email),
     isAdmin: !!(studentRow && studentRow.is_admin),
     // Academy-level (not per-program) first-login orientation tour state —
     // see AcademyOrientation in orientation.js and the
