@@ -16,7 +16,7 @@ written.
 ## Read in this order
 1. `VISION.md` — CySA+ framing, the real tool-exposure gap scan (CLI and
    PCAP are the two genuinely missing pieces), and the Learn it → Practice
-   it → Prove it → Do it per-module structure.
+   it → Prove it per-module structure.
 2. `LAB_DEPTH_AND_SCORING_OVERHAUL.md` — owner's follow-up critique after
    seeing the grading system live: current labs read too short/shallow for
    a multi-day module ("the triage must be the entire incident response

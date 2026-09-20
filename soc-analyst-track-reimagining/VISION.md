@@ -130,27 +130,36 @@ preference on top of something that already functions (SIEM, vuln scanning).
    grading system already writes to (see the sibling grading-system
    project) — don't invent a second, parallel scoring model.
 
-## 6. Per-module structure — Learn it, Practice it, Prove it, Do it
+## 6. Per-module structure — Learn it, Practice it, Prove it
 
-Owner framing, 2026-09-13. This is the four-stage shape every module should
-build toward, and it's the concrete answer to "how do we frame the syllabus
-as hands-on labs":
+**Superseded 2026-09-20:** the original owner framing here (2026-09-13) had
+a fourth stage — a separate full incident per module beyond the assessed
+lab. `REBUILD_PLAN.md`'s actual shipped work (Module 09's ticket panel, the
+Arc C connector, etc.) never built two separate labs per module; it
+deepened the one assessed lab into the "full incident, front to back"
+shape instead. `ROADMAP.md` and `INSTRUCTIONAL_ARCHITECTURE.md` now use a
+three-stage Learn it → Practice it → Prove it cycle, with that full-incident
+depth folded into "Prove it." This section is corrected in place to match;
+the "one real case, worth showing an employer" ambition below is preserved,
+just as part of Prove it rather than a separate stage.
+
+This is the shape every module should build toward, and it's the concrete
+answer to "how do we frame the syllabus as hands-on labs":
 
 1. **Learn it** — the lesson/theory content. Short, concept-priming, tied to
    Security+ where it maps (unchanged from the existing plan, §1 above).
 2. **Practice it** — a guided, scaffolded lab on the same skill: lower
    stakes, coaching/hints available, builds the muscle memory before it
    counts.
-3. **Prove it** — the assessed lab. This is where the IOC-coverage /
-   remediation-completeness rubric (§3) actually applies, and where the
-   grading-system project's pregrade → instructor-review → redo loop kicks
-   in (see `../lab-grading-notification-system/`) — a student doesn't move
-   on until they've proven it at the required 70%.
-4. **Do it** — the full incident, front to back (§2's "one INC per module"
-   idea), pulling together everything learned/practiced/proven in that
-   module into one real, on-the-job-shaped case run start to finish. This is
-   the artifact that's actually worth showing an employer — not a quiz
-   score, a completed incident.
+3. **Prove it** — the assessed lab: one real, on-the-job-shaped case run
+   start to finish (§2's "one INC per module" idea), pulling together
+   everything learned and practiced in that module. This is where the
+   IOC-coverage / remediation-completeness rubric (§3) actually applies,
+   and where the grading-system project's pregrade → instructor-review →
+   redo loop kicks in (see `../lab-grading-notification-system/`) — a
+   student doesn't move on until they've proven it at the required 70%.
+   This is also the artifact that's actually worth showing an employer —
+   not a quiz score, a completed incident.
 
 This gives every module the same skeleton regardless of which CySA+ domain
 or tool surface it's built around, and it's the structure the next build
@@ -160,8 +169,8 @@ pass should map the real (uncommitted) Module 02–12 content against — see
 ## 7. Next step
 Read the real (uncommitted) Module 02–12 content end to end against this
 vision before writing a build plan — not another planning pass on top of
-planning passes. Specifically check each module against the four-stage
-shape in §6 (does it currently have all four stages, or just Learn/Practice
-with no real Prove/Do it split?) alongside CySA+ domain fit, the
+planning passes. Specifically check each module against the three-stage
+shape in §6 (does it currently have all three stages, or just Learn/Practice
+with no real Prove it depth?) alongside CySA+ domain fit, the
 IOC/remediation rubric shape, and the two real tooling gaps (§4) — this
 document exists so that read has a clear target instead of starting cold.

@@ -132,7 +132,7 @@ Approved roadmap item
 | Document | Role |
 |---|---|
 | `ROADMAP.md` | Canonical delivery order, Module 1 direction, agent protocol, and CI/CD reference |
-| `INSTRUCTIONAL_ARCHITECTURE.md` | Program-wide Learn/Practice/Prove/Do pedagogy, guidance-reduction curve across modules 01–12, and the module-completion rubric |
+| `INSTRUCTIONAL_ARCHITECTURE.md` | Program-wide Learn/Practice/Prove pedagogy, guidance-reduction curve across modules 01–12, and the module-completion rubric |
 | `HANDOFF.md` | Concise evidence for the currently active roadmap item |
 | `NEXT_SESSION.md` | Pointer only; never a second task queue |
 | `soc-analyst-track-reimagining/VISION.md` | Strategic curriculum rationale and future tool gaps |

@@ -28,9 +28,9 @@ show what it actually looks like to:
 4. **Triage** — a severity/priority judgment grounded in what the analyst
    actually found during investigation, not asked as an isolated question.
 5. …continuing into remediation, recovery, and reporting — this is the
-   same "Do it" stage `VISION.md` §6 already describes (the full incident,
-   front to back). This document is what actually fills that stage in with
-   real requirements.
+   same "Prove it" depth `VISION.md` §6 describes (the full incident, front
+   to back). This document is what actually fills that stage in with real
+   requirements.
 
 **Multiple competencies roll into one lab.** The lab isn't "the triage
 skill-check" — it's the whole case, and triage is one moment inside it.
@@ -73,9 +73,9 @@ it needs to be the deep, multi-competency, less-guided case above — Module
 
 ## How this connects to work already in progress
 
-- **`VISION.md` §6** (Learn it → Practice it → Prove it → Do it): the
+- **`VISION.md` §6** (Learn it → Practice it → Prove it): the
   guided-tour idea is **Practice it**. The deep, multi-competency incident
-  described here is **Prove it** / **Do it**.
+  described here is **Prove it**.
 - **The grading system** (`../lab-grading-notification-system/`) already
   has the pregrade → instructor-review → redo loop and a 70% gate on
   `lab_attempts.score` — this overhaul is what makes that score mean
