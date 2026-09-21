@@ -6615,18 +6615,16 @@ function wireLogin() {
     if (result && typeof result === 'object') {
       const user = result;
       // A completed console walkthrough can return in its own tab after the
-      // original module tab was closed. Preserve that verified return route;
-      // ordinary sign-ins land on the student's active programme instead of
-      // the #/portal catalogue (STUDENT_LOGIN_COURSEWORK_REDIRECT.md). Admins
-      // are sent on to #/admin by render()'s admin-only rule regardless of
-      // where we land them here. A student with no active enrolment (or one
-      // not yet mapped to a programme) still falls back to #/portal.
+      // original module tab was closed. Preserve that verified return route.
+      // Ordinary student sign-ins always land on My Programs so they can
+      // choose between their technical coursework and the separate M360
+      // Professional Readiness work. Admins are sent on to #/admin by
+      // render()'s admin-only rule regardless of where we land them here.
       const coachReturn = new URLSearchParams(location.search).get('coachComplete');
       const returnToModule = coachReturn === 'm01' && location.hash === '#/program/soc-analyst/module/1';
-      const activeEnrollment = user.enrollments.find((e) => e.status === 'active');
       const destination = user.isInstructor && !user.isAdmin
         ? `#/admin/track/${user.instructorTrackCodes[0]}`
-        : (activeEnrollment ? '#/program/' + activeEnrollment.programSlug : '#/portal');
+        : '#/portal';
       history.replaceState(null, '', returnToModule
         ? location.pathname + location.search + location.hash
         : destination);

@@ -1047,8 +1047,6 @@ function viewModuleOne(user, program) {
           <p class="m01-kicker">Module 01 · ${formatHandsOnDuration(module.durationMinutes)} · Start here</p>
           <h1 id="m01-title">${esc(module.title)}</h1>
           <p class="m01-lede">Meet the team that watches for security threats, learn the language of alerts and incidents, follow the incident response lifecycle, and triage one clear alert with a coach beside you.</p>
-          <a class="m01-hero-action" href="${esc(SIM_ORIGIN)}?coach=m01-orientation&amp;restart=1#/defender/alerts" target="_blank" rel="opener">
-            <i class="ri-compass-3-line" aria-hidden="true"></i> Take the Day 1 tour</a>
         </div>
         <dl class="m01-progress" aria-label="Saved lab progress">
           <div><dt>Foundation lessons</dt><dd>${module.lessons}</dd></div>
