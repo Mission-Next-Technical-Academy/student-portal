@@ -52,4 +52,7 @@ itsRegisterCoachModule({
   lessons: ITS07_LESSONS,
   lede: 'You\'ve covered hardware, the operating system, and the network underneath it — this module rounds out the picture with the software layer: installing it, updating it, and diagnosing it when it misbehaves.',
   labDescription: 'Resolve one of five real, correlated tickets end to end in the IT Service Desk simulator — a shared application certificate expiry (HD-2119) — and recognize the pattern across the other four. A coach spotlights each step for you.',
+  sources: [
+    { title: 'Windows Package Manager (winget) documentation', org: 'Microsoft Learn', url: 'https://learn.microsoft.com/en-us/windows/package-manager/winget/', note: 'Official reference for installing, updating, and removing software on managed Windows devices.' },
+  ],
 });

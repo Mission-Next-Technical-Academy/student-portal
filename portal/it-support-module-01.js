@@ -8,6 +8,10 @@
  * portal-embedded widget.
  */
 
+const ITS01_SOURCES = [
+  { title: 'CompTIA A+ Certification', org: 'CompTIA', url: 'https://www.comptia.org/certifications/a', note: 'Supplementary public reference for the professional-conduct and help-desk fundamentals this program builds toward.' },
+];
+
 const ITS01_LESSONS = [
   {
     id: 'its-01-lesson-01', number: '1.1', icon: 'ri-compass-3-line',
@@ -172,6 +176,7 @@ function viewItsModuleOne(user, program) {
     { id: 'lessons', title: 'Foundation lessons', type: 'lecture', isComplete: true, scrollId: 'its01-lessons' },
     { id: 'environment', title: 'Environment validation', type: 'lab', isComplete: its01State.lab1Complete, scrollId: 'its01-lab-1-1' },
     { id: 'service-desk', title: 'Service desk walkthrough', type: 'lab', isComplete: its01State.consoleCompleted, scrollId: 'its01-lab-1-2' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its01-sources', gated: false, supplemental: true },
   ];
   return `<div class="its01-shell">
     ${moduleTopbar(user, program)}
@@ -183,6 +188,8 @@ function viewItsModuleOne(user, program) {
 
       ${its01Lab1()}
       ${its01Lab2()}
+
+      <section class="its01-section" id="its01-sources" aria-labelledby="its01-sources-title"><div class="its01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="its01-kicker">Reference — not a graded step</p><h2 id="its01-sources-title">Sources &amp; Further Reading</h2></div></div>${moduleSourcesBlock(ITS01_SOURCES)}</section>
     </main>
   </div>`;
 }

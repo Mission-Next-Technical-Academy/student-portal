@@ -486,6 +486,7 @@ function moduleFourGetSections() {
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleFourQuizState?.passed, scrollId: 'm04-knowledge-check' },
     { id: 'detection-lab', title: 'Module Lab', type: 'lab', isComplete: moduleFourState.completed, scrollId: 'm04-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm04-review' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm04-sources-section', gated: false, supplemental: true },
   ];
 }
 
@@ -994,7 +995,7 @@ function viewModuleFour(user, program) {
           <div class="m04-section-heading"><span>5</span><div><p class="m04-kicker">Supporting resources</p><h2 id="m04-sources-title">Further reading on detection and automation</h2></div></div>
         </section>
       </summary>
-      <section class="m04-section m04-section-body" aria-labelledby="m04-sources-title">${moduleSourcesBlock(MODULE_FOUR_SOURCES)}</section>
+      <section class="m04-section m04-section-body" id="m04-sources-section" aria-labelledby="m04-sources-title">${moduleSourcesBlock(MODULE_FOUR_SOURCES)}</section>
     </details>`;
 
   return `<div class="m04-shell">

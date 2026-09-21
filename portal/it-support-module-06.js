@@ -72,4 +72,8 @@ itsRegisterCoachModule({
   lessons: ITS06_LESSONS,
   lede: 'You know the structure of Active Directory now — this module puts it to work solving the identity tickets you\'ll see more than almost any other type, from password resets to modern cloud-identity scenarios.',
   labDescription: 'Resolve two real identity tickets end to end in the IT Service Desk simulator — an approved group-membership restore (SR-2107) and a missing NTFS permission group (HD-2118) — verifying authorization before you act. A coach spotlights each step for you.',
+  sources: [
+    { title: 'Digital Identity Guidelines (SP 800-63-3)', org: 'NIST', url: 'https://pages.nist.gov/800-63-3/', note: 'Authoritative federal guidance on authentication and identity verification behind password-reset and account-unlock procedure.' },
+    { title: 'Active Directory Domain Services overview', org: 'Microsoft Learn', url: 'https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/ad-ds-getting-started', note: 'Group membership and permission concepts used in this module’s tickets.' },
+  ],
 });

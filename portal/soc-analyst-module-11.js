@@ -726,6 +726,7 @@ function moduleElevenGetSections() {
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleElevenQuizState?.passed, scrollId: 'm11-knowledge-check' },
     { id: 'operations-labs', title: 'Module Lab', type: 'lab', isComplete: moduleElevenMetricsState.completed && moduleElevenReportState.completed, scrollId: 'm11-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm11-review' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm11-sources-section', gated: false, supplemental: true },
   ];
 }
 

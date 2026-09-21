@@ -498,6 +498,7 @@ function moduleSixGetSections() {
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSixQuizState?.passed, scrollId: 'm06-knowledge-check' },
     { id: 'threat-hunt-lab', title: 'Module Lab', type: 'lab', isComplete: moduleSixState.completed && moduleSixState.independentLab.completed, scrollId: 'm06-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm06-review' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm06-sources', gated: false, supplemental: true },
   ];
 }
 

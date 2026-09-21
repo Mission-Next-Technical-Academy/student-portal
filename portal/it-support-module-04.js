@@ -87,4 +87,8 @@ itsRegisterCoachModule({
   lessons: ITS04_LESSONS,
   lede: 'You\'ve built your lab environment and fixed your first hardware and printer tickets. Now it\'s time for one of the most valuable skills on any help desk: figuring out why something won\'t connect, and explaining it in plain language.',
   labDescription: 'Resolve two real connectivity tickets end to end in the IT Service Desk simulator — an APIPA/DHCP failure (HD-2104) and a DNS failure (HD-2105) — using the diagnostic evidence rather than guessing. A coach spotlights each step for you.',
+  sources: [
+    { title: 'Internet Protocol (RFC 791)', org: 'IETF / RFC Editor', url: 'https://www.rfc-editor.org/rfc/rfc791', note: 'The original IPv4 addressing specification underlying the subnetting concepts in this module.' },
+    { title: 'Internet Standard Subnetting Procedure (RFC 950)', org: 'IETF / RFC Editor', url: 'https://www.rfc-editor.org/rfc/rfc950', note: 'Defines the subnetting mechanics behind the APIPA/DHCP and DNS tickets worked in this lab.' },
+  ],
 });

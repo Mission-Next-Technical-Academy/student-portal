@@ -240,6 +240,7 @@ function aim12Sections() {
   return [
     { id: 'aim12-lessons', title: 'Capstone Briefings', type: 'lecture', isComplete: true, scrollId: 'aim12-lessons' },
     { id: 'aim12-capstone', title: 'Multi-Stage Project', type: 'lab', isComplete: labComplete, scrollId: 'aim12-capstone' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'aim12-sources', gated: false, supplemental: true },
   ];
 }
 

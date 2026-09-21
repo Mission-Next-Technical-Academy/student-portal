@@ -4297,13 +4297,17 @@ function moduleUnifiedNav(sections, state = {}) {
       </div>
       <ul class="mquick-nav-list munified-groups">
         ${rowsHtml}
-        ${supplementalSections.length ? `<li class="munified-group munified-supplemental">
-          <ul class="mquick-nav-list munified-phase-body">
-            ${supplementalSections.map(sectionRow).join('')}
-          </ul>
-        </li>` : ''}
       </ul>
     </nav>
+    ${supplementalSections.length ? `<div class="munified-supplemental" id="munified-supplemental-panel" hidden>
+      <div class="munified-supplemental-row">
+        <i class="ri-book-open-line" aria-hidden="true"></i>
+        <span class="munified-phase-label">Reference</span>
+      </div>
+      <ul class="mquick-nav-list munified-phase-body">
+        ${supplementalSections.map(sectionRow).join('')}
+      </ul>
+    </div>` : ''}
   </aside>`;
 }
 
@@ -6844,6 +6848,12 @@ function wireModuleQuickNavRail() {
       railToggle.setAttribute('aria-expanded', !isExpanded);
       const drawer = document.getElementById('mquick-nav-drawer');
       if (drawer) drawer.hidden = isExpanded;
+      // Detached "Reference" panel (Sources & Further Reading) sits outside
+      // the drawer so it never borders the graded-phase menu, but on mobile
+      // it must still collapse with the same toggle rather than floating
+      // permanently on screen.
+      const supplemental = document.getElementById('munified-supplemental-panel');
+      if (supplemental) supplemental.hidden = isExpanded;
     });
   }
 

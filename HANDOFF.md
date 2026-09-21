@@ -9,6 +9,112 @@ pointer and must not become a second task queue.
 The prior chronological engineering handoff is preserved at
 `archive/session-logs/HANDOFF_THROUGH_2026-09-10.md`.
 
+## Sources & Further Reading — detached "Reference" panel, platform-wide, 2026-09-21 (later still)
+
+Owner feedback on the earlier same-day nav-grouping fix: the "Reference"
+group I'd added still shared the drawer's bordered/shadowed box and sat
+directly under "Prove It" with no real gap. Ask: detach it fully (its own
+card, lower, not touching the progress menu) and roll the same treatment
+out to every other module in every other course, not just SOC Module 1.
+
+**Detachment (`portal/app.js`'s `moduleUnifiedNav()`):** the supplemental
+group is no longer a trailing `<li>` inside `<ul class="munified-groups">`
+(itself inside the bordered `.mquick-nav-drawer` card). It's now a sibling
+`<div id="munified-supplemental-panel" hidden>` of the drawer, inside the
+same `<aside>`, with its own border/radius/shadow and a 40px `margin-top` —
+confirmed via `getBoundingClientRect()` live in Chrome (gap measured
+exactly 40px, `suppIsSiblingOfDrawer: true`). Kept in sync with the mobile
+hamburger toggle (`wireModuleQuickNavRail()` now also toggles
+`#munified-supplemental-panel`'s `hidden`) and given the same desktop
+`[hidden]`-override CSS rule the drawer already needed, for the same
+reason (the element always renders with `hidden` — the mobile closed
+state — and must stay visible on the persistent desktop rail).
+
+**Platform-wide rollout.** Investigated first rather than assuming: only
+Module 1 used `moduleUnifiedNav()` directly, but `moduleProgressShell()` —
+called by nearly every other module across every course — turned out to
+already be a thin compatibility wrapper around the exact same function.
+So the nav mechanism was already shared platform-wide; the only missing
+piece per module was a `supplemental: true` nav-section entry pointing at
+that module's existing (or, for IT Support, newly added) Sources content.
+
+- **SOC Analyst modules 2–11** (`portal/soc-analyst-module-0{2..9}.js`,
+  `-10.js`, `-11.js`): added the nav entry, pointing at each module's
+  existing sources heading id (`m0X-sources` etc.) — added a missing
+  wrapper `id` for modules 2–4 only, which had none. Module 12 (capstone)
+  has no sources content to point at; left alone.
+- **AI-ML modules 1–12** (`portal/ai-ml-module-*.js`): same, pointing at
+  each module's existing `aimNN-sources` id — all 12 already had it.
+- **IT Support modules 3–11**: shared `itsSimpleModuleView()`
+  (`portal/it-support-shared.js`) gained an optional `sources` param,
+  rendering a new Sources section plus the nav entry in one place;
+  `itsRegisterCoachModule()` now threads `sources` through from each
+  module's own `itsRegisterCoachModule({...})` call. **Modules 1, 2, 12**
+  use their own bespoke layout (not `itsSimpleModuleView`) — added the
+  section + nav entry directly in each.
+- **IT Support had zero references content before this** (confirmed by
+  grep) — wrote real citations per module's actual topic: RFC 791/950 for
+  module 4 (IP addressing), NIST SP 800-63-3 for module 6 (identity),
+  Microsoft Learn Hyper-V/AD DS/BitLocker/winget/RDS docs for
+  modules 2/3/5/6/7/8, CISA phishing guidance + NIST SP 800-61 for module 9
+  (security incidents), CompTIA A+ for modules 1/10/11/12 (ticketing,
+  documentation, professional conduct — no single stable free citation
+  fits those as well as an existing precedent).
+- **Electrical module 1** deliberately excluded — it's an unauthored
+  placeholder stub (own comment: "curriculum content is being authored"),
+  so there's no real content to cite; adding a fabricated Sources section
+  there would be decoration, not reference material.
+
+**Verification, without fighting a broken screenshot tool:** the Claude in
+Chrome screenshot capture returned blank frames all session for reasons
+unrelated to the page (confirmed via `javascript_tool` DOM inspection that
+content was present and correctly positioned every time a screenshot came
+back blank) — stopped trying to force it and used direct evaluation
+instead. For the platform-wide rollout, built a one-off script
+(`bin/portal-check.js`'s exact VM-stub/sign-in-as-`user2` approach, copied
+to the scratchpad and extended to dump each module's rendered HTML) and
+confirmed all 35 modules that should have it do: `supp=true ref=true
+sources=true` for SOC 1–11, IT Support 1–12, AI-ML 1–12; correctly
+`false` only for SOC 12 and Electrical 1. `bash bin/ci-check.sh` clean
+throughout (129/129 simulator views, all portal modules render).
+
+## Module 1 case console — Prove It ported, Sources nav fix, 2026-09-21 (later)
+
+Continuation of the same day's case-console build. Two owner asks, both done:
+
+1. **Prove It (NST-2407) ported to the same case-console pattern as Practice
+   It.** Added `logEvents` to `MODULE_ONE_ESCALATION_LAB.scenario`
+   (`portal/data.js`) — 8 rows across the identity/endpoint/proxy sources
+   this case correlates (MFA denials → approval → sign-in, process
+   creation, network connection, proxy upload), each expandable to a raw
+   record, same mechanic as ALT-1001's log table. Added
+   `moduleOneProveItLaunchCard()` / `moduleOneProveItCaseConsolePane()` /
+   `viewModuleOneProveItCaseConsole()` (`?console=prove`) and
+   `wireModuleOneProveItCaseConsole()`, mirroring Practice It's structure.
+   `moduleOneReview()` (the LMS page) now shows just the launch card, not
+   the embedded console. Removed the now-dead `#m01-review-dynamic` wiring
+   block it replaced. Fixed a real gating bug this surfaced: the phone-
+   callback evidence item ('owner') has no log row by design (it's handed
+   over, not investigated), but `moduleOneProveItPerformance()` requires
+   *all* evidence reviewed before Submit Case unlocks — so it could never
+   have unlocked. Fixed by auto-crediting 'owner' in `moduleOneLoad()`.
+2. **"Sources & Further Reading" was structurally its own nav group already
+   (`moduleUnifiedNav()` in `portal/app.js` already filters `supplemental:
+   true` sections out of the Learn/Practice/Prove phases), but that group
+   had no header row** — so it rendered directly under "Prove It" with no
+   visual break, reading as part of it. Added a muted "Reference" header
+   row (same `.munified-phase-row` pattern as the other phases, new
+   `.munified-supplemental-row` styling) so it's visually distinct.
+   Live-verified via DOM query: nav now groups as Learn It → Foundations,
+   Practice It → Knowledge Check + Module Lab, Prove It → Module Review,
+   **Reference → Sources & Further Reading** (its own group).
+
+`node --check` and `bash bin/ci-check.sh` clean throughout. Verified live in
+Chrome as `9334491415-SOCAN` via direct DOM inspection (`javascript_tool`) —
+the screenshot tool itself was returning blank captures all session despite
+correct DOM/content, a tool-side issue, not a page bug; didn't fight it
+further once DOM inspection confirmed correctness.
+
 ## Module 1 case console — Practice It built, 2026-09-21
 
 Owner delivered `MODULE_01_CASE_CONSOLE_SPEC.md` (now the authoritative

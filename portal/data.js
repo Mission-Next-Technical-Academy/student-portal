@@ -1922,6 +1922,29 @@ const MODULE_ONE_ESCALATION_LAB = {
       { id: 'proxy', time: 'Mon 09:27', icon: 'ri-global-line', label: 'Proxy telemetry', detail: 'LAP-442 uploaded 34 MB to the same address. No other host has contacted it in the available time window.' },
       { id: 'owner', time: 'Mon 09:41', icon: 'ri-phone-line', label: 'User callback', detail: 'a.chen confirms the laptop is in their possession but denies approving the MFA prompts or running the downloaded file.' },
     ],
+    // Real log rows for the case-console's middle pane, same idea as
+    // ALT-1001's logEvents (MODULE_01_CASE_CONSOLE_SPEC.md §3) — one small
+    // table mixing the identity/endpoint/proxy sources this case actually
+    // correlates, not three separate simulators. The phone callback has no
+    // row — it is handed over, not logged.
+    logEvents: [
+      { id: 'evt-mfa-deny-1', time: 'Mon 09:15:02', type: 'MFAChallenge', user: 'a.chen', device: '—', sourceIp: '198.51.100.24', result: 'Denied', evidenceId: 'identity',
+        raw: { timestamp: '2026-06-29T09:15:02Z', event_type: 'mfa_challenge', user: 'a.chen@missionnextlabs.example', source_ip: '198.51.100.24', result: 'denied' } },
+      { id: 'evt-mfa-deny-2', time: 'Mon 09:16:19', type: 'MFAChallenge', user: 'a.chen', device: '—', sourceIp: '198.51.100.24', result: 'Denied', evidenceId: 'identity',
+        raw: { timestamp: '2026-06-29T09:16:19Z', event_type: 'mfa_challenge', user: 'a.chen@missionnextlabs.example', source_ip: '198.51.100.24', result: 'denied' } },
+      { id: 'evt-mfa-deny-3', time: 'Mon 09:17:04', type: 'MFAChallenge', user: 'a.chen', device: '—', sourceIp: '198.51.100.24', result: 'Denied', evidenceId: 'identity',
+        raw: { timestamp: '2026-06-29T09:17:04Z', event_type: 'mfa_challenge', user: 'a.chen@missionnextlabs.example', source_ip: '198.51.100.24', result: 'denied' } },
+      { id: 'evt-mfa-approve', time: 'Mon 09:17:51', type: 'MFAChallenge', user: 'a.chen', device: '—', sourceIp: '198.51.100.24', result: 'Approved', evidenceId: 'identity',
+        raw: { timestamp: '2026-06-29T09:17:51Z', event_type: 'mfa_challenge', user: 'a.chen@missionnextlabs.example', source_ip: '198.51.100.24', result: 'approved' } },
+      { id: 'evt-login-success', time: 'Mon 09:18:03', type: 'LoginSuccess', user: 'a.chen', device: 'LAP-442', sourceIp: '198.51.100.24', result: 'Success', evidenceId: 'identity',
+        raw: { timestamp: '2026-06-29T09:18:03Z', event_type: 'authentication', user: 'a.chen@missionnextlabs.example', device: 'LAP-442', source_ip: '198.51.100.24', auth_method: 'mfa', result: 'success', managed_device_claim: 'absent' } },
+      { id: 'evt-process', time: 'Mon 09:24:11', type: 'ProcessCreate', user: 'a.chen', device: 'LAP-442', sourceIp: '—', result: 'Allowed', evidenceId: 'endpoint',
+        raw: { timestamp: '2026-06-29T09:24:11Z', event_type: 'process_create', user: 'a.chen@missionnextlabs.example', device: 'LAP-442', process: 'mshta.exe', parent_path: 'Downloads\\invoice_2407.hta', result: 'allowed' } },
+      { id: 'evt-network', time: 'Mon 09:24:47', type: 'NetworkConnection', user: 'a.chen', device: 'LAP-442', sourceIp: '198.51.100.24', result: 'Allowed', evidenceId: 'endpoint',
+        raw: { timestamp: '2026-06-29T09:24:47Z', event_type: 'network_connection', device: 'LAP-442', process: 'powershell.exe', destination_ip: '198.51.100.24', destination_port: 443, result: 'allowed' } },
+      { id: 'evt-proxy', time: 'Mon 09:27:30', type: 'ProxyUpload', user: 'a.chen', device: 'LAP-442', sourceIp: '198.51.100.24', result: 'Allowed', evidenceId: 'proxy',
+        raw: { timestamp: '2026-06-29T09:27:30Z', event_type: 'proxy_upload', device: 'LAP-442', destination_ip: '198.51.100.24', bytes_out: 34_000_000, result: 'allowed', other_hosts_contacting_destination: 0 } },
+    ],
     scope: 'One identity and LAP-442 are confirmed involved. The available data does not establish lateral movement.',
   },
   intakeOptions: [

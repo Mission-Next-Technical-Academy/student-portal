@@ -87,7 +87,7 @@ const MODULE_ONE_DEFAULT_STATE = {
     completed: false, submitted: false, submittedAt: '',
     reviewedEvidence: [], intake: '', priority: '', containment: '', verdict: '',
     status: 'in-progress', affectedUser: '', affectedDevice: '', escalation: '', escalateTo: '',
-    notes: '', actionHistory: [],
+    notes: '', actionHistory: [], viewedLogIds: [], expandedLogId: null,
     handoff: { observations: '', analysis: '', scope: '', nextAction: '' },
     validationError: '', attempts: 0, score: null, breakdown: null,
   },
@@ -154,6 +154,13 @@ function moduleOneLoad(user) {
   if (typeof moduleOneState.lab2.completed !== 'boolean') moduleOneState.lab2.completed = false;
   if (typeof moduleOneState.lab2.submitted !== 'boolean') moduleOneState.lab2.submitted = false;
   if (!Array.isArray(moduleOneState.lab2.reviewedEvidence)) moduleOneState.lab2.reviewedEvidence = [];
+  if (!Array.isArray(moduleOneState.lab2.viewedLogIds)) moduleOneState.lab2.viewedLogIds = [];
+  // The phone-callback fact ('owner') has no log row — it's handed over,
+  // not investigated (see MODULE_ONE_ESCALATION_LAB.scenario.evidence) — so
+  // it can never be earned through the log-click mechanic below. Credit it
+  // automatically so moduleOneProveItPerformance()'s "review every piece of
+  // evidence" gate is actually satisfiable.
+  if (!moduleOneState.lab2.reviewedEvidence.includes('owner')) moduleOneState.lab2.reviewedEvidence.push('owner');
   ['status', 'affectedUser', 'affectedDevice', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
     if (typeof moduleOneState.lab2[key] !== 'string') moduleOneState.lab2[key] = MODULE_ONE_DEFAULT_STATE.lab2[key] || '';
   });
@@ -905,13 +912,32 @@ function moduleOneQuizPanel() {
 // interface family as Practice It, minimal guidance — the option lists below
 // carry no `.help` text in the data, and evidence is read plainly rather
 // than filled in. This is Module 1's one graded artifact.
-function moduleOneProveItConsole() {
+// Prove It's launch card — same new-tab pattern as Practice It's
+// moduleOneLabLaunchCard(), per MODULE_01_CASE_CONSOLE_SPEC.md: no simulator,
+// no embedded-in-LMS console, just a card that opens the case console.
+function moduleOneProveItLaunchCard() {
+  const state = moduleOneState.lab2;
+  const submitted = Boolean(state.submitted);
+  const redoRequested = moduleOneProveItRedoRequested();
+  return `<div class="m01-lab-launch">
+    <a class="m01-hero-action" href="?console=prove${esc(location.hash)}" target="_blank" rel="opener">
+      <i class="${submitted ? 'ri-eye-line' : redoRequested ? 'ri-refresh-line' : 'ri-play-circle-line'}" aria-hidden="true"></i>
+      ${submitted ? 'Review the case' : redoRequested ? 'Resume Module Lab' : (state.actionHistory || []).length ? 'Resume Module Lab' : 'Launch Module Lab'}</a>
+    <p class="m01-lab-launch-status">${submitted
+      ? 'Submitted for faculty review. Opens the case console in a new tab if you want to review it.'
+      : redoRequested
+        ? 'Returned for remediation. Opens the case console in a new tab to review feedback and resubmit.'
+        : 'Opens the case console in a new tab — a small, focused workspace for this one case, not the full SOC range.'}</p>
+  </div>`;
+}
+
+function moduleOneProveItCaseConsolePane() {
   const lab = MODULE_ONE_ESCALATION_LAB;
   const scenario = lab.scenario;
   const state = moduleOneState.lab2;
-  const reviewed = new Set(state.reviewedEvidence);
   const submitted = state.submitted;
   const requirements = moduleOneProveItPerformance().missing;
+  const phoneNote = scenario.evidence.find((item) => item.id === 'owner');
 
   return `<div class="m01-console" aria-labelledby="m01-console-prove-title">
     <div class="m01-console-header">
@@ -928,7 +954,7 @@ function moduleOneProveItConsole() {
           <span class="muted">${esc(scenario.id)}</span>
         </div>
       </aside>
-      <section class="m01-console-pane m01-console-detail" aria-label="Alert details and evidence">
+      <section class="m01-console-pane m01-console-detail" aria-label="Logs and evidence">
         <p class="m01-console-pane-title">Alert Details</p>
         <dl class="m01-console-meta">
           <div><dt>Entity</dt><dd>${esc(scenario.entity)}</dd></div>
@@ -936,29 +962,44 @@ function moduleOneProveItConsole() {
           <div><dt>Created</dt><dd>${esc(scenario.created)}</dd></div>
         </dl>
         <p class="m01-console-summary">${esc(scenario.summary)}</p>
-        ${moduleOneEvidenceList(scenario, reviewed, 'data-m01-lab2-evidence', submitted)}
+        ${moduleOneLogTable(scenario, state)}
+        ${phoneNote ? `<p class="m01cc-phone-note"><i class="ri-phone-line" aria-hidden="true"></i> ${esc(phoneNote.detail)}</p>` : ''}
       </section>
-      <section class="m01-console-pane m01-console-ticket" aria-label="Case ticket">
-        <p class="m01-console-pane-title">Case / Ticket</p>
+      <section class="m01-console-pane m01-console-ticket" aria-label="Incident / case record">
+        <p class="m01-console-pane-title">Incident / Case Record</p>
         <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted })}
-          ${!submitted ? `<div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-save-proveit>Save Case</button><button type="button" class="m01-submit" data-m01-submit-proveit ${requirements.length ? 'disabled' : ''}>Submit Case</button></div>` : ''}
+          ${!submitted ? `<div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-save-proveit>Save</button><button type="button" class="m01-submit" data-m01-submit-proveit ${requirements.length ? 'disabled' : ''}>Submit Case</button></div>` : ''}
         </form>
+        ${moduleOneProveItSubmissionPanel()}
       </section>
     </div>
   </div>`;
 }
 
+// LMS-side card only, same rule as Practice It: the console lives in its
+// own tab, not embedded here.
 function moduleOneReview() {
-  return `<div id="m01-review">
-    <div id="m01-review-dynamic">${moduleOneProveItConsole()}${moduleOneProveItSubmissionPanel()}</div>
+  return `<div id="m01-review">${moduleOneProveItLaunchCard()}</div>
     <p class="m01-instruction">You are ready to review when you can separate events, alerts, and incidents; explain your evidence; choose a proportionate priority; and hand off work with an owner and verification step.</p><ul><li>Start with evidence and state uncertainty.</li><li>Use severity with context to set priority.</li><li>Escalate when impact or authority exceeds your boundary.</li><li>Close only after verification is recorded.</li></ul>
   </div>`;
 }
 
+// Full-bleed Prove It console page — same viewModuleOneCaseConsole()
+// pattern, opened via `?console=prove`.
+function viewModuleOneProveItCaseConsole(user, program) {
+  return `<div class="m01cc-shell" id="m01pc-app">
+    <header class="m01cc-topbar">
+      <span class="m01cc-topbar-title"><i class="ri-shield-keyhole-line" aria-hidden="true"></i> SECURITY OPERATIONS — CASE CONSOLE</span>
+      <a class="m01cc-topbar-close" href="${esc(location.pathname)}#/program/soc-analyst/module/1"><i class="ri-arrow-left-line" aria-hidden="true"></i> Back to Module 1</a>
+    </header>
+    <main class="m01cc-main" id="m01pc-console-slot">${moduleOneProveItCaseConsolePane()}</main>
+  </div>`;
+}
+
 function moduleOneRenderReviewDynamic(focusId) {
-  const root = document.getElementById('m01-review-dynamic');
+  const root = document.getElementById('m01pc-console-slot');
   if (!root) return;
-  root.innerHTML = `${moduleOneProveItConsole()}${moduleOneProveItSubmissionPanel()}`;
+  root.innerHTML = moduleOneProveItCaseConsolePane();
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -1025,9 +1066,9 @@ function viewModuleOne(user, program) {
   // `?console=practice` query param — opened in a new tab so this render
   // is a *different* browser tab/window from the LMS page that linked to
   // it, sharing the same session/auth without any new plumbing.
-  if (new URLSearchParams(location.search).get('console') === 'practice') {
-    return viewModuleOneCaseConsole(user, program);
-  }
+  const consoleParam = new URLSearchParams(location.search).get('console');
+  if (consoleParam === 'practice') return viewModuleOneCaseConsole(user, program);
+  if (consoleParam === 'prove') return viewModuleOneProveItCaseConsole(user, program);
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const module = program.modules['soc-01'];
   const moduleLabs = LABS.filter((item) => item.module === module.key);
@@ -1162,8 +1203,11 @@ function viewModuleOne(user, program) {
         <div class="m01-section-body" id="m01-review-body" ${openFor('review') ? '' : 'hidden'}>${moduleOneReview()}</div>
       </section>
 
-      <section class="m01-section m01-section-collapsible" id="m01-sources-section" aria-labelledby="m01-sources-title">
-        <div class="m01-section-heading"><span>5</span><div><p class="m01-kicker">Sources &amp; Further Reading</p><h2 id="m01-sources-title">Authoritative references</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="sources" data-m01-section-label="sources and further reading" aria-expanded="${openFor('sources')}" aria-controls="m01-sources-body" aria-label="${openFor('sources') ? 'Collapse' : 'Expand'} sources and further reading"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
+      <!-- Deliberately separate from the numbered 1-4 Learn/Practice/Prove/
+           Review flow above: this is reference material, not a graded step,
+           so it gets its own card below that sequence rather than a "5". -->
+      <section class="m01-section m01-section-collapsible m01-section-supplemental" id="m01-sources-section" aria-labelledby="m01-sources-title">
+        <div class="m01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Reference — not a graded step</p><h2 id="m01-sources-title">Sources &amp; Further Reading</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="sources" data-m01-section-label="sources and further reading" aria-expanded="${openFor('sources')}" aria-controls="m01-sources-body" aria-label="${openFor('sources') ? 'Collapse' : 'Expand'} sources and further reading"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
         <div class="m01-section-body" id="m01-sources-body" ${openFor('sources') ? '' : 'hidden'}>${moduleSourcesBlock(MODULE_ONE_SOURCES)}</div>
       </section>
     </main>
@@ -1361,9 +1405,74 @@ function wireModuleOneCaseConsole() {
   });
 }
 
+// Prove It's console wiring — same pattern as wireModuleOneCaseConsole(),
+// scoped to its own #m01pc-app root (the Prove It case console page).
+function wireModuleOneProveItCaseConsole() {
+  const root = document.getElementById('m01pc-app');
+  if (!root) return;
+  const lab = MODULE_ONE_ESCALATION_LAB;
+  const scenario = lab.scenario;
+
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m01-submit-proveit]')) { moduleOneFinalizeProveIt(); return; }
+    if (event.target.closest('[data-m01-save-proveit]')) {
+      moduleOneState.lab2.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+      moduleOneSave(); moduleOneRenderReviewDynamic(); return;
+    }
+
+    const logRow = event.target.closest('[data-m01cc-log-row]');
+    if (logRow) {
+      const id = logRow.dataset.m01ccLogRow;
+      const row = scenario.logEvents.find((item) => item.id === id);
+      if (!row) return;
+      const state = moduleOneState.lab2;
+      state.expandedLogId = state.expandedLogId === id ? null : id;
+      if (!state.viewedLogIds.includes(id)) {
+        state.viewedLogIds.push(id);
+        state.actionHistory.push({ action: `Opened log record ${id} (${row.time})`, at: new Date().toISOString() });
+        if (row.evidenceId && !state.reviewedEvidence.includes(row.evidenceId)) {
+          state.reviewedEvidence.push(row.evidenceId);
+        }
+      }
+      moduleOneSave(); moduleOneRenderReviewDynamic(); return;
+    }
+
+    const entity = event.target.closest('[data-m01-entity]');
+    if (entity && !moduleOneState.lab2.submitted) {
+      const field = entity.dataset.m01Entity === 'user' ? 'affectedUser' : 'affectedDevice';
+      moduleOneState.lab2[field] = field === 'affectedUser' ? 'a.chen' : 'LAP-442';
+      moduleOneState.lab2.intake = moduleOneState.lab2.affectedUser && moduleOneState.lab2.affectedDevice ? 'identity-and-laptop' : '';
+      moduleOneState.lab2.actionHistory.push({ action: `Added affected ${entity.dataset.m01Entity}`, at: new Date().toISOString() });
+      moduleOneSave(); moduleOneRenderReviewDynamic();
+    }
+  });
+  root.addEventListener('change', (event) => {
+    const input = event.target;
+    if (['status', 'severity', 'disposition', 'escalation', 'escalateTo'].includes(input.name)) {
+      const key = input.name === 'severity' ? 'priority' : input.name === 'disposition' ? 'verdict' : input.name;
+      moduleOneState.lab2[key] = input.value;
+      if (input.name === 'severity') moduleOneState.lab2.severity = input.value;
+      if (input.name === 'disposition') moduleOneState.lab2.disposition = input.value;
+      moduleOneState.lab2.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
+      moduleOneSave();
+      // Keep the "still required" checklist and submit gating honest —
+      // a discrete radio pick, unlike typing, is safe to re-render on.
+      moduleOneRenderReviewDynamic();
+    }
+  });
+  root.addEventListener('input', (event) => {
+    const field = event.target;
+    if (field.tagName === 'TEXTAREA' && field.name === 'notes') {
+      moduleOneState.lab2.notes = field.value;
+      moduleOneSave();
+    }
+  });
+}
+
 function wireModuleOneLab() {
   wireModuleOneCaseConsole();
-  if (document.getElementById('m01cc-app')) return;
+  wireModuleOneProveItCaseConsole();
+  if (document.getElementById('m01cc-app') || document.getElementById('m01pc-app')) return;
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
     reviewToggle.addEventListener('click', () => {
@@ -1445,57 +1554,6 @@ function wireModuleOneLab() {
 
   const root = document.getElementById('m01-lab-dynamic');
   if (!root || !moduleOneState) return;
-
-  const reviewRoot = document.getElementById('m01-review-dynamic');
-  if (reviewRoot) {
-    reviewRoot.addEventListener('click', (event) => {
-      if (event.target.closest('[data-m01-submit-proveit]')) { moduleOneFinalizeProveIt(); return; }
-      if (event.target.closest('[data-m01-save-proveit]')) {
-        moduleOneState.lab2.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
-        moduleOneSave(); moduleOneRenderReviewDynamic(); return;
-      }
-      const evidenceBtn = event.target.closest('[data-m01-lab2-evidence]');
-      if (evidenceBtn) {
-        const id = evidenceBtn.dataset.m01Lab2Evidence;
-        if (!moduleOneState.lab2.reviewedEvidence.includes(id)) {
-          moduleOneState.lab2.reviewedEvidence.push(id);
-          moduleOneState.lab2.actionHistory.push({ action: `Reviewed evidence: ${id}`, at: new Date().toISOString() });
-        }
-        moduleOneSave();
-        moduleOneRenderReviewDynamic();
-        return;
-      }
-      const entity = event.target.closest('[data-m01-entity]');
-      if (entity && !moduleOneState.lab2.submitted) {
-        const field = entity.dataset.m01Entity === 'user' ? 'affectedUser' : 'affectedDevice';
-        moduleOneState.lab2[field] = field === 'affectedUser' ? 'a.chen' : 'LAP-442';
-        moduleOneState.lab2.intake = moduleOneState.lab2.affectedUser && moduleOneState.lab2.affectedDevice ? 'identity-and-laptop' : '';
-        moduleOneState.lab2.actionHistory.push({ action: `Added affected ${entity.dataset.m01Entity}`, at: new Date().toISOString() });
-        moduleOneSave(); moduleOneRenderReviewDynamic();
-      }
-    });
-    reviewRoot.addEventListener('change', (event) => {
-      const input = event.target;
-      if (['status', 'severity', 'disposition', 'escalation', 'escalateTo'].includes(input.name)) {
-        const key = input.name === 'severity' ? 'priority' : input.name === 'disposition' ? 'verdict' : input.name;
-        moduleOneState.lab2[key] = input.value;
-        if (input.name === 'severity') moduleOneState.lab2.severity = input.value;
-        if (input.name === 'disposition') moduleOneState.lab2.disposition = input.value;
-        moduleOneState.lab2.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
-        moduleOneSave();
-        // Keep the "still required" checklist and submit gating honest —
-        // a discrete radio pick, unlike typing, is safe to re-render on.
-        moduleOneRenderReviewDynamic();
-      }
-    });
-    reviewRoot.addEventListener('input', (event) => {
-      const field = event.target;
-      if (field.tagName === 'TEXTAREA' && field.name === 'notes') {
-        moduleOneState.lab2.notes = field.value;
-        moduleOneSave();
-      }
-    });
-  }
 
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m01-console-launch]')) {

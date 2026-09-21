@@ -389,6 +389,7 @@ function aim08Sections() {
     { id: 'aim08-lessons', title: 'Foundations', type: 'lecture', isComplete: true, scrollId: 'aim08-lessons' },
     { id: 'aim08-knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: Boolean(aim08QuizState?.passed), scrollId: 'aim08-knowledge-check' },
     { id: 'aim08-lab', title: 'Hands-On Lab', type: 'lab', isComplete: labComplete, scrollId: 'aim08-lab' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'aim08-sources', gated: false, supplemental: true },
   ];
 }
 

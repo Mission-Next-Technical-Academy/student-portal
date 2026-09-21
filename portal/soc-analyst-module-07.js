@@ -470,6 +470,7 @@ function moduleSevenGetSections() {
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSevenQuizState?.passed, scrollId: 'm07-knowledge-check' },
     { id: 'investigation-lab', title: 'Module Lab', type: 'lab', isComplete: moduleSevenState.completed, scrollId: 'm07-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm07-review' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm07-sources', gated: false, supplemental: true },
   ];
 }
 

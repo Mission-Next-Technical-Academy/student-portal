@@ -372,6 +372,7 @@ function aim03Sections() {
     { id: 'aim03-lessons', title: 'Data Preparation Essentials', type: 'lecture', isComplete: true, scrollId: 'aim03-lessons' },
     { id: 'aim03-knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: Boolean(aim03QuizState?.passed), scrollId: 'aim03-knowledge-check' },
     { id: 'aim03-lab', title: 'Hands-On Lab', type: 'lab', isComplete: labComplete, scrollId: 'aim03-lab' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'aim03-sources', gated: false, supplemental: true },
   ];
 }
 

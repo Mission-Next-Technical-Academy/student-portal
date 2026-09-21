@@ -48,4 +48,8 @@ itsRegisterCoachModule({
   lessons: ITS08_LESSONS,
   lede: 'You\'ve learned to fix specific things — now this module is about how you work: connecting to a user\'s machine responsibly, and applying a consistent method to any problem you haven\'t seen before.',
   labDescription: 'Resolve two real unfamiliar-shaped tickets end to end in the IT Service Desk simulator — a broken domain trust (HD-2110) and a BitLocker recovery (HD-2111) — applying the troubleshooting method itself, not a memorized fix. A coach spotlights each step for you.',
+  sources: [
+    { title: 'BitLocker documentation', org: 'Microsoft Learn', url: 'https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/bitlocker/', note: 'Official reference for BitLocker recovery keys and the recovery scenario worked in this lab.' },
+    { title: 'Remote Desktop Services documentation', org: 'Microsoft Learn', url: 'https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/welcome-to-rds', note: 'Reference for the remote-support tools this module covers.' },
+  ],
 });

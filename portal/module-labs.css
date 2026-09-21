@@ -51,6 +51,13 @@
 .m01-section-collapse { width: 36px; height: 36px; margin-left: auto; flex: 0 0 auto; display: grid; place-items: center; padding: 0; color: #6b7280; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 999px; font-size: 22px; cursor: pointer; transition: color .2s ease, background-color .2s ease, border-color .2s ease, transform .2s ease; }
 .m01-section-collapse:hover { color: #1e3a5f; background: #f1f5f9; border-color: #cbd5e1; }
 .m01-section-collapse:focus-visible { outline: 3px solid rgba(249, 115, 22, .32); outline-offset: 2px; }
+
+/* Sources & Further Reading: reference material, not a graded step in the
+   1-4 Learn/Practice/Prove/Review sequence above — set apart with extra
+   spacing, a muted dashed border, and a book icon instead of a step number. */
+.m01-section-supplemental { margin-top: 44px; background: #f8fafc; border: 1px dashed #cbd5e1; box-shadow: none; }
+.m01-section-supplemental .m01-section-heading > span { background: #64748b; font-size: 18px; }
+.m01-section-supplemental .m01-kicker { color: #64748b; }
 .m01-section-collapse[aria-expanded="true"] { transform: rotate(180deg); }
 .m01-instruction, .m01-help, .m01-concept { color: #64748b; font: 14px/1.65 Inter, sans-serif; }
 .m01-instruction { margin: -7px 0 20px; }
@@ -622,6 +629,16 @@
 .munified-phase-row > i { color: #f97316; font-size: 14px; }
 .munified-phase-label { flex: 1 1 auto; }
 .munified-phase-row .munified-group-toggle { margin: 0; }
+/* Sources & Further Reading: reference material, not a graded phase.
+   Deliberately a separate card OUTSIDE the progress drawer (`.mquick-
+   nav-drawer` is its own bordered/shadowed box) — real vertical gap,
+   own border/shadow, so it never touches or reads as part of the
+   Learn/Practice/Prove menu above it. `hidden` by default, matching the
+   drawer's own initial state; wireModuleQuickNavRail() toggles both. */
+.munified-supplemental { display: flex; flex-direction: column; min-width: 220px; margin-top: 40px; background: #fff; border: 1px solid #dbe3ed; border-radius: 12px; box-shadow: 0 4px 12px rgba(30, 58, 95, .1); overflow: hidden; }
+.munified-supplemental[hidden] { display: none; }
+.munified-supplemental-row { display: flex; align-items: center; gap: 8px; padding: 9px 6px 8px 14px; color: #64748b; background: #f8fafc; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.munified-supplemental-row > i { color: #64748b; font-size: 14px; }
 .munified-phase-body { background: #fff; overflow: hidden; max-height: 1400px; opacity: 1; transform: translateY(0); transition: max-height .22s ease, opacity .16s ease, transform .22s ease; }
 .munified-phase-body.is-collapsed { max-height: 0; opacity: 0; transform: translateY(-4px); pointer-events: none; }
 .munified-group-row { display: flex; align-items: stretch; }
@@ -694,6 +711,10 @@
      `.mquick-nav-drawer[hidden] { display: none; }` rule wins and the
      "persistent" desktop rail never actually appears. */
   .mquick-nav-drawer, .mquick-nav-drawer[hidden] { display: flex; border: none; box-shadow: none; background: transparent; min-width: 180px; border-right: 1px solid #dbe3ed; max-height: none; overflow-y: auto; }
+  /* Same [hidden]-override reasoning as .mquick-nav-drawer above: the
+     detached Reference panel always renders with `hidden` (the mobile
+     closed state) and must stay visible on the persistent desktop rail. */
+  .munified-supplemental, .munified-supplemental[hidden] { display: flex; }
 }
 
 /* Mobile/narrow: drawer anchored under the toggle button, button visible.

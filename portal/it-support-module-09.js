@@ -48,4 +48,8 @@ itsRegisterCoachModule({
   lessons: ITS09_LESSONS,
   lede: 'Every technician is also, whether they realize it or not, a frontline defense against security threats. This module gives you the judgment to recognize when something isn\'t right — and to know exactly what to do about it.',
   labDescription: 'Work two real security-incident tickets end to end in the IT Service Desk simulator — a credential-phishing report (SEC-2114) and a malware alert (SEC-2115) — recognizing why L1 escalates rather than resolves. A coach spotlights each step for you.',
+  sources: [
+    { title: 'Phishing guidance', org: 'CISA', url: 'https://www.cisa.gov/topics/cyber-threats-and-advisories/phishing', note: 'Federal guidance on recognizing phishing and social-engineering attempts, the core skill this module builds.' },
+    { title: 'Computer Security Incident Handling Guide (SP 800-61 Rev. 3)', org: 'NIST', url: 'https://csrc.nist.gov/pubs/sp/800/61/r3/final', note: 'Why a frontline technician escalates rather than resolves a suspected security incident.' },
+  ],
 });

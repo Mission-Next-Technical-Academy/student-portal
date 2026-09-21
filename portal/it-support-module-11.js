@@ -48,4 +48,7 @@ itsRegisterCoachModule({
   lessons: ITS11_LESSONS,
   lede: 'The technical fix is only half the job — this module is about the other half: writing it down well, communicating it clearly, and handing it off cleanly when it\'s not yours to finish.',
   labDescription: 'Work two real tickets end to end in the IT Service Desk simulator, focused on documentation, escalation, and communication under pressure: HD-2113 (an expired VPN gateway certificate) — recognize the escalation trigger and write a note a stranger could act on — then HD-2124, a repeat-contact user frustrated by a stale Outlook credential, where the practice is diagnosing calmly while setting honest expectations instead of overpromising. A coach spotlights each step for you.',
+  sources: [
+    { title: 'CompTIA A+ Certification', org: 'CompTIA', url: 'https://www.comptia.org/certifications/a', note: 'Supplementary public reference for the documentation and communication objectives this module builds toward.' },
+  ],
 });

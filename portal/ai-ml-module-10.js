@@ -372,6 +372,7 @@ function aim10Sections() {
     { id: 'aim10-lessons', title: 'MLOps Concepts', type: 'lecture', isComplete: true, scrollId: 'aim10-lessons' },
     { id: 'aim10-knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: Boolean(aim10QuizState?.passed), scrollId: 'aim10-knowledge-check' },
     { id: 'aim10-lab', title: 'Hands-On Lab', type: 'lab', isComplete: labComplete, scrollId: 'aim10-lab' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'aim10-sources', gated: false, supplemental: true },
   ];
 }
 

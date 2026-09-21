@@ -132,7 +132,7 @@ and update the historical document when that workstream is next touched.
 | 0 | CI baseline | **Active** | none | `bash bin/ci-check.sh` passes locally and on PRs / `master`; Pages repeats it before deployment. |
 | 1 | Module 1 orientation tour | **Built and live-verified 2026-09-21** | none | The beginning of Module 1 presents the LMS orientation tour: Day 1 framing, rules, scope, and workspace walkthrough. It is reopenable and does not replace assessment evidence. Reachable from Module 1's hero card; steps confirmed advancing live in Chrome. See the "new tension" note above (tour still uses the full simulator) — flagged, not blocking. |
 | 2 | Faculty-gate live UAT | **Blocked on controlled credentials** | deployed faculty-gate migration | Controlled student submit → faculty return → resubmit → approve → Module 2 unlock is verified and recorded. |
-| 3 | Module 1 case-console assessment | **Practice It built 2026-09-21; Prove It still needs the same launch-card pattern** | 1 and 2; cross-device state smoke test | Per `MODULE_01_CASE_CONSOLE_SPEC.md`: a focused case console (not the full SOC range) with a real log table, scoped action history, an incident/case record, and instructor-reviewable persistence. Practice It (`viewModuleOneCaseConsole()`) is built and live-verified. Prove It (`moduleOneProveItConsole()`) still needs porting from its embedded-in-page form to the same new-tab launch-card pattern before this item is fully done. |
+| 3 | Module 1 case-console assessment | **Both Practice It and Prove It built and live-verified, 2026-09-21** | 1 and 2; cross-device state smoke test | Per `MODULE_01_CASE_CONSOLE_SPEC.md`: a focused case console (not the full SOC range) with a real log table, scoped action history, an incident/case record, and instructor-reviewable persistence. `viewModuleOneCaseConsole()` (Practice It, ALT-1001) and `viewModuleOneProveItCaseConsole()` (Prove It, NST-2407, with its own `logEvents` covering the identity/endpoint/proxy sources it correlates) both open in a new tab from the LMS page's launch card. Still gated on items 1 and 2 per this row's own dependency column. |
 | 4 | Module completion integrity | **Queued** | 2 and 3 | Modules 2–12 receive verified-completion protection using the proven Module 1 pattern. See `module-completion-integrity/BRIEF.md`. |
 | 5 | SOC curriculum Arc A | **Queued content work** | stable Module 1 assessment | Reconcile Modules 02→03 fixtures/narrative with owner content review. Arc B is undecided; do not build the rejected 07→04 pairing. |
 | 6 | Tool-depth expansion | **Later discovery** | 5 sequencing decision | Scope real interactive CLI and PCAP lab surfaces plus CySA+ crosswalk. See `soc-analyst-track-reimagining/VISION.md` and `soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` (per-module interface concepts, shared-component build order — owner vision, not yet scoped or authorized). |
@@ -205,9 +205,20 @@ Approved roadmap item
 
 ## Current action
 
-The Module 1 orientation tour is built and live-verified. Run faculty-gate
-UAT when controlled credentials are available (item 2). The next build is
-porting Prove It (`moduleOneProveItConsole()`) to the same new-tab
-case-console launch-card pattern Practice It now uses, per
-`MODULE_01_CASE_CONSOLE_SPEC.md` — not a simulator-based performance
-assessment; that direction is superseded.
+The Module 1 orientation tour is built and live-verified. Both Practice It
+and Prove It now open their own case console in a new tab per
+`MODULE_01_CASE_CONSOLE_SPEC.md`. Run faculty-gate UAT when controlled
+credentials are available (item 2) — the remaining real blocker on this
+roadmap.
+
+**Cross-course side item, 2026-09-21, not part of this roadmap's Module 1
+scope but recorded here for visibility:** the same day's work also gave
+"Sources & Further Reading" a detached "Reference" nav panel (not bordering
+the graded Learn/Practice/Prove menu) across every module in every course
+that has reference content — SOC Analyst 1–11, IT Support 1–12 (which had
+no references content before this and got real citations written for the
+first time), and AI-ML 1–12. See `HANDOFF.md`'s "Sources & Further
+Reading — detached 'Reference' panel, platform-wide" entry for detail and
+verification evidence. Excluded: SOC Analyst 12 (capstone, no sources
+content) and the Electrical track's Module 1 (still an unauthored
+placeholder).

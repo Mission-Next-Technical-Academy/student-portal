@@ -50,4 +50,7 @@ itsRegisterCoachModule({
   lessons: ITS10_LESSONS,
   lede: 'Every ticket you\'ll ever work has a structure underneath it. This module teaches you that structure — the fields, the priorities, the service-level expectations — so you can move through a queue with confidence instead of guesswork.',
   labDescription: 'Work the real, full ticket queue in the IT Service Desk simulator: filter it down to P1 by priority, open a real P1 ticket, and document why it sorts to the top of the shift. A coach spotlights each step for you.',
+  sources: [
+    { title: 'CompTIA A+ Certification', org: 'CompTIA', url: 'https://www.comptia.org/certifications/a', note: 'Supplementary public reference for ticket documentation, prioritization, and operational procedure objectives this module covers.' },
+  ],
 });

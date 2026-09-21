@@ -520,6 +520,7 @@ function moduleNineGetSections() {
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleNineQuizState?.passed, scrollId: 'm09-knowledge-check' },
     { id: 'module-lab', title: 'Module Lab', type: 'lab', isComplete: moduleNineState.completed && moduleNineSecondState?.completed, scrollId: 'm09-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm09-review' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm09-sources', gated: false, supplemental: true },
   ];
 }
 

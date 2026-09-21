@@ -22,19 +22,25 @@ for either Practice It or Prove It.** Read that spec first, then
 `ROADMAP.md`'s "Locked Module 1 sequence" (corrected in place) and
 `HANDOFF.md`'s "Module 1 case console — Practice It built" entry.
 
-**Next real work:** Prove It (`moduleOneProveItConsole()`, NST-2407) still
-uses the old embedded-in-page console. Port it to the same
-`?console=<stage>`-driven, new-tab case-console pattern Practice It now
-uses (`viewModuleOneCaseConsole()` in `portal/soc-analyst-module-01.js`) —
-same three-pane shape, its own case-appropriate log/evidence data (NST-2407
-doesn't have `logEvents` yet), reduced coaching per the spec's Prove It
-section. Reuse the mechanism, don't invent a second one.
+**Done, same day:** Prove It (`viewModuleOneProveItCaseConsole()`, NST-2407)
+was ported to the same `?console=prove`-driven, new-tab case-console
+pattern as Practice It, with its own `logEvents` (identity/endpoint/proxy
+sources). Both consoles live-verified in Chrome.
+
+**Also done, same day, cross-course:** "Sources & Further Reading" got a
+fully detached "Reference" nav panel (own card, real gap, never touching
+the graded-phase menu) rolled out to every module across SOC Analyst,
+IT Support, and AI-ML that has reference content — not just Module 1. See
+`HANDOFF.md`'s "Sources & Further Reading — detached 'Reference' panel,
+platform-wide" entry. IT Support had no references content at all before
+this; real citations were written per module. Excluded: SOC 12 (capstone)
+and the still-unauthored Electrical track.
 
 Module 1 begins with the required LMS orientation tour, reachable from the
 module's hero section and live-verified in Chrome. It is followed by
 Practice It and Prove It, both worked in Module 1's own focused case console
-(not the full SOC range) per `MODULE_01_CASE_CONSOLE_SPEC.md` — Practice It's
-console is built and live-verified; Prove It's still needs porting to match.
+(not the full SOC range) per `MODULE_01_CASE_CONSOLE_SPEC.md` — both built
+and live-verified.
 
 ---
 

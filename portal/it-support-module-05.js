@@ -85,4 +85,8 @@ itsRegisterCoachModule({
   lessons: ITS05_LESSONS,
   lede: 'You\'ve already built a Windows Server VM — now you\'ll actually configure it, and start managing the directory structure that controls who has access to what across an organization.',
   labDescription: 'Resolve two real Windows Server tickets end to end in the IT Service Desk simulator — a Group Policy scope issue (HD-2108) and a file-server disk-space incident (HD-2117) — using Server Manager and Active Directory Users and Computers. A coach spotlights each step for you.',
+  sources: [
+    { title: 'Active Directory Domain Services overview', org: 'Microsoft Learn', url: 'https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/ad-ds-getting-started', note: 'Official reference for the directory structure and Server Manager roles this module introduces.' },
+    { title: 'Windows Server documentation', org: 'Microsoft Learn', url: 'https://learn.microsoft.com/en-us/windows-server/', note: 'Broader Server Manager and Group Policy reference.' },
+  ],
 });

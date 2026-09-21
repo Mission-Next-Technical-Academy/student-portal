@@ -670,6 +670,7 @@ function moduleTwoGetSections() {
     { id: 'trust-model', title: 'Trust Model', type: 'lecture', isComplete: true, scrollId: 'm02-model' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleTwoQuizState?.passed, scrollId: 'm02-knowledge-check' },
     { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: moduleTwoState.completed, scrollId: 'm02-guided-lab' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm02-sources-section', gated: false, supplemental: true },
   ];
 }
 
@@ -959,7 +960,7 @@ function viewModuleTwo(user, program) {
           <div class="m02-section-heading"><span>3</span><div><p class="m02-kicker">Supporting resources</p><h2 id="m02-sources-title">Further reading on identity and trust</h2></div></div>
         </section>
       </summary>
-      <section class="m02-section m02-section-body" aria-labelledby="m02-sources-title">${moduleSourcesBlock(MODULE_TWO_SOURCES)}</section>
+      <section class="m02-section m02-section-body" id="m02-sources-section" aria-labelledby="m02-sources-title">${moduleSourcesBlock(MODULE_TWO_SOURCES)}</section>
     </details>`;
 
   const quizOpen = moduleTwoReviewMode || (moduleTwoQuizState && !moduleTwoQuizState.passed);

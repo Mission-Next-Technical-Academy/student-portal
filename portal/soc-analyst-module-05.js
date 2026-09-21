@@ -502,6 +502,7 @@ function moduleFiveGetSections() {
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleFiveQuizState?.passed, scrollId: 'm05-knowledge-check' },
     { id: 'endpoint-lab', title: 'Module Lab', type: 'lab', isComplete: moduleFiveState.completed, scrollId: 'm05-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm05-review' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm05-sources', gated: false, supplemental: true },
   ];
 }
 

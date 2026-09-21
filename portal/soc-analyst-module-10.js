@@ -632,6 +632,7 @@ function moduleTenGetSections() {
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleTenQuizState?.passed, scrollId: 'm10-knowledge-check' },
     { id: 'evidence-labs', title: 'Module Lab', type: 'lab', isComplete: moduleTenCustodyState.completed && moduleTenMappingState.completed, scrollId: 'm10-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm10-review' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm10-sources', gated: false, supplemental: true },
   ];
 }
 

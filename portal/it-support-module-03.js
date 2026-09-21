@@ -56,4 +56,8 @@ itsRegisterCoachModule({
   lessons: ITS03_LESSONS,
   lede: 'Now that your lab environment is built and you\'ve handled your first hardware tickets, go deeper into Windows itself — efficient navigation, account and profile management, and diagnosing problems with the operating system\'s own built-in tools.',
   labDescription: 'Resolve a real corrupted-profile ticket (HD-2109) end to end in the IT Service Desk simulator: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it. A coach spotlights each step for you.',
+  sources: [
+    { title: 'Windows Server documentation', org: 'Microsoft Learn', url: 'https://learn.microsoft.com/en-us/windows-server/', note: 'Official reference for Windows account, profile, and administration concepts covered in this module.' },
+    { title: 'Windows Commands reference', org: 'Microsoft Learn', url: 'https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/windows-commands', note: 'Built-in command-line diagnostic tools referenced in the lesson content.' },
+  ],
 });

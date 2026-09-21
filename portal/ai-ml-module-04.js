@@ -320,6 +320,7 @@ function aim04Sections() {
     { id: 'aim04-lessons', title: 'Foundations', type: 'lecture', isComplete: true, scrollId: 'aim04-lessons' },
     { id: 'aim04-knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: Boolean(aim04QuizState?.passed), scrollId: 'aim04-knowledge-check' },
     { id: 'aim04-lab', title: 'Hands-On Lab', type: 'lab', isComplete: labComplete, scrollId: 'aim04-lab' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'aim04-sources', gated: false, supplemental: true },
   ];
 }
 

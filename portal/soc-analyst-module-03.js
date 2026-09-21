@@ -508,6 +508,7 @@ function moduleThreeGetSections() {
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleThreeQuizState?.passed, scrollId: 'm03-knowledge-check' },
     { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: moduleThreeState.completed, scrollId: 'm03-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm03-review' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm03-sources-section', gated: false, supplemental: true },
   ];
 }
 
@@ -1005,7 +1006,7 @@ function viewModuleThree(user, program) {
           <div class="m03-section-heading"><span>5</span><div><p class="m03-kicker">Supporting resources</p><h2 id="m03-sources-title">Further reading on SIEM and correlation</h2></div></div>
         </section>
       </summary>
-      <section class="m03-section m03-section-body" aria-labelledby="m03-sources-title">${moduleSourcesBlock(MODULE_THREE_SOURCES)}</section>
+      <section class="m03-section m03-section-body" id="m03-sources-section" aria-labelledby="m03-sources-title">${moduleSourcesBlock(MODULE_THREE_SOURCES)}</section>
     </details>`;
 
   return `<div class="m03-shell">

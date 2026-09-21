@@ -42,6 +42,10 @@ const ITS12_CATEGORY_OPTIONS = [
 /* Six tickets from the fictional Northstar Distribution Group environment,
  * spanning every category the capstone narrative calls for. correctRank is
  * this ticket's position in a correctly-prioritized queue (1 = work first). */
+const ITS12_SOURCES = [
+  { title: 'CompTIA A+ Certification', org: 'CompTIA', url: 'https://www.comptia.org/certifications/a', note: 'Supplementary public reference spanning the identity, endpoint, network, and security topics this capstone integrates.' },
+];
+
 const ITS12_TICKETS = [
   { id: 'SEC-2114', from: 'Luis Ortega · Sales', tag: 'P1 · Security', message: 'I clicked a link in an email that looked like it was from IT asking me to verify my password. I think I typed it in before I realized something was off.',
     category: 'security', decision: 'escalate', correctRank: 1,
@@ -194,6 +198,7 @@ function viewItsModuleTwelve(user, program) {
   const navSections = [
     { id: 'expectations', title: 'Capstone preparation', type: 'lecture', isComplete: true, scrollId: 'its12-lesson-title' },
     { id: 'scenario', title: 'Integrated scenario', type: 'lab', phase: 'prove', isComplete: its12State.completed, scrollId: 'its12-lab-title' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its12-sources', gated: false, supplemental: true },
   ];
   return `<div class="its12-shell">
     ${moduleTopbar(user, program)}
@@ -212,6 +217,8 @@ function viewItsModuleTwelve(user, program) {
           ${its12ExtrasAndActions()}
         </div>
       </section>
+
+      <section class="its12-section" id="its12-sources" aria-labelledby="its12-sources-title"><div class="its12-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="its12-kicker">Reference — not a graded step</p><h2 id="its12-sources-title">Sources &amp; Further Reading</h2></div></div>${moduleSourcesBlock(ITS12_SOURCES)}</section>
     </main>
   </div>`;
 }

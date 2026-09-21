@@ -131,14 +131,18 @@ function itsCoachLaunchCard({ coachId, complete }) {
  * section is a launch card into the real 'coachId' guided walkthrough
  * (state/onMessage handled by the caller — itsRegisterCoachModule below).
  * When absent, falls back to the original "lab content in development"
- * notice for any module that genuinely has neither. */
-function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, lede, labPreview, lab }) {
+ * notice for any module that genuinely has neither. sources: optional array
+ * of {title, org, url, note} — rendered via moduleSourcesBlock() and given
+ * its own detached "Reference" nav group (moduleUnifiedNav()'s
+ * `supplemental: true`), same treatment as every other course's modules. */
+function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, lede, labPreview, lab, sources }) {
   const module = program.modules[moduleKey];
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', moduleKey);
   const numLabel = String(moduleNumber).padStart(2, '0');
   const navSections = [
     { id: 'learn', title: 'Lessons', type: 'lecture', isComplete: true, scrollId: `itss-lessons-${numLabel}` },
     { id: 'practice', title: 'Guided lab', type: 'lab', isComplete: lab?.complete === true, scrollId: `itss-lab-${numLabel}` },
+    ...(sources?.length ? [{ id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: `itss-sources-${numLabel}`, gated: false, supplemental: true }] : []),
   ];
   return `<div class="itss-shell">
     ${moduleTopbar(user, program)}
@@ -155,6 +159,8 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
           ? `<p class="itss-instruction">${esc(lab.description)}</p>${itsCoachLaunchCard({ coachId: lab.coachId, complete: lab.complete })}`
           : itswInDevelopment({ title: 'Lab content in development', previewText: labPreview })}
       </section>
+
+      ${sources?.length ? `<section class="itss-section" id="itss-sources-${numLabel}" aria-labelledby="itss-sources-title-${numLabel}"><div class="itss-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="itss-kicker">Reference — not a graded step</p><h2 id="itss-sources-title-${numLabel}">Sources &amp; Further Reading</h2></div></div>${moduleSourcesBlock(sources)}</section>` : ''}
     </main>
   </div>`;
 }
@@ -165,9 +171,9 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
  * mirrors the pattern already proven in Modules 1 and 2's own files, shared
  * here since these 9 modules differ only in ids, content, and lab keys.
  * config: { moduleNumber, moduleKey, coachId, labKeys: [labKey,...],
- *   lessons, lede, labDescription } */
+ *   lessons, lede, labDescription, sources? } */
 function itsRegisterCoachModule(config) {
-  const { moduleNumber, moduleKey, coachId, labKeys, lessons, lede, labDescription } = config;
+  const { moduleNumber, moduleKey, coachId, labKeys, lessons, lede, labDescription, sources } = config;
   const stateId = `its-coach-${moduleKey}-v1`;
   const defaultState = { consoleStarted: false, consoleCompleted: false };
   let state = null;
@@ -188,7 +194,7 @@ function itsRegisterCoachModule(config) {
   function view(user, program) {
     load(user);
     return itsSimpleModuleView({
-      user, program, moduleKey, moduleNumber, lessons, lede,
+      user, program, moduleKey, moduleNumber, lessons, lede, sources,
       lab: { coachId, description: labDescription, complete: state.consoleCompleted === true },
     });
   }

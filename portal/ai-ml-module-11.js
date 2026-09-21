@@ -322,6 +322,7 @@ function aim11Sections() {
     { id: 'aim11-lessons', title: 'Responsible AI', type: 'lecture', isComplete: true, scrollId: 'aim11-lessons' },
     { id: 'aim11-knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: Boolean(aim11QuizState?.passed), scrollId: 'aim11-knowledge-check' },
     { id: 'aim11-lab', title: 'Hands-On Lab', type: 'lab', isComplete: labComplete, scrollId: 'aim11-lab' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'aim11-sources', gated: false, supplemental: true },
   ];
 }
 

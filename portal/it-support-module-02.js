@@ -9,6 +9,10 @@
  * sourced from Module_2_Student_Content.docx.
  */
 
+const ITS02_SOURCES = [
+  { title: 'Hyper-V technology overview', org: 'Microsoft Learn', url: 'https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/hyper-v-technology-overview', note: 'Official reference for the virtualization concepts and VM-building lab in this module.' },
+];
+
 const ITS02_LESSONS = [
   {
     id: 'its-02-lesson-01', number: '2.1', icon: 'ri-cpu-line',
@@ -259,6 +263,7 @@ function viewItsModuleTwo(user, program) {
     { id: 'client-vm', title: 'Build the client VM', type: 'lab', isComplete: its02State.lab21Complete, scrollId: 'its02-lab-2-1' },
     { id: 'recovery', title: 'Snapshot and recovery', type: 'lab', isComplete: its02State.lab22Complete, scrollId: 'its02-lab-2-2' },
     { id: 'service-desk', title: 'Printer incident walkthrough', type: 'lab', isComplete: its02State.consoleCompleted, scrollId: 'its02-lab-2-3' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its02-sources', gated: false, supplemental: true },
   ];
   return `<div class="its02-shell">
     ${moduleTopbar(user, program)}
@@ -271,6 +276,8 @@ function viewItsModuleTwo(user, program) {
       ${its02Lab21()}
       ${its02Lab22()}
       ${its02Lab34()}
+
+      <section class="its02-section" id="its02-sources" aria-labelledby="its02-sources-title"><div class="its02-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="its02-kicker">Reference — not a graded step</p><h2 id="its02-sources-title">Sources &amp; Further Reading</h2></div></div>${moduleSourcesBlock(ITS02_SOURCES)}</section>
     </main>
   </div>`;
 }
