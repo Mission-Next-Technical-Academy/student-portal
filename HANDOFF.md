@@ -9,6 +9,50 @@ pointer and must not become a second task queue.
 The prior chronological engineering handoff is preserved at
 `archive/session-logs/HANDOFF_THROUGH_2026-09-10.md`.
 
+## Module 1 orientation tour — reachability fix, 2026-09-21
+
+Roadmap item 1's tour content (Day 1 framing, rules of engagement, assigned
+scope, alert-queue/severity/filters/sign-in-log walkthrough) was already all
+written in `ui/coach.js` / `ui/coach-data.js`'s `m01-orientation` coach, but
+nothing in the portal ever linked to it — confirmed by grep, zero references
+to `m01-orientation` outside its own definition. Not reachable "from the
+beginning of Module 1" as the roadmap requires; only reachable by already
+being inside the simulator for some other reason.
+
+**Fixed:**
+1. Added a "🧭 Take the Day 1 tour" link to Module 1's hero section
+   (`portal/soc-analyst-module-01.js`, opens
+   `${SIM_ORIGIN}?coach=m01-orientation&restart=1#/defender/alerts` in a new
+   tab, same `target="_blank" rel="opener"` pattern as the module's existing
+   "Reopen the log" link) — always visible, reopenable any time, gates
+   nothing.
+2. The tour's final 3 steps (`ui/coach-data.js`) still spotlighted
+   `#/sentinel/incidents`, `#m01-assigned-case-callout`, `#m01-escalate-btn`,
+   `#mnt-submit-btn` — the simulator-based NST-2407 investigation flow that
+   the same-day commit `1add6d6` ("Refine Module 1 case console workflow")
+   removed in favor of a portal-only ticketing console (`portal/data.js`
+   dropped `lab-soc-escalation`'s `simEntry` entirely). Those steps would
+   have failed to find their spotlight target. Replaced with one accurate,
+   framing-only closing step describing the actual current flow (finish the
+   tour, go back to Module 1, work the Case/Ticket console). Trimmed the
+   coach's now-unused `allow` routes to match.
+
+See `ROADMAP.md`'s "Locked Module 1 sequence" section for the bigger flagged
+question this surfaced — the same `1add6d6` commit's removal of the
+simulator step doesn't match that section's "simulator-first... SIEM"
+language, and needs an owner decision (rewrite the policy language to match
+the shipped design, or restore the simulator entry point). Not resolved
+here; that's a real product call, not a bug fix.
+
+**Verification:** `node --check portal/soc-analyst-module-01.js`,
+`node --check ui/coach-data.js`, and `bash bin/ci-check.sh` all clean
+(views: 129/129 render, dead NAV routes: 0). **Not live-browser verified —
+the Claude in Chrome extension would not connect this session** (tried
+twice, "extension is not connected"). A live click-through of the new tour
+link (does the new tab actually open, does the tour actually run end to
+end, does "Start your shift" correctly close the tab and return focus) is
+still needed before this item can be called fully done, not just built.
+
 ## Pending scoping input — 2026-09-21
 
 `HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` — investigation only, no

@@ -12,8 +12,20 @@ mechanic is already mostly built for ALT-1001 but not wired in; owner wants
 it extended and given a per-evidence "go to logs" button. Read it before
 touching Module 1 evidence UI.
 
-Module 1 begins with the required LMS orientation tour. It is followed by a
-simulator-first, instructor-reviewable assessment—not a parallel worksheet.
+**2026-09-21, same day:** roadmap item 1 (orientation tour) was built but
+unreachable from Module 1 — fixed, see `HANDOFF.md`'s "Module 1 orientation
+tour — reachability fix" entry. That fix also surfaced that the same day's
+`1add6d6` commit quietly moved Module 1's Prove It case off the simulator
+onto a portal-only ticketing console — flagged as an unresolved discrepancy
+in `ROADMAP.md`'s "Locked Module 1 sequence" section. Read that flag before
+assuming the sentence below still describes the shipped behavior, and before
+scoping item 3.
+
+Module 1 begins with the required LMS orientation tour, now reachable from
+the module's hero section and pending one live-browser check. It is followed
+by Prove It, the module's one graded, instructor-reviewable case record — see
+the flagged discrepancy above for whether that record is meant to come from
+the simulator or (as currently shipped) the portal ticketing console.
 
 ---
 

@@ -160,7 +160,7 @@ const MODULE_COACHES = [
     summary: 'Your first day: rules of engagement and scope, then a quick look at the tools you will use in both Module 1 labs.',
     completionToken: 'm01-orientation',
     home: '#/defender/alerts',
-    allow: ['#/defender/alerts', '#/entra/sign-in-logs', '#/sentinel/incidents', '#/defender/incident'],
+    allow: ['#/defender/alerts', '#/entra/sign-in-logs'],
     steps: [
       // Three framing-only steps, no target: they set expectations before any
       // tool is on screen, the way a supervisor briefs a new hire before
@@ -219,34 +219,18 @@ const MODULE_COACHES = [
         body: 'This is the tenant-wide sign-in log: one row per authentication attempt. The useful columns include result, IP address, location, device, and sign-in risk. That covers the guided walkthrough\'s tools — next is the second case, the multi-day investigation.',
         continueLabel: 'Continue',
       },
-      // The second Module 1 lab: NST-2407, worked in the SIEM & SOAR /
-      // XDR Security surface instead of Defender alerts + the sign-in log.
+      // Module 1's second lab, NST-2407, is a portal-only case-ticket console
+      // now (see portal/data.js's lab-soc-escalation record — no simEntry —
+      // and moduleOneProveItConsole() in portal/soc-analyst-module-01.js), not
+      // a walkthrough inside this simulator. This closing step is
+      // framing-only (no target) for exactly that reason: there is nothing
+      // in this simulator to spotlight for it anymore. Keep it that way
+      // rather than pointing at a route the case no longer uses.
       {
-        route: '#/sentinel/incidents',
-        target: 'table.grid',
-        title: 'Your second case: a multi-day investigation',
-        body: 'This is the incidents queue for your second Module 1 case — a correlated, multi-day investigation instead of one alert. Real incidents are rarely one clean signal; you will need to connect identity, endpoint, and proxy evidence yourself.',
-        continueLabel: 'Got it',
-      },
-      {
-        route: '#/defender/incident',
-        target: '#m01-assigned-case-callout',
-        title: 'This one is yours',
-        body: 'This banner marks your assigned case. Its scope is stated for you here too — hold to exactly what the evidence supports before you decide anything.',
-        continueLabel: 'Got it',
-      },
-      {
-        route: '#/defender/incident',
-        target: '#m01-escalate-btn',
-        title: 'The response handoff',
-        body: 'This is the handoff point to response after the evidence has been correlated and a decision reached. It records a request for an authorized responder; containment, isolation, and account actions remain outside the Tier 1 analyst role.',
-        continueLabel: 'Got it',
-      },
-      {
-        route: '#/defender/incident',
-        target: '#mnt-submit-btn',
-        title: 'The module submission point',
-        body: 'This floating button follows the case across the console — the queue, assets, hunting, wherever the evidence leads. It opens the module-level submission point, where the recorded performance goes to your supervisor for approval or feedback. The tour remains available from the corner icon beside it.',
+        route: '#/entra/sign-in-logs',
+        target: null,
+        title: 'Your second case: an independent case ticket',
+        body: 'Your second Module 1 case, NST-2407, works the same evidence-first way but with far less help — and instead of a queue here in the simulator, you will work it back on your Module 1 page in the Case / Ticket console: review the evidence, set severity, disposition, and escalation, and write your analyst notes before you submit for faculty review.',
         finish: { label: 'Start your shift' },
       },
     ],

@@ -39,6 +39,23 @@ justified escalation or containment request. The durable simulator action log
 and final case record are the instructor-reviewable artifact. Do not restore a
 parallel LMS worksheet or expose a live student score.
 
+**Flagged discrepancy, 2026-09-21 — needs an owner decision, not resolved by
+this note.** Commit `1add6d6` ("Refine Module 1 case console workflow") shipped
+the same day removed `lab-soc-escalation`'s `simEntry` (`portal/data.js`) and
+rewrote its description around a self-contained portal "Case / Ticket" console
+(`moduleOneProveItConsole()` in `portal/soc-analyst-module-01.js`) with no
+simulator step at all — the student now investigates NST-2407 entirely from
+plain evidence text in the portal, never opening the SIEM. That does not match
+this paragraph's "simulator-first... SIEM... durable simulator action log"
+language, and arguably is the "parallel LMS worksheet" the paragraph says not
+to restore (though it does still withhold the live score, per that paragraph's
+other rule). Not undone here — it may be a deliberate, considered pivot rather
+than drift, and reverting a same-day owner commit without being asked is a
+bigger call than this session's scope. Bring this to the owner before touching
+`moduleOneProveItConsole()` again: either this paragraph should be rewritten to
+match the shipped ticketing-console design, or the simulator entry point should
+be restored.
+
 The tour is orientation, not the assessment. It may observe real UI telemetry,
 but it must not be the sole completion or grading evidence. The detailed
 implementation reference is
@@ -54,8 +71,26 @@ It/Prove It → how grading/review works. It is discipline-neutral (no SOC/
 SIEM language) and program-agnostic across all four tracks. It does **not**
 satisfy this section's requirement — Day 1 framing, rules of engagement,
 assigned scope, and the workspace walkthrough remain owned by the in-module
-`ui/coach.js` `m01-orientation` coach ("Take the tour"). Item 1 below is
-still open.
+`ui/coach.js` `m01-orientation` coach ("Take the tour").
+
+**Fixed 2026-09-21:** the coach's content (Day 1 framing, rules of engagement,
+assigned scope, alert-queue/severity/filters/sign-in-log walkthrough) was
+already all there, but it was **not actually reachable from Module 1** —
+nothing in the portal ever linked to `?coach=m01-orientation`, so the tour
+existed only as dead content. Added a "🧭 Take the Day 1 tour" link to Module
+1's hero section (`portal/soc-analyst-module-01.js`, opens
+`${SIM_ORIGIN}?coach=m01-orientation&restart=1#/defender/alerts` in a new tab,
+same pattern as the existing "Reopen the log" link) — reopenable any time, not
+gating anything. Also fixed the tour's final 3 steps
+(`ui/coach-data.js`), which still spotlighted `#/sentinel/incidents` /
+`#m01-assigned-case-callout` / `#m01-escalate-btn` / `#mnt-submit-btn` — all
+part of the simulator-based NST-2407 flow the same-day `1add6d6` commit
+removed (see the flagged discrepancy above). Replaced with one accurate
+framing-only closing step describing the actual portal ticketing console.
+`node --check` and `bash bin/ci-check.sh` clean. **Not live-browser verified
+this session — the Claude in Chrome extension would not connect** (tried
+twice); a live click-through of the new tour link is still worth doing next
+time it's available.
 
 ## Source-of-truth order
 
@@ -72,9 +107,9 @@ and update the historical document when that workstream is next touched.
 | Order | Work item | State | Depends on | Done when |
 |---:|---|---|---|---|
 | 0 | CI baseline | **Active** | none | `bash bin/ci-check.sh` passes locally and on PRs / `master`; Pages repeats it before deployment. |
-| 1 | Module 1 orientation tour | **Required build/verification** | none | The beginning of Module 1 presents the LMS orientation tour: Day 1 framing, rules, scope, and workspace walkthrough. It is reopenable and does not replace assessment evidence. |
+| 1 | Module 1 orientation tour | **Built 2026-09-21, pending live verification** | none | The beginning of Module 1 presents the LMS orientation tour: Day 1 framing, rules, scope, and workspace walkthrough. It is reopenable and does not replace assessment evidence. Code-complete and reachable from Module 1 as of 2026-09-21 (see note above); needs one live click-through when Chrome is next available before calling this fully done. |
 | 2 | Faculty-gate live UAT | **Blocked on controlled credentials** | deployed faculty-gate migration | Controlled student submit → faculty return → resubmit → approve → Module 2 unlock is verified and recorded. |
-| 3 | Module 1 SIEM performance assessment | **Next substantive build** | 1 and 2; cross-device state smoke test | Multi-sitting simulator assessment with scoped action log, evidence pivots, assignment/status/comments, consequence handling, persistence, and instructor-reviewable record. |
+| 3 | Module 1 SIEM performance assessment | **Next substantive build** | 1 and 2; cross-device state smoke test | Multi-sitting simulator assessment with scoped action log, evidence pivots, assignment/status/comments, consequence handling, persistence, and instructor-reviewable record. **Note:** this row's "simulator" framing has the same 2026-09-21 flagged discrepancy noted under "Locked Module 1 sequence" above — `moduleOneProveItConsole()` as shipped is portal-only. Resolve that flag before scoping this item further. |
 | 4 | Module completion integrity | **Queued** | 2 and 3 | Modules 2–12 receive verified-completion protection using the proven Module 1 pattern. See `module-completion-integrity/BRIEF.md`. |
 | 5 | SOC curriculum Arc A | **Queued content work** | stable Module 1 assessment | Reconcile Modules 02→03 fixtures/narrative with owner content review. Arc B is undecided; do not build the rejected 07→04 pairing. |
 | 6 | Tool-depth expansion | **Later discovery** | 5 sequencing decision | Scope real interactive CLI and PCAP lab surfaces plus CySA+ crosswalk. See `soc-analyst-track-reimagining/VISION.md` and `soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` (per-module interface concepts, shared-component build order — owner vision, not yet scoped or authorized). |
