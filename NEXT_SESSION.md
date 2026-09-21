@@ -5,27 +5,36 @@ unblocked roadmap item, then read only that item's governing specification.
 Do not use the historical notes below as an independent plan; some describe
 superseded Module 1 directions.
 
-**2026-09-21:** `HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` has
-scoping input for roadmap item 3 (Module 1 SIEM performance assessment,
-still blocked on items 1/2) — a masked-input, read-the-real-log evidence
-mechanic is already mostly built for ALT-1001 but not wired in; owner wants
-it extended and given a per-evidence "go to logs" button. Read it before
-touching Module 1 evidence UI.
+**2026-09-21:** `HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` scoped a
+masked-input, read-the-real-log evidence mechanic for ALT-1001. **Superseded
+later the same day** by `MODULE_01_CASE_CONSOLE_SPEC.md`'s simpler,
+now-shipped mechanic: click a real log row, it expands a raw structured
+record. That satisfies the same underlying ask (real evidence reading, not
+instant-click review) without the masked-input form — don't build that form
+on top of this; it would be redundant.
 
-**2026-09-21, same day:** roadmap item 1 (orientation tour) was built but
-unreachable from Module 1 — fixed, see `HANDOFF.md`'s "Module 1 orientation
-tour — reachability fix" entry. That fix also surfaced that the same day's
-`1add6d6` commit quietly moved Module 1's Prove It case off the simulator
-onto a portal-only ticketing console — flagged as an unresolved discrepancy
-in `ROADMAP.md`'s "Locked Module 1 sequence" section. Read that flag before
-assuming the sentence below still describes the shipped behavior, and before
-scoping item 3.
+**2026-09-21, same day, superseded again:** roadmap item 1 (orientation
+tour) was fixed for reachability, which surfaced that `1add6d6`'s move of
+Prove It off the simulator looked like an unresolved discrepancy. It
+wasn't — `MODULE_01_CASE_CONSOLE_SPEC.md` landed the same day and confirms
+that pivot was correct: **Module 1 does not use the full SOC range at all,
+for either Practice It or Prove It.** Read that spec first, then
+`ROADMAP.md`'s "Locked Module 1 sequence" (corrected in place) and
+`HANDOFF.md`'s "Module 1 case console — Practice It built" entry.
 
-Module 1 begins with the required LMS orientation tour, now reachable from
-the module's hero section and pending one live-browser check. It is followed
-by Prove It, the module's one graded, instructor-reviewable case record — see
-the flagged discrepancy above for whether that record is meant to come from
-the simulator or (as currently shipped) the portal ticketing console.
+**Next real work:** Prove It (`moduleOneProveItConsole()`, NST-2407) still
+uses the old embedded-in-page console. Port it to the same
+`?console=<stage>`-driven, new-tab case-console pattern Practice It now
+uses (`viewModuleOneCaseConsole()` in `portal/soc-analyst-module-01.js`) —
+same three-pane shape, its own case-appropriate log/evidence data (NST-2407
+doesn't have `logEvents` yet), reduced coaching per the spec's Prove It
+section. Reuse the mechanism, don't invent a second one.
+
+Module 1 begins with the required LMS orientation tour, reachable from the
+module's hero section and live-verified in Chrome. It is followed by
+Practice It and Prove It, both worked in Module 1's own focused case console
+(not the full SOC range) per `MODULE_01_CASE_CONSOLE_SPEC.md` — Practice It's
+console is built and live-verified; Prove It's still needs porting to match.
 
 ---
 

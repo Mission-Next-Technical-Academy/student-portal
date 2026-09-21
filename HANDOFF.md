@@ -9,6 +9,65 @@ pointer and must not become a second task queue.
 The prior chronological engineering handoff is preserved at
 `archive/session-logs/HANDOFF_THROUGH_2026-09-10.md`.
 
+## Module 1 case console — Practice It built, 2026-09-21
+
+Owner delivered `MODULE_01_CASE_CONSOLE_SPEC.md` (now the authoritative
+Module 1 lab design — read it first) with an explicit, concrete complaint:
+Module 1's lab had no realism, and every lab on the platform should have a
+"Launch Module Lab" button that opens a new window — a small focused
+workspace, not the full SOC range and not embedded in the LMS page.
+
+**Built for Practice It (ALT-1001) this session:**
+- `portal/soc-analyst-module-01.js`: `viewModuleOneCaseConsole()` — a
+  full-bleed, three-pane case console (Alert Queue / Logs+Evidence /
+  Incident-Case Record), opened in a new tab via a `?console=practice`
+  query param on Module 1's own route (no new router entry needed — same
+  page, same session, different render branch).
+- `moduleOneLogTable()` / new `logEvents` data (`portal/data.js`): 9 real
+  sign-in-log rows (8 failures + 1 success for j.santos/185.220.101.24,
+  matching the existing case facts), each expandable into a raw
+  `key=value` structured record on click — replacing the old instant
+  "click evidence → instantly marked reviewed" theater with a real
+  "open the log, then it's marked viewed" action.
+- The LMS page's embedded console (`moduleOneLabDynamic()`) was stripped
+  down to just the launch card + a status line, per the spec's "must not
+  remain embedded as a small card inside the LMS."
+- Reused the existing `moduleOneTicketFields()` ticket record, action
+  history, and save/submit logic almost unchanged — only the evidence
+  mechanism and the page shell around it are new.
+- Fixed two real bugs found live-testing: (1) `.m01-submit`/`.m01-reset`
+  buttons only got their padding/border-radius/font from a rule scoped to
+  `.m01-actions button` — the ticket's Save/Submit Case buttons sit in
+  `.m01-ticket-actions`, a different class, so they rendered undersized
+  and inconsistent with every other button on the platform; fixed by
+  adding `.m01-ticket-actions button` to that base rule (module-labs.css)
+  and giving the actions row `justify-content: space-between` to match
+  the spec's `[ Save ]  ...  [ Submit Case ]` layout. (2) "Back to Module
+  1" only changed `location.hash`, leaving `?console=practice` in the URL
+  and silently reopening the same console — fixed by building the href
+  from `location.pathname` instead of a bare `#...` string.
+- Live-verified end to end in Chrome, signed in as `9334491415-SOCAN`:
+  launch card → console opens in a new tab → log rows expand and record
+  real actions → ticket fields fill in → Submit Case shows "Case
+  submitted... there is no live score" → completion state round-trips
+  back to the LMS card ("Resume Module Lab" → "Review the case", green
+  "Case worked and checked." banner) → "Back to Module 1" actually
+  leaves the console this time.
+- `node --check` and `bash bin/ci-check.sh` clean throughout (129/129
+  simulator views, all portal modules).
+
+**Not done, explicitly out of scope this pass:** Prove It
+(`moduleOneProveItConsole()`, the NST-2407 case) still uses its older
+embedded-in-page console. The spec applies to it too — same three-pane
+shape, same "not the full SOC range" rule — but porting it to the new
+`?console=<stage>` launch-card pattern is real, separate work. Do that
+next, reusing this session's mechanism rather than inventing a second one.
+
+See `ROADMAP.md`'s "Locked Module 1 sequence" for the corrected policy
+language (the old "simulator-first" framing is superseded) and the noted
+tension with the orientation tour, which still opens the full simulator
+and was explicitly left alone this session (owner: "the tour is fine").
+
 ## Module 1 orientation tour — reachability fix, 2026-09-21
 
 Roadmap item 1's tour content (Day 1 framing, rules of engagement, assigned

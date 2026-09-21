@@ -32,29 +32,42 @@ clear tour of the workspace before the learner is asked to perform assessed
 work. It must be accessible from the beginning of Module 1 and may be reopened
 as a refresher.
 
-The assessment that follows is simulator-first: the learner investigates the
-assigned incident in the SIEM, pivots through incident/alert/entity evidence,
-assigns or updates the case as permitted, records evidence, and makes a
-justified escalation or containment request. The durable simulator action log
-and final case record are the instructor-reviewable artifact. Do not restore a
-parallel LMS worksheet or expose a live student score.
+**Superseded 2026-09-21 by `MODULE_01_CASE_CONSOLE_SPEC.md` — read that file
+first for Module 1's actual assessment design.** This paragraph's original
+"simulator-first... SIEM" language is no longer the target design and is kept
+here only as history. The owner's specification is explicit and resolves what
+was briefly an open discrepancy the same day (a same-day commit,`1add6d6`, had
+already dropped `lab-soc-escalation`'s `simEntry` and moved Prove It to a
+portal-only console before the spec landed — that pivot turned out to be
+correct, not drift): **Module 1 does not use the full SOC range.** Both
+Practice It and Prove It open their own small, focused, vendor-neutral case
+console — Alert Queue / Logs+Evidence / Incident-Case Record — in a new
+browser tab, launched from a card on the LMS page. The full `ui/` simulator
+(SIEM query workspace, packet analyzer, EDR, threat hunting, etc.) is
+deliberately withheld from Module 1 and remains reserved for later modules and
+the capstone, per that spec's §15-16. The durable case record plus a
+meaningful action-history log (not a raw simulator log) is the
+instructor-reviewable artifact. Do not restore a parallel LMS worksheet or
+expose a live student score — both rules still hold, they just now apply to
+the case console instead of the SIEM.
 
-**Flagged discrepancy, 2026-09-21 — needs an owner decision, not resolved by
-this note.** Commit `1add6d6` ("Refine Module 1 case console workflow") shipped
-the same day removed `lab-soc-escalation`'s `simEntry` (`portal/data.js`) and
-rewrote its description around a self-contained portal "Case / Ticket" console
-(`moduleOneProveItConsole()` in `portal/soc-analyst-module-01.js`) with no
-simulator step at all — the student now investigates NST-2407 entirely from
-plain evidence text in the portal, never opening the SIEM. That does not match
-this paragraph's "simulator-first... SIEM... durable simulator action log"
-language, and arguably is the "parallel LMS worksheet" the paragraph says not
-to restore (though it does still withhold the live score, per that paragraph's
-other rule). Not undone here — it may be a deliberate, considered pivot rather
-than drift, and reverting a same-day owner commit without being asked is a
-bigger call than this session's scope. Bring this to the owner before touching
-`moduleOneProveItConsole()` again: either this paragraph should be rewritten to
-match the shipped ticketing-console design, or the simulator entry point should
-be restored.
+**Built 2026-09-21 for Practice It only** (`portal/soc-analyst-module-01.js`'s
+`viewModuleOneCaseConsole()`, opened via a `?console=practice` query param on
+Module 1's own route, in a new tab): three-pane case console with a real
+sign-in-log table (not pre-summarized evidence cards — click a row to expand
+its raw structured record, which is the actual "read the evidence" action),
+the existing ticket-field record, and a persisted action history. Verified
+live in Chrome: log rows expand and record real actions, Save/Submit Case
+work, completion state round-trips back to the LMS card correctly ("Launch
+Module Lab" → "Resume Module Lab" → "Review the case"), and "Back to Module
+1" correctly leaves the console (an early version of that link only changed
+the hash and left `?console=practice` in the URL, silently reopening the same
+console — fixed to build the href from `location.pathname` instead of a bare
+`#...` string). **Prove It (NST-2407) is unchanged and still uses its older
+embedded-in-page console** (`moduleOneProveItConsole()`) — the same spec
+applies to it, but porting it to the new launch-card/new-tab pattern was kept
+out of scope for this pass; do that next, reusing the same
+`?console=<stage>` mechanism rather than inventing a second one.
 
 The tour is orientation, not the assessment. It may observe real UI telemetry,
 but it must not be the sole completion or grading evidence. The detailed
@@ -85,12 +98,22 @@ gating anything. Also fixed the tour's final 3 steps
 (`ui/coach-data.js`), which still spotlighted `#/sentinel/incidents` /
 `#m01-assigned-case-callout` / `#m01-escalate-btn` / `#mnt-submit-btn` — all
 part of the simulator-based NST-2407 flow the same-day `1add6d6` commit
-removed (see the flagged discrepancy above). Replaced with one accurate
-framing-only closing step describing the actual portal ticketing console.
-`node --check` and `bash bin/ci-check.sh` clean. **Not live-browser verified
-this session — the Claude in Chrome extension would not connect** (tried
-twice); a live click-through of the new tour link is still worth doing next
-time it's available.
+removed. Replaced with one accurate framing-only closing step describing the
+case ticket console. `node --check` and `bash bin/ci-check.sh` clean.
+Live-verified in Chrome later the same day: the launch link opens correctly,
+steps advance ("Step 1 of 9" → "Step 2 of 9" confirmed), matching the trimmed
+9-step count.
+
+**New tension, noted 2026-09-21, not touched — owner said the tour itself is
+fine, out of scope for now.** The tour's still-live steps walk `#/defender/alerts`
+and `#/entra/sign-in-logs` inside the full `ui/` simulator — exactly the
+surface `MODULE_01_CASE_CONSOLE_SPEC.md` §16 says a brand-new Module 1 learner
+should not be dropped into. This wasn't rebuilt this session (explicit owner
+direction), but it's a real inconsistency between the Day 1 tour and the new
+case-console design worth resolving eventually: either move the tour's content
+into the case console itself, or accept the tour as a deliberate, brief,
+narrated exception to §16 since it's guided/observational rather than
+free-roam.
 
 ## Source-of-truth order
 
@@ -107,9 +130,9 @@ and update the historical document when that workstream is next touched.
 | Order | Work item | State | Depends on | Done when |
 |---:|---|---|---|---|
 | 0 | CI baseline | **Active** | none | `bash bin/ci-check.sh` passes locally and on PRs / `master`; Pages repeats it before deployment. |
-| 1 | Module 1 orientation tour | **Built 2026-09-21, pending live verification** | none | The beginning of Module 1 presents the LMS orientation tour: Day 1 framing, rules, scope, and workspace walkthrough. It is reopenable and does not replace assessment evidence. Code-complete and reachable from Module 1 as of 2026-09-21 (see note above); needs one live click-through when Chrome is next available before calling this fully done. |
+| 1 | Module 1 orientation tour | **Built and live-verified 2026-09-21** | none | The beginning of Module 1 presents the LMS orientation tour: Day 1 framing, rules, scope, and workspace walkthrough. It is reopenable and does not replace assessment evidence. Reachable from Module 1's hero card; steps confirmed advancing live in Chrome. See the "new tension" note above (tour still uses the full simulator) — flagged, not blocking. |
 | 2 | Faculty-gate live UAT | **Blocked on controlled credentials** | deployed faculty-gate migration | Controlled student submit → faculty return → resubmit → approve → Module 2 unlock is verified and recorded. |
-| 3 | Module 1 SIEM performance assessment | **Next substantive build** | 1 and 2; cross-device state smoke test | Multi-sitting simulator assessment with scoped action log, evidence pivots, assignment/status/comments, consequence handling, persistence, and instructor-reviewable record. **Note:** this row's "simulator" framing has the same 2026-09-21 flagged discrepancy noted under "Locked Module 1 sequence" above — `moduleOneProveItConsole()` as shipped is portal-only. Resolve that flag before scoping this item further. |
+| 3 | Module 1 case-console assessment | **Practice It built 2026-09-21; Prove It still needs the same launch-card pattern** | 1 and 2; cross-device state smoke test | Per `MODULE_01_CASE_CONSOLE_SPEC.md`: a focused case console (not the full SOC range) with a real log table, scoped action history, an incident/case record, and instructor-reviewable persistence. Practice It (`viewModuleOneCaseConsole()`) is built and live-verified. Prove It (`moduleOneProveItConsole()`) still needs porting from its embedded-in-page form to the same new-tab launch-card pattern before this item is fully done. |
 | 4 | Module completion integrity | **Queued** | 2 and 3 | Modules 2–12 receive verified-completion protection using the proven Module 1 pattern. See `module-completion-integrity/BRIEF.md`. |
 | 5 | SOC curriculum Arc A | **Queued content work** | stable Module 1 assessment | Reconcile Modules 02→03 fixtures/narrative with owner content review. Arc B is undecided; do not build the rejected 07→04 pairing. |
 | 6 | Tool-depth expansion | **Later discovery** | 5 sequencing decision | Scope real interactive CLI and PCAP lab surfaces plus CySA+ crosswalk. See `soc-analyst-track-reimagining/VISION.md` and `soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` (per-module interface concepts, shared-component build order — owner vision, not yet scoped or authorized). |
@@ -169,6 +192,7 @@ Approved roadmap item
 | Document | Role |
 |---|---|
 | `ROADMAP.md` | Canonical delivery order, Module 1 direction, agent protocol, and CI/CD reference |
+| `MODULE_01_CASE_CONSOLE_SPEC.md` | Authoritative Module 1 lab design — owner spec, the case console (not the full SOC range) is the required shape |
 | `INSTRUCTIONAL_ARCHITECTURE.md` | Program-wide Learn/Practice/Prove pedagogy, guidance-reduction curve across modules 01–12, and the module-completion rubric |
 | `HANDOFF.md` | Concise evidence for the currently active roadmap item |
 | `NEXT_SESSION.md` | Pointer only; never a second task queue |
@@ -181,6 +205,9 @@ Approved roadmap item
 
 ## Current action
 
-Verify and complete the required beginning-of-Module-1 orientation tour, then
-run faculty-gate UAT when controlled credentials are available. The next large
-implementation is the simulator-first Module 1 performance assessment.
+The Module 1 orientation tour is built and live-verified. Run faculty-gate
+UAT when controlled credentials are available (item 2). The next build is
+porting Prove It (`moduleOneProveItConsole()`) to the same new-tab
+case-console launch-card pattern Practice It now uses, per
+`MODULE_01_CASE_CONSOLE_SPEC.md` — not a simulator-based performance
+assessment; that direction is superseded.

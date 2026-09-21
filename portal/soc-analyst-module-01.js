@@ -76,6 +76,7 @@ const MODULE_ONE_DEFAULT_STATE = {
   practice: {
     status: 'in-progress', affectedUser: '', affectedDevice: '', severity: '',
     disposition: '', escalation: '', escalateTo: '', notes: '', actionHistory: [],
+    viewedLogIds: [], expandedLogId: null,
   },
   lessonWork: {},
   sectionOpen: { checklist: false, foundations: true, lab: false, quiz: false, review: false, sources: false },
@@ -149,6 +150,7 @@ function moduleOneLoad(user) {
     if (typeof moduleOneState.practice[key] !== 'string') moduleOneState.practice[key] = MODULE_ONE_DEFAULT_STATE.practice[key] || '';
   });
   if (!Array.isArray(moduleOneState.practice.actionHistory)) moduleOneState.practice.actionHistory = [];
+  if (!Array.isArray(moduleOneState.practice.viewedLogIds)) moduleOneState.practice.viewedLogIds = [];
   if (typeof moduleOneState.lab2.completed !== 'boolean') moduleOneState.lab2.completed = false;
   if (typeof moduleOneState.lab2.submitted !== 'boolean') moduleOneState.lab2.submitted = false;
   if (!Array.isArray(moduleOneState.lab2.reviewedEvidence)) moduleOneState.lab2.reviewedEvidence = [];
@@ -742,43 +744,104 @@ function moduleOneTicketFields(state, spec) {
     ${state.actionHistory?.length ? `<details class="m01-action-history"><summary>Action history (${state.actionHistory.length})</summary><ul>${state.actionHistory.slice(-8).reverse().map((entry) => `<li>${esc(entry.action)}</li>`).join('')}</ul></details>` : ''}`;
 }
 
-// Practice It: a guided case (ALT-1001 / j.santos) in the SOC case-console —
-// alert queue, alert details + evidence, case ticket. Hints and highlighted
-// option help are fine here; this is coached, ungraded, retry-friendly
+// Practice It: a guided case (ALT-1001 / j.santos) in its own focused case
+// console — alert queue, log/evidence pane, incident/case record. Per
+// MODULE_01_CASE_CONSOLE_SPEC.md, this is NOT the full SOC range: a small,
+// original, vendor-neutral workspace scoped to exactly this case. Hints and
+// coachmarks are fine here; this is coached, ungraded, retry-friendly
 // practice, not the graded artifact (that's Prove It, moduleOneReview()).
+// Launch card: opens the console in a new tab, same origin/session, via
+// viewModuleOne()'s `?console=practice` branch — not the ui/ simulator.
+function moduleOneLabLaunchCard() {
+  const complete = Boolean(moduleOneState.consoleCompleted);
+  const started = Boolean(moduleOneState.consoleStarted);
+  return `<div class="m01-lab-launch">
+    <a class="m01-hero-action" href="?console=practice${esc(location.hash)}" target="_blank" rel="opener">
+      <i class="${complete ? 'ri-refresh-line' : started ? 'ri-terminal-box-line' : 'ri-play-circle-line'}" aria-hidden="true"></i>
+      ${complete ? 'Review the case' : started ? 'Resume Module Lab' : 'Launch Module Lab'}</a>
+    <p class="m01-lab-launch-status">${complete
+      ? 'Case checked. Opens the case console in a new tab if you want to review it.'
+      : 'Opens the case console in a new tab — a small, focused workspace for this one case, not the full SOC range.'}</p>
+  </div>`;
+}
+
+// LMS-side card only, per MODULE_01_CASE_CONSOLE_SPEC.md §2: "It should not
+// remain embedded as a small card inside the LMS." The actual queue/logs/
+// ticket workspace lives at viewModuleOneCaseConsole() (opened by the launch
+// card, in a new tab, full-bleed) — see moduleOneCaseConsolePane().
 function moduleOneLabDynamic() {
+  const state = moduleOneState.practice;
+  const complete = Boolean(moduleOneState.consoleCompleted);
+  const status = !moduleOneState.consoleStarted ? 'Not started'
+    : complete ? 'Complete' : 'In progress';
+  return `${moduleOneLabLaunchCard()}
+  <div class="m01-lab-status-row ${status === 'Complete' ? 'is-complete' : status === 'In progress' ? 'is-in-progress' : 'is-not-started'}">
+    <i class="${status === 'Complete' ? 'ri-checkbox-circle-fill' : status === 'In progress' ? 'ri-time-line' : 'ri-inbox-line'}" aria-hidden="true"></i>
+    <span>${status === 'Complete' ? 'Case worked and checked.'
+      : status === 'In progress' ? `${(state.actionHistory || []).length} action${(state.actionHistory || []).length === 1 ? '' : 's'} recorded so far.`
+      : 'An alert is waiting in your queue.'}</span>
+  </div>`;
+}
+
+// Log/evidence pane (MODULE_01_CASE_CONSOLE_SPEC.md §3): real rows, not
+// pre-summarized cards. Opening a row is the "read the evidence" action —
+// see wireModuleOneCaseConsole()'s data-m01cc-log-row handler — which marks
+// it viewed and expands its raw structured record underneath.
+function moduleOneLogTable(scenario, state) {
+  const viewed = new Set(state.viewedLogIds || []);
+  const expandedId = state.expandedLogId || null;
+  return `<p class="m01cc-pane-title">Sign-in log <span class="muted">${viewed.size}/${scenario.logEvents.length} opened</span></p>
+    <table class="m01cc-log-table">
+      <thead><tr><th>Time</th><th>Event type</th><th>User</th><th>Device</th><th>Source IP</th><th>Result</th></tr></thead>
+      <tbody>${scenario.logEvents.map((row) => `
+        <tr class="m01cc-log-row ${viewed.has(row.id) ? 'is-viewed' : ''} ${expandedId === row.id ? 'is-expanded' : ''}"
+            data-m01cc-log-row="${esc(row.id)}" tabindex="0" role="button" aria-expanded="${expandedId === row.id}">
+          <td>${esc(row.time)}</td><td>${esc(row.type)}</td><td>${esc(row.user)}</td><td>${esc(row.device)}</td>
+          <td>${esc(row.sourceIp)}</td><td><span class="m01cc-result m01cc-result-${esc(row.result.toLowerCase())}">${esc(row.result)}</span></td>
+        </tr>${expandedId === row.id ? `<tr class="m01cc-raw-row"><td colspan="6"><pre class="m01cc-raw">${esc(Object.entries(row.raw)
+          .filter(([, v]) => v !== null && v !== undefined)
+          .map(([k, v]) => `${k}=${v}`).join('\n'))}</pre></td></tr>` : ''}
+      `).join('')}</tbody>
+    </table>`;
+}
+
+// The three-pane case console body (MODULE_01_CASE_CONSOLE_SPEC.md §2):
+// Alert Queue / Logs+Evidence / Incident-Case Record. Reuses the same
+// moduleOneState.practice record and moduleOneTicketFields() the LMS-side
+// card used to render inline — only the log pane and the shell around it
+// are new.
+function moduleOneCaseConsolePane() {
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const scenario = lab.scenario;
+  const state = moduleOneState.practice;
   if (!moduleOneState.consoleStarted) {
-    return `<div class="m01-shift-start" aria-labelledby="m01-shift-start-title">
-      <i class="ri-shield-user-line" aria-hidden="true"></i><div><p class="m01-kicker">SOC analyst shift</p><h3 id="m01-shift-start-title">An alert is waiting in your queue</h3>
-      <p>Enter your Module 1 case console to review one alert, inspect its evidence, and document your decision.</p>
-      <button type="button" class="m01-submit" data-m01-console-launch><i class="ri-play-circle-line" aria-hidden="true"></i> Start analyst shift</button></div>
+    return `<div class="m01-shift-start" aria-labelledby="m01cc-shift-start-title">
+      <i class="ri-shield-user-line" aria-hidden="true"></i>
+      <div><p class="m01-kicker">SOC analyst shift</p><h3 id="m01cc-shift-start-title">An alert is waiting in your queue</h3>
+      <p>Open the assigned alert, read the sign-in log, and record what you find in the case.</p>
+      <button type="button" class="m01-submit" data-m01cc-console-launch><i class="ri-play-circle-line" aria-hidden="true"></i> Open the alert</button></div>
     </div>`;
   }
-  const state = moduleOneState.practice;
   const reviewed = new Set(moduleOneState.reviewedEvidence);
-  const step = !reviewed.size ? 'Step 1: Review the alert details. Open the evidence before changing the case.'
-    : (!state.affectedUser || !state.affectedDevice) ? 'Step 2: Determine the scope. Add the affected user and device to the case.'
-      : 'Step 3: Make and document your triage decision. Use the ticket controls just as you would on shift.';
-
-  return `
-  <div class="m01-console" aria-labelledby="m01-console-practice-title">
+  const step = !reviewed.size ? 'Step 1: Read the alert, then open the sign-in log rows below it.'
+    : (!state.affectedUser || !state.affectedDevice) ? 'Step 2: Determine scope. Add the affected user and device to the case.'
+      : 'Step 3: Set severity and disposition, write your work note, then save or submit the case.';
+  const phoneNote = scenario.evidence.find((item) => item.id === 'confirmation');
+  return `<div class="m01-console" aria-labelledby="m01cc-console-title">
     <div class="m01-console-header">
       <span class="m01-console-badge">Security Operations</span>
-      <h3 id="m01-console-practice-title">Practice It — guided case</h3>
-      <p>${step}</p>
+      <h3 id="m01cc-console-title">Practice It — guided case</h3>
+      <p>${esc(step)}</p>
     </div>
     <div class="m01-console-body">
       <aside class="m01-console-pane m01-console-queue" aria-label="Alert queue">
         <p class="m01-console-pane-title">Alert Queue</p>
         <div class="m01-console-queue-item is-active">
           <span class="${moduleOneSeverityClass(scenario.initialSeverity)}">${esc(scenario.initialSeverity)}</span>
-          <strong>${esc(scenario.title)}</strong>
-          <span class="muted">${esc(scenario.id)}</span>
+          <strong>${esc(scenario.title)}</strong><span class="muted">${esc(scenario.id)}</span>
         </div>
       </aside>
-      <section class="m01-console-pane m01-console-detail" aria-label="Alert details and evidence">
+      <section class="m01-console-pane m01-console-detail" aria-label="Logs and evidence">
         <p class="m01-console-pane-title">Alert Details</p>
         <dl class="m01-console-meta">
           <div><dt>Entity</dt><dd>${esc(scenario.entity)}</dd></div>
@@ -786,17 +849,37 @@ function moduleOneLabDynamic() {
           <div><dt>Created</dt><dd>${esc(scenario.created)}</dd></div>
         </dl>
         <p class="m01-console-summary">${esc(scenario.summary)}</p>
-        ${moduleOneEvidenceList(scenario, reviewed, 'data-m01-practice-evidence')}
+        ${moduleOneLogTable(scenario, state)}
+        ${phoneNote ? `<p class="m01cc-phone-note"><i class="ri-phone-line" aria-hidden="true"></i> ${esc(phoneNote.detail)}</p>` : ''}
       </section>
-      <section class="m01-console-pane m01-console-ticket" aria-label="Case ticket">
-        <p class="m01-console-pane-title">Case / Ticket</p>
+      <section class="m01-console-pane m01-console-ticket" aria-label="Incident / case record">
+        <p class="m01-console-pane-title">Incident / Case Record</p>
         <form id="m01-practice-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: false })}
-          <div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-practice-save>Save case</button><button type="button" class="m01-submit" data-m01-practice-check>Check coached case</button></div>
+          <div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-practice-save>Save</button><button type="button" class="m01-submit" data-m01-practice-check>Submit Case</button></div>
         </form>
+        ${moduleOneState.completed && moduleOneState.consoleCompleted
+          ? `<div class="m01cc-feedback is-pass" id="m01cc-feedback" tabindex="-1" role="status">Case submitted. Your work and action history are the record — there is no live score.</div>`
+          : moduleOneState.validationError
+            ? `<div class="m01cc-feedback is-error" id="m01cc-feedback" tabindex="-1" role="alert">${esc(moduleOneState.validationError)}</div>`
+            : ''}
       </section>
     </div>
-  </div>
-  `;
+  </div>`;
+}
+
+// Full-bleed console page (MODULE_01_CASE_CONSOLE_SPEC.md §2): opened by
+// moduleOneLabLaunchCard() in a new tab via viewModuleOne()'s
+// `?console=practice` branch. Deliberately has no moduleTopbar/nav — the
+// student should feel they have entered a work application, not a page of
+// the LMS.
+function viewModuleOneCaseConsole(user, program) {
+  return `<div class="m01cc-shell" id="m01cc-app">
+    <header class="m01cc-topbar">
+      <span class="m01cc-topbar-title"><i class="ri-shield-keyhole-line" aria-hidden="true"></i> SECURITY OPERATIONS — CASE CONSOLE</span>
+      <a class="m01cc-topbar-close" href="${esc(location.pathname)}#/program/soc-analyst/module/1"><i class="ri-arrow-left-line" aria-hidden="true"></i> Back to Module 1</a>
+    </header>
+    <main class="m01cc-main" id="m01cc-console-slot">${moduleOneCaseConsolePane()}</main>
+  </div>`;
 }
 
 function moduleOneQuizQuestion(entry, index) {
@@ -937,6 +1020,14 @@ function moduleOneGetNavSections() {
 
 function viewModuleOne(user, program) {
   moduleOneLoad(user);
+  // MODULE_01_CASE_CONSOLE_SPEC.md §2: Module 01's lab opens in its own
+  // focused workspace, not embedded in the LMS page. Same route+hash, a
+  // `?console=practice` query param — opened in a new tab so this render
+  // is a *different* browser tab/window from the LMS page that linked to
+  // it, sharing the same session/auth without any new plumbing.
+  if (new URLSearchParams(location.search).get('console') === 'practice') {
+    return viewModuleOneCaseConsole(user, program);
+  }
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const module = program.modules['soc-01'];
   const moduleLabs = LABS.filter((item) => item.module === module.key);
@@ -1178,7 +1269,103 @@ function wireModuleOneQuiz() {
   });
 }
 
+// Case console wiring (MODULE_01_CASE_CONSOLE_SPEC.md). Scoped to its own
+// #m01cc-app root, called from wireModuleOneLab() below — that function
+// runs on every render (module-registry.js's wireRegisteredModuleLabs()),
+// so this is a no-op whenever the console page isn't the current render.
+function wireModuleOneCaseConsole() {
+  const root = document.getElementById('m01cc-app');
+  if (!root) return;
+  const lab = MODULE_ONE_ALERT_ORIENTATION;
+  const scenario = lab.scenario;
+
+  function rerender(focusId) {
+    const slot = document.getElementById('m01cc-console-slot');
+    if (slot) slot.innerHTML = moduleOneCaseConsolePane();
+    if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
+  }
+
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m01cc-console-launch]')) {
+      moduleOneState.consoleStarted = true;
+      moduleOneState.practice.actionHistory.push({ action: 'Opened assigned alert', at: new Date().toISOString() });
+      moduleOneSave(); rerender(); return;
+    }
+
+    const logRow = event.target.closest('[data-m01cc-log-row]');
+    if (logRow) {
+      const id = logRow.dataset.m01ccLogRow;
+      const row = scenario.logEvents.find((item) => item.id === id);
+      if (!row) return;
+      const state = moduleOneState.practice;
+      state.expandedLogId = state.expandedLogId === id ? null : id;
+      if (!state.viewedLogIds.includes(id)) {
+        state.viewedLogIds.push(id);
+        state.actionHistory.push({ action: `Opened log record ${id} (${row.time})`, at: new Date().toISOString() });
+        if (row.evidenceId && !moduleOneState.reviewedEvidence.includes(row.evidenceId)) {
+          moduleOneState.reviewedEvidence.push(row.evidenceId);
+        }
+      }
+      moduleOneSave(); rerender(); return;
+    }
+
+    const entity = event.target.closest('#m01-practice-form [data-m01-entity]');
+    if (entity) {
+      const field = entity.dataset.m01Entity === 'user' ? 'affectedUser' : 'affectedDevice';
+      moduleOneState.practice[field] = field === 'affectedUser' ? 'j.santos' : 'WKS-14';
+      moduleOneState.practice.actionHistory.push({ action: `Added affected ${entity.dataset.m01Entity}`, at: new Date().toISOString() });
+      moduleOneSave(); rerender(); return;
+    }
+
+    if (event.target.closest('[data-m01-practice-save]')) {
+      moduleOneState.practice.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+      moduleOneSave(); rerender(); return;
+    }
+
+    if (event.target.closest('[data-m01-practice-check]')) {
+      const practice = moduleOneState.practice;
+      const missing = !moduleOneState.reviewedEvidence.length || !practice.affectedUser || !practice.affectedDevice
+        || !practice.priority || !practice.verdict || !practice.escalation
+        || (practice.escalation === 'required' && !practice.escalateTo) || !(practice.notes || '').trim();
+      moduleOneState.validationError = missing
+        ? 'Keep working the case: open the log, add both affected entities, set the ticket fields, and leave a work note.'
+        : '';
+      if (!missing) {
+        moduleOneState.completed = true;
+        moduleOneState.consoleCompleted = true;
+        practice.actionHistory.push({ action: 'Submitted case', at: new Date().toISOString() });
+        if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
+        moduleOneSyncCompletion();
+      }
+      moduleOneSave(); rerender('m01cc-feedback');
+      return;
+    }
+  });
+
+  root.addEventListener('change', (event) => {
+    const input = event.target;
+    if (input.closest('#m01-practice-form') && ['status', 'severity', 'disposition', 'escalation', 'escalateTo'].includes(input.name)) {
+      const key = input.name === 'severity' ? 'priority' : input.name === 'disposition' ? 'verdict' : input.name;
+      moduleOneState.practice[key] = input.value;
+      if (input.name === 'severity') moduleOneState.practice.severity = input.value;
+      if (input.name === 'disposition') moduleOneState.practice.disposition = input.value;
+      moduleOneState.practice.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
+      moduleOneSave(); rerender();
+    }
+  });
+
+  root.addEventListener('input', (event) => {
+    const field = event.target;
+    if (field.tagName === 'TEXTAREA' && field.name === 'notes') {
+      moduleOneState.practice.notes = field.value;
+      moduleOneSave();
+    }
+  });
+}
+
 function wireModuleOneLab() {
+  wireModuleOneCaseConsole();
+  if (document.getElementById('m01cc-app')) return;
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
     reviewToggle.addEventListener('click', () => {

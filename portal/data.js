@@ -1858,6 +1858,23 @@ const MODULE_ONE_ALERT_ORIENTATION = {
         ] },
       { id: 'confirmation', time: '09:14', icon: 'ri-phone-line', label: 'The user denies the activity', detail: 'The service desk reached the account owner through the registered phone number. The user confirms they did not attempt the sign-ins.' },
     ],
+    // Real log rows for the case-console's middle pane (MODULE_01_CASE_CONSOLE_SPEC.md
+    // §3) — the same nine events narrated by `evidence` above, restated as a
+    // readable table the student clicks through instead of a pre-summarized
+    // card. `raw` is the expandable structured record for that row; `evidenceId`
+    // is which of the four `evidence` facts opening this row counts toward
+    // (the phone confirmation has no log row — it is handed over, not read).
+    logEvents: [
+      ...['09:02:11', '09:03:47', '09:04:22', '09:05:09', '09:06:33', '09:07:18', '09:07:52', '09:08:29'].map((time, i) => ({
+        id: `evt-fail-${i + 1}`, time, type: 'LoginAttempt', user: 'j.santos', device: 'WKS-14 (unmanaged)',
+        sourceIp: '185.220.101.24', result: 'Failed', evidenceId: 'timeline',
+        raw: { timestamp: `2026-06-28T${time}Z`, event_type: 'authentication', user: 'j.santos@missionnextlabs.example', device: 'WKS-14', source_ip: '185.220.101.24', auth_method: 'password', result: 'failed', session_id: null },
+      })),
+      { id: 'evt-success', time: '09:09:41', type: 'LoginSuccess', user: 'j.santos', device: 'WKS-14 (unmanaged)',
+        sourceIp: '185.220.101.24', result: 'Success', evidenceId: 'success',
+        raw: { timestamp: '2026-06-28T09:09:41Z', event_type: 'authentication', user: 'j.santos@missionnextlabs.example', device: 'WKS-14', source_ip: '185.220.101.24', auth_method: 'password', result: 'success', session_id: '9c4a17e0',
+          location: 'Bucharest, RO', managed: 'No', join_type: 'Not registered', sign_in_risk: 'High' } },
+    ],
     scope: 'One employee identity is confirmed affected. No endpoint or additional account is yet linked.',
   },
   verdictOptions: [
