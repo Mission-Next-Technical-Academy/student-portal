@@ -5,6 +5,13 @@ unblocked roadmap item, then read only that item's governing specification.
 Do not use the historical notes below as an independent plan; some describe
 superseded Module 1 directions.
 
+**2026-09-21:** `HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` has
+scoping input for roadmap item 3 (Module 1 SIEM performance assessment,
+still blocked on items 1/2) — a masked-input, read-the-real-log evidence
+mechanic is already mostly built for ALT-1001 but not wired in; owner wants
+it extended and given a per-evidence "go to logs" button. Read it before
+touching Module 1 evidence UI.
+
 Module 1 begins with the required LMS orientation tour. It is followed by a
 simulator-first, instructor-reviewable assessment—not a parallel worksheet.
 

@@ -9,6 +9,18 @@ pointer and must not become a second task queue.
 The prior chronological engineering handoff is preserved at
 `archive/session-logs/HANDOFF_THROUGH_2026-09-10.md`.
 
+## Pending scoping input — 2026-09-21
+
+`HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` — investigation only, no
+code changed. Found that a masked-input, read-the-real-log evidence recall
+mechanic (dense `SIGNIN_LOG_EVENTS` log table, per-fact `template`/`blanks`,
+`moduleOneBlankForm`) is already substantially built for Module 1's ALT-1001
+Practice It case but never wired into the live evidence-review UI. Owner
+separately asked for exactly this kind of log-sifting mechanic, plus a
+per-evidence "go to logs" button and the same treatment for the NST-2407
+Prove It case. This is scoping input for `ROADMAP.md` item 3, which is not
+yet unblocked — read that doc before starting any build from it.
+
 ## Current baseline — 2026-09-20
 
 - `ROADMAP.md` is the canonical delivery queue.
