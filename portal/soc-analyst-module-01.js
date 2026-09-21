@@ -86,7 +86,7 @@ const MODULE_ONE_DEFAULT_STATE = {
   lab2: {
     completed: false, submitted: false, submittedAt: '',
     reviewedEvidence: [], intake: '', priority: '', containment: '', verdict: '',
-    status: 'in-progress', affectedUser: '', affectedDevice: '', escalation: '', escalateTo: '',
+    status: '', affectedUser: '', affectedDevice: '', escalation: '', escalateTo: '',
     notes: '', actionHistory: [], viewedLogIds: [], expandedLogId: null,
     handoff: { observations: '', analysis: '', scope: '', nextAction: '' },
     validationError: '', attempts: 0, score: null, breakdown: null,
@@ -165,6 +165,9 @@ function moduleOneLoad(user) {
     if (typeof moduleOneState.lab2[key] !== 'string') moduleOneState.lab2[key] = MODULE_ONE_DEFAULT_STATE.lab2[key] || '';
   });
   if (!Array.isArray(moduleOneState.lab2.actionHistory)) moduleOneState.lab2.actionHistory = [];
+  // Migrate untouched pre-Select Assessment Lab records. Do not alter a
+  // learner's in-progress work, but a fresh case must require every choice.
+  if (!moduleOneState.lab2.actionHistory.length && moduleOneState.lab2.status === 'in-progress') moduleOneState.lab2.status = '';
   if (!moduleOneState.lab2.handoff || typeof moduleOneState.lab2.handoff !== 'object') moduleOneState.lab2.handoff = { observations: '', analysis: '', scope: '', nextAction: '' };
   ['intake', 'priority', 'containment', 'verdict'].forEach((key) => { if (typeof moduleOneState.lab2[key] !== 'string') moduleOneState.lab2[key] = ''; });
   // The returned attempt remains immutable in lab_attempts, but its saved
@@ -457,22 +460,23 @@ function moduleOneProgress() {
   const lessonsTotal = MODULE_ONE_ALERT_ORIENTATION.lessons.length;
   const lessonsComplete = MODULE_ONE_ALERT_ORIENTATION.lessons.filter(moduleOneLessonComplete).length;
   const verified = moduleOneRemoteComplete();
-  // The console walkthrough (formerly "Lab 1") no longer gates completion —
-  // 2026-09-17/18 rebuild decisions relabeled it an on-demand, ungated
-  // orientation. The SIEM assessment (lab2) is Module 1's one graded lab.
-  const labComplete = verified || Boolean(moduleOneState?.lab2?.completed);
-  const labStarted = labComplete || Boolean(
+  const guidedLabComplete = verified || Boolean(moduleOneState?.consoleCompleted);
+  const guidedLabStarted = guidedLabComplete || Boolean(moduleOneState?.consoleStarted);
+  const assessmentLabComplete = verified || Boolean(moduleOneState?.lab2?.completed);
+  const assessmentLabStarted = assessmentLabComplete || Boolean(
     moduleOneState?.lab2 && (moduleOneState.lab2.reviewedEvidence?.length || moduleOneState.lab2.intake
       || moduleOneState.lab2.priority || moduleOneState.lab2.containment || moduleOneState.lab2.verdict),
   );
   const knowledgeCheckComplete = Boolean(moduleOneQuizState?.passed)
     || moduleOneUser?.remoteModuleEvidence?.['soc-01']?.['knowledge-check'] === true;
-  const complete = verified || (lessonsComplete === lessonsTotal && knowledgeCheckComplete && labComplete);
+  const complete = verified || (lessonsComplete === lessonsTotal && knowledgeCheckComplete && guidedLabComplete && assessmentLabComplete);
   return {
     lessonsTotal,
     lessonsComplete,
-    labComplete,
-    labStarted,
+    guidedLabComplete,
+    guidedLabStarted,
+    assessmentLabComplete,
+    assessmentLabStarted,
     knowledgeCheckComplete,
     complete,
     remoteRecord: verified,
@@ -483,7 +487,7 @@ function moduleOneRefreshHeroProgress() {
   const progress = moduleOneProgress();
   const labCount = document.getElementById('m01-lab-count');
   const status = document.getElementById('m01-status');
-  if (labCount) labCount.textContent = progress.labComplete ? 'Complete' : progress.labStarted ? 'In progress' : 'Not started';
+  if (labCount) labCount.textContent = progress.guidedLabComplete ? 'Complete' : progress.guidedLabStarted ? 'In progress' : 'Not started';
   if (status) status.textContent = progress.complete ? 'Complete' : 'In progress';
 }
 
@@ -503,6 +507,7 @@ function moduleOneProveItPerformance() {
   const state = moduleOneState.lab2;
   const missing = [];
   if ((state.reviewedEvidence || []).length < lab.scenario.evidence.length) missing.push('Review every piece of evidence');
+  if (!state.status) missing.push('Set the status');
   if (!state.affectedUser || !state.affectedDevice) missing.push('Add the affected user and device');
   if (!state.priority) missing.push('Set the severity');
   if (!state.verdict) missing.push('Record a disposition');
@@ -541,6 +546,27 @@ function moduleOneProveItSubmissionPanel() {
     <p>${submitted ? 'Module 2 stays locked until your instructor approves the submission.' : redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.' : 'Work the case above — review the evidence, complete every ticket field, and write your analyst notes — then submit for faculty review.'}</p>
     ${!submitted && performance.missing.length ? `<ul class="m01-requirements-list">${performance.missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
     ${!submitted ? `<p class="m01-help">${performance.missing.length ? 'Complete the remaining case-record items, then use Submit Case in the ticket.' : 'Your case record is ready. Use Submit Case in the ticket to send it for faculty review.'}</p>` : ''}
+  </div>`;
+}
+
+function moduleOneGuidedLabFeedback() {
+  if (!moduleOneState.consoleCompleted) return '';
+  const practice = moduleOneState.practice;
+  const checks = [
+    [practice.status === 'in-progress', 'Status', 'Correct: keep the case In Progress while Identity Response acts.', 'Set Status to In Progress; the case is handed off, not resolved.'],
+    [practice.affectedUser === 'j.santos', 'Affected User', 'Correct: j.santos is the affected user.', 'Add j.santos as the affected user.'],
+    [practice.affectedDevice === 'WKS-14', 'Affected Device', 'Correct: WKS-14 is the supported affected device.', 'Add WKS-14 as the affected device.'],
+    [practice.priority === 'high', 'Severity', 'Correct: High fits the confirmed but bounded account compromise.', 'Change Severity from Critical to High. The evidence supports prompt response, not enterprise-wide critical impact.'],
+    [practice.verdict === 'true-positive', 'Disposition', 'Correct: this is confirmed malicious activity.', 'Set Disposition to Confirmed malicious activity.'],
+    [practice.escalation === 'required', 'Escalation required', 'Correct: the case requires escalation.', 'Set Escalation required to Required.'],
+    [practice.escalateTo === 'identity-response', 'Escalate to', 'Correct: Identity Response owns the next authorized action.', 'Choose Identity Response for the handoff.'],
+    [Boolean((practice.notes || '').trim()), 'Analyst Work Notes', 'Documented: the handoff has the evidence it needs.', 'Add concise analyst work notes with the evidence and recommended handoff.'],
+  ];
+  const correct = checks.filter(([isCorrect]) => isCorrect).length;
+  return `<div class="m01cc-feedback ${correct === checks.length ? 'is-pass' : 'is-coaching'}" id="m01cc-feedback" tabindex="-1" role="status">
+    <strong>Guided Lab feedback · ${correct}/${checks.length} decisions aligned</strong>
+    <ul class="m01cc-feedback-list">${checks.map(([isCorrect, label, correctMessage, correction]) => `<li><i class="ri-${isCorrect ? 'check' : 'information'}-circle-fill" aria-hidden="true"></i><strong>${esc(label)}:</strong> ${esc(isCorrect ? correctMessage : correction)}</li>`).join('')}</ul>
+    <p>${correct === checks.length ? 'Well reasoned. Guided Lab is complete; continue to the independent Assessment Lab.' : 'Review the notes above, update the case if needed, then resubmit to see the coaching again.'}</p>
   </div>`;
 }
 
@@ -724,28 +750,31 @@ function moduleOneEvidenceList(scenario, reviewed, attribute, disabled = false) 
       </button></li>`).join('')}</ul>`;
 }
 
-function moduleOneTicketSelect(name, label, value, options, disabled) {
-  return `<label class="m01-ticket-field"><span>${esc(label)}</span><select name="${esc(name)}" ${disabled ? 'disabled' : ''}>
+function moduleOneTicketSelect(name, label, value, options, disabled, isCorrect = false) {
+  return `<label class="m01-ticket-field"><span>${esc(label)}</span><select class="${isCorrect ? 'is-correct' : ''}" name="${esc(name)}" ${disabled ? 'disabled' : ''}>
     <option value="">Select…</option>${options.map((option) => `<option value="${esc(option.id)}" ${value === option.id ? 'selected' : ''}>${esc(option.text)}</option>`).join('')}
   </select></label>`;
 }
 
 function moduleOneTicketFields(state, spec) {
   const disabled = spec.disabled === true;
+  const guided = spec.guided === true;
+  const entitySelects = spec.entitySelects === true;
   const escalationRequired = state.escalation === 'required';
   const severityOptions = [{ id: 'critical', text: 'Critical' }, { id: 'high', text: 'High' }, { id: 'medium', text: 'Medium' }, { id: 'low', text: 'Low' }];
   const dispositionOptions = spec.dispositionOptions.map((option) => ({
     id: option.id,
     text: ({ 'true-positive': 'Confirmed malicious activity', 'benign-positive': 'Benign activity', 'false-positive': 'False positive', 'enterprise-breach': 'Enterprise-wide incident' })[option.id] || option.text,
   }));
-  return `<div class="m01-ticket-case"><strong>CASE ${esc(spec.caseId || '')}</strong>${moduleOneTicketSelect('status', 'Status', state.status, [{ id: 'in-progress', text: 'In Progress' }, { id: 'pending', text: 'Pending' }, { id: 'resolved', text: 'Resolved' }], disabled)}</div>
+  return `<div class="m01-ticket-case"><strong>CASE ${esc(spec.caseId || '')}</strong>${moduleOneTicketSelect('status', 'Status', state.status, [{ id: 'in-progress', text: 'In Progress' }, { id: 'pending', text: 'Pending' }, { id: 'resolved', text: 'Resolved' }], disabled, guided && state.status === 'in-progress')}</div>
     <div class="m01-ticket-grid">
-      ${moduleOneTicketSelect('severity', 'Severity', state.severity || state.priority, severityOptions, disabled)}
-      <label class="m01-ticket-field"><span>Affected User</span><button type="button" class="m01-entity-control ${state.affectedUser ? 'is-selected' : ''}" data-m01-entity="user" ${disabled ? 'disabled' : ''}>${state.affectedUser || 'Add user'} <i class="ri-add-line" aria-hidden="true"></i></button></label>
-      <label class="m01-ticket-field"><span>Affected Device</span><button type="button" class="m01-entity-control ${state.affectedDevice ? 'is-selected' : ''}" data-m01-entity="device" ${disabled ? 'disabled' : ''}>${state.affectedDevice || 'Add device'} <i class="ri-add-line" aria-hidden="true"></i></button></label>
-      ${moduleOneTicketSelect('disposition', 'Disposition', state.disposition || state.verdict, dispositionOptions, disabled)}
-      ${moduleOneTicketSelect('escalation', 'Escalation required', state.escalation, [{ id: 'required', text: 'Required' }, { id: 'not-required', text: 'Not required' }], disabled)}
-      ${escalationRequired ? moduleOneTicketSelect('escalateTo', 'Escalate to', state.escalateTo, [{ id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], disabled) : ''}
+      ${moduleOneTicketSelect('severity', 'Severity', state.severity || state.priority, severityOptions, disabled, guided && state.priority === 'high')}
+      ${entitySelects
+        ? `${moduleOneTicketSelect('affectedUser', 'Affected User', state.affectedUser, [{ id: 'a.chen', text: 'a.chen' }, { id: 's.kim', text: 's.kim' }, { id: 'd.williams', text: 'd.williams' }], disabled)}${moduleOneTicketSelect('affectedDevice', 'Affected Device', state.affectedDevice, [{ id: 'LAP-442', text: 'LAP-442' }, { id: 'FS-02', text: 'FS-02' }, { id: 'WKS-14', text: 'WKS-14' }], disabled)}`
+        : `<label class="m01-ticket-field"><span>Affected User</span><button type="button" class="m01-entity-control ${guided && state.affectedUser === 'j.santos' ? 'is-correct' : ''}" data-m01-entity="user" ${disabled ? 'disabled' : ''}>${state.affectedUser || 'Add user'} <i class="ri-add-line" aria-hidden="true"></i></button></label><label class="m01-ticket-field"><span>Affected Device</span><button type="button" class="m01-entity-control ${guided && state.affectedDevice === 'WKS-14' ? 'is-correct' : ''}" data-m01-entity="device" ${disabled ? 'disabled' : ''}>${state.affectedDevice || 'Add device'} <i class="ri-add-line" aria-hidden="true"></i></button></label>`}
+      ${moduleOneTicketSelect('disposition', 'Disposition', state.disposition || state.verdict, dispositionOptions, disabled, guided && state.verdict === 'true-positive')}
+      ${moduleOneTicketSelect('escalation', 'Escalation required', state.escalation, [{ id: 'required', text: 'Required' }, { id: 'not-required', text: 'Not required' }], disabled, guided && state.escalation === 'required')}
+      ${escalationRequired ? moduleOneTicketSelect('escalateTo', 'Escalate to', state.escalateTo, [{ id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], disabled, guided && state.escalateTo === 'identity-response') : ''}
     </div>
     <label class="m01-ticket-field m01-ticket-notes"><span>Analyst Work Notes</span><textarea name="notes" rows="6" placeholder="Record the evidence, your assessment, confirmed scope, and handoff needed by the next analyst." ${disabled ? 'disabled' : ''}>${esc(state.notes || '')}</textarea></label>
     ${state.actionHistory?.length ? `<details class="m01-action-history"><summary>Action history (${state.actionHistory.length})</summary><ul>${state.actionHistory.slice(-8).reverse().map((entry) => `<li>${esc(entry.action)}</li>`).join('')}</ul></details>` : ''}`;
@@ -765,7 +794,7 @@ function moduleOneLabLaunchCard() {
   return `<div class="m01-lab-launch">
     <a class="m01-hero-action" href="?console=practice${esc(location.hash)}" target="_blank" rel="opener">
       <i class="${complete ? 'ri-refresh-line' : started ? 'ri-terminal-box-line' : 'ri-play-circle-line'}" aria-hidden="true"></i>
-      ${complete ? 'Review the case' : started ? 'Resume Module Lab' : 'Launch Module Lab'}</a>
+      ${complete ? 'Review the case' : started ? 'Resume Guided Lab' : 'Launch Guided Lab'}</a>
     <p class="m01-lab-launch-status">${complete
       ? 'Case checked. Opens the case console in a new tab if you want to review it.'
       : 'Opens the case console in a new tab — a small, focused workspace for this one case, not the full SOC range.'}</p>
@@ -864,8 +893,8 @@ function moduleOneCaseConsolePane() {
         <form id="m01-practice-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: false })}
           <div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-practice-save>Save</button><button type="button" class="m01-submit" data-m01-practice-check>Submit Case</button></div>
         </form>
-        ${moduleOneState.completed && moduleOneState.consoleCompleted
-          ? `<div class="m01cc-feedback is-pass" id="m01cc-feedback" tabindex="-1" role="status">Case submitted. Your work and action history are the record — there is no live score.</div>`
+        ${moduleOneState.consoleCompleted
+          ? moduleOneGuidedLabFeedback()
           : moduleOneState.validationError
             ? `<div class="m01cc-feedback is-error" id="m01cc-feedback" tabindex="-1" role="alert">${esc(moduleOneState.validationError)}</div>`
             : ''}
@@ -922,7 +951,7 @@ function moduleOneProveItLaunchCard() {
   return `<div class="m01-lab-launch">
     <a class="m01-hero-action" href="?console=prove${esc(location.hash)}" target="_blank" rel="opener">
       <i class="${submitted ? 'ri-eye-line' : redoRequested ? 'ri-refresh-line' : 'ri-play-circle-line'}" aria-hidden="true"></i>
-      ${submitted ? 'Review the case' : redoRequested ? 'Resume Module Lab' : (state.actionHistory || []).length ? 'Resume Module Lab' : 'Launch Module Lab'}</a>
+      ${submitted ? 'Review the case' : redoRequested ? 'Resume Assessment Lab' : (state.actionHistory || []).length ? 'Resume Assessment Lab' : 'Launch Assessment Lab'}</a>
     <p class="m01-lab-launch-status">${submitted
       ? 'Submitted for faculty review. Opens the case console in a new tab if you want to review it.'
       : redoRequested
@@ -967,7 +996,7 @@ function moduleOneProveItCaseConsolePane() {
       </section>
       <section class="m01-console-pane m01-console-ticket" aria-label="Incident / case record">
         <p class="m01-console-pane-title">Incident / Case Record</p>
-        <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted })}
+        <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted, entitySelects: true })}
           ${!submitted ? `<div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-save-proveit>Save</button><button type="button" class="m01-submit" data-m01-submit-proveit ${requirements.length ? 'disabled' : ''}>Submit Case</button></div>` : ''}
         </form>
         ${moduleOneProveItSubmissionPanel()}
@@ -979,8 +1008,8 @@ function moduleOneProveItCaseConsolePane() {
 // LMS-side card only, same rule as Practice It: the console lives in its
 // own tab, not embedded here.
 function moduleOneReview() {
-  return `<div id="m01-review">${moduleOneProveItLaunchCard()}</div>
-    <p class="m01-instruction">You are ready to review when you can separate events, alerts, and incidents; explain your evidence; choose a proportionate priority; and hand off work with an owner and verification step.</p><ul><li>Start with evidence and state uncertainty.</li><li>Use severity with context to set priority.</li><li>Escalate when impact or authority exceeds your boundary.</li><li>Close only after verification is recorded.</li></ul>
+  return `<div id="m01-review">${moduleOneProveItLaunchCard()}
+    <p class="m01-instruction">Work the independent case from the evidence, then document a clear, proportionate handoff.</p>
   </div>`;
 }
 
@@ -1039,11 +1068,11 @@ function moduleOneGetQuickNavItems() {
 }
 
 /* All 5 numbered page sections, for moduleUnifiedNav(). Foundations and
- * Module Lab nest their granular items (moduleOneGetQuickNavItems());
+ * Guided Lab nest their granular items (moduleOneGetQuickNavItems());
  * the flow/lifecycle/loop companion reading lives inline inside Foundations
  * (see moduleOneLessonCompanion()), not as its own nav section — it has no
  * completion state of its own. Knowledge Check sits between Foundations and
- * Module Lab (matching every other module's order: read, then prove
+ * Guided Lab (matching every other module's order: read, then prove
  * retention, then do the graded work) — sources is read-only explanatory
  * content — `gated: false` marks it always navigable, excluded from the
  * lock/current-position chain. */
@@ -1053,8 +1082,8 @@ function moduleOneGetNavSections() {
   return [
     { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: progress.lessonsComplete === progress.lessonsTotal, scrollId: 'm01-foundations', items: quickNavItems.filter((i) => i.kind === 'lesson') },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: progress.knowledgeCheckComplete, scrollId: 'm01-knowledge-check' },
-    { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: progress.labComplete, scrollId: 'm01-guided-lab', items: quickNavItems.filter((i) => i.kind === 'lab') },
-    { id: 'review', title: 'Module Review', type: 'review', isComplete: progress.complete, scrollId: 'm01-review' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: progress.guidedLabComplete, scrollId: 'm01-guided-lab' },
+    { id: 'review', title: 'Assessment Lab', type: 'review', isComplete: progress.assessmentLabComplete, scrollId: 'm01-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm01-sources-section', gated: false, supplemental: true },
   ];
 }
@@ -1091,7 +1120,7 @@ function viewModuleOne(user, program) {
         </div>
         <dl class="m01-progress" aria-label="Saved lab progress">
           <div><dt>Foundation lessons</dt><dd>${module.lessons}</dd></div>
-          <div><dt>Module Lab</dt><dd id="m01-lab-count">${progress.labComplete ? 'Complete' : progress.labStarted ? 'In progress' : 'Not started'}</dd></div>
+          <div><dt>Guided Lab</dt><dd id="m01-lab-count">${progress.guidedLabComplete ? 'Complete' : progress.guidedLabStarted ? 'In progress' : 'Not started'}</dd></div>
           <div><dt>Module status</dt><dd id="m01-status">${progress.complete ? 'Complete' : 'In progress'}</dd></div>
         </dl>
       </section>
@@ -1184,22 +1213,22 @@ function viewModuleOne(user, program) {
       <section class="m01-section m01-section-collapsible m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
         <div class="m01-section-heading">
           <span>3</span>
-          <div><p class="m01-kicker">Practice It · guided case · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
-          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lab" data-m01-section-label="lab block" aria-expanded="${openFor('lab')}" aria-controls="m01-guided-lab-body" aria-label="${openFor('lab') ? 'Collapse' : 'Expand'} lab block">
+          <div><p class="m01-kicker">Practice It · Guided Lab · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
+          <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lab" data-m01-section-label="guided lab" aria-expanded="${openFor('lab')}" aria-controls="m01-guided-lab-body" aria-label="${openFor('lab') ? 'Collapse' : 'Expand'} guided lab">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
         </div>
         <div class="m01-lab-body" id="m01-guided-lab-body" ${openFor('lab') ? '' : 'hidden'}>
           <div class="m01-lab-brief">
             <i class="ri-user-star-line" aria-hidden="true"></i>
-            <div><strong>Practice, then prove it</strong><p>This guided case is coached and ungraded — retry it as many times as you like. Your graded work is the independent case under Module Review (Prove It) below.</p></div>
+            <div><strong>Guided practice</strong><p>This coached case is ungraded and retryable. Complete the independent Assessment Lab in Prove It when you are ready.</p></div>
           </div>
           <div id="m01-lab-dynamic">${moduleOneLabDynamic()}</div>
         </div>
       </section>
 
       <section class="m01-section m01-section-collapsible" id="m01-review-section" aria-labelledby="m01-review-title">
-        <div class="m01-section-heading"><span>4</span><div><p class="m01-kicker">Module review</p><h2 id="m01-review-title">Carry the reasoning into your next investigation</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="review" data-m01-section-label="module review" aria-expanded="${openFor('review')}" aria-controls="m01-review-body" aria-label="${openFor('review') ? 'Collapse' : 'Expand'} module review"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
+        <div class="m01-section-heading"><span>4</span><div><p class="m01-kicker">Prove It · Assessment Lab</p><h2 id="m01-review-title">Independent alert assessment</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="review" data-m01-section-label="assessment lab" aria-expanded="${openFor('review')}" aria-controls="m01-review-body" aria-label="${openFor('review') ? 'Collapse' : 'Expand'} assessment lab"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
         <div class="m01-section-body" id="m01-review-body" ${openFor('review') ? '' : 'hidden'}>${moduleOneReview()}</div>
       </section>
 
@@ -1378,6 +1407,7 @@ function wireModuleOneCaseConsole() {
         practice.actionHistory.push({ action: 'Submitted case', at: new Date().toISOString() });
         if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
         moduleOneSyncCompletion();
+        window.opener?.postMessage({ type: 'm01-guided-lab-complete' }, location.origin);
       }
       moduleOneSave(); rerender('m01cc-feedback');
       return;
@@ -1448,11 +1478,14 @@ function wireModuleOneProveItCaseConsole() {
   });
   root.addEventListener('change', (event) => {
     const input = event.target;
-    if (['status', 'severity', 'disposition', 'escalation', 'escalateTo'].includes(input.name)) {
+    if (['status', 'severity', 'affectedUser', 'affectedDevice', 'disposition', 'escalation', 'escalateTo'].includes(input.name)) {
       const key = input.name === 'severity' ? 'priority' : input.name === 'disposition' ? 'verdict' : input.name;
       moduleOneState.lab2[key] = input.value;
       if (input.name === 'severity') moduleOneState.lab2.severity = input.value;
       if (input.name === 'disposition') moduleOneState.lab2.disposition = input.value;
+      if (input.name === 'affectedUser' || input.name === 'affectedDevice') {
+        moduleOneState.lab2.intake = moduleOneState.lab2.affectedUser && moduleOneState.lab2.affectedDevice ? 'identity-and-laptop' : '';
+      }
       moduleOneState.lab2.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
       moduleOneSave();
       // Keep the "still required" checklist and submit gating honest —
@@ -1473,6 +1506,9 @@ function wireModuleOneLab() {
   wireModuleOneCaseConsole();
   wireModuleOneProveItCaseConsole();
   if (document.getElementById('m01cc-app') || document.getElementById('m01pc-app')) return;
+  window.addEventListener('message', (event) => {
+    if (event.origin === location.origin && event.data?.type === 'm01-guided-lab-complete') location.reload();
+  });
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
     reviewToggle.addEventListener('click', () => {

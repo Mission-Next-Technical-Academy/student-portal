@@ -27,6 +27,23 @@ was ported to the same `?console=prove`-driven, new-tab case-console
 pattern as Practice It, with its own `logEvents` (identity/endpoint/proxy
 sources). Both consoles live-verified in Chrome.
 
+**Naming correction, same day:** Module 1 calls the Practice It surface
+**Guided Lab** and the Prove It surface **Assessment Lab** throughout the
+learner rail, progress summary, card headers, and launch/resume actions. The
+Assessment Lab LMS card is intentionally concise; the independent work is
+completed in its separate case-console tab.
+
+**Feedback and gating correction, same day:** Guided Lab gives immediate
+coaching feedback after submission. Assessment Lab remains teacher-graded and
+does not expose evaluative feedback or a score to the learner. Completing
+Guided Lab now unlocks Assessment Lab immediately in the originating LMS tab.
+
+**Assessment approval refresh, same day:** returning to a program/module
+dashboard re-fetches the authoritative completion and redo state, so a faculty
+approval clears a stale redo notice and turns the completion dot green. Open
+redo records are available in the appropriate admin/faculty Grading tab for
+reversal of an accidental return.
+
 **Also done, same day, cross-course:** "Sources & Further Reading" got a
 fully detached "Reference" nav panel (own card, real gap, never touching
 the graded-phase menu) rolled out to every module across SOC Analyst,

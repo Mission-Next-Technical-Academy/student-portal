@@ -9,6 +9,41 @@ pointer and must not become a second task queue.
 The prior chronological engineering handoff is preserved at
 `archive/session-logs/HANDOFF_THROUGH_2026-09-10.md`.
 
+## Module 1 learner-facing lab names corrected, 2026-09-21
+
+Module 1 now uses the requested stage names throughout the learner-facing
+rail, progress summary, cards, and launch/resume actions: **Practice It →
+Guided Lab** and **Prove It → Assessment Lab**. The former generic labels
+"Module Lab" and "Module Review" remain only in unrelated historical notes
+or internal implementation identifiers. The Assessment Lab LMS card is now
+intentionally concise because the independent work belongs in its separate
+case-console tab.
+
+**Follow-up correction:** Guided Lab now gives immediate coaching feedback
+after submission (scope, priority, disposition, and handoff guidance).
+Assessment Lab deliberately gives no student-facing evaluative feedback or
+score; it submits the independent case for teacher grading. The stages now
+have separate completion flags, so finishing Guided Lab unlocks Assessment
+Lab instead of leaving the learner in the amber current state.
+
+Guided Lab's feedback now uses the exact case-record labels (Status, Affected
+User, Affected Device, Severity, Disposition, Escalation required, Escalate
+to, and Analyst Work Notes) and states the required correction. Its green
+field highlights appear only for correct Guided Lab choices. Assessment Lab
+starts with Select placeholders for every choice, including Status and its
+own Affected User/Device dropdowns; it never shows correctness highlighting.
+
+## Assessment review refresh and redo recovery, 2026-09-21
+
+Learner program/module returns now re-fetch the institutional completion and
+redo records. An instructor approval therefore clears a stale redo banner and
+populates the module-completion dot from `student_verified_module_progress`
+without relying on the learner's old cached session. The new
+`admin_open_lab_redos` and course-scoped `faculty_open_lab_redos` views also
+keep currently sent-back attempts visible in the Grading tab, where faculty can
+reverse an accidental return with **Approve without resubmission**. That action
+clears the same latest-attempt `redo_requested` flag the learner portal uses.
+
 ## Sources & Further Reading — detached "Reference" panel, platform-wide, 2026-09-21 (later still)
 
 Owner feedback on the earlier same-day nav-grouping fix: the "Reference"

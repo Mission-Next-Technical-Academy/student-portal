@@ -957,18 +957,15 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
  * discretion (owner's framing, 2026-09-13). Sending back always requests a
  * full resubmission of the lab attempt, not a per-field patch. See
  * lab-grading-notification-system/ for the brief and schema decisions. */
-function adminGradingQueuePanel(gradingQueueRows) {
-  if (!gradingQueueRows || gradingQueueRows.length === 0) {
+function adminGradingQueuePanel(gradingQueueRows, openLabRedoRows = []) {
+  const pendingRows = gradingQueueRows || [];
+  const redoRows = openLabRedoRows || [];
+  if (pendingRows.length === 0 && redoRows.length === 0) {
     return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Grading</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div>
       <div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">Nothing waiting on review. Every completed lab attempt has been graded.</p></div>`;
   }
-  return `<div class="mb-6">
-      <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Grading</h2>
-      <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-      <p class="text-gray-500 text-sm">${gradingQueueRows.length} completed lab attempt${gradingQueueRows.length === 1 ? '' : 's'} awaiting review. The score below is the system's own pregraded result — your job is to confirm it, flag anything it missed, and (if it's not passing) send back specific, written guidance for a redo.</p>
-    </div>
-    <div class="space-y-4">
-      ${gradingQueueRows.map((row) => {
+  const pendingPanel = pendingRows.length ? `<div class="space-y-4">
+      ${pendingRows.map((row) => {
         const threshold = row.pass_threshold ?? 70;
         const hasScore = row.score !== null && row.score !== undefined;
         const passing = hasScore && Number(row.score) >= Number(threshold);
@@ -1039,7 +1036,14 @@ function adminGradingQueuePanel(gradingQueueRows) {
           </div>
         </article>`;
       }).join('')}
-    </div>`;
+    </div>` : `<div class="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center"><p class="text-gray-500 text-sm">No new submissions are waiting for review.</p></div>`;
+  const redoPanel = redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminLabLabel(row.lab_key))} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2"><button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button><span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
+  return `<div class="mb-6">
+      <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Grading</h2>
+      <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
+      <p class="text-gray-500 text-sm">${pendingRows.length} completed lab attempt${pendingRows.length === 1 ? '' : 's'} awaiting review. The score below is the system's own pregraded result — your job is to confirm it, flag anything it missed, and (if it's not passing) send back specific, written guidance for a redo.</p>
+    </div>
+    ${pendingPanel}${redoPanel}`;
 }
 
 // Faculty review must show the student's actual artifact, not only the
@@ -5610,6 +5614,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const archivedStudents = (extra && extra.archivedStudents) || [];
   const siteSessionsByStudentId = (extra && extra.siteSessionsByStudentId) || new Map();
   const gradingQueueRows = (extra && extra.gradingQueueRows) || [];
+  const openLabRedoRows = (extra && extra.openLabRedoRows) || [];
   const unreadMessageRows = (extra && extra.unreadMessageRows) || [];
   const facultyMessageRows = (extra && extra.facultyMessageRows) || [];
   const facultyMessageTrackCodes = new Set((extra && extra.facultyMessageTrackCodes) || []);
@@ -5646,6 +5651,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // inside a specific track's workspace.
   const trackGradingQueueRows = activeTrackCode
     ? gradingQueueRows.filter((row) => row.track_code === activeTrackCode)
+    : [];
+  const trackOpenLabRedoRows = activeTrackCode
+    ? openLabRedoRows.filter((row) => row.track_code === activeTrackCode)
     : [];
   const trackFacultyMessageRows = activeTrackCode
     ? facultyMessageRows.filter((row) => row.track_code === activeTrackCode)
@@ -6258,7 +6266,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
         </div>
 
         ${activeTrackCode ? `<div id="admin-tab-panel-grading" ${tabIsActive('grading') ? '' : 'hidden'}>
-          ${adminGradingQueuePanel(trackGradingQueueRows)}
+          ${adminGradingQueuePanel(trackGradingQueueRows, trackOpenLabRedoRows)}
         </div>` : ''}
         ${activeTrackCode ? `<div id="admin-tab-panel-messages" ${tabIsActive('messages') ? '' : 'hidden'}>
           ${adminMessageInboxPanel(trackFacultyMessageRows)}
@@ -6425,6 +6433,21 @@ async function render(options = {}) {
   if (hash === '#/login') {
     history.replaceState(null, '', '#/portal');
     // fall through and render the portal
+    hash = '#/portal';
+  }
+
+  // Faculty decisions are made in a separate session and update the
+  // institutional lab_attempts record after the learner's session object was
+  // built. Re-fetch the learner detail whenever they return to a program or
+  // the module dashboard so an approved attempt immediately removes any
+  // formerly-open redo banner. This applies to every technical track; cached
+  // profile and enrollment data remains intact.
+  const isLearnerReturnRoute = hash === '#/portal' || /^#\/program\//.test(hash);
+  if (isLearnerReturnRoute && !user.isAdmin && !user.isInstructor) {
+    const refreshedDetails = await fetchUserDetails(user.userId, user.trackCode);
+    if (!isCurrentRouteRender(renderGeneration)) return;
+    Object.assign(user, refreshedDetails);
+    _cachedUser = user;
   }
 
   // Administrative accounts retain the cross-course dashboard. Instructor
@@ -6449,6 +6472,7 @@ async function render(options = {}) {
   let activeStudents = [];
   let cheatingFlagsByUserId = new Map();
   let gradingQueueRows = [];
+  let openLabRedoRows = [];
   let unreadMessageRows = [];
   let facultyMessageRows = [];
   let facultyMessageTrackCodes = [];
@@ -6530,6 +6554,23 @@ async function render(options = {}) {
       if (gradingResult.error) console.error('admin_grading_queue fetch failed', gradingResult.error);
       gradingQueueRows = gradingResult.data || [];
 
+      // A sent-back attempt is deliberately absent from the pending queue, but
+      // it remains the learner's active state until another attempt replaces
+      // it. The companion view exposes exactly those live redo records so a
+      // faculty member can correct an accidental return without guessing at
+      // stale history or asking the learner to make a pointless resubmission.
+      const openRedoView = user.isInstructor && !user.isAdmin
+        ? 'faculty_open_lab_redos'
+        : 'admin_open_lab_redos';
+      let openRedoQuery = mntSupabase
+        .from(openRedoView)
+        .select('id, user_id, student_id, track_code, lab_key, score, pass_threshold, result, started_at, completed_at, reviewed_at, reviewed_by')
+        .order('reviewed_at', { ascending: true });
+      if (selectedAdminTrack) openRedoQuery = openRedoQuery.eq('track_code', selectedAdminTrack);
+      const openRedoResult = await openRedoQuery;
+      if (openRedoResult.error) console.error('open lab redo fetch failed', openRedoResult.error);
+      openLabRedoRows = openRedoResult.data || [];
+
       const unreadMessagesResult = await mntSupabase
         .from('admin_unread_student_messages')
         .select('id, thread_id, user_id, student_id, track_code, subject, body, context, created_at')
@@ -6574,6 +6615,7 @@ async function render(options = {}) {
         activeTab: adminActiveTab,
         activeTrackCode: adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null,
         gradingQueueRows,
+        openLabRedoRows,
         unreadMessageRows,
         facultyMessageRows,
         facultyMessageTrackCodes,

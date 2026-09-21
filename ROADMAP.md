@@ -51,7 +51,7 @@ instructor-reviewable artifact. Do not restore a parallel LMS worksheet or
 expose a live student score — both rules still hold, they just now apply to
 the case console instead of the SIEM.
 
-**Built 2026-09-21 for Practice It only** (`portal/soc-analyst-module-01.js`'s
+**Built 2026-09-21 for Practice It** (`portal/soc-analyst-module-01.js`'s
 `viewModuleOneCaseConsole()`, opened via a `?console=practice` query param on
 Module 1's own route, in a new tab): three-pane case console with a real
 sign-in-log table (not pre-summarized evidence cards — click a row to expand
@@ -59,15 +59,14 @@ its raw structured record, which is the actual "read the evidence" action),
 the existing ticket-field record, and a persisted action history. Verified
 live in Chrome: log rows expand and record real actions, Save/Submit Case
 work, completion state round-trips back to the LMS card correctly ("Launch
-Module Lab" → "Resume Module Lab" → "Review the case"), and "Back to Module
+Guided Lab" → "Resume Guided Lab" → "Review the case"), and "Back to Module
 1" correctly leaves the console (an early version of that link only changed
 the hash and left `?console=practice` in the URL, silently reopening the same
 console — fixed to build the href from `location.pathname` instead of a bare
-`#...` string). **Prove It (NST-2407) is unchanged and still uses its older
-embedded-in-page console** (`moduleOneProveItConsole()`) — the same spec
-applies to it, but porting it to the new launch-card/new-tab pattern was kept
-out of scope for this pass; do that next, reusing the same
-`?console=<stage>` mechanism rather than inventing a second one.
+`#...` string). **Prove It (NST-2407) subsequently received the same
+launch-card/new-tab pattern** via `?console=prove`, with its own evidence-log
+table. Its learner-facing label is **Assessment Lab**; Practice It's is
+**Guided Lab**.
 
 The tour is orientation, not the assessment. It may observe real UI telemetry,
 but it must not be the sole completion or grading evidence. The detailed
