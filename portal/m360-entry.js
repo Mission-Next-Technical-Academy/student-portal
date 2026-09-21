@@ -14,7 +14,8 @@
  * This compatibility layer exists so the student dashboard can be corrected
  * without editing the large shared app.js while SOC Analyst and IT Help Desk
  * builds are active in parallel. The shell overrides below are deliberately
- * narrow: viewPortal() and wireLogin() only.
+ * narrow: viewPortal() only. Authentication and its loading state stay owned
+ * by app.js, which is the one authoritative login flow.
  *
  * Gate 6 migration note: the prior post-login overlay used POST_LOGIN_KEY,
  * `event !== 'SIGNED_IN'`, `location.hash.startsWith('#/program/')`, and
@@ -108,45 +109,6 @@
         </section>
       </main>
       ${footer()}`;
-    };
-  }
-
-  // Restore the login destination at the source instead of redirecting the
-  // student after the technical program has already rendered. The verified
-  // SOC Module 1 coach-return path remains the one exception, and Admin still
-  // routes to #/admin through app.js's existing admin-only rule.
-  if (typeof wireLogin === 'function') {
-    wireLogin = function wireLoginToMyPrograms() {
-      const form = document.getElementById('login-form');
-      if (!form) return;
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const email = form.email.value;
-        const password = form.password.value;
-        const result = await signIn(email, password);
-        if (result && typeof result === 'object') {
-          const coachReturn = new URLSearchParams(location.search).get('coachComplete');
-          const returnToModule = coachReturn === 'm01' && location.hash === '#/program/soc-analyst/module/1';
-          history.replaceState(
-            null,
-            '',
-            returnToModule
-              ? location.pathname + location.search + location.hash
-              : '#/portal'
-          );
-          render();
-          return;
-        }
-
-        const messages = {
-          session_limit: 'Maximum active sessions reached for this account. Sign out on another device or tab, then try again.',
-          geo_blocked: 'Sign-in is not available from your current location.',
-        };
-        const errorText = document.getElementById('login-error-text');
-        const errorBox = document.getElementById('login-error');
-        if (errorText) errorText.textContent = messages[result] || 'That username and password combination was not recognized.';
-        if (errorBox) errorBox.classList.remove('hidden');
-      });
     };
   }
 

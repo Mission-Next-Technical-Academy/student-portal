@@ -5,7 +5,29 @@ let alerts = SEED_ALERTS.map(a => ({ ...a, event: { ...a.event } }));
 let rules = loadRules();
 let lastAttackStorySelection = null;
 
+// Mirrors portal/soc-analyst-module-01.js's MODULE_ONE_SIMULATOR_REQUIREMENTS
+// action keys (not the labels — those stay portal-side, in Prove It). Kept
+// local so the floating corner-dock progress indicator (ui/coach.js) works
+// purely inside the simulator, independent of the opener/postMessage path
+// below (which can be unavailable — closed opener, private mode, etc).
+const NST_2407_REQUIRED_ACTIONS = [
+  'incident_opened',
+  'alert_opened:NST-2407-1', 'alert_opened:NST-2407-2', 'alert_opened:NST-2407-3', 'alert_opened:NST-2407-4',
+  'entity_opened:a.chen@missionnextlabs.example', 'entity_opened:LAP-442',
+  'escalated',
+];
+
 function recordAssignedCaseAction(caseId, action) {
+  if (caseId === 'NST-2407' && NST_2407_REQUIRED_ACTIONS.includes(action)) {
+    try {
+      const key = `mnt.case.progress.${caseId}`;
+      const done = new Set(JSON.parse(sessionStorage.getItem(key) || '[]'));
+      if (!done.has(action)) {
+        done.add(action);
+        sessionStorage.setItem(key, JSON.stringify([...done]));
+      }
+    } catch { /* private mode — the floating indicator just won't persist */ }
+  }
   if (caseId !== 'NST-2407' || !window.opener || window.opener.closed) return;
   // Local development runs the portal and simulator on sibling ports; deployed
   // Pages uses one origin. document.referrer gives the opener origin in both.

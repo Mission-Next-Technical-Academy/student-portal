@@ -70,12 +70,26 @@ const MODULE_ONE_DEFAULT_STATE = {
   validationError: '',
   lastSubmittedAt: '',
   attempts: 0,
+  // Practice is deliberately the same job-shaped case record as Prove It.
+  // Its coaching reacts to what the learner opens and records, rather than
+  // asking them to type facts back into a disguised quiz.
+  practice: {
+    status: 'in-progress', affectedUser: '', affectedDevice: '', severity: '',
+    disposition: '', escalation: '', escalateTo: '', notes: '', actionHistory: [],
+  },
   lessonWork: {},
   sectionOpen: { checklist: false, foundations: true, lab: false, quiz: false, review: false, sources: false },
   quiz: { selectedQuestions: [], questionsByAnswer: {}, answers: {}, scored: false, attempts: 0, score: 0, bestScore: 0, feedback: [], passed: false },
-  // Retained as the completion marker for the independent simulator case.
-  lab2: { completed: false },
-  simulatorPerformance: { actions: [], submitted: false, submittedAt: '' },
+  // Prove It: a fresh, minimal-guidance case worked in the same case-console
+  // family as Practice It. The one graded artifact for Module 1.
+  lab2: {
+    completed: false, submitted: false, submittedAt: '',
+    reviewedEvidence: [], intake: '', priority: '', containment: '', verdict: '',
+    status: 'in-progress', affectedUser: '', affectedDevice: '', escalation: '', escalateTo: '',
+    notes: '', actionHistory: [],
+    handoff: { observations: '', analysis: '', scope: '', nextAction: '' },
+    validationError: '', attempts: 0, score: null, breakdown: null,
+  },
 };
 
 let moduleOneState = null;
@@ -85,62 +99,38 @@ let moduleOneQuizState = null;
 let moduleOneReviewMode = false;
 let moduleOneLastSyncedDetail = null;
 
-// The simulator is opened in a separate window but shares this origin. It
-// sends only allow-listed action records; this portal writes the attempt.
-// 'submit_for_faculty' is a second, separate message type (not an
-// allow-listed evidence action) that lets the student finish the whole
-// submission from inside the simulator, without a return trip to this tab —
-// it runs the exact same finalization as the portal-side fallback button.
-if (!window.__moduleOneSimulatorTelemetryListener) {
-  window.__moduleOneSimulatorTelemetryListener = true;
-  window.addEventListener('message', (event) => {
-    if (event.origin !== new URL(SIM_ORIGIN).origin) return;
-    const data = event.data || {};
-    if (data.source !== 'mission-next-siem' || data.caseId !== 'NST-2407' || typeof data.action !== 'string' || !moduleOneState) return;
-    if (data.action === 'submit_for_faculty') {
-      moduleOneFinalizeSimulatorSubmission();
-      return;
-    }
-    const allowed = new Set(MODULE_ONE_SIMULATOR_REQUIREMENTS.map(([action]) => action));
-    if (!allowed.has(data.action)) return;
-    const actions = moduleOneState.simulatorPerformance?.actions || [];
-    if (!actions.some((item) => item.action === data.action)) {
-      actions.push({ action: data.action, at: new Date().toISOString() });
-      moduleOneState.simulatorPerformance.actions = actions;
-      moduleOneSave();
-      moduleOneRenderDynamic();
-    }
-  });
-}
-
-// Shared by the portal-side fallback "Complete Module" button and the
-// simulator's own "Submit Module Lab" button (postMessage action
-// 'submit_for_faculty') — one finalization path, two entry points.
-function moduleOneFinalizeSimulatorSubmission() {
-  const performance = moduleOneSimulatorPerformance();
-  if (performance.missed_actions.length || moduleOneState.simulatorPerformance.submitted) return;
-  moduleOneState.simulatorPerformance.submitted = true;
-  moduleOneState.simulatorPerformance.submittedAt = new Date().toISOString();
-  moduleOneState.lab2.completed = true;
-  moduleOneSave();
-  if (typeof recordLabAttempt === 'function') {
-    recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { simulator_performance: performance, breakdown: { overall: performance.score }, critical_errors: performance.unsafe_actions } })
-      .then((saved) => {
-        // The new append-only attempt supersedes the returned attempt in the
-        // student UI. Faculty approval remains required by the server view.
-        if (saved && moduleOneSimulatorRedoRequested()) delete moduleOneUser.openLabRedosByModuleKey['soc-01'];
-      });
-  }
-  if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
-  moduleOneSyncCompletion(); moduleOneRenderDynamic('m01-siem-submission'); moduleOneRefreshHeroProgress();
-}
-
 function moduleOneRemoteComplete() {
   return moduleOneUser?.remoteVerifiedModuleProgress?.['soc-01'] === true;
 }
 
-function moduleOneSimulatorRedoRequested() {
+function moduleOneProveItRedoRequested() {
   return moduleOneUser?.openLabRedosByModuleKey?.['soc-01']?.labKey === 'lab-soc-escalation';
+}
+
+// Prove It is Module 1's one graded artifact: a fresh case worked in the same
+// case-console interface as Practice It, minimal guidance, submitted to the
+// instructor. No live score is shown to the student — confirmation only.
+function moduleOneFinalizeProveIt() {
+  const performance = moduleOneProveItPerformance();
+  if (performance.missing.length || moduleOneState.lab2.submitted) return;
+  moduleOneState.lab2.submitted = true;
+  moduleOneState.lab2.submittedAt = new Date().toISOString();
+  moduleOneState.lab2.completed = true;
+  moduleOneState.lab2.attempts = (moduleOneState.lab2.attempts || 0) + 1;
+  moduleOneState.lab2.score = performance.score;
+  moduleOneState.lab2.breakdown = performance.breakdown;
+  moduleOneState.lab2.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleOneState.lab2.submittedAt });
+  moduleOneSave();
+  if (typeof recordLabAttempt === 'function') {
+    recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2 } })
+      .then((saved) => {
+        // The new append-only attempt supersedes the returned attempt in the
+        // student UI. Faculty approval remains required by the server view.
+        if (saved && moduleOneProveItRedoRequested()) delete moduleOneUser.openLabRedosByModuleKey['soc-01'];
+      });
+  }
+  if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
+  moduleOneSyncCompletion(); moduleOneRenderReviewDynamic('m01-review-submission'); moduleOneRefreshHeroProgress();
 }
 
 function moduleOneLoad(user) {
@@ -154,15 +144,26 @@ function moduleOneLoad(user) {
   Object.keys(MODULE_ONE_DEFAULT_STATE.sectionOpen).forEach((key) => { if (typeof moduleOneState.sectionOpen[key] !== 'boolean') moduleOneState.sectionOpen[key] = MODULE_ONE_DEFAULT_STATE.sectionOpen[key]; });
   if (!moduleOneState.quiz || typeof moduleOneState.quiz !== 'object') moduleOneState.quiz = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.quiz));
   if (!moduleOneState.lab2 || typeof moduleOneState.lab2 !== 'object') moduleOneState.lab2 = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.lab2));
+  if (!moduleOneState.practice || typeof moduleOneState.practice !== 'object') moduleOneState.practice = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.practice));
+  ['status', 'affectedUser', 'affectedDevice', 'severity', 'disposition', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
+    if (typeof moduleOneState.practice[key] !== 'string') moduleOneState.practice[key] = MODULE_ONE_DEFAULT_STATE.practice[key] || '';
+  });
+  if (!Array.isArray(moduleOneState.practice.actionHistory)) moduleOneState.practice.actionHistory = [];
   if (typeof moduleOneState.lab2.completed !== 'boolean') moduleOneState.lab2.completed = false;
-  if (!moduleOneState.simulatorPerformance || typeof moduleOneState.simulatorPerformance !== 'object') moduleOneState.simulatorPerformance = { actions: [], submitted: false, submittedAt: '' };
-  if (!Array.isArray(moduleOneState.simulatorPerformance.actions)) moduleOneState.simulatorPerformance.actions = [];
+  if (typeof moduleOneState.lab2.submitted !== 'boolean') moduleOneState.lab2.submitted = false;
+  if (!Array.isArray(moduleOneState.lab2.reviewedEvidence)) moduleOneState.lab2.reviewedEvidence = [];
+  ['status', 'affectedUser', 'affectedDevice', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
+    if (typeof moduleOneState.lab2[key] !== 'string') moduleOneState.lab2[key] = MODULE_ONE_DEFAULT_STATE.lab2[key] || '';
+  });
+  if (!Array.isArray(moduleOneState.lab2.actionHistory)) moduleOneState.lab2.actionHistory = [];
+  if (!moduleOneState.lab2.handoff || typeof moduleOneState.lab2.handoff !== 'object') moduleOneState.lab2.handoff = { observations: '', analysis: '', scope: '', nextAction: '' };
+  ['intake', 'priority', 'containment', 'verdict'].forEach((key) => { if (typeof moduleOneState.lab2[key] !== 'string') moduleOneState.lab2[key] = ''; });
   // The returned attempt remains immutable in lab_attempts, but its saved
   // case-state latch must not make the working case permanently unsubmitable.
-  // Scope this reset to an open redo for this exact simulator lab.
-  if (moduleOneSimulatorRedoRequested() && moduleOneState.simulatorPerformance.submitted === true) {
-    moduleOneState.simulatorPerformance.submitted = false;
-    moduleOneState.simulatorPerformance.submittedAt = '';
+  // Scope this reset to an open redo for this exact lab.
+  if (moduleOneProveItRedoRequested() && moduleOneState.lab2.submitted === true) {
+    moduleOneState.lab2.submitted = false;
+    moduleOneState.lab2.submittedAt = '';
     moduleOneSave();
   }
   // `module_progress` historically recorded Module 01 as complete after a
@@ -447,18 +448,25 @@ function moduleOneProgress() {
   const lessonsTotal = MODULE_ONE_ALERT_ORIENTATION.lessons.length;
   const lessonsComplete = MODULE_ONE_ALERT_ORIENTATION.lessons.filter(moduleOneLessonComplete).length;
   const verified = moduleOneRemoteComplete();
-  const labOneComplete = verified || Boolean(moduleOneState?.completed && moduleOneState?.consoleCompleted);
-  const labTwoComplete = verified || Boolean(moduleOneState?.lab2?.completed);
+  // The console walkthrough (formerly "Lab 1") no longer gates completion —
+  // 2026-09-17/18 rebuild decisions relabeled it an on-demand, ungated
+  // orientation. The SIEM assessment (lab2) is Module 1's one graded lab.
+  const labComplete = verified || Boolean(moduleOneState?.lab2?.completed);
+  const labStarted = labComplete || Boolean(
+    moduleOneState?.lab2 && (moduleOneState.lab2.reviewedEvidence?.length || moduleOneState.lab2.intake
+      || moduleOneState.lab2.priority || moduleOneState.lab2.containment || moduleOneState.lab2.verdict),
+  );
   const knowledgeCheckComplete = Boolean(moduleOneQuizState?.passed)
     || moduleOneUser?.remoteModuleEvidence?.['soc-01']?.['knowledge-check'] === true;
-  const complete = verified || (lessonsComplete === lessonsTotal && knowledgeCheckComplete && labOneComplete && labTwoComplete);
+  const complete = verified || (lessonsComplete === lessonsTotal && knowledgeCheckComplete && labComplete);
   return {
     lessonsTotal,
     lessonsComplete,
-    labsComplete: Number(labOneComplete) + Number(labTwoComplete),
+    labComplete,
+    labStarted,
     knowledgeCheckComplete,
     complete,
-    remoteRecord: moduleOneRemoteComplete(),
+    remoteRecord: verified,
   };
 }
 
@@ -466,7 +474,7 @@ function moduleOneRefreshHeroProgress() {
   const progress = moduleOneProgress();
   const labCount = document.getElementById('m01-lab-count');
   const status = document.getElementById('m01-status');
-  if (labCount) labCount.textContent = progress.labsComplete === 2 ? 'Complete' : progress.labsComplete ? 'In progress' : 'Not started';
+  if (labCount) labCount.textContent = progress.labComplete ? 'Complete' : progress.labStarted ? 'In progress' : 'Not started';
   if (status) status.textContent = progress.complete ? 'Complete' : 'In progress';
 }
 
@@ -476,36 +484,54 @@ function moduleOneSyncCompletion() {
   }
 }
 
-const MODULE_ONE_SIMULATOR_REQUIREMENTS = [
-  ['incident_opened', 'Open the assigned incident'], ['alert_opened:NST-2407-1', 'Review the identity alert'],
-  ['alert_opened:NST-2407-2', 'Review the endpoint alert'], ['alert_opened:NST-2407-3', 'Review the proxy alert'],
-  ['alert_opened:NST-2407-4', 'Review the user callback'], ['entity_opened:a.chen@missionnextlabs.example', 'Pivot to the affected identity'],
-  ['entity_opened:LAP-442', 'Pivot to the affected device'], ['escalated', 'Escalate within L1 authority'],
-];
-function moduleOneSimulatorPerformance() {
-  const actions = moduleOneState?.simulatorPerformance?.actions || [];
-  const found = new Set(actions.map((item) => item.action));
-  const completed = MODULE_ONE_SIMULATOR_REQUIREMENTS.filter(([key]) => found.has(key));
-  const missed = MODULE_ONE_SIMULATOR_REQUIREMENTS.filter(([key]) => !found.has(key));
-  const competencies = [
-    { key: 'observation', label: 'Observation', required: 5, completed: completed.filter(([key]) => key === 'incident_opened' || key.startsWith('alert_opened:')).length },
-    { key: 'analysis', label: 'Analysis', required: 2, completed: completed.filter(([key]) => key.startsWith('entity_opened:')).length },
-    { key: 'scope', label: 'Scope', required: 2, completed: completed.filter(([key]) => key.startsWith('entity_opened:')).length },
-    { key: 'decision_authority', label: 'Decision / Authority', required: 1, completed: completed.filter(([key]) => key === 'escalated').length },
-    { key: 'communication_handoff', label: 'Communication / Handoff', required: 1, completed: completed.filter(([key]) => key === 'escalated').length },
-  ].map((item) => ({ ...item, percentage: Math.round(item.completed * 100 / item.required), passed: item.completed >= item.required }));
-  const score = Math.round(competencies.reduce((sum, item) => sum + item.percentage, 0) / competencies.length);
-  return { actions, requirements: MODULE_ONE_SIMULATOR_REQUIREMENTS.map(([action, label]) => ({ action, label, completed: found.has(action) })), competencies, score, passed: score >= 70 && missed.length === 0, missed_actions: missed.map(([, label]) => label), unsafe_actions: actions.filter((item) => item.unsafe === true).map((item) => item.action), generated_recommendations: competencies.filter((item) => !item.passed).map((item) => `${item.label}: revisit the missing simulator evidence before resubmitting.`) };
+// Prove It scoring: MODULE_ONE_ESCALATION_LAB (NST-2407 / a.chen / LAP-442) —
+// a fresh case from Practice It's ALT-1001/j.santos, worked with minimal
+// guidance in the same case-console UI. `missing` gates the submit button;
+// `score`/`breakdown` are always computed (for the instructor) but the
+// student never sees them — no live score, per the program's Day-1 model.
+function moduleOneProveItPerformance() {
+  const lab = MODULE_ONE_ESCALATION_LAB;
+  const state = moduleOneState.lab2;
+  const missing = [];
+  if ((state.reviewedEvidence || []).length < lab.scenario.evidence.length) missing.push('Review every piece of evidence');
+  if (!state.affectedUser || !state.affectedDevice) missing.push('Add the affected user and device');
+  if (!state.priority) missing.push('Set the severity');
+  if (!state.verdict) missing.push('Record a disposition');
+  if (!state.escalation) missing.push('Set whether escalation is required');
+  if (state.escalation === 'required' && !state.escalateTo) missing.push('Choose an escalation team');
+  if ((state.notes || '').trim().length < 80) missing.push('Write an analyst work note');
+
+  const intake = state.affectedUser === 'a.chen' && state.affectedDevice === 'LAP-442' ? 25 : 0;
+  const priority = state.priority === lab.correctPriority ? 20 : 0;
+  const verdict = state.verdict === lab.correctVerdict ? 20 : 0;
+  const containment = state.escalation === 'required' && state.escalateTo === 'tier2-soc' ? 25 : 0;
+  const notesOk = (state.notes || '').trim().length >= 80;
+  const notes = notesOk ? 10 : 0;
+  const score = intake + priority + verdict + containment + notes;
+  const criticalErrors = state.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  return {
+    missing,
+    score,
+    breakdown: { affected_entity: intake, severity: priority, disposition: verdict, escalation: containment, analyst_notes: notes },
+    feedback: [
+      intake ? 'Affected entity/scope: correct.' : `Affected entity/scope: review — ${lab.intakeOptions.find((o) => o.id === lab.correctIntake)?.text}`,
+      priority ? 'Severity: correct.' : `Severity: review — ${lab.priorityOptions.find((o) => o.id === lab.correctPriority)?.text}`,
+      verdict ? 'Disposition: correct.' : `Disposition: review — ${lab.verdictOptions.find((o) => o.id === lab.correctVerdict)?.text}`,
+      containment ? 'Escalation: correct.' : 'Escalation: review — this case needs a Tier 2 SOC handoff with the recorded evidence.',
+    ],
+    criticalErrors,
+  };
 }
-function moduleOneSimulatorSubmissionPanel() {
-  const performance = moduleOneSimulatorPerformance(); const submitted = moduleOneState.simulatorPerformance.submitted;
-  const redoRequested = moduleOneSimulatorRedoRequested();
-  const doneCount = performance.requirements.filter((item) => item.completed).length;
-  return `<div class="m01-score-empty" id="m01-siem-submission" role="status" aria-live="polite">
-    <strong>${submitted ? 'Submitted for faculty review' : redoRequested ? 'Returned for remediation' : 'Simulator performance record'}</strong>
-    <p>${doneCount}/${performance.requirements.length} required actions recorded. ${submitted ? 'Module 2 stays locked until your instructor approves the submission.' : redoRequested ? 'Review your instructor feedback, then submit a new performance record for faculty review.' : 'Work through the procedure below inside the simulator, then use the floating Submit Module Lab button (bottom corner, follows you anywhere in the console) to send your performance for faculty review.'}</p>
-    ${!submitted ? `<ul class="m01-requirements-list">${performance.requirements.map((item) => `<li class="${item.completed ? 'is-done' : ''}"><i class="${item.completed ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'}" aria-hidden="true"></i><span>${esc(item.label)}</span></li>`).join('')}</ul>` : ''}
-    ${!submitted ? `<button type="button" class="m01-submit" data-m01-submit-simulator ${performance.missed_actions.length ? 'disabled aria-disabled="true"' : ''}>${performance.missed_actions.length ? 'Complete the procedure above first' : 'Complete Module — submit to faculty'}</button>${!performance.missed_actions.length ? '<p class="m01-help">Already back on this tab? This does the same thing as Submit Module Lab inside the simulator.</p>' : ''}` : ''}
+function moduleOneProveItSubmissionPanel() {
+  const performance = moduleOneProveItPerformance();
+  const submitted = moduleOneState.lab2.submitted;
+  const redoRequested = moduleOneProveItRedoRequested();
+  return `<div class="m01-score-empty" id="m01-review-submission" role="status" aria-live="polite">
+    <strong>${submitted ? 'Submitted for faculty review' : redoRequested ? 'Returned for remediation' : 'Case record'}</strong>
+    <p>${submitted ? 'Module 2 stays locked until your instructor approves the submission.' : redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.' : 'Work the case above — review the evidence, complete every ticket field, and write your analyst notes — then submit for faculty review.'}</p>
+    ${!submitted && performance.missing.length ? `<ul class="m01-requirements-list">${performance.missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
+    ${!submitted ? `<p class="m01-help">${performance.missing.length ? 'Complete the remaining case-record items, then use Submit Case in the ticket.' : 'Your case record is ready. Use Submit Case in the ticket to send it for faculty review.'}</p>` : ''}
   </div>`;
 }
 
@@ -680,152 +706,96 @@ function moduleOneBlankForm(fact) {
   </form>`;
 }
 
+function moduleOneEvidenceList(scenario, reviewed, attribute, disabled = false) {
+  return `<p class="m01-console-pane-title">Evidence <span class="muted">${reviewed.size}/${scenario.evidence.length} reviewed</span></p>
+    <ul class="m01-console-evidence">${scenario.evidence.map((item) => `<li class="${reviewed.has(item.id) ? 'is-reviewed' : ''}">
+      <button type="button" ${attribute}="${esc(item.id)}" ${disabled ? 'disabled' : ''}><i class="${esc(item.icon)}" aria-hidden="true"></i>
+        <span><time>${esc(item.time)}</time><strong>${esc(item.label)}</strong><p>${esc(item.detail)}</p></span>
+        <i class="${reviewed.has(item.id) ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'}" aria-hidden="true"></i>
+      </button></li>`).join('')}</ul>`;
+}
+
+function moduleOneTicketSelect(name, label, value, options, disabled) {
+  return `<label class="m01-ticket-field"><span>${esc(label)}</span><select name="${esc(name)}" ${disabled ? 'disabled' : ''}>
+    <option value="">Select…</option>${options.map((option) => `<option value="${esc(option.id)}" ${value === option.id ? 'selected' : ''}>${esc(option.text)}</option>`).join('')}
+  </select></label>`;
+}
+
+function moduleOneTicketFields(state, spec) {
+  const disabled = spec.disabled === true;
+  const escalationRequired = state.escalation === 'required';
+  const severityOptions = [{ id: 'critical', text: 'Critical' }, { id: 'high', text: 'High' }, { id: 'medium', text: 'Medium' }, { id: 'low', text: 'Low' }];
+  const dispositionOptions = spec.dispositionOptions.map((option) => ({
+    id: option.id,
+    text: ({ 'true-positive': 'Confirmed malicious activity', 'benign-positive': 'Benign activity', 'false-positive': 'False positive', 'enterprise-breach': 'Enterprise-wide incident' })[option.id] || option.text,
+  }));
+  return `<div class="m01-ticket-case"><strong>CASE ${esc(spec.caseId || '')}</strong>${moduleOneTicketSelect('status', 'Status', state.status, [{ id: 'in-progress', text: 'In Progress' }, { id: 'pending', text: 'Pending' }, { id: 'resolved', text: 'Resolved' }], disabled)}</div>
+    <div class="m01-ticket-grid">
+      ${moduleOneTicketSelect('severity', 'Severity', state.severity || state.priority, severityOptions, disabled)}
+      <label class="m01-ticket-field"><span>Affected User</span><button type="button" class="m01-entity-control ${state.affectedUser ? 'is-selected' : ''}" data-m01-entity="user" ${disabled ? 'disabled' : ''}>${state.affectedUser || 'Add user'} <i class="ri-add-line" aria-hidden="true"></i></button></label>
+      <label class="m01-ticket-field"><span>Affected Device</span><button type="button" class="m01-entity-control ${state.affectedDevice ? 'is-selected' : ''}" data-m01-entity="device" ${disabled ? 'disabled' : ''}>${state.affectedDevice || 'Add device'} <i class="ri-add-line" aria-hidden="true"></i></button></label>
+      ${moduleOneTicketSelect('disposition', 'Disposition', state.disposition || state.verdict, dispositionOptions, disabled)}
+      ${moduleOneTicketSelect('escalation', 'Escalation required', state.escalation, [{ id: 'required', text: 'Required' }, { id: 'not-required', text: 'Not required' }], disabled)}
+      ${escalationRequired ? moduleOneTicketSelect('escalateTo', 'Escalate to', state.escalateTo, [{ id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], disabled) : ''}
+    </div>
+    <label class="m01-ticket-field m01-ticket-notes"><span>Analyst Work Notes</span><textarea name="notes" rows="6" placeholder="Record the evidence, your assessment, confirmed scope, and handoff needed by the next analyst." ${disabled ? 'disabled' : ''}>${esc(state.notes || '')}</textarea></label>
+    ${state.actionHistory?.length ? `<details class="m01-action-history"><summary>Action history (${state.actionHistory.length})</summary><ul>${state.actionHistory.slice(-8).reverse().map((entry) => `<li>${esc(entry.action)}</li>`).join('')}</ul></details>` : ''}`;
+}
+
+// Practice It: a guided case (ALT-1001 / j.santos) in the SOC case-console —
+// alert queue, alert details + evidence, case ticket. Hints and highlighted
+// option help are fine here; this is coached, ungraded, retry-friendly
+// practice, not the graded artifact (that's Prove It, moduleOneReview()).
 function moduleOneLabDynamic() {
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const scenario = lab.scenario;
-  const incidentRoute = `${SIM_ORIGIN}?case=NST-2407&module=soc-1#/sentinel/incidents`;
+  if (!moduleOneState.consoleStarted) {
+    return `<div class="m01-shift-start" aria-labelledby="m01-shift-start-title">
+      <i class="ri-shield-user-line" aria-hidden="true"></i><div><p class="m01-kicker">SOC analyst shift</p><h3 id="m01-shift-start-title">An alert is waiting in your queue</h3>
+      <p>Enter your Module 1 case console to review one alert, inspect its evidence, and document your decision.</p>
+      <button type="button" class="m01-submit" data-m01-console-launch><i class="ri-play-circle-line" aria-hidden="true"></i> Start analyst shift</button></div>
+    </div>`;
+  }
+  const state = moduleOneState.practice;
   const reviewed = new Set(moduleOneState.reviewedEvidence);
-  const reviewedCount = scenario.evidence.filter((item) => reviewed.has(item.id)).length;
-  const investigationReady = reviewedCount === scenario.evidence.length;
-  const consoleComplete = moduleOneState.consoleCompleted === true;
-  const workspaceSetupComplete = moduleOneState.workspaceSetupComplete === true;
-  const nextEvidence = scenario.evidence.find((item) => !reviewed.has(item.id));
+  const step = !reviewed.size ? 'Step 1: Review the alert details. Open the evidence before changing the case.'
+    : (!state.affectedUser || !state.affectedDevice) ? 'Step 2: Determine the scope. Add the affected user and device to the case.'
+      : 'Step 3: Make and document your triage decision. Use the ticket controls just as you would on shift.';
 
-  return `<div class="m01-alert-window">
-    <div class="m01-alert-toolbar">
-      <span><i class="ri-inbox-2-line" aria-hidden="true"></i> Alert queue</span>
-      <span>1 alert assigned to you</span>
+  return `
+  <div class="m01-console" aria-labelledby="m01-console-practice-title">
+    <div class="m01-console-header">
+      <span class="m01-console-badge">Security Operations</span>
+      <h3 id="m01-console-practice-title">Practice It — guided case</h3>
+      <p>${step}</p>
     </div>
-    <article class="m01-single-alert" aria-labelledby="m01-scenario-title">
-      <div class="m01-alert-heading">
-        <div>
-          <div class="m01-alert-meta">
-            <span class="${moduleOneSeverityClass(scenario.initialSeverity)}">${esc(scenario.initialSeverity)}</span>
-            <span>${esc(scenario.id)}</span><span>Created ${esc(scenario.created)}</span><span>${esc(scenario.source)}</span>
-          </div>
-          <h3 id="m01-scenario-title">${esc(scenario.title)}</h3>
-          <p>${esc(scenario.summary)}</p>
+    <div class="m01-console-body">
+      <aside class="m01-console-pane m01-console-queue" aria-label="Alert queue">
+        <p class="m01-console-pane-title">Alert Queue</p>
+        <div class="m01-console-queue-item is-active">
+          <span class="${moduleOneSeverityClass(scenario.initialSeverity)}">${esc(scenario.initialSeverity)}</span>
+          <strong>${esc(scenario.title)}</strong>
+          <span class="muted">${esc(scenario.id)}</span>
         </div>
-        <div class="m01-entity-chip"><span>Account</span><code>${esc(scenario.entity)}</code></div>
-      </div>
-      <dl class="m01-alert-facts">
-        <div><dt>Detection</dt><dd>${esc(scenario.detectedBy)}</dd></div>
-        <div><dt>Initial scope</dt><dd>${esc(scenario.scope)}</dd></div>
-      </dl>
-    </article>
+      </aside>
+      <section class="m01-console-pane m01-console-detail" aria-label="Alert details and evidence">
+        <p class="m01-console-pane-title">Alert Details</p>
+        <dl class="m01-console-meta">
+          <div><dt>Entity</dt><dd>${esc(scenario.entity)}</dd></div>
+          <div><dt>Detected by</dt><dd>${esc(scenario.detectedBy)}</dd></div>
+          <div><dt>Created</dt><dd>${esc(scenario.created)}</dd></div>
+        </dl>
+        <p class="m01-console-summary">${esc(scenario.summary)}</p>
+        ${moduleOneEvidenceList(scenario, reviewed, 'data-m01-practice-evidence')}
+      </section>
+      <section class="m01-console-pane m01-console-ticket" aria-label="Case ticket">
+        <p class="m01-console-pane-title">Case / Ticket</p>
+        <form id="m01-practice-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: false })}
+          <div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-practice-save>Save case</button><button type="button" class="m01-submit" data-m01-practice-check>Check coached case</button></div>
+        </form>
+      </section>
+    </div>
   </div>
-
-  <section class="m01-siem ${consoleComplete ? 'is-complete' : ''}" aria-labelledby="m01-siem-title">
-    <div class="m01-siem-copy">
-      <p class="m01-kicker">${consoleComplete ? 'Walkthrough completed · reopen anytime' : 'Optional walkthrough · 10 minutes'}</p>
-      <h3 id="m01-siem-title">Console walkthrough: investigate an alert</h3>
-      <p>Every fact above came from somewhere. Open this guided walkthrough whenever you want to see how an
-      analyst moves from the alert queue to the alert and then to a sign-in log. It is a practice tour, not a
-      graded requirement; the assessed handoff case below is already available.</p>
-    </div>
-    <a class="m01-siem-launch" data-m01-console-launch href="${esc(SIM_ORIGIN)}?coach=${workspaceSetupComplete ? 'm01' : 'm01-setup'}&amp;restart=1#/defender/alerts" target="_blank" rel="opener">
-      <i class="${workspaceSetupComplete && consoleComplete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${workspaceSetupComplete ? (consoleComplete ? 'Review console walkthrough' : 'Open console walkthrough') : 'Start Day 1 setup'}
-    </a>
-  </section>
-
-  ${consoleComplete ? `<section class="m01-evidence" aria-labelledby="m01-evidence-title">
-    <div class="m01-panel-heading">
-      <div><p class="m01-kicker">Record what the log showed</p><h3 id="m01-evidence-title">Investigation timeline</h3></div>
-      <span class="m01-evidence-count">${reviewedCount}/${scenario.evidence.length} facts recorded</span>
-    </div>
-    <ol class="m01-timeline">
-      ${scenario.evidence.map((item, index) => {
-        const isReviewed = reviewed.has(item.id);
-        const isActive = nextEvidence && nextEvidence.id === item.id;
-        if (isReviewed) {
-          const justCorrect = moduleOneJustCorrect === item.id;
-          return `<li class="is-reviewed ${justCorrect ? 'is-just-correct' : ''}">
-            <span class="m01-timeline-marker"><i class="${esc(item.icon)}" aria-hidden="true"></i></span>
-            <div><time>${esc(item.time)}</time><strong>${esc(item.label)}</strong><p>${esc(item.detail)}</p>
-            ${justCorrect ? `<p class="m01-fact-success" id="m01-fact-success" role="status" tabindex="-1">
-              <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>
-              Correct — fact recorded. The next fact is now unlocked.</p>` : ''}</div>
-          </li>`;
-        }
-        if (isActive && item.blanks) {
-          return `<li class="is-active">
-            <span class="m01-timeline-marker"><i class="ri-edit-line" aria-hidden="true"></i></span>
-            <div><time>${esc(item.time)}</time><strong>Fact ${index + 1} — fill in the blanks</strong>
-            ${moduleOneBlankForm(item)}</div>
-          </li>`;
-        }
-        if (isActive) {
-          return `<li class="is-active">
-            <span class="m01-timeline-marker"><i class="ri-phone-line" aria-hidden="true"></i></span>
-            <div><time>${esc(item.time)}</time><strong>Fact ${index + 1} — handed to you</strong>
-            <p>This one does not live in the log. The service desk called the account owner while you were reading it.</p>
-            <button type="button" class="m01-reveal" data-m01-reveal="${esc(item.id)}">
-              <i class="ri-eye-line" aria-hidden="true"></i> Read the service-desk callback</button></div>
-          </li>`;
-        }
-        return `<li class="is-locked">
-          <span class="m01-timeline-marker"><i class="ri-lock-line" aria-hidden="true"></i></span>
-          <div><time>Fact ${index + 1}</time><strong>Not recorded yet</strong><p>Record the preceding fact to continue.</p></div>
-        </li>`;
-      }).join('')}
-    </ol>
-    ${!nextEvidence ? `<div class="m01-evidence-complete"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span><strong>Timeline recorded.</strong> Every fact came from something you read yourself. You can now make the first triage decision.</span></div>` : ''}
-  </section>` : ''}
-
-  ${!consoleComplete || !investigationReady ? '' : `<form id="m01-form" class="m01-worksheet" novalidate>
-    <div class="m01-panel-heading">
-      <div><p class="m01-kicker">Guided decision</p><h3>Complete the five-part triage record</h3></div>
-      <span class="m01-evidence-count">No timer · retry allowed</span>
-    </div>
-
-    <fieldset class="m01-fieldset">
-      <legend><span>1</span> What is your verdict?</legend>
-      <p class="m01-help">The user denial is the decisive validation fact.</p>
-      ${moduleOneOptionList('verdict', lab.verdictOptions)}
-    </fieldset>
-
-    <fieldset class="m01-fieldset">
-      <legend><span>2</span> What priority should the case receive?</legend>
-      <p class="m01-help">Consider outcome, confidence, scope, and impact—not only the alert's initial Medium label.</p>
-      ${moduleOneOptionList('priority', lab.priorityOptions)}
-    </fieldset>
-
-    <fieldset class="m01-fieldset">
-      <legend><span>3</span> Where are you in the incident response lifecycle?</legend>
-      <p class="m01-help">You have validated and classified the alert, but containment has not happened yet.</p>
-      ${moduleOneOptionList('phase', lab.phaseOptions)}
-    </fieldset>
-
-    <fieldset class="m01-fieldset">
-      <legend><span>4</span> What is the safest next action for the analyst?</legend>
-      <p class="m01-help">Stay inside the observed scope and your authority. Preserve evidence for the responder.</p>
-      ${moduleOneOptionList('decision', lab.decisionOptions)}
-    </fieldset>
-
-    <div class="m01-fieldset">
-      <label for="m01-rationale" class="m01-note-label"><strong>5</strong> Why did you make these choices?</label>
-      <p class="m01-help">In one or two sentences, explain your reasoning for the priority and next action you selected, based on the evidence.</p>
-      <textarea id="m01-rationale" name="rationale" rows="3" placeholder="Example: High priority because the access succeeded and the user denies it. Escalate because only the identity team can revoke the session and reset the password." aria-label="Rationale for your triage decisions">${esc(moduleOneState.rationale)}</textarea>
-    </div>
-
-    <div class="m01-actions">
-      <button type="submit" class="m01-submit"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Check my triage</button>
-      <button type="button" class="m01-reset" data-m01-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset this guided lab</button>
-    </div>
-    ${moduleOneScorePanel()}
-  </form>`}
-
-  <section class="m01-siem" aria-labelledby="m01-lab2-scenario-title">
-    <div class="m01-siem-copy">
-      <p class="m01-kicker">Independent simulated-SIEM case · resume across sittings</p>
-      <h3 id="m01-lab2-scenario-title">Mission Next Labs: investigate the correlated incident</h3>
-      <p>Open the assigned incident in the simulated SIEM and perform the investigation there. Your incident work—not a duplicate worksheet or case note—is the assessment evidence.</p>
-    </div>
-    <a class="m01-siem-launch" href="${esc(incidentRoute)}" target="_blank" rel="opener">
-      <i class="ri-external-link-line" aria-hidden="true"></i> Open Mission Next SIEM
-    </a>
-    ${moduleOneSimulatorSubmissionPanel()}
-  </section>
   `;
 }
 
@@ -848,8 +818,65 @@ function moduleOneQuizPanel() {
   return `<form class="m01-module-quiz" id="m01-quiz-form" novalidate><div class="m01-panel-heading"><div><p class="m01-kicker">Module knowledge check</p><h3 id="m01-quiz-title">Classify, triage, and communicate</h3></div><span>${answered}/${selected.length} answered</span></div>${selected.map(moduleOneQuizQuestion).join('')}<button type="submit" ${answered < selected.length ? 'disabled' : ''}>Check my answers</button>${feedback}</form>`;
 }
 
+// Prove It: a fresh case (NST-2407 / a.chen / LAP-442), same case-console
+// interface family as Practice It, minimal guidance — the option lists below
+// carry no `.help` text in the data, and evidence is read plainly rather
+// than filled in. This is Module 1's one graded artifact.
+function moduleOneProveItConsole() {
+  const lab = MODULE_ONE_ESCALATION_LAB;
+  const scenario = lab.scenario;
+  const state = moduleOneState.lab2;
+  const reviewed = new Set(state.reviewedEvidence);
+  const submitted = state.submitted;
+  const requirements = moduleOneProveItPerformance().missing;
+
+  return `<div class="m01-console" aria-labelledby="m01-console-prove-title">
+    <div class="m01-console-header">
+      <span class="m01-console-badge">Security Operations</span>
+      <h3 id="m01-console-prove-title">Prove It — independent case</h3>
+      <p>An alert has been assigned to you. Investigate the activity, determine the appropriate disposition, and document what should happen next.</p>
+    </div>
+    <div class="m01-console-body">
+      <aside class="m01-console-pane m01-console-queue" aria-label="Alert queue">
+        <p class="m01-console-pane-title">Alert Queue</p>
+        <div class="m01-console-queue-item is-active">
+          <span class="${moduleOneSeverityClass(scenario.initialSeverity)}">${esc(scenario.initialSeverity)}</span>
+          <strong>${esc(scenario.title)}</strong>
+          <span class="muted">${esc(scenario.id)}</span>
+        </div>
+      </aside>
+      <section class="m01-console-pane m01-console-detail" aria-label="Alert details and evidence">
+        <p class="m01-console-pane-title">Alert Details</p>
+        <dl class="m01-console-meta">
+          <div><dt>Entity</dt><dd>${esc(scenario.entity)}</dd></div>
+          <div><dt>Detected by</dt><dd>${esc(scenario.detectedBy)}</dd></div>
+          <div><dt>Created</dt><dd>${esc(scenario.created)}</dd></div>
+        </dl>
+        <p class="m01-console-summary">${esc(scenario.summary)}</p>
+        ${moduleOneEvidenceList(scenario, reviewed, 'data-m01-lab2-evidence', submitted)}
+      </section>
+      <section class="m01-console-pane m01-console-ticket" aria-label="Case ticket">
+        <p class="m01-console-pane-title">Case / Ticket</p>
+        <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted })}
+          ${!submitted ? `<div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-save-proveit>Save Case</button><button type="button" class="m01-submit" data-m01-submit-proveit ${requirements.length ? 'disabled' : ''}>Submit Case</button></div>` : ''}
+        </form>
+      </section>
+    </div>
+  </div>`;
+}
+
 function moduleOneReview() {
-  return `<div id="m01-review"><p class="m01-instruction">You are ready to review when you can separate events, alerts, and incidents; explain your evidence; choose a proportionate priority; and hand off work with an owner and verification step.</p><ul><li>Start with evidence and state uncertainty.</li><li>Use severity with context to set priority.</li><li>Escalate when impact or authority exceeds your boundary.</li><li>Close only after verification is recorded.</li></ul></div>`;
+  return `<div id="m01-review">
+    <div id="m01-review-dynamic">${moduleOneProveItConsole()}${moduleOneProveItSubmissionPanel()}</div>
+    <p class="m01-instruction">You are ready to review when you can separate events, alerts, and incidents; explain your evidence; choose a proportionate priority; and hand off work with an owner and verification step.</p><ul><li>Start with evidence and state uncertainty.</li><li>Use severity with context to set priority.</li><li>Escalate when impact or authority exceeds your boundary.</li><li>Close only after verification is recorded.</li></ul>
+  </div>`;
+}
+
+function moduleOneRenderReviewDynamic(focusId) {
+  const root = document.getElementById('m01-review-dynamic');
+  if (!root) return;
+  root.innerHTML = `${moduleOneProveItConsole()}${moduleOneProveItSubmissionPanel()}`;
+  if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
 function moduleOneGetQuickNavItems() {
@@ -902,9 +929,9 @@ function moduleOneGetNavSections() {
   return [
     { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: progress.lessonsComplete === progress.lessonsTotal, scrollId: 'm01-foundations', items: quickNavItems.filter((i) => i.kind === 'lesson') },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: progress.knowledgeCheckComplete, scrollId: 'm01-knowledge-check' },
-    { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: progress.labsComplete === 2, scrollId: 'm01-guided-lab', items: quickNavItems.filter((i) => i.kind === 'lab') },
+    { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: progress.labComplete, scrollId: 'm01-guided-lab', items: quickNavItems.filter((i) => i.kind === 'lab') },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: progress.complete, scrollId: 'm01-review' },
-    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm01-sources-section', gated: false },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm01-sources-section', gated: false, supplemental: true },
   ];
 }
 
@@ -932,7 +959,7 @@ function viewModuleOne(user, program) {
         </div>
         <dl class="m01-progress" aria-label="Saved lab progress">
           <div><dt>Foundation lessons</dt><dd>${module.lessons}</dd></div>
-          <div><dt>Module Lab</dt><dd id="m01-lab-count">${progress.labsComplete === 2 ? 'Complete' : progress.labsComplete ? 'In progress' : 'Not started'}</dd></div>
+          <div><dt>Module Lab</dt><dd id="m01-lab-count">${progress.labComplete ? 'Complete' : progress.labStarted ? 'In progress' : 'Not started'}</dd></div>
           <div><dt>Module status</dt><dd id="m01-status">${progress.complete ? 'Complete' : 'In progress'}</dd></div>
         </dl>
       </section>
@@ -1025,7 +1052,7 @@ function viewModuleOne(user, program) {
       <section class="m01-section m01-section-collapsible m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
         <div class="m01-section-heading">
           <span>3</span>
-          <div><p class="m01-kicker">Module Lab · assessed handoff · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
+          <div><p class="m01-kicker">Practice It · guided case · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
           <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lab" data-m01-section-label="lab block" aria-expanded="${openFor('lab')}" aria-controls="m01-guided-lab-body" aria-label="${openFor('lab') ? 'Collapse' : 'Expand'} lab block">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
@@ -1033,7 +1060,7 @@ function viewModuleOne(user, program) {
         <div class="m01-lab-body" id="m01-guided-lab-body" ${openFor('lab') ? '' : 'hidden'}>
           <div class="m01-lab-brief">
             <i class="ri-user-star-line" aria-hidden="true"></i>
-            <div><strong>One walkthrough, one assessed handoff</strong><p>The console walkthrough is available whenever you want a guided refresher. The handoff case is the graded work; it does not wait for the walkthrough.</p></div>
+            <div><strong>Practice, then prove it</strong><p>This guided case is coached and ungraded — retry it as many times as you like. Your graded work is the independent case under Module Review (Prove It) below.</p></div>
           </div>
           <div id="m01-lab-dynamic">${moduleOneLabDynamic()}</div>
         </div>
@@ -1232,16 +1259,93 @@ function wireModuleOneLab() {
   const root = document.getElementById('m01-lab-dynamic');
   if (!root || !moduleOneState) return;
 
+  const reviewRoot = document.getElementById('m01-review-dynamic');
+  if (reviewRoot) {
+    reviewRoot.addEventListener('click', (event) => {
+      if (event.target.closest('[data-m01-submit-proveit]')) { moduleOneFinalizeProveIt(); return; }
+      if (event.target.closest('[data-m01-save-proveit]')) {
+        moduleOneState.lab2.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+        moduleOneSave(); moduleOneRenderReviewDynamic(); return;
+      }
+      const evidenceBtn = event.target.closest('[data-m01-lab2-evidence]');
+      if (evidenceBtn) {
+        const id = evidenceBtn.dataset.m01Lab2Evidence;
+        if (!moduleOneState.lab2.reviewedEvidence.includes(id)) {
+          moduleOneState.lab2.reviewedEvidence.push(id);
+          moduleOneState.lab2.actionHistory.push({ action: `Reviewed evidence: ${id}`, at: new Date().toISOString() });
+        }
+        moduleOneSave();
+        moduleOneRenderReviewDynamic();
+        return;
+      }
+      const entity = event.target.closest('[data-m01-entity]');
+      if (entity && !moduleOneState.lab2.submitted) {
+        const field = entity.dataset.m01Entity === 'user' ? 'affectedUser' : 'affectedDevice';
+        moduleOneState.lab2[field] = field === 'affectedUser' ? 'a.chen' : 'LAP-442';
+        moduleOneState.lab2.intake = moduleOneState.lab2.affectedUser && moduleOneState.lab2.affectedDevice ? 'identity-and-laptop' : '';
+        moduleOneState.lab2.actionHistory.push({ action: `Added affected ${entity.dataset.m01Entity}`, at: new Date().toISOString() });
+        moduleOneSave(); moduleOneRenderReviewDynamic();
+      }
+    });
+    reviewRoot.addEventListener('change', (event) => {
+      const input = event.target;
+      if (['status', 'severity', 'disposition', 'escalation', 'escalateTo'].includes(input.name)) {
+        const key = input.name === 'severity' ? 'priority' : input.name === 'disposition' ? 'verdict' : input.name;
+        moduleOneState.lab2[key] = input.value;
+        if (input.name === 'severity') moduleOneState.lab2.severity = input.value;
+        if (input.name === 'disposition') moduleOneState.lab2.disposition = input.value;
+        moduleOneState.lab2.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
+        moduleOneSave();
+        // Keep the "still required" checklist and submit gating honest —
+        // a discrete radio pick, unlike typing, is safe to re-render on.
+        moduleOneRenderReviewDynamic();
+      }
+    });
+    reviewRoot.addEventListener('input', (event) => {
+      const field = event.target;
+      if (field.tagName === 'TEXTAREA' && field.name === 'notes') {
+        moduleOneState.lab2.notes = field.value;
+        moduleOneSave();
+      }
+    });
+  }
+
   root.addEventListener('click', (event) => {
-    const simulatorSubmit = event.target.closest('[data-m01-submit-simulator]');
-    if (simulatorSubmit) {
-      moduleOneFinalizeSimulatorSubmission();
-      return;
-    }
     if (event.target.closest('[data-m01-console-launch]')) {
       moduleOneState.consoleStarted = true;
       moduleOneSave();
+      moduleOneRenderDynamic('m01-console-practice-title');
       return;
+    }
+
+    const practiceEvidence = event.target.closest('[data-m01-practice-evidence]');
+    if (practiceEvidence) {
+      const id = practiceEvidence.dataset.m01PracticeEvidence;
+      if (!moduleOneState.reviewedEvidence.includes(id)) {
+        moduleOneState.reviewedEvidence.push(id);
+        moduleOneState.practice.actionHistory.push({ action: `Reviewed evidence: ${id}`, at: new Date().toISOString() });
+      }
+      moduleOneSave(); moduleOneRenderDynamic(); return;
+    }
+
+    const practiceEntity = event.target.closest('#m01-practice-form [data-m01-entity]');
+    if (practiceEntity) {
+      const field = practiceEntity.dataset.m01Entity === 'user' ? 'affectedUser' : 'affectedDevice';
+      moduleOneState.practice[field] = field === 'affectedUser' ? 'j.santos' : 'No device linked';
+      moduleOneState.practice.actionHistory.push({ action: `Added affected ${practiceEntity.dataset.m01Entity}`, at: new Date().toISOString() });
+      moduleOneSave(); moduleOneRenderDynamic(); return;
+    }
+
+    if (event.target.closest('[data-m01-practice-save]')) {
+      moduleOneState.practice.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+      moduleOneSave(); return;
+    }
+
+    if (event.target.closest('[data-m01-practice-check]')) {
+      const practice = moduleOneState.practice;
+      const missing = !moduleOneState.reviewedEvidence.length || !practice.affectedUser || !practice.affectedDevice || !practice.priority || !practice.verdict || !practice.escalation || !(practice.notes || '').trim();
+      moduleOneState.validationError = missing ? 'Keep working the case: review evidence, add both affected entities, set the ticket fields, and leave a work note.' : 'Coaching check complete. Your ticket records an evidence-based decision; compare your choices with the hint text as you continue practicing.';
+      moduleOneSave(); moduleOneRenderDynamic('m01-feedback'); return;
     }
 
     const reveal = event.target.closest('[data-m01-reveal]');
@@ -1267,6 +1371,14 @@ function wireModuleOneLab() {
 
   root.addEventListener('change', (event) => {
     const input = event.target;
+    if (input.closest('#m01-practice-form') && ['status', 'severity', 'disposition', 'escalation', 'escalateTo'].includes(input.name)) {
+      const key = input.name === 'severity' ? 'priority' : input.name === 'disposition' ? 'verdict' : input.name;
+      moduleOneState.practice[key] = input.value;
+      if (input.name === 'severity') moduleOneState.practice.severity = input.value;
+      if (input.name === 'disposition') moduleOneState.practice.disposition = input.value;
+      moduleOneState.practice.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
+      moduleOneSave(); moduleOneRenderDynamic(); return;
+    }
     if (['verdict', 'priority', 'phase', 'decision'].includes(input.name)) {
       moduleOneState[input.name] = input.value;
       moduleOneState.validationError = '';
@@ -1275,6 +1387,10 @@ function wireModuleOneLab() {
   });
 
   root.addEventListener('input', (event) => {
+    if (event.target.closest('#m01-practice-form') && event.target.name === 'notes') {
+      moduleOneState.practice.notes = event.target.value;
+      moduleOneSave(); return;
+    }
     const slot = event.target.closest('[data-m01-mask-slot]');
     if (slot) {
       const mask = slot.closest('[data-m01-mask]');
@@ -1414,15 +1530,11 @@ function wireModuleOneLab() {
       moduleOneState.feedback = result.feedback;
       moduleOneState.validationError = '';
       moduleOneState.lastSubmittedAt = new Date().toISOString();
+      // Coached practice, not the graded artifact — no recordLabAttempt here.
+      // Sending this to the faculty grading queue would recreate exactly the
+      // "two things need review" problem Prove It is meant to avoid; only
+      // Prove It's submission (moduleOneFinalizeProveIt) goes to faculty.
       const passed = result.score >= MODULE_ONE_ALERT_ORIENTATION.passingScore;
-      if (typeof recordLabAttempt === 'function') {
-        const attemptFields = {
-          state: passed ? 'complete' : 'in_progress',
-          score: result.score,
-          result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleOneState.attempts },
-        };
-        recordLabAttempt(moduleOneUser, MODULE_ONE_CATALOG_LAB_KEY, attemptFields);
-      }
       if (passed) {
         moduleOneState.completed = true;
         if (!moduleOneState.flags.includes(MODULE_ONE_FLAG)) moduleOneState.flags.push(MODULE_ONE_FLAG);

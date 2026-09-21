@@ -100,6 +100,7 @@
     dock.id = 'mnt-corner-dock';
     dock.className = 'mnt-corner-dock';
     dock.innerHTML = `
+      <div class="mnt-corner-progress" id="mnt-corner-progress" hidden role="status" aria-live="polite"></div>
       <button type="button" class="mnt-corner-btn mnt-tour-btn" id="mnt-tour-btn" hidden>
         <span aria-hidden="true">🧭</span> Take the tour
       </button>
@@ -131,13 +132,43 @@
     refreshCornerDock();
   }
 
+  // Glanceable-only: no labels (those live in the portal's Prove It section
+  // now), just how many of the assigned case's required actions have fired
+  // this session. Read from the sessionStorage set ui/app.js's
+  // recordAssignedCaseAction() writes to; total must match portal/soc-
+  // analyst-module-01.js's MODULE_ONE_SIMULATOR_REQUIREMENTS length.
+  const NST_2407_REQUIRED_TOTAL = 8;
+  function caseProgressDone(caseId) {
+    try { return new Set(JSON.parse(sessionStorage.getItem(`mnt.case.progress.${caseId}`) || '[]')); }
+    catch { return new Set(); }
+  }
+
   // Re-evaluated on every render (via coachAfterRender) since whether a tour
   // is running, and which module we're on, can change without a full reload.
   function refreshCornerDock() {
     const btn = document.getElementById('mnt-tour-btn');
     if (!btn) return;
+    const inCase = new URLSearchParams(location.search).get('case') === 'NST-2407';
+    // A student working one assigned case doesn't need the decorative
+    // cross-product app launcher or the portal-context switcher — collapse
+    // them (CSS, see .case-scoped rules) so the console reads as one
+    // targeted workspace instead of the full enterprise tenant shell. The
+    // real per-workload nav (#sidenav) is untouched — it's already coach-
+    // scope-aware (dimmed, not hidden) and genuinely useful for pivots.
+    document.body.classList.toggle('case-scoped', inCase);
     const submitBtn = document.getElementById('mnt-submit-btn');
-    if (submitBtn) submitBtn.hidden = new URLSearchParams(location.search).get('case') !== 'NST-2407';
+    if (submitBtn) submitBtn.hidden = !inCase;
+    const progress = document.getElementById('mnt-corner-progress');
+    if (progress) {
+      progress.hidden = !inCase;
+      if (inCase) {
+        const done = caseProgressDone('NST-2407');
+        const dots = Array.from({ length: NST_2407_REQUIRED_TOTAL }, (_, i) => (
+          `<span class="mnt-corner-progress-dot${i < done.size ? ' is-done' : ''}"></span>`
+        )).join('');
+        progress.innerHTML = `<span class="mnt-corner-progress-count">${done.size}/${NST_2407_REQUIRED_TOTAL}</span><span class="mnt-corner-progress-dots">${dots}</span>`;
+      }
+    }
     const tour = !activeCoach() && tourForCurrentModule();
     btn.hidden = !tour;
   }

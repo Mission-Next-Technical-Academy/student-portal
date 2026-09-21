@@ -4107,28 +4107,31 @@ VIEWS['sentinel/home'] = () => `
   </div>
 `;
 
-VIEWS['sentinel/incidents'] = () => `
+VIEWS['sentinel/incidents'] = () => {
+  const assignedCase = new URLSearchParams(location.search).get('case') === 'NST-2407';
+  const incidentList = assignedCase ? INCIDENTS.filter((i) => i.id === 'NST-2407') : INCIDENTS;
+  return `
   <div class="page-header">
     <div>
       <div class="breadcrumb">Sentinel › Threat management › <strong>Incidents</strong></div>
       <h1>Sentinel incidents</h1>
-      <div class="page-subtitle">Sentinel queue with Defender XDR unified-response context, ownership, evidence, and cross-product pivots.</div>
+      <div class="page-subtitle">${assignedCase ? 'Your assigned incident.' : 'Sentinel queue with Defender XDR unified-response context, ownership, evidence, and cross-product pivots.'}</div>
     </div>
-    <div class="page-actions">
+    ${assignedCase ? '' : `<div class="page-actions">
       <button class="btn btn-secondary" onclick="navigate('#/defender/incidents')">Open Defender XDR queue</button>
       <button class="btn btn-primary" onclick="navigate('#/sentinel/graph')">Open Sentinel Graph</button>
-    </div>
+    </div>`}
   </div>
-  <div class="callout info">
+  ${assignedCase ? '' : `<div class="callout info">
     <strong>Unified response lens:</strong> Sentinel incidents can be investigated from Defender XDR when Mission Next Labs security signals are connected.
     Keep Sentinel analytics, automation, bookmarks, and Graph context visible while using Defender XDR for the unified incident story and response actions.
-  </div>
-  ${new URLSearchParams(location.search).get('case') === 'NST-2407' ? `<div class="callout warning" style="margin-top:12px;"><strong>Assigned performance case:</strong> Open the assigned incident and investigate the correlated alerts, entities, and evidence in this simulator. Your analyst actions here are the assignment.</div>` : ''}
+  </div>`}
+  ${assignedCase ? `<div class="callout warning" style="margin-top:12px;"><strong>Assigned performance case:</strong> Open the assigned incident and investigate the correlated alerts, entities, and evidence in this simulator. Your analyst actions here are the assignment.</div>` : ''}
   <div class="card" style="margin-top:16px;">
-    <div class="card-toolbar"><strong>${INCIDENTS.length}</strong> incidents<span class="muted">Mapped to Defender XDR incident IDs for this lab</span></div>
+    <div class="card-toolbar"><strong>${incidentList.length}</strong> incident${incidentList.length === 1 ? '' : 's'}${assignedCase ? '' : '<span class="muted">Mapped to Defender XDR incident IDs for this lab</span>'}</div>
     <table class="grid">
       <thead><tr><th>Severity</th><th>Sentinel incident</th><th>Provider</th><th>Analytics / source</th><th>Unified lens</th><th>Action</th></tr></thead>
-      <tbody>${INCIDENTS.map(i => {
+      <tbody>${incidentList.map(i => {
         const sources = (typeof alerts !== 'undefined' ? alerts : SEED_ALERTS).filter(a => i.alertIds.includes(a.id)).map(a => a.detectionSource);
         const uniqueSources = [...new Set(sources)];
         return `
@@ -4150,6 +4153,7 @@ VIEWS['sentinel/incidents'] = () => `
     </table>
   </div>
 `;
+};
 
 function sentinelGraphMatchesFilter(node, filter) {
   if (!filter || filter === 'all') return true;

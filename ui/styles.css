@@ -5760,6 +5760,25 @@ body.coach-bar-open { padding-bottom: 104px; }
 .alert-pivot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 4px; }
 .alert-pivot .muted { font-size: 11px; }
 
+/* Case-scoped mode (?case=NST-2407 in the URL — a student working the one
+   assigned case for their module). Collapse the decorative cross-product
+   "Cloud" app-launcher pane and the top portal-context switcher; neither is
+   needed to work a single assigned incident, and both are the biggest
+   source of "this looks like a whole enterprise tenant, not my one job"
+   density. The real per-workload nav (#pane-blade/#sidenav) is left alone —
+   it's already coach-scope-aware and genuinely used for entity/evidence
+   pivots. !important because #pane-azure's own `hidden` attribute is
+   otherwise re-toggled by render() on every navigation. */
+body.case-scoped #pane-azure,
+body.case-scoped #portal-tabs,
+body.case-scoped #btn-waffle {
+  display: none !important;
+}
+/* Mirrors .shell.no-azure's column math (same "no Cloud pane" layout) —
+   case-scoped needs the same collapse since #pane-azure is force-hidden. */
+body.case-scoped .shell { grid-template-columns: 240px 1fr !important; }
+body.case-scoped .shell:has(#pane-blade.collapsed) { grid-template-columns: 44px 1fr !important; }
+
 /* Universal corner dock — on-demand tour replay + a permanent escape hatch
    back to the portal, present on every simulator view, coach-driven or
    free-roam. Bottom-left, opposite corner from the coach's own step bar
@@ -5803,6 +5822,33 @@ body.coach-bar-open { padding-bottom: 104px; }
 .mnt-tour-btn { color: #1e3a5f; border-color: #b9c7d8; }
 .mnt-submit-btn { color: #f97316; border-color: #fed7aa; background: #fff; }
 .mnt-submit-btn:hover { color: #ea580c; border-color: #f97316; }
+
+/* Glanceable "how am I doing" readout while working the assigned case —
+   no action labels (those are Prove It's job, portal-side); just a live
+   count and dots so progress is visible without leaving the simulator. */
+.mnt-corner-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--border-strong, #d0d5dd);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(4px);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted, #555);
+}
+.mnt-corner-progress[hidden] { display: none; }
+.mnt-corner-progress-dots { display: inline-flex; gap: 4px; }
+.mnt-corner-progress-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d0d5dd;
+}
+.mnt-corner-progress-dot.is-done { background: #16a34a; }
 /* The coach step bar docks full-width along the same bottom edge while a
    walkthrough is running — lift the corner dock above it so neither covers
    the other. */

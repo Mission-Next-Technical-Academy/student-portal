@@ -4193,6 +4193,10 @@ function moduleUnifiedNav(sections, state = {}) {
     read: 'ri-article-line',
   };
 
+  // Supplemental sections (e.g. Sources & Further Reading) are reference
+  // material, not module work — they sit below the Learn/Practice/Prove
+  // phases rather than being grouped inside one of them.
+  const supplementalSections = sections.filter((section) => section.supplemental === true);
   const phaseFor = (section) => {
     if (section.phase) return section.phase;
     if (section.type === 'review') return 'prove';
@@ -4203,7 +4207,7 @@ function moduleUnifiedNav(sections, state = {}) {
     { id: 'learn', title: 'Learn It', icon: 'ri-book-open-line' },
     { id: 'practice', title: 'Practice It', icon: 'ri-tools-line' },
     { id: 'prove', title: 'Prove It', icon: 'ri-award-line' },
-  ].map((phase) => ({ ...phase, sections: sections.filter((section) => phaseFor(section) === phase.id) }));
+  ].map((phase) => ({ ...phase, sections: sections.filter((section) => !section.supplemental && phaseFor(section) === phase.id) }));
 
   const sectionRow = (section) => {
     const isGated = section.gated !== false;
@@ -4293,6 +4297,11 @@ function moduleUnifiedNav(sections, state = {}) {
       </div>
       <ul class="mquick-nav-list munified-groups">
         ${rowsHtml}
+        ${supplementalSections.length ? `<li class="munified-group munified-supplemental">
+          <ul class="mquick-nav-list munified-phase-body">
+            ${supplementalSections.map(sectionRow).join('')}
+          </ul>
+        </li>` : ''}
       </ul>
     </nav>
   </aside>`;
