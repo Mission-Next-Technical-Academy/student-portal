@@ -77,7 +77,7 @@ and update the historical document when that workstream is next touched.
 | 3 | Module 1 SIEM performance assessment | **Next substantive build** | 1 and 2; cross-device state smoke test | Multi-sitting simulator assessment with scoped action log, evidence pivots, assignment/status/comments, consequence handling, persistence, and instructor-reviewable record. |
 | 4 | Module completion integrity | **Queued** | 2 and 3 | Modules 2–12 receive verified-completion protection using the proven Module 1 pattern. See `module-completion-integrity/BRIEF.md`. |
 | 5 | SOC curriculum Arc A | **Queued content work** | stable Module 1 assessment | Reconcile Modules 02→03 fixtures/narrative with owner content review. Arc B is undecided; do not build the rejected 07→04 pairing. |
-| 6 | Tool-depth expansion | **Later discovery** | 5 sequencing decision | Scope real interactive CLI and PCAP lab surfaces plus CySA+ crosswalk. See `soc-analyst-track-reimagining/VISION.md`. |
+| 6 | Tool-depth expansion | **Later discovery** | 5 sequencing decision | Scope real interactive CLI and PCAP lab surfaces plus CySA+ crosswalk. See `soc-analyst-track-reimagining/VISION.md` and `soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` (per-module interface concepts, shared-component build order — owner vision, not yet scoped or authorized). |
 
 Completed foundations include the grading-breakdown UI, domain-appropriate
 Module 06/08 review, Module 09 ticket framing, and the Module 05→06 Arc C
@@ -138,6 +138,7 @@ Approved roadmap item
 | `HANDOFF.md` | Concise evidence for the currently active roadmap item |
 | `NEXT_SESSION.md` | Pointer only; never a second task queue |
 | `soc-analyst-track-reimagining/VISION.md` | Strategic curriculum rationale and future tool gaps |
+| `soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` | Full-program per-module interface/component vision for item 6 — reference only, not scoped |
 | `soc-analyst-track-reimagining/REBUILD_PLAN.md` | Detailed curriculum-arc specification |
 | `ACADEMY_ORIENTATION_SPRINT.md` | Academy-wide first-login orientation tour (`portal/orientation.js`) — separate from and does not satisfy this roadmap's Module 1 orientation-tour item |
 | `soc-analyst-track-reimagining/MODULE1_DAY1_REBUILD_PLAN.md` | Detailed Module 1 implementation specification |
