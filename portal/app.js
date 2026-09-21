@@ -998,7 +998,7 @@ function adminGradingQueuePanel(gradingQueueRows) {
           ? simulatorPerformance.generated_recommendations.join(' ')
           : '';
         const readableResult = hasReadableBreakdown ? `<div class="mb-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
-            <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System score breakdown</p>
+            <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System score breakdown (raw points)</p>
             <dl class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">
               ${resultBreakdown.map(([key, value]) => {
                 const label = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -1018,6 +1018,7 @@ function adminGradingQueuePanel(gradingQueueRows) {
               ${hasScore ? `${esc(String(row.score))}%` : 'No score'} <span class="opacity-60">/ ${esc(String(threshold))}% to pass</span>
             </span>
           </div>
+          ${adminCaseTicketSubmissionPanel(row)}
           ${competencyPanel}
           ${readableResult}
           <details class="mb-3 text-sm">
@@ -1039,6 +1040,55 @@ function adminGradingQueuePanel(gradingQueueRows) {
         </article>`;
       }).join('')}
     </div>`;
+}
+
+// Faculty review must show the student's actual artifact, not only the
+// scorer's interpretation of it. Module 01's independent ticket persists a
+// complete `case_record` snapshot in lab_attempts.result; render the values
+// as the learner saw them (rather than exposing internal select IDs) so the
+// instructor can evaluate the written communication and every ticket choice.
+function adminCaseTicketSubmissionPanel(row) {
+  const record = row?.result?.case_record;
+  if (!record || typeof record !== 'object') return '';
+
+  const labels = {
+    status: { 'in-progress': 'In Progress', pending: 'Pending', resolved: 'Resolved' },
+    severity: { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' },
+    disposition: {
+      'true-positive': 'Confirmed malicious activity',
+      'benign-positive': 'Benign activity',
+      'false-positive': 'False positive',
+      'enterprise-breach': 'Enterprise-wide incident',
+    },
+    escalation: { required: 'Required', 'not-required': 'Not required' },
+    escalateTo: { 'tier2-soc': 'Tier 2 SOC', 'identity-response': 'Identity Response' },
+  };
+  const display = (field, value) => labels[field]?.[value] || (value ? String(value) : 'Not provided');
+  const fields = [
+    ['Status', display('status', record.status)],
+    ['Severity', display('severity', record.severity || record.priority)],
+    ['Affected user', record.affectedUser || 'Not provided'],
+    ['Affected device', record.affectedDevice || 'Not provided'],
+    ['Disposition', display('disposition', record.disposition || record.verdict)],
+    ['Escalation required', display('escalation', record.escalation)],
+    ['Escalate to', record.escalation === 'required' ? display('escalateTo', record.escalateTo) : 'Not applicable'],
+  ];
+  const handoff = record.handoff && typeof record.handoff === 'object' ? record.handoff : {};
+  const handoffFields = [
+    ['Observations', handoff.observations],
+    ['Analysis', handoff.analysis],
+    ['Scope', handoff.scope],
+    ['Requested next action', handoff.nextAction],
+  ].filter(([, value]) => typeof value === 'string' && value.trim());
+
+  return `<section class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3" aria-label="Student submitted case ticket">
+    <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2"><p class="text-sm font-semibold text-[#1e3a5f]">Student-submitted case ticket</p><span class="text-xs text-gray-500">Use the note below to grade communication.</span></div>
+    <dl class="grid sm:grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-[#bfdbfe] bg-white p-3 text-sm">
+      ${fields.map(([label, value]) => `<div><dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">${esc(label)}</dt><dd class="mt-0.5 text-gray-800">${esc(value)}</dd></div>`).join('')}
+    </dl>
+    <div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Analyst work notes · student response</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(record.notes || 'Not provided')}</p></div>
+    ${handoffFields.length ? `<div class="mt-3 grid sm:grid-cols-2 gap-2">${handoffFields.map(([label, value]) => `<div class="rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${esc(label)}</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(value)}</p></div>`).join('')}</div>` : ''}
+  </section>`;
 }
 
 function adminMessageInboxPanel(messageRows) {
