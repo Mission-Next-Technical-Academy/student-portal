@@ -4148,6 +4148,115 @@ function moduleProgressShell(sections, state = {}, options = {}) {
   */
 }
 
+/* A module cannot opt out of the Academy learning rhythm.  Earlier module
+ * files supplied their own arrays of navigation sections; when one forgot a
+ * `review` entry, moduleUnifiedNav() silently omitted Prove It altogether.
+ * Normalize the array at the shared boundary instead.  The two generated
+ * rows point to common, real surfaces appended by module-registry.js.
+ */
+function standardModuleStageId(moduleKey, stage) {
+  return `standard-${String(moduleKey || 'module').replace(/[^a-z0-9_-]/gi, '-')}-${stage}`;
+}
+
+function normalizeModuleStages(sections, state = {}) {
+  const moduleKey = state.moduleKey || 'module';
+  const source = Array.isArray(sections) ? sections : [];
+  const phaseFor = (section) => {
+    if (section.phase) return section.phase;
+    if (section.type === 'review') return 'prove';
+    if (section.type === 'lab' || section.type === 'quiz') return 'practice';
+    return 'learn';
+  };
+  const normalized = source.map((section) => ({ ...section, phase: phaseFor(section) }));
+
+  // Capstones and skeleton modules sometimes start directly with an exercise.
+  // Keep the first stage visible in those modules too, rather than making the
+  // Academy's stated learning sequence depend on local authoring choices.
+  if (!normalized.some((section) => section.phase === 'learn')) {
+    normalized.unshift({
+      id: 'standard-foundations', title: 'Foundations', type: 'lecture', phase: 'learn',
+      isComplete: false, gated: false, standardStage: 'foundations',
+      scrollId: standardModuleStageId(moduleKey, 'foundations'),
+    });
+  }
+
+  // A course with no authored hands-on block still exposes the Guided Lab
+  // contract and explains that the activity is pending authoring.  Published
+  // courses already have one or more real labs, so no duplicate is added.
+  if (!normalized.some((section) => section.phase === 'practice')) {
+    normalized.push({
+      id: 'standard-guided-lab', title: 'Guided Lab', type: 'lab', phase: 'practice',
+      isComplete: false, gated: false, standardStage: 'guided',
+      scrollId: standardModuleStageId(moduleKey, 'guided-lab'),
+    });
+  }
+
+  // Always make the independent assessment explicit.  This remains separate
+  // from a module's coached lab and from any legacy "Module Review" block.
+  normalized.push({
+    id: 'standard-assessment-module', title: 'Assessment Lab', type: 'review', phase: 'prove',
+    isComplete: false, gated: false, standardStage: 'assessment',
+    scrollId: standardModuleStageId(moduleKey, 'assessment-module'),
+  });
+  return normalized;
+}
+
+function moduleAssessmentState(moduleKey, user) {
+  const labId = `academy-assessment-${moduleKey}`;
+  return LabRuntime.load(labId, user, { rationale: '', submittedAt: '', attempts: 0 });
+}
+
+/* The common Prove It surface is intentionally a reviewable artifact rather
+ * than another completion checkbox.  Module authors can (and do) add richer,
+ * domain-specific scored exercises above it; this guarantees that every
+ * module still has one named Assessment Lab with a durable submission.
+ */
+function moduleAssessmentModule(user, program, moduleKey, options = {}) {
+  const module = program?.modules?.[moduleKey] || {};
+  const assessmentId = standardModuleStageId(moduleKey, 'assessment-module');
+  const guidedId = standardModuleStageId(moduleKey, 'guided-lab');
+  const foundationsId = standardModuleStageId(moduleKey, 'foundations');
+  const state = moduleAssessmentState(moduleKey, user);
+  const submitted = Boolean(state.submittedAt);
+  const objective = Array.isArray(module.objectives) && module.objectives[0]
+    ? module.objectives[0]
+    : `Apply the module skill in ${module.title || 'this module'}.`;
+  const foundations = options.needsFoundations ? `<section id="${esc(foundationsId)}" class="max-w-5xl mx-auto mt-8 px-6" aria-labelledby="${esc(foundationsId)}-title">
+    <div class="rounded-2xl border border-indigo-200 bg-indigo-50 p-6">
+      <p class="text-xs font-bold uppercase tracking-[.16em] text-indigo-800">Learn It · Foundations</p>
+      <h2 id="${esc(foundationsId)}-title" class="mt-2 text-xl font-bold text-[#1e3a5f]">Foundations</h2>
+      <p class="mt-2 text-sm leading-6 text-slate-700">Before attempting the independent work, review the module objective and the evidence standards below. This foundation keeps even a capstone or in-development module on the same Learn It → Practice It → Prove It path.</p>
+    </div>
+  </section>` : '';
+  const guidedLab = options.needsGuidedLab ? `<section id="${esc(guidedId)}" class="max-w-5xl mx-auto mt-8 px-6" aria-labelledby="${esc(guidedId)}-title">
+    <div class="rounded-2xl border border-sky-200 bg-sky-50 p-6">
+      <p class="text-xs font-bold uppercase tracking-[.16em] text-sky-800">Practice It · Guided Lab</p>
+      <h2 id="${esc(guidedId)}-title" class="mt-2 text-xl font-bold text-[#1e3a5f]">Guided Lab</h2>
+      <p class="mt-2 text-sm leading-6 text-slate-700">The guided activity for this module is being authored. Its place in the learning sequence is reserved before the independent Assessment Lab so learners never lose the Learn It → Practice It → Prove It path.</p>
+    </div>
+  </section>` : '';
+  return `${foundations}${guidedLab}<section id="${esc(assessmentId)}" class="max-w-5xl mx-auto my-8 px-6" aria-labelledby="${esc(assessmentId)}-title">
+    <div class="rounded-2xl border-2 border-[#1e3a5f] bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[.16em] text-[#1e3a5f]">Prove It · Assessment Lab</p>
+          <h2 id="${esc(assessmentId)}-title" class="mt-2 text-2xl font-bold text-[#1e3a5f]">Independent evidence submission</h2>
+          <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Use evidence from the Guided Lab to explain your independent decision. This submission is retained as an instructor-reviewable assessment artifact; it is not practice work.</p>
+        </div>
+        <span class="rounded-full ${submitted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} px-3 py-1 text-xs font-bold">${submitted ? 'Submitted for review' : 'Assessment required'}</span>
+      </div>
+      <div class="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-700"><strong class="text-[#1e3a5f]">Assessment focus:</strong> ${esc(objective)}</div>
+      <form class="mt-5 space-y-4" data-module-assessment-form data-module-key="${esc(moduleKey)}" data-program-slug="${esc(program.slug)}">
+        <label class="block text-sm font-semibold text-[#1e3a5f]" for="${esc(assessmentId)}-rationale">Evidence-backed rationale
+          <textarea id="${esc(assessmentId)}-rationale" name="rationale" required minlength="120" rows="5" class="mt-2 w-full rounded-xl border border-slate-300 p-3 font-normal text-slate-800" placeholder="State the evidence you used, the decision you made, and why that decision is appropriately scoped.">${esc(state.rationale || '')}</textarea>
+        </label>
+        <label class="flex items-start gap-3 text-sm text-slate-700"><input name="attestation" required type="checkbox" class="mt-1" ${submitted ? 'checked' : ''} /><span>This is my independent work and the rationale is supported by the module evidence.</span></label>
+        <div class="flex flex-wrap items-center gap-3"><button type="submit" class="rounded-xl bg-[#1e3a5f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#16324a]">${submitted ? 'Submit updated assessment' : 'Submit assessment for review'}</button><p class="text-sm text-slate-600" data-module-assessment-status aria-live="polite">${submitted ? `Submitted ${esc(new Date(state.submittedAt).toLocaleString())}. Instructor review is pending.` : 'A rationale of at least 120 characters and your attestation are required.'}</p></div>
+      </form>
+    </div>
+  </section>`;
+}
+
 /* Module quick-nav rail: a persistent left sidebar on desktop, or a toggle drawer on mobile,
  * showing all lessons and labs with their completion status. Allows jump-to-lesson navigation.
  *
@@ -4228,9 +4337,12 @@ function moduleQuickNavRail(items, state = {}) {
  * the same way the mobile drawer toggle already works statelessly.
  */
 function moduleUnifiedNav(sections, state = {}) {
-  if (!Array.isArray(sections) || !sections.length) return '';
+  sections = normalizeModuleStages(sections, state);
+  if (!sections.length) return '';
 
   const moduleKey = state.moduleKey || 'm01';
+  const hasGeneratedFoundations = sections.some((section) => section.standardStage === 'foundations');
+  const hasGeneratedGuidedLab = sections.some((section) => section.standardStage === 'guided');
   const reviewMode = state.reviewMode || false;
 
   const gatedSections = sections.filter((s) => s.gated !== false);
@@ -4251,12 +4363,7 @@ function moduleUnifiedNav(sections, state = {}) {
   // material, not module work — they sit below the Learn/Practice/Prove
   // phases rather than being grouped inside one of them.
   const supplementalSections = sections.filter((section) => section.supplemental === true);
-  const phaseFor = (section) => {
-    if (section.phase) return section.phase;
-    if (section.type === 'review') return 'prove';
-    if (section.type === 'lab' || section.type === 'quiz') return 'practice';
-    return 'learn';
-  };
+  const phaseFor = (section) => section.phase || 'learn';
   const phases = [
     { id: 'learn', title: 'Learn It', icon: 'ri-book-open-line' },
     { id: 'practice', title: 'Practice It', icon: 'ri-tools-line' },
@@ -4279,9 +4386,19 @@ function moduleUnifiedNav(sections, state = {}) {
     const groupId = `munified-group-${esc(section.id)}`;
     const isOpen = hasChildren && section === currentGatedSection;
 
-    const rowHtml = `<a href="#${esc(section.scrollId)}" class="munified-row ${statusClass}" data-mnav-chip-scroll="${esc(section.scrollId)}" aria-disabled="${isLocked}" title="${esc(section.title)}${isLocked ? ' (complete the current section first)' : ''}">
+    const navTitle = section.standardStage === 'assessment'
+      ? 'Assessment Lab'
+      : section.standardStage === 'guided'
+        ? 'Guided Lab'
+        // The item inside Practice It has one Academy-wide name.  Individual
+        // lab titles remain on the destination surface, but the rail never
+        // alternates among Module Lab, Hands-On Lab, walkthrough, etc.
+        : section.phase === 'practice' && section.type === 'lab'
+          ? 'Guided Lab'
+          : section.title;
+    const rowHtml = `<a href="#${esc(section.scrollId)}" class="munified-row ${statusClass}" data-mnav-chip-scroll="${esc(section.scrollId)}" aria-disabled="${isLocked}" title="${esc(navTitle)}${isLocked ? ' (complete the current section first)' : ''}">
       <i class="${esc(typeIcon[section.type] || 'ri-file-line')}" aria-hidden="true"></i>
-      <span class="munified-row-label">${esc(section.title)}</span>
+      <span class="munified-row-label">${esc(navTitle)}</span>
       ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
       ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a>`;
@@ -4336,7 +4453,7 @@ function moduleUnifiedNav(sections, state = {}) {
     </li>`;
   }).join('');
 
-  return `<aside class="mquick-nav-rail munified-nav" data-mquick-nav-rail="${moduleKey}" aria-label="Module navigation">
+  return `<aside class="mquick-nav-rail munified-nav" data-mquick-nav-rail="${moduleKey}" data-standard-foundations="${hasGeneratedFoundations}" data-standard-guided="${hasGeneratedGuidedLab}" aria-label="Module navigation">
     <button class="mquick-nav-toggle" type="button" data-mquick-nav-toggle aria-label="Toggle navigation" aria-expanded="false" aria-controls="mquick-nav-drawer">
       <i class="ri-menu-line" aria-hidden="true"></i>
     </button>
@@ -6800,6 +6917,57 @@ function wireCommon() {
   document.querySelectorAll('[data-mnav-chip-scroll]').forEach((chip) => {
     chip.addEventListener('click', (e) => {
       if (chip.getAttribute('aria-disabled') === 'true') e.preventDefault();
+    });
+  });
+
+  // The platform-owned Assessment Lab is available in every registered
+  // course module.  Save the student's exact submitted rationale separately
+  // from any guided-lab draft and create an append-only attempt/artifact for
+  // faculty review.  It deliberately does not mark the module complete: a
+  // reviewer, or the module's own domain-specific scorer, owns that decision.
+  document.querySelectorAll('[data-module-assessment-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const rationale = form.elements.rationale.value.trim();
+      const status = form.querySelector('[data-module-assessment-status]');
+      const submit = form.querySelector('button[type="submit"]');
+      if (rationale.length < 120 || !form.elements.attestation.checked) {
+        if (status) status.textContent = 'Add an evidence-backed rationale of at least 120 characters and confirm the attestation.';
+        return;
+      }
+      const user = await currentUser();
+      const moduleKey = form.dataset.moduleKey;
+      const programSlug = form.dataset.programSlug;
+      const state = moduleAssessmentState(moduleKey, user);
+      state.rationale = rationale;
+      state.attempts = Number(state.attempts || 0) + 1;
+      state.submittedAt = new Date().toISOString();
+      LabRuntime.save(`academy-assessment-${moduleKey}`, user, state);
+      submit.disabled = true;
+      if (status) status.textContent = 'Saving your assessment artifact…';
+      const labKey = `${moduleKey}-assessment-module`;
+      try {
+        await Promise.all([
+          recordLabAttempt(user, labKey, {
+            // progress_state is deliberately limited to not_started /
+            // in_progress / complete.  Faculty acceptance, not this student
+            // submission, is what may later produce a completed assessment.
+            state: 'in_progress', score: null,
+            result: { rationale, attested: true, attempt: state.attempts, assessmentType: 'instructor_review' },
+          }),
+          persistPortfolioArtifact(user, {
+            moduleKey, labKey, kind: 'module_assessment',
+            title: `${programSlug} ${moduleKey} Assessment Lab`, content: rationale,
+            rubricVersion: 'academy-module-assessment-v1', scoringEngineVersion: 'instructor-review-v1',
+          }),
+        ]);
+        if (status) status.textContent = 'Submitted for instructor review. Your submitted rationale has been retained.';
+      } catch (error) {
+        // The local durable draft is already saved.  Give the learner a clear
+        // retry path if the remote append-only record is temporarily offline.
+        submit.disabled = false;
+        if (status) status.textContent = 'Your assessment is saved locally, but it could not be sent for review. Please submit again.';
+      }
     });
   });
 

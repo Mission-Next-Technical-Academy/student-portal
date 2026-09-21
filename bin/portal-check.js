@@ -156,10 +156,13 @@ for (const file of files) {
 
 const wanted = process.argv.slice(2).map(Number);
 const registered = vm.runInContext('Object.values(MODULE_LABS).map((d) => ({ program: d.program, n: d.moduleNumber, key: d.moduleKey }))', ctx);
-const targets = wanted.length ? registered.filter((d) => wanted.includes(d.n)) : registered;
+// Test the catalogue, not merely the hand-authored files.  Draft modules use
+// module-registry.js's standard fallback and must retain the same stages.
+const catalogueModules = vm.runInContext('PROGRAMS.flatMap((p) => Object.values(p.modules || {}).map((m) => ({ program: p.slug, n: m.number, key: m.key })))', ctx);
+const targets = wanted.length ? catalogueModules.filter((d) => wanted.includes(d.n)) : catalogueModules;
 
 for (const n of wanted) {
-  if (!registered.some((d) => d.n === n)) console.log(`  module ${n}  not registered (placeholder)`);
+  if (!catalogueModules.some((d) => d.n === n)) console.log(`  module ${n}  not found in the catalogue`);
 }
 
 // Run async test in a wrapper that returns a Promise we can await from Node.
@@ -178,6 +181,22 @@ const testPromise = vm.runInContext(`
         const user = await currentUser();
         const html = lab.view(user, p);
         if (typeof html !== 'string' || html.length < 500) throw new Error(\`view returned \${typeof html} of length \${(html || '').length}\`);
+        // Academy module contract: the shared nav and rendered surface must
+        // always carry Learn → Practice → Prove. This catches a local module
+        // section list accidentally removing its Prove It assessment again.
+        // A locked capstone intentionally withholds its navigation until its
+        // prerequisite gate is satisfied; validate the stage rail whenever a
+        // module learning surface is actually rendered.
+        if (html.includes('data-mquick-nav-rail')) {
+          const requiredLabels = ['Learn It', 'Practice It', 'Prove It', 'Assessment Lab'];
+          const missingLabel = requiredLabels.find((label) => !html.includes(label));
+          if (missingLabel) throw new Error(\`missing required module stage: \${missingLabel}\`);
+        }
+        if (html.includes('data-mquick-nav-rail')) {
+          const assessmentId = \`standard-\${target.key}-assessment-module\`;
+          if (!html.includes(\`id="\${assessmentId}"\`)) throw new Error('missing rendered Assessment Lab surface');
+          if (!html.includes('Guided Lab')) throw new Error('missing Guided Lab in Practice It navigation');
+        }
         console.log(\`  module \${target.n}  OK  (\${target.key}, \${html.length} chars)\`);
       } catch (error) {
         failures += 1;
