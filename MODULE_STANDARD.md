@@ -240,3 +240,18 @@ schema changes for all four tracks or not at all.
 - Objectives use measurable verbs.
 - No certification endorsement, partnership, or pass-guarantee language in any
   track. Alignment may be stated; affiliation may not.
+
+## 7. Student interface standard
+
+Module 01 is the visual and interaction reference for every student module.
+Every module uses the shared `moduleTopbar` and unified left navigation rail as
+the only Learn It → Practice It → Prove It navigator. Domain labs may provide
+local controls for their own data views, but must not add a second phase rail,
+set of phase tabs, or duplicate stage labels. Use the shared module layout and
+progress wiring rather than replacing or visually competing with it.
+
+Before changing an interactive lab or assessment, read
+`docs/LAB_ASSESSMENT_STANDARD.md`. It is the required standard for the
+Learn It → Practice It → Prove It progression, instructor-reviewable Prove It
+submissions, readable student responses, competency scoring, partial credit,
+and multiple valid investigative paths.

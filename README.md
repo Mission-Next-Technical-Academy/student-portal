@@ -98,6 +98,13 @@ All 12 module routes are implemented. The shared lab contract is in
 single delivery order, Module 1 direction, and CI/CD path. `HANDOFF.md`
 retains concise evidence for the active work item.
 
+> **Important — lab and assessment development:** Before changing Learn It,
+> Practice It, Prove It, simulators, assessment scoring, or instructor/admin
+> review, read `docs/LAB_ASSESSMENT_STANDARD.md`. Module 1 is the UX reference.
+> Prove It requires instructor review, readable student-written responses,
+> competency-based partial credit, and support for multiple valid investigative
+> paths.
+
 ## Deployment
 
 Pushing to `master` triggers `.github/workflows/pages.yml`, which assembles the
@@ -114,6 +121,8 @@ single-origin site and publishes it to GitHub Pages. No manual deploy step.
 | `HANDOFF.md` | Evidence for the active roadmap item; historical logs are in `archive/session-logs/` |
 | `NEXT_SESSION.md` | Compatibility pointer to the roadmap, not a second task queue |
 | `PROJECT_GUIDE_FOR_AI.md` | Orientation for AI agents working in this repo |
+| `OPERATIONS.md` | Live data control plane, test-account cleanup, and cohort retention |
+| `docs/LAB_ASSESSMENT_STANDARD.md` | Required architecture and review standard for labs and Prove It assessments |
 
 Legacy SC-200 files (`SC200_LAB.md`, `ExamObjectives.md`, `COVERAGE_SWEEP.md`,
 `GAP_BRIDGE.md`) are retained as implementation history. This course teaches

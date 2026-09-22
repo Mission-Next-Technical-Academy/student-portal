@@ -11,6 +11,12 @@ Mission Next delivers supervised, job-shaped technical training. Learners
 perform work in the simulated environment, and the durable evidence of that
 work—not a parallel worksheet or quiz alone—is what an instructor reviews.
 
+**Required implementation standard:** Any lab, simulator, Learn It, Practice
+It, Prove It, assessment/scoring, or instructor/admin review work must follow
+`docs/LAB_ASSESSMENT_STANDARD.md`. Module 1 is the UX reference; Prove It
+requires a durable instructor-reviewable submission, readable student-written
+work, competency-based partial credit, and support for multiple valid paths.
+
 For the SOC Analyst track, Security+ remains the light conceptual spine and
 CySA+-territory hands-on practice provides depth. Each module should move
 through **Learn it → Practice it → Prove it**, where "Prove it" means

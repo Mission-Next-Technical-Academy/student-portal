@@ -6,6 +6,12 @@ per-module assessment format so "grade," "assessment result," and "passing
 score" mean the same specific thing everywhere they're used — in code, in
 `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`, and in any future CIE-facing export.
 
+> **Required architecture standard:** Before changing any assessment/reporting
+> behavior, read `docs/LAB_ASSESSMENT_STANDARD.md`. It governs Prove It
+> persistence, instructor-review workflow, readable student-written responses,
+> competency-based partial credit, multiple valid investigation paths, and
+> explainable automated scoring. Module 1 is the Academy UX reference.
+
 Every number below is read from the live source (`portal/module-NN.js`,
 `portal/data.js`, `portal/app.js`), not invented. Where CIE requires
 something the app doesn't yet capture, that's marked **GAP** with what's

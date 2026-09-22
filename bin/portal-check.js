@@ -140,6 +140,9 @@ const files = [
   'lab-runtime.js',
   'module-registry.js',
   ...moduleFiles.filter((f) => f.startsWith('soc-analyst-')),
+  // Module 02's environment is deliberately an additive layer loaded after
+  // its legacy isolated lab, matching portal/index.html script order.
+  'soc-analyst-module-02-environment.js',
   'it-support-shared.js',
   ...moduleFiles.filter((f) => f.startsWith('it-support-')),
   ...moduleFiles.filter((f) => !f.startsWith('soc-analyst-') && !f.startsWith('it-support-')),

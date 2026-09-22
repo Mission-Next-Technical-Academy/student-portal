@@ -31,6 +31,12 @@ were authored at different times, not to force a rebuild.
 
 **Learn it → Practice it → Prove it.**
 
+Implementation of any of these stages is governed by
+`docs/LAB_ASSESSMENT_STANDARD.md`. In particular, Prove It must create a
+durable instructor-reviewable record and assess explainable competencies with
+partial credit for meaningful, valid findings—not a single click path or
+answer key.
+
 - **Learn it** — minimum instruction needed to understand the concept,
   workflow, or tool.
 - **Practice it** — perform the skill with guidance, feedback, retries, and

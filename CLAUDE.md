@@ -5,6 +5,13 @@ status summary. It is the single delivery queue, locks Module 1's required
 beginning-of-course LMS orientation tour, and defines the CI/CD workflow.
 Where this file conflicts with it, `ROADMAP.md` wins.
 
+**Mandatory lab/assessment standard:** before changing any Learn It, Practice
+It, Prove It, simulator, assessment/scoring, or instructor/admin review code,
+read `docs/LAB_ASSESSMENT_STANDARD.md`. Module 1 is the Academy UX reference;
+every Prove It requires durable instructor review, readable student writing,
+competency-based partial credit, and support for multiple valid investigative
+paths.
+
 **2026-09-20 (out-of-queue owner sprint, not a `ROADMAP.md` item):** a
 universal, program-agnostic Academy first-login orientation tour shipped —
 see `ACADEMY_ORIENTATION_SPRINT.md`, `portal/orientation.js` /

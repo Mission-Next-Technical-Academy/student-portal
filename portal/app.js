@@ -1051,6 +1051,7 @@ function adminGradingQueuePanel(gradingQueueRows, openLabRedoRows = []) {
             </span>
           </div>
           ${adminCaseTicketSubmissionPanel(row)}
+          ${adminModuleTwoAccessReviewPanel(row)}
           ${competencyPanel}
           ${readableResult}
           <details class="mb-3 text-sm">
@@ -1127,6 +1128,29 @@ function adminCaseTicketSubmissionPanel(row) {
     </dl>
     <div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Analyst work notes · student response</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(record.notes || 'Not provided')}</p></div>
     ${handoffFields.length ? `<div class="mt-3 grid sm:grid-cols-2 gap-2">${handoffFields.map(([label, value]) => `<div class="rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${esc(label)}</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(value)}</p></div>`).join('')}</div>` : ''}
+  </section>`;
+}
+
+// Same purpose as adminCaseTicketSubmissionPanel() above, for Module 02's
+// Network & Identity Security Prove It (portal/soc-analyst-module-02-
+// environment.js submitProve()): the student's selected event, decision, cited
+// evidence, and analyst note must be readable here without expanding the raw
+// JSON debug block (docs/LAB_ASSESSMENT_STANDARD.md "Student writing is
+// first-class assessment data").
+function adminModuleTwoAccessReviewPanel(row) {
+  const record = row?.result?.access_review;
+  if (!record || typeof record !== 'object') return '';
+  const fields = [
+    ['Selected event', record.selectedEvent],
+    ['Decision', record.decision],
+    ['Evidence referenced', Array.isArray(record.evidenceReferenced) && record.evidenceReferenced.length ? record.evidenceReferenced.join(', ') : 'None selected'],
+  ];
+  return `<section class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3" aria-label="Student submitted access review">
+    <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2"><p class="text-sm font-semibold text-[#1e3a5f]">Student-submitted access review</p><span class="text-xs text-gray-500">Use the note below to grade the written determination.</span></div>
+    <dl class="grid sm:grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-[#bfdbfe] bg-white p-3 text-sm">
+      ${fields.map(([label, value]) => `<div><dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">${esc(label)}</dt><dd class="mt-0.5 text-gray-800">${esc(value || 'Not provided')}</dd></div>`).join('')}
+    </dl>
+    <div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Analyst note · student response</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(record.analystNote || 'Not provided')}</p></div>
   </section>`;
 }
 
@@ -4095,6 +4119,10 @@ function moduleTopbar(user, program, options = {}) {
           </div>
           <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">${progress.percent}%</span>
         </div>
+        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 whitespace-nowrap" aria-label="Signed in as ${esc(user.username || user.name || 'student')}">
+          <i class="ri-user-line text-sm" aria-hidden="true"></i>
+          ${esc(user.username || user.name || 'Student')}
+        </span>
         <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer">
           Sign Out
         </button>
@@ -5012,38 +5040,6 @@ function labRow(lab) {
   </div>`;
 }
 
-function labCard(program, lab, unlocked) {
-  const module = program.modules[lab.module];
-  return `
-  <div class="bg-white border border-gray-200 rounded-2xl p-7 flex flex-col gap-5 shadow-sm ${unlocked ? 'hover:-translate-y-1' : 'mnt-locked-strong'} transition-transform duration-200">
-    <div class="flex items-start justify-between gap-3">
-      <div class="w-12 h-12 flex items-center justify-center rounded-xl bg-[#1e3a5f]/8">
-        <i class="${lab.isCapstone ? 'ri-flag-line' : 'ri-flask-line'} text-2xl text-[#1e3a5f]"></i>
-      </div>
-      <span class="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 text-gray-600 text-xs font-medium px-2.5 py-1 rounded-lg">
-        Module ${String(module.number).padStart(2, '0')}
-      </span>
-    </div>
-    <div class="flex-1">
-      <h3 class="text-[#1e3a5f] font-bold text-base leading-snug mb-2">${esc(lab.title)}</h3>
-      <p class="text-gray-500 text-xs mb-3">
-        ${esc(lab.difficulty)} · ${formatInstructionalMinutes(lab.instructionalMinutes || lab.minutes)}
-      </p>
-      <p class="text-gray-500 text-sm leading-relaxed">${esc(lab.description)}</p>
-    </div>
-    <div class="flex flex-wrap gap-2">${lab.skills.map((s) => chip(s, true)).join('')}</div>
-    <div class="h-px bg-gray-100"></div>
-    <div class="text-xs space-y-1">
-      <p class="text-gray-600"><strong>Assessment:</strong> <span class="text-gray-500">${esc(lab.assessmentMethod)}</span></p>
-      <p class="text-gray-600"><strong>Pass standard:</strong> <span class="text-gray-500">70% + no critical safety errors</span></p>
-    </div>
-    <div class="h-px bg-gray-100"></div>
-    <p class="text-xs font-semibold uppercase tracking-widest ${unlocked ? 'text-[#1e3a5f]' : 'text-gray-400'}">
-      ${unlocked ? 'Hands-on lab included in the module view' : 'Hands-on lab locked with this module'}
-    </p>
-  </div>`;
-}
-
 function viewProgram(user, slug) {
   const program = PROGRAMS.find((p) => p.slug === slug);
   if (!program) return viewNotFound(user);
@@ -5060,18 +5056,13 @@ function viewProgram(user, slug) {
   window.__mntCurrentUser = user;
   window.__mntCurrentProgram = program;
   // The lab catalogue is per-track. Tracks whose labs are not authored yet get
-  // no Labs or Capstone section at all, rather than an empty grid.
+  // no Capstone section at all, rather than an empty grid.
   const trackLabs = programLabs(program);
-  const performanceLabs = trackLabs.filter((lab) => !lab.isCapstone);
-  const unlockedLabs = performanceLabs.filter((l) => hasModuleAccess(user, slug, l.module));
-  const hasLabs = performanceLabs.length > 0;
   const capstoneEntry = Object.entries(program.modules).find(([, module]) => module.isCapstone);
   const capstoneModuleKey = capstoneEntry && capstoneEntry[0];
   const capstoneModule = capstoneEntry && capstoneEntry[1];
   const capstoneLab = capstoneModuleKey && trackLabs.find((lab) => lab.module === capstoneModuleKey && lab.isCapstone);
   const hasCapstone = Boolean(capstoneModule && capstoneLab);
-  const performanceLabMinutes = performanceLabs.reduce((sum, l) => sum + (l.instructionalMinutes || l.minutes || 0), 0);
-  const capstoneLabMinutes = hasCapstone ? (capstoneLab.instructionalMinutes || capstoneLab.minutes || 0) : 0;
   const capstonePrerequisites = Object.keys(program.modules)
     .filter((key) => !program.modules[key].isCapstone);
   const capstoneReady = hasCapstone && hasModuleAccess(user, slug, capstoneModuleKey)
@@ -5199,7 +5190,6 @@ function viewProgram(user, slug) {
       <div class="max-w-7xl mx-auto px-8 flex gap-1 overflow-x-auto" style="scrollbar-width: none">
         ${[
           ['Curriculum', 'curriculum'],
-          ...(hasLabs ? [['Labs', 'labs']] : []),
           ...(hasCapstone ? [['Capstone', 'capstone']] : []),
           [program.careerReadiness ? 'M360 Companion' : 'Career Readiness', 'career-readiness'],
         ].map(([label, anchor]) => `
@@ -5237,63 +5227,6 @@ function viewProgram(user, slug) {
           </div>`).join('')}
       </div>
     </section>
-
-    <!-- NESTED LAB ENVIRONMENT -->
-    ${!hasLabs ? '' : `
-    <section id="sec-labs" class="py-16 px-8 mnt-band scroll-mt-32">
-      <div class="max-w-7xl mx-auto">
-        <h2 class="text-3xl font-bold text-[#1e3a5f] mb-3">Hands-On Labs</h2>
-        <div class="w-12 h-1 bg-[#f97316] rounded-full mb-3"></div>
-        <p class="text-gray-500 text-base mb-8">
-          Labs run inside the Mission Next security operations simulator. Your configuration, saved queries, and
-          investigation state persist to your account between sessions.
-        </p>
-
-        <!-- isolated module labs; the complete simulator stays behind Module 12 -->
-        <div class="relative overflow-hidden rounded-2xl p-8 mb-10"
-             style="background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 45%, #0f2440 100%)">
-          <div class="mnt-stars"></div>
-          <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full opacity-20 pointer-events-none"
-               style="background: radial-gradient(circle, #f97316 0%, transparent 70%)"></div>
-          <div class="relative z-10 flex items-center justify-between gap-8 flex-wrap">
-            <div class="max-w-xl">
-              <div class="inline-flex items-center gap-2 bg-white/10 text-white/80 text-xs font-semibold px-4 py-1.5 rounded-full uppercase tracking-widest mb-4 border border-white/15">
-                <span class="w-1.5 h-1.5 rounded-full bg-[#f97316]"></span>Lab Environment
-              </div>
-              <h3 class="text-white font-bold text-xl mb-3">${esc(program.title)} Labs</h3>
-              <p class="text-white/55 text-sm leading-relaxed">
-                Each module opens a focused, fictional workspace with only the evidence and controls needed for its
-                learning objective. The complete interconnected range remains reserved for the final capstone.
-              </p>
-            </div>
-            <div class="flex flex-col gap-3">
-              <a href="#sec-curriculum"
-                 class="inline-flex items-center justify-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold
-                        px-8 py-3.5 rounded-xl transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer">
-                <i class="ri-stack-line"></i> Choose a Module
-              </a>
-              <span class="text-white/40 text-xs text-center">Module labs keep their own saved state</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          ${performanceLabs
-            .map((l) => labCard(program, l, hasModuleAccess(user, slug, l.module)))
-            .join('')}
-        </div>
-
-        <p class="text-gray-400 text-xs mt-6">
-          ${unlockedLabs.length} of ${performanceLabs.length} module labs available with your current enrollment.
-        </p>
-        <p class="text-gray-500 text-xs mt-3">
-          <strong>${performanceLabs.length} non-capstone labs</strong> build analytical competencies over ${formatInstructionalMinutes(performanceLabMinutes)} of hands-on investigation.
-          ${hasCapstone ? `The <strong>capstone lab</strong> (Module ${String(capstoneModule.number).padStart(2, '0')}) is a ${formatInstructionalMinutes(capstoneLabMinutes)} integrated assessment. Together: ${formatInstructionalMinutes(performanceLabMinutes + capstoneLabMinutes)} of hands-on technical training.` : ''}
-        </p>
-      </div>
-    </section>
-
-    `}
 
     <!-- capstone -->
     ${!hasCapstone ? '' : `
@@ -6541,7 +6474,7 @@ async function render(options = {}) {
   // A route may have changed while session restoration was in flight.
   if (!isCurrentRouteRender(renderGeneration)) return;
 
-  // In-page anchors (#sec-labs, #sec-capstone) share the hash with the router.
+  // In-page anchors (#sec-capstone) share the hash with the router.
   // Only hashes beginning '#/' are routes; everything else is the browser
   // scrolling within the current view and must not trigger a re-render.
   if (hash && !hash.startsWith('#/') && hasRenderedRouteContent(app)) {

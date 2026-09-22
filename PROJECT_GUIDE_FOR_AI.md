@@ -7,6 +7,13 @@ productively without reconstructing the project from scratch.
 
 Read `ROADMAP.md` first for the active delivery order, locked Module 1
 direction, and CI/CD workflow. Use `LATEST_PROGRESS.md` as historical context.
+For any live roster, message, grading, account, or retention task, read
+`OPERATIONS.md` first; it is the operational control-plane pointer.
+Before changing any student lab, Learn It, Practice It, Prove It, simulator,
+assessment scoring, or instructor/admin review, read
+`docs/LAB_ASSESSMENT_STANDARD.md` and inspect Module 1 first. That standard is
+mandatory: Prove It creates a durable instructor-reviewable artifact and uses
+competency-based, explainable partial credit rather than a single answer key.
 
 ## Project identity
 
@@ -373,6 +380,10 @@ For meaningful interface changes, also test in a real browser:
    warning was caused by the new change.
 8. Update `HANDOFF.md` with the outcome, verification, and remaining work;
    archive the entry once it is complete.
+
+For lab or assessment work, also document the Module 1 reference components,
+target-module differences, assessment competencies, partial-credit model,
+instructor-review requirements, and files affected before material changes.
 
 ## Branding requirements
 
