@@ -6869,7 +6869,50 @@ function wireLogin() {
 
 }
 
+// Coursework pages deliberately begin as a compact outline.  Individual
+// modules can still render a disclosure as open while composing their state
+// (for example, to make an unfinished lab prominent), but that must not turn
+// a full course page into a long, expanded wall of content on arrival.
+function collapseCourseCardsByDefault() {
+  document.querySelectorAll('main details').forEach((details) => {
+    const className = details.className || '';
+    if (/(?:section-collapsible|lesson|foundation)/.test(className)) {
+      details.open = false;
+    }
+  });
+
+  // Module 01 uses button-controlled sections instead of <details>. Keep its
+  // initial state consistent with every other course without overwriting the
+  // learner's saved state; a deliberate click or nav jump will open it again.
+  document.querySelectorAll('[data-m01-section-toggle]').forEach((toggle) => {
+    const body = document.getElementById(toggle.getAttribute('aria-controls'));
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', `Expand ${toggle.dataset.m01SectionLabel || 'section'}`);
+    if (body) body.hidden = true;
+  });
+}
+
+function revealCourseCardTarget(target) {
+  if (!target) return;
+
+  // A destination can sit inside several collapsed course cards. Reveal each
+  // ancestor before scrolling so the target has a real layout position.
+  let ancestor = target.parentElement;
+  while (ancestor) {
+    if (ancestor.tagName === 'DETAILS' && !ancestor.open) {
+      ancestor.open = true;
+    }
+    if ((ancestor.hasAttribute('hidden') || ancestor.classList?.contains('is-collapsed')) && ancestor.id) {
+      const sectionToggle = document.querySelector(`[aria-controls="${ancestor.id}"]`);
+      if (sectionToggle) sectionToggle.click();
+    }
+    ancestor = ancestor.parentElement;
+  }
+  if (target.tagName === 'DETAILS') target.open = true;
+}
+
 function wireCommon() {
+  collapseCourseCardsByDefault();
   // Not `signOut` directly: addEventListener calls the handler with the
   // click Event as its first argument, which would land in signOut's
   // `reason` param instead of the default 'user_signed_out' string — the
@@ -6916,7 +6959,11 @@ function wireCommon() {
   // Foundations. Block navigation for anything past the current section.
   document.querySelectorAll('[data-mnav-chip-scroll]').forEach((chip) => {
     chip.addEventListener('click', (e) => {
-      if (chip.getAttribute('aria-disabled') === 'true') e.preventDefault();
+      e.preventDefault();
+      if (chip.getAttribute('aria-disabled') === 'true') return;
+      const target = document.getElementById(chip.dataset.mnavChipScroll);
+      revealCourseCardTarget(target);
+      target?.scrollIntoView({ behavior: 'smooth' });
     });
   });
 
@@ -7127,23 +7174,7 @@ function wireModuleQuickNavRail() {
       if (link.getAttribute('aria-disabled') === 'true') return;
       const scrollId = link.dataset.mquickNavScroll;
       const target = document.getElementById(scrollId);
-      // Opening the lesson's own <details> isn't enough if an ancestor page
-      // section is itself collapsed (data-m01-section-toggle et al) — the
-      // target stays hidden, zero-height, and scrollIntoView visibly does
-      // nothing. Expand any collapsed ancestor first by clicking its own
-      // toggle button (found via aria-controls), the same way a real click
-      // on that toggle would, so its model state stays in sync too.
-      let ancestor = target?.parentElement;
-      while (ancestor) {
-        if ((ancestor.hasAttribute('hidden') || ancestor.classList?.contains('is-collapsed')) && ancestor.id) {
-          const sectionToggle = document.querySelector(`[aria-controls="${ancestor.id}"]`);
-          if (sectionToggle) sectionToggle.click();
-        }
-        ancestor = ancestor.parentElement;
-      }
-      if (target && target.tagName === 'DETAILS') {
-        target.open = true;
-      }
+      revealCourseCardTarget(target);
       // Close the drawer on mobile after clicking a link
       const drawer = document.getElementById('mquick-nav-drawer');
       const toggle = document.querySelector('[data-mquick-nav-toggle]');
