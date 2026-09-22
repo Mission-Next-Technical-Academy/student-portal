@@ -462,18 +462,7 @@ function moduleSixLoad(user) {
   // Initialize quiz state
   if (!moduleSixQuizState) {
     const previousQuestionIds = moduleSixState.lastQuizQuestionIds || [];
-    const selection = selectQuizQuestions(MODULE_SIX_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
-    moduleSixQuizState = {
-      selectedQuestions: selection.selectedQuestions,
-      questionsByAnswer: selection.questionsByAnswer,
-      answers: {},
-      scored: false,
-      attempts: 0,
-      score: 0,
-      bestScore: 0,
-      feedback: [],
-      passed: false,
-    };
+    moduleSixQuizState = createQuizAttempt(MODULE_SIX_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
   }
 
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-06');
@@ -1173,38 +1162,14 @@ function wireModuleSixQuiz() {
     if (!event.target.closest('[data-m06-quiz-retry]')) return;
     event.preventDefault();
     const previousQuestionIds = moduleSixQuizState.selectedQuestions.map((s) => s.question.id);
-    const selection = selectQuizQuestions(MODULE_SIX_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
-    moduleSixQuizState = {
-      selectedQuestions: selection.selectedQuestions,
-      questionsByAnswer: selection.questionsByAnswer,
-      answers: {},
-      scored: false,
-      attempts: moduleSixQuizState.attempts,
-      score: 0,
-      bestScore: moduleSixQuizState.bestScore,
-      feedback: [],
-      passed: false,
-    };
+    moduleSixQuizState = resetQuizAttempt(moduleSixQuizState, MODULE_SIX_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
     form.innerHTML = moduleSixQuizPanel();
   });
 }
 
 function wireModuleSix() {
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
-  if (reviewToggle) {
-    reviewToggle.addEventListener('click', () => {
-      moduleSixReviewMode = !moduleSixReviewMode;
-      const isOpen = moduleSixReviewMode;
-      reviewToggle.setAttribute('aria-pressed', isOpen);
-      reviewToggle.querySelector('i').className = isOpen ? 'ri-close-line' : 'ri-file-list-line';
-      const label = reviewToggle.querySelector('span');
-      if (label) label.textContent = isOpen ? 'Close review' : 'Review module';
-      document.querySelectorAll('.m06-section-collapsible').forEach((details) => {
-        if (isOpen) details.setAttribute('open', '');
-        else details.removeAttribute('open');
-      });
-    });
-  }
+  wireReviewToggle({ button: reviewToggle, sectionSelector: '.m06-section-collapsible', getReviewMode: () => moduleSixReviewMode, setReviewMode: (value) => { moduleSixReviewMode = value; }, enabledLabel: 'Close review', disabledLabel: 'Review module', enabledIcon: 'ri-close-line', disabledIcon: 'ri-file-list-line' });
   wireModuleSixQuiz();
   wireModuleSixLab();
 

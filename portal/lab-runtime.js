@@ -139,6 +139,62 @@ const LabRuntime = (() => {
   return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState };
 })();
 
+/* Shared mechanics for the knowledge checks used by SOC modules. Question
+ * banks, selection rules, scoring, and pass thresholds stay in each module;
+ * this only owns the identical transient attempt shape and retry reset. */
+function createQuizAttempt(questionPool, options = {}) {
+  const selection = selectQuizQuestions(questionPool, options);
+  return {
+    selectedQuestions: selection.selectedQuestions,
+    questionsByAnswer: selection.questionsByAnswer,
+    answers: {},
+    scored: false,
+    attempts: options.attempts || 0,
+    score: 0,
+    bestScore: options.bestScore || 0,
+    feedback: [],
+    passed: false,
+  };
+}
+
+function resetQuizAttempt(previousState, questionPool, options = {}) {
+  const { preserveScoredResult = false, ...selectionOptions } = options;
+  const nextAttempt = createQuizAttempt(questionPool, {
+    ...selectionOptions,
+    attempts: previousState && previousState.attempts,
+    bestScore: previousState && previousState.bestScore,
+  });
+  // Modules 02–04 historically retained the last scored result in memory
+  // until the next submission, even though it was hidden by `scored: false`.
+  // Preserve that state contract while sharing selection/reset mechanics.
+  if (preserveScoredResult) {
+    return {
+      ...previousState,
+      selectedQuestions: nextAttempt.selectedQuestions,
+      questionsByAnswer: nextAttempt.questionsByAnswer,
+      answers: {},
+      scored: false,
+    };
+  }
+  return nextAttempt;
+}
+
+/* Each module supplies its own state owner and presentation details. This
+ * helper deliberately changes only the repeated DOM toggle mechanics. */
+function wireReviewToggle({ button, sectionSelector, getReviewMode, setReviewMode, enabledLabel, disabledLabel, enabledIcon, disabledIcon }) {
+  if (!button) return;
+  button.addEventListener('click', () => {
+    const isOpen = !getReviewMode();
+    setReviewMode(isOpen);
+    document.querySelectorAll(sectionSelector).forEach((details) => { details.open = isOpen; });
+    button.setAttribute('aria-pressed', String(isOpen));
+    const icon = button.querySelector('i');
+    if (icon) icon.className = isOpen ? enabledIcon : disabledIcon;
+    const label = button.querySelector('span');
+    if (label) label.textContent = isOpen ? enabledLabel : disabledLabel;
+  });
+}
+
 /* Shared score-section rendering for every module's independent-lab result
  * panel. Every module's score function already returns a named breakdown
  * (observation/analysis/decision/communication, or Module 12's own labeled

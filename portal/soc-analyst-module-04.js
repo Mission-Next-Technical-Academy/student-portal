@@ -462,18 +462,7 @@ function moduleFourLoad(user) {
   // Initialize quiz state
   if (!moduleFourQuizState) {
     const previousQuestionIds = moduleFourState.lastQuizQuestionIds || [];
-    const selection = selectQuizQuestions(MODULE_FOUR_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
-    moduleFourQuizState = {
-      selectedQuestions: selection.selectedQuestions,
-      questionsByAnswer: selection.questionsByAnswer,
-      answers: {},
-      scored: false,
-      attempts: 0,
-      score: 0,
-      bestScore: 0,
-      feedback: [],
-      passed: false,
-    };
+    moduleFourQuizState = createQuizAttempt(MODULE_FOUR_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
   }
 
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-04');
@@ -1126,11 +1115,7 @@ function wireModuleFourQuiz() {
   quizForm.addEventListener('click', (event) => {
     if (!event.target.closest('[data-m04-quiz-retry]')) return;
     const previousQuestionIds = moduleFourState.lastQuizQuestionIds || [];
-    const selection = selectQuizQuestions(MODULE_FOUR_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
-    moduleFourQuizState.selectedQuestions = selection.selectedQuestions;
-    moduleFourQuizState.questionsByAnswer = selection.questionsByAnswer;
-    moduleFourQuizState.answers = {};
-    moduleFourQuizState.scored = false;
+    Object.assign(moduleFourQuizState, resetQuizAttempt(moduleFourQuizState, MODULE_FOUR_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true, preserveScoredResult: true }));
     moduleFourRenderQuiz('m04-quiz-title');
   });
 }
@@ -1411,29 +1396,8 @@ function wireModuleFourLessons() {
 }
 
 function wireModuleFour() {
-  /* Wire the progress shell review toggle */
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
-  if (reviewToggle) {
-    reviewToggle.addEventListener('click', () => {
-      moduleFourReviewMode = !moduleFourReviewMode;
-
-      /* Update all collapsible sections */
-      document.querySelectorAll('.m04-section-collapsible').forEach((details) => {
-        details.open = moduleFourReviewMode;
-      });
-
-      /* Update the button state */
-      reviewToggle.setAttribute('aria-pressed', moduleFourReviewMode.toString());
-      const icon = reviewToggle.querySelector('i');
-      const text = reviewToggle.querySelector('span') || reviewToggle;
-      if (icon) {
-        icon.className = moduleFourReviewMode ? 'ri-eye-off-line' : 'ri-eye-line';
-      }
-      if (text && text !== reviewToggle) {
-        text.textContent = moduleFourReviewMode ? 'Exit Review' : 'Review Module';
-      }
-    });
-  }
+  wireReviewToggle({ button: reviewToggle, sectionSelector: '.m04-section-collapsible', getReviewMode: () => moduleFourReviewMode, setReviewMode: (value) => { moduleFourReviewMode = value; }, enabledLabel: 'Exit Review', disabledLabel: 'Review Module', enabledIcon: 'ri-eye-off-line', disabledIcon: 'ri-eye-line' });
 
   wireModuleFourQuiz();
   wireModuleFourLessons();

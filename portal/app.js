@@ -880,6 +880,41 @@ function adminTrackMeta(trackCode) {
   return ADMIN_TRACKS.find((track) => track.code === trackCode) || null;
 }
 
+/* Presentation-only filters. These run after the explicit, role-scoped
+ * Supabase reads and must not be used as authorization controls. */
+function filterByTrack(rows, trackCode) {
+  const list = Array.isArray(rows) ? rows : [];
+  return trackCode ? list.filter((row) => row.track_code === trackCode) : list;
+}
+
+function isActiveStudent(row, activityMap = null) {
+  return (row.modules_complete || 0) > 0
+    || (row.modules_in_progress || 0) > 0
+    || row.m360_record_exists
+    || (row.m360_accepted_weeks || 0) > 0
+    || (activityMap && ((activityMap.get(row.student_id)?.lab_attempts_count || 0) > 0
+      || (activityMap.get(row.student_id)?.capstone_submissions_count || 0) > 0));
+}
+
+function sortStudentsById(rows) {
+  return [...rows].sort((a, b) => a.student_id.localeCompare(b.student_id));
+}
+
+function resolveAdminTrackCode(routeMatch) {
+  const code = routeMatch && routeMatch[1];
+  return adminTrackMeta(code) ? code : null;
+}
+
+function normalizeAdminTrackData({ rows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, facultyMessageRows }) {
+  return {
+    rosterRows: filterByTrack(rows, activeTrackCode),
+    detailStudents: filterByTrack(activeStudents, activeTrackCode),
+    trackGradingQueueRows: activeTrackCode ? filterByTrack(gradingQueueRows, activeTrackCode) : [],
+    trackOpenLabRedoRows: activeTrackCode ? filterByTrack(openLabRedoRows, activeTrackCode) : [],
+    trackFacultyMessageRows: activeTrackCode ? filterByTrack(facultyMessageRows, activeTrackCode) : [],
+  };
+}
+
 function m360ProgressStatus(row) {
   if (!row.m360_required) return 'Technical coursework only';
   const technicalDone = Number(row.technical_completed || 0) >= Number(row.technical_required || 12);
@@ -3494,16 +3529,7 @@ async function exportStudentRecord(user, program) {
     evidence,
   };
 
-  const json = JSON.stringify(record, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `student-record-${user.username}-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadJsonFile(record, `student-record-${user.username}-${new Date().toISOString().slice(0, 10)}.json`);
   return record;
 }
 
@@ -4523,7 +4549,7 @@ function footer() {
   <footer class="border-t border-gray-100 py-10 px-8 mt-20">
     <div class="max-w-7xl mx-auto text-center">
       <p class="text-gray-400 text-xs">
-        © Mission Next Technical Academy. All rights reserved.
+        © Mission Next Technical Academy. All rights reserved. <span aria-label="Portal version">v${esc(PORTAL_RELEASE.version)}</span>
       </p>
     </div>
   </footer>`;
@@ -4560,7 +4586,7 @@ function viewLogin() {
           Your programs, curriculum, hands-on labs, and capstone progress — all in one place.
         </p>
       </div>
-      <div class="relative z-10 text-white/40 text-xs">© Mission Next Technical Academy</div>
+      <div class="relative z-10 text-white/40 text-xs">© Mission Next Technical Academy <span aria-label="Portal version">v${esc(PORTAL_RELEASE.version)}</span></div>
     </div>
 
     <!-- form panel -->
@@ -5726,44 +5752,35 @@ function formatLoginLocation(ev) {
 }
 
 function viewAdmin(user, rows, error, activeStudents, extra) {
+  const {
+    cheatingFlagsByUserId = new Map(), loginEvents = [], activityRowLimit = ADMIN_ACTIVITY_ROW_LIMIT,
+    activityLoadError = null, cohorts = [], cohortStudentCounts = new Map(), archivedStudents = [],
+    siteSessionsByStudentId = new Map(), gradingQueueRows = [], openLabRedoRows = [],
+    unreadMessageRows = [], facultyMessageRows = [], facultyMessageTrackCodes: assignedFacultyMessageTrackCodes = [],
+    activeTrackCode = null, activeTab: requestedAdminTab = 'progress', normalizedTrackData = {},
+  } = extra || {};
   const instructorDashboard = !!(user.isInstructor && !user.isAdmin);
-  const cheatingFlagsByUserId = (extra && extra.cheatingFlagsByUserId) || new Map();
-  const loginEvents = (extra && extra.loginEvents) || [];
-  const activityRowLimit = (extra && extra.activityRowLimit) || ADMIN_ACTIVITY_ROW_LIMIT;
-  const activityLoadError = (extra && extra.activityLoadError) || null;
-  const cohorts = (extra && extra.cohorts) || [];
-  const cohortStudentCounts = (extra && extra.cohortStudentCounts) || new Map();
-  const archivedStudents = (extra && extra.archivedStudents) || [];
-  const siteSessionsByStudentId = (extra && extra.siteSessionsByStudentId) || new Map();
-  const gradingQueueRows = (extra && extra.gradingQueueRows) || [];
-  const openLabRedoRows = (extra && extra.openLabRedoRows) || [];
-  const unreadMessageRows = (extra && extra.unreadMessageRows) || [];
-  const facultyMessageRows = (extra && extra.facultyMessageRows) || [];
-  const facultyMessageTrackCodes = new Set((extra && extra.facultyMessageTrackCodes) || []);
+  const facultyMessageTrackCodes = new Set(assignedFacultyMessageTrackCodes);
   const gradingCountsByTrack = new Map();
   gradingQueueRows.forEach((row) => gradingCountsByTrack.set(row.track_code, (gradingCountsByTrack.get(row.track_code) || 0) + 1));
   const unreadMessageCountsByTrack = new Map();
   unreadMessageRows.forEach((row) => unreadMessageCountsByTrack.set(row.track_code, (unreadMessageCountsByTrack.get(row.track_code) || 0) + 1));
   const activeCohorts = cohorts.filter((c) => !c.archived_at);
-  const activeTrackCode = (extra && extra.activeTrackCode) || null;
   // The Grading tab only exists inside a track workspace (below) — if the
   // admin left that workspace (e.g. back to "All Students") while still on
   // Grading, fall back to Student Progress rather than rendering a
   // still-"active" tab whose panel no longer exists in the DOM at all.
-  const requestedTab = (extra && extra.activeTab) || 'progress';
-  let activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
+  let activeTab = (!activeTrackCode && requestedAdminTab === 'grading') ? 'progress' : requestedAdminTab;
   if (instructorDashboard && !['progress', 'grading', 'messages'].includes(activeTab)) activeTab = 'progress';
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
   // Administrators supervise every course workspace. Instructors remain
   // limited to their explicit faculty_course_assignments.
   const canManageTrackMessages = Boolean(activeTrackCode && (user.isAdmin || facultyMessageTrackCodes.has(activeTrackCode)));
   if (!canManageTrackMessages && activeTab === 'messages') activeTab = 'progress';
-  const rosterRows = activeTrackCode ? rows.filter((row) => row.track_code === activeTrackCode) : rows;
+  const rosterRows = normalizedTrackData.rosterRows || filterByTrack(rows, activeTrackCode);
   // The All Students workspace intentionally retains its cross-track detail
   // picker. A track workspace must not expose another track's student record.
-  const detailStudents = activeTrackCode
-    ? (activeStudents || []).filter((row) => row.track_code === activeTrackCode)
-    : (activeStudents || []);
+  const detailStudents = normalizedTrackData.detailStudents || filterByTrack(activeStudents, activeTrackCode);
   // Grading lives inside each course's own workspace, not as a cross-track
   // list — an instructor scoped to one course should only ever see that
   // course's queue (owner's framing, 2026-09-13: "separated for each
@@ -5771,15 +5788,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // still shows from the All Students view (that's the whole point of the
   // notification), but the actual Grading tab only exists once you're
   // inside a specific track's workspace.
-  const trackGradingQueueRows = activeTrackCode
-    ? gradingQueueRows.filter((row) => row.track_code === activeTrackCode)
-    : [];
-  const trackOpenLabRedoRows = activeTrackCode
-    ? openLabRedoRows.filter((row) => row.track_code === activeTrackCode)
-    : [];
-  const trackFacultyMessageRows = activeTrackCode
-    ? facultyMessageRows.filter((row) => row.track_code === activeTrackCode)
-    : [];
+  const trackGradingQueueRows = normalizedTrackData.trackGradingQueueRows || (activeTrackCode ? filterByTrack(gradingQueueRows, activeTrackCode) : []);
+  const trackOpenLabRedoRows = normalizedTrackData.trackOpenLabRedoRows || (activeTrackCode ? filterByTrack(openLabRedoRows, activeTrackCode) : []);
+  const trackFacultyMessageRows = normalizedTrackData.trackFacultyMessageRows || (activeTrackCode ? filterByTrack(facultyMessageRows, activeTrackCode) : []);
   const tabIsActive = (key) => key === activeTab;
   const tabBtnClass = (key) =>
     `admin-tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 cursor-pointer ${
@@ -6589,6 +6600,7 @@ async function render(options = {}) {
     history.replaceState(null, '', '#/admin');
     hash = '#/admin';
   }
+  const activeTrackCode = resolveAdminTrackCode(adminTrackMatch);
 
   let dashboardRows = [];
   let activeStudents = [];
@@ -6598,13 +6610,14 @@ async function render(options = {}) {
   let unreadMessageRows = [];
   let facultyMessageRows = [];
   let facultyMessageTrackCodes = [];
+  let normalizedTrackData = null;
   if (hash === '#/admin' || adminTrackMatch) {
     if (!user.isAdmin && !user.isInstructor) {
       history.replaceState(null, '', '#/portal');
       if (!completeRouteLoading(renderGeneration)) return;
       app.innerHTML = viewPortal(user);
     } else {
-      const selectedAdminTrack = adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null;
+      const selectedAdminTrack = activeTrackCode;
       // This is deliberately separate from general admin access. A faculty
       // member only receives the message control and rows for courses to
       // which they have explicitly been assigned.
@@ -6718,24 +6731,22 @@ async function render(options = {}) {
       // selected. The roster view already exposes module/M360 progress, which
       // is sufficient to preserve the default Student Detail chooser; the
       // activity tab enriches that list with lab-only records when opened.
-      activeStudents = dashboardRows
-        .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || r.m360_record_exists || (r.m360_accepted_weeks || 0) > 0)
-        .sort((a, b) => a.student_id.localeCompare(b.student_id));
+      activeStudents = sortStudentsById(dashboardRows.filter((row) => isActiveStudent(row)));
 
       // The user can select another track while these reads are pending.  The
       // newer render owns the screen; discard this now-stale result.
       if (!completeRouteLoading(renderGeneration)) return;
       if (adminLazyTabData.activity) {
         const activityMap = new Map((adminLazyTabData.activity.activityRows || []).map((row) => [row.student_id, row]));
-        activeStudents = dashboardRows
-          .filter((r) => (r.modules_complete || 0) > 0 || (r.modules_in_progress || 0) > 0 || r.m360_record_exists || (r.m360_accepted_weeks || 0) > 0 || (activityMap.get(r.student_id)?.lab_attempts_count || 0) > 0 || (activityMap.get(r.student_id)?.capstone_submissions_count || 0) > 0)
-          .sort((a, b) => a.student_id.localeCompare(b.student_id));
+        activeStudents = sortStudentsById(dashboardRows.filter((row) => isActiveStudent(row, activityMap)));
         cheatingFlagsByUserId = buildCheatingReviewFlags(dashboardRows, adminLazyTabData.activity.completedRows || []);
       }
+      normalizedTrackData = normalizeAdminTrackData({ rows: dashboardRows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, facultyMessageRows });
       app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, applyAdminLazyData({
         cheatingFlagsByUserId,
         activeTab: adminActiveTab,
-        activeTrackCode: adminTrackMatch && adminTrackMeta(adminTrackMatch[1]) ? adminTrackMatch[1] : null,
+        activeTrackCode,
+        normalizedTrackData,
         gradingQueueRows,
         openLabRedoRows,
         unreadMessageRows,
@@ -6745,12 +6756,8 @@ async function render(options = {}) {
     }
     if (!isCurrentRouteRender(renderGeneration)) return;
     wireCommon();
-    const wiredRows = adminTrackMatch && adminTrackMeta(adminTrackMatch[1])
-      ? dashboardRows.filter((row) => row.track_code === adminTrackMatch[1])
-      : dashboardRows;
-    const wiredActiveStudents = adminTrackMatch && adminTrackMeta(adminTrackMatch[1])
-      ? activeStudents.filter((row) => row.track_code === adminTrackMatch[1])
-      : activeStudents;
+    const wiredRows = normalizedTrackData ? normalizedTrackData.rosterRows : filterByTrack(dashboardRows, activeTrackCode);
+    const wiredActiveStudents = normalizedTrackData ? normalizedTrackData.detailStudents : filterByTrack(activeStudents, activeTrackCode);
     wireAdmin(wiredRows, wiredActiveStudents, cheatingFlagsByUserId, gradingQueueRows, facultyMessageRows);
     app.setAttribute('aria-busy', 'false');
     window.scrollTo(0, 0);

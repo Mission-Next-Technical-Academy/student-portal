@@ -642,18 +642,7 @@ function moduleTwoLoad(user) {
   // Initialize quiz state
   if (!moduleTwoQuizState) {
     const previousQuestionIds = moduleTwoState.lastQuizQuestionIds || [];
-    const selection = selectQuizQuestions(MODULE_TWO_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
-    moduleTwoQuizState = {
-      selectedQuestions: selection.selectedQuestions,
-      questionsByAnswer: selection.questionsByAnswer,
-      answers: {},
-      scored: false,
-      attempts: 0,
-      score: 0,
-      bestScore: 0,
-      feedback: [],
-      passed: false,
-    };
+    moduleTwoQuizState = createQuizAttempt(MODULE_TWO_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
   }
 
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-02');
@@ -1189,11 +1178,7 @@ function wireModuleTwoQuiz() {
   quizForm.addEventListener('click', (event) => {
     if (!event.target.closest('[data-m02-quiz-retry]')) return;
     const previousQuestionIds = moduleTwoState.lastQuizQuestionIds || [];
-    const selection = selectQuizQuestions(MODULE_TWO_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
-    moduleTwoQuizState.selectedQuestions = selection.selectedQuestions;
-    moduleTwoQuizState.questionsByAnswer = selection.questionsByAnswer;
-    moduleTwoQuizState.answers = {};
-    moduleTwoQuizState.scored = false;
+    Object.assign(moduleTwoQuizState, resetQuizAttempt(moduleTwoQuizState, MODULE_TWO_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true, preserveScoredResult: true }));
     moduleTwoRenderQuiz('m02-quiz-title');
   });
 }

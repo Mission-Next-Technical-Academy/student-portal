@@ -480,18 +480,7 @@ function moduleThreeLoad(user) {
   // Initialize quiz state
   if (!moduleThreeQuizState) {
     const previousQuestionIds = moduleThreeState.lastQuizQuestionIds || [];
-    const selection = selectQuizQuestions(MODULE_THREE_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
-    moduleThreeQuizState = {
-      selectedQuestions: selection.selectedQuestions,
-      questionsByAnswer: selection.questionsByAnswer,
-      answers: {},
-      scored: false,
-      attempts: 0,
-      score: 0,
-      bestScore: 0,
-      feedback: [],
-      passed: false,
-    };
+    moduleThreeQuizState = createQuizAttempt(MODULE_THREE_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
   }
 
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-03');
@@ -1363,39 +1352,14 @@ function wireModuleThreeQuiz() {
   quizForm.addEventListener('click', (event) => {
     if (!event.target.closest('[data-m03-quiz-retry]')) return;
     const previousQuestionIds = moduleThreeState.lastQuizQuestionIds || [];
-    const selection = selectQuizQuestions(MODULE_THREE_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
-    moduleThreeQuizState.selectedQuestions = selection.selectedQuestions;
-    moduleThreeQuizState.questionsByAnswer = selection.questionsByAnswer;
-    moduleThreeQuizState.answers = {};
-    moduleThreeQuizState.scored = false;
+    Object.assign(moduleThreeQuizState, resetQuizAttempt(moduleThreeQuizState, MODULE_THREE_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true, preserveScoredResult: true }));
     moduleThreeRenderQuiz('m03-quiz-title');
   });
 }
 
 function wireModuleThree() {
-  /* Wire the progress shell review toggle */
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
-  if (reviewToggle) {
-    reviewToggle.addEventListener('click', () => {
-      moduleThreeReviewMode = !moduleThreeReviewMode;
-
-      /* Update all collapsible sections */
-      document.querySelectorAll('.m03-section-collapsible').forEach((details) => {
-        details.open = moduleThreeReviewMode;
-      });
-
-      /* Update the button state */
-      reviewToggle.setAttribute('aria-pressed', moduleThreeReviewMode.toString());
-      const icon = reviewToggle.querySelector('i');
-      const text = reviewToggle.querySelector('span') || reviewToggle;
-      if (icon) {
-        icon.className = moduleThreeReviewMode ? 'ri-eye-off-line' : 'ri-eye-line';
-      }
-      if (text && text !== reviewToggle) {
-        text.textContent = moduleThreeReviewMode ? 'Exit Review' : 'Review Module';
-      }
-    });
-  }
+  wireReviewToggle({ button: reviewToggle, sectionSelector: '.m03-section-collapsible', getReviewMode: () => moduleThreeReviewMode, setReviewMode: (value) => { moduleThreeReviewMode = value; }, enabledLabel: 'Exit Review', disabledLabel: 'Review Module', enabledIcon: 'ri-eye-off-line', disabledIcon: 'ri-eye-line' });
 
   wireModuleThreeQuiz();
   wireModuleThreeLessons();
