@@ -187,15 +187,21 @@ const testPromise = vm.runInContext(`
         // A locked capstone intentionally withholds its navigation until its
         // prerequisite gate is satisfied; validate the stage rail whenever a
         // module learning surface is actually rendered.
-        if (html.includes('data-mquick-nav-rail')) {
+        const navHtml = html.match(/<aside\\b[^>]*data-mquick-nav-rail[\\s\\S]*?<\\/aside>/)?.[0];
+        if (navHtml) {
           const requiredLabels = ['Learn It', 'Practice It', 'Prove It', 'Assessment Lab'];
-          const missingLabel = requiredLabels.find((label) => !html.includes(label));
+          const missingLabel = requiredLabels.find((label) => !navHtml.includes(label));
           if (missingLabel) throw new Error(\`missing required module stage: \${missingLabel}\`);
-        }
-        if (html.includes('data-mquick-nav-rail')) {
+          const assessmentRows = (navHtml.match(/<span class="munified-row-label">Assessment Lab<\\/span>/g) || []).length;
+          if (assessmentRows !== 1) throw new Error(\`expected one Assessment Lab rail row, found \${assessmentRows}\`);
+          const usesGenericAssessment = /data-standard-assessment="true"/.test(html);
           const assessmentId = \`standard-\${target.key}-assessment-module\`;
-          if (!html.includes(\`id="\${assessmentId}"\`)) throw new Error('missing rendered Assessment Lab surface');
-          if (!html.includes('Guided Lab')) throw new Error('missing Guided Lab in Practice It navigation');
+          if (usesGenericAssessment) {
+            if (!html.includes(\`id="\${assessmentId}"\`)) throw new Error('missing rendered Assessment Lab surface');
+          } else if (!html.includes('Prove It · Assessment Lab')) {
+            throw new Error('missing authored Assessment Lab surface');
+          }
+          if (!navHtml.includes('Guided Lab')) throw new Error('missing Guided Lab in Practice It navigation');
         }
         console.log(\`  module \${target.n}  OK  (\${target.key}, \${html.length} chars)\`);
       } catch (error) {

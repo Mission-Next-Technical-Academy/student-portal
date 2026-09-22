@@ -4191,12 +4191,11 @@ function normalizeModuleStages(sections, state = {}) {
     });
   }
 
-  // Make the independent assessment explicit, but only when a module hasn't
-  // already authored its own Prove It section (e.g. Module 01's case
-  // console review). Modules that already have one already render their own
-  // navigation row for it; synthesizing a second row here duplicated the
-  // "Assessment Lab" entry in the Prove It group.
-  if (!normalized.some((section) => section.phase === 'prove')) {
+  // Make the independent assessment explicit unless the module already
+  // authored an Assessment Lab of its own (e.g. Module 01's case console).
+  // Other review-phase sections, such as a Module Review, do not replace the
+  // assessment surface and must retain the generic fallback.
+  if (!normalized.some((section) => section.title === 'Assessment Lab')) {
     normalized.push({
       id: 'standard-assessment-module', title: 'Assessment Lab', type: 'review', phase: 'prove',
       isComplete: false, gated: false, standardStage: 'assessment',

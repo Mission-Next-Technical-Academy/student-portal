@@ -64,7 +64,7 @@ jobs:
           test -f _site/m360/m360-data.js
           test -f _site/m360/m360-production-bridge.js
           test -f _site/m360-entry.js
-          grep -q 'm360-entry.js?v=20260904' _site/index.html
+          grep -q 'src="m360-entry.js?v=' _site/index.html
           # A hardcoded simulator origin is the one regression that looks fine
           # in CI and breaks every lab button in production. The localhost
           # literal is legitimate inside the hostname-guarded branch, so match
