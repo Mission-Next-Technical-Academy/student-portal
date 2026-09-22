@@ -44,6 +44,12 @@ function registerModuleLab(def) {
       if (!authoredHtml.includes('data-mquick-nav-rail')) return authoredHtml;
       const needsFoundations = /data-standard-foundations="true"/.test(authoredHtml);
       const needsGuidedLab = /data-standard-guided="true"/.test(authoredHtml);
+      const needsAssessment = /data-standard-assessment="true"/.test(authoredHtml);
+      // A module that already authored its own Prove It / Assessment Lab
+      // section (module 01's case console, etc.) must not also get the
+      // platform's generic assessment form appended — that produced a
+      // second, duplicate "Assessment Lab" block on the page.
+      if (!needsAssessment) return authoredHtml;
       return `${authoredHtml}${moduleAssessmentModule(user, program, registeredDef.moduleKey, { needsFoundations, needsGuidedLab })}`;
     },
   };

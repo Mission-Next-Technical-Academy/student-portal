@@ -4191,13 +4191,18 @@ function normalizeModuleStages(sections, state = {}) {
     });
   }
 
-  // Always make the independent assessment explicit.  This remains separate
-  // from a module's coached lab and from any legacy "Module Review" block.
-  normalized.push({
-    id: 'standard-assessment-module', title: 'Assessment Lab', type: 'review', phase: 'prove',
-    isComplete: false, gated: false, standardStage: 'assessment',
-    scrollId: standardModuleStageId(moduleKey, 'assessment-module'),
-  });
+  // Make the independent assessment explicit, but only when a module hasn't
+  // already authored its own Prove It section (e.g. Module 01's case
+  // console review). Modules that already have one already render their own
+  // navigation row for it; synthesizing a second row here duplicated the
+  // "Assessment Lab" entry in the Prove It group.
+  if (!normalized.some((section) => section.phase === 'prove')) {
+    normalized.push({
+      id: 'standard-assessment-module', title: 'Assessment Lab', type: 'review', phase: 'prove',
+      isComplete: false, gated: false, standardStage: 'assessment',
+      scrollId: standardModuleStageId(moduleKey, 'assessment-module'),
+    });
+  }
   return normalized;
 }
 
@@ -4343,6 +4348,7 @@ function moduleUnifiedNav(sections, state = {}) {
   const moduleKey = state.moduleKey || 'm01';
   const hasGeneratedFoundations = sections.some((section) => section.standardStage === 'foundations');
   const hasGeneratedGuidedLab = sections.some((section) => section.standardStage === 'guided');
+  const hasGeneratedAssessment = sections.some((section) => section.standardStage === 'assessment');
   const reviewMode = state.reviewMode || false;
 
   const gatedSections = sections.filter((s) => s.gated !== false);
@@ -4453,7 +4459,7 @@ function moduleUnifiedNav(sections, state = {}) {
     </li>`;
   }).join('');
 
-  return `<aside class="mquick-nav-rail munified-nav" data-mquick-nav-rail="${moduleKey}" data-standard-foundations="${hasGeneratedFoundations}" data-standard-guided="${hasGeneratedGuidedLab}" aria-label="Module navigation">
+  return `<aside class="mquick-nav-rail munified-nav" data-mquick-nav-rail="${moduleKey}" data-standard-foundations="${hasGeneratedFoundations}" data-standard-guided="${hasGeneratedGuidedLab}" data-standard-assessment="${hasGeneratedAssessment}" aria-label="Module navigation">
     <button class="mquick-nav-toggle" type="button" data-mquick-nav-toggle aria-label="Toggle navigation" aria-expanded="false" aria-controls="mquick-nav-drawer">
       <i class="ri-menu-line" aria-hidden="true"></i>
     </button>
