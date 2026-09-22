@@ -23,6 +23,19 @@
 .m02e-callout.is-done{border-left-color:#15803d}
 .m02e-callout p{margin:6px 0 0;color:#334155;font-size:13px;line-height:1.55}
 .m02e-callout-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.m02e-look-for{padding:8px 10px;background:#fff7ed;border-radius:7px}
+.m02e-term-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.m02e-term{position:relative;padding:4px 8px;border-radius:999px;background:#e9f2fb;color:#1e3a5f;font-size:11px;font-weight:800;cursor:help}
+.m02e-term::after{content:attr(data-definition);position:absolute;z-index:5;left:0;bottom:calc(100% + 8px);width:220px;padding:9px 10px;border-radius:7px;background:#102b46;color:#fff;font-size:11px;font-weight:500;line-height:1.45;opacity:0;pointer-events:none;transform:translateY(3px);transition:opacity .15s ease,transform .15s ease;box-shadow:0 8px 20px #102b463d}
+.m02e-term:hover::after,.m02e-term:focus::after{opacity:1;transform:translateY(0)}
+
+/* The walkthrough names its focus and moves that focus itself as the learner
+ * advances. The pulse is intentionally restrained, and disabled for users
+ * who request reduced motion. */
+.m02e-guided-focus{display:flex;align-items:center;gap:7px;padding:9px 16px;background:#fff4e9;border-bottom:1px solid #f5cf9a;color:#9a4d09;font-size:12px}
+.m02e-guided-focus i{font-size:16px}.m02e-guided-focus strong{color:#7c2d12}
+.m02e-console.is-guided .m02e-node.is-selected,.m02e-console.is-guided .m02e-table tr.is-selected{animation:m02e-focus-pulse 1.5s ease-in-out infinite}
+@keyframes m02e-focus-pulse{50%{box-shadow:0 0 0 5px #f9731640;background:#fff7ed}}
 
 .m02e-console-wrap{margin-bottom:16px}
 .m02e-console{overflow:hidden;background:#fff;border:1px solid #cbd5e1;border-radius:16px;box-shadow:0 8px 24px #1e3a5f12}
@@ -50,6 +63,7 @@
 .m02e-zone{padding:12px;border:1px dashed #aabccc;border-radius:10px;color:#54708b;font-size:11px;font-weight:800;letter-spacing:.1em}
 .m02e-zone.internet{max-width:180px;margin:auto;background:#f8fafc}
 .m02e-boundary{padding:10px;background:#fff4e9;border:1px solid #f5b46f;border-radius:9px;color:#9a4d09;font-size:11px;font-weight:800;cursor:pointer}
+.m02e-boundary.is-selected,.m02e-listing>button.is-selected{border-color:#f97316;box-shadow:0 0 0 3px #f9731626;background:#fff7ed}
 .m02e-topology{display:grid;grid-template-columns:.35fr .65fr;gap:12px;text-align:left}
 .m02e-zone.dmz,.m02e-zone.internal{background:#f8fafc}
 .m02e-zone>span,.m02e-zone em,.m02e-identities em{display:block;margin-bottom:10px;font-style:normal}
@@ -115,6 +129,16 @@
 .m02e-feedback{margin-top:14px;padding:11px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#9a3412;font-size:12px;line-height:1.5}
 .m02e-feedback.is-correct{background:#ecfdf5;border-color:#bbf7d0;color:#166534}
 
+/* LMS launch surface: it describes the task, but never embeds the task's
+ * console. The learner enters a dedicated browser workspace to do the work. */
+.m02e-workspace-launch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:15px 22px;align-items:center;padding:24px 0;border-top:1px solid #dbe3ed;border-bottom:1px solid #dbe3ed}
+.m02e-workspace-launch h3{margin:4px 0 7px;color:#1e3a5f;font-size:19px}.m02e-workspace-launch p:not(.m02e-label){max-width:700px;margin:0;color:#475569;font-size:13px;line-height:1.6}.m02e-workspace-launch small{grid-column:1/-1;color:#64748b;font-size:11px}
+.m02e-enter-workspace{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:9px;background:#1e3a5f;color:#fff;font-size:13px;font-weight:800;text-decoration:none;white-space:nowrap}.m02e-enter-workspace:hover{background:#102b46}
+
+/* Separate-tab work application. No LMS top bar, course rail, hero, or
+ * reading-card framing appears here: only task context, console, and artifact. */
+.m02e-workspace-shell{min-height:100vh;background:#edf3f8;color:#1e293b}.m02e-workspace-topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 28px;background:#081a2d;color:#d9e9f8;font-size:12px;font-weight:800;letter-spacing:.04em}.m02e-workspace-topbar span{display:flex;align-items:center;gap:8px}.m02e-workspace-topbar a{color:#fff;text-decoration:none;font-size:12px}.m02e-workspace-topbar a:hover{text-decoration:underline}.m02e-workspace-main{width:min(1440px,calc(100% - 48px));margin:0 auto;padding:32px 0 64px}.m02e-workspace-intro{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:18px}.m02e-workspace-intro p{margin:0 0 7px;color:#c45d0a;font-size:11px;font-weight:800;letter-spacing:.12em}.m02e-workspace-intro h1{margin:0;color:#102b46;font-size:clamp(23px,3vw,32px)}.m02e-workspace-intro span{color:#64748b;font-size:12px;white-space:nowrap}.m02e-workspace-brief{margin:0 0 18px;padding:14px 16px;border-left:4px solid #f97316;background:#fff;color:#334155;font-size:13px;line-height:1.6}.m02e-workspace-main>.m02e-practice-panel,.m02e-workspace-main>.m02e-prove-panel{max-width:980px;margin:20px auto 0}
+
 .m02e-prove-selection{grid-template-columns:1fr;margin:14px 0}
 
 @media(max-width:900px){
@@ -134,4 +158,6 @@
   .m02e-fields{grid-template-columns:1fr}
   .m02e-console header span{display:none}
   .m02e-decisions{grid-template-columns:1fr}
+  .m02e-workspace-launch{grid-template-columns:1fr}.m02e-enter-workspace{width:100%;box-sizing:border-box}.m02e-workspace-topbar{padding:13px 16px}.m02e-workspace-topbar span{font-size:0}.m02e-workspace-topbar span i{font-size:18px}.m02e-workspace-main{width:min(100% - 24px,1440px);padding-top:22px}.m02e-workspace-intro{display:block}.m02e-workspace-intro span{display:block;margin-top:8px;white-space:normal}
 }
+@media(prefers-reduced-motion:reduce){.m02e-console.is-guided .m02e-node.is-selected,.m02e-console.is-guided .m02e-table tr.is-selected{animation:none}}

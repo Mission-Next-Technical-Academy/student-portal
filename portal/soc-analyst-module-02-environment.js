@@ -7,10 +7,9 @@
  * shell (moduleUnifiedNav + .mquick-nav-layout, same as Module 01). The
  * shared left rail is the only Learn/Practice/Prove navigator — this file
  * must never render a second phase rail, a set of phase tabs, or a stateful
- * "quiz" panel competing with the console for width. Learn It, Practice It,
- * and Prove It each get their own instance of the same enterprise-style
- * Network & Identity Security console (full width within their own section);
- * only the console's own entity drawer sits beside its view.
+ * "quiz" panel competing with the console for width. Learn It stays in the
+ * module for in-context coaching. Practice It and Prove It open the same
+ * enterprise-style console in a dedicated browser workspace.
  */
 (function () {
   const LAB_ID = 'm02-trust-path-review-v1';
@@ -58,12 +57,12 @@
   // Each entry: title, teaching body, console tab to switch to, and the
   // entity the "Inspect" callout highlights and opens in the drawer.
   const LEARN_STEPS = [
-    { title: 'Network Map', body: 'The network map shows the source, the destination, the security zones each sits in, and the boundary a connection has to cross.', tab: 'map', target: ['device', 'wk17'] },
-    { title: 'Access Activity', body: 'Each activity row connects one person, device, source IP, destination resource, service, protocol, port, and result in a single line.', tab: 'activity', target: ['event', 'evt-alice-finance'] },
-    { title: 'Identity', body: 'Authentication confirms who is signing in. Authorization is a separate decision — roles and MFA are identity context, not the decision itself.', tab: 'identities', target: ['user', 'alice'] },
-    { title: 'Device', body: "A device's managed and compliant state is access context an analyst weighs alongside identity and network path, not a decision on its own.", tab: 'devices', target: ['device', 'wk17'] },
-    { title: 'Resource & Policy', body: "A resource's policy states what is protected, which groups are authorized, and what conditions — a managed device, MFA — are required.", tab: 'policies', target: ['policy', 'finance-policy'] },
-    { title: 'Access decision', body: 'Alice has Finance-Read, a managed and compliant device, and satisfied MFA. She meets the Finance file policy, so the connection is allowed.', tab: 'activity', target: ['event', 'evt-alice-finance'] },
+    { title: 'Network Map', body: 'The network map shows the source, the destination, the security zones each sits in, and the boundary a connection has to cross.', lookFor: 'WKSTN-17 in the Workstations area', terms: ['Network Map', 'DMZ', 'Servers & Resources'], tab: 'map', target: ['device', 'wk17'] },
+    { title: 'Access Activity', body: 'Each activity row connects one person, device, source IP, destination resource, service, protocol, port, and result in a single line.', lookFor: 'Alice’s 08:14 access row', terms: ['Protocol', 'Port'], tab: 'activity', target: ['event', 'evt-alice-finance'] },
+    { title: 'Identity', body: 'Authentication confirms who is signing in. Authorization is a separate decision — roles and MFA are identity context, not the decision itself.', lookFor: 'Alice Morgan and her Finance-Read group', terms: ['Authentication', 'Authorization', 'MFA'], tab: 'identities', target: ['user', 'alice'] },
+    { title: 'Device', body: "A device's managed and compliant state is access context an analyst weighs alongside identity and network path, not a decision on its own.", lookFor: 'WKSTN-17 and its management status', terms: ['Managed device', 'Compliant'], tab: 'devices', target: ['device', 'wk17'] },
+    { title: 'Resource & Policy', body: "A resource's policy states what is protected, which groups are authorized, and what conditions — a managed device, MFA — are required.", lookFor: 'the Finance file access policy', terms: ['Resource', 'Access policy', 'PKI'], tab: 'policies', target: ['policy', 'finance-policy'] },
+    { title: 'Access decision', body: 'Alice has Finance-Read, a managed and compliant device, and satisfied MFA. She meets the Finance file policy, so the connection is allowed.', lookFor: 'the ALLOWED result on Alice’s 08:14 activity', terms: ['Access decision', 'Zero Trust'], tab: 'activity', target: ['event', 'evt-alice-finance'] },
   ];
 
   // Facts the console cannot demonstrate well on its own.
@@ -99,6 +98,26 @@
   };
 
   let state, user, reviewMode = false;
+
+  const TERM_DEFINITIONS = {
+    'Network Map': 'A view of systems, zones, and the paths connections take between them.',
+    'DMZ': 'A separated network zone for systems that must accept internet-facing traffic.',
+    'Servers & Resources': 'The systems, applications, files, or data a user is trying to reach.',
+    Protocol: 'The agreed rules a connection uses to communicate, such as TCP.',
+    Port: 'A numbered connection point that identifies a service on a system.',
+    Authentication: 'Checking that someone is who they claim to be.',
+    Authorization: 'Checking whether that identity is allowed to do this specific action.',
+    MFA: 'A second proof of identity, beyond a password.',
+    'Managed device': 'A device the organization can administer and enforce security settings on.',
+    Compliant: 'Meeting the organization’s required security settings.',
+    Resource: 'The system, file, application, or data being requested.',
+    'Access policy': 'The rule that states who may access a resource and under what conditions.',
+    PKI: 'Public Key Infrastructure: the certificates and trusted issuers used to verify digital identities.',
+    'Access decision': 'The final allow or deny result after the request context is evaluated.',
+    'Zero Trust': 'Evaluate every request using its current context; do not trust a location by default.',
+  };
+
+  const learnTerm = (term, focusable = true) => `<span class="m02e-term" ${focusable ? 'tabindex="0"' : ''} data-definition="${esc(TERM_DEFINITIONS[term] || '')}">${esc(term)}</span>`;
 
   const collection = (type) => DATA[type === 'policy' ? 'policies' : `${type}s`];
   const by = (type, id) => collection(type).find((x) => x.id === id);
@@ -159,8 +178,9 @@
 
   function mapView(scope) {
     const e = selectedEvent(scope), x = entity(e);
+    const label = (text) => scope === 'learn' && TERM_DEFINITIONS[text] ? learnTerm(text) : text;
     const node = (type, id, label, sub) => `<button class="m02e-node ${state[scope].selected.type === type && state[scope].selected.id === id ? 'is-selected' : ''}" data-m02e-select="${scope}:${type}:${id}"><strong>${esc(label)}</strong><small>${esc(sub)}</small></button>`;
-    return `<section class="m02e-map"><div class="m02e-zone internet">INTERNET</div><div class="m02e-boundary" data-m02e-select="${scope}:policy:${e.policy}"><i class="ri-shield-check-line"></i> FIREWALL / ACCESS POLICY</div><div class="m02e-topology"><div class="m02e-zone dmz"><span>DMZ</span>${node('resource', 'web', 'WEB-01', '10.20.2.15 · HTTPS')}</div><div class="m02e-zone internal"><span>INTERNAL</span><div class="m02e-map-columns"><div><em>WORKSTATIONS</em>${DATA.devices.map((d) => node('device', d.id, d.name, d.ip)).join('')}</div><div><em>SERVERS & RESOURCES</em>${DATA.resources.filter((r) => r.id !== 'web').map((r) => node('resource', r.id, r.name, `${r.ip} · ${r.service}`)).join('')}</div></div></div></div><div class="m02e-connection"><span>${esc(x.device.name)} · ${esc(x.device.ip)}</span><b>${esc(x.resource.service)} / ${esc(x.resource.transport)} ${esc(x.resource.port)}</b><span>${esc(x.resource.name)} · ${esc(x.resource.ip)}</span></div><div class="m02e-identities"><em>IDENTITIES</em>${DATA.users.map((u) => node('user', u.id, u.name, u.groups.join(', '))).join('')}</div></section>`;
+    return `<section class="m02e-map"><div class="m02e-zone internet">INTERNET</div><div class="m02e-boundary ${state[scope].selected.type === 'policy' && state[scope].selected.id === e.policy ? 'is-selected' : ''}" data-m02e-select="${scope}:policy:${e.policy}"><i class="ri-shield-check-line"></i> FIREWALL / ${label('Access policy')}</div><div class="m02e-topology"><div class="m02e-zone dmz"><span>${label('DMZ')}</span>${node('resource', 'web', 'WEB-01', '10.20.2.15 · HTTPS')}</div><div class="m02e-zone internal"><span>INTERNAL</span><div class="m02e-map-columns"><div><em>WORKSTATIONS</em>${DATA.devices.map((d) => node('device', d.id, d.name, d.ip)).join('')}</div><div><em>${label('Servers & Resources')}</em>${DATA.resources.filter((r) => r.id !== 'web').map((r) => node('resource', r.id, r.name, `${r.ip} · ${r.service}`)).join('')}</div></div></div></div><div class="m02e-connection"><span>${esc(x.device.name)} · ${esc(x.device.ip)}</span><b>${esc(x.resource.service)} / ${esc(x.resource.transport)} ${esc(x.resource.port)}</b><span>${esc(x.resource.name)} · ${esc(x.resource.ip)}</span></div><div class="m02e-identities"><em>IDENTITIES</em>${DATA.users.map((u) => node('user', u.id, u.name, u.groups.join(', '))).join('')}</div></section>`;
   }
   function activityView(scope) {
     return `<section><div class="m02e-table-wrap"><table class="m02e-table"><caption>ACCESS ACTIVITY</caption><thead><tr><th>TIME</th><th>USER</th><th>DEVICE</th><th>SOURCE</th><th>RESOURCE</th><th>SERVICE</th><th>RESULT</th></tr></thead><tbody>${DATA.events.map((e) => { const x = entity(e); return `<tr class="${state[scope].selected.type === 'event' && state[scope].selected.id === e.id ? 'is-selected' : ''}" data-m02e-select="${scope}:event:${e.id}"><td>${esc(e.time)}</td><td>${esc(x.user.username)}</td><td>${esc(x.device.name)}</td><td>${esc(x.device.ip)}</td><td>${esc(x.resource.name)}</td><td>${esc(x.resource.service)}</td><td><b class="${e.result === 'ALLOWED' ? 'allow' : 'deny'}">${esc(e.result)}</b></td></tr>`; }).join('')}</tbody></table></div></section>`;
@@ -168,13 +188,15 @@
   function listingView(scope, type) {
     const items = collection(type);
     const heading = type === 'user' ? 'IDENTITIES' : type === 'device' ? 'DEVICES' : type === 'resource' ? 'RESOURCES' : 'ACCESS POLICIES';
-    return `<section class="m02e-listing"><h2>${heading}</h2>${items.map((x) => { const sub = type === 'user' ? `${x.title} · ${x.groups.join(', ')}` : type === 'device' ? `${x.ip} · ${x.management} / ${x.compliance}` : type === 'resource' ? `${x.type} · ${x.zone} · ${x.ip}` : `${by('resource', x.resource).name} · ${x.groups.join(', ')}`; return `<button data-m02e-select="${scope}:${type}:${x.id}"><strong>${esc(x.name)}</strong><span>${esc(sub)}</span><i class="ri-arrow-right-line"></i></button>`; }).join('')}</section>`;
+    return `<section class="m02e-listing"><h2>${heading}</h2>${items.map((x) => { const sub = type === 'user' ? `${x.title} · ${x.groups.join(', ')}` : type === 'device' ? `${x.ip} · ${x.management} / ${x.compliance}` : type === 'resource' ? `${x.type} · ${x.zone} · ${x.ip}` : `${by('resource', x.resource).name} · ${x.groups.join(', ')}`; return `<button class="${state[scope].selected.type === type && state[scope].selected.id === x.id ? 'is-selected' : ''}" data-m02e-select="${scope}:${type}:${x.id}"><strong>${esc(x.name)}</strong><span>${esc(sub)}</span><i class="ri-arrow-right-line"></i></button>`; }).join('')}</section>`;
   }
 
   function consoleHtml(scope) {
     const tab = state[scope].tab;
     const body = tab === 'map' ? mapView(scope) : tab === 'activity' ? activityView(scope) : listingView(scope, tab === 'identities' ? 'user' : tab === 'devices' ? 'device' : tab === 'resources' ? 'resource' : 'policy');
-    return `<section class="m02e-console" aria-label="Network and identity security console"><header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div><span>Fictional training data</span></header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace"><div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
+    const guided = scope === 'learn' && !learnComplete();
+    const step = guided ? LEARN_STEPS[Math.min(state.learn.step, LEARN_STEPS.length - 1)] : null;
+    return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console">${guided ? `<div class="m02e-guided-focus"><i class="ri-radar-line" aria-hidden="true"></i> Walkthrough focus: <strong>${esc(step.title)}</strong><span> — highlighted automatically</span></div>` : ''}<header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div></header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${scope === 'learn' && id === 'map' ? learnTerm(label, false) : label}</button>`).join('')}</nav><div class="m02e-workspace"><div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
   }
 
   function renderScope(scope) {
@@ -200,12 +222,22 @@
 
   function learnComplete() { return state.learn.step >= LEARN_STEPS.length; }
 
+  // Advancing the guided tour opens and highlights its next evidence target
+  // automatically; learners should not have to hunt through the console.
+  function applyLearnFocus() {
+    if (learnComplete()) return;
+    const step = LEARN_STEPS[Math.min(state.learn.step, LEARN_STEPS.length - 1)];
+    state.learn.tab = step.tab;
+    state.learn.selected = { type: step.target[0], id: step.target[1] };
+    state.learn.opened = [...new Set([...(state.learn.opened || []), `${step.target[0]}:${step.target[1]}`])];
+  }
+
   function learnCallout() {
     const step = Math.min(state.learn.step, LEARN_STEPS.length - 1);
     const s = LEARN_STEPS[step];
     const done = learnComplete();
-    if (done) return `<div class="m02e-callout is-done" id="m02e-learn-callout"><p class="m02e-label">LEARN IT · WALKTHROUGH COMPLETE</p><p>You’ve walked the console end to end. Use the tabs above to keep exploring, or continue to the short knowledge check below.</p></div>`;
-    return `<div class="m02e-callout" id="m02e-learn-callout"><p class="m02e-label">LEARN IT · STEP ${step + 1} OF ${LEARN_STEPS.length} · ${esc(s.title)}</p><p>${esc(s.body)}</p><div class="m02e-callout-actions"><button class="m02e-secondary" type="button" data-m02e-learn-inspect>Inspect highlighted context</button><button class="m02e-primary" type="button" data-m02e-learn-next>${step === LEARN_STEPS.length - 1 ? 'Complete the walkthrough' : 'Next'}</button></div></div>`;
+    if (done) return `<div class="m02e-callout is-done" id="m02e-learn-callout"><p class="m02e-label">LEARN IT · WALKTHROUGH COMPLETE</p><p>You’ve walked the console end to end. Revisit it whenever you like, or continue to the short knowledge check below.</p><div class="m02e-callout-actions"><button class="m02e-secondary" type="button" data-m02e-learn-restart><i class="ri-restart-line" aria-hidden="true"></i> Restart walkthrough</button></div></div>`;
+    return `<div class="m02e-callout" id="m02e-learn-callout"><p class="m02e-label">LEARN IT · STEP ${step + 1} OF ${LEARN_STEPS.length} · ${esc(s.title)}</p><p>${esc(s.body)}</p><p class="m02e-look-for"><strong>Now look for:</strong> ${esc(s.lookFor)}. It is already highlighted in the environment below.</p><div class="m02e-term-list" aria-label="Quick definitions">${s.terms.map(learnTerm).join('')}</div><div class="m02e-callout-actions"><button class="m02e-secondary" type="button" data-m02e-learn-inspect>Show highlighted item</button><button class="m02e-primary" type="button" data-m02e-learn-next>${step === LEARN_STEPS.length - 1 ? 'Complete the walkthrough' : 'Next: highlight the next item'}</button></div></div>`;
   }
 
   function knowledgePanel() {
@@ -313,9 +345,39 @@
     ];
   }
 
+  function workspaceLaunch(scope) {
+    const isPractice = scope === 'practice';
+    const complete = isPractice ? state.practice.complete : state.completed || Boolean(user?.remoteVerifiedModuleProgress?.['soc-02']);
+    const started = isPractice ? state.practice.opened.length || state.practice.decision : state.prove.opened.length || state.prove.event;
+    const action = complete ? 'Review the workspace' : started ? (isPractice ? 'Resume Guided Lab' : 'Resume Assessment Lab') : (isPractice ? 'Launch Guided Lab' : 'Launch Assessment Lab');
+    const icon = complete ? 'ri-eye-line' : started ? 'ri-terminal-box-line' : 'ri-play-circle-line';
+    const status = complete
+      ? 'Saved work is available for review in the workspace.'
+      : 'Opens the Network & Identity Security environment in a new tab — a focused workspace for this investigation, not an LMS activity card.';
+    // Deliberately reuse Module 01's proven launch treatment. The lab remains
+    // outside this page; this is only the concise doorway into that workspace.
+    return `<div class="m01-lab-launch"><a class="m01-hero-action" href="?console=m02-${scope}${esc(location.hash)}" target="_blank" rel="opener"><i class="${icon}" aria-hidden="true"></i>${action}</a><p class="m01-lab-launch-status">${status}</p></div>`;
+  }
+
+  function workspaceView(scope, module) {
+    const isPractice = scope === 'practice';
+    const title = isPractice ? 'Guided investigation — HR access review' : 'Assessment investigation — access policy review';
+    const brief = isPractice
+      ? 'John Smith, an Operations Coordinator, attempted to access HR-FILE-01 at 08:17. His sign-in succeeded. Investigate the attempt, then record your decision.'
+      : 'Several access events occurred during the same shift. One violates the organization’s access policy. Review the evidence and submit your determination.';
+    return `<div class="m02e-workspace-shell">
+      <header class="m02e-workspace-topbar"><span><i class="ri-shield-keyhole-line" aria-hidden="true"></i> MISSION NEXT ENVIRONMENT · NETWORK &amp; IDENTITY SECURITY</span><a href="${esc(location.pathname)}#/program/soc-analyst/module/2"><i class="ri-arrow-left-line" aria-hidden="true"></i> Back to Module 02</a></header>
+      <main class="m02e-workspace-main"><div class="m02e-workspace-intro"><p>${isPractice ? 'GUIDED LAB' : 'ASSESSMENT LAB'} · MODULE 02</p><h1>${title}</h1><span>Your progress saves automatically</span></div><p class="m02e-workspace-brief">${brief}</p><div class="m02e-console-wrap" id="m02e-console-${scope}">${consoleHtml(scope)}</div>${isPractice ? practicePanel() : provePanel()}</main>
+    </div>`;
+  }
+
   function view(u, program) {
     load(u);
     const module = program?.modules?.['soc-02'] || {};
+    applyLearnFocus();
+    const consoleParam = new URLSearchParams(location.search).get('console');
+    if (consoleParam === 'm02-practice') return workspaceView('practice', module);
+    if (consoleParam === 'm02-prove') return workspaceView('prove', module);
     return `<div class="m02e-shell">
       ${moduleTopbar(u, program)}
       <div class="mquick-nav-layout">
@@ -336,16 +398,12 @@
 
           <section class="m02e-section" id="m02e-practice" aria-labelledby="m02e-practice-title">
             <div class="m02e-section-heading"><span>2</span><div><p class="m02e-kicker">Practice It · guided case</p><h2 id="m02e-practice-title">Should John Smith’s HR-FILE-01 access be allowed?</h2></div></div>
-            <p class="m02e-case-brief">John Smith, an Operations Coordinator, attempted to access HR-FILE-01 at 08:17. His sign-in succeeded. Investigate the attempt using the console below, then record your decision.</p>
-            <div class="m02e-console-wrap" id="m02e-console-practice">${consoleHtml('practice')}</div>
-            ${practicePanel()}
+            ${workspaceLaunch('practice')}
           </section>
 
           <section class="m02e-section" id="m02e-prove" aria-labelledby="m02e-prove-title">
             <div class="m02e-section-heading"><span>3</span><div><p class="m02e-kicker">Prove It · assessment lab</p><h2 id="m02e-prove-title">Independent security review</h2></div></div>
-            <p class="m02e-case-brief">Several access events occurred during the same shift. One of them violates the organization’s access policy. Review Access Activity and the linked identity, device, resource, and policy records, then submit your determination.</p>
-            <div class="m02e-console-wrap" id="m02e-console-prove">${consoleHtml('prove')}</div>
-            ${provePanel()}
+            ${workspaceLaunch('prove')}
           </section>
 
           <section class="m02e-section m02e-section-supplemental" id="m02e-sources" aria-labelledby="m02e-sources-title">
@@ -358,7 +416,7 @@
   }
 
   function wire() {
-    const root = document.querySelector('.m02e-shell');
+    const root = document.querySelector('.m02e-shell, .m02e-workspace-shell');
     if (!root) return;
 
     wireReviewToggle({
@@ -378,7 +436,8 @@
       const tab = button.dataset.m02eTab;
       if (tab) { const [scope, tabId] = tab.split(':'); setTab(scope, tabId); return; }
       if (button.hasAttribute('data-m02e-learn-inspect')) { const step = Math.min(state.learn.step, LEARN_STEPS.length - 1); const [type, id] = LEARN_STEPS[step].target; state.learn.tab = LEARN_STEPS[step].tab; setEntity('learn', type, id); return; }
-      if (button.hasAttribute('data-m02e-learn-next')) { state.learn.step = Math.min(LEARN_STEPS.length, state.learn.step + 1); save(); renderScope('learn'); return; }
+      if (button.hasAttribute('data-m02e-learn-next')) { state.learn.step = Math.min(LEARN_STEPS.length, state.learn.step + 1); applyLearnFocus(); save(); renderScope('learn'); return; }
+      if (button.hasAttribute('data-m02e-learn-restart')) { state.learn.step = 0; applyLearnFocus(); save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-knowledge-submit')) { state.learn.knowledgeScored = true; save(); renderScope('learn'); return; }
       if (button.dataset.m02ePracticeDecision) { state.practice.decision = button.dataset.m02ePracticeDecision; save(); renderScope('practice'); return; }
       if (button.hasAttribute('data-m02e-hint')) { const p = state.practice; p.hint = Math.min(PRACTICE_HINTS.length - 1, p.hint + 1); p.feedback = PRACTICE_HINTS[p.hint]; save(); renderScope('practice'); return; }
