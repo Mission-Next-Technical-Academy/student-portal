@@ -113,6 +113,11 @@
 .m02e-feedback{margin-top:14px;padding:11px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#9a3412;font-size:12px;line-height:1.5}
 .m02e-feedback.is-correct{background:#ecfdf5;border-color:#bbf7d0;color:#166534}
 
+/* Assessment uses the Module 01 case-record interface, not a quiz board.
+ * These additions only accommodate the access-review data inside that shared
+ * case-record scaffold. */
+.m02e-case-record{margin:20px 0 0}.m02e-case-record .m01-console-body{grid-template-columns:1fr}.m02e-readonly{display:block;min-height:34px;box-sizing:border-box;padding:8px 9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;color:#1e3a5f;font:500 12px/1.35 Inter,sans-serif}.m02e-case-record select[multiple]{min-height:106px}.m02e-case-hint{color:#64748b;font:11px/1.45 Inter,sans-serif}
+
 /* LMS launch surface: it describes the task, but never embeds the task's
  * console. The learner enters a dedicated browser workspace to do the work. */
 .m02e-workspace-launch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:15px 22px;align-items:center;padding:24px 0;border-top:1px solid #dbe3ed;border-bottom:1px solid #dbe3ed}

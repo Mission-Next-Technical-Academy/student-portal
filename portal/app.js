@@ -6716,7 +6716,10 @@ async function render(options = {}) {
     // minutes or their existing completion contracts.
     const isUnlockedSocCapstone = Number(moduleMatch[2]) !== 12
       || (typeof moduleTwelveUnlocked === 'function' && moduleTwelveUnlocked(user, program));
-    if (canAccessModule && program.slug === 'soc-analyst' && Number(moduleMatch[2]) >= 2 && isUnlockedSocCapstone) {
+    // Module 02 has its own guided console and analyst case record. The
+    // generic fill-in-the-blank recall widget is neither authentic analyst
+    // practice nor a useful duplicate there, so reserve it for Modules 03+.
+    if (canAccessModule && program.slug === 'soc-analyst' && Number(moduleMatch[2]) >= 3 && isUnlockedSocCapstone) {
       mountSocEvidenceRecall(user, Number(moduleMatch[2]), app);
     }
   } else if (programMatch) {
