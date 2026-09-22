@@ -135,6 +135,7 @@ ctx.URL = URL;
 // loaded the real application correctly.
 const moduleFiles = fs.readdirSync(PORTAL).filter((f) => /-module-\d\d\.js$/.test(f)).sort();
 const files = [
+  'release.js',
   'data.js',
   'lab-runtime.js',
   'module-registry.js',
