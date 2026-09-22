@@ -378,36 +378,36 @@
     const consoleParam = new URLSearchParams(location.search).get('console');
     if (consoleParam === 'm02-practice') return workspaceView('practice', module);
     if (consoleParam === 'm02-prove') return workspaceView('prove', module);
-    return `<div class="m02e-shell">
+    return `<div class="m01-shell m02e-shell">
       ${moduleTopbar(u, program)}
       <div class="mquick-nav-layout">
         ${moduleUnifiedNav(getNavSections(), { moduleKey: 'm02', reviewMode })}
-        <main class="m02e-main">
-          <section class="m02e-hero" aria-labelledby="m02e-title">
-            <p>MODULE 02 · ${esc(module.hours || '')} · Week 1 foundations</p>
+        <main class="m01-main m02e-main">
+          <section class="m01-hero m02e-hero" aria-labelledby="m02e-title"><div>
+            <p class="m01-kicker">MODULE 02 · ${esc(module.hours || '')} · Week 1 foundations</p>
             <h1 id="m02e-title">See how an access decision is made.</h1>
-            <p>Trace a connection from identity and device to resource and policy in one console. Authentication confirms identity; authorization decides what that identity may access.</p>
-          </section>
+            <p class="m01-lede">Trace a connection from identity and device to resource and policy in one console. Authentication confirms identity; authorization decides what that identity may access.</p>
+          </div></section>
 
-          <section class="m02e-section" id="m02e-learn" aria-labelledby="m02e-learn-title">
-            <div class="m02e-section-heading"><span>1</span><div><p class="m02e-kicker">Learn It · guided walkthrough</p><h2 id="m02e-learn-title">Read a connection the way an analyst does</h2></div></div>
+          <section class="m01-section m02e-section" id="m02e-learn" aria-labelledby="m02e-learn-title">
+            <div class="m01-section-heading"><span>1</span><div><p class="m01-kicker">Learn It · guided walkthrough</p><h2 id="m02e-learn-title">Read a connection the way an analyst does</h2></div></div>
             ${learnCallout()}
             <div class="m02e-console-wrap" id="m02e-console-learn">${consoleHtml('learn')}</div>
             ${knowledgePanel()}
           </section>
 
-          <section class="m02e-section" id="m02e-practice" aria-labelledby="m02e-practice-title">
-            <div class="m02e-section-heading"><span>2</span><div><p class="m02e-kicker">Practice It · guided case</p><h2 id="m02e-practice-title">Should John Smith’s HR-FILE-01 access be allowed?</h2></div></div>
+          <section class="m01-section m02e-section" id="m02e-practice" aria-labelledby="m02e-practice-title">
+            <div class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Practice It · guided case</p><h2 id="m02e-practice-title">Should John Smith’s HR-FILE-01 access be allowed?</h2></div></div>
             ${workspaceLaunch('practice')}
           </section>
 
-          <section class="m02e-section" id="m02e-prove" aria-labelledby="m02e-prove-title">
-            <div class="m02e-section-heading"><span>3</span><div><p class="m02e-kicker">Prove It · assessment lab</p><h2 id="m02e-prove-title">Independent security review</h2></div></div>
+          <section class="m01-section m02e-section" id="m02e-prove" aria-labelledby="m02e-prove-title">
+            <div class="m01-section-heading"><span>3</span><div><p class="m01-kicker">Prove It · assessment lab</p><h2 id="m02e-prove-title">Independent security review</h2></div></div>
             ${workspaceLaunch('prove')}
           </section>
 
-          <section class="m02e-section m02e-section-supplemental" id="m02e-sources" aria-labelledby="m02e-sources-title">
-            <div class="m02e-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m02e-kicker">Reference — not a graded step</p><h2 id="m02e-sources-title">Sources &amp; Further Reading</h2></div></div>
+          <section class="m01-section m01-section-supplemental m02e-section" id="m02e-sources" aria-labelledby="m02e-sources-title">
+            <div class="m01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Reference — not a graded step</p><h2 id="m02e-sources-title">Sources &amp; Further Reading</h2></div></div>
             ${moduleSourcesBlock(SOURCES)}
           </section>
         </main>
