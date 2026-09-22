@@ -653,12 +653,26 @@ function moduleTwoSave() {
   if (moduleTwoUser && moduleTwoState) LabRuntime.save(MODULE_TWO_LAB_ID, moduleTwoUser, moduleTwoState);
 }
 
+// The verified module read model is the academic record.  LabRuntime is only
+// a browser-local working copy, so a learner who completed this lab on another
+// device must not see an amber rail or "Not started" header after the module
+// card correctly reports completion.
+function moduleTwoLabComplete() {
+  return moduleTwoState?.completed === true
+    || moduleTwoUser?.remoteVerifiedModuleProgress?.['soc-02'] === true;
+}
+
+function moduleTwoLabStatus() {
+  if (moduleTwoLabComplete()) return 'Complete';
+  return moduleTwoState?.attempts || moduleTwoState?.reviewedStations?.length ? 'In progress' : 'Not started';
+}
+
 function moduleTwoGetSections() {
   return [
     { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: true, scrollId: 'm02-foundations' },
     { id: 'trust-model', title: 'Trust Model', type: 'lecture', isComplete: true, scrollId: 'm02-model' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleTwoQuizState?.passed, scrollId: 'm02-knowledge-check' },
-    { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: moduleTwoState.completed, scrollId: 'm02-guided-lab' },
+    { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: moduleTwoLabComplete(), scrollId: 'm02-guided-lab' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm02-sources-section', gated: false, supplemental: true },
   ];
 }
@@ -979,7 +993,7 @@ function viewModuleTwo(user, program) {
     ${moduleProgressShell(sections, { reviewMode: moduleTwoReviewMode })}
     <div class="mquick-nav-layout">
       <main class="m02-main">
-      <section class="m02-hero" aria-labelledby="m02-title"><div><p class="m02-kicker">Module 02 · ${formatHandsOnDuration(module.durationMinutes)} · Week 1 foundations</p><h1 id="m02-title">${esc(module.title)}</h1><p class="m02-lede">Build a practical trust model, then correlate identity, authentication, network, and role-change facts without confusing unusual activity with malicious activity.</p></div><dl class="m02-progress" aria-label="Saved module progress"><div><dt>Foundation topics</dt><dd>${module.lessons}</dd></div><div><dt>Guided lab</dt><dd>${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)}</dd></div><div><dt>Lab status</dt><dd id="m02-status">${moduleTwoState.completed ? 'Complete' : moduleTwoState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m02-hero" aria-labelledby="m02-title"><div><p class="m02-kicker">Module 02 · ${formatHandsOnDuration(module.durationMinutes)} · Week 1 foundations</p><h1 id="m02-title">${esc(module.title)}</h1><p class="m02-lede">Build a practical trust model, then correlate identity, authentication, network, and role-change facts without confusing unusual activity with malicious activity.</p></div><dl class="m02-progress" aria-label="Saved module progress"><div><dt>Foundation topics</dt><dd>${module.lessons}</dd></div><div><dt>Guided lab</dt><dd>${formatInstructionalMinutes(MODULE_TWO_LAB.minutes)}</dd></div><div><dt>Lab status</dt><dd id="m02-status">${moduleTwoLabStatus()}</dd></div></dl></section>
 
       <section class="m02-objective" aria-labelledby="m02-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m02-kicker">One measurable objective</p><h2 id="m02-objective-title">Correlate authentication, network context, and authorization changes to identify one risky identity and document a proportionate escalation.</h2></div></section>
 
@@ -1027,7 +1041,7 @@ function moduleTwoRenderDynamic(focusId) {
   if (!root) return;
   root.innerHTML = moduleTwoLabDynamic();
   const status = document.getElementById('m02-status');
-  if (status) status.textContent = moduleTwoState.completed ? 'Complete' : moduleTwoState.attempts || moduleTwoState.reviewedStations.length ? 'In progress' : 'Not started';
+  if (status) status.textContent = moduleTwoLabStatus();
   if (document.querySelector('.m02-independent-lab')) moduleTwoRenderIndependent();
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
