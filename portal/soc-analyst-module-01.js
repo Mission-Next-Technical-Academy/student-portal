@@ -6,6 +6,12 @@ const MODULE_ONE_LAB_ID = 'm01-first-soc-alert-v2';
 const MODULE_ONE_FLAG = 'M01-FIRST-ALERT-TRIAGED';
 const MODULE_ONE_CATALOG_LAB_KEY = 'lab-soc-environment';
 const MODULE_ONE_ROUTE = '#/program/soc-analyst/module/1';
+// Sign-in log pagination (moduleOneLogTable()) and the department-routing
+// fit score below which a submitted-to team kicks the ticket back to the
+// student unsubmitted rather than accepting it with a note (see
+// MODULE_ONE_ESCALATION_LAB.departmentOptions in portal/data.js).
+const MODULE_ONE_LOG_PAGE_SIZE = 10;
+const MODULE_ONE_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
 /* Module-level assessment bank. selectQuizQuestions() returns wrappers shaped
  * { conceptId, conceptTitle, question, shuffledOptions, correctIndex } — the
@@ -76,7 +82,7 @@ const MODULE_ONE_DEFAULT_STATE = {
   practice: {
     status: 'in-progress', affectedUser: '', affectedDevice: '', severity: '',
     disposition: '', escalation: '', escalateTo: '', notes: '', actionHistory: [],
-    viewedLogIds: [], expandedLogId: null,
+    viewedLogIds: [], expandedLogId: null, logPage: 1,
   },
   lessonWork: {},
   sectionOpen: { checklist: false, foundations: true, lab: false, quiz: false, review: false, sources: false },
@@ -87,7 +93,7 @@ const MODULE_ONE_DEFAULT_STATE = {
     completed: false, submitted: false, submittedAt: '',
     reviewedEvidence: [], intake: '', priority: '', containment: '', verdict: '',
     status: '', affectedUser: '', affectedDevice: '', escalation: '', escalateTo: '',
-    notes: '', actionHistory: [], viewedLogIds: [], expandedLogId: null,
+    notes: '', actionHistory: [], viewedLogIds: [], expandedLogId: null, logPage: 1,
     handoff: { observations: '', analysis: '', scope: '', nextAction: '' },
     validationError: '', attempts: 0, score: null, breakdown: null,
   },
@@ -151,10 +157,12 @@ function moduleOneLoad(user) {
   });
   if (!Array.isArray(moduleOneState.practice.actionHistory)) moduleOneState.practice.actionHistory = [];
   if (!Array.isArray(moduleOneState.practice.viewedLogIds)) moduleOneState.practice.viewedLogIds = [];
+  if (!Number.isFinite(moduleOneState.practice.logPage)) moduleOneState.practice.logPage = 1;
   if (typeof moduleOneState.lab2.completed !== 'boolean') moduleOneState.lab2.completed = false;
   if (typeof moduleOneState.lab2.submitted !== 'boolean') moduleOneState.lab2.submitted = false;
   if (!Array.isArray(moduleOneState.lab2.reviewedEvidence)) moduleOneState.lab2.reviewedEvidence = [];
   if (!Array.isArray(moduleOneState.lab2.viewedLogIds)) moduleOneState.lab2.viewedLogIds = [];
+  if (!Number.isFinite(moduleOneState.lab2.logPage)) moduleOneState.lab2.logPage = 1;
   // The phone-callback fact ('owner') has no log row — it's handed over,
   // not investigated (see MODULE_ONE_ESCALATION_LAB.scenario.evidence) — so
   // it can never be earned through the log-click mechanic below. Credit it
@@ -505,6 +513,11 @@ function moduleOneSyncCompletion() {
 function moduleOneProveItPerformance() {
   const lab = MODULE_ONE_ESCALATION_LAB;
   const state = moduleOneState.lab2;
+  const roster = lab.scenario.entityRoster;
+  const department = (lab.departmentOptions || []).find((option) => option.id === state.escalateTo) || null;
+  const escalationRequiredOk = state.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < MODULE_ONE_DEPARTMENT_BOUNCE_THRESHOLD;
+
   const missing = [];
   if ((state.reviewedEvidence || []).length < lab.scenario.evidence.length) missing.push('Review every piece of evidence');
   if (!state.status) missing.push('Set the status');
@@ -512,27 +525,66 @@ function moduleOneProveItPerformance() {
   if (!state.priority) missing.push('Set the severity');
   if (!state.verdict) missing.push('Record a disposition');
   if (!state.escalation) missing.push('Set whether escalation is required');
-  if (state.escalation === 'required' && !state.escalateTo) missing.push('Choose an escalation team');
+  // Check `department` (resolved against the current departmentOptions),
+  // not just state.escalateTo's truthiness — a stale value saved under an
+  // older option set (e.g. a since-removed department id) must still read
+  // as unrouted, not silently pass with zero escalation credit.
+  if (escalationRequiredOk && !department) missing.push('Route the case to a department');
+  // A low-fit department is NOT added to `missing` — per the program's
+  // no-live-score Prove It model, submission is never blocked by routing
+  // quality. `bounced`/`routingFeedback` below still reach the instructor
+  // through the stored breakdown, and faculty can return the case with the
+  // department's remediation note if a redo is warranted. Live per-choice
+  // accept/partial/bounce feedback is Practice It's job, not Prove It's.
   if ((state.notes || '').trim().length < 80) missing.push('Write an analyst work note');
 
-  const intake = state.affectedUser === 'a.chen' && state.affectedDevice === 'LAP-442' ? 25 : 0;
-  const priority = state.priority === lab.correctPriority ? 20 : 0;
+  // Percentage-based, tiered scope credit: naming the confirmed entity earns
+  // full credit, naming a supported pivot (touches the case's evidence but
+  // isn't the principal) earns half credit, and an unrelated noise entity
+  // pulled from the log volume earns none. See entityRoster in
+  // portal/data.js and MODULE_01_CASE_CONSOLE_SPEC.md's grading philosophy.
+  const userTier = roster.users.find((entry) => entry.id === state.affectedUser)?.tier;
+  const deviceTier = roster.devices.find((entry) => entry.id === state.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
+
+  const priority = state.priority === lab.correctPriority ? 15 : 0;
   const verdict = state.verdict === lab.correctVerdict ? 20 : 0;
-  const containment = state.escalation === 'required' && state.escalateTo === 'tier2-soc' ? 25 : 0;
-  const notesOk = (state.notes || '').trim().length >= 80;
-  const notes = notesOk ? 10 : 0;
-  const score = intake + priority + verdict + containment + notes;
+  // Department-routing credit scales with how good a fit the chosen
+  // department actually is for this case — not binary correct/incorrect —
+  // so a plausible-but-not-best department (e.g. IAM instead of Tier 2 SOC)
+  // still earns most of the points, per department.fit in portal/data.js.
+  const escalation = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 35) : 0;
+  const notesLen = (state.notes || '').trim().length;
+  const notes = Math.round(Math.min(1, notesLen / 80) * 10);
+  const score = entityPoints + priority + verdict + escalation + notes;
   const criticalErrors = state.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  const entityFeedback = entityPoints >= 20
+    ? 'Affected entity/scope: correct — the confirmed user and device.'
+    : entityPoints > 0
+      ? `Affected entity/scope: partial credit — a related entity is supported by the evidence, but ${lab.scenario.entity} is the confirmed affected user/device.`
+      : `Affected entity/scope: review — ${lab.scenario.entity} is the confirmed affected user/device, supported by the log evidence.`;
+  const routingFeedback = !escalationRequiredOk
+    ? 'Routing: not applicable — escalation was set to not required.'
+    : !department
+      ? 'Routing: review — this case needs a department routed with the recorded evidence.'
+      : department.fit >= 100
+        ? `Routing: correct — ${department.text} is the best-fit department for this case.`
+        : department.fit >= MODULE_ONE_DEPARTMENT_BOUNCE_THRESHOLD
+          ? `Routing: accepted, but not the best fit — ${department.note}`
+          : `Routing: returned — ${department.bounce || department.note}`;
 
   return {
     missing,
     score,
-    breakdown: { affected_entity: intake, severity: priority, disposition: verdict, escalation: containment, analyst_notes: notes },
+    breakdown: { affected_entity: entityPoints, severity: priority, disposition: verdict, escalation, analyst_notes: notes },
+    department, bounced,
     feedback: [
-      intake ? 'Affected entity/scope: correct.' : `Affected entity/scope: review — ${lab.intakeOptions.find((o) => o.id === lab.correctIntake)?.text}`,
+      entityFeedback,
       priority ? 'Severity: correct.' : `Severity: review — ${lab.priorityOptions.find((o) => o.id === lab.correctPriority)?.text}`,
       verdict ? 'Disposition: correct.' : `Disposition: review — ${lab.verdictOptions.find((o) => o.id === lab.correctVerdict)?.text}`,
-      containment ? 'Escalation: correct.' : 'Escalation: review — this case needs a Tier 2 SOC handoff with the recorded evidence.',
+      routingFeedback,
     ],
     criticalErrors,
   };
@@ -766,15 +818,27 @@ function moduleOneTicketFields(state, spec) {
     id: option.id,
     text: ({ 'true-positive': 'Confirmed malicious activity', 'benign-positive': 'Benign activity', 'false-positive': 'False positive', 'enterprise-breach': 'Enterprise-wide incident' })[option.id] || option.text,
   }));
+  // Practice It (ALT-1001) keeps the small fixed roster/department list it
+  // always had; Prove It (NST-2407) passes its own larger entityRoster and
+  // departmentOptions (portal/data.js) through spec, so this stays one
+  // shared renderer for both consoles.
+  const userOptions = spec.userOptions || [{ id: 'a.chen', text: 'a.chen' }, { id: 's.kim', text: 's.kim' }, { id: 'd.williams', text: 'd.williams' }];
+  const deviceOptions = spec.deviceOptions || [{ id: 'LAP-442', text: 'LAP-442' }, { id: 'FS-02', text: 'FS-02' }, { id: 'WKS-14', text: 'WKS-14' }];
+  const departmentOptions = spec.departmentOptions || [{ id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }];
+  // No live accept/partial/bounce banner here: Prove It has no live score or
+  // per-field feedback (moduleOneProveItSubmissionPanel() below never blocks
+  // Submit Case on routing quality either) — instant per-choice feedback is
+  // Practice It's job (moduleOneGuidedLabFeedback()). Department fit still
+  // drives the stored score/breakdown the instructor sees.
   return `<div class="m01-ticket-case"><strong>CASE ${esc(spec.caseId || '')}</strong>${moduleOneTicketSelect('status', 'Status', state.status, [{ id: 'in-progress', text: 'In Progress' }, { id: 'pending', text: 'Pending' }, { id: 'resolved', text: 'Resolved' }], disabled, guided && state.status === 'in-progress')}</div>
     <div class="m01-ticket-grid">
       ${moduleOneTicketSelect('severity', 'Severity', state.severity || state.priority, severityOptions, disabled, guided && state.priority === 'high')}
       ${entitySelects
-        ? `${moduleOneTicketSelect('affectedUser', 'Affected User', state.affectedUser, [{ id: 'a.chen', text: 'a.chen' }, { id: 's.kim', text: 's.kim' }, { id: 'd.williams', text: 'd.williams' }], disabled)}${moduleOneTicketSelect('affectedDevice', 'Affected Device', state.affectedDevice, [{ id: 'LAP-442', text: 'LAP-442' }, { id: 'FS-02', text: 'FS-02' }, { id: 'WKS-14', text: 'WKS-14' }], disabled)}`
+        ? `${moduleOneTicketSelect('affectedUser', 'Affected User', state.affectedUser, userOptions, disabled)}${moduleOneTicketSelect('affectedDevice', 'Affected Device', state.affectedDevice, deviceOptions, disabled)}`
         : `<label class="m01-ticket-field"><span>Affected User</span><button type="button" class="m01-entity-control ${guided && state.affectedUser === 'j.santos' ? 'is-correct' : ''}" data-m01-entity="user" ${disabled ? 'disabled' : ''}>${state.affectedUser || 'Add user'} <i class="ri-add-line" aria-hidden="true"></i></button></label><label class="m01-ticket-field"><span>Affected Device</span><button type="button" class="m01-entity-control ${guided && state.affectedDevice === 'WKS-14' ? 'is-correct' : ''}" data-m01-entity="device" ${disabled ? 'disabled' : ''}>${state.affectedDevice || 'Add device'} <i class="ri-add-line" aria-hidden="true"></i></button></label>`}
       ${moduleOneTicketSelect('disposition', 'Disposition', state.disposition || state.verdict, dispositionOptions, disabled, guided && state.verdict === 'true-positive')}
       ${moduleOneTicketSelect('escalation', 'Escalation required', state.escalation, [{ id: 'required', text: 'Required' }, { id: 'not-required', text: 'Not required' }], disabled, guided && state.escalation === 'required')}
-      ${escalationRequired ? moduleOneTicketSelect('escalateTo', 'Escalate to', state.escalateTo, [{ id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], disabled, guided && state.escalateTo === 'identity-response') : ''}
+      ${escalationRequired ? moduleOneTicketSelect('escalateTo', 'Route to Department', state.escalateTo, departmentOptions, disabled, guided && state.escalateTo === 'identity-response') : ''}
     </div>
     <label class="m01-ticket-field m01-ticket-notes"><span>Analyst Work Notes</span><textarea name="notes" rows="6" placeholder="Record the evidence, your assessment, confirmed scope, and handoff needed by the next analyst." ${disabled ? 'disabled' : ''}>${esc(state.notes || '')}</textarea></label>
     ${state.actionHistory?.length ? `<details class="m01-action-history"><summary>Action history (${state.actionHistory.length})</summary><ul>${state.actionHistory.slice(-8).reverse().map((entry) => `<li>${esc(entry.action)}</li>`).join('')}</ul></details>` : ''}`;
@@ -826,10 +890,14 @@ function moduleOneLabDynamic() {
 function moduleOneLogTable(scenario, state) {
   const viewed = new Set(state.viewedLogIds || []);
   const expandedId = state.expandedLogId || null;
-  return `<p class="m01cc-pane-title">Sign-in log <span class="muted">${viewed.size}/${scenario.logEvents.length} opened</span></p>
+  const total = scenario.logEvents.length;
+  const totalPages = Math.max(1, Math.ceil(total / MODULE_ONE_LOG_PAGE_SIZE));
+  const page = Math.min(Math.max(1, state.logPage || 1), totalPages);
+  const pageRows = scenario.logEvents.slice((page - 1) * MODULE_ONE_LOG_PAGE_SIZE, page * MODULE_ONE_LOG_PAGE_SIZE);
+  return `<p class="m01cc-pane-title">Sign-in log <span class="muted">${viewed.size}/${total} opened</span></p>
     <table class="m01cc-log-table">
       <thead><tr><th>Time</th><th>Event type</th><th>User</th><th>Device</th><th>Source IP</th><th>Result</th></tr></thead>
-      <tbody>${scenario.logEvents.map((row) => `
+      <tbody>${pageRows.map((row) => `
         <tr class="m01cc-log-row ${viewed.has(row.id) ? 'is-viewed' : ''} ${expandedId === row.id ? 'is-expanded' : ''}"
             data-m01cc-log-row="${esc(row.id)}" tabindex="0" role="button" aria-expanded="${expandedId === row.id}">
           <td>${esc(row.time)}</td><td>${esc(row.type)}</td><td>${esc(row.user)}</td><td>${esc(row.device)}</td>
@@ -838,7 +906,12 @@ function moduleOneLogTable(scenario, state) {
           .filter(([, v]) => v !== null && v !== undefined)
           .map(([k, v]) => `${k}=${v}`).join('\n'))}</pre></td></tr>` : ''}
       `).join('')}</tbody>
-    </table>`;
+    </table>
+    ${totalPages > 1 ? `<div class="m01cc-log-pager">
+      <button type="button" data-m01cc-log-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}><i class="ri-arrow-left-s-line" aria-hidden="true"></i> Prev</button>
+      <span class="muted">Page ${page} of ${totalPages} · ${total} events</span>
+      <button type="button" data-m01cc-log-page="${page + 1}" ${page >= totalPages ? 'disabled' : ''}>Next <i class="ri-arrow-right-s-line" aria-hidden="true"></i></button>
+    </div>` : ''}`;
 }
 
 // The three-pane case console body (MODULE_01_CASE_CONSOLE_SPEC.md §2):
@@ -996,7 +1069,10 @@ function moduleOneProveItCaseConsolePane() {
       </section>
       <section class="m01-console-pane m01-console-ticket" aria-label="Incident / case record">
         <p class="m01-console-pane-title">Incident / Case Record</p>
-        <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted, entitySelects: true })}
+        <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted, entitySelects: true,
+          userOptions: scenario.entityRoster.users.map((entry) => ({ id: entry.id, text: entry.id })),
+          deviceOptions: scenario.entityRoster.devices.map((entry) => ({ id: entry.id, text: entry.id })),
+          departmentOptions: lab.departmentOptions })}
           ${!submitted ? `<div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-save-proveit>Save</button><button type="button" class="m01-submit" data-m01-submit-proveit ${requirements.length ? 'disabled' : ''}>Submit Case</button></div>` : ''}
         </form>
         ${moduleOneProveItSubmissionPanel()}
@@ -1363,6 +1439,16 @@ function wireModuleOneCaseConsole() {
       moduleOneSave(); rerender(); return;
     }
 
+    const pageBtn = event.target.closest('[data-m01cc-log-page]');
+    if (pageBtn) {
+      const nextPage = Number(pageBtn.dataset.m01ccLogPage);
+      if (Number.isFinite(nextPage) && nextPage >= 1) {
+        moduleOneState.practice.logPage = nextPage;
+        moduleOneSave(); rerender();
+      }
+      return;
+    }
+
     const logRow = event.target.closest('[data-m01cc-log-row]');
     if (logRow) {
       const id = logRow.dataset.m01ccLogRow;
@@ -1448,6 +1534,16 @@ function wireModuleOneProveItCaseConsole() {
     if (event.target.closest('[data-m01-save-proveit]')) {
       moduleOneState.lab2.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
       moduleOneSave(); moduleOneRenderReviewDynamic(); return;
+    }
+
+    const pageBtn = event.target.closest('[data-m01cc-log-page]');
+    if (pageBtn) {
+      const nextPage = Number(pageBtn.dataset.m01ccLogPage);
+      if (Number.isFinite(nextPage) && nextPage >= 1) {
+        moduleOneState.lab2.logPage = nextPage;
+        moduleOneSave(); moduleOneRenderReviewDynamic();
+      }
+      return;
     }
 
     const logRow = event.target.closest('[data-m01cc-log-row]');

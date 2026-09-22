@@ -1903,6 +1903,55 @@ const MODULE_ONE_ALERT_ORIENTATION = {
   correctDecision: 'escalate-identity',
 };
 
+/* Prove It's NST-2407 log pane deliberately mixes ~40 unrelated-user rows in
+ * with the ~10 that actually matter, paginated in moduleOneLogTable() so the
+ * learner has to filter signal from noise across multiple pages instead of
+ * reading eight rows top to bottom. Same fixed data for every learner. */
+function moduleOneNoiseLogRows() {
+  const routineUsers = [
+    { user: 'd.williams', device: 'WKS-14', ip: '10.40.6.12' },
+    { user: 'r.patel', device: 'SRV-DB01', ip: '10.40.6.31' },
+    { user: 'm.diaz', device: 'LAP-118', ip: '10.40.6.45' },
+    { user: 'k.osei', device: 'MBP-27', ip: '10.40.6.58' },
+    { user: 't.brooks', device: 'WKS-31', ip: '10.40.6.63' },
+    { user: 'n.ibrahim', device: 'LAP-205', ip: '10.40.6.77' },
+  ];
+  const shifts = [
+    { type: 'LoginSuccess', result: 'Success', minute: 3 },
+    { type: 'ResourceAccess', result: 'Allowed', minute: 19 },
+    { type: 'FileOpen', result: 'Allowed', minute: 32 },
+    { type: 'MFAChallenge', result: 'Success', minute: 44 },
+    { type: 'PrintJob', result: 'Allowed', minute: 57 },
+    { type: 'LogOff', result: 'Success', minute: 71 },
+  ];
+  const rows = [];
+  routineUsers.forEach((person, personIndex) => {
+    shifts.forEach((shift, shiftIndex) => {
+      const minutesFromEight = 8 * 60 + shift.minute + personIndex * 5;
+      const hh = String(Math.floor(minutesFromEight / 60)).padStart(2, '0');
+      const mm = String(minutesFromEight % 60).padStart(2, '0');
+      rows.push({
+        id: `evt-noise-${person.user}-${shiftIndex}`, time: `Mon ${hh}:${mm}:00`,
+        type: shift.type, user: person.user, device: person.device, sourceIp: person.ip, result: shift.result,
+        raw: { timestamp: `2026-06-29T${hh}:${mm}:00Z`, event_type: shift.type.toLowerCase(), user: `${person.user}@missionnextlabs.example`, device: person.device, source_ip: person.ip, result: shift.result.toLowerCase() },
+      });
+    });
+  });
+  return rows;
+}
+
+// s.kim/FS-02 briefly reaches the same external destination LAP-442 uploaded
+// to, a few minutes after a.chen's proxy upload — a real but weaker pivot.
+// s.kim is not the interactive user on LAP-442 and denies initiating it, so
+// naming s.kim/FS-02 instead of a.chen/LAP-442 earns partial, not full,
+// scope credit (see moduleOneProveItPerformance()'s entityRoster scoring).
+const MODULE_ONE_PIVOT_LOG_ROWS = [
+  { id: 'evt-pivot-fs02-access', time: 'Mon 09:19:40', type: 'ResourceAccess', user: 's.kim', device: 'FS-02', sourceIp: '10.40.2.14', result: 'Allowed',
+    raw: { timestamp: '2026-06-29T09:19:40Z', event_type: 'resource_access', user: 's.kim@missionnextlabs.example', device: 'FS-02', source_ip: '10.40.2.14', resource: '\\\\FS-02\\Finance\\shared', result: 'allowed' } },
+  { id: 'evt-pivot-fs02-outbound', time: 'Mon 09:31:12', type: 'NetworkConnection', user: 's.kim', device: 'FS-02', sourceIp: '198.51.100.24', result: 'Allowed',
+    raw: { timestamp: '2026-06-29T09:31:12Z', event_type: 'network_connection', device: 'FS-02', process: 'explorer.exe', destination_ip: '198.51.100.24', destination_port: 443, result: 'allowed', note: 'FS-02 briefly reached the same destination LAP-442 uploaded to. s.kim was not the interactive user on LAP-442 and denies initiating this connection.' } },
+];
+
 /* Module 01's fixed, multi-sitting assessment fixture.  The same records,
  * entities, and timestamps are used for every learner so an instructor can
  * assess a decision and its downstream consequence accurately. */
@@ -1944,8 +1993,37 @@ const MODULE_ONE_ESCALATION_LAB = {
         raw: { timestamp: '2026-06-29T09:24:47Z', event_type: 'network_connection', device: 'LAP-442', process: 'powershell.exe', destination_ip: '198.51.100.24', destination_port: 443, result: 'allowed' } },
       { id: 'evt-proxy', time: 'Mon 09:27:30', type: 'ProxyUpload', user: 'a.chen', device: 'LAP-442', sourceIp: '198.51.100.24', result: 'Allowed', evidenceId: 'proxy',
         raw: { timestamp: '2026-06-29T09:27:30Z', event_type: 'proxy_upload', device: 'LAP-442', destination_ip: '198.51.100.24', bytes_out: 34_000_000, result: 'allowed', other_hosts_contacting_destination: 0 } },
-    ],
+      ...MODULE_ONE_PIVOT_LOG_ROWS,
+      ...moduleOneNoiseLogRows(),
+    ].sort((a, b) => a.time.localeCompare(b.time)),
     scope: 'One identity and LAP-442 are confirmed involved. The available data does not establish lateral movement.',
+    // Dropdown rosters for the Incident/Case Record's Affected User/Device
+    // selects. `tier` drives partial credit in moduleOneProveItPerformance():
+    // principal = the confirmed entity (full credit), pivot = touches the
+    // case's evidence but isn't the principal (partial credit), noise = an
+    // unrelated identity/device mixed into the log volume (no credit).
+    entityRoster: {
+      users: [
+        { id: 'a.chen', tier: 'principal' },
+        { id: 's.kim', tier: 'pivot' },
+        { id: 'd.williams', tier: 'noise' },
+        { id: 'r.patel', tier: 'noise' },
+        { id: 'm.diaz', tier: 'noise' },
+        { id: 'k.osei', tier: 'noise' },
+        { id: 't.brooks', tier: 'noise' },
+        { id: 'n.ibrahim', tier: 'noise' },
+      ],
+      devices: [
+        { id: 'LAP-442', tier: 'principal' },
+        { id: 'FS-02', tier: 'pivot' },
+        { id: 'WKS-14', tier: 'noise' },
+        { id: 'SRV-DB01', tier: 'noise' },
+        { id: 'LAP-118', tier: 'noise' },
+        { id: 'MBP-27', tier: 'noise' },
+        { id: 'WKS-31', tier: 'noise' },
+        { id: 'LAP-205', tier: 'noise' },
+      ],
+    },
   },
   intakeOptions: [
     { id: 'identity-and-laptop', text: 'a.chen and LAP-442 are confirmed involved; wider spread is unknown.' },
@@ -1963,9 +2041,29 @@ const MODULE_ONE_ESCALATION_LAB = {
     { id: 'warn-user', text: 'Email a.chen a detailed warning and wait for a reply before escalating.' },
   ],
   verdictOptions: [
-    { id: 'true-positive', text: 'Confirmed account takeover with endpoint compromise on the supported entities.' },
-    { id: 'false-positive', text: 'False positive; the user still has the laptop.' },
-    { id: 'enterprise-breach', text: 'Confirmed enterprise-wide breach and exfiltration.' },
+    { id: 'true-positive', text: 'True Positive — confirmed account takeover with endpoint compromise on the supported entities.' },
+    { id: 'false-positive', text: 'False Positive — the alert fired, but the activity is benign or expected (the user still has the laptop).' },
+    { id: 'false-negative', text: 'False Negative — real malicious activity occurred that this alert did not fully capture.' },
+    { id: 'true-negative', text: 'True Negative — reviewed activity is normal; there is no supported security concern here.' },
+  ],
+  // Departments the case can be routed to (the ticket's "Route to Department"
+  // field, moduleOneTicketFields()'s escalateTo select). `fit` is the 0-100
+  // realism score moduleOneProveItPerformance() scales the escalation points
+  // by. `note` explains a partial-fit acceptance; `bounce` explains why a
+  // low-fit department kicks the ticket back to the student unsubmitted (see
+  // MODULE_ONE_DEPARTMENT_BOUNCE_THRESHOLD).
+  departmentOptions: [
+    { id: 'tier2-soc', text: 'Tier 2 SOC — Incident Response', fit: 100 },
+    { id: 'iam-department', text: 'IAM Department', fit: 65,
+      note: 'IAM can revoke a.chen’s session and reset credentials, but this case also has confirmed endpoint execution on LAP-442 that IAM has no authority to contain — Tier 2 SOC owns both legs together.' },
+    { id: 'endpoint-edr', text: 'Endpoint / EDR Team', fit: 55,
+      note: 'EDR can isolate LAP-442 and preserve the endpoint, but can’t revoke a.chen’s compromised session on its own — Tier 2 SOC coordinates both actions.' },
+    { id: 'network-security', text: 'Network Security', fit: 30,
+      bounce: 'Network Security can review the proxy destination, but has no authority to revoke sessions or isolate an endpoint. Route to Tier 2 SOC, which owns both.' },
+    { id: 'cloud-administration', text: 'Cloud Administration', fit: 10,
+      bounce: 'There is no cloud infrastructure evidenced in this case — Cloud Administration has nothing to act on here. Route to Tier 2 SOC.' },
+    { id: 'help-desk', text: 'Help Desk', fit: 5,
+      bounce: 'Help Desk can’t act on a confirmed identity compromise with endpoint execution — this needs Tier 2 SOC’s incident-response authority, not general support.' },
   ],
   correctIntake: 'identity-and-laptop',
   correctPriority: 'high',
