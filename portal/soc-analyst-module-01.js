@@ -1213,7 +1213,7 @@ function viewModuleOne(user, program) {
       <section class="m01-section m01-section-collapsible m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
         <div class="m01-section-heading">
           <span>3</span>
-          <div><p class="m01-kicker">Practice It · Guided Lab · ${formatInstructionalMinutes(moduleLabMinutes)} instructional time</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
+          <div><p class="m01-kicker">Practice It · Guided Lab</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
           <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lab" data-m01-section-label="guided lab" aria-expanded="${openFor('lab')}" aria-controls="m01-guided-lab-body" aria-label="${openFor('lab') ? 'Collapse' : 'Expand'} guided lab">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
           </button>
