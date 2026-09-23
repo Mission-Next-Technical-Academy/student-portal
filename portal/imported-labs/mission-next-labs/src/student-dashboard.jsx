@@ -28,7 +28,7 @@ function StudentDashboard({ user, onSelectModule, onLogout, onBack }) {
       <nav style={sdStyles.nav}>
         <div style={sdStyles.navLeft}>
           <button onClick={onBack} style={sdStyles.pathBtn}>‹ PATHS</button>
-          <img src='/assets/boot-logo-transparent.png' style={{width:41,height:41,objectFit:'contain'}} />
+          <img src='./assets/boot-logo-transparent.png' style={{width:41,height:41,objectFit:'contain'}} />
           <span style={sdStyles.navTitle}>MISSION NEXT</span>
           <span style={sdStyles.navSep}>›</span>
           <span style={sdStyles.navPage}>SOC Analyst Track</span>

@@ -80,25 +80,17 @@ function App() {
   }
 
   function handleBackFromLab() {
-    const returnTo = new URLSearchParams(window.location.search).get('returnTo');
-    if (returnTo) {
-      try {
-        const destination = new URL(returnTo, window.location.href);
-        const isHttp = destination.protocol === 'http:' || destination.protocol === 'https:';
-        const isMissionNextRoute = /^#\/program\/soc-analyst\/module\/\d+$/.test(destination.hash);
-        if (isHttp && isMissionNextRoute) {
-          // Older cached module pages generated a root-relative return URL
-          // before GitHub Pages' project base was included. Repair that URL
-          // here as well, so an already-open lab still returns to the portal.
-          if (destination.hostname === 'mission-next-technical-academy.github.io' && destination.pathname === '/') {
-            destination.pathname = '/student-portal/';
-          }
-          window.location.href = destination.href;
-          return;
-        }
-      } catch (_) {
-        // Fall through to the local catalog fallback for malformed links.
-      }
+    // Lab launches replace the portal document in the same tab. Use the
+    // browser's navigation history for the normal path, so the lab does not
+    // need a serialized return URL or a second router to reconstruct the
+    // originating module. Direct lab URLs still get a safe local fallback.
+    const referrer = document.referrer ? new URL(document.referrer, window.location.href) : null;
+    const cameFromPortal = referrer
+      && referrer.origin === window.location.origin
+      && !referrer.pathname.includes('/imported-labs/mission-next-labs/');
+    if (window.history.length > 1 && cameFromPortal) {
+      window.history.back();
+      return;
     }
     handleBackToDashboard();
   }

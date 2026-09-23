@@ -130,7 +130,7 @@ function InstructorDashboard({ user, onLogout }) {
     <div style={id2.root}>
       <nav style={id2.nav}>
         <div style={id2.navLeft}>
-          <img src='/assets/boot-logo-transparent.png' style={{width:41,height:41,objectFit:'contain'}} />
+          <img src='./assets/boot-logo-transparent.png' style={{width:41,height:41,objectFit:'contain'}} />
           <span style={id2.logoText}>MISSION NEXT</span>
           <span style={id2.sep}>›</span>
           <span style={id2.navPage}>Instructor Dashboard</span>

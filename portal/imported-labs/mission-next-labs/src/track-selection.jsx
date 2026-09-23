@@ -16,7 +16,7 @@ function TrackSelection({ user, onSelectTrack, onLogout }) {
     <div style={tsStyles.root}>
       <nav style={tsStyles.nav}>
         <div style={tsStyles.navLeft}>
-          <img src='/assets/boot-logo-transparent.png' style={{width:41,height:41,objectFit:'contain'}} />
+          <img src='./assets/boot-logo-transparent.png' style={{width:41,height:41,objectFit:'contain'}} />
           <span style={tsStyles.logoText}>MISSION NEXT</span>
           <span style={tsStyles.sep}>›</span>
           <span style={tsStyles.navPage}>Training Paths</span>

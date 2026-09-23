@@ -586,12 +586,11 @@ function moduleFiveLessonGrid() {
   return `<section class="m05-lesson-loops" id="m05-lesson-loops" aria-labelledby="m05-lesson-loops-title"><div class="m05-panel-heading"><div><p class="m05-kicker">Four-part lesson loops</p><h3 id="m05-lesson-loops-title">Practice the fake-CAPTCHA execution chain</h3></div><span>10 lessons · embedded in existing theory minutes</span></div><div class="m05-lesson-grid">${MODULE_FIVE_LESSON_LOOPS.map(moduleFiveLessonLoop).join('')}</div></section>`;
 }
 
-const MODULE_FIVE_RETURN_TO = missionNextReturnTo(5);
 
 function moduleFiveGuidedLabPanel() {
   const links = [
-    { label: 'Static Analysis of a Simple Malware Sample', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_FIVE_RETURN_TO}#/track/malware-analysis/project/ma-1/lab` },
-    { label: 'Dynamic Analysis in a Controlled Environment', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_FIVE_RETURN_TO}#/track/malware-analysis/project/ma-2/lab` },
+    { label: 'Static Analysis of a Simple Malware Sample', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-1/lab' },
+    { label: 'Dynamic Analysis in a Controlled Environment', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-2/lab' },
   ];
   return `<section class="m05-external-lab" id="m05-guided-lab-panel">
     <p class="m05-panel-instruction">Work through both imported malware-analysis projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
@@ -603,7 +602,7 @@ function moduleFiveGuidedLabPanel() {
 
 function moduleFiveAdditionalLabs() {
   return missionNextAdditionalLabsSection(5, [
-    { label: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_FIVE_RETURN_TO}#/track/malware-analysis/project/ma-4/lab` },
+    { label: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-4/lab' },
   ]);
 }
 
@@ -611,7 +610,7 @@ function moduleFiveAssessmentLabPanel() {
   const feedbackHtml = moduleFiveState.feedback?.length ? `<div class="m05-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleFiveState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   return `<section class="m05-external-lab" id="m05-assessment-lab-panel">
     <p class="m05-panel-instruction">Complete the imported Sysmon log-analysis project, then write up your findings below for instructor review.</p>
-    <div class="m05-external-lab-links"><a class="m05-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_FIVE_RETURN_TO}#/track/log-analysis/project/lap-5/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Analyzing Windows Sysmon Events for Security Incidents</a></div>
+    <div class="m05-external-lab-links"><a class="m05-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-5/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Analyzing Windows Sysmon Events for Security Incidents</a></div>
     <form id="m05-assessment-form">
       <label class="m05-note-label">Assessment write-up<textarea id="m05-assessment-notes" rows="6" maxlength="900" data-m05-assessment-notes placeholder="Summarize what the Sysmon lab surfaced, your analysis, and your recommended action…">${esc(moduleFiveState.notes)}</textarea></label>
       <p class="m05-help">In at least 80 characters, describe what you found and your recommended action.</p>

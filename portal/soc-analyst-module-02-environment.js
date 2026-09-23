@@ -77,14 +77,13 @@
 
   // Imported Mission Next training labs (portal/imported-labs/mission-next-labs/),
   // wired in place of the bespoke HR-FILE-01 case simulation. Each opens the
-  // static imported app on this page, with a returnTo param so its own Back
-  // button lands the student back on this module instead of the lab app's catalog.
-  const RETURN_TO = missionNextReturnTo(2);
+  // static imported app on this page; its Back button returns through browser
+  // history to the module that launched it.
   const GUIDED_LAB_LINKS = [
-    { label: 'Basic Network Security Assessment', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/security-assessments/project/sa-1/lab` },
-    { label: 'User Account Security Assessment', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/security-assessments/project/sa-5/lab` },
+    { label: 'Basic Network Security Assessment', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-1/lab' },
+    { label: 'User Account Security Assessment', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-5/lab' },
   ];
-  const ASSESSMENT_LAB_LINK = { label: 'Active Directory Logs and Insights with Splunk', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/active-directory/project/ad-2/lab` };
+  const ASSESSMENT_LAB_LINK = { label: 'Active Directory Logs and Insights with Splunk', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-2/lab' };
   const ASSESSMENT_MIN_NOTE_LENGTH = 80;
 
   const SOURCES = [

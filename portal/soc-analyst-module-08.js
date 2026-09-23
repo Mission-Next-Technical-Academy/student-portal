@@ -602,12 +602,11 @@ function moduleEightReview() {
   </section>`;
 }
 
-const MODULE_EIGHT_RETURN_TO = missionNextReturnTo(8);
 
 function moduleEightGuidedLabPanel() {
   const links = [
-    { label: 'Vulnerability Assessment using Nessus', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_EIGHT_RETURN_TO}#/track/vulnerability-management/project/vm-2/lab` },
-    { label: 'Vulnerability Management using QualysGuard', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_EIGHT_RETURN_TO}#/track/vulnerability-management/project/vm-3/lab` },
+    { label: 'Vulnerability Assessment using Nessus', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-2/lab' },
+    { label: 'Vulnerability Management using QualysGuard', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-3/lab' },
   ];
   return `<section class="m08-external-lab" id="m08-guided-lab-panel">
     <p class="m08-panel-instruction">Work through both imported vulnerability-management projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
@@ -619,9 +618,9 @@ function moduleEightGuidedLabPanel() {
 
 function moduleEightAdditionalLabs() {
   return missionNextAdditionalLabsSection(8, [
-    { label: 'Network Vulnerability Scanning with OpenVAS', detail: 'OpenVAS scan interpretation and remediation', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_EIGHT_RETURN_TO}#/track/vulnerability-management/project/vm-1/lab` },
-    { label: 'Web Application Vulnerability Detection with OWASP ZAP', detail: 'Web vulnerability discovery and review', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_EIGHT_RETURN_TO}#/track/vulnerability-management/project/vm-4/lab` },
-    { label: 'Web Application Security Assessment', detail: 'Application findings and risk assessment', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_EIGHT_RETURN_TO}#/track/security-assessments/project/sa-3/lab` },
+    { label: 'Network Vulnerability Scanning with OpenVAS', detail: 'OpenVAS scan interpretation and remediation', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-1/lab' },
+    { label: 'Web Application Vulnerability Detection with OWASP ZAP', detail: 'Web vulnerability discovery and review', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-4/lab' },
+    { label: 'Web Application Security Assessment', detail: 'Application findings and risk assessment', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-3/lab' },
   ]);
 }
 
@@ -629,7 +628,7 @@ function moduleEightAssessmentLabPanel() {
   const feedbackHtml = moduleEightState.feedback?.length ? `<div class="m08-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleEightState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   return `<section class="m08-external-lab" id="m08-assessment-lab-panel">
     <p class="m08-panel-instruction">Complete the imported WSUS patch-management project, then write up your findings below for instructor review.</p>
-    <div class="m08-external-lab-links"><a class="m08-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_EIGHT_RETURN_TO}#/track/vulnerability-management/project/vm-5/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Patch Management and Vulnerability Remediation using WSUS</a></div>
+    <div class="m08-external-lab-links"><a class="m08-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-5/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Patch Management and Vulnerability Remediation using WSUS</a></div>
     <form id="m08-assessment-form">
       <label class="m08-note-label">Assessment write-up<textarea id="m08-assessment-notes" rows="6" maxlength="900" data-m08-assessment-notes placeholder="Summarize what the WSUS lab surfaced, your analysis, and your recommended action…">${esc(moduleEightState.notes)}</textarea></label>
       <p class="m08-help">In at least 80 characters, describe what you found and your recommended action.</p>

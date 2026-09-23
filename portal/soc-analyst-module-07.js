@@ -534,12 +534,11 @@ function moduleSevenReview() {
   </section>`;
 }
 
-const MODULE_SEVEN_RETURN_TO = missionNextReturnTo(7);
 
 function moduleSevenGuidedLabPanel() {
   const links = [
-    { label: 'SMTP Log Analysis — Phishing Campaign Detection', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_SEVEN_RETURN_TO}#/track/splunk/module/mod-6` },
-    { label: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_SEVEN_RETURN_TO}#/track/splunk/module/mod-2` },
+    { label: 'SMTP Log Analysis — Phishing Campaign Detection', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/mod-6' },
+    { label: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/mod-2' },
   ];
   return `<section class="m07-external-lab" id="m07-guided-lab-panel">
     <p class="m07-panel-instruction">Work through both imported Splunk log-analysis modules below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
@@ -553,7 +552,7 @@ function moduleSevenAssessmentLabPanel() {
   const feedbackHtml = moduleSevenState.feedback?.length ? `<div class="m07-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleSevenState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   return `<section class="m07-external-lab" id="m07-assessment-lab-panel">
     <p class="m07-panel-instruction">Complete the imported Splunk tunnel-log analysis module, then write up your findings below for instructor review.</p>
-    <div class="m07-external-lab-links"><a class="m07-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_SEVEN_RETURN_TO}#/track/splunk/module/mod-5" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Tunnel Log Analysis — GRE Covert Channel Detection</a></div>
+    <div class="m07-external-lab-links"><a class="m07-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/splunk/module/mod-5" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Tunnel Log Analysis — GRE Covert Channel Detection</a></div>
     <form id="m07-assessment-form">
       <label class="m07-note-label">Assessment write-up<textarea id="m07-assessment-notes" rows="6" maxlength="900" data-m07-assessment-notes placeholder="Summarize what the tunnel-log module surfaced, your analysis, and your recommended action…">${esc(moduleSevenState.notes)}</textarea></label>
       <p class="m07-help">In at least 80 characters, describe what you found and your recommended action.</p>

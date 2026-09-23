@@ -721,8 +721,7 @@ function moduleNineDynamic() {
 }
 
 function moduleNineGuidedLabPanel() {
-  const returnTo = missionNextReturnTo(9);
-  const href = `imported-labs/mission-next-labs/index.html?returnTo=${returnTo}#/track/malware-analysis/project/ma-3/lab`;
+  const href = 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-3/lab';
   return `<section class="m09-external-lab" id="m09-guided-lab-panel">
     <p class="m09-panel-instruction">Work through the imported malware-analysis project below; it opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
     <div class="m09-external-lab-links"><a class="m09-lab-launch" href="${esc(href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Analyzing a Ransomware Sample</a></div>

@@ -594,12 +594,11 @@ function moduleSixConcepts() {
   return `<div class="m06-concept-grid">${concepts.map((item) => `<article><i class="${esc(item[0])}" aria-hidden="true"></i><h3>${esc(item[1])}</h3><p>${esc(item[2])}</p></article>`).join('')}</div>`;
 }
 
-const MODULE_SIX_RETURN_TO = missionNextReturnTo(6);
 
 function moduleSixGuidedLabPanel() {
   return `<section class="m06-external-lab" id="m06-guided-lab-panel">
     <p class="m06-instruction">Work the imported Splunk SIEM DNS log-analysis module below — it walks through spotting C2 beaconing and tunneling behavior in DNS query telemetry. It opens on this page. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m06-external-lab-links"><a class="m06-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_SIX_RETURN_TO}#/track/splunk/module/mod-1" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: DNS Log Analysis — C2 Beaconing &amp; Tunneling</a></div>
+    <div class="m06-external-lab-links"><a class="m06-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/splunk/module/mod-1" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: DNS Log Analysis — C2 Beaconing &amp; Tunneling</a></div>
     <label class="m06-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m06-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleSixState.practiceNotes)}</textarea></label>
     <div class="m06-actions"><button type="button" class="m06-submit" data-m06-practice-complete>${moduleSixState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -609,7 +608,7 @@ function moduleSixAssessmentLabPanel() {
   const feedbackHtml = moduleSixState.feedback?.length ? `<div class="m06-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleSixState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   return `<section class="m06-external-lab" id="m06-assessment-lab-panel">
     <p class="m06-instruction">Complete the imported Splunk SIEM SSH log-analysis module, then write up your findings below for instructor review.</p>
-    <div class="m06-external-lab-links"><a class="m06-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_SIX_RETURN_TO}#/track/splunk/module/mod-4" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: SSH Log Analysis — Brute Force &amp; Credential Stuffing</a></div>
+    <div class="m06-external-lab-links"><a class="m06-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/splunk/module/mod-4" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: SSH Log Analysis — Brute Force &amp; Credential Stuffing</a></div>
     <form id="m06-assessment-form">
       <label class="m06-note-label">Assessment write-up<textarea id="m06-assessment-notes" rows="6" maxlength="900" data-m06-assessment-notes placeholder="Summarize what the SSH log module surfaced, your analysis, and your recommended action…">${esc(moduleSixState.notes)}</textarea></label>
       <p class="m06-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -621,7 +620,7 @@ function moduleSixAssessmentLabPanel() {
 
 function moduleSixAdditionalLabs() {
   return missionNextAdditionalLabsSection(6, [
-    { label: 'Network Traffic Analysis of a Trojan', detail: 'Network IOCs and threat-hunting pivots', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_SIX_RETURN_TO}#/track/malware-analysis/project/ma-5/lab` },
+    { label: 'Network Traffic Analysis of a Trojan', detail: 'Network IOCs and threat-hunting pivots', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab' },
   ]);
 }
 

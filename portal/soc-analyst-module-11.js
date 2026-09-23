@@ -605,13 +605,12 @@ function moduleElevenGetQuickNavItems() {
   }));
 }
 
-const MODULE_ELEVEN_RETURN_TO = missionNextReturnTo(11);
 
 function moduleElevenGuidedLabPanel() {
   const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_METRICS_CATALOG_KEY);
   return `<section class="m11-external-lab" id="m11-guided-lab-panel">
     <p class="m11-panel-instruction">Launch the imported Active Directory monitoring project below and work through its guided tasks on this page. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-1/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Monitoring with Grafana</a></div>
+    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-1/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Monitoring with Grafana</a></div>
     <label class="m11-text-label" for="m11-practice-notes">Working notes (optional)</label>
     <p class="m11-field-help">${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. What did you find? Any blockers?</p>
     <textarea id="m11-practice-notes" rows="4" maxlength="900" data-m11-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleElevenMetricsState.practiceNotes)}</textarea>
@@ -625,7 +624,7 @@ function moduleElevenAssessmentLabPanel() {
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
     <p class="m11-panel-instruction">Launch the imported Active Directory metrics project below, complete it, then write up your findings for instructor review.</p>
     <p class="m11-field-help">${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated.</p>
-    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-7/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Visualizing Active Directory Performance Metrics with Cacti</a></div>
+    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Visualizing Active Directory Performance Metrics with Cacti</a></div>
     <form id="m11-assessment-form">
       <label class="m11-text-label" for="m11-assessment-notes">Assessment write-up</label>
       <p class="m11-field-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -638,8 +637,8 @@ function moduleElevenAssessmentLabPanel() {
 
 function moduleElevenAdditionalLabs() {
   return missionNextAdditionalLabsSection(11, [
-    { label: 'Real-time Active Directory Metrics with Datadog', detail: 'Operational monitoring and metric context', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-3/lab` },
-    { label: 'Active Directory Performance Monitoring with Checkmk', detail: 'Service checks and monitoring ownership', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-5/lab` },
+    { label: 'Real-time Active Directory Metrics with Datadog', detail: 'Operational monitoring and metric context', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-3/lab' },
+    { label: 'Active Directory Performance Monitoring with Checkmk', detail: 'Service checks and monitoring ownership', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-5/lab' },
   ]);
 }
 

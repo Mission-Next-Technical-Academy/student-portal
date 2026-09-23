@@ -120,7 +120,7 @@ function CheckOnLearningDrawer({
           style={drawerStyles.boot}
         >
           <img
-            src="/assets/boot-logo-transparent.png"
+            src="./assets/boot-logo-transparent.png"
             alt=""
             style={drawerStyles.bootImg}
             onError={(e) => { e.currentTarget.style.display = 'none'; }}

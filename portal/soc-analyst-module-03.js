@@ -625,10 +625,9 @@ function moduleThreeQuizPanel() {
 }
 
 function moduleThreeGuidedLabPanel() {
-  const returnTo = missionNextReturnTo(3);
   const links = [
-    { label: 'Basic Apache Web Server Log Analysis', href: `imported-labs/mission-next-labs/index.html?returnTo=${returnTo}#/track/log-analysis/project/lap-1/lab` },
-    { label: 'Introduction to Syslog Analysis on Linux Systems', href: `imported-labs/mission-next-labs/index.html?returnTo=${returnTo}#/track/log-analysis/project/lap-2/lab` },
+    { label: 'Basic Apache Web Server Log Analysis', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-1/lab' },
+    { label: 'Introduction to Syslog Analysis on Linux Systems', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-2/lab' },
   ];
   return `<section class="m03-external-lab" id="m03-guided-lab-panel">
     <p class="m03-panel-instruction">Work through both Mission Next log-analysis labs below. When you're done, note what you found and mark the Guided Lab complete.</p>
@@ -639,18 +638,16 @@ function moduleThreeGuidedLabPanel() {
 }
 
 function moduleThreeAdditionalLabs() {
-  const returnTo = missionNextReturnTo(3);
   return missionNextAdditionalLabsSection(3, [
-    { label: 'Analyzing Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: `imported-labs/mission-next-labs/index.html?returnTo=${returnTo}#/track/log-analysis/project/lap-3/lab` },
-    { label: 'HTTP Log Analysis — Web Attack Detection', detail: 'Web attack patterns in HTTP telemetry', href: `imported-labs/mission-next-labs/index.html?returnTo=${returnTo}#/track/splunk/module/mod-3` },
-    { label: 'System Log Assessment', detail: 'Suspicious system-log review', href: `imported-labs/mission-next-labs/index.html?returnTo=${returnTo}#/track/security-assessments/project/sa-4/lab` },
+    { label: 'Analyzing Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-3/lab' },
+    { label: 'HTTP Log Analysis — Web Attack Detection', detail: 'Web attack patterns in HTTP telemetry', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/mod-3' },
+    { label: 'System Log Assessment', detail: 'Suspicious system-log review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-4/lab' },
   ]);
 }
 
 function moduleThreeAssessmentLabPanel() {
   const feedbackHtml = moduleThreeState.feedback?.length ? `<div class="m03-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleThreeState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-  const returnTo = missionNextReturnTo(3);
-  const labHref = `imported-labs/mission-next-labs/index.html?returnTo=${returnTo}#/track/log-analysis/project/lap-4/lab`;
+  const labHref = 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-4/lab';
   const labStatus = moduleThreeState.importedLabComplete
     ? '<p class="m03-help" role="status"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Mission Next ELK lab complete. You may submit your assessment write-up.</p>'
     : '<p class="m03-help">Complete every step in the Mission Next ELK lab before submitting your assessment write-up.</p>';

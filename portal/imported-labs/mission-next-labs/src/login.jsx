@@ -37,7 +37,7 @@ function LoginPage({ onLogin }) {
         {/* Header */}
         <div style={loginStyles.header}>
           <div style={loginStyles.logo}>
-            <img src='/assets/boot-logo-transparent.png' style={{width:70,height:70,objectFit:'contain'}} />
+            <img src='./assets/boot-logo-transparent.png' style={{width:70,height:70,objectFit:'contain'}} />
             <div>
               <DecodeTitle text="MISSION NEXT" style={loginStyles.logoTitle} />
               <div style={loginStyles.logoSub}>SOC Analyst Training Platform</div>
