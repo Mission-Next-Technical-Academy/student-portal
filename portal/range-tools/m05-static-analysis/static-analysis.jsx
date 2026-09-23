@@ -1,7 +1,7 @@
 // Static File Analysis — vendor-neutral static-analysis workspace for Module 5.
 //
 // The presentational shell (`StaticAnalysisShell`) is a close, renamed port
-// of four Boots2Bytes SOC Analyst Track tool shells that all serve the same
+// of four Mission Next SOC Analyst Track tool shells that all serve the same
 // `ma-1` static-analysis lab — `PEviewLabShell`, `DependencyWalkerLabShell`,
 // `ResourceHackerLabShell`, and `HxDLabShell` (all in
 // `src/shells/malware-analysis-shells.jsx`) — combined into one tabbed

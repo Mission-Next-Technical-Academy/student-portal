@@ -1,12 +1,12 @@
 // Traffic Inspector — dataset for Module 7 (network/web-assessment side).
 //
-// Request/response rows ported from the Boots2Bytes SOC Analyst Track's
+// Request/response rows ported from the Mission Next SOC Analyst Track's
 // "sa-3" Web Application Security Assessment lab (`src/data/labs/
 // security-assessments.labs.js`, `buildSa3Burp()`), copied as part of the
 // Epic B/C migration (docs/LAB_MIGRATION_MATRIX.md, "Security-assessment
 // web proxy (BurpProxyLabShell)" row — the network/web-assessment analog
 // available for Module 7; the email side of this module has no
-// Boots2Bytes source and is left untouched). The captured-traffic values
+// Mission Next source and is left untouched). The captured-traffic values
 // are unchanged from the source (same host, same price-manipulation and
 // injection indicators); the ~80-row noise volume was trimmed to a
 // representative set for a standalone lab page. The task list's

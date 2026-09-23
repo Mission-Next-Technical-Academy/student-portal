@@ -628,12 +628,12 @@ function moduleFourReview() {
   </section>`;
 }
 
-const MODULE_FOUR_RETURN_TO = encodeURIComponent('/#/program/soc-analyst/module/4');
+const MODULE_FOUR_RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/4');
 
 function moduleFourGuidedLabPanel() {
   return `<section class="m04-external-lab" id="m04-guided-lab-panel">
-    <p class="m04-panel-instruction">Launch the imported Active Directory health-check project below; it opens in a new tab with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m04-external-lab-links"><a class="m04-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_FOUR_RETURN_TO}#/track/active-directory/project/ad-4/lab" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Health Checks using Nagios</a></div>
+    <p class="m04-panel-instruction">Launch the imported Active Directory health-check project below; it opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
+    <div class="m04-external-lab-links"><a class="m04-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_FOUR_RETURN_TO}#/track/active-directory/project/ad-4/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Health Checks using Nagios</a></div>
     <label class="m04-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m04-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleFourState.practiceNotes)}</textarea></label>
     <div class="m04-actions"><button type="button" class="m04-primary" data-m04-practice-complete>${moduleFourState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -643,7 +643,7 @@ function moduleFourAssessmentLabPanel() {
   const feedbackHtml = moduleFourState.feedback?.length ? `<div class="m04-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleFourState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   return `<section class="m04-external-lab" id="m04-assessment-lab-panel">
     <p class="m04-panel-instruction">Complete the imported Active Directory monitoring and alerting project, then write up your findings below for instructor review.</p>
-    <div class="m04-external-lab-links"><a class="m04-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_FOUR_RETURN_TO}#/track/active-directory/project/ad-6/lab" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Monitoring and Alerting with Prometheus</a></div>
+    <div class="m04-external-lab-links"><a class="m04-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_FOUR_RETURN_TO}#/track/active-directory/project/ad-6/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Monitoring and Alerting with Prometheus</a></div>
     <form id="m04-assessment-form">
       <label class="m04-note-label">Assessment write-up<textarea id="m04-assessment-notes" rows="6" maxlength="900" data-m04-assessment-notes placeholder="Summarize what the monitoring/alerting lab surfaced, your analysis, and your recommended action…">${esc(moduleFourState.notes)}</textarea></label>
       <p class="m04-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -651,6 +651,12 @@ function moduleFourAssessmentLabPanel() {
     </form>
     ${feedbackHtml}
   </section>`;
+}
+
+function moduleFourAdditionalLabs() {
+  return missionNextAdditionalLabsSection(4, [
+    { label: 'DHCP Log Analysis — Rogue DHCP Server Detection', detail: 'Network telemetry and automated detection', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_FOUR_RETURN_TO}#/track/splunk/module/mod-7` },
+  ]);
 }
 
 
@@ -702,7 +708,7 @@ function viewModuleFour(user, program) {
         </section>
       </summary>
       <section class="m04-section m04-section-body m04-lab-section" aria-labelledby="m04-guided-lab-title">
-        <div class="m04-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in a separate imported training application in a new tab.</p></div>
+        <div class="m04-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in the imported training application on this page.</p></div>
         <div id="m04-guided-lab-dynamic">${moduleFourGuidedLabPanel()}</div>
       </section>
     </details>`;
@@ -755,6 +761,7 @@ function viewModuleFour(user, program) {
       ${quizSection}
       ${guidedLabSection}
       ${assessmentLabSection}
+      ${moduleFourAdditionalLabs()}
       ${reviewSection}
       ${sourcesSection}
     </main>

@@ -77,9 +77,9 @@
 
   // Imported Mission Next training labs (portal/imported-labs/mission-next-labs/),
   // wired in place of the bespoke HR-FILE-01 case simulation. Each opens the
-  // static imported app in a new tab, with a returnTo param so its own Back
+  // static imported app on this page, with a returnTo param so its own Back
   // button lands the student back on this module instead of the lab app's catalog.
-  const RETURN_TO = encodeURIComponent('/#/program/soc-analyst/module/2');
+  const RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/2');
   const GUIDED_LAB_LINKS = [
     { label: 'Basic Network Security Assessment', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/security-assessments/project/sa-1/lab` },
     { label: 'User Account Security Assessment', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/security-assessments/project/sa-5/lab` },
@@ -262,7 +262,7 @@
 
   function practicePanel() {
     const p = state.practice;
-    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">GUIDED LAB</p><p class="m02e-panel-instruction">Work through both imported security-assessment projects below; each opens in a new tab with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p><div class="m02e-external-lab-links">${GUIDED_LAB_LINKS.map((l) => `<a class="m02e-lab-launch" href="${esc(l.href)}" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div><label class="m02e-rationale">Working notes (optional)<textarea data-m02e-practice-notes rows="4" maxlength="900" placeholder="What did you find? Any blockers?">${esc(p.notes)}</textarea></label><div class="m02e-panel-actions"><button class="m02e-primary" type="button" data-m02e-practice-complete>${p.complete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div></div>`;
+    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">GUIDED LAB</p><p class="m02e-panel-instruction">Work through both imported security-assessment projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p><div class="m02e-external-lab-links">${GUIDED_LAB_LINKS.map((l) => `<a class="m02e-lab-launch" href="${esc(l.href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div><label class="m02e-rationale">Working notes (optional)<textarea data-m02e-practice-notes rows="4" maxlength="900" placeholder="What did you find? Any blockers?">${esc(p.notes)}</textarea></label><div class="m02e-panel-actions"><button class="m02e-primary" type="button" data-m02e-practice-complete>${p.complete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div></div>`;
   }
 
   function markPracticeComplete() {
@@ -276,7 +276,7 @@
   function provePanel() {
     const p = state.prove;
     const feedbackHtml = p.feedback?.length ? `<div class="m02e-feedback ${p.submitted ? 'is-correct' : ''}" role="status"><ul>${p.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete the imported Active Directory logs project, then write up your findings below for instructor review.</p><div class="m02e-external-lab-links"><a class="m02e-lab-launch" href="${esc(ASSESSMENT_LAB_LINK.href)}" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(ASSESSMENT_LAB_LINK.label)}</a></div><form id="m02e-prove-form"><label class="m02e-rationale">Assessment write-up<textarea id="m02e-prove-notes" rows="6" maxlength="900" placeholder="Summarize what the Splunk/AD logs surfaced, your analysis, and your recommended action…">${esc(p.notes)}</textarea></label><p class="m02e-help">In at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters, describe what you found and your recommended action.</p><div class="m02e-panel-actions"><button class="m02e-primary" type="submit">${p.submitted ? 'Resubmit for review' : 'Submit for review'}</button></div></form>${feedbackHtml}</div>`;
+    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete the imported Active Directory logs project, then write up your findings below for instructor review.</p><div class="m02e-external-lab-links"><a class="m02e-lab-launch" href="${esc(ASSESSMENT_LAB_LINK.href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(ASSESSMENT_LAB_LINK.label)}</a></div><form id="m02e-prove-form"><label class="m02e-rationale">Assessment write-up<textarea id="m02e-prove-notes" rows="6" maxlength="900" placeholder="Summarize what the Splunk/AD logs surfaced, your analysis, and your recommended action…">${esc(p.notes)}</textarea></label><p class="m02e-help">In at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters, describe what you found and your recommended action.</p><div class="m02e-panel-actions"><button class="m02e-primary" type="submit">${p.submitted ? 'Resubmit for review' : 'Submit for review'}</button></div></form>${feedbackHtml}</div>`;
   }
 
   function submitProve(notes) {

@@ -1,6 +1,6 @@
 // Log Explorer — dataset for Module 6 (Hypothesis-led threat hunt).
 //
-// Log rows and task list ported from the Boots2Bytes SOC Analyst Track's
+// Log rows and task list ported from the Mission Next SOC Analyst Track's
 // "mod-5" Tunnel Log Analysis dataset (`src/data.js`, `LOGS_TUNNEL`), copied
 // as part of the Epic B/C migration (docs/LAB_MIGRATION_MATRIX.md — the
 // matrix's Module 6 row calls for reusing M3's adapted SIEM engine rather

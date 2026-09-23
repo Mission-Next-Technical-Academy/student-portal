@@ -1,0 +1,17 @@
+{
+  "name": "mission-next-labs-soc-analyst-track",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mission Next SOC Analyst Track training web app.",
+  "scripts": {
+    "dev": "python3 -m http.server 5173 --bind 127.0.0.1",
+    "check": "node scripts/check.mjs",
+    "smoke:routes": "node scripts/route-smoke.mjs",
+    "visual:smoke": "node scripts/route-smoke.mjs",
+    "build": "npm run check",
+    "pipeline": "npm run check"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

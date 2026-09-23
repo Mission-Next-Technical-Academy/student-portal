@@ -2,7 +2,7 @@
 // for Module 10 (Evidence handling & case reconstruction).
 //
 // `ArtifactTimelineShell` is a renamed, restyled reimplementation of the
-// Boots2Bytes SOC Analyst Track's `TimelineExplorerLabShell`
+// Mission Next SOC Analyst Track's `TimelineExplorerLabShell`
 // (`src/shells/windows-forensics-shells.jsx:429-520`) — same three-view idea
 // (filesystem timeline / Prefetch / Shellbags) and detail-on-select
 // interaction, rebuilt against this port's own dataset shape rather than the

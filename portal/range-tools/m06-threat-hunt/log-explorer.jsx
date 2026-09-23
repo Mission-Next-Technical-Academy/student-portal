@@ -7,7 +7,7 @@
 // Only the dataset global (`M06_LOG_DATASET`) and module-number display text
 // differ from the M3 copy; the presentational shell and state container are
 // otherwise unchanged. See the M3 copy's own header for the shell's
-// provenance (a renamed, de-branded port of the Boots2Bytes
+// provenance (a renamed, de-branded port of the Mission Next
 // `SplunkLabShell`).
 //
 // Deliberately NOT wired to `recordLabAttempt()`, competency scoring, or

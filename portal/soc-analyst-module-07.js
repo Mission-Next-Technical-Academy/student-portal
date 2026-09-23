@@ -534,7 +534,7 @@ function moduleSevenReview() {
   </section>`;
 }
 
-const MODULE_SEVEN_RETURN_TO = encodeURIComponent('/#/program/soc-analyst/module/7');
+const MODULE_SEVEN_RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/7');
 
 function moduleSevenGuidedLabPanel() {
   const links = [
@@ -542,8 +542,8 @@ function moduleSevenGuidedLabPanel() {
     { label: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_SEVEN_RETURN_TO}#/track/splunk/module/mod-2` },
   ];
   return `<section class="m07-external-lab" id="m07-guided-lab-panel">
-    <p class="m07-panel-instruction">Work through both imported Splunk log-analysis modules below; each opens in a new tab with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m07-external-lab-links">${links.map((l) => `<a class="m07-lab-launch" href="${esc(l.href)}" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div>
+    <p class="m07-panel-instruction">Work through both imported Splunk log-analysis modules below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
+    <div class="m07-external-lab-links">${links.map((l) => `<a class="m07-lab-launch" href="${esc(l.href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div>
     <label class="m07-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m07-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleSevenState.practiceNotes)}</textarea></label>
     <div class="m07-actions"><button type="button" class="m07-submit" data-m07-practice-complete>${moduleSevenState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -553,7 +553,7 @@ function moduleSevenAssessmentLabPanel() {
   const feedbackHtml = moduleSevenState.feedback?.length ? `<div class="m07-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleSevenState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   return `<section class="m07-external-lab" id="m07-assessment-lab-panel">
     <p class="m07-panel-instruction">Complete the imported Splunk tunnel-log analysis module, then write up your findings below for instructor review.</p>
-    <div class="m07-external-lab-links"><a class="m07-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_SEVEN_RETURN_TO}#/track/splunk/module/mod-5" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Tunnel Log Analysis — GRE Covert Channel Detection</a></div>
+    <div class="m07-external-lab-links"><a class="m07-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_SEVEN_RETURN_TO}#/track/splunk/module/mod-5" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Tunnel Log Analysis — GRE Covert Channel Detection</a></div>
     <form id="m07-assessment-form">
       <label class="m07-note-label">Assessment write-up<textarea id="m07-assessment-notes" rows="6" maxlength="900" data-m07-assessment-notes placeholder="Summarize what the tunnel-log module surfaced, your analysis, and your recommended action…">${esc(moduleSevenState.notes)}</textarea></label>
       <p class="m07-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -598,7 +598,7 @@ function viewModuleSeven(user, program) {
       <details class="m07-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
         <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">3</span><div><p class="m07-kicker">Practice It · Guided Lab</p><h2 id="m07-guided-lab">Log analysis practice</h2></div></div></summary>
         <div class="m07-section-body">
-          <div class="m07-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in a separate imported training application in a new tab.</p></div>
+          <div class="m07-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in the imported training application on this page.</p></div>
           <div id="m07-guided-lab-dynamic">${moduleSevenGuidedLabPanel()}</div>
         </div>
       </details>

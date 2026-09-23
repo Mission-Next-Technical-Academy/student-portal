@@ -1,7 +1,7 @@
 // Vulnerability Scanner — vendor-neutral scan/target/findings workspace for
 // Module 8.
 //
-// `VulnScannerShell` is a renamed, de-branded port of the Boots2Bytes SOC
+// `VulnScannerShell` is a renamed, de-branded port of the Mission Next SOC
 // Analyst Track's `OpenVASLabShell` (`src/shells/vuln-management-shells.jsx`,
 // the vm-1 lab), per docs/LAB_MIGRATION_MATRIX.md's "prefer one shared
 // engine, vendor-neutral" rule — the source app defines five branded scanner

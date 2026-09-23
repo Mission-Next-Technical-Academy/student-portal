@@ -1,7 +1,7 @@
 // Log Explorer — vendor-neutral log query workspace for Module 3.
 //
 // The presentational shell (`LogExplorerShell`) is a close, renamed port of
-// the Boots2Bytes SOC Analyst Track's `SplunkLabShell`
+// the Mission Next SOC Analyst Track's `SplunkLabShell`
 // (`src/lab-shells.jsx:461-659`), stripped of its Splunk branding, per
 // docs/LAB_MIGRATION_MATRIX.md's "prefer one shared engine, vendor-neutral"
 // rule. `LogExplorerConsole` is new: a small state container that wasn't

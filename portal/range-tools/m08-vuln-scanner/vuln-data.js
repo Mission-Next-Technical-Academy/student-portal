@@ -1,7 +1,7 @@
 // Vulnerability Scanner — dataset for Module 8 (Vulnerability prioritization
 // and exposure analysis).
 //
-// Target and findings are ported from the Boots2Bytes SOC Analyst Track's
+// Target and findings are ported from the Mission Next SOC Analyst Track's
 // "vm-1" OpenVAS Network Scan lab (`src/shells/vuln-management-shells.jsx`'s
 // OPENVAS_FINDINGS catalogue and vm-1's target/scenario in
 // `src/data/labs/vuln-management.labs.js`), copied as part of the Epic B/C

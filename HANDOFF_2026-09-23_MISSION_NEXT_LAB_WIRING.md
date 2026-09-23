@@ -84,9 +84,9 @@ State as of this handoff:
   the imported app's own track/dashboard catalog. Module 3 established this
   convention (done by Codex or a prior pass, matched exactly for 2/4–11).
 
-## Two real bugs found live, NOT yet fixed — next session should start here
+## Two bugs found live — resolved in the follow-up pass
 
-1. **Some project-lab routes crash on launch.** Reported live by the owner:
+1. **Some project-lab routes crashed on launch.** Reported live by the owner:
    opening `#/track/active-directory/project/ad-2/lab` (Module 2's
    Assessment Lab) throws a React error-boundary crash: "ROUTE ERROR — This
    lab view hit a recoverable error. can't access property 'fields', mod is
@@ -109,11 +109,11 @@ State as of this handoff:
    lookups with no visible assignment found via grep — if the assignment
    happens in a script tag order issue, `shells.ActiveDirectoryLabShell`
    could resolve to something unexpected instead of `undefined` cleanly).
-   **This may affect other generic catalog-style project labs too** (any
-   `sa-*`, `vm-*`, `wf-*` id not custom-built) — worth a systematic check of
-   every wired lab ID before trusting the mapping table above is fully
-   launchable.
-2. **Exiting the imported lab back to Mission Next lands on `#/login`
+   **Fixed:** `LabPlayer` now detects the incompatible legacy
+   `SplunkLabShell` selection in new-shape labs and uses the command-driven
+   terminal shell instead. Chrome smoke-tested the exact `ad-2` route after
+   the fix: the exercise player rendered with no route-error panel.
+2. **Exiting the imported lab back to Mission Next landed on `#/login`
    instead of the intended module — reported for more than one exit path.**
    First reported: the `returnTo`-driven "‹ BACK" button
    (`window.location.href = '/#/program/soc-analyst/module/N'`) ends up at
@@ -129,7 +129,13 @@ State as of this handoff:
    runs fresh each time — likely it isn't restoring a session or the
    requested hash correctly on cold load, and defaults unauthenticated or
    unrecognized deep-links to login, dropping the hash in the process.
-   Needs investigation in `portal/app.js`'s boot/session-restore path (the
+   **Fixed:** `portal/app.js` now remembers a valid `#/program/...` route in
+   `sessionStorage` before showing login and consumes it after successful
+   sign-in, so an expired/unrestorable session no longer drops the originating
+   module route. The imported app's lab Back surfaces all converge on the same
+   `returnTo` callback; its internal catalog/dashboard/logout controls remain
+   intentionally local to the imported app.
+   This was the pre-login-redirect gap in `portal/app.js`'s boot/session-restore path (the
    `wireLogin()` area and whatever reads `location.hash` on first paint) —
    this is exactly the kind of pre-login-redirect gap
    `STUDENT_LOGIN_COURSEWORK_REDIRECT.md` already flags as unresolved, so
@@ -156,18 +162,21 @@ State as of this handoff:
   request, leaving only `master` and the working branch,
   `lab-migration-20260923-133658` (not yet pushed as of this handoff).
 
-## Verified clean (Mission Next portal side only — NOT the imported app)
+## Imported app runtime verification
+
+The exact previously failing `#/track/active-directory/project/ad-2/lab`
+route was loaded in Chrome against the local server after the fix. It rendered
+the new-shape exercise player and command shell with no React route-error panel.
+A full manual click-through of every mapped imported lab remains useful before
+student release, but the two reported blockers are resolved.
+
+## Verified clean (Mission Next portal side)
 
 - `node --check` on every portal/ui JS file.
 - `node bin/portal-check.js` — 129/129 module×program renders clean, 0
   errors, across all 4 programs (soc-analyst, its, aim, eee).
 - `node bin/render_all.js` — 129/129 views render clean, 0 dead nav routes.
 - `git diff --check` — no whitespace errors.
-
-**Not verified**: the imported lab app itself was never exercised through
-an actual build/runtime check by this session beyond static grep reading —
-see bug #1 above. Before calling this migration done, someone needs to
-click through every lab ID in the mapping table in a real browser.
 
 ## Files touched this session
 

@@ -1,7 +1,7 @@
 // Vulnerability Scanner — filter, sort, and task-validation engine.
 //
 // New for Module 8: unlike m03-log-explorer's query-engine.js (a verbatim
-// port of a standalone Boots2Bytes module), the source OpenVASLabShell has
+// port of a standalone Mission Next module), the source OpenVASLabShell has
 // no equivalent pure-logic file — its target/task/report workflow lives
 // inline in component state (`src/shells/vuln-management-shells.jsx`). This
 // file is authored fresh to give the ported shell the same

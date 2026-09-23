@@ -2,7 +2,7 @@
 // Module 7 (network/web-assessment side of "network & email investigation").
 //
 // The presentational shell (`TrafficInspectorShell`) is a close, renamed
-// port of the Boots2Bytes SOC Analyst Track's `BurpProxyLabShell`
+// port of the Mission Next SOC Analyst Track's `BurpProxyLabShell`
 // (`src/shells/security-assessments-shells.jsx:500-732`), stripped of all
 // "Burp Suite" branding per docs/LAB_MIGRATION_MATRIX.md's explicit
 // vendor-neutral rule. Only the Proxy-equivalent history table and the

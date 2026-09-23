@@ -1,7 +1,7 @@
 // Static File Analysis — fixture data for Module 5 (Endpoint & malware investigation).
 //
 // Header, section, import, resource, and hex-row values are ported from the
-// Boots2Bytes SOC Analyst Track's `malware-analysis-shells.jsx` fixtures
+// Mission Next SOC Analyst Track's `malware-analysis-shells.jsx` fixtures
 // (PEVIEW_DATA, DEPWALK_DATA, RESOURCE_DATA, HXD_DATA) as part of the
 // Epic B/C migration (see docs/LAB_MIGRATION_MATRIX.md, "Malware analysis
 // tool suite" row). Values are unchanged from the source; only the task

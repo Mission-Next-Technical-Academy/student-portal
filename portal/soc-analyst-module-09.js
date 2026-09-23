@@ -721,11 +721,11 @@ function moduleNineDynamic() {
 }
 
 function moduleNineGuidedLabPanel() {
-  const returnTo = encodeURIComponent('/#/program/soc-analyst/module/9');
+  const returnTo = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/9');
   const href = `imported-labs/mission-next-labs/index.html?returnTo=${returnTo}#/track/malware-analysis/project/ma-3/lab`;
   return `<section class="m09-external-lab" id="m09-guided-lab-panel">
-    <p class="m09-panel-instruction">Work through the imported malware-analysis project below; it opens in a new tab with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m09-external-lab-links"><a class="m09-lab-launch" href="${esc(href)}" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Analyzing a Ransomware Sample</a></div>
+    <p class="m09-panel-instruction">Work through the imported malware-analysis project below; it opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
+    <div class="m09-external-lab-links"><a class="m09-lab-launch" href="${esc(href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Analyzing a Ransomware Sample</a></div>
     <label class="m09-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m09-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleNineState.practiceNotes)}</textarea></label>
     <div class="m09-actions"><button type="button" class="m09-submit" data-m09-practice-complete>${moduleNineState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -767,7 +767,7 @@ function viewModuleNine(user, program) {
       <details class="m09-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
         <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">3</span><div><p class="m09-kicker">Practice It · Guided Lab</p><h2 id="m09-guided-lab">Ransomware analysis practice</h2></div></div></summary>
         <div class="m09-section-body">
-          <div class="m09-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in a separate imported training application in a new tab.</p></div>
+          <div class="m09-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in the imported training application on this page.</p></div>
           <div id="m09-guided-lab-dynamic">${moduleNineGuidedLabPanel()}</div>
         </div>
       </details>

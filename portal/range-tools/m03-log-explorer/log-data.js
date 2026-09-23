@@ -1,6 +1,6 @@
 // Log Explorer — dataset for Module 3 (Assisted SIEM triage & log correlation).
 //
-// Log rows and task list ported from the Boots2Bytes SOC Analyst Track's
+// Log rows and task list ported from the Mission Next SOC Analyst Track's
 // "mod-3" HTTP Log Analysis dataset (`src/data.js`), copied as part of the
 // Epic B/C migration (docs/LAB_MIGRATION_MATRIX.md). Values are unchanged
 // from the source; only the module id/title were kept generic. The task

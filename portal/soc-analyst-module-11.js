@@ -605,13 +605,13 @@ function moduleElevenGetQuickNavItems() {
   }));
 }
 
-const MODULE_ELEVEN_RETURN_TO = encodeURIComponent('/#/program/soc-analyst/module/11');
+const MODULE_ELEVEN_RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/11');
 
 function moduleElevenGuidedLabPanel() {
   const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_METRICS_CATALOG_KEY);
   return `<section class="m11-external-lab" id="m11-guided-lab-panel">
-    <p class="m11-panel-instruction">Launch the imported Active Directory monitoring project below and work through its guided tasks in the new tab. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-1/lab" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Monitoring with Grafana</a></div>
+    <p class="m11-panel-instruction">Launch the imported Active Directory monitoring project below and work through its guided tasks on this page. When you're done, note what you found and mark the Guided Lab complete.</p>
+    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-1/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Monitoring with Grafana</a></div>
     <label class="m11-text-label" for="m11-practice-notes">Working notes (optional)</label>
     <p class="m11-field-help">${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. What did you find? Any blockers?</p>
     <textarea id="m11-practice-notes" rows="4" maxlength="900" data-m11-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleElevenMetricsState.practiceNotes)}</textarea>
@@ -625,7 +625,7 @@ function moduleElevenAssessmentLabPanel() {
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
     <p class="m11-panel-instruction">Launch the imported Active Directory metrics project below, complete it, then write up your findings for instructor review.</p>
     <p class="m11-field-help">${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated.</p>
-    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-7/lab" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Visualizing Active Directory Performance Metrics with Cacti</a></div>
+    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-7/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Visualizing Active Directory Performance Metrics with Cacti</a></div>
     <form id="m11-assessment-form">
       <label class="m11-text-label" for="m11-assessment-notes">Assessment write-up</label>
       <p class="m11-field-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -634,6 +634,13 @@ function moduleElevenAssessmentLabPanel() {
     </form>
     ${feedbackHtml}
   </section>`;
+}
+
+function moduleElevenAdditionalLabs() {
+  return missionNextAdditionalLabsSection(11, [
+    { label: 'Real-time Active Directory Metrics with Datadog', detail: 'Operational monitoring and metric context', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-3/lab` },
+    { label: 'Active Directory Performance Monitoring with Checkmk', detail: 'Service checks and monitoring ownership', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-5/lab` },
+  ]);
 }
 
 function viewModuleEleven(user, program) {
@@ -657,12 +664,13 @@ function viewModuleEleven(user, program) {
   ${moduleElevenQuizPanel()}
 </div></details>
 <details class="m11-section-collapsible" id="m11-guided-lab-section" ${guidedLabOpen ? 'open' : ''}><summary><span class="m11-section-badge">3</span><div><p class="m11-kicker">Practice It · Guided Lab</p><h2>Guided Lab</h2></div></summary><div class="m11-section-body" id="m11-guided-lab">
-  <div class="m11-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in a separate imported training application in a new tab.</p></div>
+  <div class="m11-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in the imported training application on this page.</p></div>
   <div id="m11-guided-lab-dynamic">${moduleElevenGuidedLabPanel()}</div>
 </div></details>
 <details class="m11-section-collapsible" id="m11-assessment-lab-section" ${assessmentLabOpen ? 'open' : ''}><summary><span class="m11-section-badge">4</span><div><p class="m11-kicker">Prove It · Assessment Lab</p><h2>Assessment Lab</h2></div></summary><div class="m11-section-body" id="m11-assessment-lab">
   <div id="m11-assessment-lab-dynamic">${moduleElevenAssessmentLabPanel()}</div>
 </div></details>
+${moduleElevenAdditionalLabs()}
 <details class="m11-section-collapsible" id="m11-review-section" ${reviewOpen ? 'open' : ''}><summary><span class="m11-section-badge">5</span><h2>Module Review</h2></summary><div class="m11-section-body" id="m11-review">
   ${moduleElevenReview()}
 </div></details>

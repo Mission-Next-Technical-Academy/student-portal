@@ -1,10 +1,10 @@
 **2026-09-23 (lab-wiring session, out-of-queue, not a `ROADMAP.md` item):**
-if you are touching anything related to Boots2Bytes / imported labs / the
+if you are touching anything related to Mission Next / imported labs / the
 Guided Lab / Assessment Lab wiring for Modules 2–11, read
 `HANDOFF_2026-09-23_MISSION_NEXT_LAB_WIRING.md` FIRST. It supersedes every
-other Boots2Bytes/lab-migration doc in this repo and has two confirmed live
-bugs (a lab-launch crash and a login-redirect-on-exit bug affecting
-multiple exit buttons) that are not yet fixed.
+other Mission Next/lab-migration doc in this repo. The previously reported
+lab-launch crash and login-redirect-on-exit bug are fixed there; re-run the
+imported-app smoke checks before student release.
 
 # Next session — use the canonical roadmap
 

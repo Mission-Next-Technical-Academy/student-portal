@@ -5,7 +5,7 @@
 # this repo (see the comment above the flagged line).
 portal/supabase-config.js:generic-api-key:13
 
-# Imported Boots2Bytes docs (portal/imported-labs/boots2bytes/BUILD_PLAN.md) —
+# Imported Mission Next docs (portal/imported-labs/mission-next-labs/BUILD_PLAN.md) —
 # a code-sample object key `observed.404Count` in a fictional test-fixture
 # snippet, not a credential. Third-party doc content, not authored here.
-portal/imported-labs/boots2bytes/BUILD_PLAN.md:generic-api-key:80
+portal/imported-labs/mission-next-labs/BUILD_PLAN.md:generic-api-key:80

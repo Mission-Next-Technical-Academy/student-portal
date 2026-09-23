@@ -1,7 +1,7 @@
 // Artifact Timeline — dataset for Module 10 (Evidence handling & case
 // reconstruction).
 //
-// Structurally ported from the Boots2Bytes SOC Analyst Track's
+// Structurally ported from the Mission Next SOC Analyst Track's
 // `TimelineExplorerLabShell` / wf-3 lab
 // (`src/shells/windows-forensics-shells.jsx`,
 // `src/data/labs/windows-forensics.labs.js`) — same three-artifact-type

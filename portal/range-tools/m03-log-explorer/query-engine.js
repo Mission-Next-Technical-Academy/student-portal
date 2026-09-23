@@ -1,9 +1,9 @@
 // Log Explorer — query pipeline engine.
 //
-// Ported from the Boots2Bytes SOC Analyst Track (`src/query-engine.js`),
+// Ported from the Mission Next SOC Analyst Track (`src/query-engine.js`),
 // copied verbatim as part of the Epic B/C migration (see
 // docs/LAB_MIGRATION_MATRIX.md, row "SIEM query engine + Splunk-style
-// workspace"). Boots2Bytes source stays read-only; this is a standalone copy.
+// workspace"). Mission Next source stays read-only; this is a standalone copy.
 // Not yet wired to `recordLabAttempt()` / instructor review — see that
 // matrix row's "REQUIRED ADAPTATION" column before treating a Module 3
 // Assessment Lab pass here as a reviewable Prove It submission.

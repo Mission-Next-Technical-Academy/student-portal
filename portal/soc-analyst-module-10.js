@@ -385,7 +385,7 @@ function moduleTenLoad(user) {
 function moduleTenSaveGuided() { if (moduleTenUser && moduleTenGuidedState) LabRuntime.save(MODULE_TEN_GUIDED_LAB_ID, moduleTenUser, moduleTenGuidedState); }
 function moduleTenSaveAssessment() { if (moduleTenUser && moduleTenAssessmentState) LabRuntime.save(MODULE_TEN_ASSESSMENT_LAB_ID, moduleTenUser, moduleTenAssessmentState); }
 
-const MODULE_TEN_RETURN_TO = encodeURIComponent('/#/program/soc-analyst/module/10');
+const MODULE_TEN_RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/10');
 
 function moduleTenGuidedLabPanel() {
   const links = [
@@ -393,8 +393,8 @@ function moduleTenGuidedLabPanel() {
     { label: 'Forensic Analysis of Windows File Systems and Artifacts', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_TEN_RETURN_TO}#/track/windows-forensics/project/wf-3/lab` },
   ];
   return `<section class="m10-external-lab" id="m10-guided-lab-panel">
-    <p class="m10-panel-instruction">Work through both imported Windows-forensics projects below; each opens in a new tab with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m10-external-lab-links">${links.map((l) => `<a class="m10-lab-launch" href="${esc(l.href)}" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div>
+    <p class="m10-panel-instruction">Work through both imported Windows-forensics projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
+    <div class="m10-external-lab-links">${links.map((l) => `<a class="m10-lab-launch" href="${esc(l.href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div>
     <label class="m10-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m10-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleTenGuidedState.practiceNotes)}</textarea></label>
     <div class="m10-actions"><button type="button" class="m10-submit" data-m10-practice-complete>${moduleTenGuidedState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -404,7 +404,7 @@ function moduleTenAssessmentLabPanel() {
   const feedbackHtml = moduleTenAssessmentState.feedback?.length ? `<div class="m10-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleTenAssessmentState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   return `<section class="m10-external-lab" id="m10-assessment-lab-panel">
     <p class="m10-panel-instruction">Complete the imported Windows-forensics deleted-files project, then write up your findings below for instructor review.</p>
-    <div class="m10-external-lab-links"><a class="m10-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_TEN_RETURN_TO}#/track/windows-forensics/project/wf-5/lab" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Recovering and Analyzing Deleted Files on Windows Systems</a></div>
+    <div class="m10-external-lab-links"><a class="m10-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_TEN_RETURN_TO}#/track/windows-forensics/project/wf-5/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Recovering and Analyzing Deleted Files on Windows Systems</a></div>
     <form id="m10-assessment-form">
       <label class="m10-note-label">Assessment write-up<textarea id="m10-assessment-notes" rows="6" maxlength="900" data-m10-assessment-notes placeholder="Summarize what the deleted-files lab surfaced, your analysis, and your recommended action…">${esc(moduleTenAssessmentState.notes)}</textarea></label>
       <p class="m10-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -412,6 +412,14 @@ function moduleTenAssessmentLabPanel() {
     </form>
     ${feedbackHtml}
   </section>`;
+}
+
+function moduleTenAdditionalLabs() {
+  return missionNextAdditionalLabsSection(10, [
+    { label: 'Investigating Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_TEN_RETURN_TO}#/track/windows-forensics/project/wf-1/lab` },
+    { label: 'Extracting and Interpreting Browser Artifacts on Windows', detail: 'Browser history and user-activity evidence', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_TEN_RETURN_TO}#/track/windows-forensics/project/wf-4/lab` },
+    { label: 'File System Security Assessment', detail: 'Permissions and file-integrity evidence', href: `imported-labs/mission-next-labs/index.html?returnTo=${MODULE_TEN_RETURN_TO}#/track/security-assessments/project/sa-2/lab` },
+  ]);
 }
 
 function moduleTenGetSections() {
@@ -588,7 +596,7 @@ function viewModuleTen(user, program) {
       <details class="m10-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
         <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">3</span><div><p class="m10-kicker">Practice It · Guided Lab</p><h2 id="m10-guided-lab">Windows forensics practice</h2></div></div></summary>
         <div class="m10-section-body">
-          <div class="m10-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in a separate imported training application in a new tab.</p></div>
+          <div class="m10-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in the imported training application on this page.</p></div>
           <div id="m10-guided-lab-dynamic">${moduleTenGuidedLabPanel()}</div>
         </div>
       </details>
@@ -599,6 +607,7 @@ function viewModuleTen(user, program) {
           <div id="m10-assessment-lab-dynamic">${moduleTenAssessmentLabPanel()}</div>
         </div>
       </details>
+      ${moduleTenAdditionalLabs()}
 
       <details class="m10-section-collapsible" ${reviewOpen ? 'open' : ''}>
         <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">5</span><div><p class="m10-kicker">Review</p><h2 id="m10-review">Module Review</h2></div></div></summary>
