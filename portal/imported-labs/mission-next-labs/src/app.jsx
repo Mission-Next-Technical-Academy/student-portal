@@ -87,6 +87,12 @@ function App() {
         const isHttp = destination.protocol === 'http:' || destination.protocol === 'https:';
         const isMissionNextRoute = /^#\/program\/soc-analyst\/module\/\d+$/.test(destination.hash);
         if (isHttp && isMissionNextRoute) {
+          // Older cached module pages generated a root-relative return URL
+          // before GitHub Pages' project base was included. Repair that URL
+          // here as well, so an already-open lab still returns to the portal.
+          if (destination.hostname === 'mission-next-technical-academy.github.io' && destination.pathname === '/') {
+            destination.pathname = '/student-portal/';
+          }
           window.location.href = destination.href;
           return;
         }

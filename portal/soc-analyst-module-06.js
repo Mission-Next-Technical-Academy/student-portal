@@ -594,7 +594,7 @@ function moduleSixConcepts() {
   return `<div class="m06-concept-grid">${concepts.map((item) => `<article><i class="${esc(item[0])}" aria-hidden="true"></i><h3>${esc(item[1])}</h3><p>${esc(item[2])}</p></article>`).join('')}</div>`;
 }
 
-const MODULE_SIX_RETURN_TO = encodeURIComponent(window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + '#/program/soc-analyst/module/6');
+const MODULE_SIX_RETURN_TO = missionNextReturnTo(6);
 
 function moduleSixGuidedLabPanel() {
   return `<section class="m06-external-lab" id="m06-guided-lab-panel">

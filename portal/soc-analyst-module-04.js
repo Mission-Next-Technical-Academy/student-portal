@@ -628,7 +628,7 @@ function moduleFourReview() {
   </section>`;
 }
 
-const MODULE_FOUR_RETURN_TO = encodeURIComponent(window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + '#/program/soc-analyst/module/4');
+const MODULE_FOUR_RETURN_TO = missionNextReturnTo(4);
 
 function moduleFourGuidedLabPanel() {
   return `<section class="m04-external-lab" id="m04-guided-lab-panel">

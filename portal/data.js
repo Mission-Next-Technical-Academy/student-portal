@@ -9,6 +9,19 @@
  * positioning, but must not inherit invented hour or lab estimates.
  */
 
+/* Imported Mission Next lab links return to the portal's deployed base path.
+ * GitHub Pages serves this portal from /student-portal/, while local review
+ * serves it from the site root. Keep that deployment detail in one place so
+ * every module generates the same working return URL. */
+function missionNextReturnTo(moduleNumber) {
+  const pathname = window.location.pathname || '/';
+  const marker = '/student-portal/';
+  const basePath = pathname.includes(marker)
+    ? pathname.slice(0, pathname.indexOf(marker) + marker.length)
+    : pathname.replace(/[^/]*$/, '');
+  return encodeURIComponent(`${window.location.origin}${basePath}#/program/soc-analyst/module/${moduleNumber}`);
+}
+
 /* ---------------------------------------------------------------------------
  * STANDARD MODULE LAYOUT — see MODULE_STANDARD.md
  *

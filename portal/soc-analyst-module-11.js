@@ -605,7 +605,7 @@ function moduleElevenGetQuickNavItems() {
   }));
 }
 
-const MODULE_ELEVEN_RETURN_TO = encodeURIComponent(window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + '#/program/soc-analyst/module/11');
+const MODULE_ELEVEN_RETURN_TO = missionNextReturnTo(11);
 
 function moduleElevenGuidedLabPanel() {
   const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_METRICS_CATALOG_KEY);

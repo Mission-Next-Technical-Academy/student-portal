@@ -602,7 +602,7 @@ function moduleEightReview() {
   </section>`;
 }
 
-const MODULE_EIGHT_RETURN_TO = encodeURIComponent(window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + '#/program/soc-analyst/module/8');
+const MODULE_EIGHT_RETURN_TO = missionNextReturnTo(8);
 
 function moduleEightGuidedLabPanel() {
   const links = [
