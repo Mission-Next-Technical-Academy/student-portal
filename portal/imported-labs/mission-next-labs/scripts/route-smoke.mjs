@@ -25,7 +25,7 @@ const routes = [
   },
   {
     name:'splunk search reporting',
-    hash:'#/track/splunk/module/mod-1',
+    hash:'#/track/splunk/module/dns-log-analysis',
     expect:['Search & Reporting', 'Selected Fields', 'Last 24 hours'],
   },
   {

@@ -654,7 +654,7 @@ function moduleFourAssessmentLabPanel() {
 
 function moduleFourAdditionalLabs() {
   return missionNextAdditionalLabsSection(4, [
-    { label: 'DHCP Log Analysis — Rogue DHCP Server Detection', detail: 'Network telemetry and automated detection', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/mod-7' },
+    { label: 'DHCP Log Analysis — Rogue DHCP Server Detection', detail: 'Network telemetry and automated detection', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dhcp-log-analysis' },
   ]);
 }
 

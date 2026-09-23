@@ -66,7 +66,7 @@ function App() {
   }
 
   function handleSelectModule(mod) {
-    setRoute(`#/track/splunk/module/${mod.id}`);
+    setRoute(`#/track/splunk/module/${mod.routeSlug || mod.id}`);
   }
 
   function handleSelectProjectLab(lab) {
@@ -258,7 +258,7 @@ function parseHashRoute(hashValue) {
 
   if (parts[2] === 'module') {
     const moduleId = parts[3] || null;
-    const module = MODULES.find(mod => mod.id === moduleId);
+    const module = MODULES.find(mod => mod.id === moduleId || mod.routeSlug === moduleId);
     if (!module) {
       return {
         track:nextTrack,

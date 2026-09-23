@@ -203,7 +203,7 @@ const LOGS_DHCP = [
 // ─────────────────────────────────────────────────────────────
 const MODULES = [
   {
-    id:'mod-1', title:'DNS Log Analysis', subtitle:'C2 Beaconing & Tunneling',
+    id:'mod-1', routeSlug:'dns-log-analysis', title:'DNS Log Analysis', subtitle:'C2 Beaconing & Tunneling',
     description:'Analyze DNS query logs for signs of command-and-control (C2) beaconing and DNS tunneling. Identify hosts making high-frequency TXT lookups to randomized subdomains — a classic exfiltration pattern.',
     difficulty:'Beginner', estimatedTime:'20 min', tags:['DNS','C2','Beaconing'],
     icon:'🌐', logs:LOGS_DNS,
@@ -224,7 +224,7 @@ const MODULES = [
     ],
   },
   {
-    id:'mod-2', title:'FTP Log Analysis', subtitle:'Anonymous Access & Data Exfiltration',
+    id:'mod-2', routeSlug:'ftp-log-analysis', title:'FTP Log Analysis', subtitle:'Anonymous Access & Data Exfiltration',
     description:'Investigate FTP server logs to detect anonymous user abuse, unauthorized downloads of sensitive files, and potential data exfiltration activities.',
     difficulty:'Beginner', estimatedTime:'25 min', tags:['FTP','Exfiltration','Anonymous'],
     icon:'📁', logs:LOGS_FTP,
@@ -245,7 +245,7 @@ const MODULES = [
     ],
   },
   {
-    id:'mod-3', title:'HTTP Log Analysis', subtitle:'Web Attack Detection',
+    id:'mod-3', routeSlug:'http-log-analysis', title:'HTTP Log Analysis', subtitle:'Web Attack Detection',
     description:'Analyze web server access logs to detect SQL injection attempts, directory traversal, web shells, and automated scanning tools like sqlmap and Nikto.',
     difficulty:'Intermediate', estimatedTime:'30 min', tags:['HTTP','SQLi','Web Shell','Scanner'],
     icon:'🕸️', logs:LOGS_HTTP,
@@ -266,7 +266,7 @@ const MODULES = [
     ],
   },
   {
-    id:'mod-4', title:'SSH Log Analysis', subtitle:'Brute Force & Credential Stuffing',
+    id:'mod-4', routeSlug:'ssh-log-analysis', title:'SSH Log Analysis', subtitle:'Brute Force & Credential Stuffing',
     description:'Analyze SSH authentication logs to detect brute force attacks, credential stuffing campaigns, and unauthorized access. Correlate source IPs with attack patterns.',
     difficulty:'Beginner', estimatedTime:'25 min', tags:['SSH','Brute Force','Authentication'],
     icon:'🔐', logs:LOGS_SSH,
@@ -287,7 +287,7 @@ const MODULES = [
     ],
   },
   {
-    id:'mod-5', title:'Tunnel Log Analysis', subtitle:'GRE Covert Channel Detection',
+    id:'mod-5', routeSlug:'gre-tunnel-log-analysis', title:'Tunnel Log Analysis', subtitle:'GRE Covert Channel Detection',
     description:'Using Zeek IDS tunnel logs, identify hosts creating persistent GRE tunnels to external IPs. Long-duration, high-volume tunnels may indicate covert C2 channels.',
     difficulty:'Intermediate', estimatedTime:'35 min', tags:['GRE','Tunneling','Zeek','C2'],
     icon:'🚇', logs:LOGS_TUNNEL,
@@ -308,7 +308,7 @@ const MODULES = [
     ],
   },
   {
-    id:'mod-6', title:'SMTP Log Analysis', subtitle:'Phishing Campaign Detection',
+    id:'mod-6', routeSlug:'smtp-log-analysis', title:'SMTP Log Analysis', subtitle:'Phishing Campaign Detection',
     description:'Investigate email server logs to detect phishing campaigns, business email compromise (BEC), and spam originating from external threat actors.',
     difficulty:'Intermediate', estimatedTime:'30 min', tags:['SMTP','Phishing','BEC','Spam'],
     icon:'📧', logs:LOGS_SMTP,
@@ -329,7 +329,7 @@ const MODULES = [
     ],
   },
   {
-    id:'mod-7', title:'DHCP Log Analysis', subtitle:'Rogue DHCP Server Detection',
+    id:'mod-7', routeSlug:'dhcp-log-analysis', title:'DHCP Log Analysis', subtitle:'Rogue DHCP Server Detection',
     description:'Analyze DHCP server logs to detect rogue DHCP servers, unauthorized device floods, and IP exhaustion attacks — classic indicators of network infiltration.',
     difficulty:'Beginner', estimatedTime:'25 min', tags:['DHCP','Rogue Server','IP Exhaustion'],
     icon:'🔌', logs:LOGS_DHCP,
