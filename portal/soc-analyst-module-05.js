@@ -586,7 +586,7 @@ function moduleFiveLessonGrid() {
   return `<section class="m05-lesson-loops" id="m05-lesson-loops" aria-labelledby="m05-lesson-loops-title"><div class="m05-panel-heading"><div><p class="m05-kicker">Four-part lesson loops</p><h3 id="m05-lesson-loops-title">Practice the fake-CAPTCHA execution chain</h3></div><span>10 lessons · embedded in existing theory minutes</span></div><div class="m05-lesson-grid">${MODULE_FIVE_LESSON_LOOPS.map(moduleFiveLessonLoop).join('')}</div></section>`;
 }
 
-const MODULE_FIVE_RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/5');
+const MODULE_FIVE_RETURN_TO = encodeURIComponent(window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + '#/program/soc-analyst/module/5');
 
 function moduleFiveGuidedLabPanel() {
   const links = [

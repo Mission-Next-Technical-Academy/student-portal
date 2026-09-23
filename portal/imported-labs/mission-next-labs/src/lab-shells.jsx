@@ -57,7 +57,7 @@ function getTaskAnswerGuide(task) {
 }
 
 function TaskInspector(props) {
-  const { mod, activeTask, setActiveTask, taskStatus, task, answer, setAnswer, feedback, hintOpen, setHintOpen, submitAnswer, earnedPoints, totalPoints } = props;
+  const { mod, activeTask, setActiveTask, taskStatus, task, answer, setAnswer, feedback, hintOpen, setHintOpen, submitAnswer, earnedPoints, totalPoints, children } = props;
   const answerGuide = getTaskAnswerGuide(task);
   return (
     <aside style={rs.taskPane}>
@@ -90,6 +90,7 @@ function TaskInspector(props) {
           {taskStatus[task.id] === 'correct' && activeTask < mod.tasks.length - 1 && <button onClick={() => setActiveTask(activeTask + 1)} style={rs.primary}>Next task</button>}
         </section>
       )}
+      {children}
     </aside>
   );
 }
@@ -731,7 +732,7 @@ function AzureLabShell(props) {
   );
 }
 
-function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', passThreshold = 4, onPass }) {
+function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', passThreshold = 4, onPass, renderTrigger }) {
   const total = questions.length;
   const [quizOpen, setQuizOpen] = React.useState(false);
   const [quizAnswers, setQuizAnswers] = React.useState({});
@@ -844,18 +845,11 @@ function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', pa
     return { ...rs.evModernQuizOption, opacity:0.45 };
   }
 
-  return ReactDOM.createPortal(
+  return (
     <>
-      <button
-        type="button"
-        onClick={() => setQuizOpen(value => !value)}
-        style={rs.evBootLauncher}
-      >
-        <img src="/assets/boot-logo-transparent.png" alt="" style={rs.evBootIcon} />
-        <span style={rs.evBootText}>LAB CHECKPOINT QUIZ</span>
-      </button>
-
-      <section
+      {typeof renderTrigger === 'function' && renderTrigger(() => setQuizOpen(value => !value), quizOpen)}
+      {ReactDOM.createPortal(
+        <section
         aria-hidden={!quizOpen}
         style={{
           ...rs.evDrawer,
@@ -959,9 +953,10 @@ function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', pa
             <button type="button" onClick={submitQuiz} style={rs.evModernPrimary}>SUBMIT QUIZ</button>
           )}
         </div>
-      </section>
-    </>,
-    document.body
+      </section>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -1237,6 +1232,19 @@ function EventViewerLabShell(props) {
           <button style={rs.evActionBtn} onClick={() => { setSelectedChannel('System'); setEventIdFilter(''); setSearchTerm(''); setActiveExercise(0); }}>Open Saved Log...</button>
           <button style={rs.evActionBtn} onClick={() => setActiveExercise(4)}>Open Log Parser Studio</button>
 
+          <LabCheckpointQuiz
+            questions={quizQuestions}
+            storageKey={quizStorageKey}
+            title="Lab Checkpoint"
+            onPass={handleQuizPass}
+            renderTrigger={openQuiz => (
+              <button type="button" onClick={openQuiz} style={rs.evBootLauncher}>
+                <img src="/assets/boot-logo-transparent.png" alt="" style={rs.evBootIcon} />
+                <span style={rs.evBootText}>TAKE CHECKPOINT QUIZ</span>
+              </button>
+            )}
+          />
+
           <section style={rs.evGuide}>
             <div style={rs.evGuideHead}>Lab Guide</div>
             <div style={rs.evExerciseList}>
@@ -1295,13 +1303,6 @@ function EventViewerLabShell(props) {
           </section>
         </aside>
       </div>
-
-      <LabCheckpointQuiz
-        questions={quizQuestions}
-        storageKey={quizStorageKey}
-        title="Lab Checkpoint"
-        onPass={handleQuizPass}
-      />
     </div>
   );
 }
@@ -1627,6 +1628,19 @@ function SysmonLabShell(props) {
           <button style={rs.evActionBtn} onClick={() => runShellQuery('search eventId=3')}>Find Network Events</button>
           <button style={rs.evActionBtn} onClick={() => setActiveTab(activeTab === 'Details' ? 'XML' : 'Details')}>Switch Details View</button>
 
+          <LabCheckpointQuiz
+            questions={quizQuestions}
+            storageKey={quizStorageKey}
+            title="Sysmon Lab Checkpoint"
+            onPass={handleQuizPass}
+            renderTrigger={openQuiz => (
+              <button type="button" onClick={openQuiz} style={rs.evBootLauncher}>
+                <img src="/assets/boot-logo-transparent.png" alt="" style={rs.evBootIcon} />
+                <span style={rs.evBootText}>TAKE CHECKPOINT QUIZ</span>
+              </button>
+            )}
+          />
+
           <section style={rs.evGuide}>
             <div style={rs.evGuideHead}>Lab Setup &amp; Tools</div>
             <div style={rs.evGuideCard}>
@@ -1666,13 +1680,6 @@ function SysmonLabShell(props) {
           </section>
         </aside>
       </div>
-
-      <LabCheckpointQuiz
-        questions={quizQuestions}
-        storageKey={quizStorageKey}
-        title="Sysmon Lab Checkpoint"
-        onPass={handleQuizPass}
-      />
     </div>
   );
 }
@@ -2016,14 +2023,20 @@ function RegistryLabShell(props) {
           const nextTarget = taskTargets[nextTask?.id]?.target;
           if (nextTarget) selectNode(nextTarget);
         }}
-      />
-
-      <LabCheckpointQuiz
-        questions={quizQuestions}
-        storageKey={quizStorageKey}
-        title="Registry Lab Checkpoint"
-        onPass={handleQuizPass}
-      />
+      >
+        <LabCheckpointQuiz
+          questions={quizQuestions}
+          storageKey={quizStorageKey}
+          title="Registry Lab Checkpoint"
+          onPass={handleQuizPass}
+          renderTrigger={openQuiz => (
+            <button type="button" onClick={openQuiz} style={{ ...rs.evBootLauncher, marginTop:16 }}>
+              <img src="/assets/boot-logo-transparent.png" alt="" style={rs.evBootIcon} />
+              <span style={rs.evBootText}>TAKE CHECKPOINT QUIZ</span>
+            </button>
+          )}
+        />
+      </TaskInspector>
     </div>
   );
 }
@@ -2398,9 +2411,9 @@ const rs = {
   evModernFoot:{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, padding:'0 24px', borderTop:'1px solid rgba(56,189,248,0.12)' },
   evModernPrimary:{ background:'#22c55e', border:'none', color:'#03120a', fontFamily:"'Space Mono',monospace", fontSize:10, letterSpacing:2, padding:'11px 16px', fontWeight:'bold', cursor:'pointer' },
   evModernSecondary:{ background:'transparent', border:'1px solid #1e3a2e', color:'#94a3b8', fontFamily:"'Space Mono',monospace", fontSize:10, letterSpacing:2, padding:'10px 14px', cursor:'pointer' },
-  evBootLauncher:{ position:'fixed', left:20, bottom:18, zIndex:1001, display:'inline-flex', alignItems:'center', gap:10, background:'linear-gradient(180deg, rgba(15,21,32,0.96), rgba(8,13,20,0.92))', border:'1px solid rgba(56,189,248,0.16)', color:'#22c55e', padding:'10px 14px', boxShadow:'0 18px 44px rgba(2, 6, 23, 0.42)', cursor:'pointer' },
-  evBootIcon:{ width:28, height:28, objectFit:'contain' },
-  evBootText:{ fontFamily:"'Space Mono',monospace", fontSize:10, letterSpacing:2, fontWeight:700 },
+  evBootLauncher:{ width:'100%', textAlign:'center', marginTop:10, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, background:'linear-gradient(180deg, #10b981 0%, #0f9d72 100%)', border:'1px solid #0c8563', color:'#f0fdf4', padding:'8px 9px', borderRadius:2, cursor:'pointer' },
+  evBootIcon:{ width:16, height:16, objectFit:'contain' },
+  evBootText:{ fontFamily:"'Space Mono',monospace", fontSize:11, letterSpacing:1, fontWeight:700 },
   evDrawer:{ position:'fixed', left:20, bottom:72, width:'min(560px, calc(100vw - 40px))', zIndex:1000, background:'linear-gradient(180deg, rgba(15,21,32,0.98), rgba(8,13,20,0.95))', border:'1px solid rgba(56,189,248,0.16)', boxShadow:'0 30px 90px rgba(0,0,0,0.45)', color:'#e2e8f0', overflow:'hidden', willChange:'transform', resize:'both' },
   evDrawerOpen:{ height:'auto', minHeight:300, maxHeight:'none', opacity:1, display:'grid', gridTemplateRows:'92px auto 66px' },
   evDrawerHeadDrag:{ position:'relative', touchAction:'none', cursor:'grab', userSelect:'none' },

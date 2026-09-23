@@ -79,7 +79,7 @@
   // wired in place of the bespoke HR-FILE-01 case simulation. Each opens the
   // static imported app on this page, with a returnTo param so its own Back
   // button lands the student back on this module instead of the lab app's catalog.
-  const RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/2');
+  const RETURN_TO = encodeURIComponent(window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + '#/program/soc-analyst/module/2');
   const GUIDED_LAB_LINKS = [
     { label: 'Basic Network Security Assessment', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/security-assessments/project/sa-1/lab` },
     { label: 'User Account Security Assessment', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/security-assessments/project/sa-5/lab` },

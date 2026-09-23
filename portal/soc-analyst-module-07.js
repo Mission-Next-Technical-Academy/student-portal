@@ -534,7 +534,7 @@ function moduleSevenReview() {
   </section>`;
 }
 
-const MODULE_SEVEN_RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/7');
+const MODULE_SEVEN_RETURN_TO = encodeURIComponent(window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + '#/program/soc-analyst/module/7');
 
 function moduleSevenGuidedLabPanel() {
   const links = [

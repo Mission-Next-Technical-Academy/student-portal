@@ -385,7 +385,7 @@ function moduleTenLoad(user) {
 function moduleTenSaveGuided() { if (moduleTenUser && moduleTenGuidedState) LabRuntime.save(MODULE_TEN_GUIDED_LAB_ID, moduleTenUser, moduleTenGuidedState); }
 function moduleTenSaveAssessment() { if (moduleTenUser && moduleTenAssessmentState) LabRuntime.save(MODULE_TEN_ASSESSMENT_LAB_ID, moduleTenUser, moduleTenAssessmentState); }
 
-const MODULE_TEN_RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/10');
+const MODULE_TEN_RETURN_TO = encodeURIComponent(window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + '#/program/soc-analyst/module/10');
 
 function moduleTenGuidedLabPanel() {
   const links = [
