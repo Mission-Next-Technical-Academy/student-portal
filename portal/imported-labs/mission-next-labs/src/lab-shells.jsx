@@ -836,14 +836,19 @@ function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', pa
   }
 
   function optionStyle(option) {
-    if (!lockedAnswer) return rs.evModernQuizOption;
+    if (!lockedAnswer) return rs.snowQuizOption;
     const isChosen = selectedValue === option;
     const isCorrect = option === activeQuestion.correct;
-    if (isChosen && isCorrect) return { ...rs.evModernQuizOption, ...rs.evModernQuizOptionCorrect };
-    if (isChosen && !isCorrect) return { ...rs.evModernQuizOption, ...rs.evModernQuizOptionWrong };
-    if (!isChosen && isCorrect) return { ...rs.evModernQuizOption, ...rs.evModernQuizOptionReveal };
-    return { ...rs.evModernQuizOption, opacity:0.45 };
+    if (isChosen && isCorrect) return { ...rs.snowQuizOption, ...rs.snowQuizOptionCorrect };
+    if (isChosen && !isCorrect) return { ...rs.snowQuizOption, ...rs.snowQuizOptionWrong };
+    if (!isChosen && isCorrect) return { ...rs.snowQuizOption, ...rs.snowQuizOptionReveal };
+    return { ...rs.snowQuizOption, opacity:0.6 };
   }
+
+  const ticketNumber = `INC00${String(Math.abs((storageKey || title).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)) % 90000 + 10000)}`;
+  const ticketState = quizResult
+    ? (quizResult.score >= passThreshold ? 'Resolved' : 'Work In Progress')
+    : (answeredCount > 0 ? 'In Progress' : 'New');
 
   return (
     <>
@@ -852,8 +857,8 @@ function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', pa
         <section
         aria-hidden={!quizOpen}
         style={{
-          ...rs.evDrawer,
-          ...rs.evDrawerOpen,
+          ...rs.snowQuizDrawer,
+          ...rs.snowQuizDrawerOpen,
           transform: quizOpen ? `translateY(${dragOffset}px)` : 'translateY(calc(100% + 40px))',
           opacity: quizOpen ? 1 : 0,
           pointerEvents: quizOpen ? 'auto' : 'none',
@@ -863,32 +868,35 @@ function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', pa
         }}
       >
         <div
-          style={rs.evDrawerHeadDrag}
+          style={rs.snowQuizHeadDrag}
           onPointerDown={onDragStart}
           onPointerMove={onDragMove}
           onPointerUp={onDragEnd}
           onPointerCancel={onDragEnd}
         >
-          <div style={rs.evDrawerGrip} />
-          <div style={rs.evDrawerHead}>
-            <div style={rs.evDrawerBrand}>
-              <img src="/assets/boot-logo-transparent.png" alt="" style={rs.evDrawerLogo} />
+          <div style={rs.snowQuizGrip} />
+          <div style={rs.snowQuizHead}>
+            <div style={rs.snowQuizBrand}>
               <div>
-                <div style={rs.evDrawerKicker}>LAB CHECKPOINT</div>
-                <div style={rs.evDrawerTitle}>{title}</div>
-                <div style={rs.evDrawerSub}>One question at a time. Submit the current answer to continue.</div>
+                <div style={rs.snowQuizBreadcrumb}>Self-Service &gt; Incident &gt; Resolve</div>
+                <div style={rs.snowQuizTitleRow}>
+                  <span style={rs.snowQuizNumber}>{ticketNumber}</span>
+                  <span style={{ ...rs.snowQuizStatePill, ...(ticketState === 'Resolved' ? rs.snowQuizStatePillResolved : ticketState === 'In Progress' || ticketState === 'Work In Progress' ? rs.snowQuizStatePillProgress : rs.snowQuizStatePillNew) }}>{ticketState}</span>
+                </div>
+                <div style={rs.snowQuizTitle}>{title}</div>
+                <div style={rs.snowQuizSub}>Complete the verification questions below and submit to resolve this ticket.</div>
               </div>
             </div>
-            <div style={rs.evDrawerActions} data-no-drag>
-              <button type="button" onClick={() => setQuizOpen(false)} style={rs.evDrawerCloseBtn}>HIDE</button>
+            <div style={rs.snowQuizActions} data-no-drag>
+              <button type="button" onClick={() => setQuizOpen(false)} style={rs.snowQuizCloseBtn}>Close</button>
             </div>
           </div>
         </div>
-        <div style={rs.evDrawerBody}>
-          <div style={rs.evModernQuizCard}>
-            <div style={rs.evModernQuizNum}>Question {quizStep + 1} of {total}</div>
-            <div style={rs.evModernQuizPrompt}>{activeQuestion.prompt}</div>
-            <div style={rs.evModernQuizOptions}>
+        <div style={rs.snowQuizBody}>
+          <div style={rs.snowQuizCard}>
+            <div style={rs.snowQuizFieldLabel}>Work note {quizStep + 1} of {total}</div>
+            <div style={rs.snowQuizPrompt}>{activeQuestion.prompt}</div>
+            <div style={rs.snowQuizOptions}>
               {activeQuestion.options.map(option => (
                 <label key={option} style={optionStyle(option)}>
                   <input
@@ -904,8 +912,8 @@ function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', pa
             </div>
             {quizFeedback && (
               <div style={{
-                ...rs.evModernResult,
-                ...(quizFeedback.type === 'success' ? rs.evModernResultPass : quizFeedback.type === 'hint' ? rs.evModernResultHint : rs.evModernResultFail),
+                ...rs.snowQuizResult,
+                ...(quizFeedback.type === 'success' ? rs.snowQuizResultPass : quizFeedback.type === 'hint' ? rs.snowQuizResultHint : rs.snowQuizResultFail),
                 marginTop:14,
               }}>
                 {quizFeedback.text}
@@ -913,14 +921,14 @@ function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', pa
             )}
           </div>
           {quizResult && (
-            <div style={{ ...rs.evModernResult, ...(quizResult.score >= passThreshold ? rs.evModernResultPass : rs.evModernResultFail) }}>
+            <div style={{ ...rs.snowQuizResult, ...(quizResult.score >= passThreshold ? rs.snowQuizResultPass : rs.snowQuizResultFail) }}>
               {quizResult.score >= passThreshold
-                ? `Passed: ${quizResult.score}/${quizResult.total}. Lab marked complete.`
-                : `Score: ${quizResult.score}/${quizResult.total}. Reach ${passThreshold} correct to complete the lab.`}
+                ? `Close notes: Verification complete (${quizResult.score}/${quizResult.total}). Ticket ${ticketNumber} resolved and lab marked complete.`
+                : `Close notes: ${quizResult.score}/${quizResult.total} correct. Reach ${passThreshold} correct to resolve this ticket.`}
             </div>
           )}
         </div>
-        <div style={rs.evModernFoot}>
+        <div style={rs.snowQuizFoot}>
           <button
             type="button"
             onClick={() => {
@@ -928,15 +936,15 @@ function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', pa
               setQuizStep(step => Math.max(0, step - 1));
             }}
             disabled={quizStep === 0}
-            style={{ ...rs.evModernSecondary, opacity:quizStep === 0 ? 0.4 : 1 }}
+            style={{ ...rs.snowQuizSecondary, opacity:quizStep === 0 ? 0.4 : 1 }}
           >
-            PREVIOUS
+            Previous
           </button>
           {!lockedAnswer && (
-            <button type="button" onClick={submitCurrentQuestion} style={rs.evModernPrimary}>SUBMIT</button>
+            <button type="button" onClick={submitCurrentQuestion} style={rs.snowQuizPrimary}>Submit</button>
           )}
           {lockedAnswer && !isCorrect && (
-            <button type="button" onClick={unlockCurrentQuestion} style={rs.evModernSecondary}>TRY AGAIN</button>
+            <button type="button" onClick={unlockCurrentQuestion} style={rs.snowQuizSecondary}>Try again</button>
           )}
           <button
             type="button"
@@ -945,12 +953,12 @@ function LabCheckpointQuiz({ questions, storageKey, title = 'Lab Checkpoint', pa
               setQuizStep(step => Math.min(total - 1, step + 1));
             }}
             disabled={!isCorrect || quizStep === total - 1}
-            style={{ ...rs.evModernSecondary, opacity:!isCorrect || quizStep === total - 1 ? 0.4 : 1 }}
+            style={{ ...rs.snowQuizSecondary, opacity:!isCorrect || quizStep === total - 1 ? 0.4 : 1 }}
           >
-            NEXT
+            Next
           </button>
           {allAnswered && !quizResult && (
-            <button type="button" onClick={submitQuiz} style={rs.evModernPrimary}>SUBMIT QUIZ</button>
+            <button type="button" onClick={submitQuiz} style={rs.snowQuizResolveBtn}>Resolve ticket</button>
           )}
         </div>
       </section>,
@@ -1238,9 +1246,8 @@ function EventViewerLabShell(props) {
             title="Lab Checkpoint"
             onPass={handleQuizPass}
             renderTrigger={openQuiz => (
-              <button type="button" onClick={openQuiz} style={rs.evBootLauncher}>
-                <img src="/assets/boot-logo-transparent.png" alt="" style={rs.evBootIcon} />
-                <span style={rs.evBootText}>TAKE CHECKPOINT QUIZ</span>
+              <button type="button" onClick={openQuiz} style={rs.snowQuizTrigger}>
+                Resolve Ticket
               </button>
             )}
           />
@@ -1634,9 +1641,8 @@ function SysmonLabShell(props) {
             title="Sysmon Lab Checkpoint"
             onPass={handleQuizPass}
             renderTrigger={openQuiz => (
-              <button type="button" onClick={openQuiz} style={rs.evBootLauncher}>
-                <img src="/assets/boot-logo-transparent.png" alt="" style={rs.evBootIcon} />
-                <span style={rs.evBootText}>TAKE CHECKPOINT QUIZ</span>
+              <button type="button" onClick={openQuiz} style={rs.snowQuizTrigger}>
+                Resolve Ticket
               </button>
             )}
           />
@@ -2030,9 +2036,8 @@ function RegistryLabShell(props) {
           title="Registry Lab Checkpoint"
           onPass={handleQuizPass}
           renderTrigger={openQuiz => (
-            <button type="button" onClick={openQuiz} style={{ ...rs.evBootLauncher, marginTop:16 }}>
-              <img src="/assets/boot-logo-transparent.png" alt="" style={rs.evBootIcon} />
-              <span style={rs.evBootText}>TAKE CHECKPOINT QUIZ</span>
+            <button type="button" onClick={openQuiz} style={{ ...rs.snowQuizTrigger, marginTop:16 }}>
+              Resolve Ticket
             </button>
           )}
         />
@@ -2396,38 +2401,42 @@ const rs = {
   evModernStatCard:{ background:'linear-gradient(180deg, rgba(15,21,32,0.82), rgba(8,13,20,0.68))', border:'1px solid rgba(56,189,248,0.12)', padding:'16px 18px' },
   evModernStatValue:{ fontSize:20, fontWeight:700, color:'#22c55e', fontFamily:"'Space Mono',monospace" },
   evModernStatLabel:{ fontSize:10, color:'#475569', letterSpacing:2, marginTop:6 },
-  evModernQuizCard:{ background:'linear-gradient(180deg, rgba(15,21,32,0.86), rgba(8,13,20,0.72))', border:'1px solid rgba(56,189,248,0.12)', padding:'18px 18px 16px' },
-  evModernQuizNum:{ fontSize:10, color:'#22c55e', letterSpacing:2, fontFamily:"'Space Mono',monospace", marginBottom:10 },
-  evModernQuizPrompt:{ fontSize:16, fontWeight:600, color:'#e2e8f0', lineHeight:1.45, marginBottom:14 },
-  evModernQuizOptions:{ display:'grid', gap:10 },
-  evModernQuizOption:{ display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#cbd5e1', border:'1px solid #1a2535', background:'rgba(8,13,20,0.55)', padding:'10px 12px', transition:'background 0.2s ease, border-color 0.2s ease, color 0.2s ease' },
-  evModernQuizOptionCorrect:{ borderColor:'rgba(34,197,94,0.7)', background:'rgba(34,197,94,0.18)', color:'#bbf7d0' },
-  evModernQuizOptionWrong:{ borderColor:'rgba(248,113,113,0.7)', background:'rgba(248,113,113,0.16)', color:'#fecaca' },
-  evModernQuizOptionReveal:{ borderColor:'rgba(34,197,94,0.45)', background:'rgba(34,197,94,0.08)', color:'#bbf7d0' },
-  evModernResult:{ padding:'14px 16px', fontSize:13, fontWeight:600 },
-  evModernResultPass:{ border:'1px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.1)', color:'#bbf7d0' },
-  evModernResultFail:{ border:'1px solid rgba(245,158,11,0.28)', background:'rgba(245,158,11,0.1)', color:'#fde68a' },
-  evModernResultHint:{ border:'1px solid rgba(56,189,248,0.28)', background:'rgba(56,189,248,0.1)', color:'#bae6fd' },
-  evModernFoot:{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, padding:'0 24px', borderTop:'1px solid rgba(56,189,248,0.12)' },
-  evModernPrimary:{ background:'#22c55e', border:'none', color:'#03120a', fontFamily:"'Space Mono',monospace", fontSize:10, letterSpacing:2, padding:'11px 16px', fontWeight:'bold', cursor:'pointer' },
-  evModernSecondary:{ background:'transparent', border:'1px solid #1e3a2e', color:'#94a3b8', fontFamily:"'Space Mono',monospace", fontSize:10, letterSpacing:2, padding:'10px 14px', cursor:'pointer' },
-  evBootLauncher:{ width:'100%', textAlign:'center', marginTop:10, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, background:'linear-gradient(180deg, #10b981 0%, #0f9d72 100%)', border:'1px solid #0c8563', color:'#f0fdf4', padding:'8px 9px', borderRadius:2, cursor:'pointer' },
-  evBootIcon:{ width:16, height:16, objectFit:'contain' },
-  evBootText:{ fontFamily:"'Space Mono',monospace", fontSize:11, letterSpacing:1, fontWeight:700 },
-  evDrawer:{ position:'fixed', left:20, bottom:72, width:'min(560px, calc(100vw - 40px))', zIndex:1000, background:'linear-gradient(180deg, rgba(15,21,32,0.98), rgba(8,13,20,0.95))', border:'1px solid rgba(56,189,248,0.16)', boxShadow:'0 30px 90px rgba(0,0,0,0.45)', color:'#e2e8f0', overflow:'hidden', willChange:'transform', resize:'both' },
-  evDrawerOpen:{ height:'auto', minHeight:300, maxHeight:'none', opacity:1, display:'grid', gridTemplateRows:'92px auto 66px' },
-  evDrawerHeadDrag:{ position:'relative', touchAction:'none', cursor:'grab', userSelect:'none' },
-  evDrawerGrip:{ position:'absolute', top:8, left:'50%', transform:'translateX(-50%)', width:56, height:4, borderRadius:999, background:'rgba(148,163,184,0.35)' },
-  evDrawerHead:{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, padding:'22px 24px 14px', borderBottom:'1px solid rgba(56,189,248,0.12)' },
-  evDrawerBrand:{ display:'flex', alignItems:'flex-start', gap:14 },
-  evDrawerLogo:{ width:42, height:42, objectFit:'contain' },
-  evDrawerTitle:{ fontSize:24, lineHeight:1.08, fontWeight:700, color:'#f8fafc' },
-  evDrawerSub:{ fontSize:13, color:'#94a3b8', marginTop:10 },
-  evDrawerKicker:{ fontSize:10, color:'#22c55e', letterSpacing:3, fontFamily:"'Space Mono',monospace", marginBottom:8 },
-  evDrawerActions:{ display:'flex', alignItems:'center', gap:10 },
-  evDrawerMiniBtn:{ background:'transparent', border:'1px solid #1e3a2e', color:'#94a3b8', fontFamily:"'Space Mono',monospace", fontSize:10, letterSpacing:2, padding:'8px 12px', cursor:'pointer' },
-  evDrawerCloseBtn:{ background:'transparent', border:'1px solid #1a2535', color:'#64748b', fontFamily:"'Space Mono',monospace", fontSize:10, letterSpacing:2, padding:'8px 12px', cursor:'pointer' },
-  evDrawerBody:{ overflow:'visible', padding:20, display:'grid', gap:14 },
+  snowQuizTrigger:{ width:'100%', textAlign:'center', marginTop:10, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, background:'linear-gradient(180deg, #92c3b1 0%, #6b9e8a 100%)', border:'1px solid #5c8b78', color:'#0a1f18', padding:'8px 9px', borderRadius:2, fontFamily:'Segoe UI, Arial, sans-serif', fontSize:12, fontWeight:600, cursor:'pointer' },
+  snowQuizTriggerIcon:{ width:14, height:14, objectFit:'contain' },
+  snowQuizCard:{ background:'#fff', border:'1px solid #d1d5db', padding:'18px 18px 16px' },
+  snowQuizFieldLabel:{ fontSize:11, color:'#6b7280', letterSpacing:0.5, textTransform:'uppercase', marginBottom:10, fontFamily:'Segoe UI, Arial, sans-serif' },
+  snowQuizPrompt:{ fontSize:15, fontWeight:600, color:'#111827', lineHeight:1.45, marginBottom:14, fontFamily:'Segoe UI, Arial, sans-serif' },
+  snowQuizOptions:{ display:'grid', gap:8 },
+  snowQuizOption:{ display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#111827', border:'1px solid #d1d5db', background:'#f9fafb', padding:'9px 12px', fontFamily:'Segoe UI, Arial, sans-serif', transition:'background 0.2s ease, border-color 0.2s ease, color 0.2s ease' },
+  snowQuizOptionCorrect:{ borderColor:'#6b9e8a', background:'rgba(107,158,138,0.16)', color:'#1f3d33' },
+  snowQuizOptionWrong:{ borderColor:'#c0392b', background:'rgba(192,57,43,0.08)', color:'#7a2e25' },
+  snowQuizOptionReveal:{ borderColor:'#6b9e8a', background:'rgba(107,158,138,0.08)', color:'#1f3d33' },
+  snowQuizResult:{ padding:'12px 16px', fontSize:13, fontWeight:600, fontFamily:'Segoe UI, Arial, sans-serif' },
+  snowQuizResultPass:{ border:'1px solid #6b9e8a', background:'rgba(107,158,138,0.14)', color:'#1f3d33' },
+  snowQuizResultFail:{ border:'1px solid #e0a94b', background:'rgba(224,169,75,0.14)', color:'#7a5a1a' },
+  snowQuizResultHint:{ border:'1px solid #9ca3af', background:'#f3f4f6', color:'#374151' },
+  snowQuizFoot:{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, padding:'0 24px', borderTop:'1px solid #d6dde1', background:'#fff' },
+  snowQuizPrimary:{ background:'#fff', border:'1px solid #8a8886', color:'#111827', fontFamily:'Segoe UI, Arial, sans-serif', fontSize:12, fontWeight:600, padding:'8px 16px', borderRadius:2, cursor:'pointer' },
+  snowQuizSecondary:{ background:'transparent', border:'1px solid #d1d5db', color:'#374151', fontFamily:'Segoe UI, Arial, sans-serif', fontSize:12, padding:'8px 14px', borderRadius:2, cursor:'pointer' },
+  snowQuizResolveBtn:{ background:'linear-gradient(180deg, #92c3b1 0%, #6b9e8a 100%)', border:'1px solid #5c8b78', color:'#0a1f18', fontFamily:'Segoe UI, Arial, sans-serif', fontSize:12, fontWeight:700, padding:'8px 16px', borderRadius:2, cursor:'pointer' },
+  snowQuizDrawer:{ position:'fixed', left:20, bottom:72, width:'min(560px, calc(100vw - 40px))', zIndex:1000, background:'#f5f7f7', border:'1px solid #d1d5db', boxShadow:'0 30px 90px rgba(0,0,0,0.35)', color:'#111827', overflow:'hidden', willChange:'transform', resize:'both', fontFamily:'Segoe UI, Arial, sans-serif' },
+  snowQuizDrawerOpen:{ height:'auto', minHeight:300, maxHeight:'none', opacity:1, display:'grid', gridTemplateRows:'auto auto 54px' },
+  snowQuizHeadDrag:{ position:'relative', touchAction:'none', cursor:'grab', userSelect:'none' },
+  snowQuizGrip:{ position:'absolute', top:8, left:'50%', transform:'translateX(-50%)', width:56, height:4, borderRadius:999, background:'#c3cad2' },
+  snowQuizHead:{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, padding:'20px 24px 14px', background:'#1f2a2e', borderBottom:'1px solid #506066' },
+  snowQuizBrand:{ display:'flex', alignItems:'flex-start', gap:14 },
+  snowQuizBreadcrumb:{ fontSize:11, color:'#9fb0aa', marginBottom:6 },
+  snowQuizTitleRow:{ display:'flex', alignItems:'center', gap:10, marginBottom:6 },
+  snowQuizNumber:{ fontSize:13, fontWeight:700, color:'#fff', fontFamily:'Consolas, monospace' },
+  snowQuizStatePill:{ fontSize:10, fontWeight:700, letterSpacing:1, textTransform:'uppercase', padding:'3px 8px', borderRadius:999 },
+  snowQuizStatePillNew:{ background:'#506066', color:'#fff' },
+  snowQuizStatePillProgress:{ background:'#e0a94b', color:'#3a2c07' },
+  snowQuizStatePillResolved:{ background:'#6b9e8a', color:'#0a1f18' },
+  snowQuizTitle:{ fontSize:18, lineHeight:1.2, fontWeight:700, color:'#fff' },
+  snowQuizSub:{ fontSize:12, color:'#c3cdc9', marginTop:8, maxWidth:420 },
+  snowQuizActions:{ display:'flex', alignItems:'center', gap:10 },
+  snowQuizCloseBtn:{ background:'#2f3d42', border:'1px solid #506066', color:'#fff', fontFamily:'Segoe UI, Arial, sans-serif', fontSize:12, padding:'7px 12px', borderRadius:2, cursor:'pointer' },
+  snowQuizBody:{ overflow:'visible', padding:20, display:'grid', gap:14, background:'#f5f7f7' },
   regRoot:{ minHeight:'100vh', background:'#cfd8e3', color:'#111827', fontFamily:'Segoe UI, Arial, sans-serif', display:'grid', gridTemplateColumns:'minmax(0, 1fr) 370px' },
   regMain:{ minWidth:0, display:'grid', gridTemplateRows:'32px 26px 38px 38px minmax(0, 1fr) 22px', background:'#f5f6f7', position:'relative', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.72)' },
   regTitleBar:{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 8px', background:'linear-gradient(180deg, #f8fbff, #dce8f7)', borderBottom:'1px solid #aab7c7', fontSize:12, fontWeight:600 },
