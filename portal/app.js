@@ -4138,7 +4138,7 @@ function missionNextAdditionalLabsSection(moduleNumber, links) {
   return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-${moduleNumber}">
     <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">OPTIONAL PRACTICE</p><h2 id="mn-additional-labs-${moduleNumber}">Additional Mission Next Labs</h2></div><span>Not separately graded</span></div>
     <p class="mn-additional-labs-copy">These related projects extend the module topic. Complete them for extra practice; they do not create another Guided Lab or Assessment Lab requirement.</p>
-    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(item.href)}"><span class="mn-additional-lab-icon" aria-hidden="true">↗</span><span><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Optional practice project')}</small></span></a>`).join('')}</div>
+    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(item.href)}" target="_blank" rel="opener"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Optional practice project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
   </section>`;
 }
 

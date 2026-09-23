@@ -16,6 +16,35 @@
 .m01-kicker { margin: 0; color: #f97316; font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 .m01-hero-action { width: fit-content; margin-top: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; color: #fff; background: #f97316; border-radius: 11px; font-size: 13px; font-weight: 700; text-decoration: none; }
 .m01-hero-action:hover, .m01-hero-action:focus-visible { background: #ea580c; }
+
+/* ---------- Shared optional Mission Next launch cards --------------------
+   These projects are practice extensions, but they should still feel like
+   real launch surfaces. Keep the action treatment aligned with Module 01's
+   orange launch button while preserving the explanatory card layout. ------- */
+.mn-additional-labs { margin-top: 28px; padding: clamp(22px, 4vw, 34px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30, 58, 95, .05); }
+.mn-additional-labs-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.mn-additional-labs-kicker { margin: 0; color: #64748b; font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.mn-additional-labs-heading h2 { margin: 5px 0 0; color: #1e3a5f; font-size: 22px; line-height: 1.25; }
+.mn-additional-labs-heading > span { flex: 0 0 auto; padding: 5px 9px; color: #64748b; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 999px; font: 700 10px/1.2 Inter, sans-serif; }
+.mn-additional-labs-copy { max-width: 760px; margin: 10px 0 18px; color: #64748b; font: 13px/1.65 Inter, sans-serif; }
+.mn-additional-labs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.mn-additional-lab-card { min-width: 0; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 15px 16px; color: inherit; background: #fbfdff; border: 1px solid #dbe3ed; border-radius: 14px; text-decoration: none; transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background-color .18s ease; }
+.mn-additional-lab-card:hover, .mn-additional-lab-card:focus-visible { background: #fff; border-color: #f97316; box-shadow: 0 8px 18px rgba(249, 115, 22, .12); transform: translateY(-1px); }
+.mn-additional-lab-card:focus-visible { outline: 3px solid rgba(249, 115, 22, .3); outline-offset: 2px; }
+.mn-additional-lab-icon { width: 42px; height: 42px; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 11px; font-size: 21px; }
+.mn-additional-lab-copy { min-width: 0; }
+.mn-additional-lab-copy strong, .mn-additional-lab-copy small { display: block; }
+.mn-additional-lab-copy strong { color: #1e3a5f; font-size: 13px; line-height: 1.35; }
+.mn-additional-lab-copy small { margin-top: 4px; color: #64748b; font: 11px/1.45 Inter, sans-serif; }
+.mn-additional-lab-cta { display: inline-flex; align-items: center; gap: 5px; padding: 8px 10px; color: #fff; background: #f97316; border-radius: 9px; font: 700 10px/1.2 'Space Grotesk', sans-serif; white-space: nowrap; }
+.mn-additional-lab-card:hover .mn-additional-lab-cta, .mn-additional-lab-card:focus-visible .mn-additional-lab-cta { background: #ea580c; }
+@media (max-width: 620px) {
+  .mn-additional-labs-heading { display: block; }
+  .mn-additional-labs-heading > span { display: inline-block; margin-top: 10px; }
+  .mn-additional-lab-card { grid-template-columns: 38px minmax(0, 1fr); }
+  .mn-additional-lab-icon { width: 38px; height: 38px; font-size: 19px; }
+  .mn-additional-lab-cta { grid-column: 2; justify-self: start; }
+}
 .m01-progress { min-width: 310px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 0; overflow: hidden; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.16); border-radius: 14px; }
 .m01-progress div { padding: 14px 16px; background: rgba(8,22,39,.48); }
 .m01-progress dt { color: rgba(255,255,255,.56); font: 10px/1.3 Inter, sans-serif; }
