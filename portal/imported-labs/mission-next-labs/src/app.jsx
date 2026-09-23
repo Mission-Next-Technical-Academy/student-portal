@@ -157,7 +157,11 @@ function App() {
     );
   }
 
-  if (view === 'tracks' || !track) {
+  // Student-facing track catalogues are an internal authoring surface, not a
+  // destination. Labs are reachable through direct project/module routes
+  // launched by the main Mission Next course portal. Keep instructor access
+  // intact, but never expose a standalone catalogue to students.
+  if (view === 'tracks' || !track || (view === 'dashboard' && track !== 'instructor')) {
     return withTransition(
       <MissionNextLaunchRequired />
     );
@@ -229,8 +233,8 @@ function MissionNextLaunchRequired() {
     <div style={routeErrorStyles.root}>
       <div style={routeErrorStyles.panel}>
         <div style={routeErrorStyles.kicker}>MISSION NEXT LAB</div>
-        <h1 style={routeErrorStyles.title}>Open this lab from Mission Next</h1>
-        <p style={routeErrorStyles.copy}>This training surface is available through a Mission Next module. Launch a Guided Lab or Assessment Lab from the course page so the Back button can return you to the correct module.</p>
+        <h1 style={routeErrorStyles.title}>Open this lab from the course module</h1>
+        <p style={routeErrorStyles.copy}>This catalogue is not a student destination. Return to the main Mission Next course portal and launch the Guided Lab or Assessment Lab from its module page so the lab opens in the correct learning context.</p>
       </div>
     </div>
   );

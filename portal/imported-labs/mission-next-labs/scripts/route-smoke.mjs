@@ -51,7 +51,12 @@ const routes = [
   {
     name:'training paths refresh',
     hash:'#/tracks',
-    expect:['Open this lab from Mission Next', 'Mission Next Lab'],
+    expect:['Open this lab from the course module', 'Mission Next Lab'],
+  },
+  {
+    name:'malware catalogue blocked',
+    hash:'#/track/malware-analysis',
+    expect:['Open this lab from the course module', 'This catalogue is not a student destination'],
   },
 ];
 
