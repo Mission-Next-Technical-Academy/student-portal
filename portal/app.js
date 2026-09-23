@@ -4134,10 +4134,18 @@ function moduleTopbarTitle(program, options = {}) {
 function missionNextAdditionalLabsSection(moduleNumber, links) {
   const items = Array.isArray(links) ? links : [];
   if (!items.length) return '';
+  const returnTo = typeof missionNextReturnTo === 'function'
+    ? missionNextReturnTo(moduleNumber)
+    : '';
+  const labHref = (href) => {
+    if (!returnTo || !href) return href;
+    const separator = href.includes('?') ? '&' : '?';
+    return `${href.split('#')[0]}${separator}returnTo=${returnTo}${href.includes('#') ? `#${href.split('#').slice(1).join('#')}` : ''}`;
+  };
   return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-${moduleNumber}">
     <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-${moduleNumber}">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
     <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Complete them for credit alongside the Guided Lab and Assessment Lab.</p>
-    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(item.href)}" target="_blank" rel="opener"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Required lab project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
+    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(labHref(item.href))}" target="_blank" rel="opener"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Required lab project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
   </section>`;
 }
 

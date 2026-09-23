@@ -602,7 +602,7 @@ function moduleFiveGuidedLabPanel() {
 
 function moduleFiveAdditionalLabs() {
   return missionNextAdditionalLabsSection(5, [
-    { label: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-4/lab' },
+    { label: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/keylogger-behavior/lab' },
   ]);
 }
 

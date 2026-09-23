@@ -80,10 +80,26 @@ function App() {
   }
 
   function handleBackFromLab() {
-    // Lab launches replace the portal document in the same tab. Use the
-    // browser's navigation history for the normal path, so the lab does not
-    // need a serialized return URL or a second router to reconstruct the
-    // originating module. Direct lab URLs still get a safe local fallback.
+    // Prefer the explicit module return route. Additional labs open in a new
+    // tab, where browser history contains no portal page to return to.
+    const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+    if (returnTo) {
+      try {
+        const destination = new URL(returnTo, window.location.href);
+        const isHttp = destination.protocol === 'http:' || destination.protocol === 'https:';
+        const isSameOrigin = destination.origin === window.location.origin;
+        const isMissionNextRoute = /^#\/program\/soc-analyst\/module\/\d+$/.test(destination.hash);
+        if (isHttp && isSameOrigin && isMissionNextRoute) {
+          window.location.href = destination.href;
+          return;
+        }
+      } catch (_) {
+        // Fall through to history/local fallback for malformed links.
+      }
+    }
+
+    // Same-tab launches can still use browser history. Direct lab URLs fall
+    // through to the local track fallback below.
     const referrer = document.referrer ? new URL(document.referrer, window.location.href) : null;
     const cameFromPortal = referrer
       && referrer.origin === window.location.origin
@@ -279,11 +295,17 @@ function parseHashRoute(hashValue) {
 
   if (parts[2] === 'project') {
     const projectId = parts[3] || null;
+    // Keep the source catalog id addressable for old bookmarks, but expose a
+    // student-facing route name where the source numbering does not match the
+    // course module's lab sequence.
+    const canonicalProjectId = {
+      'keylogger-behavior': 'ma-4',
+    }[projectId] || projectId;
     // New-shape labs registered at window.MISSION_NEXT_LABS take precedence over the legacy generic-fixture labs
     // when they declare an `exercises` array. Stubs (comingSoon) fall through to the old shape.
-    const newShapeLab = (window.MISSION_NEXT_LABS && window.MISSION_NEXT_LABS[projectId]) || null;
+    const newShapeLab = (window.MISSION_NEXT_LABS && window.MISSION_NEXT_LABS[canonicalProjectId]) || null;
     const useNewShape = newShapeLab && Array.isArray(newShapeLab.exercises);
-    const lab = useNewShape ? newShapeLab : ALL_PROJECT_LABS.find(item => item.id === `lab-${projectId}`);
+    const lab = useNewShape ? newShapeLab : ALL_PROJECT_LABS.find(item => item.id === `lab-${canonicalProjectId}`);
     if (!projectId) {
       return {
         track:nextTrack,
