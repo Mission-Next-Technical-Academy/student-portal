@@ -856,6 +856,26 @@ function wireModuleThreeQuiz() {
       const radioGroup = input.getAttribute('name');
       const questionId = radioGroup.replace('q-', '');
       moduleThreeQuizState.answers[questionId] = input.value;
+
+      // The quiz is rendered once when the module opens. Updating the answer
+      // state alone does not update the already-rendered submit button, so it
+      // would remain disabled even after the final question was answered.
+      const total = moduleThreeQuizState.selectedQuestions.length;
+      const answered = Object.keys(moduleThreeQuizState.answers || {}).length;
+      const submitButton = quizForm.querySelector('.m03-quiz-submit');
+      if (submitButton) submitButton.disabled = answered < total;
+
+      const answerCount = quizForm.querySelector('.m03-panel-heading > span');
+      if (answerCount) answerCount.textContent = `${answered}/${total} answered`;
+
+      if (!moduleThreeQuizState.scored) {
+        const feedback = quizForm.querySelector('#m03-quiz-feedback');
+        if (feedback) {
+          feedback.textContent = answered === total
+            ? 'All questions answered. Submit to check your responses.'
+            : `Answer all ${total} questions to submit.`;
+        }
+      }
     }
   });
 
