@@ -3,7 +3,6 @@
  */
 
 const MODULE_ELEVEN_METRICS_LAB_ID = 'm11-soc-metrics-v1';
-const MODULE_ELEVEN_PASSING_SCORE = 70;
 const MODULE_ELEVEN_QUIZ_BANKS = [
   {
     conceptId: 'shared-case-source-review',
@@ -375,58 +374,21 @@ const MODULE_ELEVEN_SHARED_CASE = (typeof window !== 'undefined' && window.MISSI
   || { contractVersion: 'm09-ransomware-evidence-v1', organization: 'Mission Next Labs', incidentId: 'INC-4937', title: 'Operation Cedar Lock — active ransomware response', status: 'contained-in-lab-slice', entities: { endpoint: 'ws-173', account: 'acct-173', fileServer: 'fs-02' }, timeBasis: 'Synthetic UTC training timeline; all addresses are documentation-range fixtures.', notEstablished: ['enterprise-wide compromise', 'data exfiltration', 'specific operator identity'], consumerSlices: { module11: ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'] } };
 const MODULE_ELEVEN_SHARED_SLICE_IDS = MODULE_ELEVEN_SHARED_CASE.consumerSlices?.module11 || ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'];
 
-const MODULE_ELEVEN_WEEKLY_METRICS = [
-  { week: 'Week 27', alerts: 520, closed: 500, falsePositives: 320, mttd: 12, mttr: 98, sla: 96, backlog: 18, staffed: 6 },
-  { week: 'Week 28', alerts: 610, closed: 590, falsePositives: 390, mttd: 14, mttr: 110, sla: 93, backlog: 25, staffed: 6 },
-  { week: 'Week 29', alerts: 740, closed: 680, falsePositives: 480, mttd: 19, mttr: 154, sla: 84, backlog: 58, staffed: 5 },
-  { week: 'Week 30', alerts: 705, closed: 650, falsePositives: 465, mttd: 21, mttr: 171, sla: 78, backlog: 76, staffed: 5 },
-];
-
-const MODULE_ELEVEN_METRIC_EVIDENCE = [
-  { id: 'MET-1101', label: 'Alert volume', value: '+36% since Week 27', detail: 'Weekly alerts rose from 520 to 705. Volume peaked at 740 in Week 29.', relevant: false },
-  { id: 'MET-1102', label: 'Mean time to detect', value: '12 → 21 minutes', detail: 'MTTD worsened by 75%, showing that actionable activity is waiting longer for initial analyst recognition.', relevant: true },
-  { id: 'MET-1103', label: 'Mean time to respond', value: '98 → 171 minutes', detail: 'MTTR rose 73 minutes. This is a response-speed signal, not proof that each case caused greater business impact.', relevant: true },
-  { id: 'MET-1104', label: 'Priority SLA met', value: '96% → 78%', detail: 'The team fell below its 90% target in Weeks 29 and 30, so the operational risk requires escalation.', relevant: true },
-  { id: 'MET-1105', label: 'Open alert backlog', value: '18 → 76 alerts', detail: 'Backlog more than quadrupled, including nine high-priority alerts older than the response target.', relevant: true },
-  { id: 'MET-1106', label: 'Noisy rule contribution', value: '287 false positives', detail: 'The “Unfamiliar travel” rule generated 342 Week 30 alerts; 287 were validated false positives after a remote-access change.', relevant: true },
-  { id: 'MET-1107', label: 'Scheduled staffing', value: '5 of 6 analysts', detail: 'One planned absence reduced capacity in Weeks 29 and 30. It contributes to pressure but does not explain the concentrated rule noise by itself.', relevant: false },
-  { id: 'MET-1108', label: 'Platform availability', value: '99.98%', detail: 'The queue and case platform remained available throughout the period. Availability is healthy and does not explain the degraded handling times.', relevant: false },
-];
-
-const MODULE_ELEVEN_RULE_METRICS = [
-  { rule: 'Unfamiliar travel', alerts: 342, truePositive: 31, falsePositive: 287, pending: 24, medianAge: '74 min' },
-  { rule: 'Unsigned script from document', alerts: 96, truePositive: 43, falsePositive: 48, pending: 5, medianAge: '29 min' },
-  { rule: 'Privileged role change', alerts: 54, truePositive: 17, falsePositive: 35, pending: 2, medianAge: '18 min' },
-  { rule: 'Known test scanner', alerts: 128, truePositive: 0, falsePositive: 128, pending: 0, medianAge: 'Closed' },
-  { rule: 'Outbound beacon pattern', alerts: 85, truePositive: 29, falsePositive: 50, pending: 6, medianAge: '41 min' },
-];
-
-const MODULE_ELEVEN_CASE_EVENTS = [
-  { id: 'M09-E01', time: '10:02Z', source: 'Endpoint sensor', title: 'ws-173 encryption activity observed', detail: 'The shared M09 record reports rapid file-encryption behavior on ws-173. It is a synthetic behavior observation, not a malware sample or live indicator.', relevant: true },
-  { id: 'M09-E03', time: '10:06Z', source: 'Response log', title: 'ws-173 isolation succeeded', detail: 'The approved response record shows network isolation succeeded while local activity remained possible. Isolation limits spread; it does not prove the host is clean.', relevant: true },
-  { id: 'M09-E06', time: '10:05Z', source: 'Identity session', title: 'acct-173 unfamiliar session overlapped impact', detail: 'An unmanaged client session overlaps the encryption window. It is correlation evidence, not proof of operator identity or attribution.', relevant: true },
-  { id: 'M09-E07', time: '10:11Z', source: 'Service-desk callback', title: 'Account owner denied the remote session', detail: 'The synthetic callback records that the account owner denied the unmanaged session. It supports scope and escalation, not a named operator conclusion.', relevant: true },
-  { id: 'M09-E08', time: '10:12Z', source: 'File-share telemetry', title: 'fs-02 availability degraded', detail: 'One synthetic share became unavailable during the incident window. The record does not establish file-level encryption on fs-02 or broader lateral movement.', relevant: true },
-];
-
 let moduleElevenQuizState = null;
 let moduleElevenMetricsState = null;
 let moduleElevenReportState = null;
 let moduleElevenUser = null;
-let moduleElevenActiveLab = 'metrics';
 let moduleElevenReviewMode = false;
 
 function moduleElevenMetricsFreshDefaults() {
   return {
-    selectedEvidence: [], reviewedMetrics: [], primaryCause: '', trendConclusion: '', action: '', escalation: '',
-    notes: '', breakdown: null, feedback: [], validationError: '', lastSubmittedAt: '',
+    practiceComplete: false, practiceNotes: '', feedback: [], validationError: '', lastSubmittedAt: '',
   };
 }
 
 function moduleElevenReportFreshDefaults() {
   return {
-    selectedEvidence: [], reviewedEvents: [], activeEvent: '', classification: '', rootCause: '', impact: '',
-    escalation: '', closure: '', caseNote: '', executiveSummary: '', breakdown: null, feedback: [], validationError: '', lastSubmittedAt: '',
+    notes: '', attempts: 0, completed: false, feedback: [], validationError: '', lastSubmittedAt: '',
   };
 }
 
@@ -434,12 +396,14 @@ function moduleElevenLoad(user) {
   moduleElevenUser = user;
   moduleElevenMetricsState = LabRuntime.load(MODULE_ELEVEN_METRICS_LAB_ID, user, moduleElevenMetricsFreshDefaults());
   moduleElevenReportState = LabRuntime.load(MODULE_ELEVEN_REPORT_LAB_ID, user, moduleElevenReportFreshDefaults());
-  ['selectedEvidence', 'reviewedMetrics', 'feedback', 'flags'].forEach((key) => {
+  ['feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleElevenMetricsState[key])) moduleElevenMetricsState[key] = [];
   });
-  ['selectedEvidence', 'reviewedEvents', 'feedback', 'flags'].forEach((key) => {
+  ['feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleElevenReportState[key])) moduleElevenReportState[key] = [];
   });
+  if (typeof moduleElevenMetricsState.practiceNotes !== 'string') moduleElevenMetricsState.practiceNotes = '';
+  if (typeof moduleElevenReportState.notes !== 'string') moduleElevenReportState.notes = '';
 
   // Initialize quiz state
   if (!moduleElevenQuizState) {
@@ -593,107 +557,6 @@ function wireModuleElevenQuiz() {
   });
 }
 
-function moduleElevenStatus(state) {
-  if (state.completed) return 'Complete';
-  if (state.attempts || state.selectedEvidence.length || state.notes || state.caseNote || state.executiveSummary) return 'In progress';
-  return 'Not started';
-}
-
-function moduleElevenLabSwitcher() {
-  const labs = [
-    { key: 'metrics', number: 'Lab 1', title: 'SOC Metrics Dashboard', state: moduleElevenMetricsState, icon: 'ri-line-chart-line' },
-    { key: 'report', number: 'Lab 2', title: 'Executive Incident Report', state: moduleElevenReportState, icon: 'ri-file-chart-line' },
-  ];
-  return `<nav class="m11-lab-switcher" aria-label="Module 11 labs">${labs.map((lab) => `<button type="button" data-m11-lab="${lab.key}" aria-current="${moduleElevenActiveLab === lab.key ? 'page' : 'false'}"><i class="${lab.icon}" aria-hidden="true"></i><span><small>${lab.number}</small>${lab.title}</span><strong class="${lab.state.completed ? 'is-complete' : ''}">${moduleElevenStatus(lab.state)}</strong></button>`).join('')}</nav>`;
-}
-
-function moduleElevenRadio(name, legend, options, state) {
-  return `<fieldset class="m11-fieldset"><legend>${esc(legend)}</legend><div class="m11-option-list">${options.map((option) => `<label><input type="radio" name="${esc(name)}" value="${esc(option.id)}" ${state[name] === option.id ? 'checked' : ''} /><span>${esc(option.label)}</span></label>`).join('')}</div></fieldset>`;
-}
-
-function moduleElevenScorePanel(state, kind) {
-  if (state.validationError) return `<div class="m11-validation" id="m11-feedback" role="alert" tabindex="-1"><i class="ri-information-line" aria-hidden="true"></i><div><strong>Submission is incomplete</strong><p>${esc(state.validationError)}</p></div></div>`;
-  if (!state.attempts || !state.breakdown) return `<div class="m11-score-empty" id="m11-feedback" role="status">Submit the completed deliverable for an explainable score. Work is saved locally as you go.</div>`;
-  const passed = state.score >= MODULE_ELEVEN_PASSING_SCORE;
-  const b = state.breakdown;
-  const model = kind === 'metrics'
-    ? 'MTTD rose from 12 to 21 minutes, MTTR from 98 to 171 minutes, SLA attainment fell to 78%, and backlog reached 76. The main controllable driver is the noisy Unfamiliar travel rule after the access change, amplified by one planned absence. Escalate the SLA risk to the duty manager and detection owner, test a scoped tuning change, and assign the next shift to work the nine aging high-priority alerts.'
-    : `${MODULE_ELEVEN_SHARED_CASE.incidentId} is a bounded synthetic case limited by the declared M09 Module 11 slice: ws-173 impact, an overlapping acct-173 session, and fs-02 service disruption. Isolation and scope review are documented; the slice does not establish enterprise-wide compromise, exfiltration, or operator identity. Brief only what the records support, and close communication with monitoring and a named control-improvement owner.`;
-  return `<section class="m11-score ${passed ? 'is-pass' : 'is-remediate'}" id="m11-feedback" tabindex="-1" aria-live="polite"><div class="m11-score-heading"><div><p class="m11-kicker">Attempt ${state.attempts} · best ${state.bestScore}/100</p><h3>${state.score}/100 — ${passed ? 'Deliverable accepted' : 'Revise and resubmit'}</h3></div><span>${state.score}</span></div><div class="m11-score-grid"><div><strong>${b.observation}/25</strong><span>Observation</span></div><div><strong>${b.analysis}/25</strong><span>Analysis</span></div><div><strong>${b.decision}/30</strong><span>Decision</span></div><div><strong>${b.communication}/20</strong><span>Communication</span></div></div><ul>${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul><div class="m11-remediation"><strong>Reference model</strong><p>${esc(model)}</p></div></section>`;
-}
-
-function moduleElevenMetricsDataset() {
-  return `<section class="m11-dataset" aria-labelledby="m11-metrics-data-title"><div class="m11-dataset-heading"><div><p class="m11-kicker">Synthetic post-closure dataset · ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)}</p><h3 id="m11-metrics-data-title">SOC health after Operation Cedar Lock</h3></div><span>Target: ≥90% priority SLA</span></div><p class="m11-shared-note">Use the ${esc(MODULE_ELEVEN_SHARED_SLICE_IDS.join(', '))} slice to keep incident impact separate from queue-health signals. The four snapshots describe the operating window after containment; they do not establish wider compromise.</p>
-    <div class="m11-table-wrap"><table class="m11-data-table"><caption class="m11-visually-hidden">Weekly synthetic SOC metrics</caption><thead><tr><th scope="col">Period</th><th scope="col">Alerts</th><th scope="col">Closed</th><th scope="col">False positives</th><th scope="col">MTTD</th><th scope="col">MTTR</th><th scope="col">Priority SLA</th><th scope="col">Backlog</th><th scope="col">Staffed</th></tr></thead><tbody>${MODULE_ELEVEN_WEEKLY_METRICS.map((row) => `<tr><th scope="row">${row.week}</th><td>${row.alerts}</td><td>${row.closed}</td><td>${row.falsePositives}</td><td>${row.mttd} min</td><td>${row.mttr} min</td><td class="${row.sla < 90 ? 'is-risk' : ''}">${row.sla}%</td><td class="${row.backlog > 50 ? 'is-risk' : ''}">${row.backlog}</td><td>${row.staffed}/6</td></tr>`).join('')}</tbody></table></div>
-    <div class="m11-metric-cards">${MODULE_ELEVEN_METRIC_EVIDENCE.map((item) => { const checked = moduleElevenMetricsState.selectedEvidence.includes(item.id); return `<label class="${checked ? 'is-selected' : ''}"><input type="checkbox" name="metricsEvidence" value="${item.id}" ${checked ? 'checked' : ''} /><span><small>${item.id} · ${item.label}</small><strong>${item.value}</strong><em>${item.detail}</em></span></label>`; }).join('')}</div>
-    <div class="m11-table-wrap m11-rule-table"><table class="m11-data-table"><caption>Week 30 alert-rule distribution</caption><thead><tr><th scope="col">Rule</th><th scope="col">Alerts</th><th scope="col">True positive</th><th scope="col">False positive</th><th scope="col">Pending</th><th scope="col">Median age</th></tr></thead><tbody>${MODULE_ELEVEN_RULE_METRICS.map((row) => `<tr><th scope="row">${row.rule}</th><td>${row.alerts}</td><td>${row.truePositive}</td><td>${row.falsePositive}</td><td>${row.pending}</td><td>${row.medianAge}</td></tr>`).join('')}</tbody></table></div>
-  </section>`;
-}
-
-function moduleElevenMetricsForm() {
-  return `<form class="m11-deliverable" id="m11-metrics-form" novalidate aria-labelledby="m11-metrics-deliverable-title"><div class="m11-deliverable-heading"><div><p class="m11-kicker">Scored deliverable</p><h3 id="m11-metrics-deliverable-title">Operations brief and shift handoff</h3></div><span>Pass ${MODULE_ELEVEN_PASSING_SCORE}/100</span></div>
-    <div class="m11-form-grid">
-      ${moduleElevenRadio('primaryCause', 'Primary operational driver', [
-        { id: 'rule-capacity', label: 'Concentrated Unfamiliar travel false positives, amplified by reduced capacity' },
-        { id: 'platform-outage', label: 'Case-platform availability failure' },
-        { id: 'incident-impact', label: 'Every alert became a higher-impact incident' },
-      ], moduleElevenMetricsState)}
-      ${moduleElevenRadio('trendConclusion', 'Defensible performance conclusion', [
-        { id: 'degrading', label: 'Detection and response speed degraded while backlog and SLA risk increased' },
-        { id: 'healthy', label: 'Operations improved because more alerts were closed' },
-        { id: 'breach-proof', label: 'The metrics prove an enterprise-wide breach occurred' },
-      ], moduleElevenMetricsState)}
-      ${moduleElevenRadio('action', 'Recommended action', [
-        { id: 'tune-prioritize', label: 'Test scoped rule tuning and assign aging high-priority alerts for immediate review' },
-        { id: 'disable-detection', label: 'Disable all identity detections until backlog reaches zero' },
-        { id: 'close-backlog', label: 'Bulk-close the backlog as false positive without case review' },
-      ], moduleElevenMetricsState)}
-      ${moduleElevenRadio('escalation', 'Escalation path', [
-        { id: 'duty-detection', label: 'Notify the SOC duty manager and detection owner with SLA impact, owner, and review time' },
-        { id: 'no-escalation', label: 'Keep the trend within the current shift because availability is healthy' },
-        { id: 'public-notice', label: 'Issue a public incident statement based only on queue metrics' },
-      ], moduleElevenMetricsState)}
-    </div>
-    <label class="m11-text-label" for="m11-metrics-notes">Shift handoff</label><p class="m11-field-help">Write for the incoming SOC lead. Include quantified trend, operational risk, assigned action and owner, and what the next shift must verify.</p><textarea id="m11-metrics-notes" name="notes" rows="6" maxlength="1200">${esc(moduleElevenMetricsState.notes)}</textarea><div class="m11-text-meta"><span id="m11-metrics-count">${moduleElevenMetricsState.notes.length}/1200</span><span>Minimum 160 characters</span></div>
-    <div class="m11-actions"><button class="m11-submit" type="submit"><i class="ri-send-plane-line" aria-hidden="true"></i> Submit operations brief</button><button class="m11-reset" type="button" data-m11-reset="metrics"><i class="ri-restart-line" aria-hidden="true"></i> Reset metrics lab only</button></div>${moduleElevenScorePanel(moduleElevenMetricsState, 'metrics')}
-  </form>`;
-}
-
-function moduleElevenMetricsLab() {
-  return `<article class="m11-lab" aria-labelledby="m11-metrics-title"><header class="m11-casebar"><div><p class="m11-kicker">Lab 1 · ${MODULE_ELEVEN_METRICS_CATALOG_KEY} · guided shared-case review</p><h2 id="m11-metrics-title" tabindex="-1">SOC Metrics Dashboard</h2><p><strong>Objective:</strong> Review post-closure SOC health, separate operational signals from ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} evidence, recommend a proportionate improvement, and leave the incoming shift an evidence-based handoff.</p></div><dl><div><dt>Dataset</dt><dd>4 snapshots</dd></div><div><dt>Case</dt><dd>${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)}</dd></div><div><dt>Status</dt><dd>${moduleElevenStatus(moduleElevenMetricsState)}</dd></div></dl></header>${moduleElevenMetricsDataset()}${moduleElevenMetricsForm()}</article>`;
-}
-
-function moduleElevenCaseDataset() {
-  const active = MODULE_ELEVEN_CASE_EVENTS.find((item) => item.id === moduleElevenReportState.activeEvent);
-  return `<section class="m11-dataset" aria-labelledby="m11-case-data-title"><div class="m11-dataset-heading"><div><p class="m11-kicker">Declared M09 consumer slice · ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)}</p><h3 id="m11-case-data-title">Executive briefing source review</h3></div><span>Bounded evidence only</span></div>
-    <p class="m11-shared-note">This lab consumes only ${esc(MODULE_ELEVEN_SHARED_SLICE_IDS.join(', '))}. The case is synthetic and local; ${esc((MODULE_ELEVEN_SHARED_CASE.notEstablished || []).join(', '))} remain unestablished.</p><div class="m11-case-summary"><dl><div><dt>Case</dt><dd>${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)}</dd></div><div><dt>Current state</dt><dd>Contained slice</dd></div><div><dt>Affected</dt><dd>${esc(MODULE_ELEVEN_SHARED_CASE.entities.endpoint)} · ${esc(MODULE_ELEVEN_SHARED_CASE.entities.account)}</dd></div><div><dt>Service context</dt><dd>${esc(MODULE_ELEVEN_SHARED_CASE.entities.fileServer)}</dd></div></dl></div>
-    <div class="m11-table-wrap"><table class="m11-data-table m11-case-table"><caption class="m11-visually-hidden">Synthetic ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} evidence slice</caption><thead><tr><th scope="col">Use</th><th scope="col">Time</th><th scope="col">Source</th><th scope="col">Case event</th><th scope="col">Detail</th></tr></thead><tbody>${MODULE_ELEVEN_CASE_EVENTS.map((item) => { const selected = moduleElevenReportState.selectedEvidence.includes(item.id); return `<tr class="${selected ? 'is-selected' : ''}"><td data-label="Use"><label class="m11-evidence-check"><input type="checkbox" name="reportEvidence" value="${item.id}" ${selected ? 'checked' : ''} /><span>${item.id}</span></label></td><td data-label="Time"><time>${item.time}</time></td><td data-label="Source">${item.source}</td><td data-label="Case event"><strong>${item.title}</strong></td><td data-label="Detail"><button type="button" class="m11-inspect" data-m11-event="${item.id}" aria-expanded="${active?.id === item.id}">${active?.id === item.id ? 'Hide' : 'Inspect'}</button></td></tr>`; }).join('')}</tbody></table></div>
-    ${active ? `<aside class="m11-event-detail" id="m11-event-detail" tabindex="-1"><div><p class="m11-kicker">${active.id} · ${active.time} · ${active.source}</p><strong>${active.title}</strong><p>${active.detail}</p></div><button type="button" data-m11-close-event aria-label="Close event detail"><i class="ri-close-line" aria-hidden="true"></i></button></aside>` : ''}
-  </section>`;
-}
-
-function moduleElevenReportForm() {
-  return `<form class="m11-deliverable" id="m11-report-form" novalidate aria-labelledby="m11-report-deliverable-title"><div class="m11-deliverable-heading"><div><p class="m11-kicker">Scored deliverable</p><h3 id="m11-report-deliverable-title">Case note, executive report, escalation and closure</h3></div><span>Pass ${MODULE_ELEVEN_PASSING_SCORE}/100</span></div>
-    <div class="m11-form-grid m11-form-grid-three">
-      ${moduleElevenRadio('classification', 'Case classification', [{ id: 'confirmed', label: 'Confirmed bounded impact and suspicious identity session' }, { id: 'benign', label: 'Benign user activity' }, { id: 'enterprise', label: 'Confirmed enterprise-wide compromise' }], moduleElevenReportState)}
-      ${moduleElevenRadio('rootCause', 'Supported conclusion', [{ id: 'impact-chain', label: 'Encryption on ws-173, overlapping acct-173 session, and fs-02 service disruption are observed' }, { id: 'sensor', label: 'The endpoint sensor caused the incident' }, { id: 'password', label: 'The account owner is the named operator' }], moduleElevenReportState)}
-      ${moduleElevenRadio('impact', 'Impact statement', [{ id: 'bounded', label: 'Bounded impact on ws-173/acct-173 with fs-02 service degradation; wider impact remains unknown' }, { id: 'none', label: 'No impact because isolation succeeded' }, { id: 'all-data', label: 'All organizational data was exfiltrated' }], moduleElevenReportState)}
-      ${moduleElevenRadio('escalation', 'Escalation record', [{ id: 'incident-owners', label: 'Incident manager plus endpoint and identity owners, with evidence and requested actions' }, { id: 'none', label: 'No escalation because containment completed' }, { id: 'broadcast', label: 'Send unverified technical detail to all employees' }], moduleElevenReportState)}
-      ${moduleElevenRadio('closure', 'Closure decision', [{ id: 'verified-monitor', label: 'Close after verified recovery, 24-hour monitoring, and an assigned control-improvement owner' }, { id: 'contained', label: 'Close immediately when isolation succeeds' }, { id: 'never', label: 'Keep the case open permanently despite verified recovery' }], moduleElevenReportState)}
-    </div>
-    <div class="m11-writing-grid"><div><label class="m11-text-label" for="m11-case-note">Technical case note</label><p class="m11-field-help">Record time, affected entities, evidence, actions, current scope or uncertainty, and ownership.</p><textarea id="m11-case-note" name="caseNote" rows="7" maxlength="1400">${esc(moduleElevenReportState.caseNote)}</textarea><div class="m11-text-meta"><span id="m11-case-count">${moduleElevenReportState.caseNote.length}/1400</span><span>Minimum 180 characters</span></div></div><div><label class="m11-text-label" for="m11-exec-summary">Executive summary</label><p class="m11-field-help">State business impact, current status, residual risk, and the next accountable action in plain language.</p><textarea id="m11-exec-summary" name="executiveSummary" rows="7" maxlength="1400">${esc(moduleElevenReportState.executiveSummary)}</textarea><div class="m11-text-meta"><span id="m11-exec-count">${moduleElevenReportState.executiveSummary.length}/1400</span><span>Minimum 160 characters</span></div></div></div>
-    <div class="m11-actions"><button class="m11-submit" type="submit"><i class="ri-send-plane-line" aria-hidden="true"></i> Submit incident report</button><button class="m11-reset" type="button" data-m11-reset="report"><i class="ri-restart-line" aria-hidden="true"></i> Reset report lab only</button></div>${moduleElevenScorePanel(moduleElevenReportState, 'report')}
-  </form>`;
-}
-
-function moduleElevenReportLab() {
-  return `<article class="m11-lab" aria-labelledby="m11-report-title"><header class="m11-casebar"><div><p class="m11-kicker">Lab 2 · ${MODULE_ELEVEN_REPORT_CATALOG_KEY} · independent briefing</p><h2 id="m11-report-title" tabindex="-1">Executive Incident Report</h2><p><strong>Objective:</strong> Independently convert the declared ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} slice into an accurate case note, audience-appropriate executive summary, accountable escalation, and defensible closure decision.</p></div><dl><div><dt>Dataset</dt><dd>${MODULE_ELEVEN_SHARED_SLICE_IDS.length} records</dd></div><div><dt>Role</dt><dd>Case owner</dd></div><div><dt>Status</dt><dd>${moduleElevenStatus(moduleElevenReportState)}</dd></div></dl></header>${moduleElevenCaseDataset()}${moduleElevenReportForm()}</article>`;
-}
-
-function moduleElevenDynamic() {
-  return `${moduleElevenLabSwitcher()}${moduleElevenActiveLab === 'metrics' ? moduleElevenMetricsLab() : moduleElevenReportLab()}`;
-}
-
 function moduleElevenScenarioLoops() {
   return `<section class="m11-loop-grid" aria-label="Module 11 four-part lesson loops">
     <article><p class="m11-kicker">Lesson 1 · Scenario</p><h4>Review health after ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} closes</h4><p>Post-closure queue snapshots sit beside the declared ${esc(MODULE_ELEVEN_SHARED_SLICE_IDS.join(', '))} case slice. Decide which signals describe SOC health and which describe incident scope.</p></article>
@@ -724,7 +587,8 @@ function moduleElevenGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm11-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleElevenQuizState?.passed, scrollId: 'm11-knowledge-check' },
-    { id: 'operations-labs', title: 'Module Lab', type: 'lab', isComplete: moduleElevenMetricsState.completed && moduleElevenReportState.completed, scrollId: 'm11-lab' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleElevenMetricsState.practiceComplete, scrollId: 'm11-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleElevenReportState.completed, scrollId: 'm11-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm11-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm11-sources-section', gated: false, supplemental: true },
   ];
@@ -741,13 +605,45 @@ function moduleElevenGetQuickNavItems() {
   }));
 }
 
+const MODULE_ELEVEN_RETURN_TO = encodeURIComponent('/#/program/soc-analyst/module/11');
+
+function moduleElevenGuidedLabPanel() {
+  const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_METRICS_CATALOG_KEY);
+  return `<section class="m11-external-lab" id="m11-guided-lab-panel">
+    <p class="m11-panel-instruction">Launch the imported Active Directory monitoring project below and work through its guided tasks in the new tab. When you're done, note what you found and mark the Guided Lab complete.</p>
+    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-1/lab" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Monitoring with Grafana</a></div>
+    <label class="m11-text-label" for="m11-practice-notes">Working notes (optional)</label>
+    <p class="m11-field-help">${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. What did you find? Any blockers?</p>
+    <textarea id="m11-practice-notes" rows="4" maxlength="900" data-m11-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleElevenMetricsState.practiceNotes)}</textarea>
+    <div class="m11-actions"><button type="button" class="m11-submit" data-m11-practice-complete>${moduleElevenMetricsState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+  </section>`;
+}
+
+function moduleElevenAssessmentLabPanel() {
+  const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_REPORT_CATALOG_KEY);
+  const feedbackHtml = moduleElevenReportState.feedback?.length ? `<div class="m11-validation is-pass" role="status"><strong>Submitted</strong><ul>${moduleElevenReportState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
+  return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
+    <p class="m11-panel-instruction">Launch the imported Active Directory metrics project below, complete it, then write up your findings for instructor review.</p>
+    <p class="m11-field-help">${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated.</p>
+    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html?returnTo=${MODULE_ELEVEN_RETURN_TO}#/track/active-directory/project/ad-7/lab" target="_blank" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Visualizing Active Directory Performance Metrics with Cacti</a></div>
+    <form id="m11-assessment-form">
+      <label class="m11-text-label" for="m11-assessment-notes">Assessment write-up</label>
+      <p class="m11-field-help">In at least 80 characters, describe what you found and your recommended action.</p>
+      <textarea id="m11-assessment-notes" rows="6" maxlength="1400" data-m11-assessment-notes placeholder="Summarize what the Cacti lab surfaced, your analysis, and your recommended action…">${esc(moduleElevenReportState.notes)}</textarea>
+      <div class="m11-actions"><button type="submit" class="m11-submit">${moduleElevenReportState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
+    </form>
+    ${feedbackHtml}
+  </section>`;
+}
+
 function viewModuleEleven(user, program) {
   moduleElevenLoad(user);
   const module = program.modules['soc-11'];
   const sections = moduleElevenGetSections();
   const lectureOpen = moduleElevenReviewMode || !sections[0].isComplete;
   const quizOpen = moduleElevenReviewMode || (moduleElevenQuizState && !moduleElevenQuizState.passed);
-  const labOpen = moduleElevenReviewMode || !sections[2].isComplete;
+  const guidedLabOpen = moduleElevenReviewMode || !sections[2].isComplete;
+  const assessmentLabOpen = moduleElevenReviewMode || !sections[3].isComplete;
   const reviewOpen = moduleElevenReviewMode;
   const quickNavItems = moduleElevenGetQuickNavItems();
 
@@ -760,222 +656,68 @@ function viewModuleEleven(user, program) {
 <details class="m11-section-collapsible" id="m11-knowledge-section" ${quizOpen ? 'open' : ''}><summary><span class="m11-section-badge">2</span><h2>Knowledge Check</h2></summary><div class="m11-section-body" id="m11-knowledge-check">
   ${moduleElevenQuizPanel()}
 </div></details>
-<details class="m11-section-collapsible" id="m11-lab-section" ${labOpen ? 'open' : ''}><summary><span class="m11-section-badge">3</span><h2>Operations & Reporting Labs</h2></summary><div class="m11-section-body"><div id="m11-lab-dynamic">${moduleElevenDynamic()}</div></div></details>
-<details class="m11-section-collapsible" id="m11-review-section" ${reviewOpen ? 'open' : ''}><summary><span class="m11-section-badge">4</span><h2>Module Review</h2></summary><div class="m11-section-body" id="m11-review">
+<details class="m11-section-collapsible" id="m11-guided-lab-section" ${guidedLabOpen ? 'open' : ''}><summary><span class="m11-section-badge">3</span><div><p class="m11-kicker">Practice It · Guided Lab</p><h2>Guided Lab</h2></div></summary><div class="m11-section-body" id="m11-guided-lab">
+  <div class="m11-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in a separate imported training application in a new tab.</p></div>
+  <div id="m11-guided-lab-dynamic">${moduleElevenGuidedLabPanel()}</div>
+</div></details>
+<details class="m11-section-collapsible" id="m11-assessment-lab-section" ${assessmentLabOpen ? 'open' : ''}><summary><span class="m11-section-badge">4</span><div><p class="m11-kicker">Prove It · Assessment Lab</p><h2>Assessment Lab</h2></div></summary><div class="m11-section-body" id="m11-assessment-lab">
+  <div id="m11-assessment-lab-dynamic">${moduleElevenAssessmentLabPanel()}</div>
+</div></details>
+<details class="m11-section-collapsible" id="m11-review-section" ${reviewOpen ? 'open' : ''}><summary><span class="m11-section-badge">5</span><h2>Module Review</h2></summary><div class="m11-section-body" id="m11-review">
   ${moduleElevenReview()}
 </div></details>
-<details class="m11-section-collapsible" id="m11-sources-section" ${moduleElevenReviewMode ? 'open' : ''}><summary><span class="m11-section-badge">5</span><h2>Sources &amp; Further Reading</h2></summary><div class="m11-section-body">
+<details class="m11-section-collapsible" id="m11-sources-section" ${moduleElevenReviewMode ? 'open' : ''}><summary><span class="m11-section-badge">6</span><h2>Sources &amp; Further Reading</h2></summary><div class="m11-section-body">
   ${moduleSourcesBlock(MODULE_ELEVEN_SOURCES_LIST)}
 </div></details>
 </main></div></div>`;
   return html;
 }
 
-function moduleElevenRender(focusId) {
-  const root = document.getElementById('m11-lab-dynamic');
-  if (!root) return;
-  root.innerHTML = moduleElevenDynamic();
-  const completeCount = document.getElementById('m11-complete-count');
-  if (completeCount) completeCount.textContent = `${Number(moduleElevenMetricsState.completed) + Number(moduleElevenReportState.completed)}/2`;
-  if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
-}
-
-function moduleElevenToggle(list, value, checked) {
-  return checked ? [...new Set([...list, value])] : list.filter((item) => item !== value);
-}
-
-function moduleElevenEvidenceScore(selected, rows, expectedCount) {
-  const correct = selected.filter((id) => rows.find((row) => row.id === id)?.relevant).length;
-  const wrong = selected.length - correct;
-  return Math.max(0, Math.min(25, Math.round((correct / expectedCount) * 25) - (wrong * 3)));
-}
-
-function moduleElevenMetricsScore() {
-  const observation = moduleElevenEvidenceScore(moduleElevenMetricsState.selectedEvidence, MODULE_ELEVEN_METRIC_EVIDENCE, 5);
-  const analysis = (moduleElevenMetricsState.primaryCause === 'rule-capacity' ? 15 : 0) + (moduleElevenMetricsState.trendConclusion === 'degrading' ? 10 : 0);
-  const decision = (moduleElevenMetricsState.action === 'tune-prioritize' ? 15 : 0) + (moduleElevenMetricsState.escalation === 'duty-detection' ? 15 : 0);
-  const note = moduleElevenMetricsState.notes.toLowerCase();
-  const communicationChecks = [/(21|171).*(minute|min)|(?:minute|min).*(21|171)/, /(78%|76\s+(?:alert|open|backlog))/, /(unfamiliar travel|false positive|rule noise)/, /(duty manager|detection owner|owner)/];
-  const communication = communicationChecks.filter((pattern) => pattern.test(note)).length * 5;
-  return { score: observation + analysis + decision + communication, breakdown: { observation, analysis, decision, communication }, feedback: [
-    observation === 25 ? 'Observation: The selected signals isolate the degraded speed, SLA, backlog, and concentrated false-positive driver.' : `Observation: ${observation}/25. Use the five signals that directly establish handling degradation and the controllable noise source; exclude healthy availability and context-only staffing.`,
-    analysis === 25 ? 'Analysis: The conclusion connects the noisy rule and reduced capacity to worsening MTTD, MTTR, SLA, and backlog.' : `Analysis: ${analysis}/25. Distinguish operational degradation from incident impact and identify the concentrated rule noise as the main controllable driver.`,
-    decision === 30 ? 'Decision: The proposal preserves coverage, prioritizes aging risk, and names the correct accountable escalation.' : `Decision: ${decision}/30. Tune in a controlled scope, assign aging high-priority work, and notify both the duty manager and detection owner.`,
-    communication === 20 ? 'Communication: The handoff quantifies the risk, identifies the driver, and names accountable ownership.' : `Communication: ${communication}/20. Include 21-minute MTTD or 171-minute MTTR, 78% SLA or 76-alert backlog, the noisy rule, and an owner.`,
-  ] };
-}
-
-function moduleElevenReportScore() {
-  const observation = moduleElevenEvidenceScore(moduleElevenReportState.selectedEvidence, MODULE_ELEVEN_CASE_EVENTS, MODULE_ELEVEN_CASE_EVENTS.length);
-  const analysis = (moduleElevenReportState.classification === 'confirmed' ? 8 : 0) + (moduleElevenReportState.rootCause === 'impact-chain' ? 9 : 0) + (moduleElevenReportState.impact === 'bounded' ? 8 : 0);
-  const decision = (moduleElevenReportState.escalation === 'incident-owners' ? 15 : 0) + (moduleElevenReportState.closure === 'verified-monitor' ? 15 : 0);
-  const caseNote = moduleElevenReportState.caseNote.toLowerCase();
-  const executive = moduleElevenReportState.executiveSummary.toLowerCase();
-  const caseChecks = [/(ws-173).*(acct-173)|(acct-173).*(ws-173)/, /(isolate|contain|monitor|scope|fs-02)/];
-  const executiveChecks = [/(one|1).*(endpoint|host|account|device)/, /(monitor|residual|no sensitive|no lateral|unknown)/];
-  const communication = [...caseChecks.map((pattern) => pattern.test(caseNote)), ...executiveChecks.map((pattern) => pattern.test(executive))].filter(Boolean).length * 5;
-  return { score: observation + analysis + decision + communication, breakdown: { observation, analysis, decision, communication }, feedback: [
-    observation === 25 ? 'Observation: The chosen M09 records support impact, identity correlation, containment, service context, and bounded scope.' : `Observation: ${observation}/25. Review and select all five declared M09 Module 11 records; do not import evidence from another consumer slice.`,
-    analysis === 25 ? 'Analysis: The report states a confirmed but bounded shared-case conclusion and supported operational impact.' : `Analysis: ${analysis}/25. Separate the ws-173/acct-173/fs-02 observations from enterprise-wide or operator claims.`,
-    decision === 30 ? 'Decision: Escalation names accountable owners, and closure requires verified recovery, monitoring, and follow-up ownership.' : `Decision: ${decision}/30. Escalate to the incident manager and technical owners; do not close on containment alone.`,
-    communication === 20 ? 'Communication: The technical note is traceable and the executive summary states bounded impact and residual risk plainly.' : `Communication: ${communication}/20. Name ws-173 and acct-173 plus the response/scope context in the case note; state one bounded impact and monitored residual risk for leaders.`,
-  ] };
-}
-
-function wireModuleElevenLab() {
-  const root = document.getElementById('m11-lab-dynamic');
-  if (!root || !moduleElevenMetricsState || !moduleElevenReportState) return;
-  root.addEventListener('click', (event) => {
-    const labButton = event.target.closest('[data-m11-lab]');
-    if (labButton) {
-      moduleElevenActiveLab = labButton.dataset.m11Lab;
-      moduleElevenRender(moduleElevenActiveLab === 'metrics' ? 'm11-metrics-title' : 'm11-report-title');
-      return;
-    }
-    const eventButton = event.target.closest('[data-m11-event]');
-    if (eventButton) {
-      const id = eventButton.dataset.m11Event;
-      moduleElevenReportState.activeEvent = moduleElevenReportState.activeEvent === id ? '' : id;
-      if (!moduleElevenReportState.reviewedEvents.includes(id)) moduleElevenReportState.reviewedEvents.push(id);
-      moduleElevenSaveReport();
-      moduleElevenRender(moduleElevenReportState.activeEvent ? 'm11-event-detail' : 'm11-case-data-title');
-      return;
-    }
-    if (event.target.closest('[data-m11-close-event]')) {
-      moduleElevenReportState.activeEvent = '';
-      moduleElevenSaveReport();
-      moduleElevenRender('m11-case-data-title');
-      return;
-    }
-    const reset = event.target.closest('[data-m11-reset]');
-    if (!reset) return;
-    const kind = reset.dataset.m11Reset;
-    if (typeof window.confirm === 'function' && !window.confirm(`Reset only the ${kind} lab? The other lab and course progress will stay unchanged.`)) return;
-    if (kind === 'metrics') {
-      moduleElevenMetricsState = LabRuntime.reset(MODULE_ELEVEN_METRICS_LAB_ID, moduleElevenUser, moduleElevenMetricsFreshDefaults());
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_METRICS_CATALOG_KEY, false);
-      moduleElevenRender('m11-metrics-title');
-    } else {
-      moduleElevenReportState = LabRuntime.reset(MODULE_ELEVEN_REPORT_LAB_ID, moduleElevenUser, moduleElevenReportFreshDefaults());
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_REPORT_CATALOG_KEY, false);
-      moduleElevenRender('m11-report-title');
-    }
-  });
-
+function wireModuleElevenGuidedLab() {
+  const root = document.getElementById('m11-guided-lab-dynamic');
+  if (!root || !moduleElevenMetricsState) return;
   root.addEventListener('input', (event) => {
-    if (event.target.name === 'notes') {
-      moduleElevenMetricsState.notes = event.target.value;
+    if (event.target.matches('[data-m11-practice-notes]')) {
+      moduleElevenMetricsState.practiceNotes = event.target.value;
       moduleElevenSaveMetrics();
-      const count = root.querySelector('#m11-metrics-count');
-      if (count) count.textContent = `${event.target.value.length}/1200`;
-    }
-    if (event.target.name === 'caseNote' || event.target.name === 'executiveSummary') {
-      moduleElevenReportState[event.target.name] = event.target.value;
-      moduleElevenSaveReport();
-      const count = root.querySelector(event.target.name === 'caseNote' ? '#m11-case-count' : '#m11-exec-count');
-      if (count) count.textContent = `${event.target.value.length}/1400`;
     }
   });
-
-  root.addEventListener('change', (event) => {
-    const input = event.target;
-    if (input.name === 'metricsEvidence') {
-      moduleElevenMetricsState.selectedEvidence = moduleElevenToggle(moduleElevenMetricsState.selectedEvidence, input.value, input.checked);
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m11-practice-complete]')) {
+      moduleElevenMetricsState.practiceComplete = true;
+      if (!moduleElevenMetricsState.flags.includes(MODULE_ELEVEN_METRICS_FLAG)) moduleElevenMetricsState.flags.push(MODULE_ELEVEN_METRICS_FLAG);
+      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_METRICS_CATALOG_KEY);
       moduleElevenSaveMetrics();
-      return;
-    }
-    if (['primaryCause', 'trendConclusion', 'action', 'escalation'].includes(input.name) && moduleElevenActiveLab === 'metrics') {
-      moduleElevenMetricsState[input.name] = input.value;
-      moduleElevenSaveMetrics();
-      return;
-    }
-    if (input.name === 'reportEvidence') {
-      moduleElevenReportState.selectedEvidence = moduleElevenToggle(moduleElevenReportState.selectedEvidence, input.value, input.checked);
-      moduleElevenSaveReport();
-      return;
-    }
-    if (['classification', 'rootCause', 'impact', 'escalation', 'closure'].includes(input.name) && moduleElevenActiveLab === 'report') {
-      moduleElevenReportState[input.name] = input.value;
-      moduleElevenSaveReport();
+      root.innerHTML = moduleElevenGuidedLabPanel();
     }
   });
+}
 
+function wireModuleElevenAssessmentLab() {
+  const root = document.getElementById('m11-assessment-lab-dynamic');
+  if (!root || !moduleElevenReportState) return;
   root.addEventListener('submit', (event) => {
-    if (event.target.id === 'm11-metrics-form') {
-      event.preventDefault();
-      moduleElevenMetricsState.notes = event.target.elements.notes.value;
-      const missing = [];
-      if (moduleElevenMetricsState.selectedEvidence.length < 4) missing.push('select at least four material metric signals');
-      if (!moduleElevenMetricsState.primaryCause || !moduleElevenMetricsState.trendConclusion) missing.push('complete the operational analysis');
-      if (!moduleElevenMetricsState.action || !moduleElevenMetricsState.escalation) missing.push('complete the action and escalation decisions');
-      if (moduleElevenMetricsState.notes.trim().length < 160) missing.push('write a 160-character shift handoff');
-      if (missing.length) {
-        moduleElevenMetricsState.validationError = `${missing.join('; ')}. Your current work remains saved.`;
-      } else {
-        const result = moduleElevenMetricsScore();
-        moduleElevenMetricsState.attempts += 1;
-        moduleElevenMetricsState.score = result.score;
-        moduleElevenMetricsState.bestScore = Math.max(moduleElevenMetricsState.bestScore || 0, result.score);
-        moduleElevenMetricsState.breakdown = result.breakdown;
-        moduleElevenMetricsState.feedback = result.feedback;
-        moduleElevenMetricsState.validationError = '';
-        moduleElevenMetricsState.lastSubmittedAt = new Date().toISOString();
-        const metricsPassed = result.score >= MODULE_ELEVEN_PASSING_SCORE;
-        if (typeof recordLabAttempt === 'function') {
-          recordLabAttempt(moduleElevenUser, MODULE_ELEVEN_METRICS_CATALOG_KEY, {
-            state: metricsPassed ? 'complete' : 'in_progress',
-            score: result.score,
-            result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleElevenMetricsState.attempts },
-          });
-        }
-        if (metricsPassed) {
-          moduleElevenMetricsState.completed = true;
-          if (!moduleElevenMetricsState.flags.includes(MODULE_ELEVEN_METRICS_FLAG)) moduleElevenMetricsState.flags.push(MODULE_ELEVEN_METRICS_FLAG);
-          if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_METRICS_CATALOG_KEY);
-        }
-      }
-      moduleElevenSaveMetrics();
-      moduleElevenRender('m11-feedback');
+    if (event.target.id !== 'm11-assessment-form') return;
+    event.preventDefault();
+    const notes = event.target.querySelector('#m11-assessment-notes')?.value || '';
+    moduleElevenReportState.notes = notes;
+    if (notes.trim().length < 80) {
+      moduleElevenReportState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
+      moduleElevenSaveReport();
+      root.innerHTML = moduleElevenAssessmentLabPanel();
       return;
     }
-    if (event.target.id === 'm11-report-form') {
-      event.preventDefault();
-      moduleElevenReportState.caseNote = event.target.elements.caseNote.value;
-      moduleElevenReportState.executiveSummary = event.target.elements.executiveSummary.value;
-      const missing = [];
-      if (moduleElevenReportState.selectedEvidence.length < MODULE_ELEVEN_CASE_EVENTS.length) missing.push(`select all ${MODULE_ELEVEN_CASE_EVENTS.length} declared supporting case events`);
-      if (!moduleElevenReportState.classification || !moduleElevenReportState.rootCause || !moduleElevenReportState.impact) missing.push('complete the case analysis');
-      if (!moduleElevenReportState.escalation || !moduleElevenReportState.closure) missing.push('complete escalation and closure decisions');
-      if (moduleElevenReportState.caseNote.trim().length < 180) missing.push('write a 180-character technical case note');
-      if (moduleElevenReportState.executiveSummary.trim().length < 160) missing.push('write a 160-character executive summary');
-      if (missing.length) {
-        moduleElevenReportState.validationError = `${missing.join('; ')}. Your current work remains saved.`;
-      } else {
-        const result = moduleElevenReportScore();
-        moduleElevenReportState.attempts += 1;
-        moduleElevenReportState.score = result.score;
-        moduleElevenReportState.bestScore = Math.max(moduleElevenReportState.bestScore || 0, result.score);
-        moduleElevenReportState.breakdown = result.breakdown;
-        moduleElevenReportState.feedback = result.feedback;
-        moduleElevenReportState.validationError = '';
-        moduleElevenReportState.lastSubmittedAt = new Date().toISOString();
-        const reportPassed = result.score >= MODULE_ELEVEN_PASSING_SCORE;
-        if (typeof recordLabAttempt === 'function') {
-          recordLabAttempt(moduleElevenUser, MODULE_ELEVEN_REPORT_CATALOG_KEY, {
-            state: reportPassed ? 'complete' : 'in_progress',
-            score: result.score,
-            result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleElevenReportState.attempts },
-          });
-        }
-        if (reportPassed) {
-          moduleElevenReportState.completed = true;
-          if (!moduleElevenReportState.flags.includes(MODULE_ELEVEN_REPORT_FLAG)) moduleElevenReportState.flags.push(MODULE_ELEVEN_REPORT_FLAG);
-          if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_REPORT_CATALOG_KEY);
-        }
-      }
-      moduleElevenSaveReport();
-      moduleElevenRender('m11-feedback');
+    moduleElevenReportState.attempts = (moduleElevenReportState.attempts || 0) + 1;
+    moduleElevenReportState.lastSubmittedAt = new Date().toISOString();
+    moduleElevenReportState.completed = true;
+    moduleElevenReportState.feedback = ['Submitted. This write-up has been recorded as your Assessment Lab submission for instructor review.'];
+    if (!moduleElevenReportState.flags.includes(MODULE_ELEVEN_REPORT_FLAG)) moduleElevenReportState.flags.push(MODULE_ELEVEN_REPORT_FLAG);
+    if (typeof recordLabAttempt === 'function') {
+      recordLabAttempt(moduleElevenUser, MODULE_ELEVEN_REPORT_CATALOG_KEY, { state: 'complete', result: { notes } });
     }
+    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_REPORT_CATALOG_KEY);
+    moduleElevenSaveReport();
+    root.innerHTML = moduleElevenAssessmentLabPanel();
   });
 }
 
@@ -999,7 +741,8 @@ function wireModuleEleven() {
   wireModuleElevenQuiz();
 
   // Wire labs
-  wireModuleElevenLab();
+  wireModuleElevenGuidedLab();
+  wireModuleElevenAssessmentLab();
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 11, moduleKey: 'soc-11', view: viewModuleEleven, wire: wireModuleEleven });

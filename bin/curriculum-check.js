@@ -64,7 +64,7 @@ const EXPECTED_RUNTIME_IDS = {
   'soc-analyst-module-05.js': ['m05-endpoint-chain-v1'],
   'soc-analyst-module-06.js': ['m06-hypothesis-hunt-v1'],
   'soc-analyst-module-07.js': ['m07-network-email-investigation-v1'],
-  'soc-analyst-module-08.js': ['m08-exposure-prioritization-v1', 'm08-vulnerability-queue-v1'],
+  'soc-analyst-module-08.js': ['m08-exposure-prioritization-v1'],
   'soc-analyst-module-09.js': ['m09-proportional-response-v1'],
   'soc-analyst-module-10.js': ['m10-evidence-custody-v1', 'm10-forensic-mapping-v1'],
   'soc-analyst-module-11.js': ['m11-soc-metrics-v1', 'm11-executive-report-v1'],

@@ -4083,6 +4083,36 @@ function header(user, options = {}) {
   </header>`;
 }
 
+/* Resolve the catalogue record represented by a module route. Keeping this in
+ * the shared topbar means every existing course — and future registered
+ * courses — gets the current module label without each module having to pass
+ * or maintain a duplicate title. Explicit options remain useful when the
+ * topbar is rendered outside the router (for example, in an isolated preview). */
+function moduleTopbarModule(program, options = {}) {
+  const modules = Object.values((program && program.modules) || {});
+  if (options.moduleKey && program && program.modules && program.modules[options.moduleKey]) {
+    return program.modules[options.moduleKey];
+  }
+  if (options.moduleNumber !== undefined && options.moduleNumber !== null) {
+    return modules.find((module) => Number(module.number) === Number(options.moduleNumber)) || null;
+  }
+
+  const routeHash = options.routeHash !== undefined
+    ? options.routeHash
+    : (typeof location !== 'undefined' ? location.hash : '');
+  const route = String(routeHash || '').match(/^#\/program\/([a-z0-9-]+)\/module\/(\d+)$/);
+  if (!route || !program || route[1] !== program.slug) return null;
+  return modules.find((module) => Number(module.number) === Number(route[2])) || null;
+}
+
+function moduleTopbarTitle(program, options = {}) {
+  const module = moduleTopbarModule(program, options);
+  if (!module) return program.title || program.cardTitle || '';
+  const number = Number(module.number);
+  const numberLabel = Number.isFinite(number) ? `Module ${String(number).padStart(2, '0')}` : 'Module';
+  return module.title ? `${numberLabel} \u00b7 ${module.title}` : numberLabel;
+}
+
 /* Shared topbar for every module-lab surface (IT Support, SOC Analyst,
  * Electrical, AI/ML — one 'view(user, program)' function per module, see
  * module-registry.js). Before this, each module hand-rolled its own
@@ -4096,6 +4126,7 @@ function moduleTopbar(user, program, options = {}) {
   const progress = programProgress(user, program);
   const backHref = options.backHref || `#/program/${program.slug}`;
   const backLabel = options.backLabel || 'Back to Modules';
+  const contextTitle = moduleTopbarTitle(program, options);
   return `
   <header class="sticky top-0 z-[60] bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
@@ -4106,7 +4137,7 @@ function moduleTopbar(user, program, options = {}) {
         <span class="hidden sm:block w-px h-5 bg-gray-200"></span>
         <div class="hidden sm:flex items-center gap-2 min-w-0">
           <img src="assets/logo.png" alt="" class="h-6 w-auto shrink-0" />
-          <span class="text-sm text-gray-500 truncate">${esc(program.title || program.cardTitle || '')}</span>
+          <span class="text-sm text-gray-500 truncate" aria-label="Current module: ${esc(contextTitle)}" title="${esc(contextTitle)}">${esc(contextTitle)}</span>
         </div>
       </div>
       <div class="flex items-center gap-4 shrink-0">

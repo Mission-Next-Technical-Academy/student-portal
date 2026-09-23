@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SOC Analyst Capstone Simulator — Module 12</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #030712; color: #f9fafb; font-family: system-ui, sans-serif; }
+    #m12-boot-status { padding: 24px; color: #9ca3af; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="m12-boot-status">Loading Capstone Simulator…</div>
+  <div id="m12-root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+  <script type="text/babel" src="capstone.jsx"></script>
+  <script type="text/babel">
+    const statusEl = document.getElementById('m12-boot-status');
+    if (!window.React || !window.ReactDOM || !window.CapstoneConsole) {
+      statusEl.textContent = 'Failed to load Capstone dependencies.';
+    } else {
+      const mode = new URLSearchParams(location.search).get('mode') === 'prove' ? 'prove' : 'practice';
+      statusEl.remove();
+      const root = ReactDOM.createRoot(document.getElementById('m12-root'));
+      root.render(<window.CapstoneConsole mode={mode} />);
+    }
+  </script>
+</body>
+</html>
