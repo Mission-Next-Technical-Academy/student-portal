@@ -4130,15 +4130,14 @@ function moduleTopbarTitle(program, options = {}) {
 }
 
 /* Imported Mission Next projects that extend a module's core Guided and
- * Assessment labs remain discoverable without masquerading as additional
- * graded requirements. Module files pass prebuilt same-page launch links. */
+ * Assessment labs. Module files pass prebuilt same-page launch links. */
 function missionNextAdditionalLabsSection(moduleNumber, links) {
   const items = Array.isArray(links) ? links : [];
   if (!items.length) return '';
   return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-${moduleNumber}">
-    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">OPTIONAL PRACTICE</p><h2 id="mn-additional-labs-${moduleNumber}">Additional Mission Next Labs</h2></div><span>Not separately graded</span></div>
-    <p class="mn-additional-labs-copy">These related projects extend the module topic. Complete them for extra practice; they do not create another Guided Lab or Assessment Lab requirement.</p>
-    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(item.href)}" target="_blank" rel="opener"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Optional practice project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
+    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-${moduleNumber}">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
+    <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Complete them for credit alongside the Guided Lab and Assessment Lab.</p>
+    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(item.href)}" target="_blank" rel="opener"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Required lab project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
   </section>`;
 }
 
