@@ -103,6 +103,11 @@ let moduleOneState = null;
 let moduleOneUser = null;
 let moduleOneJustCorrect = '';
 let moduleOneQuizState = null;
+// True once the learner explicitly asks to retake a knowledge check that
+// this browser has no real local answers for but that reads complete from a
+// remote/admin source (see moduleOneQuizPanel()). Reset on every fresh load
+// so it never carries over to a different account/session.
+let moduleOneQuizForceRetake = false;
 let moduleOneReviewMode = false;
 let moduleOneLastSyncedDetail = null;
 
@@ -191,6 +196,7 @@ function moduleOneLoad(user) {
   // Lab 2 evidence from that record: the page must never show work complete
   // merely because another layer has a stale summary badge.
   if (!moduleOneQuizState || moduleOneQuizState.userKey !== user.email) {
+    moduleOneQuizForceRetake = false;
     const savedQuiz = moduleOneState.quiz;
     const selection = savedQuiz.selectedQuestions?.length
       ? { selectedQuestions: savedQuiz.selectedQuestions, questionsByAnswer: savedQuiz.questionsByAnswer || {} }
@@ -475,7 +481,11 @@ function moduleOneProgress() {
     moduleOneState?.lab2 && (moduleOneState.lab2.reviewedEvidence?.length || moduleOneState.lab2.intake
       || moduleOneState.lab2.priority || moduleOneState.lab2.containment || moduleOneState.lab2.verdict),
   );
-  const knowledgeCheckComplete = Boolean(moduleOneQuizState?.passed)
+  // verified first, matching guidedLabComplete/assessmentLabComplete above —
+  // the server-verified record (which includes any admin completion
+  // override) is more authoritative than the coarse evidence-key fallback.
+  const knowledgeCheckComplete = verified
+    || Boolean(moduleOneQuizState?.passed)
     || moduleOneUser?.remoteModuleEvidence?.['soc-01']?.['knowledge-check'] === true;
   const complete = verified || (lessonsComplete === lessonsTotal && knowledgeCheckComplete && guidedLabComplete && assessmentLabComplete);
   return {
@@ -1006,6 +1016,22 @@ function moduleOneQuizPanel() {
   const selected = moduleOneQuizState?.selectedQuestions || [];
   if (!selected.length) return `<form class="m01-module-quiz" id="m01-quiz-form" novalidate><div id="m01-quiz-feedback" role="status">Loading knowledge check…</div></form>`;
   const answered = Object.keys(moduleOneQuizState.answers || {}).length;
+  // A module can read complete (server-verified, or an admin completion
+  // override) without this browser ever holding the real answer set — a
+  // different device did the work, or the completion was set by an admin
+  // backfill/override rather than the real submit flow. Showing the fresh
+  // interactive form in that case looks exactly like an unstarted quiz
+  // ("0/5 answered") even though the nav rail and every other module surface
+  // already say complete — never fabricate answers into the form to match;
+  // show a verified summary instead until the learner explicitly retakes it.
+  const verifiedElsewhere = !moduleOneQuizState.scored && answered === 0 && (
+    moduleOneRemoteComplete()
+    || moduleOneUser?.remoteModuleDetail?.['soc-01']?.quizPassed === true
+    || moduleOneUser?.remoteModuleEvidence?.['soc-01']?.['knowledge-check'] === true
+  );
+  if (verifiedElsewhere && !moduleOneQuizForceRetake) {
+    return `<form class="m01-module-quiz" id="m01-quiz-form" novalidate><section class="m01-score is-pass" id="m01-quiz-feedback" tabindex="-1" aria-live="polite"><p class="m01-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" data-m01-quiz-retake>Retake this knowledge check</button></section></form>`;
+  }
   const feedback = moduleOneQuizState.scored ? `<section class="m01-score ${moduleOneQuizState.passed ? 'is-pass' : 'is-remediate'}" id="m01-quiz-feedback" tabindex="-1" aria-live="polite"><p class="m01-kicker">Attempt ${moduleOneQuizState.attempts} · best ${moduleOneQuizState.bestScore}/100</p><h3>${moduleOneQuizState.score}/100 — ${moduleOneQuizState.passed ? 'Knowledge verified' : 'Review the coaching and retry'}</h3><ul>${(moduleOneQuizState.feedback || []).map((item) => `<li><strong>${item.correct ? 'Correct' : 'Review'} · ${esc(item.questionId)}</strong><p>${esc(item.message)}</p></li>`).join('')}</ul>${!moduleOneQuizState.passed ? '<button type="button" class="m01-quiz-retry" data-m01-quiz-retry>Try different questions</button>' : ''}</section>` : `<div id="m01-quiz-feedback" role="status">${answered}/${selected.length} answered. Submit when ready.</div>`;
   return `<form class="m01-module-quiz" id="m01-quiz-form" novalidate><div class="m01-panel-heading"><div><p class="m01-kicker">Module knowledge check</p><h3 id="m01-quiz-title">Classify, triage, and communicate</h3></div><span>${answered}/${selected.length} answered</span></div>${selected.map(moduleOneQuizQuestion).join('')}<button type="submit" ${answered < selected.length ? 'disabled' : ''}>Check my answers</button>${feedback}</form>`;
 }
@@ -1401,6 +1427,12 @@ function wireModuleOneQuiz() {
     moduleOneRenderQuiz('m01-quiz-feedback');
   });
   form.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m01-quiz-retake]')) {
+      event.preventDefault();
+      moduleOneQuizForceRetake = true;
+      moduleOneRenderQuiz('m01-quiz-title');
+      return;
+    }
     if (!event.target.closest('[data-m01-quiz-retry]')) return;
     event.preventDefault();
     const previousQuestionIds = moduleOneQuizState.selectedQuestions.map((entry) => entry.question.id);

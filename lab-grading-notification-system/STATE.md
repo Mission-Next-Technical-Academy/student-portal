@@ -1,7 +1,43 @@
 # STATE — Lab Grading & Notification System (read this first, in this directory)
 
-**Last updated:** 2026-09-16.
-**Status: DONE**, now extended with real sequential module-access gating on
+**Last updated:** 2026-09-23.
+**Status: code written, NOT yet pushed.** A new migration
+(`20260923100000_module_progress_admin_override.sql`) plus `portal/app.js`
+and `portal/soc-analyst-module-01.js` changes fix the root cause of the
+"admin shows ~92-94% complete, student sees the course reset to the
+beginning" report on `4437023872-SOCAN` — see "2026-09-23" below. Needs the
+owner to `supabase db push` before it does anything live. Everything from
+2026-09-13/16 below this is still DONE and unaffected.
+
+**2026-09-23 — admin completion override (root-cause fix, not yet pushed):**
+Diagnosed and fixed why `4437023872-SOCAN` (and the same shape of bug for
+any account) can show ~92% done in the admin roster while the student
+experience looks like it never started. Full root cause, the fix, and the
+handoff steps the owner needs to run are in this directory's normal place —
+see the bottom of the Sprint log for the entry, and the migration file's own
+header comment for the exact mechanism. Short version: `hasModuleAccess()`'s
+2026-09-16 sequential gate means ONE unverified module locks all 12 for that
+student, and Module 1's verification formula has been tightened three times
+since (20260916/20260917 x2/20260918) — a training account whose Module 1
+completion was backfilled before those tightenings silently fell out of
+compliance and, because of the sequential gate, took the whole course down
+with it. Fixed with a durable, formula-independent `module_progress.admin_override`
+column + `admin_set_module_override()` RPC, wired into a new "Mark complete
+(override)" button per module row in the admin student-detail panel — this
+is the "foolproof, once and for all" mechanism the owner asked for: an
+admin override now reads complete everywhere (nav rail, module cards,
+sequential gating, admin roster) and can never be invalidated by a future
+change to the assessment formula, unlike the old approach of backfilling
+detail flags or a synthetic lab_attempts row to imitate real completion.
+Also fixed a second, related desync: Module 1's knowledge-check quiz body
+rendered as a blank, freshly-shuffled "0/5 answered" form even when the nav
+rail already said the module was complete (evidence flags true, but no real
+local answers) — now shows a "Already verified complete" summary with a
+"Retake this knowledge check" option instead of silently contradicting the
+nav rail.
+
+**Old status below (2026-09-16), still accurate for everything it covers:**
+now extended with real sequential module-access gating on
 top of the same completion model. Migrations
 `20260913120000_lab_grading_review.sql` and
 `20260916050000_module_one_detail_beacon.sql` are both pushed and live.
@@ -304,3 +340,49 @@ do in this directory.
   verification, admin send-back through to student banner, real round trip
   against production. See "What's built" above for the exact steps. Only
   remaining item: the 70%-completion-gate decision.
+- 2026-09-23 — diagnosed and fixed the "admin ~92-94%, student resets to the
+  beginning" report on `4437023872-SOCAN` (read-only production queries via
+  `supabase db query --linked` confirmed 11/12 modules genuinely
+  server-verified; only `soc-01` fails verification, and because of the
+  2026-09-16 sequential gate that alone locks the other 11 from the
+  student). Files changed (none pushed/deployed yet):
+  - `supabase/migrations/20260923100000_module_progress_admin_override.sql`
+    — adds `module_progress.admin_override` (+ `_by`/`_at`/`_note`),
+    ORs it into `student_verified_module_progress` ahead of every other
+    condition, broadens the reconcile trigger from soc-01-only to every
+    module, and adds `admin_set_module_override(p_user_id, p_track_code,
+    p_module_key, p_override, p_note)` — `security definer`, gated on
+    `public.is_admin()`, the only way this column is ever written.
+  - `portal/app.js` — admin student-detail module table now selects
+    `admin_override`/`admin_override_at`, shows an "(admin override)" tag,
+    and has a "Mark complete (override)" / "Remove override" button per
+    module row that calls the new RPC and refreshes the panel.
+  - `portal/soc-analyst-module-01.js` — `moduleOneQuizPanel()` now detects
+    "reads complete elsewhere (verified/admin override/evidence flag) but
+    this browser has no real local answers" and shows an "Already verified
+    complete" summary with a "Retake this knowledge check" button, instead
+    of a blank, freshly-shuffled quiz that contradicted the nav rail.
+    `moduleOneProgress()`'s `knowledgeCheckComplete` now trusts the same
+    `verified` signal first, matching the existing pattern for
+    `guidedLabComplete`/`assessmentLabComplete`.
+  - `node --check` clean on both files; `bin/portal-check.js` unchanged
+    (38/39 — the one pre-existing `module 2  FAIL missing authored
+    Assessment Lab surface` predates this session, confirmed via `git
+    stash`, unrelated to this fix, not touched).
+  - Chrome extension was not connected this session — no live browser
+    round trip. `4437023872-SOCAN`'s actual production data was read
+    directly (read-only) to confirm the root cause; nothing was written.
+  **Not done — needs the owner:**
+  1. `supabase db push` (Modify-Shared-Resources/production-deploy class
+     action, same as every other migration in this repo — the agent
+     doesn't run this).
+  2. Sign in as `7355312413-ADMIN`, open `4437023872-SOCAN`'s detail panel,
+     click "Mark complete (override)" on Module 1 (`soc-01`). That's the
+     actual fix for this specific account — confirmed live afterward the
+     same student should see the whole course unlocked.
+  3. The other two accounts this repo has flagged before with the same
+     backfill-desync shape (`9334491415-SOCAN`, `5520852787-SOCAN`) are
+     worth checking the same way — not independently re-confirmed this
+     session (one read query against them was blocked by the harness's own
+     auto-mode classifier; re-run it, or just open each one in the admin
+     panel and look).

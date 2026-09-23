@@ -8258,7 +8258,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     panel.dataset.studentId = studentId;
     panel.innerHTML = `<div class="text-sm text-gray-400 py-6">Loading student record…</div>`;
     const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes] = await Promise.all([
-      mntSupabase.from('module_progress').select('module_key, state, percent, started_at, completed_at').eq('user_id', row.user_id).eq('track_code', row.track_code),
+      mntSupabase.from('module_progress').select('module_key, state, percent, started_at, completed_at, admin_override, admin_override_at').eq('user_id', row.user_id).eq('track_code', row.track_code),
       mntSupabase.from('lab_attempts').select('lab_key, state, score, started_at, completed_at, result').eq('user_id', row.user_id).eq('track_code', row.track_code),
       mntSupabase.from('capstone_submissions').select('stage, score, submitted_at, answers').eq('user_id', row.user_id).eq('track_code', row.track_code).order('stage', { ascending: true }),
       mntSupabase.from('capstone_scorecard').select('overall_score, investigation_accuracy, detection_score, threat_hunting_score, incident_response_score, vulnerability_score, reporting_score, stages_submitted').eq('user_id', row.user_id).eq('track_code', row.track_code).maybeSingle(),
@@ -8323,6 +8323,35 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     const detailPanels = [document.getElementById('student-detail-panel'), ...document.querySelectorAll('[data-admin-inline-detail]')];
     detailPanels.filter(Boolean).forEach((detailPanel) => {
       detailPanel.addEventListener('click', async (event) => {
+        const overrideBtn = event.target.closest('[data-admin-module-override]');
+        if (overrideBtn) {
+          const overrideValue = overrideBtn.getAttribute('data-override-value') === 'true';
+          const studentId = overrideBtn.getAttribute('data-student-id');
+          const moduleKey = overrideBtn.getAttribute('data-module-key');
+          const label = adminModuleLabel(overrideBtn.getAttribute('data-track-code'), moduleKey);
+          const confirmed = confirm(overrideValue
+            ? `Mark ${label} complete for ${studentId} regardless of lab/quiz status? This shows green everywhere for this student immediately and survives future grading-rule changes.`
+            : `Remove the admin override on ${label} for ${studentId}? The module's status will go back to whatever the real lab/quiz records support.`);
+          if (!confirmed) return;
+          overrideBtn.disabled = true;
+          const originalText = overrideBtn.textContent;
+          overrideBtn.textContent = 'Saving…';
+          const { error } = await mntSupabase.rpc('admin_set_module_override', {
+            p_user_id: overrideBtn.getAttribute('data-user-id'),
+            p_track_code: overrideBtn.getAttribute('data-track-code'),
+            p_module_key: moduleKey,
+            p_override: overrideValue,
+          });
+          if (error) {
+            console.error('admin_set_module_override failed', moduleKey, error);
+            overrideBtn.textContent = 'Failed — see console';
+            setTimeout(() => { overrideBtn.textContent = originalText; overrideBtn.disabled = false; }, 2500);
+            return;
+          }
+          const targetPanel = detailPanel.id === 'student-detail-panel' ? detailPanel : detailPanel.firstElementChild.firstElementChild;
+          await loadAdminStudentDetail(targetPanel, studentId);
+          return;
+        }
         const transcriptBtn = event.target.closest('[data-transcript-pdf]');
         const evidenceBtn = event.target.closest('[data-evidence-pdf]');
         const trigger = transcriptBtn || evidenceBtn;
@@ -8407,6 +8436,14 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
   const m360Detail = row.m360_required
     ? `<section class="mt-8"><h3 class="text-base font-semibold text-[#1e3a5f] mb-3">M360 Career Readiness</h3><div class="grid grid-cols-2 md:grid-cols-3 gap-3"><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Accepted weeks</p><p class="text-lg font-semibold text-[#1e3a5f]">${Number(row.m360_accepted_weeks || 0)} / ${Number(row.m360_required_weeks || 6)}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Final grade</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_final_grade == null ? '—' : esc(Number(row.m360_final_grade).toFixed(1))}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Start Here</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_start_here_complete ? 'Complete' : 'Not started'}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Networking confidence</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.networking_comfort == null ? '— / 5' : `${Number(row.networking_comfort)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Interview readiness</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.interview_readiness == null ? '— / 5' : `${Number(row.interview_readiness)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Course status</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_course_complete ? 'Complete' : 'In progress'}</p></div></div><p class="text-xs text-gray-500 mt-3">M360 is a separate career-readiness course record. It appears on the student transcript but is not technical-module credit.</p></section>`
     : '';
+  // Admin completion override (public.admin_set_module_override RPC): the
+  // one durable, formula-independent way to mark a module complete for a
+  // student. Unlike backfilling detail flags or a synthetic lab_attempts row
+  // (fragile — silently breaks whenever student_verified_module_progress's
+  // formula is next tightened, see the 2026-09-23 migration), this always
+  // reads complete everywhere — nav rail, module cards, sequential gating,
+  // this roster — because student_verified_module_progress ORs it in ahead
+  // of every other condition.
   const moduleSection = moduleRows.length === 0
     ? `<p class="text-sm text-gray-400">No module progress recorded.</p>`
     : `<div class="overflow-x-auto">
@@ -8416,14 +8453,27 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Module</th>
                <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Percent</th>
+               <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Admin override</th>
              </tr>
            </thead>
            <tbody>
              ${moduleRows.slice().sort((a, b) => String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminModuleLabel(row.track_code, m.module_key))}</td>
-                 <td class="px-4 py-2"><span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span></td>
+                 <td class="px-4 py-2"><span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
                  <td class="px-4 py-2 text-gray-600">${m.percent}%</td>
+                 <td class="px-4 py-2">
+                   <button type="button"
+                     data-admin-module-override
+                     data-user-id="${esc(row.user_id)}"
+                     data-track-code="${esc(row.track_code)}"
+                     data-student-id="${esc(row.student_id)}"
+                     data-module-key="${esc(m.module_key)}"
+                     data-override-value="${m.admin_override ? 'false' : 'true'}"
+                     class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer ${m.admin_override ? 'bg-white border-gray-300 text-gray-600 hover:border-gray-400' : 'bg-[#1e3a5f] border-[#1e3a5f] text-white hover:bg-[#16304f]'}">
+                     ${m.admin_override ? 'Remove override' : 'Mark complete (override)'}
+                   </button>
+                 </td>
                </tr>`).join('')}
            </tbody>
          </table>
