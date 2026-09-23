@@ -8,8 +8,11 @@
  * shared left rail is the only Learn/Practice/Prove navigator — this file
  * must never render a second phase rail, a set of phase tabs, or a stateful
  * "quiz" panel competing with the console for width. Learn It stays in the
- * module for in-context coaching. Practice It and Prove It open the same
- * enterprise-style console in a dedicated browser workspace.
+ * module for in-context coaching, using its own Network & Identity Security
+ * console. Practice It (Guided Lab) and Prove It (Assessment Lab) instead
+ * launch imported Mission Next labs (portal/imported-labs/mission-next-labs/) in a
+ * new tab, with an inline notes/write-up panel here for local completion
+ * tracking and instructor review.
  */
 (function () {
   const LAB_ID = 'm02-trust-path-review-v1';
@@ -72,15 +75,17 @@
     { id: 'zero-trust', prompt: 'Alice authenticates successfully from inside the corporate network. Why is her Finance file request still evaluated under Zero Trust reasoning?', options: [{ id: 'a', text: 'Every request is evaluated on identity, device, and resource context — network location alone is not trusted' }, { id: 'b', text: 'Internal network location is automatically trusted' }, { id: 'c', text: 'Authentication alone is sufficient once inside the network' }, { id: 'd', text: 'Zero Trust only applies to external users' }], correct: 'a', correctMsg: 'Correct. Zero Trust evaluates each request on its own context rather than trusting network location.', incorrectMsg: 'Zero Trust does not grant trust by network location — each request is evaluated on identity, device, and resource context.' },
   ];
 
-  const PRACTICE_HINTS = [
-    'Open John Smith’s identity in the console to see his assigned groups.',
-    'Open the HR-FILE-01 policy to see which groups it authorizes.',
-    'Compare John’s groups against the policy’s authorized groups — a successful sign-in is not the same as being authorized.',
+  // Imported Mission Next training labs (portal/imported-labs/mission-next-labs/),
+  // wired in place of the bespoke HR-FILE-01 case simulation. Each opens the
+  // static imported app on this page, with a returnTo param so its own Back
+  // button lands the student back on this module instead of the lab app's catalog.
+  const RETURN_TO = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/2');
+  const GUIDED_LAB_LINKS = [
+    { label: 'Basic Network Security Assessment', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/security-assessments/project/sa-1/lab` },
+    { label: 'User Account Security Assessment', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/security-assessments/project/sa-5/lab` },
   ];
-  const PRACTICE_EVIDENCE = ['Identity groups', 'Device compliance', 'Destination policy', 'Protocol / port', 'MFA status'];
-  const PRACTICE_REQUIRED_EVIDENCE = ['Identity groups', 'Destination policy'];
-  const PROVE_EVIDENCE = ['Identity', 'Device', 'Resource', 'Policy'];
-  const PROVE_ANSWER_EVENT = 'evt-john-hr-allowed';
+  const ASSESSMENT_LAB_LINK = { label: 'Active Directory Logs and Insights with Splunk', href: `imported-labs/mission-next-labs/index.html?returnTo=${RETURN_TO}#/track/active-directory/project/ad-2/lab` };
+  const ASSESSMENT_MIN_NOTE_LENGTH = 80;
 
   const SOURCES = [
     { title: 'Zero Trust Architecture (SP 800-207)', org: 'NIST', url: 'https://csrc.nist.gov/pubs/sp/800/207/final', note: 'Comprehensive guide to assuming no inherent trust and evaluating each request on identity, device, location, and risk.' },
@@ -92,8 +97,8 @@
 
   const DEFAULT = {
     learn: { step: 0, tab: 'map', selected: { type: 'event', id: 'evt-alice-finance' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
-    practice: { tab: 'activity', selected: { type: 'event', id: 'evt-john-hr-denied' }, opened: [], decision: '', evidence: [], hint: 0, feedback: '', complete: false },
-    prove: { tab: 'activity', selected: { type: 'event', id: 'evt-alice-finance' }, opened: [], decision: '', event: '', evidence: [], note: '', submitted: false, score: 0, feedback: '' },
+    practice: { notes: '', complete: false },
+    prove: { notes: '', submitted: false, attempts: 0, feedback: [], lastSubmittedAt: '' },
     completed: false,
   };
 
@@ -139,13 +144,18 @@
         ...value,
         selected: { ...defaults.selected, ...(value.selected && typeof value.selected === 'object' ? value.selected : {}) },
         opened: Array.isArray(value.opened) ? value.opened : [],
-        evidence: Array.isArray(value.evidence) ? value.evidence : [],
       };
     };
     state.learn = normalizeScope(state.learn, DEFAULT.learn);
     state.learn.knowledgeAnswers = state.learn.knowledgeAnswers && typeof state.learn.knowledgeAnswers === 'object' ? state.learn.knowledgeAnswers : {};
-    state.practice = normalizeScope(state.practice, DEFAULT.practice);
-    state.prove = normalizeScope(state.prove, DEFAULT.prove);
+    // Practice It / Prove It are now imported-lab launch panels with a
+    // write-up, not entity-selection scopes, so they merge flat against their
+    // own defaults instead of going through normalizeScope's console shape.
+    state.practice = { ...DEFAULT.practice, ...(state.practice && typeof state.practice === 'object' ? state.practice : {}) };
+    state.prove = { ...DEFAULT.prove, ...(state.prove && typeof state.prove === 'object' ? state.prove : {}) };
+    if (!Array.isArray(state.prove.feedback)) state.prove.feedback = [];
+    if (typeof state.practice.notes !== 'string') state.practice.notes = '';
+    if (typeof state.prove.notes !== 'string') state.prove.notes = '';
     if (typeof markModuleContentOpened === 'function') markModuleContentOpened(u, 'soc-analyst', 'soc-02');
   }
   function save() { LabRuntime.save(LAB_ID, user, state); }
@@ -250,27 +260,13 @@
 
   // ------------------------------------------------------------- Practice It
 
-  function practiceGateSatisfied() {
-    const opened = state.practice.opened;
-    return opened.includes('user:john') && (opened.includes('policy:hr-policy') || opened.includes('resource:hr'));
-  }
-
   function practicePanel() {
     const p = state.practice;
-    const unlocked = practiceGateSatisfied();
-    if (!unlocked) {
-      return `<div class="m02e-practice-panel m02e-gate" id="m02e-practice-panel"><p class="m02e-label">DECISION ARTIFACT · LOCKED</p><p>Open John Smith’s identity and the HR-FILE-01 policy in the console above before recording a decision. Authentication alone does not tell you whether access is authorized.</p></div>`;
-    }
-    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">DECISION ARTIFACT</p><h3>Should John’s access be allowed?</h3><div class="m02e-decisions">${['ALLOW', 'DENY', 'ESCALATE'].map((d) => `<button class="${p.decision === d ? 'is-selected' : ''}" data-m02e-practice-decision="${d}">${d}</button>`).join('')}</div><h4>Supporting evidence</h4>${PRACTICE_EVIDENCE.map((item) => `<label><input type="checkbox" data-m02e-practice-evidence value="${esc(item)}" ${p.evidence.includes(item) ? 'checked' : ''}> ${esc(item)}</label>`).join('')}<label class="m02e-rationale">Analyst rationale<textarea data-m02e-practice-note rows="2" maxlength="400" placeholder="State what the evidence shows.">${esc(p.rationale || '')}</textarea></label><div class="m02e-panel-actions"><button class="m02e-primary" type="button" data-m02e-practice-submit>Check reasoning</button><button class="m02e-secondary" type="button" data-m02e-hint>Hint (${Math.min(p.hint + 1, PRACTICE_HINTS.length)}/${PRACTICE_HINTS.length})</button></div>${p.feedback ? `<div class="m02e-feedback ${p.complete ? 'is-correct' : ''}">${esc(p.feedback)}</div>` : ''}</div>`;
+    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">GUIDED LAB</p><p class="m02e-panel-instruction">Work through both imported security-assessment projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p><div class="m02e-external-lab-links">${GUIDED_LAB_LINKS.map((l) => `<a class="m02e-lab-launch" href="${esc(l.href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div><label class="m02e-rationale">Working notes (optional)<textarea data-m02e-practice-notes rows="4" maxlength="900" placeholder="What did you find? Any blockers?">${esc(p.notes)}</textarea></label><div class="m02e-panel-actions"><button class="m02e-primary" type="button" data-m02e-practice-complete>${p.complete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div></div>`;
   }
 
-  function submitPractice() {
-    const p = state.practice;
-    const evidenceOk = PRACTICE_REQUIRED_EVIDENCE.every((x) => p.evidence.includes(x));
-    p.complete = p.decision === 'DENY' && evidenceOk;
-    p.feedback = p.complete
-      ? 'Correct. John authenticated successfully, but Operations-Read is not authorized by HR-FILE-01’s HR-Read policy — the access should be denied.'
-      : 'Reassess: a successful sign-in confirms identity, not permission. Compare John’s groups to HR-FILE-01’s authorized groups before deciding.';
+  function markPracticeComplete() {
+    state.practice.complete = true;
     save();
     renderScope('practice');
   }
@@ -279,57 +275,37 @@
 
   function provePanel() {
     const p = state.prove;
-    const sel = p.selected;
-    const selectedLabel = sel.type === 'event' ? (() => { const e = by('event', sel.id), x = entity(e); return `${e.time} · ${x.user.username} → ${x.resource.name} · ${e.result}`; })() : 'No event selected';
-    return `<section class="m01-console m02e-case-record" id="m02e-prove-panel" aria-labelledby="m02e-case-record-title"><header class="m01-console-header"><span class="m01-console-badge">Assessment case · access policy review</span><h3 id="m02e-case-record-title">Analyst case record</h3><p>Document the event you investigated, your determination, and the evidence that supports it.</p></header><div class="m01-console-body"><section class="m01-console-pane m01-console-ticket"><p class="m01-console-pane-title">Case record <span class="muted">Independent assessment</span></p><form class="m01-ticket-form"><div class="m01-ticket-case"><strong>CASE M02-ACCESS-01</strong><span>${p.submitted ? 'Submitted for review' : 'In progress'}</span></div><div class="m01-ticket-grid"><label class="m01-ticket-field">Investigated activity<span class="m02e-readonly">${esc(selectedLabel)}</span></label><label class="m01-ticket-field">Determination<select data-m02e-prove-decision ${p.submitted ? 'disabled' : ''}><option value="">Select determination</option><option value="POLICY VIOLATION" ${p.decision === 'POLICY VIOLATION' ? 'selected' : ''}>Policy violation</option><option value="NO VIOLATION" ${p.decision === 'NO VIOLATION' ? 'selected' : ''}>No policy violation</option></select></label></div><label class="m01-ticket-field">Evidence reviewed<select multiple size="4" data-m02e-prove-evidence ${p.submitted ? 'disabled' : ''}>${PROVE_EVIDENCE.map((item) => `<option value="${esc(item)}" ${p.evidence.includes(item) ? 'selected' : ''}>${esc(item)}</option>`).join('')}</select></label><label class="m01-ticket-field m01-ticket-notes">Analyst work notes<textarea data-m02e-prove-note rows="5" maxlength="600" placeholder="Document the policy mismatch, the evidence reviewed, and the appropriate follow-up." ${p.submitted ? 'disabled' : ''}>${esc(p.note)}</textarea></label><div class="m01-ticket-actions"><span class="m02e-case-hint">Review identity, device, resource, and policy context before submitting.</span><button class="m01-submit" type="button" data-m02e-prove-submit ${p.submitted ? 'disabled' : ''}>${p.submitted ? 'Submitted for review' : 'Submit case for review'}</button></div></form>${p.feedback ? `<div class="m02e-feedback">${esc(p.feedback)}</div>` : ''}</section></div></section>`;
+    const feedbackHtml = p.feedback?.length ? `<div class="m02e-feedback ${p.submitted ? 'is-correct' : ''}" role="status"><ul>${p.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
+    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete the imported Active Directory logs project, then write up your findings below for instructor review.</p><div class="m02e-external-lab-links"><a class="m02e-lab-launch" href="${esc(ASSESSMENT_LAB_LINK.href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(ASSESSMENT_LAB_LINK.label)}</a></div><form id="m02e-prove-form"><label class="m02e-rationale">Assessment write-up<textarea id="m02e-prove-notes" rows="6" maxlength="900" placeholder="Summarize what the Splunk/AD logs surfaced, your analysis, and your recommended action…">${esc(p.notes)}</textarea></label><p class="m02e-help">In at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters, describe what you found and your recommended action.</p><div class="m02e-panel-actions"><button class="m02e-primary" type="submit">${p.submitted ? 'Resubmit for review' : 'Submit for review'}</button></div></form>${feedbackHtml}</div>`;
   }
 
-  function submitProve() {
+  function submitProve(notes) {
     const p = state.prove;
-    if (p.selected.type !== 'event' || !p.decision || !p.note.trim()) {
-      p.feedback = 'Select an event, a determination, and write your analyst note before submitting.';
-      save(); renderScope('prove'); return;
+    p.notes = notes;
+    if (notes.trim().length < ASSESSMENT_MIN_NOTE_LENGTH) {
+      p.feedback = [`Write at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters describing your findings and recommended action before submitting.`];
+      save();
+      renderScope('prove');
+      return;
     }
-    p.event = p.selected.id;
-    // Credit only the actual violation, correctly classified — the case
-    // brief's "a denied event is not automatically malicious" framing guards
-    // against false positives, but does not by itself earn assessment credit.
-    const decisionMatches = p.event === PROVE_ANSWER_EVENT && p.decision === 'POLICY VIOLATION';
-    const evidenceComplete = PROVE_EVIDENCE.every((x) => p.evidence.includes(x));
-    const noteQuality = p.note.trim().length >= 45;
-    const score = (decisionMatches ? 45 : 0) + (evidenceComplete ? 30 : 0) + (noteQuality ? 25 : 0);
-    p.score = score;
+    p.attempts = (p.attempts || 0) + 1;
+    p.lastSubmittedAt = new Date().toISOString();
     p.submitted = true;
     // Deliberately no verdict or correct-answer reveal here — this is a
     // reviewable submission, not a self-graded quiz (correction brief §4).
-    p.feedback = 'Submitted. This determination has been recorded as your Prove It assessment for review.';
+    p.feedback = ['Submitted. This write-up has been recorded as your Assessment Lab submission for instructor review.'];
 
-    // Instructor-facing payload (docs/LAB_ASSESSMENT_STANDARD.md): the score
-    // breakdown and explicit misses are for faculty review, not the student
-    // panel above — the student never sees this feedback array. The full
-    // event label and analyst note are carried in `access_review` rather than
-    // only a raw event id, so adminModuleTwoAccessReviewPanel() (app.js) can
-    // render the student's actual investigation and writing instead of JSON.
-    const eventRecord = by('event', p.event);
-    const eventEntities = eventRecord ? entity(eventRecord) : null;
-    const selectedEventLabel = eventEntities ? `${eventRecord.time} · ${eventEntities.user.name} (${eventEntities.user.username}) → ${eventEntities.resource.name} · ${eventRecord.result}` : p.event;
+    // Instructor-facing payload (docs/LAB_ASSESSMENT_STANDARD.md): carries the
+    // student's actual write-up in `access_review.analystNote` rather than
+    // only a raw score, so adminModuleTwoAccessReviewPanel() (app.js) keeps
+    // rendering readable student writing instead of JSON.
     const result = {
-      breakdown: { decision: decisionMatches ? 45 : 0, evidence: evidenceComplete ? 30 : 0, documentation: noteQuality ? 25 : 0 },
-      feedback: [
-        decisionMatches ? 'Correctly identified the incorrectly-allowed HR-FILE-01 event as the policy violation.' : 'Did not identify the incorrectly-allowed HR-FILE-01 event as the policy violation, or misclassified the selected event.',
-        evidenceComplete ? 'Cited identity, device, resource, and policy evidence.' : `Missing evidence citation(s): ${PROVE_EVIDENCE.filter((x) => !p.evidence.includes(x)).join(', ') || 'none'}.`,
-        noteQuality ? 'Analyst note meets the minimum length for a documented rationale.' : 'Analyst note is under 45 characters and likely insufficient documentation.',
-      ],
-      access_review: { selectedEvent: selectedEventLabel, decision: p.decision, evidenceReferenced: p.evidence.slice(), analystNote: p.note },
+      access_review: { selectedEvent: ASSESSMENT_LAB_LINK.label, decision: 'Submitted for review', evidenceReferenced: [], analystNote: notes },
     };
 
-    if (decisionMatches && evidenceComplete && noteQuality) {
-      state.completed = true;
-      if (typeof recordLabAttempt === 'function') recordLabAttempt(user, LAB_KEY, { state: 'complete', score, result });
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'soc-analyst', 'soc-02', LAB_KEY);
-    } else if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(user, LAB_KEY, { state: 'in_progress', score, result });
-    }
+    state.completed = true;
+    if (typeof recordLabAttempt === 'function') recordLabAttempt(user, LAB_KEY, { state: 'complete', result });
+    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'soc-analyst', 'soc-02', LAB_KEY);
     save();
     renderScope('prove');
   }
@@ -345,39 +321,10 @@
     ];
   }
 
-  function workspaceLaunch(scope) {
-    const isPractice = scope === 'practice';
-    const complete = isPractice ? state.practice.complete : state.completed || Boolean(user?.remoteVerifiedModuleProgress?.['soc-02']);
-    const started = isPractice ? state.practice.opened.length || state.practice.decision : state.prove.opened.length || state.prove.event;
-    const action = complete ? 'Review the workspace' : started ? (isPractice ? 'Resume Guided Lab' : 'Resume Assessment Lab') : (isPractice ? 'Launch Guided Lab' : 'Launch Assessment Lab');
-    const icon = complete ? 'ri-eye-line' : started ? 'ri-terminal-box-line' : 'ri-play-circle-line';
-    const status = complete
-      ? 'Saved work is available for review in the workspace.'
-      : 'Opens the Network & Identity Security environment in a new tab — a focused workspace for this investigation, not an LMS activity card.';
-    // Deliberately reuse Module 01's proven launch treatment. The lab remains
-    // outside this page; this is only the concise doorway into that workspace.
-    return `<div class="m01-lab-launch"><a class="m01-hero-action" href="?console=m02-${scope}${esc(location.hash)}" target="_blank" rel="opener"><i class="${icon}" aria-hidden="true"></i>${action}</a><p class="m01-lab-launch-status">${status}</p></div>`;
-  }
-
-  function workspaceView(scope, module) {
-    const isPractice = scope === 'practice';
-    const title = isPractice ? 'Guided investigation — HR access review' : 'Assessment investigation — access policy review';
-    const brief = isPractice
-      ? 'John Smith, an Operations Coordinator, attempted to access HR-FILE-01 at 08:17. His sign-in succeeded. Investigate the attempt, then record your decision.'
-      : 'Several access events occurred during the same shift. One violates the organization’s access policy. Review the evidence and submit your determination.';
-    return `<div class="m02e-workspace-shell">
-      <header class="m02e-workspace-topbar"><span><i class="ri-shield-keyhole-line" aria-hidden="true"></i> MISSION NEXT ENVIRONMENT · NETWORK &amp; IDENTITY SECURITY</span><a href="${esc(location.pathname)}#/program/soc-analyst/module/2"><i class="ri-arrow-left-line" aria-hidden="true"></i> Back to Module 02</a></header>
-      <main class="m02e-workspace-main"><div class="m02e-workspace-intro"><p>${isPractice ? 'GUIDED LAB' : 'ASSESSMENT LAB'} · MODULE 02</p><h1>${title}</h1><span>Your progress saves automatically</span></div><p class="m02e-workspace-brief">${brief}</p><div class="m02e-console-wrap" id="m02e-console-${scope}">${consoleHtml(scope)}</div>${isPractice ? practicePanel() : provePanel()}</main>
-    </div>`;
-  }
-
   function view(u, program) {
     load(u);
     const module = program?.modules?.['soc-02'] || {};
     applyLearnFocus();
-    const consoleParam = new URLSearchParams(location.search).get('console');
-    if (consoleParam === 'm02-practice') return workspaceView('practice', module);
-    if (consoleParam === 'm02-prove') return workspaceView('prove', module);
     return `<div class="m01-shell m02e-shell">
       ${moduleTopbar(u, program)}
       <div class="mquick-nav-layout">
@@ -397,13 +344,13 @@
           </section>
 
           <section class="m01-section m02e-section" id="m02e-practice" aria-labelledby="m02e-practice-title">
-            <div class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Practice It · guided case</p><h2 id="m02e-practice-title">Should John Smith’s HR-FILE-01 access be allowed?</h2></div></div>
-            ${workspaceLaunch('practice')}
+            <div class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Practice It · Guided Lab</p><h2 id="m02e-practice-title">Security assessment practice</h2></div></div>
+            ${practicePanel()}
           </section>
 
           <section class="m01-section m02e-section" id="m02e-prove" aria-labelledby="m02e-prove-title">
-            <div class="m01-section-heading"><span>3</span><div><p class="m01-kicker">Prove It · assessment lab</p><h2 id="m02e-prove-title">Independent security review</h2></div></div>
-            ${workspaceLaunch('prove')}
+            <div class="m01-section-heading"><span>3</span><div><p class="m01-kicker">Prove It · Assessment Lab</p><h2 id="m02e-prove-title">Independent Active Directory log review</h2></div></div>
+            ${provePanel()}
           </section>
 
           <section class="m01-section m01-section-supplemental m02e-section" id="m02e-sources" aria-labelledby="m02e-sources-title">
@@ -416,7 +363,7 @@
   }
 
   function wire() {
-    const root = document.querySelector('.m02e-shell, .m02e-workspace-shell');
+    const root = document.querySelector('.m02e-shell');
     if (!root) return;
 
     wireReviewToggle({
@@ -439,22 +386,22 @@
       if (button.hasAttribute('data-m02e-learn-next')) { state.learn.step = Math.min(LEARN_STEPS.length, state.learn.step + 1); applyLearnFocus(); save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-learn-restart')) { state.learn.step = 0; applyLearnFocus(); save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-knowledge-submit')) { state.learn.knowledgeScored = true; save(); renderScope('learn'); return; }
-      if (button.dataset.m02ePracticeDecision) { state.practice.decision = button.dataset.m02ePracticeDecision; save(); renderScope('practice'); return; }
-      if (button.hasAttribute('data-m02e-hint')) { const p = state.practice; p.hint = Math.min(PRACTICE_HINTS.length - 1, p.hint + 1); p.feedback = PRACTICE_HINTS[p.hint]; save(); renderScope('practice'); return; }
-      if (button.hasAttribute('data-m02e-practice-submit')) { submitPractice(); return; }
-      if (button.hasAttribute('data-m02e-prove-submit')) { submitProve(); return; }
+      if (button.hasAttribute('data-m02e-practice-complete')) { markPracticeComplete(); return; }
     };
 
     root.onchange = (ev) => {
       const t = ev.target;
       if (t.matches('[data-m02e-knowledge-answer]')) { state.learn.knowledgeAnswers[t.dataset.questionId] = t.value; state.learn.knowledgeScored = false; save(); renderScope('learn'); return; }
-      if (t.matches('[data-m02e-practice-evidence]')) { state.practice.evidence = t.checked ? [...new Set([...state.practice.evidence, t.value])] : state.practice.evidence.filter((x) => x !== t.value); save(); return; }
-      if (t.matches('[data-m02e-prove-decision]')) { state.prove.decision = t.value; save(); return; }
-      if (t.matches('[data-m02e-prove-evidence]')) { state.prove.evidence = Array.from(t.selectedOptions).map((option) => option.value); save(); return; }
     };
     root.oninput = (ev) => {
-      if (ev.target.matches('[data-m02e-practice-note]')) { state.practice.rationale = ev.target.value; save(); return; }
-      if (ev.target.matches('[data-m02e-prove-note]')) { state.prove.note = ev.target.value; save(); return; }
+      if (ev.target.matches('[data-m02e-practice-notes]')) { state.practice.notes = ev.target.value; save(); return; }
+      if (ev.target.id === 'm02e-prove-notes') { state.prove.notes = ev.target.value; save(); return; }
+    };
+    root.onsubmit = (ev) => {
+      if (ev.target.id !== 'm02e-prove-form') return;
+      ev.preventDefault();
+      const notes = document.getElementById('m02e-prove-notes')?.value || '';
+      submitProve(notes);
     };
   }
 

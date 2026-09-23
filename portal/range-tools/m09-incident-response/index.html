@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Incident Response Commander — Module 9</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #111827; color: #f9fafb; font-family: system-ui, sans-serif; }
+    #m09-boot-status { padding: 24px; color: #9ca3af; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="m09-boot-status">Loading Incident Response Console…</div>
+  <div id="m09-root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+  <script type="text/babel" src="incident-response.jsx"></script>
+  <script type="text/babel">
+    const statusEl = document.getElementById('m09-boot-status');
+    if (!window.React || !window.ReactDOM || !window.IncidentResponseConsole) {
+      statusEl.textContent = 'Failed to load Incident Response dependencies.';
+    } else {
+      const mode = new URLSearchParams(location.search).get('mode') === 'prove' ? 'prove' : 'practice';
+      statusEl.remove();
+      const root = ReactDOM.createRoot(document.getElementById('m09-root'));
+      root.render(<window.IncidentResponseConsole mode={mode} />);
+    }
+  </script>
+</body>
+</html>

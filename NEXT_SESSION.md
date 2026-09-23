@@ -1,3 +1,11 @@
+**2026-09-23 (lab-wiring session, out-of-queue, not a `ROADMAP.md` item):**
+if you are touching anything related to Mission Next / imported labs / the
+Guided Lab / Assessment Lab wiring for Modules 2–11, read
+`HANDOFF_2026-09-23_MISSION_NEXT_LAB_WIRING.md` FIRST. It supersedes every
+other Mission Next/lab-migration doc in this repo. The previously reported
+lab-launch crash and login-redirect-on-exit bug are fixed there; re-run the
+imported-app smoke checks before student release.
+
 # Next session — use the canonical roadmap
 
 `ROADMAP.md` is the single active delivery queue. Read it first, select one

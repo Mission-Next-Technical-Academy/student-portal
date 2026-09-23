@@ -3,7 +3,6 @@
  */
 
 const MODULE_NINE_LAB_ID = 'm09-proportional-response-v1';
-const MODULE_NINE_SECOND_LAB_ID = 'm09-independent-containment-v1';
 const MODULE_NINE_FLAG = 'M09-INCIDENT-RESPONSE-COMPLETE';
 const MODULE_NINE_CATALOG_LAB_KEY = 'lab-active-incident';
 const MODULE_NINE_PASSING_SCORE = 70;
@@ -424,24 +423,10 @@ const MODULE_NINE_RESPONSE_OPTIONS = {
   ],
 };
 
-const MODULE_NINE_INDEPENDENT_CASE = {
-  id: 'INC-4942',
-  title: 'Independent response drill — backup service disruption',
-  summary: 'A second Mission Next Labs endpoint shows suspicious encryption-like file changes after a privileged account session. The learner must decide whether to isolate, preserve, or escalate from a smaller evidence slice.',
-  records: [
-    { id: 'M09-B01', label: 'ws-208 endpoint alert', detail: '11 files changed rapidly by an unsigned process; no confirmed service stop.', relevant: true },
-    { id: 'M09-B02', label: 'acct-208 sign-in', detail: 'Privileged account session from its registered workstation; MFA satisfied.', relevant: false },
-    { id: 'M09-B03', label: 'backup queue delay', detail: 'One backup job missed its window; cause is not yet established.', relevant: true },
-    { id: 'M09-B04', label: 'fleet search', detail: 'No matching file-change pattern in the assigned 30-minute search window.', relevant: true },
-  ],
-  expected: { classification: 'contain-investigate', scope: 'ws-208-only', escalation: 'lead-owner', action: 'isolate-preserve' },
-};
-
 let moduleNineState = null;
 let moduleNineUser = null;
 let moduleNineQuizState = null;
 let moduleNineReviewMode = false;
-let moduleNineSecondState = null;
 
 function moduleNineFreshDefaults() {
   return {
@@ -460,18 +445,15 @@ function moduleNineFreshDefaults() {
     feedback: [],
     validationError: '',
     lastSubmittedAt: '',
+    practiceComplete: false,
+    practiceNotes: '',
   };
-}
-
-function moduleNineSecondFreshDefaults() {
-  return { selected: [], independentClassification: '', independentScope: '', independentEscalation: '', independentAction: '', notes: '', attempts: 0, score: 0, feedback: [], completed: false };
 }
 
 function moduleNineLoad(user) {
   moduleNineUser = user;
   const defaults = moduleNineFreshDefaults();
   moduleNineState = LabRuntime.load(MODULE_NINE_LAB_ID, user, defaults);
-  moduleNineSecondState = LabRuntime.load(MODULE_NINE_SECOND_LAB_ID, user, moduleNineSecondFreshDefaults());
   ['reviewedSources', 'selectedEvidence', 'hintsOpened', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleNineState[key])) moduleNineState[key] = [];
   });
@@ -480,6 +462,7 @@ function moduleNineLoad(user) {
     if (!Array.isArray(moduleNineState.responsePlan[phase])) moduleNineState.responsePlan[phase] = [];
   });
   if (!MODULE_NINE_SOURCES[moduleNineState.activeSource]) moduleNineState.activeSource = 'endpoint';
+  if (typeof moduleNineState.practiceNotes !== 'string') moduleNineState.practiceNotes = '';
 
   // Initialize quiz state
   if (!moduleNineQuizState) {
@@ -518,7 +501,8 @@ function moduleNineGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm09-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleNineQuizState?.passed, scrollId: 'm09-knowledge-check' },
-    { id: 'module-lab', title: 'Module Lab', type: 'lab', isComplete: moduleNineState.completed && moduleNineSecondState?.completed, scrollId: 'm09-lab' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleNineState.practiceComplete, scrollId: 'm09-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleNineState.completed, scrollId: 'm09-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm09-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm09-sources', gated: false, supplemental: true },
   ];
@@ -733,43 +717,18 @@ function moduleNineArtifact() {
 }
 
 function moduleNineDynamic() {
-  return `${moduleNineInvestigation()}${moduleNineArtifact()}${moduleNineSecondLab()}`;
+  return `${moduleNineInvestigation()}${moduleNineArtifact()}`;
 }
 
-function moduleNineSecondLab() {
-  const state = moduleNineSecondState || moduleNineSecondFreshDefaults();
-  return `<section class="m09-workbench" aria-labelledby="m09-independent-title"><div class="m09-casebar"><div><p class="m09-kicker">Independent lab · 45 minutes · ${MODULE_NINE_INDEPENDENT_CASE.id}</p><h3 id="m09-independent-title">${esc(MODULE_NINE_INDEPENDENT_CASE.title)}</h3><p>${esc(MODULE_NINE_INDEPENDENT_CASE.summary)}</p></div><dl><div><dt>Role</dt><dd>Tier 1 responder</dd></div><div><dt>Authority</dt><dd>Preserve and recommend</dd></div><div><dt>Best action</dt><dd>Proportionate containment</dd></div></dl></div>
-    <form class="m09-artifact" id="m09-independent-form" novalidate><div class="m09-panel-heading"><div><p class="m09-kicker">Fresh evidence slice · no answer path reused</p><h3>Make and explain the first response decision</h3></div><span>Pass 70/100</span></div>
-      <fieldset class="m09-fieldset"><legend>Review the assigned records</legend><p class="m09-help">Select facts that support an immediate, bounded decision. The registered sign-in is context, not proof of compromise.</p><div class="m09-option-list">${MODULE_NINE_INDEPENDENT_CASE.records.map((record) => `<label><input type="checkbox" name="independentEvidence" value="${esc(record.id)}" ${state.selected.includes(record.id) ? 'checked' : ''} /><span><strong>${esc(record.label)}</strong><small>${esc(record.detail)}</small></span></label>`).join('')}</div></fieldset>
-      ${moduleNineRadioGroupForState('independentClassification', 'Classification', 'Classify what the small slice supports.', [{ id: 'contain-investigate', label: 'Suspicious endpoint activity requiring containment and investigation', help: 'Preserves uncertainty while reducing active risk.' }, { id: 'confirmed-ransomware', label: 'Confirmed fleet-wide ransomware', help: 'Overstates the assigned evidence.' }, { id: 'benign', label: 'Benign backup maintenance', help: 'Does not explain the unsigned file-change activity.' }], state)}
-      ${moduleNineRadioGroupForState('independentScope', 'Current scope', 'State what is established, not what is feared.', [{ id: 'ws-208-only', label: 'ws-208 is the only confirmed affected endpoint; wider scope unknown', help: 'Matches the bounded search.' }, { id: 'fleet-wide', label: 'All endpoints are affected', help: 'No evidence supports this.' }, { id: 'none', label: 'No response is needed', help: 'The endpoint behavior merits action.' }], state)}
-      ${moduleNineRadioGroupForState('independentAction', 'First action', 'Choose the least disruptive action that limits active risk and protects evidence.', [{ id: 'isolate-preserve', label: 'Isolate ws-208 and preserve the assigned records before deeper changes', help: 'Proportionate first action.' }, { id: 'wipe-immediately', label: 'Wipe ws-208 immediately', help: 'May destroy evidence and exceeds the first-response need.' }, { id: 'wait', label: 'Wait for another alert', help: 'Leaves possible active impact uncontained.' }], state)}
-      ${moduleNineRadioGroupForState('independentEscalation', 'Escalation', 'Name the accountable owner for the next decision.', [{ id: 'lead-owner', label: 'Escalate to the incident lead and endpoint/backup owners', help: 'Connects response authority to the affected services.' }, { id: 'no-escalation', label: 'Close as a false positive', help: 'Not supported by the evidence.' }, { id: 'public-notice', label: 'Publish a breach notice', help: 'Beyond this evidence and role.' }], state)}
-      <label class="m09-note-label" for="m09-independent-notes">Independent handoff (minimum 100 characters)</label><textarea id="m09-independent-notes" name="independentNotes" rows="5" minlength="100" maxlength="800" placeholder="Observed facts: … Scope: … First action: … Owner and next decision: …">${esc(state.notes)}</textarea>
-      <div class="m09-actions"><button type="submit" class="m09-submit">Score independent decision</button><button type="button" class="m09-reset" data-m09-independent-reset>Reset independent lab</button></div>${moduleNineSecondScorePanel()}</form></section>`;
-}
-
-function moduleNineRadioGroupForState(name, legend, help, options, state) {
-  return `<fieldset class="m09-fieldset"><legend>${esc(legend)}</legend><p class="m09-help">${esc(help)}</p><div class="m09-option-list">${options.map((option) => `<label><input type="radio" name="${esc(name)}" value="${esc(option.id)}" ${state[name] === option.id ? 'checked' : ''} /><span><strong>${esc(option.label)}</strong><small>${esc(option.help)}</small></span></label>`).join('')}</div></fieldset>`;
-}
-
-function moduleNineSecondScorePanel() {
-  const state = moduleNineSecondState;
-  if (!state.attempts) return '<div class="m09-score-empty">Your independent decision is saved locally. Submit when the handoff is ready.</div>';
-  const passed = state.score >= 70;
-  return `<section class="m09-score ${passed ? 'is-pass' : 'is-remediate'}" tabindex="-1" aria-live="polite"><h3>${state.score}/100 — ${passed ? 'Independent decision accepted' : 'Revise the decision'}</h3><ul>${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></section>`;
-}
-
-function moduleNineSecondScore() {
-  const state = moduleNineSecondState;
-  const evidence = state.selected.length === 3 && ['M09-B01', 'M09-B03', 'M09-B04'].every((id) => state.selected.includes(id)) ? 25 : 0;
-  const decision = state.independentClassification === 'contain-investigate' ? 20 : 0;
-  const scope = state.independentScope === 'ws-208-only' ? 20 : 0;
-  const action = state.independentAction === 'isolate-preserve' ? 20 : 0;
-  const escalation = state.independentEscalation === 'lead-owner' ? 5 : 0;
-  const note = state.notes.trim().toLowerCase();
-  const communication = note.length >= 100 && /ws-208/.test(note) && /(isolate|preserv)/.test(note) && /(owner|lead|escalat)/.test(note) ? 10 : 0;
-  return { score: evidence + decision + scope + action + escalation + communication, feedback: [evidence ? 'Evidence: selected the impact, scope, and search-boundary records.' : 'Evidence: select M09-B01, M09-B03, and M09-B04; keep the normal sign-in as context.', decision ? 'Classification: treated suspicious endpoint activity as requiring containment and investigation.' : 'Classification: do not call this fleet-wide ransomware from this slice.', scope ? 'Scope: bounded the confirmed endpoint and kept the wider environment unknown.' : 'Scope: state the one confirmed endpoint and the search boundary.', action ? 'First action: isolate and preserve before deeper changes.' : 'First action: choose proportionate isolation and preservation.', escalation ? 'Escalation: named the incident lead and endpoint/backup owners.' : 'Escalation: route to accountable response owners.', communication ? 'Handoff: identifies observations, scope, action, and owner.' : 'Handoff: write at least 100 characters with ws-208, preservation/isolation, and an owner.'] };
+function moduleNineGuidedLabPanel() {
+  const returnTo = encodeURIComponent(window.location.origin + '/#/program/soc-analyst/module/9');
+  const href = `imported-labs/mission-next-labs/index.html?returnTo=${returnTo}#/track/malware-analysis/project/ma-3/lab`;
+  return `<section class="m09-external-lab" id="m09-guided-lab-panel">
+    <p class="m09-panel-instruction">Work through the imported malware-analysis project below; it opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
+    <div class="m09-external-lab-links"><a class="m09-lab-launch" href="${esc(href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Analyzing a Ransomware Sample</a></div>
+    <label class="m09-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m09-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleNineState.practiceNotes)}</textarea></label>
+    <div class="m09-actions"><button type="button" class="m09-submit" data-m09-practice-complete>${moduleNineState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+  </section>`;
 }
 
 function viewModuleNine(user, program) {
@@ -778,7 +737,8 @@ function viewModuleNine(user, program) {
   const sections = moduleNineGetSections();
   const lectureOpen = moduleNineReviewMode || !sections[0].isComplete;
   const quizOpen = moduleNineReviewMode || (moduleNineQuizState && !moduleNineQuizState.passed);
-  const labOpen = moduleNineReviewMode || !sections[2].isComplete;
+  const guidedLabOpen = moduleNineReviewMode || !sections[2].isComplete;
+  const assessmentLabOpen = moduleNineReviewMode || !sections[3].isComplete;
   const reviewOpen = moduleNineReviewMode;
   const quickNavItems = moduleNineGetQuickNavItems();
 
@@ -787,7 +747,7 @@ function viewModuleNine(user, program) {
     ${moduleProgressShell(sections, { reviewMode: moduleNineReviewMode })}
     <div class="mquick-nav-layout">
       <main class="m09-main">
-      <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · ${formatHandsOnDuration(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p></div><dl aria-label="Saved lab progress"><div><dt>Evidence sources</dt><dd>3</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Lab status</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · ${formatHandsOnDuration(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p></div><dl aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${moduleNineState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Assessment Lab</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m09-section-collapsible" ${lectureOpen ? 'open' : ''}>
         <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">1</span><div><p class="m09-kicker">Lecture</p><h2 id="m09-lecture">Incident response principles: correlation, scope, and proportionate action</h2></div></div></summary>
@@ -804,8 +764,16 @@ function viewModuleNine(user, program) {
         </div>
       </details>
 
-      <details class="m09-section-collapsible" ${labOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">3</span><div><p class="m09-kicker">Incident Response Labs</p><h2 id="m09-lab">Active ransomware response · INC-4937</h2></div></div></summary>
+      <details class="m09-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">3</span><div><p class="m09-kicker">Practice It · Guided Lab</p><h2 id="m09-guided-lab">Ransomware analysis practice</h2></div></div></summary>
+        <div class="m09-section-body">
+          <div class="m09-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in the imported training application on this page.</p></div>
+          <div id="m09-guided-lab-dynamic">${moduleNineGuidedLabPanel()}</div>
+        </div>
+      </details>
+
+      <details class="m09-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">4</span><div><p class="m09-kicker">Prove It · Assessment Lab</p><h2 id="m09-lab">Active ransomware response · INC-4937</h2></div></div></summary>
         <div class="m09-section-body">
           <div class="m09-ticket" aria-labelledby="m09-ticket-title"><div class="m09-ticket-head"><i class="ri-ticket-2-line" aria-hidden="true"></i><div><p class="m09-kicker">Assigned from the Tier 1 queue</p><h3 id="m09-ticket-title">INC-4937 · Endpoint alert, unconfirmed</h3></div><span class="m09-ticket-priority">P3 at intake</span></div><dl class="m09-ticket-grid"><div><dt>Reporting source</dt><dd>Automated endpoint sensor, ws-173</dd></div><div><dt>Reported</dt><dd>10:02 UTC</dd></div><div><dt>Assigned to</dt><dd>You (Tier 1, this shift)</dd></div><div><dt>Acknowledge / respond by</dt><dd>10:17 UTC / 14:02 UTC</dd></div></dl><p class="m09-ticket-note">The queue entry carries only what the sensor reported: possible encryption activity on one endpoint. Everything else below is what you find once you start looking — the ticket does not tell you it is ransomware, that it is contained, or that it is limited to one host.</p></div>
           <div class="m09-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: Tier 1 incident responder</strong><p>Investigate the three sources in any order. You may initiate playbook-approved containment and recommend later phases; the incident lead and system owners retain execution authority.</p></div></div>
@@ -814,12 +782,12 @@ function viewModuleNine(user, program) {
       </details>
 
       <details class="m09-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">4</span><div><p class="m09-kicker">Module Review</p><h2 id="m09-review">Key concepts and takeaways</h2></div></div></summary>
+        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">5</span><div><p class="m09-kicker">Module Review</p><h2 id="m09-review">Key concepts and takeaways</h2></div></div></summary>
         <div class="m09-section-body">${moduleNineReview()}</div>
       </details>
 
       <details class="m09-section-collapsible" ${moduleNineReviewMode ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">5</span><div><p class="m09-kicker">Sources &amp; Further Reading</p><h2 id="m09-sources">Authoritative references</h2></div></div></summary>
+        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">6</span><div><p class="m09-kicker">Sources &amp; Further Reading</p><h2 id="m09-sources">Authoritative references</h2></div></div></summary>
         <div class="m09-section-body">${moduleSourcesBlock(MODULE_NINE_SOURCES_LIST)}</div>
       </details>
     </main>
@@ -969,12 +937,6 @@ function wireModuleNineLab() {
     moduleNineRender(`m09-tab-${keys[next]}`);
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m09-independent-reset]')) {
-      moduleNineSecondState = LabRuntime.reset(MODULE_NINE_SECOND_LAB_ID, moduleNineUser, moduleNineSecondFreshDefaults());
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleNineUser, 'soc-analyst', 'soc-09', 'lab-independent-response', false);
-      moduleNineRender('m09-independent-title');
-      return;
-    }
     const sourceButton = event.target.closest('[data-m09-source]');
     if (sourceButton) {
       moduleNineState.activeSource = sourceButton.dataset.m09Source;
@@ -1029,11 +991,6 @@ function wireModuleNineLab() {
   }, true);
 
   root.addEventListener('input', (event) => {
-    if (event.target.name === 'independentNotes') {
-      moduleNineSecondState.notes = event.target.value;
-      LabRuntime.save(MODULE_NINE_SECOND_LAB_ID, moduleNineUser, moduleNineSecondState);
-      return;
-    }
     if (event.target.name !== 'notes') return;
     moduleNineState.notes = event.target.value;
     const count = root.querySelector('#m09-note-count');
@@ -1043,12 +1000,6 @@ function wireModuleNineLab() {
 
   root.addEventListener('change', (event) => {
     const input = event.target;
-    if (input.closest('#m09-independent-form')) {
-      if (input.name === 'independentEvidence') moduleNineSecondState.selected = moduleNineToggleValue(moduleNineSecondState.selected, input.value, input.checked);
-      else if (['independentClassification', 'independentScope', 'independentEscalation', 'independentAction'].includes(input.name)) moduleNineSecondState[input.name] = input.value;
-      LabRuntime.save(MODULE_NINE_SECOND_LAB_ID, moduleNineUser, moduleNineSecondState);
-      return;
-    }
     if (input.name === 'evidence') {
       moduleNineState.selectedEvidence = moduleNineToggleValue(moduleNineState.selectedEvidence, input.value, input.checked);
       moduleNineState.validationError = '';
@@ -1073,25 +1024,6 @@ function wireModuleNineLab() {
   });
 
   root.addEventListener('submit', (event) => {
-    if (event.target.id === 'm09-independent-form') {
-      event.preventDefault();
-      moduleNineSecondState.notes = event.target.elements.independentNotes.value;
-      const result = moduleNineSecondScore();
-      moduleNineSecondState.attempts += 1;
-      moduleNineSecondState.score = result.score;
-      moduleNineSecondState.feedback = result.feedback;
-      if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleNineUser, 'lab-independent-response', {
-        state: result.score >= 70 ? 'complete' : 'in_progress', score: result.score,
-        result: { notes: moduleNineSecondState.notes, attempts: moduleNineSecondState.attempts },
-      });
-      if (result.score >= 70) {
-        moduleNineSecondState.completed = true;
-        if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleNineUser, 'soc-analyst', 'soc-09', 'lab-independent-response');
-      }
-      LabRuntime.save(MODULE_NINE_SECOND_LAB_ID, moduleNineUser, moduleNineSecondState);
-      moduleNineRender('m09-independent-title');
-      return;
-    }
     if (event.target.id !== 'm09-form') return;
     event.preventDefault();
     moduleNineState.notes = event.target.elements.notes.value;
@@ -1155,7 +1087,26 @@ function wireModuleNine() {
   }
   // Wire quiz and lab components
   wireModuleNineQuiz();
+  wireModuleNineGuidedLab();
   wireModuleNineLab();
+}
+
+function wireModuleNineGuidedLab() {
+  const root = document.getElementById('m09-guided-lab-dynamic');
+  if (!root || !moduleNineState) return;
+  root.addEventListener('input', (event) => {
+    if (event.target.matches('[data-m09-practice-notes]')) {
+      moduleNineState.practiceNotes = event.target.value;
+      moduleNineSave();
+    }
+  });
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m09-practice-complete]')) {
+      moduleNineState.practiceComplete = true;
+      moduleNineSave();
+      root.innerHTML = moduleNineGuidedLabPanel();
+    }
+  });
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 9, moduleKey: 'soc-09', view: viewModuleNine, wire: wireModuleNine });

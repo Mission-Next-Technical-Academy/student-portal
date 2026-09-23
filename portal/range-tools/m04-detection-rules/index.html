@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Detection Rule Studio — Module 4</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; }
+    #m04-boot-status { padding: 24px; color: #94a3b8; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="m04-boot-status">Loading Detection Rule Studio…</div>
+  <div id="m04-root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+  <script src="rules-data.js"></script>
+  <script type="text/babel" src="detection-rules.jsx"></script>
+  <script type="text/babel">
+    const statusEl = document.getElementById('m04-boot-status');
+    if (!window.React || !window.ReactDOM || !window.DetectionRuleConsole) {
+      statusEl.textContent = 'Failed to load detection studio dependencies.';
+    } else {
+      const mode = new URLSearchParams(location.search).get('mode') === 'prove' ? 'prove' : 'practice';
+      statusEl.remove();
+      const root = ReactDOM.createRoot(document.getElementById('m04-root'));
+      root.render(<window.DetectionRuleConsole mode={mode} />);
+    }
+  </script>
+</body>
+</html>

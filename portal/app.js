@@ -57,6 +57,22 @@ function emailToDisplayId(email) {
  * render() can call this on every route change without refetching. */
 let _cachedUser = null;
 let _cachedUserPromise = null;
+const PENDING_PORTAL_ROUTE_KEY = 'mission_next_pending_portal_route';
+
+function rememberPendingPortalRoute(hash) {
+  if (!/^#\/program\/[a-z0-9-]+(?:\/module\/\d+)?$/.test(String(hash || ''))) return;
+  try { sessionStorage.setItem(PENDING_PORTAL_ROUTE_KEY, hash); } catch (_) { /* best effort */ }
+}
+
+function consumePendingPortalRoute() {
+  try {
+    const hash = sessionStorage.getItem(PENDING_PORTAL_ROUTE_KEY) || '';
+    sessionStorage.removeItem(PENDING_PORTAL_ROUTE_KEY);
+    return /^#\/program\/[a-z0-9-]+(?:\/module\/\d+)?$/.test(hash) ? hash : '';
+  } catch (_) {
+    return '';
+  }
+}
 
 // The initial screen must always resolve.  A stale auth token, an offline
 // browser, or an interrupted profile query should lead to the login screen,
@@ -4083,6 +4099,49 @@ function header(user, options = {}) {
   </header>`;
 }
 
+/* Resolve the catalogue record represented by a module route. Keeping this in
+ * the shared topbar means every existing course — and future registered
+ * courses — gets the current module label without each module having to pass
+ * or maintain a duplicate title. Explicit options remain useful when the
+ * topbar is rendered outside the router (for example, in an isolated preview). */
+function moduleTopbarModule(program, options = {}) {
+  const modules = Object.values((program && program.modules) || {});
+  if (options.moduleKey && program && program.modules && program.modules[options.moduleKey]) {
+    return program.modules[options.moduleKey];
+  }
+  if (options.moduleNumber !== undefined && options.moduleNumber !== null) {
+    return modules.find((module) => Number(module.number) === Number(options.moduleNumber)) || null;
+  }
+
+  const routeHash = options.routeHash !== undefined
+    ? options.routeHash
+    : (typeof location !== 'undefined' ? location.hash : '');
+  const route = String(routeHash || '').match(/^#\/program\/([a-z0-9-]+)\/module\/(\d+)$/);
+  if (!route || !program || route[1] !== program.slug) return null;
+  return modules.find((module) => Number(module.number) === Number(route[2])) || null;
+}
+
+function moduleTopbarTitle(program, options = {}) {
+  const module = moduleTopbarModule(program, options);
+  if (!module) return program.title || program.cardTitle || '';
+  const number = Number(module.number);
+  const numberLabel = Number.isFinite(number) ? `Module ${String(number).padStart(2, '0')}` : 'Module';
+  return module.title ? `${numberLabel} \u00b7 ${module.title}` : numberLabel;
+}
+
+/* Imported Mission Next projects that extend a module's core Guided and
+ * Assessment labs remain discoverable without masquerading as additional
+ * graded requirements. Module files pass prebuilt same-page launch links. */
+function missionNextAdditionalLabsSection(moduleNumber, links) {
+  const items = Array.isArray(links) ? links : [];
+  if (!items.length) return '';
+  return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-${moduleNumber}">
+    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">OPTIONAL PRACTICE</p><h2 id="mn-additional-labs-${moduleNumber}">Additional Mission Next Labs</h2></div><span>Not separately graded</span></div>
+    <p class="mn-additional-labs-copy">These related projects extend the module topic. Complete them for extra practice; they do not create another Guided Lab or Assessment Lab requirement.</p>
+    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(item.href)}"><span class="mn-additional-lab-icon" aria-hidden="true">↗</span><span><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Optional practice project')}</small></span></a>`).join('')}</div>
+  </section>`;
+}
+
 /* Shared topbar for every module-lab surface (IT Support, SOC Analyst,
  * Electrical, AI/ML — one 'view(user, program)' function per module, see
  * module-registry.js). Before this, each module hand-rolled its own
@@ -4096,6 +4155,7 @@ function moduleTopbar(user, program, options = {}) {
   const progress = programProgress(user, program);
   const backHref = options.backHref || `#/program/${program.slug}`;
   const backLabel = options.backLabel || 'Back to Modules';
+  const contextTitle = moduleTopbarTitle(program, options);
   return `
   <header class="sticky top-0 z-[60] bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
@@ -4106,7 +4166,7 @@ function moduleTopbar(user, program, options = {}) {
         <span class="hidden sm:block w-px h-5 bg-gray-200"></span>
         <div class="hidden sm:flex items-center gap-2 min-w-0">
           <img src="assets/logo.png" alt="" class="h-6 w-auto shrink-0" />
-          <span class="text-sm text-gray-500 truncate">${esc(program.title || program.cardTitle || '')}</span>
+          <span class="text-sm text-gray-500 truncate" aria-label="Current module: ${esc(contextTitle)}" title="${esc(contextTitle)}">${esc(contextTitle)}</span>
         </div>
       </div>
       <div class="flex items-center gap-4 shrink-0">
@@ -6483,6 +6543,11 @@ async function render(options = {}) {
   }
 
   if (!user) {
+    // Imported training labs return with a deep module hash. If restoring the
+    // portal session fails or the session has expired, keep that destination
+    // through sign-in instead of replacing it with a bare #/login and losing
+    // the student's place.
+    rememberPendingPortalRoute(hash);
     // Keep the address bar aligned with the view.  Rendering the login screen
     // alone left a protected route (for example #/admin) in the URL, which
     // made reloads and copied links misleading.
@@ -6783,9 +6848,10 @@ function wireLogin() {
       // render()'s admin-only rule regardless of where we land them here.
       const coachReturn = new URLSearchParams(location.search).get('coachComplete');
       const returnToModule = coachReturn === 'm01' && location.hash === '#/program/soc-analyst/module/1';
-      const destination = user.isInstructor && !user.isAdmin
+      const pendingPortalRoute = consumePendingPortalRoute();
+      const destination = pendingPortalRoute || (user.isInstructor && !user.isAdmin
         ? `#/admin/track/${user.instructorTrackCodes[0]}`
-        : '#/portal';
+        : '#/portal');
       history.replaceState(null, '', returnToModule
         ? location.pathname + location.search + location.hash
         : destination);

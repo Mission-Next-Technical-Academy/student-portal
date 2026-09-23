@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Vulnerability Scanner — Module 8</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #f6f6f0; }
+    #m08-boot-status { font: 13px/1.5 system-ui, sans-serif; padding: 24px; color: #55636c; }
+  </style>
+</head>
+<body>
+  <div id="m08-boot-status">Loading Vulnerability Scanner…</div>
+  <div id="m08-root"></div>
+
+  <!-- Same runtime approach as the Mission Next source this tool was ported
+       from, and the same approach the Module 3 pilot used: no build step,
+       React/Babel loaded from CDN, JSX transpiled in the browser. Scoped to
+       this standalone tool page only — the rest of the portal has no React
+       dependency and this page does not add one. -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+
+  <script src="findings-engine.js"></script>
+  <script src="vuln-data.js"></script>
+  <script type="text/babel" src="vuln-scanner.jsx"></script>
+
+  <script type="text/babel">
+    const statusEl = document.getElementById('m08-boot-status');
+    if (!window.React || !window.ReactDOM || !window.VulnScannerConsole) {
+      statusEl.textContent = 'Vulnerability Scanner failed to load (a script from unpkg.com may be blocked). Reload, or check your connection.';
+    } else {
+      const mode = new URLSearchParams(location.search).get('mode') === 'prove' ? 'prove' : 'practice';
+      statusEl.remove();
+      const root = ReactDOM.createRoot(document.getElementById('m08-root'));
+      root.render(<window.VulnScannerConsole mode={mode} />);
+    }
+  </script>
+</body>
+</html>
