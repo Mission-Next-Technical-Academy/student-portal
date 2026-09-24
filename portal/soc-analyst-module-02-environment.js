@@ -484,7 +484,7 @@
       if (select) { const [scope, type, id] = select.split(':'); setEntity(scope, type, id); return; }
       const tab = button.dataset.m02eTab;
       if (tab) { const [scope, tabId] = tab.split(':'); setTab(scope, tabId); return; }
-      if (button.hasAttribute('data-m02e-learn-next')) { state.learn.step = Math.min(LEARN_STEPS.length, state.learn.step + 1); applyLearnFocus(); save(); renderScope('learn'); return; }
+      if (button.hasAttribute('data-m02e-learn-next')) { state.learn.step = Math.min(LEARN_STEPS.length + 1, state.learn.step + 1); applyLearnFocus(); save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-learn-restart')) { state.learn.step = 0; applyLearnFocus(); save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-knowledge-submit')) { state.learn.knowledgeScored = true; save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-practice-complete')) { markPracticeComplete(); return; }
