@@ -41,6 +41,7 @@
   }
   function mergeLabProgress(local = {}, remote = {}) {
     const merged = { ...remote, ...local, stepAttempts: { ...(remote.stepAttempts || {}) }, colResponses: { ...(remote.colResponses || {}) } };
+    merged.score = Math.max(remote.score || 0, local.score || 0);
     Object.entries(local.stepAttempts || {}).forEach(([id, attempt]) => {
       const prior = merged.stepAttempts[id] || {};
       merged.stepAttempts[id] = {
@@ -76,6 +77,21 @@
     ensureUserLab(all, username, labId);
     all[username][labId] = merged;
     saveAll(all);
+    // Rebuild the imported app's legacy dashboard cache from the synced
+    // per-step record so completion counts and earned points follow too.
+    if (typeof window.getProgress === 'function' && typeof window.saveProgress === 'function') {
+      const base = window.getProgress();
+      if (!base[username]) base[username] = {};
+      base[username][labId] = {
+        ...(base[username][labId] || {}),
+        started: Boolean(merged.lastInteractionAt),
+        completedTasks: Object.entries(merged.stepAttempts)
+          .filter(([, attempt]) => attempt && attempt.firstCorrectAt).map(([id]) => id),
+        score: merged.score || 0,
+        lastAccessed: merged.lastInteractionAt,
+      };
+      window.saveProgress(base);
+    }
     return merged;
   }
   function persistCourseLab(username, labId, state) {
@@ -123,7 +139,7 @@
     return state[username][labId];
   }
 
-  function markStepAttempt(username, labId, stepId, submitted, correct) {
+  function markStepAttempt(username, labId, stepId, submitted, correct, points = 0) {
     if (!username || !labId || !stepId) return;
     const state = loadAll();
     const entry = ensureUserLab(state, username, labId);
@@ -131,7 +147,10 @@
     att.count += 1;
     att.lastSubmitted = String(submitted == null ? '' : submitted);
     att.lastResult = correct ? 'correct' : 'incorrect';
-    if (correct && !att.firstCorrectAt) att.firstCorrectAt = new Date().toISOString();
+    if (correct && !att.firstCorrectAt) {
+      att.firstCorrectAt = new Date().toISOString();
+      entry.score = (entry.score || 0) + Math.max(0, Number(points) || 0);
+    }
     entry.stepAttempts[stepId] = att;
     entry.lastInteractionAt = new Date().toISOString();
     saveAll(state, username, labId);

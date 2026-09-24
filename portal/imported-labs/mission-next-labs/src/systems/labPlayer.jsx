@@ -200,11 +200,11 @@
         if (step.kind !== 'command' && step.kind !== 'observe' && step.kind !== 'ui') continue;
         const res = window.validateStep(step, sim, submission);
         if (res.ok) {
-          if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, true);
+          if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, true, step.points);
           recordCorrect(step.id, step.points);
           hitSteps.push(step);
         } else if (step.id === activeStepId) {
-          if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, false);
+          if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, false, step.points);
         }
       }
       return hitSteps;
@@ -265,7 +265,7 @@
       const sim = buildSimState();
       const res = window.validateStep(step, sim, submission);
       if (window.MISSION_NEXT_PROGRESS_EXT && user) {
-        window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, stepId, submission, res.ok);
+        window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, stepId, submission, res.ok, step.points);
       }
       if (res.ok) {
         recordCorrect(stepId, step.points);
