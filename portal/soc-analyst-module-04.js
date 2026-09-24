@@ -450,7 +450,7 @@ let moduleFourQuizState = null;
 
 function moduleFourLoad(user) {
   moduleFourUser = user;
-  moduleFourState = LabRuntime.load(MODULE_FOUR_LAB_ID, user, MODULE_FOUR_DEFAULT_STATE);
+  moduleFourState = LabRuntime.loadCaseState(MODULE_FOUR_LAB_ID, 'soc-04', user, MODULE_FOUR_DEFAULT_STATE);
   ['reviewedStations', 'selectedEvidence', 'ruleRunResults', 'automationLog', 'hintsOpened', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleFourState[key])) moduleFourState[key] = [];
   });
@@ -514,7 +514,7 @@ function moduleFourGetQuickNavItems() {
 }
 
 function moduleFourSave() {
-  if (moduleFourUser && moduleFourState) LabRuntime.save(MODULE_FOUR_LAB_ID, moduleFourUser, moduleFourState);
+  if (moduleFourUser && moduleFourState) LabRuntime.saveCaseState(MODULE_FOUR_LAB_ID, 'soc-04', moduleFourUser, moduleFourState);
 }
 
 function moduleFourVideoScript() {
@@ -1257,7 +1257,7 @@ function wireModuleFourAssessmentLab() {
 
     if (event.target.closest('[data-m04-reset]')) {
       if (!window.confirm('Reset only the Module 04 detection lab? Course progress and other labs will not be changed.')) return;
-      moduleFourState = LabRuntime.reset(MODULE_FOUR_LAB_ID, moduleFourUser, MODULE_FOUR_DEFAULT_STATE);
+      moduleFourState = LabRuntime.resetCaseState(MODULE_FOUR_LAB_ID, 'soc-04', moduleFourUser, MODULE_FOUR_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFourUser, 'soc-analyst', 'soc-04', MODULE_FOUR_CATALOG_LAB_KEY, false);
       const status = document.getElementById('m04-status');
       if (status) status.textContent = 'Not started';

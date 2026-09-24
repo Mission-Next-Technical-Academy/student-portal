@@ -454,7 +454,7 @@ function moduleNineFreshDefaults() {
 function moduleNineLoad(user) {
   moduleNineUser = user;
   const defaults = moduleNineFreshDefaults();
-  moduleNineState = LabRuntime.load(MODULE_NINE_LAB_ID, user, defaults);
+  moduleNineState = LabRuntime.loadCaseState(MODULE_NINE_LAB_ID, 'soc-09', user, defaults);
   ['reviewedSources', 'selectedEvidence', 'hintsOpened', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleNineState[key])) moduleNineState[key] = [];
   });
@@ -488,7 +488,7 @@ function moduleNineLoad(user) {
 }
 
 function moduleNineSave() {
-  if (moduleNineUser && moduleNineState) LabRuntime.save(MODULE_NINE_LAB_ID, moduleNineUser, moduleNineState);
+  if (moduleNineUser && moduleNineState) LabRuntime.saveCaseState(MODULE_NINE_LAB_ID, 'soc-09', moduleNineUser, moduleNineState);
 }
 
 function moduleNineAllRows() {
@@ -976,7 +976,7 @@ function wireModuleNineLab() {
     }
     if (event.target.closest('[data-m09-reset]')) {
       if (typeof window.confirm === 'function' && !window.confirm('Reset only this Module 09 lab? Your evidence, plan, notes, and score will be cleared.')) return;
-      moduleNineState = LabRuntime.reset(MODULE_NINE_LAB_ID, moduleNineUser, moduleNineFreshDefaults());
+      moduleNineState = LabRuntime.resetCaseState(MODULE_NINE_LAB_ID, 'soc-09', moduleNineUser, moduleNineFreshDefaults());
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleNineUser, 'soc-analyst', 'soc-09', MODULE_NINE_CATALOG_LAB_KEY, false);
       moduleNineRender('m09-case-title');
       const status = document.getElementById('m09-status');

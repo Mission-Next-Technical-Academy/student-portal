@@ -357,8 +357,8 @@ let moduleTenAssessmentState = null;
 
 function moduleTenLoad(user) {
   moduleTenUser = user;
-  moduleTenGuidedState = LabRuntime.load(MODULE_TEN_GUIDED_LAB_ID, user, MODULE_TEN_GUIDED_DEFAULT_STATE);
-  moduleTenAssessmentState = LabRuntime.load(MODULE_TEN_ASSESSMENT_LAB_ID, user, MODULE_TEN_ASSESSMENT_DEFAULT_STATE);
+  moduleTenGuidedState = LabRuntime.loadCaseState(MODULE_TEN_GUIDED_LAB_ID, 'soc-10', user, MODULE_TEN_GUIDED_DEFAULT_STATE);
+  moduleTenAssessmentState = LabRuntime.loadCaseState(MODULE_TEN_ASSESSMENT_LAB_ID, 'soc-10', user, MODULE_TEN_ASSESSMENT_DEFAULT_STATE);
   if (typeof moduleTenGuidedState.practiceNotes !== 'string') moduleTenGuidedState.practiceNotes = '';
   if (!Array.isArray(moduleTenGuidedState.lastQuizQuestionIds)) moduleTenGuidedState.lastQuizQuestionIds = [];
   if (typeof moduleTenAssessmentState.notes !== 'string') moduleTenAssessmentState.notes = '';
@@ -387,8 +387,8 @@ function moduleTenLoad(user) {
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-10');
 }
 
-function moduleTenSaveGuided() { if (moduleTenUser && moduleTenGuidedState) LabRuntime.save(MODULE_TEN_GUIDED_LAB_ID, moduleTenUser, moduleTenGuidedState); }
-function moduleTenSaveAssessment() { if (moduleTenUser && moduleTenAssessmentState) LabRuntime.save(MODULE_TEN_ASSESSMENT_LAB_ID, moduleTenUser, moduleTenAssessmentState); }
+function moduleTenSaveGuided() { if (moduleTenUser && moduleTenGuidedState) LabRuntime.saveCaseState(MODULE_TEN_GUIDED_LAB_ID, 'soc-10', moduleTenUser, moduleTenGuidedState); }
+function moduleTenSaveAssessment() { if (moduleTenUser && moduleTenAssessmentState) LabRuntime.saveCaseState(MODULE_TEN_ASSESSMENT_LAB_ID, 'soc-10', moduleTenUser, moduleTenAssessmentState); }
 
 
 function moduleTenGuidedLabPanel() {

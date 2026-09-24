@@ -641,7 +641,7 @@ let moduleTwoQuizOwner = null;
 
 function moduleTwoLoad(user) {
   moduleTwoUser = user;
-  moduleTwoState = LabRuntime.load(MODULE_TWO_LAB_ID, user, MODULE_TWO_DEFAULT_STATE);
+  moduleTwoState = LabRuntime.loadCaseState(MODULE_TWO_LAB_ID, 'soc-02', user, MODULE_TWO_DEFAULT_STATE);
   if (!Array.isArray(moduleTwoState.reviewedStations)) moduleTwoState.reviewedStations = [];
   if (!Array.isArray(moduleTwoState.selectedEvidence)) moduleTwoState.selectedEvidence = [];
   if (!Array.isArray(moduleTwoState.feedback)) moduleTwoState.feedback = [];
@@ -671,7 +671,7 @@ function moduleTwoLoad(user) {
 function moduleTwoSave() {
   if (moduleTwoUser && moduleTwoState) {
     if (moduleTwoQuizState) moduleTwoState.quizState = moduleTwoQuizState;
-    LabRuntime.save(MODULE_TWO_LAB_ID, moduleTwoUser, moduleTwoState);
+    LabRuntime.saveCaseState(MODULE_TWO_LAB_ID, 'soc-02', moduleTwoUser, moduleTwoState);
   }
 }
 
@@ -1389,7 +1389,7 @@ function wireModuleTwoLab() {
     }
 
     if (event.target.closest('[data-m02-reset-confirm]')) {
-      moduleTwoState = LabRuntime.reset(MODULE_TWO_LAB_ID, moduleTwoUser, MODULE_TWO_DEFAULT_STATE);
+      moduleTwoState = LabRuntime.resetCaseState(MODULE_TWO_LAB_ID, 'soc-02', moduleTwoUser, MODULE_TWO_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTwoUser, 'soc-analyst', 'soc-02', MODULE_TWO_CATALOG_LAB_KEY, false);
       moduleTwoRenderDynamic('m02-investigation-title');
     }

@@ -367,7 +367,7 @@ function moduleSevenFreshState() {
 function moduleSevenLoad(user) {
   moduleSevenUser = user;
   const defaults = moduleSevenFreshState();
-  moduleSevenState = LabRuntime.load(MODULE_SEVEN_LAB_ID, user, defaults);
+  moduleSevenState = LabRuntime.loadCaseState(MODULE_SEVEN_LAB_ID, 'soc-07', user, defaults);
   ['feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleSevenState[key])) moduleSevenState[key] = [];
   });
@@ -400,7 +400,7 @@ function moduleSevenLoad(user) {
 }
 
 function moduleSevenSave() {
-  if (moduleSevenUser && moduleSevenState) LabRuntime.save(MODULE_SEVEN_LAB_ID, moduleSevenUser, moduleSevenState);
+  if (moduleSevenUser && moduleSevenState) LabRuntime.saveCaseState(MODULE_SEVEN_LAB_ID, 'soc-07', moduleSevenUser, moduleSevenState);
 }
 
 function moduleSevenMarkCatalogLabs(completed) {

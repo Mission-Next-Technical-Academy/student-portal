@@ -8,7 +8,7 @@
 
 const LabRuntime = (() => {
   const PREFIX = 'mnt-portal.lab-state.v1';
-  const CASE_STATE_DEBOUNCE_MS = 1500;
+  const CASE_STATE_DEBOUNCE_MS = 300;
   const pendingCaseStateWrites = new Map();
   let caseStateFlushListenersRegistered = false;
 
@@ -82,18 +82,25 @@ const LabRuntime = (() => {
 
   function loadCaseState(labId, moduleKey, user, defaults = {}) {
     const localState = load(labId, user, defaults);
-    const remoteState = user && user.remoteCaseState && user.remoteCaseState[moduleKey];
+    const moduleState = user && user.remoteCaseState && user.remoteCaseState[moduleKey];
+    const remoteState = moduleState && typeof moduleState === 'object' && moduleState[labId]
+      ? moduleState[labId]
+      : (moduleState && moduleState.labId === labId ? moduleState : null);
     const remoteHasState = remoteState && typeof remoteState === 'object' && !Array.isArray(remoteState)
       && Object.keys(remoteState).length > 0;
 
-    // V1 intentionally uses an empty-local-defers-to-remote merge, not
-    // timestamps or CRDT reconciliation: one student effectively works from
-    // one active device at a time in practice, so that complexity is not yet
-    // justified. Concurrent, independently-progressed devices can conflict.
-    if (stateMatchesFreshDefault(labId, user, localState, defaults) && remoteHasState) {
+    // Server state wins over the origin-scoped cache so another browser's
+    // newer saved copy always hydrates. The cache remains useful for fast
+    // synchronous rendering while the authenticated profile is loading.
+    if (remoteHasState) {
       const hydratedState = { ...localState, ...remoteState };
       save(labId, user, hydratedState);
       return hydratedState;
+    }
+    // One-time migration: if this origin already has work and the shared row
+    // does not yet contain this lab, copy it up instead of stranding it.
+    if (!stateMatchesFreshDefault(labId, user, localState, defaults)) {
+      saveCaseState(labId, moduleKey, user, localState, { debounceMs: 1 });
     }
     return localState;
   }
@@ -107,7 +114,7 @@ const LabRuntime = (() => {
     if (!pending) return;
     if (pending.timer) clearTimeout(pending.timer);
     pendingCaseStateWrites.delete(key);
-    upsertModuleProgress(pending.user, pending.moduleKey, { case_state: pending.state });
+    persistModuleCaseState(pending.user, pending.moduleKey, pending.labId, pending.state);
   }
 
   function flushAllCaseStateWrites() {
@@ -130,13 +137,18 @@ const LabRuntime = (() => {
     const key = pendingCaseStateKey(labId, moduleKey, user);
     const existing = pendingCaseStateWrites.get(key);
     if (existing && existing.timer) clearTimeout(existing.timer);
-    const pending = { user, moduleKey, state, timer: null };
+    const pending = { user, moduleKey, labId, state, timer: null };
     pending.timer = setTimeout(() => flushCaseStateWrite(key), options.debounceMs || CASE_STATE_DEBOUNCE_MS);
     pendingCaseStateWrites.set(key, pending);
     return state;
   }
 
-  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState };
+  function resetCaseState(labId, moduleKey, user, defaults = {}) {
+    const fresh = reset(labId, user, defaults);
+    return saveCaseState(labId, moduleKey, user, fresh, { debounceMs: 1 });
+  }
+
+  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState, resetCaseState };
 })();
 
 /* Shared mechanics for the knowledge checks used by SOC modules. Question

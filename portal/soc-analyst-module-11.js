@@ -394,8 +394,8 @@ function moduleElevenReportFreshDefaults() {
 
 function moduleElevenLoad(user) {
   moduleElevenUser = user;
-  moduleElevenMetricsState = LabRuntime.load(MODULE_ELEVEN_METRICS_LAB_ID, user, moduleElevenMetricsFreshDefaults());
-  moduleElevenReportState = LabRuntime.load(MODULE_ELEVEN_REPORT_LAB_ID, user, moduleElevenReportFreshDefaults());
+  moduleElevenMetricsState = LabRuntime.loadCaseState(MODULE_ELEVEN_METRICS_LAB_ID, 'soc-11', user, moduleElevenMetricsFreshDefaults());
+  moduleElevenReportState = LabRuntime.loadCaseState(MODULE_ELEVEN_REPORT_LAB_ID, 'soc-11', user, moduleElevenReportFreshDefaults());
   ['feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleElevenMetricsState[key])) moduleElevenMetricsState[key] = [];
   });
@@ -428,17 +428,17 @@ function moduleElevenLoad(user) {
 }
 
 function moduleElevenSaveMetrics() {
-  if (moduleElevenUser && moduleElevenMetricsState) LabRuntime.save(MODULE_ELEVEN_METRICS_LAB_ID, moduleElevenUser, moduleElevenMetricsState);
+  if (moduleElevenUser && moduleElevenMetricsState) LabRuntime.saveCaseState(MODULE_ELEVEN_METRICS_LAB_ID, 'soc-11', moduleElevenUser, moduleElevenMetricsState);
 }
 
 function moduleElevenSaveReport() {
-  if (moduleElevenUser && moduleElevenReportState) LabRuntime.save(MODULE_ELEVEN_REPORT_LAB_ID, moduleElevenUser, moduleElevenReportState);
+  if (moduleElevenUser && moduleElevenReportState) LabRuntime.saveCaseState(MODULE_ELEVEN_REPORT_LAB_ID, 'soc-11', moduleElevenUser, moduleElevenReportState);
 }
 
 function moduleElevenSaveQuiz() {
   if (moduleElevenUser && moduleElevenQuizState && moduleElevenMetricsState) {
     moduleElevenMetricsState.lastQuizQuestionIds = moduleElevenQuizState.selectedQuestions.map((s) => s.question.id);
-    LabRuntime.save(MODULE_ELEVEN_METRICS_LAB_ID, moduleElevenUser, moduleElevenMetricsState);
+    LabRuntime.saveCaseState(MODULE_ELEVEN_METRICS_LAB_ID, 'soc-11', moduleElevenUser, moduleElevenMetricsState);
   }
 }
 

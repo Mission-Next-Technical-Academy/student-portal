@@ -407,7 +407,7 @@ let moduleFiveQuizState = null;
 
 function moduleFiveLoad(user) {
   moduleFiveUser = user;
-  moduleFiveState = LabRuntime.load(MODULE_FIVE_LAB_ID, user, MODULE_FIVE_DEFAULT_STATE);
+  moduleFiveState = LabRuntime.loadCaseState(MODULE_FIVE_LAB_ID, 'soc-05', user, MODULE_FIVE_DEFAULT_STATE);
   if (!Array.isArray(moduleFiveState.feedback)) moduleFiveState.feedback = [];
   if (!Array.isArray(moduleFiveState.flags)) moduleFiveState.flags = [];
   if (!moduleFiveState.lessonWork || typeof moduleFiveState.lessonWork !== 'object') moduleFiveState.lessonWork = {};
@@ -426,7 +426,7 @@ function moduleFiveLoad(user) {
 }
 
 function moduleFiveSave() {
-  if (moduleFiveUser && moduleFiveState) LabRuntime.save(MODULE_FIVE_LAB_ID, moduleFiveUser, moduleFiveState);
+  if (moduleFiveUser && moduleFiveState) LabRuntime.saveCaseState(MODULE_FIVE_LAB_ID, 'soc-05', moduleFiveUser, moduleFiveState);
 }
 
 function moduleFiveGetSections() {

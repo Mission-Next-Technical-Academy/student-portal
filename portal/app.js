@@ -3671,6 +3671,38 @@ async function upsertModuleProgress(user, moduleKey, fields) {
   }
 }
 
+/* Persist an isolated lab draft inside its module's shared case_state JSON.
+ * Read/merge/write preserves sibling labs in that module's single row. The
+ * cache is origin-scoped; this authenticated row is the cross-origin source. */
+const moduleCaseStateQueues = new Map();
+async function persistModuleCaseState(user, moduleKey, labId, state) {
+  if (!user || !user.userId || !user.trackCode || !moduleKey || !labId) return;
+  const queueKey = `${user.userId}:${user.trackCode}:${moduleKey}`;
+  const previous = moduleCaseStateQueues.get(queueKey) || Promise.resolve();
+  const write = previous.catch(() => {}).then(async () => {
+    const { data, error: readError } = await mntSupabase.from('module_progress')
+      .select('case_state').eq('user_id', user.userId).eq('track_code', user.trackCode)
+      .eq('module_key', moduleKey).maybeSingle();
+    if (readError) { console.error('module case_state read failed', moduleKey, readError); return; }
+    const current = data && data.case_state && typeof data.case_state === 'object' ? data.case_state : {};
+    const caseState = { ...current, [labId]: state };
+    let writeResult;
+    if (data) {
+      writeResult = await mntSupabase.from('module_progress').update({ case_state: caseState })
+        .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+    } else {
+      writeResult = await mntSupabase.from('module_progress').insert({
+        user_id: user.userId, module_key: moduleKey, track_code: user.trackCode,
+        state: 'in_progress', case_state: caseState,
+      });
+    }
+    if (writeResult.error) console.error('module case_state write failed', moduleKey, labId, writeResult.error);
+    else user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: caseState };
+  }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); });
+  moduleCaseStateQueues.set(queueKey, write);
+  return write;
+}
+
 /* Only ever writes 'in_progress', and only when this module's row isn't
  * already 'complete' — a read-before-write, chosen over a conditional upsert
  * because supabase-js has no clean way to express an upsert with a WHERE

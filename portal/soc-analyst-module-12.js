@@ -230,7 +230,7 @@ function moduleTwelveUnlocked(user, program) {
 function moduleTwelveLoad(user, program) {
   moduleTwelveUser = user;
   moduleTwelveProgram = program;
-  moduleTwelveState = LabRuntime.load(MODULE_TWELVE_LAB_ID, user, moduleTwelveFreshDefaults());
+  moduleTwelveState = LabRuntime.loadCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', user, moduleTwelveFreshDefaults());
   ['reviewedConsoles', 'selectedEvidence', 'stageVisits', 'hintsOpened', 'feedback', 'criticalErrors', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleTwelveState[key])) moduleTwelveState[key] = [];
   });
@@ -243,7 +243,7 @@ function moduleTwelveLoad(user, program) {
 }
 
 function moduleTwelveSave() {
-  if (moduleTwelveUser && moduleTwelveState) LabRuntime.save(MODULE_TWELVE_LAB_ID, moduleTwelveUser, moduleTwelveState);
+  if (moduleTwelveUser && moduleTwelveState) LabRuntime.saveCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', moduleTwelveUser, moduleTwelveState);
 }
 
 function moduleTwelveSetEqual(actual, expected) {
@@ -489,7 +489,7 @@ function wireModuleTwelveLab() {
     if (event.target.closest('[data-m12-launch]')) { moduleTwelveState.simulatorLaunched = true; moduleTwelveSave(); return; }
     if (event.target.closest('[data-m12-reset]')) {
       if (typeof window.confirm === 'function' && !window.confirm('Reset only the Module 12 capstone? Modules 01–11 and other labs remain unchanged.')) return;
-      moduleTwelveState = LabRuntime.reset(MODULE_TWELVE_LAB_ID, moduleTwelveUser, moduleTwelveFreshDefaults());
+      moduleTwelveState = LabRuntime.resetCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', moduleTwelveUser, moduleTwelveFreshDefaults());
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTwelveUser, 'soc-analyst', 'soc-12', MODULE_TWELVE_CATALOG_KEY, false);
       moduleTwelveRender('m12-title');
     }

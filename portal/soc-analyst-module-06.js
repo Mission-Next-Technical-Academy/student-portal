@@ -452,7 +452,7 @@ function moduleSixFreshDefaults() {
 function moduleSixLoad(user) {
   moduleSixUser = user;
   const defaults = moduleSixFreshDefaults();
-  moduleSixState = LabRuntime.load(MODULE_SIX_LAB_ID, user, defaults);
+  moduleSixState = LabRuntime.loadCaseState(MODULE_SIX_LAB_ID, 'soc-06', user, defaults);
   moduleSixState.queryDrafts = { ...defaults.queryDrafts, ...(moduleSixState.queryDrafts || {}) };
   moduleSixState.queryRuns = { ...defaults.queryRuns, ...(moduleSixState.queryRuns || {}) };
   moduleSixState.queryPassed = { ...defaults.queryPassed, ...(moduleSixState.queryPassed || {}) };
@@ -477,7 +477,7 @@ function moduleSixLoad(user) {
 }
 
 function moduleSixSave() {
-  if (moduleSixUser && moduleSixState) LabRuntime.save(MODULE_SIX_LAB_ID, moduleSixUser, moduleSixState);
+  if (moduleSixUser && moduleSixState) LabRuntime.saveCaseState(MODULE_SIX_LAB_ID, 'soc-06', moduleSixUser, moduleSixState);
 }
 
 function moduleSixGetSections() {
@@ -1062,7 +1062,7 @@ function wireModuleSixGuidedLab() {
     if (event.target.closest('[data-m06-reset]')) {
       if (typeof window.confirm === 'function' && !window.confirm('Reset only this Module 06 lab? Your saved hunt attempt will be cleared.')) return;
       const independentLab = moduleSixState.independentLab;
-      moduleSixState = LabRuntime.reset(MODULE_SIX_LAB_ID, moduleSixUser, moduleSixFreshDefaults());
+      moduleSixState = LabRuntime.resetCaseState(MODULE_SIX_LAB_ID, 'soc-06', moduleSixUser, moduleSixFreshDefaults());
       moduleSixState.independentLab = independentLab;
       moduleSixSave();
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_CATALOG_LAB_KEY, false);

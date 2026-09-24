@@ -396,10 +396,10 @@ let moduleThreeQuizState = null;
 
 function moduleThreeLoad(user) {
   moduleThreeUser = user;
-  moduleThreeState = LabRuntime.load(MODULE_THREE_LAB_ID, user, MODULE_THREE_DEFAULT_STATE);
+  moduleThreeState = LabRuntime.loadCaseState(MODULE_THREE_LAB_ID, 'soc-03', user, MODULE_THREE_DEFAULT_STATE);
   try {
     const completion = JSON.parse(localStorage.getItem('mission_next_lab_completion') || 'null');
-    moduleThreeState.importedLabComplete = Boolean(completion && completion.user === user?.username && completion.labId === 'lap-4');
+    moduleThreeState.importedLabComplete = moduleThreeState.importedLabComplete === true || Boolean(completion && completion.user === user?.username && completion.labId === 'lap-4');
   } catch (_) { moduleThreeState.importedLabComplete = false; }
   if (!Array.isArray(moduleThreeState.feedback)) moduleThreeState.feedback = [];
   if (!Array.isArray(moduleThreeState.flags)) moduleThreeState.flags = [];
@@ -421,7 +421,7 @@ function moduleThreeLoad(user) {
 }
 
 function moduleThreeSave() {
-  if (moduleThreeUser && moduleThreeState) LabRuntime.save(MODULE_THREE_LAB_ID, moduleThreeUser, moduleThreeState);
+  if (moduleThreeUser && moduleThreeState) LabRuntime.saveCaseState(MODULE_THREE_LAB_ID, 'soc-03', moduleThreeUser, moduleThreeState);
 }
 
 function moduleThreeGetSections() {

@@ -406,7 +406,7 @@ let moduleEightReviewMode = false;
 
 function moduleEightLoad(user) {
   moduleEightUser = user;
-  moduleEightState = LabRuntime.load(MODULE_EIGHT_LAB_ID, user, MODULE_EIGHT_DEFAULT_STATE);
+  moduleEightState = LabRuntime.loadCaseState(MODULE_EIGHT_LAB_ID, 'soc-08', user, MODULE_EIGHT_DEFAULT_STATE);
   if (!Array.isArray(moduleEightState.feedback)) moduleEightState.feedback = [];
   if (!Array.isArray(moduleEightState.flags)) moduleEightState.flags = [];
   if (!moduleEightState.lessonWork || typeof moduleEightState.lessonWork !== 'object') moduleEightState.lessonWork = {};
@@ -435,7 +435,7 @@ function moduleEightLoad(user) {
 }
 
 function moduleEightSave() {
-  if (moduleEightUser && moduleEightState) LabRuntime.save(MODULE_EIGHT_LAB_ID, moduleEightUser, moduleEightState);
+  if (moduleEightUser && moduleEightState) LabRuntime.saveCaseState(MODULE_EIGHT_LAB_ID, 'soc-08', moduleEightUser, moduleEightState);
 }
 
 function moduleEightConcepts() {

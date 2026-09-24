@@ -1769,7 +1769,7 @@ function wireModuleOneLab() {
     }
 
     if (event.target.closest('[data-m01-reset]')) {
-      moduleOneState = LabRuntime.reset(MODULE_ONE_LAB_ID, moduleOneUser, MODULE_ONE_DEFAULT_STATE);
+      moduleOneState = LabRuntime.resetCaseState(MODULE_ONE_LAB_ID, 'soc-01', moduleOneUser, MODULE_ONE_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') {
         markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY, false);
         markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation', false);
@@ -2018,7 +2018,7 @@ async function moduleOneReceiveCoachCompletion(event) {
   const user = await currentUser();
   if (!user) return;
 
-  const saved = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
+  const saved = LabRuntime.loadCaseState(MODULE_ONE_LAB_ID, 'soc-01', user, MODULE_ONE_DEFAULT_STATE);
   saved.consoleStarted = true;
   saved.consoleCompleted = true;
   moduleOneState = saved;

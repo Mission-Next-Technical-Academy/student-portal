@@ -15,7 +15,7 @@
  * tracking and instructor review.
  */
 (function () {
-  const LAB_ID = 'm02-trust-path-review-v1';
+  const LAB_ID = 'm02-console-guide-v1';
   const LAB_KEY = 'lab-identity-investigation';
 
   const DATA = {
@@ -151,6 +151,15 @@
     // working copy, while hydrating an empty copy from Supabase and writing
     // changes through the shared module_progress case_state path.
     state = LabRuntime.loadCaseState(LAB_ID, 'soc-02', u, DEFAULT);
+    // Migrate the earlier shared-ID record without allowing it to collide
+    // with the main Module 02 state going forward.
+    if (!state.learn && !state.practice && !state.prove) {
+      const legacy = LabRuntime.loadCaseState('m02-trust-path-review-v1', 'soc-02', u, DEFAULT);
+      if (legacy.learn || legacy.practice || legacy.prove) {
+        state = legacy;
+        LabRuntime.saveCaseState(LAB_ID, 'soc-02', u, state, { debounceMs: 1 });
+      }
+    }
     // The redesigned console deliberately retains the established Module 02
     // LabRuntime key so a learner's work is not discarded. Earlier versions
     // stored flatter practice/prove objects, however, and therefore have no
