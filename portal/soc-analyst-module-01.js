@@ -1205,7 +1205,8 @@ function viewModuleOne(user, program) {
   const moduleLabs = LABS.filter((item) => item.module === module.key);
   const moduleLabMinutes = moduleLabs.reduce((total, item) => total + item.instructionalMinutes, 0);
   const sectionOpen = moduleOneState.sectionOpen || {};
-  const openFor = (key) => moduleOneReviewMode || sectionOpen[key] === true;
+  const activeSectionKey = Object.keys(MODULE_ONE_DEFAULT_STATE.sectionOpen).find((key) => key !== 'checklist' && sectionOpen[key] === true) || 'foundations';
+  const openFor = (key) => !moduleOneReviewMode && key === activeSectionKey;
   const progress = moduleOneProgress();
 
   return `<div class="m01-shell">
@@ -1666,6 +1667,7 @@ function wireModuleOneLab() {
       sectionBody.hidden = isExpanded;
       const sectionKey = sectionToggle.dataset.m01SectionKey;
       if (sectionKey) {
+        Object.keys(moduleOneState.sectionOpen).forEach((key) => { moduleOneState.sectionOpen[key] = false; });
         moduleOneState.sectionOpen[sectionKey] = !isExpanded;
         moduleOneSave();
       }

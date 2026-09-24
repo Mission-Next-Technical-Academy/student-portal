@@ -59,22 +59,12 @@ npm run pipeline
 
 `npm run build` currently aliases the same validation check because this app is static and has no bundling step yet.
 
-## Demo Accounts
+## Lab access
 
-The login screen includes a credential picker. Useful defaults:
-
-```text
-student_01 / k7m2x9
-instructor / admin7k
-```
-
-Instructor accounts land directly on:
-
-```text
-http://127.0.0.1:5173/#/instructor
-```
-
-The instructor dashboard tracks student completion across the local Splunk modules and generated catalog labs. It shows one compact student bar for students 1-10; clicking a student opens section-level progress bars and reset controls.
+Lab routes open directly without an imported-app login. Mission Next's course
+portal handles learner authentication; local lab progress uses a browser-local
+learner profile, and course-launched labs can sync progress through the portal's
+existing session.
 
 ## Project Layout
 
@@ -118,5 +108,4 @@ npm run check
 ## Next Improvements
 
 1. Convert the app from browser Babel scripts to a bundled Vite React app.
-2. Add automated browser smoke tests for login, module launch, query execution, and instructor dashboard.
-3. Move demo credentials into a clearly documented fixture file if the app grows beyond local training use.
+2. Add automated browser smoke tests for direct lab launch, query execution, and progress saving.

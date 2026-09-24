@@ -9,7 +9,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:5173';
 const chromeBin = process.env.CHROME_BIN || '/usr/bin/google-chrome';
 const screenshotDir = process.env.SMOKE_SCREENSHOT_DIR || path.join(os.tmpdir(), 'mission-next-route-smoke-screenshots');
-const session = { id:1, username:'student_01', password:'k7m2x9', role:'student', displayName:'Student 01' };
 const chromeExecOptions = { encoding:'utf8', stdio:['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 };
 
 const routes = [
@@ -37,11 +36,6 @@ const routes = [
     name:'malware static analysis',
     hash:'#/track/malware-analysis/project/ma-1/lab',
     expect:['Static Analysis of a Simple Malware Sample', 'EXERCISES', 'strings_output.txt', 'steps'],
-  },
-  {
-    name:'servicenow incident workspace',
-    hash:'#/track/security-assessments/project/sa-1/lab',
-    expect:['Basic Network Security Assessment', 'EXERCISES', 'steps'],
   },
   {
     name:'azure defender resource blades',
@@ -138,7 +132,6 @@ function seedPage(hash) {
 <meta charset="utf-8">
 <title>Route Smoke</title>
 <script>
-localStorage.setItem('mission_next_session', ${JSON.stringify(JSON.stringify(session))});
 if (!localStorage.getItem('mission_next_progress')) localStorage.setItem('mission_next_progress', '{}');
 location.replace(${JSON.stringify(`/${hash}`)});
 </script>`;

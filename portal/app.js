@@ -4204,8 +4204,25 @@ function missionNextAllLabsComplete(bucket, labIds) {
   return ids.every((id) => missionNextLabProgressEntry(bucket, id).complete === true);
 }
 
+/* Verified completion written by the imported lab player itself
+ * (MISSION_NEXT_PROGRESS_EXT.markCourseLabComplete) once every required step
+ * passes. It lives in two places: this origin's localStorage (same-origin
+ * static app, keyed by the per-module guest username) and the module's
+ * shared case_state row, so either browser/origin can see it. */
+function missionNextImportedLabCompleted(user, moduleKey, importedLabId) {
+  if (!moduleKey || !importedLabId) return false;
+  const remote = user?.remoteCaseState?.[moduleKey]?.[`imported-lab-progress:${importedLabId}`];
+  if (remote?.completedAt) return true;
+  try {
+    const local = JSON.parse(localStorage.getItem('mission_next_progress_ext') || '{}');
+    return Boolean(local?.[`guest_learner_${moduleKey}`]?.[importedLabId]?.completedAt);
+  } catch (_) {
+    return false;
+  }
+}
+
 function missionNextLabLaunchCard(moduleNumber, opts) {
-  const { kind = 'guided', index = 1, total = 1, title, detail, href, labId, progress, requireNote } = opts || {};
+  const { kind = 'guided', index = 1, total = 1, title, detail, href, labId, progress, requireNote, verified } = opts || {};
   if (!href || !title) return '';
   const label = missionNextLabLaunchLabel(kind, index, total);
   let launchHref = href;
@@ -4218,7 +4235,11 @@ function missionNextLabLaunchCard(moduleNumber, opts) {
     } catch (_) { /* keep the original link */ }
   }
   const entry = labId ? (progress || { complete: false, note: '' }) : null;
-  const gateHtml = labId ? `<div class="mn-lab-gate" data-mn-lab-gate="${esc(labId)}">
+  // Verified labs have no manual toggle: the student completes the lab by
+  // finishing its steps, and the card only reports that status.
+  const gateHtml = labId && verified ? `<div class="mn-lab-gate mn-lab-gate--verified" role="status">
+      <span class="mn-lab-gate-status${entry.complete ? ' is-complete' : ''}">${entry.complete ? '✓ Completed — all lab steps verified' : 'Not complete yet — finish every step in the lab'}</span>
+    </div>` : labId ? `<div class="mn-lab-gate" data-mn-lab-gate="${esc(labId)}">
       ${requireNote ? `<textarea class="mn-lab-gate-note" data-mn-lab-note="${esc(labId)}" rows="2" maxlength="600" placeholder="Briefly note what you found in this lab…">${esc(entry.note || '')}</textarea>` : ''}
       <button type="button" class="mn-lab-gate-toggle${entry.complete ? ' is-complete' : ''}" data-mn-lab-toggle="${esc(labId)}" aria-pressed="${entry.complete ? 'true' : 'false'}">${entry.complete ? '✓ Marked complete' : 'Mark complete'}</button>
     </div>` : '';
@@ -4246,7 +4267,7 @@ function missionNextLabLaunchGroup(moduleNumber, kind, labs, bucket) {
   return `<div class="mn-lab-launch-group mn-lab-launch-group--${esc(kind)}">${items
     .map((lab, i) => missionNextLabLaunchCard(moduleNumber, {
       kind, index: i + 1, total, title: lab.title, detail: lab.detail, href: lab.href,
-      labId: lab.labId, requireNote: lab.requireNote,
+      labId: lab.labId, requireNote: lab.requireNote, verified: lab.verified,
       progress: lab.labId ? missionNextLabProgressEntry(bucket, lab.labId) : null,
     }))
     .join('')}</div>`;
@@ -7028,21 +7049,38 @@ function wireLogin() {
 // (for example, to make an unfinished lab prominent), but that must not turn
 // a full course page into a long, expanded wall of content on arrival.
 function collapseCourseCardsByDefault() {
-  document.querySelectorAll('main details').forEach((details) => {
-    const className = details.className || '';
-    if (/(?:section-collapsible|lesson|foundation)/.test(className)) {
-      details.open = false;
+  const main = document.querySelector('main[class*="m0"], main[class*="m1"]');
+  const courseCards = main ? [...main.querySelectorAll(':scope > [class*="section-collapsible"]')] : [];
+  const savedCurrentCard = courseCards.find((card) => card.matches('details')
+    ? card.open
+    : card.querySelector('[data-m01-section-toggle][aria-expanded="true"]'));
+  const fallbackCurrentCard = courseCards.find((card) => !card.matches('.m01-checklist'));
+
+  // Keep the first card already marked as current by its module's progress
+  // logic. If a module has no explicit current marker, start at its first
+  // learning card. Other cards remain available through their chevrons/nav.
+  courseCards.forEach((card) => {
+    if (card.matches('details')) card.open = card === (savedCurrentCard || fallbackCurrentCard);
+    else {
+      const button = card.querySelector('[data-m01-section-toggle]');
+      if (button) {
+        const isOpen = card === (savedCurrentCard || fallbackCurrentCard);
+        button.setAttribute('aria-expanded', String(isOpen));
+        button.setAttribute('aria-label', `${isOpen ? 'Collapse' : 'Expand'} ${button.dataset.m01SectionLabel || 'section'}`);
+        const body = document.getElementById(button.getAttribute('aria-controls'));
+        if (body) body.hidden = !isOpen;
+      }
     }
   });
 
-  // Module 01 uses button-controlled sections instead of <details>. Keep its
-  // initial state consistent with every other course without overwriting the
-  // learner's saved state; a deliberate click or nav jump will open it again.
-  document.querySelectorAll('[data-m01-section-toggle]').forEach((toggle) => {
-    const body = document.getElementById(toggle.getAttribute('aria-controls'));
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-label', `Expand ${toggle.dataset.m01SectionLabel || 'section'}`);
-    if (body) body.hidden = true;
+  // Nested lesson cards also form a single-open sequence within each parent.
+  document.querySelectorAll('main details').forEach((details) => {
+    const className = details.className || '';
+    if (!/(?:lesson|foundation)/.test(className)) return;
+    const siblings = [...(details.parentElement?.querySelectorAll(':scope > details') || [])];
+    if (siblings.length < 2) { details.open = false; return; }
+    const current = siblings.find((item) => item.open) || siblings[0];
+    siblings.forEach((item) => { item.open = item === current; });
   });
 }
 
@@ -7301,6 +7339,7 @@ function wireStudentMessages() {
 }
 
 function wireModuleQuickNavRail() {
+  wireModuleAccordionCards();
   // Toggle the drawer on mobile and handle lesson opening
   const railToggle = document.querySelector('[data-mquick-nav-toggle]');
   if (railToggle) {
@@ -7360,6 +7399,56 @@ function wireModuleQuickNavRail() {
       }
     });
   });
+}
+
+// Keep the main course cards focused on one working position at a time.
+// Module 01 uses section buttons and hidden bodies; Modules 02–12 use native
+// details/summary cards. The same behavior applies to both patterns.
+function wireModuleAccordionCards() {
+  const main = document.querySelector('main[class*="m0"], main[class*="m1"]');
+  if (!main) return;
+  const cards = [...main.querySelectorAll(':scope > [class*="section-collapsible"]')];
+  if (!cards.length) return;
+
+  // Initial markup may mark each incomplete macro section open. Keep the
+  // first open card, which follows the course order and therefore represents
+  // the student's earliest unfinished position.
+  let foundOpen = false;
+  cards.forEach((card) => {
+    const isOpen = card.matches('details') ? card.open : card.querySelector('[data-m01-section-toggle]')?.getAttribute('aria-expanded') === 'true';
+    if (!isOpen || !foundOpen) {
+      if (isOpen) foundOpen = true;
+      return;
+    }
+    if (card.matches('details')) card.open = false;
+    else setModuleOneCardOpen(card, false);
+  });
+
+  main.addEventListener('click', (event) => {
+    const trigger = event.target.closest('summary, [data-m01-section-toggle]');
+    if (!trigger || !main.contains(trigger)) return;
+    const activeCard = trigger.matches('summary') ? trigger.parentElement : trigger.closest('[class*="section-collapsible"]');
+    if (!activeCard || !cards.includes(activeCard)) return;
+    cards.forEach((card) => {
+      if (card === activeCard) return;
+      if (card.matches('details')) card.open = false;
+      else setModuleOneCardOpen(card, false);
+    });
+  }, true);
+}
+
+function setModuleOneCardOpen(card, open) {
+  const button = card.querySelector('[data-m01-section-toggle]');
+  if (!button) return;
+  const body = document.getElementById(button.getAttribute('aria-controls'));
+  button.setAttribute('aria-expanded', String(open));
+  button.setAttribute('aria-label', `${open ? 'Collapse' : 'Expand'} ${button.dataset.m01SectionLabel || 'section'}`);
+  if (body) body.hidden = !open;
+  const key = button.dataset.m01SectionKey;
+  if (key && window.moduleOneState?.sectionOpen) {
+    window.moduleOneState.sectionOpen[key] = open;
+    if (typeof window.moduleOneSave === 'function') window.moduleOneSave();
+  }
 }
 
 /* "Generate Diploma" (admin panel). Diploma title is derived from the

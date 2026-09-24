@@ -3,17 +3,17 @@
 // ============================================================
 
 const USERS = [
-  { id:1,  username:'student_01', password:'k7m2x9', role:'student',    displayName:'Student 01' },
-  { id:2,  username:'student_02', password:'r4t8b1', role:'student',    displayName:'Student 02' },
-  { id:3,  username:'student_03', password:'p9c3w6', role:'student',    displayName:'Student 03' },
-  { id:4,  username:'student_04', password:'v2n7q5', role:'student',    displayName:'Student 04' },
-  { id:5,  username:'student_05', password:'h6z1m8', role:'student',    displayName:'Student 05' },
-  { id:6,  username:'student_06', password:'x3b9k2', role:'student',    displayName:'Student 06' },
-  { id:7,  username:'student_07', password:'t5y8r4', role:'student',    displayName:'Student 07' },
-  { id:8,  username:'student_08', password:'n1p6d7', role:'student',    displayName:'Student 08' },
-  { id:9,  username:'student_09', password:'g8w2s5', role:'student',    displayName:'Student 09' },
-  { id:10, username:'student_10', password:'q4m7x3', role:'student',    displayName:'Student 10' },
-  { id:11, username:'instructor', password:'admin7k', role:'instructor', displayName:'Instructor' },
+  { id:1,  username:'student_01', role:'student',    displayName:'Student 01' },
+  { id:2,  username:'student_02', role:'student',    displayName:'Student 02' },
+  { id:3,  username:'student_03', role:'student',    displayName:'Student 03' },
+  { id:4,  username:'student_04', role:'student',    displayName:'Student 04' },
+  { id:5,  username:'student_05', role:'student',    displayName:'Student 05' },
+  { id:6,  username:'student_06', role:'student',    displayName:'Student 06' },
+  { id:7,  username:'student_07', role:'student',    displayName:'Student 07' },
+  { id:8,  username:'student_08', role:'student',    displayName:'Student 08' },
+  { id:9,  username:'student_09', role:'student',    displayName:'Student 09' },
+  { id:10, username:'student_10', role:'student',    displayName:'Student 10' },
+  { id:11, username:'instructor', role:'instructor', displayName:'Instructor' },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -446,7 +446,6 @@ const LOG_ANALYSIS_PROJECTS = [
 
 const ACTIVE_DIRECTORY_PROJECTS = [
   { id:'ad-1', title:'Active Directory Monitoring with Grafana', focus:'Grafana', difficulty:'Beginner', estimatedTime:'50 min', summary:'Build basic Active Directory monitoring views using Grafana-oriented workflows.', skills:['Grafana','AD metrics','Dashboards'], url:'https://github.com/0xrajneesh/Active-Directory-Monitoring-Projects/blob/main/project-1-active-directory-monitoring-with-grafana.md' },
-  { id:'ad-2', title:'Active Directory Logs and Insights', focus:'Linux CLI', difficulty:'Beginner', estimatedTime:'60 min', summary:'Use cat, grep, awk, sort, and uniq to inspect a forwarded Active Directory security log and find security-relevant patterns.', skills:['Linux CLI','AD logs','Log review'], url:'https://github.com/0xrajneesh/Active-Directory-Monitoring-Projects/blob/main/project-2-active-directory-monitoring-with-splunk.md' },
   { id:'ad-3', title:'Real-time Active Directory Metrics with Datadog', focus:'Datadog', difficulty:'Beginner', estimatedTime:'50 min', summary:'Explore real-time Active Directory monitoring concepts using Datadog-oriented telemetry.', skills:['Datadog','Realtime metrics','Monitoring'], url:'https://github.com/0xrajneesh/Active-Directory-Monitoring-Projects/blob/main/project-3-real-time-active-directory-monitoring-with-datadog.md' },
   { id:'ad-4', title:'Active Directory Health Checks using Nagios', focus:'Nagios', difficulty:'Beginner', estimatedTime:'50 min', summary:'Practice AD health-check monitoring and alerting concepts with Nagios.', skills:['Nagios','Health checks','Alerting'], url:'https://github.com/0xrajneesh/Active-Directory-Monitoring-Projects/blob/main/project-4-active-directory-monitoring-using-nagios.md' },
   { id:'ad-5', title:'Active Directory Performance Monitoring with Checkmk', focus:'Checkmk', difficulty:'Beginner', estimatedTime:'50 min', summary:'Review AD performance monitoring workflows using Checkmk-style service checks.', skills:['Checkmk','Performance checks','Service monitoring'], url:'https://github.com/0xrajneesh/Active-Directory-Monitoring-Projects/blob/main/project-5-active-directory-monitoring-with-checkmk.md' },
@@ -455,7 +454,6 @@ const ACTIVE_DIRECTORY_PROJECTS = [
 ];
 
 const SECURITY_ASSESSMENT_PROJECTS = [
-  { id:'sa-1', title:'Basic Network Security Assessment', focus:'Network Config', difficulty:'Beginner', estimatedTime:'50 min', summary:'Assess network configurations for beginner-level security weaknesses and exposure.', skills:['Network review','Configuration checks','Risk notes'], url:'https://github.com/0xrajneesh/Security-Assessments-projects-for-Beginners/blob/main/project-1-Basic%20Network%20Security%20Assessment:%20Identifying%20Vulnerabilities%20in%20Network%20Configurations.md' },
   { id:'sa-2', title:'File System Security Assessment', focus:'File System', difficulty:'Beginner', estimatedTime:'50 min', summary:'Review file-system permissions and evidence of unauthorized access or modification.', skills:['Permissions','Access review','File integrity'], url:'https://github.com/0xrajneesh/Security-Assessments-projects-for-Beginners/blob/main/project-2-File%20System%20Security%20Assessment:%20Detecting%20Unauthorized%20Access%20and%20Modifications.md' },
   { id:'sa-3', title:'Web Application Security Assessment', focus:'Web App', difficulty:'Beginner', estimatedTime:'60 min', summary:'Practice assessing common web application vulnerabilities at a beginner level.', skills:['Web testing','Common vulns','Assessment notes'], url:'https://github.com/0xrajneesh/Security-Assessments-projects-for-Beginners/blob/main/project-3-Web%20Application%20Security%20Assessment:%20Assessing%20Common%20Web%20Vulnerabilities.md' },
   { id:'sa-4', title:'System Log Assessment', focus:'System Logs', difficulty:'Beginner', estimatedTime:'45 min', summary:'Analyze system logs for potential security incidents and document suspicious findings.', skills:['Log review','Incident clues','Timeline notes'], url:'https://github.com/0xrajneesh/Security-Assessments-projects-for-Beginners/blob/main/project-4-System%20Log%20Assessment:%20Analyzing%20Logs%20for%20Potential%20Security%20Incidents.md' },
@@ -495,13 +493,11 @@ const PROJECT_LAB_PROFILES = {
   'lap-4': { tool:'Kibana', asset:'elk', finding:'indexed-security-error-spike', event:'index_pattern', owner:'soc-analyst' },
   'lap-5': { tool:'Sysinternals', asset:'endpoint', finding:'unsigned-process-persistence', event:'autoruns', owner:'ir-lead' },
   'ad-1': { tool:'Grafana', asset:'dc', finding:'domain-controller-cpu-spike', event:'metric_alert', owner:'ad-ops' },
-  'ad-2': { tool:'Splunk', asset:'dc', finding:'kerberos-failure-burst', event:'ad_log', owner:'ad-ops' },
   'ad-3': { tool:'Datadog', asset:'dc', finding:'replication-latency-alert', event:'realtime_metric', owner:'ad-ops' },
   'ad-4': { tool:'Nagios', asset:'dc', finding:'ldap-service-check-critical', event:'service_check', owner:'ad-ops' },
   'ad-5': { tool:'Checkmk', asset:'dc', finding:'directory-service-health-warning', event:'check_result', owner:'ad-ops' },
   'ad-6': { tool:'Prometheus', asset:'dc', finding:'password-spray-alert-rule', event:'alert_rule', owner:'ad-ops' },
   'ad-7': { tool:'Cacti', asset:'dc', finding:'authentication-traffic-surge', event:'graph_threshold', owner:'ad-ops' },
-  'sa-1': { tool:'Network Review', asset:'network', finding:'insecure-management-exposure', event:'config_check', owner:'netsec' },
   'sa-2': { tool:'File Audit', asset:'filesrv', finding:'weak-permission-on-sensitive-share', event:'acl_review', owner:'platform' },
   'sa-3': { tool:'Web Test', asset:'app', finding:'reflected-input-validation-gap', event:'web_check', owner:'appsec' },
   'sa-4': { tool:'Log Review', asset:'server', finding:'suspicious-service-restart-chain', event:'system_log', owner:'soc-analyst' },
@@ -1567,7 +1563,7 @@ const TRAINING_CATALOG = [
 ];
 
 // ─────────────────────────────────────────────────────────────
-//  Session & Progress Helpers
+//  Progress Helpers
 // ─────────────────────────────────────────────────────────────
 function getProgress() {
   try { return JSON.parse(localStorage.getItem('mission_next_progress') || '{}'); } catch { return {}; }
@@ -1619,10 +1615,6 @@ function resetAllStudentProgress() {
   return p;
 }
 
-function getSession() { try { return JSON.parse(localStorage.getItem('mission_next_session')); } catch { return null; } }
-function setSession(u) { localStorage.setItem('mission_next_session', JSON.stringify(u)); }
-function clearSession() { localStorage.removeItem('mission_next_session'); }
-
 Object.assign(window, {
   USERS, MODULES, WINDOWS_FORENSICS_PROJECTS, LOG_ANALYSIS_PROJECTS,
   ACTIVE_DIRECTORY_PROJECTS, SECURITY_ASSESSMENT_PROJECTS,
@@ -1632,5 +1624,4 @@ Object.assign(window, {
   TRAINING_CATALOG,
   getProgress, saveProgress, initUserProgress, markTaskComplete,
   resetUserProgress, resetAllStudentProgress,
-  getSession, setSession, clearSession,
 });

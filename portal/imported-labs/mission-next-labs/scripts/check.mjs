@@ -14,7 +14,6 @@ const requiredFiles = [
   'src/query-engine.js',
   'src/animations.jsx',
   'src/enterprise-components.jsx',
-  'src/login.jsx',
   'src/track-selection.jsx',
   'src/student-dashboard.jsx',
   'src/module-page.jsx',
@@ -123,13 +122,13 @@ assert(Array.isArray(USERS) && USERS.length >= 2, 'Expected demo users to load')
 assert(Array.isArray(MODULES) && MODULES.length === 7, 'Expected seven training modules');
 assert(Array.isArray(WINDOWS_FORENSICS_PROJECTS) && WINDOWS_FORENSICS_PROJECTS.length === 5, 'Expected five Windows forensics projects');
 assert(Array.isArray(LOG_ANALYSIS_PROJECTS) && LOG_ANALYSIS_PROJECTS.length === 5, 'Expected five log analysis projects');
-assert(Array.isArray(ACTIVE_DIRECTORY_PROJECTS) && ACTIVE_DIRECTORY_PROJECTS.length === 7, 'Expected seven Active Directory projects');
-assert(Array.isArray(SECURITY_ASSESSMENT_PROJECTS) && SECURITY_ASSESSMENT_PROJECTS.length === 5, 'Expected five security assessment projects');
+assert(Array.isArray(ACTIVE_DIRECTORY_PROJECTS) && ACTIVE_DIRECTORY_PROJECTS.length === 6, 'Expected six Active Directory projects');
+assert(Array.isArray(SECURITY_ASSESSMENT_PROJECTS) && SECURITY_ASSESSMENT_PROJECTS.length === 4, 'Expected four security assessment projects');
 assert(Array.isArray(VULNERABILITY_MANAGEMENT_PROJECTS) && VULNERABILITY_MANAGEMENT_PROJECTS.length === 5, 'Expected five vulnerability management projects');
 assert(Array.isArray(MALWARE_ANALYSIS_PROJECTS) && MALWARE_ANALYSIS_PROJECTS.length === 5, 'Expected five malware analysis projects');
 assert(Array.isArray(TRAINING_CATALOG) && TRAINING_CATALOG.length === 7, 'Expected seven training catalog entries');
 assert(MALWARE_ANALYSIS_PROJECTS.every(project => project.simulation === true), 'Expected malware analysis projects to be simulation-only');
-assert(Array.isArray(ALL_PROJECT_LABS) && ALL_PROJECT_LABS.length === 32, 'Expected local catalog labs for every external project');
+assert(Array.isArray(ALL_PROJECT_LABS) && ALL_PROJECT_LABS.length === 30, 'Expected local catalog labs for every external project');
 assert(TRAINING_CATALOG.find(track => track.id === 'log-analysis').projects.every(project => project.lab), 'Expected catalog projects to expose local labs');
 assert(TRAINING_CATALOG.find(track => track.id === 'windows-forensics').projects.every(project => project.lab), 'Expected Windows projects to expose local labs');
 assert(typeof executeQuery === 'function', 'Expected query engine to load');
@@ -222,7 +221,6 @@ assert(MISSION_NEXT_LABS && typeof MISSION_NEXT_LABS === 'object', 'Expected win
 const lap1 = MISSION_NEXT_LABS['lap-1'];
 const lap2 = MISSION_NEXT_LABS['lap-2'];
 const lap4 = MISSION_NEXT_LABS['lap-4'];
-const sa1 = MISSION_NEXT_LABS['sa-1'];
 const sa2 = MISSION_NEXT_LABS['sa-2'];
 const sa3 = MISSION_NEXT_LABS['sa-3'];
 const sa4 = MISSION_NEXT_LABS['sa-4'];
@@ -233,11 +231,11 @@ const wf1 = MISSION_NEXT_LABS['wf-1'];
 const wf3 = MISSION_NEXT_LABS['wf-3'];
 const wf4 = MISSION_NEXT_LABS['wf-4'];
 const wf5 = MISSION_NEXT_LABS['wf-5'];
-const adLabs = ['ad-1', 'ad-2', 'ad-3', 'ad-4', 'ad-5', 'ad-6', 'ad-7'].map(id => MISSION_NEXT_LABS[id]);
+const AD_LAB_IDS = ['ad-1', 'ad-3', 'ad-4', 'ad-5', 'ad-6', 'ad-7'];
+const adLabs = AD_LAB_IDS.map(id => MISSION_NEXT_LABS[id]);
 assert(lap1, 'Expected MISSION_NEXT_LABS["lap-1"] to be registered');
 assert(lap2, 'Expected MISSION_NEXT_LABS["lap-2"] to be registered');
 assert(lap4, 'Expected MISSION_NEXT_LABS["lap-4"] to be registered');
-assert(sa1, 'Expected MISSION_NEXT_LABS["sa-1"] to be registered');
 assert(sa2, 'Expected MISSION_NEXT_LABS["sa-2"] to be registered');
 assert(sa3, 'Expected MISSION_NEXT_LABS["sa-3"] to be registered');
 assert(sa4, 'Expected MISSION_NEXT_LABS["sa-4"] to be registered');
@@ -248,12 +246,11 @@ assert(wf1, 'Expected MISSION_NEXT_LABS["wf-1"] to be registered');
 assert(wf3, 'Expected MISSION_NEXT_LABS["wf-3"] to be registered');
 assert(wf4, 'Expected MISSION_NEXT_LABS["wf-4"] to be registered');
 assert(wf5, 'Expected MISSION_NEXT_LABS["wf-5"] to be registered');
-adLabs.forEach((lab, index) => assert(lab, `Expected MISSION_NEXT_LABS["ad-${index + 1}"] to be registered`));
+adLabs.forEach((lab, index) => assert(lab, `Expected MISSION_NEXT_LABS["${AD_LAB_IDS[index]}"] to be registered`));
 assert(Array.isArray(lap1.exercises) && lap1.exercises.length === 5, 'Expected lap-1 to have 5 upstream exercises');
 assert(Array.isArray(lap2.exercises) && lap2.exercises.length === 5, 'Expected lap-2 to have 5 upstream exercises');
 assert(Array.isArray(lap4.exercises) && lap4.exercises.length === 5, 'Expected lap-4 to have 5 upstream exercises');
-assert(Array.isArray(sa1.exercises) && sa1.exercises.length === 5, 'Expected sa-1 to have 5 upstream exercises');
-assert(Array.isArray(sa2.exercises) && sa2.exercises.length === 5, 'Expected sa-2 to have 5 upstream exercises');
+assert(Array.isArray(sa2.exercises) && sa2.exercises.length === 4, 'Expected sa-2 to have 4 exercises (Tripwire/OSSEC cut)');
 assert(Array.isArray(sa3.exercises) && sa3.exercises.length === 5, 'Expected sa-3 to have 5 upstream exercises');
 assert(Array.isArray(sa4.exercises) && sa4.exercises.length === 5, 'Expected sa-4 to have 5 upstream exercises');
 assert(Array.isArray(sa5.exercises) && sa5.exercises.length === 5, 'Expected sa-5 to have 5 upstream exercises');
@@ -264,8 +261,8 @@ assert(Array.isArray(wf3.exercises) && wf3.exercises.length === 5, 'Expected wf-
 assert(Array.isArray(wf4.exercises) && wf4.exercises.length === 5, 'Expected wf-4 to have 5 upstream exercises');
 assert(Array.isArray(wf5.exercises) && wf5.exercises.length === 5, 'Expected wf-5 to have 5 upstream exercises');
 adLabs.forEach((lab, index) => {
-  const expectedExercises = index === 6 ? 6 : 5;
-  assert(Array.isArray(lab.exercises) && lab.exercises.length === expectedExercises, `Expected ad-${index + 1} to have ${expectedExercises} upstream exercises`);
+  const expectedExercises = AD_LAB_IDS[index] === 'ad-7' ? 6 : 5;
+  assert(Array.isArray(lab.exercises) && lab.exercises.length === expectedExercises, `Expected ${AD_LAB_IDS[index]} to have ${expectedExercises} upstream exercises`);
 });
 Object.values(MISSION_NEXT_LABS).forEach(lab => {
   assert(!Object.prototype.hasOwnProperty.call(lab, 'checkOnLearning'), `${lab.id} should not expose knowledge-check metadata`);
@@ -276,7 +273,6 @@ Object.values(MISSION_NEXT_LABS).forEach(lab => {
 assert(lap1.source && typeof lap1.source.sha256 === 'string' && lap1.source.sha256.length === 64, 'Expected lap-1 source sha256 to be a 64-char hex string');
 assert(lap2.source && typeof lap2.source.sha256 === 'string' && lap2.source.sha256.length === 64, 'Expected lap-2 source sha256 to be a 64-char hex string');
 assert(lap4.source && typeof lap4.source.sha256 === 'string' && lap4.source.sha256.length === 64, 'Expected lap-4 source sha256 to be a 64-char hex string');
-assert(sa1.source && typeof sa1.source.sha256 === 'string' && sa1.source.sha256.length === 64, 'Expected sa-1 source sha256 to be a 64-char hex string');
 assert(sa2.source && typeof sa2.source.sha256 === 'string' && sa2.source.sha256.length === 64, 'Expected sa-2 source sha256 to be a 64-char hex string');
 assert(sa3.source && typeof sa3.source.sha256 === 'string' && sa3.source.sha256.length === 64, 'Expected sa-3 source sha256 to be a 64-char hex string');
 assert(sa4.source && typeof sa4.source.sha256 === 'string' && sa4.source.sha256.length === 64, 'Expected sa-4 source sha256 to be a 64-char hex string');
@@ -287,14 +283,13 @@ assert(wf1.source && typeof wf1.source.sha256 === 'string' && wf1.source.sha256.
 assert(wf3.source && typeof wf3.source.sha256 === 'string' && wf3.source.sha256.length === 64, 'Expected wf-3 source sha256 to be a 64-char hex string');
 assert(wf4.source && typeof wf4.source.sha256 === 'string' && wf4.source.sha256.length === 64, 'Expected wf-4 source sha256 to be a 64-char hex string');
 assert(wf5.source && typeof wf5.source.sha256 === 'string' && wf5.source.sha256.length === 64, 'Expected wf-5 source sha256 to be a 64-char hex string');
-adLabs.forEach((lab, index) => assert(lab.source && typeof lab.source.sha256 === 'string' && lab.source.sha256.length === 64, `Expected ad-${index + 1} source sha256 to be a 64-char hex string`));
+adLabs.forEach((lab, index) => assert(lab.source && typeof lab.source.sha256 === 'string' && lab.source.sha256.length === 64, `Expected ${AD_LAB_IDS[index]} source sha256 to be a 64-char hex string`));
 
 // Snapshot sha256 must match the manifest
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'src/data/sources/.manifest.json'), 'utf8'));
 assert(manifest.snapshots['lap-1'] && manifest.snapshots['lap-1'].sha256 === lap1.source.sha256, 'Expected lap-1 source sha256 to match manifest');
 assert(manifest.snapshots['lap-2'] && manifest.snapshots['lap-2'].sha256 === lap2.source.sha256, 'Expected lap-2 source sha256 to match manifest');
 assert(manifest.snapshots['lap-4'] && manifest.snapshots['lap-4'].sha256 === lap4.source.sha256, 'Expected lap-4 source sha256 to match manifest');
-assert(manifest.snapshots['sa-1'] && manifest.snapshots['sa-1'].sha256 === sa1.source.sha256, 'Expected sa-1 source sha256 to match manifest');
 assert(manifest.snapshots['sa-2'] && manifest.snapshots['sa-2'].sha256 === sa2.source.sha256, 'Expected sa-2 source sha256 to match manifest');
 assert(manifest.snapshots['sa-3'] && manifest.snapshots['sa-3'].sha256 === sa3.source.sha256, 'Expected sa-3 source sha256 to match manifest');
 assert(manifest.snapshots['sa-4'] && manifest.snapshots['sa-4'].sha256 === sa4.source.sha256, 'Expected sa-4 source sha256 to match manifest');
@@ -305,7 +300,7 @@ assert(manifest.snapshots['wf-3'] && manifest.snapshots['wf-3'].sha256 === wf3.s
 assert(manifest.snapshots['wf-4'] && manifest.snapshots['wf-4'].sha256 === wf4.source.sha256, 'Expected wf-4 source sha256 to match manifest');
 assert(manifest.snapshots['wf-5'] && manifest.snapshots['wf-5'].sha256 === wf5.source.sha256, 'Expected wf-5 source sha256 to match manifest');
 adLabs.forEach((lab, index) => {
-  const id = `ad-${index + 1}`;
+  const id = AD_LAB_IDS[index];
   assert(manifest.snapshots[id] && manifest.snapshots[id].sha256 === lab.source.sha256, `Expected ${id} source sha256 to match manifest`);
 });
 
@@ -315,8 +310,6 @@ const lap2SchemaErrs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(lap2);
 assert(lap2SchemaErrs.length === 0, 'lap-2 schema errors: ' + lap2SchemaErrs.join('; '));
 const lap4SchemaErrs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(lap4);
 assert(lap4SchemaErrs.length === 0, 'lap-4 schema errors: ' + lap4SchemaErrs.join('; '));
-const sa1SchemaErrs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(sa1);
-assert(sa1SchemaErrs.length === 0, 'sa-1 schema errors: ' + sa1SchemaErrs.join('; '));
 const sa2SchemaErrs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(sa2);
 assert(sa2SchemaErrs.length === 0, 'sa-2 schema errors: ' + sa2SchemaErrs.join('; '));
 const sa3SchemaErrs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(sa3);
@@ -339,18 +332,18 @@ const wf5SchemaErrs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(wf5);
 assert(wf5SchemaErrs.length === 0, 'wf-5 schema errors: ' + wf5SchemaErrs.join('; '));
 adLabs.forEach((lab, index) => {
   const errs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(lab);
-  assert(errs.length === 0, `ad-${index + 1} schema errors: ` + errs.join('; '));
+  assert(errs.length === 0, `${AD_LAB_IDS[index]} schema errors: ` + errs.join('; '));
 });
 
-['sa-1', 'sa-2', 'sa-3', 'sa-4', 'sa-5'].forEach(id => {
+['sa-2', 'sa-3', 'sa-4', 'sa-5'].forEach(id => {
   const lab = MISSION_NEXT_LABS[id];
   assert(lab, `Expected MISSION_NEXT_LABS["${id}"] to be registered`);
   const errs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(lab);
   assert(errs.length === 0, `${id} schema errors: ` + errs.join('; '));
-  assert(Array.isArray(lab.exercises) && lab.exercises.length === 5, `Expected ${id} to have 5 exercises`);
+  const expectedExercises = id === 'sa-2' ? 4 : 5;
+  assert(Array.isArray(lab.exercises) && lab.exercises.length === expectedExercises, `Expected ${id} to have ${expectedExercises} exercises`);
   assert(manifest.snapshots[id] && manifest.snapshots[id].sha256 === lab.source.sha256, `Expected ${id} source sha256 to match manifest`);
 });
-assert(MISSION_NEXT_LABS['sa-1'].environment.shell === 'LinuxTerminalShell', 'Expected sa-1 to use LinuxTerminalShell');
 assert(MISSION_NEXT_LABS['sa-2'].environment.shell === 'LinuxTerminalShell', 'Expected sa-2 to use LinuxTerminalShell');
 assert(MISSION_NEXT_LABS['sa-3'].environment.shell === 'BurpProxyLabShell', 'Expected sa-3 to use BurpProxyLabShell');
 assert(MISSION_NEXT_LABS['sa-4'].environment.shell === 'LinuxTerminalShell', 'Expected sa-4 to use LinuxTerminalShell');
@@ -361,7 +354,8 @@ assert(MISSION_NEXT_LABS['sa-5'].environment.shell === 'LinuxTerminalShell', 'Ex
   assert(lab, `Expected MISSION_NEXT_LABS["${id}"] to be registered`);
   const errs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(lab);
   assert(errs.length === 0, `${id} schema errors: ` + errs.join('; '));
-  assert(Array.isArray(lab.exercises) && lab.exercises.length === 5, `Expected ${id} to have 5 exercises`);
+  const expectedExercises = id === 'sa-2' ? 4 : 5;
+  assert(Array.isArray(lab.exercises) && lab.exercises.length === expectedExercises, `Expected ${id} to have ${expectedExercises} exercises`);
   assert(manifest.snapshots[id] && manifest.snapshots[id].sha256 === lab.source.sha256, `Expected ${id} source sha256 to match manifest`);
 });
 assert(MISSION_NEXT_LABS['vm-1'].environment.shell === 'OpenVASLabShell', 'Expected vm-1 to use OpenVASLabShell');
@@ -370,7 +364,6 @@ assert(MISSION_NEXT_LABS['vm-3'].environment.shell === 'QualysLabShell', 'Expect
 assert(MISSION_NEXT_LABS['vm-4'].environment.shell === 'ZAPLabShell', 'Expected vm-4 to use ZAPLabShell');
 assert(MISSION_NEXT_LABS['vm-5'].environment.shell === 'WSUSLabShell', 'Expected vm-5 to use WSUSLabShell');
 assert(MISSION_NEXT_LABS['ad-1'].environment.shell === 'GrafanaLabShell', 'Expected ad-1 to use GrafanaLabShell');
-assert(MISSION_NEXT_LABS['ad-2'].environment.shell === 'LinuxTerminalShell', 'Expected ad-2 to use LinuxTerminalShell for its real CLI log-review steps');
 assert(MISSION_NEXT_LABS['ad-3'].environment.shell === 'DatadogLabShell', 'Expected ad-3 to use DatadogLabShell');
 assert(MISSION_NEXT_LABS['ad-4'].environment.shell === 'NagiosLabShell', 'Expected ad-4 to use NagiosLabShell');
 assert(MISSION_NEXT_LABS['ad-5'].environment.shell === 'CheckmkLabShell', 'Expected ad-5 to use CheckmkLabShell');

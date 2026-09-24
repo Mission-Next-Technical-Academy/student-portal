@@ -1,4 +1,4 @@
-// Log Explorer — vendor-neutral log query workspace for Module 3.
+// Log Explorer — vendor-neutral SIEM correlation workspace for Module 3.
 //
 // The presentational shell (`LogExplorerShell`) is a close, renamed port of
 // the Mission Next SOC Analyst Track's `SplunkLabShell`
@@ -77,12 +77,8 @@ function LogExplorerShell(props) {
   const { mod, mode, onBack, query, setQuery, runQuery, running, displayRows, columns, results, timeline, maxCount, tasks, taskState, inputRef } = props;
   const fields = mod.fields.map(name => ({ name, count: new Set(displayRows.map(row => row[name]).filter(Boolean)).size })).filter(field => field.count);
   const selectedFields = fields.slice(0, 8);
-  const defaultFields = ['id', 'ts', 'src_ip'].filter(f => mod.fields.includes(f)).map(name => ({ name, count: displayRows.length || mod.logs.length }));
-  const queryHelpers = [
-    `search ${mod.fields[3] || mod.fields[1] || 'field'}=`,
-    `count by ${mod.fields[2] || mod.fields[1] || 'field'}`,
-    'stats count by status',
-  ];
+  const defaultFields = ['id', 'timestamp', 'source'].filter(f => mod.fields.includes(f)).map(name => ({ name, count: displayRows.length || mod.logs.length }));
+  const queryHelpers = ['search account=acct-428', 'search source_ip=198.51.100.24 | sort by timestamp', 'search account=acct-428 | count by source'];
   const visibleRows = displayRows.slice(0, 80);
   const timeRangeLabel = timeline.length > 0 ? `${timeline[0][0]} to ${timeline[timeline.length - 1][0]}` : 'All time';
 
@@ -91,7 +87,7 @@ function LogExplorerShell(props) {
       <header style={styles.top}>
         <div style={styles.brand}>
           <button onClick={onBack} style={styles.darkBack} aria-label="Back to module">‹</button>
-          <div style={styles.wordmark}>Log Explorer</div>
+        <div style={styles.wordmark}>SIEM Workbench</div>
           <span style={styles.product}>{mode === 'prove' ? 'assessment lab' : 'guided lab'}</span>
         </div>
         <nav style={styles.nav}>
@@ -108,7 +104,7 @@ function LogExplorerShell(props) {
           <span style={styles.metaText}>Range: {timeRangeLabel}</span>
         </div>
         <div style={styles.searchRow}>
-          <input ref={inputRef} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') runQuery(); }} style={styles.input} placeholder={`search ${mod.fields[1] || mod.fields[0]}= | stats count by ${mod.fields[2] || mod.fields[1]}`} />
+          <input ref={inputRef} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') runQuery(); }} style={styles.input} placeholder="search account=acct-428 | sort by timestamp" />
           <select style={styles.select} defaultValue="24h"><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="all">All time</option></select>
           <button onClick={runQuery} disabled={running} style={styles.run}>{running ? 'Running…' : 'Search'}</button>
         </div>
@@ -182,7 +178,7 @@ function LogExplorerShell(props) {
               <tbody>
                 {visibleRows.map((row, index) => (
                   <tr key={row.id ?? index} style={index % 2 === 0 ? styles.tr : styles.trAlt}>
-                    {columns.map(col => <td key={col} style={styles.td}>{String(row[col] ?? '')}</td>)}
+                {columns.map(col => <td key={col} style={styles.td}>{String(row[col] ?? '')}</td>)}
                   </tr>
                 ))}
               </tbody>
@@ -241,7 +237,7 @@ function LogExplorerConsole({ mode }) {
   const timelineMap = {};
   if (results.type === 'raw') {
     displayRows.forEach(row => {
-      const bucket = String(row.ts || '').slice(0, 13) || 'unknown';
+      const bucket = String(row.timestamp || '').slice(0, 13) || 'unknown';
       timelineMap[bucket] = (timelineMap[bucket] || 0) + 1;
     });
   }

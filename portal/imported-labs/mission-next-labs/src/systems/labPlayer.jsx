@@ -14,57 +14,6 @@
   const STEP_HINT_THRESHOLD = 3;
   const STEP_REVEAL_THRESHOLD = 5;
 
-  // Six short, floating "console guide"-style steps shown the first time a
-  // student opens a terminal-driven lab, mirroring Module 2's Learn It
-  // console guide (m02e-learn-tip). Each step is one to two sentences so it
-  // reads in a single glance before the student clicks Next.
-  const TERMINAL_GUIDE_STEPS = [
-    'This is a terminal — a place where commands are sent directly to a computer.',
-    'Administrators and engineers often use terminals to remotely manage devices.',
-    "Many companies prefer command-line (CLI) interfaces because it's harder for attackers to compromise than a dashboard or admin panel.",
-    "Most pentesting (ethical hacking) happens on the CLI — it's lower-level and closer to how a device's software actually works.",
-    'Windows, Mac, and Linux are the main operating systems, and each uses its own scripting language: PowerShell for Windows, BASH (Bourne Again Shell) for Linux/Unix.',
-    "In this lab, you'll get acquainted with a typical Linux command-line interface and run the basic commands a SOC analyst would use.",
-  ];
-
-  function TerminalGuidePanel({ stepIndex, onNext, onSkip }) {
-    const total = TERMINAL_GUIDE_STEPS.length;
-    const done = stepIndex >= total;
-    const text = TERMINAL_GUIDE_STEPS[Math.min(stepIndex, total - 1)];
-    // Rendered through a portal to document.body: the route wrapper this
-    // component lives under applies a CSS transform for page transitions,
-    // which would otherwise make `position: fixed` anchor to that wrapper's
-    // box (often far below the viewport) instead of the real viewport.
-    return ReactDOM.createPortal(
-      <aside style={lpStylesShared.terminalGuide} role="status" aria-live="polite">
-        <div style={lpStylesShared.terminalGuideLabel}>
-          {done ? 'TERMINAL GUIDE · COMPLETE' : `TERMINAL GUIDE · STEP ${stepIndex + 1} OF ${total}`}
-        </div>
-        <p style={lpStylesShared.terminalGuideBody}>
-          {done ? 'You can keep exploring, or open this guide again from the sidebar.' : text}
-        </p>
-        <div style={lpStylesShared.terminalGuideActions}>
-          {!done && (
-            <button type="button" onClick={onSkip} style={lpStylesShared.terminalGuideSkip}>Skip</button>
-          )}
-          <button type="button" onClick={onNext} style={lpStylesShared.terminalGuideNext}>
-            {done ? 'Close' : stepIndex === total - 1 ? 'Finish guide' : 'Next'}
-          </button>
-        </div>
-      </aside>,
-      document.body
-    );
-  }
-
-  const lpStylesShared = {
-    terminalGuide: { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 60, width: 'min(92vw, 34rem)', padding: '24px 28px', background: '#0f172a', border: '1px solid #334155', borderRadius: 16, boxShadow: '0 24px 64px rgba(2,6,23,0.55)', fontFamily: "'Space Grotesk',sans-serif" },
-    terminalGuideLabel: { fontSize: 11, fontWeight: 800, letterSpacing: 1.8, color: '#38bdf8', marginBottom: 12 },
-    terminalGuideBody: { fontSize: 16, lineHeight: 1.65, color: '#e2e8f0', margin: 0 },
-    terminalGuideActions: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 },
-    terminalGuideSkip: { background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: 12, fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, letterSpacing: 0.5, padding: '8px 16px', borderRadius: 999, cursor: 'pointer' },
-    terminalGuideNext: { background: '#38bdf8', border: 'none', color: '#0f172a', fontSize: 12, fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, letterSpacing: 0.5, padding: '8px 18px', borderRadius: 999, cursor: 'pointer' },
-  };
-
   function flattenSteps(lab) {
     return window.MISSION_NEXT_GATING ? window.MISSION_NEXT_GATING.flattenSteps(lab) : (lab.exercises || []).flatMap(e => e.steps || []);
   }
@@ -101,27 +50,6 @@
     const [savedFiles, setSavedFiles] = React.useState({});
     const [observed, setObserved] = React.useState({});
     const [uiPath, setUiPath] = React.useState([]);
-    const terminalGuideKey = `mission_next_terminal_guide_seen_${(user && user.username) || 'guest'}`;
-    const [terminalGuideStep, setTerminalGuideStep] = React.useState(() => {
-      try { return localStorage.getItem(terminalGuideKey) ? TERMINAL_GUIDE_STEPS.length : 0; }
-      catch (e) { return 0; }
-    });
-    const [terminalGuideOpen, setTerminalGuideOpen] = React.useState(() => terminalGuideStep < TERMINAL_GUIDE_STEPS.length);
-    function advanceTerminalGuide() {
-      const next = terminalGuideStep + 1;
-      if (next > TERMINAL_GUIDE_STEPS.length) {
-        setTerminalGuideOpen(false);
-        return;
-      }
-      setTerminalGuideStep(next);
-      try { if (next >= TERMINAL_GUIDE_STEPS.length) localStorage.setItem(terminalGuideKey, '1'); } catch (e) { /* best effort */ }
-    }
-    function dismissTerminalGuide() {
-      setTerminalGuideStep(TERMINAL_GUIDE_STEPS.length);
-      setTerminalGuideOpen(false);
-      try { localStorage.setItem(terminalGuideKey, '1'); } catch (e) { /* best effort */ }
-    }
-
     // Build virtual filesystem once per lab
     const vfs = React.useMemo(() => {
       if (!lab.environment || typeof lab.environment.fs !== 'function') return null;
@@ -324,13 +252,8 @@
       window.MISSION_NEXT_PROGRESS_EXT?.markCourseLabComplete?.(user.username, lab.id, completedAt);
     }, [labComplete, lab.id, user && user.username]);
 
-    const showTerminalGuide = ShellComponent === window.LinuxTerminalShell;
-
     return (
       <div style={lpStyles.root}>
-        {showTerminalGuide && terminalGuideOpen && (
-          <TerminalGuidePanel stepIndex={terminalGuideStep} onNext={advanceTerminalGuide} onSkip={dismissTerminalGuide} />
-        )}
         <nav style={lpStyles.nav}>
           <div style={lpStyles.navLeft}>
             <button onClick={onBack} style={lpStyles.backBtn}>‹ BACK</button>
@@ -375,7 +298,7 @@
                 vfs={vfs}
                 initialCwd={(lab.environment && lab.environment.initialCwd) || "/home/student"}
                 user={user && user.username || 'student'}
-                host="mission-next"
+                host={(lab.environment && lab.environment.host) || "mission-next"}
                 onCommand={onShellCommand}
                 onAction={onShellAction}
                 activeStep={activeStep}
@@ -411,15 +334,6 @@
                 You can use <kbd style={lpStyles.key}>↑</kbd> to reuse a previous command and <kbd style={lpStyles.key}>Tab</kbd> to complete a path.
                 Read any output before moving to the next step.
               </div>
-              {showTerminalGuide && !terminalGuideOpen && (
-                <button
-                  type="button"
-                  onClick={() => { setTerminalGuideStep(0); setTerminalGuideOpen(true); }}
-                  style={lpStyles.beginnerGuideReplay}
-                >
-                  Replay terminal guide
-                </button>
-              )}
             </div>
 
             <div style={lpStyles.stepsHeader}>
@@ -631,7 +545,6 @@
     beginnerGuide: { padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 16, borderRadius: 12, color: '#1e3a5f' },
     beginnerGuideTitle: { fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: '#2563eb', marginBottom: 5 },
     beginnerGuideBody: { fontSize: 12, lineHeight: 1.55 },
-    beginnerGuideReplay: { marginTop: 10, background: 'transparent', border: '1px solid #bfdbfe', color: '#2563eb', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, padding: '6px 12px', borderRadius: 999, cursor: 'pointer' },
     key: { display: 'inline-block', padding: '1px 5px', margin: '0 2px', border: '1px solid #93c5fd', borderBottomWidth: 2, borderRadius: 4, background: '#fff', fontFamily: "'Space Mono',monospace", fontSize: 10 },
 
     stepsHeader: { display: 'flex', justifyContent: 'space-between', fontFamily: "'Space Grotesk',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#1e3a5f', marginBottom: 10 },

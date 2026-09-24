@@ -1,7 +1,6 @@
 // ============================================================
 //  Security Assessments Track — Labs (Agent 05)
 // ============================================================
-//  sa-1  Network Security Assessment
 //  sa-2  File System Security
 //  sa-3  Web Application Security  (BurpProxyLabShell)
 //  sa-4  System Log Assessment
@@ -14,396 +13,12 @@
 
 (function () {
   // ────────────────────────────────────────────────────────────
-  //  sa-1  Network Security Assessment
-  // ────────────────────────────────────────────────────────────
-  const SA1_NMAP_ARP = [
-    'Starting Nmap 7.94 ( https://nmap.org ) at 2026-04-23 09:14 EDT',
-    'Nmap scan report for gw.corp.example.local (10.10.24.1)',
-    'Host is up (0.00091s latency).',
-    'Nmap scan report for DC-01.corp.example.local (10.10.24.10)',
-    'Host is up (0.00084s latency).',
-    'Nmap scan report for app.example.local (10.10.24.15)',
-    'Host is up (0.00076s latency).',
-    'Nmap scan report for WKSTN-07.corp.example.local (10.10.24.42)',
-    'Host is up (0.00092s latency).',
-    'Nmap done: 256 IP addresses (4 hosts up) scanned in 8.43 seconds',
-  ].join('\n') + '\n';
-
-  const SA1_NMAP_HOST = [
-    'Starting Nmap 7.94 ( https://nmap.org ) at 2026-04-23 09:21 EDT',
-    'Nmap scan report for app.example.local (10.10.24.15)',
-    'Host is up (0.00077s latency).',
-    'Not shown: 994 closed tcp ports (reset)',
-    'PORT     STATE SERVICE',
-    '22/tcp   open  ssh',
-    '80/tcp   open  http',
-    '443/tcp  open  https',
-    '445/tcp  open  microsoft-ds',
-    '3389/tcp open  ms-wbt-server',
-    '5985/tcp open  wsman',
-    'Nmap done: 1 IP address (1 host up) scanned in 1.82 seconds',
-  ].join('\n') + '\n';
-
-  function buildSa1Fs() {
-    return {
-      'home': {
-        'student': {
-          '.bashrc': 'alias ll="ls -la"\n',
-          'scans': {
-            'README.txt': 'Pre-collected scan output for the rotation.\n',
-          },
-        },
-      },
-      'var': {
-        'lib': {
-          'sa': {
-            'nmap-arp.txt':         SA1_NMAP_ARP,
-            'nmap-host.txt':        SA1_NMAP_HOST,
-            'nmap-10.10.24.0_24.txt': SA1_NMAP_ARP,
-            'nmap-10.10.24.15.txt':   SA1_NMAP_HOST,
-          },
-        },
-        'log': {
-          'apache2': { 'access.log': '' },
-        },
-      },
-      'etc': {
-        'hosts': '127.0.0.1 localhost\n10.10.24.10 DC-01\n10.10.24.15 app.example.local\n',
-      },
-      'tmp': {},
-    };
-  }
-
-  const SA1_LAB = {
-    id: 'sa-1',
-    track: 'security-assessments',
-    title: 'Basic Network Security Assessment',
-    difficulty: 'Beginner',
-    estimatedTime: '50 min',
-    icon: '🛰',
-    tags: ['nmap', 'Recon', 'Network'],
-
-    source: {
-      repo: '0xrajneesh/Security-Assessments-projects-for-Beginners',
-      file: 'project-1-Basic Network Security Assessment.md',
-      sha256: '9daafb410ac8a5bfa8acea30db07014581c2c559e79d4c8ba33fd7681782b799',
-      snapshot: 'src/data/sources/sa-1.source.md',
-    },
-
-    environment: { type: 'linux', shell: 'LinuxTerminalShell', fs: buildSa1Fs },
-
-    scenario: {
-      role: 'Junior security analyst on the network-recon rotation',
-      incident: 'Your team is preparing a baseline assessment of the 10.10.24.0/24 segment. You have been asked to enumerate live hosts, open ports, and any management interfaces that are unexpectedly exposed to the internal network.',
-    },
-
-    exercises: [
-      {
-        id: 'ex1',
-        upstreamHeading: 'Exercise 1: Network Scanning with Nmap',
-        steps: [
-          {
-            id: 'sa-1.ex1.s1',
-            upstream: { exercise: 'Exercise 1', stepNumber: 1, sourceLine: 'sudo apt-get install nmap' },
-            kind: 'command',
-            instruction: 'Install Nmap on the kali workstation.',
-            hint: 'Use apt: `sudo apt-get install nmap`. The package manager is simulated.',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?nmap\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-1.ex1.s2',
-            upstream: { exercise: 'Exercise 1', stepNumber: 2, sourceLine: 'nmap -sn 192.168.1.0/24' },
-            kind: 'command',
-            instruction: 'Run a host-discovery (ping) scan against the assigned subnet 10.10.24.0/24.',
-            hint: 'nmap -sn 10.10.24.0/24',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?nmap\s+-sn\s+10\.10\.24\.0\/24\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 10,
-            checkOnLearning: 'sa1-q1',
-          },
-          {
-            id: 'sa-1.ex1.s3',
-            upstream: { exercise: 'Exercise 1', stepNumber: 3, sourceLine: 'nmap -sS 192.168.1.10' },
-            kind: 'command',
-            instruction: 'Pick the live host that resolves to app.example.local and run a stealth SYN scan against it.',
-            hint: 'nmap -sS 10.10.24.15',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?nmap\s+(-sS|-sT|-A)\s+10\.10\.24\.15\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 15,
-            checkOnLearning: 'sa1-q2',
-          },
-        ],
-      },
-      {
-        id: 'ex2',
-        upstreamHeading: 'Exercise 2: Traffic Analysis with Wireshark',
-        steps: [
-          {
-            id: 'sa-1.ex2.s1',
-            upstream: { exercise: 'Exercise 2', stepNumber: 1, sourceLine: 'sudo apt-get install wireshark' },
-            kind: 'command',
-            instruction: 'Install Wireshark (the CLI tshark binary backs the same dissector engine).',
-            hint: '`sudo apt-get install wireshark`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?wireshark\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-1.ex2.s2',
-            upstream: { exercise: 'Exercise 2', stepNumber: 2, sourceLine: 'Capture network traffic on the selected interface' },
-            kind: 'command',
-            instruction: 'Use tshark on the ens33 interface to capture a quick sample (10 packets).',
-            hint: '`tshark -i ens33 -c 10`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?tshark\s+(-i\s+ens33\s+)?(-c\s+\d+\s*)?$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 10,
-          },
-          {
-            id: 'sa-1.ex2.s3',
-            upstream: { exercise: 'Exercise 2', stepNumber: 3, sourceLine: 'Analyze captured traffic for suspicious patterns' },
-            kind: 'analyze',
-            instruction: 'In the captured sample, which application-layer protocol is in use between 10.10.24.42 and 10.10.24.15?',
-            hint: 'Read the Protocol column of the tshark output.',
-            validation: { type: 'valueExtracted', expected: ['HTTP', 'http'] },
-            points: 10,
-            checkOnLearning: 'sa1-q6',
-          },
-        ],
-      },
-      {
-        id: 'ex3',
-        upstreamHeading: 'Exercise 3: Vulnerability Scanning with OpenVAS',
-        steps: [
-          {
-            id: 'sa-1.ex3.s1',
-            upstream: { exercise: 'Exercise 3', stepNumber: 1, sourceLine: 'sudo apt-get install openvas && sudo openvas-setup' },
-            kind: 'command',
-            instruction: 'Install Greenbone OpenVAS / GVM.',
-            hint: '`sudo apt-get install openvas`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?openvas\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-1.ex3.s2',
-            upstream: { exercise: 'Exercise 3', stepNumber: 2, sourceLine: 'Configure and start OpenVAS — UI at https://localhost:9392' },
-            kind: 'command',
-            instruction: 'Run the post-install setup — that creates the CA, the admin user, and the syncs the NVT feed.',
-            hint: '`sudo openvas-setup`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?openvas-setup\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 10,
-          },
-          {
-            id: 'sa-1.ex3.s3',
-            upstream: { exercise: 'Exercise 3', stepNumber: 3, sourceLine: 'Run a vulnerability scan task against the target subnet' },
-            kind: 'analyze',
-            instruction: 'Once setup completes, on which TCP port does the OpenVAS web UI listen?',
-            hint: 'Read the last line of the openvas-setup output. The URL shows the port.',
-            validation: { type: 'valueExtracted', expected: ['9392'] },
-            points: 10,
-            checkOnLearning: 'sa1-q3',
-          },
-        ],
-      },
-      {
-        id: 'ex4',
-        upstreamHeading: 'Exercise 4: Web Server Assessment with Nikto',
-        steps: [
-          {
-            id: 'sa-1.ex4.s1',
-            upstream: { exercise: 'Exercise 4', stepNumber: 1, sourceLine: 'sudo apt-get install nikto' },
-            kind: 'command',
-            instruction: 'Install Nikto.',
-            hint: '`sudo apt-get install nikto`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?nikto\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-1.ex4.s2',
-            upstream: { exercise: 'Exercise 4', stepNumber: 2, sourceLine: 'nikto -h http://192.168.1.10' },
-            kind: 'command',
-            instruction: 'Scan the discovered web server at 10.10.24.15 for common misconfigurations.',
-            hint: '`nikto -h http://10.10.24.15`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?nikto\s+-h\s+(https?:\/\/)?(10\.10\.24\.15|app\.example\.local).*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 15,
-            checkOnLearning: 'sa1-q4',
-          },
-        ],
-      },
-      {
-        id: 'ex5',
-        upstreamHeading: 'Exercise 5: Exploitation Testing with Metasploit',
-        steps: [
-          {
-            id: 'sa-1.ex5.s1',
-            upstream: { exercise: 'Exercise 5', stepNumber: 1, sourceLine: 'curl https://raw.githubusercontent.com/rapid7/metasploit-framework/.../msfupdate | sudo bash' },
-            kind: 'command',
-            instruction: 'Install / update Metasploit (use the package manager — the upstream curl-pipe-bash is replaced for safety).',
-            hint: '`sudo apt-get install metasploit-framework`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?metasploit-framework\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-1.ex5.s2',
-            upstream: { exercise: 'Exercise 5', stepNumber: 2, sourceLine: 'msfconsole' },
-            kind: 'command',
-            instruction: 'Launch the Metasploit console.',
-            hint: '`msfconsole`',
-            acceptedInputs: [{ type: 'regex', value: /^msfconsole\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 10,
-          },
-          {
-            id: 'sa-1.ex5.s3',
-            upstream: { exercise: 'Exercise 5', stepNumber: 3, sourceLine: 'use exploit/windows/smb/ms08_067_netapi; set RHOST 192.168.1.10; run' },
-            kind: 'analyze',
-            instruction: 'WinRM (HTTP) is exposed on TCP/5985 of 10.10.24.15. WinRM is typically delivered by which Windows component?',
-            hint: 'Check your stealth-scan output. The 5985 service banner reveals the answer.',
-            validation: { type: 'valueExtracted', expected: ['wsman', 'WinRM', 'winrm'] },
-            points: 15,
-            checkOnLearning: 'sa1-q5',
-          },
-        ],
-      },
-    ],
-
-    checkOnLearning: [
-      {
-        id: 'sa1-q1',
-        bloom: 'recall',
-        question: 'What does Nmap\'s -sn flag do?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'TCP SYN scan with no port enumeration', correct: false },
-          { id: 'b', text: 'Host-discovery only (no port scan)', correct: true },
-          { id: 'c', text: 'Service / version detection', correct: false },
-          { id: 'd', text: 'Stealth UDP scan', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-1.ex1.s2' },
-        reinforces: 'sa-1.ex1.s2',
-      },
-      {
-        id: 'sa1-q2',
-        bloom: 'comprehension',
-        question: 'Your -sS scan of 10.10.24.15 returned six open ports including 5985/wsman. Which of these are unusual to find exposed on a workstation network segment?',
-        type: 'multi-select',
-        options: [
-          { id: 'a', text: '22/tcp ssh', correct: false },
-          { id: 'b', text: '5985/tcp wsman (WinRM HTTP)', correct: true },
-          { id: 'c', text: '3389/tcp ms-wbt-server (RDP)', correct: true },
-          { id: 'd', text: '443/tcp https', correct: false },
-        ],
-        passThreshold: 'all-correct',
-        triggerOn: { stepId: 'sa-1.ex1.s3' },
-        reinforces: 'sa-1.ex1.s3',
-      },
-      {
-        id: 'sa1-q3',
-        bloom: 'recall',
-        question: 'Which TCP port does the Greenbone (OpenVAS) web UI listen on by default?',
-        type: 'short-answer',
-        acceptedAnswer: ['9392', 'tcp/9392'],
-        triggerOn: { stepId: 'sa-1.ex3.s3' },
-        reinforces: 'sa-1.ex3.s3',
-      },
-      {
-        id: 'sa1-q4',
-        bloom: 'application',
-        question: 'Nikto reported a missing httponly flag on the PHPSESSID cookie. Which class of attack does that primarily enable?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'SQL injection', correct: false },
-          { id: 'b', text: 'Session-cookie theft via XSS', correct: true },
-          { id: 'c', text: 'CSRF token bypass', correct: false },
-          { id: 'd', text: 'Open redirect', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-1.ex4.s2' },
-        reinforces: 'sa-1.ex4.s2',
-      },
-      {
-        id: 'sa1-q5',
-        bloom: 'analysis',
-        question: 'Given the discovered exposure of 5985/wsman on 10.10.24.15, pick every reasonable next investigative step.',
-        type: 'multi-select',
-        options: [
-          { id: 'a', text: 'Confirm with the system owner whether WinRM is intentionally enabled', correct: true },
-          { id: 'b', text: 'Check for authentication logs on that host for unexpected WinRM activity', correct: true },
-          { id: 'c', text: 'Run `msfconsole` and exploit the host immediately without authorization', correct: false },
-          { id: 'd', text: 'Open a finding to disable WinRM if it is not required for that role', correct: true },
-        ],
-        passThreshold: 'all-correct',
-        triggerOn: { stepId: 'sa-1.ex5.s3' },
-        reinforces: 'sa-1.ex5.s3',
-      },
-      {
-        id: 'sa1-q6',
-        bloom: 'application',
-        question: 'You identified HTTP in the quick tshark capture between 10.10.24.42 and 10.10.24.15. What is the best next step if that traffic should have been encrypted?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'Validate whether the service should be moved to HTTPS/TLS and document the plaintext exposure.', correct: true },
-          { id: 'b', text: 'Ignore it because any internal HTTP traffic is automatically safe.', correct: false },
-          { id: 'c', text: 'Shut down the host immediately without collecting context.', correct: false },
-          { id: 'd', text: 'Assume the packet capture is corrupted and discard it.', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-1.ex2.s3' },
-        reinforces: 'sa-1.ex2.s3',
-      },
-    ],
-
-    completion: { requireAllSteps: true, minQuizScore: 0.8 },
-  };
-
-  // ────────────────────────────────────────────────────────────
   //  sa-2  File System Security
   // ────────────────────────────────────────────────────────────
-  const SA2_TRIPWIRE = [
-    'Parsing policy file: /etc/tripwire/tw.pol',
-    '*** Processing Unix File System ***',
-    'Performing integrity check...',
-    'Wrote report file: /var/lib/tripwire/report/dc-01-20260423-150217.twr',
-    '',
-    'Tripwire(R) 2.4.3 Integrity Check Report',
-    '',
-    'Report generated by:          root',
-    'Report created on:            Thu Apr 23 15:02:17 2026',
-    'Database last updated on:     Mon Apr 20 06:00:01 2026',
-    '',
-    '===============================================================================',
-    'Report Summary:',
-    '===============================================================================',
-    '',
-    'Host name:                    DC-01.corp.example.local',
-    'Total objects scanned:        18327',
-    'Total violations found:       3',
-    '',
-    '-------------------------------------------------------------------------------',
-    'Object Summary:',
-    '-------------------------------------------------------------------------------',
-    '',
-    '# Section: Unix File System',
-    '',
-    'Rule Name                       Severity Level    Added    Removed  Modified',
-    '---------                       --------------    -----    -------  --------',
-    'Critical configuration files    100               0        0        2',
-    'Security-sensitive directories   80               1        0        0',
-    '',
-    'Modified:',
-    '  /etc/passwd',
-    '  /etc/sudoers',
-    '',
-    'Added:',
-    '  /srv/share/finance/wages-2025-Q4.xlsx',
-  ].join('\n') + '\n';
+  // Host: FILESRV-01 — Debian/Ubuntu file server (apt, aideinit, auditd).
+  const SA2_HOST = 'FILESRV-01.corp.example.local';
 
   const SA2_AIDE = [
-    'AIDE 0.17.4 found differences between database and filesystem!!',
     'Start timestamp: 2026-04-23 15:14:11 -0400 (AIDE 0.17.4)',
     'AIDE found differences between database and filesystem!!',
     '',
@@ -416,41 +31,61 @@
     '---------------------------------------------------',
     'Added entries:',
     '---------------------------------------------------',
+    '',
     'f++++++++++++++++: /srv/share/finance/wages-2025-Q4.xlsx',
     '',
     '---------------------------------------------------',
     'Changed entries:',
     '---------------------------------------------------',
+    '',
     'f   ...    .C... : /etc/passwd',
     'f   ...    .C... : /etc/sudoers',
+    '',
+    '---------------------------------------------------',
+    'Detailed information about changes:',
+    '---------------------------------------------------',
+    '',
+    'File: /etc/passwd',
+    '  SHA256    : 3yq1Qm0k2dH8bJp4Tf6uV1c9eXwZrN7sL5aG0oPiKjM= | 9Rt2Lw6yXc1bVn8mQp3sDf5gHj7kLz0aSe4rTu6iOpA=',
+    '',
+    'File: /etc/sudoers',
+    '  SHA256    : Ab4cD8eF1gH5iJ9kL2mN6oP0qR3sT7uV1wX5yZ9aB2c= | Zx8cV4bN1mQ6wE3rT9yU5iO2pA7sD0fG4hJ8kL1zX6c=',
+    '',
+    'End timestamp: 2026-04-23 15:14:39 -0400 (run time: 0m 28s)',
   ].join('\n') + '\n';
 
+  // Frozen image output. bindshell on 465/tcp is chkrootkit's best-known
+  // false positive (SMTPS listener) — gives a deterministic graded answer.
   const SA2_CHKROOT = [
     'ROOTDIR is `/\'',
-    'Checking `amd\'... not found',
-    'Checking `chsh\'... not infected',
-    'Checking `cron\'... not infected',
-    'Checking `crontab\'... not infected',
-    'Checking `ifconfig\'... not infected',
-    'Checking `lsof\'... not infected',
-    'Checking `netstat\'... not infected',
-    'Checking `passwd\'... not infected',
-    'Checking `sshd\'... not infected',
-    'Checking `bindshell\'... not infected',
-    'Checking `lkm\'... nothing detected',
-    'Checking `rexedcs\'... not found',
-    'Checking `sniffer\'... lo: not promisc and no PF_PACKET sockets',
-    'Searching for sniffer\'s logs, it may take a while... nothing found',
+    'Checking `amd\'...                                          not found',
+    'Checking `chsh\'...                                         not infected',
+    'Checking `cron\'...                                         not infected',
+    'Checking `crontab\'...                                      not infected',
+    'Checking `ifconfig\'...                                     not infected',
+    'Checking `lsof\'...                                         not infected',
+    'Checking `netstat\'...                                      not infected',
+    'Checking `passwd\'...                                       not infected',
+    'Checking `sshd\'...                                         not infected',
+    'Checking `bindshell\'...                                    INFECTED (PORTS:  465)',
+    'Checking `lkm\'...                                          chkproc: nothing detected',
+    'Checking `rexedcs\'...                                      not found',
+    'Checking `sniffer\'...                                      lo: not promisc and no packet sniffer sockets',
+    'Checking `wted\'...                                         chkwtmp: nothing deleted',
+    'Checking `z2\'...                                           chklastlog: nothing deleted',
   ].join('\n') + '\n';
 
   function buildSa2Fs() {
+    const finFile = (content) => ({ __file: true, content, mode: '0777', owner: 'root', group: 'finance' });
     return {
       'home': { 'student': { '.bashrc': 'alias ll="ls -la"\n' } },
       'srv': {
         'share': {
           'finance': {
-            'wages-2025-Q4.xlsx': { __file: true, content: 'binary xlsx', mode: '0777', owner: 'root', group: 'finance' },
-            'tax-form-W2-jsanders.pdf': { __file: true, content: 'binary pdf', mode: '0777', owner: 'root', group: 'finance' },
+            __mode: '0777', __owner: 'root', __group: 'finance',
+            'wages-2025-Q4.xlsx': finFile('binary xlsx'),
+            'tax-form-W2-jsanders.pdf': finFile('binary pdf'),
+            'ap-vendor-banking.csv': finFile('vendor,routing,account\n'),
           },
           'public': {
             'README.txt': 'Public read-only share.\n',
@@ -458,24 +93,32 @@
         },
       },
       'etc': {
+        'hostname': 'FILESRV-01\n',
+        'os-release': 'PRETTY_NAME="Ubuntu 22.04.4 LTS"\nNAME="Ubuntu"\nVERSION_ID="22.04"\nID=ubuntu\nID_LIKE=debian\n',
         'passwd': 'root:x:0:0:root:/root:/bin/bash\nj.sanders:x:1001:1001::/home/j.sanders:/bin/bash\nm.chen:x:1002:1002::/home/m.chen:/bin/bash\nsvc_backup:x:1003:1003::/var/lib/backup:/bin/false\ntemp.contractor:x:1099:1099::/home/temp.contractor:/bin/bash\n',
         'sudoers': '# /etc/sudoers\nroot ALL=(ALL:ALL) ALL\nhelpdesk-admin ALL=(ALL) NOPASSWD: /usr/bin/systemctl\ntemp.contractor ALL=(ALL) NOPASSWD: ALL\n',
+        'aide': { 'aide.conf': '# /etc/aide/aide.conf (Debian default)\ndatabase_in=file:/var/lib/aide/aide.db\ndatabase_out=file:/var/lib/aide/aide.db.new\n' },
         'audit': { 'rules.d': { '_b2b.rules': '' } },
       },
       'var': {
         'lib': {
           'sa': {
-            'tripwire-report.txt': SA2_TRIPWIRE,
             'aide-check.txt':      SA2_AIDE,
             'chkrootkit-report.txt': SA2_CHKROOT,
+            'ss.txt': [
+              'State  Recv-Q Send-Q Local Address:Port  Peer Address:Port Process',
+              'LISTEN 0      128          0.0.0.0:22         0.0.0.0:*     users:(("sshd",pid=812,fd=3))',
+              'LISTEN 0      50           0.0.0.0:445        0.0.0.0:*     users:(("smbd",pid=1044,fd=46))',
+              'LISTEN 0      100          0.0.0.0:465        0.0.0.0:*     users:(("master",pid=1290,fd=18))',
+            ].join('\n') + '\n',
             'ausearch-passwd.txt':
               '----\ntime->Thu Apr 23 14:41:09 2026\ntype=PATH msg=audit(1745423469.118:412): item=0 name="/etc/passwd" inode=786433 dev=08:01 mode=0100644 ouid=0 ogid=0\ntype=SYSCALL msg=audit(1745423469.118:412): arch=c000003e syscall=257 success=yes exit=4 comm="vi" exe="/usr/bin/vi" key="passwd_changes"\n',
           },
-          'aide': { 'aide.db': { __file: true, content: 'aide-db', mode: '0600' } },
+          // Empty until aideinit runs; aide --check needs aide.db promoted from aide.db.new.
+          'aide': {},
         },
         'log': {},
       },
-      'usr': { 'bin': { 'find_old': { __file: true, content: '#!/bin/sh\n', mode: '4755', owner: 'root', group: 'root' } } },
       'tmp': {},
     };
   }
@@ -485,9 +128,9 @@
     track: 'security-assessments',
     title: 'File System Security Assessment',
     difficulty: 'Beginner',
-    estimatedTime: '50 min',
+    estimatedTime: '40 min',
     icon: '🗂',
-    tags: ['Auditd', 'Tripwire', 'AIDE', 'OSSEC', 'chkrootkit'],
+    tags: ['Permissions', 'ACLs', 'Auditd', 'AIDE', 'chkrootkit'],
 
     source: {
       repo: '0xrajneesh/Security-Assessments-projects-for-Beginners',
@@ -496,17 +139,65 @@
       snapshot: 'src/data/sources/sa-2.source.md',
     },
 
-    environment: { type: 'linux', shell: 'LinuxTerminalShell', fs: buildSa2Fs },
+    environment: { type: 'linux', shell: 'LinuxTerminalShell', fs: buildSa2Fs, host: 'filesrv-01' },
 
     scenario: {
       role: 'SOC analyst on the host-integrity rotation',
-      incident: 'A finance share (`/srv/share/finance`) was flagged by an internal audit as potentially world-readable. You are asked to verify the share permissions, baseline file integrity, and check for any rootkit indicators on DC-01.',
+      incident: 'An internal audit flagged the finance share (`/srv/share/finance`) on ' + SA2_HOST + ' (Ubuntu 22.04 file server) as potentially world-readable. Verify and fix the share permissions, put file-access monitoring in place, baseline file integrity, and check for rootkit indicators.',
     },
 
     exercises: [
       {
+        id: 'ex0',
+        upstreamHeading: 'Exercise 1: Verify and Fix the Finance Share Permissions',
+        steps: [
+          {
+            id: 'sa-2.ex0.s1',
+            upstream: { exercise: 'Scenario task', stepNumber: 1, sourceLine: 'ls -l /srv/share/finance' },
+            kind: 'command',
+            instruction: 'List the finance share with long-format permissions and look at the mode bits on each file.',
+            hint: '`ls -l /srv/share/finance` (add `-d` to see the directory itself)',
+            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?ls\s+-(l|ld|dl|la|al|lad)\s+\/srv\/share\/finance\/?\s*$/ }],
+            validation: { type: 'commandExecuted' },
+            points: 5,
+          },
+          {
+            id: 'sa-2.ex0.s2',
+            upstream: { exercise: 'Scenario task', stepNumber: 2, sourceLine: 'getfacl /srv/share/finance' },
+            kind: 'analyze',
+            instruction: 'Run getfacl on /srv/share/finance. What permissions does "other" (everyone else on the box) have? Submit the other:: line exactly as shown.',
+            hint: '`getfacl /srv/share/finance` — the last line starts with `other::`.',
+            validation: { type: 'valueExtracted', expected: ['other::rwx'] },
+            points: 10,
+            checkOnLearning: 'sa2-q0',
+          },
+          {
+            id: 'sa-2.ex0.s3',
+            upstream: { exercise: 'Scenario task', stepNumber: 3, sourceLine: 'chmod -R o-rwx /srv/share/finance' },
+            kind: 'command',
+            instruction: 'Remove all access for "other" on the share and everything inside it. Owner and the finance group keep their access.',
+            hint: '`sudo chmod -R o-rwx /srv/share/finance` (or `sudo setfacl -R -m o::--- /srv/share/finance`)',
+            acceptedInputs: [
+              { type: 'regex', value: /^(sudo\s+)?chmod\s+-R\s+(o-rwx|o=|o=---|0?7[57]0)\s+\/srv\/share\/finance\/?\s*$/ },
+              { type: 'regex', value: /^(sudo\s+)?setfacl\s+-R\s+-m\s+o::---\s+\/srv\/share\/finance\/?\s*$/ },
+            ],
+            validation: { type: 'commandExecuted' },
+            points: 10,
+          },
+          {
+            id: 'sa-2.ex0.s4',
+            upstream: { exercise: 'Scenario task', stepNumber: 4, sourceLine: 'getfacl /srv/share/finance' },
+            kind: 'analyze',
+            instruction: 'Verify the fix: run getfacl on the share again and submit the new other:: line.',
+            hint: 'If it still shows rwx, your chmod/setfacl did not apply — re-run it with -R against /srv/share/finance.',
+            validation: { type: 'valueExtracted', expected: ['other::---'] },
+            points: 10,
+          },
+        ],
+      },
+      {
         id: 'ex1',
-        upstreamHeading: 'Exercise 1: Monitoring File Access with Auditd',
+        upstreamHeading: 'Exercise 2: Monitoring File Access with Auditd',
         steps: [
           {
             id: 'sa-2.ex1.s1',
@@ -542,45 +233,8 @@
         ],
       },
       {
-        id: 'ex2',
-        upstreamHeading: 'Exercise 2: File Integrity Monitoring with Tripwire',
-        steps: [
-          {
-            id: 'sa-2.ex2.s1',
-            upstream: { exercise: 'Exercise 2', stepNumber: 1, sourceLine: 'sudo apt-get install tripwire' },
-            kind: 'command',
-            instruction: 'Install Tripwire.',
-            hint: '`sudo apt-get install tripwire`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?tripwire\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-2.ex2.s2',
-            upstream: { exercise: 'Exercise 2', stepNumber: 2, sourceLine: 'sudo tripwire --init' },
-            kind: 'command',
-            instruction: 'Initialize the Tripwire baseline database.',
-            hint: '`sudo tripwire --init`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?tripwire\s+--init\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-2.ex2.s3',
-            upstream: { exercise: 'Exercise 2', stepNumber: 3, sourceLine: 'sudo tripwire --check' },
-            kind: 'command',
-            instruction: 'Run an integrity check against the baseline. Note any modified files.',
-            hint: '`sudo tripwire --check`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?tripwire\s+--check\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 15,
-            checkOnLearning: 'sa2-q2',
-          },
-        ],
-      },
-      {
         id: 'ex3',
-        upstreamHeading: 'Exercise 3: System Integrity Check with AIDE',
+        upstreamHeading: 'Exercise 3: File Integrity Baseline with AIDE',
         steps: [
           {
             id: 'sa-2.ex3.s1',
@@ -596,9 +250,19 @@
             id: 'sa-2.ex3.s2',
             upstream: { exercise: 'Exercise 3', stepNumber: 2, sourceLine: 'sudo aideinit' },
             kind: 'command',
-            instruction: 'Build the AIDE baseline database.',
+            instruction: 'Build the AIDE baseline with the Debian/Ubuntu wrapper. Note where it writes the new database.',
             hint: '`sudo aideinit`',
             acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?aideinit\s*$/ }],
+            validation: { type: 'commandExecuted' },
+            points: 5,
+          },
+          {
+            id: 'sa-2.ex3.s2a',
+            upstream: { exercise: 'Exercise 3', stepNumber: 2, sourceLine: 'sudo cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db' },
+            kind: 'command',
+            instruction: 'aideinit wrote the baseline to aide.db.new, but aide --check reads aide.db. Promote the new database so the check has something to compare against.',
+            hint: '`sudo cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db`',
+            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?(cp|mv)\s+\/var\/lib\/aide\/aide\.db\.new\s+\/var\/lib\/aide\/aide\.db\s*$/ }],
             validation: { type: 'commandExecuted' },
             points: 5,
           },
@@ -606,66 +270,17 @@
             id: 'sa-2.ex3.s3',
             upstream: { exercise: 'Exercise 3', stepNumber: 3, sourceLine: 'sudo aide --check' },
             kind: 'analyze',
-            instruction: 'Run an AIDE check and identify which sensitive file under /etc shows a content-change since the baseline. Submit just the path.',
-            hint: 'Look for the entry under "Changed entries" with the .C... flag indicating content change.',
-            validation: { type: 'valueExtracted', expected: ['/etc/passwd', '/etc/sudoers'] },
+            instruction: 'Run an AIDE check. Two files under /etc show content changes — submit the path of the one that grants privilege escalation (the most urgent finding).',
+            hint: '`sudo aide --config /etc/aide/aide.conf --check`, then look under "Changed entries" and cat each file.',
+            validation: { type: 'valueExtracted', expected: ['/etc/sudoers'] },
             points: 15,
             checkOnLearning: 'sa2-q3',
           },
         ],
       },
       {
-        id: 'ex4',
-        upstreamHeading: 'Exercise 4: Host-Based Intrusion Detection with OSSEC',
-        steps: [
-          {
-            id: 'sa-2.ex4.s1',
-            upstream: { exercise: 'Exercise 4', stepNumber: 1, sourceLine: 'sudo apt-get install ossec-hids' },
-            kind: 'command',
-            instruction: 'Install OSSEC HIDS (the upstream uses an atomicorp installer; the package manager works the same way for our sim).',
-            hint: '`sudo apt-get install ossec-hids`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?ossec-hids(-server)?\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-2.ex4.s2',
-            upstream: { exercise: 'Exercise 4', stepNumber: 2, sourceLine: 'Edit /var/ossec/etc/ossec.conf' },
-            kind: 'command',
-            instruction: 'Open the OSSEC config (/var/ossec/etc/ossec.conf) for review.',
-            hint: '`cat /var/ossec/etc/ossec.conf` (or use less)',
-            acceptedInputs: [
-              { type: 'regex', value: /^(less|cat|nano)\s+\/var\/ossec\/etc\/ossec\.conf\s*$/ },
-            ],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-2.ex4.s3',
-            upstream: { exercise: 'Exercise 4', stepNumber: 3, sourceLine: 'sudo systemctl start ossec' },
-            kind: 'command',
-            instruction: 'Start the OSSEC service.',
-            hint: '`sudo systemctl start ossec`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?systemctl\s+start\s+ossec\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-2.ex4.s4',
-            upstream: { exercise: 'Exercise 4', stepNumber: 4, sourceLine: 'sudo tail -f /var/ossec/logs/alerts/alerts.log' },
-            kind: 'command',
-            instruction: 'Tail the OSSEC alerts log.',
-            hint: '`sudo tail -F /var/ossec/logs/alerts/alerts.log`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?tail\s+-(F|f)\s+\/var\/ossec\/logs\/alerts\/alerts\.log\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-            checkOnLearning: 'sa2-q5',
-          },
-        ],
-      },
-      {
         id: 'ex5',
-        upstreamHeading: 'Exercise 5: Rootkit Detection with Chkrootkit',
+        upstreamHeading: 'Exercise 4: Rootkit Detection with Chkrootkit',
         steps: [
           {
             id: 'sa-2.ex5.s1',
@@ -681,9 +296,9 @@
             id: 'sa-2.ex5.s2',
             upstream: { exercise: 'Exercise 5', stepNumber: 2, sourceLine: 'sudo chkrootkit' },
             kind: 'analyze',
-            instruction: 'Run chkrootkit. Did it find any rootkit indicators? Submit yes or no.',
-            hint: 'Read the closing summary lines of the chkrootkit output for any "INFECTED" markers.',
-            validation: { type: 'valueExtracted', expected: ['no', 'No', 'NO', 'none'] },
+            instruction: 'Run chkrootkit. Which check, if any, reports a warning? Submit the check name (or "none").',
+            hint: 'Scan for any line that does not say "not infected", "not found" or "nothing detected/deleted".',
+            validation: { type: 'valueExtracted', expected: ['bindshell', '`bindshell\''] },
             points: 10,
             checkOnLearning: 'sa2-q4',
           },
@@ -692,6 +307,20 @@
     ],
 
     checkOnLearning: [
+      {
+        id: 'sa2-q0',
+        bloom: 'comprehension',
+        question: 'The finance share shows other::rwx. What does that mean on a multi-user file server?',
+        type: 'single-select',
+        options: [
+          { id: 'a', text: 'Only root and the finance group can read the files', correct: false },
+          { id: 'b', text: 'Any local account can read, modify, or delete the payroll files', correct: true },
+          { id: 'c', text: 'Only users logged in over SMB can reach the files', correct: false },
+          { id: 'd', text: 'Nothing — the ACL overrides the mode bits', correct: false },
+        ],
+        triggerOn: { stepId: 'sa-2.ex0.s2' },
+        reinforces: 'sa-2.ex0.s2',
+      },
       {
         id: 'sa2-q1',
         bloom: 'recall',
@@ -707,20 +336,6 @@
         reinforces: 'sa-2.ex1.s2',
       },
       {
-        id: 'sa2-q2',
-        bloom: 'comprehension',
-        question: 'Tripwire reported 2 modified files (/etc/passwd, /etc/sudoers) and 1 new file under /srv/share/finance. Which finding is most urgent for a SOC analyst?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'The new file under /srv/share/finance', correct: false },
-          { id: 'b', text: 'The modified /etc/sudoers', correct: true },
-          { id: 'c', text: 'The modified /etc/passwd alone', correct: false },
-          { id: 'd', text: 'None — Tripwire produces lots of noise', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-2.ex2.s3' },
-        reinforces: 'sa-2.ex2.s3',
-      },
-      {
         id: 'sa2-q3',
         bloom: 'application',
         question: 'In the AIDE output, the .C... flag column on a changed entry means…',
@@ -732,31 +347,17 @@
       {
         id: 'sa2-q4',
         bloom: 'analysis',
-        question: 'Chkrootkit returned no infections. Pick every conclusion that is reasonable to draw.',
+        question: 'chkrootkit flagged bindshell INFECTED (PORTS: 465). Pick every reasonable next step or conclusion.',
         type: 'multi-select',
         options: [
-          { id: 'a', text: 'No common userspace rootkits matched the signatures it knows about', correct: true },
-          { id: 'b', text: 'There is definitely no malware on the host', correct: false },
-          { id: 'c', text: 'Tripwire / AIDE results still need to be reviewed independently', correct: true },
-          { id: 'd', text: 'Kernel-level rootkits and custom implants would not necessarily show up', correct: true },
+          { id: 'a', text: 'Check what is listening on 465 (ss -tlnp) — an SMTPS listener is a well-known false positive', correct: true },
+          { id: 'b', text: 'The host is confirmed rootkitted; wipe it immediately', correct: false },
+          { id: 'c', text: 'Corroborate with a second scanner (e.g. rkhunter) before drawing a conclusion', correct: true },
+          { id: 'd', text: 'A clean chkrootkit run would not rule out kernel-level rootkits or custom implants', correct: true },
         ],
         passThreshold: 'all-correct',
         triggerOn: { stepId: 'sa-2.ex5.s2' },
         reinforces: 'sa-2.ex5.s2',
-      },
-      {
-        id: 'sa2-q5',
-        bloom: 'comprehension',
-        question: 'OSSEC is useful here because it complements Tripwire and AIDE in what way?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'It gives real-time host alerts instead of only baseline-diff reports', correct: true },
-          { id: 'b', text: 'It permanently prevents all file modifications', correct: false },
-          { id: 'c', text: 'It replaces the Linux audit subsystem entirely', correct: false },
-          { id: 'd', text: 'It only scans web applications', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-2.ex4.s4' },
-        reinforces: 'sa-2.ex4.s4',
       },
     ],
 
@@ -1846,7 +1447,6 @@
   //  Register
   // ────────────────────────────────────────────────────────────
   Object.assign(window.MISSION_NEXT_LABS = window.MISSION_NEXT_LABS || {}, {
-    'sa-1': SA1_LAB,
     'sa-2': SA2_LAB,
     'sa-3': SA3_LAB,
     'sa-4': SA4_LAB,
@@ -1854,7 +1454,6 @@
   });
 
   Object.assign(window, {
-    MISSION_NEXT_SA_1: SA1_LAB,
     MISSION_NEXT_SA_2: SA2_LAB,
     MISSION_NEXT_SA_3: SA3_LAB,
     MISSION_NEXT_SA_4: SA4_LAB,

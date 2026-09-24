@@ -1,46 +1,25 @@
-// Log Explorer — dataset for Module 3 (Assisted SIEM triage & log correlation).
-//
-// Log rows and task list ported from the Mission Next SOC Analyst Track's
-// "mod-3" HTTP Log Analysis dataset (`src/data.js`), copied as part of the
-// Epic B/C migration (docs/LAB_MIGRATION_MATRIX.md). Values are unchanged
-// from the source; only the module id/title were kept generic. The task
-// list's `validation` objects are visible client-side, same as in the
-// source app — this is a known, carried-over limitation, not fixed here
-// (see the matrix row's "REQUIRED ADAPTATION" and RISKS columns).
-
+// Deterministic four-source SIEM case for Module 3. The common fields model
+// normalization while source and raw_event preserve provenance.
 const M03_LOG_DATASET = {
-  id: 'm03-http-log-analysis',
-  title: 'HTTP Access Log Analysis',
-  subtitle: 'Web Attack Detection',
-  description: 'Analyze web server access logs to detect SQL injection attempts, directory traversal, web shells, and automated scanning tools like sqlmap and Nikto.',
-  fields: ['id', 'ts', 'src_ip', 'method', 'uri', 'status', 'bytes', 'user_agent'],
+  id: 'm03-service-account-takeover',
+  title: 'Service account takeover · unified events',
+  subtitle: 'Correlate identity, directory, application, and system telemetry',
+  description: 'Investigate acct-428 across AuthLog, DirectoryAudit, AppAudit, and SystemLog. Compare the suspicious sequence with a documented maintenance event, then submit a verdict and analyst handoff in the module.',
+  fields: ['timestamp', 'source', 'account', 'host', 'source_ip', 'event_type', 'result', 'session_id', 'raw_event', 'context'],
   logs: [
-    { id: 1, ts: '2024-01-17 10:00:01', src_ip: '192.168.2.10', method: 'GET', uri: '/index.html', status: 200, bytes: 1024, user_agent: 'Mozilla/5.0' },
-    { id: 2, ts: '2024-01-17 10:00:03', src_ip: '192.168.2.10', method: 'GET', uri: '/about.html', status: 200, bytes: 512, user_agent: 'Mozilla/5.0' },
-    { id: 3, ts: '2024-01-17 10:01:00', src_ip: '45.33.32.156', method: 'GET', uri: '/admin/login.php', status: 200, bytes: 4096, user_agent: 'sqlmap/1.7' },
-    { id: 4, ts: '2024-01-17 10:01:01', src_ip: '45.33.32.156', method: 'POST', uri: '/admin/login.php', status: 200, bytes: 256, user_agent: 'sqlmap/1.7' },
-    { id: 5, ts: '2024-01-17 10:01:02', src_ip: '45.33.32.156', method: 'GET', uri: "/admin/login.php?id=1'", status: 500, bytes: 128, user_agent: 'sqlmap/1.7' },
-    { id: 6, ts: '2024-01-17 10:01:03', src_ip: '45.33.32.156', method: 'GET', uri: '/admin/login.php?id=1 OR 1=1', status: 200, bytes: 8192, user_agent: 'sqlmap/1.7' },
-    { id: 7, ts: '2024-01-17 10:01:04', src_ip: '45.33.32.156', method: 'GET', uri: '/admin/users.php', status: 200, bytes: 16384, user_agent: 'sqlmap/1.7' },
-    { id: 8, ts: '2024-01-17 10:02:00', src_ip: '192.168.2.22', method: 'GET', uri: '/products.html', status: 200, bytes: 2048, user_agent: 'Mozilla/5.0' },
-    { id: 9, ts: '2024-01-17 10:02:30', src_ip: '45.33.32.156', method: 'GET', uri: '/admin/config.php', status: 403, bytes: 64, user_agent: 'sqlmap/1.7' },
-    { id: 10, ts: '2024-01-17 10:03:00', src_ip: '45.33.32.156', method: 'GET', uri: '/etc/passwd', status: 404, bytes: 64, user_agent: 'Nikto/2.1.6' },
-    { id: 11, ts: '2024-01-17 10:03:01', src_ip: '45.33.32.156', method: 'GET', uri: '/../../../etc/shadow', status: 404, bytes: 64, user_agent: 'Nikto/2.1.6' },
-    { id: 12, ts: '2024-01-17 10:03:02', src_ip: '45.33.32.156', method: 'GET', uri: '/phpmyadmin/', status: 404, bytes: 64, user_agent: 'Nikto/2.1.6' },
-    { id: 13, ts: '2024-01-17 10:04:00', src_ip: '192.168.2.5', method: 'GET', uri: '/contact.html', status: 200, bytes: 768, user_agent: 'Mozilla/5.0' },
-    { id: 14, ts: '2024-01-17 10:05:00', src_ip: '45.33.32.156', method: 'POST', uri: '/admin/upload.php', status: 200, bytes: 512, user_agent: 'curl/7.81.0' },
-    { id: 15, ts: '2024-01-17 10:05:01', src_ip: '45.33.32.156', method: 'GET', uri: '/uploads/shell.php', status: 200, bytes: 4096, user_agent: 'curl/7.81.0' },
-    { id: 16, ts: '2024-01-17 10:06:00', src_ip: '192.168.2.10', method: 'GET', uri: '/services.html', status: 200, bytes: 1536, user_agent: 'Mozilla/5.0' },
-    { id: 17, ts: '2024-01-17 10:07:00', src_ip: '10.0.0.5', method: 'GET', uri: '/api/v1/users', status: 401, bytes: 128, user_agent: 'python-requests/2.28' },
-    { id: 18, ts: '2024-01-17 10:07:01', src_ip: '10.0.0.5', method: 'GET', uri: '/api/v1/users', status: 401, bytes: 128, user_agent: 'python-requests/2.28' },
-    { id: 19, ts: '2024-01-17 10:08:00', src_ip: '192.168.2.30', method: 'GET', uri: '/blog/', status: 200, bytes: 3072, user_agent: 'Mozilla/5.0' },
-    { id: 20, ts: '2024-01-17 10:09:00', src_ip: '45.33.32.156', method: 'GET', uri: '/wp-login.php', status: 404, bytes: 64, user_agent: 'Nikto/2.1.6' },
+    { id: 1, timestamp: '2026-09-18 09:14:03', source: 'AuthLog', account: 'acct-428', host: 'idp-01', source_ip: '198.51.100.24', event_type: 'SignIn', result: 'Failure', session_id: '—', raw_event: 'Invalid password', context: 'unfamiliar source' },
+    { id: 2, timestamp: '2026-09-18 09:14:19', source: 'AuthLog', account: 'acct-428', host: 'idp-01', source_ip: '198.51.100.24', event_type: 'SignIn', result: 'Success', session_id: 'S-8841', raw_event: 'MFA satisfied', context: 'unfamiliar source' },
+    { id: 3, timestamp: '2026-09-18 09:16:11', source: 'DirectoryAudit', account: 'acct-428', host: 'dc-02', source_ip: '198.51.100.24', event_type: 'RoleAdded', result: 'Success', session_id: 'S-8841', raw_event: 'Added to Billing-Exporters', context: 'no change ticket found' },
+    { id: 4, timestamp: '2026-09-18 09:18:42', source: 'AppAudit', account: 'acct-428', host: 'billing-app', source_ip: '198.51.100.24', event_type: 'BulkExport', result: 'Success', session_id: 'S-8841', raw_event: 'Exported 184 customer records', context: 'new export volume' },
+    { id: 5, timestamp: '2026-09-18 09:20:01', source: 'SystemLog', account: 'svc-billing', host: 'billing-app', source_ip: '10.20.4.8', event_type: 'ServiceRestart', result: 'Success', session_id: 'JOB-22', raw_event: 'Scheduled restart', context: 'CHG-204 approved maintenance' },
+    { id: 6, timestamp: '2026-09-18 09:21:15', source: 'AuthLog', account: 'j.lee', host: 'idp-01', source_ip: '203.0.113.9', event_type: 'SignIn', result: 'Failure', session_id: '—', raw_event: 'Invalid password', context: 'unrelated account and source' },
+    { id: 7, timestamp: '2026-09-18 09:23:50', source: 'SystemLog', account: 'billing-app', host: 'billing-app', source_ip: '10.20.4.8', event_type: 'CollectorHeartbeat', result: 'Delayed', session_id: '—', raw_event: 'Heartbeat delayed 42 seconds', context: 'telemetry gap; not an account action' },
+    { id: 8, timestamp: '2026-09-18 09:29:02', source: 'DirectoryAudit', account: 'acct-428', host: 'dc-02', source_ip: '198.51.100.24', event_type: 'RoleRemoved', result: 'Success', session_id: 'S-8841', raw_event: 'Removed from Billing-Exporters', context: 'automated cleanup after alert' },
   ],
   tasks: [
-    { id: 't1', title: 'Identify automated scanners', points: 10, description: 'Attackers often use automated tools. Find all requests where the user_agent contains "sqlmap" or "Nikto".', hint: 'Try: search sqlmap OR Nikto', validation: { type: 'count', expected: 10 } },
-    { id: 't2', title: 'Find HTTP 500 error responses', points: 20, description: 'Server errors (500) during scanning may indicate successful injection probing. Isolate all 500 responses.', hint: 'Try: search status=500', validation: { type: 'count', field: 'status', value: 500, expected: 1 } },
-    { id: 't3', title: 'Detect web shell access', points: 30, description: 'A web shell was uploaded. Find the request to the uploaded shell at /uploads/shell.php, which indicates the attacker achieved code execution. Submit the number of matching requests.', hint: 'Try: search uri=/uploads/shell.php', validation: { type: 'count', field: 'uri', value: '/uploads/shell.php', expected: 1 } },
+    { id: 't1', title: 'Pivot on the account', points: 10, description: 'Find all records for acct-428 and preserve the source and session fields.', hint: 'Try: search account=acct-428', validation: { type: 'count', expected: 5 } },
+    { id: 't2', title: 'Compare the four sources', points: 20, description: 'Count events by source to see which telemetry contributes evidence.', hint: 'Try: search account=acct-428 | count by source', validation: { type: 'groupby', field: 'source', expected_top: 'AuthLog' } },
+    { id: 't3', title: 'Check the suspicious source', points: 30, description: 'Pivot on 198.51.100.24 and sort chronologically to reconstruct the linked chain.', hint: 'Try: search source_ip=198.51.100.24 | sort by timestamp', validation: { type: 'count', expected: 4 } },
   ],
 };
-
 Object.assign(window, { M03_LOG_DATASET });

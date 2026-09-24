@@ -59,7 +59,7 @@
 
   // Each entry: title, teaching body, console tab to switch to, and the
   // entity the walkthrough automatically highlights and opens in the drawer.
-  // The walkthrough is deliberately a bridge into the four Mission Next labs
+  // The walkthrough is deliberately a bridge into the Mission Next labs
   // used by this module. Each step names the analyst move and the evidence
   // that move produces, so the console example is not a disconnected demo.
   const LEARN_STEPS = [
@@ -73,18 +73,18 @@
 
   // Independent, item-specific explanations for the console walkthrough.
   const CONSOLE_GUIDE_STEPS = [
-    { title: 'Frame the review', body: 'The console is a working environment, not a quiz. Start with the analyst questions that remain useful in any tool: who acted, what they tried to reach, when and where it happened, why it may be expected, and how the request was evaluated.', lookFor: 'WKSTN-17, its connection path, and the requested destination.', lab: 'All four labs use this same evidence-first habit.', tab: 'map', target: ['device', 'wk17'] },
-    { title: 'Trace the network path', body: 'A network map shows the systems, zones, and boundaries a request crosses. Use it to check whether the source can reach the destination over the expected service—and whether that route is intentional.', lookFor: 'The source workstation, the boundary, and FINANCE-FILE-01.', lab: 'Guided · Basic Network Security Assessment', tab: 'map', target: ['resource', 'finance'] },
-    { title: 'Read the activity record', body: 'An activity row gives you the facts behind an alert: identity, device, time, destination, service, and result. Establish those facts before deciding whether the access is normal or suspicious.', lookFor: 'Alice’s 08:14 access record and its full details.', lab: 'Assessment · Active Directory Logs and Insights', tab: 'activity', target: ['event', 'evt-alice-finance'] },
+    { title: 'Frame the review', body: 'The console is a working environment, not a quiz. Start with the analyst questions that remain useful in any tool: who acted, what they tried to reach, when and where it happened, why it may be expected, and how the request was evaluated.', lookFor: 'WKSTN-17, its connection path, and the requested destination.', lab: 'Both labs use this same evidence-first habit.', tab: 'map', target: ['device', 'wk17'] },
+    { title: 'Trace the network path', body: 'A network map shows the systems, zones, and boundaries a request crosses. Use it to check whether the source can reach the destination over the expected service—and whether that route is intentional.', lookFor: 'The source workstation, the boundary, and FINANCE-FILE-01.', lab: 'Guided · File System Security Assessment', tab: 'map', target: ['resource', 'finance'] },
+    { title: 'Read the activity record', body: 'An activity row gives you the facts behind an alert: identity, device, time, destination, service, and result. Establish those facts before deciding whether the access is normal or suspicious.', lookFor: 'Alice’s 08:14 access record and its full details.', lab: 'Guided · User Account Security Assessment', tab: 'activity', target: ['event', 'evt-alice-finance'] },
     { title: 'Validate identity and device', body: 'A successful sign-in proves only that authentication passed. It does not prove the user was authorized or that their device met security requirements. Compare the identity’s role and groups with the device’s trust state.', lookFor: 'Alice’s Finance-Read group and WKSTN-17’s managed, compliant state.', lab: 'Guided · User Account Security Assessment', tab: 'identities', target: ['user', 'alice'] },
-    { title: 'Understand the resource and policy', body: 'A resource is the system or data being protected. Its classification and expected service tell you what is at stake; its access policy defines which groups and conditions are allowed. Compare both with the actual request.', lookFor: 'FINANCE-FILE-01’s Confidential classification, SMB/TCP 445 service, authorized group, and access policy.', lab: 'Assessment · Web Application Security Assessment', tab: 'resources', target: ['resource', 'finance'] },
+    { title: 'Understand the resource and policy', body: 'A resource is the system or data being protected. Its classification and expected service tell you what is at stake; its access policy defines which groups and conditions are allowed. Compare both with the actual request.', lookFor: 'FINANCE-FILE-01’s Confidential classification, SMB/TCP 445 service, authorized group, and access policy.', lab: 'Guided · File System Security Assessment', tab: 'resources', target: ['resource', 'finance'] },
     { title: 'Correlate before concluding', body: 'No single field tells the whole story. Correlate the access record with the identity, device, network path, resource, and policy. Then separate what the evidence proves from what still needs investigation.', lookFor: 'Alice’s ALLOWED result, then the identity, device, and policy behind it.', lab: 'Guided + assessment lab handoff', tab: 'activity', target: ['event', 'evt-alice-finance'] },
   ];
 
   // Facts the console cannot demonstrate well on its own.
   const KNOWLEDGE_QUESTIONS = [
     { id: 'protocol', prompt: 'A resource’s expected access is listed as "SMB / TCP 445." What does TCP represent?', options: [{ id: 'a', text: 'The transport protocol carrying the connection' }, { id: 'b', text: 'The application service' }, { id: 'c', text: 'The destination IP address' }, { id: 'd', text: 'The security zone' }], correct: 'a', correctMsg: 'Correct. SMB is the service, TCP is the transport protocol, and 445 is the port.', incorrectMsg: 'SMB names the service and 445 is the port. TCP is the transport protocol connecting them.' },
-    { id: 'correlation', prompt: 'The AD/Splunk lab shows a burst of failed logons for one account. What is the strongest next move?', options: [{ id: 'a', text: 'Correlate the user, source, device, timing, lockout state, and expected baseline' }, { id: 'b', text: 'Declare compromise from the count alone' }, { id: 'c', text: 'Ignore it because every failure is harmless' }, { id: 'd', text: 'Block every account in the directory' }], correct: 'a', correctMsg: 'Correct. The event pattern is a lead; correlation establishes scope and whether it fits expected behavior.', incorrectMsg: 'A burst is a lead, not a verdict. Correlate identity, source, device, timing, lockout state, and baseline.' },
+    { id: 'correlation', prompt: 'An account-activity review shows a burst of failed logons for one account. What is the strongest next move?', options: [{ id: 'a', text: 'Correlate the user, source, device, timing, lockout state, and expected baseline' }, { id: 'b', text: 'Declare compromise from the count alone' }, { id: 'c', text: 'Ignore it because every failure is harmless' }, { id: 'd', text: 'Block every account in the directory' }], correct: 'a', correctMsg: 'Correct. The event pattern is a lead; correlation establishes scope and whether it fits expected behavior.', incorrectMsg: 'A burst is a lead, not a verdict. Correlate identity, source, device, timing, lockout state, and baseline.' },
     { id: 'authorization', prompt: 'The account lab finds a user in an administrative group. What makes that a security finding?', options: [{ id: 'a', text: 'The privilege exceeds the documented job need or approved scope' }, { id: 'b', text: 'The user authenticated successfully' }, { id: 'c', text: 'The group name contains the word admin' }, { id: 'd', text: 'The account exists in the directory' }], correct: 'a', correctMsg: 'Correct. The finding is the mismatch between granted privilege and approved job need or scope.', incorrectMsg: 'Authentication and a group label are not enough. Compare the granted privilege with documented job need and approval.' },
   ];
 
@@ -93,12 +93,18 @@
   // static imported app on this page; its Back button returns through browser
   // history to the module that launched it.
   const GUIDED_LAB_LINKS = [
-    { title: 'Basic Network Security Assessment', detail: 'Network configuration review for beginner-level weaknesses', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-1/lab', labId: 'guided-1', requireNote: true },
-    { title: 'User Account Security Assessment', detail: 'User permissions and account-activity review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-5/lab', labId: 'guided-2', requireNote: true },
+    // labId stays 'guided-2' so existing learner records keep their slot.
+    // verified: completion comes from the lab player, never a manual toggle.
+    { title: 'User Account Security Assessment', detail: 'User permissions and account-activity review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-5/lab', labId: 'guided-2', importedLabId: 'sa-5', verified: true },
+    // Formerly the standalone "Additional Mission Next Lab" (labId 'additional-sa2').
+    { title: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'guided-sa2', importedLabId: 'sa-2', verified: true },
   ];
+  const GUIDED_LAB_IDS = GUIDED_LAB_LINKS.map((lab) => lab.labId);
   const ASSESSMENT_LAB_LINKS = [
-    { title: 'Active Directory Logs and Insights', detail: 'Independent AD log review using real Linux CLI tools', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-2/lab', labId: 'assessment-1', requireNote: true },
-    { title: 'Web Application Security Assessment', detail: 'Web application identity and access flaws', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-3/lab', labId: 'assessment-2', requireNote: true },
+    // Assessment copies of the two Guided Labs. Separate progress IDs ensure
+    // completing the Guided Labs does not automatically complete these copies.
+    { title: 'User Account Security Assessment', detail: 'User permissions and account-activity review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-5/lab', labId: 'assessment-copy-1', importedLabId: 'sa-5', requireNote: true },
+    { title: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'assessment-copy-2', importedLabId: 'sa-2', requireNote: true },
   ];
   const ASSESSMENT_MIN_NOTE_LENGTH = 80;
 
@@ -110,9 +116,11 @@
     { title: 'Security+ public domain overview (supplementary draft reference)', org: 'CompTIA', url: 'https://www.comptia.org/certifications/security', note: 'Supplementary public reference only. Not an approval, affiliation, endorsement, or pass guarantee.' },
   ];
 
+  let guideTipCollapsed = false;
+
   const DEFAULT = {
     learn: { walkthroughVersion: 3, guideFlowVersion: 1, step: 0, guideStep: -1, guideUnlocked: false, guideCompleted: false, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
-    practice: { notes: '', complete: false, gateMessage: '' },
+    practice: { notes: '', complete: false },
     prove: { notes: '', submitted: false, attempts: 0, feedback: [], lastSubmittedAt: '' },
     completed: false,
     labProgress: {},
@@ -265,7 +273,7 @@
     const guided = guideStep >= 0 && guideStep < CONSOLE_GUIDE_STEPS.length;
     const guideDone = guideStep >= CONSOLE_GUIDE_STEPS.length;
     const item = guideStep >= 0 ? consoleGuideItem() : null;
-    const tip = guideStep >= 0 ? `<aside class="m02e-learn-tip${guideDone ? ' is-complete' : ''}" id="m02e-learn-tip" aria-labelledby="m02e-guide-title"><span class="m02e-label">${guideDone ? 'CONSOLE GUIDE · COMPLETE' : `CONSOLE GUIDE · STEP ${guideStep + 1} OF ${CONSOLE_GUIDE_STEPS.length}`}</span><h3 id="m02e-guide-title">${esc(item.title)}</h3>${guideDone ? '<p>You can keep exploring the console, or revisit the explanations from the main Learn It card.</p>' : `<p>${esc(item.body)}</p><p class="m02e-guide-look"><strong>Look for:</strong> ${esc(item.lookFor)}</p><p class="m02e-guide-lab"><strong>Lab connection:</strong> ${esc(item.lab)}</p>`}<button class="m02e-guide-next" type="button" data-m02e-guide-next>${guideDone ? 'Restart console guide' : guideStep === CONSOLE_GUIDE_STEPS.length - 1 ? 'Finish guide' : 'Next explanation'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></aside>` : '';
+    const tip = guideStep >= 0 ? `<aside class="m02e-learn-tip${guideDone ? ' is-complete' : ''}${guideTipCollapsed ? ' is-collapsed' : ''}" id="m02e-learn-tip" aria-labelledby="m02e-guide-title"><div class="m02e-tip-head"><span class="m02e-label">${guideDone ? 'CONSOLE GUIDE · COMPLETE' : `CONSOLE GUIDE · STEP ${guideStep + 1} OF ${CONSOLE_GUIDE_STEPS.length}`}</span><button class="m02e-tip-toggle" type="button" data-m02e-guide-collapse aria-expanded="${guideTipCollapsed ? 'false' : 'true'}" aria-controls="m02e-tip-body" title="${guideTipCollapsed ? 'Show guide' : 'Move guide out of the way'}"><i class="ri-arrow-down-s-line" aria-hidden="true"></i><span class="m02e-sr-only">${guideTipCollapsed ? 'Show guide' : 'Move guide out of the way'}</span></button></div><div class="m02e-tip-body" id="m02e-tip-body"><h3 id="m02e-guide-title">${esc(item.title)}</h3>${guideDone ? '<p>You can keep exploring the console, or revisit the explanations from the main Learn It card.</p>' : `<p>${esc(item.body)}</p><p class="m02e-guide-look"><strong>Look for:</strong> ${esc(item.lookFor)}</p><p class="m02e-guide-lab"><strong>Lab connection:</strong> ${esc(item.lab)}</p>`}<button class="m02e-guide-next" type="button" data-m02e-guide-next>${guideDone ? 'Restart console guide' : guideStep === CONSOLE_GUIDE_STEPS.length - 1 ? 'Finish guide' : 'Next explanation'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></div></aside>` : '';
     const guideAvailable = state.learn.guideUnlocked || learnComplete() || state.learn.guideCompleted;
     const guideOpen = scope === 'learn' && guideStep < 0 ? `<button class="m02e-guide-open" type="button" data-m02e-guide-open${guideAvailable ? '' : ' disabled'}>${guideAvailable ? 'Open console guide' : 'Finish six ideas to open guide'}</button>` : '';
     return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console"><header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div>${guideOpen}</header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace">${tip}<div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
@@ -302,25 +310,12 @@
   // that panel, since outerHTML replacement destroys prior listeners. The
   // onChange callback just saves and re-renders that scope so the toggle
   // label/style and any downstream gate message stay current.
-  function additionalPanelHtml() {
-    return `<div class="m02e-additional-panel" id="m02e-additional-panel">${missionNextLabLaunchGroup(2, 'additional', [
-      { title: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'additional-sa2', requireNote: true },
-    ], state.labProgress)}</div>`;
-  }
-
-  function renderAdditionalPanel() {
-    const panel = document.getElementById('m02e-additional-panel');
-    if (panel) panel.outerHTML = additionalPanelHtml();
-    wireLabGating('additional');
-  }
-
   function wireLabGating(scope) {
-    const panelId = scope === 'practice' ? 'm02e-practice-panel' : scope === 'prove' ? 'm02e-prove-panel' : 'm02e-additional-panel';
+    const panelId = scope === 'practice' ? 'm02e-practice-panel' : 'm02e-prove-panel';
     const panel = document.getElementById(panelId);
     if (!panel) return;
     wireMissionNextLabGating(panel, state.labProgress, () => {
       save();
-      if (scope === 'additional') { renderAdditionalPanel(); return; }
       renderScope(scope);
     });
   }
@@ -329,7 +324,22 @@
 
   function learnComplete() { return state.learn.step >= LEARN_STEPS.length; }
   function guidedLabsUnlocked() {
-    return state.learn.guideCompleted || state.practice.complete || ['guided-1', 'guided-2'].some((id) => state.labProgress[id]?.complete);
+    return state.learn.guideCompleted || state.practice.complete;
+  }
+
+  // Guided Lab completion is earned inside the imported lab (every step
+  // verified), then mirrored here. Re-read on each render so returning from
+  // the lab updates the card without any manual step.
+  function syncVerifiedGuidedLabs() {
+    let changed = false;
+    GUIDED_LAB_LINKS.forEach((lab) => {
+      const done = missionNextImportedLabCompleted(user, 'soc-02', lab.importedLabId);
+      const entry = state.labProgress[lab.labId] || { complete: false, note: '' };
+      if (entry.complete !== done) { state.labProgress[lab.labId] = { ...entry, complete: done }; changed = true; }
+    });
+    const practiceDone = missionNextAllLabsComplete(state.labProgress, GUIDED_LAB_IDS);
+    if (state.practice.complete !== practiceDone) { state.practice.complete = practiceDone; changed = true; }
+    if (changed) save();
   }
 
   function syncGuideGateNav() {
@@ -465,23 +475,11 @@
   function practicePanel() {
     const p = state.practice;
     if (!guidedLabsUnlocked()) return '<div class="m02e-practice-panel" id="m02e-practice-panel"><div class="m02e-practice-locked" role="status"><strong>Guided Labs unlock after the console guide.</strong><p>Reveal all six Learn It ideas, open the console guide, then finish its six explanations to start these labs.</p></div></div>';
-    const gateOk = missionNextAllLabsComplete(state.labProgress, ['guided-1', 'guided-2']);
-    const gateMsg = p.gateMessage && !gateOk ? `<p class="m02e-gate-message" role="alert">${esc(p.gateMessage)}</p>` : '';
-    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">GUIDED LAB</p><p class="m02e-panel-instruction">Work through both imported security-assessment projects below; each opens on this page with its own guided tasks. Mark each lab complete with a short note, then mark the Guided Lab complete overall.</p>${missionNextLabLaunchGroup(2, 'guided', GUIDED_LAB_LINKS, state.labProgress)}<label class="m02e-rationale">Working notes (optional)<textarea data-m02e-practice-notes rows="4" maxlength="900" placeholder="What did you find? Any blockers?">${esc(p.notes)}</textarea></label>${gateMsg}<div class="m02e-panel-actions"><button class="m02e-primary" type="button" data-m02e-practice-complete>${p.complete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div></div>`;
-  }
-
-  function markPracticeComplete() {
-    if (!guidedLabsUnlocked()) return;
-    if (!missionNextAllLabsComplete(state.labProgress, ['guided-1', 'guided-2'])) {
-      state.practice.gateMessage = 'Mark both labs above complete first.';
-      save();
-      renderScope('practice');
-      return;
-    }
-    state.practice.gateMessage = '';
-    state.practice.complete = true;
-    save();
-    renderScope('practice');
+    syncVerifiedGuidedLabs();
+    const status = p.complete
+      ? '<div class="m02e-feedback is-correct" role="status">Guided Labs complete — every lab step was verified.</div>'
+      : '<div class="m02e-feedback" role="status">The Guided Lab completes automatically once you finish every step inside both labs.</div>';
+    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">GUIDED LAB</p><p class="m02e-panel-instruction">Work through both imported security-assessment projects below; each opens on this page with its own guided tasks. Completing every step in both labs completes the Guided Lab.</p>${missionNextLabLaunchGroup(2, 'guided', GUIDED_LAB_LINKS, state.labProgress)}<label class="m02e-rationale">Working notes (optional)<textarea data-m02e-practice-notes rows="4" maxlength="900" placeholder="What did you find? Any blockers?">${esc(p.notes)}</textarea></label>${status}</div>`;
   }
 
   // ---------------------------------------------------------------- Prove It
@@ -489,13 +487,13 @@
   function provePanel() {
     const p = state.prove;
     const feedbackHtml = p.feedback?.length ? `<div class="m02e-feedback ${p.submitted ? 'is-correct' : ''}" role="status"><ul>${p.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete both imported assessment projects below with a short note on each, then write up your findings for instructor review.</p>${missionNextLabLaunchGroup(2, 'assessment', ASSESSMENT_LAB_LINKS, state.labProgress)}<form id="m02e-prove-form"><label class="m02e-rationale">Assessment write-up<textarea id="m02e-prove-notes" rows="6" maxlength="900" placeholder="Summarize what the Splunk/AD logs surfaced, your analysis, and your recommended action…">${esc(p.notes)}</textarea></label><p class="m02e-help">In at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters, describe what you found and your recommended action.</p><div class="m02e-panel-actions"><button class="m02e-primary" type="submit">${p.submitted ? 'Resubmit for review' : 'Submit for review'}</button></div></form>${feedbackHtml}</div>`;
+    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete both Guided Lab projects again as independent assessments, adding a short note to each, then write up your findings for instructor review.</p>${missionNextLabLaunchGroup(2, 'assessment', ASSESSMENT_LAB_LINKS, state.labProgress)}<form id="m02e-prove-form"><label class="m02e-rationale">Assessment write-up<textarea id="m02e-prove-notes" rows="6" maxlength="900" placeholder="Summarize the account and filesystem access findings, your analysis, and your recommended actions…">${esc(p.notes)}</textarea></label><p class="m02e-help">In at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters, describe what you found and your recommended action.</p><div class="m02e-panel-actions"><button class="m02e-primary" type="submit">${p.submitted ? 'Resubmit for review' : 'Submit for review'}</button></div></form>${feedbackHtml}</div>`;
   }
 
   function submitProve(notes) {
     const p = state.prove;
     p.notes = notes;
-    if (!missionNextAllLabsComplete(state.labProgress, ['assessment-1', 'assessment-2', 'additional-sa2'])) {
+    if (!missionNextAllLabsComplete(state.labProgress, ASSESSMENT_LAB_LINKS.map((lab) => lab.labId))) {
       p.feedback = ['Mark all required labs above complete first.'];
       save();
       renderScope('prove');
@@ -542,6 +540,7 @@
 
   function view(u, program) {
     load(u);
+    syncVerifiedGuidedLabs();
     const module = program?.modules?.['soc-02'] || {};
     return `<div class="m01-shell m02e-shell">
       ${moduleTopbar(u, program)}
@@ -570,11 +569,6 @@
             ${provePanel()}
           </section>
 
-          <section class="m01-section m02e-section" id="m02e-additional" aria-labelledby="m02e-additional-title">
-            <div class="m01-section-heading"><span><i class="ri-shield-star-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Required Lab</p><h2 id="m02e-additional-title">Additional Mission Next Lab</h2></div></div>
-            ${additionalPanelHtml()}
-          </section>
-
           <section class="m01-section m01-section-supplemental m02e-section" id="m02e-sources" aria-labelledby="m02e-sources-title">
             <div class="m01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Reference — not a graded step</p><h2 id="m02e-sources-title">Sources &amp; Further Reading</h2></div></div>
             ${moduleSourcesBlock(SOURCES)}
@@ -590,7 +584,6 @@
 
     wireLabGating('practice');
     wireLabGating('prove');
-    wireLabGating('additional');
 
     wireReviewToggle({
       button: document.querySelector('[data-mnav-review-toggle]'),
@@ -619,6 +612,19 @@
         state.learn.guideStep = 0;
         applyGuideFocus(); save(); renderScope('learn'); return;
       }
+      if (button.hasAttribute('data-m02e-guide-collapse')) {
+        guideTipCollapsed = !guideTipCollapsed;
+        const tip = document.getElementById('m02e-learn-tip');
+        if (tip) {
+          tip.classList.toggle('is-collapsed', guideTipCollapsed);
+          const label = guideTipCollapsed ? 'Show guide' : 'Move guide out of the way';
+          button.setAttribute('aria-expanded', String(!guideTipCollapsed));
+          button.title = label;
+          const sr = button.querySelector('.m02e-sr-only');
+          if (sr) sr.textContent = label;
+        }
+        return;
+      }
       if (button.hasAttribute('data-m02e-guide-next')) {
         if ((!state.learn.guideUnlocked && !learnComplete() && !state.learn.guideCompleted) || state.learn.guideStep < 0) return;
         state.learn.guideStep = state.learn.guideStep >= CONSOLE_GUIDE_STEPS.length ? 0 : state.learn.guideStep + 1;
@@ -628,7 +634,6 @@
         return;
       }
       if (button.hasAttribute('data-m02e-knowledge-submit')) { state.learn.knowledgeScored = true; save(); renderScope('learn'); return; }
-      if (button.hasAttribute('data-m02e-practice-complete')) { markPracticeComplete(); return; }
     };
 
     root.onchange = (ev) => {

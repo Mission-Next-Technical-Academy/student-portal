@@ -2,7 +2,6 @@
   const REPO = '0xrajneesh/Active-Directory-Monitoring-Projects';
   const HASHES = {
     'ad-1': '28f82f67be4947415b92f63a36a503a4f7a84db887dc71fe708ba8f6e300efd0',
-    'ad-2': 'ace5ff8d53b8d129c5c200315bcd4a96ace2f7e7a8c7b3fcad20ed30303d4d8e',
     'ad-3': '517be79c6e500a2becdcc7ec3119aa5ff2b991a027fc15960238fa032f98d50a',
     'ad-4': '2cdfaab2f093856c683e502dd3fa585a5465680ef0a9a19d0f8b7516cb1441e3',
     'ad-5': '92bc2b685fd169afdca8f1cc40ebc357b660684f653434233925c34d6985af3e',
@@ -146,159 +145,6 @@
       ['Arrange panels for a comprehensive security overview.', 'Arrange and save the security overview.', 'ad-1.col-5'],
     ]),
   ]);
-
-  // ad-2 is the Module 2 "Independent Active Directory log review" Assessment
-  // Lab. It runs on the real LinuxTerminalShell (not a Splunk GUI mockup), so
-  // its steps are genuine cat/grep/awk/sort commands against a forwarded AD
-  // security log rather than descriptions of Splunk button clicks.
-  const AD2_LOG = [
-    '2026-04-23T09:11:02Z DC-01 4624 user=j.smith src=10.10.24.42',
-    '2026-04-23T09:11:47Z DC-01 4624 user=m.chen src=10.10.24.51',
-    '2026-04-23T09:14:10Z DC-01 4624 user=j.smith src=10.10.24.42',
-    '2026-04-23T09:16:39Z DC-01 4625 user=a.rivera src=203.0.113.44',
-    '2026-04-23T09:16:44Z DC-01 4625 user=a.rivera src=203.0.113.44',
-    '2026-04-23T09:16:49Z DC-01 4625 user=a.rivera src=203.0.113.44',
-    '2026-04-23T09:16:53Z DC-01 4625 user=a.rivera src=203.0.113.44',
-    '2026-04-23T09:16:58Z DC-01 4625 user=a.rivera src=203.0.113.44',
-    '2026-04-23T09:17:02Z DC-01 4740 user=a.rivera caller=WKSTN-15',
-    '2026-04-23T09:18:20Z DC-01 4624 user=m.chen src=10.10.24.51',
-    '2026-04-23T09:21:05Z DC-01 4625 user=j.smith src=10.10.24.42',
-    '2026-04-23T09:24:11Z DC-01 4624 user=t.nguyen src=10.10.24.60',
-  ].join('\n') + '\n';
-
-  function fsForAd2() {
-    return {
-      home: {
-        student: {
-          '.bashrc': 'alias ll="ls -la"\n',
-          'ad-monitoring-runbook.txt': [
-            'Domain: corp.example.local',
-            'Domain controller: DC-01.corp.example.local / 10.10.24.10',
-            'The Universal Forwarder on DC-01 already ships Security-log events to this box as /var/log/ad-security-sample.log.',
-          ].join('\n') + '\n',
-        },
-      },
-      var: { log: { 'ad-security-sample.log': AD2_LOG } },
-      tmp: {},
-    };
-  }
-
-  function cmdStep(labId, ex, n, sourceLine, instruction, hint, regex, col) {
-    const s = {
-      id: `${labId}.ex${ex}.s${n}`,
-      upstream: { exercise: `Exercise ${ex}`, stepNumber: n, sourceLine },
-      kind: 'command',
-      instruction,
-      acceptedInputs: [{ type: 'regex', value: regex }],
-      validation: { type: 'commandExecuted' },
-      hint,
-      points: 10,
-    };
-    if (col) s.checkOnLearning = col;
-    return s;
-  }
-
-  function analyzeStep(labId, ex, n, sourceLine, instruction, hint, expected, col) {
-    const s = {
-      id: `${labId}.ex${ex}.s${n}`,
-      upstream: { exercise: `Exercise ${ex}`, stepNumber: n, sourceLine },
-      kind: 'analyze',
-      instruction,
-      hint,
-      validation: { type: 'valueExtracted', expected },
-      points: 10,
-    };
-    if (col) s.checkOnLearning = col;
-    return s;
-  }
-
-  const AD2 = {
-    id: 'ad-2',
-    track: 'active-directory',
-    title: 'AD Logs and Insights',
-    difficulty: 'Beginner',
-    estimatedTime: '60 min',
-    icon: 'AD',
-    tags: ['Active Directory', 'Log Review', 'Linux', 'corp.example.local'],
-    source: { repo: REPO, file: 'project-2-active-directory-monitoring-with-splunk.md', sha256: HASHES['ad-2'], snapshot: 'src/data/sources/ad-2.source.md' },
-    environment: { type: 'linux', shell: 'LinuxTerminalShell', fs: fsForAd2 },
-    scenario: {
-      role: 'SOC analyst responsible for Active Directory monitoring',
-      incident: 'DC-01 has forwarded its Windows Security log to this Linux box as a plain text file. Use standard CLI tools — cat, grep, awk, sort, uniq — to read it directly and decide whether anything in it needs a ticket.',
-    },
-    exercises: [
-      {
-        id: 'ex1',
-        upstreamHeading: 'Exercise 1: Locating and Opening the AD Security Log',
-        steps: [
-          cmdStep('ad-2', 1, 1, 'cd /var/log', "Move into /var/log, where the domain controller's forwarded security events land on this box.", '`cd /var/log`', /^cd\s+\/var\/log\/?\s*$/),
-          cmdStep('ad-2', 1, 2, 'ls', 'List the directory contents to confirm ad-security-sample.log is there.', '`ls`', /^ls(\s+-\w+)?\s*$/),
-          cmdStep('ad-2', 1, 3, 'cat ad-security-sample.log', 'Print the whole log so you can see every event before filtering anything.', '`cat ad-security-sample.log`', /^cat\s+ad-security-sample\.log\s*$/, 'ad-2.col-1'),
-        ],
-      },
-      {
-        id: 'ex2',
-        upstreamHeading: 'Exercise 2: Reviewing Successful Logons (Event ID 4624)',
-        steps: [
-          cmdStep('ad-2', 2, 1, 'grep 4624 ad-security-sample.log', 'Filter the log for successful interactive logons, Event ID 4624.', '`grep 4624 ad-security-sample.log`', /^grep\s+4624\s+ad-security-sample\.log\s*$/),
-          analyzeStep('ad-2', 2, 2, 'Count the 4624 events', 'How many successful logon (4624) events appear in the log?', 'Count the lines your last grep returned.', ['5', 'five'], 'ad-2.col-2'),
-        ],
-      },
-      {
-        id: 'ex3',
-        upstreamHeading: 'Exercise 3: Isolating Failed Logons and the Lockout (4625, 4740)',
-        steps: [
-          cmdStep('ad-2', 3, 1, 'grep -E "4625|4740" ad-security-sample.log', 'Filter for failed logons (4625) and account lockouts (4740) in a single pass.', '`grep -E "4625|4740" ad-security-sample.log`', /^grep\s+-E\s+["']4625\|4740["']\s+ad-security-sample\.log\s*$/),
-          cmdStep('ad-2', 3, 2, 'grep -c 4625 ad-security-sample.log', 'Count how many failed-logon events were recorded.', '`grep -c 4625 ad-security-sample.log`', /^grep\s+-c\s+4625\s+ad-security-sample\.log\s*$/),
-          analyzeStep('ad-2', 3, 3, 'Identify the automatic response', 'Which event code on this list shows the domain controller taking automatic action against an account, rather than just recording a failed attempt?', 'One event code here is not a logon attempt at all.', ['4740'], 'ad-2.col-3'),
-        ],
-      },
-      {
-        id: 'ex4',
-        upstreamHeading: 'Exercise 4: Finding the Anomaly Behind the Lockout',
-        steps: [
-          cmdStep('ad-2', 4, 1, "grep 4625 ad-security-sample.log | awk '{print $4}' | sort | uniq -c", 'Pull the user field out of every failed logon, then count how many failures belong to each account.', "`grep 4625 ad-security-sample.log | awk '{print $4}' | sort | uniq -c`", /^grep\s+4625\s+ad-security-sample\.log\s*\|\s*awk\s+'\{print\s+\$4\}'\s*\|\s*sort\s*\|\s*uniq\s+-c\s*$/),
-          analyzeStep('ad-2', 4, 2, 'Name the account under attack', 'Which account shows a pattern consistent with a brute-force attempt rather than a single mistyped password?', "It's the account with far more failed attempts than anyone else, immediately followed by a 4740.", ['a.rivera', 'user=a.rivera'], 'ad-2.col-4'),
-        ],
-      },
-      {
-        id: 'ex5',
-        upstreamHeading: 'Exercise 5: Saving the Findings for the SOC Ticket',
-        steps: [
-          cmdStep('ad-2', 5, 1, 'grep -E "4625|4740" ad-security-sample.log > ~/ad-lockout-summary.txt', 'Redirect the failed-logon and lockout lines into a summary file you can attach to the incident ticket.', '`grep -E "4625|4740" ad-security-sample.log > ~/ad-lockout-summary.txt`', /^grep\s+-E\s+["']4625\|4740["']\s+ad-security-sample\.log\s*>\s*~?\/?(home\/student\/)?ad-lockout-summary\.txt\s*$/),
-          cmdStep('ad-2', 5, 2, 'cat ~/ad-lockout-summary.txt', 'Confirm the summary file was written correctly before attaching it to the ticket.', '`cat ~/ad-lockout-summary.txt`', /^cat\s+~?\/?(home\/student\/)?ad-lockout-summary\.txt\s*$/, 'ad-2.col-5'),
-        ],
-      },
-    ],
-    checkOnLearning: [
-      q('ad-2.col-1', 'ad-2.ex1.s3', 'Why read the raw log with cat before filtering it with grep?', 'comprehension', [
-        { id: 'a', text: 'So you see everything that happened before deciding what to filter out.', correct: true },
-        { id: 'b', text: 'cat is required before grep will work on a file.', correct: false },
-        { id: 'c', text: 'It deletes the log after reading it.', correct: false },
-      ]),
-      q('ad-2.col-2', 'ad-2.ex2.s2', 'Why check the volume of successful logons (4624) before hunting for problems?', 'application', [
-        { id: 'a', text: 'It gives you a baseline of normal activity to compare anomalies against.', correct: true },
-        { id: 'b', text: 'Successful logons are always malicious.', correct: false },
-        { id: 'c', text: 'It is required to unlock the grep command.', correct: false },
-      ]),
-      q('ad-2.col-3', 'ad-2.ex3.s3', 'Why isolate 4625 and 4740 together instead of just looking at 4625?', 'analysis', [
-        { id: 'a', text: 'A lockout (4740) is the consequence of failed logons (4625) — seeing both together shows cause and effect.', correct: true },
-        { id: 'b', text: '4740 events are unrelated to logons.', correct: false },
-        { id: 'c', text: 'grep cannot match more than one event code at a time otherwise.', correct: false },
-      ]),
-      q('ad-2.col-4', 'ad-2.ex4.s2', 'Why pipe grep into awk, sort, and uniq -c instead of reading the failed logons line by line?', 'analysis', [
-        { id: 'a', text: 'Counting failures per account surfaces the outlier automatically, instead of relying on the analyst to notice a pattern by eye.', correct: true },
-        { id: 'b', text: 'uniq -c is required for grep to run at all.', correct: false },
-        { id: 'c', text: 'It hides which account is affected.', correct: false },
-      ]),
-      q('ad-2.col-5', 'ad-2.ex5.s2', 'Why save the filtered lines to a file instead of just leaving them on screen?', 'application', [
-        { id: 'a', text: 'A saved file is evidence that can be attached to the SOC ticket and reviewed later.', correct: true },
-        { id: 'b', text: 'The terminal cannot display more than one grep result.', correct: false },
-        { id: 'c', text: 'Redirection deletes the original log.', correct: false },
-      ]),
-    ],
-    completion: { requireAllSteps: true, minQuizScore: 80 },
-  };
 
   const AD3 = lab('ad-3', 'Real-Time AD Metrics with Datadog', 'project-3-real-time-active-directory-monitoring-with-datadog.md', 'DatadogLabShell', 'Datadog', [
     exercise('ad-3', 1, 'Exercise 1: Configuring the Datadog Agent', [
@@ -465,7 +311,6 @@
 
   Object.assign(window.MISSION_NEXT_LABS = window.MISSION_NEXT_LABS || {}, {
     'ad-1': AD1,
-    'ad-2': AD2,
     'ad-3': AD3,
     'ad-4': AD4,
     'ad-5': AD5,

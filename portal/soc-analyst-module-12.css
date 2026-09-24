@@ -34,6 +34,13 @@
 .m12-objective > div:first-child { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 12px; font-size: 21px; }
 .m12-objective h2 { margin: 5px 0 0; color: #1e3a5f; font-size: 18px; line-height: 1.48; }
 .m12-section { scroll-margin-top: 20px; margin-top: 24px; padding: clamp(23px,4vw,38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
+.m12-section-collapsible { display: block; margin-top: 20px; overflow: hidden; background: #fff; border: 1px solid #dbe3ed; border-radius: 18px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
+.m12-section-collapsible > summary { padding: 18px clamp(18px,3vw,30px); cursor: pointer; list-style: none; }
+.m12-section-collapsible > summary::-webkit-details-marker { display: none; }
+.m12-section-collapsible > summary .m12-section-heading { margin: 0; }
+.m12-section-collapsible > summary .m12-section-heading h2 { font-size: 20px; }
+.m12-section-collapsible > .m12-section { margin: 0; padding: 0 clamp(18px,3vw,30px) 26px; border: 0; border-radius: 0; box-shadow: none; }
+.m12-section-collapsible[open] { border-color: #93b4d4; }
 .m12-range-section { border-top: 4px solid #f97316; }
 .m12-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 17px; }
 .m12-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-weight: 800; }

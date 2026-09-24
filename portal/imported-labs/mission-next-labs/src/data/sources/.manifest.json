@@ -3,7 +3,6 @@
   "_generated": "2026-04-27T21:15:00+02:00",
   "snapshots": {
     "ad-1": { "sha256": "28f82f67be4947415b92f63a36a503a4f7a84db887dc71fe708ba8f6e300efd0", "bytes": 4353 },
-    "ad-2": { "sha256": "ace5ff8d53b8d129c5c200315bcd4a96ace2f7e7a8c7b3fcad20ed30303d4d8e", "bytes": 3939 },
     "ad-3": { "sha256": "517be79c6e500a2becdcc7ec3119aa5ff2b991a027fc15960238fa032f98d50a", "bytes": 3395 },
     "ad-4": { "sha256": "2cdfaab2f093856c683e502dd3fa585a5465680ef0a9a19d0f8b7516cb1441e3", "bytes": 6209 },
     "ad-5": { "sha256": "92bc2b685fd169afdca8f1cc40ebc357b660684f653434233925c34d6985af3e", "bytes": 3641 },
@@ -19,7 +18,6 @@
     "ma-3": { "sha256": "f9ec9441acb38167ba862b23fe6d359a9a578527b460e34b91b6a10d0f34cb4b", "bytes": 4747 },
     "ma-4": { "sha256": "37357ab150437e6cc86efbcde75f2569ef366d1088bae81d9354b90178b4bf7f", "bytes": 4378 },
     "ma-5": { "sha256": "f062eef6c1c03a407e73178baab4177835da9b60f748223ebcc5cd2d876da926", "bytes": 4335 },
-    "sa-1": { "sha256": "9daafb410ac8a5bfa8acea30db07014581c2c559e79d4c8ba33fd7681782b799", "bytes": 4497 },
     "sa-2": { "sha256": "261c60ac55c3739e3721cab757410fad4d646956c80ae145f5eee6e9329c54c9", "bytes": 3684 },
     "sa-3": { "sha256": "4e087898c76325c95d7e96122ace7d3d83b9262e97c96e54b0b58aa8eb1fa895", "bytes": 4087 },
     "sa-4": { "sha256": "914b093adfc6241772a2362be40cd01392f42a8a8a05b0983c093145773fab0d", "bytes": 5139 },

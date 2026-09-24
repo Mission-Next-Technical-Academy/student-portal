@@ -74,6 +74,12 @@ devices, queries, and cloud resources are fictional fixtures.
 8. Before changing navigation, read `NAV_SPEC.md`.
 9. Preserve existing user changes in the working tree. Never reset or discard
    unrelated edits.
+10. Treat “floating card” as the shared Mission Next guide-card pattern: a
+    compact, readable card anchored to the lower-right viewport, with a clear
+    uppercase step label, short heading, explanation, optional “Look for” and
+    “Lab connection” details, and a concise next-action button. Use the Module
+    2 console guide as the visual reference for all new or revised floating
+    guide cards across the project.
 
 ## Start the course
 

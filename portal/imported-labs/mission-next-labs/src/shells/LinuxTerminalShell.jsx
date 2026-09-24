@@ -3,7 +3,7 @@
 // ============================================================
 //  Realistic-feeling Linux terminal that runs against a virtual
 //  filesystem (window.createVirtualFs). Implements the subset of
-//  bash needed by the lap-1 / lap-2 / sa-1..5 / vm install labs.
+//  bash needed by the lap-1 / lap-2 / sa-2..5 / vm install labs.
 //
 //  Built-ins implemented:
 //    cd, pwd, ls (with -l, -a, -la, -R), cat, less (pager),
@@ -101,12 +101,13 @@
   }
 
   function cmd_ls(env, args) {
-    let longFmt = false, all = false, recurse = false, target = null;
+    let longFmt = false, all = false, recurse = false, dirOnly = false, target = null;
     for (const a of args) {
       if (a.startsWith('-')) {
         if (a.includes('l')) longFmt = true;
         if (a.includes('a')) all = true;
         if (a.includes('R')) recurse = true;
+        if (a.includes('d')) dirOnly = true;
       } else target = a;
     }
     const path = normalizePath(joinPath(env.cwd, target || ''));
@@ -127,10 +128,11 @@
       return `total ${total}\n` + lines.join('\n') + (lines.length ? '\n' : '');
     }
 
-    if (env.vfs.isFile(path)) {
+    if (env.vfs.isFile(path) || dirOnly) {
       const stat = env.vfs.stat(path);
-      if (longFmt) return { stdout: `${modeStr(stat.mode, 'file')}  1 ${stat.owner} ${stat.group} ${stat.size} ${fmtMtime(stat.mtime)} ${stat.name}\n`, stderr: '', exitCode: 0 };
-      return { stdout: stat.name + '\n', stderr: '', exitCode: 0 };
+      const name = dirOnly ? (target || path) : stat.name;
+      if (longFmt) return { stdout: `${modeStr(stat.mode, stat.type)}  1 ${stat.owner} ${stat.group} ${stat.size || (stat.type === 'dir' ? 4096 : 0)} ${fmtMtime(stat.mtime)} ${name}\n`, stderr: '', exitCode: 0 };
+      return { stdout: name + '\n', stderr: '', exitCode: 0 };
     }
 
     if (!recurse) return { stdout: listDir(path), stderr: '', exitCode: 0 };
@@ -732,7 +734,6 @@
         sqlmap: { first: 360, line: 125 },
         wapiti: { first: 320, line: 115 },
         openvas: { first: 500, line: 140 },
-        tripwire: { first: 300, line: 100 },
         aide: { first: 280, line: 95 },
         auditctl: { first: 170, line: 65 },
         ausearch: { first: 220, line: 75 },

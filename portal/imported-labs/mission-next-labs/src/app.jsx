@@ -3,10 +3,13 @@
 // ============================================================
 
 function App() {
-  const [user, setUser] = React.useState(() => {
-    // Every route, including direct lab URLs, must start behind the login
-    // barrier. A session is only created by LoginPage after valid credentials.
-    return getSession();
+  // Imported course labs are public learning experiences. Mission Next's
+  // course portal owns learner authentication; the imported app must not add
+  // a second login gate before a lab route can render.
+  const [user] = React.useState(() => {
+    const moduleKey = new URLSearchParams(window.location.search).get('mntModule');
+    const suffix = /^soc-(?:0[1-9]|1[0-2])$/.test(moduleKey || '') ? `_${moduleKey}` : '';
+    return { id:'learner', username:`guest_learner${suffix}`, role:'student', displayName:'Learner' };
   });
   const [track, setTrack] = React.useState(null); // splunk | windows-forensics
   const [view, setView] = React.useState('tracks'); // tracks | dashboard | module
@@ -36,20 +39,8 @@ function App() {
     applyRoute(parseHashRoute(path));
   }
 
-  function handleLogin(u) {
-    setUser(u);
-    setRoute(u.role === 'instructor' ? '#/instructor' : '#/tracks');
-  }
-
   function handleLogout() {
-    clearSession();
-    setUser(null);
-    setTrack(null);
-    setView('tracks');
-    setActiveModule(null);
-    setActiveProjectId(null);
-    setRouteError(null);
-    window.location.hash = '#/login';
+    handleBackToTracks();
   }
 
   function handleSelectTrack(nextTrack) {
@@ -106,9 +97,7 @@ function App() {
     setRoute(`#/track/windows-forensics/project/${projectId}`);
   }
 
-  const routeKey = !user
-    ? 'login'
-    : routeError
+  const routeKey = routeError
       ? `route-error-${routeError.kind}-${routeError.id || 'unknown'}`
     : view === 'tracks' || !track
       ? 'tracks'
@@ -131,8 +120,6 @@ function App() {
       </AppErrorBoundary>
     );
   }
-
-  if (!user) return withTransition(<LoginPage onLogin={handleLogin} />);
 
   if (routeError?.kind === 'module') {
     return withTransition(
