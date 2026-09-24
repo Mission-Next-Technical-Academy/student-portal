@@ -4130,6 +4130,7 @@ function moduleTopbarTitle(program, options = {}) {
 }
 
 /* Imported Mission Next projects that extend a module's core Guided and
+ * Assessment labs. Module files pass prebuilt same-page launch links. */
 function missionNextAdditionalLabsSection(moduleNumber, links) {
   const items = Array.isArray(links) ? links : [];
   if (!items.length) return '';
