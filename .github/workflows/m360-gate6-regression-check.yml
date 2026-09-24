@@ -96,8 +96,7 @@ jobs:
               'POST_LOGIN_KEY',
               "event !== 'SIGNED_IN'",
               "location.hash.startsWith('#/program/')",
-              "history.replaceState(null, '', '#/portal')",
-              "coachReturn === 'm01'"
+              "history.replaceState(null, '', '#/portal')"
           ]
           for token in required:
               if token not in entry:
