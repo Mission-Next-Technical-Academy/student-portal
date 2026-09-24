@@ -399,7 +399,9 @@ function moduleThreeLoad(user) {
   moduleThreeState = LabRuntime.loadCaseState(MODULE_THREE_LAB_ID, 'soc-03', user, MODULE_THREE_DEFAULT_STATE);
   try {
     const completion = JSON.parse(localStorage.getItem('mission_next_lab_completion') || 'null');
-    moduleThreeState.importedLabComplete = moduleThreeState.importedLabComplete === true || Boolean(completion && completion.user === user?.username && completion.labId === 'lap-4');
+    moduleThreeState.importedLabComplete = moduleThreeState.importedLabComplete === true
+      || Boolean(completion && completion.user === user?.username && completion.labId === 'lap-4')
+      || Boolean(user?.remoteCaseState?.['soc-03']?.['imported-lab-progress:lap-4']?.completedAt);
   } catch (_) { moduleThreeState.importedLabComplete = false; }
   if (!Array.isArray(moduleThreeState.feedback)) moduleThreeState.feedback = [];
   if (!Array.isArray(moduleThreeState.flags)) moduleThreeState.flags = [];

@@ -137,6 +137,17 @@
     const flat = React.useMemo(() => flattenSteps(lab), [lab]);
 
     React.useEffect(() => {
+      if (!user || !window.MISSION_NEXT_PROGRESS_EXT?.hydrateCourseLab) return;
+      let active = true;
+      window.MISSION_NEXT_PROGRESS_EXT.hydrateCourseLab(user.username, lab.id).then((entry) => {
+        if (!active || !entry?.stepAttempts) return;
+        setCompletedSet(new Set(Object.entries(entry.stepAttempts)
+          .filter(([, attempt]) => attempt && attempt.firstCorrectAt).map(([id]) => id)));
+      });
+      return () => { active = false; };
+    }, [lab.id, user?.username]);
+
+    React.useEffect(() => {
       function onResize() {
         setIsNarrow(window.innerWidth < 1180);
       }
@@ -302,13 +313,15 @@
 
     React.useEffect(() => {
       if (!labComplete || !user) return;
+      const completedAt = new Date().toISOString();
       try {
         localStorage.setItem('mission_next_lab_completion', JSON.stringify({
           user: user.username,
           labId: lab.id,
-          completedAt: new Date().toISOString(),
+          completedAt,
         }));
       } catch (_) { /* best effort when storage is unavailable */ }
+      window.MISSION_NEXT_PROGRESS_EXT?.markCourseLabComplete?.(user.username, lab.id, completedAt);
     }, [labComplete, lab.id, user && user.username]);
 
     const showTerminalGuide = ShellComponent === window.LinuxTerminalShell;

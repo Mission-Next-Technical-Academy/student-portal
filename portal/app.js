@@ -4208,13 +4208,22 @@ function missionNextLabLaunchCard(moduleNumber, opts) {
   const { kind = 'guided', index = 1, total = 1, title, detail, href, labId, progress, requireNote } = opts || {};
   if (!href || !title) return '';
   const label = missionNextLabLaunchLabel(kind, index, total);
+  let launchHref = href;
+  if (typeof location !== 'undefined' && /program\/soc-analyst/i.test(location.hash)
+      && /imported-labs\/mission-next-labs/i.test(href)) {
+    try {
+      const url = new URL(href, location.href);
+      url.searchParams.set('mntModule', `soc-${String(moduleNumber).padStart(2, '0')}`);
+      launchHref = `${url.pathname}${url.search}${url.hash}`;
+    } catch (_) { /* keep the original link */ }
+  }
   const entry = labId ? (progress || { complete: false, note: '' }) : null;
   const gateHtml = labId ? `<div class="mn-lab-gate" data-mn-lab-gate="${esc(labId)}">
       ${requireNote ? `<textarea class="mn-lab-gate-note" data-mn-lab-note="${esc(labId)}" rows="2" maxlength="600" placeholder="Briefly note what you found in this lab…">${esc(entry.note || '')}</textarea>` : ''}
       <button type="button" class="mn-lab-gate-toggle${entry.complete ? ' is-complete' : ''}" data-mn-lab-toggle="${esc(labId)}" aria-pressed="${entry.complete ? 'true' : 'false'}">${entry.complete ? '✓ Marked complete' : 'Mark complete'}</button>
     </div>` : '';
   return `<div class="mn-lab-launch-wrap">
-    <a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(href)}">
+    <a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(launchHref)}">
       <span class="mn-lab-launch-eyebrow">${esc(label)}</span>
       <span class="mn-lab-launch-title">${esc(title)}</span>
       ${detail ? `<span class="mn-lab-launch-detail">${esc(detail)}</span>` : ''}
