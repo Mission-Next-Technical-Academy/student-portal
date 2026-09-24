@@ -14,9 +14,9 @@ const chromeExecOptions = { encoding:'utf8', stdio:['ignore', 'pipe', 'pipe'], m
 
 const routes = [
   {
-    name:'log analysis catalog',
+    name:'log analysis catalog blocked',
     hash:'#/track/log-analysis',
-    expect:['Log Analysis Projects', 'Introduction to Syslog Analysis on Linux Systems', 'START LOCAL LAB'],
+    expect:['Open this lab from the course module'],
   },
   {
     name:'lap-2 lab refresh',

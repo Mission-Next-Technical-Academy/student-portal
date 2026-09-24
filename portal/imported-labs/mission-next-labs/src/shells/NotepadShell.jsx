@@ -2,8 +2,7 @@
 //  NotepadShell — Windows Notepad-style text viewer/editor
 // ============================================================
 //  Used whenever a lab "opens" a text file (strings_output.txt,
-//  ransom note, etc.). Supports text selection for CoL questions
-//  that ask the user to highlight a specific token.
+//  ransom note, etc.). Supports text selection for evidence handling.
 //
 //  Props:
 //    title        string (window title; appears in title bar)

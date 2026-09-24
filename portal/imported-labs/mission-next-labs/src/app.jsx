@@ -4,14 +4,9 @@
 
 function App() {
   const [user, setUser] = React.useState(() => {
-    // Local review build: auth barrier removed so the app opens straight in.
-    let session = getSession();
-    if (!session) {
-      session = USERS.find(u => u.username === 'student_01');
-      setSession(session);
-      initUserProgress(session.username);
-    }
-    return session;
+    // Every route, including direct lab URLs, must start behind the login
+    // barrier. A session is only created by LoginPage after valid credentials.
+    return getSession();
   });
   const [track, setTrack] = React.useState(null); // splunk | windows-forensics
   const [view, setView] = React.useState('tracks'); // tracks | dashboard | module

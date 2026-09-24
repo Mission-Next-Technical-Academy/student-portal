@@ -29,6 +29,7 @@ const requiredFiles = [
   'scripts/route-smoke.mjs',
   'src/data/labs/security-assessments.labs.js',
   'src/data/labs/active-directory.labs.js',
+  'src/systems/lab-runtime.js',
   'src/data/labs/windows-forensics.labs.js',
 ];
 
@@ -108,6 +109,7 @@ for (const file of [
   'src/data/labs/vuln-management.labs.js',
   'src/data/labs/malware-analysis.labs.js',
   'src/data/labs/active-directory.labs.js',
+  'src/systems/lab-runtime.js',
 ]) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
   vm.runInContext(source, sandbox, { filename: file });
@@ -265,22 +267,11 @@ adLabs.forEach((lab, index) => {
   const expectedExercises = index === 6 ? 6 : 5;
   assert(Array.isArray(lab.exercises) && lab.exercises.length === expectedExercises, `Expected ad-${index + 1} to have ${expectedExercises} upstream exercises`);
 });
-assert(lap1.checkOnLearning && lap1.checkOnLearning.length >= 5, 'Expected lap-1 to have at least 5 Check-on-Learning questions');
-assert(lap2.checkOnLearning && lap2.checkOnLearning.length >= 5, 'Expected lap-2 to have at least 5 Check-on-Learning questions');
-assert(lap4.checkOnLearning && lap4.checkOnLearning.length >= 5, 'Expected lap-4 to have at least 5 Check-on-Learning questions');
-assert(sa1.checkOnLearning && sa1.checkOnLearning.length >= 5, 'Expected sa-1 to have at least 5 Check-on-Learning questions');
-assert(sa2.checkOnLearning && sa2.checkOnLearning.length >= 5, 'Expected sa-2 to have at least 5 Check-on-Learning questions');
-assert(sa3.checkOnLearning && sa3.checkOnLearning.length >= 5, 'Expected sa-3 to have at least 5 Check-on-Learning questions');
-assert(sa4.checkOnLearning && sa4.checkOnLearning.length >= 5, 'Expected sa-4 to have at least 5 Check-on-Learning questions');
-assert(sa5.checkOnLearning && sa5.checkOnLearning.length >= 5, 'Expected sa-5 to have at least 5 Check-on-Learning questions');
-assert(vm1.checkOnLearning && vm1.checkOnLearning.length === 5, 'Expected vm-1 to have 5 Check-on-Learning questions');
-assert(wf1.checkOnLearning && wf1.checkOnLearning.length >= 5, 'Expected wf-1 to have at least 5 Check-on-Learning questions');
-assert(wf3.checkOnLearning && wf3.checkOnLearning.length >= 5, 'Expected wf-3 to have at least 5 Check-on-Learning questions');
-assert(wf4.checkOnLearning && wf4.checkOnLearning.length >= 5, 'Expected wf-4 to have at least 5 Check-on-Learning questions');
-assert(wf5.checkOnLearning && wf5.checkOnLearning.length >= 5, 'Expected wf-5 to have at least 5 Check-on-Learning questions');
-adLabs.forEach((lab, index) => {
-  const expectedQuestions = index === 6 ? 6 : 5;
-  assert(lab.checkOnLearning && lab.checkOnLearning.length === expectedQuestions, `Expected ad-${index + 1} to have ${expectedQuestions} Check-on-Learning questions`);
+Object.values(MISSION_NEXT_LABS).forEach(lab => {
+  assert(!Object.prototype.hasOwnProperty.call(lab, 'checkOnLearning'), `${lab.id} should not expose knowledge-check metadata`);
+  (lab.exercises || []).forEach(exercise => (exercise.steps || []).forEach(step => {
+    assert(!Object.prototype.hasOwnProperty.call(step, 'checkOnLearning'), `${step.id} should not expose knowledge-check metadata`);
+  }));
 });
 assert(lap1.source && typeof lap1.source.sha256 === 'string' && lap1.source.sha256.length === 64, 'Expected lap-1 source sha256 to be a 64-char hex string');
 assert(lap2.source && typeof lap2.source.sha256 === 'string' && lap2.source.sha256.length === 64, 'Expected lap-2 source sha256 to be a 64-char hex string');
@@ -357,7 +348,6 @@ adLabs.forEach((lab, index) => {
   const errs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(lab);
   assert(errs.length === 0, `${id} schema errors: ` + errs.join('; '));
   assert(Array.isArray(lab.exercises) && lab.exercises.length === 5, `Expected ${id} to have 5 exercises`);
-  assert(Array.isArray(lab.checkOnLearning) && lab.checkOnLearning.length >= 5, `Expected ${id} to have at least 5 Check-on-Learning questions`);
   assert(manifest.snapshots[id] && manifest.snapshots[id].sha256 === lab.source.sha256, `Expected ${id} source sha256 to match manifest`);
 });
 assert(MISSION_NEXT_LABS['sa-1'].environment.shell === 'LinuxTerminalShell', 'Expected sa-1 to use LinuxTerminalShell');
@@ -372,7 +362,6 @@ assert(MISSION_NEXT_LABS['sa-5'].environment.shell === 'LinuxTerminalShell', 'Ex
   const errs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(lab);
   assert(errs.length === 0, `${id} schema errors: ` + errs.join('; '));
   assert(Array.isArray(lab.exercises) && lab.exercises.length === 5, `Expected ${id} to have 5 exercises`);
-  assert(Array.isArray(lab.checkOnLearning) && lab.checkOnLearning.length === 5, `Expected ${id} to have 5 Check-on-Learning questions`);
   assert(manifest.snapshots[id] && manifest.snapshots[id].sha256 === lab.source.sha256, `Expected ${id} source sha256 to match manifest`);
 });
 assert(MISSION_NEXT_LABS['vm-1'].environment.shell === 'OpenVASLabShell', 'Expected vm-1 to use OpenVASLabShell');
@@ -391,12 +380,6 @@ assert(MISSION_NEXT_LABS['wf-1'].environment.shell === 'WindowsEventLogsLabShell
 assert(MISSION_NEXT_LABS['wf-3'].environment.shell === 'TimelineExplorerLabShell', 'Expected wf-3 to use TimelineExplorerLabShell');
 assert(MISSION_NEXT_LABS['wf-4'].environment.shell === 'BrowserHistoryViewerLabShell', 'Expected wf-4 to use BrowserHistoryViewerLabShell');
 assert(MISSION_NEXT_LABS['wf-5'].environment.shell === 'FTKImagerLabShell', 'Expected wf-5 to use FTKImagerLabShell');
-
-// Bloom coverage: every Bloom level must appear at least once
-const blooms = new Set(lap1.checkOnLearning.map(q => q.bloom));
-['recall', 'comprehension', 'application', 'analysis'].forEach(level => {
-  assert(blooms.has(level), `Expected lap-1 CoL to cover Bloom level: ${level}`);
-});
 
 // Forward gating: step 2 must be locked until step 1 completes
 const flat = MISSION_NEXT_GATING.flattenSteps(lap1);

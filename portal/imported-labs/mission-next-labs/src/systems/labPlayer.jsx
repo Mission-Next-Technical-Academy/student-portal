@@ -5,7 +5,7 @@
 //    Top:    nav (back button, lab title, difficulty, score)
 //    Left:   environment shell (LinuxTerminalShell, etc.)
 //    Right:  scenario panel + step list + current-step detail
-//    Bottom-left: CheckOnLearningDrawer
+//    Bottom: direct analyst workflow with step validation
 //
 //  Detection: ModulePage uses this when `mod.exercises` is an array.
 // ============================================================
@@ -41,11 +41,6 @@
     const [activeStepId, setActiveStepId] = React.useState(() => {
       const next = window.MISSION_NEXT_GATING ? window.MISSION_NEXT_GATING.nextUnlockedStep(lab, completedSet) : null;
       return (next && next.id) || (flattenSteps(lab)[0]?.id) || null;
-    });
-    const [colTrigger, setColTrigger] = React.useState(null);
-    const [colAnswered, setColAnswered] = React.useState(() => {
-      if (!user || !window.MISSION_NEXT_PROGRESS_EXT) return {};
-      return window.MISSION_NEXT_PROGRESS_EXT.getCheckpointResponses(user.username, lab.id) || {};
     });
     const [revealedHints, setRevealedHints] = React.useState({});
     const [revealedAnswers, setRevealedAnswers] = React.useState({});
@@ -91,7 +86,6 @@
         services: overrides.services || services,
         savedFiles: overrides.savedFiles || savedFiles,
         vfs: overrides.vfs || vfs,
-        quiz: overrides.quiz || colAnswered,
         completed: overrides.completed || Array.from(completedSet),
         uiPath: overrides.uiPath || uiPath,
       };
@@ -102,9 +96,6 @@
         if (prev.has(stepId)) return prev;
         const next = new Set(prev); next.add(stepId); return next;
       });
-      // mark Check-on-Learning trigger if this step has one
-      const step = getStep(lab, stepId);
-      if (step && step.checkOnLearning) setColTrigger(step.checkOnLearning);
       // also mark the underlying base progress score so the existing instructor
       // dashboard sees activity even before it's updated for new fields.
       if (window.markTaskComplete && user) {
@@ -195,19 +186,6 @@
       window.setTimeout(() => setFeedback(null), 1800);
     }
 
-    function onColAnswer(qid, response, passed) {
-      setColAnswered(prev => ({ ...prev, [qid]: { passed, lastResponse: response } }));
-      if (window.MISSION_NEXT_PROGRESS_EXT && user) {
-        window.MISSION_NEXT_PROGRESS_EXT.markCheckpointResponse(user.username, lab.id, qid, passed, response);
-      }
-    }
-    function onColSkip(qid) {
-      setColAnswered(prev => ({ ...prev, [qid]: { passed: false, skipped: true } }));
-      if (window.MISSION_NEXT_PROGRESS_EXT && user) {
-        window.MISSION_NEXT_PROGRESS_EXT.markCheckpointResponse(user.username, lab.id, qid, false, { skipped: true });
-      }
-    }
-
     // Hint reveal logic
     function maybeRevealHint(stepId) {
       if (!user || !window.MISSION_NEXT_PROGRESS_EXT) return;
@@ -267,7 +245,16 @@
           </div>
           <div style={lpStyles.navRight}>
             <span style={lpStyles.scoreDisplay}>{doneSteps}/{totalSteps} steps</span>
-            <span style={lpStyles.pctBar}><span style={{ ...lpStyles.pctFill, width: `${pct}%` }} /></span>
+            <span
+              style={lpStyles.pctBar}
+              role="progressbar"
+              aria-label="Lab progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow={pct}
+            >
+              <span style={{ ...lpStyles.pctFill, width: `${pct}%` }} />
+            </span>
             <span style={lpStyles.userText}>{user && user.displayName}</span>
           </div>
         </nav>
@@ -346,16 +333,6 @@
           </aside>
         </div>
 
-        {window.CheckOnLearningDrawer && Array.isArray(lab.checkOnLearning) && lab.checkOnLearning.length > 0 && (
-          <window.CheckOnLearningDrawer
-            questions={lab.checkOnLearning}
-            triggeredId={colTrigger}
-            answered={colAnswered}
-            onAnswer={onColAnswer}
-            onSkip={onColSkip}
-            onClose={() => setColTrigger(null)}
-          />
-        )}
       </div>
     );
   }

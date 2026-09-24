@@ -20,7 +20,7 @@
 .m07-shell .m07-progress { min-width: 310px; display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; margin: 0; overflow: hidden; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.16); border-radius: 14px; }
 .m07-shell .m07-progress div { padding: 14px 16px; background: rgba(12,30,50,.54); }
 .m07-shell .m07-progress dt { color: rgba(255,255,255,.56); font: 10px/1.3 Inter,sans-serif; }
-.m07-shell .m07-progress dd { margin: 5px 0 0; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.m07-shell .m07-progress dd { margin: 5px 0 0; color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; }
 
 .m07-shell .m07-objective { margin-top: 22px; display: flex; align-items: flex-start; gap: 16px; padding: 22px; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 8px 24px rgba(30,58,95,.06); }
 .m07-shell .m07-objective > i { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 12px; font-size: 21px; }
@@ -37,6 +37,27 @@
 .m07-shell .m07-analysis-chain { margin-top: 18px; padding: 16px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 9px; color: #fff; background: #0c1e32; border-radius: 13px; }
 .m07-shell .m07-analysis-chain span { padding: 7px 10px; color: #1e3a5f; background: #fff; border-radius: 8px; font-size: 11px; font-weight: 800; }
 .m07-shell .m07-analysis-chain i { color: #f97316; }
+
+.m07-shell .m07-evidence-desk { margin-top: 18px; padding: 24px; background: #fff; border: 1px solid #e5e7eb; border-top: 4px solid #f97316; border-radius: 16px; }
+.m07-shell .m07-evidence-desk h3 { margin: 4px 0 0; color: #1e3a5f; font-size: 20px; }
+.m07-shell .m07-evidence-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 18px; }
+.m07-shell .m07-evidence-card { padding: 16px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; }
+.m07-shell .m07-evidence-card > strong { color: #1e3a5f; font-size: 13px; }
+.m07-shell .m07-evidence-card dl { margin: 11px 0 0; display: grid; gap: 7px; }
+.m07-shell .m07-evidence-card dl div { display: grid; grid-template-columns: 105px minmax(0,1fr); gap: 10px; }
+.m07-shell .m07-evidence-card dd { font-size: 10px; }
+.m07-shell .m07-evidence-form { margin-top: 18px; display: grid; gap: 14px; }
+.m07-shell .m07-evidence-form fieldset { display: grid; gap: 8px; margin: 0; padding: 14px; border: 1px solid #e5e7eb; border-radius: 11px; }
+.m07-shell .m07-evidence-form legend { padding: 0 5px; color: #1e3a5f; font-size: 12px; font-weight: 800; }
+.m07-shell .m07-evidence-form label { display: flex; align-items: flex-start; gap: 8px; color: #475569; font: 11px/1.55 Inter,sans-serif; cursor: pointer; }
+.m07-shell .m07-evidence-form input[type="radio"] { flex: 0 0 auto; margin-top: 2px; accent-color: #f97316; }
+.m07-shell .m07-evidence-select, .m07-shell .m07-evidence-note { display: grid !important; gap: 7px; color: #1e3a5f !important; font-weight: 800 !important; }
+.m07-shell .m07-evidence-form select, .m07-shell .m07-evidence-form textarea { width: 100%; padding: 10px 11px; color: #334155; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; font: 11px/1.5 Inter,sans-serif; }
+.m07-shell .m07-evidence-form textarea { resize: vertical; }
+.m07-shell .m07-form-help { margin: 0; color: #64748b; font: 10px/1.5 Inter,sans-serif; }
+.m07-shell .m07-evidence-feedback { padding: 11px 12px; border-radius: 9px; font: 700 11px/1.5 Inter,sans-serif; }
+.m07-shell .m07-evidence-feedback.is-complete { color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.m07-shell .m07-evidence-feedback.is-retry { color: #92400e; background: #fffbeb; border: 1px solid #fde68a; }
 
 .m07-shell .m07-lab-section { border-top: 4px solid #f97316; }
 .m07-shell .m07-role { display: flex; align-items: flex-start; gap: 13px; margin: -5px 0 20px; padding: 16px; color: #1e3a5f; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; }
@@ -283,6 +304,7 @@
   .m07-shell .m07-table td { display: grid; grid-template-columns: minmax(90px,.7fr) minmax(0,1.3fr); gap: 9px; padding: 8px 11px; overflow-wrap: anywhere; }
   .m07-shell .m07-table td::before { content: attr(data-label); color: #64748b; font-size: 9px; font-weight: 700; text-transform: uppercase; }
   .m07-shell .m07-artifact-grid { grid-template-columns: 1fr; }
+  .m07-shell .m07-evidence-grid { grid-template-columns: 1fr; }
   .m07-shell .m07-tray { grid-template-columns: 1fr; }
 }
 

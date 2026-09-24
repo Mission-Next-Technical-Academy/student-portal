@@ -119,15 +119,6 @@
       return got === expected ? { ok: true } : { ok: false, reason: `${got} !== ${expected}` };
     },
 
-    quizPassed(step, simState) {
-      const v = step.validation;
-      const colId = v.field || v.value || step.checkOnLearning;
-      if (!colId) return { ok: false, reason: 'quizPassed validation has no question id.' };
-      const quiz = (simState && simState.quiz) || {};
-      const entry = quiz[colId];
-      if (entry && entry.passed) return { ok: true };
-      return { ok: false, reason: `Question ${colId} not yet passed.` };
-    },
   };
 
   function validateStep(step, simState, submission) {

@@ -354,6 +354,7 @@ function moduleSevenFreshState() {
     practiceComplete: false, practiceNotes: '',
     attempts: 0, score: 0, bestScore: 0, flags: [], completed: false,
     feedback: [], validationError: '', lastSubmittedAt: '', notes: '',
+    evidenceDesk: { exposure: '', correlation: '', action: '', note: '', checked: false, complete: false, feedback: '' },
   };
 }
 
@@ -366,6 +367,9 @@ function moduleSevenLoad(user) {
   });
   if (typeof moduleSevenState.notes !== 'string') moduleSevenState.notes = '';
   if (typeof moduleSevenState.practiceNotes !== 'string') moduleSevenState.practiceNotes = '';
+  if (!moduleSevenState.evidenceDesk || typeof moduleSevenState.evidenceDesk !== 'object') {
+    moduleSevenState.evidenceDesk = moduleSevenFreshState().evidenceDesk;
+  }
 
   // Initialize quiz state
   if (!moduleSevenQuizState) {
@@ -407,6 +411,29 @@ function moduleSevenConcepts() {
     ['ri-git-commit-line', 'Use trace to bound delivery', 'Message trace distinguishes delivered, blocked, redirected, and quarantined copies. Scope exposure by delivery outcome, not recipient count alone.'],
   ];
   return `<div class="m07-concepts">${items.map((item) => `<article><i class="${esc(item[0])}" aria-hidden="true"></i><h3>${esc(item[1])}</h3><p>${esc(item[2])}</p></article>`).join('')}</div>`;
+}
+
+function moduleSevenEvidenceDesk() {
+  const desk = moduleSevenState.evidenceDesk;
+  const feedback = desk.feedback
+    ? `<div class="m07-evidence-feedback ${desk.complete ? 'is-complete' : 'is-retry'}" role="status">${esc(desk.feedback)}</div>`
+    : '';
+  return `<section class="m07-evidence-desk" aria-labelledby="m07-evidence-desk-title">
+    <div class="m07-panel-heading"><div><p class="m07-kicker">Analyst desk · formative practice</p><h3 id="m07-evidence-desk-title">Make the bounded call</h3></div><span class="m07-chip">Case M07-QR-014</span></div>
+    <p class="m07-instruction">You are the analyst on queue. Use the evidence slice below; separate delivery, interaction, and compromise instead of collapsing them into one verdict.</p>
+    <div class="m07-evidence-grid">
+      <div class="m07-evidence-card"><strong>Email and trace</strong><dl><div><dt>Recipient</dt><dd>acct-63 · WS-517</dd></div><div><dt>Message trace</dt><dd>Delivered to Inbox at 10:15 UTC</dd></div><div><dt>Second copy</dt><dd>acct-82 · blocked at gateway</dd></div></dl></div>
+      <div class="m07-evidence-card"><strong>Network pivot</strong><dl><div><dt>10:16 UTC</dt><dd>User opened the QR-invoice message</dd></div><div><dt>10:17 UTC</dt><dd>DNS: invoice-qr.example → 203.0.113.88</dd></div><div><dt>10:17:37 UTC</dt><dd>TLS SNI: invoice-qr.example → 203.0.113.88</dd></div></dl></div>
+    </div>
+    <form class="m07-evidence-form" data-m07-evidence-form>
+      <fieldset><legend>1. What exposure is confirmed?</legend><label><input type="radio" name="m07-exposure" value="acct-63" ${desk.exposure === 'acct-63' ? 'checked' : ''}> acct-63 / WS-517 received the message; acct-82 was protected by the gateway</label><label><input type="radio" name="m07-exposure" value="all" ${desk.exposure === 'all' ? 'checked' : ''}> Both accounts were exposed because both were targeted</label></fieldset>
+      <fieldset><legend>2. How strong is the email-to-network correlation?</legend><label><input type="radio" name="m07-correlation" value="corroborated" ${desk.correlation === 'corroborated' ? 'checked' : ''}> Strong corroboration of interaction with the message artifact; it does not prove credential compromise</label><label><input type="radio" name="m07-correlation" value="proof" ${desk.correlation === 'proof' ? 'checked' : ''}> Proof that the user entered credentials and the endpoint is compromised</label></fieldset>
+      <label class="m07-evidence-select">3. Choose the next authorized action<select name="m07-action"><option value="">Select an action…</option><option value="scope" ${desk.action === 'scope' ? 'selected' : ''}>Investigate acct-63 / WS-517, preserve evidence, reset sessions, and search for the indicator</option><option value="disable-all" ${desk.action === 'disable-all' ? 'selected' : ''}>Disable both accounts immediately and close the case</option><option value="close" ${desk.action === 'close' ? 'selected' : ''}>Close the case because DNS and TLS alone are not a verdict</option></select></label>
+      <label class="m07-evidence-note">Analyst note <textarea name="m07-evidence-note" rows="3" maxlength="500" placeholder="State what is known, what is not proven, and what you will do next…">${esc(desk.note || '')}</textarea></label>
+      <div class="m07-actions"><button type="submit" class="m07-submit">${desk.complete ? 'Review analyst call' : 'Record analyst call'}</button><p class="m07-form-help">Formative only — this does not alter module completion.</p></div>
+      ${feedback}
+    </form>
+  </section>`;
 }
 
 function moduleSevenGetSections() {
@@ -538,7 +565,7 @@ function moduleSevenReview() {
 function moduleSevenGuidedLabPanel() {
   const links = [
     { label: 'SMTP Log Analysis — Phishing Campaign Detection', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/smtp-log-analysis' },
-    { label: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ftp-log-analysis' },
+    { label: 'Network Traffic Analysis of a Trojan', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab' },
   ];
   return `<section class="m07-external-lab" id="m07-guided-lab-panel">
     <p class="m07-panel-instruction">Work through both imported Splunk log-analysis modules below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
@@ -560,6 +587,12 @@ function moduleSevenAssessmentLabPanel() {
     </form>
     ${feedbackHtml}
   </section>`;
+}
+
+function moduleSevenAdditionalLabs() {
+  return missionNextAdditionalLabsSection(7, [
+    { label: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', detail: 'Optional supplementary log-analysis practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ftp-log-analysis' },
+  ]);
 }
 
 function viewModuleSeven(user, program) {
@@ -585,6 +618,7 @@ function viewModuleSeven(user, program) {
         <div class="m07-section-body">
           <section class="m07-objective" aria-labelledby="m07-objective-title"><i class="ri-focus-3-line" aria-hidden="true"></i><div><p class="m07-kicker">Measurable objective</p><h3 id="m07-objective-title">Analyze real-world-style network and log data and justify a defensible triage decision in your assessment write-up.</h3></div></section>
           <section class="m07-section" id="m07-field-guide" aria-labelledby="m07-guide-title"><div class="m07-section-heading"><span>a</span><div><p class="m07-kicker">Field guide</p><h3 id="m07-guide-title">Follow identity, artifact, delivery, and session</h3></div></div>${moduleSevenConcepts()}<div class="m07-analysis-chain" aria-label="Email and network analysis sequence"><span>Sender identity</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>URL &amp; file</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Delivery trace</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>DNS &amp; TLS</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope &amp; response</span></div></section>
+          ${moduleSevenEvidenceDesk()}
           ${moduleSevenVideoScript()}
         </div>
       </details>
@@ -608,6 +642,8 @@ function viewModuleSeven(user, program) {
           <div id="m07-assessment-lab-dynamic">${moduleSevenAssessmentLabPanel()}</div>
         </div>
       </details>
+
+      ${moduleSevenAdditionalLabs()}
 
       <details class="m07-section-collapsible" ${reviewOpen ? 'open' : ''}>
         <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">5</span><div><p class="m07-kicker">Module Review</p><h2 id="m07-review">Key concepts and takeaways</h2></div></div></summary>
@@ -746,6 +782,29 @@ function wireModuleSevenAssessmentLab() {
   });
 }
 
+function wireModuleSevenEvidenceDesk() {
+  const form = document.querySelector('[data-m07-evidence-form]');
+  if (!form || !moduleSevenState?.evidenceDesk) return;
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const desk = moduleSevenState.evidenceDesk;
+    desk.exposure = form.querySelector('[name="m07-exposure"]:checked')?.value || '';
+    desk.correlation = form.querySelector('[name="m07-correlation"]:checked')?.value || '';
+    desk.action = form.querySelector('[name="m07-action"]')?.value || '';
+    desk.note = form.querySelector('[name="m07-evidence-note"]')?.value || '';
+    const valid = desk.exposure === 'acct-63' && desk.correlation === 'corroborated' && desk.action === 'scope' && desk.note.trim().length >= 40;
+    desk.checked = true;
+    desk.complete = valid;
+    desk.feedback = valid
+      ? 'Recorded. You separated confirmed delivery from interaction evidence and kept compromise as an open verification question.'
+      : 'Revise the call: identify the delivered account, describe correlation without claiming compromise, choose proportionate follow-up, and write at least 40 characters.';
+    moduleSevenSave();
+    const root = form.closest('.m07-evidence-desk');
+    if (root) root.outerHTML = moduleSevenEvidenceDesk();
+    wireModuleSevenEvidenceDesk();
+  });
+}
+
 function wireModuleSeven() {
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
@@ -763,6 +822,7 @@ function wireModuleSeven() {
     });
   }
   wireModuleSevenQuiz();
+  wireModuleSevenEvidenceDesk();
   wireModuleSevenGuidedLab();
   wireModuleSevenAssessmentLab();
 }

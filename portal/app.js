@@ -4129,6 +4129,16 @@ function moduleTopbarTitle(program, options = {}) {
   return module.title ? `${numberLabel} \u00b7 ${module.title}` : numberLabel;
 }
 
+/* Return an encoded same-origin portal URL for imported labs opened in a new
+ * tab. The lab validates the decoded value before navigating, so this cannot
+ * become an open redirect or escape the current Mission Next portal. */
+function missionNextReturnTo(moduleNumber) {
+  const number = Number(moduleNumber);
+  if (!Number.isInteger(number) || number < 1) return '';
+  const route = `#/program/soc-analyst/module/${number}`;
+  return encodeURIComponent(`${location.origin}${location.pathname}${route}`);
+}
+
 /* Imported Mission Next projects that extend a module's core Guided and
  * Assessment labs. Module files pass prebuilt same-page launch links. */
 function missionNextAdditionalLabsSection(moduleNumber, links) {
@@ -6788,10 +6798,10 @@ async function render(options = {}) {
     // minutes or their existing completion contracts.
     const isUnlockedSocCapstone = Number(moduleMatch[2]) !== 12
       || (typeof moduleTwelveUnlocked === 'function' && moduleTwelveUnlocked(user, program));
-    // Module 02 has its own guided console and analyst case record. The
-    // generic fill-in-the-blank recall widget is neither authentic analyst
-    // practice nor a useful duplicate there, so reserve it for Modules 03+.
-    if (canAccessModule && program.slug === 'soc-analyst' && Number(moduleMatch[2]) >= 3 && isUnlockedSocCapstone) {
+    // Module 02 has its own guided console and analyst case record, and Module
+    // 07 has its own evidence desk. The generic fill-in-the-blank recall widget
+    // is neither authentic analyst practice nor a useful duplicate there.
+    if (canAccessModule && program.slug === 'soc-analyst' && Number(moduleMatch[2]) >= 3 && Number(moduleMatch[2]) !== 7 && isUnlockedSocCapstone) {
       mountSocEvidenceRecall(user, Number(moduleMatch[2]), app);
     }
   } else if (programMatch) {

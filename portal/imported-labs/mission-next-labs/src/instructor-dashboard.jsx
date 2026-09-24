@@ -78,10 +78,10 @@ function InstructorDashboard({ user, onLogout }) {
     };
   }
 
-  // Roll up step-attempt + CoL data from the new MISSION_NEXT_PROGRESS_EXT store.
+  // Roll up analyst workflow activity from the new progress store.
   function getEngagementStats(username) {
     const ext = window.MISSION_NEXT_PROGRESS_EXT && window.MISSION_NEXT_PROGRESS_EXT.getAllForUser(username) || {};
-    let attempts = 0, hintsShown = 0, colCorrect = 0, colTotal = 0, colSkipped = 0;
+    let attempts = 0, hintsShown = 0;
     let lastInteractionAt = null;
     for (const labId of Object.keys(ext)) {
       const lab = ext[labId] || {};
@@ -94,14 +94,8 @@ function InstructorDashboard({ user, onLogout }) {
         attempts += a.count || 0;
         hintsShown += a.hintsShown || 0;
       }
-      const col = lab.colResponses || {};
-      for (const id of Object.keys(col)) {
-        colTotal += 1;
-        if (col[id].passed) colCorrect += 1;
-        if (col[id].lastResponse && col[id].lastResponse.skipped) colSkipped += 1;
-      }
     }
-    return { attempts, hintsShown, colCorrect, colTotal, colSkipped, lastInteractionAt };
+    return { attempts, hintsShown, lastInteractionAt };
   }
 
   function handleResetStudent(username) {
@@ -214,18 +208,6 @@ function InstructorDashboard({ user, onLogout }) {
               <div style={id2.engagementCard}>
                 <div style={id2.engagementLabel}>HINTS SHOWN</div>
                 <div style={id2.engagementValue}>{selectedStudent.engagement.hintsShown}</div>
-              </div>
-              <div style={id2.engagementCard}>
-                <div style={id2.engagementLabel}>CoL ANSWERED</div>
-                <div style={id2.engagementValue}>
-                  {selectedStudent.engagement.colCorrect}<span style={id2.engagementSub}>/{selectedStudent.engagement.colTotal}</span>
-                </div>
-              </div>
-              <div style={id2.engagementCard}>
-                <div style={id2.engagementLabel}>CoL SKIPPED</div>
-                <div style={{...id2.engagementValue, color: selectedStudent.engagement.colSkipped > 0 ? '#f59e0b' : '#475569'}}>
-                  {selectedStudent.engagement.colSkipped}
-                </div>
               </div>
               <div style={id2.engagementCard}>
                 <div style={id2.engagementLabel}>LAST SEEN</div>

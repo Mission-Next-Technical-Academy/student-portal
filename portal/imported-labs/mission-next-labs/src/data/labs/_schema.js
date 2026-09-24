@@ -80,7 +80,6 @@
  * @property {StepValidation} validation
  * @property {string} [hint]
  * @property {number} [points]
- * @property {string|null} [checkOnLearning]   id of CoL question that fires after this step
  * @property {string[]} [requires]             step ids that must complete before this unlocks
  */
 
@@ -92,29 +91,6 @@
  */
 
 /**
- * @typedef {'multi-select'|'single-select'|'short-answer'} ColQuestionType
- *
- * @typedef {Object} ColQuestionOption
- * @property {string} id
- * @property {string} text
- * @property {boolean} correct
- *
- * @typedef {Object} ColTrigger
- * @property {string} stepId
- * @property {Object} [whenStateMatches]
- *
- * @typedef {Object} CheckOnLearningQuestion
- * @property {string} id
- * @property {string} question
- * @property {ColQuestionType} type
- * @property {ColQuestionOption[]} [options]    required for multi-select / single-select
- * @property {string|RegExp} [acceptedAnswer]   required for short-answer
- * @property {ColTrigger} triggerOn
- * @property {string} reinforces                step id this question reinforces
- * @property {'all-correct'|'majority'|'any-correct'} [passThreshold]
- * @property {'recall'|'comprehension'|'application'|'analysis'} bloom
- */
-
 /**
  * @typedef {Object} LabModule
  * @property {string} id                   e.g. 'lap-1'
@@ -126,8 +102,7 @@
  * @property {LabEnvironment} environment
  * @property {LabScenario} scenario
  * @property {LabExercise[]} exercises
- * @property {CheckOnLearningQuestion[]} checkOnLearning
- * @property {{ requireAllSteps:boolean, minQuizScore:number }} completion
+ * @property {{ requireAllSteps:boolean }} completion
  * @property {string[]} [tags]
  */
 
@@ -154,7 +129,6 @@ function validateLabShape(lab) {
   need(lab.source && typeof lab.source.snapshot === 'string', 'lab.source.snapshot required');
   need(lab.environment && lab.environment.shell, 'lab.environment.shell required');
   need(Array.isArray(lab.exercises) && lab.exercises.length > 0, 'lab.exercises must be non-empty array');
-  need(Array.isArray(lab.checkOnLearning), 'lab.checkOnLearning must be an array');
   need(lab.completion && typeof lab.completion.requireAllSteps === 'boolean', 'lab.completion.requireAllSteps required');
 
   if (Array.isArray(lab.exercises)) {
@@ -168,16 +142,6 @@ function validateLabShape(lab) {
           need(s && s.validation && s.validation.type, `exercises[${i}].steps[${j}].validation.type required`);
         });
       }
-    });
-  }
-
-  // CoL coverage: at least one question per exercise
-  if (Array.isArray(lab.exercises) && Array.isArray(lab.checkOnLearning)) {
-    const reinforcedSteps = new Set(lab.checkOnLearning.map(q => q.reinforces));
-    lab.exercises.forEach((ex, i) => {
-      const exerciseStepIds = new Set((ex.steps || []).map(s => s.id));
-      const hit = [...reinforcedSteps].some(stepId => exerciseStepIds.has(stepId));
-      need(hit, `exercises[${i}] (${ex.id}) has no CoL question reinforcing any of its steps`);
     });
   }
 
