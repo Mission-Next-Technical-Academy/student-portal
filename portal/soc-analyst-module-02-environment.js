@@ -111,7 +111,7 @@
   ];
 
   const DEFAULT = {
-    learn: { walkthroughVersion: 3, guideFlowVersion: 1, step: 0, guideStep: -1, guideCompleted: false, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
+    learn: { walkthroughVersion: 3, guideFlowVersion: 1, step: 0, guideStep: -1, guideUnlocked: false, guideCompleted: false, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
     practice: { notes: '', complete: false, gateMessage: '' },
     prove: { notes: '', submitted: false, attempts: 0, feedback: [], lastSubmittedAt: '' },
     completed: false,
@@ -163,6 +163,11 @@
       };
     };
     state.learn = normalizeScope(state.learn, DEFAULT.learn);
+    // Once a learner has ever reached the end of the six ideas, the console
+    // guide stays unlockable even if they later hit "Restart walkthrough" —
+    // a restart is meant to let them revisit the ideas, not re-lock the
+    // guide behind redoing them.
+    if (state.learn.step >= LEARN_STEPS.length) state.learn.guideUnlocked = true;
     // Restart the walkthrough once when its teaching sequence changes so a
     // learner does not land halfway through the retired generic tour.
     if (state.learn.walkthroughVersion !== DEFAULT.learn.walkthroughVersion) {
@@ -240,7 +245,7 @@
     const guideDone = guideStep >= CONSOLE_GUIDE_STEPS.length;
     const item = guideStep >= 0 ? consoleGuideItem() : null;
     const tip = guideStep >= 0 ? `<aside class="m02e-learn-tip${guideDone ? ' is-complete' : ''}" id="m02e-learn-tip" aria-labelledby="m02e-guide-title"><span class="m02e-label">${guideDone ? 'CONSOLE GUIDE · COMPLETE' : `CONSOLE GUIDE · STEP ${guideStep + 1} OF ${CONSOLE_GUIDE_STEPS.length}`}</span><h3 id="m02e-guide-title">${esc(item.title)}</h3>${guideDone ? '<p>You can keep exploring the console, or revisit the explanations from the main Learn It card.</p>' : `<p>${esc(item.body)}</p><p class="m02e-guide-look"><strong>Look for:</strong> ${esc(item.lookFor)}</p><p class="m02e-guide-lab"><strong>Lab connection:</strong> ${esc(item.lab)}</p>`}<button class="m02e-guide-next" type="button" data-m02e-guide-next>${guideDone ? 'Restart console guide' : guideStep === CONSOLE_GUIDE_STEPS.length - 1 ? 'Finish guide' : 'Next explanation'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></aside>` : '';
-    const guideAvailable = learnComplete() || state.learn.guideCompleted;
+    const guideAvailable = state.learn.guideUnlocked || learnComplete() || state.learn.guideCompleted;
     const guideOpen = scope === 'learn' && guideStep < 0 ? `<button class="m02e-guide-open" type="button" data-m02e-guide-open${guideAvailable ? '' : ' disabled'}>${guideAvailable ? 'Open console guide' : 'Finish six ideas to open guide'}</button>` : '';
     return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console"><header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div>${guideOpen}</header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace">${tip}<div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
   }
@@ -582,15 +587,19 @@
       if (select) { const [scope, type, id] = select.split(':'); setEntity(scope, type, id); return; }
       const tab = button.dataset.m02eTab;
       if (tab) { const [scope, tabId] = tab.split(':'); setTab(scope, tabId); return; }
-      if (button.hasAttribute('data-m02e-learn-next')) { state.learn.step = Math.min(LEARN_STEPS.length, state.learn.step + 1); save(); renderScope('learn', { animateLearn: true }); return; }
+      if (button.hasAttribute('data-m02e-learn-next')) {
+        state.learn.step = Math.min(LEARN_STEPS.length, state.learn.step + 1);
+        if (state.learn.step >= LEARN_STEPS.length) state.learn.guideUnlocked = true;
+        save(); renderScope('learn', { animateLearn: true }); return;
+      }
       if (button.hasAttribute('data-m02e-learn-restart')) { state.learn.step = 0; state.learn.guideStep = -1; save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-guide-open')) {
-        if (!learnComplete() && !state.learn.guideCompleted) return;
+        if (!state.learn.guideUnlocked && !learnComplete() && !state.learn.guideCompleted) return;
         state.learn.guideStep = 0;
         applyGuideFocus(); save(); renderScope('learn'); return;
       }
       if (button.hasAttribute('data-m02e-guide-next')) {
-        if ((!learnComplete() && !state.learn.guideCompleted) || state.learn.guideStep < 0) return;
+        if ((!state.learn.guideUnlocked && !learnComplete() && !state.learn.guideCompleted) || state.learn.guideStep < 0) return;
         state.learn.guideStep = state.learn.guideStep >= CONSOLE_GUIDE_STEPS.length ? 0 : state.learn.guideStep + 1;
         if (state.learn.guideStep === CONSOLE_GUIDE_STEPS.length) state.learn.guideCompleted = true;
         applyGuideFocus(); save(); renderScope('learn');
