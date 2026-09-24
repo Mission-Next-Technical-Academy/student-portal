@@ -1,6 +1,8 @@
 const { test, expect } = require('@playwright/test');
 
-const BASE = process.env.M360_TEST_BASE_URL || 'http://127.0.0.1:4173';
+// The local portal server serves `portal/` as its document root on 8768.
+// Keep this overrideable for CI, but make the default match the real gate target.
+const BASE = process.env.M360_TEST_BASE_URL || 'http://localhost:8768';
 
 function m360DataStub() {
   return `
@@ -35,7 +37,7 @@ test.beforeEach(async ({ page }) => {
 
 for (let week = 1; week <= 6; week += 1) {
   test(`Week ${week} loads, scrolls, and exposes production navigation`, async ({ page }) => {
-    await page.goto(`${BASE}/portal/m360/week.html?week=${week}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}/m360/week.html?week=${week}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#page-title')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#m360WeekNavigation')).toBeVisible({ timeout: 15000 });
     await page.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight));
@@ -49,7 +51,7 @@ for (let week = 1; week <= 6; week += 1) {
 }
 
 test('Week 2 saves a draft and restores it after reload', async ({ page }) => {
-  await page.goto(`${BASE}/portal/m360/week.html?week=2`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}/m360/week.html?week=2`, { waitUntil: 'domcontentloaded' });
   const target = page.locator('#targetDirection');
   await expect(target).toBeVisible({ timeout: 15000 });
   await target.fill('IT support and desktop support roles');
@@ -63,7 +65,7 @@ test('Week 2 saves a draft and restores it after reload', async ({ page }) => {
 
 test('Week navigation traverses Week 1 through Week 6 without a runtime lock', async ({ page }) => {
   for (let week = 1; week <= 6; week += 1) {
-    await page.goto(`${BASE}/portal/m360/week.html?week=${week}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}/m360/week.html?week=${week}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#page-title')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#m360WeekNavigation')).toBeVisible({ timeout: 15000 });
   }

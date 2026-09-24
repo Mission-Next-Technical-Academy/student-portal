@@ -1,0 +1,27 @@
+# Last matching rule wins. Shared files list all three maintainers.
+* @cyberdude88
+
+# SOC Analyst and imported labs
+/portal/soc-* @cyberdude88
+/portal/imported-labs/ @cyberdude88
+/portal/range-tools/ @cyberdude88
+
+# Helpdesk
+/portal/it-support-* @mcorreira
+
+# M360
+/portal/m360/ @randy608
+/portal/m360-entry.js @randy608
+/portal/m360-preview.* @randy608
+/portal/m360-demo-refinements.css @randy608
+/supabase/migrations/*m360* @randy608
+/tests/m360-runtime.spec.js @randy608
+
+# Shared shell, data, infrastructure, and CI affect multiple tracks.
+/portal/app.js @cyberdude88 @randy608 @mcorreira
+/portal/index.html @cyberdude88 @randy608 @mcorreira
+/portal/data.js @cyberdude88 @randy608 @mcorreira
+/portal/module-labs.* @cyberdude88 @randy608 @mcorreira
+/.github/ @cyberdude88 @randy608 @mcorreira
+/bin/m360-gate-boundary.py @cyberdude88 @randy608 @mcorreira
+/tests/test_m360_gate_boundary.py @cyberdude88 @randy608 @mcorreira
