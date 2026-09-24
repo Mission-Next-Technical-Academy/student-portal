@@ -387,13 +387,13 @@ function moduleTenSaveAssessment() { if (moduleTenUser && moduleTenAssessmentSta
 
 
 function moduleTenGuidedLabPanel() {
-  const links = [
-    { label: 'Analyzing Windows Registry for Evidence of Malicious Activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-2/lab' },
-    { label: 'Forensic Analysis of Windows File Systems and Artifacts', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-3/lab' },
-  ];
+  const launchGroup = missionNextLabLaunchGroup(10, 'guided', [
+    { title: 'Analyzing Windows Registry for Evidence of Malicious Activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-2/lab' },
+    { title: 'Forensic Analysis of Windows File Systems and Artifacts', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-3/lab' },
+  ]);
   return `<section class="m10-external-lab" id="m10-guided-lab-panel">
     <p class="m10-panel-instruction">Work through both imported Windows-forensics projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m10-external-lab-links">${links.map((l) => `<a class="m10-lab-launch" href="${esc(l.href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div>
+    ${launchGroup}
     <label class="m10-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m10-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleTenGuidedState.practiceNotes)}</textarea></label>
     <div class="m10-actions"><button type="button" class="m10-submit" data-m10-practice-complete>${moduleTenGuidedState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -401,9 +401,13 @@ function moduleTenGuidedLabPanel() {
 
 function moduleTenAssessmentLabPanel() {
   const feedbackHtml = moduleTenAssessmentState.feedback?.length ? `<div class="m10-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleTenAssessmentState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
+  const launchGroup = missionNextLabLaunchGroup(10, 'assessment', [
+    { title: 'Recovering and Analyzing Deleted Files on Windows Systems', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-5/lab' },
+    { title: 'Investigating Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-1/lab' },
+  ]);
   return `<section class="m10-external-lab" id="m10-assessment-lab-panel">
-    <p class="m10-panel-instruction">Complete the imported Windows-forensics deleted-files project, then write up your findings below for instructor review.</p>
-    <div class="m10-external-lab-links"><a class="m10-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-5/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Recovering and Analyzing Deleted Files on Windows Systems</a></div>
+    <p class="m10-panel-instruction">Complete the imported Windows-forensics deleted-files and event-log projects below, then write up your findings for instructor review.</p>
+    ${launchGroup}
     <form id="m10-assessment-form">
       <label class="m10-note-label">Assessment write-up<textarea id="m10-assessment-notes" rows="6" maxlength="900" data-m10-assessment-notes placeholder="Summarize what the deleted-files lab surfaced, your analysis, and your recommended action…">${esc(moduleTenAssessmentState.notes)}</textarea></label>
       <p class="m10-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -415,7 +419,6 @@ function moduleTenAssessmentLabPanel() {
 
 function moduleTenAdditionalLabs() {
   return missionNextAdditionalLabsSection(10, [
-    { label: 'Investigating Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-1/lab' },
     { label: 'Extracting and Interpreting Browser Artifacts on Windows', detail: 'Browser history and user-activity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-4/lab' },
     { label: 'File System Security Assessment', detail: 'Permissions and file-integrity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab' },
   ]);

@@ -626,12 +626,12 @@ function moduleThreeQuizPanel() {
 
 function moduleThreeGuidedLabPanel() {
   const links = [
-    { label: 'Basic Apache Web Server Log Analysis', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-1/lab' },
-    { label: 'Introduction to Syslog Analysis on Linux Systems', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-2/lab' },
+    { title: 'Basic Apache Web Server Log Analysis', detail: 'Apache access-log review for suspicious request patterns', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-1/lab' },
+    { title: 'Introduction to Syslog Analysis on Linux Systems', detail: 'Linux syslog triage and event correlation', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-2/lab' },
   ];
   return `<section class="m03-external-lab" id="m03-guided-lab-panel">
     <p class="m03-panel-instruction">Work through both Mission Next log-analysis labs below. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m03-external-lab-links">${links.map((l) => `<a class="m03-lab-launch" href="${esc(l.href)}"><i class="ri-arrow-right-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div>
+    ${missionNextLabLaunchGroup(3, 'guided', links)}
     <label class="m03-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m03-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleThreeState.practiceNotes)}</textarea></label>
     <div class="m03-actions"><button type="button" class="m03-submit" data-m03-practice-complete>${moduleThreeState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -641,22 +641,24 @@ function moduleThreeAdditionalLabs() {
   return missionNextAdditionalLabsSection(3, [
     { label: 'Analyzing Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-3/lab' },
     { label: 'HTTP Log Analysis — Web Attack Detection', detail: 'Web attack patterns in HTTP telemetry', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis' },
-    { label: 'System Log Assessment', detail: 'Suspicious system-log review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-4/lab' },
   ]);
 }
 
 function moduleThreeAssessmentLabPanel() {
   const feedbackHtml = moduleThreeState.feedback?.length ? `<div class="m03-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleThreeState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-  const labHref = 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-4/lab';
+  const links = [
+    { title: 'Simple Log Analysis with ELK Stack', detail: 'ELK-based log search and triage', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-4/lab' },
+    { title: 'System Log Assessment', detail: 'Suspicious system-log review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-4/lab' },
+  ];
   const labStatus = moduleThreeState.importedLabComplete
     ? '<p class="m03-help" role="status"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Mission Next ELK lab complete. You may submit your assessment write-up.</p>'
     : '<p class="m03-help">Complete every step in the Mission Next ELK lab before submitting your assessment write-up.</p>';
   return `<section class="m03-external-lab" id="m03-assessment-lab-panel">
-    <p class="m03-panel-instruction">Complete the Mission Next ELK log-analysis lab, then write up your findings below for instructor review.</p>
-    <div class="m03-external-lab-links"><a class="m03-lab-launch" href="${labHref}"><i class="ri-arrow-right-line" aria-hidden="true"></i> Launch: Simple Log Analysis with ELK Stack</a></div>
+    <p class="m03-panel-instruction">Complete the imported Mission Next assessment labs below, then write up your findings for instructor review.</p>
+    ${missionNextLabLaunchGroup(3, 'assessment', links)}
     ${labStatus}
     <form id="m03-assessment-form">
-      <label class="m03-note-label">Assessment write-up<textarea id="m03-assessment-notes" rows="6" maxlength="900" data-m03-assessment-notes placeholder="Summarize what the ELK lab surfaced, your analysis, and your recommended action…">${esc(moduleThreeState.notes)}</textarea></label>
+      <label class="m03-note-label">Assessment write-up<textarea id="m03-assessment-notes" rows="6" maxlength="900" data-m03-assessment-notes placeholder="Summarize what the labs surfaced, your analysis, and your recommended action…">${esc(moduleThreeState.notes)}</textarea></label>
       <p class="m03-help">In at least 80 characters, describe what you found and your recommended action.</p>
       <div class="m03-actions"><button type="submit" class="m03-submit" ${moduleThreeState.importedLabComplete ? '' : 'disabled'}>${moduleThreeState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
     </form>

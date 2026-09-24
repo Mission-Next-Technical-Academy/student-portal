@@ -4159,6 +4159,49 @@ function missionNextAdditionalLabsSection(moduleNumber, links) {
   </section>`;
 }
 
+/* Standardized primary Guided/Assessment lab launch card, shared by every
+ * module so the "which real lab is this" title is always visible on the
+ * card itself, not just inferred from the section kicker. When a module has
+ * more than one lab under the same kind (Guided or Assessment), pass index/
+ * total to get a "Guided Lab 2"-style label; a single lab of that kind gets
+ * the plain "Guided Lab"/"Assessment Lab" label with no number. */
+function missionNextLabLaunchLabel(kind, index, total) {
+  const kindLabel = kind === 'assessment' ? 'Assessment Lab' : 'Guided Lab';
+  return total > 1 ? `${kindLabel} ${index}` : kindLabel;
+}
+
+function missionNextLabLaunchCard(moduleNumber, opts) {
+  const { kind = 'guided', index = 1, total = 1, title, detail, href } = opts || {};
+  if (!href || !title) return '';
+  const returnTo = typeof missionNextReturnTo === 'function'
+    ? missionNextReturnTo(moduleNumber)
+    : '';
+  const labHref = (h) => {
+    if (!returnTo || !h) return h;
+    const separator = h.includes('?') ? '&' : '?';
+    return `${h.split('#')[0]}${separator}returnTo=${returnTo}${h.includes('#') ? `#${h.split('#').slice(1).join('#')}` : ''}`;
+  };
+  const label = missionNextLabLaunchLabel(kind, index, total);
+  return `<a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(labHref(href))}" target="_blank" rel="opener">
+    <span class="mn-lab-launch-eyebrow">${esc(label)}</span>
+    <span class="mn-lab-launch-title">${esc(title)}</span>
+    ${detail ? `<span class="mn-lab-launch-detail">${esc(detail)}</span>` : ''}
+    <span class="mn-lab-launch-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span>
+  </a>`;
+}
+
+/* Wraps one or more missionNextLabLaunchCard() cards for a single Guided or
+ * Assessment section. `labs` is an array of { title, detail, href } in
+ * display order; index/total numbering is derived from array position. */
+function missionNextLabLaunchGroup(moduleNumber, kind, labs) {
+  const items = Array.isArray(labs) ? labs.filter((lab) => lab && lab.href && lab.title) : [];
+  if (!items.length) return '';
+  const total = items.length;
+  return `<div class="mn-lab-launch-group mn-lab-launch-group--${esc(kind)}">${items
+    .map((lab, i) => missionNextLabLaunchCard(moduleNumber, { kind, index: i + 1, total, title: lab.title, detail: lab.detail, href: lab.href }))
+    .join('')}</div>`;
+}
+
 /* Shared topbar for every module-lab surface (IT Support, SOC Analyst,
  * Electrical, AI/ML — one 'view(user, program)' function per module, see
  * module-registry.js). Before this, each module hand-rolled its own

@@ -563,13 +563,13 @@ function moduleSevenReview() {
 
 
 function moduleSevenGuidedLabPanel() {
-  const links = [
-    { label: 'SMTP Log Analysis — Phishing Campaign Detection', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/smtp-log-analysis' },
-    { label: 'Network Traffic Analysis of a Trojan', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab' },
+  const labs = [
+    { title: 'SMTP Log Analysis — Phishing Campaign Detection', detail: 'Trace a phishing campaign through mail log evidence', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/smtp-log-analysis' },
+    { title: 'Network Traffic Analysis of a Trojan', detail: 'Identify trojan behavior in captured network traffic', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab' },
   ];
   return `<section class="m07-external-lab" id="m07-guided-lab-panel">
     <p class="m07-panel-instruction">Work through both imported Splunk log-analysis modules below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m07-external-lab-links">${links.map((l) => `<a class="m07-lab-launch" href="${esc(l.href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: ${esc(l.label)}</a>`).join('')}</div>
+    ${missionNextLabLaunchGroup(7, 'guided', labs)}
     <label class="m07-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m07-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleSevenState.practiceNotes)}</textarea></label>
     <div class="m07-actions"><button type="button" class="m07-submit" data-m07-practice-complete>${moduleSevenState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -577,9 +577,13 @@ function moduleSevenGuidedLabPanel() {
 
 function moduleSevenAssessmentLabPanel() {
   const feedbackHtml = moduleSevenState.feedback?.length ? `<div class="m07-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleSevenState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
+  const labs = [
+    { title: 'Tunnel Log Analysis — GRE Covert Channel Detection', detail: 'Independent tunnel/GRE log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/gre-tunnel-log-analysis' },
+    { title: 'HTTP Log Analysis', detail: 'Web attack detection in HTTP access logs', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis' },
+  ];
   return `<section class="m07-external-lab" id="m07-assessment-lab-panel">
-    <p class="m07-panel-instruction">Complete the imported Splunk tunnel-log analysis module, then write up your findings below for instructor review.</p>
-    <div class="m07-external-lab-links"><a class="m07-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/splunk/module/gre-tunnel-log-analysis" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Tunnel Log Analysis — GRE Covert Channel Detection</a></div>
+    <p class="m07-panel-instruction">Complete both imported assessment log-analysis modules below, then write up your findings below for instructor review.</p>
+    ${missionNextLabLaunchGroup(7, 'assessment', labs)}
     <form id="m07-assessment-form">
       <label class="m07-note-label">Assessment write-up<textarea id="m07-assessment-notes" rows="6" maxlength="900" data-m07-assessment-notes placeholder="Summarize what the tunnel-log module surfaced, your analysis, and your recommended action…">${esc(moduleSevenState.notes)}</textarea></label>
       <p class="m07-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -637,7 +641,7 @@ function viewModuleSeven(user, program) {
       </details>
 
       <details class="m07-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">4</span><div><p class="m07-kicker">Prove It · Assessment Lab</p><h2 id="m07-assessment-lab">Independent log analysis review</h2></div></div></summary>
+        <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">4</span><div><p class="m07-kicker">Prove It · Assessment Labs</p><h2 id="m07-assessment-lab">Independent tunnel and HTTP log analysis review</h2></div></div></summary>
         <div class="m07-section-body">
           <div id="m07-assessment-lab-dynamic">${moduleSevenAssessmentLabPanel()}</div>
         </div>

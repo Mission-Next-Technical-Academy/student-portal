@@ -624,6 +624,7 @@ let moduleTwoState = null;
 let moduleTwoUser = null;
 let moduleTwoReviewMode = false;
 let moduleTwoQuizState = null;
+let moduleTwoQuizOwner = null;
 
 function moduleTwoLoad(user) {
   moduleTwoUser = user;
@@ -640,9 +641,13 @@ function moduleTwoLoad(user) {
   if (!MODULE_TWO_LAB.stations.some((station) => station.id === moduleTwoState.activeStation)) moduleTwoState.activeStation = 'signins';
 
   // Initialize quiz state
-  if (!moduleTwoQuizState) {
+  const quizOwner = user?.userId || user?.username || 'local-learner';
+  if (!moduleTwoQuizState || moduleTwoQuizOwner !== quizOwner) {
     const previousQuestionIds = moduleTwoState.lastQuizQuestionIds || [];
-    moduleTwoQuizState = createQuizAttempt(MODULE_TWO_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
+    moduleTwoQuizState = moduleTwoState.quizState && Array.isArray(moduleTwoState.quizState.selectedQuestions)
+      ? moduleTwoState.quizState
+      : createQuizAttempt(MODULE_TWO_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true });
+    moduleTwoQuizOwner = quizOwner;
   }
 
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-02');
@@ -650,7 +655,10 @@ function moduleTwoLoad(user) {
 }
 
 function moduleTwoSave() {
-  if (moduleTwoUser && moduleTwoState) LabRuntime.save(MODULE_TWO_LAB_ID, moduleTwoUser, moduleTwoState);
+  if (moduleTwoUser && moduleTwoState) {
+    if (moduleTwoQuizState) moduleTwoState.quizState = moduleTwoQuizState;
+    LabRuntime.save(MODULE_TWO_LAB_ID, moduleTwoUser, moduleTwoState);
+  }
 }
 
 // The verified module read model is the academic record.  LabRuntime is only
@@ -927,6 +935,12 @@ function moduleTwoGetQuickNavItems() {
   return items;
 }
 
+function moduleTwoAdditionalLabs() {
+  return missionNextAdditionalLabsSection(2, [
+    { label: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab' },
+  ]);
+}
+
 function viewModuleTwo(user, program) {
   moduleTwoLoad(user);
   const module = program.modules['soc-02'];
@@ -1002,6 +1016,7 @@ function viewModuleTwo(user, program) {
       ${sourcesSection}
       ${quizSection}
       ${labSection}
+      ${moduleTwoAdditionalLabs()}
     </main>
     </div>
   </div>`;
@@ -1158,6 +1173,22 @@ function wireModuleTwoQuiz() {
       const radioGroup = input.getAttribute('name');
       const questionId = radioGroup.replace('q-', '');
       moduleTwoQuizState.answers[questionId] = input.value;
+      moduleTwoSave();
+
+      // The form is not re-rendered on every selection, so keep the submit
+      // affordance and answer count in sync with the in-memory state.
+      const total = moduleTwoQuizState.selectedQuestions.length;
+      const answered = Object.keys(moduleTwoQuizState.answers || {}).length;
+      const submitButton = quizForm.querySelector('.m02-quiz-submit');
+      if (submitButton) submitButton.disabled = answered < total;
+      const answerCount = quizForm.querySelector('.m02-panel-heading > span');
+      if (answerCount) answerCount.textContent = `${answered}/${total} answered`;
+      const feedback = quizForm.querySelector('#m02-quiz-feedback');
+      if (feedback && !moduleTwoQuizState.scored) {
+        feedback.textContent = answered === total
+          ? 'All questions answered. Submit to check your responses.'
+          : `Answer all ${total} questions to submit.`;
+      }
     }
   });
 
@@ -1186,6 +1217,13 @@ function wireModuleTwoQuiz() {
     }
 
     moduleTwoSave();
+    if (typeof recordLabAttempt === 'function') {
+      recordLabAttempt(moduleTwoUser, 'soc-02-knowledge-check', {
+        state: moduleTwoQuizState.passed ? 'complete' : 'in_progress',
+        score: result.score,
+        result: { feedback: result.feedback },
+      });
+    }
     moduleTwoRenderQuiz('m02-quiz-feedback');
   });
 
@@ -1193,6 +1231,7 @@ function wireModuleTwoQuiz() {
     if (!event.target.closest('[data-m02-quiz-retry]')) return;
     const previousQuestionIds = moduleTwoState.lastQuizQuestionIds || [];
     Object.assign(moduleTwoQuizState, resetQuizAttempt(moduleTwoQuizState, MODULE_TWO_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true, preserveScoredResult: true }));
+    moduleTwoSave();
     moduleTwoRenderQuiz('m02-quiz-title');
   });
 }

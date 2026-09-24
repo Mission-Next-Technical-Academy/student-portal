@@ -610,9 +610,9 @@ function moduleElevenGuidedLabPanel() {
   const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_METRICS_CATALOG_KEY);
   return `<section class="m11-external-lab" id="m11-guided-lab-panel">
     <p class="m11-panel-instruction">Launch the imported Active Directory monitoring project below and work through its guided tasks on this page. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-1/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Active Directory Monitoring with Grafana</a></div>
+    ${missionNextLabLaunchGroup(11, 'guided', [{ title: 'Active Directory Monitoring with Grafana', detail: `${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. Imported Active Directory monitoring project.`, href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-1/lab' }])}
     <label class="m11-text-label" for="m11-practice-notes">Working notes (optional)</label>
-    <p class="m11-field-help">${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. What did you find? Any blockers?</p>
+    <p class="m11-field-help">What did you find? Any blockers?</p>
     <textarea id="m11-practice-notes" rows="4" maxlength="900" data-m11-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleElevenMetricsState.practiceNotes)}</textarea>
     <div class="m11-actions"><button type="button" class="m11-submit" data-m11-practice-complete>${moduleElevenMetricsState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -623,8 +623,7 @@ function moduleElevenAssessmentLabPanel() {
   const feedbackHtml = moduleElevenReportState.feedback?.length ? `<div class="m11-validation is-pass" role="status"><strong>Submitted</strong><ul>${moduleElevenReportState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
     <p class="m11-panel-instruction">Launch the imported Active Directory metrics project below, complete it, then write up your findings for instructor review.</p>
-    <p class="m11-field-help">${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated.</p>
-    <div class="m11-external-lab-links"><a class="m11-lab-launch" href="imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Visualizing Active Directory Performance Metrics with Cacti</a></div>
+    ${missionNextLabLaunchGroup(11, 'assessment', [{ title: 'Visualizing Active Directory Performance Metrics with Cacti', detail: `${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. Imported Active Directory metrics project.`, href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab' }])}
     <form id="m11-assessment-form">
       <label class="m11-text-label" for="m11-assessment-notes">Assessment write-up</label>
       <p class="m11-field-help">In at least 80 characters, describe what you found and your recommended action.</p>

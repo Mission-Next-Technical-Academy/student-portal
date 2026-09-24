@@ -724,7 +724,7 @@ function moduleNineGuidedLabPanel() {
   const href = 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-3/lab';
   return `<section class="m09-external-lab" id="m09-guided-lab-panel">
     <p class="m09-panel-instruction">Work through the imported malware-analysis project below; it opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    <div class="m09-external-lab-links"><a class="m09-lab-launch" href="${esc(href)}" rel="noopener"><i class="ri-external-link-line" aria-hidden="true"></i> Launch: Analyzing a Ransomware Sample</a></div>
+    ${missionNextLabLaunchGroup(9, 'guided', [{ title: 'Analyzing a Ransomware Sample', detail: 'Imported malware-analysis project. Opens on this page with its own guided tasks.', href }])}
     <label class="m09-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m09-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleNineState.practiceNotes)}</textarea></label>
     <div class="m09-actions"><button type="button" class="m09-submit" data-m09-practice-complete>${moduleNineState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
