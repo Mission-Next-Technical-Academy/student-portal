@@ -45,6 +45,7 @@
     const [revealedHints, setRevealedHints] = React.useState({});
     const [revealedAnswers, setRevealedAnswers] = React.useState({});
     const [feedback, setFeedback] = React.useState(null);
+    const [takeaway, setTakeaway] = React.useState(null);
     const [services, setServices] = React.useState({});
     const [savedFiles, setSavedFiles] = React.useState({});
     const [observed, setObserved] = React.useState({});
@@ -106,9 +107,9 @@
 
     function evaluateAllUnlockedSteps(submission, simOverride) {
       // After every shell command, re-check all unlocked, incomplete steps.
-      // Whichever validates true gets marked complete.
-      if (!window.validateStep) return false;
-      let anyHit = false;
+      // Return the steps that were completed so the UI can explain the win.
+      if (!window.validateStep) return [];
+      const hitSteps = [];
       const sim = buildSimState(simOverride);
       for (const step of flat) {
         if (completedSet.has(step.id)) continue;
@@ -119,12 +120,12 @@
         if (res.ok) {
           if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, true);
           recordCorrect(step.id, step.points);
-          anyHit = true;
+          hitSteps.push(step);
         } else if (step.id === activeStepId) {
           if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, false);
         }
       }
-      return anyHit;
+      return hitSteps;
     }
 
     function applyShellResult(result) {
@@ -152,16 +153,23 @@
 
     function onShellCommand(cmdLine, result, env) {
       if (env && env.cwd != null) { /* shell tracks cwd internally */ }
-      const hit = evaluateAllUnlockedSteps(cmdLine, applyShellResult(result));
-      if (hit) {
+      const hitSteps = evaluateAllUnlockedSteps(cmdLine, applyShellResult(result));
+      if (hitSteps.length) {
+        const step = hitSteps[0];
+        setTakeaway({
+          step,
+          command: cmdLine,
+          result,
+        });
         setFeedback({ kind: 'ok', text: 'Step complete.' });
         window.setTimeout(() => setFeedback(null), 1400);
       }
     }
 
     function onShellAction(submission, result) {
-      const hit = evaluateAllUnlockedSteps(submission, applyShellResult(result));
-      if (hit) {
+      const hitSteps = evaluateAllUnlockedSteps(submission, applyShellResult(result));
+      if (hitSteps.length) {
+        setTakeaway({ step: hitSteps[0], command: submission, result });
         setFeedback({ kind: 'ok', text: 'Step complete.' });
         window.setTimeout(() => setFeedback(null), 1400);
       }
@@ -265,6 +273,10 @@
           </div>
         )}
 
+        {takeaway && (
+          <TakeawayCard takeaway={takeaway} onClose={() => setTakeaway(null)} />
+        )}
+
         <div data-module-layout style={{ ...lpStyles.layout, ...(isNarrow ? lpStyles.layoutNarrow : null) }}>
           {/* LEFT — environment shell */}
           <div style={{ ...lpStyles.shellPane, ...(isNarrow ? lpStyles.shellPaneNarrow : null) }}>
@@ -342,6 +354,26 @@
           </aside>
         </div>
 
+      </div>
+    );
+  }
+
+  function TakeawayCard({ takeaway, onClose }) {
+    const step = takeaway.step || {};
+    const learning = step.learning || {};
+    const resultText = takeaway.result && takeaway.result.exitCode === 0
+      ? 'The simulated command completed successfully.'
+      : 'The command ran in the practice environment.';
+    return (
+      <div role="status" aria-live="polite" style={lpStyles.takeawayCard}>
+        <div style={lpStyles.takeawayTopline}>
+          <span style={lpStyles.takeawayEyebrow}>TAKEAWAY · STEP COMPLETE</span>
+          <button type="button" onClick={onClose} style={lpStyles.takeawayClose} aria-label="Dismiss takeaway">×</button>
+        </div>
+        <div style={lpStyles.takeawayTitle}>{learning.title || 'You just changed the lab state'}</div>
+        <div style={lpStyles.takeawayCommand}><code>{takeaway.command}</code></div>
+        <p style={lpStyles.takeawayBody}><strong>What happened:</strong> {learning.what || resultText}</p>
+        <p style={lpStyles.takeawayBody}><strong>Why you are learning it:</strong> {learning.why || 'SOC analysts need to connect each command to the security control or evidence it produces.'}</p>
       </div>
     );
   }
@@ -477,6 +509,13 @@
     pctFill: { display: 'block', height: '100%', background: '#f97316', transition: 'width 0.25s' },
     userText: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontFamily: "'Space Grotesk',sans-serif" },
     completionBanner: { padding: '12px 16px', background: 'rgba(249,115,22,0.14)', borderBottom: '1px solid rgba(249,115,22,0.45)', color: '#ffedd5', fontSize: 13, lineHeight: 1.5 },
+    takeawayCard: { position: 'fixed', right: 22, bottom: 22, width: 'min(390px, calc(100vw - 44px))', padding: 18, background: 'rgba(255,255,255,0.98)', color: '#334155', border: '1px solid #fed7aa', borderTop: '4px solid #f97316', borderRadius: 16, boxShadow: '0 18px 48px rgba(2,6,23,0.3)', zIndex: 80, animation: 'mission-next-takeaway-in 0.22s ease-out' },
+    takeawayTopline: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+    takeawayEyebrow: { fontSize: 10, fontWeight: 800, letterSpacing: 1.4, color: '#ea580c' },
+    takeawayClose: { border: 'none', background: 'transparent', color: '#64748b', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: 0 },
+    takeawayTitle: { marginTop: 8, color: '#1e3a5f', fontSize: 17, fontWeight: 800, lineHeight: 1.25 },
+    takeawayCommand: { marginTop: 10, padding: '8px 10px', background: '#0f172a', borderRadius: 8, color: '#fed7aa', fontFamily: "'Space Mono',monospace", fontSize: 11, overflowWrap: 'anywhere' },
+    takeawayBody: { margin: '12px 0 0', fontSize: 12, lineHeight: 1.55, color: '#475569' },
 
     layout: { display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(min(100%, 22rem), 26rem)', gap: 0, flex: 1, minHeight: 0 },
     layoutNarrow: { gridTemplateColumns: 'minmax(0,1fr)', gridTemplateRows: 'minmax(24rem, 58vh) auto' },

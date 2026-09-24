@@ -4129,33 +4129,14 @@ function moduleTopbarTitle(program, options = {}) {
   return module.title ? `${numberLabel} \u00b7 ${module.title}` : numberLabel;
 }
 
-/* Return an encoded same-origin portal URL for imported labs opened in a new
- * tab. The lab validates the decoded value before navigating, so this cannot
- * become an open redirect or escape the current Mission Next portal. */
-function missionNextReturnTo(moduleNumber) {
-  const number = Number(moduleNumber);
-  if (!Number.isInteger(number) || number < 1) return '';
-  const route = `#/program/soc-analyst/module/${number}`;
-  return encodeURIComponent(`${location.origin}${location.pathname}${route}`);
-}
-
 /* Imported Mission Next projects that extend a module's core Guided and
- * Assessment labs. Module files pass prebuilt same-page launch links. */
 function missionNextAdditionalLabsSection(moduleNumber, links) {
   const items = Array.isArray(links) ? links : [];
   if (!items.length) return '';
-  const returnTo = typeof missionNextReturnTo === 'function'
-    ? missionNextReturnTo(moduleNumber)
-    : '';
-  const labHref = (href) => {
-    if (!returnTo || !href) return href;
-    const separator = href.includes('?') ? '&' : '?';
-    return `${href.split('#')[0]}${separator}returnTo=${returnTo}${href.includes('#') ? `#${href.split('#').slice(1).join('#')}` : ''}`;
-  };
   return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-${moduleNumber}">
     <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-${moduleNumber}">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
     <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Complete them for credit alongside the Guided Lab and Assessment Lab.</p>
-    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(labHref(item.href))}" target="_blank" rel="opener"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Required lab project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
+    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(item.href)}" target="_blank" rel="opener"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Required lab project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
   </section>`;
 }
 
@@ -4193,14 +4174,6 @@ function missionNextAllLabsComplete(bucket, labIds) {
 function missionNextLabLaunchCard(moduleNumber, opts) {
   const { kind = 'guided', index = 1, total = 1, title, detail, href, labId, progress, requireNote } = opts || {};
   if (!href || !title) return '';
-  const returnTo = typeof missionNextReturnTo === 'function'
-    ? missionNextReturnTo(moduleNumber)
-    : '';
-  const labHref = (h) => {
-    if (!returnTo || !h) return h;
-    const separator = h.includes('?') ? '&' : '?';
-    return `${h.split('#')[0]}${separator}returnTo=${returnTo}${h.includes('#') ? `#${h.split('#').slice(1).join('#')}` : ''}`;
-  };
   const label = missionNextLabLaunchLabel(kind, index, total);
   const entry = labId ? (progress || { complete: false, note: '' }) : null;
   const gateHtml = labId ? `<div class="mn-lab-gate" data-mn-lab-gate="${esc(labId)}">
@@ -4208,7 +4181,7 @@ function missionNextLabLaunchCard(moduleNumber, opts) {
       <button type="button" class="mn-lab-gate-toggle${entry.complete ? ' is-complete' : ''}" data-mn-lab-toggle="${esc(labId)}" aria-pressed="${entry.complete ? 'true' : 'false'}">${entry.complete ? '✓ Marked complete' : 'Mark complete'}</button>
     </div>` : '';
   return `<div class="mn-lab-launch-wrap">
-    <a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(labHref(href))}">
+    <a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(href)}">
       <span class="mn-lab-launch-eyebrow">${esc(label)}</span>
       <span class="mn-lab-launch-title">${esc(title)}</span>
       ${detail ? `<span class="mn-lab-launch-detail">${esc(detail)}</span>` : ''}

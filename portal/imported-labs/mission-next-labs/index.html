@@ -184,6 +184,10 @@
   </script>
 
   <style>
+    @keyframes mission-next-takeaway-in {
+      from { opacity: 0; transform: translateY(12px) scale(.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { min-height: 100%; }
     html { background: #0b0f14; }
@@ -531,7 +535,7 @@
   <script data-boot-name="Animations" type="text/babel" src="./src/animations.jsx" onerror="window.__bootScriptFailed('Animations', this.src)"></script>
   <script data-boot-name="Enterprise components" type="text/babel" src="./src/enterprise-components.jsx" onerror="window.__bootScriptFailed('Enterprise components', this.src)"></script>
   <!-- Phase 0 shared shells -->
-  <script data-boot-name="Linux terminal shell" type="text/babel" src="./src/shells/LinuxTerminalShell.jsx" onerror="window.__bootScriptFailed('Linux terminal shell', this.src)"></script>
+  <script data-boot-name="Linux terminal shell" type="text/babel" src="./src/shells/LinuxTerminalShell.jsx?v=20260924-apt-fix" onerror="window.__bootScriptFailed('Linux terminal shell', this.src)"></script>
   <script data-boot-name="PowerShell shell" type="text/babel" src="./src/shells/PowerShellShell.jsx" onerror="window.__bootScriptFailed('PowerShell shell', this.src)"></script>
   <script data-boot-name="Windows Cmd shell" type="text/babel" src="./src/shells/WindowsCmdShell.jsx" onerror="window.__bootScriptFailed('Windows Cmd shell', this.src)"></script>
   <script data-boot-name="Windows forensics shells" type="text/babel" src="./src/shells/windows-forensics-shells.jsx" onerror="window.__bootScriptFailed('Windows forensics shells', this.src)"></script>

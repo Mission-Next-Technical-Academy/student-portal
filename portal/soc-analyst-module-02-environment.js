@@ -58,17 +58,17 @@
   const TABS = [['map', 'Network Map'], ['activity', 'Access Activity'], ['identities', 'Identities'], ['devices', 'Devices'], ['resources', 'Resources'], ['policies', 'Policies']];
 
   // Each entry: title, teaching body, console tab to switch to, and the
-  // entity the "Inspect" callout highlights and opens in the drawer.
+  // entity the walkthrough automatically highlights and opens in the drawer.
   // The walkthrough is deliberately a bridge into the four Mission Next labs
   // used by this module. Each step names the analyst move and the evidence
   // that move produces, so the console example is not a disconnected demo.
   const LEARN_STEPS = [
-    { title: 'Frame the review', body: 'In this work you will move between dashboards, terminals, logs, code, and tools you have never seen before. The interface changes; the analyst questions do not. Start by naming who is acting, what they are trying to reach, when it happened, where the request came from, why it might be expected, and how the request was allowed or blocked.', lookFor: 'the highlighted connection from WKSTN-17 to FINANCE-FILE-01', terms: ['Network Map', 'Resource', 'Access decision'], lab: 'All four labs', handoff: 'A clear review scope: person or account, source, destination, time, requested action, and result.', coach: { who: 'Who is making the request?', what: 'What resource or action is being requested?', when: 'When did it happen, and is the timing meaningful?', where: 'Where did the request originate and where is it going?', why: 'Why might this be normal—or worth investigating?', how: 'How did the controls evaluate the request?' }, tab: 'map', target: ['device', 'wk17'] },
-    { title: 'Trace the network path', body: 'A network map is not decoration. It tells you how a request travels and which boundary it crosses. In the guided network assessment, you use this same habit to find risky management exposure. Ask: is this service reachable from the place it is coming from, and is that reachability intended?', lookFor: 'the source workstation, firewall boundary, and FINANCE-FILE-01 destination', terms: ['Network Map', 'DMZ', 'Servers & Resources', 'Protocol', 'Port'], lab: 'Guided · Basic Network Security Assessment', handoff: 'The source, destination, boundary, service/port, and configuration condition that needs review.', coach: { who: 'Who owns the source system and destination?', what: 'What service is moving across the path?', when: 'When is this path used—continuously, on a schedule, or unexpectedly?', where: 'Which zones and boundary devices does it cross?', why: 'Why should this source be allowed to reach that service?', how: 'How is the path restricted, monitored, or exposed?' }, tab: 'map', target: ['resource', 'finance'] },
-    { title: 'Read the activity record', body: 'When an alert or incident starts, it usually starts with a record that met specific criteria: a failed logon burst, an account lockout, an unusual access, or a request to a sensitive resource. Use the activity row to establish the facts before you interpret them. Do not turn one event into a conclusion before you know its user, device, time, destination, and result.', lookFor: 'Alice’s 08:14 access row and its full access details', terms: ['Access Activity', 'Authentication', 'Authorization'], lab: 'Assessment · Active Directory Logs and Insights with Splunk', handoff: 'A time-bounded event or log pattern worth correlating, with the fields that support it.', coach: { who: 'Which user, service, or account generated the record?', what: 'What event occurred: sign-in, access, failure, lockout, or change?', when: 'What happened immediately before and after it?', where: 'What source device, IP, host, or zone is involved?', why: 'What rule or threshold caused this record to matter?', how: 'Which fields or related events confirm the pattern?' }, tab: 'activity', target: ['event', 'evt-alice-finance'] },
-    { title: 'Validate the identity and device', body: 'A successful sign-in only tells you that an authentication control accepted some proof. It does not tell you that the person was authorized, that the device was safe, or that the access matched the job. In the account-security lab, this is how you recognize excessive administrator membership or activity that does not fit the account’s role.', lookFor: 'Alice Morgan’s Finance-Read group and WKSTN-17’s managed/compliant state', terms: ['Identity', 'Managed device', 'Compliant', 'MFA'], lab: 'Guided · User Account Security Assessment', handoff: 'The account, role/group, device posture, and the specific mismatch with expected use.', coach: { who: 'Who is the identity, and what type of account is it?', what: 'What groups, permissions, or factors does it have?', when: 'Was the account active at the relevant time?', where: 'Which device and network context did it use?', why: 'Does the privilege fit the person’s job and approved need?', how: 'What evidence separates authentication from authorization?' }, tab: 'identities', target: ['user', 'alice'] },
-    { title: 'Compare resource, policy, and application behavior', body: 'Now compare the request with the rule that protects the resource. A policy may require a group, a managed device, MFA, or a particular route. In the web assessment, the same question appears inside an application: did the application enforce the user’s permission at the resource, or did it merely accept the request?', lookFor: 'the Finance file access policy for its group and device requirements', terms: ['Resource', 'Access policy', 'Authorization'], lab: 'Assessment · Web Application Security Assessment', handoff: 'The policy or application control that supports—or contradicts—the request.', coach: { who: 'Who is the policy intended to authorize?', what: 'What data, service, or application action is protected?', when: 'Which policy version or rule was active at the time?', where: 'At which resource or endpoint did enforcement occur?', why: 'Why is this access necessary and appropriately scoped?', how: 'How did the system enforce—or fail to enforce—the rule?' }, tab: 'policies', target: ['policy', 'finance-policy'] },
-    { title: 'Correlate before you conclude', body: 'Your job is not to find the scariest-looking line. Your job is to build a defensible story from related evidence. Correlate the path, activity, identity, device, resource, policy, and timing. Then state what the evidence proves, what remains uncertain, and what proportionate action should happen next. That is the transferable skill behind every lab in this module.', lookFor: 'the ALLOWED result on Alice’s 08:14 activity, then the evidence behind it', terms: ['Access decision', 'Zero Trust'], lab: 'Guided + Assessment lab handoff', handoff: 'A finding with evidence references, impact, uncertainty, and a recommended next step.', coach: { who: 'Who is affected and who owns the decision?', what: 'What exactly happened, and what does the evidence prove?', when: 'What is the relevant timeline?', where: 'Which systems, accounts, or resources are in scope?', why: 'Why does the pattern matter to the organization?', how: 'How should the finding be documented, escalated, or verified?' }, tab: 'activity', target: ['event', 'evt-alice-finance'] },
+    { title: 'Network Map', body: 'Throughout your career as a SOC Analyst, you will encounter a variety of technologies, constantly changing to keep up with the fast-paced world of Cybersecurity. New threats emerge every day. That requires practitioners to constantly learn how to use different terminals, monitoring dashboards, or possibly reading coding or scripting languages to understand what a specific malicious software is doing, and get familiarized with different interfaces you may encounter in your career. Regardless, the concept is the same. A level 1 Security Operations Center Analyst, is creating scheduled queries, to generate alerts out of logs that are recorded in all of these different technologies, and gathered together into a Security Information Event Management System. These alerts are correlated using more targeted queries, machine learning, and artificial intelligence now more than ever, to piece together what attacks are happening within the environment.', tab: 'map', target: ['device', 'wk17'] },
+    { title: 'Access Activity', body: 'A log row is a record of what happened — who, what, when, and whether it worked.', tab: 'activity', target: ['event', 'evt-alice-finance'] },
+    { title: 'Identities', body: 'Logging in proves who you are. It doesn’t prove what you’re allowed to do.', tab: 'identities', target: ['user', 'alice'] },
+    { title: 'Devices', body: 'A trusted, managed device is safer than an unknown one — even for the same user.', tab: 'devices', target: ['device', 'wk17'] },
+    { title: 'Resources', body: 'This is what’s being protected, and how sensitive it is.', tab: 'resources', target: ['resource', 'finance'] },
+    { title: 'Policies', body: 'The policy is the rule: who’s allowed in, and under what conditions.', tab: 'policies', target: ['policy', 'finance-policy'] },
   ];
 
   // Facts the console cannot demonstrate well on its own.
@@ -101,7 +101,7 @@
   ];
 
   const DEFAULT = {
-    learn: { step: 0, tab: 'map', selected: { type: 'event', id: 'evt-alice-finance' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
+    learn: { walkthroughVersion: 2, step: 0, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
     practice: { notes: '', complete: false, gateMessage: '' },
     prove: { notes: '', submitted: false, attempts: 0, feedback: [], lastSubmittedAt: '' },
     completed: false,
@@ -153,6 +153,12 @@
       };
     };
     state.learn = normalizeScope(state.learn, DEFAULT.learn);
+    // Restart the walkthrough once when its teaching sequence changes so a
+    // learner does not land halfway through the retired generic tour.
+    if (state.learn.walkthroughVersion !== DEFAULT.learn.walkthroughVersion) {
+      state.learn = { ...DEFAULT.learn };
+      save();
+    }
     state.learn.knowledgeAnswers = state.learn.knowledgeAnswers && typeof state.learn.knowledgeAnswers === 'object' ? state.learn.knowledgeAnswers : {};
     // Practice It / Prove It are now imported-lab launch panels with a
     // write-up, not entity-selection scopes, so they merge flat against their
@@ -182,13 +188,6 @@
 
   function field(label, value) { return `<div class="m02e-field"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`; }
 
-  function learnCoach(scope) {
-    if (scope !== 'learn' || learnComplete()) return '';
-    const step = LEARN_STEPS[Math.min(state.learn.step, LEARN_STEPS.length - 1)];
-    if (!step.coach) return '';
-    return `<div class="m02e-context-coach"><p class="m02e-label">ANALYST LENS</p><p class="m02e-context-coach-intro">Use these questions to read the highlighted item. They are the questions that stay useful when the dashboard, terminal, or log format changes.</p><dl>${Object.entries(step.coach).map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl></div>`;
-  }
-
   function drawer(scope) {
     const selected = state[scope].selected;
     let title = '', content = '';
@@ -197,7 +196,7 @@
     if (selected.type === 'device') { const x = by('device', selected.id), u = by('user', x.user); title = 'DEVICE'; content = `<h3>${esc(x.name)}</h3><dl class="m02e-fields">${field('IP Address', x.ip)}${field('User', u.name)}${field('Status', x.status)}${field('Management', x.management)}${field('Compliance', x.compliance)}${field('Network', x.network)}</dl><h4>Recent connections</h4>${DATA.events.filter((e) => e.device === x.id).map((e) => `<button data-m02e-select="${scope}:event:${e.id}">${by('resource', e.resource).name} · ${by('resource', e.resource).service}</button>`).join('') || '<p>No current activity.</p>'}`; }
     if (selected.type === 'resource') { const x = by('resource', selected.id), p = DATA.policies.find((item) => item.resource === x.id); title = 'RESOURCE'; content = `<h3>${esc(x.name)}</h3><dl class="m02e-fields">${field('Type', x.type)}${field('Network Zone', x.zone)}${field('Data Classification', x.classification)}${field('Authorized Groups', x.groups.join(', '))}${field('Expected Access', `${x.service} / ${x.transport} ${x.port}`)}${field('Internet Accessible', x.internet)}</dl>${p ? `<button data-m02e-select="${scope}:policy:${p.id}">Inspect ${esc(p.name)} policy</button>` : ''}`; }
     if (selected.type === 'policy') { const x = by('policy', selected.id), r = by('resource', x.resource); title = 'ACCESS POLICY'; content = `<h3>${esc(x.name)}</h3><dl class="m02e-fields">${field('Resource', r.name)}${field('Users / Groups', x.groups.join(', '))}${field('Requirements', x.requirements.join(' + '))}${field('Decision', x.decision)}</dl><p class="m02e-muted">Inspect policy conditions alongside identity, device, and activity context.</p>`; }
-    return `<aside class="m02e-drawer">${learnCoach(scope)}<p class="m02e-label">${title}</p>${content}</aside>`;
+    return `<aside class="m02e-drawer"><p class="m02e-label">${title}</p>${content}</aside>`;
   }
 
   function mapView(scope) {
@@ -219,8 +218,45 @@
     const tab = state[scope].tab;
     const body = tab === 'map' ? mapView(scope) : tab === 'activity' ? activityView(scope) : listingView(scope, tab === 'identities' ? 'user' : tab === 'devices' ? 'device' : tab === 'resources' ? 'resource' : 'policy');
     const guided = scope === 'learn' && !learnComplete();
-    const step = guided ? LEARN_STEPS[Math.min(state.learn.step, LEARN_STEPS.length - 1)] : null;
-    return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console">${guided ? `<div class="m02e-guided-focus"><i class="ri-radar-line" aria-hidden="true"></i> Walkthrough focus: <strong>${esc(step.title)}</strong><span> — highlighted automatically</span></div>` : ''}<header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div></header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${scope === 'learn' && id === 'map' ? learnTerm(label, false) : label}</button>`).join('')}</nav><div class="m02e-workspace"><div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
+    const stepIndex = guided ? Math.min(state.learn.step, LEARN_STEPS.length - 1) : -1;
+    const step = guided ? LEARN_STEPS[stepIndex] : null;
+    // Step 0 is the only step that carries real reading — it gets a slower,
+    // full-width fade-in treatment. Every later step is a one-line pointer
+    // that floats above whatever it just highlighted (positioned in
+    // positionLearnTip(), since its target's on-screen position depends on
+    // layout the string template can't know).
+    const introHtml = guided && stepIndex === 0
+      ? `<div class="m02e-intro-window"><i class="ri-compass-3-line" aria-hidden="true"></i><div><p>${esc(step.body)}</p></div></div>`
+      : '';
+    const tipHtml = guided && stepIndex > 0
+      ? `<div class="m02e-learn-tip" id="m02e-learn-tip" role="status">${esc(step.body)}</div>`
+      : '';
+    return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console">${introHtml}<header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div></header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace">${tipHtml}<div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
+  }
+
+  // Positions #m02e-learn-tip directly above (or, if there's no room, below)
+  // whichever .is-selected element the current step highlighted. Re-run
+  // after every learn-scope render and on resize, since the target moves
+  // with the layout, tab, and viewport width.
+  function positionLearnTip() {
+    const tip = document.getElementById('m02e-learn-tip');
+    if (!tip) return;
+    const workspace = tip.closest('.m02e-workspace');
+    const target = workspace && workspace.querySelector('.m02e-view .is-selected');
+    if (!workspace || !target) { tip.classList.remove('is-visible'); return; }
+    const wsRect = workspace.getBoundingClientRect();
+    const tRect = target.getBoundingClientRect();
+    tip.classList.remove('is-visible');
+    const tipRect = tip.getBoundingClientRect();
+    let top = tRect.top - wsRect.top - tipRect.height - 12;
+    let pointsDown = false;
+    if (top < 4) { top = tRect.bottom - wsRect.top + 12; pointsDown = true; }
+    let left = tRect.left - wsRect.left + tRect.width / 2 - tipRect.width / 2;
+    left = Math.max(8, Math.min(left, wsRect.width - tipRect.width - 8));
+    tip.style.top = `${top}px`;
+    tip.style.left = `${left}px`;
+    tip.classList.toggle('points-down', pointsDown);
+    requestAnimationFrame(() => tip.classList.add('is-visible'));
   }
 
   function renderScope(scope) {
@@ -231,6 +267,7 @@
       if (callout) callout.outerHTML = learnCallout();
       const knowledge = document.getElementById('m02e-knowledge');
       if (knowledge) knowledge.outerHTML = knowledgePanel();
+      requestAnimationFrame(positionLearnTip);
     }
     if (scope === 'practice') {
       const panel = document.getElementById('m02e-practice-panel');
@@ -291,7 +328,7 @@
     const s = LEARN_STEPS[step];
     const done = learnComplete();
     if (done) return `<div class="m02e-callout is-done" id="m02e-learn-callout"><p class="m02e-label">LEARN IT · WALKTHROUGH COMPLETE</p><p>You’ve walked the console end to end. Revisit it whenever you like, or continue to the short knowledge check below.</p><div class="m02e-callout-actions"><button class="m02e-secondary" type="button" data-m02e-learn-restart><i class="ri-restart-line" aria-hidden="true"></i> Restart walkthrough</button></div></div>`;
-    return `<div class="m02e-callout" id="m02e-learn-callout"><p class="m02e-label">LEARN IT · STEP ${step + 1} OF ${LEARN_STEPS.length} · ${esc(s.title)}</p><p>${esc(s.body)}</p><p class="m02e-look-for"><strong>Now look for:</strong> ${esc(s.lookFor)}. It is already highlighted in the environment below.</p><div class="m02e-learn-transfer"><strong>Lab connection:</strong> ${esc(s.lab)}<span><strong>Carry forward:</strong> ${esc(s.handoff)}</span></div><div class="m02e-term-list" aria-label="Quick definitions">${s.terms.map(learnTerm).join('')}</div><div class="m02e-callout-actions"><button class="m02e-secondary" type="button" data-m02e-learn-inspect>Show highlighted item</button><button class="m02e-primary" type="button" data-m02e-learn-next>${step === LEARN_STEPS.length - 1 ? 'Complete the walkthrough' : 'Next: highlight the next item'}</button></div></div>`;
+    return `<div class="m02e-callout" id="m02e-learn-callout"><p class="m02e-label">LEARN IT · STEP ${step + 1} OF ${LEARN_STEPS.length} · ${esc(s.title)}</p><div class="m02e-callout-actions"><button class="m02e-primary" type="button" data-m02e-learn-next>${step === LEARN_STEPS.length - 1 ? 'Complete the walkthrough' : 'LEARN IT'}</button></div></div>`;
   }
 
   function knowledgePanel() {
@@ -399,7 +436,6 @@
             <div class="m01-section-heading"><span>1</span><div><p class="m01-kicker">Learn It · guided walkthrough</p><h2 id="m02e-learn-title">Read a connection the way an analyst does</h2></div></div>
             ${learnCallout()}
             <div class="m02e-console-wrap" id="m02e-console-learn">${consoleHtml('learn')}</div>
-            ${knowledgePanel()}
           </section>
 
           <section class="m01-section m02e-section" id="m02e-practice" aria-labelledby="m02e-practice-title">
@@ -450,7 +486,6 @@
       if (select) { const [scope, type, id] = select.split(':'); setEntity(scope, type, id); return; }
       const tab = button.dataset.m02eTab;
       if (tab) { const [scope, tabId] = tab.split(':'); setTab(scope, tabId); return; }
-      if (button.hasAttribute('data-m02e-learn-inspect')) { const step = Math.min(state.learn.step, LEARN_STEPS.length - 1); const [type, id] = LEARN_STEPS[step].target; state.learn.tab = LEARN_STEPS[step].tab; setEntity('learn', type, id); return; }
       if (button.hasAttribute('data-m02e-learn-next')) { state.learn.step = Math.min(LEARN_STEPS.length, state.learn.step + 1); applyLearnFocus(); save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-learn-restart')) { state.learn.step = 0; applyLearnFocus(); save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-knowledge-submit')) { state.learn.knowledgeScored = true; save(); renderScope('learn'); return; }
@@ -471,6 +506,9 @@
       const notes = document.getElementById('m02e-prove-notes')?.value || '';
       submitProve(notes);
     };
+
+    requestAnimationFrame(positionLearnTip);
+    window.addEventListener('resize', positionLearnTip);
   }
 
   registerModuleLab({ program: 'soc-analyst', moduleNumber: 2, moduleKey: 'soc-02', view, wire });

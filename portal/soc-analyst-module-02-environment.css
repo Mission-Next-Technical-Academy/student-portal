@@ -18,10 +18,27 @@
 /* The walkthrough names its focus and moves that focus itself as the learner
  * advances. The pulse is intentionally restrained, and disabled for users
  * who request reduced motion. */
-.m02e-guided-focus{display:flex;align-items:center;gap:7px;padding:9px 16px;background:#fff4e9;border-bottom:1px solid #f5cf9a;color:#9a4d09;font-size:12px}
-.m02e-guided-focus i{font-size:16px}.m02e-guided-focus strong{color:#7c2d12}
 .m02e-console.is-guided .m02e-node.is-selected,.m02e-console.is-guided .m02e-table tr.is-selected{animation:m02e-focus-pulse 1.5s ease-in-out infinite}
 @keyframes m02e-focus-pulse{50%{box-shadow:0 0 0 5px #f9731640;background:#fff7ed}}
+
+/* Step 0 is the only step with real reading — a full-width window that
+ * fades and settles in, set apart with display type instead of the small
+ * print used everywhere else in this console. */
+.m02e-intro-window{display:flex;gap:16px;align-items:flex-start;margin:0;padding:26px 28px;background:linear-gradient(155deg,#102b46,#1e3a5f);color:#fff;animation:m02e-window-in .5s cubic-bezier(.16,1,.3,1) both}
+.m02e-intro-window i{flex:0 0 auto;margin-top:3px;font-size:26px;color:#fb923c}
+.m02e-intro-window strong{display:block;font-family:'Space Grotesk',Inter,sans-serif;font-size:20px;font-weight:700;letter-spacing:-.01em}
+.m02e-intro-window p{margin:0;max-width:640px;color:#d9e9f8;font-size:15px;line-height:1.7}
+@keyframes m02e-window-in{from{opacity:0;transform:translateY(-10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+/* Every later step is a one-line pointer, not a card: it floats above (or,
+ * when there's no headroom, below) whatever it just highlighted. JS
+ * (positionLearnTip()) sets top/left per render; this only handles the
+ * look, the pop-in, and the pointer triangle. */
+.m02e-learn-tip{position:absolute;z-index:6;max-width:260px;padding:9px 13px;background:#102b46;color:#fff;border-radius:9px;font-size:13px;font-weight:600;line-height:1.4;text-align:center;box-shadow:0 10px 24px #102b4640;opacity:0;transform:translateY(6px) scale(.96);transition:opacity .22s ease,transform .22s ease;pointer-events:none}
+.m02e-learn-tip.is-visible{opacity:1;transform:translateY(0) scale(1)}
+.m02e-learn-tip::after{content:'';position:absolute;left:50%;bottom:-6px;width:11px;height:11px;background:#102b46;transform:translateX(-50%) rotate(45deg);border-radius:2px}
+.m02e-learn-tip.points-down::after{bottom:auto;top:-6px}
+@media(prefers-reduced-motion:reduce){.m02e-intro-window{animation:none}.m02e-learn-tip{transition:opacity .01s linear}}
 
 .m02e-console-wrap{margin-bottom:16px}
 .m02e-console{overflow:hidden;background:#fff;border:1px solid #cbd5e1;border-radius:16px;box-shadow:0 8px 24px #1e3a5f12}
@@ -32,15 +49,9 @@
 .m02e-console nav{display:flex;gap:0;overflow:auto;background:#fff;border-bottom:1px solid #dbe3ed}
 .m02e-console nav button{flex:0 0 auto;padding:13px 14px;border:0;border-bottom:3px solid transparent;background:#fff;color:#64748b;font-size:12px;font-weight:700;cursor:pointer}
 .m02e-console nav .is-active{color:#1e3a5f;border-color:#f97316}
-.m02e-workspace{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:460px}
+.m02e-workspace{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:460px}
 .m02e-view{padding:20px;min-width:0}
 .m02e-drawer{padding:20px;border-left:1px solid #dbe3ed;background:#f8fafc;overflow:auto}
-.m02e-context-coach{margin:-4px -4px 20px;padding:14px;background:#eef6ff;border:1px solid #b9d2e8;border-left:4px solid #1e5a87;border-radius:9px;color:#315978}
-.m02e-context-coach-intro{margin:6px 0 12px!important;font-size:12px!important;line-height:1.5!important;color:#475569!important}
-.m02e-context-coach dl{display:grid;gap:8px;margin:0}
-.m02e-context-coach dl>div{padding-top:7px;border-top:1px solid #d5e5f2}
-.m02e-context-coach dt{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#1e5a87}
-.m02e-context-coach dd{margin:3px 0 0;font-size:11px;line-height:1.45;color:#334155}
 .m02e-drawer h3{margin:4px 0;color:#1e3a5f;font-size:19px}
 .m02e-drawer h4{margin:20px 0 7px;color:#1e3a5f;font-size:12px;text-transform:uppercase}
 .m02e-drawer>p{font-size:12px;color:#64748b;line-height:1.55}
