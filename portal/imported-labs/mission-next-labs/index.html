@@ -517,8 +517,14 @@
     </div>
   </div>
 
-  <script data-boot-name="Supabase client" src="../../vendor/supabase.js?v=20260828" onerror="window.__bootScriptFailed('Supabase client', this.src)"></script>
-  <script data-boot-name="Supabase auth" src="../../supabase-config.js?v=20260828" onerror="window.__bootScriptFailed('Supabase auth', this.src)"></script>
+  <script>
+    // The imported labs also run as a standalone demo. Load the portal's
+    // authenticated client only when a SOC course launch supplies its module.
+    if (/[?&]mntModule=soc-(?:0[1-9]|1[0-2])(?:&|$)/.test(location.search)) {
+      document.write('<script src="../../vendor/supabase.js?v=20260828"><\/script>');
+      document.write('<script src="../../supabase-config.js?v=20260828"><\/script>');
+    }
+  </script>
   <script data-boot-name="App data" src="./src/data.js" onerror="window.__bootScriptFailed('App data', this.src)"></script>
   <script data-boot-name="Query engine" src="./src/query-engine.js" onerror="window.__bootScriptFailed('Query engine', this.src)"></script>
   <!-- Phase 0 cross-cutting systems (vanilla JS — load before any UI) -->
