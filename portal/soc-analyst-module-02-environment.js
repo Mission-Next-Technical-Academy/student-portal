@@ -63,12 +63,12 @@
   // used by this module. Each step names the analyst move and the evidence
   // that move produces, so the console example is not a disconnected demo.
   const LEARN_STEPS = [
-    { title: 'Network Map', body: 'Throughout your career as a SOC Analyst, you will encounter a variety of technologies, constantly changing to keep up with the fast-paced world of Cybersecurity. New threats emerge every day. That requires practitioners to constantly learn how to use different terminals, monitoring dashboards, or possibly reading coding or scripting languages to understand what a specific malicious software is doing, and get familiarized with different interfaces you may encounter in your career. Regardless, the concept is the same. A level 1 Security Operations Center Analyst, is creating scheduled queries, to generate alerts out of logs that are recorded in all of these different technologies, and gathered together into a Security Information Event Management System. These alerts are correlated using more targeted queries, machine learning, and artificial intelligence now more than ever, to piece together what attacks are happening within the environment.', tab: 'map', target: ['device', 'wk17'] },
-    { title: 'Access Activity', body: 'A log row is a record of what happened — who, what, when, and whether it worked.', tab: 'activity', target: ['event', 'evt-alice-finance'] },
-    { title: 'Identities', body: 'Logging in proves who you are. It doesn’t prove what you’re allowed to do.', tab: 'identities', target: ['user', 'alice'] },
-    { title: 'Devices', body: 'A trusted, managed device is safer than an unknown one — even for the same user.', tab: 'devices', target: ['device', 'wk17'] },
-    { title: 'Resources', body: 'This is what’s being protected, and how sensitive it is.', tab: 'resources', target: ['resource', 'finance'] },
-    { title: 'Policies', body: 'The policy is the rule: who’s allowed in, and under what conditions.', tab: 'policies', target: ['policy', 'finance-policy'] },
+    { title: 'The analyst toolkit', body: 'Throughout your career as a SOC Analyst, you will encounter a variety of technologies, constantly changing to keep up with the fast-paced world of Cybersecurity.', tab: 'map', target: ['device', 'wk17'] },
+    { title: 'Keep learning', body: 'New threats emerge every day.', tab: 'activity', target: ['event', 'evt-alice-finance'] },
+    { title: 'Adapt to the evidence', body: 'That requires practitioners to constantly learn how to use different terminals, monitoring dashboards, or possibly reading coding or scripting languages to understand what a specific malicious software is doing, and get familiarized with different interfaces you may encounter in your career.', tab: 'identities', target: ['user', 'alice'] },
+    { title: 'The core idea', body: 'Regardless, the concept is the same.', tab: 'devices', target: ['device', 'wk17'] },
+    { title: 'Create the signal', body: 'A level 1 Security Operations Center Analyst is creating scheduled queries to generate alerts out of logs that are recorded in all of these different technologies and gathered together into a Security Information Event Management System.', tab: 'resources', target: ['resource', 'finance'] },
+    { title: 'Connect the clues', body: 'These alerts are correlated using more targeted queries, machine learning, and artificial intelligence now more than ever, to piece together what attacks are happening within the environment.', tab: 'policies', target: ['policy', 'finance-policy'] },
   ];
 
   // Facts the console cannot demonstrate well on its own.
@@ -101,7 +101,7 @@
   ];
 
   const DEFAULT = {
-    learn: { walkthroughVersion: 2, step: 0, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
+    learn: { walkthroughVersion: 3, step: 0, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
     practice: { notes: '', complete: false, gateMessage: '' },
     prove: { notes: '', submitted: false, attempts: 0, feedback: [], lastSubmittedAt: '' },
     completed: false,
@@ -218,20 +218,17 @@
     const tab = state[scope].tab;
     const body = tab === 'map' ? mapView(scope) : tab === 'activity' ? activityView(scope) : listingView(scope, tab === 'identities' ? 'user' : tab === 'devices' ? 'device' : tab === 'resources' ? 'resource' : 'policy');
     const guided = scope === 'learn' && !learnComplete();
-    const stepIndex = guided ? Math.min(state.learn.step, LEARN_STEPS.length - 1) : -1;
+    const stepIndex = guided ? Math.max(0, Math.min(state.learn.step - 1, LEARN_STEPS.length - 1)) : -1;
     const step = guided ? LEARN_STEPS[stepIndex] : null;
     // Step 0 is the only step that carries real reading — it gets a slower,
     // full-width fade-in treatment. Every later step is a one-line pointer
     // that floats above whatever it just highlighted (positioned in
     // positionLearnTip(), since its target's on-screen position depends on
     // layout the string template can't know).
-    const introHtml = guided && stepIndex === 0
-      ? `<div class="m02e-intro-window"><i class="ri-compass-3-line" aria-hidden="true"></i><div><p>${esc(step.body)}</p></div></div>`
-      : '';
-    const tipHtml = guided && stepIndex > 0
+    const tipHtml = guided && state.learn.step > 0
       ? `<div class="m02e-learn-tip" id="m02e-learn-tip" role="status">${esc(step.body)}</div>`
       : '';
-    return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console">${introHtml}<header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div></header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace">${tipHtml}<div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
+    return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console">${tipHtml}<header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div></header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace"><div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
   }
 
   // Positions #m02e-learn-tip directly above (or, if there's no room, below)
@@ -311,24 +308,25 @@
 
   // ---------------------------------------------------------------- Learn It
 
-  function learnComplete() { return state.learn.step >= LEARN_STEPS.length; }
+  function learnComplete() { return state.learn.step > LEARN_STEPS.length; }
 
   // Advancing the guided tour opens and highlights its next evidence target
   // automatically; learners should not have to hunt through the console.
   function applyLearnFocus() {
     if (learnComplete()) return;
-    const step = LEARN_STEPS[Math.min(state.learn.step, LEARN_STEPS.length - 1)];
+    const step = LEARN_STEPS[Math.max(0, Math.min(state.learn.step - 1, LEARN_STEPS.length - 1))];
     state.learn.tab = step.tab;
     state.learn.selected = { type: step.target[0], id: step.target[1] };
     state.learn.opened = [...new Set([...(state.learn.opened || []), `${step.target[0]}:${step.target[1]}`])];
   }
 
   function learnCallout() {
-    const step = Math.min(state.learn.step, LEARN_STEPS.length - 1);
+    const step = Math.max(0, Math.min(state.learn.step - 1, LEARN_STEPS.length - 1));
     const s = LEARN_STEPS[step];
     const done = learnComplete();
     if (done) return `<div class="m02e-callout is-done" id="m02e-learn-callout"><p class="m02e-label">LEARN IT · WALKTHROUGH COMPLETE</p><p>You’ve walked the console end to end. Revisit it whenever you like, or continue to the short knowledge check below.</p><div class="m02e-callout-actions"><button class="m02e-secondary" type="button" data-m02e-learn-restart><i class="ri-restart-line" aria-hidden="true"></i> Restart walkthrough</button></div></div>`;
-    return `<div class="m02e-callout" id="m02e-learn-callout"><p class="m02e-label">LEARN IT · STEP ${step + 1} OF ${LEARN_STEPS.length} · ${esc(s.title)}</p><div class="m02e-callout-actions"><button class="m02e-primary" type="button" data-m02e-learn-next>${step === LEARN_STEPS.length - 1 ? 'Complete the walkthrough' : 'LEARN IT'}</button></div></div>`;
+    const started = state.learn.step > 0;
+    return `<div class="m02e-callout" id="m02e-learn-callout"><p class="m02e-label">${started ? `LEARN IT · STEP ${step + 1} OF ${LEARN_STEPS.length} · ${esc(s.title)}` : 'LEARN IT · SIX QUICK IDEAS'}</p><p>${started ? 'One sentence at a time. Follow the highlighted evidence.' : 'Click once to reveal the first idea, then use NEXT to move through the six sentences.'}</p><div class="m02e-callout-actions"><button class="m02e-primary" type="button" data-m02e-learn-next>${started ? (step === LEARN_STEPS.length - 1 ? 'Complete the walkthrough' : 'NEXT') : 'LEARN IT'}</button></div></div>`;
   }
 
   function knowledgePanel() {
