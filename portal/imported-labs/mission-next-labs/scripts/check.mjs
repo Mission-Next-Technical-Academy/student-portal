@@ -78,7 +78,7 @@ const activeDirectoryShellsSource = fs.readFileSync(path.join(root, 'src/shells/
 });
 
 const linuxShellSource = fs.readFileSync(path.join(root, 'src/shells/LinuxTerminalShell.jsx'), 'utf8');
-['cmd_nano', 'cmd_wget', 'cmd_dpkg', 'cmd_curl'].forEach(fn => {
+['cmd_nano', 'cmd_wget', 'cmd_dpkg', 'cmd_apt', 'cmd_curl'].forEach(fn => {
   assert(linuxShellSource.includes(`function ${fn}`), `Expected LinuxTerminalShell.jsx to define ${fn}`);
 });
 

@@ -75,22 +75,18 @@ function App() {
   }
 
   function handleBackFromLab() {
-    // Prefer the explicit module return route. Additional labs open in a new
-    // tab, where browser history contains no portal page to return to.
-    const returnTo = new URLSearchParams(window.location.search).get('returnTo');
-    if (returnTo) {
-      try {
-        const destination = new URL(returnTo, window.location.href);
-        const isHttp = destination.protocol === 'http:' || destination.protocol === 'https:';
-        const isSameOrigin = destination.origin === window.location.origin;
-        const isMissionNextRoute = /^#\/program\/soc-analyst\/module\/\d+$/.test(destination.hash);
-        if (isHttp && isSameOrigin && isMissionNextRoute) {
-          window.location.href = destination.href;
-          return;
-        }
-      } catch (_) {
-        // Fall through to history/local fallback for malformed links.
+    // Labs are launched from the course portal in a new tab. Return through
+    // that existing window reference instead of carrying a URL inside the
+    // lab address bar. This keeps the lab self-contained and avoids exposing
+    // redirect-looking query parameters.
+    try {
+      if (window.opener && !window.opener.closed && window.opener.location.origin === window.location.origin) {
+        window.opener.focus();
+        window.close();
+        return;
       }
+    } catch (_) {
+      // Fall through to the local history/dashboard fallback.
     }
 
     // Same-tab launches can still use browser history. Direct lab URLs fall

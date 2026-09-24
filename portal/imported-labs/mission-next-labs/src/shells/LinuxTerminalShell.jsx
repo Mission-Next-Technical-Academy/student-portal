@@ -13,7 +13,7 @@
 //      -F as alias for -f), cut (-d X -f N), find (very small),
 //      echo, clear, history, whoami, hostname, date, uname -a,
 //      nano (read-only pager), wget, dpkg -i, curl,
-//      sudo (transparent passthrough), systemctl (status/start/
+//      apt/apt-get (simulated package manager), sudo (transparent passthrough), systemctl (status/start/
 //      enable — stubbed responses), journalctl (basic), id.
 //
 //  Composition:
@@ -468,6 +468,51 @@
       installedPackage: pkgName,
     };
   }
+
+  function cmd_apt(env, args) {
+    const command = args.find(arg => !arg.startsWith('-')) || '';
+    const packages = args.filter(arg => !arg.startsWith('-') && !['install', 'update', 'upgrade', 'list', 'search', 'remove', 'purge'].includes(arg));
+
+    if (command === 'update') {
+      return {
+        stdout: [
+          'Hit:1 http://deb.debian.org/debian bookworm InRelease',
+          'Hit:2 http://security.debian.org/debian-security bookworm-security InRelease',
+          'Reading package lists... Done',
+        ].join('\n') + '\n',
+        stderr: '',
+        exitCode: 0,
+      };
+    }
+
+    if (command === 'upgrade') {
+      return {
+        stdout: 'Reading package lists... Done\nBuilding dependency tree... Done\n0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.\n',
+        stderr: '',
+        exitCode: 0,
+      };
+    }
+
+    if (command === 'install') {
+      const names = packages.length ? packages : ['requested-package'];
+      const lines = [
+        'Reading package lists... Done',
+        'Building dependency tree... Done',
+        'The following NEW packages will be installed:',
+        `  ${names.join(' ')}`,
+        '0 upgraded, ' + names.length + ' newly installed, 0 to remove and 0 not upgraded.',
+        'Setting up ' + names.join(', ') + ' (simulated) ...',
+        'Processing triggers for man-db (simulated) ...',
+      ];
+      return { stdout: lines.join('\n') + '\n', stderr: '', exitCode: 0 };
+    }
+
+    return {
+      stdout: 'apt 2.6.1 (simulated)\nUsage: apt [options] command\n',
+      stderr: '',
+      exitCode: 0,
+    };
+  }
   function cmd_curl(env, args) {
     const target = args.filter(a => !a.startsWith('-')).pop();
     if (!target) return { stdout: '', stderr: 'curl: try \'curl --help\' or \'curl --manual\' for more information\n', exitCode: 2 };
@@ -559,7 +604,7 @@
     grep: cmd_grep, awk: cmd_awk, sort: cmd_sort, uniq: cmd_uniq, wc: cmd_wc,
     head: cmd_head, tail: cmd_tail, cut: cmd_cut, echo: cmd_echo, clear: cmd_clear,
     whoami: cmd_whoami, hostname: cmd_hostname, id: cmd_id, uname: cmd_uname,
-    date: cmd_date, history: cmd_history, wget: cmd_wget, dpkg: cmd_dpkg, curl: cmd_curl, systemctl: cmd_systemctl,
+    date: cmd_date, history: cmd_history, wget: cmd_wget, dpkg: cmd_dpkg, apt: cmd_apt, 'apt-get': cmd_apt, curl: cmd_curl, systemctl: cmd_systemctl,
     journalctl: cmd_journalctl, find: cmd_find,
   };
 
@@ -633,11 +678,17 @@
   function LinuxTerminalShell(props) {
     const { vfs, initialCwd = '/home/student', user = 'student', host = 'b2b', onCommand, autoFocus = true } = props;
     const [cwd, setCwd] = React.useState(initialCwd);
-    const [lines, setLines] = React.useState([]);  // [{ kind, text }]
+    const [lines, setLines] = React.useState(() => [
+      { kind: 'system', text: `Mission Next Linux terminal — ${user}@${host}` },
+      { kind: 'system', text: 'Type a command and press Enter. Try: pwd or ls' },
+      { kind: 'system', text: '' },
+    ]);  // [{ kind, text }]
     const [input, setInput] = React.useState('');
     const [history, setHistory] = React.useState([]);
     const [histIdx, setHistIdx] = React.useState(-1);
     const [pager, setPager] = React.useState(null);
+    const [running, setRunning] = React.useState(false);
+    const timersRef = React.useRef([]);
 
     const env = React.useMemo(() => {
       const e = { vfs, cwd, user, host, history, services: {}, _stdin: null };
@@ -656,11 +707,68 @@
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [lines, pager]);
 
+    React.useEffect(() => () => {
+      timersRef.current.forEach(window.clearTimeout);
+      timersRef.current = [];
+    }, []);
+
     function append(kind, text) {
       setLines(prev => prev.concat([{ kind, text }]));
     }
 
+    // A real shell does not paste a complete transcript into the viewport.
+    // Lightweight commands return in a short burst; scanners and package/
+    // audit tools have a longer first result and then emit progress lines.
+    function outputTiming(command, kind, index) {
+      const name = (command.trim().match(/^(?:sudo\s+)?(\S+)/i) || [,''])[1].toLowerCase();
+      const profiles = {
+        nmap: { first: 280, line: 105 },
+        wget: { first: 420, line: 85 },
+        curl: { first: 180, line: 60 },
+        apt: { first: 360, line: 120 },
+        'apt-get': { first: 360, line: 120 },
+        dpkg: { first: 260, line: 95 },
+        nikto: { first: 330, line: 115 },
+        sqlmap: { first: 360, line: 125 },
+        wapiti: { first: 320, line: 115 },
+        openvas: { first: 500, line: 140 },
+        tripwire: { first: 300, line: 100 },
+        aide: { first: 280, line: 95 },
+        auditctl: { first: 170, line: 65 },
+        ausearch: { first: 220, line: 75 },
+        journalctl: { first: 170, line: 55 },
+        logwatch: { first: 260, line: 95 },
+      };
+      const profile = profiles[name] || { first: 55, line: 28 };
+      if (kind === 'stderr') return Math.max(35, profile.line);
+      return index === 0 ? profile.first : profile.line;
+    }
+
+    function streamResult(command, result, done) {
+      const output = [];
+      if (result.stdout) output.push({ kind: 'stdout', text: result.stdout });
+      if (result.stderr) output.push({ kind: 'stderr', text: result.stderr });
+      const records = output.flatMap(({ kind, text }) => {
+        // Keep blank lines, but emit one terminal line at a time. This also
+        // preserves the final newline without creating an extra visible row.
+        const lines = String(text).split('\n');
+        if (lines.length && lines[lines.length - 1] === '') lines.pop();
+        return lines.map(line => ({ kind, text: line }));
+      });
+      if (!records.length) { done(); return; }
+      let elapsed = 0;
+      records.forEach((record, index) => {
+        elapsed += outputTiming(command, record.kind, index);
+        const timer = window.setTimeout(() => {
+          append(record.kind, record.text);
+          if (index === records.length - 1) done();
+        }, elapsed);
+        timersRef.current.push(timer);
+      });
+    }
+
     function runUserLine(line) {
+      if (running) return;
       const prompt = `${user}@${host}:${cwd === '/home/student' ? '~' : cwd}$ `;
       append('prompt', prompt + line);
       if (!line.trim()) return;
@@ -670,17 +778,23 @@
 
       // bash engine mutates env.cwd via setter; we run and observe
       const result = window.MISSION_NEXT_BASH_ENGINE.runLine(env, line);
-      if (result.clear) { setLines([]); }
-      else if (result.pager) { setPager(result.pager); }
-      else {
-        if (result.stdout) append('stdout', result.stdout);
-        if (result.stderr) append('stderr', result.stderr);
-      }
-      if (typeof onCommand === 'function') onCommand(line, result, { cwd: env.cwd });
+      setRunning(true);
+      const finish = () => {
+        setRunning(false);
+        if (typeof onCommand === 'function') onCommand(line, result, { cwd: env.cwd });
+      };
+      if (result.clear) { setLines([]); finish(); }
+      else if (result.pager) { setPager(result.pager); finish(); }
+      else streamResult(line, result, finish);
     }
 
     function onKeyDown(e) {
-      if (pager) return;
+      if (pager || running) return;
+      if (e.ctrlKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setLines([]);
+        return;
+      }
       if (e.key === 'Enter') {
         e.preventDefault();
         runUserLine(input);
@@ -713,11 +827,11 @@
       <div style={termStyles.root} onClick={() => inputRef.current && inputRef.current.focus()}>
         <div ref={scrollRef} style={termStyles.scroll}>
           {lines.map((ln, i) => (
-            <div key={i} style={ln.kind === 'stderr' ? termStyles.lineErr : termStyles.line}>
+              <div key={i} style={ln.kind === 'stderr' ? termStyles.lineErr : ln.kind === 'system' ? termStyles.system : termStyles.line}>
               {ln.text}
             </div>
           ))}
-          {!pager && (
+          {!pager && !running && (
             <div style={termStyles.inputRow}>
               <span style={termStyles.prompt}>{`${user}@${host}:${cwd === '/home/student' ? '~' : cwd}$ `}</span>
               <input
@@ -726,8 +840,10 @@
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
                 style={termStyles.input}
+                disabled={running}
                 spellCheck={false}
                 autoComplete="off"
+                aria-label="Bash command line"
               />
             </div>
           )}
@@ -774,6 +890,7 @@
     },
     scroll: { width: '100%', height: '100%', overflow: 'auto', whiteSpace: 'pre-wrap' },
     line: { whiteSpace: 'pre-wrap' },
+    system: { whiteSpace: 'pre-wrap', color: '#7dd3fc' },
     lineErr: { whiteSpace: 'pre-wrap', color: '#fca5a5' },
     inputRow: { display: 'flex', alignItems: 'center' },
     prompt: { color: '#22c55e', whiteSpace: 'pre' },
