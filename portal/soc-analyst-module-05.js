@@ -355,6 +355,7 @@ const MODULE_FIVE_DEFAULT_STATE = {
   lastSubmittedAt: '',
   notes: '',
   lessonWork: {},
+  labProgress: {},
 };
 
 const MODULE_FIVE_LESSONS = [
@@ -412,6 +413,7 @@ function moduleFiveLoad(user) {
   if (!moduleFiveState.lessonWork || typeof moduleFiveState.lessonWork !== 'object') moduleFiveState.lessonWork = {};
   if (typeof moduleFiveState.notes !== 'string') moduleFiveState.notes = '';
   if (typeof moduleFiveState.practiceNotes !== 'string') moduleFiveState.practiceNotes = '';
+  if (!moduleFiveState.labProgress || typeof moduleFiveState.labProgress !== 'object') moduleFiveState.labProgress = {};
 
   // Initialize quiz state
   if (!moduleFiveQuizState) {
@@ -589,14 +591,16 @@ function moduleFiveLessonGrid() {
 
 function moduleFiveGuidedLabPanel() {
   const labs = [
-    { title: 'Static Analysis of a Simple Malware Sample', detail: 'Examine a sample without executing it', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-1/lab' },
-    { title: 'Dynamic Analysis in a Controlled Environment', detail: 'Observe runtime behavior in a sandboxed environment', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-2/lab' },
+    { title: 'Static Analysis of a Simple Malware Sample', detail: 'Examine a sample without executing it', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-1/lab', labId: 'guided-1' },
+    { title: 'Dynamic Analysis in a Controlled Environment', detail: 'Observe runtime behavior in a sandboxed environment', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-2/lab', labId: 'guided-2' },
   ];
+  const gateOk = missionNextAllLabsComplete(moduleFiveState.labProgress, ['guided-1', 'guided-2']);
   return `<section class="m05-external-lab" id="m05-guided-lab-panel">
-    <p class="m05-panel-instruction">Work through both imported malware-analysis projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(5, 'guided', labs)}
+    <p class="m05-panel-instruction">Work through both imported malware-analysis projects below; each opens on this page with its own guided tasks. Mark each lab complete, then note what you found and mark the Guided Lab complete.</p>
+    ${missionNextLabLaunchGroup(5, 'guided', labs, moduleFiveState.labProgress)}
     <label class="m05-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m05-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleFiveState.practiceNotes)}</textarea></label>
-    <div class="m05-actions"><button type="button" class="m05-submit" data-m05-practice-complete>${moduleFiveState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+    ${!gateOk ? `<p class="m05-help" role="status">Mark both guided labs above complete before marking the Guided Lab complete.</p>` : ''}
+    <div class="m05-actions"><button type="button" class="m05-submit" data-m05-practice-complete ${gateOk ? '' : 'disabled'}>${moduleFiveState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
 }
 
@@ -607,16 +611,18 @@ function moduleFiveAdditionalLabs() {
 function moduleFiveAssessmentLabPanel() {
   const feedbackHtml = moduleFiveState.feedback?.length ? `<div class="m05-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleFiveState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   const labs = [
-    { title: 'Analyzing Windows Sysmon Events for Security Incidents', detail: 'Independent Sysmon log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-5/lab' },
-    { title: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-4/lab' },
+    { title: 'Analyzing Windows Sysmon Events for Security Incidents', detail: 'Independent Sysmon log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-5/lab', labId: 'assessment-1' },
+    { title: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-4/lab', labId: 'assessment-2' },
   ];
+  const gateOk = missionNextAllLabsComplete(moduleFiveState.labProgress, ['assessment-1', 'assessment-2']);
   return `<section class="m05-external-lab" id="m05-assessment-lab-panel">
     <p class="m05-panel-instruction">Complete both imported assessment projects below, then write up your findings below for instructor review.</p>
-    ${missionNextLabLaunchGroup(5, 'assessment', labs)}
+    ${missionNextLabLaunchGroup(5, 'assessment', labs, moduleFiveState.labProgress)}
     <form id="m05-assessment-form">
       <label class="m05-note-label">Assessment write-up<textarea id="m05-assessment-notes" rows="6" maxlength="900" data-m05-assessment-notes placeholder="Summarize what the Sysmon lab surfaced, your analysis, and your recommended action…">${esc(moduleFiveState.notes)}</textarea></label>
       <p class="m05-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      <div class="m05-actions"><button type="submit" class="m05-submit">${moduleFiveState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
+      ${!gateOk ? `<p class="m05-help" role="status">Mark both assessment labs above complete before submitting.</p>` : ''}
+      <div class="m05-actions"><button type="submit" class="m05-submit" ${gateOk ? '' : 'disabled'}>${moduleFiveState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
     </form>
     ${feedbackHtml}
   </section>`;
@@ -821,9 +827,18 @@ function wireModuleFiveLessons() {
   });
 }
 
+function wireModuleFiveGuidedLabGating(root) {
+  wireMissionNextLabGating(root, moduleFiveState.labProgress, () => {
+    moduleFiveSave();
+    root.innerHTML = moduleFiveGuidedLabPanel();
+    wireModuleFiveGuidedLabGating(root);
+  });
+}
+
 function wireModuleFiveGuidedLab() {
   const root = document.getElementById('m05-guided-lab-dynamic');
   if (!root || !moduleFiveState) return;
+  wireModuleFiveGuidedLabGating(root);
   root.addEventListener('input', (event) => {
     if (event.target.matches('[data-m05-practice-notes]')) {
       moduleFiveState.practiceNotes = event.target.value;
@@ -832,6 +847,10 @@ function wireModuleFiveGuidedLab() {
   });
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m05-practice-complete]')) {
+      if (!missionNextAllLabsComplete(moduleFiveState.labProgress, ['guided-1', 'guided-2'])) {
+        root.innerHTML = moduleFiveGuidedLabPanel();
+        return;
+      }
       moduleFiveState.practiceComplete = true;
       moduleFiveSave();
       root.innerHTML = moduleFiveGuidedLabPanel();
@@ -839,12 +858,25 @@ function wireModuleFiveGuidedLab() {
   });
 }
 
+function wireModuleFiveAssessmentLabGating(root) {
+  wireMissionNextLabGating(root, moduleFiveState.labProgress, () => {
+    moduleFiveSave();
+    root.innerHTML = moduleFiveAssessmentLabPanel();
+    wireModuleFiveAssessmentLabGating(root);
+  });
+}
+
 function wireModuleFiveAssessmentLab() {
   const root = document.getElementById('m05-assessment-lab-dynamic');
   if (!root || !moduleFiveState) return;
+  wireModuleFiveAssessmentLabGating(root);
   root.addEventListener('submit', (event) => {
     if (event.target.id !== 'm05-assessment-form') return;
     event.preventDefault();
+    if (!missionNextAllLabsComplete(moduleFiveState.labProgress, ['assessment-1', 'assessment-2'])) {
+      root.innerHTML = moduleFiveAssessmentLabPanel();
+      return;
+    }
     const notes = event.target.querySelector('#m05-assessment-notes')?.value || '';
     moduleFiveState.notes = notes;
     if (notes.trim().length < 80) {

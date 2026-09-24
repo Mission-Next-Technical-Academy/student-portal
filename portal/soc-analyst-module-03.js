@@ -358,6 +358,9 @@ const MODULE_THREE_DEFAULT_STATE = {
   lastSubmittedAt: '',
   notes: '',
   lessonWork: {},
+  labProgress: {},
+  guidedGateMessage: '',
+  assessmentGateMessage: '',
 };
 
 /* Each catalog lesson keeps the same four-part loop used by Modules 01–02.
@@ -403,6 +406,9 @@ function moduleThreeLoad(user) {
   if (!moduleThreeState.lessonWork || typeof moduleThreeState.lessonWork !== 'object') moduleThreeState.lessonWork = {};
   if (typeof moduleThreeState.notes !== 'string') moduleThreeState.notes = '';
   if (typeof moduleThreeState.practiceNotes !== 'string') moduleThreeState.practiceNotes = '';
+  moduleThreeState.labProgress = moduleThreeState.labProgress && typeof moduleThreeState.labProgress === 'object' ? moduleThreeState.labProgress : {};
+  if (typeof moduleThreeState.guidedGateMessage !== 'string') moduleThreeState.guidedGateMessage = '';
+  if (typeof moduleThreeState.assessmentGateMessage !== 'string') moduleThreeState.assessmentGateMessage = '';
 
   // Initialize quiz state
   if (!moduleThreeQuizState) {
@@ -624,39 +630,56 @@ function moduleThreeQuizPanel() {
   </form>`;
 }
 
+const MODULE_THREE_GUIDED_LAB_LINKS = [
+  { title: 'Basic Apache Web Server Log Analysis', detail: 'Apache access-log review for suspicious request patterns', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-1/lab', labId: 'guided-1', requireNote: true },
+  { title: 'Introduction to Syslog Analysis on Linux Systems', detail: 'Linux syslog triage and event correlation', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-2/lab', labId: 'guided-2', requireNote: true },
+];
+const MODULE_THREE_ADDITIONAL_LAB_LINKS = [
+  { title: 'Analyzing Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-3/lab', labId: 'additional-lap3', requireNote: true },
+  { title: 'HTTP Log Analysis — Web Attack Detection', detail: 'Web attack patterns in HTTP telemetry', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis', labId: 'additional-http', requireNote: true },
+];
+
 function moduleThreeGuidedLabPanel() {
-  const links = [
-    { title: 'Basic Apache Web Server Log Analysis', detail: 'Apache access-log review for suspicious request patterns', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-1/lab' },
-    { title: 'Introduction to Syslog Analysis on Linux Systems', detail: 'Linux syslog triage and event correlation', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-2/lab' },
-  ];
+  const gateOk = missionNextAllLabsComplete(moduleThreeState.labProgress, ['guided-1', 'guided-2']);
+  const gateMsg = moduleThreeState.guidedGateMessage && !gateOk ? `<p class="m03-help" role="alert">${esc(moduleThreeState.guidedGateMessage)}</p>` : '';
   return `<section class="m03-external-lab" id="m03-guided-lab-panel">
-    <p class="m03-panel-instruction">Work through both Mission Next log-analysis labs below. When you're done, note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(3, 'guided', links)}
+    <p class="m03-panel-instruction">Work through both Mission Next log-analysis labs below. Mark each lab complete with a short note, then mark the Guided Lab complete.</p>
+    ${missionNextLabLaunchGroup(3, 'guided', MODULE_THREE_GUIDED_LAB_LINKS, moduleThreeState.labProgress)}
     <label class="m03-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m03-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleThreeState.practiceNotes)}</textarea></label>
+    ${gateMsg}
     <div class="m03-actions"><button type="button" class="m03-submit" data-m03-practice-complete>${moduleThreeState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
 }
 
-function moduleThreeAdditionalLabs() {
-  return missionNextAdditionalLabsSection(3, [
-    { label: 'Analyzing Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-3/lab' },
-    { label: 'HTTP Log Analysis — Web Attack Detection', detail: 'Web attack patterns in HTTP telemetry', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis' },
-  ]);
+function moduleThreeAdditionalLabsPanelHtml() {
+  return `<div class="m03-additional-labs-panel" id="m03-additional-labs-panel">${missionNextLabLaunchGroup(3, 'additional', MODULE_THREE_ADDITIONAL_LAB_LINKS, moduleThreeState.labProgress)}</div>`;
 }
+
+function moduleThreeAdditionalLabs() {
+  return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-3">
+    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-3">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
+    <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Complete them for credit alongside the Guided Lab and Assessment Lab.</p>
+    ${moduleThreeAdditionalLabsPanelHtml()}
+  </section>`;
+}
+
+const MODULE_THREE_ASSESSMENT_LAB_LINKS = [
+  { title: 'Simple Log Analysis with ELK Stack', detail: 'ELK-based log search and triage', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-4/lab', labId: 'assessment-1', requireNote: true },
+  { title: 'System Log Assessment', detail: 'Suspicious system-log review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-4/lab', labId: 'assessment-2', requireNote: true },
+];
 
 function moduleThreeAssessmentLabPanel() {
   const feedbackHtml = moduleThreeState.feedback?.length ? `<div class="m03-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleThreeState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-  const links = [
-    { title: 'Simple Log Analysis with ELK Stack', detail: 'ELK-based log search and triage', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-4/lab' },
-    { title: 'System Log Assessment', detail: 'Suspicious system-log review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-4/lab' },
-  ];
+  const gateOk = missionNextAllLabsComplete(moduleThreeState.labProgress, ['assessment-1', 'assessment-2', 'additional-lap3', 'additional-http']);
+  const gateMsg = moduleThreeState.assessmentGateMessage && !gateOk ? `<p class="m03-help" role="alert">${esc(moduleThreeState.assessmentGateMessage)}</p>` : '';
   const labStatus = moduleThreeState.importedLabComplete
     ? '<p class="m03-help" role="status"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Mission Next ELK lab complete. You may submit your assessment write-up.</p>'
     : '<p class="m03-help">Complete every step in the Mission Next ELK lab before submitting your assessment write-up.</p>';
   return `<section class="m03-external-lab" id="m03-assessment-lab-panel">
-    <p class="m03-panel-instruction">Complete the imported Mission Next assessment labs below, then write up your findings for instructor review.</p>
-    ${missionNextLabLaunchGroup(3, 'assessment', links)}
+    <p class="m03-panel-instruction">Complete the imported Mission Next assessment labs below with a short note on each, then write up your findings for instructor review.</p>
+    ${missionNextLabLaunchGroup(3, 'assessment', MODULE_THREE_ASSESSMENT_LAB_LINKS, moduleThreeState.labProgress)}
     ${labStatus}
+    ${gateMsg}
     <form id="m03-assessment-form">
       <label class="m03-note-label">Assessment write-up<textarea id="m03-assessment-notes" rows="6" maxlength="900" data-m03-assessment-notes placeholder="Summarize what the labs surfaced, your analysis, and your recommended action…">${esc(moduleThreeState.notes)}</textarea></label>
       <p class="m03-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -914,9 +937,21 @@ function wireModuleThreeQuiz() {
   });
 }
 
+function wireModuleThreeLabGating(root) {
+  if (!root) return;
+  wireMissionNextLabGating(root, moduleThreeState.labProgress, () => {
+    moduleThreeSave();
+    root.innerHTML = root.id === 'm03-guided-lab-dynamic' ? moduleThreeGuidedLabPanel()
+      : root.id === 'm03-assessment-lab-dynamic' ? moduleThreeAssessmentLabPanel()
+      : moduleThreeAdditionalLabsPanelHtml();
+    wireModuleThreeLabGating(root);
+  });
+}
+
 function wireModuleThreeGuidedLab() {
   const root = document.getElementById('m03-guided-lab-dynamic');
   if (!root || !moduleThreeState) return;
+  wireModuleThreeLabGating(root);
   root.addEventListener('input', (event) => {
     if (event.target.matches('[data-m03-practice-notes]')) {
       moduleThreeState.practiceNotes = event.target.value;
@@ -925,25 +960,50 @@ function wireModuleThreeGuidedLab() {
   });
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m03-practice-complete]')) {
+      if (!missionNextAllLabsComplete(moduleThreeState.labProgress, ['guided-1', 'guided-2'])) {
+        moduleThreeState.guidedGateMessage = 'Mark both labs above complete first.';
+        moduleThreeSave();
+        root.innerHTML = moduleThreeGuidedLabPanel();
+        wireModuleThreeLabGating(root);
+        return;
+      }
+      moduleThreeState.guidedGateMessage = '';
       moduleThreeState.practiceComplete = true;
       moduleThreeSave();
       root.innerHTML = moduleThreeGuidedLabPanel();
+      wireModuleThreeLabGating(root);
     }
   });
+}
+
+function wireModuleThreeAdditionalLabs() {
+  const root = document.getElementById('m03-additional-labs-panel');
+  if (!root || !moduleThreeState) return;
+  wireModuleThreeLabGating(root);
 }
 
 function wireModuleThreeAssessmentLab() {
   const root = document.getElementById('m03-assessment-lab-dynamic');
   if (!root || !moduleThreeState) return;
+  wireModuleThreeLabGating(root);
   root.addEventListener('submit', (event) => {
     if (event.target.id !== 'm03-assessment-form') return;
     event.preventDefault();
     const notes = event.target.querySelector('#m03-assessment-notes')?.value || '';
     moduleThreeState.notes = notes;
+    if (!missionNextAllLabsComplete(moduleThreeState.labProgress, ['assessment-1', 'assessment-2', 'additional-lap3', 'additional-http'])) {
+      moduleThreeState.assessmentGateMessage = 'Mark all required labs above complete first.';
+      moduleThreeSave();
+      root.innerHTML = moduleThreeAssessmentLabPanel();
+      wireModuleThreeLabGating(root);
+      return;
+    }
+    moduleThreeState.assessmentGateMessage = '';
     if (notes.trim().length < 80) {
       moduleThreeState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
       moduleThreeSave();
       root.innerHTML = moduleThreeAssessmentLabPanel();
+      wireModuleThreeLabGating(root);
       return;
     }
     moduleThreeState.attempts = (moduleThreeState.attempts || 0) + 1;
@@ -959,6 +1019,7 @@ function wireModuleThreeAssessmentLab() {
     const status = document.getElementById('m03-status');
     if (status) status.textContent = 'Complete';
     root.innerHTML = moduleThreeAssessmentLabPanel();
+    wireModuleThreeLabGating(root);
   });
 }
 
@@ -970,6 +1031,7 @@ function wireModuleThree() {
   wireModuleThreeLessons();
   wireModuleThreeGuidedLab();
   wireModuleThreeAssessmentLab();
+  wireModuleThreeAdditionalLabs();
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 3, moduleKey: 'soc-03',

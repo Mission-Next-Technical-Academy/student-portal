@@ -382,13 +382,13 @@ let moduleElevenReviewMode = false;
 
 function moduleElevenMetricsFreshDefaults() {
   return {
-    practiceComplete: false, practiceNotes: '', feedback: [], validationError: '', lastSubmittedAt: '',
+    practiceComplete: false, practiceNotes: '', feedback: [], validationError: '', lastSubmittedAt: '', labProgress: {},
   };
 }
 
 function moduleElevenReportFreshDefaults() {
   return {
-    notes: '', attempts: 0, completed: false, feedback: [], validationError: '', lastSubmittedAt: '',
+    notes: '', attempts: 0, completed: false, feedback: [], validationError: '', lastSubmittedAt: '', labProgress: {},
   };
 }
 
@@ -404,6 +404,8 @@ function moduleElevenLoad(user) {
   });
   if (typeof moduleElevenMetricsState.practiceNotes !== 'string') moduleElevenMetricsState.practiceNotes = '';
   if (typeof moduleElevenReportState.notes !== 'string') moduleElevenReportState.notes = '';
+  if (!moduleElevenMetricsState.labProgress || typeof moduleElevenMetricsState.labProgress !== 'object') moduleElevenMetricsState.labProgress = {};
+  if (!moduleElevenReportState.labProgress || typeof moduleElevenReportState.labProgress !== 'object') moduleElevenReportState.labProgress = {};
 
   // Initialize quiz state
   if (!moduleElevenQuizState) {
@@ -610,7 +612,7 @@ function moduleElevenGuidedLabPanel() {
   const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_METRICS_CATALOG_KEY);
   return `<section class="m11-external-lab" id="m11-guided-lab-panel">
     <p class="m11-panel-instruction">Launch the imported Active Directory monitoring project below and work through its guided tasks on this page. When you're done, note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(11, 'guided', [{ title: 'Active Directory Monitoring with Grafana', detail: `${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. Imported Active Directory monitoring project.`, href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-1/lab' }])}
+    ${missionNextLabLaunchGroup(11, 'guided', [{ title: 'Active Directory Monitoring with Grafana', detail: `${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. Imported Active Directory monitoring project.`, href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-1/lab', labId: 'guided-1', requireNote: true }], moduleElevenMetricsState.labProgress)}
     <label class="m11-text-label" for="m11-practice-notes">Working notes (optional)</label>
     <p class="m11-field-help">What did you find? Any blockers?</p>
     <textarea id="m11-practice-notes" rows="4" maxlength="900" data-m11-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleElevenMetricsState.practiceNotes)}</textarea>
@@ -623,7 +625,7 @@ function moduleElevenAssessmentLabPanel() {
   const feedbackHtml = moduleElevenReportState.feedback?.length ? `<div class="m11-validation is-pass" role="status"><strong>Submitted</strong><ul>${moduleElevenReportState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
     <p class="m11-panel-instruction">Launch the imported Active Directory metrics project below, complete it, then write up your findings for instructor review.</p>
-    ${missionNextLabLaunchGroup(11, 'assessment', [{ title: 'Visualizing Active Directory Performance Metrics with Cacti', detail: `${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. Imported Active Directory metrics project.`, href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab' }])}
+    ${missionNextLabLaunchGroup(11, 'assessment', [{ title: 'Visualizing Active Directory Performance Metrics with Cacti', detail: `${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. Imported Active Directory metrics project.`, href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab', labId: 'assessment-1', requireNote: true }], moduleElevenReportState.labProgress)}
     <form id="m11-assessment-form">
       <label class="m11-text-label" for="m11-assessment-notes">Assessment write-up</label>
       <p class="m11-field-help">In at least 80 characters, describe what you found and your recommended action.</p>
@@ -635,10 +637,10 @@ function moduleElevenAssessmentLabPanel() {
 }
 
 function moduleElevenAdditionalLabs() {
-  return missionNextAdditionalLabsSection(11, [
-    { label: 'Real-time Active Directory Metrics with Datadog', detail: 'Operational monitoring and metric context', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-3/lab' },
-    { label: 'Active Directory Performance Monitoring with Checkmk', detail: 'Service checks and monitoring ownership', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-5/lab' },
-  ]);
+  return missionNextLabLaunchGroup(11, 'additional', [
+    { title: 'Real-time Active Directory Metrics with Datadog', detail: 'Operational monitoring and metric context', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-3/lab', labId: 'additional-1', requireNote: true },
+    { title: 'Active Directory Performance Monitoring with Checkmk', detail: 'Service checks and monitoring ownership', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-5/lab', labId: 'additional-2', requireNote: true },
+  ], moduleElevenReportState.labProgress);
 }
 
 function viewModuleEleven(user, program) {
@@ -668,7 +670,7 @@ function viewModuleEleven(user, program) {
 <details class="m11-section-collapsible" id="m11-assessment-lab-section" ${assessmentLabOpen ? 'open' : ''}><summary><span class="m11-section-badge">4</span><div><p class="m11-kicker">Prove It · Assessment Lab</p><h2>Assessment Lab</h2></div></summary><div class="m11-section-body" id="m11-assessment-lab">
   <div id="m11-assessment-lab-dynamic">${moduleElevenAssessmentLabPanel()}</div>
 </div></details>
-${moduleElevenAdditionalLabs()}
+<div id="m11-additional-labs-dynamic">${moduleElevenAdditionalLabs()}</div>
 <details class="m11-section-collapsible" id="m11-review-section" ${reviewOpen ? 'open' : ''}><summary><span class="m11-section-badge">5</span><h2>Module Review</h2></summary><div class="m11-section-body" id="m11-review">
   ${moduleElevenReview()}
 </div></details>
@@ -679,9 +681,19 @@ ${moduleElevenAdditionalLabs()}
   return html;
 }
 
+function wireModuleElevenGuidedLabGating(root) {
+  if (!root || !moduleElevenMetricsState) return;
+  wireMissionNextLabGating(root, moduleElevenMetricsState.labProgress, () => {
+    moduleElevenSaveMetrics();
+    root.innerHTML = moduleElevenGuidedLabPanel();
+    wireModuleElevenGuidedLabGating(root);
+  });
+}
+
 function wireModuleElevenGuidedLab() {
   const root = document.getElementById('m11-guided-lab-dynamic');
   if (!root || !moduleElevenMetricsState) return;
+  wireModuleElevenGuidedLabGating(root);
   root.addEventListener('input', (event) => {
     if (event.target.matches('[data-m11-practice-notes]')) {
       moduleElevenMetricsState.practiceNotes = event.target.value;
@@ -690,27 +702,51 @@ function wireModuleElevenGuidedLab() {
   });
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m11-practice-complete]')) {
+      if (!missionNextAllLabsComplete(moduleElevenMetricsState.labProgress, ['guided-1'])) {
+        root.innerHTML = moduleElevenGuidedLabPanel();
+        wireModuleElevenGuidedLabGating(root);
+        return;
+      }
       moduleElevenMetricsState.practiceComplete = true;
       if (!moduleElevenMetricsState.flags.includes(MODULE_ELEVEN_METRICS_FLAG)) moduleElevenMetricsState.flags.push(MODULE_ELEVEN_METRICS_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_METRICS_CATALOG_KEY);
       moduleElevenSaveMetrics();
       root.innerHTML = moduleElevenGuidedLabPanel();
+      wireModuleElevenGuidedLabGating(root);
     }
+  });
+}
+
+function wireModuleElevenAssessmentLabGating(root) {
+  if (!root || !moduleElevenReportState) return;
+  wireMissionNextLabGating(root, moduleElevenReportState.labProgress, () => {
+    moduleElevenSaveReport();
+    root.innerHTML = moduleElevenAssessmentLabPanel();
+    wireModuleElevenAssessmentLabGating(root);
   });
 }
 
 function wireModuleElevenAssessmentLab() {
   const root = document.getElementById('m11-assessment-lab-dynamic');
   if (!root || !moduleElevenReportState) return;
+  wireModuleElevenAssessmentLabGating(root);
   root.addEventListener('submit', (event) => {
     if (event.target.id !== 'm11-assessment-form') return;
     event.preventDefault();
+    if (!missionNextAllLabsComplete(moduleElevenReportState.labProgress, ['assessment-1', 'additional-1', 'additional-2'])) {
+      moduleElevenReportState.feedback = ['Mark all required labs above complete before submitting your write-up.'];
+      moduleElevenSaveReport();
+      root.innerHTML = moduleElevenAssessmentLabPanel();
+      wireModuleElevenAssessmentLabGating(root);
+      return;
+    }
     const notes = event.target.querySelector('#m11-assessment-notes')?.value || '';
     moduleElevenReportState.notes = notes;
     if (notes.trim().length < 80) {
       moduleElevenReportState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
       moduleElevenSaveReport();
       root.innerHTML = moduleElevenAssessmentLabPanel();
+      wireModuleElevenAssessmentLabGating(root);
       return;
     }
     moduleElevenReportState.attempts = (moduleElevenReportState.attempts || 0) + 1;
@@ -724,6 +760,16 @@ function wireModuleElevenAssessmentLab() {
     if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_REPORT_CATALOG_KEY);
     moduleElevenSaveReport();
     root.innerHTML = moduleElevenAssessmentLabPanel();
+    wireModuleElevenAssessmentLabGating(root);
+  });
+}
+
+function wireModuleElevenAdditionalLabsGating(root) {
+  if (!root || !moduleElevenReportState) return;
+  wireMissionNextLabGating(root, moduleElevenReportState.labProgress, () => {
+    moduleElevenSaveReport();
+    root.innerHTML = moduleElevenAdditionalLabs();
+    wireModuleElevenAdditionalLabsGating(root);
   });
 }
 
@@ -749,6 +795,7 @@ function wireModuleEleven() {
   // Wire labs
   wireModuleElevenGuidedLab();
   wireModuleElevenAssessmentLab();
+  wireModuleElevenAdditionalLabsGating(document.getElementById('m11-additional-labs-dynamic'));
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 11, moduleKey: 'soc-11', view: viewModuleEleven, wire: wireModuleEleven });

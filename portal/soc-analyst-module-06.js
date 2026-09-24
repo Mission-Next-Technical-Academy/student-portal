@@ -435,6 +435,7 @@ const MODULE_SIX_DEFAULT_STATE = {
   feedback: [],
   validationError: '',
   lastSubmittedAt: '',
+  labProgress: {},
 };
 
 let moduleSixState = null;
@@ -460,6 +461,7 @@ function moduleSixLoad(user) {
   moduleSixState.lessonWork = { ...defaults.lessonWork, ...(moduleSixState.lessonWork || {}) };
   moduleSixState.independentLab = { ...defaults.independentLab, ...(moduleSixState.independentLab || {}) };
   if (typeof moduleSixState.notes !== 'string') moduleSixState.notes = '';
+  if (!moduleSixState.labProgress || typeof moduleSixState.labProgress !== 'object') moduleSixState.labProgress = {};
   ['selectedEvidence', 'bookmarks', 'scopedDevices', 'scopedAccounts', 'techniques', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleSixState[key])) moduleSixState[key] = [];
   });
@@ -849,6 +851,7 @@ function moduleSixAssessmentLabPanel() {
       <label><strong>3. Disposition</strong><select name="disposition"><option value="" ${!lab.disposition ? 'selected' : ''}>Choose…</option><option value="escalate" ${lab.disposition === 'escalate' ? 'selected' : ''}>Escalate ws-318 for approved containment and preserve the task/script evidence</option><option value="wipe" ${lab.disposition === 'wipe' ? 'selected' : ''}>Wipe every host immediately</option><option value="close" ${lab.disposition === 'close' ? 'selected' : ''}>Close as benign because no alert exists</option></select></label>
       <label><strong>4. Explain the reasoning (60+ characters)</strong><textarea name="rationale" rows="4" maxlength="700" placeholder="Observed behavior… comparison… bounded next action…">${esc(lab.rationale || '')}</textarea></label>
       <button type="submit" class="m06-submit">${passed ? 'Re-score independent lab' : 'Score independent lab'}</button>
+      ${moduleSixState.additionalGateMessage ? `<p class="m06-independent-feedback is-remediate" role="alert">${esc(moduleSixState.additionalGateMessage)}</p>` : ''}
       ${lab.score ? `<p class="m06-independent-feedback ${passed ? 'is-pass' : 'is-remediate'}" role="status"><strong>${lab.score}/100</strong> — ${passed ? 'Independent decision supported.' : 'Review the comparison and scope, then retry.'}</p>` : ''}
     </form>
   </section>`;
@@ -910,11 +913,20 @@ function moduleSixRowById(id) {
 }
 
 function moduleSixAdditionalLabs() {
-  return missionNextAdditionalLabsSection(6, [
-    { label: 'DNS Log Analysis — C2 Beaconing & Tunneling', detail: 'Optional: Splunk-style DNS query telemetry practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dns-log-analysis' },
-    { label: 'SSH Log Analysis — Brute Force & Credential Stuffing', detail: 'Optional: Splunk-style SSH auth-log practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ssh-log-analysis' },
-    { label: 'Network Traffic Analysis of a Trojan', detail: 'Network IOCs and threat-hunting pivots', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab' },
-  ]);
+  return missionNextLabLaunchGroup(6, 'additional', [
+    { title: 'DNS Log Analysis — C2 Beaconing & Tunneling', detail: 'Optional: Splunk-style DNS query telemetry practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dns-log-analysis', labId: 'additional-1', requireNote: true },
+    { title: 'SSH Log Analysis — Brute Force & Credential Stuffing', detail: 'Optional: Splunk-style SSH auth-log practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ssh-log-analysis', labId: 'additional-2', requireNote: true },
+    { title: 'Network Traffic Analysis of a Trojan', detail: 'Network IOCs and threat-hunting pivots', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab', labId: 'additional-3', requireNote: true },
+  ], moduleSixState.labProgress);
+}
+
+function wireModuleSixAdditionalLabsGating(root) {
+  if (!root || !moduleSixState) return;
+  wireMissionNextLabGating(root, moduleSixState.labProgress, () => {
+    moduleSixSave();
+    root.innerHTML = moduleSixAdditionalLabs();
+    wireModuleSixAdditionalLabsGating(root);
+  });
 }
 
 function viewModuleSix(user, program) {
@@ -963,7 +975,7 @@ function viewModuleSix(user, program) {
           <div id="m06-assessment-lab-dynamic">${moduleSixAssessmentLabPanel()}</div>
         </div>
       </details>
-      ${moduleSixAdditionalLabs()}
+      <div id="m06-additional-labs-dynamic">${moduleSixAdditionalLabs()}</div>
 
       <details class="m06-section-collapsible" ${reviewOpen ? 'open' : ''}>
         <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">5</span><div><p class="m06-kicker">Module Review</p><h2 id="m06-review">Key concepts and takeaways</h2></div></div></summary>
@@ -1166,6 +1178,13 @@ function wireModuleSixAssessmentLab() {
     moduleSixState.independentLab.disposition = form.elements.disposition.value;
     moduleSixState.independentLab.rationale = form.elements.rationale.value;
     const lab = moduleSixState.independentLab;
+    if (!missionNextAllLabsComplete(moduleSixState.labProgress, ['additional-1', 'additional-2', 'additional-3'])) {
+      moduleSixState.additionalGateMessage = 'Mark all required labs above complete first.';
+      moduleSixSave();
+      root.innerHTML = moduleSixAssessmentLabPanel();
+      return;
+    }
+    moduleSixState.additionalGateMessage = '';
     const valid = lab.task === 'task-metadata' && lab.scope === 'ws318' && lab.disposition === 'escalate' && lab.rationale.trim().length >= 60;
     lab.score = valid ? 100 : 45;
     lab.completed = valid;
@@ -1244,6 +1263,7 @@ function wireModuleSix() {
   wireModuleSixQuiz();
   wireModuleSixGuidedLab();
   wireModuleSixAssessmentLab();
+  wireModuleSixAdditionalLabsGating(document.getElementById('m06-additional-labs-dynamic'));
 
   const shell = document.querySelector('.m06-shell');
   if (!shell) return;

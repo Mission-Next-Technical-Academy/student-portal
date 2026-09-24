@@ -4166,12 +4166,32 @@ function missionNextAdditionalLabsSection(moduleNumber, links) {
  * total to get a "Guided Lab 2"-style label; a single lab of that kind gets
  * the plain "Guided Lab"/"Assessment Lab" label with no number. */
 function missionNextLabLaunchLabel(kind, index, total) {
-  const kindLabel = kind === 'assessment' ? 'Assessment Lab' : 'Guided Lab';
+  const kindLabel = kind === 'assessment' ? 'Assessment Lab' : kind === 'additional' ? 'Required Lab' : 'Guided Lab';
   return total > 1 ? `${kindLabel} ${index}` : kindLabel;
 }
 
+/* Per-lab completion tracking, shared by every launch card so a lab is
+ * required and gated rather than a link a student can skip. `bucket` is a
+ * plain object the caller owns and persists as part of its own module state
+ * (e.g. moduleXState.labProgress), keyed by a stable labId — this file never
+ * persists anything itself, it only reads/writes the object it's handed.
+ * Completion, once true, is never cleared by re-rendering or by this code —
+ * only wireMissionNextLabGating()'s toggle click can flip it, and existing
+ * completed:true entries are always left alone (no retroactive un-gating of
+ * historical/demo data). */
+function missionNextLabProgressEntry(bucket, labId) {
+  if (!bucket || typeof bucket !== 'object' || !labId) return { complete: false, note: '' };
+  return bucket[labId] || { complete: false, note: '' };
+}
+
+function missionNextAllLabsComplete(bucket, labIds) {
+  const ids = Array.isArray(labIds) ? labIds.filter(Boolean) : [];
+  if (!ids.length) return true;
+  return ids.every((id) => missionNextLabProgressEntry(bucket, id).complete === true);
+}
+
 function missionNextLabLaunchCard(moduleNumber, opts) {
-  const { kind = 'guided', index = 1, total = 1, title, detail, href } = opts || {};
+  const { kind = 'guided', index = 1, total = 1, title, detail, href, labId, progress, requireNote } = opts || {};
   if (!href || !title) return '';
   const returnTo = typeof missionNextReturnTo === 'function'
     ? missionNextReturnTo(moduleNumber)
@@ -4182,24 +4202,69 @@ function missionNextLabLaunchCard(moduleNumber, opts) {
     return `${h.split('#')[0]}${separator}returnTo=${returnTo}${h.includes('#') ? `#${h.split('#').slice(1).join('#')}` : ''}`;
   };
   const label = missionNextLabLaunchLabel(kind, index, total);
-  return `<a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(labHref(href))}" target="_blank" rel="opener">
-    <span class="mn-lab-launch-eyebrow">${esc(label)}</span>
-    <span class="mn-lab-launch-title">${esc(title)}</span>
-    ${detail ? `<span class="mn-lab-launch-detail">${esc(detail)}</span>` : ''}
-    <span class="mn-lab-launch-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span>
-  </a>`;
+  const entry = labId ? (progress || { complete: false, note: '' }) : null;
+  const gateHtml = labId ? `<div class="mn-lab-gate" data-mn-lab-gate="${esc(labId)}">
+      ${requireNote ? `<textarea class="mn-lab-gate-note" data-mn-lab-note="${esc(labId)}" rows="2" maxlength="600" placeholder="Briefly note what you found in this lab…">${esc(entry.note || '')}</textarea>` : ''}
+      <button type="button" class="mn-lab-gate-toggle${entry.complete ? ' is-complete' : ''}" data-mn-lab-toggle="${esc(labId)}" aria-pressed="${entry.complete ? 'true' : 'false'}">${entry.complete ? '✓ Marked complete' : 'Mark complete'}</button>
+    </div>` : '';
+  return `<div class="mn-lab-launch-wrap">
+    <a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(labHref(href))}" target="_blank" rel="opener">
+      <span class="mn-lab-launch-eyebrow">${esc(label)}</span>
+      <span class="mn-lab-launch-title">${esc(title)}</span>
+      ${detail ? `<span class="mn-lab-launch-detail">${esc(detail)}</span>` : ''}
+      <span class="mn-lab-launch-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span>
+    </a>
+    ${gateHtml}
+  </div>`;
 }
 
 /* Wraps one or more missionNextLabLaunchCard() cards for a single Guided or
- * Assessment section. `labs` is an array of { title, detail, href } in
- * display order; index/total numbering is derived from array position. */
-function missionNextLabLaunchGroup(moduleNumber, kind, labs) {
+ * Assessment section. `labs` is an array of { title, detail, href, labId?,
+ * requireNote? } in display order; index/total numbering is derived from
+ * array position. Pass `bucket` (the module's own labProgress state object)
+ * so each card with a labId renders its current gated state; omit labId on
+ * an entry to render a plain ungated launch card (legacy behavior). */
+function missionNextLabLaunchGroup(moduleNumber, kind, labs, bucket) {
   const items = Array.isArray(labs) ? labs.filter((lab) => lab && lab.href && lab.title) : [];
   if (!items.length) return '';
   const total = items.length;
   return `<div class="mn-lab-launch-group mn-lab-launch-group--${esc(kind)}">${items
-    .map((lab, i) => missionNextLabLaunchCard(moduleNumber, { kind, index: i + 1, total, title: lab.title, detail: lab.detail, href: lab.href }))
+    .map((lab, i) => missionNextLabLaunchCard(moduleNumber, {
+      kind, index: i + 1, total, title: lab.title, detail: lab.detail, href: lab.href,
+      labId: lab.labId, requireNote: lab.requireNote,
+      progress: lab.labId ? missionNextLabProgressEntry(bucket, lab.labId) : null,
+    }))
     .join('')}</div>`;
+}
+
+/* Wires every [data-mn-lab-toggle]/[data-mn-lab-note] control found under
+ * `root` (a DOM node or selector) to `bucket` (the same plain object passed
+ * to missionNextLabLaunchGroup). Call this once after each render inside the
+ * module's own wire*() function. `onChange(labId, entry)` fires after every
+ * toggle/note edit so the caller can re-run its own completion check and
+ * persist state via its existing save() path — this function never saves or
+ * re-renders anything itself. */
+function wireMissionNextLabGating(root, bucket, onChange) {
+  const scope = typeof root === 'string' ? document.querySelector(root) : root;
+  if (!scope || !bucket) return;
+  scope.querySelectorAll('[data-mn-lab-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-mn-lab-toggle');
+      if (!id) return;
+      if (!bucket[id]) bucket[id] = { complete: false, note: '' };
+      bucket[id].complete = !bucket[id].complete;
+      if (typeof onChange === 'function') onChange(id, bucket[id]);
+    });
+  });
+  scope.querySelectorAll('[data-mn-lab-note]').forEach((ta) => {
+    ta.addEventListener('input', () => {
+      const id = ta.getAttribute('data-mn-lab-note');
+      if (!id) return;
+      if (!bucket[id]) bucket[id] = { complete: false, note: '' };
+      bucket[id].note = ta.value;
+      if (typeof onChange === 'function') onChange(id, bucket[id]);
+    });
+  });
 }
 
 /* Shared topbar for every module-lab surface (IT Support, SOC Analyst,

@@ -344,10 +344,13 @@ let moduleTenQuizState = null;
 let moduleTenReviewMode = false;
 let moduleTenUser = null;
 
-const MODULE_TEN_GUIDED_DEFAULT_STATE = { practiceComplete: false, practiceNotes: '', lastQuizQuestionIds: [] };
+const MODULE_TEN_GUIDED_DEFAULT_STATE = { practiceComplete: false, practiceNotes: '', lastQuizQuestionIds: [], labProgress: {} };
 const MODULE_TEN_ASSESSMENT_DEFAULT_STATE = {
-  completed: false, attempts: 0, feedback: [], validationError: '', lastSubmittedAt: '', notes: '', flags: [],
+  completed: false, attempts: 0, feedback: [], validationError: '', lastSubmittedAt: '', notes: '', flags: [], labProgress: {},
 };
+
+const MODULE_TEN_GUIDED_LAB_IDS = ['guided-1', 'guided-2'];
+const MODULE_TEN_ASSESSMENT_LAB_IDS = ['assessment-1', 'assessment-2', 'additional-1', 'additional-2'];
 
 let moduleTenGuidedState = null;
 let moduleTenAssessmentState = null;
@@ -361,6 +364,8 @@ function moduleTenLoad(user) {
   if (typeof moduleTenAssessmentState.notes !== 'string') moduleTenAssessmentState.notes = '';
   if (!Array.isArray(moduleTenAssessmentState.feedback)) moduleTenAssessmentState.feedback = [];
   if (!Array.isArray(moduleTenAssessmentState.flags)) moduleTenAssessmentState.flags = [];
+  if (!moduleTenGuidedState.labProgress || typeof moduleTenGuidedState.labProgress !== 'object') moduleTenGuidedState.labProgress = {};
+  if (!moduleTenAssessmentState.labProgress || typeof moduleTenAssessmentState.labProgress !== 'object') moduleTenAssessmentState.labProgress = {};
 
   // Initialize quiz state
   if (!moduleTenQuizState) {
@@ -387,41 +392,56 @@ function moduleTenSaveAssessment() { if (moduleTenUser && moduleTenAssessmentSta
 
 
 function moduleTenGuidedLabPanel() {
+  const bucket = moduleTenGuidedState.labProgress;
   const launchGroup = missionNextLabLaunchGroup(10, 'guided', [
-    { title: 'Analyzing Windows Registry for Evidence of Malicious Activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-2/lab' },
-    { title: 'Forensic Analysis of Windows File Systems and Artifacts', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-3/lab' },
-  ]);
+    { title: 'Analyzing Windows Registry for Evidence of Malicious Activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-2/lab', labId: 'guided-1' },
+    { title: 'Forensic Analysis of Windows File Systems and Artifacts', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-3/lab', labId: 'guided-2' },
+  ], bucket);
+  const readyToMark = missionNextAllLabsComplete(bucket, MODULE_TEN_GUIDED_LAB_IDS);
+  const canMark = moduleTenGuidedState.practiceComplete || readyToMark;
   return `<section class="m10-external-lab" id="m10-guided-lab-panel">
-    <p class="m10-panel-instruction">Work through both imported Windows-forensics projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
+    <p class="m10-panel-instruction">Work through both imported Windows-forensics projects below; each opens on this page with its own guided tasks. Mark each lab complete after you finish it, note what you found, then mark the Guided Lab complete.</p>
     ${launchGroup}
     <label class="m10-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m10-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleTenGuidedState.practiceNotes)}</textarea></label>
-    <div class="m10-actions"><button type="button" class="m10-submit" data-m10-practice-complete>${moduleTenGuidedState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+    <div class="m10-actions"><button type="button" class="m10-submit" data-m10-practice-complete ${canMark ? '' : 'disabled'}>${moduleTenGuidedState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+    ${!canMark ? '<p class="m10-help">Mark both labs above complete before marking the Guided Lab complete.</p>' : ''}
   </section>`;
 }
 
 function moduleTenAssessmentLabPanel() {
+  const bucket = moduleTenAssessmentState.labProgress;
   const feedbackHtml = moduleTenAssessmentState.feedback?.length ? `<div class="m10-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleTenAssessmentState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   const launchGroup = missionNextLabLaunchGroup(10, 'assessment', [
-    { title: 'Recovering and Analyzing Deleted Files on Windows Systems', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-5/lab' },
-    { title: 'Investigating Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-1/lab' },
-  ]);
+    { title: 'Recovering and Analyzing Deleted Files on Windows Systems', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-5/lab', labId: 'assessment-1' },
+    { title: 'Investigating Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-1/lab', labId: 'assessment-2' },
+  ], bucket);
+  const readyToSubmit = missionNextAllLabsComplete(bucket, MODULE_TEN_ASSESSMENT_LAB_IDS);
+  const canSubmit = moduleTenAssessmentState.completed || readyToSubmit;
   return `<section class="m10-external-lab" id="m10-assessment-lab-panel">
-    <p class="m10-panel-instruction">Complete the imported Windows-forensics deleted-files and event-log projects below, then write up your findings for instructor review.</p>
+    <p class="m10-panel-instruction">Complete the imported Windows-forensics deleted-files and event-log projects below, mark each one complete, then write up your findings for instructor review.</p>
     ${launchGroup}
     <form id="m10-assessment-form">
       <label class="m10-note-label">Assessment write-up<textarea id="m10-assessment-notes" rows="6" maxlength="900" data-m10-assessment-notes placeholder="Summarize what the deleted-files lab surfaced, your analysis, and your recommended action…">${esc(moduleTenAssessmentState.notes)}</textarea></label>
       <p class="m10-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      <div class="m10-actions"><button type="submit" class="m10-submit">${moduleTenAssessmentState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
+      ${!canSubmit ? '<p class="m10-help">Mark both labs above complete before submitting for review.</p>' : ''}
+      <div class="m10-actions"><button type="submit" class="m10-submit" ${canSubmit ? '' : 'disabled'}>${moduleTenAssessmentState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
     </form>
     ${feedbackHtml}
   </section>`;
 }
 
 function moduleTenAdditionalLabs() {
-  return missionNextAdditionalLabsSection(10, [
-    { label: 'Extracting and Interpreting Browser Artifacts on Windows', detail: 'Browser history and user-activity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-4/lab' },
-    { label: 'File System Security Assessment', detail: 'Permissions and file-integrity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab' },
-  ]);
+  const bucket = moduleTenAssessmentState.labProgress;
+  const launchGroup = missionNextLabLaunchGroup(10, 'additional', [
+    { title: 'Extracting and Interpreting Browser Artifacts on Windows', detail: 'Browser history and user-activity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-4/lab', labId: 'additional-1' },
+    { title: 'File System Security Assessment', detail: 'Permissions and file-integrity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'additional-2' },
+  ], bucket);
+  if (!launchGroup) return '';
+  return `<section class="mn-additional-labs" id="m10-additional-labs" aria-labelledby="mn-additional-labs-10">
+    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-10">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
+    <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Mark each one complete after you finish it, alongside the Guided Lab and Assessment Lab.</p>
+    ${launchGroup}
+  </section>`;
 }
 
 function moduleTenGetSections() {
@@ -710,9 +730,30 @@ function wireModuleTenQuiz() {
   });
 }
 
+function moduleTenRewireGuidedLabGating() {
+  const root = document.getElementById('m10-guided-lab-dynamic');
+  if (!root || !moduleTenGuidedState) return;
+  wireMissionNextLabGating(root, moduleTenGuidedState.labProgress, () => {
+    moduleTenSaveGuided();
+    root.innerHTML = moduleTenGuidedLabPanel();
+    moduleTenRewireGuidedLabGating();
+  });
+}
+
+function moduleTenRewireAssessmentLabGating() {
+  const root = document.getElementById('m10-assessment-lab-dynamic');
+  if (!root || !moduleTenAssessmentState) return;
+  wireMissionNextLabGating(root, moduleTenAssessmentState.labProgress, () => {
+    moduleTenSaveAssessment();
+    root.innerHTML = moduleTenAssessmentLabPanel();
+    moduleTenRewireAssessmentLabGating();
+  });
+}
+
 function wireModuleTenGuidedLab() {
   const root = document.getElementById('m10-guided-lab-dynamic');
   if (!root || !moduleTenGuidedState) return;
+  moduleTenRewireGuidedLabGating();
   root.addEventListener('input', (event) => {
     if (event.target.matches('[data-m10-practice-notes]')) {
       moduleTenGuidedState.practiceNotes = event.target.value;
@@ -721,9 +762,11 @@ function wireModuleTenGuidedLab() {
   });
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m10-practice-complete]')) {
+      if (!moduleTenGuidedState.practiceComplete && !missionNextAllLabsComplete(moduleTenGuidedState.labProgress, MODULE_TEN_GUIDED_LAB_IDS)) return;
       moduleTenGuidedState.practiceComplete = true;
       moduleTenSaveGuided();
       root.innerHTML = moduleTenGuidedLabPanel();
+      moduleTenRewireGuidedLabGating();
     }
   });
 }
@@ -731,15 +774,31 @@ function wireModuleTenGuidedLab() {
 function wireModuleTenAssessmentLab() {
   const root = document.getElementById('m10-assessment-lab-dynamic');
   if (!root || !moduleTenAssessmentState) return;
+  moduleTenRewireAssessmentLabGating();
+  const additionalRoot = document.getElementById('m10-additional-labs');
+  if (additionalRoot) {
+    wireMissionNextLabGating(additionalRoot, moduleTenAssessmentState.labProgress, () => {
+      moduleTenSaveAssessment();
+      moduleTenRewireAssessmentLabGating();
+    });
+  }
   root.addEventListener('submit', (event) => {
     if (event.target.id !== 'm10-assessment-form') return;
     event.preventDefault();
+    if (!moduleTenAssessmentState.completed && !missionNextAllLabsComplete(moduleTenAssessmentState.labProgress, MODULE_TEN_ASSESSMENT_LAB_IDS)) {
+      moduleTenAssessmentState.feedback = ['Mark all required labs above complete before submitting your write-up.'];
+      moduleTenSaveAssessment();
+      root.innerHTML = moduleTenAssessmentLabPanel();
+      moduleTenRewireAssessmentLabGating();
+      return;
+    }
     const notes = event.target.querySelector('#m10-assessment-notes')?.value || '';
     moduleTenAssessmentState.notes = notes;
     if (notes.trim().length < 80) {
       moduleTenAssessmentState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
       moduleTenSaveAssessment();
       root.innerHTML = moduleTenAssessmentLabPanel();
+      moduleTenRewireAssessmentLabGating();
       return;
     }
     moduleTenAssessmentState.attempts = (moduleTenAssessmentState.attempts || 0) + 1;
@@ -755,6 +814,7 @@ function wireModuleTenAssessmentLab() {
     const status = document.getElementById('m10-status');
     if (status) status.textContent = 'Complete';
     root.innerHTML = moduleTenAssessmentLabPanel();
+    moduleTenRewireAssessmentLabGating();
   });
 }
 

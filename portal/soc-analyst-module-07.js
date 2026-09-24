@@ -5,6 +5,11 @@
 const MODULE_SEVEN_LAB_ID = 'm07-network-email-investigation-v1';
 const MODULE_SEVEN_FLAG = 'M07-PHISH-NETWORK-CORRELATED';
 const MODULE_SEVEN_CATALOG_LAB_KEYS = ['lab-email-triage', 'lab-network-investigation', 'lab-network-email-independent'];
+/* Labs the Assessment Lab submit action gates on: both assessment labs plus
+ * the required "additional" FTP log-analysis lab, so module completion
+ * (this module's own completion action) requires every Guided, Assessment,
+ * and additional/required lab to be individually marked complete first. */
+const MODULE_SEVEN_COMPLETION_LAB_IDS = ['assessment-1', 'assessment-2', 'additional-ftp-log-analysis'];
 
 const MODULE_SEVEN_QUIZ_BANKS = [
   {
@@ -355,6 +360,7 @@ function moduleSevenFreshState() {
     attempts: 0, score: 0, bestScore: 0, flags: [], completed: false,
     feedback: [], validationError: '', lastSubmittedAt: '', notes: '',
     evidenceDesk: { exposure: '', correlation: '', action: '', note: '', checked: false, complete: false, feedback: '' },
+    labProgress: {},
   };
 }
 
@@ -370,6 +376,7 @@ function moduleSevenLoad(user) {
   if (!moduleSevenState.evidenceDesk || typeof moduleSevenState.evidenceDesk !== 'object') {
     moduleSevenState.evidenceDesk = moduleSevenFreshState().evidenceDesk;
   }
+  if (!moduleSevenState.labProgress || typeof moduleSevenState.labProgress !== 'object') moduleSevenState.labProgress = {};
 
   // Initialize quiz state
   if (!moduleSevenQuizState) {
@@ -564,39 +571,48 @@ function moduleSevenReview() {
 
 function moduleSevenGuidedLabPanel() {
   const labs = [
-    { title: 'SMTP Log Analysis — Phishing Campaign Detection', detail: 'Trace a phishing campaign through mail log evidence', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/smtp-log-analysis' },
-    { title: 'Network Traffic Analysis of a Trojan', detail: 'Identify trojan behavior in captured network traffic', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab' },
+    { title: 'SMTP Log Analysis — Phishing Campaign Detection', detail: 'Trace a phishing campaign through mail log evidence', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/smtp-log-analysis', labId: 'guided-1' },
+    { title: 'Network Traffic Analysis of a Trojan', detail: 'Identify trojan behavior in captured network traffic', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab', labId: 'guided-2' },
   ];
+  const gateOk = missionNextAllLabsComplete(moduleSevenState.labProgress, ['guided-1', 'guided-2']);
   return `<section class="m07-external-lab" id="m07-guided-lab-panel">
-    <p class="m07-panel-instruction">Work through both imported Splunk log-analysis modules below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(7, 'guided', labs)}
+    <p class="m07-panel-instruction">Work through both imported Splunk log-analysis modules below; each opens on this page with its own guided tasks. Mark each lab complete, then note what you found and mark the Guided Lab complete.</p>
+    ${missionNextLabLaunchGroup(7, 'guided', labs, moduleSevenState.labProgress)}
     <label class="m07-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m07-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleSevenState.practiceNotes)}</textarea></label>
-    <div class="m07-actions"><button type="button" class="m07-submit" data-m07-practice-complete>${moduleSevenState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+    ${!gateOk ? `<p class="m07-help" role="status">Mark both guided labs above complete before marking the Guided Lab complete.</p>` : ''}
+    <div class="m07-actions"><button type="button" class="m07-submit" data-m07-practice-complete ${gateOk ? '' : 'disabled'}>${moduleSevenState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
 }
 
 function moduleSevenAssessmentLabPanel() {
   const feedbackHtml = moduleSevenState.feedback?.length ? `<div class="m07-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleSevenState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   const labs = [
-    { title: 'Tunnel Log Analysis — GRE Covert Channel Detection', detail: 'Independent tunnel/GRE log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/gre-tunnel-log-analysis' },
-    { title: 'HTTP Log Analysis', detail: 'Web attack detection in HTTP access logs', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis' },
+    { title: 'Tunnel Log Analysis — GRE Covert Channel Detection', detail: 'Independent tunnel/GRE log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/gre-tunnel-log-analysis', labId: 'assessment-1' },
+    { title: 'HTTP Log Analysis', detail: 'Web attack detection in HTTP access logs', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis', labId: 'assessment-2' },
   ];
+  const gateOk = missionNextAllLabsComplete(moduleSevenState.labProgress, MODULE_SEVEN_COMPLETION_LAB_IDS);
   return `<section class="m07-external-lab" id="m07-assessment-lab-panel">
     <p class="m07-panel-instruction">Complete both imported assessment log-analysis modules below, then write up your findings below for instructor review.</p>
-    ${missionNextLabLaunchGroup(7, 'assessment', labs)}
+    ${missionNextLabLaunchGroup(7, 'assessment', labs, moduleSevenState.labProgress)}
     <form id="m07-assessment-form">
       <label class="m07-note-label">Assessment write-up<textarea id="m07-assessment-notes" rows="6" maxlength="900" data-m07-assessment-notes placeholder="Summarize what the tunnel-log module surfaced, your analysis, and your recommended action…">${esc(moduleSevenState.notes)}</textarea></label>
       <p class="m07-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      <div class="m07-actions"><button type="submit" class="m07-submit">${moduleSevenState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
+      ${!gateOk ? `<p class="m07-help" role="status">Mark both assessment labs and the required FTP log analysis lab (below) complete before submitting.</p>` : ''}
+      <div class="m07-actions"><button type="submit" class="m07-submit" ${gateOk ? '' : 'disabled'}>${moduleSevenState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
     </form>
     ${feedbackHtml}
   </section>`;
 }
 
 function moduleSevenAdditionalLabs() {
-  return missionNextAdditionalLabsSection(7, [
-    { label: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', detail: 'Optional supplementary log-analysis practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ftp-log-analysis' },
-  ]);
+  const labs = [
+    { title: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', detail: 'Optional supplementary log-analysis practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ftp-log-analysis', labId: 'additional-ftp-log-analysis' },
+  ];
+  return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-7">
+    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-7">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
+    <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Complete them for credit alongside the Guided Lab and Assessment Lab.</p>
+    <div id="m07-additional-lab-dynamic">${missionNextLabLaunchGroup(7, 'additional', labs, moduleSevenState.labProgress)}</div>
+  </section>`;
 }
 
 function viewModuleSeven(user, program) {
@@ -737,9 +753,18 @@ function wireModuleSevenQuiz() {
   });
 }
 
+function wireModuleSevenGuidedLabGating(root) {
+  wireMissionNextLabGating(root, moduleSevenState.labProgress, () => {
+    moduleSevenSave();
+    root.innerHTML = moduleSevenGuidedLabPanel();
+    wireModuleSevenGuidedLabGating(root);
+  });
+}
+
 function wireModuleSevenGuidedLab() {
   const root = document.getElementById('m07-guided-lab-dynamic');
   if (!root || !moduleSevenState) return;
+  wireModuleSevenGuidedLabGating(root);
   root.addEventListener('input', (event) => {
     if (event.target.matches('[data-m07-practice-notes]')) {
       moduleSevenState.practiceNotes = event.target.value;
@@ -748,25 +773,63 @@ function wireModuleSevenGuidedLab() {
   });
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m07-practice-complete]')) {
+      if (!missionNextAllLabsComplete(moduleSevenState.labProgress, ['guided-1', 'guided-2'])) {
+        root.innerHTML = moduleSevenGuidedLabPanel();
+        wireModuleSevenGuidedLabGating(root);
+        return;
+      }
       moduleSevenState.practiceComplete = true;
       moduleSevenSave();
       root.innerHTML = moduleSevenGuidedLabPanel();
+      wireModuleSevenGuidedLabGating(root);
     }
+  });
+}
+
+function wireModuleSevenAdditionalLabGating() {
+  const root = document.getElementById('m07-additional-lab-dynamic');
+  if (!root || !moduleSevenState) return;
+  wireMissionNextLabGating(root, moduleSevenState.labProgress, () => {
+    moduleSevenSave();
+    root.innerHTML = missionNextLabLaunchGroup(7, 'additional', [
+      { title: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', detail: 'Optional supplementary log-analysis practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ftp-log-analysis', labId: 'additional-ftp-log-analysis' },
+    ], moduleSevenState.labProgress);
+    wireModuleSevenAdditionalLabGating();
+    const assessmentRoot = document.getElementById('m07-assessment-lab-dynamic');
+    if (assessmentRoot) {
+      assessmentRoot.innerHTML = moduleSevenAssessmentLabPanel();
+      wireModuleSevenAssessmentLabGating(assessmentRoot);
+    }
+  });
+}
+
+function wireModuleSevenAssessmentLabGating(root) {
+  wireMissionNextLabGating(root, moduleSevenState.labProgress, () => {
+    moduleSevenSave();
+    root.innerHTML = moduleSevenAssessmentLabPanel();
+    wireModuleSevenAssessmentLabGating(root);
   });
 }
 
 function wireModuleSevenAssessmentLab() {
   const root = document.getElementById('m07-assessment-lab-dynamic');
   if (!root || !moduleSevenState) return;
+  wireModuleSevenAssessmentLabGating(root);
   root.addEventListener('submit', (event) => {
     if (event.target.id !== 'm07-assessment-form') return;
     event.preventDefault();
+    if (!missionNextAllLabsComplete(moduleSevenState.labProgress, MODULE_SEVEN_COMPLETION_LAB_IDS)) {
+      root.innerHTML = moduleSevenAssessmentLabPanel();
+      wireModuleSevenAssessmentLabGating(root);
+      return;
+    }
     const notes = event.target.querySelector('#m07-assessment-notes')?.value || '';
     moduleSevenState.notes = notes;
     if (notes.trim().length < 80) {
       moduleSevenState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
       moduleSevenSave();
       root.innerHTML = moduleSevenAssessmentLabPanel();
+      wireModuleSevenAssessmentLabGating(root);
       return;
     }
     moduleSevenState.attempts = (moduleSevenState.attempts || 0) + 1;
@@ -783,6 +846,7 @@ function wireModuleSevenAssessmentLab() {
     const status = document.getElementById('m07-status');
     if (status) status.textContent = 'Complete';
     root.innerHTML = moduleSevenAssessmentLabPanel();
+    wireModuleSevenAssessmentLabGating(root);
   });
 }
 
@@ -829,6 +893,7 @@ function wireModuleSeven() {
   wireModuleSevenEvidenceDesk();
   wireModuleSevenGuidedLab();
   wireModuleSevenAssessmentLab();
+  wireModuleSevenAdditionalLabGating();
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 7, moduleKey: 'soc-07', view: viewModuleSeven, wire: wireModuleSeven });

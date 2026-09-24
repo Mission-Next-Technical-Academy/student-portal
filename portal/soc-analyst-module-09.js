@@ -447,6 +447,7 @@ function moduleNineFreshDefaults() {
     lastSubmittedAt: '',
     practiceComplete: false,
     practiceNotes: '',
+    labProgress: {},
   };
 }
 
@@ -463,6 +464,7 @@ function moduleNineLoad(user) {
   });
   if (!MODULE_NINE_SOURCES[moduleNineState.activeSource]) moduleNineState.activeSource = 'endpoint';
   if (typeof moduleNineState.practiceNotes !== 'string') moduleNineState.practiceNotes = '';
+  if (!moduleNineState.labProgress || typeof moduleNineState.labProgress !== 'object') moduleNineState.labProgress = {};
 
   // Initialize quiz state
   if (!moduleNineQuizState) {
@@ -724,7 +726,7 @@ function moduleNineGuidedLabPanel() {
   const href = 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-3/lab';
   return `<section class="m09-external-lab" id="m09-guided-lab-panel">
     <p class="m09-panel-instruction">Work through the imported malware-analysis project below; it opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(9, 'guided', [{ title: 'Analyzing a Ransomware Sample', detail: 'Imported malware-analysis project. Opens on this page with its own guided tasks.', href }])}
+    ${missionNextLabLaunchGroup(9, 'guided', [{ title: 'Analyzing a Ransomware Sample', detail: 'Imported malware-analysis project. Opens on this page with its own guided tasks.', href, labId: 'guided-1', requireNote: true }], moduleNineState.labProgress)}
     <label class="m09-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m09-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleNineState.practiceNotes)}</textarea></label>
     <div class="m09-actions"><button type="button" class="m09-submit" data-m09-practice-complete>${moduleNineState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
   </section>`;
@@ -1090,9 +1092,19 @@ function wireModuleNine() {
   wireModuleNineLab();
 }
 
+function wireModuleNineGuidedLabGating(root) {
+  if (!root || !moduleNineState) return;
+  wireMissionNextLabGating(root, moduleNineState.labProgress, () => {
+    moduleNineSave();
+    root.innerHTML = moduleNineGuidedLabPanel();
+    wireModuleNineGuidedLabGating(root);
+  });
+}
+
 function wireModuleNineGuidedLab() {
   const root = document.getElementById('m09-guided-lab-dynamic');
   if (!root || !moduleNineState) return;
+  wireModuleNineGuidedLabGating(root);
   root.addEventListener('input', (event) => {
     if (event.target.matches('[data-m09-practice-notes]')) {
       moduleNineState.practiceNotes = event.target.value;
@@ -1101,9 +1113,15 @@ function wireModuleNineGuidedLab() {
   });
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m09-practice-complete]')) {
+      if (!missionNextAllLabsComplete(moduleNineState.labProgress, ['guided-1'])) {
+        root.innerHTML = moduleNineGuidedLabPanel();
+        wireModuleNineGuidedLabGating(root);
+        return;
+      }
       moduleNineState.practiceComplete = true;
       moduleNineSave();
       root.innerHTML = moduleNineGuidedLabPanel();
+      wireModuleNineGuidedLabGating(root);
     }
   });
 }

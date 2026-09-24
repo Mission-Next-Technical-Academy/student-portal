@@ -80,12 +80,12 @@
   // static imported app on this page; its Back button returns through browser
   // history to the module that launched it.
   const GUIDED_LAB_LINKS = [
-    { title: 'Basic Network Security Assessment', detail: 'Network configuration review for beginner-level weaknesses', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-1/lab' },
-    { title: 'User Account Security Assessment', detail: 'User permissions and account-activity review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-5/lab' },
+    { title: 'Basic Network Security Assessment', detail: 'Network configuration review for beginner-level weaknesses', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-1/lab', labId: 'guided-1', requireNote: true },
+    { title: 'User Account Security Assessment', detail: 'User permissions and account-activity review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-5/lab', labId: 'guided-2', requireNote: true },
   ];
   const ASSESSMENT_LAB_LINKS = [
-    { title: 'Active Directory Logs and Insights with Splunk', detail: 'AD log review and insight generation with Splunk', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-2/lab' },
-    { title: 'Web Application Security Assessment', detail: 'Web application identity and access flaws', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-3/lab' },
+    { title: 'Active Directory Logs and Insights with Splunk', detail: 'AD log review and insight generation with Splunk', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-2/lab', labId: 'assessment-1', requireNote: true },
+    { title: 'Web Application Security Assessment', detail: 'Web application identity and access flaws', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-3/lab', labId: 'assessment-2', requireNote: true },
   ];
   const ASSESSMENT_MIN_NOTE_LENGTH = 80;
 
@@ -99,9 +99,10 @@
 
   const DEFAULT = {
     learn: { step: 0, tab: 'map', selected: { type: 'event', id: 'evt-alice-finance' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
-    practice: { notes: '', complete: false },
+    practice: { notes: '', complete: false, gateMessage: '' },
     prove: { notes: '', submitted: false, attempts: 0, feedback: [], lastSubmittedAt: '' },
     completed: false,
+    labProgress: {},
   };
 
   let state, user, reviewMode = false;
@@ -158,6 +159,7 @@
     if (!Array.isArray(state.prove.feedback)) state.prove.feedback = [];
     if (typeof state.practice.notes !== 'string') state.practice.notes = '';
     if (typeof state.prove.notes !== 'string') state.prove.notes = '';
+    state.labProgress = state.labProgress && typeof state.labProgress === 'object' ? state.labProgress : {};
     if (typeof markModuleContentOpened === 'function') markModuleContentOpened(u, 'soc-analyst', 'soc-02');
   }
   function save() { LabRuntime.save(LAB_ID, user, state); }
@@ -223,11 +225,41 @@
     if (scope === 'practice') {
       const panel = document.getElementById('m02e-practice-panel');
       if (panel) panel.outerHTML = practicePanel();
+      wireLabGating('practice');
     }
     if (scope === 'prove') {
       const panel = document.getElementById('m02e-prove-panel');
       if (panel) panel.outerHTML = provePanel();
+      wireLabGating('prove');
     }
+  }
+
+  // Rewires the [data-mn-lab-toggle]/[data-mn-lab-note] controls inside a
+  // freshly (re)rendered practice/prove panel. Called after every render of
+  // that panel, since outerHTML replacement destroys prior listeners. The
+  // onChange callback just saves and re-renders that scope so the toggle
+  // label/style and any downstream gate message stay current.
+  function additionalPanelHtml() {
+    return `<div class="m02e-additional-panel" id="m02e-additional-panel">${missionNextLabLaunchGroup(2, 'additional', [
+      { title: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'additional-sa2', requireNote: true },
+    ], state.labProgress)}</div>`;
+  }
+
+  function renderAdditionalPanel() {
+    const panel = document.getElementById('m02e-additional-panel');
+    if (panel) panel.outerHTML = additionalPanelHtml();
+    wireLabGating('additional');
+  }
+
+  function wireLabGating(scope) {
+    const panelId = scope === 'practice' ? 'm02e-practice-panel' : scope === 'prove' ? 'm02e-prove-panel' : 'm02e-additional-panel';
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    wireMissionNextLabGating(panel, state.labProgress, () => {
+      save();
+      if (scope === 'additional') { renderAdditionalPanel(); return; }
+      renderScope(scope);
+    });
   }
 
   // ---------------------------------------------------------------- Learn It
@@ -264,10 +296,19 @@
 
   function practicePanel() {
     const p = state.practice;
-    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">GUIDED LAB</p><p class="m02e-panel-instruction">Work through both imported security-assessment projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>${missionNextLabLaunchGroup(2, 'guided', GUIDED_LAB_LINKS)}<label class="m02e-rationale">Working notes (optional)<textarea data-m02e-practice-notes rows="4" maxlength="900" placeholder="What did you find? Any blockers?">${esc(p.notes)}</textarea></label><div class="m02e-panel-actions"><button class="m02e-primary" type="button" data-m02e-practice-complete>${p.complete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div></div>`;
+    const gateOk = missionNextAllLabsComplete(state.labProgress, ['guided-1', 'guided-2']);
+    const gateMsg = p.gateMessage && !gateOk ? `<p class="m02e-gate-message" role="alert">${esc(p.gateMessage)}</p>` : '';
+    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">GUIDED LAB</p><p class="m02e-panel-instruction">Work through both imported security-assessment projects below; each opens on this page with its own guided tasks. Mark each lab complete with a short note, then mark the Guided Lab complete overall.</p>${missionNextLabLaunchGroup(2, 'guided', GUIDED_LAB_LINKS, state.labProgress)}<label class="m02e-rationale">Working notes (optional)<textarea data-m02e-practice-notes rows="4" maxlength="900" placeholder="What did you find? Any blockers?">${esc(p.notes)}</textarea></label>${gateMsg}<div class="m02e-panel-actions"><button class="m02e-primary" type="button" data-m02e-practice-complete>${p.complete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div></div>`;
   }
 
   function markPracticeComplete() {
+    if (!missionNextAllLabsComplete(state.labProgress, ['guided-1', 'guided-2'])) {
+      state.practice.gateMessage = 'Mark both labs above complete first.';
+      save();
+      renderScope('practice');
+      return;
+    }
+    state.practice.gateMessage = '';
     state.practice.complete = true;
     save();
     renderScope('practice');
@@ -278,12 +319,18 @@
   function provePanel() {
     const p = state.prove;
     const feedbackHtml = p.feedback?.length ? `<div class="m02e-feedback ${p.submitted ? 'is-correct' : ''}" role="status"><ul>${p.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete both imported assessment projects below, then write up your findings for instructor review.</p>${missionNextLabLaunchGroup(2, 'assessment', ASSESSMENT_LAB_LINKS)}<form id="m02e-prove-form"><label class="m02e-rationale">Assessment write-up<textarea id="m02e-prove-notes" rows="6" maxlength="900" placeholder="Summarize what the Splunk/AD logs surfaced, your analysis, and your recommended action…">${esc(p.notes)}</textarea></label><p class="m02e-help">In at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters, describe what you found and your recommended action.</p><div class="m02e-panel-actions"><button class="m02e-primary" type="submit">${p.submitted ? 'Resubmit for review' : 'Submit for review'}</button></div></form>${feedbackHtml}</div>`;
+    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete both imported assessment projects below with a short note on each, then write up your findings for instructor review.</p>${missionNextLabLaunchGroup(2, 'assessment', ASSESSMENT_LAB_LINKS, state.labProgress)}<form id="m02e-prove-form"><label class="m02e-rationale">Assessment write-up<textarea id="m02e-prove-notes" rows="6" maxlength="900" placeholder="Summarize what the Splunk/AD logs surfaced, your analysis, and your recommended action…">${esc(p.notes)}</textarea></label><p class="m02e-help">In at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters, describe what you found and your recommended action.</p><div class="m02e-panel-actions"><button class="m02e-primary" type="submit">${p.submitted ? 'Resubmit for review' : 'Submit for review'}</button></div></form>${feedbackHtml}</div>`;
   }
 
   function submitProve(notes) {
     const p = state.prove;
     p.notes = notes;
+    if (!missionNextAllLabsComplete(state.labProgress, ['assessment-1', 'assessment-2', 'additional-sa2'])) {
+      p.feedback = ['Mark all required labs above complete first.'];
+      save();
+      renderScope('prove');
+      return;
+    }
     if (notes.trim().length < ASSESSMENT_MIN_NOTE_LENGTH) {
       p.feedback = [`Write at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters describing your findings and recommended action before submitting.`];
       save();
@@ -355,9 +402,10 @@
             ${provePanel()}
           </section>
 
-          ${missionNextAdditionalLabsSection(2, [
-            { label: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab' },
-          ])}
+          <section class="m01-section m02e-section" id="m02e-additional" aria-labelledby="m02e-additional-title">
+            <div class="m01-section-heading"><span><i class="ri-shield-star-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Required Lab</p><h2 id="m02e-additional-title">Additional Mission Next Lab</h2></div></div>
+            ${additionalPanelHtml()}
+          </section>
 
           <section class="m01-section m01-section-supplemental m02e-section" id="m02e-sources" aria-labelledby="m02e-sources-title">
             <div class="m01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Reference — not a graded step</p><h2 id="m02e-sources-title">Sources &amp; Further Reading</h2></div></div>
@@ -371,6 +419,10 @@
   function wire() {
     const root = document.querySelector('.m02e-shell');
     if (!root) return;
+
+    wireLabGating('practice');
+    wireLabGating('prove');
+    wireLabGating('additional');
 
     wireReviewToggle({
       button: document.querySelector('[data-mnav-review-toggle]'),

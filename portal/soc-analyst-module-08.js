@@ -396,6 +396,7 @@ const MODULE_EIGHT_DEFAULT_STATE = {
   lastSubmittedAt: '',
   notes: '',
   lessonWork: {},
+  labProgress: {},
 };
 
 let moduleEightState = null;
@@ -411,6 +412,7 @@ function moduleEightLoad(user) {
   if (!moduleEightState.lessonWork || typeof moduleEightState.lessonWork !== 'object') moduleEightState.lessonWork = {};
   if (typeof moduleEightState.notes !== 'string') moduleEightState.notes = '';
   if (typeof moduleEightState.practiceNotes !== 'string') moduleEightState.practiceNotes = '';
+  if (!moduleEightState.labProgress || typeof moduleEightState.labProgress !== 'object') moduleEightState.labProgress = {};
 
   // Initialize quiz state
   if (!moduleEightQuizState) {
@@ -603,39 +605,57 @@ function moduleEightReview() {
 }
 
 
+const MODULE_EIGHT_GUIDED_LAB_IDS = ['guided-1', 'guided-2'];
+const MODULE_EIGHT_ASSESSMENT_LAB_IDS = ['assessment-1', 'assessment-2', 'additional-1', 'additional-2'];
+
 function moduleEightGuidedLabPanel() {
+  const bucket = moduleEightState.labProgress;
   const launchGroup = missionNextLabLaunchGroup(8, 'guided', [
-    { title: 'Vulnerability Assessment using Nessus', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-2/lab' },
-    { title: 'Vulnerability Management using QualysGuard', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-3/lab' },
-  ]);
+    { title: 'Vulnerability Assessment using Nessus', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-2/lab', labId: 'guided-1' },
+    { title: 'Vulnerability Management using QualysGuard', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-3/lab', labId: 'guided-2' },
+  ], bucket);
+  const readyToMark = missionNextAllLabsComplete(bucket, MODULE_EIGHT_GUIDED_LAB_IDS);
+  const canMark = moduleEightState.practiceComplete || readyToMark;
   return `<section class="m08-external-lab" id="m08-guided-lab-panel">
-    <p class="m08-panel-instruction">Work through both imported vulnerability-management projects below; each opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
+    <p class="m08-panel-instruction">Work through both imported vulnerability-management projects below; each opens on this page with its own guided tasks. Mark each lab complete after you finish it, note what you found, then mark the Guided Lab complete.</p>
     ${launchGroup}
     <label class="m08-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m08-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleEightState.practiceNotes)}</textarea></label>
-    <div class="m08-actions"><button type="button" class="m08-submit" data-m08-practice-complete>${moduleEightState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+    <div class="m08-actions"><button type="button" class="m08-submit" data-m08-practice-complete ${canMark ? '' : 'disabled'}>${moduleEightState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+    ${!canMark ? '<p class="m08-help">Mark both labs above complete before marking the Guided Lab complete.</p>' : ''}
   </section>`;
 }
 
 function moduleEightAdditionalLabs() {
-  return missionNextAdditionalLabsSection(8, [
-    { label: 'Web Application Vulnerability Detection with OWASP ZAP', detail: 'Web vulnerability discovery and review', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-4/lab' },
-    { label: 'Web Application Security Assessment', detail: 'Application findings and risk assessment', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-3/lab' },
-  ]);
+  const bucket = moduleEightState.labProgress;
+  const launchGroup = missionNextLabLaunchGroup(8, 'additional', [
+    { title: 'Web Application Vulnerability Detection with OWASP ZAP', detail: 'Web vulnerability discovery and review', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-4/lab', labId: 'additional-1' },
+    { title: 'Web Application Security Assessment', detail: 'Application findings and risk assessment', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-3/lab', labId: 'additional-2' },
+  ], bucket);
+  if (!launchGroup) return '';
+  return `<section class="mn-additional-labs" id="m08-additional-labs" aria-labelledby="mn-additional-labs-8">
+    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-8">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
+    <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Mark each one complete after you finish it, alongside the Guided Lab and Assessment Lab.</p>
+    ${launchGroup}
+  </section>`;
 }
 
 function moduleEightAssessmentLabPanel() {
+  const bucket = moduleEightState.labProgress;
   const feedbackHtml = moduleEightState.feedback?.length ? `<div class="m08-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleEightState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   const launchGroup = missionNextLabLaunchGroup(8, 'assessment', [
-    { title: 'Patch Management and Vulnerability Remediation using WSUS', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-5/lab' },
-    { title: 'Network Vulnerability Scanning with OpenVAS', detail: 'OpenVAS scan interpretation and remediation', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-1/lab' },
-  ]);
+    { title: 'Patch Management and Vulnerability Remediation using WSUS', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-5/lab', labId: 'assessment-1' },
+    { title: 'Network Vulnerability Scanning with OpenVAS', detail: 'OpenVAS scan interpretation and remediation', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-1/lab', labId: 'assessment-2' },
+  ], bucket);
+  const readyToSubmit = missionNextAllLabsComplete(bucket, MODULE_EIGHT_ASSESSMENT_LAB_IDS);
+  const canSubmit = moduleEightState.completed || readyToSubmit;
   return `<section class="m08-external-lab" id="m08-assessment-lab-panel">
-    <p class="m08-panel-instruction">Complete the imported patch-management and vulnerability-scanning projects below, then write up your findings for instructor review.</p>
+    <p class="m08-panel-instruction">Complete the imported patch-management and vulnerability-scanning projects below, mark each one complete, then write up your findings for instructor review.</p>
     ${launchGroup}
     <form id="m08-assessment-form">
       <label class="m08-note-label">Assessment write-up<textarea id="m08-assessment-notes" rows="6" maxlength="900" data-m08-assessment-notes placeholder="Summarize what the WSUS lab surfaced, your analysis, and your recommended action…">${esc(moduleEightState.notes)}</textarea></label>
       <p class="m08-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      <div class="m08-actions"><button type="submit" class="m08-submit">${moduleEightState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
+      ${!canSubmit ? '<p class="m08-help">Mark both labs above complete before submitting for review.</p>' : ''}
+      <div class="m08-actions"><button type="submit" class="m08-submit" ${canSubmit ? '' : 'disabled'}>${moduleEightState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
     </form>
     ${feedbackHtml}
   </section>`;
@@ -703,11 +723,22 @@ function viewModuleEight(user, program) {
   </div>`;
 }
 
+function moduleEightHandleLabProgressChange() {
+  moduleEightSave();
+  moduleEightRender();
+}
+
 function moduleEightRender(focusId) {
   const guidedRoot = document.getElementById('m08-guided-lab-dynamic');
-  if (guidedRoot) guidedRoot.innerHTML = moduleEightGuidedLabPanel();
+  if (guidedRoot) {
+    guidedRoot.innerHTML = moduleEightGuidedLabPanel();
+    wireMissionNextLabGating(guidedRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
+  }
   const assessmentRoot = document.getElementById('m08-assessment-lab-dynamic');
-  if (assessmentRoot) assessmentRoot.innerHTML = moduleEightAssessmentLabPanel();
+  if (assessmentRoot) {
+    assessmentRoot.innerHTML = moduleEightAssessmentLabPanel();
+    wireMissionNextLabGating(assessmentRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
+  }
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
   const status = document.getElementById('m08-status');
   if (status) status.textContent = moduleEightState.completed ? 'Complete' : 'In progress';
@@ -791,6 +822,13 @@ function wireModuleEightLab() {
   const root = document.querySelector('.m08-shell');
   if (!root || !moduleEightState) return;
 
+  const guidedRoot = document.getElementById('m08-guided-lab-dynamic');
+  if (guidedRoot) wireMissionNextLabGating(guidedRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
+  const assessmentRoot = document.getElementById('m08-assessment-lab-dynamic');
+  if (assessmentRoot) wireMissionNextLabGating(assessmentRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
+  const additionalRoot = document.getElementById('m08-additional-labs');
+  if (additionalRoot) wireMissionNextLabGating(additionalRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
+
   root.addEventListener('click', (event) => {
     const lessonCheck = event.target.closest('[data-m08-lesson-check]');
     if (lessonCheck) {
@@ -826,10 +864,10 @@ function wireModuleEightLab() {
       return;
     }
     if (event.target.closest('[data-m08-practice-complete]')) {
+      if (!moduleEightState.practiceComplete && !missionNextAllLabsComplete(moduleEightState.labProgress, MODULE_EIGHT_GUIDED_LAB_IDS)) return;
       moduleEightState.practiceComplete = true;
       moduleEightSave();
-      const guidedRoot = document.getElementById('m08-guided-lab-dynamic');
-      if (guidedRoot) guidedRoot.innerHTML = moduleEightGuidedLabPanel();
+      moduleEightRender();
       return;
     }
   });
@@ -862,6 +900,12 @@ function wireModuleEightLab() {
   root.addEventListener('submit', (event) => {
     if (event.target.id !== 'm08-assessment-form') return;
     event.preventDefault();
+    if (!moduleEightState.completed && !missionNextAllLabsComplete(moduleEightState.labProgress, MODULE_EIGHT_ASSESSMENT_LAB_IDS)) {
+      moduleEightState.feedback = ['Mark all required labs above complete before submitting your write-up.'];
+      moduleEightSave();
+      moduleEightRender('m08-assessment-lab-dynamic');
+      return;
+    }
     const notes = event.target.querySelector('#m08-assessment-notes')?.value || '';
     moduleEightState.notes = notes;
     if (notes.trim().length < 80) {

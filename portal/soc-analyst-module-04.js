@@ -364,6 +364,7 @@ const MODULE_FOUR_DEFAULT_STATE = {
   notes: '',
   lessonWork: {},
   independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
+  labProgress: {},
 };
 
 /* Four-part loops are embedded in the four existing theory allocations. The
@@ -458,6 +459,7 @@ function moduleFourLoad(user) {
   if (!moduleFourState.independentLab.answers || typeof moduleFourState.independentLab.answers !== 'object') moduleFourState.independentLab.answers = {};
   if (!Array.isArray(moduleFourState.independentLab.feedback)) moduleFourState.independentLab.feedback = [];
   if (typeof moduleFourState.notes !== 'string') moduleFourState.notes = '';
+  if (!moduleFourState.labProgress || typeof moduleFourState.labProgress !== 'object') moduleFourState.labProgress = {};
 
   // Initialize quiz state
   if (!moduleFourQuizState) {
@@ -926,11 +928,11 @@ function moduleFourAssessmentLabPanel() {
 }
 
 function moduleFourAdditionalLabs() {
-  return missionNextAdditionalLabsSection(4, [
-    { label: 'DHCP Log Analysis — Rogue DHCP Server Detection', detail: 'Network telemetry and automated detection', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dhcp-log-analysis' },
-    { label: 'Active Directory Health Checks using Nagios', detail: 'Optional supplementary AD monitoring practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-4/lab' },
-    { label: 'Active Directory Monitoring and Alerting with Prometheus', detail: 'Optional supplementary AD monitoring practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-6/lab' },
-  ]);
+  return missionNextLabLaunchGroup(4, 'additional', [
+    { title: 'DHCP Log Analysis — Rogue DHCP Server Detection', detail: 'Network telemetry and automated detection', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dhcp-log-analysis', labId: 'additional-1', requireNote: true },
+    { title: 'Active Directory Health Checks using Nagios', detail: 'Optional supplementary AD monitoring practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-4/lab', labId: 'additional-2', requireNote: true },
+    { title: 'Active Directory Monitoring and Alerting with Prometheus', detail: 'Optional supplementary AD monitoring practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-6/lab', labId: 'additional-3', requireNote: true },
+  ], moduleFourState.labProgress);
 }
 
 
@@ -1036,7 +1038,7 @@ function viewModuleFour(user, program) {
       ${quizSection}
       ${guidedLabSection}
       ${assessmentLabSection}
-      ${moduleFourAdditionalLabs()}
+      <div id="m04-additional-labs-dynamic">${moduleFourAdditionalLabs()}</div>
       ${reviewSection}
       ${sourcesSection}
     </main>
@@ -1284,6 +1286,7 @@ function wireModuleFourAssessmentLab() {
     event.preventDefault();
     moduleFourState.notes = event.target.elements.notes.value;
     const problems = [];
+    if (!missionNextAllLabsComplete(moduleFourState.labProgress, ['additional-1', 'additional-2', 'additional-3'])) problems.push('mark all required labs above complete');
     if (moduleFourState.selectedEvidence.length < 6) problems.push('select at least six evidence artifacts across the two sources');
     if (!moduleFourState.ruleRuns) problems.push('run the rule simulation');
     if (!moduleFourState.enrichedIndicator) problems.push('attach an intelligence indicator');
@@ -1417,6 +1420,16 @@ function wireModuleFour() {
   wireModuleFourLessons();
   wireModuleFourGuidedLab();
   wireModuleFourAssessmentLab();
+  wireModuleFourAdditionalLabsGating(document.getElementById('m04-additional-labs-dynamic'));
+}
+
+function wireModuleFourAdditionalLabsGating(root) {
+  if (!root || !moduleFourState) return;
+  wireMissionNextLabGating(root, moduleFourState.labProgress, () => {
+    moduleFourSave();
+    root.innerHTML = moduleFourAdditionalLabs();
+    wireModuleFourAdditionalLabsGating(root);
+  });
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 4, moduleKey: 'soc-04',
