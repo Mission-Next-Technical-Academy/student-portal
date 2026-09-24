@@ -633,7 +633,11 @@
   function LinuxTerminalShell(props) {
     const { vfs, initialCwd = '/home/student', user = 'student', host = 'b2b', onCommand, autoFocus = true } = props;
     const [cwd, setCwd] = React.useState(initialCwd);
-    const [lines, setLines] = React.useState([]);  // [{ kind, text }]
+    const [lines, setLines] = React.useState(() => [
+      { kind: 'system', text: `Mission Next Linux terminal — ${user}@${host}` },
+      { kind: 'system', text: 'Type a command and press Enter. Try: pwd or ls' },
+      { kind: 'system', text: '' },
+    ]);  // [{ kind, text }]
     const [input, setInput] = React.useState('');
     const [history, setHistory] = React.useState([]);
     const [histIdx, setHistIdx] = React.useState(-1);
@@ -681,6 +685,11 @@
 
     function onKeyDown(e) {
       if (pager) return;
+      if (e.ctrlKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setLines([]);
+        return;
+      }
       if (e.key === 'Enter') {
         e.preventDefault();
         runUserLine(input);
@@ -713,7 +722,7 @@
       <div style={termStyles.root} onClick={() => inputRef.current && inputRef.current.focus()}>
         <div ref={scrollRef} style={termStyles.scroll}>
           {lines.map((ln, i) => (
-            <div key={i} style={ln.kind === 'stderr' ? termStyles.lineErr : termStyles.line}>
+              <div key={i} style={ln.kind === 'stderr' ? termStyles.lineErr : ln.kind === 'system' ? termStyles.system : termStyles.line}>
               {ln.text}
             </div>
           ))}
@@ -728,6 +737,7 @@
                 style={termStyles.input}
                 spellCheck={false}
                 autoComplete="off"
+                aria-label="Bash command line"
               />
             </div>
           )}
@@ -774,6 +784,7 @@
     },
     scroll: { width: '100%', height: '100%', overflow: 'auto', whiteSpace: 'pre-wrap' },
     line: { whiteSpace: 'pre-wrap' },
+    system: { whiteSpace: 'pre-wrap', color: '#7dd3fc' },
     lineErr: { whiteSpace: 'pre-wrap', color: '#fca5a5' },
     inputRow: { display: 'flex', alignItems: 'center' },
     prompt: { color: '#22c55e', whiteSpace: 'pre' },

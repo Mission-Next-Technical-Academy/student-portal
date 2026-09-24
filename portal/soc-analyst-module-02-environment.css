@@ -8,6 +8,8 @@
 .m02e-callout p{margin:6px 0 0;color:#334155;font-size:13px;line-height:1.55}
 .m02e-callout-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .m02e-look-for{padding:8px 10px;background:#fff7ed;border-radius:7px}
+.m02e-learn-transfer{display:grid;gap:5px;margin-top:10px;padding:10px 11px;background:#f0f7ff;border:1px solid #c9dff2;border-radius:8px;color:#315978;font-size:12px;line-height:1.5}
+.m02e-learn-transfer span{color:#475569}
 .m02e-term-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
 .m02e-term{position:relative;padding:4px 8px;border-radius:999px;background:#e9f2fb;color:#1e3a5f;font-size:11px;font-weight:800;cursor:help}
 .m02e-term::after{content:attr(data-definition);position:absolute;z-index:5;left:0;bottom:calc(100% + 8px);width:220px;padding:9px 10px;border-radius:7px;background:#102b46;color:#fff;font-size:11px;font-weight:500;line-height:1.45;opacity:0;pointer-events:none;transform:translateY(3px);transition:opacity .15s ease,transform .15s ease;box-shadow:0 8px 20px #102b463d}
@@ -33,6 +35,12 @@
 .m02e-workspace{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:460px}
 .m02e-view{padding:20px;min-width:0}
 .m02e-drawer{padding:20px;border-left:1px solid #dbe3ed;background:#f8fafc;overflow:auto}
+.m02e-context-coach{margin:-4px -4px 20px;padding:14px;background:#eef6ff;border:1px solid #b9d2e8;border-left:4px solid #1e5a87;border-radius:9px;color:#315978}
+.m02e-context-coach-intro{margin:6px 0 12px!important;font-size:12px!important;line-height:1.5!important;color:#475569!important}
+.m02e-context-coach dl{display:grid;gap:8px;margin:0}
+.m02e-context-coach dl>div{padding-top:7px;border-top:1px solid #d5e5f2}
+.m02e-context-coach dt{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#1e5a87}
+.m02e-context-coach dd{margin:3px 0 0;font-size:11px;line-height:1.45;color:#334155}
 .m02e-drawer h3{margin:4px 0;color:#1e3a5f;font-size:19px}
 .m02e-drawer h4{margin:20px 0 7px;color:#1e3a5f;font-size:12px;text-transform:uppercase}
 .m02e-drawer>p{font-size:12px;color:#64748b;line-height:1.55}
@@ -80,6 +88,17 @@
 /* Knowledge check, decision artifact, and determination panels sit below
  * their own full-width console — never beside it. */
 .m02e-knowledge,.m02e-practice-panel,.m02e-prove-panel{padding:20px 22px;background:#fff;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 6px 18px #1e3a5f0d}
+.m02e-lab-bridge{margin:16px 0;padding:20px 22px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:14px}
+.m02e-lab-bridge h3{margin:2px 0 0;color:#1e3a5f;font-size:16px}
+.m02e-bridge-intro{margin:8px 0 16px;color:#475569;font-size:13px;line-height:1.6}
+.m02e-lab-bridge-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.m02e-lab-bridge-card{padding:14px;background:#fff;border:1px solid #dbe3ed;border-radius:10px}
+.m02e-lab-bridge-card h4{margin:4px 0;color:#1e3a5f;font-size:14px}
+.m02e-lab-bridge-card p{margin:7px 0;color:#475569;font-size:11px;line-height:1.5}
+.m02e-lab-bridge-card .m02e-label{color:#c45d0a;font-size:10px}
+.m02e-bridge-focus{font-weight:800;color:#315978!important}
+.m02e-lab-bridge-card a{display:inline-flex;align-items:center;gap:5px;margin-top:5px;color:#1e5a87;font-size:11px;font-weight:800;text-decoration:none}
+.m02e-lab-bridge-card a:hover{text-decoration:underline}
 .m02e-panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
 .m02e-panel-heading h3{margin:2px 0 0;color:#1e3a5f;font-size:16px}
 .m02e-panel-heading>span{font-size:11px;color:#64748b;white-space:nowrap}
@@ -145,6 +164,7 @@
   .m02e-fields{grid-template-columns:1fr}
   .m02e-console header span{display:none}
   .m02e-decisions{grid-template-columns:1fr}
+  .m02e-lab-bridge-grid{grid-template-columns:1fr}
   .m02e-workspace-launch{grid-template-columns:1fr}.m02e-enter-workspace{width:100%;box-sizing:border-box}.m02e-workspace-topbar{padding:13px 16px}.m02e-workspace-topbar span{font-size:0}.m02e-workspace-topbar span i{font-size:18px}.m02e-workspace-main{width:min(100% - 24px,1440px);padding-top:22px}.m02e-workspace-intro{display:block}.m02e-workspace-intro span{display:block;margin-top:8px;white-space:normal}
 }
 @media(prefers-reduced-motion:reduce){.m02e-console.is-guided .m02e-node.is-selected,.m02e-console.is-guided .m02e-table tr.is-selected{animation:none}}

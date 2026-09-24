@@ -4208,7 +4208,7 @@ function missionNextLabLaunchCard(moduleNumber, opts) {
       <button type="button" class="mn-lab-gate-toggle${entry.complete ? ' is-complete' : ''}" data-mn-lab-toggle="${esc(labId)}" aria-pressed="${entry.complete ? 'true' : 'false'}">${entry.complete ? '✓ Marked complete' : 'Mark complete'}</button>
     </div>` : '';
   return `<div class="mn-lab-launch-wrap">
-    <a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(labHref(href))}" target="_blank" rel="opener">
+    <a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(labHref(href))}">
       <span class="mn-lab-launch-eyebrow">${esc(label)}</span>
       <span class="mn-lab-launch-title">${esc(title)}</span>
       ${detail ? `<span class="mn-lab-launch-detail">${esc(detail)}</span>` : ''}

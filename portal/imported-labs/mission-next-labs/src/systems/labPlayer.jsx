@@ -303,6 +303,15 @@
           <aside style={{ ...lpStyles.sidebar, ...(isNarrow ? lpStyles.sidebarNarrow : null) }}>
             <ScenarioPanel scenario={lab.scenario} />
 
+            <div style={lpStyles.beginnerGuide}>
+              <div style={lpStyles.beginnerGuideTitle}>NEW TO BASH?</div>
+              <div style={lpStyles.beginnerGuideBody}>
+                Click the active step, type the command shown in the terminal, and press <kbd style={lpStyles.key}>Enter</kbd>.
+                You can use <kbd style={lpStyles.key}>↑</kbd> to reuse a previous command and <kbd style={lpStyles.key}>Tab</kbd> to complete a path.
+                Read any output before moving to the next step.
+              </div>
+            </div>
+
             <div style={lpStyles.stepsHeader}>
               <span>EXERCISES</span>
               <span style={lpStyles.stepsHeaderCount}>{lab.exercises.length} sections</span>
@@ -392,6 +401,8 @@
 
     const status = isDone ? 'done' : isLocked ? 'locked' : isActive ? 'active' : 'open';
     const statusColor = { done: '#22c55e', active: '#38bdf8', open: '#94a3b8', locked: '#475569' }[status];
+    const hintCommand = step.hint && step.hint.match(/`([^`]+)`/);
+    const commandToType = hintCommand ? hintCommand[1] : (step.upstream && step.upstream.sourceLine && !/[—()]/.test(step.upstream.sourceLine) && /^(sudo\s+)?[a-z][a-z0-9-]*(\s|$)/i.test(step.upstream.sourceLine) ? step.upstream.sourceLine : null);
 
     return (
       <div
@@ -409,9 +420,10 @@
           {step.points ? <span style={lpStyles.stepPts}>{step.points} pts</span> : null}
         </div>
         <div style={lpStyles.stepInstruction}>{step.instruction}</div>
-        {step.upstream && step.upstream.sourceLine && step.kind === 'command' && (
-          <div style={lpStyles.stepSource}>
-            <code>{step.upstream.sourceLine}</code>
+        {commandToType && (
+          <div style={lpStyles.commandCallout}>
+            <div style={lpStyles.commandLabel}>TYPE THIS IN THE TERMINAL</div>
+            <code>{commandToType}</code>
           </div>
         )}
         {hintRevealed && step.hint && !isDone && (
@@ -474,11 +486,15 @@
     sidebar: { minWidth: 0, overflow: 'auto', background: 'rgba(248,250,252,0.98)', color: '#334155', padding: '18px 16px' },
     sidebarNarrow: { maxHeight: 'none' },
 
-    scenarioBox: { padding: 20, background: '#fff', border: '1px solid #e2e8f0', marginBottom: 18, borderRadius: 16, boxShadow: '0 1px 2px rgba(15,23,42,0.06)' },
+    scenarioBox: { padding: 20, background: '#fff', border: '1px solid #e2e8f0', marginBottom: 12, borderRadius: 16, boxShadow: '0 1px 2px rgba(15,23,42,0.06)' },
     scenarioLabel: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#f97316', marginBottom: 8 },
     scenarioRole: { fontSize: 16, color: '#1e3a5f', marginBottom: 8, fontWeight: 700 },
     scenarioBody: { fontSize: 14, color: '#64748b', lineHeight: 1.65 },
     sourceLink: { display: 'inline-block', marginTop: 10, color: '#1e3a5f', border: '1px solid rgba(30,58,95,0.2)', borderRadius: 12, padding: '6px 10px', fontSize: 11, fontWeight: 600, textDecoration: 'none' },
+    beginnerGuide: { padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 16, borderRadius: 12, color: '#1e3a5f' },
+    beginnerGuideTitle: { fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: '#2563eb', marginBottom: 5 },
+    beginnerGuideBody: { fontSize: 12, lineHeight: 1.55 },
+    key: { display: 'inline-block', padding: '1px 5px', margin: '0 2px', border: '1px solid #93c5fd', borderBottomWidth: 2, borderRadius: 4, background: '#fff', fontFamily: "'Space Mono',monospace", fontSize: 10 },
 
     stepsHeader: { display: 'flex', justifyContent: 'space-between', fontFamily: "'Space Grotesk',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#1e3a5f', marginBottom: 10 },
     stepsHeaderCount: { color: '#64748b', fontWeight: 500, letterSpacing: 0 },
@@ -505,6 +521,8 @@
     stepPts: { marginLeft: 'auto', fontFamily: "'Space Mono',monospace", fontSize: 9, color: '#f97316' },
     stepInstruction: { fontSize: 14, color: '#475569', lineHeight: 1.55 },
     stepSource: { marginTop: 6, padding: '6px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontFamily: "'Space Mono',monospace", fontSize: 11, color: '#1e3a5f', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+    commandCallout: { marginTop: 9, padding: '9px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#bbf7d0', fontFamily: "'Space Mono',monospace", fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+    commandLabel: { color: '#93c5fd', fontFamily: "'Space Grotesk',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 1, marginBottom: 5 },
     stepHint: { marginTop: 6, fontSize: 12, color: '#1e3a5f', fontStyle: 'italic' },
     stepReveal: { marginTop: 6, padding: '8px 10px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, fontSize: 12, color: '#9a3412' },
 
