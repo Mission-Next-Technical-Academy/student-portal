@@ -19,6 +19,7 @@ const MODULE_TWO_DEFAULT_STATE = {
   validationError: '',
   lastSubmittedAt: '',
   resetArmed: false,
+  learnItStep: -1,
   lessonWork: {},
   independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
 };
@@ -57,6 +58,18 @@ const MODULE_TWO_FOUNDATIONS = [
   { icon: 'ri-team-line', title: 'RBAC and least privilege', summary: 'Roles group permissions around job needs; least privilege limits excess access.', detail: 'A role assignment should have an approved purpose, appropriate scope, and accountable requester. High-impact access without a matching request deserves escalation.' },
   { icon: 'ri-fingerprint-line', title: 'PKI', summary: 'Certificates bind cryptographic proof to an identity or system.', detail: 'Certificate use is context, not an automatic verdict. Validate the subject, issuer, intended use, expiry, and whether the activity matches the workload schedule.' },
   { icon: 'ri-focus-3-line', title: 'Zero Trust reasoning', summary: 'Evaluate each request using identity, device, location, resource, and current risk.', detail: 'Network location is only one signal. A sound decision combines several independent facts and applies a proportionate control to the affected scope.' },
+];
+
+// A short, six-beat memory path for the opening SOC analyst concept. Keeping
+// each beat to one sentence makes the learner pause, read, and recall instead
+// of scanning past a wall of introductory copy.
+const MODULE_TWO_LEARN_IT_STEPS = [
+  'SOC technology keeps changing, so analysts must stay comfortable moving between terminals, dashboards, scripts, and new tools.',
+  'New threats appear every day, which makes continuous learning part of the analyst job—not an extra task.',
+  'The interface may change, but the goal stays the same: understand what the evidence is showing and why it matters.',
+  'A Level 1 SOC analyst turns collected logs into scheduled queries that can surface useful alerts.',
+  'Those alerts are correlated with focused queries and supporting context to reveal the shape of an attack.',
+  'Modern SIEMs add machine learning and AI to connect the clues, helping analysts move from noisy events to a defensible decision.',
 ];
 
 const MODULE_TWO_LAB = {
@@ -638,6 +651,7 @@ function moduleTwoLoad(user) {
   if (!moduleTwoState.independentLab.answers || typeof moduleTwoState.independentLab.answers !== 'object') moduleTwoState.independentLab.answers = {};
   if (!Array.isArray(moduleTwoState.independentLab.feedback)) moduleTwoState.independentLab.feedback = [];
   if (typeof moduleTwoState.notes !== 'string') moduleTwoState.notes = '';
+  if (!Number.isInteger(moduleTwoState.learnItStep)) moduleTwoState.learnItStep = -1;
   if (!MODULE_TWO_LAB.stations.some((station) => station.id === moduleTwoState.activeStation)) moduleTwoState.activeStation = 'signins';
 
   // Initialize quiz state
@@ -686,7 +700,21 @@ function moduleTwoGetSections() {
 }
 
 function moduleTwoFoundations() {
-  return `<div class="m02-foundation-grid">
+  const step = Number.isInteger(moduleTwoState?.learnItStep) ? moduleTwoState.learnItStep : -1;
+  const started = step >= 0;
+  const completed = step >= MODULE_TWO_LEARN_IT_STEPS.length - 1;
+  const currentText = started ? MODULE_TWO_LEARN_IT_STEPS[Math.min(step, MODULE_TWO_LEARN_IT_STEPS.length - 1)] : '';
+  return `<section class="m02-learn-it" aria-labelledby="m02-learn-it-title">
+    <div class="m02-learn-it-topline"><div><p class="m02-kicker">Learn It · six quick ideas</p><h3 id="m02-learn-it-title">How a SOC analyst turns noise into signal</h3></div><span class="m02-learn-it-count">${started ? `${Math.min(step + 1, MODULE_TWO_LEARN_IT_STEPS.length)}/6` : 'Ready'}</span></div>
+    <p class="m02-learn-it-intro">Tap through one sentence at a time. The point is to remember the workflow, not memorize a paragraph.</p>
+    <div class="m02-learn-it-card ${started ? 'is-active' : ''} ${completed ? 'is-complete' : ''}" aria-live="polite">
+      <span class="m02-learn-it-badge"><i class="ri-sparkling-2-line" aria-hidden="true"></i>${started ? `Idea ${Math.min(step + 1, MODULE_TWO_LEARN_IT_STEPS.length)}` : 'Start here'}</span>
+      <p class="m02-learn-it-sentence">${started ? esc(currentText) : 'Build the mental model in six small steps.'}</p>
+      <div class="m02-learn-it-progress" aria-hidden="true"><span style="width:${started ? `${((Math.min(step + 1, MODULE_TWO_LEARN_IT_STEPS.length)) / MODULE_TWO_LEARN_IT_STEPS.length) * 100}%` : '0%'}"></span></div>
+      <div class="m02-learn-it-actions"><button type="button" class="m02-learn-it-button" data-m02-learn-it>${started ? (completed ? 'Replay' : 'NEXT') : 'LEARN IT'} <i class="${started && !completed ? 'ri-arrow-right-line' : 'ri-sparkling-line'}" aria-hidden="true"></i></button>${started ? `<button type="button" class="m02-learn-it-restart" data-m02-learn-it-restart>Start over</button>` : ''}</div>
+    </div>
+  </section>
+  <div class="m02-foundation-grid">
     ${MODULE_TWO_FOUNDATIONS.map((item, index) => `<details class="m02-foundation" ${index === 0 ? 'open' : ''}>
       <summary><span class="m02-foundation-icon"><i class="${esc(item.icon)}" aria-hidden="true"></i></span><span><strong>${esc(item.title)}</strong><small>${esc(item.summary)}</small></span><i class="ri-arrow-down-s-line m02-chevron" aria-hidden="true"></i></summary>
       <p>${esc(item.detail)}</p>
@@ -1134,6 +1162,30 @@ function wireModuleTwoLessons() {
   });
 }
 
+function wireModuleTwoLearnIt() {
+  const root = document.querySelector('.m02-learn-it');
+  if (!root || !moduleTwoState) return;
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m02-learn-it-restart]')) {
+      moduleTwoState.learnItStep = -1;
+    } else if (event.target.closest('[data-m02-learn-it]')) {
+      moduleTwoState.learnItStep = moduleTwoState.learnItStep >= MODULE_TWO_LEARN_IT_STEPS.length - 1
+        ? 0
+        : moduleTwoState.learnItStep + 1;
+    } else return;
+    moduleTwoSave();
+    // Re-render only the interactive card, preserving the concept accordions.
+    const current = document.querySelector('.m02-learn-it');
+    if (current) {
+      const rendered = moduleTwoFoundations();
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = rendered;
+      current.replaceWith(wrapper.firstElementChild);
+      wireModuleTwoLearnIt();
+    }
+  });
+}
+
 function wireModuleTwoIndependentLab() {
   const root = document.getElementById('m02-independent-form');
   if (!root) return;
@@ -1264,6 +1316,7 @@ function wireModuleTwo() {
   wireModuleTwoQuiz();
   wireModuleTwoLab();
   wireModuleTwoLessons();
+  wireModuleTwoLearnIt();
   wireModuleTwoIndependentLab();
 }
 
