@@ -146,7 +146,11 @@
 
   function load(u) {
     user = u;
-    state = LabRuntime.load(LAB_ID, u, DEFAULT);
+    // Module state must survive switching between localhost and GitHub Pages,
+    // whose browser storage is origin-specific. Keep localStorage as the fast
+    // working copy, while hydrating an empty copy from Supabase and writing
+    // changes through the shared module_progress case_state path.
+    state = LabRuntime.loadCaseState(LAB_ID, 'soc-02', u, DEFAULT);
     // The redesigned console deliberately retains the established Module 02
     // LabRuntime key so a learner's work is not discarded. Earlier versions
     // stored flatter practice/prove objects, however, and therefore have no
@@ -191,7 +195,7 @@
     state.labProgress = state.labProgress && typeof state.labProgress === 'object' ? state.labProgress : {};
     if (typeof markModuleContentOpened === 'function') markModuleContentOpened(u, 'soc-analyst', 'soc-02');
   }
-  function save() { LabRuntime.save(LAB_ID, user, state); }
+  function save() { LabRuntime.saveCaseState(LAB_ID, 'soc-02', user, state); }
 
   function selectedEvent(scope) {
     const sel = state[scope].selected;
