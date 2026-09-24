@@ -1,0 +1,160 @@
+/* KQL editor — highlight layer, gutter, and IntelliSense-style popup.
+ * Ported from ~/defender-lab/ui/styles.css with kql-editor.js. */
+.kql-editor {
+  position: relative;
+  display: flex;
+  background: #1e1e1e;
+  border-radius: 2px;
+  border: 1px solid #2d2d2d;
+  overflow: hidden;
+}
+.kql-editor:focus-within { border-color: #f97316; }
+.kql-gutter {
+  flex: 0 0 auto;
+  padding: 12px 8px 12px 10px;
+  background: #1b1b1b;
+  border-right: 1px solid #2d2d2d;
+  color: #6e7681;
+  font-family: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: right;
+  overflow: hidden;
+  user-select: none;
+}
+.kql-gutter span { display: block; }
+.kql-surface {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kql-editor .kql-input,
+.kql-highlight {
+  margin: 0;
+  padding: 12px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre;
+  tab-size: 4;
+  border: 0;
+}
+.kql-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: #d4d4d4;
+  pointer-events: none;
+}
+.kql-editor .kql-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 210px;
+  background: transparent;
+  color: transparent;
+  caret-color: #d4d4d4;
+  resize: vertical;
+  overflow: auto;
+}
+/* The textarea sits ON TOP of .kql-highlight and its own glyphs are
+   transparent, so the syntax-colored text the user actually sees is painted
+   behind it. An opaque selection background therefore hides the selected
+   text completely. Keep the selection band translucent so the highlight
+   layer reads through it — same approach real editors use for this overlay
+   pattern. Do not give this a solid color. */
+.kql-editor .kql-input::selection {
+  background: rgba(38, 79, 120, .55);
+  color: transparent;
+}
+.kql-editor .kql-input::-moz-selection {
+  background: rgba(38, 79, 120, .55);
+  color: transparent;
+}
+.kql-editor .kql-input:focus { outline: 0; }
+
+.kt-com  { color: #6a9955; font-style: italic; }
+.kt-str  { color: #ce9178; }
+.kt-num  { color: #b5cea8; }
+.kt-pipe { color: #d7ba7d; font-weight: 700; }
+.kt-op   { color: #c586c0; font-weight: 600; }
+.kt-kw   { color: #569cd6; }
+.kt-fn   { color: #dcdcaa; }
+.kt-tbl  { color: #4ec9b0; }
+.kt-col  { color: #9cdcfe; }
+.kt-id   { color: #d4d4d4; }
+.kt-punc { color: #808080; }
+
+.kql-editor-status {
+  position: absolute;
+  right: 0; bottom: 0; left: 0;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 3px 10px;
+  background: #181818;
+  border-top: 1px solid #2d2d2d;
+  color: #8a8886;
+  font-family: ui-monospace, Consolas, Menlo, monospace;
+  font-size: 11px;
+  pointer-events: none;
+}
+.kql-editor-status .kql-editor-hint { margin-left: auto; color: #6e7681; }
+.kql-editor .kql-input { padding-bottom: 30px; }
+
+.kql-ac {
+  position: absolute;
+  z-index: 40;
+  width: 360px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #252526;
+  border: 1px solid #454545;
+  border-radius: 3px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  font-family: ui-monospace, Consolas, Menlo, monospace;
+  font-size: 12px;
+}
+.kql-ac-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 8px;
+  color: #d4d4d4;
+  cursor: pointer;
+}
+.kql-ac-item.active { background: #04395e; }
+.kql-ac-item:hover  { background: #2a2d2e; }
+.kql-ac-kind {
+  flex: 0 0 26px;
+  color: #9d9d9d;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.kql-ac-kind.k-operator  { color: #c586c0; }
+.kql-ac-kind.k-column    { color: #9cdcfe; }
+.kql-ac-kind.k-table     { color: #4ec9b0; }
+.kql-ac-kind.k-function  { color: #dcdcaa; }
+.kql-ac-kind.k-keyword   { color: #569cd6; }
+.kql-ac-kind.k-predicate { color: #d7ba7d; }
+.kql-ac-kind.k-value     { color: #ce9178; }
+.kql-ac-kind.k-render    { color: #b5cea8; }
+.kql-ac-label { flex: 0 0 auto; font-weight: 600; }
+.kql-ac-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #8a8886;
+  text-align: right;
+}
+.kql-ac-flag {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border: 1px solid #5a5a5a;
+  border-radius: 8px;
+  color: #9d9d9d;
+  font-size: 9px;
+}

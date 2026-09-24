@@ -367,26 +367,26 @@ const MODULE_THREE_DEFAULT_STATE = {
  * These activities are embedded in the existing lesson minutes; they do not
  * create a second assessment allocation. */
 const MODULE_THREE_LESSON_LOOPS = [
-  { id: 'read-logs', title: 'Read logs as linked observations', scenario: 'Mission Next Labs receives a low-severity sign-in alert for acct-428. One identity record is inconclusive, but a later cloud-resource read and mailbox token refresh share the same session family.', theory: 'Treat each record as an observation with source, time, entity, and outcome. A detection claim is stronger when independent observations agree without erasing their source context.', questions: [
+  { id: 'read-logs', title: 'Read logs as linked observations', scenario: 'The SIEM flags acct-428 after a failed sign-in, a success, a directory role grant, and an application export. A nearby approved service restart may be unrelated.', theory: 'Treat each record as an observation with source, time, entity, and outcome. A detection claim is stronger when independent observations agree without erasing their source context.', questions: [
     { prompt: 'What should an analyst preserve first?', options: ['Source, timestamp, entity, and outcome for each record', 'Only the alert title', 'A verdict before opening the records'], correct: 0, feedbackCorrect: 'Keeping source and time attached prevents a later correlation from becoming an unsupported story.', feedbackIncorrect: 'Do not flatten the evidence into a verdict. Retain where each observation came from, when it occurred, and what it actually records.' },
     { prompt: 'What does one unusual sign-in prove?', options: ['It is a lead that needs corroboration', 'The account is compromised', 'The alert is false'], correct: 0, feedbackCorrect: 'A single observation starts the investigation; it does not establish intent or impact.', feedbackIncorrect: 'One unusual record is not enough to establish compromise. Seek related identity, access, and resource observations.' },
     { prompt: 'Which link is strongest?', options: ['Same account, session family, and close timing across sources', 'Two unrelated events on the same day', 'A matching alert color'], correct: 0, feedbackCorrect: 'Multiple aligned dimensions reduce coincidence and keep the correlation explainable.', feedbackIncorrect: 'Timing or presentation alone is weak. Correlation needs shared entities or technical linkage as well as time.' },
   ], task: 'Write a two-sentence observation that names the source and time context you would preserve for acct-428.' },
-  { id: 'normalized-explorer', title: 'Normalized log explorer', scenario: 'An identity system calls the account field principal, the mailbox audit calls it actor, and the cloud API calls it subject. The records all refer to acct-428.', theory: 'Normalization maps equivalent source fields into a shared schema while retaining the original source. Use normalized fields for comparison, then return to raw records when details matter.', questions: [
+  { id: 'normalized-explorer', title: 'Normalized log explorer', scenario: 'AuthLog calls the account field account, DirectoryAudit records the target account, AppAudit records an actor, and SystemLog uses a service or host identity. Shared fields support comparison while source context remains visible.', theory: 'Normalization maps equivalent source fields into a shared schema while retaining the original source. Use normalized fields for comparison, then return to raw records when details matter.', questions: [
     { prompt: 'Why normalize these fields?', options: ['To compare one entity across source formats', 'To discard source provenance', 'To make every event look like a sign-in'], correct: 0, feedbackCorrect: 'A shared schema makes cross-source searching possible while source provenance remains available for verification.', feedbackIncorrect: 'Normalization is not data deletion or relabeling everything as one event. It is a comparable view over diverse records.' },
     { prompt: 'What should follow a normalized match?', options: ['Confirm the raw source record and field meaning', 'Assume all matched events are malicious', 'Ignore the source system'], correct: 0, feedbackCorrect: 'The normalized match is a pivot; source verification protects against mapping errors.', feedbackIncorrect: 'A normalized match still needs source validation. Keep the original event and field semantics in the evidence chain.' },
     { prompt: 'Which mismatch is most important to resolve?', options: ['Different time zones or clock drift between sources', 'Different row colors', 'Different analyst screen sizes'], correct: 0, feedbackCorrect: 'Clock alignment can create or hide a low-and-slow sequence, so document the time basis before concluding.', feedbackIncorrect: 'Presentation differences are irrelevant. Time basis and field semantics directly affect correlation quality.' },
-  ], task: 'Describe one normalized field and one raw-source check you would use to compare acct-428 across identity, mailbox, and cloud logs.' },
+  ], task: 'Describe how normalized account and session fields link AuthLog, DirectoryAudit, AppAudit, and SystemLog while preserving source provenance.' },
   { id: 'query-workbench', title: 'Correlation query workbench', scenario: 'The alert window spans three days, so the obvious five-minute query returns nothing. The analyst must use a bounded account/session pivot and preserve a readable order.', theory: 'A useful query is bounded, explicit, and reproducible: define the time range, filter on a defensible pivot, project the fields needed for review, and sort to reveal the sequence.', questions: [
     { prompt: 'What is the BEST first pivot for this case?', options: ['The normalized account plus session family across the bounded window', 'Every event in the tenant with no time limit', 'The alert severity label only'], correct: 0, feedbackCorrect: 'A defensible pivot keeps the search narrow enough to interpret while covering the slow activity window.', feedbackIncorrect: 'Unbounded searches and severity-only filters either overwhelm the analyst or omit the relationships needed to test the claim.' },
     { prompt: 'Why project source and raw event type?', options: ['So the result remains explainable and can be verified', 'To hide irrelevant details from reviewers', 'Because raw event type is never useful'], correct: 0, feedbackCorrect: 'A compact result is still auditable when it retains source and event type.', feedbackIncorrect: 'Do not hide provenance. Keep enough fields for another analyst to reproduce and challenge the correlation.' },
     { prompt: 'What does oldest-first sorting support?', options: ['Reconstructing sequence and dwell time', 'Proving intent automatically', 'Replacing the need for scope checks'], correct: 0, feedbackCorrect: 'Chronology helps establish order and dwell time, but it remains one part of the reasoning.', feedbackIncorrect: 'Sorting reveals sequence; it does not by itself prove intent or replace scope and context checks.' },
   ], task: 'Draft a bounded query plan in plain language: name the pivot, time window, two fields to project, and the sort order.' },
-  { id: 'analyst-handoff', title: 'Build the analyst handoff', scenario: 'The evidence supports a suspicious low-and-slow takeover pattern, but it does not prove mailbox content was exfiltrated. A responder needs a precise handoff.', theory: 'A handoff separates observation, analysis, confirmed scope, uncertainty, and requested action. State what the evidence supports and avoid upgrading a lead into an impact claim.', questions: [
-    { prompt: 'Which scope statement is defensible?', options: ['acct-428 and the observed session family; mailbox content access remains unconfirmed', 'The whole tenant was compromised', 'No scope can be stated until the case closes'], correct: 0, feedbackCorrect: 'A useful scope is specific about what was observed and honest about what remains unknown.', feedbackIncorrect: 'Avoid both overstatement and paralysis. Name the affected entity/session and explicitly preserve the unconfirmed impact question.' },
+  { id: 'analyst-handoff', title: 'Build the analyst handoff', scenario: 'The evidence links acct-428 sign-in, a directory role grant, and an application export through one session and source IP. A nearby service restart has an approved change record. A responder needs a precise handoff.', theory: 'A handoff separates observation, analysis, confirmed scope, uncertainty, and requested action. State what the evidence supports and avoid upgrading a lead into an impact claim.', questions: [
+    { prompt: 'Which scope statement is defensible?', options: ['acct-428 and session S-8841; the observed export is confirmed, but broader access and impact remain unknown', 'The whole tenant was compromised', 'No scope can be stated until the case closes'], correct: 0, feedbackCorrect: 'A useful scope is specific about what was observed and honest about what remains unknown.', feedbackIncorrect: 'Avoid both overstatement and paralysis. Name the affected entity/session and explicitly preserve the unconfirmed impact question.' },
     { prompt: 'What belongs in the analysis field?', options: ['Why the linked observations support or weaken the detection claim', 'Only copied raw log rows', 'A response action with no rationale'], correct: 0, feedbackCorrect: 'Analysis explains the relationship between observations; it is not a duplicate event dump or an unsupported command.', feedbackIncorrect: 'Separate raw observation from interpretation. Explain the correlation and its limits before proposing action.' },
-    { prompt: 'What is the FIRST proportionate next step?', options: ['Preserve the evidence and escalate the bounded identity/session for authorized review', 'Delete the mailbox audit records', 'Disable every account in Mission Next Labs'], correct: 0, feedbackCorrect: 'Preservation and scoped escalation protect the investigation without exceeding the evidence or analyst authority.', feedbackIncorrect: 'The pattern warrants action, but broad disruption or evidence deletion exceeds the supported scope.' },
-  ], task: 'Write a short handoff sentence that separates confirmed observations, the unconfirmed mailbox-impact question, and the requested next step.' },
+    { prompt: 'What is the FIRST proportionate next step?', options: ['Preserve the evidence and escalate the bounded account/session for authorized review', 'Delete the audit records', 'Disable every account in Mission Next Labs'], correct: 0, feedbackCorrect: 'Preservation and scoped escalation protect the investigation without exceeding the evidence or analyst authority.', feedbackIncorrect: 'The pattern warrants action, but broad disruption or evidence deletion exceeds the supported scope.' },
+  ], task: 'Write a short handoff sentence that separates confirmed observations, the unknown broader impact, and the requested next step.' },
 ];
 
 let moduleThreeState = null;
@@ -411,6 +411,9 @@ function moduleThreeLoad(user) {
   moduleThreeState.labProgress = moduleThreeState.labProgress && typeof moduleThreeState.labProgress === 'object' ? moduleThreeState.labProgress : {};
   if (typeof moduleThreeState.guidedGateMessage !== 'string') moduleThreeState.guidedGateMessage = '';
   if (typeof moduleThreeState.assessmentGateMessage !== 'string') moduleThreeState.assessmentGateMessage = '';
+  // Guided Lab completion now comes from the console guide. Earlier manual
+  // "Mark Guided Lab complete" records are kept, never revoked.
+  if (moduleThreeState.console?.practice?.guideStep >= M03E_GUIDE_STEPS.length) moduleThreeState.practiceComplete = true;
 
   // Initialize quiz state
   if (!moduleThreeQuizState) {
@@ -528,43 +531,50 @@ function moduleThreeLessonLoopsView() {
 
 function moduleThreeLecture() {
   return `<section class="m03-lecture-section">
-    <div class="m03-lecture-intro">
-      <p><strong>What is log correlation?</strong> A SIEM collects thousands of events per minute—authentication attempts, access decisions, system actions. Individually, each event is a data point. Correlation links events across sources, time, and accounts to reveal patterns: did the same user fail then succeed? Did an escalation follow successful access? Did an export immediately follow a role change? Patterns reveal intent and risk.</p>
+    <div class="m03-lecture-intro"><p><strong>Your shift starts with a ticket.</strong> The SOC has flagged unusual activity for <code>acct-428</code>. Your lead asks: “Can you connect AuthLog, DirectoryAudit, AppAudit, and SystemLog—and tell me what we know, what we don't, and what should happen next?” That is log correlation on the job: testing whether separate observations describe one activity chain.</p></div>
+
+    <h3>1. Start with the records you actually receive</h3>
+    <p>The same fact arrives in different shapes. Here are four <em>illustrative</em> observations from the fictional service-account case. Keep source and original event meaning attached as you compare them.</p>
+    <div class="m03-log-examples" aria-label="Example records from the four SIEM sources">
+      <article><strong>AuthLog · authentication</strong><pre>09:14:03 acct-428 SignIn Failure src=198.51.100.24</pre><pre>09:14:19 acct-428 SignIn Success session=S-8841 src=198.51.100.24</pre></article>
+      <article><strong>DirectoryAudit · identity change</strong><pre>09:16:11 acct-428 RoleAdded Billing-Exporters session=S-8841</pre></article>
+      <article><strong>AppAudit · application action</strong><pre>09:18:42 acct-428 BulkExport 184 records session=S-8841</pre></article>
+      <article><strong>SystemLog · host context</strong><pre>09:20:01 svc-billing ServiceRestart CHG-204 approved</pre></article>
     </div>
+    <p>A parser maps source-specific account, IP, and time fields to shared fields such as <code>Account</code>, <code>SourceIp</code>, and <code>TimeGenerated</code>. The normalized view makes a shared search possible. It should still retain <code>EventSource</code>, the raw event type, and the original record so you can verify what each source meant.</p>
+    <div class="m03-normalized-wrap"><table class="m03-normalized-table"><caption>Same observations after normalization</caption><thead><tr><th>Time (UTC)</th><th>Source</th><th>Account</th><th>Event</th><th>Source IP</th><th>Session</th><th>Result</th></tr></thead><tbody>
+      <tr><td>09:14:19</td><td>AuthLog</td><td>acct-428</td><td>SignIn</td><td>198.51.100.24</td><td>S-8841</td><td>Success</td></tr>
+      <tr><td>09:16:11</td><td>DirectoryAudit</td><td>acct-428</td><td>RoleAdded</td><td>198.51.100.24</td><td>S-8841</td><td>Success</td></tr>
+      <tr><td>09:18:42</td><td>AppAudit</td><td>acct-428</td><td>BulkExport</td><td>198.51.100.24</td><td>S-8841</td><td>Success</td></tr>
+      <tr><td>09:20:01</td><td>SystemLog</td><td>svc-billing</td><td>ServiceRestart</td><td>10.20.4.8</td><td>JOB-22</td><td>Success</td></tr>
+    </tbody></table></div>
+    <p><strong>On the job:</strong> a normalized match is a pivot, not proof. Check parser mappings, time zones and clock drift, and the raw source record before treating fields as equivalent. Normalization helps you find related events; it does not make them identical.</p>
 
-    <h3>Log normalization: the foundation</h3>
-    <p>Every system logs differently. Windows Event Logs use integer event IDs and structured XML. Linux syslog uses text with inconsistent field names. Cloud applications emit JSON with custom field labels. Without normalization, a single query like "show all authentication failures" would need to be rewritten three times, once per system, and a human analyst might miss events in formats they're unfamiliar with.</p>
-    <p>A SIEM solves this by normalizing across sources. It reads "TargetUserName" (Windows), "user" (Linux), and "account" (cloud), and writes them all to a shared field called "Account." It reads "IpAddress," "src_ip," and "remote_ip," and normalizes to "SourceIp." Now a query like <code>| where Account == "jsmith"</code> finds jsmith's events in all three systems without requiring knowledge of their native field names.</p>
-    <p><strong>Key shared fields:</strong> Timestamp (TimeGenerated), User Account, Source Host/IP, Destination Host/IP, Event Type, Result/Outcome, Source System (EventSource).</p>
+    <h3>2. Build the timeline; don't jump to the conclusion</h3>
+    <p>Put the records oldest-first. The sequence is <em>sign-in failure → success → directory role grant → application export</em>, linked by account, session, and source IP in under five minutes. That is a suspicious activity chain. The SystemLog restart has an approved change record and a different service identity, so it is context, not evidence of the account action.</p>
+    <p>Time proximity alone is coincidence. A strong correlation has several aligned clues—shared account or session, compatible source or host, a tight time window, and a plausible technical relationship—while preserving any gaps.</p>
 
-    <h3>Chronological reasoning: attack progression</h3>
-    <p>Attack chains unfold in time. A real compromise typically progresses through distinct phases: reconnaissance (probing, failed access), exploitation (successful access), escalation (privilege increase), and exfiltration (data access/export). When you sort events by timestamp from oldest to newest, this progression becomes visible. Sorted in reverse, it looks backwards—export before access—and the story vanishes.</p>
-    <p>Example: An alert fires for "unusual privilege escalation." You query all events for that account. In reverse-time sort, you see export, escalation, success, failure, failure—which reads as "something happened, then other things." In time sort (oldest first), you see failure, failure, success, escalation, export—which reads as "attacker tried twice, succeeded, escalated, and exfiltrated." The same five events tell completely different stories depending on sort order.</p>
+    <h3>3. Ask the SIEM a question you can explain</h3>
+    <p>At a real desk, start with the alert's bounded time window and a defensible pivot. This KQL-style example searches the account, keeps the fields a teammate needs to review, and sorts oldest-first:</p>
+    <pre class="m03-query-example"><code>UnifiedEvents
+| where Account == "acct-428"
+| where TimeGenerated between (datetime(2026-09-22) .. datetime(2026-09-24))
+| project TimeGenerated, EventSource, EventType, Account, SourceIp, SessionId, Result
+| sort by TimeGenerated asc</code></pre>
+    <p>Read it like a work note: <strong>scope</strong> the time and account; <strong>compare</strong> source, event, IP, session, and outcome; <strong>reconstruct</strong> the sequence. If the first search is empty, check the alert window, field mapping, and source coverage before widening it. A query result is only as complete as the telemetry that arrived.</p>
 
-    <h3>Correlation vs. coincidence</h3>
-    <p>Two events at the same timestamp are not automatically correlated. A user's failed password attempt at 09:15 and an unrelated system's reboot at 09:15 are coincidence—shared seconds, unrelated entities. Correlation requires agreement on multiple dimensions:</p>
-    <ul>
-      <li><strong>Entity overlap:</strong> Same user, same host, same source IP</li>
-      <li><strong>Temporal clustering:</strong> Events within seconds or minutes, not hours or days</li>
-      <li><strong>Technical chain:</strong> One event's result enables the next (failure → success → access → escalation)</li>
-    </ul>
-    <p>The more dimensions align, the stronger the correlation. A single shared field over days is weak. Five events from the same account, same source IP, within 10 minutes, is coherent. Tight clustering reduces the likelihood of coincidence and increases confidence in correlation.</p>
+    <h3>4. Write the handoff your lead can act on</h3>
+    <p>A useful Tier 1 handoff separates what the logs say from what you infer and what remains unknown. For this example, it might read:</p>
+    <blockquote class="m03-analyst-note"><strong>Observed:</strong> AuthLog shows acct-428 failing then succeeding from 198.51.100.24; DirectoryAudit records a Billing-Exporters role grant; AppAudit records a 184-record export. All share session S-8841 between 09:14 and 09:19.<br><strong>Assessment:</strong> The linked sequence and missing change ticket support a true-positive takeover finding. The observed scope is acct-428 and this session; broader access is not established.<br><strong>Next step:</strong> Preserve the four source records, revoke the session through the authorized response process, and investigate additional access tied to acct-428.</blockquote>
+    <p>That is more useful than “account compromised”: it gives the next analyst evidence they can reproduce, a bounded scope, and an unanswered question to resolve.</p>
 
-    <h3>Query-based exploration</h3>
-    <p>A SIEM query workbench lets you ask questions of the normalized log store. KQL (Kusto Query Language) and similar systems support filtering, sorting, and aggregation. The basic pattern is:</p>
-    <ul>
-      <li><code>UnifiedEvents | where [condition] | sort by TimeGenerated asc</code></li>
-    </ul>
-    <p>This syntax: start with the event table, filter to relevant events, sort oldest-to-newest. Common filters: <code>Account == "user"</code>, <code>Result == "Failed"</code>, <code>SourceIp == "10.0.0.1"</code>, <code>TimeGenerated > ago(1h)</code> (past hour). Sorting ascending reveals progression; descending shows recent activity first but obscures causality.</p>
-
-    <h3>Alert verdict: true, benign, or false?</h3>
-    <p>An alert is a signal that something anomalous was detected. But anomalous ≠ malicious. After correlation reveals the pattern, you assess the verdict:</p>
-    <ul>
-      <li><strong>True positive:</strong> The alert is correct, and the activity is unauthorized or malicious. Example: privilege escalation with no change request, followed by sensitive data access.</li>
-      <li><strong>Benign positive:</strong> The alert is correct (anomaly detected), but the activity is explained by legitimate context. Example: user traveled internationally and accessed from multiple locations within hours, but company travel policy permits this.</li>
-      <li><strong>False positive:</strong> The alert fired, but no actual anomaly occurred. Example: a scheduled maintenance job that looks unusual but has a documented change record.</li>
-    </ul>
-    <p>Correlation + context = verdict. Never assume anomaly equals attack.</p>
+    <h3>5. Decide what the alert means</h3>
+    <div class="m03-verdict-examples">
+      <article><strong>True positive</strong><p>The detection matched real unauthorized activity. Example: an unapproved role grant is followed by access to a restricted resource, with no change record.</p></article>
+      <article><strong>Benign positive</strong><p>The unusual activity really happened, and the alert caught it, but an approved explanation fits. Example: a documented after-hours migration uses the flagged account and source.</p></article>
+      <article><strong>False positive</strong><p>The alert's condition was not actually present; a rule or data issue made it appear so. Example: a parser maps a service heartbeat as a human sign-in, and the raw event confirms no sign-in occurred.</p></article>
+    </div>
+    <p>Use the evidence and authorized context to choose a verdict. If key facts are still unverified, record that uncertainty and follow your team's escalation procedure; an anomaly is a reason to investigate, not a verdict by itself.</p>
   </section>`;
 }
 
@@ -632,64 +642,11 @@ function moduleThreeQuizPanel() {
   </form>`;
 }
 
-const MODULE_THREE_GUIDED_LAB_LINKS = [
-  { title: 'Basic Apache Web Server Log Analysis', detail: 'Apache access-log review for suspicious request patterns', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-1/lab', labId: 'guided-1', requireNote: true },
-  { title: 'Introduction to Syslog Analysis on Linux Systems', detail: 'Linux syslog triage and event correlation', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-2/lab', labId: 'guided-2', requireNote: true },
-];
-const MODULE_THREE_ADDITIONAL_LAB_LINKS = [
-  { title: 'Analyzing Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-3/lab', labId: 'additional-lap3', requireNote: true },
-  { title: 'HTTP Log Analysis — Web Attack Detection', detail: 'Web attack patterns in HTTP telemetry', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis', labId: 'additional-http', requireNote: true },
-];
-
-function moduleThreeGuidedLabPanel() {
-  const gateOk = missionNextAllLabsComplete(moduleThreeState.labProgress, ['guided-1', 'guided-2']);
-  const gateMsg = moduleThreeState.guidedGateMessage && !gateOk ? `<p class="m03-help" role="alert">${esc(moduleThreeState.guidedGateMessage)}</p>` : '';
-  return `<section class="m03-external-lab" id="m03-guided-lab-panel">
-    <p class="m03-panel-instruction">Work through both Mission Next log-analysis labs below. Mark each lab complete with a short note, then mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(3, 'guided', MODULE_THREE_GUIDED_LAB_LINKS, moduleThreeState.labProgress)}
-    <label class="m03-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m03-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleThreeState.practiceNotes)}</textarea></label>
-    ${gateMsg}
-    <div class="m03-actions"><button type="button" class="m03-submit" data-m03-practice-complete>${moduleThreeState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
-  </section>`;
-}
-
-function moduleThreeAdditionalLabsPanelHtml() {
-  return `<div class="m03-additional-labs-panel" id="m03-additional-labs-panel">${missionNextLabLaunchGroup(3, 'additional', MODULE_THREE_ADDITIONAL_LAB_LINKS, moduleThreeState.labProgress)}</div>`;
-}
-
-function moduleThreeAdditionalLabs() {
-  return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-3">
-    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-3">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
-    <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Complete them for credit alongside the Guided Lab and Assessment Lab.</p>
-    ${moduleThreeAdditionalLabsPanelHtml()}
-  </section>`;
-}
-
-const MODULE_THREE_ASSESSMENT_LAB_LINKS = [
-  { title: 'Simple Log Analysis with ELK Stack', detail: 'ELK-based log search and triage', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-4/lab', labId: 'assessment-1', requireNote: true },
-  { title: 'System Log Assessment', detail: 'Suspicious system-log review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-4/lab', labId: 'assessment-2', requireNote: true },
-];
-
-function moduleThreeAssessmentLabPanel() {
-  const feedbackHtml = moduleThreeState.feedback?.length ? `<div class="m03-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleThreeState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-  const gateOk = missionNextAllLabsComplete(moduleThreeState.labProgress, ['assessment-1', 'assessment-2', 'additional-lap3', 'additional-http']);
-  const gateMsg = moduleThreeState.assessmentGateMessage && !gateOk ? `<p class="m03-help" role="alert">${esc(moduleThreeState.assessmentGateMessage)}</p>` : '';
-  const labStatus = moduleThreeState.importedLabComplete
-    ? '<p class="m03-help" role="status"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Mission Next ELK lab complete. You may submit your assessment write-up.</p>'
-    : '<p class="m03-help">Complete every step in the Mission Next ELK lab before submitting your assessment write-up.</p>';
-  return `<section class="m03-external-lab" id="m03-assessment-lab-panel">
-    <p class="m03-panel-instruction">Complete the imported Mission Next assessment labs below with a short note on each, then write up your findings for instructor review.</p>
-    ${missionNextLabLaunchGroup(3, 'assessment', MODULE_THREE_ASSESSMENT_LAB_LINKS, moduleThreeState.labProgress)}
-    ${labStatus}
-    ${gateMsg}
-    <form id="m03-assessment-form">
-      <label class="m03-note-label">Assessment write-up<textarea id="m03-assessment-notes" rows="6" maxlength="900" data-m03-assessment-notes placeholder="Summarize what the labs surfaced, your analysis, and your recommended action…">${esc(moduleThreeState.notes)}</textarea></label>
-      <p class="m03-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      <div class="m03-actions"><button type="submit" class="m03-submit" ${moduleThreeState.importedLabComplete ? '' : 'disabled'}>${moduleThreeState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
-    </form>
-    ${feedbackHtml}
-  </section>`;
-}
+/* Guided Lab and Assessment Lab panels — moduleThreeGuidedLabPanel(),
+ * moduleThreeAssessmentLabPanel() and wireModuleThreeConsole() — live in
+ * soc-analyst-module-03-environment.js: an in-module SIEM console with a KQL
+ * query engine, replacing the imported-lab launch cards and the separate
+ * Required Labs block. */
 
 function moduleThreeReview() {
   return `<section class="m03-review-section">
@@ -748,11 +705,11 @@ function viewModuleThree(user, program) {
     <details class="m03-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-guided-lab" aria-labelledby="m03-guided-lab-title">
-          <div class="m03-section-heading"><span>3</span><div><p class="m03-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Log analysis practice</h2></div></div>
+          <div class="m03-section-heading"><span>3</span><div><p class="m03-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Investigate CASE-MN-428 in the SIEM console</h2></div></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body m03-lab-section" aria-labelledby="m03-guided-lab-title">
-        <div class="m03-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in the imported training application on this page.</p></div>
+        <div class="m03-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> A simulated SIEM with fictional telemetry. Queries run in your browser, and nothing here touches a real system.</p></div>
         <div id="m03-guided-lab-dynamic">${moduleThreeGuidedLabPanel()}</div>
       </section>
     </details>`;
@@ -761,7 +718,7 @@ function viewModuleThree(user, program) {
     <details class="m03-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-assessment-lab" aria-labelledby="m03-assessment-lab-title">
-          <div class="m03-section-heading"><span>4</span><div><p class="m03-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent log analysis review</h2></div></div>
+          <div class="m03-section-heading"><span>4</span><div><p class="m03-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent SIEM case: CASE-MN-517</h2></div></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body m03-lab-section" aria-labelledby="m03-assessment-lab-title">
@@ -805,7 +762,6 @@ function viewModuleThree(user, program) {
       ${quizSection}
       ${guidedLabSection}
       ${assessmentLabSection}
-      ${moduleThreeAdditionalLabs()}
       ${reviewSection}
       ${sourcesSection}
     </main>
@@ -939,101 +895,13 @@ function wireModuleThreeQuiz() {
   });
 }
 
-function wireModuleThreeLabGating(root) {
-  if (!root) return;
-  wireMissionNextLabGating(root, moduleThreeState.labProgress, () => {
-    moduleThreeSave();
-    root.innerHTML = root.id === 'm03-guided-lab-dynamic' ? moduleThreeGuidedLabPanel()
-      : root.id === 'm03-assessment-lab-dynamic' ? moduleThreeAssessmentLabPanel()
-      : moduleThreeAdditionalLabsPanelHtml();
-    wireModuleThreeLabGating(root);
-  });
-}
-
-function wireModuleThreeGuidedLab() {
-  const root = document.getElementById('m03-guided-lab-dynamic');
-  if (!root || !moduleThreeState) return;
-  wireModuleThreeLabGating(root);
-  root.addEventListener('input', (event) => {
-    if (event.target.matches('[data-m03-practice-notes]')) {
-      moduleThreeState.practiceNotes = event.target.value;
-      moduleThreeSave();
-    }
-  });
-  root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m03-practice-complete]')) {
-      if (!missionNextAllLabsComplete(moduleThreeState.labProgress, ['guided-1', 'guided-2'])) {
-        moduleThreeState.guidedGateMessage = 'Mark both labs above complete first.';
-        moduleThreeSave();
-        root.innerHTML = moduleThreeGuidedLabPanel();
-        wireModuleThreeLabGating(root);
-        return;
-      }
-      moduleThreeState.guidedGateMessage = '';
-      moduleThreeState.practiceComplete = true;
-      moduleThreeSave();
-      root.innerHTML = moduleThreeGuidedLabPanel();
-      wireModuleThreeLabGating(root);
-    }
-  });
-}
-
-function wireModuleThreeAdditionalLabs() {
-  const root = document.getElementById('m03-additional-labs-panel');
-  if (!root || !moduleThreeState) return;
-  wireModuleThreeLabGating(root);
-}
-
-function wireModuleThreeAssessmentLab() {
-  const root = document.getElementById('m03-assessment-lab-dynamic');
-  if (!root || !moduleThreeState) return;
-  wireModuleThreeLabGating(root);
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm03-assessment-form') return;
-    event.preventDefault();
-    const notes = event.target.querySelector('#m03-assessment-notes')?.value || '';
-    moduleThreeState.notes = notes;
-    if (!missionNextAllLabsComplete(moduleThreeState.labProgress, ['assessment-1', 'assessment-2', 'additional-lap3', 'additional-http'])) {
-      moduleThreeState.assessmentGateMessage = 'Mark all required labs above complete first.';
-      moduleThreeSave();
-      root.innerHTML = moduleThreeAssessmentLabPanel();
-      wireModuleThreeLabGating(root);
-      return;
-    }
-    moduleThreeState.assessmentGateMessage = '';
-    if (notes.trim().length < 80) {
-      moduleThreeState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
-      moduleThreeSave();
-      root.innerHTML = moduleThreeAssessmentLabPanel();
-      wireModuleThreeLabGating(root);
-      return;
-    }
-    moduleThreeState.attempts = (moduleThreeState.attempts || 0) + 1;
-    moduleThreeState.lastSubmittedAt = new Date().toISOString();
-    moduleThreeState.completed = true;
-    moduleThreeState.feedback = ['Submitted. This write-up has been recorded as your Assessment Lab submission for instructor review.'];
-    if (!moduleThreeState.flags.includes(MODULE_THREE_FLAG)) moduleThreeState.flags.push(MODULE_THREE_FLAG);
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(moduleThreeUser, MODULE_THREE_CATALOG_LAB_KEY, { state: 'complete', result: { notes } });
-    }
-    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleThreeUser, 'soc-analyst', 'soc-03', MODULE_THREE_CATALOG_LAB_KEY);
-    moduleThreeSave();
-    const status = document.getElementById('m03-status');
-    if (status) status.textContent = 'Complete';
-    root.innerHTML = moduleThreeAssessmentLabPanel();
-    wireModuleThreeLabGating(root);
-  });
-}
-
 function wireModuleThree() {
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   wireReviewToggle({ button: reviewToggle, sectionSelector: '.m03-section-collapsible', getReviewMode: () => moduleThreeReviewMode, setReviewMode: (value) => { moduleThreeReviewMode = value; }, enabledLabel: 'Exit Review', disabledLabel: 'Review Module', enabledIcon: 'ri-eye-off-line', disabledIcon: 'ri-eye-line' });
 
   wireModuleThreeQuiz();
   wireModuleThreeLessons();
-  wireModuleThreeGuidedLab();
-  wireModuleThreeAssessmentLab();
-  wireModuleThreeAdditionalLabs();
+  wireModuleThreeConsole();
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 3, moduleKey: 'soc-03',

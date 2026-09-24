@@ -139,6 +139,10 @@ const files = [
   'data.js',
   'lab-runtime.js',
   'module-registry.js',
+  // Module 03's SIEM console (and the KQL engine it runs) loads before the
+  // module file that renders it, matching portal/index.html script order.
+  'kql-engine.js',
+  'soc-analyst-module-03-environment.js',
   ...moduleFiles.filter((f) => f.startsWith('soc-analyst-')),
   // Module 02's environment is deliberately an additive layer loaded after
   // its legacy isolated lab, matching portal/index.html script order.
