@@ -1,6 +1,7 @@
 # M360 gate failure: causes, fixes, and prevention
 
-Updated 2026-09-24. Delivered through PR #34.
+Updated 2026-09-24. Gate repairs are isolated on
+`maintenance/m360-gates-and-ownership`; SOC work remains in PR #34.
 
 ## What failed and why
 
@@ -46,6 +47,7 @@ Local validation passed:
   and 129/129 simulator views with zero dead navigation routes.
 
 GitHub checks on the final PR commit provide the browser and release results.
-PR #34 also contains existing SOC/imported-lab work; consult its complete diff
-before merging. Updating this PR does not deploy GitHub Pages. The workflow
-fix becomes the default after the PR is merged into `master`.
+The maintenance PR contains no portal runtime changes. The comment correction
+listed above stays with the SOC changes in PR #34. Merge maintenance first,
+then retarget PR #34 to `master` and review its SOC/lab diff. Workflow repairs
+and ownership routing become the default after maintenance merges into `master`.
