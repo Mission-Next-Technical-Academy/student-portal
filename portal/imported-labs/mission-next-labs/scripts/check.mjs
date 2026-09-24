@@ -370,7 +370,7 @@ assert(MISSION_NEXT_LABS['vm-3'].environment.shell === 'QualysLabShell', 'Expect
 assert(MISSION_NEXT_LABS['vm-4'].environment.shell === 'ZAPLabShell', 'Expected vm-4 to use ZAPLabShell');
 assert(MISSION_NEXT_LABS['vm-5'].environment.shell === 'WSUSLabShell', 'Expected vm-5 to use WSUSLabShell');
 assert(MISSION_NEXT_LABS['ad-1'].environment.shell === 'GrafanaLabShell', 'Expected ad-1 to use GrafanaLabShell');
-assert(MISSION_NEXT_LABS['ad-2'].environment.shell === 'SplunkLabShell', 'Expected ad-2 to use SplunkLabShell');
+assert(MISSION_NEXT_LABS['ad-2'].environment.shell === 'LinuxTerminalShell', 'Expected ad-2 to use LinuxTerminalShell for its real CLI log-review steps');
 assert(MISSION_NEXT_LABS['ad-3'].environment.shell === 'DatadogLabShell', 'Expected ad-3 to use DatadogLabShell');
 assert(MISSION_NEXT_LABS['ad-4'].environment.shell === 'NagiosLabShell', 'Expected ad-4 to use NagiosLabShell');
 assert(MISSION_NEXT_LABS['ad-5'].environment.shell === 'CheckmkLabShell', 'Expected ad-5 to use CheckmkLabShell');
