@@ -3,16 +3,22 @@ name: M360 Gate 6 regression checks
 on:
   pull_request:
     paths:
+      - 'bin/m360-gate-boundary.py'
+      - 'tests/test_m360_gate_boundary.py'
       - 'portal/m360/**'
       - 'portal/m360-entry.js'
+      - 'portal/m360-preview.*'
       - 'portal/index.html'
       - 'supabase/migrations/*m360*'
       - '.github/workflows/m360-gate6-regression-check.yml'
   push:
     branches: [master]
     paths:
+      - 'bin/m360-gate-boundary.py'
+      - 'tests/test_m360_gate_boundary.py'
       - 'portal/m360/**'
       - 'portal/m360-entry.js'
+      - 'portal/m360-preview.*'
       - 'portal/index.html'
       - 'supabase/migrations/*m360*'
       - '.github/workflows/m360-gate6-regression-check.yml'
@@ -51,30 +57,12 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          printf '%s\n' "$changed"
-          m360_changes="$(printf '%s\n' "$changed" | grep -E '^(portal/m360/|portal/m360-entry\.js$|supabase/migrations/[^/]*m360[^/]*\.sql$)' || true)"
-          forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-)'
-          if [ -n "$m360_changes" ] && printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
-            echo '::error::M360 changes must not modify technical LMS runtime.'
-            exit 1
-          fi
-          unexpected_migrations="$(printf '%s\n' "$changed" | grep '^supabase/migrations/' \
-            | grep -v '^supabase/migrations/20260904143000_m360_start_here_and_spotlight_verification.sql$' \
-            | grep -v '^supabase/migrations/20260904151000_m360_start_here_spotlight_revoke_anon.sql$' \
-            | grep -v '^supabase/migrations/20260908224500_m360_live_session_schedule.sql$' \
-            | grep -v '^supabase/migrations/20260914132050_m360_live_sessions_by_cohort.sql$' \
-            | grep -v '^supabase/migrations/20260914221720_m360_version_enrollment_binding.sql$' \
-            | grep -v '^supabase/migrations/20260914221910_m360_attendance_completion_records.sql$' \
-            | grep -v '^supabase/migrations/20260914222000_m360_controlled_rpcs_and_progress.sql$' \
-            | grep -v '^supabase/migrations/20260914222034_m360_attendance_finalization_and_least_privilege.sql$' || true)"
-          if [ -n "$unexpected_migrations" ]; then
-            echo '::error::Unexpected migration in M360 Gate 6 scope.'
-            printf '%s\n' "$unexpected_migrations"
-            exit 1
-          fi
+          git diff --name-only -z "$BASE_SHA"...HEAD | python3 bin/m360-gate-boundary.py
 
-      - name: Verify separate M360 routing and eligible post-login landing
+      - name: Test boundary policy
+        run: python3 -m unittest discover -s tests -p 'test_m360_gate_boundary.py' -v
+
+      - name: Verify separate M360 entry and program discovery
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -94,10 +82,8 @@ jobs:
               'href="m360/"',
               'suppressLegacyCareerReadiness',
               'Open M360',
-              'POST_LOGIN_KEY',
-              "event !== 'SIGNED_IN'",
-              "location.hash.startsWith('#/program/')",
-              "history.replaceState(null, '', '#/portal')"
+              'viewPortal = function viewPortalWithDiscovery(user)',
+              'technicalEnrollmentActive(user)'
           ]
           for token in required:
               if token not in entry:
@@ -106,7 +92,7 @@ jobs:
           leaked = [token for token in forbidden_calls if token in entry]
           if leaked:
               raise SystemExit('M360 entry must not call technical/legacy progress paths: ' + ', '.join(leaked))
-          print('Eligible M360 sign-ins return to My Programs without modifying technical course runtime')
+          print('M360 program discovery loads after the shared portal runtime')
           PY
 
       - name: Verify native Start Here experience

@@ -1,28 +1,13 @@
-# M360 gate regression check — Randy
+# M360 gate repair
 
-## Fix
+The full diagnosis, changes, regression coverage, and delivery status are in
+[the M360 gate repair report](docs/M360_GATE6_PROPOSED_FIX.md).
 
-The browser regression check was targeting the wrong local server shape:
+The fixes cover obsolete entry assertions, an overbroad LMS boundary check,
+CI browser server paths, and a portal JavaScript comment error. The follow-up
+adds seven automated boundary-policy tests and scopes migration restrictions
+to PRs that actually change M360 product files.
 
-- old default: `http://127.0.0.1:4173/portal/m360/week.html`
-- correct local target: `http://localhost:8768/m360/week.html`
-
-The portal server serves `portal/` as its document root on port `8768`, so
-`/portal` must not be repeated in the request path. The check still supports
-`M360_TEST_BASE_URL` for CI or another test server.
-
-## Scope
-
-Only `tests/m360-runtime.spec.js` was changed. No M360 UI, backend, auth,
-navigation, or data flow was modified.
-
-## Run
-
-With the portal serving on port `8768`:
-
-```bash
-M360_TEST_BASE_URL=http://localhost:8768 npx playwright test tests/m360-runtime.spec.js
-```
-
-The default now already resolves to `http://localhost:8768`, so the variable
-can be omitted locally.
+Local browser tests use `http://localhost:8768` with `portal/` as document root.
+GitHub Actions serves the repository root and explicitly sets
+`M360_TEST_BASE_URL=http://127.0.0.1:4173/portal` in both browser workflows.
