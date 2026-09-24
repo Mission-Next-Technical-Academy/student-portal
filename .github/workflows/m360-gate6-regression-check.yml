@@ -53,8 +53,9 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           printf '%s\n' "$changed"
+          m360_changes="$(printf '%s\n' "$changed" | grep -E '^(portal/m360/|portal/m360-entry\.js$|supabase/migrations/[^/]*m360[^/]*\.sql$)' || true)"
           forbidden='^(portal/app\.js|portal/data\.js|portal/module-labs\.js|portal/soc-analyst-module-|portal/it-support-module-|portal/ai-ml-module-|portal/electrical-module-)'
-          if printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
+          if [ -n "$m360_changes" ] && printf '%s\n' "$changed" | grep -Eq "$forbidden"; then
             echo '::error::M360 changes must not modify technical LMS runtime.'
             exit 1
           fi
