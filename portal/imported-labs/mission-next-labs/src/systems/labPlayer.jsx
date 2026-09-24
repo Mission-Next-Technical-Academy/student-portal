@@ -57,12 +57,12 @@
   }
 
   const lpStylesShared = {
-    terminalGuide: { position: 'fixed', left: 16, bottom: 16, zIndex: 60, width: 'min(92vw, 22rem)', padding: '14px 16px', background: '#0f172a', border: '1px solid #334155', borderRadius: 14, boxShadow: '0 12px 32px rgba(15,23,42,0.35)' },
-    terminalGuideLabel: { fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: '#38bdf8', marginBottom: 8 },
-    terminalGuideBody: { fontSize: 13, lineHeight: 1.55, color: '#e2e8f0', margin: 0 },
-    terminalGuideActions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
-    terminalGuideSkip: { background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: 11, letterSpacing: 0.5, padding: '6px 12px', borderRadius: 999, cursor: 'pointer' },
-    terminalGuideNext: { background: '#38bdf8', border: 'none', color: '#0f172a', fontSize: 11, fontWeight: 800, letterSpacing: 0.5, padding: '6px 14px', borderRadius: 999, cursor: 'pointer' },
+    terminalGuide: { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 60, width: 'min(92vw, 34rem)', padding: '24px 28px', background: '#0f172a', border: '1px solid #334155', borderRadius: 16, boxShadow: '0 24px 64px rgba(2,6,23,0.55)', fontFamily: "'Space Grotesk',sans-serif" },
+    terminalGuideLabel: { fontSize: 11, fontWeight: 800, letterSpacing: 1.8, color: '#38bdf8', marginBottom: 12 },
+    terminalGuideBody: { fontSize: 16, lineHeight: 1.65, color: '#e2e8f0', margin: 0 },
+    terminalGuideActions: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 },
+    terminalGuideSkip: { background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: 12, fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, letterSpacing: 0.5, padding: '8px 16px', borderRadius: 999, cursor: 'pointer' },
+    terminalGuideNext: { background: '#38bdf8', border: 'none', color: '#0f172a', fontSize: 12, fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, letterSpacing: 0.5, padding: '8px 18px', borderRadius: 999, cursor: 'pointer' },
   };
 
   function flattenSteps(lab) {
