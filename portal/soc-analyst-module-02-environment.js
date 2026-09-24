@@ -151,11 +151,19 @@
     // working copy, while hydrating an empty copy from Supabase and writing
     // changes through the shared module_progress case_state path.
     state = LabRuntime.loadCaseState(LAB_ID, 'soc-02', u, DEFAULT);
-    // Migrate the earlier shared-ID record without allowing it to collide
-    // with the main Module 02 state going forward.
-    if (!state.learn && !state.practice && !state.prove) {
+    // Migrate the earlier shared-ID record only when the new isolated slot
+    // is still empty and the old record contains actual learner work.
+    const currentHasWork = state.learn.step > 0 || state.learn.guideStep >= 0
+      || state.learn.guideCompleted || state.practice.complete || !!state.practice.notes
+      || state.prove.submitted || !!state.prove.notes
+      || Object.keys(state.labProgress || {}).length > 0;
+    if (!currentHasWork) {
       const legacy = LabRuntime.loadCaseState('m02-trust-path-review-v1', 'soc-02', u, DEFAULT);
-      if (legacy.learn || legacy.practice || legacy.prove) {
+      const legacyHasWork = legacy.learn.step > 0 || legacy.learn.guideStep >= 0
+        || legacy.learn.guideCompleted || legacy.practice.complete || !!legacy.practice.notes
+        || legacy.prove.submitted || !!legacy.prove.notes
+        || Object.keys(legacy.labProgress || {}).length > 0;
+      if (legacyHasWork) {
         state = legacy;
         LabRuntime.saveCaseState(LAB_ID, 'soc-02', u, state, { debounceMs: 1 });
       }
