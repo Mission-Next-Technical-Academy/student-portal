@@ -57,22 +57,6 @@ function emailToDisplayId(email) {
  * render() can call this on every route change without refetching. */
 let _cachedUser = null;
 let _cachedUserPromise = null;
-const PENDING_PORTAL_ROUTE_KEY = 'mission_next_pending_portal_route';
-
-function rememberPendingPortalRoute(hash) {
-  if (!/^#\/program\/[a-z0-9-]+(?:\/module\/\d+)?$/.test(String(hash || ''))) return;
-  try { sessionStorage.setItem(PENDING_PORTAL_ROUTE_KEY, hash); } catch (_) { /* best effort */ }
-}
-
-function consumePendingPortalRoute() {
-  try {
-    const hash = sessionStorage.getItem(PENDING_PORTAL_ROUTE_KEY) || '';
-    sessionStorage.removeItem(PENDING_PORTAL_ROUTE_KEY);
-    return /^#\/program\/[a-z0-9-]+(?:\/module\/\d+)?$/.test(hash) ? hash : '';
-  } catch (_) {
-    return '';
-  }
-}
 
 // The initial screen must always resolve.  A stale auth token, an offline
 // browser, or an interrupted profile query should lead to the login screen,
@@ -6704,11 +6688,6 @@ async function render(options = {}) {
   }
 
   if (!user) {
-    // Imported training labs return with a deep module hash. If restoring the
-    // portal session fails or the session has expired, keep that destination
-    // through sign-in instead of replacing it with a bare #/login and losing
-    // the student's place.
-    rememberPendingPortalRoute(hash);
     // Keep the address bar aligned with the view.  Rendering the login screen
     // alone left a protected route (for example #/admin) in the URL, which
     // made reloads and copied links misleading.
@@ -7001,21 +6980,16 @@ function wireLogin() {
     // reuse #login-error with distinct text rather than new DOM.
     if (result && typeof result === 'object') {
       const user = result;
-      // A completed console walkthrough can return in its own tab after the
-      // original module tab was closed. Preserve that verified return route.
-      // Ordinary student sign-ins always land on My Programs so they can
-      // choose between their technical coursework and the separate M360
-      // Professional Readiness work. Admins are sent on to #/admin by
-      // render()'s admin-only rule regardless of where we land them here.
-      const coachReturn = new URLSearchParams(location.search).get('coachComplete');
-      const returnToModule = coachReturn === 'm01' && location.hash === '#/program/soc-analyst/module/1';
-      const pendingPortalRoute = consumePendingPortalRoute();
-      const destination = pendingPortalRoute || (user.isInstructor && !user.isAdmin
+      // Every student sign-in lands on My Programs (owner decision,
+      // 2026-09-24) — never back on a module, even after an idle sign-out or
+      // a walkthrough return — so they choose between technical coursework
+      // and M360 Professional Readiness. A walkthrough completion token stays
+      // in the query string, so Module 1 still records it when opened. Instructors go
+      // to their track; admins are sent on to #/admin by render().
+      const destination = user.isInstructor && !user.isAdmin
         ? `#/admin/track/${user.instructorTrackCodes[0]}`
-        : '#/portal');
-      history.replaceState(null, '', returnToModule
-        ? location.pathname + location.search + location.hash
-        : destination);
+        : '#/portal';
+      history.replaceState(null, '', destination);
       await render();
     } else {
       // Message text does not hardcode a session-count number: the cap

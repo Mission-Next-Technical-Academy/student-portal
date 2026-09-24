@@ -92,21 +92,26 @@ jobs:
               'M360 101 Professional Readiness',
               'href="m360/"',
               'suppressLegacyCareerReadiness',
-              'Open M360',
-              'POST_LOGIN_KEY',
-              "event !== 'SIGNED_IN'",
-              "location.hash.startsWith('#/program/')",
-              "history.replaceState(null, '', '#/portal')",
-              "coachReturn === 'm01'"
+              'Open M360'
           ]
           for token in required:
               if token not in entry:
                   raise SystemExit(f'Missing M360 routing requirement: {token}')
+          # Every student sign-in lands on My Programs (#/portal): no saved
+          # module route and no Module 1 walkthrough return may override it.
+          app = Path('portal/app.js').read_text()
+          signin = app[app.find('if (result && typeof result === \'object\') {'):]
+          signin = signin[:signin.find('await render();')]
+          if ": '#/portal';" not in signin or "history.replaceState(null, '', destination);" not in signin:
+              raise SystemExit('Student sign-in must land on #/portal')
+          overrides = [t for t in ('coachComplete', 'PendingPortalRoute', 'returnToModule') if t in signin]
+          if overrides:
+              raise SystemExit('Student sign-in must not redirect away from My Programs: ' + ', '.join(overrides))
           forbidden_calls = [".from('module_progress')", 'toggleM360ItemCompletion(', 'saveM360Progress(']
           leaked = [token for token in forbidden_calls if token in entry]
           if leaked:
               raise SystemExit('M360 entry must not call technical/legacy progress paths: ' + ', '.join(leaked))
-          print('Eligible M360 sign-ins return to My Programs without modifying technical course runtime')
+          print('Every student sign-in lands on My Programs; M360 entry stays separate from technical runtime')
           PY
 
       - name: Verify native Start Here experience
