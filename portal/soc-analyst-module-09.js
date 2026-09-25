@@ -720,24 +720,7 @@ function moduleNineQuizPanel() {
 }
 
 function moduleNineVideoScript() {
-  return `<details class="m09-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m09-script-body">
-      <p><strong>Introduction:</strong> Welcome to incident response. This module teaches you how to investigate a suspicious event, determine whether it qualifies as an incident, bound the scope, and build a response plan that matches what you actually know—without making unfounded claims about the wider environment.</p>
-
-      <p><strong>Segment 1 — Correlation across sources, not single indicators.</strong> In INC-4937, rapid encryption on ws-173, an overlapping acct-173 session, and fs-02 service disruption support one active incident slice. Correlation requires shared entities and timing; it does not identify a real operator or prove enterprise-wide compromise. Single indicators can be background noise or unrelated events.</p>
-
-      <p><strong>Segment 2 — State what you know, not what you hope.</strong> After investigation, you will find some evidence and not find other evidence. A scoped search across one endpoint and no others means you have confirmed one endpoint's compromise, not that the wider environment is clean. Absence of evidence in a bounded dataset is not evidence of absence. Communicate your scope and search boundaries precisely. Say "We found these entities compromised" and "We searched this data and found no matches," not "The environment is definitely clean" or "Everyone is probably compromised." This precision lets specialists and management make informed decisions about what comes next.</p>
-
-      <p><strong>Segment 3 — NIST lifecycle phases are sequential, not parallel.</strong> Prepare establishes roles and playbooks. Detect and analyze validates the incident. Containment stops active harm— isolate ws-173, revoke acct-173 sessions, and restrict affected service access. Eradication removes the demonstrated access and impact mechanism. Recovery restores service only after validation. Learn records control and detection improvements. Skipping a phase risks continued compromise or reinfection.</p>
-
-      <p><strong>Segment 4 — Severity classification balances scope, impact, and evidence.</strong> Malware execution is serious, but a prevented execution on a single employee workstation is lower severity than malware running on a critical database server. Account compromise is serious, but a single account is lower severity than the compromised account used to access sensitive systems. Severity reflects the true business consequence of the incident—not panic, not minimization, but proportionate classification. High severity may warrant response within hours; critical within minutes. Low-risk events warrant standard procedures. Match your severity to what the evidence actually shows.</p>
-
-      <p><strong>Segment 5 — Escalation with evidence and a clear plan.</strong> As a Tier 1 responder, your authority includes investigation and initiating approved playbook actions (isolation, session revocation, and evidence preservation). You do not have authority to wipe the fleet, declare the organization clean, or attribute the activity to a named operator. Your job is to correlate the ransomware impact, define the confirmed scope, and escalate with a clear request: "INC-4937 confirms encryption activity on ws-173, an overlapping acct-173 session, and fs-02 service disruption. Preserve evidence, stop active impact, restrict affected access, and validate before recovery." That precision lets specialists execute their part without guessing.</p>
-
-      <p><strong>Closing:</strong> Incident response is a discipline of evidence-based decisions with clear authority boundaries. Correlate before acting. State your scope and uncertainty. Follow the phases. Classify proportionately. Escalate with precision. Your team depends on it.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleNineReview() {
