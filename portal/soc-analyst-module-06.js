@@ -405,9 +405,342 @@ const MODULE_SIX_SOURCES = {
 
 const MODULE_SIX_EXPECTED_BOOKMARKS = ['EP-602', 'EP-604', 'ID-612', 'ID-614'];
 
+// Standard Incident / Case Record (MODULE_STANDARD.md §7.2). Module 06 has
+// two catalog-graded Prove It submissions — `m06-form` (catalog key
+// MODULE_SIX_CATALOG_LAB_KEY, 'lab-threat-hunt') and `m06-independent-form`
+// (catalog key 'lab-threat-hunt-independent') — both call recordLabAttempt()
+// for a real catalog lab key (see LABS in data.js), so both are in scope.
+// The Stage 1/2 hypothesis + two-source query workbench above the first
+// ticket stay exactly as-is (they are evidence, not the graded artifact);
+// only the two forms migrate.
+const MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY = 'lab-threat-hunt-independent';
+const MODULE_SIX_HUNT_CASE_ID = 'HNT-6214';
+const MODULE_SIX_BACKDOOR_CASE_ID = 'BKD-6318';
+const MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD = 40;
+
+const MODULE_SIX_HUNT_ENTITY_ROSTER = {
+  users: [
+    { id: 'acct-27', text: 'acct-27 (WS-214, seed pair)', tier: 'principal' },
+    { id: 'acct-41', text: 'acct-41 (WS-332, second pair)', tier: 'pivot' },
+    { id: 'acct-18', text: 'acct-18', tier: 'noise' },
+    { id: 'acct-52', text: 'acct-52', tier: 'noise' },
+    { id: 'backup-job', text: 'backup-job', tier: 'noise' },
+    { id: 'acct-63', text: 'acct-63', tier: 'noise' },
+    { id: 'acct-77', text: 'acct-77', tier: 'noise' },
+  ],
+  devices: [
+    { id: 'WS-214', text: 'WS-214 (seed device)', tier: 'principal' },
+    { id: 'WS-332', text: 'WS-332 (second matching device)', tier: 'pivot' },
+    { id: 'WS-105', text: 'WS-105 (approved signed updater)', tier: 'noise' },
+    { id: 'WS-406', text: 'WS-406 (managed inventory script)', tier: 'noise' },
+    { id: 'WS-118', text: 'WS-118', tier: 'noise' },
+    { id: 'SRV-008', text: 'SRV-008 (backup server)', tier: 'noise' },
+    { id: 'WS-020', text: 'WS-020', tier: 'noise' },
+  ],
+};
+
+const MODULE_SIX_HUNT_DEPARTMENT_OPTIONS = [
+  { id: 'detection-engineering', text: 'Detection Engineering', fit: 100, note: 'Best fit — Detection Engineering issued the fleet-wide bulletin and owns the scoped hunt findings.' },
+  { id: 'tier2-soc', text: 'Tier 2 SOC', fit: 65, note: 'Acceptable — Tier 2 can continue monitoring the scoped pairs, but Detection Engineering owns the bulletin follow-up.' },
+  { id: 'identity-response', text: 'Identity Response', fit: 30, note: 'Weak fit — the unfamiliar sessions are a supporting signal, not the primary compromise vector here.', bounce: 'Identity Response is not the primary owner of a scoped script-execution hunt; route to Detection Engineering.' },
+  { id: 'help-desk', text: 'IT Help Desk', fit: 10, note: 'Not a fit — this is a confirmed, scoped malicious pattern, not a routine help-desk ticket.', bounce: 'Help Desk cannot action a cross-device threat-hunt finding; this needs Detection Engineering.' },
+];
+
+const MODULE_SIX_BACKDOOR_ENTITY_ROSTER = {
+  users: [
+    { id: 'acct-184', text: 'acct-184 (created the UpdateHealth task on ws-318)', tier: 'principal' },
+    { id: 'svc-patch', text: 'svc-patch (created the signed comparison-host task)', tier: 'pivot' },
+    { id: 'acct-27', text: 'acct-27', tier: 'noise' },
+    { id: 'acct-41', text: 'acct-41', tier: 'noise' },
+    { id: 'acct-18', text: 'acct-18', tier: 'noise' },
+    { id: 'acct-52', text: 'acct-52', tier: 'noise' },
+  ],
+  devices: [
+    { id: 'ws-318', text: 'ws-318 (UpdateHealth task, user-writable path)', tier: 'principal' },
+    { id: 'ws-355', text: 'ws-355 (comparison host, signed maintenance script)', tier: 'pivot' },
+    { id: 'WS-214', text: 'WS-214', tier: 'noise' },
+    { id: 'WS-332', text: 'WS-332', tier: 'noise' },
+    { id: 'WS-105', text: 'WS-105', tier: 'noise' },
+    { id: 'WS-406', text: 'WS-406', tier: 'noise' },
+  ],
+};
+
+const MODULE_SIX_BACKDOOR_DEPARTMENT_OPTIONS = [
+  { id: 'endpoint-response', text: 'Endpoint/EDR Response', fit: 100, note: 'Best fit — a dormant scheduled-task persistence mechanism needs to be contained and removed from the endpoint.' },
+  { id: 'tier2-soc', text: 'Tier 2 SOC', fit: 65, note: 'Acceptable — Tier 2 can continue investigation, but endpoint containment still needs an EDR-focused owner.' },
+  { id: 'identity-response', text: 'Identity Response', fit: 30, note: 'Weak fit — no credential compromise is evidenced; this is a persistence mechanism on one endpoint.', bounce: 'Identity Response cannot remove a scheduled-task persistence entry; route to Endpoint/EDR Response.' },
+  { id: 'help-desk', text: 'IT Help Desk', fit: 10, note: 'Not a fit — this is a suspected dormant backdoor, not a routine help-desk ticket.', bounce: 'Help Desk cannot contain a scheduled-task backdoor; this needs Endpoint/EDR Response.' },
+];
+
+const MODULE_SIX_EVIDENCE_PRIORITY_FINDING_OPTIONS = [
+  { id: 'task-metadata', text: 'Task author, trigger, path, signer, and creation time' },
+  { id: 'all-logs', text: 'Every log row in the tenant' },
+  { id: 'alert-only', text: 'Only generated alerts' },
+];
+
+const MODULE_SIX_SCOPE_ASSESSMENT_FINDING_OPTIONS = [
+  { id: 'ws318-only', text: 'ws-318 is supported; the signed maintenance host is a comparison' },
+  { id: 'fleet-wide', text: 'Every host with the task name is compromised' },
+  { id: 'no-scope', text: 'No scope because no alert fired' },
+];
+
+const MODULE_SIX_RESPONSE_ACTION_FINDING_OPTIONS = [
+  { id: 'escalate', text: 'Escalate ws-318 for approved containment and preserve the task/script evidence' },
+  { id: 'wipe', text: 'Wipe every host immediately' },
+  { id: 'close', text: 'Close as benign because no alert exists' },
+];
+
+function moduleSixHuntCaseSpec() {
+  return {
+    caseId: MODULE_SIX_HUNT_CASE_ID,
+    userOptions: MODULE_SIX_HUNT_ENTITY_ROSTER.users,
+    deviceOptions: MODULE_SIX_HUNT_ENTITY_ROSTER.devices,
+    departmentOptions: MODULE_SIX_HUNT_DEPARTMENT_OPTIONS,
+    notesMin: 120,
+    notesPlaceholder: 'Hypothesis result: … Scope: … Evidence: … Recommended next step: …',
+    findingsHtml: moduleSixHuntFindingsHtml(),
+    extraMissing: moduleSixHuntExtraMissing(),
+  };
+}
+
+// Stage 3-5 kept exactly as before (device/account scope, IOC
+// interpretation, ATT&CK mapping, next action) — rendered as findingsHtml
+// inside the same ticket form and wired through the existing change/click
+// handlers in wireModuleSixGuidedLab, so no behavior changes here.
+function moduleSixHuntFindingsHtml() {
+  const devices = [
+    { id: 'WS-214', label: 'WS-214', help: 'Seed device with the first matching process chain.' },
+    { id: 'WS-332', label: 'WS-332', help: 'Second device with the same fingerprint and destination.' },
+    { id: 'WS-105', label: 'WS-105', help: 'Approved signed updater activity.' },
+    { id: 'WS-406', label: 'WS-406', help: 'Managed inventory script with a different fingerprint.' },
+  ];
+  const accounts = [
+    { id: 'acct-27', label: 'acct-27', help: 'Session and endpoint activity align on WS-214.' },
+    { id: 'acct-41', label: 'acct-41', help: 'Session and endpoint activity align on WS-332.' },
+    { id: 'acct-18', label: 'acct-18', help: 'Routine access on an inventory workstation.' },
+    { id: 'acct-52', label: 'acct-52', help: 'Normal document and sign-in activity.' },
+  ];
+  const techniques = [
+    { id: 'T1059', label: 'T1059 · Command and Scripting Interpreter', help: 'Supported by the encoded script-host execution.' },
+    { id: 'T1105', label: 'T1105 · Ingress Tool Transfer', help: 'The data proves a connection, but not a file transfer.' },
+    { id: 'T1078', label: 'T1078 · Valid Accounts', help: 'Supported by active account sessions from the shared unusual source.' },
+    { id: 'T1566', label: 'T1566 · Phishing', help: 'A content viewer is present, but message-delivery evidence is not in this lab.' },
+  ];
+  return `<fieldset class="m06-fieldset"><legend><span>1</span> Scope the affected devices</legend><p class="m06-help">Choose every device with the matching suspicious behavior.</p>${moduleSixCheckboxGroup('scopedDevices', devices, moduleSixState.scopedDevices)}</fieldset>
+    <fieldset class="m06-fieldset"><legend><span>2</span> Scope the affected identities</legend><p class="m06-help">Choose every account supported by both timing and entity context.</p>${moduleSixCheckboxGroup('scopedAccounts', accounts, moduleSixState.scopedAccounts)}</fieldset>
+    <fieldset class="m06-fieldset"><legend><span>3</span> Interpret the indicator relationship</legend><p class="m06-help">Indicators are pivots. Explain what their recurrence contributes.</p>${moduleSixRadioGroup('iocRelationship', [
+      { id: 'corroborates', label: 'The shared fingerprint and destination corroborate one recurring behavior pattern.', help: 'The process, device, identity, and time context make the recurrence meaningful.' },
+      { id: 'ip-proves', label: 'The destination alone proves every matching device is compromised.', help: 'An address match without behavior and context is not enough.' },
+      { id: 'unrelated', label: 'The rows are unrelated because they occur on different devices.', help: 'Cross-device recurrence is exactly what this hunt is testing.' },
+    ])}</fieldset>
+    <fieldset class="m06-fieldset"><legend><span>4</span> Map demonstrated ATT&amp;CK behavior</legend><p class="m06-help">Choose the two techniques directly supported by these two sources; do not infer delivery or download behavior that is absent.</p>${moduleSixCheckboxGroup('techniques', techniques, moduleSixState.techniques)}</fieldset>
+    <fieldset class="m06-fieldset"><legend><span>5</span> Recommend the next action</legend>${moduleSixRadioGroup('nextAction', [
+      { id: 'scoped-escalation', label: 'Escalate the two pairs for approved containment, preserve bookmarks, and continue a scoped indicator-and-behavior hunt.', help: 'This is proportionate to the validated scope and keeps evidence available.' },
+      { id: 'wipe-all', label: 'Immediately wipe every device in the dataset.', help: 'This exceeds the observed scope and analyst authority.' },
+      { id: 'close', label: 'Close the hunt because no alert fired on WS-332.', help: 'Threat hunting exists to find relevant behavior beyond current alerts.' },
+    ])}</fieldset>`;
+}
+
+function moduleSixHuntExtraMissing() {
+  const missing = [];
+  if (!moduleSixState.hypothesis) missing.push('Choose a testable hypothesis in Stage 1');
+  if (!moduleSixState.queryRuns.endpoint || !moduleSixState.queryRuns.signin) missing.push('Run both source queries in Stage 2');
+  if (!moduleSixState.bookmarks.length) missing.push('Bookmark the decisive evidence in Stage 2');
+  if (!moduleSixState.scopedDevices.length || !moduleSixState.scopedAccounts.length) missing.push('Scope the affected devices and identities');
+  if (!moduleSixState.iocRelationship) missing.push('Interpret the indicator relationship');
+  if (!moduleSixState.techniques.length) missing.push('Map demonstrated ATT&CK behavior');
+  if (!moduleSixState.nextAction) missing.push('Recommend the next action');
+  return missing;
+}
+
+function moduleSixProveItRedoRequested() {
+  return moduleSixUser?.openLabRedosByModuleKey?.['soc-06']?.labKey === MODULE_SIX_CATALOG_LAB_KEY;
+}
+
+function moduleSixProveItReviewStatus() {
+  if (!moduleSixState?.caseRecord?.submitted) return '';
+  const attempt = moduleSixUser?.latestLabAttemptByKey?.[MODULE_SIX_CATALOG_LAB_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleSixProveItRedoFeedback() {
+  if (!moduleSixProveItRedoRequested()) return '';
+  const items = moduleSixUser.openLabRedosByModuleKey['soc-06'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
+// The Independent Assessment Lab ticket (m06-independent-form) has its own
+// redo/review tracking under the second catalog key.
+function moduleSixIndependentRedoRequested() {
+  return moduleSixUser?.openLabRedosByModuleKey?.['soc-06-independent']?.labKey === MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY;
+}
+
+function moduleSixIndependentReviewStatus() {
+  if (!moduleSixState?.independentLab?.caseRecord?.submitted) return '';
+  const attempt = moduleSixUser?.latestLabAttemptByKey?.[MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleSixIndependentRedoFeedback() {
+  if (!moduleSixIndependentRedoRequested()) return '';
+  const items = moduleSixUser.openLabRedosByModuleKey['soc-06-independent'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
+function moduleSixBackdoorCaseSpec() {
+  return {
+    caseId: MODULE_SIX_BACKDOOR_CASE_ID,
+    userOptions: MODULE_SIX_BACKDOOR_ENTITY_ROSTER.users,
+    deviceOptions: MODULE_SIX_BACKDOOR_ENTITY_ROSTER.devices,
+    departmentOptions: MODULE_SIX_BACKDOOR_DEPARTMENT_OPTIONS,
+    notesMin: 60,
+    notesPlaceholder: 'Observed behavior… comparison… bounded next action…',
+    findings: [
+      { name: 'evidencePriority', label: 'Evidence to prioritize', options: MODULE_SIX_EVIDENCE_PRIORITY_FINDING_OPTIONS, missing: 'Choose the evidence to prioritize' },
+      { name: 'scopeAssessment', label: 'Current scope', options: MODULE_SIX_SCOPE_ASSESSMENT_FINDING_OPTIONS, missing: 'Assess the current scope' },
+      { name: 'responseAction', label: 'Recommended response action', options: MODULE_SIX_RESPONSE_ACTION_FINDING_OPTIONS, missing: 'Recommend a response action' },
+    ],
+    extraMissing: !missionNextAllLabsComplete(moduleSixState.labProgress, ['additional-1', 'additional-2', 'additional-3']) ? ['Mark all required imported labs complete'] : [],
+  };
+}
+
+// Hunt Lab (m06-form) scoring: queries/bookmarks/hypothesis/scope/ioc/attack
+// keep their pre-migration weights (observation 30 + analysis 30 = 60,
+// unchanged); the remaining 40 points now cover the standard ticket fields
+// that did not exist pre-migration (entity, severity, escalation) plus the
+// pre-existing decision/communication content (disposition, next action,
+// notes), rebalanced to fit.
+function moduleSixHuntCaseScore() {
+  const cr = moduleSixState.caseRecord;
+  const queries = (moduleSixState.queryPassed.endpoint ? 5 : 0) + (moduleSixState.queryPassed.signin ? 5 : 0);
+  const bookmarks = moduleSixExactSelection(moduleSixState.bookmarks, MODULE_SIX_EXPECTED_BOOKMARKS, 20);
+  const hypothesis = moduleSixState.hypothesis === 'recurrence' ? 8 : 0;
+  const deviceScope = moduleSixExactSelection(moduleSixState.scopedDevices, ['WS-214', 'WS-332'], 6);
+  const accountScope = moduleSixExactSelection(moduleSixState.scopedAccounts, ['acct-27', 'acct-41'], 6);
+  const scope = deviceScope + accountScope;
+  const ioc = moduleSixState.iocRelationship === 'corroborates' ? 4 : 0;
+  const attack = moduleSixExactSelection(moduleSixState.techniques, ['T1059', 'T1078'], 6);
+  const observation = queries + bookmarks;
+  const analysis = hypothesis + scope + ioc + attack;
+
+  const roster = MODULE_SIX_HUNT_ENTITY_ROSTER;
+  const userTier = roster.users.find((entry) => entry.id === cr.affectedUser)?.tier;
+  const deviceTier = roster.devices.find((entry) => entry.id === cr.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 4); // 0-8
+
+  const severity = caseRecordSeverity(cr);
+  const severityPoints = severity === 'high' ? 4 : 0;
+
+  const disposition = caseRecordDisposition(cr);
+  const dispositionPoints = disposition === 'true-positive' ? 8 : 0;
+
+  const department = MODULE_SIX_HUNT_DEPARTMENT_OPTIONS.find((option) => option.id === cr.escalateTo) || null;
+  const escalationRequiredOk = cr.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD;
+  const escalationPoints = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 8) : 0;
+
+  const action = moduleSixState.nextAction === 'scoped-escalation' ? 6 : 0;
+
+  const notesLen = (cr.notes || '').trim().length;
+  const notesPoints = notesLen >= 120 ? 6 : 0;
+
+  const decision = dispositionPoints + escalationPoints + action;
+  const communication = entityPoints + severityPoints + notesPoints;
+  const score = observation + analysis + decision + communication;
+  const criticalErrors = cr.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  return {
+    score,
+    breakdown: { observation, queries, bookmarks, analysis, hypothesis, scope, ioc, attack, entity: entityPoints, severity: severityPoints, disposition: dispositionPoints, escalation: escalationPoints, action, analyst_notes: notesPoints },
+    department, bounced,
+    feedback: [
+      queries === 10 ? 'Queries: Both scoped pivots returned the two chronological matches expected.' : `Queries: ${queries}/10. Run the endpoint fingerprint query and sign-in source-address query with an ascending time sort.`,
+      bookmarks === 20 ? 'Bookmarks: Correct. Four records preserve the two endpoint executions and their two identity-session correlations.' : `Bookmarks: ${bookmarks}/20. Keep EP-602, EP-604, ID-612, and ID-614; unrelated baseline rows weaken the evidence set.`,
+      hypothesis ? 'Hypothesis: Testable and correctly framed around recurrence beyond the seed device.' : 'Hypothesis: Frame the hunt around whether the same suspicious script behavior recurred on another device.',
+      scope === 12 ? 'Scope: Correctly limited to WS-214/acct-27 and WS-332/acct-41.' : `Scope: ${scope}/12. Select only the two device-account pairs supported by matching behavior and timing.`,
+      ioc && attack === 6 ? 'IOC and ATT&CK analysis: Correct. The recurring indicators corroborate the pattern; scripting and valid-account use are directly demonstrated.' : `IOC and ATT&CK analysis: ${ioc + attack}/10. Correlate indicators with context and map only scripting plus valid-account use.`,
+      entityPoints >= 8 ? 'Affected entity/scope: correct — acct-27 and WS-214 are the confirmed seed pair.' : 'Affected entity/scope: review — acct-27 and WS-214 are the confirmed seed pair; acct-41/WS-332 is the second pair, not the seed.',
+      severityPoints ? 'Severity: correct — High.' : 'Severity: review — a recurring cross-device execution pattern with active sessions is High severity.',
+      dispositionPoints ? 'Disposition: correct — confirmed malicious activity.' : 'Disposition: review — the recurring pattern is confirmed malicious activity, not a false positive.',
+      escalationPoints >= 8 ? 'Routing: correct — Detection Engineering is the best-fit department for this bulletin follow-up.' : department ? `Routing: ${department.fit >= MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD ? 'accepted, but not the best fit' : 'returned'} — ${department.bounce || department.note}` : 'Routing: review — this case needs a department routed with the recorded evidence.',
+      action ? 'Decision: Proportionate. Escalate the scoped pairs, preserve evidence, and continue the focused hunt.' : 'Decision: Avoid enterprise-wide claims or destructive actions beyond the current evidence.',
+      notesPoints ? 'Handoff: Notes meet the 120-character bar.' : 'Handoff: Include a conclusion, both device-account pairs, one validated indicator, and a proportionate recommendation in at least 120 characters.',
+    ],
+    criticalErrors,
+  };
+}
+
+// Independent Assessment Lab (m06-independent-form) scoring: Module 01
+// weights (entity 20, severity 15, disposition 15... rebalanced to include
+// the three domain findings that replace the old free-form task/scope/
+// disposition selects) — 100 total, unchanged 70% pass bar.
+function moduleSixBackdoorCaseScore() {
+  const cr = moduleSixState.independentLab.caseRecord;
+  const roster = MODULE_SIX_BACKDOOR_ENTITY_ROSTER;
+  const userTier = roster.users.find((entry) => entry.id === cr.affectedUser)?.tier;
+  const deviceTier = roster.devices.find((entry) => entry.id === cr.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
+
+  const severity = caseRecordSeverity(cr);
+  const severityPoints = severity === 'high' ? 10 : 0;
+
+  const disposition = caseRecordDisposition(cr);
+  const dispositionPoints = disposition === 'true-positive' ? 15 : 0;
+
+  const department = MODULE_SIX_BACKDOOR_DEPARTMENT_OPTIONS.find((option) => option.id === cr.escalateTo) || null;
+  const escalationRequiredOk = cr.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD;
+  const escalationPoints = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 20) : 0;
+
+  const findings = cr.findings || {};
+  const evidencePoints = findings.evidencePriority === 'task-metadata' ? 5 : 0;
+  const scopePoints = findings.scopeAssessment === 'ws318-only' ? 5 : 0;
+  const responsePoints = findings.responseAction === 'escalate' ? 5 : 0;
+  const domainFindingsPoints = evidencePoints + scopePoints + responsePoints;
+
+  const notesLen = (cr.notes || '').trim().length;
+  const notesPoints = Math.round(Math.min(1, notesLen / 60) * 20);
+
+  const score = entityPoints + severityPoints + dispositionPoints + escalationPoints + domainFindingsPoints + notesPoints;
+  const criticalErrors = cr.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  return {
+    score,
+    breakdown: { affected_entity: entityPoints, severity: severityPoints, disposition: dispositionPoints, escalation: escalationPoints, domain_findings: domainFindingsPoints, analyst_notes: notesPoints },
+    department, bounced,
+    feedback: [
+      entityPoints >= 20 ? 'Affected entity/scope: correct — acct-184 and ws-318 are the confirmed pair.' : 'Affected entity/scope: review — acct-184 and ws-318 are the confirmed pair; svc-patch/ws-355 is the signed comparison, not the confirmed pair.',
+      severityPoints ? 'Severity: correct — High.' : 'Severity: review — a dormant backdoor with active persistence is High severity.',
+      dispositionPoints ? 'Disposition: correct — confirmed malicious activity.' : 'Disposition: review — the unsigned, user-writable, weekly-triggered task is confirmed malicious activity, not benign administration.',
+      evidencePoints ? 'Evidence priority: correct.' : 'Evidence priority: prioritize task author, trigger, path, signer, and creation time.',
+      scopePoints ? 'Scope: correct — ws-318 is supported; the signed maintenance host is a comparison, not a second confirmed host.' : 'Scope: review — ws-318 is supported; the signed maintenance host is a benign comparison, not fleet-wide compromise.',
+      responsePoints ? 'Response action: correct — escalate ws-318 for approved containment and preserve evidence.' : 'Response action: escalate ws-318 for approved containment and preserve evidence; do not wipe broadly or close without review.',
+      department ? (escalationPoints >= 20 ? 'Routing: correct — Endpoint/EDR Response is the best-fit department for this case.' : `Routing: ${department.fit >= MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD ? 'accepted, but not the best fit' : 'returned'} — ${department.bounce || department.note}`) : 'Routing: review — this case needs a department routed with the recorded evidence.',
+    ],
+    criticalErrors,
+  };
+}
+
 const MODULE_SIX_DEFAULT_STATE = {
   lessonWork: {},
-  independentLab: { task: '', owner: '', scope: '', disposition: '', rationale: '', completed: false, score: 0 },
+  independentLab: {
+    task: '', owner: '', scope: '', disposition: '', rationale: '', completed: false, score: 0,
+    // Standard Incident / Case Record for the m06-independent-form Prove It
+    // submission (MODULE_STANDARD.md §7.2).
+    caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
+  },
   hypothesis: '',
   activeSource: 'endpoint',
   queryDrafts: {
@@ -436,6 +769,9 @@ const MODULE_SIX_DEFAULT_STATE = {
   validationError: '',
   lastSubmittedAt: '',
   labProgress: {},
+  // Standard Incident / Case Record for the m06-form Prove It submission
+  // (MODULE_STANDARD.md §7.2).
+  caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
 };
 
 let moduleSixState = null;
@@ -445,6 +781,8 @@ let moduleSixQuizState = null;
 // Set when the learner explicitly asks to retake a knowledge check that the
 // account already records as passed (see moduleSixQuizVerifiedElsewhere()).
 let moduleSixQuizForceRetake = false;
+let moduleSixProveItShowMissing = false;
+let moduleSixIndependentProveItShowMissing = false;
 
 function moduleSixFreshDefaults() {
   // LabRuntime intentionally performs a shallow merge. This lab has nested
@@ -469,6 +807,53 @@ function moduleSixLoad(user) {
   ['selectedEvidence', 'bookmarks', 'scopedDevices', 'scopedAccounts', 'techniques', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleSixState[key])) moduleSixState[key] = [];
   });
+
+  // Standard case records — init/migrate both tickets; never crash on an
+  // old saved shape.
+  if (!moduleSixState.caseRecord || typeof moduleSixState.caseRecord !== 'object') {
+    moduleSixState.caseRecord = JSON.parse(JSON.stringify(MODULE_SIX_DEFAULT_STATE.caseRecord));
+  }
+  if (!moduleSixState.independentLab.caseRecord || typeof moduleSixState.independentLab.caseRecord !== 'object') {
+    moduleSixState.independentLab.caseRecord = JSON.parse(JSON.stringify(MODULE_SIX_DEFAULT_STATE.independentLab.caseRecord));
+  }
+  [moduleSixState.caseRecord, moduleSixState.independentLab.caseRecord].forEach((cr) => {
+    ['status', 'severity', 'affectedUser', 'affectedDevice', 'disposition', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
+      if (typeof cr[key] !== 'string') cr[key] = '';
+    });
+    if (!cr.findings || typeof cr.findings !== 'object') cr.findings = {};
+    if (!Array.isArray(cr.actionHistory)) cr.actionHistory = [];
+    if (typeof cr.submitted !== 'boolean') cr.submitted = false;
+  });
+  // Backward compat: a pre-migration hunt submission recorded only
+  // `attempts`/`completed` on the old free-form m06-form. Treat it as
+  // already submitted so the student sees Lab Under Review / Lab Graded
+  // instead of a blank ticket — never re-open work already sent to faculty.
+  if (!moduleSixState.caseRecord.submitted && Number(moduleSixState.attempts) > 0) {
+    moduleSixState.caseRecord.submitted = true;
+    moduleSixState.caseRecord.submittedAt = moduleSixState.lastSubmittedAt || new Date().toISOString();
+    if (!moduleSixState.caseRecord.notes) moduleSixState.caseRecord.notes = moduleSixState.notes || '';
+  }
+  // Same backward compat for the pre-migration m06-independent-form, which
+  // only recorded `score`/`completed` (no `attempts` counter of its own —
+  // any prior score means a submission happened).
+  if (!moduleSixState.independentLab.caseRecord.submitted && Number(moduleSixState.independentLab.score) > 0) {
+    moduleSixState.independentLab.caseRecord.submitted = true;
+    moduleSixState.independentLab.caseRecord.submittedAt = moduleSixState.independentLab.submittedAt || new Date().toISOString();
+    if (!moduleSixState.independentLab.caseRecord.notes) moduleSixState.independentLab.caseRecord.notes = moduleSixState.independentLab.rationale || '';
+  }
+  // The returned attempt remains immutable in lab_attempts; its saved
+  // case-state latch must not make the working case permanently unsubmitable.
+  // Scope this reset to an open redo for the exact lab (see Module 01).
+  if (moduleSixProveItRedoRequested() && moduleSixState.caseRecord.submitted === true) {
+    moduleSixState.caseRecord.submitted = false;
+    moduleSixState.caseRecord.submittedAt = '';
+    moduleSixSave();
+  }
+  if (moduleSixIndependentRedoRequested() && moduleSixState.independentLab.caseRecord.submitted === true) {
+    moduleSixState.independentLab.caseRecord.submitted = false;
+    moduleSixState.independentLab.caseRecord.submittedAt = '';
+    moduleSixSave();
+  }
 
   // Initialize quiz state
   if (!moduleSixQuizState) {
@@ -788,70 +1173,27 @@ function moduleSixRadioGroup(name, options) {
   return `<div class="m06-option-list">${options.map((option) => `<label><input type="radio" name="${esc(name)}" value="${esc(option.id)}" ${moduleSixState[name] === option.id ? 'checked' : ''} /><span><strong>${esc(option.label)}</strong><small>${esc(option.help)}</small></span></label>`).join('')}</div>`;
 }
 
-function moduleSixScorePanel() {
-  if (moduleSixState.validationError) return `<div class="m06-validation" id="m06-feedback" role="alert" tabindex="-1"><i class="ri-information-line" aria-hidden="true"></i><div><strong>Complete the hunt record</strong><p>${esc(moduleSixState.validationError)}</p></div></div>`;
-  if (!moduleSixState.attempts || !moduleSixState.breakdown) return `<div class="m06-score-empty" id="m06-feedback" role="status">Scoring: observation 30 · analysis 30 · decision 20 · communication 20. Passing score: ${MODULE_SIX_PASSING_SCORE}.</div>`;
-  const b = moduleSixState.breakdown;
-  const passed = moduleSixState.score >= MODULE_SIX_PASSING_SCORE;
-  return `<section class="m06-score ${passed ? 'is-pass' : 'is-remediate'}" id="m06-feedback" tabindex="-1" aria-live="polite" aria-labelledby="m06-score-title">
-    <div class="m06-score-heading"><div><p class="m06-kicker">Attempt ${moduleSixState.attempts} · best ${moduleSixState.bestScore}/100</p><h3 id="m06-score-title">${moduleSixState.score}/100 — ${passed ? 'Hypothesis tested and scoped' : 'Use the findings to refine your hunt'}</h3></div><span>${moduleSixState.score}</span></div>
-    <div class="m06-score-grid" aria-label="Explainable score breakdown">
-      <div><strong>${b.observation}/30</strong><span>Observation</span><small>${b.queries}/10 queries · ${b.bookmarks}/20 bookmarks</small></div>
-      <div><strong>${b.analysis}/30</strong><span>Analysis</span><small>${b.hypothesis}/8 hypothesis · ${b.scope}/12 scope · ${b.ioc}/4 IOC · ${b.attack}/6 ATT&amp;CK</small></div>
-      <div><strong>${b.decision}/20</strong><span>Decision</span><small>${b.disposition}/10 disposition · ${b.action}/10 action</small></div>
-      <div><strong>${b.communication}/20</strong><span>Communication</span><small>Conclusion, scope, indicators, and handoff</small></div>
-    </div>
-    <ul class="m06-feedback-list">${moduleSixState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
-    <div class="m06-expert-model"><strong>Expert hunt reasoning</strong><p>The initial row is suspicious because an unsigned script host appears beneath a content reader and contacts an unusual destination. The same fingerprint, destination, process pattern, and tightly timed unfamiliar session recur on WS-332 with a second account. That supports the hypothesis and scopes the current evidence to two device-account pairs. It does not prove enterprise-wide compromise; preserve the four bookmarks, escalate the scoped pairs, and continue monitoring for the validated indicators and behaviors.</p></div>
-  </section>`;
-}
-
 function moduleSixArtifact() {
-  const devices = [
-    { id: 'WS-214', label: 'WS-214', help: 'Seed device with the first matching process chain.' },
-    { id: 'WS-332', label: 'WS-332', help: 'Second device with the same fingerprint and destination.' },
-    { id: 'WS-105', label: 'WS-105', help: 'Approved signed updater activity.' },
-    { id: 'WS-406', label: 'WS-406', help: 'Managed inventory script with a different fingerprint.' },
-  ];
-  const accounts = [
-    { id: 'acct-27', label: 'acct-27', help: 'Session and endpoint activity align on WS-214.' },
-    { id: 'acct-41', label: 'acct-41', help: 'Session and endpoint activity align on WS-332.' },
-    { id: 'acct-18', label: 'acct-18', help: 'Routine access on an inventory workstation.' },
-    { id: 'acct-52', label: 'acct-52', help: 'Normal document and sign-in activity.' },
-  ];
-  const techniques = [
-    { id: 'T1059', label: 'T1059 · Command and Scripting Interpreter', help: 'Supported by the encoded script-host execution.' },
-    { id: 'T1105', label: 'T1105 · Ingress Tool Transfer', help: 'The data proves a connection, but not a file transfer.' },
-    { id: 'T1078', label: 'T1078 · Valid Accounts', help: 'Supported by active account sessions from the shared unusual source.' },
-    { id: 'T1566', label: 'T1566 · Phishing', help: 'A content viewer is present, but message-delivery evidence is not in this lab.' },
-  ];
-  return `<form class="m06-panel m06-artifact" id="m06-form" novalidate aria-labelledby="m06-artifact-title">
-    <div class="m06-panel-heading"><div><p class="m06-kicker">Stages 3–5 · Scope, decide, communicate</p><h3 id="m06-artifact-title">Hunt conclusion record</h3></div><span class="m06-status-chip">Retry allowed</span></div>
-    <p class="m06-instruction">Turn the two-source findings into one reviewable artifact. Select only what the evidence supports.</p>
-
-    <fieldset class="m06-fieldset"><legend><span>1</span> Scope the affected devices</legend><p class="m06-help">Choose every device with the matching suspicious behavior.</p>${moduleSixCheckboxGroup('scopedDevices', devices, moduleSixState.scopedDevices)}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>2</span> Scope the affected identities</legend><p class="m06-help">Choose every account supported by both timing and entity context.</p>${moduleSixCheckboxGroup('scopedAccounts', accounts, moduleSixState.scopedAccounts)}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>3</span> Interpret the indicator relationship</legend><p class="m06-help">Indicators are pivots. Explain what their recurrence contributes.</p>${moduleSixRadioGroup('iocRelationship', [
-      { id: 'corroborates', label: 'The shared fingerprint and destination corroborate one recurring behavior pattern.', help: 'The process, device, identity, and time context make the recurrence meaningful.' },
-      { id: 'ip-proves', label: 'The destination alone proves every matching device is compromised.', help: 'An address match without behavior and context is not enough.' },
-      { id: 'unrelated', label: 'The rows are unrelated because they occur on different devices.', help: 'Cross-device recurrence is exactly what this hunt is testing.' },
-    ])}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>4</span> Map demonstrated ATT&amp;CK behavior</legend><p class="m06-help">Choose the two techniques directly supported by these two sources; do not infer delivery or download behavior that is absent.</p>${moduleSixCheckboxGroup('techniques', techniques, moduleSixState.techniques)}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>5</span> Record the hunt disposition</legend>${moduleSixRadioGroup('disposition', [
-      { id: 'supported-scoped', label: 'Hypothesis supported; current evidence scopes activity to two device-account pairs.', help: 'The pattern recurs, while the dataset does not establish wider compromise.' },
-      { id: 'enterprise-wide', label: 'Confirmed enterprise-wide compromise.', help: 'Two affected pairs cannot support an enterprise-wide claim.' },
-      { id: 'benign', label: 'Benign administrative behavior.', help: 'The unsigned content-reader child and unfamiliar sessions differ from the benign baselines.' },
-    ])}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>6</span> Recommend the next action</legend>${moduleSixRadioGroup('nextAction', [
-      { id: 'scoped-escalation', label: 'Escalate the two pairs for approved containment, preserve bookmarks, and continue a scoped indicator-and-behavior hunt.', help: 'This is proportionate to the validated scope and keeps evidence available.' },
-      { id: 'wipe-all', label: 'Immediately wipe every device in the dataset.', help: 'This exceeds the observed scope and analyst authority.' },
-      { id: 'close', label: 'Close the hunt because no alert fired on WS-332.', help: 'Threat hunting exists to find relevant behavior beyond current alerts.' },
-    ])}</fieldset>
-    <div class="m06-fieldset"><label class="m06-note-label" for="m06-notes"><span>7</span><strong>Write the analyst handoff</strong></label><p class="m06-help" id="m06-notes-help">In 120+ characters: state whether the hypothesis is supported, name the scoped devices/accounts, cite the fingerprint or destination, and recommend a next action.</p><textarea id="m06-notes" name="notes" rows="6" maxlength="900" aria-describedby="m06-notes-help m06-note-count" placeholder="Hypothesis result: … Scope: … Evidence: … Recommended next step: …">${esc(moduleSixState.notes)}</textarea><p class="m06-note-count" id="m06-note-count"><span>${moduleSixState.notes.length}</span>/900 characters</p></div>
-    <details class="m06-hint m06-artifact-hint"><summary>Need a handoff checklist?</summary><p>Conclusion → exact scope → strongest indicator-and-behavior evidence → proportionate next action. State what is known without claiming more than two sources show.</p></details>
-    <div class="m06-actions"><button type="submit" class="m06-submit"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score my hunt</button><button type="button" class="m06-reset" data-m06-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset only this lab</button></div>
-    ${moduleSixScorePanel()}
-  </form>`;
+  const cr = moduleSixState.caseRecord;
+  const spec = moduleSixHuntCaseSpec();
+  const missing = caseRecordMissing(cr, spec);
+  return `<section class="m06-panel m06-artifact" aria-labelledby="m06-artifact-title">
+    <div class="m06-panel-heading"><div><p class="m06-kicker">Stages 3–5 · Scope, decide, communicate</p><h3 id="m06-artifact-title">Hunt conclusion record</h3></div>${!cr.submitted ? `<button type="button" class="m06-reset" data-m06-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset only this lab</button>` : ''}</div>
+    <p class="m06-instruction">Turn the two-source findings into one reviewable incident ticket. Select only what the evidence supports.</p>
+    ${caseRecordPane(cr, {
+      ...spec,
+      missing,
+      formId: 'm06-form',
+      saveAttr: 'data-m06-save-case',
+      submitAttr: 'data-m06-submit-case',
+      panelId: 'm06-case-panel',
+      showMissing: moduleSixProveItShowMissing,
+      redoRequested: moduleSixProveItRedoRequested(),
+      redoHtml: moduleSixProveItRedoFeedback(),
+      reviewStatus: moduleSixProveItReviewStatus(),
+      lockedMessage: 'The Assessment Lab stays locked until your instructor approves the submission.',
+    })}
+  </section>`;
 }
 
 function moduleSixGuidedLabPanel() {
@@ -860,19 +1202,25 @@ function moduleSixGuidedLabPanel() {
 
 function moduleSixAssessmentLabPanel() {
   const lab = moduleSixState.independentLab;
-  const passed = lab.completed;
+  const cr = lab.caseRecord;
+  const spec = moduleSixBackdoorCaseSpec();
+  const missing = caseRecordMissing(cr, spec);
   return `<section class="m06-panel m06-independent" id="m06-independent-lab" aria-labelledby="m06-independent-title">
-    <div class="m06-panel-heading"><div><p class="m06-kicker">Independent case · same Threat Hunt Lab tool, no hints</p><h3 id="m06-independent-title">Dormant task backdoor review</h3></div><span class="m06-status-chip">${passed ? 'Complete' : 'Decision required'}</span></div>
-    <p class="m06-instruction"><strong>Fresh case, different decision path:</strong> Mission Next Labs has no alert for a scheduled task named <code>UpdateHealth</code> on <code>ws-318</code>. It runs weekly from a user-writable folder and was created by <code>acct-184</code>. A second host has the same task name but a signed script under approved maintenance. Choose a bounded disposition; do not treat the absence of an alert as proof of safety.</p>
-    <form id="m06-independent-form" class="m06-independent-form" novalidate>
-      <label><strong>1. Evidence to prioritize</strong><select name="task"><option value="" ${!lab.task ? 'selected' : ''}>Choose…</option><option value="task-metadata" ${lab.task === 'task-metadata' ? 'selected' : ''}>Task author, trigger, path, signer, and creation time</option><option value="all-logs" ${lab.task === 'all-logs' ? 'selected' : ''}>Every log row in the tenant</option><option value="alert-only" ${lab.task === 'alert-only' ? 'selected' : ''}>Only generated alerts</option></select></label>
-      <label><strong>2. Current scope</strong><select name="scope"><option value="" ${!lab.scope ? 'selected' : ''}>Choose…</option><option value="ws318" ${lab.scope === 'ws318' ? 'selected' : ''}>ws-318 is supported; the signed maintenance host is a comparison</option><option value="fleet" ${lab.scope === 'fleet' ? 'selected' : ''}>Every host with the task name is compromised</option><option value="none" ${lab.scope === 'none' ? 'selected' : ''}>No scope because no alert fired</option></select></label>
-      <label><strong>3. Disposition</strong><select name="disposition"><option value="" ${!lab.disposition ? 'selected' : ''}>Choose…</option><option value="escalate" ${lab.disposition === 'escalate' ? 'selected' : ''}>Escalate ws-318 for approved containment and preserve the task/script evidence</option><option value="wipe" ${lab.disposition === 'wipe' ? 'selected' : ''}>Wipe every host immediately</option><option value="close" ${lab.disposition === 'close' ? 'selected' : ''}>Close as benign because no alert exists</option></select></label>
-      <label><strong>4. Explain the reasoning (60+ characters)</strong><textarea name="rationale" rows="4" maxlength="700" placeholder="Observed behavior… comparison… bounded next action…">${esc(lab.rationale || '')}</textarea></label>
-      <button type="submit" class="m06-submit">${passed ? 'Re-score independent lab' : 'Score independent lab'}</button>
-      ${moduleSixState.additionalGateMessage ? `<p class="m06-independent-feedback is-remediate" role="alert">${esc(moduleSixState.additionalGateMessage)}</p>` : ''}
-      ${lab.score ? `<p class="m06-independent-feedback ${passed ? 'is-pass' : 'is-remediate'}" role="status"><strong>${lab.score}/100</strong> — ${passed ? 'Independent decision supported.' : 'Review the comparison and scope, then retry.'}</p>` : ''}
-    </form>
+    <div class="m06-panel-heading"><div><p class="m06-kicker">Independent case · same Threat Hunt Lab tool, no hints</p><h3 id="m06-independent-title">Dormant task backdoor review</h3></div></div>
+    <p class="m06-instruction"><strong>Fresh case, different decision path:</strong> Mission Next Labs has no alert for a scheduled task named <code>UpdateHealth</code> on <code>ws-318</code>. It runs weekly from a user-writable folder and was created by <code>acct-184</code>. A second host (<code>ws-355</code>) has the same task name but a signed script under approved maintenance. Choose a bounded disposition; do not treat the absence of an alert as proof of safety.</p>
+    ${caseRecordPane(cr, {
+      ...spec,
+      missing,
+      formId: 'm06-independent-form',
+      saveAttr: 'data-m06-independent-save-case',
+      submitAttr: 'data-m06-independent-submit-case',
+      panelId: 'm06-independent-case-panel',
+      showMissing: moduleSixIndependentProveItShowMissing,
+      redoRequested: moduleSixIndependentRedoRequested(),
+      redoHtml: moduleSixIndependentRedoFeedback(),
+      reviewStatus: moduleSixIndependentReviewStatus(),
+      lockedMessage: 'Module 7 stays locked until your instructor approves the submission.',
+    })}
   </section>`;
 }
 
@@ -881,46 +1229,6 @@ function moduleSixExactSelection(selected, expected, points) {
   const correct = expected.filter((item) => chosen.has(item)).length;
   const extras = selected.filter((item) => !expected.includes(item)).length;
   return Math.max(0, Math.round((correct / expected.length) * points) - (extras * Math.ceil(points / expected.length)));
-}
-
-function moduleSixScore() {
-  const queries = (moduleSixState.queryPassed.endpoint ? 5 : 0) + (moduleSixState.queryPassed.signin ? 5 : 0);
-  const bookmarks = moduleSixExactSelection(moduleSixState.bookmarks, MODULE_SIX_EXPECTED_BOOKMARKS, 20);
-  const hypothesis = moduleSixState.hypothesis === 'recurrence' ? 8 : 0;
-  const deviceScope = moduleSixExactSelection(moduleSixState.scopedDevices, ['WS-214', 'WS-332'], 6);
-  const accountScope = moduleSixExactSelection(moduleSixState.scopedAccounts, ['acct-27', 'acct-41'], 6);
-  const scope = deviceScope + accountScope;
-  const ioc = moduleSixState.iocRelationship === 'corroborates' ? 4 : 0;
-  const attack = moduleSixExactSelection(moduleSixState.techniques, ['T1059', 'T1078'], 6);
-  const disposition = moduleSixState.disposition === 'supported-scoped' ? 10 : 0;
-  const action = moduleSixState.nextAction === 'scoped-escalation' ? 10 : 0;
-  const note = moduleSixState.notes.trim().toLowerCase();
-  const noteLength = note.length >= 120 ? 6 : 0;
-  const noteConclusion = /(hypothesis|supported|recurr|malicious|suspicious)/.test(note) ? 4 : 0;
-  const noteScope = /(ws-214)/.test(note) && /(ws-332)/.test(note) && /(acct-27)/.test(note) && /(acct-41)/.test(note) ? 4 : 0;
-  const noteIndicator = /(aaa|203\.0\.113\.77|fingerprint|destination)/.test(note) ? 3 : 0;
-  const noteAction = /(escalat|contain|preserv|continue|block)/.test(note) ? 3 : 0;
-  const communication = noteLength + noteConclusion + noteScope + noteIndicator + noteAction;
-  const observation = queries + bookmarks;
-  const analysis = hypothesis + scope + ioc + attack;
-  const decision = disposition + action;
-  const score = observation + analysis + decision + communication;
-  const exactBookmarks = bookmarks === 20;
-  const exactScope = scope === 12;
-  const exactAttack = attack === 6;
-  return {
-    score,
-    breakdown: { observation, queries, bookmarks, analysis, hypothesis, scope, ioc, attack, decision, disposition, action, communication },
-    feedback: [
-      queries === 10 ? 'Queries: Both scoped pivots returned the two chronological matches expected.' : `Queries: ${queries}/10. Run the endpoint fingerprint query and sign-in source-address query with an ascending time sort.`,
-      exactBookmarks ? 'Bookmarks: Correct. Four records preserve the two endpoint executions and their two identity-session correlations.' : `Bookmarks: ${bookmarks}/20. Keep EP-602, EP-604, ID-612, and ID-614; unrelated baseline rows weaken the evidence set.`,
-      hypothesis ? 'Hypothesis: Testable and correctly framed around recurrence beyond the seed device.' : 'Hypothesis: Frame the hunt around whether the same suspicious script behavior recurred on another device.',
-      exactScope ? 'Scope: Correctly limited to WS-214/acct-27 and WS-332/acct-41.' : `Scope: ${scope}/12. Select only the two device-account pairs supported by matching behavior and timing.`,
-      ioc && exactAttack ? 'IOC and ATT&CK analysis: Correct. The recurring indicators corroborate the pattern; scripting and valid-account use are directly demonstrated.' : `IOC and ATT&CK analysis: ${ioc + attack}/10. Correlate indicators with context and map only scripting plus valid-account use.`,
-      disposition && action ? 'Decision: Proportionate. Escalate the scoped pairs, preserve evidence, and continue the focused hunt.' : `Decision: ${decision}/20. Avoid enterprise-wide claims or destructive actions beyond the current evidence.`,
-      communication === 20 ? 'Handoff: Complete, scoped, evidence-based, and actionable.' : `Handoff: ${communication}/20. Include a conclusion, both device-account pairs, one validated indicator, and a proportionate recommendation in at least 120 characters.`,
-    ],
-  };
 }
 
 function moduleSixAllRows() {
@@ -1079,6 +1387,7 @@ function wireModuleSixGuidedLab() {
     }
 
     if (event.target.closest('[data-m06-reset]')) {
+      if (moduleSixState.caseRecord.submitted) return;
       if (typeof window.confirm === 'function' && !window.confirm('Reset only this Module 06 lab? Your saved hunt attempt will be cleared.')) return;
       const independentLab = moduleSixState.independentLab;
       moduleSixState = LabRuntime.resetCaseState(MODULE_SIX_LAB_ID, 'soc-06', moduleSixUser, moduleSixFreshDefaults());
@@ -1088,6 +1397,65 @@ function wireModuleSixGuidedLab() {
       moduleSixRenderGuidedLab('m06-hypothesis-title');
       const status = document.getElementById('m06-status');
       if (status) status.textContent = 'Not started';
+      return;
+    }
+
+    if (event.target.closest('[data-m06-save-case]')) {
+      moduleSixState.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+      moduleSixSave();
+      moduleSixRenderGuidedLab();
+      return;
+    }
+
+    if (event.target.closest('[data-m06-submit-case]')) {
+      if (moduleSixState.caseRecord.submitted) return;
+      const spec = moduleSixHuntCaseSpec();
+      const missing = caseRecordMissing(moduleSixState.caseRecord, spec);
+      if (missing.length) {
+        moduleSixProveItShowMissing = true;
+        moduleSixSave();
+        moduleSixRenderGuidedLab('m06-case-panel');
+        return;
+      }
+      moduleSixProveItShowMissing = false;
+      const result = moduleSixHuntCaseScore();
+      const submittedAt = new Date().toISOString();
+      moduleSixState.caseRecord.submitted = true;
+      moduleSixState.caseRecord.submittedAt = submittedAt;
+      moduleSixState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: submittedAt });
+      moduleSixState.attempts = (moduleSixState.attempts || 0) + 1;
+      moduleSixState.score = result.score;
+      moduleSixState.bestScore = Math.max(moduleSixState.bestScore || 0, result.score);
+      moduleSixState.breakdown = result.breakdown;
+      moduleSixState.feedback = result.feedback;
+      moduleSixState.lastSubmittedAt = submittedAt;
+      // Submitted = complete pending faculty review (Module 01 model); the
+      // 70% bar is applied by instructor review, not by locking the student out.
+      moduleSixState.completed = true;
+      if (moduleSixState.completed && !moduleSixState.flags.includes(MODULE_SIX_FLAG)) moduleSixState.flags.push(MODULE_SIX_FLAG);
+      moduleSixSave();
+      if (moduleSixUser) {
+        moduleSixUser.latestLabAttemptByKey = { ...(moduleSixUser.latestLabAttemptByKey || {}), [MODULE_SIX_CATALOG_LAB_KEY]: { completedAt: submittedAt, reviewedAt: null, redoRequested: false } };
+      }
+      if (typeof recordLabAttempt === 'function') {
+        recordLabAttempt(moduleSixUser, MODULE_SIX_CATALOG_LAB_KEY, {
+          state: 'complete',
+          score: result.score,
+          result: {
+            breakdown: result.breakdown,
+            feedback: result.feedback,
+            critical_errors: result.criticalErrors,
+            case_record: moduleSixState.caseRecord,
+            case_display: caseRecordDisplay(moduleSixState.caseRecord, spec),
+            case_summary: caseRecordSummary(moduleSixState.caseRecord, spec),
+            attempts: moduleSixState.attempts,
+          },
+        }).then((saved) => { if (saved && moduleSixProveItRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06']; });
+      }
+      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_CATALOG_LAB_KEY);
+      moduleSixRenderGuidedLab('m06-case-panel');
+      const status = document.getElementById('m06-status');
+      if (status) status.textContent = moduleSixState.completed ? 'Complete' : 'In progress';
     }
   });
 
@@ -1095,20 +1463,23 @@ function wireModuleSixGuidedLab() {
     if (event.target.name === 'queryDraft') {
       moduleSixState.queryDrafts[moduleSixState.activeSource] = event.target.value;
       moduleSixSave();
+      return;
     }
-    if (event.target.name === 'notes') {
-      moduleSixState.notes = event.target.value;
-      const count = root.querySelector('#m06-note-count span');
-      if (count) count.textContent = String(event.target.value.length);
+    if (event.target.name === 'notes' && event.target.closest('#m06-form')) {
+      caseRecordApply(moduleSixState.caseRecord, 'notes', event.target.value);
       moduleSixSave();
     }
   });
 
   root.addEventListener('change', (event) => {
     const input = event.target;
-    if (['hypothesis', 'iocRelationship', 'disposition', 'nextAction'].includes(input.name)) {
+    if (input.closest('#m06-form') && caseRecordApply(moduleSixState.caseRecord, input.name, input.value)) {
+      moduleSixState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
+      moduleSixSave();
+      return;
+    }
+    if (['hypothesis', 'iocRelationship', 'nextAction'].includes(input.name)) {
       moduleSixState[input.name] = input.value;
-      moduleSixState.validationError = '';
       moduleSixSave();
       return;
     }
@@ -1118,55 +1489,8 @@ function wireModuleSixGuidedLab() {
       moduleSixState[key] = input.checked
         ? [...new Set([...moduleSixState[key], input.value])]
         : moduleSixState[key].filter((item) => item !== input.value);
-      moduleSixState.validationError = '';
       moduleSixSave();
     }
-  });
-
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm06-form') return;
-    event.preventDefault();
-    moduleSixState.notes = event.target.elements.notes.value;
-    const missing = [];
-    if (!moduleSixState.hypothesis) missing.push('hypothesis');
-    if (!moduleSixState.queryRuns.endpoint || !moduleSixState.queryRuns.signin) missing.push('both source queries');
-    if (!moduleSixState.bookmarks.length) missing.push('bookmarks');
-    if (!moduleSixState.scopedDevices.length || !moduleSixState.scopedAccounts.length) missing.push('scope');
-    if (!moduleSixState.iocRelationship) missing.push('indicator interpretation');
-    if (!moduleSixState.techniques.length) missing.push('ATT&CK mapping');
-    if (!moduleSixState.disposition || !moduleSixState.nextAction) missing.push('decision');
-    if (moduleSixState.notes.trim().length < 120) missing.push('120-character handoff');
-    if (missing.length) {
-      moduleSixState.validationError = `Add: ${missing.join(', ')}. Your existing work is saved.`;
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-feedback');
-      return;
-    }
-    const result = moduleSixScore();
-    moduleSixState.attempts += 1;
-    moduleSixState.score = result.score;
-    moduleSixState.bestScore = Math.max(moduleSixState.bestScore || 0, result.score);
-    moduleSixState.breakdown = result.breakdown;
-    moduleSixState.feedback = result.feedback;
-    moduleSixState.validationError = '';
-    moduleSixState.lastSubmittedAt = new Date().toISOString();
-    const passed = result.score >= MODULE_SIX_PASSING_SCORE;
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(moduleSixUser, MODULE_SIX_CATALOG_LAB_KEY, {
-        state: passed ? 'complete' : 'in_progress',
-        score: result.score,
-        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleSixState.attempts },
-      });
-    }
-    if (passed) {
-      moduleSixState.completed = true;
-      if (!moduleSixState.flags.includes(MODULE_SIX_FLAG)) moduleSixState.flags.push(MODULE_SIX_FLAG);
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_CATALOG_LAB_KEY);
-    }
-    moduleSixSave();
-    moduleSixRenderGuidedLab('m06-feedback');
-    const status = document.getElementById('m06-status');
-    if (status) status.textContent = moduleSixState.completed ? 'Complete' : 'In progress';
   });
 }
 
@@ -1175,45 +1499,70 @@ function wireModuleSixAssessmentLab() {
   if (!root || !moduleSixState) return;
 
   root.addEventListener('change', (event) => {
-    if (['task', 'scope', 'disposition'].includes(event.target.name)) {
-      moduleSixState.independentLab[event.target.name] = event.target.value;
+    const input = event.target;
+    if (input.closest('#m06-independent-form') && caseRecordApply(moduleSixState.independentLab.caseRecord, input.name, input.value)) {
+      moduleSixState.independentLab.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
       moduleSixSave();
     }
   });
 
   root.addEventListener('input', (event) => {
-    if (event.target.name === 'rationale') {
-      moduleSixState.independentLab.rationale = event.target.value;
+    if (event.target.name === 'notes' && event.target.closest('#m06-independent-form')) {
+      caseRecordApply(moduleSixState.independentLab.caseRecord, 'notes', event.target.value);
       moduleSixSave();
     }
   });
 
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm06-independent-form') return;
-    event.preventDefault();
-    const form = event.target;
-    moduleSixState.independentLab.task = form.elements.task.value;
-    moduleSixState.independentLab.scope = form.elements.scope.value;
-    moduleSixState.independentLab.disposition = form.elements.disposition.value;
-    moduleSixState.independentLab.rationale = form.elements.rationale.value;
-    const lab = moduleSixState.independentLab;
-    if (!missionNextAllLabsComplete(moduleSixState.labProgress, ['additional-1', 'additional-2', 'additional-3'])) {
-      moduleSixState.additionalGateMessage = 'Mark all required labs above complete first.';
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m06-independent-save-case]')) {
+      moduleSixState.independentLab.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
       moduleSixSave();
       root.innerHTML = moduleSixAssessmentLabPanel();
       return;
     }
-    moduleSixState.additionalGateMessage = '';
-    const valid = lab.task === 'task-metadata' && lab.scope === 'ws318' && lab.disposition === 'escalate' && lab.rationale.trim().length >= 60;
-    lab.score = valid ? 100 : 45;
-    lab.completed = valid;
-    moduleSixSave();
-    if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleSixUser, 'lab-threat-hunt-independent', {
-      state: valid ? 'complete' : 'in_progress', score: lab.score,
-      result: { task: lab.task, scope: lab.scope, disposition: lab.disposition },
-    });
-    if (valid && typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', 'lab-threat-hunt-independent');
-    root.innerHTML = moduleSixAssessmentLabPanel();
+
+    if (event.target.closest('[data-m06-independent-submit-case]')) {
+      const lab = moduleSixState.independentLab;
+      if (lab.caseRecord.submitted) return;
+      const spec = moduleSixBackdoorCaseSpec();
+      const missing = caseRecordMissing(lab.caseRecord, spec);
+      if (missing.length) {
+        moduleSixIndependentProveItShowMissing = true;
+        moduleSixSave();
+        root.innerHTML = moduleSixAssessmentLabPanel();
+        return;
+      }
+      moduleSixIndependentProveItShowMissing = false;
+      const result = moduleSixBackdoorCaseScore();
+      const submittedAt = new Date().toISOString();
+      lab.caseRecord.submitted = true;
+      lab.caseRecord.submittedAt = submittedAt;
+      lab.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: submittedAt });
+      lab.score = result.score;
+      // Submitted = complete pending faculty review (Module 01 model); the
+      // 70% bar is applied by instructor review, not by locking the student out.
+      lab.completed = true;
+      moduleSixSave();
+      if (moduleSixUser) {
+        moduleSixUser.latestLabAttemptByKey = { ...(moduleSixUser.latestLabAttemptByKey || {}), [MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY]: { completedAt: submittedAt, reviewedAt: null, redoRequested: false } };
+      }
+      if (typeof recordLabAttempt === 'function') {
+        recordLabAttempt(moduleSixUser, MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY, {
+          state: 'complete',
+          score: result.score,
+          result: {
+            breakdown: result.breakdown,
+            feedback: result.feedback,
+            critical_errors: result.criticalErrors,
+            case_record: lab.caseRecord,
+            case_display: caseRecordDisplay(lab.caseRecord, spec),
+            case_summary: caseRecordSummary(lab.caseRecord, spec),
+          },
+        }).then((saved) => { if (saved && moduleSixIndependentRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06-independent']; });
+      }
+      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY);
+      root.innerHTML = moduleSixAssessmentLabPanel();
+    }
   });
 }
 

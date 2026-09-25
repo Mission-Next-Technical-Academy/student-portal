@@ -200,12 +200,63 @@ const MODULE_TWELVE_PREPARATION_LECTURES = [
   },
 ];
 
+// Standard Incident / Case Record (MODULE_STANDARD.md §7.2). The capstone's
+// ten scored rubric domains stay exactly as designed — this only gives the
+// case a standard ticket core (status/severity/affected user+device/
+// disposition/escalation) so it opens the same way every other module's
+// Prove It does. Every other capstone requirement (query, timeline, scope
+// checkboxes, enrichment, ATT&CK, detection, response, reporting, closure)
+// renders as findingsHtml under the grid. Analyst Work Notes carries the
+// technical investigation narrative (>=260 chars); the executive summary
+// and closure note remain their own labelled textareas inside the ticket.
+const MODULE_TWELVE_CASE = {
+  caseId: 'INC-4821',
+  userOptions: [
+    { id: 'acct-204', text: 'acct-204', tier: 'principal' },
+    { id: 'system', text: 'system (WS-118 script context)', tier: 'pivot' },
+    { id: 'acct-091', text: 'acct-091', tier: 'noise' },
+    { id: 'backup-job', text: 'backup-job', tier: 'noise' },
+    { id: 'm.alvarez', text: 'm.alvarez', tier: 'noise' },
+    { id: 'svc-mail', text: 'svc-mail', tier: 'noise' },
+  ],
+  deviceOptions: [
+    { id: 'ws-204', text: 'WS-204', tier: 'principal' },
+    { id: 'ws-118', text: 'WS-118', tier: 'pivot' },
+    { id: 'mail-edge-02', text: 'mail-edge-02', tier: 'noise' },
+    { id: 'srv-file-09', text: 'SRV-FILE-09', tier: 'noise' },
+    { id: 'ws-091', text: 'WS-091', tier: 'noise' },
+    { id: 'lap-233', text: 'LAP-233', tier: 'noise' },
+  ],
+  dispositionOptions: [
+    { id: 'true-positive', text: 'True-positive incident' },
+    { id: 'benign-close', text: 'Benign — close alert' },
+  ],
+  departmentOptions: [
+    { id: 'tier2-soc', text: 'Tier 2 SOC — Incident Response', fit: 100 },
+    { id: 'identity-response', text: 'Identity Response', fit: 60,
+      note: 'Identity Response can act on acct-204, but the case also has confirmed endpoint execution on WS-204 it has no authority over — Tier 2 SOC owns both legs together.' },
+    { id: 'endpoint-edr', text: 'Endpoint / EDR Team', fit: 55,
+      note: 'EDR can isolate WS-204, but can’t revoke acct-204’s compromised session on its own — Tier 2 SOC coordinates both actions.' },
+    { id: 'help-desk', text: 'Help Desk', fit: 5,
+      bounce: 'Help Desk can’t act on a confirmed identity compromise with endpoint execution — this needs Tier 2 SOC’s incident-response authority.' },
+  ],
+  correctAffectedUser: 'acct-204',
+  correctAffectedDevice: 'ws-204',
+  correctDisposition: 'true-positive',
+  correctSeverity: 'high',
+  correctEscalateTo: 'tier2-soc',
+};
+
 function moduleTwelveFreshDefaults() {
   return {
     activeConsole: 'queue', reviewedConsoles: [], selectedEvidence: [], stageVisits: [],
-    answers: {}, executiveSummary: '', analystNarrative: '', closureNote: '',
+    answers: {}, executiveSummary: '', notes: '', closureNote: '',
     hintsOpened: [], simulatorLaunched: false, breakdown: null, feedback: [],
     criticalErrors: [], validationError: '', lastSubmittedAt: '',
+    // Standard case-record ticket fields (MODULE_STANDARD.md §7.2).
+    submitted: false, status: '', severity: '', affectedUser: '', affectedDevice: '',
+    disposition: '', escalation: '', escalateTo: '', findings: {}, actionHistory: [],
+    showMissing: false,
   };
 }
 
@@ -236,6 +287,34 @@ function moduleTwelveLoad(user, program) {
   });
   if (!moduleTwelveState.answers || typeof moduleTwelveState.answers !== 'object') moduleTwelveState.answers = {};
   if (!MODULE_TWELVE_CONSOLES[moduleTwelveState.activeConsole]) moduleTwelveState.activeConsole = 'queue';
+  // Case-record migration: default any field an older saved attempt never
+  // had. `notes` now carries the technical narrative that used to live in
+  // `analystNarrative`; backfill it once so in-progress drafts are not
+  // silently emptied.
+  if (typeof moduleTwelveState.notes !== 'string') moduleTwelveState.notes = typeof moduleTwelveState.analystNarrative === 'string' ? moduleTwelveState.analystNarrative : '';
+  if (!moduleTwelveState.findings || typeof moduleTwelveState.findings !== 'object') moduleTwelveState.findings = {};
+  if (!Array.isArray(moduleTwelveState.actionHistory)) moduleTwelveState.actionHistory = [];
+  ['status', 'severity', 'affectedUser', 'affectedDevice', 'disposition', 'escalation', 'escalateTo'].forEach((key) => {
+    if (typeof moduleTwelveState[key] !== 'string') moduleTwelveState[key] = '';
+  });
+  if (typeof moduleTwelveState.submitted !== 'boolean') moduleTwelveState.submitted = false;
+  if (typeof moduleTwelveState.showMissing !== 'boolean') moduleTwelveState.showMissing = false;
+  // Any already-completed old-form attempt keeps its pass and stays a
+  // locked, submitted ticket — never re-opened by this migration. Backfill
+  // the ticket fields from the legacy answers where possible so the locked
+  // record reads sensibly instead of showing blank selects.
+  if (moduleTwelveState.completed) {
+    moduleTwelveState.submitted = true;
+    const legacy = moduleTwelveState.answers || {};
+    if (!moduleTwelveState.disposition && legacy.verdict) moduleTwelveState.disposition = legacy.verdict;
+    if (!moduleTwelveState.severity && legacy.severity) moduleTwelveState.severity = legacy.severity;
+    if (!moduleTwelveState.status) moduleTwelveState.status = 'resolved';
+    const legacyScope = Array.isArray(legacy.scope) ? legacy.scope : [];
+    if (!moduleTwelveState.affectedUser) moduleTwelveState.affectedUser = legacyScope.find((id) => id.startsWith('acct-')) || '';
+    if (!moduleTwelveState.affectedDevice) moduleTwelveState.affectedDevice = legacyScope.find((id) => id.startsWith('ws-')) || '';
+    if (!moduleTwelveState.escalation) moduleTwelveState.escalation = 'required';
+    if (!moduleTwelveState.escalateTo) moduleTwelveState.escalateTo = 'tier2-soc';
+  }
   if (moduleTwelveUnlocked(user, program) && typeof markModuleContentOpened === 'function') {
     markModuleContentOpened(user, 'soc-analyst', 'soc-12');
   }
@@ -265,21 +344,25 @@ function moduleTwelveLaunchUrl() {
 
 function moduleTwelveScore() {
   const a = moduleTwelveState.answers;
+  const state = moduleTwelveState;
   const timelineCorrect = a.t1 === 'email' && a.t2 === 'execution' && a.t3 === 'network' && a.t4 === 'identity';
+  const disposition = caseRecordDisposition(state);
+  const severity = caseRecordSeverity(state);
   const domains = [
-    ['Triage', a.verdict === 'true-positive' && a.severity === 'high' && a.priority === 'p1'],
+    ['Triage', disposition === MODULE_TWELVE_CASE.correctDisposition && severity === MODULE_TWELVE_CASE.correctSeverity && a.priority === 'p1'],
     ['Query', a.query === 'correlated-pivot'],
     ['Timeline', timelineCorrect],
-    ['Scope', moduleTwelveSetEqual(moduleTwelveValues('scope'), ['acct-204', 'ws-204']) && a.scopeLimit === 'bounded'],
+    ['Scope', moduleTwelveSetEqual(moduleTwelveValues('scope'), ['acct-204', 'ws-204']) && a.scopeLimit === 'bounded' && state.affectedUser === MODULE_TWELVE_CASE.correctAffectedUser && state.affectedDevice === MODULE_TWELVE_CASE.correctAffectedDevice],
     ['Enrichment', a.enrichment === 'correlated-malicious' && a.exposurePriority === 'audit-policy'],
     ['ATT&CK', moduleTwelveSetEqual(moduleTwelveValues('attack'), ['T1059.007', 'T1071.001', 'T1204.001', 'T1547.001'])],
     ['Detection', a.detection === 'parent-hash-destination' && a.tuning === 'signed-approved-parent'],
-    ['Response', moduleTwelveSetEqual(moduleTwelveValues('response'), ['block-ioc', 'isolate-ws204', 'preserve', 'revoke-acct204'])],
-    ['Reporting', moduleTwelveState.executiveSummary.trim().length >= 180 && moduleTwelveState.analystNarrative.trim().length >= 260],
+    ['Response', moduleTwelveSetEqual(moduleTwelveValues('response'), ['block-ioc', 'isolate-ws204', 'preserve', 'revoke-acct204']) && state.escalation === 'required' && state.escalateTo === MODULE_TWELVE_CASE.correctEscalateTo],
+    ['Reporting', moduleTwelveState.executiveSummary.trim().length >= 180 && moduleTwelveState.notes.trim().length >= 260],
     ['Closure', a.closure === 'verified-recovery' && a.followup === 'policy-owner' && moduleTwelveState.closureNote.trim().length >= 100],
   ];
   const criticalErrors = [];
-  if (a.verdict === 'benign-close') criticalErrors.push('The confirmed incident was closed as benign.');
+  if (disposition === 'benign-close') criticalErrors.push('The confirmed incident was closed as benign.');
+  if (state.escalation === 'not-required') criticalErrors.push('A confirmed incident with endpoint and identity impact was marked as not requiring escalation.');
   if (moduleTwelveValues('scope').includes('acct-091')) criticalErrors.push('The response targeted an unrelated identity.');
   if (moduleTwelveValues('response').includes('delete-evidence')) criticalErrors.push('Evidence deletion breaks preservation and review.');
   if (moduleTwelveValues('response').includes('shutdown-all')) criticalErrors.push('Enterprise-wide shutdown is unsupported by the bounded scope.');
@@ -342,14 +425,15 @@ function moduleTwelveCheck(name, value, label, checked) {
   return `<label><input type="checkbox" name="${name}" value="${value}" ${checked ? 'checked' : ''}><span>${esc(label)}</span></label>`;
 }
 
-function moduleTwelveAssessment() {
+// Everything the capstone grades beyond the standard ticket core: query,
+// timeline, scope checkboxes, enrichment/exposure, ATT&CK, detection,
+// response, the executive summary + closure note, hints, and the scored
+// feedback block. Rendered as caseRecordFields' `findingsHtml`, under the
+// standard grid and above Analyst Work Notes.
+function moduleTwelveFindingsHtml() {
   const a = moduleTwelveState.answers;
-  return `<form id="m12-assessment" class="m12-assessment" novalidate>
-    <div class="m12-assessment-heading"><div><p class="m12-kicker">Portfolio artifact</p><h2>Independent incident record</h2><p>Submit conclusions in any working order. Every section is required; the labels do not reveal the underlying attack chronology.</p></div><span>Pass ${MODULE_TWELVE_PASSING_SCORE}% + no critical errors</span></div>
-    <div class="m12-form-grid">
-      <fieldset><legend>Triage &amp; prioritization</legend>${moduleTwelveOption('verdict','true-positive','True-positive incident','Evidence supports unauthorized execution and identity activity.',a.verdict==='true-positive')}${moduleTwelveOption('verdict','benign-close','Benign — close alert','Treat the correlated activity as routine.',a.verdict==='benign-close')}
-        <label class="m12-select-label">Severity<select name="severity"><option value="">Choose…</option><option value="high" ${a.severity==='high'?'selected':''}>High — confirmed compromise, bounded scope</option><option value="low" ${a.severity==='low'?'selected':''}>Low — informational only</option></select></label>
-        <label class="m12-select-label">Response priority<select name="priority"><option value="">Choose…</option><option value="p1" ${a.priority==='p1'?'selected':''}>P1 — contain now; active identity and endpoint exposure</option><option value="p3" ${a.priority==='p3'?'selected':''}>P3 — queue for routine review</option></select></label></fieldset>
+  return `<div class="m12-form-grid">
+      <fieldset><legend>Response priority</legend><label class="m12-select-label">Response priority<select name="priority"><option value="">Choose…</option><option value="p1" ${a.priority==='p1'?'selected':''}>P1 — contain now; active identity and endpoint exposure</option><option value="p3" ${a.priority==='p3'?'selected':''}>P3 — queue for routine review</option></select></label></fieldset>
       <fieldset><legend>Query</legend>${moduleTwelveOption('query','correlated-pivot','Correlate hash, device, destination, and identity within the incident window','Preserves entity and time relationships across process, network, and sign-in tables.',a.query==='correlated-pivot')}${moduleTwelveOption('query','all-errors','Return every error from every table','High volume does not test the incident hypothesis.',a.query==='all-errors')}</fieldset>
       <fieldset class="m12-wide"><legend>Timeline reconstruction</legend><div class="m12-timeline-inputs">${[['t1','First'],['t2','Second'],['t3','Third'],['t4','Fourth']].map(([name,label]) => `<label>${label}<select name="${name}"><option value="">Choose event…</option><option value="email" ${a[name]==='email'?'selected':''}>Recipient opened linked document</option><option value="execution" ${a[name]==='execution'?'selected':''}>Unsigned script execution</option><option value="network" ${a[name]==='network'?'selected':''}>Correlated outbound connection</option><option value="identity" ${a[name]==='identity'?'selected':''}>Unfamiliar token refresh</option></select></label>`).join('')}</div></fieldset>
       <fieldset><legend>Scope</legend>${moduleTwelveCheck('scope','ws-204','WS-204',moduleTwelveValues('scope').includes('ws-204'))}${moduleTwelveCheck('scope','acct-204','acct-204',moduleTwelveValues('scope').includes('acct-204'))}${moduleTwelveCheck('scope','ws-118','WS-118',moduleTwelveValues('scope').includes('ws-118'))}${moduleTwelveCheck('scope','acct-091','acct-091',moduleTwelveValues('scope').includes('acct-091'))}
@@ -360,20 +444,68 @@ function moduleTwelveAssessment() {
       <fieldset><legend>Detection</legend>${moduleTwelveOption('detection','parent-hash-destination','Correlate unusual parent/child + script hash + rare destination','Behavior and indicator correlation raises precision.',a.detection==='parent-hash-destination')}${moduleTwelveOption('detection','all-script-hosts','Alert on every script-host launch','This would overwhelm the queue with routine administration.',a.detection==='all-script-hosts')}
         <label class="m12-select-label">Safe tuning<select name="tuning"><option value="">Choose…</option><option value="signed-approved-parent" ${a.tuning==='signed-approved-parent'?'selected':''}>Exclude signed inventory child only under approved parent/path</option><option value="disable" ${a.tuning==='disable'?'selected':''}>Disable detection during business hours</option></select></label></fieldset>
       <fieldset><legend>Response &amp; evidence</legend>${moduleTwelveCheck('response','isolate-ws204','Isolate WS-204; retain response channel',moduleTwelveValues('response').includes('isolate-ws204'))}${moduleTwelveCheck('response','revoke-acct204','Revoke and disable acct-204; reset credentials',moduleTwelveValues('response').includes('revoke-acct204'))}${moduleTwelveCheck('response','block-ioc','Block hash/destination and monitor',moduleTwelveValues('response').includes('block-ioc'))}${moduleTwelveCheck('response','preserve','Hash and preserve exports with custody details',moduleTwelveValues('response').includes('preserve'))}${moduleTwelveCheck('response','shutdown-all','Shut down every enterprise endpoint',moduleTwelveValues('response').includes('shutdown-all'))}${moduleTwelveCheck('response','delete-evidence','Delete telemetry after containment',moduleTwelveValues('response').includes('delete-evidence'))}</fieldset>
-      <fieldset class="m12-wide"><legend>Reporting</legend><label class="m12-text-label">Executive summary <small>At least 180 characters: what happened, business impact, current status, and next decision.</small><textarea name="executiveSummary" rows="5">${esc(moduleTwelveState.executiveSummary)}</textarea><span id="m12-exec-count">${moduleTwelveState.executiveSummary.length}/180</span></label>
-        <label class="m12-text-label">Technical investigation narrative <small>At least 260 characters: evidence-based entry, execution, identity, scope, response, and uncertainty.</small><textarea name="analystNarrative" rows="7">${esc(moduleTwelveState.analystNarrative)}</textarea><span id="m12-narrative-count">${moduleTwelveState.analystNarrative.length}/260</span></label></fieldset>
+      <fieldset class="m12-wide"><legend>Executive reporting</legend><label class="m12-text-label">Executive summary <small>At least 180 characters: what happened, business impact, current status, and next decision.</small><textarea name="executiveSummary" rows="5">${esc(moduleTwelveState.executiveSummary)}</textarea><span id="m12-exec-count">${moduleTwelveState.executiveSummary.length}/180</span></label></fieldset>
       <fieldset class="m12-wide"><legend>Closure</legend><div class="m12-two-col">${moduleTwelveOption('closure','verified-recovery','Close after verified recovery','Clean scan, persistence removal, policy correction, identity reset, and owner validation recorded.',a.closure==='verified-recovery')}${moduleTwelveOption('closure','close-after-block','Close immediately after blocking the IP','Containment alone does not establish recovery.',a.closure==='close-after-block')}${moduleTwelveOption('followup','policy-owner','Assign script-control remediation to endpoint policy owner','Names an accountable owner and addresses the contributing control gap.',a.followup==='policy-owner')}${moduleTwelveOption('followup','none','No follow-up needed','The audit-only script control remains a recurrence risk.',a.followup==='none')}</div>
         <label class="m12-text-label">Closure note <small>At least 100 characters: validation evidence, residual risk, owner, and monitoring.</small><textarea name="closureNote" rows="4">${esc(moduleTwelveState.closureNote)}</textarea><span id="m12-close-count">${moduleTwelveState.closureNote.length}/100</span></label></fieldset>
     </div>
     <details class="m12-hint" data-m12-hint="timeline" ${moduleTwelveState.hintsOpened.includes('timeline')?'open':''}><summary>Emergency timeline hint (−5 points)</summary><p>Compare the email action, process creation, first network connection, and token refresh timestamps. Order those observed events without assuming intent.</p></details>
     <details class="m12-hint" data-m12-hint="response" ${moduleTwelveState.hintsOpened.includes('response')?'open':''}><summary>Emergency response hint (−5 points)</summary><p>Act only on the confirmed host, account, and indicators. Preserve evidence before eradication, then validate recovery.</p></details>
-    <div class="m12-actions"><button type="submit" class="m12-submit"><i class="ri-flag-line" aria-hidden="true"></i> Submit capstone investigation</button><button type="button" class="m12-reset" data-m12-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset capstone only</button></div>
-    <div id="m12-feedback" tabindex="-1">${moduleTwelveFeedback()}</div>
-  </form>`;
+    <div id="m12-feedback" tabindex="-1">${moduleTwelveFeedback()}</div>`;
+}
+
+function moduleTwelveCaseSpec() {
+  return {
+    caseId: MODULE_TWELVE_CASE.caseId,
+    userOptions: MODULE_TWELVE_CASE.userOptions,
+    deviceOptions: MODULE_TWELVE_CASE.deviceOptions,
+    dispositionOptions: MODULE_TWELVE_CASE.dispositionOptions,
+    departmentOptions: MODULE_TWELVE_CASE.departmentOptions,
+    notesPlaceholder: 'Evidence-based technical investigation narrative: entry, execution, identity, scope, response, and residual uncertainty (at least 260 characters)…',
+    notesMin: 260,
+    findingsHtml: moduleTwelveFindingsHtml(),
+    extraMissing: moduleTwelveExtraMissing(),
+    disabled: moduleTwelveState.submitted === true,
+  };
+}
+
+// Everything moduleTwelveMissing checks that isn't already covered by the
+// standard ticket (status/severity/affectedUser/affectedDevice/disposition/
+// escalation/notes via caseRecordMissing).
+function moduleTwelveExtraMissing() {
+  const a = moduleTwelveState.answers;
+  const missing = [];
+  if (moduleTwelveState.reviewedConsoles.length < Object.keys(MODULE_TWELVE_CONSOLES).length) missing.push('Review all ten integrated consoles');
+  if (!moduleTwelveSetEqual(moduleTwelveState.selectedEvidence, MODULE_TWELVE_EVIDENCE.map((item) => item.id))) missing.push('Select the six records that form the evidence chain');
+  ['priority','query','t1','t2','t3','t4','scopeLimit','enrichment','exposurePriority','detection','tuning','closure','followup'].forEach((key) => { if (!a[key]) missing.push(`Complete ${key}`); });
+  if (!moduleTwelveValues('scope').length) missing.push('Identify scope');
+  if (!moduleTwelveValues('attack').length) missing.push('Map ATT&CK behavior');
+  if (!moduleTwelveValues('response').length) missing.push('Select response actions');
+  if (moduleTwelveState.executiveSummary.trim().length < 180) missing.push('Write a 180-character executive summary');
+  if (moduleTwelveState.closureNote.trim().length < 100) missing.push('Write a 100-character closure note');
+  return [...new Set(missing)];
+}
+
+function moduleTwelveAssessment() {
+  const spec = moduleTwelveCaseSpec();
+  const performance = { missing: caseRecordMissing(moduleTwelveState, spec) };
+  const casePane = caseRecordPane(moduleTwelveState, {
+    ...spec,
+    missing: performance.missing,
+    formId: 'm12-assessment',
+    saveAttr: 'data-m12-save-case',
+    submitAttr: 'data-m12-submit-case',
+    panelId: 'm12-case-panel',
+    showMissing: moduleTwelveState.showMissing === true,
+    lockedMessage: 'Your capstone record is saved. Instructor review confirms the pass.',
+  });
+  return `<div class="m12-assessment">
+    <div class="m12-assessment-heading"><div><p class="m12-kicker">Portfolio artifact</p><h2>Independent incident record</h2><p>Submit conclusions in any working order. Every section is required; the labels do not reveal the underlying attack chronology.</p></div><span>Pass ${MODULE_TWELVE_PASSING_SCORE}% + no critical errors</span></div>
+    ${casePane}
+    <div class="m12-actions"><button type="button" class="m12-reset" data-m12-reset ${moduleTwelveState.submitted ? 'disabled' : ''}><i class="ri-restart-line" aria-hidden="true"></i> Reset capstone only</button></div>
+  </div>`;
 }
 
 function moduleTwelveFeedback() {
-  if (moduleTwelveState.validationError) return `<div class="m12-validation" role="alert"><i class="ri-error-warning-line" aria-hidden="true"></i><div><strong>Submission is incomplete</strong><p>${esc(moduleTwelveState.validationError)}</p></div></div>`;
   if (!moduleTwelveState.breakdown) return `<div class="m12-score-empty"><strong>No scored attempt yet.</strong><p>Your work saves locally as you investigate. A pass requires ${MODULE_TWELVE_PASSING_SCORE}% or higher and no critical response, evidence, identity, triage, or closure error.</p></div>`;
   const passed = moduleTwelveState.completed;
   return `<section class="m12-score ${passed ? 'is-pass' : 'is-remediate'}" aria-live="polite"><div class="m12-score-heading"><div><p class="m12-kicker">${passed ? 'Capstone passed' : 'Remediation required'}</p><h3>${passed ? 'End-to-end investigation complete' : 'Revise and resubmit the incident record'}</h3><p>Best ${moduleTwelveState.bestScore}% · ${moduleTwelveState.attempts} attempt${moduleTwelveState.attempts === 1 ? '' : 's'} · ${moduleTwelveState.hintsOpened.length * 5} hint points used</p></div><span>${moduleTwelveState.score}%</span></div>
@@ -386,7 +518,7 @@ function moduleTwelveFeedback() {
 
 function moduleTwelveReportPreview() {
   const a = moduleTwelveState.answers;
-  return `<section class="m12-report-preview" aria-labelledby="m12-report-title"><p class="m12-kicker">Incident report output</p><h4 id="m12-report-title">INC-4821 · Operation Amber Finch</h4><dl><div><dt>Priority</dt><dd>${esc(a.priority || 'Not submitted')}</dd></div><div><dt>Scope</dt><dd>${esc(moduleTwelveValues('scope').join(', ') || 'Not submitted')}</dd></div><div><dt>Exposure decision</dt><dd>${esc(a.exposurePriority || 'Not submitted')}</dd></div><div><dt>Disposition</dt><dd>${esc(a.closure || 'Not submitted')}</dd></div></dl><h5>Executive finding</h5><p>${esc(moduleTwelveState.executiveSummary || 'Submit the assessment to generate the report finding.')}</p><h5>Technical narrative</h5><p>${esc(moduleTwelveState.analystNarrative || 'The evidence-backed technical narrative will appear here after submission.')}</p><h5>Closure and follow-up</h5><p>${esc(moduleTwelveState.closureNote || 'The recovery validation and accountable follow-up will appear here after submission.')}</p></section>`;
+  return `<section class="m12-report-preview" aria-labelledby="m12-report-title"><p class="m12-kicker">Incident report output</p><h4 id="m12-report-title">INC-4821 · Operation Amber Finch</h4><dl><div><dt>Priority</dt><dd>${esc(a.priority || 'Not submitted')}</dd></div><div><dt>Scope</dt><dd>${esc(moduleTwelveValues('scope').join(', ') || 'Not submitted')}</dd></div><div><dt>Exposure decision</dt><dd>${esc(a.exposurePriority || 'Not submitted')}</dd></div><div><dt>Disposition</dt><dd>${esc(a.closure || 'Not submitted')}</dd></div></dl><h5>Executive finding</h5><p>${esc(moduleTwelveState.executiveSummary || 'Submit the assessment to generate the report finding.')}</p><h5>Technical narrative</h5><p>${esc(moduleTwelveState.notes || 'The evidence-backed technical narrative will appear here after submission.')}</p><h5>Closure and follow-up</h5><p>${esc(moduleTwelveState.closureNote || 'The recovery validation and accountable follow-up will appear here after submission.')}</p></section>`;
 }
 
 function moduleTwelveMissionStatus() {
@@ -438,21 +570,6 @@ function viewModuleTwelve(user, program) {
   </main></div></div>`;
 }
 
-function moduleTwelveValidation() {
-  const a = moduleTwelveState.answers;
-  const missing = [];
-  if (moduleTwelveState.reviewedConsoles.length < Object.keys(MODULE_TWELVE_CONSOLES).length) missing.push('review all ten integrated consoles');
-  if (!moduleTwelveSetEqual(moduleTwelveState.selectedEvidence, MODULE_TWELVE_EVIDENCE.map((item) => item.id))) missing.push('select the six records that form the evidence chain');
-  ['verdict','severity','priority','query','t1','t2','t3','t4','scopeLimit','enrichment','exposurePriority','detection','tuning','closure','followup'].forEach((key) => { if (!a[key]) missing.push(`complete ${key}`); });
-  if (!moduleTwelveValues('scope').length) missing.push('identify scope');
-  if (!moduleTwelveValues('attack').length) missing.push('map ATT&CK behavior');
-  if (!moduleTwelveValues('response').length) missing.push('select response actions');
-  if (moduleTwelveState.executiveSummary.trim().length < 180) missing.push('write a 180-character executive summary');
-  if (moduleTwelveState.analystNarrative.trim().length < 260) missing.push('write a 260-character technical narrative');
-  if (moduleTwelveState.closureNote.trim().length < 100) missing.push('write a 100-character closure note');
-  return [...new Set(missing)];
-}
-
 function moduleTwelveRender(focusId) {
   const root = document.getElementById('app');
   if (!root || !moduleTwelveUser || !moduleTwelveProgram) return;
@@ -487,11 +604,18 @@ function wireModuleTwelveLab() {
     }
     if (event.target.closest('[data-m12-launch]')) { moduleTwelveState.simulatorLaunched = true; moduleTwelveSave(); return; }
     if (event.target.closest('[data-m12-reset]')) {
+      if (moduleTwelveState.submitted) return;
       if (typeof window.confirm === 'function' && !window.confirm('Reset only the Module 12 capstone? Modules 01–11 and other labs remain unchanged.')) return;
       moduleTwelveState = LabRuntime.resetCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', moduleTwelveUser, moduleTwelveFreshDefaults());
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTwelveUser, 'soc-analyst', 'soc-12', MODULE_TWELVE_CATALOG_KEY, false);
       moduleTwelveRender('m12-title');
+      return;
     }
+    if (event.target.closest('[data-m12-save-case]')) {
+      moduleTwelveState.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+      moduleTwelveSave(); moduleTwelveRender('m12-feedback'); return;
+    }
+    if (event.target.closest('[data-m12-submit-case]')) { moduleTwelveFinalize(); return; }
   });
   shell.addEventListener('toggle', (event) => {
     const hint = event.target.closest('[data-m12-hint]');
@@ -501,12 +625,19 @@ function wireModuleTwelveLab() {
   }, true);
   shell.addEventListener('input', (event) => {
     const input = event.target;
-    if (input.name === 'executiveSummary' || input.name === 'analystNarrative' || input.name === 'closureNote') {
+    if (!input.closest('#m12-assessment')) return;
+    if (input.name === 'notes') {
+      caseRecordApply(moduleTwelveState, 'notes', input.value);
+      if (!moduleTwelveState.stageVisits.includes('reporting')) moduleTwelveState.stageVisits.push('reporting');
+      moduleTwelveSave();
+      return;
+    }
+    if (input.name === 'executiveSummary' || input.name === 'closureNote') {
       moduleTwelveState[input.name] = input.value;
       const stage = input.name === 'closureNote' ? 'closure' : 'reporting';
       if (!moduleTwelveState.stageVisits.includes(stage)) moduleTwelveState.stageVisits.push(stage);
-      const counter = document.getElementById(input.name === 'executiveSummary' ? 'm12-exec-count' : input.name === 'analystNarrative' ? 'm12-narrative-count' : 'm12-close-count');
-      if (counter) counter.textContent = `${input.value.length}/${input.name === 'executiveSummary' ? 180 : input.name === 'analystNarrative' ? 260 : 100}`;
+      const counter = document.getElementById(input.name === 'executiveSummary' ? 'm12-exec-count' : 'm12-close-count');
+      if (counter) counter.textContent = `${input.value.length}/${input.name === 'executiveSummary' ? 180 : 100}`;
       moduleTwelveSave();
     }
   });
@@ -515,28 +646,39 @@ function wireModuleTwelveLab() {
     if (input.name === 'selectedEvidence') {
       moduleTwelveState.selectedEvidence = input.checked ? [...new Set([...moduleTwelveState.selectedEvidence, input.value])] : moduleTwelveState.selectedEvidence.filter((id) => id !== input.value);
       if (!moduleTwelveState.stageVisits.includes('evidence')) moduleTwelveState.stageVisits.push('evidence');
-    } else if (['scope','attack','response'].includes(input.name)) {
+      moduleTwelveSave(); moduleTwelveRender('m12-feedback'); return;
+    }
+    if (!input.closest('#m12-assessment')) return;
+    if (caseRecordApply(moduleTwelveState, input.name, input.value)) {
+      moduleTwelveState.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
+      moduleTwelveSave(); moduleTwelveRender('m12-feedback'); return;
+    }
+    if (['scope','attack','response'].includes(input.name)) {
       const values = moduleTwelveValues(input.name);
       moduleTwelveState.answers[input.name] = input.checked ? [...new Set([...values, input.value])] : values.filter((value) => value !== input.value);
     } else if (input.name) {
       moduleTwelveState.answers[input.name] = input.value;
     }
-    const stageMap = { verdict:'triage', severity:'triage', priority:'triage', query:'query', t1:'timeline', t2:'timeline', t3:'timeline', t4:'timeline', scope:'scope', scopeLimit:'scope', enrichment:'enrichment', exposurePriority:'enrichment', attack:'att&ck', detection:'detection', tuning:'detection', response:'response', closure:'closure', followup:'closure' };
+    const stageMap = { priority:'triage', query:'query', t1:'timeline', t2:'timeline', t3:'timeline', t4:'timeline', scope:'scope', scopeLimit:'scope', enrichment:'enrichment', exposurePriority:'enrichment', attack:'att&ck', detection:'detection', tuning:'detection', response:'response', closure:'closure', followup:'closure' };
     if (stageMap[input.name] && !moduleTwelveState.stageVisits.includes(stageMap[input.name])) moduleTwelveState.stageVisits.push(stageMap[input.name]);
-    moduleTwelveState.validationError = ''; moduleTwelveSave();
+    moduleTwelveSave(); moduleTwelveRender('m12-feedback');
   });
-  const form = document.getElementById('m12-assessment');
-  if (form) form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    moduleTwelveState.executiveSummary = form.elements.executiveSummary.value;
-    moduleTwelveState.analystNarrative = form.elements.analystNarrative.value;
-    moduleTwelveState.closureNote = form.elements.closureNote.value;
-    ['evidence','reporting','submission'].forEach((stage) => { if (!moduleTwelveState.stageVisits.includes(stage)) moduleTwelveState.stageVisits.push(stage); });
-    const missing = moduleTwelveValidation();
-    if (missing.length) {
-      moduleTwelveState.validationError = `Add: ${missing.join('; ')}. Your current work is saved.`;
-      moduleTwelveSave(); moduleTwelveRender('m12-feedback'); return;
+  function moduleTwelveFinalize() {
+    if (moduleTwelveState.submitted) return;
+    const form = document.getElementById('m12-assessment');
+    if (form) {
+      moduleTwelveState.executiveSummary = form.elements.executiveSummary?.value ?? moduleTwelveState.executiveSummary;
+      moduleTwelveState.closureNote = form.elements.closureNote?.value ?? moduleTwelveState.closureNote;
+      if (form.elements.notes) caseRecordApply(moduleTwelveState, 'notes', form.elements.notes.value);
     }
+    ['evidence','reporting','submission'].forEach((stage) => { if (!moduleTwelveState.stageVisits.includes(stage)) moduleTwelveState.stageVisits.push(stage); });
+    const spec = moduleTwelveCaseSpec();
+    const missing = caseRecordMissing(moduleTwelveState, spec);
+    if (missing.length) {
+      moduleTwelveState.showMissing = true;
+      moduleTwelveSave(); moduleTwelveRender('m12-case-panel'); return;
+    }
+    moduleTwelveState.showMissing = false;
     const result = moduleTwelveScore();
     moduleTwelveState.attempts += 1;
     moduleTwelveState.score = result.score;
@@ -544,9 +686,16 @@ function wireModuleTwelveLab() {
     moduleTwelveState.breakdown = result.breakdown;
     moduleTwelveState.feedback = result.feedback;
     moduleTwelveState.criticalErrors = result.criticalErrors;
-    moduleTwelveState.validationError = '';
     moduleTwelveState.lastSubmittedAt = new Date().toISOString();
     moduleTwelveState.completed = result.score >= MODULE_TWELVE_PASSING_SCORE && result.criticalErrors.length === 0;
+    // Once passed, the capstone ticket locks (submitted -> Lab Graded/Under
+    // Review) — MODULE_STANDARD.md §7.2's submit-locks-on-success model. A
+    // still-failing attempt stays editable so the learner can revise and
+    // resubmit, matching the capstone's original retry behavior.
+    if (moduleTwelveState.completed) {
+      moduleTwelveState.submitted = true;
+      moduleTwelveState.actionHistory.push({ action: 'Submitted capstone for faculty review', at: moduleTwelveState.lastSubmittedAt });
+    }
     if (typeof recordLabAttempt === 'function') {
       recordLabAttempt(moduleTwelveUser, MODULE_TWELVE_CATALOG_KEY, {
         state: moduleTwelveState.completed ? 'complete' : 'in_progress',
@@ -555,16 +704,22 @@ function wireModuleTwelveLab() {
           breakdown: result.breakdown,
           feedback: result.feedback,
           criticalErrors: result.criticalErrors,
+          critical_errors: result.criticalErrors,
           hintPenalty: result.hintPenalty,
           attempts: moduleTwelveState.attempts,
+          case_record: moduleTwelveState,
+          case_display: caseRecordDisplay(moduleTwelveState, spec),
+          case_summary: caseRecordSummary(moduleTwelveState, spec),
+          notes: moduleTwelveState.notes,
         },
       });
     }
     const artifactContent = {
       responses: moduleTwelveState.answers,
       executiveSummary: moduleTwelveState.executiveSummary,
-      analystNarrative: moduleTwelveState.analystNarrative,
+      analystNarrative: moduleTwelveState.notes,
       closureNote: moduleTwelveState.closureNote,
+      caseRecord: { status: moduleTwelveState.status, severity: moduleTwelveState.severity, affectedUser: moduleTwelveState.affectedUser, affectedDevice: moduleTwelveState.affectedDevice, disposition: moduleTwelveState.disposition, escalation: moduleTwelveState.escalation, escalateTo: moduleTwelveState.escalateTo },
       score: result.score,
       breakdown: result.breakdown,
       feedback: result.feedback,
@@ -600,7 +755,7 @@ function wireModuleTwelveLab() {
       markModuleLabComplete(moduleTwelveUser, 'soc-analyst', 'soc-12', MODULE_TWELVE_CATALOG_KEY, false);
     }
     moduleTwelveSave(); moduleTwelveRender('m12-feedback');
-  });
+  }
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 12, moduleKey: 'soc-12', view: viewModuleTwelve, wire: wireModuleTwelveLab });

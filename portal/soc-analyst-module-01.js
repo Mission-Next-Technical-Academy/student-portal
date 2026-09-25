@@ -633,18 +633,16 @@ function moduleOneProveItPerformance() {
   };
 }
 function moduleOneProveItSubmissionPanel() {
-  const performance = moduleOneProveItPerformance();
-  const submitted = moduleOneState.lab2.submitted;
-  const redoRequested = moduleOneProveItRedoRequested();
-  const reviewStatus = moduleOneProveItReviewStatus();
-  const flagMissing = !submitted && moduleOneProveItShowMissing && performance.missing.length;
-  return `<div class="m01-score-empty${flagMissing ? ' is-missing' : ''}" id="m01-review-submission" role="status" aria-live="polite" tabindex="-1">
-    <strong>${reviewStatus === 'graded' ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : redoRequested ? 'Returned for remediation' : 'Case record'}</strong>
-    <p>${reviewStatus === 'graded' ? 'Your instructor has reviewed this case.' : submitted ? 'Module 2 stays locked until your instructor approves the submission.' : redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.' : 'Work the case above — review the evidence, complete every ticket field, and write your analyst notes — then submit for faculty review.'}</p>
-    ${!submitted ? moduleOneProveItRedoFeedback() : ''}
-    ${!submitted && performance.missing.length ? `<ul class="m01-requirements-list">${performance.missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
-    ${!submitted ? `<p class="m01-help">${performance.missing.length ? 'Complete the items above, then press Submit Case. Analyst work notes need at least 80 characters.' : 'Your case record is ready. Use Submit Case in the ticket to send it for faculty review.'}</p>` : ''}
-  </div>`;
+  return caseRecordPanel({
+    panelId: 'm01-review-submission',
+    missing: moduleOneProveItPerformance().missing,
+    submitted: moduleOneState.lab2.submitted,
+    reviewStatus: moduleOneProveItReviewStatus(),
+    redoRequested: moduleOneProveItRedoRequested(),
+    redoHtml: moduleOneProveItRedoFeedback(),
+    showMissing: moduleOneProveItShowMissing,
+    lockedMessage: 'Module 2 stays locked until your instructor approves the submission.',
+  });
 }
 
 function moduleOneGuidedLabFeedback() {
@@ -848,46 +846,22 @@ function moduleOneEvidenceList(scenario, reviewed, attribute, disabled = false) 
       </button></li>`).join('')}</ul>`;
 }
 
-function moduleOneTicketSelect(name, label, value, options, disabled, isCorrect = false) {
-  return `<label class="m01-ticket-field"><span>${esc(label)}</span><select class="${isCorrect ? 'is-correct' : ''}" name="${esc(name)}" ${disabled ? 'disabled' : ''}>
-    <option value="">Select…</option>${options.map((option) => `<option value="${esc(option.id)}" ${value === option.id ? 'selected' : ''}>${esc(option.text)}</option>`).join('')}
-  </select></label>`;
-}
-
+// Thin wrappers over the shared Incident / Case Record (portal/case-record.js).
+// Module 01 is the reference the shared renderer was lifted from.
 function moduleOneTicketFields(state, spec) {
-  const disabled = spec.disabled === true;
-  const guided = spec.guided === true;
-  const entitySelects = spec.entitySelects === true;
-  const escalationRequired = state.escalation === 'required';
-  const severityOptions = [{ id: 'critical', text: 'Critical' }, { id: 'high', text: 'High' }, { id: 'medium', text: 'Medium' }, { id: 'low', text: 'Low' }];
-  const dispositionOptions = spec.dispositionOptions.map((option) => ({
-    id: option.id,
-    text: ({ 'true-positive': 'Confirmed malicious activity', 'benign-positive': 'Benign activity', 'false-positive': 'False positive', 'enterprise-breach': 'Enterprise-wide incident' })[option.id] || option.text,
-  }));
   // Practice It (ALT-1001) keeps the small fixed roster/department list it
   // always had; Prove It (NST-2407) passes its own larger entityRoster and
-  // departmentOptions (portal/data.js) through spec, so this stays one
-  // shared renderer for both consoles.
-  const userOptions = spec.userOptions || [{ id: 'a.chen', text: 'a.chen' }, { id: 's.kim', text: 's.kim' }, { id: 'd.williams', text: 'd.williams' }];
-  const deviceOptions = spec.deviceOptions || [{ id: 'LAP-442', text: 'LAP-442' }, { id: 'FS-02', text: 'FS-02' }, { id: 'WKS-14', text: 'WKS-14' }];
-  const departmentOptions = spec.departmentOptions || [{ id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }];
-  // No live accept/partial/bounce banner here: Prove It has no live score or
-  // per-field feedback (moduleOneProveItSubmissionPanel() below never blocks
-  // Submit Case on routing quality either) — instant per-choice feedback is
-  // Practice It's job (moduleOneGuidedLabFeedback()). Department fit still
-  // drives the stored score/breakdown the instructor sees.
-  return `<div class="m01-ticket-case"><strong>CASE ${esc(spec.caseId || '')}</strong>${moduleOneTicketSelect('status', 'Status', state.status, [{ id: 'in-progress', text: 'In Progress' }, { id: 'pending', text: 'Pending' }, { id: 'resolved', text: 'Resolved' }], disabled, guided && state.status === 'in-progress')}</div>
-    <div class="m01-ticket-grid">
-      ${moduleOneTicketSelect('severity', 'Severity', state.severity || state.priority, severityOptions, disabled, guided && state.priority === 'high')}
-      ${entitySelects
-        ? `${moduleOneTicketSelect('affectedUser', 'Affected User', state.affectedUser, userOptions, disabled)}${moduleOneTicketSelect('affectedDevice', 'Affected Device', state.affectedDevice, deviceOptions, disabled)}`
-        : `<label class="m01-ticket-field"><span>Affected User</span><button type="button" class="m01-entity-control ${guided && state.affectedUser === 'j.santos' ? 'is-correct' : ''}" data-m01-entity="user" ${disabled ? 'disabled' : ''}>${state.affectedUser || 'Add user'} <i class="ri-add-line" aria-hidden="true"></i></button></label><label class="m01-ticket-field"><span>Affected Device</span><button type="button" class="m01-entity-control ${guided && state.affectedDevice === 'WKS-14' ? 'is-correct' : ''}" data-m01-entity="device" ${disabled ? 'disabled' : ''}>${state.affectedDevice || 'Add device'} <i class="ri-add-line" aria-hidden="true"></i></button></label>`}
-      ${moduleOneTicketSelect('disposition', 'Disposition', state.disposition || state.verdict, dispositionOptions, disabled, guided && state.verdict === 'true-positive')}
-      ${moduleOneTicketSelect('escalation', 'Escalation required', state.escalation, [{ id: 'required', text: 'Required' }, { id: 'not-required', text: 'Not required' }], disabled, guided && state.escalation === 'required')}
-      ${escalationRequired ? moduleOneTicketSelect('escalateTo', 'Route to Department', state.escalateTo, departmentOptions, disabled, guided && state.escalateTo === 'identity-response') : ''}
-    </div>
-    <label class="m01-ticket-field m01-ticket-notes"><span>Analyst Work Notes</span><textarea name="notes" rows="6" placeholder="Record the evidence, your assessment, confirmed scope, and handoff needed by the next analyst." ${disabled ? 'disabled' : ''}>${esc(state.notes || '')}</textarea></label>
-    ${state.actionHistory?.length ? `<details class="m01-action-history"><summary>Action history (${state.actionHistory.length})</summary><ul>${state.actionHistory.slice(-8).reverse().map((entry) => `<li>${esc(entry.action)}</li>`).join('')}</ul></details>` : ''}`;
+  // departmentOptions (portal/data.js) through spec.
+  return caseRecordFields(state, {
+    caseId: spec.caseId,
+    dispositionOptions: spec.dispositionOptions,
+    userOptions: spec.userOptions || [{ id: 'a.chen', text: 'a.chen' }, { id: 's.kim', text: 's.kim' }, { id: 'd.williams', text: 'd.williams' }],
+    deviceOptions: spec.deviceOptions || [{ id: 'LAP-442', text: 'LAP-442' }, { id: 'FS-02', text: 'FS-02' }, { id: 'WKS-14', text: 'WKS-14' }],
+    departmentOptions: spec.departmentOptions,
+    disabled: spec.disabled,
+    entityButtons: spec.entitySelects !== true,
+    correct: spec.guided ? { status: 'in-progress', severity: 'high', affectedUser: 'j.santos', affectedDevice: 'WKS-14', disposition: 'true-positive', escalation: 'required', escalateTo: 'identity-response' } : null,
+  });
 }
 
 // Practice It: a guided case (ALT-1001 / j.santos) in its own focused case
@@ -1139,9 +1113,7 @@ function moduleOneProveItCaseConsolePane() {
           userOptions: scenario.entityRoster.users.map((entry) => ({ id: entry.id, text: entry.id })),
           deviceOptions: scenario.entityRoster.devices.map((entry) => ({ id: entry.id, text: entry.id })),
           departmentOptions: lab.departmentOptions })}
-          <div class="m01-ticket-actions">${submitted
-            ? `<button type="button" class="m01-submit" disabled><i class="${reviewStatus === 'graded' ? 'ri-checkbox-circle-line' : 'ri-time-line'}" aria-hidden="true"></i> ${reviewStatus === 'graded' ? 'Lab Graded' : 'Lab Under Review'}</button>`
-            : `<button type="button" class="m01-reset" data-m01-save-proveit>Save</button><button type="button" class="m01-submit" data-m01-submit-proveit ${requirements.length ? 'aria-describedby="m01-review-submission"' : ''}>Submit Case</button>`}</div>
+          ${caseRecordActions({ submitted, reviewStatus, saveAttr: 'data-m01-save-proveit', submitAttr: 'data-m01-submit-proveit', panelId: 'm01-review-submission', hasMissing: requirements.length > 0 })}
         </form>
         ${moduleOneProveItSubmissionPanel()}
       </section>

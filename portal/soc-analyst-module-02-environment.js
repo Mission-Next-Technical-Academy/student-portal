@@ -108,6 +108,102 @@
   ];
   const ASSESSMENT_MIN_NOTE_LENGTH = 80;
 
+  // ---------------------------------------------------------- Case Record
+  // MODULE_STANDARD.md §7.2: the Assessment Lab's one graded artifact is the
+  // standard Incident / Case Record ticket (portal/case-record.js), not a
+  // bare write-up. Module 02 has no larger identity/device cast to draw a
+  // 6-8 entry roster from — the console's own five identities/devices (DATA
+  // above) are the whole cast, reused here as user/device options. The
+  // confirmed finding is evt-john-hr-allowed: John Smith received HR-Read
+  // authorization with no matching group membership (`violation: true` in
+  // DATA.events) — an access-control excess, not malware or an intrusion.
+  const CASE_ID = 'IAM-5502';
+  const CASE_USER_OPTIONS = [
+    { id: 'john', text: 'John Smith (jsmith) — Operations Coordinator', tier: 'principal' },
+    { id: 'cora', text: 'Cora Green (cgreen) — Finance Contractor', tier: 'pivot' },
+    { id: 'alice', text: 'Alice Morgan (amorgan) — Finance Analyst', tier: 'noise' },
+    { id: 'ravi', text: 'Ravi Patel (rpatel) — Web Administrator', tier: 'noise' },
+    { id: 'helen', text: 'Helen Diaz (hdiaz) — HR Specialist', tier: 'noise' },
+  ];
+  const CASE_DEVICE_OPTIONS = [
+    { id: 'wk23', text: 'WKSTN-23 (10.20.4.31) — managed, compliant', tier: 'principal' },
+    { id: 'wk09', text: 'WKSTN-09 (10.20.4.09) — unmanaged, non-compliant', tier: 'pivot' },
+    { id: 'wk17', text: 'WKSTN-17 (10.20.4.22) — managed, compliant', tier: 'noise' },
+    { id: 'wk31', text: 'WKSTN-31 (10.20.4.38) — managed, compliant', tier: 'noise' },
+    { id: 'wk44', text: 'WKSTN-44 (10.20.4.44) — managed, compliant', tier: 'noise' },
+  ];
+  const CASE_DEPARTMENT_OPTIONS = [
+    { id: 'identity-response', text: 'Identity Response', fit: 100, note: 'Best fit — the access policy itself needs correction.' },
+    { id: 'tier2-soc', text: 'Tier 2 SOC', fit: 55, note: 'Accepted, but the policy fix belongs to Identity Response.', bounce: 'Tier 2 SOC bounced this — there is no active threat to triage, only a policy gap to correct.' },
+    { id: 'hr-privacy', text: 'HR / Data Privacy', fit: 35, note: 'HR-Read exposure matters to Data Privacy, but they cannot correct the access policy.' },
+    { id: 'it-helpdesk', text: 'IT Helpdesk', fit: 15, note: 'Helpdesk cannot adjudicate a policy exception.', bounce: 'IT Helpdesk bounced this — it needs a policy decision, not a ticket reset.' },
+  ];
+  const CASE_DISPOSITION_OPTIONS = [
+    { id: 'policy-violation', text: 'Confirmed — authorization granted beyond assigned entitlements' },
+    { id: 'expected-access', text: 'False positive — access matches assigned entitlements' },
+    { id: 'device-noncompliance', text: 'Confirmed — device compliance violation, no unauthorized data access' },
+  ];
+  const CASE_FINDINGS = [
+    { name: 'access-finding', label: 'Access control finding', missing: 'Record the access control finding', options: [
+      { id: 'excess-auth', text: 'Excessive authorization — HR-Read granted without an HR-Read group membership' },
+      { id: 'expected', text: 'Expected access — authorization matches assigned groups' },
+      { id: 'device-risk', text: 'Device compliance risk — unmanaged/non-compliant device reached a restricted resource' },
+    ] },
+  ];
+  // Answer key. Never shown live in Prove It (MODULE_STANDARD.md §7.2).
+  const CASE_CORRECT = { severity: 'high', disposition: 'policy-violation', escalateTo: 'identity-response', finding: 'excess-auth' };
+  const CASE_DEFAULT = { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] };
+
+  function caseSpec(disabled) {
+    return {
+      caseId: CASE_ID,
+      userOptions: CASE_USER_OPTIONS,
+      deviceOptions: CASE_DEVICE_OPTIONS,
+      departmentOptions: CASE_DEPARTMENT_OPTIONS,
+      dispositionOptions: CASE_DISPOSITION_OPTIONS,
+      findings: CASE_FINDINGS,
+      notesPlaceholder: 'Summarize the account and filesystem access findings, your analysis, and your recommended actions…',
+      notesMin: ASSESSMENT_MIN_NOTE_LENGTH,
+      disabled,
+      extraMissing: missionNextAllLabsComplete(state.labProgress, ASSESSMENT_LAB_LINKS.map((lab) => lab.labId)) ? [] : ['Complete both Assessment Lab projects above'],
+    };
+  }
+
+  function caseTierPoints(options, id) {
+    const tier = options.find((option) => option.id === id)?.tier;
+    return tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0;
+  }
+
+  // Module 02 has no prior multi-select rubric to fold in (the old Assessment
+  // Lab only gated on lab completion + a free-text note); weights below are
+  // this module's own, proportioned the same way Module 01 folds domain
+  // findings into its total — entity scope, severity, disposition, routing
+  // quality, one domain finding, and the analyst note all contribute.
+  function caseScore(caseRecord) {
+    const department = CASE_DEPARTMENT_OPTIONS.find((option) => option.id === caseRecord.escalateTo) || null;
+    const escalationOk = caseRecord.escalation === 'required';
+    const bounced = escalationOk && department && department.fit < 40;
+    const entityPoints = Math.round((caseTierPoints(CASE_USER_OPTIONS, caseRecord.affectedUser) + caseTierPoints(CASE_DEVICE_OPTIONS, caseRecord.affectedDevice)) / 2 * 20);
+    const severity = caseRecord.severity === CASE_CORRECT.severity ? 10 : 0;
+    const disposition = caseRecord.disposition === CASE_CORRECT.disposition ? 20 : 0;
+    const escalation = escalationOk && department && !bounced ? Math.round((department.fit / 100) * 30) : 0;
+    const finding = (caseRecord.findings || {})['access-finding'] === CASE_CORRECT.finding ? 10 : 0;
+    const notesLen = (caseRecord.notes || '').trim().length;
+    const notes = Math.round(Math.min(1, notesLen / ASSESSMENT_MIN_NOTE_LENGTH) * 10);
+    const score = entityPoints + severity + disposition + escalation + finding + notes;
+    return {
+      score,
+      breakdown: { affected_entity: entityPoints, severity, disposition, escalation, access_finding: finding, analyst_notes: notes },
+      feedback: [
+        entityPoints >= 20 ? 'Affected entity/scope: correct — John Smith on WKSTN-23.' : entityPoints > 0 ? 'Affected entity/scope: partial credit — a related entity is supported by the evidence, but John Smith / WKSTN-23 is the confirmed pair.' : 'Affected entity/scope: review — John Smith / WKSTN-23 is the confirmed affected user/device.',
+        severity ? 'Severity: correct.' : 'Severity: review — High fits an internal authorization excess into HR data.',
+        disposition ? 'Disposition: correct.' : 'Disposition: review — the log shows an authorization excess, confirmed by evidence.',
+        !escalationOk ? 'Routing: not applicable — escalation was set to not required.' : !department ? 'Routing: review — route the case to a department.' : department.fit >= 100 ? `Routing: correct — ${department.text} is the best-fit department.` : department.fit >= 40 ? `Routing: accepted, but not the best fit — ${department.note}` : `Routing: returned — ${department.bounce || department.note}`,
+      ],
+      criticalErrors: caseRecord.escalation === 'not-required' ? ['escalation-not-required'] : [],
+    };
+  }
+
   const SOURCES = [
     { title: 'Zero Trust Architecture (SP 800-207)', org: 'NIST', url: 'https://csrc.nist.gov/pubs/sp/800/207/final', note: 'Comprehensive guide to assuming no inherent trust and evaluating each request on identity, device, location, and risk.' },
     { title: 'Introduction to Public Key Technology and the Federal PKI Infrastructure (SP 800-32)', org: 'NIST', url: 'https://csrc.nist.gov/pubs/sp/800/32/final', note: 'Certificate and PKI fundamentals: subject, issuer, intended use, and validation.' },
@@ -122,12 +218,39 @@
   const DEFAULT = {
     learn: { walkthroughVersion: 3, guideFlowVersion: 1, step: 0, guideStep: -1, guideUnlocked: false, guideCompleted: false, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
     practice: { notes: '', complete: false },
-    prove: { notes: '', submitted: false, attempts: 0, feedback: [], lastSubmittedAt: '' },
+    prove: { notes: '', submitted: false, attempts: 0, feedback: [], lastSubmittedAt: '', showMissing: false, caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] } },
     completed: false,
     labProgress: {},
   };
 
   let state, user, reviewMode = false;
+
+  // '' until submitted; then 'review' while the latest attempt awaits
+  // faculty, 'graded' once an instructor has reviewed it without returning
+  // it. Same pattern as moduleOneProveItReviewStatus() in soc-analyst-
+  // module-01.js.
+  function proveItReviewStatus() {
+    if (!state.prove.caseRecord.submitted) return '';
+    const attempt = user?.latestLabAttemptByKey?.[LAB_KEY];
+    return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  }
+  function proveItRedoRequested() {
+    return user?.openLabRedosByModuleKey?.['soc-02']?.labKey === LAB_KEY;
+  }
+  function proveItRedoFeedback() {
+    if (!proveItRedoRequested()) return '';
+    const items = user.openLabRedosByModuleKey['soc-02'].feedback || [];
+    return `<div class="m01-redo-feedback" role="note"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>${items.length ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>` : '<p>Your instructor returned this case without written notes.</p>'}</div>`;
+  }
+  // A redo re-opens the working case (mirrors Module 01's moduleOneLoad()
+  // reset) without discarding the earlier submitted values.
+  function applyRedoReopen() {
+    if (proveItRedoRequested() && state.prove.caseRecord.submitted === true) {
+      state.prove.caseRecord.submitted = false;
+      state.prove.submitted = false;
+      save();
+    }
+  }
 
   const TERM_DEFINITIONS = {
     'Network Map': 'A view of systems, zones, and the paths connections take between them.',
@@ -218,6 +341,12 @@
     if (!Array.isArray(state.prove.feedback)) state.prove.feedback = [];
     if (typeof state.practice.notes !== 'string') state.practice.notes = '';
     if (typeof state.prove.notes !== 'string') state.prove.notes = '';
+    // Old saved state (pre case-record) has no caseRecord at all; default it
+    // rather than crash the render (CASE_RECORD_MIGRATION.md #6).
+    state.prove.caseRecord = { ...CASE_DEFAULT, ...(state.prove.caseRecord && typeof state.prove.caseRecord === 'object' ? state.prove.caseRecord : {}) };
+    if (state.prove.caseRecord.findings === null || typeof state.prove.caseRecord.findings !== 'object') state.prove.caseRecord.findings = {};
+    if (!Array.isArray(state.prove.caseRecord.actionHistory)) state.prove.caseRecord.actionHistory = [];
+    applyRedoReopen();
     state.labProgress = state.labProgress && typeof state.labProgress === 'object' ? state.labProgress : {};
     if (typeof markModuleContentOpened === 'function') markModuleContentOpened(u, 'soc-analyst', 'soc-02');
   }
@@ -275,9 +404,9 @@
     const guideDone = guideStep >= CONSOLE_GUIDE_STEPS.length;
     const item = guideStep >= 0 ? consoleGuideItem() : null;
     const tipDocked = guideTipCollapsed ?? guideDone;
-    const tip = guideStep >= 0 ? `<aside class="m02e-learn-tip${guideDone ? ' is-complete' : ''}${tipDocked ? ' is-collapsed' : ''}" id="m02e-learn-tip" aria-labelledby="m02e-guide-title"><div class="m02e-tip-head"><span class="m02e-label">${guideDone ? 'CONSOLE GUIDE · COMPLETE' : `CONSOLE GUIDE · STEP ${guideStep + 1} OF ${CONSOLE_GUIDE_STEPS.length}`}</span><button class="m02e-tip-toggle" type="button" data-m02e-guide-collapse aria-expanded="${tipDocked ? 'false' : 'true'}" aria-controls="m02e-tip-body" title="${tipDocked ? 'Show guide' : 'Move guide out of the way'}"><i class="ri-arrow-down-s-line" aria-hidden="true"></i><span class="m02e-sr-only">${tipDocked ? 'Show guide' : 'Move guide out of the way'}</span></button></div><div class="m02e-tip-body" id="m02e-tip-body"><h3 id="m02e-guide-title">${esc(item.title)}</h3>${guideDone ? '<p>You can keep exploring the console, or revisit the explanations from the main Learn It card.</p>' : `<p>${esc(item.body)}</p><p class="m02e-guide-look"><strong>Look for:</strong> ${esc(item.lookFor)}</p><p class="m02e-guide-lab"><strong>Lab connection:</strong> ${esc(item.lab)}</p>`}<button class="m02e-guide-next" type="button" data-m02e-guide-next>${guideDone ? 'Restart console guide' : guideStep === CONSOLE_GUIDE_STEPS.length - 1 ? 'Finish guide' : 'Next explanation'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></div></aside>` : '';
+    const tip = consoleGuideCard({ steps: CONSOLE_GUIDE_STEPS, step: guideStep, docked: tipDocked, prefix: 'm02e', item });
     const guideAvailable = state.learn.guideUnlocked || learnComplete() || state.learn.guideCompleted;
-    const guideOpen = scope === 'learn' && guideStep < 0 ? `<button class="m02e-guide-open" type="button" data-m02e-guide-open${guideAvailable ? '' : ' disabled'}><i class="${guideAvailable ? 'ri-play-circle-fill' : 'ri-lock-line'}" aria-hidden="true"></i>${guideAvailable ? 'Start console guide' : 'Finish six ideas to start guide'}</button>` : '';
+    const guideOpen = scope === 'learn' && guideStep < 0 ? consoleGuideStartButton({ prefix: 'm02e', available: guideAvailable, lockedLabel: 'Finish six ideas to start guide' }) : '';
     // Collapsed guide docks into the console header; expanded, it floats over the workspace.
     const headerTip = tipDocked ? tip : '';
     const workspaceTip = tipDocked ? '' : tip;
@@ -441,40 +570,8 @@
 
   function positionLearnTip() {
     const tip = document.getElementById('m02e-learn-tip');
-    if (!tip) return;
-    if (tip.closest('header')) {
-      tip.style.top = '';
-      tip.style.left = '';
-      tip.classList.remove('points-down');
-      tip.classList.add('is-visible');
-      return;
-    }
-    const workspace = tip.closest('.m02e-workspace');
-    const target = workspace?.querySelector('.m02e-view .is-selected');
-    if (!workspace) return;
-    if (!target) {
-      tip.style.top = '8px';
-      tip.style.left = '8px';
-      tip.classList.remove('points-down');
-      requestAnimationFrame(() => tip.classList.add('is-visible'));
-      return;
-    }
-    const workspaceRect = workspace.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    tip.classList.remove('is-visible', 'points-down');
-    const tipRect = tip.getBoundingClientRect();
-    let top = targetRect.top - workspaceRect.top - tipRect.height - 12;
-    let pointsDown = false;
-    if (top < 8) { top = targetRect.bottom - workspaceRect.top + 12; pointsDown = true; }
-    top = Math.min(top, Math.max(8, workspaceRect.height - tipRect.height - 8));
-    let left = state.learn.tab === 'map'
-      ? 8
-      : targetRect.left - workspaceRect.left + targetRect.width / 2 - tipRect.width / 2;
-    left = Math.max(8, Math.min(left, workspaceRect.width - tipRect.width - 8));
-    tip.style.top = `${top}px`;
-    tip.style.left = `${left}px`;
-    tip.classList.toggle('points-down', pointsDown);
-    requestAnimationFrame(() => tip.classList.add('is-visible'));
+    const workspace = tip?.closest('.m02e-workspace');
+    consoleGuidePosition(tip, workspace, workspace?.querySelector('.m02e-view .is-selected'), { alignLeft: state.learn.tab === 'map' });
   }
 
   function knowledgePanel() {
@@ -499,44 +596,69 @@
 
   // ---------------------------------------------------------------- Prove It
 
-  function provePanel() {
-    const p = state.prove;
-    const feedbackHtml = p.feedback?.length ? `<div class="m02e-feedback ${p.submitted ? 'is-correct' : ''}" role="status"><ul>${p.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete both Guided Lab projects again as independent assessments, adding a short note to each, then write up your findings for instructor review.</p>${missionNextLabLaunchGroup(2, 'assessment', ASSESSMENT_LAB_LINKS, state.labProgress)}<form id="m02e-prove-form"><label class="m02e-rationale">Assessment write-up<textarea id="m02e-prove-notes" rows="6" maxlength="900" placeholder="Summarize the account and filesystem access findings, your analysis, and your recommended actions…">${esc(p.notes)}</textarea></label><p class="m02e-help">In at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters, describe what you found and your recommended action.</p><div class="m02e-panel-actions"><button class="m02e-primary" type="submit">${p.submitted ? 'Resubmit for review' : 'Submit for review'}</button></div></form>${feedbackHtml}</div>`;
+  function proveItMissing() {
+    return caseRecordMissing(state.prove.caseRecord, caseSpec(false));
   }
 
-  function submitProve(notes) {
-    const p = state.prove;
-    p.notes = notes;
-    if (!missionNextAllLabsComplete(state.labProgress, ASSESSMENT_LAB_LINKS.map((lab) => lab.labId))) {
-      p.feedback = ['Mark all required labs above complete first.'];
-      save();
-      renderScope('prove');
-      return;
-    }
-    if (notes.trim().length < ASSESSMENT_MIN_NOTE_LENGTH) {
-      p.feedback = [`Write at least ${ASSESSMENT_MIN_NOTE_LENGTH} characters describing your findings and recommended action before submitting.`];
-      save();
-      renderScope('prove');
-      return;
-    }
-    p.attempts = (p.attempts || 0) + 1;
-    p.lastSubmittedAt = new Date().toISOString();
-    p.submitted = true;
-    // Deliberately no verdict or correct-answer reveal here — this is a
-    // reviewable submission, not a self-graded quiz (correction brief §4).
-    p.feedback = ['Submitted. This write-up has been recorded as your Assessment Lab submission for instructor review.'];
+  function provePanel() {
+    const cr = state.prove.caseRecord;
+    const missing = proveItMissing();
+    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete both Guided Lab projects again as independent assessments, then work the case below into the standard Incident / Case Record for instructor review.</p>${missionNextLabLaunchGroup(2, 'assessment', ASSESSMENT_LAB_LINKS, state.labProgress)}${caseRecordPane(cr, {
+      ...caseSpec(cr.submitted === true),
+      missing,
+      formId: 'm02e-prove-form',
+      saveAttr: 'data-m02e-save-prove',
+      submitAttr: 'data-m02e-submit-prove',
+      panelId: 'm02e-prove-review',
+      reviewStatus: proveItReviewStatus(),
+      redoRequested: proveItRedoRequested(),
+      redoHtml: proveItRedoFeedback(),
+      showMissing: state.prove.showMissing === true,
+      lockedMessage: 'Module 3 stays locked until your instructor approves the submission.',
+    })}</div>`;
+  }
 
-    // Instructor-facing payload (docs/LAB_ASSESSMENT_STANDARD.md): carries the
-    // student's actual write-up in `access_review.analystNote` rather than
-    // only a raw score, so adminModuleTwoAccessReviewPanel() (app.js) keeps
-    // rendering readable student writing instead of JSON.
+  function submitProve() {
+    const cr = state.prove.caseRecord;
+    if (cr.submitted) return;
+    const missing = proveItMissing();
+    if (missing.length) {
+      state.prove.showMissing = true;
+      save();
+      renderScope('prove');
+      return;
+    }
+    state.prove.showMissing = false;
+    const performance = caseScore(cr);
+    state.prove.attempts = (state.prove.attempts || 0) + 1;
+    state.prove.lastSubmittedAt = new Date().toISOString();
+    state.prove.submitted = true;
+    state.prove.notes = cr.notes;
+    cr.submitted = true;
+    cr.actionHistory.push({ action: 'Submitted case for faculty review', at: state.prove.lastSubmittedAt });
+    state.prove.feedback = ['Submitted. This case has been recorded as your Assessment Lab submission for instructor review.'];
+    state.completed = true;
+
+    const spec = caseSpec(true);
+    // Instructor-facing payload (docs/LAB_ASSESSMENT_STANDARD.md /
+    // CASE_RECORD_MIGRATION.md #4): the shared case-record ticket shape, plus
+    // `access_review` so adminModuleTwoAccessReviewPanel() (app.js) keeps
+    // rendering this module's own review panel too.
     const result = {
-      access_review: { selectedEvent: ASSESSMENT_LAB_LINKS.map((l) => l.title).join(' + '), decision: 'Submitted for review', evidenceReferenced: [], analystNote: notes },
+      breakdown: performance.breakdown,
+      feedback: performance.feedback,
+      critical_errors: performance.criticalErrors,
+      case_record: cr,
+      case_display: caseRecordDisplay(cr, spec),
+      case_summary: caseRecordSummary(cr, spec),
+      access_review: { selectedEvent: ASSESSMENT_LAB_LINKS.map((l) => l.title).join(' + '), decision: 'Submitted for review', evidenceReferenced: [], analystNote: cr.notes },
     };
 
-    state.completed = true;
-    if (typeof recordLabAttempt === 'function') recordLabAttempt(user, LAB_KEY, { state: 'complete', result });
+    if (typeof recordLabAttempt === 'function') {
+      recordLabAttempt(user, LAB_KEY, { state: 'complete', score: performance.score, result }).then((saved) => {
+        if (saved && proveItRedoRequested()) delete user.openLabRedosByModuleKey['soc-02'];
+      });
+    }
     if (typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'soc-analyst', 'soc-02', LAB_KEY);
     save();
     renderScope('prove');
@@ -644,21 +766,30 @@
         return;
       }
       if (button.hasAttribute('data-m02e-knowledge-submit')) { state.learn.knowledgeScored = true; save(); renderScope('learn'); return; }
+      if (button.hasAttribute('data-m02e-submit-prove')) { submitProve(); return; }
+      if (button.hasAttribute('data-m02e-save-prove')) {
+        state.prove.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+        save(); renderScope('prove'); return;
+      }
     };
 
     root.onchange = (ev) => {
       const t = ev.target;
       if (t.matches('[data-m02e-knowledge-answer]')) { state.learn.knowledgeAnswers[t.dataset.questionId] = t.value; state.learn.knowledgeScored = false; save(); renderScope('learn'); return; }
+      if (ev.target.closest('#m02e-prove-form') && t.name && caseRecordApply(state.prove.caseRecord, t.name, t.value)) {
+        state.prove.caseRecord.actionHistory.push({ action: `Updated ${t.name}`, at: new Date().toISOString() });
+        save(); renderScope('prove'); return;
+      }
     };
     root.oninput = (ev) => {
       if (ev.target.matches('[data-m02e-practice-notes]')) { state.practice.notes = ev.target.value; save(); return; }
-      if (ev.target.id === 'm02e-prove-notes') { state.prove.notes = ev.target.value; save(); return; }
+      if (ev.target.closest('#m02e-prove-form') && ev.target.tagName === 'TEXTAREA' && ev.target.name) {
+        caseRecordApply(state.prove.caseRecord, ev.target.name, ev.target.value);
+        save(); return;
+      }
     };
     root.onsubmit = (ev) => {
-      if (ev.target.id !== 'm02e-prove-form') return;
-      ev.preventDefault();
-      const notes = document.getElementById('m02e-prove-notes')?.value || '';
-      submitProve(notes);
+      if (ev.target.id === 'm02e-prove-form') ev.preventDefault();
     };
     requestAnimationFrame(positionLearnTip);
     window.addEventListener('resize', positionLearnTip);

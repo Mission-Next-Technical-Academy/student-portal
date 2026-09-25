@@ -340,6 +340,147 @@ const MODULE_TEN_SOURCES_LIST = [
   },
 ];
 
+// Standard Incident / Case Record (MODULE_STANDARD.md §7.2) for the
+// Assessment Lab's Prove It submission. Authored from the imported
+// windows-forensics scenarios this module assigns: wf-1's event-log
+// intrusion sequence (j.sanders / WKSTN-19, failed logons -> success ->
+// PowerShell execution) and wf-5's deleted-file staging on jdoe's desktop
+// (portal/imported-labs/mission-next-labs/src/data/labs/windows-forensics.labs.js).
+// Answer key stays here, never shown live in Prove It.
+const MODULE_TEN_CASE = {
+  caseId: 'EVD-5510',
+  userOptions: [
+    { id: 'j.sanders', text: 'j.sanders', tier: 'principal' },
+    { id: 'jdoe', text: 'jdoe', tier: 'pivot' },
+    { id: 'm.alvarez', text: 'm.alvarez', tier: 'noise' },
+    { id: 't.nguyen', text: 't.nguyen', tier: 'noise' },
+    { id: 'svc-backup', text: 'svc-backup', tier: 'noise' },
+    { id: 'r.patel', text: 'r.patel', tier: 'noise' },
+  ],
+  deviceOptions: [
+    { id: 'WKSTN-19', text: 'WKSTN-19', tier: 'principal' },
+    { id: 'WKS-DESK-07', text: 'WKS-DESK-07 (jdoe desktop)', tier: 'pivot' },
+    { id: 'WKSTN-42', text: 'WKSTN-42', tier: 'noise' },
+    { id: 'SRV-FILE-02', text: 'SRV-FILE-02', tier: 'noise' },
+    { id: 'LAP-233', text: 'LAP-233', tier: 'noise' },
+    { id: 'WKSTN-08', text: 'WKSTN-08', tier: 'noise' },
+  ],
+  departmentOptions: [
+    { id: 'tier2-soc', text: 'Tier 2 SOC — Incident Response', fit: 100 },
+    { id: 'digital-forensics', text: 'Digital Forensics Team', fit: 70,
+      note: 'Forensics can image and preserve WKSTN-19 and the recovered files, but this case also needs the account-compromise leg contained — Tier 2 SOC owns both together.' },
+    { id: 'identity-response', text: 'Identity Response', fit: 55,
+      note: 'Identity Response can reset j.sanders, but has no authority over the endpoint evidence and deleted-file staging — Tier 2 SOC coordinates both.' },
+    { id: 'help-desk', text: 'Help Desk', fit: 10,
+      bounce: 'Help Desk can’t act on a confirmed intrusion with evidence-preservation needs — route to Tier 2 SOC.' },
+  ],
+  correctStatus: 'in-progress',
+  correctSeverity: 'high',
+  correctAffectedUser: 'j.sanders',
+  correctAffectedDevice: 'WKSTN-19',
+  correctDisposition: 'true-positive',
+  correctEscalation: 'required',
+  correctEscalateTo: 'tier2-soc',
+  departmentBounceThreshold: 40,
+};
+
+// Prove It scoring: same weighting model as Module 01 (entity tiers 20,
+// severity 15, disposition 20, escalation/routing up to 35, notes 10).
+// `missing` gates the submit button; score/breakdown are always computed
+// for the instructor.
+function moduleTenCasePerformance() {
+  const state = moduleTenAssessmentState;
+  const lab = MODULE_TEN_CASE;
+  const spec = moduleTenCaseSpec();
+  const department = lab.departmentOptions.find((option) => option.id === state.escalateTo) || null;
+  const escalationRequiredOk = state.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < lab.departmentBounceThreshold;
+
+  const missing = caseRecordMissing(state, spec);
+
+  const userTier = lab.userOptions.find((entry) => entry.id === state.affectedUser)?.tier;
+  const deviceTier = lab.deviceOptions.find((entry) => entry.id === state.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
+
+  const severity = caseRecordSeverity(state) === lab.correctSeverity ? 15 : 0;
+  const disposition = caseRecordDisposition(state) === lab.correctDisposition ? 20 : 0;
+  const escalation = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 35) : 0;
+  const notesLen = (state.notes || '').trim().length;
+  const notes = Math.round(Math.min(1, notesLen / 80) * 10);
+  const score = entityPoints + severity + disposition + escalation + notes;
+  const criticalErrors = state.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  const entityFeedback = entityPoints >= 20
+    ? 'Affected entity/scope: correct — the confirmed user and device.'
+    : entityPoints > 0
+      ? 'Affected entity/scope: partial credit — a related entity is supported by the evidence, but j.sanders/WKSTN-19 is the confirmed affected user/device.'
+      : 'Affected entity/scope: review — j.sanders/WKSTN-19 is the confirmed affected user/device, supported by the event-log evidence.';
+  const routingFeedback = !escalationRequiredOk
+    ? 'Routing: not applicable — escalation was set to not required.'
+    : !department
+      ? 'Routing: review — this case needs a department routed with the recorded evidence.'
+      : department.fit >= 100
+        ? `Routing: correct — ${department.text} is the best-fit department for this case.`
+        : department.fit >= lab.departmentBounceThreshold
+          ? `Routing: accepted, but not the best fit — ${department.note}`
+          : `Routing: returned — ${department.bounce || department.note}`;
+
+  return {
+    missing,
+    score,
+    breakdown: { affected_entity: entityPoints, severity, disposition, escalation, analyst_notes: notes },
+    department, bounced,
+    feedback: [
+      entityFeedback,
+      severity ? 'Severity: correct.' : 'Severity: review — this intrusion sequence supports High severity.',
+      disposition ? 'Disposition: correct.' : 'Disposition: review — the evidence supports confirmed malicious activity.',
+      routingFeedback,
+    ],
+    criticalErrors,
+  };
+}
+
+// spec shared by rendering, missing-item, and scoring code. `extraMissing`
+// keeps the "mark both imported labs complete first" gate this module
+// already had.
+function moduleTenCaseSpec() {
+  const bucket = moduleTenAssessmentState.labProgress;
+  const labsReady = missionNextAllLabsComplete(bucket, MODULE_TEN_ASSESSMENT_LAB_IDS);
+  return {
+    caseId: MODULE_TEN_CASE.caseId,
+    userOptions: MODULE_TEN_CASE.userOptions,
+    deviceOptions: MODULE_TEN_CASE.deviceOptions,
+    departmentOptions: MODULE_TEN_CASE.departmentOptions,
+    notesPlaceholder: 'Summarize the acquisition/custody findings, the timeline you reconstructed, and your recommended handoff…',
+    extraMissing: labsReady ? [] : ['Mark both required labs above complete'],
+    disabled: moduleTenAssessmentState.submitted === true,
+  };
+}
+
+// '' until submitted; then 'review' while the latest attempt awaits faculty,
+// 'graded' once an instructor has reviewed it without sending it back.
+function moduleTenCaseReviewStatus() {
+  if (!moduleTenAssessmentState?.submitted) return '';
+  const attempt = moduleTenUser?.latestLabAttemptByKey?.[MODULE_TEN_ASSESSMENT_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleTenCaseRedoRequested() {
+  return moduleTenUser?.openLabRedosByModuleKey?.['soc-10']?.labKey === MODULE_TEN_ASSESSMENT_KEY;
+}
+
+function moduleTenCaseRedoFeedback() {
+  if (!moduleTenCaseRedoRequested()) return '';
+  const items = moduleTenUser.openLabRedosByModuleKey['soc-10'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
 let moduleTenQuizState = null;
 // Set when the learner explicitly asks to retake a knowledge check that the
 // account already records as passed (see moduleTenQuizVerifiedElsewhere()).
@@ -350,6 +491,10 @@ let moduleTenUser = null;
 const MODULE_TEN_GUIDED_DEFAULT_STATE = { practiceComplete: false, practiceNotes: '', lastQuizQuestionIds: [], labProgress: {} };
 const MODULE_TEN_ASSESSMENT_DEFAULT_STATE = {
   completed: false, attempts: 0, feedback: [], validationError: '', lastSubmittedAt: '', notes: '', flags: [], labProgress: {},
+  // Standard case-record ticket fields (MODULE_STANDARD.md §7.2).
+  submitted: false, status: '', severity: '', affectedUser: '', affectedDevice: '',
+  disposition: '', escalation: '', escalateTo: '', findings: {}, actionHistory: [],
+  score: null, breakdown: null, showMissing: false,
 };
 
 const MODULE_TEN_GUIDED_LAB_IDS = ['guided-1', 'guided-2'];
@@ -370,6 +515,18 @@ function moduleTenLoad(user) {
   if (!Array.isArray(moduleTenAssessmentState.flags)) moduleTenAssessmentState.flags = [];
   if (!moduleTenGuidedState.labProgress || typeof moduleTenGuidedState.labProgress !== 'object') moduleTenGuidedState.labProgress = {};
   if (!moduleTenAssessmentState.labProgress || typeof moduleTenAssessmentState.labProgress !== 'object') moduleTenAssessmentState.labProgress = {};
+  // Case-record migration: default any field an older saved attempt never
+  // had, and treat any already-completed old-form attempt as submitted so
+  // it keeps rendering "Lab Under Review" / "Lab Graded" rather than
+  // re-opening a blank ticket.
+  if (!moduleTenAssessmentState.findings || typeof moduleTenAssessmentState.findings !== 'object') moduleTenAssessmentState.findings = {};
+  if (!Array.isArray(moduleTenAssessmentState.actionHistory)) moduleTenAssessmentState.actionHistory = [];
+  ['status', 'severity', 'affectedUser', 'affectedDevice', 'disposition', 'escalation', 'escalateTo'].forEach((key) => {
+    if (typeof moduleTenAssessmentState[key] !== 'string') moduleTenAssessmentState[key] = '';
+  });
+  if (typeof moduleTenAssessmentState.submitted !== 'boolean') moduleTenAssessmentState.submitted = false;
+  if (typeof moduleTenAssessmentState.showMissing !== 'boolean') moduleTenAssessmentState.showMissing = false;
+  if (moduleTenAssessmentState.completed && !moduleTenAssessmentState.submitted) moduleTenAssessmentState.submitted = true;
 
   // Initialize quiz state
   if (!moduleTenQuizState) {
@@ -414,23 +571,29 @@ function moduleTenGuidedLabPanel() {
 
 function moduleTenAssessmentLabPanel() {
   const bucket = moduleTenAssessmentState.labProgress;
-  const feedbackHtml = moduleTenAssessmentState.feedback?.length ? `<div class="m10-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleTenAssessmentState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   const launchGroup = missionNextLabLaunchGroup(10, 'assessment', [
     { title: 'Recovering and Analyzing Deleted Files on Windows Systems', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-5/lab', labId: 'assessment-1' },
     { title: 'Investigating Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-1/lab', labId: 'assessment-2' },
   ], bucket);
-  const readyToSubmit = missionNextAllLabsComplete(bucket, MODULE_TEN_ASSESSMENT_LAB_IDS);
-  const canSubmit = moduleTenAssessmentState.completed || readyToSubmit;
+  const spec = moduleTenCaseSpec();
+  const performance = moduleTenCasePerformance();
+  const casePane = caseRecordPane(moduleTenAssessmentState, {
+    ...spec,
+    missing: performance.missing,
+    formId: 'm10-assessment-form',
+    saveAttr: 'data-m10-save-case',
+    submitAttr: 'data-m10-submit-case',
+    panelId: 'm10-case-panel',
+    reviewStatus: moduleTenCaseReviewStatus(),
+    redoRequested: moduleTenCaseRedoRequested(),
+    redoHtml: moduleTenCaseRedoFeedback(),
+    showMissing: moduleTenAssessmentState.showMissing === true,
+    lockedMessage: 'Module 10 completion stays pending until your instructor approves the submission.',
+  });
   return `<section class="m10-external-lab" id="m10-assessment-lab-panel">
-    <p class="m10-panel-instruction">Complete the imported Windows-forensics deleted-files and event-log projects below, mark each one complete, then write up your findings for instructor review.</p>
+    <p class="m10-panel-instruction">Complete the imported Windows-forensics deleted-files and event-log projects below, mark each one complete, then work the case ticket for instructor review.</p>
     ${launchGroup}
-    <form id="m10-assessment-form">
-      <label class="m10-note-label">Assessment write-up<textarea id="m10-assessment-notes" rows="6" maxlength="900" data-m10-assessment-notes placeholder="Summarize what the deleted-files lab surfaced, your analysis, and your recommended action…">${esc(moduleTenAssessmentState.notes)}</textarea></label>
-      <p class="m10-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      ${!canSubmit ? '<p class="m10-help">Mark both labs above complete before submitting for review.</p>' : ''}
-      <div class="m10-actions"><button type="submit" class="m10-submit" ${canSubmit ? '' : 'disabled'}>${moduleTenAssessmentState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
-    </form>
-    ${feedbackHtml}
+    ${casePane}
   </section>`;
 }
 
@@ -796,6 +959,54 @@ function wireModuleTenGuidedLab() {
   });
 }
 
+function moduleTenFinalizeCase(root) {
+  const performance = moduleTenCasePerformance();
+  if (moduleTenAssessmentState.submitted) return;
+  if (performance.missing.length) {
+    moduleTenAssessmentState.showMissing = true;
+    moduleTenSaveAssessment();
+    root.innerHTML = moduleTenAssessmentLabPanel();
+    moduleTenRewireAssessmentLabGating();
+    return;
+  }
+  moduleTenAssessmentState.showMissing = false;
+  moduleTenAssessmentState.submitted = true;
+  moduleTenAssessmentState.completed = true;
+  moduleTenAssessmentState.attempts = (moduleTenAssessmentState.attempts || 0) + 1;
+  moduleTenAssessmentState.lastSubmittedAt = new Date().toISOString();
+  moduleTenAssessmentState.score = performance.score;
+  moduleTenAssessmentState.breakdown = performance.breakdown;
+  moduleTenAssessmentState.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleTenAssessmentState.lastSubmittedAt });
+  if (!moduleTenAssessmentState.flags.includes('M10-ASSESSMENT-LAB-COMPLETE')) moduleTenAssessmentState.flags.push('M10-ASSESSMENT-LAB-COMPLETE');
+  moduleTenSaveAssessment();
+  if (moduleTenUser) {
+    moduleTenUser.latestLabAttemptByKey = { ...(moduleTenUser.latestLabAttemptByKey || {}), [MODULE_TEN_ASSESSMENT_KEY]: { completedAt: moduleTenAssessmentState.lastSubmittedAt, reviewedAt: null, redoRequested: false } };
+  }
+  const spec = moduleTenCaseSpec();
+  if (typeof recordLabAttempt === 'function') {
+    recordLabAttempt(moduleTenUser, MODULE_TEN_ASSESSMENT_KEY, {
+      state: 'complete',
+      score: performance.score,
+      result: {
+        breakdown: performance.breakdown,
+        feedback: performance.feedback,
+        critical_errors: performance.criticalErrors,
+        case_record: moduleTenAssessmentState,
+        case_display: caseRecordDisplay(moduleTenAssessmentState, spec),
+        case_summary: caseRecordSummary(moduleTenAssessmentState, spec),
+        notes: moduleTenAssessmentState.notes,
+      },
+    }).then((saved) => {
+      if (saved && moduleTenCaseRedoRequested()) delete moduleTenUser.openLabRedosByModuleKey['soc-10'];
+    });
+  }
+  if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTenUser, 'soc-analyst', 'soc-10', MODULE_TEN_ASSESSMENT_KEY);
+  const status = document.getElementById('m10-status');
+  if (status) status.textContent = 'Complete';
+  root.innerHTML = moduleTenAssessmentLabPanel();
+  moduleTenRewireAssessmentLabGating();
+}
+
 function wireModuleTenAssessmentLab() {
   const root = document.getElementById('m10-assessment-lab-dynamic');
   if (!root || !moduleTenAssessmentState) return;
@@ -807,39 +1018,29 @@ function wireModuleTenAssessmentLab() {
       moduleTenRewireAssessmentLabGating();
     });
   }
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm10-assessment-form') return;
-    event.preventDefault();
-    if (!moduleTenAssessmentState.completed && !missionNextAllLabsComplete(moduleTenAssessmentState.labProgress, MODULE_TEN_ASSESSMENT_LAB_IDS)) {
-      moduleTenAssessmentState.feedback = ['Mark all required labs above complete before submitting your write-up.'];
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m10-submit-case]')) { moduleTenFinalizeCase(root); return; }
+    if (event.target.closest('[data-m10-save-case]')) {
+      moduleTenAssessmentState.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
       moduleTenSaveAssessment();
       root.innerHTML = moduleTenAssessmentLabPanel();
       moduleTenRewireAssessmentLabGating();
-      return;
     }
-    const notes = event.target.querySelector('#m10-assessment-notes')?.value || '';
-    moduleTenAssessmentState.notes = notes;
-    if (notes.trim().length < 80) {
-      moduleTenAssessmentState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
-      moduleTenSaveAssessment();
-      root.innerHTML = moduleTenAssessmentLabPanel();
-      moduleTenRewireAssessmentLabGating();
-      return;
-    }
-    moduleTenAssessmentState.attempts = (moduleTenAssessmentState.attempts || 0) + 1;
-    moduleTenAssessmentState.lastSubmittedAt = new Date().toISOString();
-    moduleTenAssessmentState.completed = true;
-    moduleTenAssessmentState.feedback = ['Submitted. This write-up has been recorded as your Assessment Lab submission for instructor review.'];
-    if (!moduleTenAssessmentState.flags.includes('M10-ASSESSMENT-LAB-COMPLETE')) moduleTenAssessmentState.flags.push('M10-ASSESSMENT-LAB-COMPLETE');
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(moduleTenUser, MODULE_TEN_ASSESSMENT_KEY, { state: 'complete', result: { notes } });
-    }
-    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTenUser, 'soc-analyst', 'soc-10', MODULE_TEN_ASSESSMENT_KEY);
+  });
+  root.addEventListener('change', (event) => {
+    if (event.target.id !== 'm10-assessment-form' && !event.target.closest('#m10-assessment-form')) return;
+    const { name, value } = event.target;
+    if (!name || !caseRecordApply(moduleTenAssessmentState, name, value)) return;
+    moduleTenAssessmentState.actionHistory.push({ action: `Updated ${name}`, at: new Date().toISOString() });
     moduleTenSaveAssessment();
-    const status = document.getElementById('m10-status');
-    if (status) status.textContent = 'Complete';
     root.innerHTML = moduleTenAssessmentLabPanel();
     moduleTenRewireAssessmentLabGating();
+  });
+  root.addEventListener('input', (event) => {
+    if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && event.target.closest('#m10-assessment-form')) {
+      caseRecordApply(moduleTenAssessmentState, 'notes', event.target.value);
+      moduleTenSaveAssessment();
+    }
   });
 }
 

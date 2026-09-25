@@ -138,6 +138,8 @@ const files = [
   'release.js',
   'data.js',
   'lab-runtime.js',
+  'case-record.js',
+  'console-guide.js',
   'module-registry.js',
   // Module 03's SIEM console (and the KQL engine it runs) loads before the
   // module file that renders it, matching portal/index.html script order.

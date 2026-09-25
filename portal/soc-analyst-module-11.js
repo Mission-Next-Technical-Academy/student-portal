@@ -374,6 +374,138 @@ const MODULE_ELEVEN_SHARED_CASE = (typeof window !== 'undefined' && window.MISSI
   || { contractVersion: 'm09-ransomware-evidence-v1', organization: 'Mission Next Labs', incidentId: 'INC-4937', title: 'Operation Cedar Lock — active ransomware response', status: 'contained-in-lab-slice', entities: { endpoint: 'ws-173', account: 'acct-173', fileServer: 'fs-02' }, timeBasis: 'Synthetic UTC training timeline; all addresses are documentation-range fixtures.', notEstablished: ['enterprise-wide compromise', 'data exfiltration', 'specific operator identity'], consumerSlices: { module11: ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'] } };
 const MODULE_ELEVEN_SHARED_SLICE_IDS = MODULE_ELEVEN_SHARED_CASE.consumerSlices?.module11 || ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'];
 
+// Standard Incident / Case Record (MODULE_STANDARD.md §7.2) for the
+// Assessment Lab's Prove It submission. Authored from the shared M09
+// evidence contract this module consumes (MODULE_ELEVEN_SHARED_CASE):
+// INC-4937, the ws-173/acct-173 endpoint-and-identity compromise, with
+// fs-02 as the bounded file-server impact. Answer key stays here, never
+// shown live in Prove It.
+const MODULE_ELEVEN_CASE = {
+  caseId: 'OPS-5511',
+  userOptions: [
+    { id: 'acct-173', text: 'acct-173', tier: 'principal' },
+    { id: 'svc-fs02', text: 'svc-fs02', tier: 'pivot' },
+    { id: 'acct-091', text: 'acct-091', tier: 'noise' },
+    { id: 'acct-204', text: 'acct-204', tier: 'noise' },
+    { id: 'm.reyes', text: 'm.reyes', tier: 'noise' },
+    { id: 'svc-backup', text: 'svc-backup', tier: 'noise' },
+  ],
+  deviceOptions: [
+    { id: 'ws-173', text: 'ws-173', tier: 'principal' },
+    { id: 'fs-02', text: 'fs-02', tier: 'pivot' },
+    { id: 'ws-118', text: 'ws-118', tier: 'noise' },
+    { id: 'ws-204', text: 'ws-204', tier: 'noise' },
+    { id: 'srv-print-01', text: 'srv-print-01', tier: 'noise' },
+    { id: 'ws-091', text: 'ws-091', tier: 'noise' },
+  ],
+  departmentOptions: [
+    { id: 'tier2-soc', text: 'Tier 2 SOC — Incident Response', fit: 100 },
+    { id: 'identity-response', text: 'Identity Response', fit: 60,
+      note: 'Identity Response can act on acct-173, but the shared slice also shows fs-02 service disruption it has no authority over — Tier 2 SOC owns both legs together.' },
+    { id: 'endpoint-edr', text: 'Endpoint / EDR Team', fit: 55,
+      note: 'EDR can act on ws-173, but can’t revoke the overlapping acct-173 session on its own — Tier 2 SOC coordinates both actions.' },
+    { id: 'help-desk', text: 'Help Desk', fit: 5,
+      bounce: 'Help Desk can’t act on a confirmed incident with service impact — this needs Tier 2 SOC’s incident-response authority.' },
+  ],
+  correctStatus: 'in-progress',
+  correctSeverity: 'high',
+  correctAffectedUser: 'acct-173',
+  correctAffectedDevice: 'ws-173',
+  correctDisposition: 'true-positive',
+  correctEscalation: 'required',
+  correctEscalateTo: 'tier2-soc',
+  departmentBounceThreshold: 40,
+};
+
+function moduleElevenCaseSpec() {
+  const labsReady = missionNextAllLabsComplete(moduleElevenReportState.labProgress, ['assessment-1', 'additional-1', 'additional-2']);
+  return {
+    caseId: MODULE_ELEVEN_CASE.caseId,
+    userOptions: MODULE_ELEVEN_CASE.userOptions,
+    deviceOptions: MODULE_ELEVEN_CASE.deviceOptions,
+    departmentOptions: MODULE_ELEVEN_CASE.departmentOptions,
+    notesPlaceholder: 'Summarize the operational-metrics signal, the shared-case evidence it corresponds to, and your recommended escalation/closure…',
+    extraMissing: labsReady ? [] : ['Mark all required labs above complete'],
+    disabled: moduleElevenReportState.submitted === true,
+  };
+}
+
+// Prove It scoring: same weighting model as Module 01/10 (entity tiers 20,
+// severity 15, disposition 20, escalation/routing up to 35, notes 10).
+function moduleElevenCasePerformance() {
+  const state = moduleElevenReportState;
+  const lab = MODULE_ELEVEN_CASE;
+  const spec = moduleElevenCaseSpec();
+  const department = lab.departmentOptions.find((option) => option.id === state.escalateTo) || null;
+  const escalationRequiredOk = state.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < lab.departmentBounceThreshold;
+
+  const missing = caseRecordMissing(state, spec);
+
+  const userTier = lab.userOptions.find((entry) => entry.id === state.affectedUser)?.tier;
+  const deviceTier = lab.deviceOptions.find((entry) => entry.id === state.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10);
+
+  const severity = caseRecordSeverity(state) === lab.correctSeverity ? 15 : 0;
+  const disposition = caseRecordDisposition(state) === lab.correctDisposition ? 20 : 0;
+  const escalation = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 35) : 0;
+  const notesLen = (state.notes || '').trim().length;
+  const notes = Math.round(Math.min(1, notesLen / 80) * 10);
+  const score = entityPoints + severity + disposition + escalation + notes;
+  const criticalErrors = state.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  const entityFeedback = entityPoints >= 20
+    ? 'Affected entity/scope: correct — the confirmed account and endpoint.'
+    : entityPoints > 0
+      ? 'Affected entity/scope: partial credit — a related entity is supported by the shared case slice, but acct-173/ws-173 is the confirmed affected user/device.'
+      : 'Affected entity/scope: review — acct-173/ws-173 is the confirmed affected user/device, per the shared M09 evidence contract.';
+  const routingFeedback = !escalationRequiredOk
+    ? 'Routing: not applicable — escalation was set to not required.'
+    : !department
+      ? 'Routing: review — this case needs a department routed with the recorded evidence.'
+      : department.fit >= 100
+        ? `Routing: correct — ${department.text} is the best-fit department for this case.`
+        : department.fit >= lab.departmentBounceThreshold
+          ? `Routing: accepted, but not the best fit — ${department.note}`
+          : `Routing: returned — ${department.bounce || department.note}`;
+
+  return {
+    missing,
+    score,
+    breakdown: { affected_entity: entityPoints, severity, disposition, escalation, analyst_notes: notes },
+    department, bounced,
+    feedback: [
+      entityFeedback,
+      severity ? 'Severity: correct.' : 'Severity: review — the bounded impact statement supports High severity.',
+      disposition ? 'Disposition: correct.' : 'Disposition: review — the shared slice supports confirmed malicious activity.',
+      routingFeedback,
+    ],
+    criticalErrors,
+  };
+}
+
+function moduleElevenCaseReviewStatus() {
+  if (!moduleElevenReportState?.submitted) return '';
+  const attempt = moduleElevenUser?.latestLabAttemptByKey?.[MODULE_ELEVEN_REPORT_CATALOG_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleElevenCaseRedoRequested() {
+  return moduleElevenUser?.openLabRedosByModuleKey?.['soc-11']?.labKey === MODULE_ELEVEN_REPORT_CATALOG_KEY;
+}
+
+function moduleElevenCaseRedoFeedback() {
+  if (!moduleElevenCaseRedoRequested()) return '';
+  const items = moduleElevenUser.openLabRedosByModuleKey['soc-11'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
 let moduleElevenQuizState = null;
 // Set when the learner explicitly asks to retake a knowledge check that the
 // account already records as passed (see moduleElevenQuizVerifiedElsewhere()).
@@ -392,6 +524,10 @@ function moduleElevenMetricsFreshDefaults() {
 function moduleElevenReportFreshDefaults() {
   return {
     notes: '', attempts: 0, completed: false, feedback: [], validationError: '', lastSubmittedAt: '', labProgress: {},
+    // Standard case-record ticket fields (MODULE_STANDARD.md §7.2).
+    submitted: false, status: '', severity: '', affectedUser: '', affectedDevice: '',
+    disposition: '', escalation: '', escalateTo: '', findings: {}, actionHistory: [],
+    score: null, breakdown: null, showMissing: false,
   };
 }
 
@@ -410,6 +546,18 @@ function moduleElevenLoad(user) {
   if (typeof moduleElevenReportState.notes !== 'string') moduleElevenReportState.notes = '';
   if (!moduleElevenMetricsState.labProgress || typeof moduleElevenMetricsState.labProgress !== 'object') moduleElevenMetricsState.labProgress = {};
   if (!moduleElevenReportState.labProgress || typeof moduleElevenReportState.labProgress !== 'object') moduleElevenReportState.labProgress = {};
+  // Case-record migration: default any field an older saved attempt never
+  // had, and treat any already-completed old-form attempt as submitted so
+  // it keeps rendering "Lab Under Review" / "Lab Graded" rather than
+  // re-opening a blank ticket.
+  if (!moduleElevenReportState.findings || typeof moduleElevenReportState.findings !== 'object') moduleElevenReportState.findings = {};
+  if (!Array.isArray(moduleElevenReportState.actionHistory)) moduleElevenReportState.actionHistory = [];
+  ['status', 'severity', 'affectedUser', 'affectedDevice', 'disposition', 'escalation', 'escalateTo'].forEach((key) => {
+    if (typeof moduleElevenReportState[key] !== 'string') moduleElevenReportState[key] = '';
+  });
+  if (typeof moduleElevenReportState.submitted !== 'boolean') moduleElevenReportState.submitted = false;
+  if (typeof moduleElevenReportState.showMissing !== 'boolean') moduleElevenReportState.showMissing = false;
+  if (moduleElevenReportState.completed && !moduleElevenReportState.submitted) moduleElevenReportState.submitted = true;
 
   // Initialize quiz state
   if (!moduleElevenQuizState) {
@@ -647,17 +795,25 @@ function moduleElevenGuidedLabPanel() {
 
 function moduleElevenAssessmentLabPanel() {
   const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_REPORT_CATALOG_KEY);
-  const feedbackHtml = moduleElevenReportState.feedback?.length ? `<div class="m11-validation is-pass" role="status"><strong>Submitted</strong><ul>${moduleElevenReportState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
+  const spec = moduleElevenCaseSpec();
+  const performance = moduleElevenCasePerformance();
+  const casePane = caseRecordPane(moduleElevenReportState, {
+    ...spec,
+    missing: performance.missing,
+    formId: 'm11-assessment-form',
+    saveAttr: 'data-m11-save-case',
+    submitAttr: 'data-m11-submit-case',
+    panelId: 'm11-case-panel',
+    reviewStatus: moduleElevenCaseReviewStatus(),
+    redoRequested: moduleElevenCaseRedoRequested(),
+    redoHtml: moduleElevenCaseRedoFeedback(),
+    showMissing: moduleElevenReportState.showMissing === true,
+    lockedMessage: 'Module 11 completion stays pending until your instructor approves the submission.',
+  });
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
-    <p class="m11-panel-instruction">Launch the imported Active Directory metrics project below, complete it, then write up your findings for instructor review.</p>
+    <p class="m11-panel-instruction">Launch the imported Active Directory metrics project below, complete it, then work the case ticket for instructor review.</p>
     ${missionNextLabLaunchGroup(11, 'assessment', [{ title: 'Visualizing Active Directory Performance Metrics with Cacti', detail: `${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. Imported Active Directory metrics project.`, href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab', labId: 'assessment-1', requireNote: true }], moduleElevenReportState.labProgress)}
-    <form id="m11-assessment-form">
-      <label class="m11-text-label" for="m11-assessment-notes">Assessment write-up</label>
-      <p class="m11-field-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      <textarea id="m11-assessment-notes" rows="6" maxlength="1400" data-m11-assessment-notes placeholder="Summarize what the Cacti lab surfaced, your analysis, and your recommended action…">${esc(moduleElevenReportState.notes)}</textarea>
-      <div class="m11-actions"><button type="submit" class="m11-submit">${moduleElevenReportState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
-    </form>
-    ${feedbackHtml}
+    ${casePane}
   </section>`;
 }
 
@@ -752,41 +908,79 @@ function wireModuleElevenAssessmentLabGating(root) {
   });
 }
 
+function moduleElevenFinalizeCase(root) {
+  const performance = moduleElevenCasePerformance();
+  if (moduleElevenReportState.submitted) return;
+  if (performance.missing.length) {
+    moduleElevenReportState.showMissing = true;
+    moduleElevenSaveReport();
+    root.innerHTML = moduleElevenAssessmentLabPanel();
+    wireModuleElevenAssessmentLabGating(root);
+    return;
+  }
+  moduleElevenReportState.showMissing = false;
+  moduleElevenReportState.submitted = true;
+  moduleElevenReportState.completed = true;
+  moduleElevenReportState.attempts = (moduleElevenReportState.attempts || 0) + 1;
+  moduleElevenReportState.lastSubmittedAt = new Date().toISOString();
+  moduleElevenReportState.score = performance.score;
+  moduleElevenReportState.breakdown = performance.breakdown;
+  moduleElevenReportState.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleElevenReportState.lastSubmittedAt });
+  if (!moduleElevenReportState.flags.includes(MODULE_ELEVEN_REPORT_FLAG)) moduleElevenReportState.flags.push(MODULE_ELEVEN_REPORT_FLAG);
+  moduleElevenSaveReport();
+  if (moduleElevenUser) {
+    moduleElevenUser.latestLabAttemptByKey = { ...(moduleElevenUser.latestLabAttemptByKey || {}), [MODULE_ELEVEN_REPORT_CATALOG_KEY]: { completedAt: moduleElevenReportState.lastSubmittedAt, reviewedAt: null, redoRequested: false } };
+  }
+  const spec = moduleElevenCaseSpec();
+  if (typeof recordLabAttempt === 'function') {
+    recordLabAttempt(moduleElevenUser, MODULE_ELEVEN_REPORT_CATALOG_KEY, {
+      state: 'complete',
+      score: performance.score,
+      result: {
+        breakdown: performance.breakdown,
+        feedback: performance.feedback,
+        critical_errors: performance.criticalErrors,
+        case_record: moduleElevenReportState,
+        case_display: caseRecordDisplay(moduleElevenReportState, spec),
+        case_summary: caseRecordSummary(moduleElevenReportState, spec),
+        notes: moduleElevenReportState.notes,
+      },
+    }).then((saved) => {
+      if (saved && moduleElevenCaseRedoRequested()) delete moduleElevenUser.openLabRedosByModuleKey['soc-11'];
+    });
+  }
+  if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_REPORT_CATALOG_KEY);
+  root.innerHTML = moduleElevenAssessmentLabPanel();
+  wireModuleElevenAssessmentLabGating(root);
+}
+
 function wireModuleElevenAssessmentLab() {
   const root = document.getElementById('m11-assessment-lab-dynamic');
   if (!root || !moduleElevenReportState) return;
   wireModuleElevenAssessmentLabGating(root);
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm11-assessment-form') return;
-    event.preventDefault();
-    if (!missionNextAllLabsComplete(moduleElevenReportState.labProgress, ['assessment-1', 'additional-1', 'additional-2'])) {
-      moduleElevenReportState.feedback = ['Mark all required labs above complete before submitting your write-up.'];
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m11-submit-case]')) { moduleElevenFinalizeCase(root); return; }
+    if (event.target.closest('[data-m11-save-case]')) {
+      moduleElevenReportState.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
       moduleElevenSaveReport();
       root.innerHTML = moduleElevenAssessmentLabPanel();
       wireModuleElevenAssessmentLabGating(root);
-      return;
     }
-    const notes = event.target.querySelector('#m11-assessment-notes')?.value || '';
-    moduleElevenReportState.notes = notes;
-    if (notes.trim().length < 80) {
-      moduleElevenReportState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
-      moduleElevenSaveReport();
-      root.innerHTML = moduleElevenAssessmentLabPanel();
-      wireModuleElevenAssessmentLabGating(root);
-      return;
-    }
-    moduleElevenReportState.attempts = (moduleElevenReportState.attempts || 0) + 1;
-    moduleElevenReportState.lastSubmittedAt = new Date().toISOString();
-    moduleElevenReportState.completed = true;
-    moduleElevenReportState.feedback = ['Submitted. This write-up has been recorded as your Assessment Lab submission for instructor review.'];
-    if (!moduleElevenReportState.flags.includes(MODULE_ELEVEN_REPORT_FLAG)) moduleElevenReportState.flags.push(MODULE_ELEVEN_REPORT_FLAG);
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(moduleElevenUser, MODULE_ELEVEN_REPORT_CATALOG_KEY, { state: 'complete', result: { notes } });
-    }
-    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_REPORT_CATALOG_KEY);
+  });
+  root.addEventListener('change', (event) => {
+    if (!event.target.closest('#m11-assessment-form')) return;
+    const { name, value } = event.target;
+    if (!name || !caseRecordApply(moduleElevenReportState, name, value)) return;
+    moduleElevenReportState.actionHistory.push({ action: `Updated ${name}`, at: new Date().toISOString() });
     moduleElevenSaveReport();
     root.innerHTML = moduleElevenAssessmentLabPanel();
     wireModuleElevenAssessmentLabGating(root);
+  });
+  root.addEventListener('input', (event) => {
+    if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && event.target.closest('#m11-assessment-form')) {
+      caseRecordApply(moduleElevenReportState, 'notes', event.target.value);
+      moduleElevenSaveReport();
+    }
   });
 }
 

@@ -171,3 +171,11 @@
   .m03e-tl li{grid-template-columns:1fr auto}
   .m03e-tl-time{grid-column:1/-1}
 }
+
+/* Case Record tab (assessment console): the standard ticket takes the full
+   workspace width; the details drawer is hidden on this tab. */
+.m03e-workspace.is-case{grid-template-columns:minmax(0,1fr)}
+.m03e-case-view{max-width:980px}
+.m03e-case-view .m01-console-pane{padding:0;border:0}
+.m03e-case-attach{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 14px;padding:10px 12px;border:1px solid #e2e8f0;border-left:3px solid #f97316;border-radius:8px;background:#f8fafc;color:#334155;font-size:13px}
+.m03e-case-attach button{margin-left:auto;padding:4px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#0f172a;font-size:12px;font-weight:600;cursor:pointer}

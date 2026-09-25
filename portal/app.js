@@ -1105,12 +1105,19 @@ function adminCaseTicketSubmissionPanel(row) {
       'benign-positive': 'Benign activity',
       'false-positive': 'False positive',
       'enterprise-breach': 'Enterprise-wide incident',
+      'false-negative': 'False Negative',
+      'true-negative': 'True Negative',
     },
     escalation: { required: 'Required', 'not-required': 'Not required' },
     escalateTo: { 'tier2-soc': 'Tier 2 SOC', 'identity-response': 'Identity Response' },
   };
   const display = (field, value) => labels[field]?.[value] || (value ? String(value) : 'Not provided');
-  const fields = [
+  // Modules on the shared case record (portal/case-record.js) send their own
+  // label/value rows, findings included; Module 01's older attempts do not.
+  const sentRows = Array.isArray(row?.result?.case_display)
+    ? row.result.case_display.filter((entry) => Array.isArray(entry) && entry.length === 2).map(([label, value]) => [String(label), String(value)])
+    : null;
+  const fields = sentRows || [
     ['Status', display('status', record.status)],
     ['Severity', display('severity', record.severity || record.priority)],
     ['Affected user', record.affectedUser || 'Not provided'],

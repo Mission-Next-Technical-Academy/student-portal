@@ -287,3 +287,58 @@ Rules:
   (with a label) when the work is **Under review** or **Graded**. Instructor
   redo notes must appear inside the module and the lab console, not only on
   the program card.
+
+### 7.2 Incident / Case Record — the one graded submission (locked 2026-09-25)
+
+Every graded Prove It submission in the SOC course is written on the same
+incident ticket. Module 01's NST-2407 case console is the reference; the
+renderer is `portal/case-record.js` and its styles are the `.m01-ticket-*` /
+`.m01-score-empty` / `.m01-requirements-list` rules in `portal/module-labs.css`.
+When anyone says **"use the case record"** or **"incident ticket"**, it means this.
+
+Ticket anatomy, in this order:
+
+| Part | Standard |
+|---|---|
+| Pane title | `Incident / Case Record` |
+| Header row | `CASE <id>` + **Status** (In Progress / Pending / Resolved) |
+| Grid | **Severity** (Critical/High/Medium/Low) · **Affected User** · **Affected Device** · **Disposition** · **Escalation required** (Required / Not required) · **Route to Department** (only when Required) |
+| Module findings | optional extra selects in the same grid (`spec.findings`) or a block under it (`spec.findingsHtml`) for the module's domain decisions — rule threshold, hunt hypothesis, ATT&CK mapping, etc. |
+| Notes | **Analyst Work Notes** textarea, ≥ 80 characters |
+| Actions | `Save` (secondary) + `Submit Case` (orange); after submit a single grey `Lab Under Review` / `Lab Graded` button |
+| Requirements panel | `Case record` card listing every missing item; turns orange "Not ready to submit yet" when Submit is pressed early; shows instructor redo notes |
+
+Rules:
+- Use `caseRecordPane()` / `caseRecordFields()` + `caseRecordMissing()` +
+  `caseRecordActions()` + `caseRecordPanel()`; store values with
+  `caseRecordApply()`; send `caseRecordSummary()` as the readable record in the
+  `recordLabAttempt()` payload.
+- Module-specific graded decisions go **inside** the ticket as findings, never
+  as a separate form beside it. One module, one ticket, one Submit Case.
+- Each module supplies its own case id, user/device roster (confirmed entity +
+  plausible pivots + noise, as in Module 01's `entityRoster`) and department
+  list. Answer keys stay in module data; Prove It shows no live right/wrong.
+- Submit follows §7.1: clickable until submitted, lists missing items when
+  pressed early, greys out only for Under review / Graded.
+
+### 7.3 Console Guide — the in-console teaching card (locked 2026-09-25)
+
+The step-by-step card that floats over a lab console is Module 02's Learn It
+console guide. Renderer: `portal/console-guide.js`; styles: the
+`.m02e-learn-tip` / `.m02e-tip-*` / `.m02e-guide-*` block in
+`portal/module-labs.css`. When anyone says **"use the console guide"**, it
+means this card — same shape, colours and format; only the words change.
+
+Anatomy: navy gradient card with orange left border and pointer arrow ·
+orange label `CONSOLE GUIDE · STEP n OF m` (`· COMPLETE` when finished) ·
+round collapse chevron (`ri-arrow-down-s-line`, rotates; collapsed card
+docks into the console header) · title · body · `Look for:` box · `Lab
+connection:` box · `Next explanation` → `Finish guide` → `Restart console
+guide` button. Entry point: pulsing orange `Start console guide` button.
+
+Rules:
+- Author steps as `{ title, body, lookFor, lab }` (plus module keys such as
+  `tab`/`target` to move the console to what the step explains).
+- Render with `consoleGuideCard({ steps, step, docked, prefix })` and
+  `consoleGuideStartButton()`; position with `consoleGuidePosition()`.
+- No per-module recolouring or alternate tooltip/coachmark styles.

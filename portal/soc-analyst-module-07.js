@@ -10,6 +10,44 @@ const MODULE_SEVEN_CATALOG_LAB_KEYS = ['lab-email-triage', 'lab-network-investig
  * (this module's own completion action) requires every Guided, Assessment,
  * and additional/required lab to be individually marked complete first. */
 const MODULE_SEVEN_COMPLETION_LAB_IDS = ['assessment-1', 'assessment-2', 'additional-ftp-log-analysis'];
+// Recorded across all three MODULE_SEVEN_CATALOG_LAB_KEYS; review status is
+// tracked against the last (this module's own independent-assessment key).
+const MODULE_SEVEN_PRIMARY_CATALOG_KEY = MODULE_SEVEN_CATALOG_LAB_KEYS[MODULE_SEVEN_CATALOG_LAB_KEYS.length - 1];
+
+// Prove It case — authored from the imported GRE-tunnel (10.1.0.33 covert
+// channel), HTTP web-shell (/uploads/shell.php), and required FTP
+// anonymous-exfil (10.4.5.200) lab scenarios in
+// portal/imported-labs/mission-next-labs/src/data.js: one incident chain —
+// web-shell foothold -> persistent GRE tunnel -> anonymous-FTP exfiltration.
+const MODULE_SEVEN_CASE_ID = 'NEC-0731';
+const MODULE_SEVEN_ENTITY_ROSTER = {
+  users: [
+    { id: 'svc-webapp01', tier: 'principal' },
+    { id: 'd.kwan', tier: 'pivot' },
+    { id: 't.alvarez', tier: 'noise' },
+    { id: 'r.nakamura', tier: 'noise' },
+    { id: 'm.owusu', tier: 'noise' },
+    { id: 'c.ferreira', tier: 'noise' },
+    { id: 'guest-conf01', tier: 'noise' },
+  ],
+  devices: [
+    { id: 'SRV-WEB07', tier: 'principal' },
+    { id: 'FTP-DC02', tier: 'pivot' },
+    { id: 'WKS-118', tier: 'noise' },
+    { id: 'WKS-244', tier: 'noise' },
+    { id: 'DB-PROD03', tier: 'noise' },
+    { id: 'PRT-SVC01', tier: 'noise' },
+    { id: 'LAP-902', tier: 'noise' },
+  ],
+};
+const MODULE_SEVEN_DEPARTMENT_OPTIONS = [
+  { id: 'tier2-soc-net', text: 'Tier 2 SOC — Network Intrusion', fit: 100, note: 'Owns active tunnel/C2 and exfiltration response.' },
+  { id: 'app-sec', text: 'Application Security', fit: 60, note: 'Owns the vulnerable web app, but not the active exfiltration response.' },
+  { id: 'identity-response', text: 'Identity Response', fit: 20, note: 'No compromised identity/session evidence in this case.', bounce: 'Returned — this case has no identity-compromise evidence; route to Tier 2 SOC Network Intrusion.' },
+  { id: 'helpdesk', text: 'Help Desk', fit: 10, note: 'Not equipped for active intrusion response.', bounce: 'Returned — escalate active intrusions to Tier 2 SOC, not Help Desk.' },
+];
+// Answer key — kept in module data, never shown live in Prove It.
+const MODULE_SEVEN_ANSWER_KEY = { severity: 'critical', disposition: 'true-positive', escalateTo: 'tier2-soc-net' };
 
 const MODULE_SEVEN_QUIZ_BANKS = [
   {
@@ -364,6 +402,100 @@ function moduleSevenFreshState() {
     feedback: [], validationError: '', lastSubmittedAt: '', notes: '',
     evidenceDesk: { exposure: '', correlation: '', action: '', note: '', checked: false, complete: false, feedback: '' },
     labProgress: {},
+    caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
+  };
+}
+
+let moduleSevenProveItShowMissing = false;
+
+function moduleSevenProveItRedoRequested() {
+  return moduleSevenUser?.openLabRedosByModuleKey?.['soc-07'] != null;
+}
+
+// '' until submitted; then 'review' while the latest attempt awaits faculty,
+// 'graded' once an instructor has reviewed it without sending it back.
+function moduleSevenProveItReviewStatus() {
+  if (!moduleSevenState?.caseRecord?.submitted) return '';
+  const attempt = moduleSevenUser?.latestLabAttemptByKey?.[MODULE_SEVEN_PRIMARY_CATALOG_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleSevenProveItRedoFeedback() {
+  if (!moduleSevenProveItRedoRequested()) return '';
+  const items = moduleSevenUser.openLabRedosByModuleKey['soc-07'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
+function moduleSevenProveItSpec() {
+  return {
+    formId: 'm07-assessment-form',
+    panelId: 'm07-review-submission',
+    caseId: MODULE_SEVEN_CASE_ID,
+    userOptions: MODULE_SEVEN_ENTITY_ROSTER.users.map((entry) => ({ id: entry.id, text: entry.id })),
+    deviceOptions: MODULE_SEVEN_ENTITY_ROSTER.devices.map((entry) => ({ id: entry.id, text: entry.id })),
+    departmentOptions: MODULE_SEVEN_DEPARTMENT_OPTIONS,
+    notesPlaceholder: 'Summarize what the tunnel-log and HTTP-log modules surfaced, your analysis, and your recommended action…',
+    saveAttr: 'data-m07-save-proveit',
+    submitAttr: 'data-m07-submit-proveit',
+    lockedMessage: 'Module 8 stays locked until your instructor approves the submission.',
+  };
+}
+
+// Prove It scoring: entity tiers 20, severity 15, disposition 20,
+// escalation/routing up to 35, notes 10 — Module 01's weighting model. No
+// extra domain findings existed on the old m07-assessment-form beyond the
+// write-up, which is now the standard Analyst Work Notes field.
+function moduleSevenProveItPerformance() {
+  const state = moduleSevenState.caseRecord;
+  const spec = moduleSevenProveItSpec();
+  const gateOk = missionNextAllLabsComplete(moduleSevenState.labProgress, MODULE_SEVEN_COMPLETION_LAB_IDS);
+  const missing = caseRecordMissing(state, { ...spec, extraMissing: gateOk ? [] : ['Mark both assessment labs and the required FTP log analysis lab complete'] });
+
+  const userTier = MODULE_SEVEN_ENTITY_ROSTER.users.find((entry) => entry.id === state.affectedUser)?.tier;
+  const deviceTier = MODULE_SEVEN_ENTITY_ROSTER.devices.find((entry) => entry.id === state.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
+
+  const severityOk = caseRecordSeverity(state) === MODULE_SEVEN_ANSWER_KEY.severity;
+  const dispositionOk = caseRecordDisposition(state) === MODULE_SEVEN_ANSWER_KEY.disposition;
+  const department = MODULE_SEVEN_DEPARTMENT_OPTIONS.find((option) => option.id === state.escalateTo) || null;
+  const escalationRequiredOk = state.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < 40;
+  const escalation = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 35) : 0;
+  const notesLen = (state.notes || '').trim().length;
+  const notes = Math.round(Math.min(1, notesLen / 80) * 10);
+  const score = entityPoints + (severityOk ? 15 : 0) + (dispositionOk ? 20 : 0) + escalation + notes;
+  const criticalErrors = state.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  return {
+    missing,
+    score,
+    breakdown: { affected_entity: entityPoints, severity: severityOk ? 15 : 0, disposition: dispositionOk ? 20 : 0, escalation, analyst_notes: notes },
+    department, bounced,
+    feedback: [
+      entityPoints >= 20
+        ? 'Affected entity/scope: correct — the compromised web-app service account and host.'
+        : entityPoints > 0
+          ? 'Affected entity/scope: partial credit — a related host/account is supported by the evidence, but SRV-WEB07 / svc-webapp01 is the confirmed source.'
+          : 'Affected entity/scope: review the tunnel, web-shell, and FTP evidence for the confirmed source host and account.',
+      severityOk ? 'Severity: correct.' : 'Severity: review — an active, persistent exfiltration chain is Critical.',
+      dispositionOk ? 'Disposition: correct.' : 'Disposition: review — the tunnel, web shell, and anonymous FTP downloads together confirm malicious activity.',
+      !escalationRequiredOk
+        ? 'Routing: not applicable — escalation was set to not required.'
+        : !department
+          ? 'Routing: review — this case needs a department routed with the recorded evidence.'
+          : department.fit >= 100
+            ? `Routing: correct — ${department.text} is the best-fit department for this case.`
+            : department.fit >= 40
+              ? `Routing: accepted, but not the best fit — ${department.note}`
+              : `Routing: returned — ${department.bounce || department.note}`,
+    ],
+    criticalErrors,
   };
 }
 
@@ -381,6 +513,28 @@ function moduleSevenLoad(user) {
     moduleSevenState.evidenceDesk = moduleSevenFreshState().evidenceDesk;
   }
   if (!moduleSevenState.labProgress || typeof moduleSevenState.labProgress !== 'object') moduleSevenState.labProgress = {};
+  // Backward compat: a pre-case-record submission only had `completed` +
+  // `notes`. Preserve it as an already-submitted case record so the student
+  // still sees Lab Under Review / Lab Graded, never a reset or a crash.
+  if (!moduleSevenState.caseRecord || typeof moduleSevenState.caseRecord !== 'object') {
+    moduleSevenState.caseRecord = {
+      status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '',
+      notes: moduleSevenState.notes || '', findings: {}, submitted: Boolean(moduleSevenState.completed),
+      submittedAt: moduleSevenState.lastSubmittedAt || '', actionHistory: [],
+    };
+  }
+  ['status', 'affectedUser', 'affectedDevice', 'severity', 'disposition', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
+    if (typeof moduleSevenState.caseRecord[key] !== 'string') moduleSevenState.caseRecord[key] = '';
+  });
+  if (!moduleSevenState.caseRecord.findings || typeof moduleSevenState.caseRecord.findings !== 'object') moduleSevenState.caseRecord.findings = {};
+  if (!Array.isArray(moduleSevenState.caseRecord.actionHistory)) moduleSevenState.caseRecord.actionHistory = [];
+  if (typeof moduleSevenState.caseRecord.submitted !== 'boolean') moduleSevenState.caseRecord.submitted = Boolean(moduleSevenState.completed);
+  // A returned attempt must not stay permanently unsubmittable.
+  if (moduleSevenProveItRedoRequested() && moduleSevenState.caseRecord.submitted === true) {
+    moduleSevenState.caseRecord.submitted = false;
+    moduleSevenState.caseRecord.submittedAt = '';
+    moduleSevenSave();
+  }
 
   // Initialize quiz state
   if (!moduleSevenQuizState) {
@@ -604,22 +758,24 @@ function moduleSevenGuidedLabPanel() {
 }
 
 function moduleSevenAssessmentLabPanel() {
-  const feedbackHtml = moduleSevenState.feedback?.length ? `<div class="m07-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleSevenState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   const labs = [
     { title: 'Tunnel Log Analysis — GRE Covert Channel Detection', detail: 'Independent tunnel/GRE log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/gre-tunnel-log-analysis', labId: 'assessment-1' },
     { title: 'HTTP Log Analysis', detail: 'Web attack detection in HTTP access logs', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis', labId: 'assessment-2' },
   ];
   const gateOk = missionNextAllLabsComplete(moduleSevenState.labProgress, MODULE_SEVEN_COMPLETION_LAB_IDS);
+  const performance = moduleSevenProveItPerformance();
   return `<section class="m07-external-lab" id="m07-assessment-lab-panel">
-    <p class="m07-panel-instruction">Complete both imported assessment log-analysis modules below, then write up your findings below for instructor review.</p>
+    <p class="m07-panel-instruction">Complete both imported assessment log-analysis modules below, then work the incident ticket for instructor review.</p>
     ${missionNextLabLaunchGroup(7, 'assessment', labs, moduleSevenState.labProgress)}
-    <form id="m07-assessment-form">
-      <label class="m07-note-label">Assessment write-up<textarea id="m07-assessment-notes" rows="6" maxlength="900" data-m07-assessment-notes placeholder="Summarize what the tunnel-log module surfaced, your analysis, and your recommended action…">${esc(moduleSevenState.notes)}</textarea></label>
-      <p class="m07-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      ${!gateOk ? `<p class="m07-help" role="status">Mark both assessment labs and the required FTP log analysis lab (below) complete before submitting.</p>` : ''}
-      <div class="m07-actions"><button type="submit" class="m07-submit" ${gateOk ? '' : 'disabled'}>${moduleSevenState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
-    </form>
-    ${feedbackHtml}
+    ${!gateOk ? `<p class="m07-help" role="status">Mark both assessment labs and the required FTP log analysis lab (below) complete before submitting.</p>` : ''}
+    ${caseRecordPane(moduleSevenState.caseRecord, {
+      ...moduleSevenProveItSpec(),
+      missing: performance.missing,
+      reviewStatus: moduleSevenProveItReviewStatus(),
+      redoRequested: moduleSevenProveItRedoRequested(),
+      redoHtml: moduleSevenProveItRedoFeedback(),
+      showMissing: moduleSevenProveItShowMissing,
+    })}
   </section>`;
 }
 
@@ -836,42 +992,82 @@ function wireModuleSevenAssessmentLabGating(root) {
   });
 }
 
+function moduleSevenRenderAssessmentPanel(focusId) {
+  const root = document.getElementById('m07-assessment-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleSevenAssessmentLabPanel();
+  wireModuleSevenAssessmentLabGating(root);
+  if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
+}
+
+function moduleSevenFinalizeProveIt() {
+  const performance = moduleSevenProveItPerformance();
+  if (moduleSevenState.caseRecord.submitted) return;
+  if (performance.missing.length) {
+    moduleSevenProveItShowMissing = true;
+    moduleSevenRenderAssessmentPanel('m07-review-submission');
+    return;
+  }
+  moduleSevenProveItShowMissing = false;
+  const now = new Date().toISOString();
+  moduleSevenState.caseRecord.submitted = true;
+  moduleSevenState.caseRecord.submittedAt = now;
+  moduleSevenState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: now });
+  moduleSevenState.attempts = (moduleSevenState.attempts || 0) + 1;
+  moduleSevenState.lastSubmittedAt = now;
+  moduleSevenState.completed = true;
+  moduleSevenState.notes = moduleSevenState.caseRecord.notes;
+  if (!moduleSevenState.flags.includes(MODULE_SEVEN_FLAG)) moduleSevenState.flags.push(MODULE_SEVEN_FLAG);
+  moduleSevenSave();
+  if (typeof recordLabAttempt === 'function') {
+    const caseSpec = moduleSevenProveItSpec();
+    const attemptFields = {
+      state: 'complete',
+      score: performance.score,
+      result: {
+        breakdown: performance.breakdown,
+        feedback: performance.feedback,
+        critical_errors: performance.criticalErrors,
+        case_record: moduleSevenState.caseRecord,
+        case_display: caseRecordDisplay(moduleSevenState.caseRecord, caseSpec),
+        case_summary: caseRecordSummary(moduleSevenState.caseRecord, caseSpec),
+      },
+    };
+    MODULE_SEVEN_CATALOG_LAB_KEYS.forEach((labKey) => recordLabAttempt(moduleSevenUser, labKey, attemptFields));
+  }
+  moduleSevenMarkCatalogLabs(true);
+  const status = document.getElementById('m07-status');
+  if (status) status.textContent = 'Complete';
+  moduleSevenRenderAssessmentPanel();
+}
+
 function wireModuleSevenAssessmentLab() {
   const root = document.getElementById('m07-assessment-lab-dynamic');
   if (!root || !moduleSevenState) return;
   wireModuleSevenAssessmentLabGating(root);
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm07-assessment-form') return;
-    event.preventDefault();
-    if (!missionNextAllLabsComplete(moduleSevenState.labProgress, MODULE_SEVEN_COMPLETION_LAB_IDS)) {
-      root.innerHTML = moduleSevenAssessmentLabPanel();
-      wireModuleSevenAssessmentLabGating(root);
-      return;
-    }
-    const notes = event.target.querySelector('#m07-assessment-notes')?.value || '';
-    moduleSevenState.notes = notes;
-    if (notes.trim().length < 80) {
-      moduleSevenState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m07-submit-proveit]')) { moduleSevenFinalizeProveIt(); return; }
+    if (event.target.closest('[data-m07-save-proveit]')) {
+      moduleSevenState.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
       moduleSevenSave();
-      root.innerHTML = moduleSevenAssessmentLabPanel();
-      wireModuleSevenAssessmentLabGating(root);
-      return;
+      moduleSevenRenderAssessmentPanel();
     }
-    moduleSevenState.attempts = (moduleSevenState.attempts || 0) + 1;
-    moduleSevenState.lastSubmittedAt = new Date().toISOString();
-    moduleSevenState.completed = true;
-    moduleSevenState.feedback = ['Submitted. This write-up has been recorded as your Assessment Lab submission for instructor review.'];
-    if (!moduleSevenState.flags.includes(MODULE_SEVEN_FLAG)) moduleSevenState.flags.push(MODULE_SEVEN_FLAG);
-    if (typeof recordLabAttempt === 'function') {
-      const attemptFields = { state: 'complete', result: { notes } };
-      MODULE_SEVEN_CATALOG_LAB_KEYS.forEach((labKey) => recordLabAttempt(moduleSevenUser, labKey, attemptFields));
+  });
+  root.addEventListener('change', (event) => {
+    const input = event.target;
+    if (!input.name || moduleSevenState.caseRecord.submitted) return;
+    if (caseRecordApply(moduleSevenState.caseRecord, input.name, input.value)) {
+      moduleSevenState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
+      moduleSevenSave();
+      moduleSevenRenderAssessmentPanel();
     }
-    moduleSevenMarkCatalogLabs(true);
-    moduleSevenSave();
-    const status = document.getElementById('m07-status');
-    if (status) status.textContent = 'Complete';
-    root.innerHTML = moduleSevenAssessmentLabPanel();
-    wireModuleSevenAssessmentLabGating(root);
+  });
+  root.addEventListener('input', (event) => {
+    const field = event.target;
+    if (field.tagName === 'TEXTAREA' && field.name === 'notes' && !moduleSevenState.caseRecord.submitted) {
+      moduleSevenState.caseRecord.notes = field.value;
+      moduleSevenSave();
+    }
   });
 }
 

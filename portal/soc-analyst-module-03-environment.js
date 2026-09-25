@@ -201,6 +201,11 @@ const M03E_PROVE = (function () {
 const M03E_DATA = { practice: M03E_PRACTICE, prove: M03E_PROVE };
 
 const M03E_TABS = [['alerts', 'Alerts'], ['search', 'Log Search'], ['timeline', 'Timeline'], ['entities', 'Entities'], ['sources', 'Data Sources'], ['watchlists', 'Watchlists'], ['evidence', 'Evidence']];
+// The assessment console carries the standard Incident / Case Record
+// (MODULE_STANDARD.md §7.2) as its own tab, so the ticket is worked beside
+// the logs instead of below the console.
+const M03E_CASE_TAB = ['case', 'Case Record'];
+const m03eTabs = (scope) => (scope === 'prove' ? [...M03E_TABS, M03E_CASE_TAB] : M03E_TABS);
 
 /* ------------------------------------------------------------ guided steps
  * Decreasing support: the first steps hand over a full query, the middle
@@ -254,6 +259,37 @@ const M03E_ACTIONS = [
   ['purge-logs', 'Delete the attacker’s log records to contain the incident'],
   ['wipe-laptop', 'Wipe m.ortiz’s laptop'],
 ];
+
+// ------------------------------------------------------------ Case Record
+// MODULE_STANDARD.md §7.2 / CASE_RECORD_MIGRATION.md: the Assessment Lab's
+// determination form becomes the standard ticket. The 7-account scope
+// assessment keeps its own selects as `spec.findings` (one per account); the
+// indicator/action checkbox groups and the 4-part handoff stay as
+// `spec.findingsHtml`, unchanged in shape, so moduleThreeScoreAssessment()'s
+// rubric (M03E_RUBRIC) keeps reading the exact same `determination` shape it
+// always has. Affected User / Affected Device are new, informational-only
+// picks (not part of the 100-point rubric) that give this module the same
+// roster-pick pattern as every other migrated module.
+const M03E_IDENTITY_LABEL = Object.fromEntries(M03E_PROVE.identities.map((i) => [i.Account, `${i.Account} (${i.DisplayName}, ${i.Department})`]));
+const M03E_USER_OPTIONS = M03E_ACCOUNTS_PROVE.map((a) => ({ id: a, text: M03E_IDENTITY_LABEL[a] || a, tier: a === 'm.ortiz' ? 'principal' : a === 'd.hale' ? 'pivot' : 'noise' }));
+const M03E_DEVICE_OPTIONS = [
+  { id: 'mail-01', text: 'mail-01 — mail server (forwarding rule + mailbox access)', tier: 'principal' },
+  { id: 'docs-01', text: 'docs-01 — document server (file downloads in the attacker session)', tier: 'pivot' },
+  { id: 'idp-02', text: 'idp-02 — identity provider node', tier: 'noise' },
+  { id: 'dc-01', text: 'dc-01 — domain controller', tier: 'noise' },
+  { id: 'mail-gw', text: 'mail-gw — mail gateway (approved maintenance restart)', tier: 'noise' },
+];
+const M03E_DEPARTMENT_OPTIONS = [
+  { id: 'identity-response', text: 'Identity Response', fit: 100 },
+  { id: 'tier2-soc', text: 'Tier 2 SOC', fit: 50, note: 'Accepted, but the account/session remediation belongs to Identity Response.', bounce: 'Tier 2 SOC bounced this — it needs identity remediation, not triage.' },
+];
+const M03E_DISPOSITION_OPTIONS = [
+  { id: 'true-positive', text: 'True positive' },
+  { id: 'benign-positive', text: 'Benign positive' },
+  { id: 'false-positive', text: 'False positive' },
+];
+const M03E_ACCOUNT_STATUS_OPTIONS = M03E_ACCOUNT_STATUSES.filter(([id]) => id).map(([id, text]) => ({ id, text }));
+const M03E_ACCOUNT_FINDINGS = M03E_ACCOUNTS_PROVE.map((a) => ({ name: `account-${a}`, label: M03E_IDENTITY_LABEL[a] || a, options: M03E_ACCOUNT_STATUS_OPTIONS, missing: `Assess ${a}` }));
 
 const M03E_RUBRIC = {
   passing: 70,
@@ -316,6 +352,9 @@ function m03eNormalizeDetermination(det) {
   const d = det && typeof det === 'object' ? det : {};
   const h = d.handoff && typeof d.handoff === 'object' ? d.handoff : {};
   return {
+    status: String(d.status || ''),
+    affectedUser: String(d.affectedUser || ''),
+    affectedDevice: String(d.affectedDevice || ''),
     verdict: String(d.verdict || ''),
     severity: String(d.severity || ''),
     accountStatus: d.accountStatus && typeof d.accountStatus === 'object' ? { ...d.accountStatus } : {},
@@ -325,7 +364,23 @@ function m03eNormalizeDetermination(det) {
     escalateTo: String(d.escalateTo || ''),
     handoff: { observations: String(h.observations || ''), analysis: String(h.analysis || ''), scope: String(h.scope || ''), nextAction: String(h.nextAction || '') },
     notes: String(d.notes || ''),
+    submitted: d.submitted === true,
+    actionHistory: Array.isArray(d.actionHistory) ? d.actionHistory.slice() : [],
   };
+}
+
+// caseRecordFields()/caseRecordApply() read/write the standard ticket's
+// disposition through `state.disposition`/`state.verdict` (case-record.js
+// writes both spellings) and severity through `state.severity`/`state.priority`
+// — both already line up with this module's existing `verdict`/`severity`
+// fields, so no separate case-record object is needed. The 7 account selects
+// are exposed to caseRecordFields as `spec.findings` (name `account-<id>`,
+// written into `state.findings` by caseRecordApply); this derives that view
+// from `accountStatus` — the scorer's source of truth — on every render, and
+// a matching mirror in m03eHandleFormInput writes accountStatus back.
+function m03eSyncFindingsView(d) {
+  d.findings = Object.fromEntries(M03E_ACCOUNTS_PROVE.map((a) => [`account-${a}`, d.accountStatus[a] || '']));
+  return d;
 }
 
 /* Pure scorer — no DOM, no state. `work` = { determination, pins, queryLog }
@@ -599,15 +654,30 @@ function m03eViewBody(scope) {
   if (tab === 'sources') return m03eSourcesView(scope);
   if (tab === 'watchlists') return m03eWatchlistsView(scope);
   if (tab === 'evidence') return m03eEvidenceView(scope);
+  if (tab === 'case' && scope === 'prove') return m03eCaseRecordView();
   return m03eAlertsView(scope);
+}
+
+// Evidence shows its pin count; Case Record shows how many ticket items are
+// still open, or a check once submitted.
+function m03eTabsNav(scope) {
+  const st = m03eState(scope);
+  const badge = (id) => {
+    if (id === 'evidence' && st.pins.length) return ` <b>${st.pins.length}</b>`;
+    if (id !== 'case') return '';
+    if (st.determination.submitted) return ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>';
+    const open = m03eProveMissing().length;
+    return open ? ` <b title="${open} item${open === 1 ? '' : 's'} left">${open}</b>` : '';
+  };
+  return `<nav role="tablist">${m03eTabs(scope).map(([id, label]) => `<button type="button" role="tab" aria-selected="${st.tab === id}" class="${st.tab === id ? 'is-active' : ''}" data-m03e-tab="${scope}:${id}">${id === 'case' ? '<i class="ri-file-list-3-line" aria-hidden="true"></i> ' : ''}${label}${badge(id)}</button>`).join('')}</nav>`;
 }
 
 function moduleThreeConsoleHtml(scope) {
   const st = m03eState(scope), data = M03E_DATA[scope];
   return `<section class="m03e-console" aria-label="SIEM and log analysis console"><header><div><p>MISSION NEXT ENVIRONMENT · ${scope === 'practice' ? 'GUIDED' : 'ASSESSMENT'}</p><h2>SIEM &amp; LOG ANALYSIS</h2></div><span class="m03e-case">${esc(data.caseId)} · ${esc(data.day)} · ${data.tables.UnifiedEvents.length} events</span></header>
     ${scope === 'practice' ? m03eGuideBar() : ''}
-    <nav role="tablist">${M03E_TABS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${st.tab === id}" class="${st.tab === id ? 'is-active' : ''}" data-m03e-tab="${scope}:${id}">${label}${id === 'evidence' && st.pins.length ? ` <b>${st.pins.length}</b>` : ''}</button>`).join('')}</nav>
-    <div class="m03e-workspace"><div class="m03e-view">${m03eViewBody(scope)}</div>${m03eDrawer(scope)}</div></section>`;
+    ${m03eTabsNav(scope)}
+    <div class="m03e-workspace${st.tab === 'case' ? ' is-case' : ''}"><div class="m03e-view">${m03eViewBody(scope)}</div>${st.tab === 'case' ? '' : m03eDrawer(scope)}</div></section>`;
 }
 
 /* ------------------------------------------------------------ practice / prove panels */
@@ -626,38 +696,107 @@ function moduleThreeGuidedLabPanel() {
   </div>`;
 }
 
-function m03eDeterminationForm() {
-  const st = m03eState('prove');
-  const d = st.determination;
-  const radio = (name, value, label) => `<label><input type="radio" name="m03e-${name}" value="${value}" data-m03e-det="${name}" ${d[name] === value ? 'checked' : ''}> ${esc(label)}</label>`;
-  const check = (name, value, label) => `<label><input type="checkbox" value="${esc(value)}" data-m03e-det-list="${name}" ${d[name].includes(value) ? 'checked' : ''}> ${esc(label)}</label>`;
-  const area = (key, label, placeholder) => `<label class="m03-note-label">${esc(label)}<textarea rows="3" maxlength="1500" data-m03e-handoff="${key}" placeholder="${esc(placeholder)}">${esc(d.handoff[key])}</textarea></label>`;
-  return `<form class="m03e-determination" id="m03e-prove-form" novalidate>
-    <fieldset><legend>1 · Verdict and severity</legend><div class="m03e-choices">${radio('verdict', 'true-positive', 'True positive')}${radio('verdict', 'benign-positive', 'Benign positive')}${radio('verdict', 'false-positive', 'False positive')}</div><div class="m03e-choices">${['critical', 'high', 'medium', 'low'].map((v) => radio('severity', v, v[0].toUpperCase() + v.slice(1))).join('')}</div></fieldset>
-    <fieldset><legend>2 · Account scope</legend><div class="m03e-scope-grid">${M03E_ACCOUNTS_PROVE.map((a) => `<label><span class="m03e-mono">${esc(a)}</span><select data-m03e-account="${esc(a)}">${M03E_ACCOUNT_STATUSES.map(([v, l]) => `<option value="${v}" ${d.accountStatus[a] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('')}</div></fieldset>
-    <fieldset><legend>3 · Indicators to hand off</legend><div class="m03e-choices m03e-choices-col">${M03E_INDICATORS.map(([v, l]) => check('indicators', v, l)).join('')}</div></fieldset>
-    <fieldset><legend>4 · Recommended response</legend><div class="m03e-choices m03e-choices-col">${M03E_ACTIONS.map(([v, l]) => check('actions', v, l)).join('')}</div><div class="m03e-choices">${radio('escalation', 'required', 'Escalation required')}${radio('escalation', 'not-required', 'No escalation needed')}<label>Escalate to <select data-m03e-escalate-to><option value="">—</option><option value="tier2-soc" ${d.escalateTo === 'tier2-soc' ? 'selected' : ''}>Tier 2 SOC</option><option value="identity-response" ${d.escalateTo === 'identity-response' ? 'selected' : ''}>Identity Response</option></select></label></div></fieldset>
-    <fieldset><legend>5 · Analyst handoff</legend>
+// '' until submitted; then 'review' while the latest attempt awaits faculty,
+// 'graded' once an instructor has reviewed it without sending it back.
+// Same pattern as moduleOneProveItReviewStatus() (soc-analyst-module-01.js).
+function m03eReviewStatus() {
+  const d = m03eState('prove').determination;
+  if (!d.submitted) return '';
+  const attempt = moduleThreeUser?.latestLabAttemptByKey?.[MODULE_THREE_CATALOG_LAB_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+function m03eRedoRequested() {
+  return moduleThreeUser?.openLabRedosByModuleKey?.['soc-03']?.labKey === MODULE_THREE_CATALOG_LAB_KEY;
+}
+function m03eRedoFeedback() {
+  if (!m03eRedoRequested()) return '';
+  const items = moduleThreeUser.openLabRedosByModuleKey['soc-03'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>${items.length ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>` : '<p>Your instructor returned this case without written notes.</p>'}</div>`;
+}
+// A redo re-opens the working case without discarding the earlier values,
+// mirroring moduleOneLoad()'s reset (soc-analyst-module-01.js).
+function m03eApplyRedoReopen() {
+  const d = m03eState('prove').determination;
+  if (m03eRedoRequested() && d.submitted === true) { d.submitted = false; m03eSave(); }
+}
+
+// The indicator/action checkbox groups and the structured 4-part handoff
+// keep their original markup and data attributes unchanged (m03eHandleFormInput
+// still reads them) — they render as `spec.findingsHtml`, between the ticket
+// grid (status/severity/entities/disposition/escalation/account findings)
+// and the standard Analyst Work Notes textarea.
+function m03eFindingsHtml(d, disabled) {
+  const dis = disabled ? 'disabled' : '';
+  const check = (name, value, label) => `<label><input type="checkbox" value="${esc(value)}" data-m03e-det-list="${name}" ${d[name].includes(value) ? 'checked' : ''} ${dis}> ${esc(label)}</label>`;
+  const area = (key, label, placeholder) => `<label class="m03-note-label">${esc(label)}<textarea rows="3" maxlength="1500" data-m03e-handoff="${key}" placeholder="${esc(placeholder)}" ${dis}>${esc(d.handoff[key])}</textarea></label>`;
+  return `<fieldset class="m01-ticket-field"><legend>Indicators to hand off</legend><div class="m03e-choices m03e-choices-col">${M03E_INDICATORS.map(([v, l]) => check('indicators', v, l)).join('')}</div></fieldset>
+    <fieldset class="m01-ticket-field"><legend>Recommended response</legend><div class="m03e-choices m03e-choices-col">${M03E_ACTIONS.map(([v, l]) => check('actions', v, l)).join('')}</div></fieldset>
+    <fieldset class="m01-ticket-field"><legend>Analyst handoff</legend>
       ${area('observations', 'Observations: what the logs show (source, time, entity)', 'Cite records: source, time, account, IP, session…')}
       ${area('analysis', 'Analysis: why the linked observations support your verdict', 'How do the records connect? What rules out the lookalikes?')}
       ${area('scope', 'Scope: confirmed, and still unknown', 'Affected accounts and sessions; what you could not confirm, and why')}
       ${area('nextAction', 'Requested next action', 'What should happen next, and who should do it')}
-      <label class="m03-note-label">Summary for your lead (optional)<textarea rows="2" maxlength="900" data-m03e-notes placeholder="Two or three sentences a manager can act on">${esc(d.notes)}</textarea></label>
-    </fieldset>
-    <p class="m03-help">Required before you submit: a verdict, a status for m.ortiz and the other accounts you assessed, and all four handoff fields. Your pinned evidence (${st.pins.length}) and your query history go with the submission. Your instructor reviews the submission; the automated score is only a recommendation.</p>
-    ${st.submitMessage ? `<p class="m03-help" role="alert">${esc(st.submitMessage)}</p>` : ''}
-    <div class="m03-actions"><button type="submit" class="m03-submit">${moduleThreeState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
-  </form>`;
+    </fieldset>`;
+}
+
+function m03eCaseSpec(disabled) {
+  const st = m03eState('prove');
+  return {
+    caseId: M03E_PROVE.caseId,
+    userOptions: M03E_USER_OPTIONS,
+    deviceOptions: M03E_DEVICE_OPTIONS,
+    departmentOptions: M03E_DEPARTMENT_OPTIONS,
+    dispositionOptions: M03E_DISPOSITION_OPTIONS,
+    findings: M03E_ACCOUNT_FINDINGS,
+    findingsHtml: m03eFindingsHtml(st.determination, disabled),
+    notesPlaceholder: 'Two or three sentences your lead can act on.',
+    disabled,
+  };
+}
+
+// The account-scope ("at least one account scoped") and 4-part handoff gate
+// match the original determination form's requirements exactly; only the
+// standard ticket fields (status/severity/entities/disposition/escalation)
+// are new requirements, since this module now uses the standard ticket.
+function m03eProveMissing() {
+  const st = m03eState('prove');
+  const d = st.determination;
+  const missing = caseRecordMissing(d, { ...m03eCaseSpec(false), findings: [], notesMin: 0 });
+  if (!d.accountStatus['m.ortiz'] && !Object.values(d.accountStatus).some(Boolean)) missing.push('Assess at least one account’s scope');
+  Object.entries({ observations: 'observations', analysis: 'analysis', scope: 'scope', nextAction: 'next action' }).forEach(([k, label]) => { if (!d.handoff[k].trim()) missing.push(`Write the ${label} handoff field`); });
+  return missing;
+}
+
+// The Case Record tab: the standard ticket, with a line tying it back to
+// the evidence the learner pinned (pins and query history go with it).
+function m03eCaseRecordView() {
+  const st = m03eState('prove');
+  const d = m03eSyncFindingsView(st.determination);
+  const submitted = d.submitted === true;
+  const pins = st.pins.length;
+  return `<div class="m03e-case-view">
+    <p class="m03e-case-attach"><i class="ri-attachment-2" aria-hidden="true"></i> ${pins} pinned evidence record${pins === 1 ? '' : 's'} and ${st.queryLog.length} logged quer${st.queryLog.length === 1 ? 'y' : 'ies'} attach to this ticket on submit. <button type="button" data-m03e-tab="prove:evidence">Review evidence</button></p>
+    ${caseRecordPane(d, {
+      ...m03eCaseSpec(submitted),
+      missing: m03eProveMissing(),
+      formId: 'm03e-prove-form',
+      saveAttr: 'data-m03e-save-prove',
+      submitAttr: 'data-m03e-submit-prove',
+      panelId: 'm03e-prove-review',
+      reviewStatus: m03eReviewStatus(),
+      redoRequested: m03eRedoRequested(),
+      redoHtml: m03eRedoFeedback(),
+      showMissing: st.submitMessage === 'missing',
+      lockedMessage: 'Module 4 stays locked until your instructor approves the submission.',
+    })}
+    <p class="m03e-muted">Your instructor reviews the submission; the automated score is only a recommendation.</p>
+  </div>`;
 }
 
 function moduleThreeAssessmentLabPanel() {
-  const st = m03eState('prove');
-  const submitted = moduleThreeState.completed && st.submittedAt;
   return `<div class="m03e-panel" id="m03e-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">TICKET CASE-MN-517 · ASSIGNED TO YOU</p><p>Overnight, the SIEM raised a password-spray alert and, a few minutes later, an inbox-forwarding alert. Your lead’s request: <em>“Work out what happened, which accounts are actually affected, and what we should do. Put it in a handoff I can pass to identity response.”</em></p><p class="m03e-muted">You have the same console as the Guided Lab, with different telemetry and no guide. Pin the records that support your findings, then complete the determination below.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">TICKET ${esc(M03E_PROVE.caseId)} · ASSIGNED TO YOU</p><p>Overnight, the SIEM raised a password-spray alert and, a few minutes later, an inbox-forwarding alert. Your lead’s request: <em>“Work out what happened, which accounts are actually affected, and what we should do. Put it in a handoff I can pass to identity response.”</em></p><p class="m03e-muted">You have the same console as the Guided Lab, with different telemetry and no guide. Pin the records that support your findings, then complete the ticket in the console’s <strong>Case Record</strong> tab.</p></div>
     <div class="m03e-console-host" id="m03e-console-prove">${moduleThreeConsoleHtml('prove')}</div>
-    ${m03eDeterminationForm()}
-    ${submitted ? `<div class="m03e-feedback is-correct" role="status">Submitted ${esc(new Date(st.submittedAt).toLocaleString())} (attempt ${st.attempts}). Your instructor will review your determination, evidence and handoff. Feedback appears in your grading notifications.</div>` : ''}
   </div>`;
 }
 
@@ -677,7 +816,7 @@ function m03eRender(scope, { keepEditor = false } = {}) {
     const guide = host.querySelector('.m03e-guide');
     if (guide && scope === 'practice') guide.outerHTML = m03eGuideBar();
     const tabs = host.querySelector('nav');
-    if (tabs) tabs.outerHTML = `<nav role="tablist">${M03E_TABS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${m03eState(scope).tab === id}" class="${m03eState(scope).tab === id ? 'is-active' : ''}" data-m03e-tab="${scope}:${id}">${label}${id === 'evidence' && m03eState(scope).pins.length ? ` <b>${m03eState(scope).pins.length}</b>` : ''}</button>`).join('')}</nav>`;
+    if (tabs) tabs.outerHTML = m03eTabsNav(scope);
   } else {
     host.innerHTML = moduleThreeConsoleHtml(scope);
     m03eAttachEditor(scope);
@@ -797,65 +936,61 @@ function m03eHandleFormInput(ev) {
   const d = st.determination;
   const t = ev.target;
   if (!st.startedAt) st.startedAt = new Date().toISOString();
-  if (t.dataset.m03eDet) d[t.dataset.m03eDet] = t.value;
-  else if (t.dataset.m03eDetList) { const list = d[t.dataset.m03eDetList]; const i = list.indexOf(t.value); if (t.checked && i < 0) list.push(t.value); if (!t.checked && i >= 0) list.splice(i, 1); }
-  else if (t.dataset.m03eAccount) d.accountStatus[t.dataset.m03eAccount] = t.value;
-  else if (t.hasAttribute('data-m03e-escalate-to')) d.escalateTo = t.value;
+  // Standard ticket controls (case-record.js) carry a `name`, not a
+  // `data-m03e-*` attribute. `finding:account-<id>` selects mirror into
+  // accountStatus — the rubric's actual source of truth — since
+  // moduleThreeScoreAssessment() reads accountStatus, not `findings`.
+  if (t.name && caseRecordApply(d, t.name, t.value)) {
+    if (t.name.startsWith('finding:account-')) d.accountStatus[t.name.slice('finding:account-'.length)] = t.value;
+  } else if (t.dataset.m03eDetList) { const list = d[t.dataset.m03eDetList]; const i = list.indexOf(t.value); if (t.checked && i < 0) list.push(t.value); if (!t.checked && i >= 0) list.splice(i, 1); }
   else if (t.dataset.m03eHandoff) d.handoff[t.dataset.m03eHandoff] = t.value;
-  else if (t.hasAttribute('data-m03e-notes')) d.notes = t.value;
   else return;
+  d.actionHistory.push({ action: `Updated ${t.name || t.dataset.m03eDetList || t.dataset.m03eHandoff}`, at: new Date().toISOString() });
   m03eSave();
 }
 
 function m03eSubmitAssessment() {
   const st = m03eState('prove');
   const d = st.determination;
-  const missing = [];
-  if (!d.verdict) missing.push('a verdict');
-  if (!d.accountStatus['m.ortiz'] && !Object.values(d.accountStatus).some(Boolean)) missing.push('an account scope');
-  Object.entries({ observations: 'observations', analysis: 'analysis', scope: 'scope', nextAction: 'next action' }).forEach(([k, label]) => { if (!d.handoff[k].trim()) missing.push(`the ${label} field`); });
+  if (d.submitted) return;
+  const missing = m03eProveMissing();
   if (missing.length) {
-    st.submitMessage = `Before submitting, add ${missing.join(', ')}.`;
+    st.submitMessage = 'missing';
+    st.tab = 'case';
     m03eSave(); moduleThreeRefreshLabPanels(); return;
   }
   st.submitMessage = '';
   const performance = moduleThreeScoreAssessment({ determination: d, pins: st.pins, queryLog: st.queryLog });
   st.attempts = (st.attempts || 0) + 1;
   st.submittedAt = new Date().toISOString();
+  d.submitted = true;
+  d.actionHistory.push({ action: 'Submitted case for faculty review', at: st.submittedAt });
   moduleThreeState.completed = true;
   moduleThreeState.attempts = st.attempts;
   moduleThreeState.lastSubmittedAt = st.submittedAt;
   moduleThreeState.score = performance.score;
   moduleThreeState.bestScore = Math.max(moduleThreeState.bestScore || 0, performance.score);
   moduleThreeState.notes = [d.handoff.observations, d.handoff.analysis, d.handoff.scope, d.handoff.nextAction].join('\n\n');
-  moduleThreeState.feedback = ['Submitted. Your determination, pinned evidence and handoff are recorded for instructor review.'];
+  moduleThreeState.feedback = ['Submitted. Your case record, pinned evidence and handoff are recorded for instructor review.'];
   if (Array.isArray(moduleThreeState.flags) && !moduleThreeState.flags.includes(MODULE_THREE_FLAG)) moduleThreeState.flags.push(MODULE_THREE_FLAG);
 
   const data = M03E_PROVE;
-  const statusLabel = Object.fromEntries(M03E_ACCOUNT_STATUSES);
   const actionLabel = Object.fromEntries(M03E_ACTIONS);
   const evidence = st.pins.map((id) => data.records[id]).filter(Boolean).sort((a, b) => a.TimeGenerated.localeCompare(b.TimeGenerated));
   const evidenceLines = evidence.map((r) => `${m03eTime(r.TimeGenerated)} ${r.EventSource} ${r.EventType} ${r.Account} ${r.SourceIp} ${r.SessionId}: ${r.Detail}`);
-  // Instructor payload. case_record reuses Module 01's ticket shape so
-  // adminCaseTicketSubmissionPanel() (app.js) renders the determination and
-  // the full handoff readably; simulator_performance/breakdown/feedback feed
-  // the existing competency and score-explanation panels.
+  const caseSpec = m03eCaseSpec(true);
+  // Instructor payload (CASE_RECORD_MIGRATION.md #4): the shared case-record
+  // ticket shape, `case_record.notes` holding just the analyst work note
+  // (case_record.handoff still carries the 4-part structured handoff —
+  // adminCaseTicketSubmissionPanel() in app.js renders both), plus
+  // case_display/case_summary for the standard grading view.
+  // simulator_performance/breakdown/feedback feed the existing competency
+  // and score-explanation panels; recommended response and pinned evidence
+  // (not part of the standard ticket fields) go in `assessment` below.
   const result = {
-    case_record: {
-      status: 'resolved',
-      severity: d.severity,
-      affectedUser: M03E_ACCOUNTS_PROVE.filter((a) => d.accountStatus[a]).map((a) => `${a}: ${statusLabel[d.accountStatus[a]]}`).join('; ') || 'Not provided',
-      affectedDevice: d.indicators.length ? `Indicators: ${d.indicators.join(', ')}` : 'No indicators listed',
-      disposition: d.verdict,
-      escalation: d.escalation,
-      escalateTo: d.escalateTo,
-      notes: [
-        d.notes.trim() ? `SUMMARY FOR LEAD\n${d.notes.trim()}` : '',
-        `RECOMMENDED RESPONSE\n${d.actions.map((a) => `- ${actionLabel[a] || a}`).join('\n') || '- None selected'}`,
-        `PINNED EVIDENCE (${evidence.length})\n${evidenceLines.map((l) => `- ${l}`).join('\n') || '- None pinned'}`,
-      ].filter(Boolean).join('\n\n'),
-      handoff: { ...d.handoff },
-    },
+    case_record: m03eSyncFindingsView(d),
+    case_display: caseRecordDisplay(d, caseSpec),
+    case_summary: caseRecordSummary(d, caseSpec),
     simulator_performance: {
       competencies: performance.competencies.map((c) => ({ label: `${c.label} (${c.earned}/${c.max} pts)`, percentage: c.percentage, passed: c.passed, completed: c.completed, required: c.required })),
       requirements: performance.competencies.flatMap((c) => [...c.evidence.map((e) => ({ label: e, completed: true })), ...c.misses.map((m) => ({ label: m, completed: false }))]),
@@ -872,7 +1007,8 @@ function m03eSubmitAssessment() {
       case_id: data.caseId, attempt: st.attempts, started_at: st.startedAt || st.submittedAt, submitted_at: st.submittedAt,
       selected_evidence: evidence.map((r) => r.__rid),
       determinations: { verdict: d.verdict, severity: d.severity, account_status: d.accountStatus, indicators: d.indicators },
-      actions: d.actions, escalation: { required: d.escalation, to: d.escalateTo },
+      actions: d.actions, actions_labels: d.actions.map((a) => actionLabel[a] || a), escalation: { required: d.escalation, to: d.escalateTo },
+      pinned_evidence: evidenceLines,
       query_log: st.queryLog.slice(-40),
     },
   };
@@ -899,13 +1035,34 @@ function wireModuleThreeConsole() {
     if (!section || section.dataset.m03eWired === '1') return;
     section.dataset.m03eWired = '1';
     m03eAttachEditor(scope);
-    section.addEventListener('click', (ev) => { if (ev.target.closest(`#m03e-console-${scope}`)) m03eHandleClick(scope, ev); });
+    section.addEventListener('click', (ev) => {
+      if (scope === 'prove') {
+        if (ev.target.closest('[data-m03e-submit-prove]')) { m03eSubmitAssessment(); return; }
+        if (ev.target.closest('[data-m03e-save-prove]')) {
+          m03eState('prove').determination.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+          m03eSave();
+          const prove = document.getElementById('m03e-prove-panel');
+          if (prove) { prove.outerHTML = moduleThreeAssessmentLabPanel(); m03eAttachEditor('prove'); }
+          return;
+        }
+      }
+      if (ev.target.closest(`#m03e-console-${scope}`)) m03eHandleClick(scope, ev);
+    });
     section.addEventListener('keydown', (ev) => {
       if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('[data-m03e-select]') && ev.target.tagName !== 'BUTTON') { ev.preventDefault(); m03eHandleClick(scope, ev); }
     });
     section.addEventListener('change', (ev) => {
-      if (ev.target.closest(`#m03e-console-${scope}`)) m03eHandleChange(scope, ev);
-      else if (scope === 'prove') m03eHandleFormInput(ev);
+      const inTicket = scope === 'prove' && ev.target.closest('#m03e-prove-form');
+      if (!inTicket && ev.target.closest(`#m03e-console-${scope}`)) { m03eHandleChange(scope, ev); return; }
+      if (!inTicket) return;
+      m03eHandleFormInput(ev);
+      // A select/checkbox pick (unlike typing) is safe to re-render on, and
+      // it is the only way the conditional "Route to Department" field and
+      // the requirements list stay honest as the case record changes.
+      if (ev.target.tagName !== 'TEXTAREA') {
+        const prove = document.getElementById('m03e-prove-panel');
+        if (prove) { prove.outerHTML = moduleThreeAssessmentLabPanel(); m03eAttachEditor('prove'); }
+      }
     });
     section.addEventListener('input', (ev) => {
       if (ev.target.id === `m03e-kql-${scope}`) { m03eState(scope).query = ev.target.value; m03eSave(); return; }

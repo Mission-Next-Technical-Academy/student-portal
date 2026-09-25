@@ -418,6 +418,10 @@ function moduleThreeLoad(user) {
   // Guided Lab completion now comes from the console guide. Earlier manual
   // "Mark Guided Lab complete" records are kept, never revoked.
   if (moduleThreeState.console?.practice?.guideStep >= M03E_GUIDE_STEPS.length) moduleThreeState.practiceComplete = true;
+  // A returned attempt stays immutable in lab_attempts, but its saved
+  // case-state latch must not permanently block resubmission (CASE_RECORD_
+  // MIGRATION.md #7), scoped to an open redo for this exact lab.
+  if (typeof m03eApplyRedoReopen === 'function') m03eApplyRedoReopen();
 
   // Initialize quiz state
   if (!moduleThreeQuizState) {

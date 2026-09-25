@@ -8,6 +8,45 @@ const MODULE_EIGHT_LAB_ID = 'm08-exposure-prioritization-v1';
 const MODULE_EIGHT_FLAG = 'M08-VULNERABILITY-PRIORITIZED';
 const MODULE_EIGHT_PRIORITY_CATALOG_KEY = 'lab-vuln-prioritization';
 const MODULE_EIGHT_QUEUE_CATALOG_KEY = 'lab-vuln-queue';
+const MODULE_EIGHT_CATALOG_LAB_KEYS = [MODULE_EIGHT_PRIORITY_CATALOG_KEY, MODULE_EIGHT_QUEUE_CATALOG_KEY];
+
+// Prove It case — a validated OpenVAS finding needing WSUS remediation,
+// consistent with the imported WSUS (vm-5) and OpenVAS (vm-1) assessment
+// projects (portal/imported-labs/mission-next-labs/src/data.js).
+const MODULE_EIGHT_CASE_ID = 'VLN-0842';
+const MODULE_EIGHT_ENTITY_ROSTER = {
+  users: [
+    { id: 'p.diallo', tier: 'principal' },
+    { id: 'j.moreau', tier: 'pivot' },
+    { id: 's.klein', tier: 'noise' },
+    { id: 'a.batista', tier: 'noise' },
+    { id: 'n.oyelaran', tier: 'noise' },
+    { id: 'w.tran', tier: 'noise' },
+    { id: 'ops-oncall', tier: 'noise' },
+  ],
+  devices: [
+    { id: 'WEB-DMZ-14', tier: 'principal' },
+    { id: 'APP-DMZ-22', tier: 'pivot' },
+    { id: 'WKS-501', tier: 'noise' },
+    { id: 'DB-INT-07', tier: 'noise' },
+    { id: 'PRT-OFC02', tier: 'noise' },
+    { id: 'LAP-330', tier: 'noise' },
+  ],
+};
+const MODULE_EIGHT_DISPOSITION_OPTIONS = [
+  { id: 'validated-exploitable', text: 'Validated — exploitable, confirmed internet-reachable finding' },
+  { id: 'validated-not-reachable', text: 'Validated — exploitable but not internet-reachable (lower priority)' },
+  { id: 'false-positive', text: 'False positive — scanner misidentified the version/configuration' },
+  { id: 'accepted-risk', text: 'Accepted risk — documented exception with a compensating control' },
+];
+const MODULE_EIGHT_DEPARTMENT_OPTIONS = [
+  { id: 'patch-ops', text: 'Patch & Remediation Operations', fit: 100, note: 'Owns WSUS remediation and scan-validated patch deployment.' },
+  { id: 'appsec', text: 'Application Security', fit: 55, note: 'Owns app-layer findings, but not scan/patch operations for this host.' },
+  { id: 'exec-risk', text: 'Executive Risk Acceptance Board', fit: 20, note: 'Only relevant for a formal risk-acceptance request, not first response.', bounce: 'Returned — this is an exploitable, reachable finding; route to Patch & Remediation Operations first.' },
+  { id: 'helpdesk', text: 'Help Desk', fit: 10, note: 'Not equipped for vulnerability remediation.', bounce: 'Returned — escalate validated exploitable findings to Patch & Remediation Operations, not Help Desk.' },
+];
+// Answer key — kept in module data, never shown live in Prove It.
+const MODULE_EIGHT_ANSWER_KEY = { severity: 'critical', disposition: 'validated-exploitable', escalateTo: 'patch-ops' };
 
 const MODULE_EIGHT_QUIZ_BANKS = [
   {
@@ -397,7 +436,102 @@ const MODULE_EIGHT_DEFAULT_STATE = {
   notes: '',
   lessonWork: {},
   labProgress: {},
+  caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
 };
+
+let moduleEightProveItShowMissing = false;
+
+function moduleEightProveItRedoRequested() {
+  return moduleEightUser?.openLabRedosByModuleKey?.['soc-08'] != null;
+}
+
+// '' until submitted; then 'review' while the latest attempt awaits faculty,
+// 'graded' once an instructor has reviewed it without sending it back.
+function moduleEightProveItReviewStatus() {
+  if (!moduleEightState?.caseRecord?.submitted) return '';
+  const attempt = moduleEightUser?.latestLabAttemptByKey?.[MODULE_EIGHT_PRIORITY_CATALOG_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleEightProveItRedoFeedback() {
+  if (!moduleEightProveItRedoRequested()) return '';
+  const items = moduleEightUser.openLabRedosByModuleKey['soc-08'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
+function moduleEightProveItSpec() {
+  return {
+    formId: 'm08-assessment-form',
+    panelId: 'm08-review-submission',
+    caseId: MODULE_EIGHT_CASE_ID,
+    userOptions: MODULE_EIGHT_ENTITY_ROSTER.users.map((entry) => ({ id: entry.id, text: entry.id })),
+    deviceOptions: MODULE_EIGHT_ENTITY_ROSTER.devices.map((entry) => ({ id: entry.id, text: entry.id })),
+    dispositionOptions: MODULE_EIGHT_DISPOSITION_OPTIONS,
+    departmentOptions: MODULE_EIGHT_DEPARTMENT_OPTIONS,
+    notesPlaceholder: 'Summarize what the WSUS and OpenVAS labs surfaced, your analysis, and your recommended action…',
+    saveAttr: 'data-m08-save-proveit',
+    submitAttr: 'data-m08-submit-proveit',
+    lockedMessage: 'Module 9 stays locked until your instructor approves the submission.',
+  };
+}
+
+// Prove It scoring: entity tiers 20, severity 15, disposition 20,
+// escalation/routing up to 35, notes 10 — Module 01's weighting model. No
+// extra domain findings existed on the old m08-assessment-form beyond the
+// write-up, which is now the standard Analyst Work Notes field.
+function moduleEightProveItPerformance() {
+  const state = moduleEightState.caseRecord;
+  const spec = moduleEightProveItSpec();
+  const gateOk = missionNextAllLabsComplete(moduleEightState.labProgress, MODULE_EIGHT_ASSESSMENT_LAB_IDS);
+  const missing = caseRecordMissing(state, { ...spec, extraMissing: gateOk ? [] : ['Mark both assessment labs and the required additional labs complete'] });
+
+  const userTier = MODULE_EIGHT_ENTITY_ROSTER.users.find((entry) => entry.id === state.affectedUser)?.tier;
+  const deviceTier = MODULE_EIGHT_ENTITY_ROSTER.devices.find((entry) => entry.id === state.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
+
+  const severityOk = caseRecordSeverity(state) === MODULE_EIGHT_ANSWER_KEY.severity;
+  const dispositionOk = caseRecordDisposition(state) === MODULE_EIGHT_ANSWER_KEY.disposition;
+  const department = MODULE_EIGHT_DEPARTMENT_OPTIONS.find((option) => option.id === state.escalateTo) || null;
+  const escalationRequiredOk = state.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < 40;
+  const escalation = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 35) : 0;
+  const notesLen = (state.notes || '').trim().length;
+  const notes = Math.round(Math.min(1, notesLen / 80) * 10);
+  const score = entityPoints + (severityOk ? 15 : 0) + (dispositionOk ? 20 : 0) + escalation + notes;
+  const criticalErrors = state.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  return {
+    missing,
+    score,
+    breakdown: { affected_entity: entityPoints, severity: severityOk ? 15 : 0, disposition: dispositionOk ? 20 : 0, escalation, analyst_notes: notes },
+    department, bounced,
+    feedback: [
+      entityPoints >= 20
+        ? 'Affected entity/scope: correct — the validated internet-facing host and its owner.'
+        : entityPoints > 0
+          ? 'Affected entity/scope: partial credit — a related host/owner is supported by the evidence, but WEB-DMZ-14 / p.diallo is the confirmed finding.'
+          : 'Affected entity/scope: review the OpenVAS and WSUS evidence for the confirmed affected host and owner.',
+      severityOk ? 'Severity: correct.' : 'Severity: review — a validated, internet-reachable, exploitable finding is Critical.',
+      dispositionOk ? 'Disposition: correct.' : 'Disposition: review — the scan and patch-status evidence together validate an exploitable, reachable finding.',
+      !escalationRequiredOk
+        ? 'Routing: not applicable — escalation was set to not required.'
+        : !department
+          ? 'Routing: review — this case needs a department routed with the recorded evidence.'
+          : department.fit >= 100
+            ? `Routing: correct — ${department.text} is the best-fit department for this case.`
+            : department.fit >= 40
+              ? `Routing: accepted, but not the best fit — ${department.note}`
+              : `Routing: returned — ${department.bounce || department.note}`,
+    ],
+    criticalErrors,
+  };
+}
 
 let moduleEightState = null;
 let moduleEightUser = null;
@@ -417,6 +551,28 @@ function moduleEightLoad(user) {
   if (typeof moduleEightState.notes !== 'string') moduleEightState.notes = '';
   if (typeof moduleEightState.practiceNotes !== 'string') moduleEightState.practiceNotes = '';
   if (!moduleEightState.labProgress || typeof moduleEightState.labProgress !== 'object') moduleEightState.labProgress = {};
+  // Backward compat: a pre-case-record submission only had `completed` +
+  // `notes`. Preserve it as an already-submitted case record so the student
+  // still sees Lab Under Review / Lab Graded, never a reset or a crash.
+  if (!moduleEightState.caseRecord || typeof moduleEightState.caseRecord !== 'object') {
+    moduleEightState.caseRecord = {
+      status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '',
+      notes: moduleEightState.notes || '', findings: {}, submitted: Boolean(moduleEightState.completed),
+      submittedAt: moduleEightState.lastSubmittedAt || '', actionHistory: [],
+    };
+  }
+  ['status', 'affectedUser', 'affectedDevice', 'severity', 'disposition', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
+    if (typeof moduleEightState.caseRecord[key] !== 'string') moduleEightState.caseRecord[key] = '';
+  });
+  if (!moduleEightState.caseRecord.findings || typeof moduleEightState.caseRecord.findings !== 'object') moduleEightState.caseRecord.findings = {};
+  if (!Array.isArray(moduleEightState.caseRecord.actionHistory)) moduleEightState.caseRecord.actionHistory = [];
+  if (typeof moduleEightState.caseRecord.submitted !== 'boolean') moduleEightState.caseRecord.submitted = Boolean(moduleEightState.completed);
+  // A returned attempt must not stay permanently unsubmittable.
+  if (moduleEightProveItRedoRequested() && moduleEightState.caseRecord.submitted === true) {
+    moduleEightState.caseRecord.submitted = false;
+    moduleEightState.caseRecord.submittedAt = '';
+    moduleEightSave();
+  }
 
   // Initialize quiz state
   if (!moduleEightQuizState) {
@@ -660,23 +816,24 @@ function moduleEightAdditionalLabs() {
 
 function moduleEightAssessmentLabPanel() {
   const bucket = moduleEightState.labProgress;
-  const feedbackHtml = moduleEightState.feedback?.length ? `<div class="m08-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleEightState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
   const launchGroup = missionNextLabLaunchGroup(8, 'assessment', [
     { title: 'Patch Management and Vulnerability Remediation using WSUS', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-5/lab', labId: 'assessment-1' },
     { title: 'Network Vulnerability Scanning with OpenVAS', detail: 'OpenVAS scan interpretation and remediation', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-1/lab', labId: 'assessment-2' },
   ], bucket);
   const readyToSubmit = missionNextAllLabsComplete(bucket, MODULE_EIGHT_ASSESSMENT_LAB_IDS);
-  const canSubmit = moduleEightState.completed || readyToSubmit;
+  const performance = moduleEightProveItPerformance();
   return `<section class="m08-external-lab" id="m08-assessment-lab-panel">
-    <p class="m08-panel-instruction">Complete the imported patch-management and vulnerability-scanning projects below, mark each one complete, then write up your findings for instructor review.</p>
+    <p class="m08-panel-instruction">Complete the imported patch-management and vulnerability-scanning projects below, mark each one complete, then work the incident ticket for instructor review.</p>
     ${launchGroup}
-    <form id="m08-assessment-form">
-      <label class="m08-note-label">Assessment write-up<textarea id="m08-assessment-notes" rows="6" maxlength="900" data-m08-assessment-notes placeholder="Summarize what the WSUS lab surfaced, your analysis, and your recommended action…">${esc(moduleEightState.notes)}</textarea></label>
-      <p class="m08-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      ${!canSubmit ? '<p class="m08-help">Mark both labs above complete before submitting for review.</p>' : ''}
-      <div class="m08-actions"><button type="submit" class="m08-submit" ${canSubmit ? '' : 'disabled'}>${moduleEightState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
-    </form>
-    ${feedbackHtml}
+    ${!readyToSubmit ? '<p class="m08-help">Mark both labs above complete before submitting for review.</p>' : ''}
+    ${caseRecordPane(moduleEightState.caseRecord, {
+      ...moduleEightProveItSpec(),
+      missing: performance.missing,
+      reviewStatus: moduleEightProveItReviewStatus(),
+      redoRequested: moduleEightProveItRedoRequested(),
+      redoHtml: moduleEightProveItRedoFeedback(),
+      showMissing: moduleEightProveItShowMissing,
+    })}
   </section>`;
 }
 
@@ -855,6 +1012,13 @@ function wireModuleEightLab() {
   if (additionalRoot) wireMissionNextLabGating(additionalRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
 
   root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m08-submit-proveit]')) { moduleEightFinalizeProveIt(); return; }
+    if (event.target.closest('[data-m08-save-proveit]')) {
+      moduleEightState.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+      moduleEightSave();
+      moduleEightRender();
+      return;
+    }
     const lessonCheck = event.target.closest('[data-m08-lesson-check]');
     if (lessonCheck) {
       const lesson = MODULE_EIGHT_LESSON_LOOPS.find((item) => item.id === lessonCheck.dataset.m08LessonCheck);
@@ -910,6 +1074,10 @@ function wireModuleEightLab() {
       moduleEightState.practiceNotes = event.target.value;
       moduleEightSave();
     }
+    if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && !moduleEightState.caseRecord.submitted) {
+      moduleEightState.caseRecord.notes = event.target.value;
+      moduleEightSave();
+    }
   });
 
   root.addEventListener('change', (event) => {
@@ -919,44 +1087,57 @@ function wireModuleEightLab() {
       work.answers[input.dataset.questionIndex] = Number(input.value);
       work.checked = false;
       moduleEightSave();
+      return;
+    }
+    if (input.name && !moduleEightState.caseRecord.submitted && caseRecordApply(moduleEightState.caseRecord, input.name, input.value)) {
+      moduleEightState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
+      moduleEightSave();
+      moduleEightRender();
     }
   });
+}
 
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm08-assessment-form') return;
-    event.preventDefault();
-    if (!moduleEightState.completed && !missionNextAllLabsComplete(moduleEightState.labProgress, MODULE_EIGHT_ASSESSMENT_LAB_IDS)) {
-      moduleEightState.feedback = ['Mark all required labs above complete before submitting your write-up.'];
-      moduleEightSave();
-      moduleEightRender('m08-assessment-lab-dynamic');
-      return;
-    }
-    const notes = event.target.querySelector('#m08-assessment-notes')?.value || '';
-    moduleEightState.notes = notes;
-    if (notes.trim().length < 80) {
-      moduleEightState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
-      moduleEightSave();
-      moduleEightRender('m08-assessment-lab-dynamic');
-      return;
-    }
-    moduleEightState.attempts = (moduleEightState.attempts || 0) + 1;
-    moduleEightState.lastSubmittedAt = new Date().toISOString();
-    moduleEightState.completed = true;
-    moduleEightState.feedback = ['Submitted. This write-up has been recorded as your Assessment Lab submission for instructor review.'];
-    if (!moduleEightState.flags.includes(MODULE_EIGHT_FLAG)) moduleEightState.flags.push(MODULE_EIGHT_FLAG);
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(moduleEightUser, MODULE_EIGHT_PRIORITY_CATALOG_KEY, { state: 'complete', result: { notes } });
-      recordLabAttempt(moduleEightUser, MODULE_EIGHT_QUEUE_CATALOG_KEY, { state: 'complete', result: { notes } });
-    }
-    if (typeof markModuleLabComplete === 'function') {
-      markModuleLabComplete(moduleEightUser, 'soc-analyst', 'soc-08', MODULE_EIGHT_PRIORITY_CATALOG_KEY);
-      markModuleLabComplete(moduleEightUser, 'soc-analyst', 'soc-08', MODULE_EIGHT_QUEUE_CATALOG_KEY);
-    }
-    moduleEightSave();
-    const status = document.getElementById('m08-status');
-    if (status) status.textContent = 'Complete';
-    moduleEightRender('m08-assessment-lab-dynamic');
-  });
+function moduleEightFinalizeProveIt() {
+  const performance = moduleEightProveItPerformance();
+  if (moduleEightState.caseRecord.submitted) return;
+  if (performance.missing.length) {
+    moduleEightProveItShowMissing = true;
+    moduleEightRender('m08-review-submission');
+    return;
+  }
+  moduleEightProveItShowMissing = false;
+  const now = new Date().toISOString();
+  moduleEightState.caseRecord.submitted = true;
+  moduleEightState.caseRecord.submittedAt = now;
+  moduleEightState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: now });
+  moduleEightState.attempts = (moduleEightState.attempts || 0) + 1;
+  moduleEightState.lastSubmittedAt = now;
+  moduleEightState.completed = true;
+  moduleEightState.notes = moduleEightState.caseRecord.notes;
+  if (!moduleEightState.flags.includes(MODULE_EIGHT_FLAG)) moduleEightState.flags.push(MODULE_EIGHT_FLAG);
+  moduleEightSave();
+  if (typeof recordLabAttempt === 'function') {
+    const caseSpec = moduleEightProveItSpec();
+    const attemptFields = {
+      state: 'complete',
+      score: performance.score,
+      result: {
+        breakdown: performance.breakdown,
+        feedback: performance.feedback,
+        critical_errors: performance.criticalErrors,
+        case_record: moduleEightState.caseRecord,
+        case_display: caseRecordDisplay(moduleEightState.caseRecord, caseSpec),
+        case_summary: caseRecordSummary(moduleEightState.caseRecord, caseSpec),
+      },
+    };
+    MODULE_EIGHT_CATALOG_LAB_KEYS.forEach((labKey) => recordLabAttempt(moduleEightUser, labKey, attemptFields));
+  }
+  if (typeof markModuleLabComplete === 'function') {
+    MODULE_EIGHT_CATALOG_LAB_KEYS.forEach((labKey) => markModuleLabComplete(moduleEightUser, 'soc-analyst', 'soc-08', labKey));
+  }
+  const status = document.getElementById('m08-status');
+  if (status) status.textContent = 'Complete';
+  moduleEightRender();
 }
 
 function wireModuleEight() {
