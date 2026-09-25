@@ -1,7 +1,7 @@
 /* MNT Academy portal — router, Supabase auth, entitlement gating.
  *
  * Everything visual here is assembled from tokens already shipping on
- * mntacademy.com (see MNT_DESIGN_TOKENS.md). No new design system.
+ * mntacademy.com (see docs/MNT_DESIGN_TOKENS.md). No new design system.
  *
  * Auth is real Supabase Auth (see portal/supabase-config.js for the client).
  * Students sign in with a login ID like "4957361987-SOCAN", never an email —
@@ -81,7 +81,7 @@ function discardLocalSession() {
 
 // Split from the old monolithic buildUserFromSession() so signIn() can run
 // the queries below concurrently with its login_events / UEBA / site_sessions
-// / geofence chain (SESSION_SECURITY_SPEC.md Decision 3) instead of fully
+// / geofence chain (docs/SESSION_SECURITY_SPEC.md Decision 3) instead of fully
 // before it — that chain only ever reads the fields buildCoreUserFromSession()
 // returns, never the module/lab detail fetched here, so there was never a
 // reason for it to wait on them. Cuts real, otherwise-sequential network
@@ -316,7 +316,7 @@ async function currentUser() {
 }
 
 /* Sign-in gates, in this order, none interchangeable
- * (SESSION_SECURITY_SPEC.md Decision 3):
+ * (docs/SESSION_SECURITY_SPEC.md Decision 3):
  *   1. Supabase Auth itself (bad credentials -> null, unchanged).
  *   2. checkLoginUeba() — MUST run before the site_sessions insert below: it
  *      may close an already-open row (favor_new) so Decision 1's concurrency
@@ -420,7 +420,7 @@ async function recordLoginEvent(user) {
   }
 }
 
-/* UEBA-lite habitual-IP arbitration (SESSION_SECURITY_SPEC.md Decision 4,
+/* UEBA-lite habitual-IP arbitration (docs/SESSION_SECURITY_SPEC.md Decision 4,
  * supabase/functions/check-login-ueba). Same auth.getSession() -> bearer
  * token -> fetch(...) shape as recordLoginGeo()/checkLoginGeofence() below,
  * but awaited: the caller needs the decision before deciding whether to
@@ -490,7 +490,7 @@ function recordLoginGeo(loginEventId) {
  * forbids. Operational visibility only — never attendance/instructional
  * time, same framing as the migration's own table comment.
  *
- * Awaited (not fire-and-forget) as of SESSION_SECURITY_SPEC.md Decision 3:
+ * Awaited (not fire-and-forget) as of docs/SESSION_SECURITY_SPEC.md Decision 3:
  * signIn() needs the new row's id to pass to checkLoginGeofence(), and needs
  * to know whether the insert was refused by Decision 1's concurrency-cap
  * trigger (enforce_site_session_concurrency(), 20260906120000_site_session_
@@ -522,7 +522,7 @@ async function recordSiteSessionStart(user) {
   }
 }
 
-/* Login geofencing (SESSION_SECURITY_SPEC.md Decision 2, supabase/functions/
+/* Login geofencing (docs/SESSION_SECURITY_SPEC.md Decision 2, supabase/functions/
  * check-login-geofence). Same auth.getSession() -> bearer token ->
  * fetch(...) shape as recordLoginGeo() above, but awaited and run against
  * the new site_sessions row's own id (must run AFTER recordSiteSessionStart,
@@ -2273,7 +2273,7 @@ async function renderCohortPdf(cohortData, reportId) {
 /* --------------------------------------------------------- I: progress snapshot PDF */
 /* renderProgressSnapshotPdf(): human-readable companion to the JSON recovery
  * file the bulk "Save Progress File (All Students)" button downloads. The
- * JSON stays the restore-workflow artifact (ADMIN_RESET_FLOW.md); this is a
+ * JSON stays the restore-workflow artifact (docs/ADMIN_RESET_FLOW.md); this is a
  * plain roster table for a human to skim, styled after the cohort report's
  * header/footer/roster conventions but deliberately lighter — no compliance
  * table, no audit trail (see downloadProgressSnapshotPdf() below): it's a
@@ -3594,7 +3594,7 @@ async function downloadStudentEvidencePdf(user, program) {
  * one student's full transcript + evidence record, built from the same
  * buildTranscriptData()/buildEvidencePacketData() Supabase reads as the
  * student's own export. Exists so a disenrollment is never a one-way door:
- * ADMIN_RESET_FLOW.md documents pasting this file's contents to a connected
+ * docs/ADMIN_RESET_FLOW.md documents pasting this file's contents to a connected
  * AI agent to restore a student who was disenrolled by mistake. Available
  * as a standalone per-row button, and always run automatically before an
  * enrolled -> disenrolled toggle (see wireAdmin) so the snapshot exists
@@ -3605,7 +3605,7 @@ async function buildStudentSnapshotRecord(studentId, identity) {
     buildEvidencePacketData(studentId, identity),
   ]);
   return {
-    _label: 'Admin-captured recoverable progress snapshot — paste into ADMIN_RESET_FLOW.md\'s agent prompt to restore this student if a disenrollment was a mistake.',
+    _label: 'Admin-captured recoverable progress snapshot — paste into docs/ADMIN_RESET_FLOW.md\'s agent prompt to restore this student if a disenrollment was a mistake.',
     capturedAt: new Date().toISOString(),
     studentId,
     track: identity ? identity.trackCode : null,
@@ -5910,6 +5910,59 @@ Password:   ${esc(data.password)}</pre>
   panel.style.maxHeight = `${panel.scrollHeight}px`;
 }
 
+/* Roster "Rotate password": first click arms the button, a second click
+ * within 5s rotates via admin-provision's rotate_password action, then
+ * admin_force_sign_out() revokes sessions opened with the old password. The
+ * new password is shown by reloading the row's credentials panel. */
+async function rotateAccountPassword(btn) {
+  const studentId = btn.getAttribute('data-rotate-password');
+  if (btn.dataset.armed !== '1') {
+    btn.dataset.armed = '1';
+    btn.dataset.label = btn.innerHTML;
+    btn.innerHTML = '<i class="ri-error-warning-line"></i>Click again to confirm';
+    btn.classList.add('text-red-700', 'border-red-300');
+    btn._disarm = setTimeout(() => {
+      btn.dataset.armed = '';
+      btn.innerHTML = btn.dataset.label;
+      btn.classList.remove('text-red-700', 'border-red-300');
+    }, 5000);
+    return;
+  }
+  clearTimeout(btn._disarm);
+  btn.dataset.armed = '';
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ri-loader-4-line"></i>Rotating…';
+  let note;
+  try {
+    const result = await callAdminProvision('rotate_password', { student_id: studentId });
+    const { error: signOutError } = await mntSupabase.rpc('admin_force_sign_out', { target_user_id: result.user_id });
+    note = signOutError
+      ? 'Password rotated, but existing sessions could not be signed out.'
+      : 'Password rotated; existing sessions signed out.';
+    if (!result.credential_stored) {
+      note += ` The lookup copy failed to save — record this now: ${result.password}`;
+    }
+    const inner = document.querySelector(`[data-cred-panel-inner="${studentId}"]`);
+    const credBtn = document.querySelector(`[data-view-credentials="${studentId}"]`);
+    if (inner && credBtn) {
+      delete inner.dataset.loaded;
+      if (credBtn.getAttribute('aria-expanded') === 'true') credBtn.setAttribute('aria-expanded', 'false');
+      await toggleCredentialsPanel(studentId, credBtn, credBtn.getAttribute('data-credential-track'));
+    }
+    btn.innerHTML = '<i class="ri-check-line"></i>Rotated';
+    btn.classList.remove('text-red-700', 'border-red-300');
+    btn.classList.add('text-green-700', 'border-green-300');
+  } catch (err) {
+    note = `Could not rotate password: ${err && err.message ? err.message : String(err)}`;
+    btn.disabled = false;
+    btn.innerHTML = btn.dataset.label;
+    btn.classList.remove('text-red-700', 'border-red-300');
+  }
+  btn.title = note;
+  const status = document.getElementById('admin-report-status');
+  if (status) status.textContent = `${studentId}: ${note}`;
+}
+
 /* Readable "3h 20m" formatting for a single admin_site_sessions row's own
  * duration_minutes. Deliberately labeled "site time" everywhere it's shown
  * in the UI, never "hours" alone — matches site_sessions' own migration
@@ -6318,6 +6371,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
                                ${esc(row.student_id)}
                              </button>
+                             ${instructorDashboard ? '' : `<button type="button" data-rotate-password="${esc(row.student_id)}" class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-sans font-semibold text-gray-500 border border-gray-200 hover:text-[#f97316] hover:border-[#f97316]" title="Generate a new password for this account and sign out its sessions"><i class="ri-key-2-line"></i>Rotate password</button>`}
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
                            </td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
@@ -7029,7 +7083,7 @@ function wireLogin() {
     // signIn() returns a user object on success, null on bad credentials
     // (unchanged), or one of two string sentinels — 'session_limit' /
     // 'geo_blocked' — for a login that authenticated fine but was then
-    // blocked (SESSION_SECURITY_SPEC.md Decision 3). Both sentinel cases
+    // blocked (docs/SESSION_SECURITY_SPEC.md Decision 3). Both sentinel cases
     // reuse #login-error with distinct text rather than new DOM.
     if (result && typeof result === 'object') {
       const user = result;
@@ -8336,6 +8390,11 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         );
         return;
       }
+      const rotateBtn = event.target.closest('[data-rotate-password]');
+      if (rotateBtn) {
+        await rotateAccountPassword(rotateBtn);
+        return;
+      }
       const snapshotBtn = event.target.closest('[data-admin-snapshot]');
       if (!snapshotBtn) return;
       const studentId = snapshotBtn.getAttribute('data-admin-snapshot');
@@ -8369,7 +8428,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       // snapshot first, unconditionally, in place of a confirm() popup.
       // This never deletes module_progress/lab_attempts/capstone data —
       // disenrollment only ever flips students.is_enrolled — but the
-      // snapshot file is what makes ADMIN_RESET_FLOW.md's "restore a
+      // snapshot file is what makes docs/ADMIN_RESET_FLOW.md's "restore a
       // mistaken disenrollment" workflow possible after the fact. If the
       // snapshot can't be captured, the disenroll does not proceed.
       if (!desired) {

@@ -1,6 +1,6 @@
 // supabase/functions/check-login-geofence/index.ts
 //
-// Login geofencing (SESSION_SECURITY_SPEC.md, Decision 2). Called once,
+// Login geofencing (docs/SESSION_SECURITY_SPEC.md, Decision 2). Called once,
 // immediately after portal/app.js's recordSiteSessionStart() inserts a new
 // public.site_sessions row for a sign-in that just succeeded. Decides
 // whether the request's geolocated country is on a short denylist, and if
@@ -77,7 +77,7 @@ async function hashIp(ip: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Site-owner-named starting set (SESSION_SECURITY_SPEC.md Decision 2):
+// Site-owner-named starting set (docs/SESSION_SECURITY_SPEC.md Decision 2):
 // Russia, China, Iran. Matched on ISO 3166-1 alpha-2 countryCode, not the
 // `country` name string — ip-api.com returns both, but matching
 // "Russia"/"China"/"Iran" as literal strings is fragile (localization,
@@ -212,7 +212,7 @@ Deno.serve(async (req: Request) => {
     // point writes ip_hash on its own site_sessions row, whether blocked or
     // not — this is also the only place in the codebase that populates that
     // column at all (check-login-ueba runs before the row exists and so
-    // cannot write it; see SESSION_SECURITY_SPEC.md Decision 3), which is
+    // cannot write it; see docs/SESSION_SECURITY_SPEC.md Decision 3), which is
     // what lets a later login's check-login-ueba call compare against it.
     const clientIpHash = await hashIp(clientIp);
 

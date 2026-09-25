@@ -13,7 +13,7 @@ unblocked roadmap item, then read only that item's governing specification.
 Do not use the historical notes below as an independent plan; some describe
 superseded Module 1 directions.
 
-**2026-09-21:** `HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` scoped a
+**2026-09-21:** `archive/historical-plans/HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` scoped a
 masked-input, read-the-real-log evidence mechanic for ALT-1001. **Superseded
 later the same day** by `MODULE_01_CASE_CONSOLE_SPEC.md`'s simpler,
 now-shipped mechanic: click a real log row, it expands a raw structured
@@ -240,7 +240,7 @@ Module 1 now launches `NST-2407` directly in the simulator. Changed files:
 - `ui/data.js` and `ui/views.js` — added and identified the assigned
   simulator case;
 - `portal/data.js` — reframed Lab 2 as simulator-first;
-- `MODULE_01_ENHANCEMENT_BRIEF.md` and `ASSESSMENT_REPORTING_SPEC.md` —
+- `archive/module-enhancement-records/MODULE_01_ENHANCEMENT_BRIEF.md` and `ASSESSMENT_REPORTING_SPEC.md` —
   contain the approved assessment and faculty-review model.
 
 **Implementation now in the working tree (2026-09-18, not yet committed):**
@@ -273,7 +273,7 @@ the exact working Module 1 pattern to replicate.
 
 ## Just shipped, same day (2026-09-16), later session
 
-Sprint 3 and a new Sprint 4 from `MODULE_NAV_SIDEBAR_SPRINT.md`, committed
+Sprint 3 and a new Sprint 4 from `archive/completed-feature-notes/MODULE_NAV_SIDEBAR_SPRINT.md`, committed
 as `7c59e22` — **committed but NOT pushed**, push auto-deploys to the live
 GitHub Pages site and needs explicit confirmation first:
 
@@ -317,7 +317,7 @@ A separate session (browser-available) did a module UX pass, all pushed to
   fill-in-the-blank widget was rendering on top of its lock screen,
   leaking real incident details for content the student hadn't unlocked.
   Fixed: gated behind the same `hasModuleAccess()` check as the module body.
-- `941d3f8` / `MODULE_NAV_SIDEBAR_SPRINT.md` (now DONE, Sprints 1-2) —
+- `941d3f8` / `archive/completed-feature-notes/MODULE_NAV_SIDEBAR_SPRINT.md` (now DONE, Sprints 1-2) —
   owner feedback: module duration read as lecture length ("8 Hours"), and
   there was too much scrolling to reach current progress. Shipped across
   all 12 SOC modules: `formatHandsOnDuration()` reframes the hero-kicker/

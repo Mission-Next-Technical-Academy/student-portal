@@ -288,7 +288,7 @@ Deno.serve(async (req: Request) => {
       // prior login) that beats the currently-open IP's own track record.
       // Close the old row so the concurrency trigger sees zero open rows
       // for this student when the client's own site_sessions insert
-      // follows (Decision 1 interaction, see SESSION_SECURITY_SPEC.md).
+      // follows (Decision 1 interaction, see docs/SESSION_SECURITY_SPEC.md).
       const { error: closeError } = await serviceClient
         .from('site_sessions')
         .update({ ended_at: new Date().toISOString(), ended_reason: 'superseded' })

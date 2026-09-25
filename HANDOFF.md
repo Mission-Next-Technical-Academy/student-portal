@@ -255,7 +255,7 @@ still needed before this item can be called fully done, not just built.
 
 ## Pending scoping input — 2026-09-21
 
-`HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` — investigation only, no
+`archive/historical-plans/HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` — investigation only, no
 code changed. Found that a masked-input, read-the-real-log evidence recall
 mechanic (dense `SIGNIN_LOG_EVENTS` log table, per-fact `template`/`blanks`,
 `moduleOneBlankForm`) is already substantially built for Module 1's ALT-1001

@@ -9,7 +9,7 @@ yet; Module 1 today is still gated and scored exactly like a graded lab.
 their own depth work is `REBUILD_PLAN.md`'s Phase 3/4 (Arc A/B), a separate
 track of work. One module at a time, starting here.
 
-**2026-09-20: see `ACADEMY_ORIENTATION_SPRINT.md` before extending this
+**2026-09-20: see `archive/completed-feature-notes/ACADEMY_ORIENTATION_SPRINT.md` before extending this
 doc's tour mechanism.** A separate, Academy-wide first-login orientation
 (`portal/orientation.js`) now runs once, before the student ever opens
 Module 1 — LMS navigation, program discovery, module structure, then Module

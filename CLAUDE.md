@@ -14,7 +14,7 @@ paths.
 
 **2026-09-20 (out-of-queue owner sprint, not a `ROADMAP.md` item):** a
 universal, program-agnostic Academy first-login orientation tour shipped —
-see `ACADEMY_ORIENTATION_SPRINT.md`, `portal/orientation.js` /
+see `archive/completed-feature-notes/ACADEMY_ORIENTATION_SPRINT.md`, `portal/orientation.js` /
 `orientation.css`, and the `20260920100000_academy_orientation_state.sql`
 migration (already pushed to the linked Supabase project). Welcome → Academy
 nav/programs/help → the student's program → module structure → Module 1 →
@@ -82,14 +82,14 @@ refreshing the portal, not yet reproduced — environment, account, and
 console-error details are still needed from the user before this can be
 debugged. The admin per-student reset still needs a polished in-page
 snapshot/restore modal instead of a plain confirm popup, and
-`STUDENT_LOGIN_COURSEWORK_REDIRECT.md`'s post-login redirect spec is written
+`docs/STUDENT_LOGIN_COURSEWORK_REDIRECT.md`'s post-login redirect spec is written
 but not yet coded in `portal/app.js`'s `wireLogin()`).
 
 `CURRICULUM_ALIGNMENT_ARCHITECTURE.md` section 0 has the authoritative sprint
 status table if `NEXT_SESSION.md` is ever out of date relative to it. As of
 2026-08-31: all 16 local Supabase migrations are confirmed applied on the
 linked remote project (`supabase migration list --linked`) —
-`REPORTING_REMEDIATION_CONTINUATION.md` still said the four newest
+`archive/completed-feature-notes/REPORTING_REMEDIATION_CONTINUATION.md` still said the four newest
 migrations were "written only, not pushed"; that claim was stale, now
 corrected inline in that file.
 

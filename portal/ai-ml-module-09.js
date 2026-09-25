@@ -1,5 +1,5 @@
 /* Module 09 — Applied AI: Language, Vision & Generative Models ('ai-ml').
- * Content authored from AI_ML_ENGINEERING_CURRICULUM.md (2026-09-10).
+ * Content authored from docs/other-tracks/AI_ML_ENGINEERING_CURRICULUM.md (2026-09-10).
  * Labs run in the student's own real Python environment (no in-portal code
  * execution sandbox exists) — completion is tracked as a guided step
  * checklist plus short written reflections, evidence-based like

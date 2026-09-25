@@ -220,6 +220,14 @@ where m.module_key = v.module_key;
 -- non-nullable Go strings, so leaving them NULL makes every sign-in fail with
 -- "Database error querying schema" — which looks like a config problem and is
 -- not. Do not drop these columns from the insert.
+-- Staging instructor passwords are generated fresh on every `supabase db
+-- reset` and never written to this file. Look them up in the local admin
+-- panel's "view credentials" action, or rotate them from the roster.
+create temporary table seed_instructor_passwords as
+select v.user_id::uuid, v.login_id, encode(gen_random_bytes(12), 'base64') as generated
+from (values ('55555555-5555-5555-5555-555555555555', '3184759261-HDINST'),
+             ('66666666-6666-6666-6666-666666666666', '6291847350-SOCANINST')) as v(user_id, login_id);
+
 insert into auth.users
   (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
    raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
@@ -253,12 +261,12 @@ values
   -- requires. They deliberately use the app's missionnext.example convention.
   ('00000000-0000-0000-0000-000000000000',
    '55555555-5555-5555-5555-555555555555', 'authenticated', 'authenticated',
-   '3184759261-hdinst@missionnext.example', crypt('Staging!HdInst2026', gen_salt('bf')), now(),
+   '3184759261-hdinst@missionnext.example', crypt((select generated from seed_instructor_passwords where user_id = '55555555-5555-5555-5555-555555555555'), gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{"full_name":"Help Desk Staging Instructor"}', now(), now(),
    '', '', '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000',
    '66666666-6666-6666-6666-666666666666', 'authenticated', 'authenticated',
-   '6291847350-socaninst@missionnext.example', crypt('Staging!SocInst2026', gen_salt('bf')), now(),
+   '6291847350-socaninst@missionnext.example', crypt((select generated from seed_instructor_passwords where user_id = '66666666-6666-6666-6666-666666666666'), gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{"full_name":"SOC Analyst Staging Instructor"}', now(), now(),
    '', '', '', '', '', '', '', '');
 
@@ -283,13 +291,12 @@ values
   ('55555555-5555-5555-5555-555555555555', 'HDESK', true),
   ('66666666-6666-6666-6666-666666666666', 'SOCAN', true);
 
--- This mirrors the existing local-only credential lookup table. Production
--- hashes are always owned by auth.users.encrypted_password; never seed these
--- plaintext fixture values into a hosted project.
+-- Mirror the generated passwords into the admin-only lookup table. Never
+-- seed these fixture values into a hosted project.
 insert into public.student_credentials (student_id, password)
-values
-  ('3184759261-HDINST', 'Staging!HdInst2026'),
-  ('6291847350-SOCANINST', 'Staging!SocInst2026');
+select login_id, generated from seed_instructor_passwords;
+
+drop table seed_instructor_passwords;
 
 -- One track each. Nothing about the model limits a student to one enrollment —
 -- add another row here and that student's second card simply stops being dimmed.

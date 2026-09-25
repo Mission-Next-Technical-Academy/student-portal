@@ -35,7 +35,7 @@ Read first, in this order:
                                      your assignment, and the "Shared Contract for Every
                                      Module Agent" section lists your ten deliverables.
   MODULE_STANDARD.md               — the canonical module shape, non-negotiable.
-  MNT_DESIGN_TOKENS.md             — colors, type, spacing.
+  docs/MNT_DESIGN_TOKENS.md             — colors, type, spacing.
   PROJECT_GUIDE_FOR_AI.md          — house rules and code patterns.
   portal/soc-analyst-module-01.js + module-labs.css — the reference implementation. Match its depth,
                                      structure and quality. Do not copy it verbatim and do

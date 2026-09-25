@@ -1,5 +1,5 @@
 /* Module 12 — AI & Machine Learning Capstone.
- * Content authored from AI_ML_ENGINEERING_CURRICULUM.md (2026-09-10).
+ * Content authored from docs/other-tracks/AI_ML_ENGINEERING_CURRICULUM.md (2026-09-10).
  * Not a quiz — a single realistic, multi-stage project spanning the full
  * CRISP-DM lifecycle. Students work in their own Python environment on a
  * real or instructor-provided dataset. Completion is tracked per stage as

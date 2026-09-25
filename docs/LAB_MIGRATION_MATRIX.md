@@ -2,11 +2,11 @@
 
 **Status:** Draft crosswalk — complete, not yet owner-reviewed.
 **Date:** 2026-09-23
-**Inputs:** `docs/BOOTS2BYTES_LAB_INVENTORY.md` (Story A1, accepted), `docs/MISSION_NEXT_LAB_ARCHITECTURE.md`
+**Inputs:** `archive/historical-plans/BOOTS2BYTES_LAB_INVENTORY.md` (Story A1, accepted), `docs/MISSION_NEXT_LAB_ARCHITECTURE.md`
 (Story A2, accepted), `docs/LAB_ASSESSMENT_STANDARD.md`, and a fresh read of the current 12 SOC Analyst
 module files (`portal/soc-analyst-module-01.js` through `-12.js`, plus `soc-analyst-module-02-environment.js`).
 
-This document is the Epic B deliverable required by `docs/BOOTS2BYTES_MIGRATION_AGILE_HANDOFF.md` §7. It maps
+This document is the Epic B deliverable required by `archive/historical-plans/BOOTS2BYTES_MIGRATION_AGILE_HANDOFF.md` §7. It maps
 every inventoried Boots2Bytes component onto the **existing** 12-module curriculum. **It does not authorize
 implementation.** Per that section: "Review the matrix before any implementation agent is started." Epic C
 (shared adapter) and Epic D (controlled domain migration) remain unauthorized until the owner reviews this

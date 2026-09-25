@@ -635,7 +635,7 @@ const PROGRAMS = [
       'Applied AI & Deployment',
       'Professional Practice & Capstone',
     ], 'aim'),
-    /* Authored from AI_ML_ENGINEERING_CURRICULUM.md (2026-09-10). Key prefix
+    /* Authored from docs/other-tracks/AI_ML_ENGINEERING_CURRICULUM.md (2026-09-10). Key prefix
      * stays 'aim' (not the doc's 'aiml') to match the already-registered
      * module-lab slot (ai-ml-module-01.js's registerModuleLab call) and
      * weekGroups() above — MODULE_STANDARD.md: never rename a key. */
@@ -2267,7 +2267,7 @@ const LABS = [
     description: 'A six-ticket integrated scenario spanning identity, endpoint, network, peripheral, server, and security issues, scored across triage, technical accuracy, communication, escalation judgment, security judgment, documentation, and reflection.',
     skills: ['Full Ticket Lifecycle', 'Prioritization', 'Resolve/Escalate Judgment', 'Knowledge Base Documentation'], portalEntry: '#/program/it-support/module/12' }),
 
-  /* AI & Machine Learning lab catalogue, from AI_ML_ENGINEERING_CURRICULUM.md
+  /* AI & Machine Learning lab catalogue, from docs/other-tracks/AI_ML_ENGINEERING_CURRICULUM.md
    * (2026-09-10). Labs run in the student's own real Python environment (no
    * in-portal execution sandbox exists), so each module bundles its
    * curriculum hands-on labs into one guided, checklist-and-reflection

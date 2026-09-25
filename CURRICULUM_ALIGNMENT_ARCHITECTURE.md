@@ -266,7 +266,7 @@ Gate: same four commands as Sprint H, plus a manual trace confirming a student w
 ### Sprint G — Final QA and handoff
 
 Files: documentation and fixes found by QA.  
-Deliver: full syntax/render/browser sweep, prohibited-language scan, stable-key diff audit, exact-hours report, screenshot evidence, and updates to `HANDOFF.md`, `LATEST_PROGRESS.md`, and `MODULAR_LAB_PROGRAM_PROGRESS.md`. Include Sprint H's admin dashboard in this sweep.  
+Deliver: full syntax/render/browser sweep, prohibited-language scan, stable-key diff audit, exact-hours report, screenshot evidence, and updates to `HANDOFF.md`, `archive/session-logs/LATEST_PROGRESS.md`, and `MODULAR_LAB_PROGRAM_PROGRESS.md`. Include Sprint H's admin dashboard in this sweep.
 Gate: all automated invariants pass; remaining external approvals listed by owner and evidence needed.
 
 ## 9. Release boundary

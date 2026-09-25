@@ -183,7 +183,7 @@ assumption ever changes.
   no manual deploy step, but someone has to actually push).
 - Files that belong to this work, to be staged together (do NOT blanket
   `git add -A` — there is unrelated pre-existing uncommitted work in the tree:
-  `HANDOFF.md`, `LATEST_PROGRESS.md`, `MODULAR_LAB_PROGRAM_PROGRESS.md`,
+  `HANDOFF.md`, `archive/session-logs/LATEST_PROGRESS.md`, `MODULAR_LAB_PROGRAM_PROGRESS.md`,
   `PROGRESS_M07_EMAIL_KQL.md`, `portal/module-07/10/11/12.*`,
   `ui/coach-data.js` — leave those alone, they're not this session's):
   ```

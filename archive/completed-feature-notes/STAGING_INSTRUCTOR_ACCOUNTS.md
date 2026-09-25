@@ -4,10 +4,13 @@ These are fictional staging accounts for checking course-scoped instructor
 workspaces and message routing. They are not learner accounts, and must never
 be copied to production or reused for a real person.
 
-| Course | Login ID | Password | Required landing route |
-| --- | --- | --- | --- |
-| IT Help Desk | `3184759261-HDINST` | `Staging!HdInst2026` | `#/admin/track/HDESK` |
-| SOC Analyst | `6291847350-SOCANINST` | `Staging!SocInst2026` | `#/admin/track/SOCAN` |
+| Course | Login ID | Required landing route |
+| --- | --- | --- |
+| IT Help Desk | `3184759261-HDINST` | `#/admin/track/HDESK` |
+| SOC Analyst | `6291847350-SOCANINST` | `#/admin/track/SOCAN` |
+
+Passwords are not recorded here. `supabase/seed.sql` generates fresh ones on
+each local reset; look them up (or rotate them) from the admin roster.
 
 The login form derives the synthetic Auth email by lowercasing the login ID
 and adding `@missionnext.example`. Therefore the corresponding Auth emails are

@@ -6,7 +6,7 @@ This document gives a new AI assistant enough context to work safely and
 productively without reconstructing the project from scratch.
 
 Read `ROADMAP.md` first for the active delivery order, locked Module 1
-direction, and CI/CD workflow. Use `LATEST_PROGRESS.md` as historical context.
+direction, and CI/CD workflow. Use `archive/session-logs/LATEST_PROGRESS.md` as historical context.
 For any live roster, message, grading, account, or retention task, read
 `OPERATIONS.md` first; it is the operational control-plane pointer.
 Before changing any student lab, Learn It, Practice It, Prove It, simulator,
@@ -71,7 +71,7 @@ devices, queries, and cloud resources are fictional fixtures.
    `events.jsonl`, and `run_scenario.sh`.
 7. Update `HANDOFF.md` after a meaningful work session; archive a completed
    entry rather than letting the active handoff grow indefinitely.
-8. Before changing navigation, read `NAV_SPEC.md`.
+8. Before changing navigation, read `docs/NAV_SPEC.md`.
 9. Preserve existing user changes in the working tree. Never reset or discard
    unrelated edits.
 10. Treat “floating card” as the shared Mission Next guide-card pattern: a
@@ -144,13 +144,13 @@ Read in this order before implementing changes:
    in `archive/session-logs/`.
 4. `archive/legacy-sc200-simulator/AGENTS.md` — legacy task history plus
    still-relevant safety rules.
-5. `NAV_SPEC.md` — required source of truth before navigation changes.
+5. `docs/NAV_SPEC.md` — required source of truth before navigation changes.
 6. `SC200_LAB.md` and `ExamObjectives.md` — legacy source references only.
 
 Supporting audits and design notes include `COVERAGE_SWEEP.md`,
 `OBJECTIVES_DELTA.md`, `GAP_BRIDGE.md`, `GAP_BRIDGE_FINDINGS.md`,
 `PRODUCT_ARCHITECTURE_PLAN.md`, `DEVICE_PAGE_PARITY.md`, and
-`ANOMALY_RULES.md`.
+`docs/ANOMALY_RULES.md`.
 
 ## Architecture
 
@@ -180,7 +180,7 @@ Mission_Next_Technical_Academy_SOC_Analyst_course/
 ├── rules.json                   CLI scenario rule data
 ├── events.jsonl                 CLI scenario event data
 ├── SC200_LAB.md                 master project document
-├── LATEST_PROGRESS.md           current direction and latest status
+├── archive/session-logs/LATEST_PROGRESS.md           current direction and latest status
 ├── ExamObjectives.md            legacy certification reference
 ├── HANDOFF.md                   concise current-handoff index
 └── archive/                     historical plans, logs, and completed notes
@@ -264,7 +264,7 @@ well as a larger desktop width because side panels and wide tables are common.
 
 ### Navigation
 
-`NAV` and `PORTALS` live in `ui/data.js`. Read `NAV_SPEC.md` before editing
+`NAV` and `PORTALS` live in `ui/data.js`. Read `docs/NAV_SPEC.md` before editing
 them. Every navigable route must have a matching `VIEWS[...]` registration.
 Drill-down routes may exist without a direct navigation item.
 
@@ -367,7 +367,7 @@ For meaningful interface changes, also test in a real browser:
 - There is no real login, RBAC enforcement, API, cloud tenant, email system,
   endpoint, or SIEM backend.
 - Historical certification documents retain old scope and implementation
-  decisions. Treat `LATEST_PROGRESS.md`, this guide, `NEXT_SESSION.md`, and
+  decisions. Treat `archive/session-logs/LATEST_PROGRESS.md`, this guide, `NEXT_SESSION.md`, and
   the active workstream's `STATE.md`
   entries, user direction, and current code as authoritative.
 - The working tree may contain intentional user changes. Inspect `git status`

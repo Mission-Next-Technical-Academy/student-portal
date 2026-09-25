@@ -31,7 +31,7 @@ Format mirrors the `Module` contract in `MODULE_STANDARD.md` §2: summary,
 hours (range), objectives (measurable verbs), topics, hands-on labs, skills,
 assessment (knowledge-check quiz bank + fill-in-the-blank + practical lab),
 prerequisites, sources. Quiz questions are written as a **bank per objective**
-(course_SOC_standardized.md §4 pattern) — multiple scenario variants per
+(archive/historical-plans/course_SOC_standardized.md §4 pattern) — multiple scenario variants per
 concept, not one fixed set — so retries can reshuffle without repeating the
 exact question. No certification endorsement or partnership language is used
 anywhere below, per `MODULE_STANDARD.md` §6.
@@ -1460,12 +1460,12 @@ stages and all four deliverables required to pass)
   covers and how it was verified. Not yet committed to git as of this
   session; not yet flipped to `isPublished: true`.
 - **Quiz banks are seeded, not exhaustive.** Each module ships 5–6 bank
-  questions across its objectives; `course_SOC_standardized.md` §4's
+  questions across its objectives; `archive/historical-plans/course_SOC_standardized.md` §4's
   question-bank model calls for *multiple* scenario variants per objective
   so retries don't repeat the same question. Treat what's here as the first
   variant per objective and add 2–3 more per objective before this goes
   live, matching the SOC track's depth.
-- **Video lecture segments** (course_SOC_standardized.md §3, 8–15 minutes
+- **Video lecture segments** (archive/historical-plans/course_SOC_standardized.md §3, 8–15 minutes
   each) are not included — this document is written material only.
 - **Sources were individually verified live** via `WebFetch` against each
   target URL during authoring (2026-09-10), consistent with the

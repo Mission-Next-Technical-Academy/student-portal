@@ -3,11 +3,11 @@
 **Read this first if resuming the Boots2Bytes/Mission Next lab-wiring work.
 This doc supersedes every other Boots2Bytes/lab-migration handoff in this
 repo as of 2026-09-23** — specifically:
-`HANDOFF_2026-09-23_BOOTS2BYTES_MIGRATION_DISCOVERY.md`,
-`docs/BOOTS2BYTES_LAB_INVENTORY.md`,
-`docs/BOOTS2BYTES_MIGRATION_AGILE_HANDOFF.md`,
+`archive/historical-plans/HANDOFF_2026-09-23_BOOTS2BYTES_MIGRATION_DISCOVERY.md`,
+`archive/historical-plans/BOOTS2BYTES_LAB_INVENTORY.md`,
+`archive/historical-plans/BOOTS2BYTES_MIGRATION_AGILE_HANDOFF.md`,
 `docs/LAB_MIGRATION_MATRIX.md`, `docs/MISSION_NEXT_LAB_ARCHITECTURE.md`, and
-`docs/MODULE_03_MISSION_NEXT_LAB_RETURN_AND_COMPLETION.md`. All of those
+`archive/completed-feature-notes/MODULE_03_MISSION_NEXT_LAB_RETURN_AND_COMPLETION.md`. All of those
 describe plans, gates, or partial states that predate the owner's explicit
 mid-session go-ahead to wire directly per a separate spec pasted into chat,
 skipping the Epic C/D authorization gate the discovery doc set up. Treat
@@ -138,7 +138,7 @@ State as of this handoff:
    This was the pre-login-redirect gap in `portal/app.js`'s boot/session-restore path (the
    `wireLogin()` area and whatever reads `location.hash` on first paint) —
    this is exactly the kind of pre-login-redirect gap
-   `STUDENT_LOGIN_COURSEWORK_REDIRECT.md` already flags as unresolved, so
+   `docs/STUDENT_LOGIN_COURSEWORK_REDIRECT.md` already flags as unresolved, so
    read that file too. **Next session should enumerate every exit/back
    button inside the imported app** (not just `handleBackFromLab`'s
    `returnTo`, also plain `handleBackToTracks`/`handleBackToDashboard` and

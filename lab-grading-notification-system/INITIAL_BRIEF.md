@@ -6,7 +6,7 @@ Build not started.
 **Relationship to existing docs:** This project narrows and extends the
 grading/admin-panel items already scoped at the root of
 `Mission_Next_Technical_Academy_SOC_Analyst_course/00_current_state_scan.md`
-and `01_plan_of_action_milestones.md` (Sprints 1–2 there). Those docs cover
+and `archive/historical-plans/01_plan_of_action_milestones.md` (Sprints 1–2 there). Those docs cover
 the platform-wide 12-module rebuild; this directory is the focused build-out
 of just the grading/notification loop, with the specific mechanics below
 that weren't nailed down before.

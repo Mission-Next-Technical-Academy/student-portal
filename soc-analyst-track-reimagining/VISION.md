@@ -18,7 +18,7 @@ building anything.
 Security+ (SY0-701) is the broad, five-domain foundation: general security
 concepts, threats/vulnerabilities/mitigations, architecture, operations,
 program management. It's exam-recall-shaped and intentionally shallow across
-a wide surface. The existing root POA&M (`01_plan_of_action_milestones.md`)
+a wide surface. The existing root POA&M (`archive/historical-plans/01_plan_of_action_milestones.md`)
 already has this right: **Security+-aligned quizzes stay as light
 concept-priming throughout, never the graded depth** — that decision doesn't
 change here.
@@ -90,7 +90,7 @@ resubmission of the lab**, not a patch to one field.
 
 ## 4. Real gap scan (2026-09-13) — checked actual module code, not just docs
 
-The root docs (`00_current_state_scan.md` / `01_plan_of_action_milestones.md`)
+The root docs (`archive/historical-plans/00_current_state_scan.md` / `archive/historical-plans/01_plan_of_action_milestones.md`)
 list an aspirational tool set. Grepping the real, live module files and the
 real simulator (`ui/`) instead of trusting that list turned up a materially
 different picture:

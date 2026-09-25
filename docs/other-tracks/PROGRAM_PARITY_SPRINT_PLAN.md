@@ -165,7 +165,7 @@ kind of planning-first pass the AI/ML build got
 (`archive/completed-feature-notes/AI_ML_APPLIED_BUILD_TRACK_2026-09-10.md`, written before any code, resolving open
 decisions with the owner first): is this track still wanted for launch, on
 what timeline, and does a controlling curriculum source doc exist yet (the
-other three tracks each had one — `AI_ML_ENGINEERING_CURRICULUM.md`,
+other three tracks each had one — `docs/other-tracks/AI_ML_ENGINEERING_CURRICULUM.md`,
 `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`/SOC's mapping, the IT Help Desk
 build docs)? If no source curriculum exists for Electrical Engineering yet,
 that's the actual blocker, not engineering time.

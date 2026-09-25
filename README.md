@@ -115,8 +115,8 @@ single-origin site and publishes it to GitHub Pages. No manual deploy step.
 | File | What it covers |
 |---|---|
 | `MODULE_STANDARD.md` | The shape every module object must carry |
-| `MNT_DESIGN_TOKENS.md` | Colors, type, and components taken from the live site |
-| `LATEST_PROGRESS.md` | Current status and project direction |
+| `docs/MNT_DESIGN_TOKENS.md` | Colors, type, and components taken from the live site |
+| `archive/session-logs/LATEST_PROGRESS.md` | Current status and project direction |
 | `ROADMAP.md` | Canonical delivery order, Module 1 direction, and CI/CD workflow |
 | `HANDOFF.md` | Evidence for the active roadmap item; historical logs are in `archive/session-logs/` |
 | `NEXT_SESSION.md` | Compatibility pointer to the roadmap, not a second task queue |

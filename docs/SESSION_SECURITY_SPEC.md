@@ -38,7 +38,7 @@ needs `supabase db push` before either fix is live.
 ## Why
 
 Site owner (Alex) asked, while reviewing the admin panel's credential-viewing
-architecture (see `HANDOFF_ADMIN_CREDENTIALS_VIEW.md` for that unrelated
+architecture (see `archive/completed-feature-notes/HANDOFF_ADMIN_CREDENTIALS_VIEW.md` for that unrelated
 check): do we cap concurrent sessions per account, and do we block sign-ins
 geolocated to a short list of countries. Answer at time of writing: neither
 exists. `site_sessions` (`20260901122000_activity_monitor_sessions.sql`) and
@@ -328,7 +328,7 @@ create table public.user_ip_history (
 );
 
 comment on table public.user_ip_history is
-  'Lightweight per-user IP familiarity count, written only by supabase/functions/check-login-ueba on a login that was actually allowed through (never on a blocked/flagged attempt — see that function''s header comment for why counting blocked attempts would let an attacker grind their way into looking habitual). Used only to arbitrate a second concurrent student sign-in against an already-open session (Decision 4, SESSION_SECURITY_SPEC.md) — not a general security-analytics table, not exposed to students, admin-read only.';
+  'Lightweight per-user IP familiarity count, written only by supabase/functions/check-login-ueba on a login that was actually allowed through (never on a blocked/flagged attempt — see that function''s header comment for why counting blocked attempts would let an attacker grind their way into looking habitual). Used only to arbitrate a second concurrent student sign-in against an already-open session (Decision 4, docs/SESSION_SECURITY_SPEC.md) — not a general security-analytics table, not exposed to students, admin-read only.';
 
 alter table public.user_ip_history enable row level security;
 

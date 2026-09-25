@@ -81,7 +81,7 @@ implementation reference is
 supersedes its former tour-versus-Objectives-panel ambiguity.
 
 **Do not confuse this with the Academy-wide first-login orientation shipped
-2026-09-20** (`ACADEMY_ORIENTATION_SPRINT.md`, `portal/orientation.js`) — a
+2026-09-20** (`archive/completed-feature-notes/ACADEMY_ORIENTATION_SPRINT.md`, `portal/orientation.js`) — a
 separate, earlier layer that runs once at first login, before the student
 ever opens Module 1: Welcome → Academy nav/programs/help → the student's
 program → that program's module structure → Module 1 → Learn It/Practice
@@ -204,7 +204,7 @@ Approved roadmap item
 | `soc-analyst-track-reimagining/VISION.md` | Strategic curriculum rationale and future tool gaps |
 | `soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` | Full-program per-module interface/component vision for item 6 — reference only, not scoped |
 | `soc-analyst-track-reimagining/REBUILD_PLAN.md` | Detailed curriculum-arc specification |
-| `ACADEMY_ORIENTATION_SPRINT.md` | Academy-wide first-login orientation tour (`portal/orientation.js`) — separate from and does not satisfy this roadmap's Module 1 orientation-tour item |
+| `archive/completed-feature-notes/ACADEMY_ORIENTATION_SPRINT.md` | Academy-wide first-login orientation tour (`portal/orientation.js`) — separate from and does not satisfy this roadmap's Module 1 orientation-tour item |
 | `soc-analyst-track-reimagining/MODULE1_DAY1_REBUILD_PLAN.md` | Detailed Module 1 implementation specification |
 | `HANDOFF_2026-09-18_FACULTY_GATE.md` | Faculty-gate implementation/UAT and completed Message Instructor evidence |
 
