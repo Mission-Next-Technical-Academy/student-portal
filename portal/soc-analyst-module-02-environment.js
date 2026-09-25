@@ -686,7 +686,7 @@
         <main class="m01-main m02e-main">
           <section class="m01-hero m02e-hero" aria-labelledby="m02e-title"><div>
             <p class="m01-kicker">MODULE 02 · ${esc(module.hours || '')} · Week 1 foundations</p>
-            <h1 id="m02e-title">See how an access decision is made.</h1>
+            <h1 id="m02e-title">Network, Identity & Security Foundations</h1>
             <p class="m01-lede">Trace a connection from identity and device to resource and policy in one console. Authentication confirms identity; authorization decides what that identity may access.</p>
           </div></section>
 
