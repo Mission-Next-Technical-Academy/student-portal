@@ -279,7 +279,7 @@
     // Collapsed guide docks into the console header; expanded, it floats over the workspace.
     const headerTip = guideTipCollapsed ? tip : '';
     const workspaceTip = guideTipCollapsed ? '' : tip;
-    return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console"><header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div>${guideOpen}${headerTip}</header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace">${tip}<div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
+    return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console"><header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div>${guideOpen}${headerTip}</header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace">${workspaceTip}<div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
   }
 
   function renderScope(scope, { animateLearn = false } = {}) {
@@ -395,9 +395,12 @@
   function learnCallout() {
     const step = Math.max(0, Math.min(state.learn.step - 1, LEARN_STEPS.length - 1));
     const done = learnComplete();
-    const visibleSteps = LEARN_STEPS.slice(0, state.learn.step);
-    const stepLines = visibleSteps.map((item, index) => {
-      const isNew = !done && index === state.learn.step - 1;
+    // One idea at a time while stepping through; the full list only returns
+    // as a recap once the walkthrough is complete.
+    const visibleSteps = done ? LEARN_STEPS : state.learn.step ? [LEARN_STEPS[step]] : [];
+    const stepLines = visibleSteps.map((item, i) => {
+      const index = done ? i : step;
+      const isNew = !done;
       const body = isNew
         ? `<span class="m02e-decode-visual" data-m02e-decode-text aria-hidden="true">${esc(item.body)}</span><span class="m02e-sr-only">${esc(item.body)}</span>`
         : esc(item.body);
