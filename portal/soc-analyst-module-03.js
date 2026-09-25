@@ -440,7 +440,6 @@ function moduleThreeSave() {
 function moduleThreeGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm03-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleThreeQuizState?.passed, scrollId: 'm03-knowledge-check' },
     { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleThreeState.practiceComplete, scrollId: 'm03-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleThreeState.completed, scrollId: 'm03-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm03-review' },
@@ -693,9 +692,8 @@ function viewModuleThree(user, program) {
   const module = program.modules['soc-03'];
   const sections = moduleThreeGetSections();
   const lectureOpen = moduleThreeReviewMode || !sections[0].isComplete;
-  const quizOpen = moduleThreeReviewMode || (moduleThreeQuizState && !moduleThreeQuizState.passed);
-  const guidedLabOpen = moduleThreeReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleThreeReviewMode || !sections[3].isComplete;
+  const guidedLabOpen = moduleThreeReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleThreeReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleThreeReviewMode;
   const quickNavItems = moduleThreeGetQuickNavItems();
 
@@ -714,21 +712,11 @@ function viewModuleThree(user, program) {
       </section>
     </details>`;
 
-  const quizSection = `
-    <details class="m03-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
-      <summary class="m03-section-summary">
-        <section class="m03-section" id="m03-knowledge-check" aria-labelledby="m03-quiz-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m03-kicker mf-kicker">Interactive knowledge check</p><h2 id="m03-quiz-title">Test your understanding of SIEM correlation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
-        </section>
-      </summary>
-      <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-quiz-title"><div id="m03-quiz-dynamic">${moduleThreeQuizPanel()}</div></section>
-    </details>`;
-
   const guidedLabSection = `
     <details class="m03-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-guided-lab" aria-labelledby="m03-guided-lab-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m03-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Investigate CASE-MN-428 in the SIEM console</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m03-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Investigate CASE-MN-428 in the SIEM console</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body m03-lab-section" aria-labelledby="m03-guided-lab-title">
@@ -741,7 +729,7 @@ function viewModuleThree(user, program) {
     <details class="m03-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-assessment-lab" aria-labelledby="m03-assessment-lab-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m03-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent SIEM case: CASE-MN-517</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m03-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent SIEM case: CASE-MN-517</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body m03-lab-section" aria-labelledby="m03-assessment-lab-title">
@@ -753,7 +741,7 @@ function viewModuleThree(user, program) {
     <details class="m03-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section" id="m03-review" aria-labelledby="m03-review-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">5</span><div><p class="m03-kicker mf-kicker">Concept recap</p><h2 id="m03-review-title">Module review and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m03-kicker mf-kicker">Concept recap</p><h2 id="m03-review-title">Module review and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-review-title">${moduleThreeReview()}</section>
@@ -782,7 +770,6 @@ function viewModuleThree(user, program) {
       <section class="m03-objective" aria-labelledby="m03-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m03-kicker">One measurable objective</p><h2 id="m03-objective-title">Analyze real-world-style logs and justify a defensible triage decision in your assessment write-up.</h2></div></section>
 
       ${lectureSection}
-      ${quizSection}
       ${guidedLabSection}
       ${assessmentLabSection}
       ${reviewSection}
