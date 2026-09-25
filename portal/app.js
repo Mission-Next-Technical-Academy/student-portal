@@ -7029,18 +7029,6 @@ async function render(options = {}) {
     app.innerHTML = canAccessModule
       ? moduleLab.view(user, program)
       : viewNoAccess(user, program, enrollmentFor(user, program.slug) ? 'module_locked' : 'not_enrolled');
-    // Module 01 already has its richer sequential timeline exercise. The
-    // shared companion makes the same fill-in-the-blank evidence-recall
-    // pattern available in SOC Modules 02–12 without altering their credit
-    // minutes or their existing completion contracts.
-    const isUnlockedSocCapstone = Number(moduleMatch[2]) !== 12
-      || (typeof moduleTwelveUnlocked === 'function' && moduleTwelveUnlocked(user, program));
-    // Module 02 has its own guided console and analyst case record, and Module
-    // 07 has its own evidence desk. The generic fill-in-the-blank recall widget
-    // is neither authentic analyst practice nor a useful duplicate there.
-    if (canAccessModule && program.slug === 'soc-analyst' && Number(moduleMatch[2]) >= 3 && Number(moduleMatch[2]) !== 7 && isUnlockedSocCapstone) {
-      mountSocEvidenceRecall(user, Number(moduleMatch[2]), app);
-    }
   } else if (programMatch) {
     app.innerHTML = viewProgram(user, programMatch[1]);
   } else {
