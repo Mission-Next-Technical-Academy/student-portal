@@ -11,11 +11,14 @@ function App() {
     const suffix = /^soc-(?:0[1-9]|1[0-2])$/.test(moduleKey || '') ? `_${moduleKey}` : '';
     return { id:'learner', username:`guest_learner${suffix}`, role:'student', displayName:'Learner' };
   });
-  const [track, setTrack] = React.useState(null); // splunk | windows-forensics
-  const [view, setView] = React.useState('tracks'); // tracks | dashboard | module
-  const [activeModule, setActiveModule] = React.useState(null);
-  const [activeProjectId, setActiveProjectId] = React.useState(null);
-  const [routeError, setRouteError] = React.useState(null);
+  // Resolve the hash route before the first paint so a direct lab launch
+  // never flashes the "open this lab from the course module" screen.
+  const [initialRoute] = React.useState(() => parseHashRoute());
+  const [track, setTrack] = React.useState(initialRoute.track); // splunk | windows-forensics
+  const [view, setView] = React.useState(initialRoute.view); // tracks | dashboard | module
+  const [activeModule, setActiveModule] = React.useState(initialRoute.module || null);
+  const [activeProjectId, setActiveProjectId] = React.useState(initialRoute.projectId || null);
+  const [routeError, setRouteError] = React.useState(initialRoute.error || null);
 
   React.useEffect(() => {
     function syncFromHash() {
@@ -66,6 +69,17 @@ function App() {
   }
 
   function handleBackFromLab() {
+    // Framed inside the course portal's lab route: the portal owns
+    // navigation, so ask it to return to the launching module.
+    if (window.parent !== window) {
+      try {
+        window.parent.postMessage({ type:'mission-next-lab:exit' }, window.location.origin);
+        return;
+      } catch (_) {
+        // Fall through to the standalone behavior below.
+      }
+    }
+
     // Labs are launched from the course portal in a new tab. Return through
     // that existing window reference instead of carrying a URL inside the
     // lab address bar. This keeps the lab self-contained and avoids exposing

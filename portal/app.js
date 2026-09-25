@@ -4147,13 +4147,61 @@ function moduleTopbarTitle(program, options = {}) {
 
 /* Imported Mission Next projects that extend a module's core Guided and
  * Assessment labs. Module files pass prebuilt same-page launch links. */
+/* Imported Mission Next labs open as a portal route
+ * (#/program/<slug>/module/<n>/lab/<labSlug>) that frames the lab app, so
+ * the address bar stays in the portal and never shows the imported app's
+ * path or its module query. Module files keep authoring the lab app's own
+ * deep link; these helpers translate between the two shapes. */
+const MISSION_NEXT_LAB_APP_BASE = 'imported-labs/mission-next-labs/';
+const MISSION_NEXT_LAB_TRACKS = {
+  sa: 'security-assessments', ma: 'malware-analysis', vm: 'vulnerability-management',
+  wf: 'windows-forensics', ad: 'active-directory', lap: 'log-analysis',
+};
+
+function missionNextLabSlugFromHref(href) {
+  const match = String(href || '').match(/imported-labs\/mission-next-labs\/(?:index\.html)?#\/track\/[a-z-]+\/(?:project\/([a-z0-9-]+)\/lab|module\/([a-z0-9-]+))$/i);
+  return match ? (match[1] || match[2]) : null;
+}
+
+function missionNextLabAppRoute(labSlug) {
+  if (/^[a-z0-9-]+-log-analysis$/.test(labSlug)) return `#/track/splunk/module/${labSlug}`;
+  const match = String(labSlug || '').match(/^([a-z]+)-\d+$/);
+  const track = match && MISSION_NEXT_LAB_TRACKS[match[1]];
+  return track ? `#/track/${track}/project/${labSlug}/lab` : null;
+}
+
+function missionNextLabPortalHref(moduleNumber, href) {
+  const labSlug = missionNextLabSlugFromHref(href);
+  const programMatch = typeof location !== 'undefined' && location.hash.match(/^#\/program\/([a-z0-9-]+)/);
+  if (!labSlug || !programMatch || !missionNextLabAppRoute(labSlug)) return href;
+  return `#/program/${programMatch[1]}/module/${Number(moduleNumber)}/lab/${labSlug}`;
+}
+
+function viewMissionNextLab(user, program, moduleLab, labSlug) {
+  const moduleNumber = Number(moduleLab.moduleNumber);
+  const moduleHref = `#/program/${program.slug}/module/${moduleNumber}`;
+  const src = `${MISSION_NEXT_LAB_APP_BASE}?mntModule=${encodeURIComponent(moduleLab.moduleKey)}&embed=1${missionNextLabAppRoute(labSlug)}`;
+  return `<div class="mn-lab-view">
+    ${moduleTopbar(user, program, { backHref: moduleHref, backLabel: `Back to Module ${String(moduleNumber).padStart(2, '0')}` })}
+    <iframe class="mn-lab-frame" src="${esc(src)}" title="Mission Next lab" data-mn-lab-frame></iframe>
+  </div>`;
+}
+
+/* The framed lab's own Back/exit control asks the portal to return to the
+ * module that launched it. Same-origin only. */
+window.addEventListener('message', (event) => {
+  if (event.origin !== location.origin || event.data?.type !== 'mission-next-lab:exit') return;
+  const labRoute = location.hash.match(/^(#\/program\/[a-z0-9-]+\/module\/\d+)\/lab\//);
+  if (labRoute) location.hash = labRoute[1];
+});
+
 function missionNextAdditionalLabsSection(moduleNumber, links) {
   const items = Array.isArray(links) ? links : [];
   if (!items.length) return '';
   return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-${moduleNumber}">
     <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-${moduleNumber}">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
     <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Complete them for credit alongside the Guided Lab and Assessment Lab.</p>
-    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(item.href)}" target="_blank" rel="opener"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Required lab project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
+    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(missionNextLabPortalHref(moduleNumber, item.href))}"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Required lab project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
   </section>`;
 }
 
@@ -4209,15 +4257,7 @@ function missionNextLabLaunchCard(moduleNumber, opts) {
   const { kind = 'guided', index = 1, total = 1, title, detail, href, labId, progress, requireNote, verified } = opts || {};
   if (!href || !title) return '';
   const label = missionNextLabLaunchLabel(kind, index, total);
-  let launchHref = href;
-  if (typeof location !== 'undefined' && /program\/soc-analyst/i.test(location.hash)
-      && /imported-labs\/mission-next-labs/i.test(href)) {
-    try {
-      const url = new URL(href, location.href);
-      url.searchParams.set('mntModule', `soc-${String(moduleNumber).padStart(2, '0')}`);
-      launchHref = `${url.pathname}${url.search}${url.hash}`;
-    } catch (_) { /* keep the original link */ }
-  }
+  const launchHref = missionNextLabPortalHref(moduleNumber, href);
   const entry = labId ? (progress || { complete: false, note: '' }) : null;
   // Verified labs have no manual toggle: the student completes the lab by
   // finishing its steps, and the card only reports that status.
@@ -6902,6 +6942,8 @@ async function render(options = {}) {
     return;
   }
 
+  const labMatch = hash.match(/^#\/program\/([a-z0-9-]+)\/module\/(\d+)\/lab\/([a-z0-9-]+)$/);
+  const labModule = labMatch && missionNextLabAppRoute(labMatch[3]) ? moduleLabFor(labMatch[1], labMatch[2]) : null;
   const moduleMatch = hash.match(/^#\/program\/([a-z0-9-]+)\/module\/(\d+)$/);
   const programMatch = hash.match(/^#\/program\/([a-z0-9-]+)/);
   const moduleLab = moduleMatch ? moduleLabFor(moduleMatch[1], moduleMatch[2]) : null;
@@ -6909,7 +6951,12 @@ async function render(options = {}) {
   // has no interactive surface built yet, so it falls through to the program
   // overview the same way it always did.
   if (!completeRouteLoading(renderGeneration)) return;
-  if (moduleLab) {
+  if (labModule) {
+    const program = PROGRAMS.find((item) => item.slug === labMatch[1]);
+    app.innerHTML = hasModuleAccess(user, program.slug, labModule.moduleKey)
+      ? viewMissionNextLab(user, program, labModule, labMatch[3])
+      : viewNoAccess(user, program, enrollmentFor(user, program.slug) ? 'module_locked' : 'not_enrolled');
+  } else if (moduleLab) {
     const program = PROGRAMS.find((item) => item.slug === moduleMatch[1]);
     const canAccessModule = hasModuleAccess(user, program.slug, moduleLab.moduleKey);
     app.innerHTML = canAccessModule

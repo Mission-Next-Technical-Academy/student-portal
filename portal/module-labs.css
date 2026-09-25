@@ -934,3 +934,8 @@ main[class*="m1"] > details[class*="section-collapsible"][open] > summary::after
 @media (max-width: 640px) {
   .m01cc-log-table { display: block; overflow-x: auto; }
 }
+
+/* Framed imported lab (#/program/<slug>/module/<n>/lab/<labSlug>) */
+.mn-lab-view { display: flex; flex-direction: column; height: 100vh; height: 100dvh; background: #0b1220; }
+.mn-lab-view > header { flex: 0 0 auto; }
+.mn-lab-frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; display: block; background: #0b1220; }
