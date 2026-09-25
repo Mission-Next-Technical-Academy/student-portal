@@ -275,8 +275,11 @@
     const item = guideStep >= 0 ? consoleGuideItem() : null;
     const tip = guideStep >= 0 ? `<aside class="m02e-learn-tip${guideDone ? ' is-complete' : ''}${guideTipCollapsed ? ' is-collapsed' : ''}" id="m02e-learn-tip" aria-labelledby="m02e-guide-title"><div class="m02e-tip-head"><span class="m02e-label">${guideDone ? 'CONSOLE GUIDE · COMPLETE' : `CONSOLE GUIDE · STEP ${guideStep + 1} OF ${CONSOLE_GUIDE_STEPS.length}`}</span><button class="m02e-tip-toggle" type="button" data-m02e-guide-collapse aria-expanded="${guideTipCollapsed ? 'false' : 'true'}" aria-controls="m02e-tip-body" title="${guideTipCollapsed ? 'Show guide' : 'Move guide out of the way'}"><i class="ri-arrow-down-s-line" aria-hidden="true"></i><span class="m02e-sr-only">${guideTipCollapsed ? 'Show guide' : 'Move guide out of the way'}</span></button></div><div class="m02e-tip-body" id="m02e-tip-body"><h3 id="m02e-guide-title">${esc(item.title)}</h3>${guideDone ? '<p>You can keep exploring the console, or revisit the explanations from the main Learn It card.</p>' : `<p>${esc(item.body)}</p><p class="m02e-guide-look"><strong>Look for:</strong> ${esc(item.lookFor)}</p><p class="m02e-guide-lab"><strong>Lab connection:</strong> ${esc(item.lab)}</p>`}<button class="m02e-guide-next" type="button" data-m02e-guide-next>${guideDone ? 'Restart console guide' : guideStep === CONSOLE_GUIDE_STEPS.length - 1 ? 'Finish guide' : 'Next explanation'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></div></aside>` : '';
     const guideAvailable = state.learn.guideUnlocked || learnComplete() || state.learn.guideCompleted;
-    const guideOpen = scope === 'learn' && guideStep < 0 ? `<button class="m02e-guide-open" type="button" data-m02e-guide-open${guideAvailable ? '' : ' disabled'}>${guideAvailable ? 'Open console guide' : 'Finish six ideas to open guide'}</button>` : '';
-    return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console"><header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div>${guideOpen}</header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace">${tip}<div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
+    const guideOpen = scope === 'learn' && guideStep < 0 ? `<button class="m02e-guide-open" type="button" data-m02e-guide-open${guideAvailable ? '' : ' disabled'}><i class="${guideAvailable ? 'ri-play-circle-fill' : 'ri-lock-line'}" aria-hidden="true"></i>${guideAvailable ? 'Start console guide' : 'Finish six ideas to start guide'}</button>` : '';
+    // Collapsed guide docks into the console header; expanded, it floats over the workspace.
+    const headerTip = guideTipCollapsed ? tip : '';
+    const workspaceTip = guideTipCollapsed ? '' : tip;
+    return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console"><header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div>${guideOpen}${headerTip}</header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace">${tip}<div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
   }
 
   function renderScope(scope, { animateLearn = false } = {}) {
@@ -434,6 +437,13 @@
   function positionLearnTip() {
     const tip = document.getElementById('m02e-learn-tip');
     if (!tip) return;
+    if (tip.closest('header')) {
+      tip.style.top = '';
+      tip.style.left = '';
+      tip.classList.remove('points-down');
+      tip.classList.add('is-visible');
+      return;
+    }
     const workspace = tip.closest('.m02e-workspace');
     const target = workspace?.querySelector('.m02e-view .is-selected');
     if (!workspace) return;
@@ -610,19 +620,13 @@
       if (button.hasAttribute('data-m02e-guide-open')) {
         if (!state.learn.guideUnlocked && !learnComplete() && !state.learn.guideCompleted) return;
         state.learn.guideStep = 0;
+        guideTipCollapsed = false;
         applyGuideFocus(); save(); renderScope('learn'); return;
       }
       if (button.hasAttribute('data-m02e-guide-collapse')) {
         guideTipCollapsed = !guideTipCollapsed;
-        const tip = document.getElementById('m02e-learn-tip');
-        if (tip) {
-          tip.classList.toggle('is-collapsed', guideTipCollapsed);
-          const label = guideTipCollapsed ? 'Show guide' : 'Move guide out of the way';
-          button.setAttribute('aria-expanded', String(!guideTipCollapsed));
-          button.title = label;
-          const sr = button.querySelector('.m02e-sr-only');
-          if (sr) sr.textContent = label;
-        }
+        renderScope('learn');
+        document.querySelector('#m02e-learn-tip [data-m02e-guide-collapse]')?.focus();
         return;
       }
       if (button.hasAttribute('data-m02e-guide-next')) {
