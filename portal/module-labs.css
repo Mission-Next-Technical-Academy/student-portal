@@ -897,14 +897,14 @@ main[class*="m1"] > details[class*="section-collapsible"][open] > summary::after
   .m01-console-pane { border-right: 0; border-bottom: 1px solid #e2e8f0; }
 }
 
-/* LMS-side status card for the launch card (MODULE_01_CASE_CONSOLE_SPEC.md
+/* LMS-side status card for the launch card (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md
    §2) — replaces the console that used to be embedded on this page. */
 .m01-lab-status-row { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; padding: 11px 14px; border-radius: 10px; font-size: 13px; }
 .m01-lab-status-row.is-not-started { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
 .m01-lab-status-row.is-in-progress { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
 .m01-lab-status-row.is-complete { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
 
-/* Module 1's full-bleed case console page (MODULE_01_CASE_CONSOLE_SPEC.md
+/* Module 1's full-bleed case console page (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md
    §2) — opened by the launch card in a new tab. No moduleTopbar/nav: the
    goal is a work application, not another LMS page. */
 .m01cc-shell { min-height: 100vh; background: #eef2f7; display: flex; flex-direction: column; }
@@ -950,7 +950,7 @@ main[class*="m1"] > details[class*="section-collapsible"][open] > summary::after
 .mn-lab-view > header { flex: 0 0 auto; }
 .mn-lab-frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; display: block; background: #0b1220; }
 
-/* ── Standard Console Guide (MODULE_STANDARD.md §7.3) ─────────────────────
+/* ── Standard Console Guide (docs/specs/MODULE_STANDARD.md §7.3) ─────────────────────
  * Reference: Module 02 Learn It console. Rendered by portal/console-guide.js.
  * Class names keep their original m02e- prefix; do not restyle per module. */
 .m02e-label{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#f97316;margin:0}

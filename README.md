@@ -94,8 +94,8 @@ range. Do not leak future evidence, full navigation, or the capstone storyline
 into an earlier module.
 
 All 12 module routes are implemented. The shared lab contract is in
-`MODULE_STANDARD.md`. Start active work from `ROADMAP.md`; it defines the
-single delivery order, Module 1 direction, and CI/CD path. `HANDOFF.md`
+`docs/specs/MODULE_STANDARD.md`. Start active work from `ROADMAP.md`; it defines the
+single delivery order, Module 1 direction, and CI/CD path. `docs/handoffs/HANDOFF.md`
 retains concise evidence for the active work item.
 
 > **Important — lab and assessment development:** Before changing Learn It,
@@ -114,14 +114,14 @@ single-origin site and publishes it to GitHub Pages. No manual deploy step.
 
 | File | What it covers |
 |---|---|
-| `MODULE_STANDARD.md` | The shape every module object must carry |
+| `docs/specs/MODULE_STANDARD.md` | The shape every module object must carry |
 | `docs/MNT_DESIGN_TOKENS.md` | Colors, type, and components taken from the live site |
 | `archive/session-logs/LATEST_PROGRESS.md` | Current status and project direction |
 | `ROADMAP.md` | Canonical delivery order, Module 1 direction, and CI/CD workflow |
-| `HANDOFF.md` | Evidence for the active roadmap item; historical logs are in `archive/session-logs/` |
-| `NEXT_SESSION.md` | Compatibility pointer to the roadmap, not a second task queue |
-| `PROJECT_GUIDE_FOR_AI.md` | Orientation for AI agents working in this repo |
-| `OPERATIONS.md` | Live data control plane, test-account cleanup, and cohort retention |
+| `docs/handoffs/HANDOFF.md` | Evidence for the active roadmap item; historical logs are in `archive/session-logs/` |
+| `docs/handoffs/NEXT_SESSION.md` | Compatibility pointer to the roadmap, not a second task queue |
+| `docs/operations/PROJECT_GUIDE_FOR_AI.md` | Orientation for AI agents working in this repo |
+| `docs/operations/OPERATIONS.md` | Live data control plane, test-account cleanup, and cohort retention |
 | `docs/LAB_ASSESSMENT_STANDARD.md` | Required architecture and review standard for labs and Prove It assessments |
 
 Legacy SC-200 files (`SC200_LAB.md`, `ExamObjectives.md`, `COVERAGE_SWEEP.md`,

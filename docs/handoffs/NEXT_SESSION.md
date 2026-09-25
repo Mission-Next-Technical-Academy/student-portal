@@ -1,7 +1,7 @@
 **2026-09-23 (lab-wiring session, out-of-queue, not a `ROADMAP.md` item):**
 if you are touching anything related to Mission Next / imported labs / the
 Guided Lab / Assessment Lab wiring for Modules 2–11, read
-`HANDOFF_2026-09-23_MISSION_NEXT_LAB_WIRING.md` FIRST. It supersedes every
+`docs/handoffs/HANDOFF_2026-09-23_MISSION_NEXT_LAB_WIRING.md` FIRST. It supersedes every
 other Mission Next/lab-migration doc in this repo. The previously reported
 lab-launch crash and login-redirect-on-exit bug are fixed there; re-run the
 imported-app smoke checks before student release.
@@ -15,7 +15,7 @@ superseded Module 1 directions.
 
 **2026-09-21:** `archive/historical-plans/HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` scoped a
 masked-input, read-the-real-log evidence mechanic for ALT-1001. **Superseded
-later the same day** by `MODULE_01_CASE_CONSOLE_SPEC.md`'s simpler,
+later the same day** by `docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md`'s simpler,
 now-shipped mechanic: click a real log row, it expands a raw structured
 record. That satisfies the same underlying ask (real evidence reading, not
 instant-click review) without the masked-input form — don't build that form
@@ -24,11 +24,11 @@ on top of this; it would be redundant.
 **2026-09-21, same day, superseded again:** roadmap item 1 (orientation
 tour) was fixed for reachability, which surfaced that `1add6d6`'s move of
 Prove It off the simulator looked like an unresolved discrepancy. It
-wasn't — `MODULE_01_CASE_CONSOLE_SPEC.md` landed the same day and confirms
+wasn't — `docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md` landed the same day and confirms
 that pivot was correct: **Module 1 does not use the full SOC range at all,
 for either Practice It or Prove It.** Read that spec first, then
 `ROADMAP.md`'s "Locked Module 1 sequence" (corrected in place) and
-`HANDOFF.md`'s "Module 1 case console — Practice It built" entry.
+`docs/handoffs/HANDOFF.md`'s "Module 1 case console — Practice It built" entry.
 
 **Done, same day:** Prove It (`viewModuleOneProveItCaseConsole()`, NST-2407)
 was ported to the same `?console=prove`-driven, new-tab case-console
@@ -56,7 +56,7 @@ reversal of an accidental return.
 fully detached "Reference" nav panel (own card, real gap, never touching
 the graded-phase menu) rolled out to every module across SOC Analyst,
 IT Support, and AI-ML that has reference content — not just Module 1. See
-`HANDOFF.md`'s "Sources & Further Reading — detached 'Reference' panel,
+`docs/handoffs/HANDOFF.md`'s "Sources & Further Reading — detached 'Reference' panel,
 platform-wide" entry. IT Support had no references content at all before
 this; real citations were written per module. Excluded: SOC 12 (capstone)
 and the still-unauthored Electrical track.
@@ -64,7 +64,7 @@ and the still-unauthored Electrical track.
 Module 1 begins with the required LMS orientation tour, reachable from the
 module's hero section and live-verified in Chrome. It is followed by
 Practice It and Prove It, both worked in Module 1's own focused case console
-(not the full SOC range) per `MODULE_01_CASE_CONSOLE_SPEC.md` — both built
+(not the full SOC range) per `docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md` — both built
 and live-verified.
 
 ---
@@ -240,7 +240,7 @@ Module 1 now launches `NST-2407` directly in the simulator. Changed files:
 - `ui/data.js` and `ui/views.js` — added and identified the assigned
   simulator case;
 - `portal/data.js` — reframed Lab 2 as simulator-first;
-- `archive/module-enhancement-records/MODULE_01_ENHANCEMENT_BRIEF.md` and `ASSESSMENT_REPORTING_SPEC.md` —
+- `archive/module-enhancement-records/MODULE_01_ENHANCEMENT_BRIEF.md` and `docs/specs/ASSESSMENT_REPORTING_SPEC.md` —
   contain the approved assessment and faculty-review model.
 
 **Implementation now in the working tree (2026-09-18, not yet committed):**
@@ -260,7 +260,7 @@ The migration was deliberately written but not deployed in this session.
 
 ## New workstream queued for a fresh session (owner: run via Codex)
 
-`module-completion-integrity/BRIEF.md` — spec only, NOT STARTED. Modules
+`docs/workstreams/module-completion-integrity/BRIEF.md` — spec only, NOT STARTED. Modules
 2-12 trust the coarse `module_progress.state === 'complete'` flag directly
 in `moduleCompletion()`; only Module 1 requires the stricter per-field
 detail-beacon corroboration it was given 2026-09-16. Same class of bug,
@@ -350,7 +350,7 @@ A separate session (browser-available) did a module UX pass, all pushed to
 2. Live-testing modules beyond Module 1 is still blocked on every other
    SOC training account (`4437023872`, `9334491415`, `5520852787`) by the
    pre-existing Module 1 completion-beacon gap (see
-   `lab-grading-notification-system/STATE.md`'s last section for the exact
+   `docs/workstreams/lab-grading-notification-system/STATE.md`'s last section for the exact
    backfill values) — this is the same permission-blocked admin batch
    write flagged before, not new. Until it's resolved, a full live
    walkthrough of the new rail on modules 2-12, and the still-outstanding
@@ -359,7 +359,7 @@ A separate session (browser-available) did a module UX pass, all pushed to
 
 ## Active workstream: SOC Analyst track reimagining
 
-Read `soc-analyst-track-reimagining/STATE.md`, then `REBUILD_PLAN.md`.
+Read `docs/workstreams/soc-analyst-track-reimagining/STATE.md`, then `REBUILD_PLAN.md`.
 
 The next implementation candidate is **Arc A (Modules 02 → 03)**. It needs
 content reconciliation—not just linking copy—so the identity and

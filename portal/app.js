@@ -13,7 +13,7 @@ const STUDENT_EMAIL_DOMAIN = '@missionnext.example';
 
 /* Mirrors bin/provision-students.js's TRACKCODE map. The old per-student
  * `enrollments`/`programs` tables were dropped by
- * supabase/migrations/20260828160000_simplify_schema.sql (architecture.md
+ * supabase/migrations/20260828160000_simplify_schema.sql (docs/specs/architecture.md
  * Sprint 1) in favor of a single `track_code` column on `students` — access is
  * now derived from that column instead of joined from the dropped tables. */
 const TRACK_CODE_TO_PROGRAM_SLUG = {
@@ -137,7 +137,7 @@ async function buildCoreUserFromSession(session) {
     // 20260920100000_academy_orientation_state.sql migration.
     academyOrientationCompletedAt: studentRow ? studentRow.academy_orientation_completed_at : null,
     enrollments,
-    // userId/trackCode: added for the module_progress write path (architecture.md
+    // userId/trackCode: added for the module_progress write path (docs/specs/architecture.md
     // §3 Sprint 2). Both come from the studentRow query above, already run for
     // every session — nothing extra is fetched, and it rides the same
     // _cachedUser caching as everything else on this object.
@@ -189,7 +189,7 @@ async function fetchUserDetails(userId, trackCode) {
     mntSupabase.from('student_verified_module_progress').select('module_key, complete').eq('track_code', trackCode),
     mntSupabase.from('module_completion_evidence').select('module_key, evidence_key').eq('track_code', trackCode),
     // Lab Grading & Notification System, Sprint 2 (see
-    // lab-grading-notification-system/STATE.md): a student's own open redos,
+    // docs/workstreams/lab-grading-notification-system/STATE.md): a student's own open redos,
     // keyed by module so moduleCard() can show the banner on the right card
     // with zero per-module-file changes. "Open" = this lab's single most
     // recent attempt (recordLabAttempt() never upserts — every attempt is a
@@ -954,7 +954,7 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
   // Card grows from a single row to a two-row layout only when there's a
   // notification to show — cards with nothing pending keep the original
   // compact layout. (2026-09-13: the original single-line px-3 py-2.5 tile
-  // had no room for this at all — see lab-grading-notification-system/
+  // had no room for this at all — see docs/workstreams/lab-grading-notification-system/
   // 00_SCAN_AND_GAP_COMPARISON.md.)
   // No eyebrow label here anymore (2026-09-13): every card previously
   // repeated the literal word "Administration" — pure redundancy, since the
@@ -997,7 +997,7 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
  * the specific "what to do differently" by hand, per flagged item, at their
  * discretion (owner's framing, 2026-09-13). Sending back always requests a
  * full resubmission of the lab attempt, not a per-field patch. See
- * lab-grading-notification-system/ for the brief and schema decisions. */
+ * docs/workstreams/lab-grading-notification-system/ for the brief and schema decisions. */
 function adminGradingQueuePanel(gradingQueueRows, openLabRedoRows = []) {
   const pendingRows = gradingQueueRows || [];
   const redoRows = openLabRedoRows || [];
@@ -1277,13 +1277,13 @@ function academicStatusLabel(status) {
 /* ------------------------------------------- G1: data-backed compliance */
 /* Replaces the old adminReportingRequirements(), which was a static array
  * that returned the same seven hard-coded statuses regardless of what data
- * actually exists (ASSESSMENT_REPORTING_SPEC.md §1c). This inspects the
+ * actually exists (docs/specs/ASSESSMENT_REPORTING_SPEC.md §1c). This inspects the
  * cohort rows actually passed in and the known state of the schema/code to
  * decide each status, so a future migration/feature landing (Agents 5-7)
  * naturally upgrades a requirement's status once the underlying field is
  * really there — nothing here needs to be hand-flipped back to "covered."
  *
- * Returns one entry per Reportingrequirements.txt requirement:
+ * Returns one entry per docs/compliance/Reportingrequirements.txt requirement:
  * { id, requirement, status: covered|partial|missing|not_applicable|unknown,
  *   requiredFields, availableFields, missingFields, sourceTables, note,
  *   lastChecked }. `context.queryError` marks every requirement `unknown`
@@ -2235,7 +2235,7 @@ async function renderCohortPdf(cohortData, reportId) {
     // ---- Student-to-program linkage detail: a second, compact table so the
     // "Student-to-program linkage" compliance verdict above has visible
     // backing evidence in the document itself, not just an unverifiable
-    // covered/partial badge (audit finding, NEXT_SESSION.md 2026-08-31). ----
+    // covered/partial badge (audit finding, docs/handoffs/NEXT_SESSION.md 2026-08-31). ----
     cursorY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : cursorY) + 20;
     cursorY = ensureSpace(doc, cursorY, 60);
     doc.setFont('helvetica', 'bold');
@@ -3252,7 +3252,7 @@ function computeCapstoneRecord(program, labAttemptRows, capstoneSubmissionRows, 
  * raw students-row read instead of the admin_student_progress view (a
  * student reading their own record can't use that view — it's admin-gated).
  * Two independent implementations of the same precedence logic is a known
- * consistency risk (ASSESSMENT_REPORTING_SPEC.md §1b row 1.6); keeping both
+ * consistency risk (docs/specs/ASSESSMENT_REPORTING_SPEC.md §1b row 1.6); keeping both
  * versions' precedence order textually identical is the mitigation until
  * the view becomes readable from both sides. */
 function deriveStudentEnrollmentStatus(studentRow, moduleScores) {
@@ -3294,14 +3294,14 @@ function deriveStudentEnrollmentStatus(studentRow, moduleScores) {
  *     HAVE a score (a real average of grades, independent of how many
  *     modules a student has even attempted yet)
  *   - moduleGrades: per-module Pass/Fail/Not attempted against the 70%
- *     threshold (ASSESSMENT_REPORTING_SPEC.md §2) — a grade, not a percent
+ *     threshold (docs/specs/ASSESSMENT_REPORTING_SPEC.md §2) — a grade, not a percent
  *   - capstoneOutcome: capstoneRecord.status, already its own field
  *   - programCompletionAssessment (D2): a proper multi-condition object —
  *     required modules, required labs, required assessments passed, capstone
  *     passed, zero critical errors, PLUS required-hours and evaluator-
  *     approval recorded as "not available" rather than silently skipped or
  *     fabricated as true, since no data source exists for either yet
- *     (COMPLIANCE_DECISIONS_NEEDED.md Decisions 1 & 2 — Agents 6/7). This
+ *     (docs/compliance/COMPLIANCE_DECISIONS_NEEDED.md Decisions 1 & 2 — Agents 6/7). This
  *     status is therefore never a claim of official CIE program completion,
  *     only of what this system can currently verify. */
 function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, hourRecord) {
@@ -3347,7 +3347,7 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
     progressPercentage: Number(progressPercentage.toFixed(1)),
     academicAverage: academicAverage === null ? null : Number(academicAverage.toFixed(1)),
     moduleGrades,
-    gradeScale: `${passingThreshold}/100 passing threshold per module (ASSESSMENT_REPORTING_SPEC.md §2)`,
+    gradeScale: `${passingThreshold}/100 passing threshold per module (docs/specs/ASSESSMENT_REPORTING_SPEC.md §2)`,
     capstoneOutcome: capstoneRecord.status,
     programCompletionAssessment: {
       status: verifiableConditionsMet ? 'all_currently_verifiable_conditions_met' : 'incomplete',
@@ -3642,7 +3642,7 @@ async function downloadStudentSnapshot(studentId, identity) {
 
 /* ---------------------------------------------- module_progress (Supabase) */
 /* Additive write path alongside the localStorage engagement tracking above
- * (architecture.md §3 Sprint 2). localStorage stays the source of truth the
+ * (docs/specs/architecture.md §3 Sprint 2). localStorage stays the source of truth the
  * UI reads synchronously — these calls persist the same signal to
  * module_progress so course_progress/admin_student_progress have real data.
  * Fire-and-forget: never awaited by a caller, never blocks navigation.
@@ -3787,7 +3787,7 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
   saveModuleEngagement(user, engagement);
 
   // moduleCompletion() is the derived-completion read (defined below); this is
-  // the "did this call just flip it to complete" check architecture.md §3
+  // the "did this call just flip it to complete" check docs/specs/architecture.md §3
   // calls for. It re-reads engagement from localStorage, so it sees the save
   // above. Only checked when completing a lab — clearing one (completed ===
   // false) can never newly complete a module.
@@ -3801,12 +3801,12 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
 }
 
 /* ------------------------------------------------------------ lab_attempts (Supabase) */
-/* architecture.md §3 Sprint 3: "wire what already computes a result" half only
+/* docs/specs/architecture.md §3 Sprint 3: "wire what already computes a result" half only
  * — every module (01-12) already grades its own in-page artifact with a
  * moduleXScore()-shaped function (score/breakdown/feedback) and a passing
  * threshold; this just persists that already-computed result. Deliberately
  * NOT the simulator->portal postMessage contract (ui/mnt-lab-harness.js) —
- * that is flagged in architecture.md as separate, unscoped work.
+ * that is flagged in docs/specs/architecture.md as separate, unscoped work.
  *
  * lab_attempts has no one-row-per-lab uniqueness constraint (append-only, one
  * row per attempt — see supabase/migrations/20260828160000_simplify_schema.sql),
@@ -3870,7 +3870,7 @@ function persistPortfolioArtifact(user, { moduleKey, labKey, kind, title, conten
 }
 
 /* --------------------------------------------------------- capstone_submissions (Supabase) */
-/* architecture.md §3 Sprint 4, scope confirmed against CURRICULUM_ALIGNMENT_ARCHITECTURE.md
+/* docs/specs/architecture.md §3 Sprint 4, scope confirmed against docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md
  * §5 ("12 stages remain one Prove assessment"): there is no 12-stage capstone
  * flow, and none is being built here. Module 12 (portal/soc-analyst-module-12.js) IS the
  * capstone, graded once by its own moduleTwelveScore(). `stage` in the schema
@@ -3926,7 +3926,7 @@ function recordCapstoneSubmission(user, { score, answers = {}, criticalErrorCoun
 }
 
 // An instructor-requested redo keeps the module incomplete until the learner
-// resubmits; see lab-grading-notification-system/STATE.md.
+// resubmits; see docs/workstreams/lab-grading-notification-system/STATE.md.
 function moduleCompletion(program, moduleKey, user) {
   const module = program.modules[moduleKey];
   const fixtureState = (user.progress || {})[moduleKey] || 'not_started';
@@ -3974,7 +3974,7 @@ function programProgress(user, program) {
 }
 
 /* A track is openable once its 12-module skeleton exists — all four tracks now
- * carry one (MODULE_STANDARD.md). Publication is a separate flag: an unpublished
+ * carry one (docs/specs/MODULE_STANDARD.md). Publication is a separate flag: an unpublished
  * track shows its standardized outline with each module marked as in
  * development, rather than pretending the lessons are ready. */
 function isBuilt(program) {
@@ -4634,7 +4634,7 @@ function moduleQuickNavRail(items, state = {}) {
  *
  * Reference implementation only — built and verified on Module 01. Not yet
  * rolled out to modules 2-12 or other tracks; see
- * module-completion-integrity/BRIEF.md's sibling rollout doc before
+ * docs/workstreams/module-completion-integrity/BRIEF.md's sibling rollout doc before
  * replicating (that doc is completion-logic, not this nav — a matching nav
  * rollout doc should point here the same way).
  *
@@ -5204,8 +5204,8 @@ function moduleCard(program, key, user) {
 
           ${
             // Curriculum/compliance review status for this parent mapping is
-            // tracked in CURRICULUM_ALIGNMENT_ARCHITECTURE.md and
-            // CURRICULUM_MAP.md, not surfaced to students here.
+            // tracked in docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md and
+            // docs/specs/CURRICULUM_MAP.md, not surfaced to students here.
             parentRecords.length
               ? `<p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Technical Parent Mapping</p>
                  <div class="flex flex-col gap-2 mb-6">
@@ -5310,7 +5310,7 @@ function viewProgram(user, slug) {
   // Inline onclick handlers in the rendered HTML lose the lexical `user`/
   // `program` closures once innerHTML is set, so the export button reaches
   // them via these globals instead — set on every render, read only by
-  // exportStudentRecord() at click time (Sprint F, architecture.md).
+  // exportStudentRecord() at click time (Sprint F, docs/specs/architecture.md).
   window.__mntCurrentUser = user;
   window.__mntCurrentProgram = program;
   // The lab catalogue is per-track. Tracks whose labs are not authored yet get
@@ -5355,7 +5355,7 @@ function viewProgram(user, slug) {
 
         <!-- Curriculum/compliance review status (developer-mapped, pending
              comparison against the controlling Form 301) is tracked in
-             CURRICULUM_ALIGNMENT_ARCHITECTURE.md and CURRICULUM_MAP.md, not
+             docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md and docs/specs/CURRICULUM_MAP.md, not
              shown to students on this page. -->
 
         ${
@@ -5680,7 +5680,7 @@ function viewNotFound(user) {
 // app.innerHTML rebuilds render() does on every admin data refresh (enrollment
 // toggle, planning-record save, re-poll) — a DOM/element-local variable would
 // reset to the default sort on every one of those, same class of bug as the
-// pre-existing track-filter/hide-not-started reset weakness (NEXT_SESSION.md
+// pre-existing track-filter/hide-not-started reset weakness (docs/handoffs/NEXT_SESSION.md
 // 2026-08-31 sortable-columns sprint). null key = default modules_complete/
 // last_active sort (unchanged from before this feature existed).
 let adminTableSort = { key: null, dir: 1 };
@@ -5728,7 +5728,7 @@ function resetAdminLazyTabData() {
 }
 
 /* ------------------------------------------------- completion-speed review flags */
-/* Bug-bounty finding, 2026-09-01 (NEXT_SESSION.md, supabase/migrations/
+/* Bug-bounty finding, 2026-09-01 (docs/handoffs/NEXT_SESSION.md, supabase/migrations/
  * 20260901103000_completion_integrity_guards.sql): that migration's guard
  * trigger stops a student from marking a module complete with zero recorded
  * lab work, but it can't prove a *specific* completed lab attempt belongs to
@@ -8791,7 +8791,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
 
 /* module_key only resolves within its own program's catalogue (see PROGRAMS
  * in portal/data.js), so the student's track_code is required to look it up
- * — mirrors the join CURRICULUM_MAP.md documents against the same catalogue. */
+ * — mirrors the join docs/specs/CURRICULUM_MAP.md documents against the same catalogue. */
 function adminModuleLabel(trackCode, moduleKey) {
   const slug = TRACK_CODE_TO_PROGRAM_SLUG[trackCode];
   const program = PROGRAMS.find((p) => p.slug === slug);

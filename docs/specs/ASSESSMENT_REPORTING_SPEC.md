@@ -1,10 +1,10 @@
 # Assessment & CIE Reporting Specification
 
-Status: living gap doc. Maps `Reportingrequirements.txt` (CIE minimum LMS
+Status: living gap doc. Maps `docs/compliance/Reportingrequirements.txt` (CIE minimum LMS
 requirements) against what the LMS actually captures today, and defines the
 per-module assessment format so "grade," "assessment result," and "passing
 score" mean the same specific thing everywhere they're used — in code, in
-`CURRICULUM_ALIGNMENT_ARCHITECTURE.md`, and in any future CIE-facing export.
+`docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md`, and in any future CIE-facing export.
 
 > **Required architecture standard:** Before changing any assessment/reporting
 > behavior, read `docs/LAB_ASSESSMENT_STANDARD.md`. It governs Prove It
@@ -23,7 +23,7 @@ missing, not silently assumed to exist.
 
 ### 1a. Summary table (requirement-level — see 1b for field-level detail)
 
-| # | CIE requirement (`Reportingrequirements.txt`) | Current state | Gap |
+| # | CIE requirement (`docs/compliance/Reportingrequirements.txt`) | Current state | Gap |
 |---|---|---|---|
 | 1 | Student-to-program linkage (id, name, program, enrollment/start/completion dates, academic status) | `students` table has `student_id`/`track_code`; no name field (accounts are anonymized training IDs by design). Enrollment dates/status are modeled by written local migrations, and credential/program-version fields are modeled by `20260829125000_enrollment_reporting_history.sql`, but those migrations remain unapplied until authorized. The admin planning UI can call the new planning RPC after deployment. | **Partial** — schema and UI hooks exist for several fields, but live deployment/population and an approved student-name source are still required. |
 | 2 | Approved clock hours + attendance | Required program hours are defined per track. The approved fixed-credit model is written in `20260829130000_fixed_credit_hours.sql`, and `buildTranscriptData()`/`computeFixedCreditHours()` render attempted/credited hours when `student_course_hour_awards` is available. The app still does not infer attendance from browser activity or `last_active`. | **Partial** — fixed-credit schema/code is written, but deployment/population and any separate observed-attendance policy remain outside the current live app. |
@@ -39,7 +39,7 @@ missing, not silently assumed to exist.
 
 Legend: **Present** = real column/table exists and is read by the relevant function. **Partial** = exists in some form but incomplete, unsurfaced, or not the right shape. **Missing** = no data source exists anywhere in code or schema. **Unreliable** = a data source exists but nothing populates or maintains it, so it cannot be trusted. **Authoritative** = comes from a real, durable source (DB column, defined constant). **Derived** = computed client-side from other data at read time. **Guessed/hardcoded** = fabricated or asserted without backing.
 
-| # | Field (per `Reportingrequirements.txt`) | Table/column/function | Status | Authoritative vs. derived |
+| # | Field (per `docs/compliance/Reportingrequirements.txt`) | Table/column/function | Status | Authoritative vs. derived |
 |---|---|---|---|---|
 | 1.1 | Unique student identifier | `students.student_id` | Present | Authoritative |
 | 1.2 | Student name | none — `students` table has no name column (`supabase/migrations/20260828120000_students_admin.sql` line 19–26); `student_id` is a synthetic login string (e.g. `4957361987-SOCAN`), not a legal name | Missing | N/A |
@@ -147,7 +147,7 @@ every module is a title-only skeleton ("Lessons and labs are being
 authored"). Confirmed live: navigating a provisioned AIENG account to any
 module renders "In Development," no interactive content, nothing to submit.
 
-`MODULE_STANDARD.md` §2 already defines the module contract these tracks
+`docs/specs/MODULE_STANDARD.md` §2 already defines the module contract these tracks
 will fill in, including an `assessment: Assessment` field — but that
 interface is currently just `{ knowledgeCheck: boolean; practicalLab:
 boolean; capstoneGate: boolean }`. It does not yet carry a passing score or

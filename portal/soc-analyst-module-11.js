@@ -374,7 +374,7 @@ const MODULE_ELEVEN_SHARED_CASE = (typeof window !== 'undefined' && window.MISSI
   || { contractVersion: 'm09-ransomware-evidence-v1', organization: 'Mission Next Labs', incidentId: 'INC-4937', title: 'Operation Cedar Lock — active ransomware response', status: 'contained-in-lab-slice', entities: { endpoint: 'ws-173', account: 'acct-173', fileServer: 'fs-02' }, timeBasis: 'Synthetic UTC training timeline; all addresses are documentation-range fixtures.', notEstablished: ['enterprise-wide compromise', 'data exfiltration', 'specific operator identity'], consumerSlices: { module11: ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'] } };
 const MODULE_ELEVEN_SHARED_SLICE_IDS = MODULE_ELEVEN_SHARED_CASE.consumerSlices?.module11 || ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'];
 
-// Standard Incident / Case Record (MODULE_STANDARD.md §7.2) for the
+// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2) for the
 // Assessment Lab's Prove It submission. Authored from the shared M09
 // evidence contract this module consumes (MODULE_ELEVEN_SHARED_CASE):
 // INC-4937, the ws-173/acct-173 endpoint-and-identity compromise, with
@@ -524,7 +524,7 @@ function moduleElevenMetricsFreshDefaults() {
 function moduleElevenReportFreshDefaults() {
   return {
     notes: '', attempts: 0, completed: false, feedback: [], validationError: '', lastSubmittedAt: '', labProgress: {},
-    // Standard case-record ticket fields (MODULE_STANDARD.md §7.2).
+    // Standard case-record ticket fields (docs/specs/MODULE_STANDARD.md §7.2).
     submitted: false, status: '', severity: '', affectedUser: '', affectedDevice: '',
     disposition: '', escalation: '', escalateTo: '', findings: {}, actionHistory: [],
     score: null, breakdown: null, showMissing: false,

@@ -36,7 +36,7 @@ single-account creation starts unenrolled — is intentional, documented in
 Labs need grading" badges scoped to each course's own workspace, pregraded-lab
 review, instructor per-mistake feedback + full-resubmission redo, and the
 70%/redo module-completion gate) is fully built, pushed, and verified — see
-`lab-grading-notification-system/STATE.md`. That same session then added
+`docs/workstreams/lab-grading-notification-system/STATE.md`. That same session then added
 real sequential module-access gating (a module requires every prior module
 in the program complete, not just the one before it), a cross-device
 completion beacon for Module 1 (its detailed quiz/console/lab requirements
@@ -50,7 +50,7 @@ complete badges after refreshing" report below — not confirmed, worth
 checking if it recurs.)
 
 Active work is now the sibling curriculum project,
-`soc-analyst-track-reimagining/` — read **that directory's `STATE.md`
+`docs/workstreams/soc-analyst-track-reimagining/` — read **that directory's `STATE.md`
 first**. Owner resolved all 4 open questions 2026-09-15/16 (see
 `REBUILD_PLAN.md`), and real curriculum changes have shipped: Module 09 has
 a ticket-assignment framing panel (Phase 3), and Module 06 now explains its
@@ -63,7 +63,7 @@ designed but need real fixture reconciliation between each pair before
 building — flagged as needing an owner content-review checkpoint, unlike
 the mechanical changes shipped so far. See `REBUILD_PLAN.md`'s Phase 4.
 
-**Before doing anything else this session, read `NEXT_SESSION.md`.** Its
+**Before doing anything else this session, read `docs/handoffs/NEXT_SESSION.md`.** Its
 top-of-file handoff block is the current entry point for unfinished work
 (as of 2026-09-01: the idle sign-out timer turned out to have no
 server-side enforcement — it only ever worked if the exact browser tab that
@@ -85,8 +85,8 @@ snapshot/restore modal instead of a plain confirm popup, and
 `docs/STUDENT_LOGIN_COURSEWORK_REDIRECT.md`'s post-login redirect spec is written
 but not yet coded in `portal/app.js`'s `wireLogin()`).
 
-`CURRICULUM_ALIGNMENT_ARCHITECTURE.md` section 0 has the authoritative sprint
-status table if `NEXT_SESSION.md` is ever out of date relative to it. As of
+`docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md` section 0 has the authoritative sprint
+status table if `docs/handoffs/NEXT_SESSION.md` is ever out of date relative to it. As of
 2026-08-31: all 16 local Supabase migrations are confirmed applied on the
 linked remote project (`supabase migration list --linked`) —
 `archive/completed-feature-notes/REPORTING_REMEDIATION_CONTINUATION.md` still said the four newest
@@ -94,6 +94,6 @@ migrations were "written only, not pushed"; that claim was stale, now
 corrected inline in that file.
 
 Doc lifecycle rule (`archive/README.md` "When to archive a doc"): once every
-task/checkbox in a root-level md doc — including a `NEXT_SESSION.md` sprint
+task/checkbox in a root-level md doc — including a `docs/handoffs/NEXT_SESSION.md` sprint
 entry — is done and verified, move it into `archive/` with `git mv` rather
 than leaving it at the root. Don't archive anything still partially open.

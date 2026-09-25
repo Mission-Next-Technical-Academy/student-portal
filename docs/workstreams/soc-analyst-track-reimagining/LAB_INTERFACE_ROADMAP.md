@@ -13,7 +13,7 @@ remains the active priority; nothing here is unblocked yet.
 two real missing tool surfaces this doc also lands on: interactive CLI and
 PCAP/packet analysis) with a concrete per-module interface design and a
 shared-component build order. Does not supersede `ROADMAP.md`'s priority
-order or `MODULE_STANDARD.md`'s compliance-controlled structure — those
+order or `docs/specs/MODULE_STANDARD.md`'s compliance-controlled structure — those
 still govern if this doc's build order ever conflicts with them.
 
 ---
@@ -55,7 +55,7 @@ student's actions and final work product become the evidence of
 competency.
 
 *(This already matches the three-stage cycle `ROADMAP.md` and
-`INSTRUCTIONAL_ARCHITECTURE.md` use today — this doc's contribution is the
+`docs/specs/INSTRUCTIONAL_ARCHITECTURE.md` use today — this doc's contribution is the
 per-module interface concept below, not a new pedagogy.)*
 
 ## 2. Design Rule: Simulate the Work, Not the Vendor
@@ -221,7 +221,7 @@ Do not build twelve separate applications. Core reusable components:
   Practice: moderate, Prove: none) so the same scenario engine produces
   different learning experiences. *(Note: `ui/coach.js`'s existing
   `mnt-corner-dock` / spotlighted-steps mechanism, already shipped for
-  Module 1's tour and reused by Module 12 per `HANDOFF.md` history, is a
+  Module 1's tour and reused by Module 12 per `docs/handoffs/HANDOFF.md` history, is a
   real precedent for this component — not a from-scratch build.)*
 
 ## 7. Guidance reduction model
@@ -290,6 +290,6 @@ Not scoped, not started. Once Module 1 (`ROADMAP.md` items 1-3) is
 genuinely locked in — real, verified, live — bring this doc to the owner as
 the candidate shape for items 4-6, phased per §9 above, starting with
 whichever module's real content work is next in queue. Cross-check each
-phase against `MODULE_STANDARD.md`'s compliance-controlled structure and
-`lab-grading-notification-system/`'s existing scoring model before building
+phase against `docs/specs/MODULE_STANDARD.md`'s compliance-controlled structure and
+`docs/workstreams/lab-grading-notification-system/`'s existing scoring model before building
 anything, per this repo's usual planning-before-code discipline.

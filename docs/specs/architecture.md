@@ -183,7 +183,7 @@ assumption ever changes.
   no manual deploy step, but someone has to actually push).
 - Files that belong to this work, to be staged together (do NOT blanket
   `git add -A` — there is unrelated pre-existing uncommitted work in the tree:
-  `HANDOFF.md`, `archive/session-logs/LATEST_PROGRESS.md`, `MODULAR_LAB_PROGRAM_PROGRESS.md`,
+  `docs/handoffs/HANDOFF.md`, `archive/session-logs/LATEST_PROGRESS.md`, `MODULAR_LAB_PROGRAM_PROGRESS.md`,
   `PROGRESS_M07_EMAIL_KQL.md`, `portal/module-07/10/11/12.*`,
   `ui/coach-data.js` — leave those alone, they're not this session's):
   ```
@@ -198,9 +198,9 @@ assumption ever changes.
   supabase/migrations/20260828120000_students_admin.sql   (new)
   supabase/migrations/20260828140000_seed_catalogue.sql   (new)
   supabase/migrations/20260828150000_rename_course_progress.sql  (new)
-  architecture.md                 (new — this file)
+  docs/specs/architecture.md                 (new — this file)
   ```
-  `PLATFORM_ARCHITECTURE.md`, `archive/historical-plans/SPRINT_PLAN_2026-08-17.md`, `NEXT_SESSION.md` were also
+  `PLATFORM_ARCHITECTURE.md`, `archive/historical-plans/SPRINT_PLAN_2026-08-17.md`, `docs/handoffs/NEXT_SESSION.md` were also
   edited this session with doc updates — include those too if committing.
 - **Pushing to `master` is a real, public, live-site-affecting action** — it
   should be a deliberate step the site owner confirms, not something a coding
@@ -342,7 +342,7 @@ the missing contract for the other 11."
 ### Sprint 4 — capstone flow + `capstone_submissions` writes — ✅ DONE (simple version), pushed & live
 Scope resolved with the site owner: build the simple version, not a 12-stage
 wizard. A concurrent curriculum-planning workstream
-(`CURRICULUM_ALIGNMENT_ARCHITECTURE.md`, a different agent/session working on
+(`docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md`, a different agent/session working on
 learner-facing content — see note below) independently frames the capstone
 the same way: "12 stages remain one Prove assessment" — i.e. Module 12 IS the
 one graded capstone assessment, not 12 separate submissions. So: exactly one
@@ -366,7 +366,7 @@ exercised a `capstone_submissions` write yet — still worth a real pass
 attempt through Module 12 to confirm the upsert lands.
 
 **Note on the concurrent curriculum workstream:** a separate agent/session is
-running `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`'s sprint plan against this
+running `docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md`'s sprint plan against this
 same repo (Sprint A already landed additive `compliance`/`curriculumItems`
 metadata in `portal/data.js`; future Sprint C/D will edit
 `module-01/04/05/06/08/10/12.js` for label/copy/capstone-timing changes). Its

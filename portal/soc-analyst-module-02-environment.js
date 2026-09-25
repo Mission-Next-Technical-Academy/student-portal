@@ -2,7 +2,7 @@
  * It reuses the registered-module contract, LabRuntime, and existing assessment
  * record rather than changing portal routing, authentication, or progress.
  *
- * Rebuilt per MODULE_02_REDESIGN_CORRECTION_BRIEF.md: Learn It / Practice It /
+ * Rebuilt per docs/specs/MODULE_02_REDESIGN_CORRECTION_BRIEF.md: Learn It / Practice It /
  * Prove It are numbered, scroll-targeted sections inside the shared module
  * shell (moduleUnifiedNav + .mquick-nav-layout, same as Module 01). The
  * shared left rail is the only Learn/Practice/Prove navigator — this file
@@ -109,7 +109,7 @@
   const ASSESSMENT_MIN_NOTE_LENGTH = 80;
 
   // ---------------------------------------------------------- Case Record
-  // MODULE_STANDARD.md §7.2: the Assessment Lab's one graded artifact is the
+  // docs/specs/MODULE_STANDARD.md §7.2: the Assessment Lab's one graded artifact is the
   // standard Incident / Case Record ticket (portal/case-record.js), not a
   // bare write-up. Module 02 has no larger identity/device cast to draw a
   // 6-8 entry roster from — the console's own five identities/devices (DATA
@@ -150,7 +150,7 @@
       { id: 'device-risk', text: 'Device compliance risk — unmanaged/non-compliant device reached a restricted resource' },
     ] },
   ];
-  // Answer key. Never shown live in Prove It (MODULE_STANDARD.md §7.2).
+  // Answer key. Never shown live in Prove It (docs/specs/MODULE_STANDARD.md §7.2).
   const CASE_CORRECT = { severity: 'high', disposition: 'policy-violation', escalateTo: 'identity-response', finding: 'excess-auth' };
   const CASE_DEFAULT = { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] };
 

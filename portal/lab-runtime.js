@@ -211,7 +211,7 @@ function wireReviewToggle({ button, sectionSelector, getReviewMode, setReviewMod
  * panel. Every module's score function already returns a named breakdown
  * (observation/analysis/decision/communication, or Module 12's own labeled
  * array) — this only makes that existing breakdown visible instead of a
- * flat number. See soc-analyst-track-reimagining/REBUILD_PLAN.md Phase 1b. */
+ * flat number. See docs/workstreams/soc-analyst-track-reimagining/REBUILD_PLAN.md Phase 1b. */
 const LAB_SCORE_SECTION_ORDER = ['observation', 'analysis', 'decision', 'communication'];
 const LAB_SCORE_SECTION_LABELS = { observation: 'Observation', analysis: 'Analysis', decision: 'Decision', communication: 'Communication' };
 

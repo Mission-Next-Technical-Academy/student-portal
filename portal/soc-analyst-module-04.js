@@ -366,7 +366,7 @@ const MODULE_FOUR_DEFAULT_STATE = {
   independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
   labProgress: {},
   // Standard Incident / Case Record for the m04-assessment Prove It
-  // submission (MODULE_STANDARD.md §7.2).
+  // submission (docs/specs/MODULE_STANDARD.md §7.2).
   caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
 };
 
@@ -446,7 +446,7 @@ const MODULE_FOUR_RELEVANT_EVIDENCE = [
   'TI-801',
 ];
 
-// Standard Incident / Case Record (MODULE_STANDARD.md §7.2) for the Prove It
+// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2) for the Prove It
 // submission — `m04-assessment`, the only form here that calls
 // recordLabAttempt() for MODULE_FOUR_CATALOG_LAB_KEY. The independent lab
 // (m04-independent-form) is Practice It — locally scored, no catalog

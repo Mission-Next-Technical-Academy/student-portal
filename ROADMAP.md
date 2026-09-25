@@ -23,12 +23,12 @@ through **Learn it → Practice it → Prove it**, where "Prove it" means
 reduced-guidance application that produces the durable, instructor-reviewable
 evidence described above — not a separate fourth stage. Lifecycle and scoring
 sections may vary by domain; threat hunting and vulnerability management must
-not be forced into a fake incident-response template. `INSTRUCTIONAL_ARCHITECTURE.md`
+not be forced into a fake incident-response template. `docs/specs/INSTRUCTIONAL_ARCHITECTURE.md`
 is the detailed reference for this cycle: the guidance-reduction curve across
 modules 01–12, skill-carryover expectations, and the per-module "finished"
 rubric. It does not authorize reordering modules, renaming keys, or changing
-compliance-controlled hours — those remain governed by `MODULE_STANDARD.md`
-and `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`.
+compliance-controlled hours — those remain governed by `docs/specs/MODULE_STANDARD.md`
+and `docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md`.
 
 ## Locked Module 1 sequence
 
@@ -38,7 +38,7 @@ clear tour of the workspace before the learner is asked to perform assessed
 work. It must be accessible from the beginning of Module 1 and may be reopened
 as a refresher.
 
-**Superseded 2026-09-21 by `MODULE_01_CASE_CONSOLE_SPEC.md` — read that file
+**Superseded 2026-09-21 by `docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md` — read that file
 first for Module 1's actual assessment design.** This paragraph's original
 "simulator-first... SIEM" language is no longer the target design and is kept
 here only as history. The owner's specification is explicit and resolves what
@@ -77,7 +77,7 @@ table. Its learner-facing label is **Assessment Lab**; Practice It's is
 The tour is orientation, not the assessment. It may observe real UI telemetry,
 but it must not be the sole completion or grading evidence. The detailed
 implementation reference is
-`soc-analyst-track-reimagining/MODULE1_DAY1_REBUILD_PLAN.md`; this section
+`docs/workstreams/soc-analyst-track-reimagining/MODULE1_DAY1_REBUILD_PLAN.md`; this section
 supersedes its former tour-versus-Objectives-panel ambiguity.
 
 **Do not confuse this with the Academy-wide first-login orientation shipped
@@ -112,7 +112,7 @@ steps advance ("Step 1 of 9" → "Step 2 of 9" confirmed), matching the trimmed
 **New tension, noted 2026-09-21, not touched — owner said the tour itself is
 fine, out of scope for now.** The tour's still-live steps walk `#/defender/alerts`
 and `#/entra/sign-in-logs` inside the full `ui/` simulator — exactly the
-surface `MODULE_01_CASE_CONSOLE_SPEC.md` §16 says a brand-new Module 1 learner
+surface `docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md` §16 says a brand-new Module 1 learner
 should not be dropped into. This wasn't rebuilt this session (explicit owner
 direction), but it's a real inconsistency between the Day 1 tour and the new
 case-console design worth resolving eventually: either move the tour's content
@@ -137,10 +137,10 @@ and update the historical document when that workstream is next touched.
 | 0 | CI baseline | **Active** | none | `bash bin/ci-check.sh` passes locally and on PRs / `master`; Pages repeats it before deployment. |
 | 1 | Module 1 orientation tour | **Built and live-verified 2026-09-21** | none | The beginning of Module 1 presents the LMS orientation tour: Day 1 framing, rules, scope, and workspace walkthrough. It is reopenable and does not replace assessment evidence. Reachable from Module 1's hero card; steps confirmed advancing live in Chrome. See the "new tension" note above (tour still uses the full simulator) — flagged, not blocking. |
 | 2 | Faculty-gate live UAT | **Blocked on controlled credentials** | deployed faculty-gate migration | Controlled student submit → faculty return → resubmit → approve → Module 2 unlock is verified and recorded. |
-| 3 | Module 1 case-console assessment | **Both Practice It and Prove It built and live-verified, 2026-09-21** | 1 and 2; cross-device state smoke test | Per `MODULE_01_CASE_CONSOLE_SPEC.md`: a focused case console (not the full SOC range) with a real log table, scoped action history, an incident/case record, and instructor-reviewable persistence. `viewModuleOneCaseConsole()` (Practice It, ALT-1001) and `viewModuleOneProveItCaseConsole()` (Prove It, NST-2407, with its own `logEvents` covering the identity/endpoint/proxy sources it correlates) both open in a new tab from the LMS page's launch card. Still gated on items 1 and 2 per this row's own dependency column. |
-| 4 | Module completion integrity | **Queued** | 2 and 3 | Modules 2–12 receive verified-completion protection using the proven Module 1 pattern. See `module-completion-integrity/BRIEF.md`. |
+| 3 | Module 1 case-console assessment | **Both Practice It and Prove It built and live-verified, 2026-09-21** | 1 and 2; cross-device state smoke test | Per `docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md`: a focused case console (not the full SOC range) with a real log table, scoped action history, an incident/case record, and instructor-reviewable persistence. `viewModuleOneCaseConsole()` (Practice It, ALT-1001) and `viewModuleOneProveItCaseConsole()` (Prove It, NST-2407, with its own `logEvents` covering the identity/endpoint/proxy sources it correlates) both open in a new tab from the LMS page's launch card. Still gated on items 1 and 2 per this row's own dependency column. |
+| 4 | Module completion integrity | **Queued** | 2 and 3 | Modules 2–12 receive verified-completion protection using the proven Module 1 pattern. See `docs/workstreams/module-completion-integrity/BRIEF.md`. |
 | 5 | SOC curriculum Arc A | **Queued content work** | stable Module 1 assessment | Reconcile Modules 02→03 fixtures/narrative with owner content review. Arc B is undecided; do not build the rejected 07→04 pairing. |
-| 6 | Tool-depth expansion | **Later discovery** | 5 sequencing decision | Scope real interactive CLI and PCAP lab surfaces plus CySA+ crosswalk. See `soc-analyst-track-reimagining/VISION.md` and `soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` (per-module interface concepts, shared-component build order — owner vision, not yet scoped or authorized). |
+| 6 | Tool-depth expansion | **Later discovery** | 5 sequencing decision | Scope real interactive CLI and PCAP lab surfaces plus CySA+ crosswalk. See `docs/workstreams/soc-analyst-track-reimagining/VISION.md` and `docs/workstreams/soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` (per-module interface concepts, shared-component build order — owner vision, not yet scoped or authorized). |
 
 Completed foundations include the grading-breakdown UI, domain-appropriate
 Module 06/08 review, Module 09 ticket framing, and the Module 05→06 Arc C
@@ -153,7 +153,7 @@ and student-program page opens the same focused compose pane. It is not a queued
 must remain one shared message system rather than separate module-level inboxes.
 Replies identify the sender's authority as either **Global Admin** or the
 relevant course instructor without exposing staff email addresses.
-See `HANDOFF_2026-09-18_FACULTY_GATE.md` (Sprint E) for implementation and
+See `docs/handoffs/HANDOFF_2026-09-18_FACULTY_GATE.md` (Sprint E) for implementation and
 verification evidence.
 
 ## Agent protocol
@@ -166,7 +166,7 @@ Work one roadmap item or approved subtask at a time.
    change.
 4. Run `bash bin/ci-check.sh`, plus focused browser/UAT checks appropriate to
    the change.
-5. Record concise evidence in `HANDOFF.md`. Update this roadmap's state only
+5. Record concise evidence in `docs/handoffs/HANDOFF.md`. Update this roadmap's state only
    after its definition of done is met; archive finished detailed handoffs.
 
 Never treat a status note as proof that a migration, browser flow, or release
@@ -197,22 +197,22 @@ Approved roadmap item
 | Document | Role |
 |---|---|
 | `ROADMAP.md` | Canonical delivery order, Module 1 direction, agent protocol, and CI/CD reference |
-| `MODULE_01_CASE_CONSOLE_SPEC.md` | Authoritative Module 1 lab design — owner spec, the case console (not the full SOC range) is the required shape |
-| `INSTRUCTIONAL_ARCHITECTURE.md` | Program-wide Learn/Practice/Prove pedagogy, guidance-reduction curve across modules 01–12, and the module-completion rubric |
-| `HANDOFF.md` | Concise evidence for the currently active roadmap item |
-| `NEXT_SESSION.md` | Pointer only; never a second task queue |
-| `soc-analyst-track-reimagining/VISION.md` | Strategic curriculum rationale and future tool gaps |
-| `soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` | Full-program per-module interface/component vision for item 6 — reference only, not scoped |
-| `soc-analyst-track-reimagining/REBUILD_PLAN.md` | Detailed curriculum-arc specification |
+| `docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md` | Authoritative Module 1 lab design — owner spec, the case console (not the full SOC range) is the required shape |
+| `docs/specs/INSTRUCTIONAL_ARCHITECTURE.md` | Program-wide Learn/Practice/Prove pedagogy, guidance-reduction curve across modules 01–12, and the module-completion rubric |
+| `docs/handoffs/HANDOFF.md` | Concise evidence for the currently active roadmap item |
+| `docs/handoffs/NEXT_SESSION.md` | Pointer only; never a second task queue |
+| `docs/workstreams/soc-analyst-track-reimagining/VISION.md` | Strategic curriculum rationale and future tool gaps |
+| `docs/workstreams/soc-analyst-track-reimagining/LAB_INTERFACE_ROADMAP.md` | Full-program per-module interface/component vision for item 6 — reference only, not scoped |
+| `docs/workstreams/soc-analyst-track-reimagining/REBUILD_PLAN.md` | Detailed curriculum-arc specification |
 | `archive/completed-feature-notes/ACADEMY_ORIENTATION_SPRINT.md` | Academy-wide first-login orientation tour (`portal/orientation.js`) — separate from and does not satisfy this roadmap's Module 1 orientation-tour item |
-| `soc-analyst-track-reimagining/MODULE1_DAY1_REBUILD_PLAN.md` | Detailed Module 1 implementation specification |
-| `HANDOFF_2026-09-18_FACULTY_GATE.md` | Faculty-gate implementation/UAT and completed Message Instructor evidence |
+| `docs/workstreams/soc-analyst-track-reimagining/MODULE1_DAY1_REBUILD_PLAN.md` | Detailed Module 1 implementation specification |
+| `docs/handoffs/HANDOFF_2026-09-18_FACULTY_GATE.md` | Faculty-gate implementation/UAT and completed Message Instructor evidence |
 
 ## Current action
 
 The Module 1 orientation tour is built and live-verified. Both Practice It
 and Prove It now open their own case console in a new tab per
-`MODULE_01_CASE_CONSOLE_SPEC.md`. Run faculty-gate UAT when controlled
+`docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md`. Run faculty-gate UAT when controlled
 credentials are available (item 2) — the remaining real blocker on this
 roadmap.
 
@@ -222,7 +222,7 @@ scope but recorded here for visibility:** the same day's work also gave
 the graded Learn/Practice/Prove menu) across every module in every course
 that has reference content — SOC Analyst 1–11, IT Support 1–12 (which had
 no references content before this and got real citations written for the
-first time), and AI-ML 1–12. See `HANDOFF.md`'s "Sources & Further
+first time), and AI-ML 1–12. See `docs/handoffs/HANDOFF.md`'s "Sources & Further
 Reading — detached 'Reference' panel, platform-wide" entry for detail and
 verification evidence. Excluded: SOC Analyst 12 (capstone, no sources
 content) and the Electrical track's Module 1 (still an unauthored

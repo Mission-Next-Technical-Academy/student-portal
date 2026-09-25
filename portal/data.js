@@ -10,7 +10,7 @@
  */
 
 /* ---------------------------------------------------------------------------
- * STANDARD MODULE LAYOUT — see MODULE_STANDARD.md
+ * STANDARD MODULE LAYOUT — see docs/specs/MODULE_STANDARD.md
  *
  * Every module in every track carries the same keys. A field with no content
  * yet is present and empty, never absent — missing keys are what break shared
@@ -638,7 +638,7 @@ const PROGRAMS = [
     /* Authored from docs/other-tracks/AI_ML_ENGINEERING_CURRICULUM.md (2026-09-10). Key prefix
      * stays 'aim' (not the doc's 'aiml') to match the already-registered
      * module-lab slot (ai-ml-module-01.js's registerModuleLab call) and
-     * weekGroups() above — MODULE_STANDARD.md: never rename a key. */
+     * weekGroups() above — docs/specs/MODULE_STANDARD.md: never rename a key. */
     modules: {
       'aim-01': mod({
         key: 'aim-01', number: 1, week: 1, title: 'Python Programming Foundations',
@@ -1858,7 +1858,7 @@ const MODULE_ONE_ALERT_ORIENTATION = {
         ] },
       { id: 'confirmation', time: '09:14', icon: 'ri-phone-line', label: 'The user denies the activity', detail: 'The service desk reached the account owner through the registered phone number. The user confirms they did not attempt the sign-ins.' },
     ],
-    // Real log rows for the case-console's middle pane (MODULE_01_CASE_CONSOLE_SPEC.md
+    // Real log rows for the case-console's middle pane (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md
     // §3) — the same nine events narrated by `evidence` above, restated as a
     // readable table the student clicks through instead of a pre-summarized
     // card. `raw` is the expandable structured record for that row; `evidenceId`
@@ -1972,7 +1972,7 @@ const MODULE_ONE_ESCALATION_LAB = {
       { id: 'owner', time: 'Mon 09:41', icon: 'ri-phone-line', label: 'User callback', detail: 'a.chen confirms the laptop is in their possession but denies approving the MFA prompts or running the downloaded file.' },
     ],
     // Real log rows for the case-console's middle pane, same idea as
-    // ALT-1001's logEvents (MODULE_01_CASE_CONSOLE_SPEC.md §3) — one small
+    // ALT-1001's logEvents (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §3) — one small
     // table mixing the identity/endpoint/proxy sources this case actually
     // correlates, not three separate simulators. The phone callback has no
     // row — it is handed over, not logged.

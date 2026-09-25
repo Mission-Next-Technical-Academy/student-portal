@@ -3,7 +3,7 @@
 For active direction, start with `ROADMAP.md`, then the governing
 specification for its selected work item. This file records concise evidence
 for that active item only; move finished entries to `archive/session-logs/`
-or a focused completed-feature note. `NEXT_SESSION.md` is a compatibility
+or a focused completed-feature note. `docs/handoffs/NEXT_SESSION.md` is a compatibility
 pointer and must not become a second task queue.
 
 The prior chronological engineering handoff is preserved at
@@ -152,7 +152,7 @@ further once DOM inspection confirmed correctness.
 
 ## Module 1 case console — Practice It built, 2026-09-21
 
-Owner delivered `MODULE_01_CASE_CONSOLE_SPEC.md` (now the authoritative
+Owner delivered `docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md` (now the authoritative
 Module 1 lab design — read it first) with an explicit, concrete complaint:
 Module 1's lab had no realism, and every lab on the platform should have a
 "Launch Module Lab" button that opens a new window — a small focused
@@ -268,11 +268,11 @@ yet unblocked — read that doc before starting any build from it.
 ## Current baseline — 2026-09-20
 
 - `ROADMAP.md` is the canonical delivery queue.
-- `INSTRUCTIONAL_ARCHITECTURE.md` (added 2026-09-20) is the detailed
+- `docs/specs/INSTRUCTIONAL_ARCHITECTURE.md` (added 2026-09-20) is the detailed
   Learn it → Practice it → Prove it pedagogy reference — guidance-reduction
   curve, skill carryover, and the per-module "finished" rubric. Documentation
-  only; no code changed. It does not override `MODULE_STANDARD.md` or
-  `CURRICULUM_ALIGNMENT_ARCHITECTURE.md`.
+  only; no code changed. It does not override `docs/specs/MODULE_STANDARD.md` or
+  `docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md`.
 - Module 1 begins with the required LMS orientation tour; the subsequent
   assessment is simulator-first and instructor-reviewable.
 - The next substantive build is the Module 1 performance assessment after
@@ -292,7 +292,7 @@ yet unblocked — read that doc before starting any build from it.
   (owner ran `supabase db push`, confirmed applied). No other accounts are
   known to be affected — same failure class as the earlier
   Module-1-beacon-gap accounts (see
-  `lab-grading-notification-system/STATE.md`), worth a quick check if a
+  `docs/workstreams/lab-grading-notification-system/STATE.md`), worth a quick check if a
   similar lowercase/`@missionnext.example` display turns up again.
 - CI validation is `bash bin/ci-check.sh`; GitHub Pages repeats it before
   deployment.

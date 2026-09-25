@@ -6,12 +6,12 @@ Source-of-truth order).
 
 This document does **not** replace and does not re-litigate:
 
-- `MODULE_STANDARD.md` — the module contract, field rules, and the
+- `docs/specs/MODULE_STANDARD.md` — the module contract, field rules, and the
   12-module / 6-week / non-negotiables list. Canonical for all four tracks.
-- `CURRICULUM_ALIGNMENT_ARCHITECTURE.md` — compliance-controlled hours,
+- `docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md` — compliance-controlled hours,
   parent-code allocations, and the Learn/Practice/Prove lesson-record shape
   it already establishes (§1).
-- `CURRICULUM_MAP.md` — the canonical module sequence and titles.
+- `docs/specs/CURRICULUM_MAP.md` — the canonical module sequence and titles.
 - Existing module keys, the existing simulator/grading architecture, or any
   shipped `MODULE_NN_ENHANCEMENT_BRIEF.md` / `MODULE_NN_ENHANCEMENT_PROGRESS.md`.
 
@@ -66,7 +66,7 @@ Do not rebuild functionality already present. Recent module work has
 already introduced scenario-driven lesson loops, contextual knowledge
 checks, retry feedback, applied free-text tasks, persisted learner work,
 guided and independent lab surfaces, scenario-based quizzes, and — per
-`soc-analyst-track-reimagining/REBUILD_PLAN.md` — a surfaced score
+`docs/workstreams/soc-analyst-track-reimagining/REBUILD_PLAN.md` — a surfaced score
 breakdown and a cross-module incident arc pattern (Arc C shipped; Arc A and
 Arc B are designed, not built).
 
@@ -81,7 +81,7 @@ score function's return shape or a prior audit's claim.**
 
 Sequence for any enhancement:
 
-1. Read `MODULE_STANDARD.md` and this document.
+1. Read `docs/specs/MODULE_STANDARD.md` and this document.
 2. Read that module's `MODULE_NN_ENHANCEMENT_BRIEF.md` /
    `MODULE_NN_ENHANCEMENT_PROGRESS.md` if present.
 3. Inspect the current implementation directly.
@@ -213,7 +213,7 @@ not new infrastructure:
 | Documentation | Early | Progressively more weighted; assessed professional competency by M10–M12 |
 | Evidence correlation | Early (simple relationships) | Multi-source, timeline-based by later modules |
 
-`soc-analyst-track-reimagining/REBUILD_PLAN.md`'s cross-module arcs (Arc C
+`docs/workstreams/soc-analyst-track-reimagining/REBUILD_PLAN.md`'s cross-module arcs (Arc C
 shipped, Arc A and Arc B designed) are the concrete mechanism for this at
 the content level — a handful of connected incidents across modules, not a
 requirement that every module invent its own standalone case.
@@ -237,7 +237,7 @@ content elsewhere:
   parallel worksheet?
 - **Carry forward** — Will this skill reasonably reappear later, per §6?
 - **Assess** — Does the assessment actually measure the module's stated
-  objectives (`MODULE_STANDARD.md`'s `objectives[]`, measurable verbs)?
+  objectives (`docs/specs/MODULE_STANDARD.md`'s `objectives[]`, measurable verbs)?
 - **Document** — Where appropriate, does the learner explain or document
   their reasoning, not just select an answer?
 
@@ -249,16 +249,16 @@ These are restatements of existing, already-binding rules — not new ones:
 
 - 12 modules, 6 weeks, 2 per week. No SOC-specific exception. No Module 00
   — LMS/simulator orientation belongs at the start of Module 01
-  (`MODULE_STANDARD.md` §1, `ROADMAP.md`'s Locked Module 1 sequence).
+  (`docs/specs/MODULE_STANDARD.md` §1, `ROADMAP.md`'s Locked Module 1 sequence).
 - Do not rename a module `key` or reorder modules — this orphans student
-  progress rows (`MODULE_STANDARD.md` §2).
+  progress rows (`docs/specs/MODULE_STANDARD.md` §2).
 - Do not change compliance-controlled instructional minutes or parent-code
   hour allocations to fit a new activity
-  (`CURRICULUM_ALIGNMENT_ARCHITECTURE.md`). If an activity genuinely
+  (`docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md`). If an activity genuinely
   cannot fit the existing allocation, flag it for curriculum/compliance
   review rather than silently changing totals.
 - If the module schema itself cannot express a needed learning experience,
-  that is a platform ticket against `MODULE_STANDARD.md` — the schema
+  that is a platform ticket against `docs/specs/MODULE_STANDARD.md` — the schema
   changes for all four tracks or not at all, never a SOC-only exception.
 - No certification endorsement, partnership, or pass-guarantee language.
 

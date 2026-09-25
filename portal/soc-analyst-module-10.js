@@ -340,7 +340,7 @@ const MODULE_TEN_SOURCES_LIST = [
   },
 ];
 
-// Standard Incident / Case Record (MODULE_STANDARD.md §7.2) for the
+// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2) for the
 // Assessment Lab's Prove It submission. Authored from the imported
 // windows-forensics scenarios this module assigns: wf-1's event-log
 // intrusion sequence (j.sanders / WKSTN-19, failed logons -> success ->
@@ -491,7 +491,7 @@ let moduleTenUser = null;
 const MODULE_TEN_GUIDED_DEFAULT_STATE = { practiceComplete: false, practiceNotes: '', lastQuizQuestionIds: [], labProgress: {} };
 const MODULE_TEN_ASSESSMENT_DEFAULT_STATE = {
   completed: false, attempts: 0, feedback: [], validationError: '', lastSubmittedAt: '', notes: '', flags: [], labProgress: {},
-  // Standard case-record ticket fields (MODULE_STANDARD.md §7.2).
+  // Standard case-record ticket fields (docs/specs/MODULE_STANDARD.md §7.2).
   submitted: false, status: '', severity: '', affectedUser: '', affectedDevice: '',
   disposition: '', escalation: '', escalateTo: '', findings: {}, actionHistory: [],
   score: null, breakdown: null, showMissing: false,

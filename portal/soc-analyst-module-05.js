@@ -357,7 +357,7 @@ const MODULE_FIVE_DEFAULT_STATE = {
   lessonWork: {},
   labProgress: {},
   // Standard Incident / Case Record for the m05-assessment Prove It
-  // submission (MODULE_STANDARD.md §7.2).
+  // submission (docs/specs/MODULE_STANDARD.md §7.2).
   caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
 };
 

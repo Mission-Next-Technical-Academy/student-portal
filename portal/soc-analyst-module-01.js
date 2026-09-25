@@ -585,7 +585,7 @@ function moduleOneProveItPerformance() {
   // full credit, naming a supported pivot (touches the case's evidence but
   // isn't the principal) earns half credit, and an unrelated noise entity
   // pulled from the log volume earns none. See entityRoster in
-  // portal/data.js and MODULE_01_CASE_CONSOLE_SPEC.md's grading philosophy.
+  // portal/data.js and docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md's grading philosophy.
   const userTier = roster.users.find((entry) => entry.id === state.affectedUser)?.tier;
   const deviceTier = roster.devices.find((entry) => entry.id === state.affectedDevice)?.tier;
   const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
@@ -866,7 +866,7 @@ function moduleOneTicketFields(state, spec) {
 
 // Practice It: a guided case (ALT-1001 / j.santos) in its own focused case
 // console — alert queue, log/evidence pane, incident/case record. Per
-// MODULE_01_CASE_CONSOLE_SPEC.md, this is NOT the full SOC range: a small,
+// docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md, this is NOT the full SOC range: a small,
 // original, vendor-neutral workspace scoped to exactly this case. Hints and
 // coachmarks are fine here; this is coached, ungraded, retry-friendly
 // practice, not the graded artifact (that's Prove It, moduleOneReview()).
@@ -885,7 +885,7 @@ function moduleOneLabLaunchCard() {
   </div>`;
 }
 
-// LMS-side card only, per MODULE_01_CASE_CONSOLE_SPEC.md §2: "It should not
+// LMS-side card only, per docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §2: "It should not
 // remain embedded as a small card inside the LMS." The actual queue/logs/
 // ticket workspace lives at viewModuleOneCaseConsole() (opened by the launch
 // card, in a new tab, full-bleed) — see moduleOneCaseConsolePane().
@@ -903,7 +903,7 @@ function moduleOneLabDynamic() {
   </div>`;
 }
 
-// Log/evidence pane (MODULE_01_CASE_CONSOLE_SPEC.md §3): real rows, not
+// Log/evidence pane (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §3): real rows, not
 // pre-summarized cards. Opening a row is the "read the evidence" action —
 // see wireModuleOneCaseConsole()'s data-m01cc-log-row handler — which marks
 // it viewed and expands its raw structured record underneath.
@@ -934,7 +934,7 @@ function moduleOneLogTable(scenario, state) {
     </div>` : ''}`;
 }
 
-// The three-pane case console body (MODULE_01_CASE_CONSOLE_SPEC.md §2):
+// The three-pane case console body (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §2):
 // Alert Queue / Logs+Evidence / Incident-Case Record. Reuses the same
 // moduleOneState.practice record and moduleOneTicketFields() the LMS-side
 // card used to render inline — only the log pane and the shell around it
@@ -996,7 +996,7 @@ function moduleOneCaseConsolePane() {
   </div>`;
 }
 
-// Full-bleed console page (MODULE_01_CASE_CONSOLE_SPEC.md §2): opened by
+// Full-bleed console page (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §2): opened by
 // moduleOneLabLaunchCard() in a new tab via viewModuleOne()'s
 // `?console=practice` branch. Deliberately has no moduleTopbar/nav — the
 // student should feel they have entered a work application, not a page of
@@ -1051,7 +1051,7 @@ function moduleOneQuizPanel() {
 // carry no `.help` text in the data, and evidence is read plainly rather
 // than filled in. This is Module 1's one graded artifact.
 // Prove It's launch card — same new-tab pattern as Practice It's
-// moduleOneLabLaunchCard(), per MODULE_01_CASE_CONSOLE_SPEC.md: no simulator,
+// moduleOneLabLaunchCard(), per docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md: no simulator,
 // no embedded-in-LMS console, just a card that opens the case console.
 function moduleOneProveItLaunchCard() {
   const state = moduleOneState.lab2;
@@ -1206,7 +1206,7 @@ function moduleOneGetNavSections() {
 
 function viewModuleOne(user, program) {
   moduleOneLoad(user);
-  // MODULE_01_CASE_CONSOLE_SPEC.md §2: Module 01's lab opens in its own
+  // docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §2: Module 01's lab opens in its own
   // focused workspace, not embedded in the LMS page. Same route+hash, a
   // `?console=practice` query param — opened in a new tab so this render
   // is a *different* browser tab/window from the LMS page that linked to
@@ -1463,7 +1463,7 @@ function wireModuleOneQuiz() {
   });
 }
 
-// Case console wiring (MODULE_01_CASE_CONSOLE_SPEC.md). Scoped to its own
+// Case console wiring (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md). Scoped to its own
 // #m01cc-app root, called from wireModuleOneLab() below — that function
 // runs on every render (module-registry.js's wireRegisteredModuleLabs()),
 // so this is a no-op whenever the console page isn't the current render.
@@ -2046,7 +2046,7 @@ async function moduleOneReceiveCoachCompletion(event) {
   }
 
   // Bare completion signal — no score attached (the postMessage contract
-  // carries only a completion flag; see architecture.md §3 Sprint 3). This is
+  // carries only a completion flag; see docs/specs/architecture.md §3 Sprint 3). This is
   // a second, independent lab_attempts row for the same lab_key: the graded
   // worksheet submit above writes its own scored row, this one just records
   // that the guided console itself was completed.

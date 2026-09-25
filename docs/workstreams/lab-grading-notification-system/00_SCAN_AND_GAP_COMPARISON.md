@@ -35,7 +35,7 @@ file plus per-module files), checked directly against every point in
    pass.
 5. **No enforcement of the 70% threshold.** It's stored on the row but
    nothing reads it to gate `complete` state, block progression, or trigger
-   a redo. `moduleCompletion()` (per `NEXT_SESSION.md`'s own notes,
+   a redo. `moduleCompletion()` (per `docs/handoffs/NEXT_SESSION.md`'s own notes,
    `portal/app.js:2866`) currently only checks `contentOpened &&
    allLabsComplete` — no score comparison against `pass_threshold` was found
    in that path.
@@ -77,4 +77,4 @@ scoped only to this feature (badge → tab → schema → feedback UI → redo �
 70% gate), sequenced so each sprint is small enough for a single
 haiku-subagent pass, per this project's established workflow
 (`~/.claude/playbooks/promptware-killchain-sprints.md`-style one-sprint-per-agent
-pattern, same idea used elsewhere in this repo per `NEXT_SESSION.md`).
+pattern, same idea used elsewhere in this repo per `docs/handoffs/NEXT_SESSION.md`).

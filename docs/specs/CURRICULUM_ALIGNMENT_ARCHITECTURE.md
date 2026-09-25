@@ -2,8 +2,8 @@
 
 Status: implementation authority for the 2026-08-28 curriculum-alignment wave  
 Scope: learner portal curriculum labels, hours, mappings, labs, capstone, M360 boundary, and compliance exports  
-Supersedes for curriculum decisions: `MODULE_STANDARD.md` SOC title/hour assumptions and the curriculum portions of `PLATFORM_ARCHITECTURE.md`  
-Does not supersede: `architecture.md` for the in-progress Supabase/auth migration or `PROJECT_GUIDE_FOR_AI.md` for repository safety
+Supersedes for curriculum decisions: `docs/specs/MODULE_STANDARD.md` SOC title/hour assumptions and the curriculum portions of `PLATFORM_ARCHITECTURE.md`
+Does not supersede: `docs/specs/architecture.md` for the in-progress Supabase/auth migration or `docs/operations/PROJECT_GUIDE_FOR_AI.md` for repository safety
 
 ## 0. Sprint status (as of 2026-08-28, this wave)
 
@@ -20,10 +20,10 @@ Does not supersede: `architecture.md` for the in-progress Supabase/auth migratio
 | H — Admin progress dashboard | Done, gate-checked (commit `57ac7cc`) |
 | Admin-only redirect (spec'd at the end of the Sprint H section) | Done, gate-checked (commit `e4903e1`) |
 | H.1 — Student detail drill-down | Done, gate-checked (commit `227bb5c`). Migration `supabase/migrations/20260828170000_admin_student_detail.sql` is **applied to the live database** (confirmed via `supabase db diff --linked`). |
-| G — Final QA and handoff | Done. Full syntax/render/browser sweep, prohibited-language scan, stable-key diff audit, and exact-hours reconciliation all pass; found and fixed a real `TypeError: Assignment to constant variable` in `portal/app.js`'s `render()` (broke every admin login) plus several prohibited-language leftovers in skill-tag chips and summary copy (see HANDOFF.md for the full list). Release readiness still gated on section 9's external approvals — this sprint cannot itself certify launch. |
-| Post-deploy live-UAT fix (not a lettered sprint) | Done, commit `d341ee6`. Real browser session against the deployed site + live DB (real admin login, real student login, real `module_progress` write) found that `course_progress` never counted `state = 'in_progress'` — only `'complete'` — so an actively-working student read identically to one who'd never logged in on both the summary tiles and H.1's dropdown. Fixed via `supabase/migrations/20260828180000_course_progress_in_progress_count.sql` + matching `portal/app.js` changes, applied live, re-verified live. See `NEXT_SESSION.md` for the full trace. |
+| G — Final QA and handoff | Done. Full syntax/render/browser sweep, prohibited-language scan, stable-key diff audit, and exact-hours reconciliation all pass; found and fixed a real `TypeError: Assignment to constant variable` in `portal/app.js`'s `render()` (broke every admin login) plus several prohibited-language leftovers in skill-tag chips and summary copy (see docs/handoffs/HANDOFF.md for the full list). Release readiness still gated on section 9's external approvals — this sprint cannot itself certify launch. |
+| Post-deploy live-UAT fix (not a lettered sprint) | Done, commit `d341ee6`. Real browser session against the deployed site + live DB (real admin login, real student login, real `module_progress` write) found that `course_progress` never counted `state = 'in_progress'` — only `'complete'` — so an actively-working student read identically to one who'd never logged in on both the summary tiles and H.1's dropdown. Fixed via `supabase/migrations/20260828180000_course_progress_in_progress_count.sql` + matching `portal/app.js` changes, applied live, re-verified live. See `docs/handoffs/NEXT_SESSION.md` for the full trace. |
 
-Also live and relevant but tracked in `architecture.md`, not here: the backend-simplification migration (`supabase/migrations/20260828160000_simplify_schema.sql`) has been applied to the live database (confirmed via `supabase migration list`), and a live-breaking bug it caused — `portal/app.js`'s `buildUserFromSession()` querying the now-dropped `enrollments`/`programs` tables — has been found and fixed directly (not part of any lettered sprint).
+Also live and relevant but tracked in `docs/specs/architecture.md`, not here: the backend-simplification migration (`supabase/migrations/20260828160000_simplify_schema.sql`) has been applied to the live database (confirmed via `supabase migration list`), and a live-breaking bug it caused — `portal/app.js`'s `buildUserFromSession()` querying the now-dropped `enrollments`/`programs` tables — has been found and fixed directly (not part of any lettered sprint).
 
 ## 1. Decision hierarchy
 
@@ -205,7 +205,7 @@ For every sprint:
 
 ### Sprint A — Canonical map and validator
 
-Files: `portal/data.js`, new `bin/curriculum-check.js`, new generated `CURRICULUM_MAP.md` (and optional CSV).  
+Files: `portal/data.js`, new `bin/curriculum-check.js`, new generated `docs/specs/CURRICULUM_MAP.md` (and optional CSV).
 Deliver: locked compliance metadata; exact parents; canonical real lesson blocks; 16-lab reconciliation; exact minute allocations; M360 boundary/status; deterministic roll-up validation.  
 Gate: syntax + curriculum checker. No visual changes yet.
 
@@ -257,7 +257,7 @@ Run after Sprint H lands (it builds on `viewAdmin()`'s rebuilt table). Not yet s
 
 Deliver: a dropdown/select on the admin dashboard populated only with students who have real progress (`modules_complete > 0` or at least one `lab_attempts`/`capstone_submissions` row) — the zero-progress majority stays out of this picker, it's for drilling into someone who's actually done something. Selecting a student loads a detail panel/view showing:
 - Per-module status and percent from `module_progress` (`state`, `percent` per `module_key`).
-- Per-lab score from `lab_attempts` (`score`, `state`, `completed_at` per `lab_key`) — this table *is* the quiz/test/assessment record in this codebase; there is no separate quiz engine, so don't invent one. Label these clearly by lab name (join against `portal/data.js`'s lab catalogue for the human-readable title, the same way `CURRICULUM_MAP.md` does).
+- Per-lab score from `lab_attempts` (`score`, `state`, `completed_at` per `lab_key`) — this table *is* the quiz/test/assessment record in this codebase; there is no separate quiz engine, so don't invent one. Label these clearly by lab name (join against `portal/data.js`'s lab catalogue for the human-readable title, the same way `docs/specs/CURRICULUM_MAP.md` does).
 - Capstone detail from `capstone_submissions` (per-`stage` score, 1-12) and the `capstone_scorecard` view (the six/ten rubric-dimension breakdown already scored there) if it exists and is queryable — confirm its actual current shape by reading the migration before assuming column names.
 
 This needs a new Supabase query (student detail by `user_id`/`student_id`, gated the same way `admin_student_progress` is — `is_admin()` check, `security_invoker`) — likely a new view or a couple of scoped `select`s in `portal/app.js`, admin-only. No new tables. Keep the UI to what one admin needs to spot-check a student, not a full gradebook — this is a drill-down, not a new subsystem.  
@@ -266,7 +266,7 @@ Gate: same four commands as Sprint H, plus a manual trace confirming a student w
 ### Sprint G — Final QA and handoff
 
 Files: documentation and fixes found by QA.  
-Deliver: full syntax/render/browser sweep, prohibited-language scan, stable-key diff audit, exact-hours report, screenshot evidence, and updates to `HANDOFF.md`, `archive/session-logs/LATEST_PROGRESS.md`, and `MODULAR_LAB_PROGRAM_PROGRESS.md`. Include Sprint H's admin dashboard in this sweep.
+Deliver: full syntax/render/browser sweep, prohibited-language scan, stable-key diff audit, exact-hours report, screenshot evidence, and updates to `docs/handoffs/HANDOFF.md`, `archive/session-logs/LATEST_PROGRESS.md`, and `MODULAR_LAB_PROGRAM_PROGRESS.md`. Include Sprint H's admin dashboard in this sweep.
 Gate: all automated invariants pass; remaining external approvals listed by owner and evidence needed.
 
 ## 9. Release boundary

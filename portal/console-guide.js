@@ -1,7 +1,7 @@
 // Standard Console Guide — the step-by-step teaching card that floats over a
 // lab console, points at the thing it is explaining, and docks into the
 // console header when collapsed. Module 02's Learn It console is the
-// reference (MODULE_STANDARD.md §7.3). "Use the console guide" means this
+// reference (docs/specs/MODULE_STANDARD.md §7.3). "Use the console guide" means this
 // card: same shape, colours and format; only the step text changes.
 //
 // Markup keeps the canonical `.m02e-learn-tip` / `.m02e-tip-*` /

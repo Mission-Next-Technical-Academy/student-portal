@@ -212,7 +212,7 @@ real production data, real training account:**
 
 This was a real write against a real student record — deliberately using
 `8987495051-SOCAN`, one of this project's existing rotatable training/UAT
-accounts (same one used for prior live UAT passes per `NEXT_SESSION.md`),
+accounts (same one used for prior live UAT passes per `docs/handoffs/NEXT_SESSION.md`),
 not a real enrolled student. **That account's module 02 now genuinely shows
 an open redo** until someone (a real instructor, or a follow-up session)
 either resubmits that lab as that student or clears it — this was left in
@@ -316,7 +316,7 @@ do in this directory.
   — don't scatter grading/notification docs back into the course root.
 - Sprint execution style matches the rest of this repo: one small task per
   haiku-subagent sprint, reviewed and committed locally, never pushed
-  without being asked (`NEXT_SESSION.md`'s Module 01 entry, 2026-09-07, is
+  without being asked (`docs/handoffs/NEXT_SESSION.md`'s Module 01 entry, 2026-09-07, is
   the reference pattern).
 - This repo auto-deploys to GitHub Pages on push to `master`, **and** this
   session's Supabase writes hit the same live/linked project local dev
@@ -324,7 +324,7 @@ do in this directory.
   until a human explicitly says to push the migration.
 - Update this file's "Status" line and the sprint log at the end of every
   sprint, so a token-limited session or a fresh one can resume cold — same
-  reason `NEXT_SESSION.md` exists at the course root.
+  reason `docs/handoffs/NEXT_SESSION.md` exists at the course root.
 
 ## Sprint log
 - 2026-09-13 — Sprint 0 (brief + scan). Done. See `INITIAL_BRIEF.md` and

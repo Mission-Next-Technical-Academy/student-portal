@@ -40,7 +40,7 @@ skill-check" — it's the whole case, and triage is one moment inside it.
 Owner's read: **"all the labs need redo I believe."** Treat the current
 12-module lab set as needing a structural rebuild against the bar above,
 not a light pass. This includes evaluating the already-built-but-uncommitted
-Modules 02–12 content expansion (`NEXT_SESSION.md`, 2026-09-10 entries) on
+Modules 02–12 content expansion (`docs/handoffs/NEXT_SESSION.md`, 2026-09-10 entries) on
 its own merits against *this specific bar* — its own QA reports passing
 `node` checks and live rendering, but that says nothing about whether it's
 deep enough or shaped like a real incident lifecycle. Don't assume it

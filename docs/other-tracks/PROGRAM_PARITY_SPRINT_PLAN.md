@@ -64,7 +64,7 @@ change, not a code fix.
    sign-off before doing this one.
 
 **Next AI:** don't pick for the owner — ask which option, or check
-`COMPLIANCE_DECISIONS_NEEDED.md` for whether this should be folded into that
+`docs/compliance/COMPLIANCE_DECISIONS_NEEDED.md` for whether this should be folded into that
 doc's existing decision-needed pattern instead of being fixed ad hoc.
 
 ---
@@ -88,11 +88,11 @@ genuinely strong and holds parity with soc-analyst's capstone rigor, but the
   module blocks) — original pattern.
 - `ai-ml`'s more recent build (`portal/ai-ml-module-*.js`,
   `selectQuizQuestions()`/`scoreQuizAttempt()`, built in the 2026-09-10
-  session logged in `NEXT_SESSION.md`) — closer in age/style, worth
+  session logged in `docs/handoffs/NEXT_SESSION.md`) — closer in age/style, worth
   checking first since it may be the cleaner reusable pattern.
 
 **Suggested execution (per this repo's established convention — see
-`NEXT_SESSION.md`'s AI/ML build entry and `[[feedback_sprint_handoff]]`
+`docs/handoffs/NEXT_SESSION.md`'s AI/ML build entry and `[[feedback_sprint_handoff]]`
 project-memory pattern used elsewhere): one sprint per module, delegated to
 a cheap/fast subagent per module since the shape is mechanical once module 1
 sets the pattern.** Do module 1 yourself (or with a stronger model) to
@@ -111,7 +111,7 @@ browser pass per `[[band_jobsheet_workflow]]`-style verification (actually
 click through a quiz, confirm scoring and pass/fail gate work) before
 marking a module's sprint done — don't just trust the code compiles.
 
-**Update this file's status board** (and `NEXT_SESSION.md`) after each
+**Update this file's status board** (and `docs/handoffs/NEXT_SESSION.md`) after each
 module lands, per the sprint-handoff convention — don't wait until all 12
 are done to record progress.
 
@@ -147,7 +147,7 @@ are (deterministic correct-answer checking), or does grading model-quality
 work inherently need human/instructor review? If the latter, this sprint's
 scope may really be "wire a real evaluator-review step" rather than
 "auto-score," which changes the shape of the fix — check
-`COMPLIANCE_DECISIONS_NEEDED.md`'s Decision 1 (evaluator/supervision
+`docs/compliance/COMPLIANCE_DECISIONS_NEEDED.md`'s Decision 1 (evaluator/supervision
 requirement) before assuming full automation is even the right target.
 
 ---
@@ -166,7 +166,7 @@ kind of planning-first pass the AI/ML build got
 decisions with the owner first): is this track still wanted for launch, on
 what timeline, and does a controlling curriculum source doc exist yet (the
 other three tracks each had one — `docs/other-tracks/AI_ML_ENGINEERING_CURRICULUM.md`,
-`CURRICULUM_ALIGNMENT_ARCHITECTURE.md`/SOC's mapping, the IT Help Desk
+`docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md`/SOC's mapping, the IT Help Desk
 build docs)? If no source curriculum exists for Electrical Engineering yet,
 that's the actual blocker, not engineering time.
 
@@ -176,14 +176,14 @@ that's the actual blocker, not engineering time.
 
 - Sprints 0 and 3 are **decisions**, not code — don't start writing before
   the owner has weighed in on either, per this repo's own
-  `COMPLIANCE_DECISIONS_NEEDED.md` precedent of separating decision docs
+  `docs/compliance/COMPLIANCE_DECISIONS_NEEDED.md` precedent of separating decision docs
   from build docs.
 - Sprint 1 is the biggest lift and the most valuable one (real content
   gap on a published, live program students are in today) — prioritize it
   over Sprint 2 if only one can run.
 - Sprint 2 has a hidden dependency on a compliance question (client-side
   auto-grading vs. required human evaluation) — read
-  `COMPLIANCE_DECISIONS_NEEDED.md` before writing scoring code so it isn't
+  `docs/compliance/COMPLIANCE_DECISIONS_NEEDED.md` before writing scoring code so it isn't
   thrown away.
 - Run `node bin/portal-check.js` after every change touching `portal/data.js`
   or any `portal/*-module-*.js` file — it's fast and already caught nothing

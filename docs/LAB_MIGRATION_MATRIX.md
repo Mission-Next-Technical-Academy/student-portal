@@ -27,7 +27,7 @@ visible to reviewers, per the inventory's own classifications.
 ## Current per-module state (from this session's fresh read)
 
 Progression model: Modules 1–2 guided, 3–6 assisted, 7–9 semi-independent, 10–12 independent
-(`MODULE_STANDARD.md`). Every module carries Learn It → Practice It → Prove It; Prove It is a fresh,
+(`docs/specs/MODULE_STANDARD.md`). Every module carries Learn It → Practice It → Prove It; Prove It is a fresh,
 independent scenario that must reach instructor review per `docs/LAB_ASSESSMENT_STANDARD.md`.
 
 | Module | Theme | Current tool | Notes for this crosswalk |

@@ -577,4 +577,4 @@ these while "simplifying."
   not deploy or push.
 - **Orchestrator (Claude, this session):** Decision 3's `portal/app.js`
   wiring, end-to-end verification, `supabase db push`, function deploy, and
-  the `NEXT_SESSION.md` handoff entry.
+  the `docs/handoffs/NEXT_SESSION.md` handoff entry.

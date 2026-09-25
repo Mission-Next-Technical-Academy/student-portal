@@ -7,7 +7,7 @@ const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_FILE = path.join(ROOT, 'portal', 'data.js');
-const MAP_FILE = path.join(ROOT, 'CURRICULUM_MAP.md');
+const MAP_FILE = path.join(ROOT, 'docs/specs/CURRICULUM_MAP.md');
 const WRITE_MAP = process.argv.includes('--write-map');
 
 const EXPECTED_PARENTS = [
@@ -392,8 +392,8 @@ if (program) {
   if (WRITE_MAP && errors.length === 0) {
     fs.writeFileSync(MAP_FILE, markdown, 'utf8');
   } else if (!WRITE_MAP) {
-    assert(fs.existsSync(MAP_FILE), 'CURRICULUM_MAP.md is missing; run node bin/curriculum-check.js --write-map');
-    if (fs.existsSync(MAP_FILE)) assert(fs.readFileSync(MAP_FILE, 'utf8') === markdown, 'CURRICULUM_MAP.md is stale; regenerate with --write-map');
+    assert(fs.existsSync(MAP_FILE), 'docs/specs/CURRICULUM_MAP.md is missing; run node bin/curriculum-check.js --write-map');
+    if (fs.existsSync(MAP_FILE)) assert(fs.readFileSync(MAP_FILE, 'utf8') === markdown, 'docs/specs/CURRICULUM_MAP.md is stale; regenerate with --write-map');
   }
 
   if (errors.length === 0) {

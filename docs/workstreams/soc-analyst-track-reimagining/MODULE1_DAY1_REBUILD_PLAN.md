@@ -115,7 +115,7 @@ Tier 1 mistake costs the *next* few hours of someone's actual day.
   mid-case would lose real, hours-deep work.
 - **What's already solid, don't rebuild it:** the admin grading queue,
   per-item instructor free-text feedback, and full-attempt redo/resubmission
-  (`lab-grading-notification-system/STATE.md`) are real, live, and the
+  (`docs/workstreams/lab-grading-notification-system/STATE.md`) are real, live, and the
   owner explicitly chose that shape on 2026-09-13. This plan adds content
   and a feedback-authoring shortcut on top of it, not a replacement.
 

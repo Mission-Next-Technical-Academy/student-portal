@@ -34,9 +34,9 @@ Read first, in this order:
                                      row's live module title and orchestration brief is
                                      your assignment, and the "Shared Contract for Every
                                      Module Agent" section lists your ten deliverables.
-  MODULE_STANDARD.md               — the canonical module shape, non-negotiable.
+  docs/specs/MODULE_STANDARD.md               — the canonical module shape, non-negotiable.
   docs/MNT_DESIGN_TOKENS.md             — colors, type, spacing.
-  PROJECT_GUIDE_FOR_AI.md          — house rules and code patterns.
+  docs/operations/PROJECT_GUIDE_FOR_AI.md          — house rules and code patterns.
   portal/soc-analyst-module-01.js + module-labs.css — the reference implementation. Match its depth,
                                      structure and quality. Do not copy it verbatim and do
                                      not produce a reskin of it.
@@ -89,8 +89,8 @@ Before you finish:
 1. node --check portal/soc-analyst-module-${nn}.js
 2. node bin/portal-check.js ${n}          (must print "module ${n}  OK")
 3. Write .agent-logs/module-${nn}-report.md: what you built, the scoring model, the
-   storage key, and the verification you ran. Match HANDOFF.md's style; the orchestrator
-   merges it into HANDOFF.md and MODULAR_LAB_PROGRAM_PROGRESS.md.
+   storage key, and the verification you ran. Match docs/handoffs/HANDOFF.md's style; the orchestrator
+   merges it into docs/handoffs/HANDOFF.md and MODULAR_LAB_PROGRAM_PROGRESS.md.
 
 Build the complete lab for Module ${nn} now.
 EOF

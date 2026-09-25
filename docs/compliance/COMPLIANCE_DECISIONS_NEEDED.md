@@ -3,7 +3,7 @@
 This document flags two CIE reporting/recordkeeping requirements that cannot be addressed through engineering alone — they require explicit compliance and product decisions from the institution's leadership.
 
 **Date:** 2026-08-29  
-**Reference:** `ASSESSMENT_REPORTING_SPEC.md` § 4, items 3–4
+**Reference:** `docs/specs/ASSESSMENT_REPORTING_SPEC.md` § 4, items 3–4
 
 ---
 
@@ -144,7 +144,7 @@ The LMS must record for each student:
 **Required hours are defined and in code:**
 - SOC Analyst program: **82 total hours** (70 technical + 12 other)
 - Lab hours: **40 hours** (half of technical)
-- These are documented in `CURRICULUM_MAP.md` and `portal/data.js`
+- These are documented in `docs/specs/CURRICULUM_MAP.md` and `portal/data.js`
 
 **Attempted/attended hours per student: Not tracked at all.**
 - No column in the `students`, `module_progress`, or `lab_attempts` tables records time spent.

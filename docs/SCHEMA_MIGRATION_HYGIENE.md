@@ -43,7 +43,7 @@ ad hoc.
    local version must also show a matching remote version, with no
    desynced or pending rows (exactly the kind of gap this repo just hit on
    2026-09-06 with `20260906120000` — a stale `schema_migrations` row with
-   no matching applied schema; see `NEXT_SESSION.md`). Fix any drift with
+   no matching applied schema; see `docs/handoffs/NEXT_SESSION.md`). Fix any drift with
    `supabase migration repair` before squashing anything — squashing on top
    of an already-desynced history just buries the problem in a bigger file.
 2. **Dump the live project's current full schema** to a single new baseline

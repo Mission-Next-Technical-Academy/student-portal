@@ -200,7 +200,7 @@ const MODULE_TWELVE_PREPARATION_LECTURES = [
   },
 ];
 
-// Standard Incident / Case Record (MODULE_STANDARD.md §7.2). The capstone's
+// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2). The capstone's
 // ten scored rubric domains stay exactly as designed — this only gives the
 // case a standard ticket core (status/severity/affected user+device/
 // disposition/escalation) so it opens the same way every other module's
@@ -253,7 +253,7 @@ function moduleTwelveFreshDefaults() {
     answers: {}, executiveSummary: '', notes: '', closureNote: '',
     hintsOpened: [], simulatorLaunched: false, breakdown: null, feedback: [],
     criticalErrors: [], validationError: '', lastSubmittedAt: '',
-    // Standard case-record ticket fields (MODULE_STANDARD.md §7.2).
+    // Standard case-record ticket fields (docs/specs/MODULE_STANDARD.md §7.2).
     submitted: false, status: '', severity: '', affectedUser: '', affectedDevice: '',
     disposition: '', escalation: '', escalateTo: '', findings: {}, actionHistory: [],
     showMissing: false,
@@ -689,7 +689,7 @@ function wireModuleTwelveLab() {
     moduleTwelveState.lastSubmittedAt = new Date().toISOString();
     moduleTwelveState.completed = result.score >= MODULE_TWELVE_PASSING_SCORE && result.criticalErrors.length === 0;
     // Once passed, the capstone ticket locks (submitted -> Lab Graded/Under
-    // Review) — MODULE_STANDARD.md §7.2's submit-locks-on-success model. A
+    // Review) — docs/specs/MODULE_STANDARD.md §7.2's submit-locks-on-success model. A
     // still-failing attempt stays editable so the learner can revise and
     // resubmit, matching the capstone's original retry behavior.
     if (moduleTwelveState.completed) {
@@ -738,7 +738,7 @@ function wireModuleTwelveLab() {
     if (moduleTwelveState.completed) {
       if (!moduleTwelveState.flags.includes(MODULE_TWELVE_FLAG)) moduleTwelveState.flags.push(MODULE_TWELVE_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTwelveUser, 'soc-analyst', 'soc-12', MODULE_TWELVE_CATALOG_KEY);
-      // architecture.md §3 Sprint 4 / CURRICULUM_ALIGNMENT_ARCHITECTURE.md §5:
+      // docs/specs/architecture.md §3 Sprint 4 / docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md §5:
       // Module 12 IS the capstone (one Prove assessment, not a 12-stage flow),
       // so this writes the student's single capstone_submissions row (stage
       // is always the constant 12) only on an actual pass — a failed attempt

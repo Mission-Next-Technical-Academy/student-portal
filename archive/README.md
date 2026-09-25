@@ -192,3 +192,14 @@ IT Support / AI-ML sprints).
 `CURRICULUM_MAP.md` stays at the root — `bin/curriculum-check.js` reads it
 there and it mirrors `portal/data.js`'s compliance data. `MODULE_STANDARD.md`
 stays as the canonical module layout for all four tracks.
+
+## 2026-09-25 second pass — root down to README / CLAUDE / ROADMAP
+
+Remaining root docs moved into `docs/specs/`, `docs/handoffs/`,
+`docs/operations/`, `docs/compliance/` (with `Reportingrequirements.txt` and
+the CIE build-review `.docx`), and the three SOC workstream folders into
+`docs/workstreams/`. `bin/curriculum-check.js` now reads
+`docs/specs/CURRICULUM_MAP.md`. The July SC-200 suppression-rule lab
+(`defender.py`, `events.jsonl`, `rules.json`, `run_scenario.sh`) moved to
+`legacy-sc200-simulator/defender-lab/`. Only files authored solely by the
+repo owner were moved; other developers' files were not touched.

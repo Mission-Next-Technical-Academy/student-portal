@@ -47,7 +47,7 @@
    pushed `master` at the owner's direction. The worktree was clean after
    push. Pages deployment was in progress when recorded.
 3. Self-check pane redesign (see design decision below) — new, not started.
-4. `module-completion-integrity/BRIEF.md` remains queued and unstarted; do not
+4. `docs/workstreams/module-completion-integrity/BRIEF.md` remains queued and unstarted; do not
    begin it until items 1-3 above are verified.
 5. **Done 2026-09-20:** "Message Instructor" is available in the student
    portal and faculty Inbox, and its shared persistent student-program and
@@ -139,7 +139,7 @@ module file), so this is new build, not a fix.
   read scoped the same way the grading queue already is — **by that
   student's track workspace**, matching the existing "N Labs need grading"
   per-course-workspace scoping described in `CLAUDE.md` /
-  `lab-grading-notification-system/STATE.md`. Reuse that scoping decision
+  `docs/workstreams/lab-grading-notification-system/STATE.md`. Reuse that scoping decision
   rather than re-deriving it.
 - Student-facing UI: a simple "Message instructor" entry point (a compose
   form: subject + body, submit) plus a thread/inbox view of their own past
@@ -367,7 +367,7 @@ mirrors the project's established per-sprint handoff convention
   - [ ] C5. Regression pass: `node --check`, `node bin/portal-check.js`,
     and a manual run through Module 1's lab confirming simulator
     scoring/competency panel/faculty queue are all still unchanged.
-- [ ] **Sprint D** — `module-completion-integrity/BRIEF.md` (remaining-work
+- [ ] **Sprint D** — `docs/workstreams/module-completion-integrity/BRIEF.md` (remaining-work
   item 4). Only after Sprints A-C are done and verified.
 - [x] **Sprint E** — "Message instructor" feature (remaining-work item 5, the
   design decision above). Completed 2026-09-18: deployed

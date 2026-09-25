@@ -1,6 +1,6 @@
 // Standard Incident / Case Record — the one ticket every SOC module's graded
 // Prove It submission is written on. Module 01's NST-2407 case console is the
-// reference (MODULE_STANDARD.md §7.2); this file is that renderer lifted out
+// reference (docs/specs/MODULE_STANDARD.md §7.2); this file is that renderer lifted out
 // so every module produces the same ticket: CASE id + Status, Severity,
 // Affected User, Affected Device, Disposition, Escalation required (+ Route to
 // Department when required), module findings, Analyst Work Notes, Save /

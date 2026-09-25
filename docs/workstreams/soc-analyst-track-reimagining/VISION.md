@@ -54,7 +54,7 @@ Response domain is structured.
 already built exactly this shape for Security+: a continuous fictional org
 (`Mission Next Labs`), a recurring identity, an `INC-####` case-numbering
 convention, and a per-module real-world scenario (e.g. Module 8's ransomware
-case `INC-4937`, "Operation Cedar"). Per `NEXT_SESSION.md`'s own 2026-09-10
+case `INC-4937`, "Operation Cedar"). Per `docs/handoffs/NEXT_SESSION.md`'s own 2026-09-10
 notes, modules 02–12 reportedly already got real content expansion along
 these lines — **but that work is uncommitted, self-reported as done, and
 explicitly flagged as not yet curriculum/compliance-reviewed.** Before
@@ -137,7 +137,7 @@ a fourth stage — a separate full incident per module beyond the assessed
 lab. `REBUILD_PLAN.md`'s actual shipped work (Module 09's ticket panel, the
 Arc C connector, etc.) never built two separate labs per module; it
 deepened the one assessed lab into the "full incident, front to back"
-shape instead. `ROADMAP.md` and `INSTRUCTIONAL_ARCHITECTURE.md` now use a
+shape instead. `ROADMAP.md` and `docs/specs/INSTRUCTIONAL_ARCHITECTURE.md` now use a
 three-stage Learn it → Practice it → Prove it cycle, with that full-incident
 depth folded into "Prove it." This section is corrected in place to match;
 the "one real case, worth showing an employer" ambition below is preserved,

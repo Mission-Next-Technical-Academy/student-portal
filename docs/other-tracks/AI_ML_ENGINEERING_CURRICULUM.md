@@ -16,7 +16,7 @@ with a synthetic user — no JS exceptions; the only console errors were
 expected Supabase rejections of that fake user's ID, caught and logged, never
 thrown. `PROGRAMS.find(p => p.slug === 'ai-ml').isPublished` is deliberately
 left `false` — flipping the track live is the site owner's call, not made
-here. Track skeleton titles are canonical per `MODULE_STANDARD.md` §4 — do
+here. Track skeleton titles are canonical per `docs/specs/MODULE_STANDARD.md` §4 — do
 not rename or reorder.
 
 **Still open** (see "Track-Level Notes for the Next Author" below): quiz
@@ -24,17 +24,17 @@ banks are only the first variant per objective (5–6 questions/module) and
 video lecture segments are not authored — do not archive this doc until
 those are addressed.
 Aligned to the **CRISP-DM** lifecycle and current **MLOps** practice, matching
-the program frame in `MODULE_STANDARD.md` §1 (6 weeks, 12 modules, 2/week,
+the program frame in `docs/specs/MODULE_STANDARD.md` §1 (6 weeks, 12 modules, 2/week,
 Module 11 = professional practice, Module 12 = capstone).
 
-Format mirrors the `Module` contract in `MODULE_STANDARD.md` §2: summary,
+Format mirrors the `Module` contract in `docs/specs/MODULE_STANDARD.md` §2: summary,
 hours (range), objectives (measurable verbs), topics, hands-on labs, skills,
 assessment (knowledge-check quiz bank + fill-in-the-blank + practical lab),
 prerequisites, sources. Quiz questions are written as a **bank per objective**
 (archive/historical-plans/course_SOC_standardized.md §4 pattern) — multiple scenario variants per
 concept, not one fixed set — so retries can reshuffle without repeating the
 exact question. No certification endorsement or partnership language is used
-anywhere below, per `MODULE_STANDARD.md` §6.
+anywhere below, per `docs/specs/MODULE_STANDARD.md` §6.
 
 ---
 
@@ -859,7 +859,7 @@ set.
 **Week:** 4 · **Hours:** 9–12 Hours · **Lessons:** 6 · **Labs:** 3 · **Status:** authored
 **Key:** `aiml-08` · **Prerequisites:** `aiml-05`, `aiml-07`
 
-**Summary:** The heaviest module in the program (per `MODULE_STANDARD.md`
+**Summary:** The heaviest module in the program (per `docs/specs/MODULE_STANDARD.md`
 §1's Week-4 weighting). Build a neural network from its components —
 neurons, layers, activation functions, backpropagation — and train one with
 a modern deep-learning framework.
@@ -1243,7 +1243,7 @@ building a repeatable pipeline, and monitoring for drift once it's live.
 **Week:** 6 · **Hours:** 6–8 Hours · **Lessons:** 4 · **Labs:** 1 · **Status:** authored
 **Key:** `aiml-11` · **Prerequisites:** `aiml-07`, `aiml-09`, `aiml-10`
 
-**Summary:** Module 11 is professional practice, per `MODULE_STANDARD.md`
+**Summary:** Module 11 is professional practice, per `docs/specs/MODULE_STANDARD.md`
 §3 — workflow, documentation, and communication. For this track that means
 identifying bias and fairness problems in models, applying a risk
 framework, and explaining model behavior and limitations to both technical
@@ -1378,7 +1378,7 @@ and non-technical audiences.
 **Week:** 6 · **Hours:** 10–12 Hours · **Lessons:** 4 (prep) + 1 integrated scenario · **Labs:** 1 (multi-stage) · **Status:** authored
 **Key:** `aiml-12` · **Prerequisites:** all prior modules · **isCapstone:** true
 
-**Summary:** Not a quiz — per `MODULE_STANDARD.md` §3, a single realistic,
+**Summary:** Not a quiz — per `docs/specs/MODULE_STANDARD.md` §3, a single realistic,
 multi-stage project that requires most of the program's skills end to end,
 producing a portfolio-grade deliverable, mirroring the SOC track's
 12-stage capstone pattern at a similar 8–12 stage scope.
@@ -1395,7 +1395,7 @@ producing a portfolio-grade deliverable, mirroring the SOC track's
   card, and present the full project to a mixed technical/non-technical
   audience.
 
-**Capstone Structure (staged, per `MODULE_STANDARD.md` §3)**
+**Capstone Structure (staged, per `docs/specs/MODULE_STANDARD.md` §3)**
 
 *Preparation lectures (short, before the integrated scenario):*
 - Scenario orientation and rules of engagement
@@ -1476,4 +1476,4 @@ stages and all four deliverables required to pass)
 - **Alignment language only** — this document states alignment to
   CRISP-DM and general MLOps practice; it does not claim certification
   endorsement, exam-prep affiliation, or partnership with any vendor, per
-  `MODULE_STANDARD.md` §6.
+  `docs/specs/MODULE_STANDARD.md` §6.

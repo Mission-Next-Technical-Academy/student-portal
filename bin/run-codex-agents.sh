@@ -10,7 +10,7 @@ LOG="$LAB/.agent-logs"
 mkdir -p "$LOG"
 
 PREAMBLE='You are one of the numbered agents defined in AGENTS.md at the repo root.
-First read, in order: SC200_LAB.md, ExamObjectives.md, HANDOFF.md, OBJECTIVES_DELTA.md, AGENTS.md, and GAP_BRIDGE.md if your tasks reference it.
+First read, in order: SC200_LAB.md, ExamObjectives.md, docs/handoffs/HANDOFF.md, OBJECTIVES_DELTA.md, AGENTS.md, and GAP_BRIDGE.md if your tasks reference it.
 Hard rules (from AGENTS.md "Rules for every agent") — non-negotiable:
 - NEVER copy Microsoft proprietary HTML/CSS/JS or Microsoft Learn text. Original look-alike code and own-words summaries only.
 - No build step: vanilla HTML/CSS/JS served by python3 -m http.server. No npm installs.
@@ -22,7 +22,7 @@ Hard rules (from AGENTS.md "Rules for every agent") — non-negotiable:
 When done:
 - Run node --check on ui/data.js ui/views.js ui/app.js and fix any syntax errors.
 - Mark your checklist items [x] in the AGENTS.md section for your agent.
-- Append a dated entry to HANDOFF.md describing what you built (match its existing style).
+- Append a dated entry to docs/handoffs/HANDOFF.md describing what you built (match its existing style).
 Do NOT run git commands; the orchestrator commits for you.
 Your assignment: complete ALL checklist tasks for '
 

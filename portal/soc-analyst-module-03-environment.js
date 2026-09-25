@@ -202,7 +202,7 @@ const M03E_DATA = { practice: M03E_PRACTICE, prove: M03E_PROVE };
 
 const M03E_TABS = [['alerts', 'Alerts'], ['search', 'Log Search'], ['timeline', 'Timeline'], ['entities', 'Entities'], ['sources', 'Data Sources'], ['watchlists', 'Watchlists'], ['evidence', 'Evidence']];
 // The assessment console carries the standard Incident / Case Record
-// (MODULE_STANDARD.md §7.2) as its own tab, so the ticket is worked beside
+// (docs/specs/MODULE_STANDARD.md §7.2) as its own tab, so the ticket is worked beside
 // the logs instead of below the console.
 const M03E_CASE_TAB = ['case', 'Case Record'];
 const m03eTabs = (scope) => (scope === 'prove' ? [...M03E_TABS, M03E_CASE_TAB] : M03E_TABS);
@@ -261,7 +261,7 @@ const M03E_ACTIONS = [
 ];
 
 // ------------------------------------------------------------ Case Record
-// MODULE_STANDARD.md §7.2 / CASE_RECORD_MIGRATION.md: the Assessment Lab's
+// docs/specs/MODULE_STANDARD.md §7.2 / CASE_RECORD_MIGRATION.md: the Assessment Lab's
 // determination form becomes the standard ticket. The 7-account scope
 // assessment keeps its own selects as `spec.findings` (one per account); the
 // indicator/action checkbox groups and the 4-part handoff stay as

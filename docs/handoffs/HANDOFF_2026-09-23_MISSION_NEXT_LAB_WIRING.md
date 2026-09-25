@@ -12,7 +12,7 @@ describe plans, gates, or partial states that predate the owner's explicit
 mid-session go-ahead to wire directly per a separate spec pasted into chat,
 skipping the Epic C/D authorization gate the discovery doc set up. Treat
 them as historical background only, never as the current state or the
-current plan — **this file is the current state.** (`NEXT_SESSION.md` /
+current plan — **this file is the current state.** (`docs/handoffs/NEXT_SESSION.md` /
 `ROADMAP.md` govern unrelated, non-lab-migration work and are not
 superseded by this doc.)
 

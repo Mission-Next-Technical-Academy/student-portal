@@ -8,7 +8,7 @@ productively without reconstructing the project from scratch.
 Read `ROADMAP.md` first for the active delivery order, locked Module 1
 direction, and CI/CD workflow. Use `archive/session-logs/LATEST_PROGRESS.md` as historical context.
 For any live roster, message, grading, account, or retention task, read
-`OPERATIONS.md` first; it is the operational control-plane pointer.
+`docs/operations/OPERATIONS.md` first; it is the operational control-plane pointer.
 Before changing any student lab, Learn It, Practice It, Prove It, simulator,
 assessment scoring, or instructor/admin review, read
 `docs/LAB_ASSESSMENT_STANDARD.md` and inspect Module 1 first. That standard is
@@ -67,9 +67,9 @@ devices, queries, and cloud resources are fictional fixtures.
 5. New learning features must map to a transferable SOC Analyst competency or
    a direct user requirement. `ExamObjectives.md` is a legacy reference, not a
    scope gate.
-6. Preserve the legacy terminal scenario in `defender.py`, `rules.json`,
-   `events.jsonl`, and `run_scenario.sh`.
-7. Update `HANDOFF.md` after a meaningful work session; archive a completed
+6. Preserve the legacy terminal scenario in `archive/legacy-sc200-simulator/defender-lab/defender.py`, `archive/legacy-sc200-simulator/defender-lab/rules.json`,
+   `archive/legacy-sc200-simulator/defender-lab/events.jsonl`, and `archive/legacy-sc200-simulator/defender-lab/run_scenario.sh`.
+7. Update `docs/handoffs/HANDOFF.md` after a meaningful work session; archive a completed
    entry rather than letting the active handoff grow indefinitely.
 8. Before changing navigation, read `docs/NAV_SPEC.md`.
 9. Preserve existing user changes in the working tree. Never reset or discard
@@ -139,8 +139,8 @@ opens to port `8767`.
 Read in this order before implementing changes:
 
 1. `ROADMAP.md` — canonical active direction, dependencies, and release flow.
-2. `PROJECT_GUIDE_FOR_AI.md` — this architecture and safety guide.
-3. `HANDOFF.md` — evidence for the active roadmap item; archived implementation history is
+2. `docs/operations/PROJECT_GUIDE_FOR_AI.md` — this architecture and safety guide.
+3. `docs/handoffs/HANDOFF.md` — evidence for the active roadmap item; archived implementation history is
    in `archive/session-logs/`.
 4. `archive/legacy-sc200-simulator/AGENTS.md` — legacy task history plus
    still-relevant safety rules.
@@ -175,14 +175,14 @@ Mission_Next_Technical_Academy_SOC_Analyst_course/
 │   ├── render_all.js            route/view mechanical render test
 │   └── run-codex-agents.sh      historical task-runner automation
 ├── local-tasks/                 historical generation/verification tooling
-├── defender.py                  legacy CLI suppression engine
-├── run_scenario.sh              legacy terminal training scenario
-├── rules.json                   CLI scenario rule data
-├── events.jsonl                 CLI scenario event data
+├── archive/legacy-sc200-simulator/defender-lab/defender.py                  legacy CLI suppression engine
+├── archive/legacy-sc200-simulator/defender-lab/run_scenario.sh              legacy terminal training scenario
+├── archive/legacy-sc200-simulator/defender-lab/rules.json                   CLI scenario rule data
+├── archive/legacy-sc200-simulator/defender-lab/events.jsonl                 CLI scenario event data
 ├── SC200_LAB.md                 master project document
 ├── archive/session-logs/LATEST_PROGRESS.md           current direction and latest status
 ├── ExamObjectives.md            legacy certification reference
-├── HANDOFF.md                   concise current-handoff index
+├── docs/handoffs/HANDOFF.md                   concise current-handoff index
 └── archive/                     historical plans, logs, and completed notes
 ```
 
@@ -367,7 +367,7 @@ For meaningful interface changes, also test in a real browser:
 - There is no real login, RBAC enforcement, API, cloud tenant, email system,
   endpoint, or SIEM backend.
 - Historical certification documents retain old scope and implementation
-  decisions. Treat `archive/session-logs/LATEST_PROGRESS.md`, this guide, `NEXT_SESSION.md`, and
+  decisions. Treat `archive/session-logs/LATEST_PROGRESS.md`, this guide, `docs/handoffs/NEXT_SESSION.md`, and
   the active workstream's `STATE.md`
   entries, user direction, and current code as authoritative.
 - The working tree may contain intentional user changes. Inspect `git status`
@@ -384,7 +384,7 @@ For meaningful interface changes, also test in a real browser:
 6. Run proportional syntax, render, HTTP, and browser checks.
 7. Compare results with the known baseline instead of assuming every old
    warning was caused by the new change.
-8. Update `HANDOFF.md` with the outcome, verification, and remaining work;
+8. Update `docs/handoffs/HANDOFF.md` with the outcome, verification, and remaining work;
    archive the entry once it is complete.
 
 For lab or assessment work, also document the Module 1 reference components,

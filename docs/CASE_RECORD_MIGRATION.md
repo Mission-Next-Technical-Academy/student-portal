@@ -1,7 +1,7 @@
 # Case Record migration — Modules 02–12 (2026-09-25)
 
 Goal: every SOC module's graded Prove It submission becomes the standard
-Incident / Case Record (MODULE_STANDARD.md §7.2), rendered by
+Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2), rendered by
 `portal/case-record.js`, looking exactly like Module 01's NST-2407 ticket.
 "Everything we do is an incident ticket dashboard."
 

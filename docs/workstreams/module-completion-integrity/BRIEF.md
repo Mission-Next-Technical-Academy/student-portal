@@ -133,7 +133,7 @@ For each of `soc-analyst-module-02.js` through `-12.js`:
   separate go-ahead (same reasoning as flagging AI/ML out of scope for the
   nav-rail sprint).
 - The one-time backfill of the 3 known test accounts' Module 1 beacon is
-  tracked in `lab-grading-notification-system/STATE.md`, not blocked on
+  tracked in `docs/workstreams/lab-grading-notification-system/STATE.md`, not blocked on
   this generalization landing first.
 - The left-pane/unified-nav layout work (separate active thread, see
-  `NEXT_SESSION.md`) is unrelated UI work, not touched by this doc.
+  `docs/handoffs/NEXT_SESSION.md`) is unrelated UI work, not touched by this doc.

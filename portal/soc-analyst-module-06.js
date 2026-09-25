@@ -405,7 +405,7 @@ const MODULE_SIX_SOURCES = {
 
 const MODULE_SIX_EXPECTED_BOOKMARKS = ['EP-602', 'EP-604', 'ID-612', 'ID-614'];
 
-// Standard Incident / Case Record (MODULE_STANDARD.md §7.2). Module 06 has
+// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2). Module 06 has
 // two catalog-graded Prove It submissions — `m06-form` (catalog key
 // MODULE_SIX_CATALOG_LAB_KEY, 'lab-threat-hunt') and `m06-independent-form`
 // (catalog key 'lab-threat-hunt-independent') — both call recordLabAttempt()
@@ -738,7 +738,7 @@ const MODULE_SIX_DEFAULT_STATE = {
   independentLab: {
     task: '', owner: '', scope: '', disposition: '', rationale: '', completed: false, score: 0,
     // Standard Incident / Case Record for the m06-independent-form Prove It
-    // submission (MODULE_STANDARD.md §7.2).
+    // submission (docs/specs/MODULE_STANDARD.md §7.2).
     caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
   },
   hypothesis: '',
@@ -770,7 +770,7 @@ const MODULE_SIX_DEFAULT_STATE = {
   lastSubmittedAt: '',
   labProgress: {},
   // Standard Incident / Case Record for the m06-form Prove It submission
-  // (MODULE_STANDARD.md §7.2).
+  // (docs/specs/MODULE_STANDARD.md §7.2).
   caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
 };
 

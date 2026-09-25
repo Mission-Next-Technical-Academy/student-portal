@@ -3,7 +3,7 @@
 **Status:** Owner specification, captured 2026-09-21. Authoritative for
 Module 01's Practice It / Prove It lab design — supersedes any conflicting
 assumption elsewhere in this repo about Module 01 launching into the full
-SOC range. Not yet built. See `HANDOFF.md`'s 2026-09-21 entries for what
+SOC range. Not yet built. See `docs/handoffs/HANDOFF.md`'s 2026-09-21 entries for what
 was attempted before this spec landed and needs reconciling against it.
 
 ## Purpose
