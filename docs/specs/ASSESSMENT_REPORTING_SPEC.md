@@ -137,6 +137,9 @@ doesn't determine pass/fail — worth calling out explicitly in any CIE-facing
 description of "meaningful competency evaluation," since it's a real
 safety/judgment check, not just a knowledge check.
 
+The detailed Module 12 faculty scoring rubric is maintained separately in
+`docs/specs/SOC_ANALYST_CAPSTONE_RUBRIC.md`.
+
 ---
 
 ## 3. Draft tracks (IT Help Desk, AI/ML, Electrical) — placeholder, not yet authored
