@@ -7,6 +7,103 @@ const MODULE_THREE_FLAG = 'M03-SIEM-CORRELATION-COMPLETE';
 const MODULE_THREE_CATALOG_LAB_KEY = 'lab-siem-triage';
 const MODULE_THREE_PASSING_SCORE = 70;
 
+const MODULE_THREE_INTRO_SLIDES = [
+  {
+    eyebrow: 'Slide 1',
+    title: 'Logs are everywhere',
+    body: [
+      'In Information Technology, Operational Technology, and the many devices around us, logs can be created everywhere.',
+      'Everything is connected in one way or another.',
+      'And when something happens, many of those systems can record it.',
+    ],
+    visual: 'logs',
+  },
+  {
+    eyebrow: 'Slide 2',
+    title: 'The world is connected',
+    body: [
+      'This map shows the undersea cables that connect countries around the world.',
+      'A huge amount of internet traffic moves through these cables every day.',
+    ],
+    visual: 'cables',
+  },
+  {
+    eyebrow: 'Slide 3',
+    title: 'How devices communicate',
+    body: [
+      'This is only one way our devices communicate with each other.',
+      'Data might travel through a copper cable pulsing electricity.',
+      'It might travel as rapidly flashing light through fiber-optic cable.',
+      'Or it might travel through frequencies moving through the air to and from our mobile devices.',
+    ],
+    visual: 'signals',
+  },
+  {
+    eyebrow: 'Slide 4',
+    title: 'The OSI model',
+    body: [
+      'This is why, starting in 1977, the OSI Model was created.',
+      'OSI means Open Systems Interconnection.',
+      'It gave us a simple way to understand how technology communicates across seven layers.',
+      'Charles Bachman’s work at Honeywell helped provide the original seven-layer concept.',
+      'Almost every technology you use lives in one or more of these layers.',
+    ],
+    visual: 'osi',
+  },
+  {
+    eyebrow: 'Slide 5',
+    title: 'Physical',
+    body: ['Physical: An Ethernet cable.', 'It is the actual thing carrying the signal from one device to another.'],
+    visual: 'physical',
+  },
+  {
+    eyebrow: 'Slide 6',
+    title: 'Data Link',
+    body: ['Data Link: Your home Wi-Fi router recognizing your phone.', 'It knows your phone is one specific device on the local network.'],
+    visual: 'datalink',
+  },
+  {
+    eyebrow: 'Slide 7',
+    title: 'Network',
+    body: ['Network: Google Maps for network traffic.', 'Routers use IP addresses to figure out where data needs to go.'],
+    visual: 'network',
+  },
+  {
+    eyebrow: 'Slide 8',
+    title: 'Transport',
+    body: ['Transport: A delivery service checking every package arrived.', 'TCP helps make sure data shows up completely and in the right order.'],
+    visual: 'transport',
+  },
+  {
+    eyebrow: 'Slide 9',
+    title: 'Session',
+    body: ['Session: Staying signed in to Netflix.', 'Your session stays active while you move from one episode to the next.'],
+    visual: 'session',
+  },
+  {
+    eyebrow: 'Slide 10',
+    title: 'Presentation',
+    body: ['Presentation: A translator between two people.', 'It changes information into a format both sides understand, like turning encrypted data back into readable information.'],
+    visual: 'presentation',
+  },
+  {
+    eyebrow: 'Slide 11',
+    title: 'Application',
+    body: ['Application: Opening Gmail and sending an email.', 'This is the layer where you directly use the technology.'],
+    visual: 'application',
+  },
+  {
+    eyebrow: 'Slide 12',
+    title: 'Why this matters to a SOC analyst',
+    body: [
+      'Logs can be created at every OSI layer.',
+      'They help us understand what happened, where it happened, and why a piece of hardware or software malfunctioned.',
+      'That gives technicians, and SOC Analysts like you, the evidence needed to investigate and fix the problem.',
+    ],
+    visual: 'soc',
+  },
+];
+
 const MODULE_THREE_QUIZ_BANKS = [
   {
     conceptId: 'log-normalization',
@@ -358,6 +455,8 @@ const MODULE_THREE_DEFAULT_STATE = {
   lastSubmittedAt: '',
   notes: '',
   lessonWork: {},
+  introSlidesComplete: false,
+  normalizationLab: { mappings: {}, ingested: false, falseCorrelationSeen: false },
   labProgress: {},
   guidedGateMessage: '',
   assessmentGateMessage: '',
@@ -397,6 +496,21 @@ let moduleThreeQuizState = null;
 // account already records as passed (see moduleThreeQuizVerifiedElsewhere()).
 let moduleThreeQuizForceRetake = false;
 
+function moduleThreeHasPriorActivity(state, user) {
+  if (!state || typeof state !== 'object') return false;
+  if (state.completed || state.practiceComplete || state.importedLabComplete) return true;
+  if ((state.attempts || 0) > 0 || (state.bestScore || 0) > 0 || (state.score || 0) > 0) return true;
+  if ((state.notes || '').trim() || (state.practiceNotes || '').trim()) return true;
+  if (state.console && Object.keys(state.console).length > 0) return true;
+  if (state.lessonWork && Object.keys(state.lessonWork).length > 0) return true;
+  if (state.labProgress && Object.keys(state.labProgress).length > 0) return true;
+  if (state.normalizationLab?.ingested || Object.keys(state.normalizationLab?.mappings || {}).length > 0) return true;
+  if (user?.remoteModuleProgress?.['soc-03'] && user.remoteModuleProgress['soc-03'] !== 'not_started') return true;
+  if (user?.remoteVerifiedModuleProgress?.['soc-03'] === true) return true;
+  if (user?.remoteModuleDetail?.['soc-03'] && Object.keys(user.remoteModuleDetail['soc-03']).length > 0) return true;
+  return false;
+}
+
 function moduleThreeLoad(user) {
   if (moduleThreeUser?.email !== user?.email) moduleThreeQuizForceRetake = false;
   moduleThreeUser = user;
@@ -410,6 +524,8 @@ function moduleThreeLoad(user) {
   if (!Array.isArray(moduleThreeState.feedback)) moduleThreeState.feedback = [];
   if (!Array.isArray(moduleThreeState.flags)) moduleThreeState.flags = [];
   if (!moduleThreeState.lessonWork || typeof moduleThreeState.lessonWork !== 'object') moduleThreeState.lessonWork = {};
+  moduleThreeState.normalizationLab = { mappings: {}, ingested: false, falseCorrelationSeen: false, ...(moduleThreeState.normalizationLab || {}) };
+  moduleThreeState.introSlidesComplete = moduleThreeState.introSlidesComplete === true || moduleThreeHasPriorActivity(moduleThreeState, user);
   if (typeof moduleThreeState.notes !== 'string') moduleThreeState.notes = '';
   if (typeof moduleThreeState.practiceNotes !== 'string') moduleThreeState.practiceNotes = '';
   moduleThreeState.labProgress = moduleThreeState.labProgress && typeof moduleThreeState.labProgress === 'object' ? moduleThreeState.labProgress : {};
@@ -440,6 +556,7 @@ function moduleThreeSave() {
 function moduleThreeGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm03-lecture' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleThreeQuizState?.passed, scrollId: 'm03-knowledge-check' },
     { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleThreeState.practiceComplete, scrollId: 'm03-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleThreeState.completed, scrollId: 'm03-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm03-review' },
@@ -479,26 +596,68 @@ function moduleThreeGetQuickNavItems() {
 }
 
 function moduleThreeVideoScript() {
-  return `<details class="m03-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m03-script-body">
-      <p><strong>Introduction:</strong> Welcome to the SIEM signal room. Modern security monitoring generates thousands of events per minute. Your job is not to watch every row—it's to recognize patterns that matter. Over the next 10 minutes, we'll explore how SIEMs turn noise into signal through normalization, chronological ordering, and careful correlation reasoning.</p>
+  return '';
+}
 
-      <p><strong>Segment 1 — What is a SIEM?</strong> A Security Information and Event Management system collects logs from across your environment: firewalls, identity systems, application servers, databases. Each system names authentication, access, and action events differently. A SIEM normalizes that diversity into shared fields: timestamp, user account, host, source IP, and outcome. This normalization is the foundation of correlation.</p>
+function moduleThreeIntroVisual(kind) {
+  const osiLayers = ['Application', 'Presentation', 'Session', 'Transport', 'Network', 'Data Link', 'Physical'];
+  if (kind === 'cables') {
+    return `<figure class="m03-intro-map">
+      <img src="assets/course-media/submarine-cable-map.png" alt="World map showing submarine communication cable routes connecting continents">
+      <figcaption>Submarine communication cable map, Wikimedia Commons / OpenStreetMap contributors.</figcaption>
+    </figure>`;
+  }
+  if (kind === 'osi') {
+    return `<div class="m03-intro-osi" aria-hidden="true">${osiLayers.map((layer, index) => `<span style="--m03-layer:${index + 1}">${7 - index}. ${esc(layer)}</span>`).join('')}</div>`;
+  }
+  const iconMap = {
+    logs: ['ri-file-list-3-line', 'ri-router-line', 'ri-server-line', 'ri-base-station-line'],
+    signals: ['ri-flashlight-line', 'ri-lightbulb-flash-line', 'ri-signal-tower-line'],
+    physical: ['ri-ethernet-line', 'ri-plug-line'],
+    datalink: ['ri-wifi-line', 'ri-smartphone-line'],
+    network: ['ri-map-pin-2-line', 'ri-route-line'],
+    transport: ['ri-truck-line', 'ri-checkbox-circle-line'],
+    session: ['ri-login-circle-line', 'ri-play-circle-line'],
+    presentation: ['ri-translate-2', 'ri-lock-unlock-line'],
+    application: ['ri-mail-send-line', 'ri-computer-line'],
+    soc: ['ri-search-eye-line', 'ri-shield-check-line', 'ri-file-shield-2-line'],
+  };
+  const icons = iconMap[kind] || iconMap.logs;
+  return `<div class="m03-intro-visual m03-intro-visual-${esc(kind)}" aria-hidden="true">
+    <div class="m03-intro-orbit">${icons.map((icon, index) => `<span style="--m03-node:${index}"><i class="${esc(icon)}"></i></span>`).join('')}</div>
+    <div class="m03-intro-core"><i class="${esc(icons[0])}"></i></div>
+  </div>`;
+}
 
-      <p><strong>Segment 2 — Normalization in practice.</strong> Imagine three sign-in events. Windows logs it as EventID 4624 with fields "TargetUserName" and "IpAddress." A Linux server calls it "auth" with "user" and "src_ip." A cloud app sends JSON with "account" and "remote_ip." Identical concept, three different formats. Without normalization, a query for "user == 'jsmith'" will miss the Windows event because it uses "TargetUserName." The SIEM bridges this by normalizing all three into a single "Account" and "SourceIp" field, so one query finds all three events.</p>
-
-      <p><strong>Segment 3 — Time as evidence.</strong> Chronological order matters because attack sequences tell stories. A failed sign-in by itself is noise. A sign-in failure, then a success, then a privilege escalation, then a data export—all within 10 minutes from the same source IP and account—is a chain of actions. Unsorted by time, this chain looks like random events. Sorted chronologically, it shows intent and progression.</p>
-
-      <p><strong>Segment 4 — Correlation vs. coincidence.</strong> Two events at the same timestamp are not automatically correlated. A user's password failure and a different user's file deletion at 09:15 are coincidence, not a connected pattern. Correlation requires alignment on multiple dimensions: the same account, the same host, the same source IP, within a tight time window. The more dimensions align, the stronger the correlation signal and the lower the chance of coincidence.</p>
-
-      <p><strong>Segment 5 — Querying for patterns.</strong> A SIEM query like "UnifiedEvents | where Account == 'jsmith' and Result == 'Failed' | sort by TimeGenerated asc" does three things: it narrows the data to one account and failed attempts, it sorts oldest-to-newest to show progression, and it gives you a coherent narrative instead of isolated anomalies. Without a SIEM query workbench, you'd be manually piecing together events from disparate logs.</p>
-
-      <p><strong>Segment 6 — Triage and verdict.</strong> Once you've correlated events into a pattern, you make a verdict: is this a true attack (true positive), a real anomaly but non-malicious (benign positive), or a false alert? A successful multi-step privilege escalation with no authorized change request is a true positive requiring immediate escalation. A user who traveled internationally and accessed from multiple countries within hours, but has a corporate travel policy permitting it, is a benign positive: the alert worked, but the activity is approved.</p>
-
-      <p><strong>Closing:</strong> SIEM correlation is detective work. Normalization gives you the common language. Time gives you the narrative. Shared entities and tight clustering give you confidence. Each alert is a door; your job is to open it, ask whether the evidence behind it belongs together, and decide whether the pattern demands escalation or closure.</p>
+function moduleThreeIntroDeck() {
+  const complete = moduleThreeState?.introSlidesComplete === true;
+  return `<section class="m03-intro-deck ${complete ? 'is-complete' : ''}" id="m03-intro-deck" aria-labelledby="m03-intro-title" data-m03-intro-complete="${complete ? 'true' : 'false'}">
+    <div class="m03-intro-deck-head">
+      <div><p class="m03-kicker">Opening slides</p><h2 id="m03-intro-title">Before SIEM correlation: where logs come from</h2></div>
+      <div class="m03-intro-controls" aria-label="Slide controls">
+        <button type="button" data-m03-slide-prev aria-label="Previous slide"><i class="ri-arrow-left-s-line" aria-hidden="true"></i></button>
+        <span data-m03-slide-count>1 / ${MODULE_THREE_INTRO_SLIDES.length}</span>
+        <button type="button" data-m03-slide-next aria-label="Next slide"><i class="ri-arrow-right-s-line" aria-hidden="true"></i></button>
+      </div>
     </div>
-  </details>`;
+    <div class="m03-intro-stage">
+      ${MODULE_THREE_INTRO_SLIDES.map((slide, index) => `<article class="m03-intro-slide ${index === 0 ? 'is-active' : ''}" data-m03-slide="${index}" ${index === 0 ? '' : 'hidden'}>
+        <div class="m03-intro-copy">
+          <p class="m03-intro-eyebrow">${esc(slide.eyebrow)}</p>
+          <h3>${esc(slide.title)}</h3>
+          ${slide.body.map((line) => `<p>${esc(line)}</p>`).join('')}
+        </div>
+        ${moduleThreeIntroVisual(slide.visual)}
+      </article>`).join('')}
+    </div>
+    <div class="m03-intro-dots" role="tablist" aria-label="Select slide">
+      ${MODULE_THREE_INTRO_SLIDES.map((slide, index) => `<button type="button" role="tab" aria-selected="${index === 0 ? 'true' : 'false'}" aria-label="${esc(slide.eyebrow)}: ${esc(slide.title)}" data-m03-slide-dot="${index}"></button>`).join('')}
+    </div>
+    <div class="m03-intro-gate" data-m03-intro-gate>
+      <i class="${complete ? 'ri-checkbox-circle-line' : 'ri-lock-line'}" aria-hidden="true"></i>
+      <span>${complete ? 'Opening slides complete. Continue to the next card below.' : 'Continue through all 12 opening slides to unlock the next card.'}</span>
+    </div>
+  </section>`;
 }
 
 function moduleThreeFieldGuide() {
@@ -582,6 +741,61 @@ function moduleThreeLecture() {
       <article><strong>False positive</strong><p>The alert's condition was not actually present; a rule or data issue made it appear so. Example: a parser maps a service heartbeat as a human sign-in, and the raw event confirms no sign-in occurred.</p></article>
     </div>
     <p>Use the evidence and authorized context to choose a verdict. If key facts are still unverified, record that uncertainty and follow your team's escalation procedure; an anomaly is a reason to investigate, not a verdict by itself.</p>
+  </section>`;
+}
+
+const M03_NORMALIZATION_FIELDS = [
+  ['timestamp_utc', 'source timestamp', ['source timestamp → UTC', 'source timestamp (unchanged)']],
+  ['user', 'account / targetAccount / actor; no user for service-only SystemLog events', ['account / targetAccount / actor identity', 'SystemLog.service']],
+  ['session_id', 'source session value', ['source session value', 'host change reference']],
+  ['src_ip', 'source IP value', ['source IP value', 'host IP only']],
+  ['host', 'device or host identity', ['device / host identity', 'source IP']],
+  ['action', 'event meaning', ['source event meaning', 'raw message text only']],
+  ['outcome', 'result / status', ['source result / status', 'event severity']],
+];
+const M03_NORMALIZATION_EVENTS = [
+  ['AuthLog','A-1003','09:02','acct-428','failed sign-in','198.51.100.18','—'],
+  ['AuthLog','A-1006','09:04','acct-428','successful sign-in','198.51.100.18','S-8841'],
+  ['AuthLog','A-1003','08:41','j.lee','failed sign-in','203.0.113.9','—'],
+  ['AuthLog','A-1004','08:43','j.lee','successful sign-in','203.0.113.9','S-8830'],
+  ['AuthLog','A-1005','10:20','svc-backup','successful sign-in','10.0.4.8','JOB-44'],
+  ['DirectoryAudit','D-2001','09:08','acct-428','directory role grant','198.51.100.18','S-8841'],
+  ['DirectoryAudit','D-2002','08:10','m.chen','directory role grant','10.0.1.9','S-8800'],
+  ['DirectoryAudit','D-2003','10:22','svc-backup','group read grant','10.0.4.8','JOB-44'],
+  ['DirectoryAudit','D-2004','07:50','a.park','directory role grant','10.0.1.9','S-8700'],
+  ['AppAudit','P-3001','09:12','acct-428','application export','198.51.100.18','S-8841'],
+  ['AppAudit','P-3002','08:52','j.lee','application search','203.0.113.9','S-8830'],
+  ['AppAudit','P-3003','10:24','svc-backup','backup export','10.0.4.8','JOB-44'],
+  ['AppAudit','P-3004','07:55','a.park','application export','10.0.2.5','S-8700'],
+  ['AppAudit','P-3005','09:30','acct-428','application view','198.51.100.18','S-8841'],
+  ['SystemLog','S-4001','09:10','svc-backup','service restart','10.0.4.8','CHG-221'],
+  ['SystemLog','S-4002','08:30','web-02','service restart','10.0.2.8','CHG-219'],
+  ['SystemLog','S-4003','09:16','idp-01','collector heartbeat','10.0.1.10','—'],
+  ['SystemLog','S-4004','09:18','app-01','collector heartbeat','10.0.2.10','—'],
+];
+function moduleThreeNormalizationLab() {
+  const lab = moduleThreeState.normalizationLab;
+  const select = (field, options) => `<select data-m03-normalize="${field}" aria-label="Map ${field}"><option value="">Choose a source field</option>${options.map((option) => `<option value="${option}" ${lab.mappings[field] === option ? 'selected' : ''}>${option}</option>`).join('')}</select>`;
+  const fields = M03_NORMALIZATION_FIELDS.map(([key, example, choices]) => `<tr><th scope="row"><code>${key}</code></th><td>${example}</td><td>${select(key, choices)}</td></tr>`).join('');
+  const normalizedPreview = M03_NORMALIZATION_EVENTS.filter((row) => ['A-1003','A-1006','D-2001','P-3001','S-4001'].includes(row[1])).map((row) => `<tr><td>${row[2]}Z</td><td>${row[0]}</td><td>${row[1]}</td><td>${row[3]}</td><td>${row[4]}</td><td>${row[6]}</td></tr>`).join('');
+  const rawSamples = [
+    ['AuthLog', 'id=A-1003 · 05:02 UTC−04:00 · account=acct-428 · signInResult=failed · sourceIp=198.51.100.18'],
+    ['DirectoryAudit', 'id=D-2001 · 09:08Z · targetAccount=acct-428 · operation=role grant · status=success · correlationId=S-8841'],
+    ['AppAudit', 'id=P-3001 · 09:12Z · actor=acct-428 · appAction=export · result=success · sessionToken=S-8841'],
+    ['SystemLog', 'id=S-4001 · 09:10Z · service=svc-backup · systemMessage=restart · outcome=success · change=CHG-221 · approved'],
+  ].map(([source, sample]) => `<article><strong>${source}</strong><code>${sample}</code></article>`).join('');
+  const falseNotice = lab.falseCorrelationSeen && !lab.ingested ? `<div class="m03-norm-feedback is-hint" role="status"><strong>False correlation found.</strong> SystemLog.service describes the service identity involved in a host event; it is not the event’s user field. This mapping pulled the approved <code>svc-backup</code> restart (CHG-221) into the candidate chain. Map <code>user</code> to the account/actor identity for each source, then validate and ingest again. The restart remains separate because it has a different identity, no shared S-8841 session, and an approved change.</div>` : '';
+  const mappingFeedback = lab.validationMessage ? `<div class="m03-norm-feedback is-hint" role="status">${esc(lab.validationMessage)}</div>` : '';
+  const success = lab.ingested ? `<div class="m03-norm-feedback is-pass" role="status"><strong>18 events normalized.</strong> Source provenance retained. One time-zone discrepancy resolved. Events are ready for investigation.</div><div class="m03-norm-table-wrap"><table class="m03-norm-table"><thead><tr><th>UTC</th><th>source_type</th><th>raw_event_id</th><th>user</th><th>action</th><th>session_id</th></tr></thead><tbody>${normalizedPreview}</tbody></table></div><button type="button" class="m03-norm-primary" data-m03-open-workspace>Open investigation workspace</button>` : '';
+  return `<section class="m03-normalization-lab" aria-labelledby="m03-normalization-title">
+    <nav class="m03-norm-flow" aria-label="Module workflow"><span>Normalized log explorer</span><i class="ri-arrow-right-line" aria-hidden="true"></i><strong>Normalize and ingest</strong><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Correlation query workbench</span></nav>
+    <div class="m03-norm-heading"><p class="m03-kicker">Guided lab · Normalize and ingest</p><h3 id="m03-normalization-title">Build a trustworthy shared event set</h3><p>Map equivalent meanings across four raw sources. Keep <code>source_type</code> and <code>raw_event_id</code> visible so each normalized row can be traced back to its original record.</p></div>
+    <div class="m03-norm-samples" aria-label="Raw event samples">${rawSamples}</div>
+    <p class="m03-norm-hint"><strong>Try the mapping trap:</strong> map <code>SystemLog.service</code> to <code>user</code> once and validate. Review the false correlation, correct the mapping, then validate again.</p>
+    <div class="m03-norm-concepts"><strong>Core concepts to carry forward</strong><p>Normalize meaning, not just field names. Convert source times to UTC before ordering; preserve the original timestamp and offset as context. Prefer a session identifier, then corroborate with another dimension such as source IP or close timing. A match is a lead to verify against raw records and approved change context.</p></div>
+    <div class="m03-norm-table-wrap"><table class="m03-norm-table"><thead><tr><th>Shared field</th><th>Source examples</th><th>Your mapping</th></tr></thead><tbody>${fields}<tr><th><code>source_type</code></th><td>AuthLog / DirectoryAudit / AppAudit / SystemLog</td><td><strong>Retain original source label</strong></td></tr><tr><th><code>raw_event_id</code></th><td>Original record ID</td><td><strong>Retain original ID</strong></td></tr></tbody></table></div>
+    <p class="m03-norm-hint">Time note: AuthLog’s 05:02 UTC−04:00 is 09:02Z. Convert before ordering; keep the original timestamp and offset available for audit.</p>
+    <div class="m03-norm-actions"><button type="button" class="m03-norm-primary" data-m03-validate-ingest>Validate and ingest</button></div>${mappingFeedback}${falseNotice}${success}
   </section>`;
 }
 
@@ -691,11 +905,13 @@ function viewModuleThree(user, program) {
   const complete = moduleThreeState.completed === true;
   const module = program.modules['soc-03'];
   const sections = moduleThreeGetSections();
-  const lectureOpen = moduleThreeReviewMode || !sections[0].isComplete;
-  const guidedLabOpen = moduleThreeReviewMode || !sections[1].isComplete;
-  const assessmentLabOpen = moduleThreeReviewMode || !sections[2].isComplete;
+  const lectureOpen = moduleThreeReviewMode || !moduleThreeState.normalizationLab?.ingested;
+  const quizOpen = moduleThreeReviewMode || (moduleThreeQuizState && !moduleThreeQuizState.passed);
+  const guidedLabOpen = moduleThreeReviewMode || !sections[2].isComplete;
+  const assessmentLabOpen = moduleThreeReviewMode || !sections[3].isComplete;
   const reviewOpen = moduleThreeReviewMode;
   const quickNavItems = moduleThreeGetQuickNavItems();
+  const introComplete = moduleThreeState.introSlidesComplete === true;
 
   const lectureSection = `
     <details class="m03-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
@@ -705,18 +921,32 @@ function viewModuleThree(user, program) {
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-lecture-title">
-        ${moduleThreeVideoScript()}
-        ${moduleThreeLessonLoopsView()}
-        ${moduleThreeLecture()}
-        ${moduleThreeFieldGuide()}
+        ${moduleThreeNormalizationLab()}
       </section>
+    </details>`;
+  const postIntroGate = `<div class="m03-post-intro ${introComplete ? 'is-unlocked' : 'is-locked'}" id="m03-post-intro" data-m03-post-intro>
+    <section class="m03-next-card-lock" data-m03-next-card-lock aria-labelledby="m03-next-card-lock-title">
+      <i class="ri-lock-line" aria-hidden="true"></i>
+      <div><p class="m03-kicker">Next card locked</p><h2 id="m03-next-card-lock-title">Finish the opening slides first</h2><p>Reach Slide 12 to unlock Log normalization, correlation, and triage.</p></div>
+    </section>
+    <div class="m03-post-intro-content" data-m03-post-intro-content>${lectureSection}</div>
+  </div>`;
+
+  const quizSection = `
+    <details class="m03-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
+      <summary class="m03-section-summary">
+        <section class="m03-section" id="m03-knowledge-check" aria-labelledby="m03-quiz-title">
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m03-kicker mf-kicker">Interactive knowledge check</p><h2 id="m03-quiz-title">Test your understanding of SIEM correlation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+        </section>
+      </summary>
+      <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-quiz-title"><div id="m03-quiz-dynamic">${moduleThreeQuizPanel()}</div></section>
     </details>`;
 
   const guidedLabSection = `
     <details class="m03-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-guided-lab" aria-labelledby="m03-guided-lab-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m03-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Investigate CASE-MN-428 in the SIEM console</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m03-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Investigate CASE-MN-428 in the SIEM console</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body m03-lab-section" aria-labelledby="m03-guided-lab-title">
@@ -729,7 +959,7 @@ function viewModuleThree(user, program) {
     <details class="m03-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-assessment-lab" aria-labelledby="m03-assessment-lab-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m03-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent SIEM case: CASE-MN-517</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m03-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent SIEM case: CASE-MN-517</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body m03-lab-section" aria-labelledby="m03-assessment-lab-title">
@@ -741,7 +971,7 @@ function viewModuleThree(user, program) {
     <details class="m03-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section" id="m03-review" aria-labelledby="m03-review-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m03-kicker mf-kicker">Concept recap</p><h2 id="m03-review-title">Module review and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">5</span><div><p class="m03-kicker mf-kicker">Concept recap</p><h2 id="m03-review-title">Module review and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-review-title">${moduleThreeReview()}</section>
@@ -769,7 +999,9 @@ function viewModuleThree(user, program) {
 
       <section class="m03-objective" aria-labelledby="m03-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m03-kicker">One measurable objective</p><h2 id="m03-objective-title">Analyze real-world-style logs and justify a defensible triage decision in your assessment write-up.</h2></div></section>
 
-      ${lectureSection}
+      ${moduleThreeIntroDeck()}
+      ${postIntroGate}
+      ${quizSection}
       ${guidedLabSection}
       ${assessmentLabSection}
       ${reviewSection}
@@ -827,6 +1059,123 @@ function wireModuleThreeLessons() {
     const details = taskButton.closest('details');
     if (details) details.outerHTML = moduleThreeLessonLoop(lesson, MODULE_THREE_LESSON_LOOPS.indexOf(lesson));
   });
+}
+
+function wireModuleThreeNormalizationLab() {
+  const root = document.querySelector('.m03-normalization-lab');
+  if (!root) return;
+  root.addEventListener('change', (event) => {
+    const field = event.target.closest('[data-m03-normalize]');
+    if (!field) return;
+    const lab = moduleThreeState.normalizationLab;
+    lab.mappings[field.dataset.m03Normalize] = field.value;
+    lab.ingested = false;
+    lab.validationMessage = '';
+    moduleThreeSave();
+  });
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m03-validate-ingest]')) {
+      const lab = moduleThreeState.normalizationLab;
+      const mappings = lab.mappings || {};
+      const required = M03_NORMALIZATION_FIELDS.map(([key]) => key);
+      const missing = required.some((key) => !mappings[key]);
+      if (missing) {
+        lab.ingested = false;
+        lab.validationMessage = 'Map all seven shared fields before ingesting. source_type and raw_event_id are retained automatically.';
+      } else if (mappings.user === 'SystemLog.service') {
+        lab.ingested = false;
+        lab.falseCorrelationSeen = true;
+        lab.validationMessage = '';
+      } else if (M03_NORMALIZATION_FIELDS.some(([key, , choices]) => mappings[key] !== choices[0])) {
+        lab.ingested = false;
+        lab.validationMessage = 'One or more mappings do not preserve the shared field meaning. Review the source examples, then map each field to its equivalent value and convert timestamps to UTC.';
+      } else {
+        lab.ingested = true;
+        lab.falseCorrelationSeen = false;
+        lab.validationMessage = '';
+      }
+      moduleThreeSave();
+      const section = document.querySelector('.mf-section-body[aria-labelledby="m03-lecture-title"]');
+      if (section) section.innerHTML = moduleThreeNormalizationLab();
+      return;
+    }
+    if (event.target.closest('[data-m03-open-workspace]')) {
+      const practice = moduleThreeState.console?.practice || (moduleThreeState.console ||= {}).practice || {};
+      if (!practice.normalizedIngestReady) {
+        practice.guideStep = 0;
+        practice.tab = 'alerts';
+        practice.pins = [];
+        practice.seen = [];
+        practice.queryLog = [];
+        practice.query = '';
+        practice.lastQuery = '';
+        moduleThreeState.practiceComplete = false;
+        moduleThreeState.practiceNotes = '';
+      }
+      practice.normalizedIngestReady = true;
+      if (practice.guideStep === 0) practice.tab = 'alerts';
+      moduleThreeState.console.practice = practice;
+      moduleThreeSave();
+      if (typeof moduleThreeRefreshLabPanels === 'function') moduleThreeRefreshLabPanels();
+      const guided = document.getElementById('m03-guided-lab');
+      const details = guided?.closest('details');
+      if (details) details.open = true;
+      guided?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+  });
+}
+
+function wireModuleThreeIntroDeck() {
+  const root = document.getElementById('m03-intro-deck');
+  if (!root) return;
+  const slides = Array.from(root.querySelectorAll('[data-m03-slide]'));
+  const dots = Array.from(root.querySelectorAll('[data-m03-slide-dot]'));
+  const count = root.querySelector('[data-m03-slide-count]');
+  const gate = root.querySelector('[data-m03-intro-gate]');
+  const postIntro = document.querySelector('[data-m03-post-intro]');
+  let current = 0;
+  let maxSeen = moduleThreeState.introSlidesComplete === true ? slides.length - 1 : 0;
+  const unlockNextCard = () => {
+    if (moduleThreeState.introSlidesComplete !== true) {
+      moduleThreeState.introSlidesComplete = true;
+      moduleThreeSave();
+    }
+    root.dataset.m03IntroComplete = 'true';
+    root.classList.add('is-complete');
+    if (gate) {
+      gate.innerHTML = '<i class="ri-checkbox-circle-line" aria-hidden="true"></i><span>Opening slides complete. Continue to the next card below.</span>';
+    }
+    if (postIntro) {
+      postIntro.classList.remove('is-locked');
+      postIntro.classList.add('is-unlocked');
+    }
+  };
+  const show = (index) => {
+    const target = Math.max(0, Math.min(slides.length - 1, index));
+    if (target > maxSeen + 1) return;
+    current = target;
+    maxSeen = Math.max(maxSeen, current);
+    slides.forEach((slide, slideIndex) => {
+      const active = slideIndex === current;
+      slide.hidden = !active;
+      slide.classList.toggle('is-active', active);
+    });
+    dots.forEach((dot, dotIndex) => {
+      dot.setAttribute('aria-selected', dotIndex === current ? 'true' : 'false');
+      dot.setAttribute('aria-disabled', dotIndex > maxSeen + 1 ? 'true' : 'false');
+    });
+    if (count) count.textContent = `${current + 1} / ${slides.length}`;
+    if (current === slides.length - 1 && maxSeen === slides.length - 1) unlockNextCard();
+  };
+  if (moduleThreeState.introSlidesComplete === true) unlockNextCard();
+  root.querySelector('[data-m03-slide-prev]')?.addEventListener('click', () => show(current - 1));
+  root.querySelector('[data-m03-slide-next]')?.addEventListener('click', () => show(current + 1));
+  dots.forEach((dot) => dot.addEventListener('click', () => {
+    if (dot.getAttribute('aria-disabled') === 'true') return;
+    show(Number(dot.dataset.m03SlideDot));
+  }));
+  show(current);
 }
 
 function moduleThreeRenderQuiz(focusId) {
@@ -918,7 +1267,9 @@ function wireModuleThree() {
   wireReviewToggle({ button: reviewToggle, sectionSelector: '.m03-section-collapsible', getReviewMode: () => moduleThreeReviewMode, setReviewMode: (value) => { moduleThreeReviewMode = value; }, enabledLabel: 'Exit Review', disabledLabel: 'Review Module', enabledIcon: 'ri-eye-off-line', disabledIcon: 'ri-eye-line' });
 
   wireModuleThreeQuiz();
+  wireModuleThreeIntroDeck();
   wireModuleThreeLessons();
+  wireModuleThreeNormalizationLab();
   wireModuleThreeConsole();
 }
 

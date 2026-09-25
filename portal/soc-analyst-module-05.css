@@ -206,13 +206,6 @@
 .m05-section-collapsible .m05-section-body li { margin: 8px 0; }
 .m05-section-collapsible .m05-section-body li strong { color: #334155; }
 
-.m05-video-script { margin: 16px 0 0; color: #4b5563; background: rgba(255,255,255,.72); border: 1px solid #dbe3ed; border-radius: 12px; }
-.m05-video-script summary { padding: 10px 12px; color: #1e3a5f; font-size: 11px; font-weight: 700; cursor: pointer; }
-.m05-script-body { padding: 0 12px 12px; color: #6b7280; font: 12px/1.65 Inter, sans-serif; }
-.m05-script-body p { margin: 10px 0; }
-.m05-script-body p:first-child { margin-top: 0; }
-.m05-script-body strong { color: #1e3a5f; }
-
 .m05-lecture-section { padding: 0; }
 .m05-lecture-intro { margin-bottom: 18px; }
 .m05-lecture-intro p { color: #4b5563; font: 14px/1.65 Inter, sans-serif; }

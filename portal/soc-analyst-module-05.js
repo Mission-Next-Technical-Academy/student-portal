@@ -731,26 +731,7 @@ function moduleFiveQuizPanel() {
 }
 
 function moduleFiveVideoScript() {
-  return `<details class="m05-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m05-script-body">
-      <p><strong>Introduction:</strong> Welcome to endpoint investigation. An EDR system records process starts, file creation, registry changes, and prevention actions—the observable facts of what a workstation did. Your job is not to prevent malware (that is the sensor's job) but to understand the chain of events that led to the alert and make a proportionate containment decision.</p>
-
-      <p><strong>Segment 1 — Reading telemetry without jumping to conclusions.</strong> Every indicator recorded by an EDR—a new file, a process start, a registry change—needs context. A file created by a trusted process is different from the same file created by an untrusted process, even if the bytes are identical. Reputation helps (is the file signed, has it been seen before?), but behavior is the final word: what did the file actually do after creation?</p>
-
-      <p><strong>Segment 2 — Following parent-child process relationships.</strong> A process tree connects each program to what launched it. Office launching PowerShell is suspicious; a user launching cmd.exe is expected. The parent-child relationship tells you whether the launch was invoked by a human (interactive) or by code (automated/scripted). Trace the chain from the root cause: what started the first process, and what did it spawn?</p>
-
-      <p><strong>Segment 3 — Inspecting command context.</strong> Process names look normal but command-line arguments often reveal intent. A shell launched with hidden/encoded arguments is different from a shell launched interactively. Record the executable path, options, user context, and timing. Encoded commands are not proof on their own—many legitimate tools use encoding—but they are a signal worth inspecting in combination with the parent-child chain.</p>
-
-      <p><strong>Segment 4 — Building an endpoint timeline.</strong> Events spread across a workstation's telemetry are separate facts until you arrange them by time. A timeline shows what happened before, during, and after execution. File creation before process start suggests the file was prepared. Persistence entry after execution suggests intent to stay. The order of events is often as important as the events themselves.</p>
-
-      <p><strong>Segment 5 — Evaluating a file using multiple signals.</strong> File verdict requires combining: signature status (trusted, unsigned, revoked), prevalence (how many endpoints have it—one is suspicious, millions is normal), reputation (has it been flagged as malicious), and behavior (what did it actually do). No single field is definitive. An unsigned binary from an unknown publisher is suspicious; the same binary with low prevalence is more suspicious; the same binary that matches a loader signature is malicious.</p>
-
-      <p><strong>Segment 6 — Recognizing persistence mechanisms.</strong> Malware often creates entries in autostart locations—Run keys, scheduled tasks, services, startup folders—so it survives logout/login cycles. These are not hidden; they are recorded in the system state. Prevention can stop the initial file, but a persistence entry remains and must be cleaned. Do not close an incident if the file is quarantined but the persistence entry still exists.</p>
-
-      <p><strong>Closing:</strong> Endpoint investigation combines observation (what happened), interpretation (why it happened), and recommendation (what to do). Separate each layer so responders can follow your logic. You are not responsible for reversing malware or developing exploits—those are specialist roles. You are responsible for reading the chain of events, estimating scope, and handing off to responders with confidence in what you found and why it matters.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleFiveReview() {

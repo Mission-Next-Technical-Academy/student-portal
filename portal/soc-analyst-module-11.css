@@ -121,13 +121,6 @@
 .m11-remediation p { margin: 5px 0 0; color: #64748b; font: 11px/1.6 Inter, sans-serif; }
 
 
-.m11-video-script { margin: 18px 0 0; padding: 12px 14px; color: #475569; background: #fff; border: 1px solid #dbe3ed; border-radius: 10px; }
-.m11-video-script summary { color: #1e3a5f; font-size: 11px; font-weight: 800; cursor: pointer; }
-.m11-script-body { margin: 8px 0 0; }
-.m11-script-body p { margin: 12px 0 0; color: #475569; font: 11px/1.6 Inter, sans-serif; }
-.m11-script-body p:first-child { margin-top: 0; }
-.m11-script-body strong { color: #1e3a5f; }
-
 .m11-quiz { margin-top: 18px; padding: 24px; background: #f8fafc; border: 1px solid #dbe3ed; border-radius: 16px; }
 .m11-quiz-form > .m11-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0 0 24px 0; }
 .m11-quiz-form > .m11-panel-heading h3 { margin: 4px 0 0; color: #1e3a5f; font-size: 20px; }

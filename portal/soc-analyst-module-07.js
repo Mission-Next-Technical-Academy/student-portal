@@ -703,26 +703,7 @@ function moduleSevenQuizPanel() {
 }
 
 function moduleSevenVideoScript() {
-  return `<details class="m07-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m07-script-body">
-      <p><strong>Introduction:</strong> Welcome to email and network analysis. This module builds on your understanding of phishing, authentication, and network session correlation. Your job is to inspect a delivered phishing message across authentication headers, artifacts, and trace, then correlate its indicators with network DNS and TLS sessions. Finally, you will bound the exposure, scope the response, and communicate a proportionate recommendation.</p>
-
-      <p><strong>Segment 1 — Reading email authentication signals.</strong> A message's visible From address is presentation. The real sender is authenticated through SPF (envelope validation), DKIM (body signature), and DMARC (alignment). A passing SPF result proves the mailserver sent the message from the envelope domain, but does not validate the displayed From. DMARC failure means the visible identity is not aligned with what the mailserver authenticated. Vendor-impersonation messages commonly use SPF-passing lookalike domains (northstarr-payments.example for northstar-suppliers.example) to make an urgent invoice request look routine.</p>
-
-      <p><strong>Segment 2 — Inspecting URLs and attachments safely.</strong> Never click or execute suspicious links or files. Instead, defang them (replace hxxps, [.], etc.), compare the displayed text to the actual target (browsers show hover previews), and run attachments through a sandbox before opening them. An HTML attachment or link that resolves to a first-seen domain and initiates a browser connection to an external server is behaving like credential-theft software, not a innocent form.</p>
-
-      <p><strong>Segment 3 — Using message trace to bound delivery and exposure.</strong> A message trace shows each copy: delivered to an inbox (exposed), delivered to a folder (quarantined/reviewed), blocked at the gateway (protected), rejected at the server (not received). Do not assume every recipient was exposed; base your exposure count on delivery status, not on the total recipient list.</p>
-
-      <p><strong>Segment 4 — Correlating DNS and TLS with email artifacts.</strong> When a user opens a phishing message and interacts with it (clicks a link, opens an attachment), their device may generate network traffic. Tight timing (seconds to minutes after open), matching destinations (the URL domain matches a DNS lookup and TLS destination), and coherent sequence (DNS lookup → TLS connection to the answer) form a corroboration chain. This cross-source correlation transforms separate indicators into evidence of user interaction.</p>
-
-      <p><strong>Segment 5 — Distinguishing baselines from meaningful activity.</strong> Benign traffic is in every network. Approved services, update checks, internal DNS, and routine backups are distractors. A meaningful chain requires the artifact domain (from email) to match the DNS lookup AND the TLS destination, plus timing and device alignment. A single match (e.g., an IP appears in both) is a pivot; a full chain is evidence.</p>
-
-      <p><strong>Segment 6 — Proportionate scoping and response.</strong> If 500 users received a phishing message but only 1 opened it and interacted with it, your containment scope is that 1 user. Investigate their device for malware, reset their sessions, and block validated artifacts. Do not disable 500 accounts for 1 confirmed click. Escalate what you know, search for what you cannot see, and avoid both overreaction and under-reaction.</p>
-
-      <p><strong>Closing:</strong> Email and network analysis is the bridge between message delivery and user behavior. Authentication headers tell you the sender's origin. Artifacts tell you the message's intent. Trace tells you who received it. Network sessions tell you who acted on it. Together, they tell a story about which users were truly exposed and what response is proportionate.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleSevenReview() {

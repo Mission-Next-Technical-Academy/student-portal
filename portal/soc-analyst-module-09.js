@@ -7,6 +7,14 @@ const MODULE_NINE_FLAG = 'M09-INCIDENT-RESPONSE-COMPLETE';
 const MODULE_NINE_CATALOG_LAB_KEY = 'lab-active-incident';
 const MODULE_NINE_PASSING_SCORE = 70;
 const MODULE_NINE_CATALOG_MODULE = LABS.find((item) => item.key === MODULE_NINE_CATALOG_LAB_KEY);
+const MODULE_NINE_LIFECYCLE_PHASES = [
+  { id: 'prepare', icon: 'ri-tools-line', title: 'Prepare', description: 'Define roles, logging, playbooks, access, communications, and backups before an incident.' },
+  { id: 'detect-analyze', icon: 'ri-search-eye-line', title: 'Detect & analyze', description: 'Validate the signal, determine what happened, estimate scope and impact, and declare an incident when warranted.' },
+  { id: 'contain', icon: 'ri-shield-keyhole-line', title: 'Contain', description: 'Limit harm-for example, revoke a session or isolate a device-under an approved playbook.' },
+  { id: 'eradicate', icon: 'ri-delete-bin-6-line', title: 'Eradicate', description: 'Remove the cause and attacker foothold, such as malware, persistence, or stolen credentials.' },
+  { id: 'recover', icon: 'ri-refresh-line', title: 'Recover', description: 'Restore normal operations carefully, monitor for recurrence, and confirm controls are working.' },
+  { id: 'learn', icon: 'ri-lightbulb-flash-line', title: 'Learn', description: 'Capture lessons, improve detections and playbooks, and assign follow-up actions.' },
+];
 
 /*
  * Shared evidence-set contract (Sprint 10 / Module 09).
@@ -599,7 +607,33 @@ function moduleNineConcepts() {
     ['ri-file-list-3-line', 'Leave an actionable handoff', 'Record incident state, exact entities, strongest evidence, actions requested, and the condition that permits recovery.'],
   ];
   return `<div class="m09-concept-grid">${cards.map((card) => `<article><i class="${esc(card[0])}" aria-hidden="true"></i><h3>${esc(card[1])}</h3><p>${esc(card[2])}</p></article>`).join('')}</div>
-    <div class="m09-lifecycle" aria-label="NIST incident response sequence"><span>Prepare</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Detect &amp; analyze</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Contain</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Eradicate</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Recover</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Learn</span></div>`;
+    <div class="m09-lifecycle-companion" id="m09-lifecycle" aria-labelledby="m09-lifecycle-title">
+      <p class="m09-companion-label"><i class="ri-cycle-line" aria-hidden="true"></i> The response map</p>
+      <h3 class="m09-companion-title" id="m09-lifecycle-title">Incident response lifecycle, visualized</h3>
+      <p class="m09-instruction">Frameworks group or name phases differently. This six-part model shows the complete operational idea used in day-to-day response work. Select each phase to rotate the lifecycle and open its definition.</p>
+      <div class="m09-lifecycle-wheel" style="--wheel-rotation: 0deg" data-m09-lifecycle-wheel>
+        <div class="m09-wheel-track" aria-hidden="true">
+          ${MODULE_NINE_LIFECYCLE_PHASES.map((phase, index) => `<span style="--wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
+          <div class="m09-wheel-hub">
+            <i class="ri-cycle-line"></i>
+            <strong>Incident response</strong>
+            <small data-m09-hub-phase>Phase 1 · ${esc(MODULE_NINE_LIFECYCLE_PHASES[0].title)}</small>
+          </div>
+        </div>
+        <ol class="m09-lifecycle" aria-label="Incident response phases">
+          ${MODULE_NINE_LIFECYCLE_PHASES.map((phase, index) => `<li class="${index === 0 ? 'is-active' : ''}" data-m09-phase-card="${index}">
+            <button type="button" class="m09-phase-button" data-m09-phase="${index}"
+                    aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m09-phase-detail-${esc(phase.id)}">
+              <span class="m09-phase-heading"><span>${index + 1}</span><i class="${esc(phase.icon)}" aria-hidden="true"></i><span class="m09-phase-title">${esc(phase.title)}</span><i class="ri-arrow-down-s-line m09-phase-chevron" aria-hidden="true"></i></span>
+            </button>
+            <div class="m09-phase-detail" id="m09-phase-detail-${esc(phase.id)}" ${index === 0 ? '' : 'hidden'}>
+              <p>${esc(phase.description)}</p>
+            </div>
+          </li>`).join('')}
+        </ol>
+      </div>
+      <p class="m09-concept"><strong>Where does the SOC analyst fit?</strong> Analysts contribute across the lifecycle, but alert triage sits mainly in <em>detect &amp; analyze</em>. Module 09 carries that work forward into containment, eradication, recovery, and accountable handoff.</p>
+    </div>`;
 }
 
 function moduleNineScenarioLoop() {
@@ -1238,6 +1272,27 @@ function wireModuleNine() {
         if (isOpen) details.setAttribute('open', '');
         else details.removeAttribute('open');
       });
+    });
+  }
+  const lifecycleWheel = document.querySelector('[data-m09-lifecycle-wheel]');
+  if (lifecycleWheel) {
+    lifecycleWheel.addEventListener('click', (event) => {
+      const phaseButton = event.target.closest('[data-m09-phase]');
+      if (!phaseButton || !lifecycleWheel.contains(phaseButton)) return;
+
+      const activeIndex = Number(phaseButton.dataset.m09Phase);
+      lifecycleWheel.querySelectorAll('[data-m09-phase]').forEach((button, index) => {
+        const isActive = index === activeIndex;
+        button.setAttribute('aria-expanded', String(isActive));
+        button.closest('[data-m09-phase-card]')?.classList.toggle('is-active', isActive);
+        const detail = document.getElementById(button.getAttribute('aria-controls'));
+        if (detail) detail.hidden = !isActive;
+      });
+
+      lifecycleWheel.style.setProperty('--wheel-rotation', `${activeIndex * -60}deg`);
+      const selectedPhase = MODULE_NINE_LIFECYCLE_PHASES[activeIndex];
+      const hubPhase = lifecycleWheel.querySelector('[data-m09-hub-phase]');
+      if (hubPhase && selectedPhase) hubPhase.textContent = `Phase ${activeIndex + 1} · ${selectedPhase.title}`;
     });
   }
   // Wire quiz and lab components

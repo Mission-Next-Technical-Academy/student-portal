@@ -1011,26 +1011,7 @@ function moduleSixQuizPanel() {
 }
 
 function moduleSixVideoScript() {
-  return `<details class="m06-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m06-script-body">
-      <p><strong>Introduction:</strong> Welcome to hypothesis-led threat hunting. This module builds on endpoint investigation skills from Module 05 by adding a second data source: sign-in logs. Your job is to form a testable hypothesis, run two scoped queries, bookmark the few rows that establish behavior and scope, and communicate a defensible conclusion without claiming more than the data supports.</p>
-
-      <p><strong>Segment 1 — Framing a testable hypothesis.</strong> A good hypothesis names a specific behavior, the entities it may affect, and what evidence would support or weaken it. Avoid broad claims ("the enterprise is compromised") that cannot be tested with limited data. Instead, build from a seed observation: an unusual script behavior on one device, followed by a question—does it recur? Testable hypotheses are narrow enough to evaluate and falsifiable if the evidence does not appear.</p>
-
-      <p><strong>Segment 2 — Using indicators as pivots.</strong> An indicator (file hash, IP address, domain) is a search filter, not proof. A file hash helps you find related rows, but the rows must be examined for timing, parent processes, user context, and behavioral patterns. Indicators are pivots: they narrow results, but context validates the match. Never claim compromise based on an indicator alone.</p>
-
-      <p><strong>Segment 3 — Constructing a scoped query.</strong> A good query uses KQL-style syntax: table name, one where clause with equality filtering, and a chronological sort. Example: "SignInActivity | where SourceIp == '203.0.113.77' | sort by TimeGenerated asc". Query results are a starting point; if you get too many rows, refine with additional filters. If you get too few, check the pivot value or expand the time window. Queries are iterative.</p>
-
-      <p><strong>Segment 4 — Bookmarking with discipline.</strong> After querying both sources, you may have 10+ matching rows. Bookmark only the few that directly test the hypothesis. A decisive bookmark explains why that row matters; volume is not evidence quality. Unrelated rows weaken your conclusion and distract responders. In this lab, you should bookmark exactly four rows: two from endpoint activity and two from sign-in activity, all aligned in time and entities.</p>
-
-      <p><strong>Segment 5 — Mapping demonstrated ATT&CK behavior.</strong> ATT&CK techniques describe observed behavior. Map only what the telemetry demonstrates. Script execution maps to T1059; active session from an unfamiliar source maps to T1078 (Valid Accounts). Do not infer file transfer (T1105) if the logs show a connection but not a payload. Do not infer phishing (T1566) if the delivery method is absent. Precise mapping guides responders.</p>
-
-      <p><strong>Segment 6 — Scoping proportionately.</strong> State what the evidence proves and what remains unknown. This lab shows two device-account pairs with matching indicators and timing. That supports escalation of those pairs and continued hunting for the validated indicators. It does not prove enterprise-wide compromise. Proportionate response means isolate, preserve, and escalate—not destruction, not enterprise-wide lock.</p>
-
-      <p><strong>Closing:</strong> Threat hunting is disciplined exploration. You start with a seed observation, form a testable hypothesis, query available data, bookmark the decisive evidence, and escalate with confidence in what you found and why it matters. You are not responsible for detecting every attack or reversing malware; responders handle those roles. Your responsibility is to read the data correctly and hand off with precision.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleSixReview() {

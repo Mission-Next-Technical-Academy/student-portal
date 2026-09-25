@@ -37,7 +37,7 @@ const M03E_SOURCE_MAPPINGS = {
   AppAudit: { native: 'Application activity audit (JSON)', fields: [['timestamp', 'TimeGenerated'], ['actor', 'Account'], ['remote_addr', 'SourceIp'], ['app_host', 'Host'], ['action', 'EventType'], ['result', 'Result'], ['session', 'SessionId'], ['app', 'Application'], ['record_count', 'Records'], ['object', 'Detail']] },
   SystemLog: { native: 'Host / collector syslog (text)', fields: [['@timestamp', 'TimeGenerated'], ['identity', 'Account'], ['host_ip', 'SourceIp'], ['hostname', 'Host'], ['msg_type', 'EventType'], ['severity_result', 'Result'], ['job', 'SessionId'], ['change_ref', 'ChangeId'], ['message', 'Detail']] },
 };
-const M03E_UNIFIED_FIELDS = ['TimeGenerated', 'EventSource', 'EventType', 'Account', 'SourceIp', 'Host', 'SessionId', 'Result', 'Detail', 'EventId'];
+const M03E_UNIFIED_FIELDS = ['TimeGenerated', 'EventSource', 'EventType', 'Account', 'SourceIp', 'Host', 'SessionId', 'Result', 'Detail', 'EventId', 'RawTimestamp', 'timestamp_utc', 'raw_timestamp', 'source_type', 'user', 'session_id', 'src_ip', 'host', 'action', 'outcome', 'raw_event_id'];
 
 function m03eRow(source, id, day, hms, fields) {
   return { TimeGenerated: `${day}T${hms}Z`, EventSource: source, EventId: id, __rid: id, SessionId: '—', Detail: '', ...fields };
@@ -52,6 +52,22 @@ function m03eBuildDataset(spec) {
   tables.UnifiedEvents = newestFirst(spec.events.map((row) => {
     const out = { __rid: row.__rid };
     M03E_UNIFIED_FIELDS.forEach((f) => { out[f] = row[f] ?? ''; });
+    out.timestamp_utc = row.TimeGenerated;
+    out.raw_timestamp = row.RawTimestamp || row.TimeGenerated;
+    out.source_type = row.EventSource;
+    // A host service identity is source context, not an interactive user. Keep
+    // it on the native record but leave normalized user unset for restarts.
+    out.user = row.EventSource === 'SystemLog' && row.EventType === 'ServiceRestart' ? '' : row.Account;
+    out.session_id = row.SessionId;
+    out.src_ip = row.SourceIp;
+    out.host = row.Host;
+    out.outcome = row.Result;
+    out.raw_event_id = row.EventId;
+    if (row.EventSource === 'AuthLog') out.action = row.Result === 'Failure' ? 'failed sign-in' : row.Result === 'Success' ? 'successful sign-in' : row.EventType;
+    else if (row.EventSource === 'DirectoryAudit' && row.EventType === 'RoleAdded') out.action = 'directory role grant';
+    else if (row.EventSource === 'AppAudit' && row.EventType === 'BulkExport') out.action = 'application export';
+    else if (row.EventSource === 'SystemLog' && row.EventType === 'ServiceRestart') out.action = 'service restart';
+    else out.action = row.EventType;
     return out;
   }));
   tables.IdentityInfo = spec.identities;
@@ -76,23 +92,22 @@ const M03E_PRACTICE = (function () {
     events: [
       A('A-1001', '07:10:22', { Account: 'acct-428', SourceIp: '10.20.4.15', Result: 'Success', SessionId: 'S-8790', AuthMethod: 'Service credential', Country: 'Internal', Detail: 'Scheduled reconciliation job sign-in' }),
       A('A-1002', '08:02:10', { Account: 'j.lee', SourceIp: '10.20.4.31', Result: 'Success', SessionId: 'S-8801', AuthMethod: 'Password + MFA', Country: 'Internal', Detail: 'MFA satisfied' }),
-      A('A-1003', '09:02:41', { Account: 'acct-428', SourceIp: '198.51.100.24', Result: 'Failure', AuthMethod: 'Password', Country: 'NL', Detail: 'Invalid password' }),
-      A('A-1004', '09:05:12', { Account: 'acct-428', SourceIp: '198.51.100.24', Result: 'Failure', AuthMethod: 'Password', Country: 'NL', Detail: 'Invalid password' }),
-      A('A-1005', '09:14:03', { Account: 'acct-428', SourceIp: '198.51.100.24', Result: 'Failure', AuthMethod: 'Password', Country: 'NL', Detail: 'Invalid password' }),
-      A('A-1006', '09:14:19', { Account: 'acct-428', SourceIp: '198.51.100.24', Result: 'Success', SessionId: 'S-8841', AuthMethod: 'Password + MFA push', Country: 'NL', Detail: 'MFA push approved' }),
+      A('A-1003', '09:02:00', { RawTimestamp: `${d}T05:02:00-04:00`, Account: 'acct-428', SourceIp: '198.51.100.18', Result: 'Failure', AuthMethod: 'Password', Country: 'NL', Detail: 'Invalid password; source timestamp 05:02 UTC−04:00 normalized to 09:02 UTC' }),
+      A('A-1004', '09:05:12', { Account: 'j.lee', SourceIp: '203.0.113.9', Result: 'Failure', AuthMethod: 'Password', Country: 'PT', Detail: 'Invalid password' }),
+      A('A-1005', '09:14:03', { Account: 'm.ortiz', SourceIp: '10.20.4.22', Result: 'Failure', AuthMethod: 'Password', Country: 'Internal', Detail: 'Invalid password' }),
+      A('A-1006', '09:04:00', { Account: 'acct-428', SourceIp: '198.51.100.18', Result: 'Success', SessionId: 'S-8841', AuthMethod: 'Password + MFA push', Country: 'NL', Detail: 'MFA push approved' }),
       A('A-1007', '09:21:15', { Account: 'j.lee', SourceIp: '203.0.113.9', Result: 'Failure', AuthMethod: 'Password', Country: 'PT', Detail: 'Invalid password' }),
       A('A-1008', '09:22:02', { Account: 'j.lee', SourceIp: '203.0.113.9', Result: 'Success', SessionId: 'S-8850', AuthMethod: 'Password + MFA', Country: 'PT', Detail: 'MFA satisfied' }),
       A('A-1009', '09:40:00', { Account: 'svc-billing', SourceIp: '10.20.4.8', Result: 'Success', SessionId: 'JOB-22', AuthMethod: 'Service credential', Country: 'Internal', Detail: 'Scheduled report job' }),
-      D('D-2001', '09:16:11', { Account: 'acct-428', SourceIp: '198.51.100.24', EventType: 'RoleAdded', Result: 'Success', SessionId: 'S-8841', InitiatedBy: 'acct-428', TargetGroup: 'Billing-Exporters', Detail: 'Added to Billing-Exporters' }),
+      D('D-2001', '09:08:00', { Account: 'acct-428', SourceIp: '198.51.100.18', EventType: 'RoleAdded', Result: 'Success', SessionId: 'S-8841', InitiatedBy: 'acct-428', TargetGroup: 'Billing-Exporters', Detail: 'Directory role grant: added to Billing-Exporters' }),
       D('D-2002', '09:29:02', { Account: 'acct-428', SourceIp: '10.20.1.5', EventType: 'RoleRemoved', Result: 'Success', SessionId: 'S-8841', InitiatedBy: 'soc-automation', TargetGroup: 'Billing-Exporters', Detail: 'Removed from Billing-Exporters (automated containment after alert)' }),
       D('D-2003', '08:30:40', { Account: 'h.diaz', SourceIp: '10.20.4.44', EventType: 'GroupAdded', Result: 'Success', SessionId: '—', InitiatedBy: 'it-admin', TargetGroup: 'HR-Read', Detail: 'Added to HR-Read (CHG-199)' }),
-      P('P-3001', '09:17:30', { Account: 'acct-428', SourceIp: '198.51.100.24', EventType: 'Search', Result: 'Success', SessionId: 'S-8841', Records: 184, Detail: 'Customer search: all active accounts' }),
-      P('P-3002', '09:18:42', { Account: 'acct-428', SourceIp: '198.51.100.24', EventType: 'BulkExport', Result: 'Success', SessionId: 'S-8841', Records: 184, Detail: 'Exported 184 customer records to CSV' }),
+      P('P-3001', '09:12:00', { Account: 'acct-428', SourceIp: '198.51.100.18', EventType: 'BulkExport', Result: 'Success', SessionId: 'S-8841', Records: 184, Detail: 'Application export of 184 customer records' }),
+      P('P-3002', '08:58:42', { Account: 'acct-428', SourceIp: '198.51.100.18', EventType: 'Search', Result: 'Success', SessionId: 'S-8841', Records: 184, Detail: 'Customer search: all active accounts' }),
       P('P-3003', '08:50:05', { Account: 'm.ortiz', SourceIp: '10.20.4.22', EventType: 'ViewInvoice', Result: 'Success', SessionId: 'S-8812', Records: 3, Detail: 'Viewed 3 invoices' }),
       P('P-3004', '09:45:10', { Account: 'svc-billing', SourceIp: '10.20.4.8', EventType: 'ScheduledReport', Result: 'Success', SessionId: 'JOB-22', Records: 2100, Detail: 'Nightly revenue report (CHG-210)' }),
-      S('S-4001', '09:20:01', { Account: 'svc-billing', SourceIp: '10.20.4.8', Host: 'billing-app', EventType: 'ServiceRestart', Result: 'Success', SessionId: 'JOB-22', ChangeId: 'CHG-204', Detail: 'Scheduled restart, approved maintenance' }),
+      S('S-4001', '09:10:00', { Account: 'svc-backup', SourceIp: '10.20.4.8', Host: 'backup-01', EventType: 'ServiceRestart', Result: 'Success', SessionId: '—', ChangeId: 'CHG-221', Detail: 'Service restart, approved change CHG-221' }),
       S('S-4002', '09:23:50', { Account: 'billing-app', SourceIp: '10.20.4.8', Host: 'billing-app', EventType: 'CollectorHeartbeat', Result: 'Delayed', ChangeId: '', Detail: 'Heartbeat delayed 42 seconds; no events dropped' }),
-      S('S-4003', '09:00:00', { Account: 'idp-01', SourceIp: '10.20.1.10', Host: 'idp-01', EventType: 'CollectorHeartbeat', Result: 'Healthy', ChangeId: '', Detail: 'Collector healthy' }),
     ],
     identities: [
       { Account: 'acct-428', DisplayName: 'Billing reconciliation (service)', Type: 'Service account', Department: 'Finance Ops', Owner: 'k.watts', Privileged: 'No', UsualSourceIp: '10.20.4.15', Notes: 'Non-interactive. Interactive or MFA sign-ins are not expected.' },
@@ -102,7 +117,7 @@ const M03E_PRACTICE = (function () {
       { Account: 'svc-billing', DisplayName: 'Billing platform (service)', Type: 'Service account', Department: 'IT', Owner: 'it-admin', Privileged: 'Yes', UsualSourceIp: '10.20.4.8', Notes: 'Runs scheduled jobs under JOB-* sessions' },
     ],
     ips: [
-      { SourceIp: '198.51.100.24', Type: 'External', Country: 'NL', Asn: 'AS64500 · CloudVPS hosting', FirstSeen: `${d} 09:02`, Reputation: 'Suspicious: hosting provider, no prior history' },
+      { SourceIp: '198.51.100.18', Type: 'External', Country: 'NL', Asn: 'AS64500 · CloudVPS hosting', FirstSeen: `${d} 09:02`, Reputation: 'Suspicious: hosting provider, no prior history' },
       { SourceIp: '203.0.113.9', Type: 'External', Country: 'PT', Asn: 'AS64511 · Lisboa Hotel Wi-Fi', FirstSeen: '2026-09-17 19:40', Reputation: 'Neutral: consumer / hospitality network' },
       { SourceIp: '10.20.4.15', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Finance servers', FirstSeen: '—', Reputation: 'Internal' },
       { SourceIp: '10.20.4.8', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Billing platform', FirstSeen: '—', Reputation: 'Internal' },
@@ -112,7 +127,7 @@ const M03E_PRACTICE = (function () {
     watchlists: {
       ChangeTickets: { title: 'Approved change tickets', rows: [
         { ChangeId: 'CHG-199', Summary: 'Grant h.diaz HR-Read', Account: 'h.diaz', Window: `${d} 08:00–09:00`, Status: 'Approved' },
-        { ChangeId: 'CHG-204', Summary: 'Restart billing service', Account: 'svc-billing', Window: `${d} 09:15–09:30`, Status: 'Approved' },
+        { ChangeId: 'CHG-221', Summary: 'Restart backup service', Account: 'svc-backup', Window: `${d} 09:00–09:20`, Status: 'Approved' },
         { ChangeId: 'CHG-210', Summary: 'Nightly revenue report job', Account: 'svc-billing', Window: 'Daily 09:45', Status: 'Approved' },
       ] },
       TravelNotices: { title: 'Employee travel notices', rows: [
@@ -120,10 +135,7 @@ const M03E_PRACTICE = (function () {
       ] },
     },
     alerts: [
-      { id: 'ALT-3101', time: `${d}T09:16:11Z`, severity: 'High', title: 'Privileged role added after risky sign-in', entities: ['acct-428', '198.51.100.24'], rule: 'Role change within 10 minutes of a sign-in from a first-seen external IP', query: 'UnifiedEvents\n| where Account == "acct-428"\n| where EventType in ("SignIn", "RoleAdded")' },
-      { id: 'ALT-3102', time: `${d}T09:22:02Z`, severity: 'Medium', title: 'Sign-in from new country', entities: ['j.lee', '203.0.113.9'], rule: 'Successful sign-in from a country not seen for this account in 30 days', query: 'AuthLog\n| where Account == "j.lee"' },
-      { id: 'ALT-3103', time: `${d}T09:45:10Z`, severity: 'Low', title: 'Large data export', entities: ['svc-billing'], rule: 'More than 1,000 records exported in one action', query: 'AppAudit\n| where Records > 1000' },
-      { id: 'ALT-3104', time: `${d}T09:23:50Z`, severity: 'Informational', title: 'Log collector heartbeat delayed', entities: ['billing-app'], rule: 'Collector heartbeat later than 30 seconds', query: 'SystemLog\n| where EventType == "CollectorHeartbeat"' },
+      { id: 'ALT-3101', time: `${d}T09:12:00Z`, severity: 'High', title: 'Suspicious authentication-to-export sequence — acct-428', entities: ['acct-428', '198.51.100.18', 'S-8841'], rule: 'Failed sign-in → success → directory role grant → application export within 30 minutes, with at least two shared dimensions (session preferred)', query: 'UnifiedEvents\n| where Account == "acct-428"\n| where SessionId == "S-8841"\n| sort by TimeGenerated asc' },
     ],
   });
 }());
@@ -216,26 +228,28 @@ const m03eRidsIn = (result) => new Set((result?.rows || []).map((row) => row.__r
 const m03eHasAll = (set, ids) => ids.every((id) => set.has(id));
 
 const M03E_GUIDE_STEPS = [
-  { id: 'alert', tab: 'alerts', title: 'Start from the alert', body: 'An alert is a lead, not a verdict. Read the rule that fired and the entities it names before you query anything.', task: 'Open ALT-3101 in the alert queue and read its rule and entities.', lookFor: 'The account, the external IP, and what the rule actually measured.',
+  { id: 'alert', tab: 'alerts', title: 'Start from the alert', body: 'The normalized event set from the previous card is already loaded. An alert is a lead, not a verdict. Read the rule and its entities before querying.', task: 'Open ALT-3101 in the alert queue and read its rule and entities.', lookFor: 'acct-428, source IP 198.51.100.18, session S-8841, and the four required actions.',
     check: (st) => st.seen.includes('alert:ALT-3101') },
-  { id: 'auth', tab: 'search', title: 'Read the raw source first', body: 'Start with one source you understand. AuthLog records who signed in, from where, and whether it worked.', task: 'Run a query that returns every AuthLog record for acct-428.', hint: 'AuthLog\n| where Account == "acct-428"', lookFor: 'Failures and a success from 198.51.100.24, compared with the usual 10.20.4.15.',
-    check: (st, r) => m03eHasAll(m03eRidsIn(r), ['A-1001', 'A-1003', 'A-1004', 'A-1005', 'A-1006']) },
-  { id: 'sort', tab: 'search', title: 'Sort before you tell a story', body: 'Search results come back newest-first. Sequence only means something when it is read oldest-first.', task: 'Re-run your acct-428 query sorted oldest-first.', hint: 'AuthLog\n| where Account == "acct-428"\n| sort by TimeGenerated asc', lookFor: 'Failure, failure, failure, then success — a guessing pattern.',
+  { id: 'auth', tab: 'search', title: 'Read the raw source first', body: 'Start with one source you understand. AuthLog records who signed in, from where, and whether it worked.', task: 'Run a query that returns every AuthLog record for acct-428.', hint: 'AuthLog\n| where Account == "acct-428"', lookFor: 'A failed sign-in followed by a success from 198.51.100.18; the source time was converted from UTC−04:00.',
+    check: (st, r) => m03eHasAll(m03eRidsIn(r), ['A-1001', 'A-1003', 'A-1006']) },
+  { id: 'sort', tab: 'search', title: 'Sort before you tell a story', body: 'Search results come back newest-first. Sequence only means something when it is read oldest-first.', task: 'Re-run your acct-428 query sorted oldest-first.', hint: 'AuthLog\n| where Account == "acct-428"\n| sort by TimeGenerated asc', lookFor: 'The 09:02 failure comes before the 09:04 success.',
     check: (st, r) => { const rows = (r?.rows || []).filter((row) => row.TimeGenerated); return rows.length >= 3 && m03eRidsIn(r).has('A-1006') && rows.every((row, i) => i === 0 || String(rows[i - 1].TimeGenerated) <= String(row.TimeGenerated)); } },
-  { id: 'session', tab: 'search', title: 'Pivot across sources', body: 'UnifiedEvents holds every source in shared, normalized fields. One pivot value can now link records from different systems.', task: 'Query UnifiedEvents on the session the successful sign-in created, oldest-first.', hint: 'UnifiedEvents\n| where SessionId == "…"\n| sort by …', lookFor: 'A sign-in, a role grant and an export in the same session.',
+  { id: 'session', tab: 'search', title: 'Pivot across sources', body: 'UnifiedEvents holds the normalized records from the prior card. Prefer session_id, then corroborate with source IP or close timing.', task: 'Query UnifiedEvents on session S-8841, oldest-first.', hint: 'UnifiedEvents\n| where SessionId == "S-8841"\n| sort by TimeGenerated asc', lookFor: 'Four different actions on acct-428, linked by session S-8841 and IP 198.51.100.18.',
     check: (st, r) => { const rows = (r?.rows || []).filter((row) => row.SessionId === 'S-8841'); return new Set(rows.map((row) => row.EventSource)).size >= 3; } },
-  { id: 'timeline', tab: 'timeline', title: 'See it as a timeline', body: 'A timeline puts every source on one clock. Gaps and bursts show up that a table hides.', task: 'Open the Timeline for acct-428 or for 198.51.100.24.', lookFor: 'How many minutes it took to go from the first failure to the export.',
-    check: (st) => st.seen.includes('timeline:acct-428') || st.seen.includes('timeline:198.51.100.24') },
-  { id: 'baseline', tab: 'entities', title: 'Compare with the baseline', body: 'Whether something is suspicious depends on what is normal for that entity. Check the account owner, type and usual source.', task: 'Open acct-428 and 198.51.100.24 on the Entities tab.', lookFor: 'A non-interactive service account using MFA from a first-seen hosting IP.',
-    check: (st) => st.seen.includes('entity:account:acct-428') && st.seen.includes('entity:ip:198.51.100.24') },
+  { id: 'timeline', tab: 'timeline', title: 'See it as a timeline', body: 'A timeline puts every source on one clock. Gaps and bursts show up that a table hides.', task: 'Open the Timeline for acct-428 or for 198.51.100.18.', lookFor: 'The sequence lasts ten minutes from first failure to export.',
+    check: (st) => st.seen.includes('timeline:acct-428') || st.seen.includes('timeline:198.51.100.18') },
+  { id: 'baseline', tab: 'entities', title: 'Compare with the baseline', body: 'Whether something is suspicious depends on what is normal for that entity. Check the account owner, type and usual source.', task: 'Open acct-428 and 198.51.100.18 on the Entities tab.', lookFor: 'An unusual interactive/MFA sign-in from a first-seen external IP for a non-interactive service account.',
+    check: (st) => st.seen.includes('entity:account:acct-428') && st.seen.includes('entity:ip:198.51.100.18') },
   { id: 'lookalikes', tab: 'watchlists', title: 'Rule out the lookalikes', body: 'Two other alerts look alarming. Authorized context such as change tickets and travel notices separates benign activity from the real finding.', task: 'Check both the ChangeTickets and TravelNotices watchlists, either on the tab or by querying them.', lookFor: 'Whether j.lee, svc-billing and the acct-428 role grant each have an approved explanation.',
     check: (st) => ['ChangeTickets', 'TravelNotices'].every((w) => st.seen.includes(`watchlist:${w}`)) },
   { id: 'health', tab: 'sources', title: 'Check your telemetry', body: 'A query can only find what was collected. Confirm the sources are healthy before claiming something did not happen.', task: 'On Data Sources, open AppAudit and SystemLog and read their health and field mapping.', lookFor: 'The billing-app collector delay, and whether any events were dropped.',
     check: (st) => st.seen.includes('source:AppAudit') && st.seen.includes('source:SystemLog') },
-  { id: 'scope', tab: 'search', title: 'Bound the scope', body: 'Before handing off, test whether the attacker IP touched anything else. An aggregation answers that in one result.', task: 'Write your own query: which accounts did 198.51.100.24 act as, and how many events each?', hint: 'Use | summarize … by Account', lookFor: 'Whether anything besides acct-428 appears.',
-    check: (st, r, q) => /198\.51\.100\.24/.test(q || '') && (r?.cols || []).includes('Account') && (r?.rows || []).length >= 1 && !(r?.rows || []).some((row) => row.__rid) && (r?.rows || []).every((row) => row.Account === 'acct-428') },
-  { id: 'pin', tab: 'evidence', title: 'Preserve the evidence', body: 'A handoff cites records. Pin the rows that prove the chain so the next analyst can reproduce your finding.', task: 'Pin at least the successful sign-in, the role grant and the export (use the pin button on any result or timeline row).', lookFor: 'Evidence that stands on its own without your narration.',
-    check: (st) => m03eHasAll(new Set(st.pins), ['A-1006', 'D-2001', 'P-3002']) },
+  { id: 'scope', tab: 'search', title: 'Bound the scope', body: 'Before handing off, test whether the source IP touched any other account. An aggregation answers that in one result.', task: 'Write your own query: which accounts did 198.51.100.18 act as, and how many events each?', hint: 'Use | summarize … by Account', lookFor: 'Whether anything besides acct-428 appears.',
+    check: (st, r, q) => /198\.51\.100\.18/.test(q || '') && (r?.cols || []).includes('Account') && (r?.rows || []).length >= 1 && !(r?.rows || []).some((row) => row.__rid) && (r?.rows || []).every((row) => row.Account === 'acct-428') },
+  { id: 'pin', tab: 'evidence', title: 'Preserve the evidence', body: 'A handoff cites records. Pin the linked records and the approved lookalike so the next analyst can verify both inclusion and exclusion.', task: 'Pin the failed and successful sign-ins, role grant, export, and approved restart.', lookFor: 'Four records support the chain; S-4001 remains a separately documented approved change.',
+    check: (st) => m03eHasAll(new Set(st.pins), ['A-1003', 'A-1006', 'D-2001', 'P-3001', 'S-4001']) },
+  { id: 'handoff', tab: 'evidence', title: 'Write the analyst handoff', body: 'State the correlated sequence, explain why the 09:10 svc-backup restart is excluded, and name one unresolved question or next check.', task: 'Write the handoff in Working notes below the console. Include acct-428, S-8841, CHG-221, and a scope limit or next step.', lookFor: 'A bounded, reproducible handoff rather than a verdict without evidence.',
+    check: () => /acct-428/.test(moduleThreeState.practiceNotes || '') && /S-8841/.test(moduleThreeState.practiceNotes || '') && /CHG-221/.test(moduleThreeState.practiceNotes || '') && /svc-backup/.test(moduleThreeState.practiceNotes || '') && /(approved|separate|exclud)/i.test(moduleThreeState.practiceNotes || '') && (moduleThreeState.practiceNotes || '').trim().length >= 50 },
 ];
 
 /* ------------------------------------------------------------ assessment rubric
@@ -636,7 +650,7 @@ function m03eGuideBar() {
   const passed = !done && m03eStepPassed(step);
   const progress = `<div class="m03e-guide-progress" aria-hidden="true">${M03E_GUIDE_STEPS.map((s, i) => `<span class="${i < st.guideStep ? 'is-done' : i === st.guideStep ? 'is-current' : ''}"></span>`).join('')}</div>`;
   if (done) {
-    return `<aside class="m03e-guide is-complete${st.guideCollapsed ? ' is-collapsed' : ''}" aria-label="Guided lab"><div class="m03e-guide-head"><span class="m03e-label">GUIDED LAB · COMPLETE</span>${progress}<button type="button" class="m03e-guide-toggle" data-m03e-guide-collapse aria-expanded="${!st.guideCollapsed}"><i class="ri-arrow-up-s-line" aria-hidden="true"></i><span class="m03e-sr-only">Toggle guide</span></button></div><div class="m03e-guide-body"><h3>Case debrief: CASE-MN-428</h3><p>acct-428 is a non-interactive service account. It failed three times and then signed in with MFA from a first-seen hosting IP. Within five minutes, the same session (S-8841) granted the account Billing-Exporters and exported 184 customer records. No change ticket covers the grant. The export alert (a scheduled job under CHG-210) and j.lee’s sign-in from a new country (on the travel watchlist) are benign positives. The collector delay dropped no events.</p><p><strong>Verdict:</strong> true positive. <strong>Scope:</strong> acct-428 and session S-8841. The export is confirmed, but where the CSV went is not. <strong>Next:</strong> preserve the pinned records, revoke the session, rotate the credential, and escalate to identity response.</p><button type="button" class="m03e-guide-next" data-m03e-guide-restart>Restart guide</button></div></aside>`;
+    return `<aside class="m03e-guide is-complete${st.guideCollapsed ? ' is-collapsed' : ''}" aria-label="Guided lab"><div class="m03e-guide-head"><span class="m03e-label">GUIDED LAB · COMPLETE</span>${progress}<button type="button" class="m03e-guide-toggle" data-m03e-guide-collapse aria-expanded="${!st.guideCollapsed}"><i class="ri-arrow-up-s-line" aria-hidden="true"></i><span class="m03e-sr-only">Toggle guide</span></button></div><div class="m03e-guide-body"><h3>Case debrief: CASE-MN-428</h3><p>AuthLog recorded a failed sign-in at 09:02 and a successful sign-in at 09:04 for acct-428. The same S-8841 session from 198.51.100.18 granted a directory role at 09:08 and exported application data at 09:12. Source provenance and raw IDs remain available for verification.</p><p>The 09:10 svc-backup restart is a separate SystemLog event under approved change CHG-221: it has a different identity, no S-8841 session, and a different source IP. <strong>Verdict:</strong> suspicious authentication-to-export sequence. <strong>Scope:</strong> acct-428 and the observed session; broader access and export destination remain to be checked. The handoff records this distinction and a bounded next step.</p><button type="button" class="m03e-guide-next" data-m03e-guide-restart>Restart guide</button></div></aside>`;
   }
   return `<aside class="m03e-guide${st.guideCollapsed ? ' is-collapsed' : ''}${passed ? ' is-passed' : ''}" aria-label="Guided lab step"><div class="m03e-guide-head"><span class="m03e-label">GUIDED LAB · STEP ${st.guideStep + 1} OF ${total}</span>${progress}<button type="button" class="m03e-guide-toggle" data-m03e-guide-collapse aria-expanded="${!st.guideCollapsed}"><i class="ri-arrow-up-s-line" aria-hidden="true"></i><span class="m03e-sr-only">${st.guideCollapsed ? 'Show guide' : 'Hide guide'}</span></button></div><div class="m03e-guide-body"><h3>${esc(step.title)}</h3><p>${esc(step.body)}</p><p class="m03e-guide-task"><strong>Your task:</strong> ${esc(step.task)}</p>${step.hint ? `<p class="m03e-guide-hint"><strong>${st.guideStep <= 2 ? 'Query' : 'Pattern'}:</strong> <code>${esc(step.hint).replace(/\n/g, ' ')}</code>${st.guideStep <= 2 ? ` <button type="button" data-m03e-insert="${esc(step.hint)}">Insert</button>` : ''}</p>` : ''}<p class="m03e-guide-look"><strong>Look for:</strong> ${esc(step.lookFor)}</p><div class="m03e-guide-actions">${st.tab !== step.tab ? `<button type="button" class="m03e-guide-go" data-m03e-tab="practice:${step.tab}">Go to ${esc(M03E_TABS.find((t) => t[0] === step.tab)[1])}</button>` : ''}<span class="m03e-guide-status" role="status">${passed ? '<i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Step complete' : '<i class="ri-loader-4-line" aria-hidden="true"></i> Waiting for your evidence…'}</span><button type="button" class="m03e-guide-next" data-m03e-guide-next ${passed ? '' : 'disabled'}>${st.guideStep === total - 1 ? 'Finish guided lab' : 'Next step'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></div></div></aside>`;
 }
@@ -687,11 +701,14 @@ function moduleThreePracticeComplete() {
 }
 
 function moduleThreeGuidedLabPanel() {
+  if (!m03eState('practice').normalizedIngestReady) {
+    return `<div class="m03e-panel" id="m03e-practice-panel"><p class="m03e-panel-instruction">Normalize and ingest the four source logs in the previous card. The investigation workspace will load this case’s alert and normalized events here.</p></div>`;
+  }
   const st = m03eState('practice');
   return `<div class="m03e-panel" id="m03e-practice-panel">
     <p class="m03e-panel-instruction">Work CASE-MN-428 from the alert queue to a scoped finding. The guide checks what you actually find, not which buttons you press, so any query that returns the right evidence counts. Support drops as you go: the first steps give you queries, and the last ones give you only the goal.</p>
     <div class="m03e-console-host" id="m03e-console-practice">${moduleThreeConsoleHtml('practice')}</div>
-    <label class="m03-note-label">Working notes (optional)<textarea rows="3" maxlength="900" data-m03-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleThreeState.practiceNotes || '')}</textarea></label>
+    <label class="m03-note-label">Analyst handoff<textarea rows="3" maxlength="900" data-m03-practice-notes placeholder="Link the four events, exclude svc-backup / CHG-221, and state one scope limit or next check.">${esc(moduleThreeState.practiceNotes || '')}</textarea><small>Required for the final guide step. Include acct-428, S-8841, and CHG-221.</small></label>
     <div class="m03e-feedback${moduleThreeState.practiceComplete ? ' is-correct' : ''}" role="status">${moduleThreeState.practiceComplete ? 'Guided Lab complete: every step was verified from your own evidence.' : `The Guided Lab completes when all ${M03E_GUIDE_STEPS.length} guide steps are verified (${Math.min(st.guideStep, M03E_GUIDE_STEPS.length)} done).`}</div>
   </div>`;
 }
@@ -1066,7 +1083,21 @@ function wireModuleThreeConsole() {
     });
     section.addEventListener('input', (ev) => {
       if (ev.target.id === `m03e-kql-${scope}`) { m03eState(scope).query = ev.target.value; m03eSave(); return; }
-      if (ev.target.matches('[data-m03-practice-notes]')) { moduleThreeState.practiceNotes = ev.target.value; m03eSave(); return; }
+      if (ev.target.matches('[data-m03-practice-notes]')) {
+        moduleThreeState.practiceNotes = ev.target.value;
+        m03eSave();
+        const st = m03eState('practice');
+        const step = M03E_GUIDE_STEPS[st.guideStep];
+        if (step?.id === 'handoff') {
+          const passed = m03eStepPassed(step);
+          const next = section.querySelector('[data-m03e-guide-next]');
+          const status = section.querySelector('.m03e-guide-status');
+          if (next) next.disabled = !passed;
+          if (status) status.innerHTML = passed ? '<i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Step complete' : '<i class="ri-loader-4-line" aria-hidden="true"></i> Waiting for a bounded handoff…';
+          section.querySelector('.m03e-guide')?.classList.toggle('is-passed', passed);
+        }
+        return;
+      }
       if (scope === 'prove' && ev.target.closest('#m03e-prove-form') && ev.target.tagName === 'TEXTAREA') m03eHandleFormInput(ev);
     });
     section.addEventListener('submit', (ev) => {

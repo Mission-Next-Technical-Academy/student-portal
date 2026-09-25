@@ -27,8 +27,43 @@
 .m09-concept-grid i { width: 36px; height: 36px; display: grid; place-items: center; color: #1e3a5f; background: #e7f0f9; border-radius: 10px; font-size: 19px; }
 .m09-concept-grid h3 { margin: 13px 0 6px; color: #1e3a5f; font-size: 14px; }
 .m09-concept-grid p { margin: 0; color: #64748b; font: 12px/1.6 Inter, sans-serif; }
-.m09-lifecycle { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 18px; padding: 14px; color: #1e3a5f; background: #eef6ff; border: 1px solid #cfe2f7; border-radius: 12px; font-size: 12px; font-weight: 800; }
-.m09-lifecycle i { color: #f97316; font-size: 17px; }
+.m09-lifecycle-companion { margin-top: 18px; padding: 20px; background: #fbfdff; border: 1px solid #dbe3ed; border-radius: 14px; }
+.m09-companion-label { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; color: #1e3a5f; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.m09-companion-title { margin: 0 0 14px; color: #1e3a5f; font-size: 16px; }
+.m09-instruction, .m09-concept { margin: 0; color: #64748b; font: 12px/1.6 Inter, sans-serif; }
+.m09-concept { margin-top: 14px; }
+.m09-concept strong { color: #1e3a5f; }
+.m09-lifecycle-wheel { position: relative; width: min(100%, 1000px); height: 650px; margin: 18px auto 0; }
+.m09-wheel-track { position: absolute; z-index: 0; top: 50%; left: 50%; width: 390px; height: 390px; transform: translate(-50%, -50%); }
+.m09-wheel-track::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from -30deg, #1e3a5f 0deg 56deg, transparent 56deg 60deg, #f97316 60deg 116deg, transparent 116deg 120deg, #2f608e 120deg 176deg, transparent 176deg 180deg, #ea580c 180deg 236deg, transparent 236deg 240deg, #3e739f 240deg 296deg, transparent 296deg 300deg, #c2410c 300deg 356deg, transparent 356deg 360deg); -webkit-mask: radial-gradient(circle, transparent 0 56%, #000 57% 100%); mask: radial-gradient(circle, transparent 0 56%, #000 57% 100%); filter: drop-shadow(0 9px 15px rgba(30,58,95,.16)); transform: rotate(var(--wheel-rotation)); transition: transform .5s cubic-bezier(.22, 1, .36, 1); }
+.m09-wheel-track > span { --wheel-angle: calc((var(--wheel-step) * 60deg) + 27deg); position: absolute; z-index: 2; top: 50%; left: 50%; width: 28px; height: 28px; transform: translate(-50%, -50%) rotate(var(--wheel-angle)) translateY(-181px); }
+.m09-wheel-track > span i { width: 28px; height: 28px; display: grid; place-items: center; color: #1e3a5f; background: #fff; border: 2px solid currentColor; border-radius: 50%; font-size: 19px; box-shadow: 0 3px 8px rgba(15,39,65,.18); }
+.m09-wheel-track > span:nth-child(even) i { color: #ea580c; }
+.m09-wheel-hub { position: absolute; z-index: 1; inset: 25%; display: grid; place-content: center; justify-items: center; padding: 20px; color: #fff; background: linear-gradient(145deg, #0f2741, #1e3a5f); border: 7px solid #eaf1f8; border-radius: 50%; text-align: center; box-shadow: 0 10px 24px rgba(15,39,65,.22); }
+.m09-wheel-hub > i { color: #fdba74; font-size: 31px; }
+.m09-wheel-hub strong, .m09-wheel-hub small { display: block; }
+.m09-wheel-hub strong { margin-top: 7px; font-size: 17px; line-height: 1.2; }
+.m09-wheel-hub small { margin-top: 5px; color: rgba(255,255,255,.66); font: 10px/1.35 Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.m09-lifecycle { position: absolute; z-index: 1; inset: 0; margin: 0; padding: 0; list-style: none; }
+.m09-lifecycle li { --phase-color: #1e3a5f; position: absolute; width: clamp(220px, 26%, 260px); min-height: 84px; padding: 15px 16px 16px; background: rgba(255,255,255,.98); border: 1px solid #dbe3ed; border-top: 4px solid var(--phase-color); border-radius: 13px; box-shadow: 0 8px 20px rgba(30,58,95,.09); transition: border-color .2s, box-shadow .2s, background-color .2s; }
+.m09-lifecycle li:nth-child(1) { top: 0; left: 50%; transform: translateX(-50%); }
+.m09-lifecycle li:nth-child(2) { --phase-color: #f97316; top: 105px; right: 0; border-color: #fed7aa; border-top-color: var(--phase-color); background: #fffaf5; }
+.m09-lifecycle li:nth-child(3) { --phase-color: #2f608e; right: 0; bottom: 105px; }
+.m09-lifecycle li:nth-child(4) { --phase-color: #ea580c; bottom: 0; left: 50%; transform: translateX(-50%); }
+.m09-lifecycle li:nth-child(5) { --phase-color: #3e739f; bottom: 105px; left: 0; }
+.m09-lifecycle li:nth-child(6) { --phase-color: #c2410c; top: 105px; left: 0; }
+.m09-lifecycle li.is-active { border-color: var(--phase-color); background: #fff; box-shadow: 0 13px 30px rgba(30,58,95,.18), 0 0 0 3px color-mix(in srgb, var(--phase-color) 16%, transparent); }
+.m09-phase-button { width: 100%; padding: 0; color: inherit; background: transparent; border: 0; font: inherit; text-align: left; cursor: pointer; }
+.m09-phase-heading { display: grid; grid-template-columns: 28px 27px minmax(0, 1fr) 20px; align-items: center; gap: 8px; }
+.m09-phase-heading > span { width: 28px; height: 28px; display: grid; place-items: center; color: #fff; background: var(--phase-color); border-radius: 50%; font-size: 11px; font-weight: 800; }
+.m09-phase-heading > i { color: var(--phase-color); font-size: 21px; }
+.m09-phase-heading > .m09-phase-title { width: auto; height: auto; display: block; color: #1e3a5f; background: transparent; border-radius: 0; font-size: 14px; line-height: 1.2; text-align: left; }
+.m09-phase-heading > .m09-phase-chevron { color: #94a3b8; font-size: 19px; transition: transform .2s; }
+.m09-lifecycle li.is-active .m09-phase-chevron { color: var(--phase-color); transform: rotate(180deg); }
+.m09-phase-detail { animation: m09-phase-open .24s ease-out; }
+.m09-phase-detail[hidden] { display: none; }
+.m09-lifecycle p { margin: 9px 0 0; color: #64748b; font: 11px/1.5 Inter, sans-serif; }
+@keyframes m09-phase-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 .m09-role { display: flex; align-items: flex-start; gap: 13px; margin: -5px 0 20px; padding: 16px; color: #1e3a5f; background: #eef6ff; border: 1px solid #cfe2f7; border-radius: 12px; }
 .m09-role > i { flex: 0 0 auto; font-size: 22px; }
 .m09-role strong { font-size: 14px; }
@@ -210,6 +245,10 @@
 
 @media (max-width: 980px) {
   .m09-concept-grid { grid-template-columns: repeat(2, 1fr); }
+  .m09-lifecycle-wheel { height: 700px; }
+  .m09-wheel-track { width: 310px; height: 310px; }
+  .m09-wheel-track > span { transform: translate(-50%, -50%) rotate(var(--wheel-angle)) translateY(-141px); }
+  .m09-lifecycle li { width: 220px; }
   .m09-casebar { grid-template-columns: 1fr; }
   .m09-response-grid { grid-template-columns: 1fr; }
   .m09-response-phase > p { min-height: 0; }
@@ -225,8 +264,16 @@
   .m09-objective h2 { font-size: 16px; }
   .m09-section { padding: 18px 14px; border-radius: 16px; }
   .m09-concept-grid { grid-template-columns: 1fr; }
-  .m09-lifecycle { align-items: stretch; flex-direction: column; text-align: center; }
-  .m09-lifecycle i { transform: rotate(90deg); }
+  .m09-lifecycle-wheel { height: auto; padding-top: 218px; }
+  .m09-wheel-track { top: 0; width: 194px; height: 194px; transform: translateX(-50%); }
+  .m09-wheel-track > span { width: 21px; height: 21px; transform: translate(-50%, -50%) rotate(var(--wheel-angle)) translateY(-87px); }
+  .m09-wheel-track > span i { width: 21px; height: 21px; border-width: 1px; font-size: 15px; }
+  .m09-wheel-hub { inset: 23%; padding: 10px; border-width: 4px; }
+  .m09-wheel-hub > i { font-size: 22px; }
+  .m09-wheel-hub strong { margin-top: 3px; font-size: 12px; }
+  .m09-wheel-hub small { display: none; }
+  .m09-lifecycle { position: relative; display: grid; gap: 10px; }
+  .m09-lifecycle li, .m09-lifecycle li:nth-child(n) { position: relative; inset: auto; width: 100%; min-height: 0; transform: none; }
   .m09-casebar dl { grid-template-columns: 1fr; }
   .m09-source-tabs button { grid-template-columns: auto minmax(0, 1fr) auto; }
   .m09-source-tabs button i { grid-row: auto; }
@@ -245,4 +292,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .m09-shell *, .m09-shell *::before, .m09-shell *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+  .m09-wheel-track::before, .m09-phase-chevron { transition: none; }
+  .m09-phase-detail { animation: none; }
 }

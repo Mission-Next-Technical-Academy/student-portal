@@ -381,11 +381,102 @@
     return `<aside class="m02e-drawer"><p class="m02e-label">${title}</p>${content}</aside>`;
   }
 
+  // Network map geometry, in a 1000 × 720 logical canvas. Nodes are HTML
+  // buttons placed by percentage over an SVG link layer, so selection, the
+  // console guide focus, and keyboard access keep working as before.
+  const MAP_W = 1000, MAP_H = 720;
+  const MAP_POINTS = {
+    internet: [500, 55], fw: [500, 175], sw: [500, 340], ap: [150, 555],
+    web: [150, 355], finance: [870, 375], hr: [870, 500], db: [870, 625],
+    wk17: [380, 615], wk23: [480, 615], wk31: [580, 615], wk44: [680, 615], wk09: [150, 650],
+  };
+  const MAP_ZONES = [
+    { cls: 'dmz', box: [15, 250, 275, 190], term: 'DMZ' },
+    { cls: 'guest', box: [15, 470, 275, 240], text: 'GUEST WI-FI' },
+    { cls: 'internal', box: [310, 250, 675, 462], text: 'INTERNAL' },
+    { cls: 'lan', box: [325, 480, 420, 222], text: 'USER LAN' },
+    { cls: 'servers', box: [765, 280, 205, 422], term: 'Servers & Resources' },
+  ];
+  const RESOURCE_ICONS = { web: 'ri-server-line', finance: 'ri-folder-shared-line', hr: 'ri-folder-shared-line', db: 'ri-database-2-line' };
+  const mapLinks = () => {
+    const p = MAP_POINTS;
+    const links = {
+      'internet-fw': [p.internet, p.fw],
+      'fw-web': [p.fw, [150, 175], p.web],
+      'fw-ap': [p.fw, [300, 175], [300, 555], p.ap],
+      'ap-wk09': [p.ap, p.wk09],
+      'fw-sw': [p.fw, p.sw],
+    };
+    ['finance', 'hr', 'db'].forEach((r) => { links[`sw-${r}`] = [p.sw, [720, 340], [720, p[r][1]], p[r]]; });
+    DATA.devices.filter((d) => d.id !== 'wk09').forEach((d) => { links[`sw-${d.id}`] = [p.sw, [500, 530], [p[d.id][0], 530], p[d.id]]; });
+    return links;
+  };
+  const pointsPath = (pts) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');
+  // Hop list a request takes from a device to a resource. Guest Wi-Fi traffic
+  // has to cross the firewall to reach anything internal.
+  function mapRoute(deviceId, resourceId) {
+    const hops = deviceId === 'wk09' ? ['ap-wk09<', 'fw-ap<'] : [`sw-${deviceId}<`];
+    const at = deviceId === 'wk09' ? 'fw' : 'sw';
+    if (resourceId === 'web') hops.push(...(at === 'sw' ? ['fw-sw<'] : []), 'fw-web');
+    else hops.push(...(at === 'fw' ? ['fw-sw'] : []), `sw-${resourceId}`);
+    const links = mapLinks();
+    const pts = [];
+    hops.forEach((hop) => {
+      const rev = hop.endsWith('<');
+      const seg = links[rev ? hop.slice(0, -1) : hop].slice();
+      if (rev) seg.reverse();
+      seg.forEach((pt) => { const last = pts[pts.length - 1]; if (!last || last[0] !== pt[0] || last[1] !== pt[1]) pts.push(pt); });
+    });
+    const via = new Set(hops.flatMap((h) => h.replace('<', '').split('-')));
+    return { pts, via };
+  }
+  // The map follows whatever the analyst has open: an event directly, or the
+  // first recorded event for the selected identity, device, resource, or policy.
+  function mapEvent(scope) {
+    const sel = state[scope].selected;
+    if (sel.type === 'event') return by('event', sel.id) || DATA.events[0];
+    return DATA.events.find((e) => e[sel.type] === sel.id) || null;
+  }
+
   function mapView(scope) {
-    const e = selectedEvent(scope), x = entity(e);
-    const label = (text) => scope === 'learn' && TERM_DEFINITIONS[text] ? learnTerm(text) : text;
-    const node = (type, id, label, sub) => `<button class="m02e-node ${state[scope].selected.type === type && state[scope].selected.id === id ? 'is-selected' : ''}" data-m02e-select="${scope}:${type}:${id}"><strong>${esc(label)}</strong><small>${esc(sub)}</small></button>`;
-    return `<section class="m02e-map"><div class="m02e-zone internet">INTERNET</div><div class="m02e-boundary ${state[scope].selected.type === 'policy' && state[scope].selected.id === e.policy ? 'is-selected' : ''}" data-m02e-select="${scope}:policy:${e.policy}"><i class="ri-shield-check-line"></i> FIREWALL / ${label('Access policy')}</div><div class="m02e-topology"><div class="m02e-zone dmz"><span>${label('DMZ')}</span>${node('resource', 'web', 'WEB-01', '10.20.2.15 · HTTPS')}</div><div class="m02e-zone internal"><span>INTERNAL</span><div class="m02e-map-columns"><div><em>WORKSTATIONS</em>${DATA.devices.map((d) => node('device', d.id, d.name, d.ip)).join('')}</div><div><em>${label('Servers & Resources')}</em>${DATA.resources.filter((r) => r.id !== 'web').map((r) => node('resource', r.id, r.name, `${r.ip} · ${r.service}`)).join('')}</div></div></div></div><div class="m02e-connection"><span>${esc(x.device.name)} · ${esc(x.device.ip)}</span><b>${esc(x.resource.service)} / ${esc(x.resource.transport)} ${esc(x.resource.port)}</b><span>${esc(x.resource.name)} · ${esc(x.resource.ip)}</span></div><div class="m02e-identities"><em>IDENTITIES</em>${DATA.users.map((u) => node('user', u.id, u.name, u.groups.join(', '))).join('')}</div></section>`;
+    const e = mapEvent(scope), x = e ? entity(e) : null;
+    const sel = state[scope].selected;
+    const label = (text) => scope === 'learn' && TERM_DEFINITIONS[text] ? learnTerm(text) : esc(text);
+    const route = e ? mapRoute(e.device, e.resource) : { pts: [], via: new Set() };
+    const outcome = e ? (e.result === 'ALLOWED' ? 'is-allow' : 'is-deny') : '';
+    const pos = ([px, py]) => `left:${px / MAP_W * 100}%;top:${py / MAP_H * 100}%`;
+    const box = ([bx, by2, bw, bh]) => `left:${bx / MAP_W * 100}%;top:${by2 / MAP_H * 100}%;width:${bw / MAP_W * 100}%;height:${bh / MAP_H * 100}%`;
+    const onPath = (key) => route.via.has(key) ? ' is-path' : '';
+    const node = (key, type, id, icon, name, sub, kind) => {
+      const selected = sel.type === type && sel.id === id ? ' is-selected' : '';
+      const blocked = e && e.result !== 'ALLOWED' && key === e.resource ? '<b class="m02e-blocked" title="Access denied"><i class="ri-close-circle-fill"></i></b>' : '';
+      return `<button class="m02e-node ${kind}${selected}${onPath(key)}" style="${pos(MAP_POINTS[key])}" data-m02e-select="${scope}:${type}:${id}"><i class="${icon}"></i>${blocked}<strong>${esc(name)}</strong><small>${esc(sub)}</small></button>`;
+    };
+    const infra = (key, icon, name, sub, kind) => `<div class="m02e-node is-static ${kind}${onPath(key)}" style="${pos(MAP_POINTS[key])}"><i class="${icon}"></i><strong>${esc(name)}</strong><small>${esc(sub)}</small></div>`;
+    const links = mapLinks();
+    const policyId = e ? e.policy : DATA.policies[0].id;
+    const fwSelected = sel.type === 'policy' && sel.id === policyId ? ' is-selected' : '';
+    const last = route.pts.slice(-2);
+    const portAt = last.length === 2 ? [last[0][0] + (last[1][0] - last[0][0]) * 0.42, last[0][1] + (last[1][1] - last[0][1]) * 0.42] : null;
+    const d = pointsPath(route.pts);
+    const svg = `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" aria-hidden="true">${Object.entries(links).map(([k, pts]) => `<path class="m02e-link${k === 'ap-wk09' ? ' wireless' : ''}" d="${pointsPath(pts)}"/>`).join('')}${e ? `<path class="m02e-flow-glow" d="${d}"/><path class="m02e-flow" d="${d}"/><circle class="m02e-packet" r="7"><animateMotion dur="2.6s" repeatCount="indefinite" path="${d}" ${e.result === 'ALLOWED' ? '' : 'keyPoints="0;0.9" keyTimes="0;1" calcMode="linear"'}/></circle>` : ''}</svg>`;
+    const zones = MAP_ZONES.map((z) => `<div class="m02e-tz ${z.cls}" style="${box(z.box)}"><span>${z.term ? label(z.term) : esc(z.text)}</span></div>`).join('');
+    const nodes = [
+      infra('internet', 'ri-global-line', 'INTERNET', 'Untrusted', 'kind-internet'),
+      `<button class="m02e-node kind-fw${fwSelected}${onPath('fw')}" style="${pos(MAP_POINTS.fw)}" data-m02e-select="${scope}:policy:${policyId}"><i class="ri-shield-keyhole-line"></i><strong>FIREWALL</strong><small>FW-EDGE-01</small></button>`,
+      `<div class="m02e-caption" style="${pos([548, 165])}">Enforces ${label('Access policy')}</div>`,
+      infra('sw', 'ri-router-line', 'CORE-SW-01', 'Core switch', 'kind-switch'),
+      infra('ap', 'ri-wifi-line', 'GUEST-AP', 'Wireless access point', 'kind-ap'),
+      ...DATA.resources.map((r) => node(r.id, 'resource', r.id, RESOURCE_ICONS[r.id], r.name, `${r.ip} · ${r.service}`, 'kind-resource')),
+      ...DATA.devices.map((dv) => node(dv.id, 'device', dv.id, dv.id === 'wk09' ? 'ri-macbook-line' : 'ri-computer-line', dv.name, dv.ip, 'kind-device')),
+    ].join('');
+    const port = e && portAt ? `<div class="m02e-port" style="${pos(portAt)}">${esc(x.resource.service)} · ${esc(x.resource.transport)} ${esc(x.resource.port)}</div>` : '';
+    const strip = e
+      ? `<div class="m02e-connection ${outcome}"><span><i class="ri-computer-line"></i> ${esc(x.device.name)} · ${esc(x.device.ip)}</span><b>${esc(x.resource.service)} / ${esc(x.resource.transport)} ${esc(x.resource.port)} <i class="ri-arrow-right-line"></i></b><span>${esc(x.resource.name)} · ${esc(x.resource.ip)}</span><em>${esc(e.time)} · ${esc(e.result)}</em></div>`
+      : `<div class="m02e-connection"><span>No recorded connections for this selection.</span></div>`;
+    const legend = `<div class="m02e-legend"><span><i class="wired"></i>Wired link</span><span><i class="wireless"></i>Wireless link</span><span><i class="allow"></i>Allowed request</span><span><i class="deny"></i>Denied request</span></div>`;
+    const ids = `<div class="m02e-identities"><em>IDENTITIES</em>${DATA.users.map((u) => `<button class="m02e-node m02e-id${sel.type === 'user' && sel.id === u.id ? ' is-selected' : ''}${e && e.user === u.id ? ' is-path' : ''}" data-m02e-select="${scope}:user:${u.id}"><i class="ri-user-3-line"></i><span><strong>${esc(u.name)}</strong><small>${esc(u.groups.join(', '))}</small></span></button>`).join('')}</div>`;
+    return `<section class="m02e-map ${outcome}"><div class="m02e-topo-wrap"><div class="m02e-topo">${zones}${svg}${nodes}${port}</div></div>${strip}${legend}${ids}</section>`;
   }
   function activityView(scope) {
     return `<section><div class="m02e-table-wrap"><table class="m02e-table"><caption>ACCESS ACTIVITY</caption><thead><tr><th>TIME</th><th>USER</th><th>DEVICE</th><th>SOURCE</th><th>RESOURCE</th><th>SERVICE</th><th>RESULT</th></tr></thead><tbody>${DATA.events.map((e) => { const x = entity(e); return `<tr class="${state[scope].selected.type === 'event' && state[scope].selected.id === e.id ? 'is-selected' : ''}" data-m02e-select="${scope}:event:${e.id}"><td>${esc(e.time)}</td><td>${esc(x.user.username)}</td><td>${esc(x.device.name)}</td><td>${esc(x.device.ip)}</td><td>${esc(x.resource.name)}</td><td>${esc(x.resource.service)}</td><td><b class="${e.result === 'ALLOWED' ? 'allow' : 'deny'}">${esc(e.result)}</b></td></tr>`; }).join('')}</tbody></table></div></section>`;

@@ -176,12 +176,6 @@
 .m04-section-collapsible .m04-section-body ul { margin: 12px 0; padding-left: 20px; color: #475569; font: 14px/1.65 Inter, sans-serif; }
 .m04-section-collapsible .m04-section-body li { margin: 8px 0; }
 .m04-section-collapsible .m04-section-body li strong { color: #334155; }
-.m04-video-script { margin: 16px 0 0; color: #475569; background: rgba(255, 255, 255, .72); border: 1px solid #dbe3ed; border-radius: 9px; }
-.m04-video-script summary { padding: 10px 12px; color: #1e3a5f; font-size: 11px; font-weight: 700; cursor: pointer; }
-.m04-script-body { padding: 0 12px 12px; color: #64748b; font: 12px/1.65 Inter, sans-serif; }
-.m04-script-body p { margin: 10px 0; }
-.m04-script-body p:first-child { margin-top: 0; }
-.m04-script-body strong { color: #1e3a5f; }
 .m04-lecture-section { padding: 0; }
 .m04-lecture-intro { margin-bottom: 18px; }
 .m04-lecture-intro p { color: #475569; font: 14px/1.65 Inter, sans-serif; }

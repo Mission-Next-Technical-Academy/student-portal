@@ -750,26 +750,7 @@ function moduleFourSave() {
 }
 
 function moduleFourVideoScript() {
-  return `<details class="m04-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m04-script-body">
-      <p><strong>Introduction:</strong> Welcome to the detection engineering workshop. Modern security systems generate thousands of alerts daily. Your job is not to respond to every signal—it's to tune rules, enrich alerts with context, and automate safely. Over the next 10 minutes, we'll explore how to write better detection rules, use threat intelligence to corroborate or question alerts, and set boundaries on automation so disruptive decisions stay human-approved.</p>
-
-      <p><strong>Segment 1 — What is a detection rule?</strong> A detection rule is a logical expression that aggregates events and triggers an alert when a condition is met. The key insight: the rule's grouping field determines what events are counted together. Group by account, and a user's single credential failure looks like a login attempt from an assigned device. Group by source IP, and that user's failure combined with four other users' failures from the same IP reveals a distributed spray. Same events, different patterns, different grouping choices.</p>
-
-      <p><strong>Segment 2 — Grouping and aggregation in practice.</strong> Imagine ten authentication failures—five from Account A's workstation retrying a stale password, and five from five different accounts all from IP 198.51.100.44. A rule grouping by (Account, Source IP) produces one alert for the managed client (known noise) and keeps four distinct 1-failure alerts under the radar. A rule grouping by Source IP and counting distinct accounts produces one alert: five accounts from 198.51.100.44. Same data, but changing the grouping field surfaces the distributed pattern. This module's lab demonstrates that exact tradeoff.</p>
-
-      <p><strong>Segment 3 — False positives vs. false negatives.</strong> Tuning a rule is a tradeoff. Lower thresholds catch more real attacks (fewer false negatives) but trigger on more benign activity (more false positives). Higher thresholds reduce alert noise but risk missing real attacks. There is no magic threshold; your job is to choose the tradeoff that fits your risk tolerance and follow-up capacity. Too many false positives: analysts ignore alerts (alert fatigue). Too high a threshold: attackers slip through undetected. The best threshold is the one your team can actually investigate.</p>
-
-      <p><strong>Segment 4 — Threat intelligence and confidence.</strong> A threat feed provides an indicator—an IP, domain, file hash—and metadata: confidence (how sure the indicator is malicious), status (active, retired, expired), and freshness (when it was last seen). High confidence and recent activity suggest a current threat. Low confidence or aged indicators provide historical context but should not drive emergency decisions. Exact match also matters: a high-confidence indicator for a common ISP IP is less useful than a lower-confidence match for a known attacker's infrastructure. Context and relevance are as important as confidence.</p>
-
-      <p><strong>Segment 5 — Automation and approval boundaries.</strong> A SOAR playbook can automate repeatable, low-risk tasks: creating tickets, sending notifications, enriching alerts with threat feeds. These actions preserve evidence and move alerts forward without altering system state. Disruptive actions—disabling accounts, blocking IPs, revoking sessions—should stay behind approval gates. Even a correct detection can target legitimate activity; humans are needed to judge context. The safest playbooks are hybrid: automate collection and enrichment, escalate decisions to analysts, then execute disruptive actions only with approval.</p>
-
-      <p><strong>Segment 6 — Priority and triage reasoning.</strong> Two alerts, both correct detections: a single account's repeated password failures, and a distributed spray across five accounts from one IP with one successful access. Which is higher priority? The distributed pattern with successful access, because it suggests compromise. Potential impact (data sensitivity, asset criticality) and evidence of success determine priority, not just the magnitude of the alert signal. An alert is correct when it detects anomalous events; it is high-priority when those events threaten valuable assets or show signs of compromise.</p>
-
-      <p><strong>Closing:</strong> Detection engineering is iterative. You will write rules, test them, tune them, and adjust based on what your environment actually generates. The lab lets you test a rule against synthetic data and see which grouping reveals the intended pattern while minimizing noise. From there, enrichment adds context (threat intelligence), and bounded automation handles the routine work so analysts can focus on judgment calls. Remember: better detection means fewer missed attacks and lower alert fatigue—the sweet spot.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleFourLessonLoop(lesson, index) {

@@ -35,8 +35,8 @@
 /* The walkthrough names its focus and moves that focus itself as the learner
  * advances. The pulse is intentionally restrained, and disabled for users
  * who request reduced motion. */
-.m02e-console.is-guided .m02e-node.is-selected,.m02e-console.is-guided .m02e-table tr.is-selected{animation:m02e-focus-pulse 1.5s ease-in-out infinite}
-@keyframes m02e-focus-pulse{50%{box-shadow:0 0 0 5px #f9731640;background:#fff7ed}}
+.m02e-console.is-guided .m02e-node.is-selected>i,.m02e-console.is-guided .m02e-table tr.is-selected{animation:m02e-focus-pulse 1.5s ease-in-out infinite}
+@keyframes m02e-focus-pulse{50%{box-shadow:0 0 0 7px #f9731640;background:#fff7ed}}
 
 .m02e-console-wrap{margin-bottom:16px}
 .m02e-console{overflow:hidden;background:#fff;border:1px solid #cbd5e1;border-radius:16px;box-shadow:0 8px 24px #1e3a5f12}
@@ -65,26 +65,62 @@
 .m02e-field dt{color:#64748b;font-size:9px;text-transform:uppercase;margin:0}
 .m02e-field dd{margin:4px 0 0;color:#334155;font-size:11px;font-weight:700;overflow-wrap:anywhere}
 
-.m02e-map{position:relative;display:grid;gap:13px;text-align:center}
-.m02e-zone{padding:12px;border:1px dashed #aabccc;border-radius:10px;color:#54708b;font-size:11px;font-weight:800;letter-spacing:.1em}
-.m02e-zone.internet{max-width:180px;margin:auto;background:#f8fafc}
-.m02e-boundary{padding:10px;background:#fff4e9;border:1px solid #f5b46f;border-radius:9px;color:#9a4d09;font-size:11px;font-weight:800;cursor:pointer}
-.m02e-boundary.is-selected,.m02e-listing>button.is-selected{border-color:#f97316;box-shadow:0 0 0 3px #f9731626;background:#fff7ed}
-.m02e-topology{display:grid;grid-template-columns:.35fr .65fr;gap:12px;text-align:left}
-.m02e-zone.dmz,.m02e-zone.internal{background:#f8fafc}
-.m02e-zone>span,.m02e-zone em,.m02e-identities em{display:block;margin-bottom:10px;font-style:normal}
-.m02e-zone.internal .m02e-map-columns em{margin:2px 0 8px;color:#315978;font-size:10px;font-weight:900;letter-spacing:.09em;line-height:1.4}
-.m02e-map-columns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.m02e-map-columns>div{min-width:0}
-.m02e-node{display:block;width:100%;margin:7px 0;padding:10px;text-align:left;background:#fff;border:1px solid #cbd5e1;border-radius:8px;color:#1e3a5f;cursor:pointer}
-.m02e-node:hover,.m02e-node.is-selected{border-color:#f97316;box-shadow:0 0 0 2px #f9731620}
-.m02e-node strong,.m02e-node small{display:block}
-.m02e-node strong{font-size:12px;line-height:1.4}
-.m02e-node small{margin-top:4px;color:#475569;font-size:10px;line-height:1.4;overflow-wrap:anywhere}
-.m02e-connection{display:flex;justify-content:space-between;gap:8px;padding:12px;background:#e9f2fb;border:1px solid #b9d2e8;border-radius:9px;color:#315978;font-size:10px}
+/* Network map: dashed zone boxes, an SVG link layer, and icon nodes placed
+ * over it. The selected request's route is drawn in green (allowed) or red
+ * (denied) with a packet travelling along it. */
+.m02e-map{--path:#16a34a;display:grid;gap:12px}
+.m02e-map.is-deny{--path:#dc2626}
+.m02e-topo-wrap{overflow-x:auto;margin:-4px}
+.m02e-topo{position:relative;min-width:720px;aspect-ratio:1000/720;margin:4px}
+.m02e-topo>svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.m02e-tz{position:absolute;box-sizing:border-box;border:1px dashed #aabccc;border-radius:12px;background:#f8fafc}
+.m02e-tz>span{position:absolute;top:8px;left:11px;color:#54708b;font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.m02e-tz.internal{background:#f1f6fb}
+.m02e-tz.lan,.m02e-tz.servers{background:#fff;border-color:#c6d4e2}
+.m02e-tz.dmz{background:#fff8f1;border-color:#f3c395}.m02e-tz.dmz>span{color:#b45309}
+.m02e-tz.guest{background:#fdfbee;border-color:#dfcf85}.m02e-tz.guest>span{color:#8a6d0b}
+.m02e-tz.servers .m02e-term::after,.m02e-caption .m02e-term::after{left:auto;right:0}
+.m02e-link{fill:none;stroke:#b7c7d7;stroke-width:3;stroke-linejoin:round}
+.m02e-link.wireless{stroke-dasharray:3 7;stroke-linecap:round}
+.m02e-flow{fill:none;stroke:var(--path);stroke-width:4;stroke-linejoin:round;stroke-dasharray:12 8;animation:m02e-flow .9s linear infinite}
+.m02e-flow-glow{fill:none;stroke:var(--path);stroke-width:14;stroke-linejoin:round;opacity:.14}
+.m02e-packet{fill:var(--path);stroke:#fff;stroke-width:2.5}
+@keyframes m02e-flow{to{stroke-dashoffset:-20}}
+.m02e-node{position:absolute;z-index:1;display:flex;flex-direction:column;align-items:center;width:112px;margin:-23px 0 0 -56px;padding:0;background:none;border:0;color:#1e3a5f;text-align:center;cursor:pointer}
+.m02e-node.is-static{cursor:default}
+.m02e-node>i{display:grid;place-items:center;width:46px;height:46px;box-sizing:border-box;border:2px solid #9fb3c8;border-radius:12px;background:#fff;color:#1e3a5f;font-size:23px;box-shadow:0 3px 8px #1e3a5f17;transition:border-color .15s ease,box-shadow .15s ease}
+.m02e-node strong,.m02e-node small{display:block;padding:0 5px;border-radius:4px;background:#ffffffe0;white-space:nowrap}
+.m02e-node strong{margin-top:5px;font-size:11px;line-height:1.35}
+.m02e-node small{color:#475569;font-size:9.5px;line-height:1.35}
+.m02e-node.kind-internet>i{border-radius:50%;border-color:#93c5fd;color:#2563eb;background:#eff6ff}
+.m02e-node.kind-fw>i{border-color:#f5b46f;color:#c2410c;background:#fff4e9}
+.m02e-node.kind-switch>i,.m02e-node.kind-ap>i{border-color:#94a3b8;color:#334155;background:#f1f5f9}
+.m02e-node.kind-resource>i{background:#f0f7ff}
+button.m02e-node:hover>i,button.m02e-node:focus-visible>i{border-color:#f97316}
+button.m02e-node:focus-visible{outline:none}
+.m02e-node.is-path>i{border-color:var(--path);box-shadow:0 0 0 4px color-mix(in srgb,var(--path) 16%,transparent)}
+.m02e-node.is-selected>i{border-color:#f97316;box-shadow:0 0 0 4px #f9731638}
+.m02e-blocked{position:absolute;top:-8px;left:calc(50% + 14px);display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#fff;color:#dc2626;font-size:20px;line-height:1}
+.m02e-caption{position:absolute;z-index:1;transform:translateY(-50%);color:#9a4d09;font-size:10px;font-weight:800;letter-spacing:.04em;white-space:nowrap}
+.m02e-caption .m02e-term{font-size:10px}
+.m02e-port{position:absolute;z-index:2;transform:translate(-50%,-50%);padding:3px 9px;border:1.5px solid var(--path);border-radius:999px;background:#fff;color:var(--path);font-size:10px;font-weight:900;letter-spacing:.03em;white-space:nowrap;box-shadow:0 2px 6px #1e3a5f14}
+.m02e-connection{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;padding:11px 13px;background:#f1f6fb;border:1px solid #c9dbeb;border-left:4px solid #94a3b8;border-radius:9px;color:#315978;font-size:11px;font-weight:700}
+.m02e-connection.is-allow{border-left-color:#16a34a}.m02e-connection.is-deny{border-left-color:#dc2626}
 .m02e-connection b{color:#b45309}
-.m02e-identities{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;padding:11px;border:1px dashed #aabccc;border-radius:10px}
-.m02e-identities em{grid-column:1/-1;margin:0;text-align:left}
+.m02e-connection em{padding:2px 8px;border-radius:999px;font-style:normal;font-size:10px;font-weight:900;letter-spacing:.05em}
+.m02e-connection.is-allow em{background:#dcfce7;color:#166534}.m02e-connection.is-deny em{background:#fee2e2;color:#991b1b}
+.m02e-legend{display:flex;flex-wrap:wrap;gap:6px 16px;color:#64748b;font-size:10px;font-weight:700}
+.m02e-legend span{display:inline-flex;align-items:center;gap:6px}
+.m02e-legend i{display:inline-block;width:22px;height:0;border-top:3px solid #b7c7d7}
+.m02e-legend i.wireless{border-top-style:dotted}.m02e-legend i.allow{border-top:3px dashed #16a34a}.m02e-legend i.deny{border-top:3px dashed #dc2626}
+.m02e-identities{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;padding:11px;border:1px dashed #aabccc;border-radius:10px}
+.m02e-identities em{grid-column:1/-1;color:#54708b;font-size:10px;font-style:normal;font-weight:900;letter-spacing:.1em}
+.m02e-node.m02e-id{position:static;flex-direction:row;align-items:center;gap:8px;width:auto;min-width:0;padding:7px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;text-align:left;margin:0}
+.m02e-node.m02e-id>i{flex:0 0 auto;width:30px;height:30px;border-width:1.5px;border-radius:50%;font-size:16px;box-shadow:none}
+.m02e-node.m02e-id>span{min-width:0}
+.m02e-node.m02e-id strong,.m02e-node.m02e-id small{padding:0;background:none;white-space:normal;overflow-wrap:anywhere}
+.m02e-node.m02e-id strong{margin:0}
+.m02e-node.m02e-id.is-selected{border-color:#f97316}
 
 .m02e-table{width:100%;border-collapse:collapse;font-size:11px}
 .m02e-table caption{text-align:left;margin-bottom:14px;color:#1e3a5f;font-size:15px;font-weight:800}
@@ -169,19 +205,16 @@
 @media(max-width:900px){
   .m02e-workspace{grid-template-columns:1fr}
   .m02e-drawer{border-left:0;border-top:1px solid #dbe3ed}
-  .m02e-topology{grid-template-columns:1fr}
   .m02e-identities{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:600px){
   .m02e-workspace{min-height:auto}
   .m02e-view{padding:12px}
-  .m02e-map-columns{grid-template-columns:1fr}
   .m02e-callout{min-height:400px;padding:20px}
   .m02e-learn-heading{display:block}
   .m02e-learn-actions{margin-top:14px}
   .m02e-learn-line{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:13px 0}
   .m02e-learn-line-index{width:30px;height:30px;border-radius:9px}
-  .m02e-connection{display:grid}
   .m02e-table-wrap{overflow:auto}
   .m02e-fields{grid-template-columns:1fr}
   .m02e-console header span{display:none}
@@ -189,4 +222,4 @@
   .m02e-lab-bridge-grid{grid-template-columns:1fr}
   .m02e-workspace-launch{grid-template-columns:1fr}.m02e-enter-workspace{width:100%;box-sizing:border-box}.m02e-workspace-topbar{padding:13px 16px}.m02e-workspace-topbar span{font-size:0}.m02e-workspace-topbar span i{font-size:18px}.m02e-workspace-main{width:min(100% - 24px,1440px);padding-top:22px}.m02e-workspace-intro{display:block}.m02e-workspace-intro span{display:block;margin-top:8px;white-space:normal}
 }
-@media(prefers-reduced-motion:reduce){.m02e-console.is-guided .m02e-node.is-selected,.m02e-console.is-guided .m02e-table tr.is-selected{animation:none}}
+@media(prefers-reduced-motion:reduce){.m02e-console.is-guided .m02e-node.is-selected>i,.m02e-console.is-guided .m02e-table tr.is-selected,.m02e-flow{animation:none}.m02e-packet{display:none}}

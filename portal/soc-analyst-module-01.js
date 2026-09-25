@@ -356,33 +356,7 @@ function moduleOneLessonCompanion(lesson, lab) {
     </div>`;
   }
   if (lesson.number === 8) {
-    return `<div class="m01-companion" id="m01-lifecycle" aria-labelledby="m01-lifecycle-title">
-      <p class="m01-companion-label"><i class="ri-cycle-line" aria-hidden="true"></i> The map for responding</p>
-      <h3 class="m01-companion-title" id="m01-lifecycle-title">Incident response lifecycle, visualized</h3>
-      <p class="m01-instruction">Frameworks group or name phases differently. This six-part model shows the complete operational idea used in day-to-day response work. Select each phase to rotate the lifecycle and open its definition.</p>
-      <div class="m01-lifecycle-wheel" style="--wheel-rotation: 0deg" data-m01-lifecycle-wheel>
-        <div class="m01-wheel-track" aria-hidden="true">
-          ${lab.lifecycle.map((phase, index) => `<span style="--wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
-          <div class="m01-wheel-hub">
-            <i class="ri-cycle-line"></i>
-            <strong>Incident response</strong>
-            <small data-m01-hub-phase>Phase 1 · ${esc(lab.lifecycle[0].title)}</small>
-          </div>
-        </div>
-        <ol class="m01-lifecycle" aria-label="Incident response phases">
-          ${lab.lifecycle.map((phase, index) => `<li data-m01-phase-card="${index}">
-            <button type="button" class="m01-phase-button" data-m01-phase="${index}"
-                    aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m01-phase-detail-${esc(phase.id)}">
-              <span class="m01-phase-heading"><span>${index + 1}</span><i class="${esc(phase.icon)}" aria-hidden="true"></i><span class="m01-phase-title">${esc(phase.title)}</span><i class="ri-arrow-down-s-line m01-phase-chevron" aria-hidden="true"></i></span>
-            </button>
-            <div class="m01-phase-detail" id="m01-phase-detail-${esc(phase.id)}" ${index === 0 ? '' : 'hidden'}>
-              <p>${esc(phase.description)}</p>
-            </div>
-          </li>`).join('')}
-        </ol>
-      </div>
-      <p class="m01-concept"><strong>Where does the SOC analyst fit?</strong> Analysts contribute across the lifecycle, but alert triage sits mainly in <em>detect &amp; analyze</em>. Triage determines whether a response is needed and gives the response team verified evidence, scope, and priority.</p>
-    </div>`;
+    return '';
   }
   return '';
 }

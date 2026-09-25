@@ -743,24 +743,7 @@ function moduleEightQuizPanel() {
 }
 
 function moduleEightVideoScript() {
-  return `<details class="m08-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m08-script-body">
-      <p><strong>Introduction:</strong> Welcome to vulnerability prioritization. This module builds on basic vulnerability scanning and teaches you how to make remediation decisions based on exploitability, exposure, business impact, and compensating controls. CVSS is an input, not the complete priority.</p>
-
-      <p><strong>Segment 1 — From CVSS to context.</strong> CVSS base score describes technical severity under standard assumptions. Your prioritization must combine this with four additional questions: Is this version actually running? Can an attacker reach the asset? If exploited, what is the business impact? What controls reduce likelihood? A CVSS 9.8 in an isolated internal VLAN with EDR and outbound deny-rules is lower priority than a CVSS 8.1 in an internet-facing service with active exploitation observed.</p>
-
-      <p><strong>Segment 2 — Validate scanner findings against live evidence.</strong> Scanners join against inventory feeds that can lag days or weeks behind reality. Before closing a finding, verify the actual state on the asset: sign into the device, check the running version, confirm the configuration. A scanner reporting a vulnerable version that is actually patched is a common false-positive pattern. Live verification takes precedence.</p>
-
-      <p><strong>Segment 3 — Exposure and reachability matter.</strong> A vulnerability in a system that exited your network is no longer a priority. A vulnerability in a system behind multiple authentication barriers and network segmentation is lower priority than the same vulnerability in an internet-facing public API. Independent reachability testing can validate or override scanner assumptions. An asset marked offline in inventory still requires verification; inventory data lags reality.</p>
-
-      <p><strong>Segment 4 — Compensating controls and time-boxing.</strong> When a patch is not immediately available, you can reduce risk using network segmentation, access restrictions, or monitoring. These are interim measures. Document the control, assign an owner, commit to a specific expiry date (e.g., "patch date + 1 week"), and plan a verification retest. An indefinite exception without monitoring is technical debt. On the expiry date, require the owner to either patch the system or request a formal renewal with updated risk acceptance.</p>
-
-      <p><strong>Segment 5 — Close the remediation loop with verification.</strong> Ticket creation is not closure. An owner saying "We patched it" is not closure. Technical verification is closure: retest the version, confirm the vulnerability is not present, and document the result. If the patch fails or the vulnerability persists, reopen the finding. This transforms unverified claims into accountable, measurable remediation.</p>
-
-      <p><strong>Closing:</strong> Vulnerability management is the continuous cycle of discovery → assessment → prioritization → remediation → verification. Each step requires validation and ownership. Your role as an analyst is to ensure findings move from discovery to verified closure without getting stuck in indefinite exceptions or false-positive denial.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleEightReview() {

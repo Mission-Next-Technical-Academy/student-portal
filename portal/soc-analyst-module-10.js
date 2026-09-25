@@ -726,24 +726,7 @@ function moduleTenScenarioLoops() {
 }
 
 function moduleTenVideoScript() {
-  return `<details class="m10-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m10-script-body">
-      <p><strong>Introduction:</strong> Welcome to evidence handling and incident reconstruction. This module teaches you how to acquire and preserve forensic evidence defensibly, distinguish between integrity verification and provenance documentation, build a causal incident timeline from mixed sources, map observed behavior to ATT&CK appropriately, and write bounded conclusions that match your evidence.</p>
-
-      <p><strong>Segment 1 — Chain of custody and defensible acquisition.</strong> Evidence must be collected using validated controls: read-only blockers, UTC timestamps, cryptographic hashing of both source and image, and a complete transfer ledger. Each handoff requires both parties' signatures, seal condition, and clear purpose. A matching hash proves the image is byte-identical to the source at that moment—it does not prove every later custody event was sound or that an unlogged copy was never mishandled. When you find evidence without custody records, quarantine it pending provenance review instead of accepting it into a controlled analysis. Your intake authority is to accept logged originals and segregate uncontrolled copies.</p>
-
-      <p><strong>Segment 2 — Hash integrity versus proof of custody.</strong> Hashing both the source and image establishes a baseline: if they match, the image captured all source content without modification. But integrity at acquisition time is distinct from provenance across later transfer, storage, and review. A matching hash does not repair missing custodian signatures, receipt times, or seal records. If two images of the same source have different hashes, investigate which acquisition was sound. If an unlogged copy has a matching hash, that integrity proves sameness—not custody—and the copy must be quarantined, not merged.</p>
-
-      <p><strong>Segment 3 — Correlation, causation, and timeline construction.</strong> A timeline is not a list of events in order; it is a sequence of correlated observations supporting one incident. Events are correlated when they share entity (endpoint, account, IP) and timing. Causation adds a direct behavioral connection: does the parent event's activity directly lead to the child event? A connection 4 minutes after a file arrives at the same endpoint is correlation material; causation requires evidence that the file was opened and started the process. Three events with matching identifiers across wide time gaps require continuous behavioral chain to prove they belong together. Use approved change-control records to separate baseline maintenance from incident activity.</p>
-
-      <p><strong>Segment 4 — ATT&CK as a framework, not a timeline or completion checklist.</strong> Once your timeline of supported events is complete, you can map the behaviors you observe to ATT&CK techniques for easier communication and analysis. But ATT&CK is subordinate to evidence, not the other way around. Map only techniques you can point to in your timeline. Do not map probable next steps, assumed attacker objectives, or techniques the framework covers that your data does not. If a connection is observed but file transfer is not, map the connection behavior and note that tool transfer remains unknown. A complete ATT&CK mapping does not replace incident documentation; the original timeline, scope, entities, and custody records remain the primary record.</p>
-
-      <p><strong>Segment 5 — Bounded conclusions and honest uncertainty.</strong> You can draw high-confidence conclusions from evidence within a scoped dataset. You can make high-bounded conclusions about events you observed in detail while explicitly noting unknowns. Do not claim certainty beyond what the evidence supports, and do not refuse to conclude because the dataset is incomplete. Instead, say: "This host was confirmed compromised. Lateral movement is not observed in the assigned slice. Wider environment status unknown—continue monitoring." This precision builds trust and shapes appropriate response.</p>
-
-      <p><strong>Closing:</strong> Evidence handling is a discipline of acquisition controls, integrity checks, and custody documentation. Timeline construction separates correlation from causation through behavioral connection. ATT&CK organizes your observed behaviors without filling gaps. Your conclusion should state what you know, what you do not know, and what scope your findings cover. Your team depends on that honesty.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleTenReview() {
