@@ -116,7 +116,8 @@
     { title: 'Security+ public domain overview (supplementary draft reference)', org: 'CompTIA', url: 'https://www.comptia.org/certifications/security', note: 'Supplementary public reference only. Not an approval, affiliation, endorsement, or pass guarantee.' },
   ];
 
-  let guideTipCollapsed = false;
+  // null = default: floating while stepping, docked in the header once complete.
+  let guideTipCollapsed = null;
 
   const DEFAULT = {
     learn: { walkthroughVersion: 3, guideFlowVersion: 1, step: 0, guideStep: -1, guideUnlocked: false, guideCompleted: false, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
@@ -273,12 +274,13 @@
     const guided = guideStep >= 0 && guideStep < CONSOLE_GUIDE_STEPS.length;
     const guideDone = guideStep >= CONSOLE_GUIDE_STEPS.length;
     const item = guideStep >= 0 ? consoleGuideItem() : null;
-    const tip = guideStep >= 0 ? `<aside class="m02e-learn-tip${guideDone ? ' is-complete' : ''}${guideTipCollapsed ? ' is-collapsed' : ''}" id="m02e-learn-tip" aria-labelledby="m02e-guide-title"><div class="m02e-tip-head"><span class="m02e-label">${guideDone ? 'CONSOLE GUIDE · COMPLETE' : `CONSOLE GUIDE · STEP ${guideStep + 1} OF ${CONSOLE_GUIDE_STEPS.length}`}</span><button class="m02e-tip-toggle" type="button" data-m02e-guide-collapse aria-expanded="${guideTipCollapsed ? 'false' : 'true'}" aria-controls="m02e-tip-body" title="${guideTipCollapsed ? 'Show guide' : 'Move guide out of the way'}"><i class="ri-arrow-down-s-line" aria-hidden="true"></i><span class="m02e-sr-only">${guideTipCollapsed ? 'Show guide' : 'Move guide out of the way'}</span></button></div><div class="m02e-tip-body" id="m02e-tip-body"><h3 id="m02e-guide-title">${esc(item.title)}</h3>${guideDone ? '<p>You can keep exploring the console, or revisit the explanations from the main Learn It card.</p>' : `<p>${esc(item.body)}</p><p class="m02e-guide-look"><strong>Look for:</strong> ${esc(item.lookFor)}</p><p class="m02e-guide-lab"><strong>Lab connection:</strong> ${esc(item.lab)}</p>`}<button class="m02e-guide-next" type="button" data-m02e-guide-next>${guideDone ? 'Restart console guide' : guideStep === CONSOLE_GUIDE_STEPS.length - 1 ? 'Finish guide' : 'Next explanation'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></div></aside>` : '';
+    const tipDocked = guideTipCollapsed ?? guideDone;
+    const tip = guideStep >= 0 ? `<aside class="m02e-learn-tip${guideDone ? ' is-complete' : ''}${tipDocked ? ' is-collapsed' : ''}" id="m02e-learn-tip" aria-labelledby="m02e-guide-title"><div class="m02e-tip-head"><span class="m02e-label">${guideDone ? 'CONSOLE GUIDE · COMPLETE' : `CONSOLE GUIDE · STEP ${guideStep + 1} OF ${CONSOLE_GUIDE_STEPS.length}`}</span><button class="m02e-tip-toggle" type="button" data-m02e-guide-collapse aria-expanded="${tipDocked ? 'false' : 'true'}" aria-controls="m02e-tip-body" title="${tipDocked ? 'Show guide' : 'Move guide out of the way'}"><i class="ri-arrow-down-s-line" aria-hidden="true"></i><span class="m02e-sr-only">${tipDocked ? 'Show guide' : 'Move guide out of the way'}</span></button></div><div class="m02e-tip-body" id="m02e-tip-body"><h3 id="m02e-guide-title">${esc(item.title)}</h3>${guideDone ? '<p>You can keep exploring the console, or revisit the explanations from the main Learn It card.</p>' : `<p>${esc(item.body)}</p><p class="m02e-guide-look"><strong>Look for:</strong> ${esc(item.lookFor)}</p><p class="m02e-guide-lab"><strong>Lab connection:</strong> ${esc(item.lab)}</p>`}<button class="m02e-guide-next" type="button" data-m02e-guide-next>${guideDone ? 'Restart console guide' : guideStep === CONSOLE_GUIDE_STEPS.length - 1 ? 'Finish guide' : 'Next explanation'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></div></aside>` : '';
     const guideAvailable = state.learn.guideUnlocked || learnComplete() || state.learn.guideCompleted;
     const guideOpen = scope === 'learn' && guideStep < 0 ? `<button class="m02e-guide-open" type="button" data-m02e-guide-open${guideAvailable ? '' : ' disabled'}><i class="${guideAvailable ? 'ri-play-circle-fill' : 'ri-lock-line'}" aria-hidden="true"></i>${guideAvailable ? 'Start console guide' : 'Finish six ideas to start guide'}</button>` : '';
     // Collapsed guide docks into the console header; expanded, it floats over the workspace.
-    const headerTip = guideTipCollapsed ? tip : '';
-    const workspaceTip = guideTipCollapsed ? '' : tip;
+    const headerTip = tipDocked ? tip : '';
+    const workspaceTip = tipDocked ? '' : tip;
     return `<section class="m02e-console ${guided ? 'is-guided' : ''}" aria-label="Network and identity security console"><header><div><p>MISSION NEXT ENVIRONMENT</p><h2>NETWORK &amp; IDENTITY SECURITY</h2></div>${guideOpen}${headerTip}</header><nav>${TABS.map(([id, label]) => `<button class="${tab === id ? 'is-active' : ''}" data-m02e-tab="${scope}:${id}">${label}</button>`).join('')}</nav><div class="m02e-workspace">${workspaceTip}<div class="m02e-view">${body}</div>${drawer(scope)}</div></section>`;
   }
 
@@ -623,11 +625,11 @@
       if (button.hasAttribute('data-m02e-guide-open')) {
         if (!state.learn.guideUnlocked && !learnComplete() && !state.learn.guideCompleted) return;
         state.learn.guideStep = 0;
-        guideTipCollapsed = false;
+        guideTipCollapsed = null;
         applyGuideFocus(); save(); renderScope('learn'); return;
       }
       if (button.hasAttribute('data-m02e-guide-collapse')) {
-        guideTipCollapsed = !guideTipCollapsed;
+        guideTipCollapsed = !(guideTipCollapsed ?? state.learn.guideStep >= CONSOLE_GUIDE_STEPS.length);
         renderScope('learn');
         document.querySelector('#m02e-learn-tip [data-m02e-guide-collapse]')?.focus();
         return;
@@ -636,6 +638,7 @@
         if ((!state.learn.guideUnlocked && !learnComplete() && !state.learn.guideCompleted) || state.learn.guideStep < 0) return;
         state.learn.guideStep = state.learn.guideStep >= CONSOLE_GUIDE_STEPS.length ? 0 : state.learn.guideStep + 1;
         if (state.learn.guideStep === CONSOLE_GUIDE_STEPS.length) state.learn.guideCompleted = true;
+        guideTipCollapsed = null;
         applyGuideFocus(); save(); renderScope('learn');
         if (state.learn.guideCompleted) renderScope('practice');
         return;
