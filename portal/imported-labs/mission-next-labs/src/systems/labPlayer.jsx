@@ -99,6 +99,7 @@
         vfs: overrides.vfs || vfs,
         completed: overrides.completed || Array.from(completedSet),
         uiPath: overrides.uiPath || uiPath,
+        commandResult: overrides.commandResult || null,
       };
     }
 
@@ -158,6 +159,7 @@
         savedFiles: nextSavedFiles,
         observed: nextObserved,
         uiPath: nextUiPath,
+        commandResult: result,
       };
     }
 
@@ -281,7 +283,7 @@
 
         {labComplete && (
           <div role="status" style={lpStyles.completionBanner}>
-            <strong>Mission Next lab complete.</strong> All required steps are verified. Return to Module 3 to submit your assessment write-up.
+            <strong>Mission Next lab complete.</strong> {lab.completionMessage || 'All required steps are verified. Return to Module 3 to submit your assessment write-up.'}
           </div>
         )}
 
@@ -301,6 +303,7 @@
                 host={(lab.environment && lab.environment.host) || "mission-next"}
                 onCommand={onShellCommand}
                 onAction={onShellAction}
+                onStateRestored={applyShellResult}
                 activeStep={activeStep}
                 simState={buildSimState()}
                 autoFocus
@@ -330,9 +333,9 @@
             <div style={lpStyles.beginnerGuide}>
               <div style={lpStyles.beginnerGuideTitle}>NEW TO BASH?</div>
               <div style={lpStyles.beginnerGuideBody}>
-                Click the active step, type the command shown in the terminal, and press <kbd style={lpStyles.key}>Enter</kbd>.
+                {lab.beginnerGuide || <>Click the active step, type the command shown in the terminal, and press <kbd style={lpStyles.key}>Enter</kbd>.
                 You can use <kbd style={lpStyles.key}>↑</kbd> to reuse a previous command and <kbd style={lpStyles.key}>Tab</kbd> to complete a path.
-                Read any output before moving to the next step.
+                Read any output before moving to the next step.</>}
               </div>
             </div>
 
@@ -446,7 +449,7 @@
     const status = isDone ? 'done' : isLocked ? 'locked' : isActive ? 'active' : 'open';
     const statusColor = { done: '#22c55e', active: '#38bdf8', open: '#94a3b8', locked: '#475569' }[status];
     const hintCommand = step.hint && step.hint.match(/`([^`]+)`/);
-    const commandToType = hintCommand ? hintCommand[1] : (step.upstream && step.upstream.sourceLine && !/[—()]/.test(step.upstream.sourceLine) && /^(sudo\s+)?[a-z][a-z0-9-]*(\s|$)/i.test(step.upstream.sourceLine) ? step.upstream.sourceLine : null);
+    const commandToType = Object.prototype.hasOwnProperty.call(step, 'command') ? step.command : hintCommand ? hintCommand[1] : (step.upstream && step.upstream.sourceLine && !/[—()]/.test(step.upstream.sourceLine) && /^(sudo\s+)?[a-z][a-z0-9-]*(\s|$)/i.test(step.upstream.sourceLine) ? step.upstream.sourceLine : null);
 
     return (
       <div
@@ -480,13 +483,21 @@
         )}
         {isActive && wantsManualSubmit && !isDone && (
           <div style={lpStyles.answerRow}>
-            <input
+            {step.answerMultiline ? <textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              aria-label={step.answerLabel || 'Case note'}
+              placeholder="Record your findings and actions"
+              rows={8}
+              style={{ ...lpStyles.answerInput, resize: 'vertical', minWidth: 0 }}
+            /> : <input
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && answer.trim()) { onAnswerChecked(step.id, answer.trim()); setAnswer(''); } }}
               placeholder="type your answer"
+              aria-label={step.answerLabel || 'Step answer'}
               style={lpStyles.answerInput}
-            />
+            />}
             <button
               onClick={() => { if (answer.trim()) { onAnswerChecked(step.id, answer.trim()); setAnswer(''); } }}
               style={lpStyles.answerBtn}

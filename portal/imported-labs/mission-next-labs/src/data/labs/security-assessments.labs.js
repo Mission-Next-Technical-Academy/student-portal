@@ -1070,76 +1070,19 @@
     completion: { requireAllSteps: true, minQuizScore: 0.8 },
   };
 
-  // ────────────────────────────────────────────────────────────
-  //  sa-5  User Account Security  (IamMatrixLabShell + LinuxTerminal)
-  // ────────────────────────────────────────────────────────────
-  function buildSa5Iam() {
-    const groups = ['wheel', 'sudo', 'staff', 'developers', 'finance', 'helpdesk', 'dba', 'audit', 'svc-accounts', 'guests', 'temp', 'backup'];
-    const users = [
-      { username: 'root',            groups: ['wheel'],                     lastSeen: '2026-04-26T09:00:00Z', sudoers: 'ALL=(ALL:ALL) ALL', expires: 'never', comment: 'system' },
-      { username: 'j.sanders',       groups: ['staff'],                     lastSeen: '2026-04-26T08:14:05Z', sudoers: 'none', expires: 'never', comment: 'L2 SOC analyst' },
-      { username: 'm.chen',          groups: ['staff', 'developers'],       lastSeen: '2026-04-26T08:52:11Z', sudoers: 'none', expires: 'never', comment: 'Senior eng' },
-      { username: 'helpdesk-admin',  groups: ['sudo', 'helpdesk'],          lastSeen: '2026-04-26T09:01:00Z', sudoers: 'NOPASSWD: /usr/bin/systemctl', expires: 'never', comment: 'Helpdesk admin' },
-      { username: 'svc_backup',      groups: ['svc-accounts', 'backup'],    lastSeen: '2026-04-23T02:01:00Z', sudoers: 'none', expires: 'never', comment: 'Backup service account' },
-      { username: 'svc_sql',         groups: ['svc-accounts', 'dba'],       lastSeen: '2026-04-25T04:00:00Z', sudoers: 'none', expires: 'never', comment: 'SQL service account' },
-      { username: 'temp.contractor', groups: ['wheel', 'temp'],             lastSeen: '2026-04-22T17:09:00Z', sudoers: 'NOPASSWD: ALL', expires: 'never', comment: 'Q1 contract — should have been removed 2026-03-31' },
-      { username: 'a.morrison',      groups: ['staff'],                     lastSeen: '2025-11-18T13:42:00Z', sudoers: 'none', expires: 'never', comment: 'Departed engineer' },
-      { username: 's.patel',         groups: ['staff', 'developers'],       lastSeen: '2026-04-25T17:11:00Z', sudoers: 'none', expires: 'never', comment: 'Senior eng' },
-      { username: 'r.kowalski',      groups: ['developers'],                lastSeen: '2025-12-04T12:20:00Z', sudoers: 'none', expires: 'never', comment: 'On long leave' },
-      { username: 'k.iyer',          groups: ['finance'],                   lastSeen: '2026-04-24T14:00:00Z', sudoers: 'none', expires: 'never', comment: 'Finance' },
-      { username: 'b.howard',        groups: ['finance'],                   lastSeen: '2026-04-25T15:00:00Z', sudoers: 'none', expires: 'never', comment: 'Finance' },
-      { username: 'l.tran',          groups: ['helpdesk'],                  lastSeen: '2026-04-25T16:30:00Z', sudoers: 'none', expires: 'never', comment: 'Helpdesk T1' },
-      { username: 'c.flores',        groups: ['helpdesk'],                  lastSeen: '2026-04-26T08:30:00Z', sudoers: 'none', expires: 'never', comment: 'Helpdesk T1' },
-      { username: 'd.brown',         groups: ['dba'],                       lastSeen: '2026-04-26T07:45:00Z', sudoers: 'none', expires: 'never', comment: 'DBA' },
-      { username: 'e.kim',           groups: ['audit'],                     lastSeen: '2026-04-25T11:15:00Z', sudoers: 'none', expires: 'never', comment: 'Internal audit' },
-      { username: 'f.gomez',         groups: ['developers'],                lastSeen: '2026-04-26T09:14:00Z', sudoers: 'none', expires: 'never', comment: 'Developer' },
-      { username: 'g.smith',         groups: ['developers'],                lastSeen: '2026-04-25T18:00:00Z', sudoers: 'none', expires: 'never', comment: 'Developer' },
-      { username: 'h.lee',           groups: ['developers'],                lastSeen: '2025-09-01T08:00:00Z', sudoers: 'none', expires: 'never', comment: 'Long-departed' },
-      { username: 'i.patel',         groups: ['staff'],                     lastSeen: '2026-04-25T14:00:00Z', sudoers: 'none', expires: 'never', comment: 'PM' },
-      { username: 'j.kim',           groups: ['staff'],                     lastSeen: '2026-04-25T13:00:00Z', sudoers: 'none', expires: 'never', comment: 'PM' },
-      { username: 'k.zhang',         groups: ['developers'],                lastSeen: '2025-08-12T10:00:00Z', sudoers: 'none', expires: 'never', comment: 'Long-departed' },
-      { username: 'l.brown',         groups: ['staff'],                     lastSeen: '2026-04-26T06:00:00Z', sudoers: 'none', expires: 'never', comment: 'Customer success' },
-      { username: 'm.jones',         groups: ['staff'],                     lastSeen: '2026-04-25T22:00:00Z', sudoers: 'none', expires: 'never', comment: 'Customer success' },
-      { username: 'svc_jenkins',     groups: ['svc-accounts'],              lastSeen: '2026-04-26T09:09:00Z', sudoers: 'none', expires: 'never', comment: 'CI service account' },
-      { username: 'svc_metrics',     groups: ['svc-accounts'],              lastSeen: '2026-04-26T09:00:00Z', sudoers: 'none', expires: 'never', comment: 'Metrics service account' },
-      { username: 'guest',           groups: ['guests'],                    lastSeen: 'never', sudoers: 'none', expires: 'never', comment: 'Default guest' },
-      { username: 'old.intern',      groups: ['guests'],                    lastSeen: '2025-07-20T16:00:00Z', sudoers: 'none', expires: 'never', comment: 'Should have been disabled' },
-      { username: 'x.chen',          groups: ['developers'],                lastSeen: '2026-04-25T19:30:00Z', sudoers: 'none', expires: 'never', comment: 'Developer' },
-      { username: 'y.zhang',         groups: ['developers'],                lastSeen: '2026-04-26T08:30:00Z', sudoers: 'none', expires: 'never', comment: 'Developer' },
-    ];
-    return JSON.stringify({ groups, users });
-  }
-
-  function buildSa5Fs() {
+  // Original source retained for attribution; this is the Mission Next SSH adaptation.
+  function iamStep(ex, number, command, instruction, check, extra = {}) {
     return {
-      'home': { 'student': { '.bashrc': '' } },
-      'etc': {
-        'pam.d': { 'common-auth': '# /etc/pam.d/common-auth\nauth required pam_unix.so try_first_pass\n' },
-        'login.defs': '# /etc/login.defs\nFAILLOG_ENAB no\nFAIL_DELAY 4\nLOGIN_RETRIES 3\n',
-        'sudoers': '# /etc/sudoers\nroot ALL=(ALL:ALL) ALL\nhelpdesk-admin ALL=(ALL) NOPASSWD: /usr/bin/systemctl\ntemp.contractor ALL=(ALL) NOPASSWD: ALL  # left over from 2025 contract\n%sudo ALL=(ALL:ALL) ALL\n',
-        'passwd': 'root:x:0:0:root:/root:/bin/bash\nj.sanders:x:1001:1001::/home/j.sanders:/bin/bash\ntemp.contractor:x:1099:1099::/home/temp.contractor:/bin/bash\n',
-      },
-      'var': {
-        'lib': {
-          'iam': { 'matrix.json': buildSa5Iam() },
-        },
-        'log': {
-          'auth.log': '',
-          'wtmp.txt':
-            'temp.contractor pts/3        198.51.100.42    Wed Apr 22 17:09 - 18:42  (01:33)\n' +
-            'helpdesk-admin  pts/0        10.10.24.7       Wed Apr 22 09:01 - 17:04  (08:03)\n' +
-            'm.chen          pts/2        10.10.24.18      Wed Apr 22 08:52 - 17:18  (08:26)\n' +
-            'svc_backup      cron         (none)           Tue Apr 21 02:00 - 02:01  (00:01)\n' +
-            'wtmp begins Mon Apr 20 06:00:01 2026\n',
-          'faillog.txt':
-            'Login       Failures Maximum Latest                   On\n' +
-            'root            0      0   never\n' +
-            'temp.contractor 7      5   Wed Apr 22 17:03:11 -0400 2026 ssh:notty 198.51.100.42\n' +
-            'svc_backup      3      0   Tue Apr 21 02:17:02 -0400 2026 cron\n' +
-            'j.sanders       0      0   never\n',
-        },
-      },
-      'tmp': {},
+      id: `sa-5.ssh.ex${ex}.s${number}`,
+      upstream: { exercise: 'Mission Next SSH access review', sourceLine: command || '' },
+      kind: command ? 'command' : 'analyze',
+      command,
+      instruction,
+      hint: command ? `Run \`${command}\` and read the output.` : null,
+      acceptedInputs: command ? [{ type: 'exact', value: command }] : [],
+      validation: { type: 'iamReview', check },
+      points: 5,
+      ...extra,
     };
   }
 
@@ -1147,300 +1090,60 @@
     id: 'sa-5',
     track: 'security-assessments',
     title: 'User Account Security Assessment',
-    difficulty: 'Intermediate',
-    estimatedTime: '60 min',
+    difficulty: 'Beginner',
+    estimatedTime: '30 min',
     icon: '🪪',
-    tags: ['PAM', 'sudo', 'IAM', 'Account Review'],
-
+    tags: ['SSH', 'sudo', 'IAM', 'Account Review'],
     source: {
       repo: '0xrajneesh/Security-Assessments-projects-for-Beginners',
       file: 'project-5-User Account Security Assessment.md',
       sha256: 'bd458aefbd6caf390f2e95ff84985210d60fba730507d093793fb6e58b42bcd8',
       snapshot: 'src/data/sources/sa-5.source.md',
     },
-
-    environment: { type: 'mixed', shell: 'LinuxTerminalShell', fs: buildSa5Fs },
-
+    environment: { type: 'linux', shell: 'IamReviewShell', fs: () => window.MISSION_NEXT_IAM_REVIEW.buildFs() },
     scenario: {
-      role: 'You are a junior IAM analyst reviewing user accounts.',
-      incident: 'HR says contractor accounts should not have administrator access. Find the contractor who still has extra privileges, remove that access, and check the login history for anything unusual.',
+      role: 'You are a junior IAM analyst completing approved ticket IAM-2059.',
+      incident: 'Connect to the Ubuntu server iam-server using your assigned analyst account. Compare local accounts with the HR roster, investigate unusual contractor logins, remove unauthorized administrator access, and verify the result. The contractor still needs standard access. The training SSH key and trusted host key are already configured; all activity is simulated.',
     },
-
+    beginnerGuide: 'SSH connects you to the server; Bash runs your commands there; sudo authorizes administrative actions. Type each shown command and press Enter. For findings, use the answer box. The guided sudoers editor has Save and Cancel buttons. Your workspace and progress resume when you return.',
+    completionMessage: 'The access review and SOC escalation notes are recorded. Return to Module 2 to continue.',
     exercises: [
-      {
-        id: 'ex1',
-        upstreamHeading: 'Exercise 1: Auditing User Accounts with PAM',
-        steps: [
-          {
-            id: 'sa-5.ex1.s1',
-            upstream: { exercise: 'Exercise 1', stepNumber: 1, sourceLine: 'sudo apt-get install libpam0g-dev' },
-            kind: 'command',
-            instruction: 'Install the PAM development package used to inspect and extend Linux authentication controls.',
-            hint: '`sudo apt-get install libpam0g-dev`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?libpam0g-dev\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            learning: {
-              title: 'You installed the PAM development toolkit',
-              what: '`libpam0g-dev` provides the headers and development files used to build or inspect Pluggable Authentication Module integrations. In this lab it prepares the Linux authentication investigation environment; it does not by itself enable a lockout policy.',
-              why: 'PAM is the control point Linux uses for login authentication. SOC analysts learn to recognize its files and modules so they can verify whether protections such as failed-login lockouts are actually configured, rather than assuming a package install changed the policy.',
-            },
-            points: 5,
-          },
-          {
-            id: 'sa-5.ex1.s2',
-            upstream: { exercise: 'Exercise 1', stepNumber: 2, sourceLine: 'Edit /etc/pam.d/common-auth to add pam_tally2.so deny=5 unlock_time=900' },
-            kind: 'command',
-            instruction: 'Inspect the login rules file and look for the failed-login lockout setting.',
-            hint: '`cat /etc/pam.d/common-auth`',
-            acceptedInputs: [{ type: 'regex', value: /^(less|cat|nano)\s+\/etc\/pam\.d\/common-auth\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            learning: {
-              title: 'You inspected the PAM authentication stack',
-              what: '`/etc/pam.d/common-auth` defines which PAM modules handle authentication and in what order.',
-              why: 'Reading the active stack lets an analyst confirm whether a control is present, missing, or weaker than the expected baseline.',
-            },
-            points: 5,
-            checkOnLearning: 'sa5-q5',
-          },
-          {
-            id: 'sa-5.ex1.s3',
-            upstream: { exercise: 'Exercise 1', stepNumber: 3, sourceLine: 'sudo tail -f /var/log/auth.log' },
-            kind: 'command',
-            instruction: 'Watch the authentication log, where Linux records login successes and failures.',
-            hint: '`sudo tail -F /var/log/auth.log`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?tail\s+-(F|f)\s+\/var\/log\/auth\.log\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            learning: {
-              title: 'You started watching authentication evidence',
-              what: '`auth.log` is the event trail for authentication activity such as successful logins, failed passwords, and account lockouts.',
-              why: 'Configuration tells you what should happen; logs show what actually happened. Analysts correlate both to spot brute-force attempts and policy gaps.',
-            },
-            points: 5,
-          },
-        ],
-      },
-      {
-        id: 'ex2',
-        upstreamHeading: 'Exercise 2: Checking Password Strength with chkpasswd',
-        steps: [
-          {
-            id: 'sa-5.ex2.s1',
-            upstream: { exercise: 'Exercise 2', stepNumber: 1, sourceLine: 'sudo apt-get install chkpasswd' },
-            kind: 'command',
-            instruction: 'Install the password-strength checker.',
-            hint: '`sudo apt-get install chkpasswd`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?chkpasswd\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-5.ex2.s2',
-            upstream: { exercise: 'Exercise 2', stepNumber: 2, sourceLine: 'sudo chkpasswd' },
-            kind: 'analyze',
-            instruction: 'Run the password check. Which service account is marked WEAK? Enter either weak username below.',
-            hint: 'Look at the Strength column.',
-            validation: { type: 'valueExtracted', expected: ['svc_backup', 'svc_sql'] },
-            points: 10,
-            checkOnLearning: 'sa5-q1',
-          },
-          {
-            id: 'sa-5.ex2.s3',
-            upstream: { exercise: 'Exercise 2', stepNumber: 3, sourceLine: 'Review password policies (length, complexity)' },
-            kind: 'command',
-            instruction: 'Open the login policy file and review its password settings.',
-            hint: '`cat /etc/login.defs`',
-            acceptedInputs: [{ type: 'regex', value: /^(less|cat|nano)\s+\/etc\/login\.defs\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-        ],
-      },
-      {
-        id: 'ex3',
-        upstreamHeading: 'Exercise 3: Auditing Sudo Permissions with sudo',
-        steps: [
-          {
-            id: 'sa-5.ex3.s1',
-            upstream: { exercise: 'Exercise 3', stepNumber: 1, sourceLine: 'sudo cat /etc/sudoers' },
-            kind: 'command',
-            instruction: 'Open the sudoers file. It lists who may run administrator commands.',
-            hint: '`sudo cat /etc/sudoers`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?(cat|less|nano)\s+\/etc\/sudoers\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-            checkOnLearning: 'sa5-q2',
-          },
-          {
-            id: 'sa-5.ex3.s2',
-            upstream: { exercise: 'Exercise 3', stepNumber: 2, sourceLine: 'sudo -l -U username' },
-            kind: 'analyze',
-            instruction: 'Find the user whose line ends with NOPASSWD: ALL. Enter that username below.',
-            hint: 'Look for the line ending in `NOPASSWD: ALL`.',
-            validation: { type: 'valueExtracted', expected: ['temp.contractor'] },
-            points: 15,
-          },
-          {
-            id: 'sa-5.ex3.s3',
-            upstream: { exercise: 'Exercise 3', stepNumber: 3, sourceLine: 'Review and adjust /etc/sudoers.d/' },
-            kind: 'ui',
-            environment: { shell: 'IamMatrixLabShell', shellProps: {} },
-            instruction: 'Use the account table on the left. Show admin members, select temp.contractor, and confirm the wheel warning.',
-            validation: { type: 'uiPath', expected: ['iam', 'filter', 'admins', 'iam', 'user', 'temp.contractor'] },
-            points: 15,
-          },
-        ],
-      },
-      {
-        id: 'ex4',
-        upstreamHeading: 'Exercise 4: Modifying User Permissions with usermod',
-        steps: [
-          {
-            id: 'sa-5.ex4.s1',
-            upstream: { exercise: 'Exercise 4', stepNumber: 1, sourceLine: 'sudo usermod -aG groupname username' },
-            kind: 'command',
-            instruction: 'Practice adding a user to a group. Use the example command shown below; this is a safe simulated change.',
-            hint: '`sudo usermod -aG developers j.sanders`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?usermod\s+-aG\s+\w+\s+\S+\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-5.ex4.s2',
-            upstream: { exercise: 'Exercise 4', stepNumber: 2, sourceLine: 'sudo gpasswd -d username groupname' },
-            kind: 'command',
-            instruction: 'Fix the issue: remove temp.contractor from the wheel group.',
-            hint: '`sudo gpasswd -d temp.contractor wheel`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?gpasswd\s+-d\s+temp\.contractor\s+wheel\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 15,
-            checkOnLearning: 'sa5-q3',
-          },
-          {
-            id: 'sa-5.ex4.s3',
-            upstream: { exercise: 'Exercise 4', stepNumber: 3, sourceLine: 'groups username' },
-            kind: 'command',
-            instruction: 'Check which groups temp.contractor belongs to now. The wheel group should be gone.',
-            hint: '`groups temp.contractor`',
-            acceptedInputs: [{ type: 'regex', value: /^groups\s+temp\.contractor\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-        ],
-      },
-      {
-        id: 'ex5',
-        upstreamHeading: 'Exercise 5: Analyzing Failed Login Attempts with faillog',
-        steps: [
-          {
-            id: 'sa-5.ex5.s1',
-            upstream: { exercise: 'Exercise 5', stepNumber: 1, sourceLine: 'sudo faillog' },
-            kind: 'analyze',
-            instruction: 'Run the failed-login report. How many failures are listed for temp.contractor? Enter the number below.',
-            hint: '`sudo faillog` — look at the Failures column for temp.contractor.',
-            validation: { type: 'valueExtracted', expected: ['7'] },
-            points: 15,
-            checkOnLearning: 'sa5-q4',
-          },
-          {
-            id: 'sa-5.ex5.s2',
-            upstream: { exercise: 'Exercise 5', stepNumber: 2, sourceLine: 'sudo faillog -r -u username' },
-            kind: 'command',
-            instruction: 'Clear temp.contractor\'s failed-login counter after the review.',
-            hint: '`sudo faillog -r -u temp.contractor`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?faillog\s+-r\s+-u\s+temp\.contractor\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-5.ex5.s3',
-            upstream: { exercise: 'Exercise 5', stepNumber: 3, sourceLine: 'Edit /etc/login.defs to set FAILLOG_ENAB, FAIL_DELAY, LOGIN_RETRIES' },
-            kind: 'command',
-            instruction: 'Open the login policy again and confirm that failed-login tracking is enabled.',
-            hint: '`cat /etc/login.defs`',
-            acceptedInputs: [{ type: 'regex', value: /^(less|cat|nano)\s+\/etc\/login\.defs\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-        ],
-      },
+      { id: 'ex1', upstreamHeading: 'Connect and confirm the server', steps: [
+        iamStep(1, 1, 'ssh analyst@iam-server', 'Open the approved SSH session using your assigned training key. Watch the prompt change to analyst@iam-server.', 'connected', {
+          learning: { title: 'You connected through SSH', what: 'The preconfigured key authenticates the analyst and the trusted host key identifies iam-server.', why: 'Confirm the destination before reviewing or changing access.' },
+        }),
+        iamStep(1, 2, 'whoami', 'Confirm that your remote session uses the analyst account.', 'identity'),
+        iamStep(1, 3, 'hostname', 'Confirm that you reached iam-server, the host named in the ticket.', 'host'),
+      ] },
+      { id: 'ex2', upstreamHeading: 'Find unauthorized administrator access', steps: [
+        iamStep(2, 1, 'cat /home/analyst/hr-roster.txt', 'Read the approved access, source address, working hours, and change scope. Which account is a contractor?', 'rosterRead'),
+        iamStep(2, 2, 'getent group sudo', 'List the administrator group. Compare its members with the HR roster and identify the contractor.', 'adminMembers'),
+        iamStep(2, 3, 'sudo -l -U temp.contractor', 'Inspect the contractor’s effective sudo permissions. Notice both the group grant and the separate passwordless grant.', 'sudoListed', {
+          learning: { title: 'Two paths grant administrator access', what: 'The sudo group permits administrator commands. A separate NOPASSWD: ALL rule grants them without a password prompt.', why: 'Removing one grant does not remove the other. Verification must inspect effective permissions.' },
+        }),
+      ] },
+      { id: 'ex3', upstreamHeading: 'Investigate login evidence', steps: [
+        iamStep(3, 1, "sudo grep -F 'temp.contractor' /var/log/auth.log", 'Read the contractor’s authentication and sudo events. Count failed passwords, then locate the successful login. Keep the evidence intact.', 'logRead'),
+        iamStep(3, 2, null, 'Which source IP appears in the failed attempts and successful login? Compare it with the approved source in the HR roster, then enter the observed IP below.', 'sourceIp', { answerLabel: 'Observed source IP', points: 10 }),
+        iamStep(3, 3, null, 'At what UTC time did the contractor successfully log in? Enter HH:MM:SS. Compare that time with the approved working hours.', 'loginTime', { answerLabel: 'Successful login time (UTC)', points: 10 }),
+      ] },
+      { id: 'ex4', upstreamHeading: 'Remove both unauthorized grants', steps: [
+        iamStep(4, 1, 'sudo gpasswd -d temp.contractor sudo', 'Remove the contractor from the sudo group. Keep their engineering group and standard account access.', 'groupRemoved', { points: 10 }),
+        iamStep(4, 2, 'sudo visudo', 'Open the guided sudoers editor. Delete the entire temp.contractor rule, keep the root and %sudo rules, then select Save. Opening the editor alone does not complete this step.', 'policySaved', { points: 10 }),
+        iamStep(4, 3, 'sudo visudo -c', 'Check the saved sudoers configuration for errors before verifying permissions.', 'policyChecked'),
+      ] },
+      { id: 'ex5', upstreamHeading: 'Verify and record the findings', steps: [
+        iamStep(5, 1, 'id temp.contractor', 'Confirm the account still exists and retains engineering membership, with no sudo group.', 'groupsListed'),
+        iamStep(5, 2, 'sudo -l -U temp.contractor', 'Verify that the account is no longer allowed to run sudo. A denial is the expected successful outcome of this review.', 'permissionsVerified', {
+          validation: { type: 'iamReview', check: 'permissionsVerified', exitCode: 1 },
+          learning: { title: 'Administrator access is removed', what: 'The account retains standard access, but neither administrator grant remains.', why: 'Checking actual permissions confirms the change worked. This case has no existing contractor sessions or privileged processes to terminate.' },
+        }),
+        iamStep(5, 3, null, 'Write a short case note: account reviewed; group and direct sudoers grants removed; source IP; number of failed passwords; successful-login time in UTC; verification result; and escalation to the SOC. Preserve the original logs. Suspicious activity needs investigation, not an automatic conclusion that compromise is proven.', 'report', {
+          answerLabel: 'IAM-2059 case note', answerMultiline: true, points: 15,
+        }),
+      ] },
     ],
-
-    checkOnLearning: [
-      {
-        id: 'sa5-q1',
-        bloom: 'recall',
-        question: 'Why are service accounts (e.g., svc_backup) particularly risky when they fail a strength check?',
-        type: 'multi-select',
-        options: [
-          { id: 'a', text: 'Service accounts are often shared and rarely rotated', correct: true },
-          { id: 'b', text: 'Service accounts often have broad filesystem or DB privileges', correct: true },
-          { id: 'c', text: 'Service accounts can never be locked', correct: false },
-          { id: 'd', text: 'A weak svc_* password is far less risky than a weak human password', correct: false },
-        ],
-        passThreshold: 'all-correct',
-        triggerOn: { stepId: 'sa-5.ex2.s2' },
-        reinforces: 'sa-5.ex2.s2',
-      },
-      {
-        id: 'sa5-q2',
-        bloom: 'comprehension',
-        question: 'In sudoers syntax, what does NOPASSWD: ALL grant?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'No commands can be run', correct: false },
-          { id: 'b', text: 'Any command, no password challenge', correct: true },
-          { id: 'c', text: 'Password-only access to the systemctl command', correct: false },
-          { id: 'd', text: 'Read-only filesystem access', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-5.ex3.s1' },
-        reinforces: 'sa-5.ex3.s1',
-      },
-      {
-        id: 'sa5-q3',
-        bloom: 'analysis',
-        question: 'You confirmed temp.contractor has wheel + sudoers NOPASSWD: ALL, last logged in from 198.51.100.42 (external) with 7 prior failures, and the contract ended 2026-03-31. Pick every appropriate action.',
-        type: 'multi-select',
-        options: [
-          { id: 'a', text: 'Immediately remove the user from wheel', correct: true },
-          { id: 'b', text: 'Disable the account (`usermod -L`) pending HR confirmation', correct: true },
-          { id: 'c', text: 'Pull all sudo activity for that account from auth.log into the case file', correct: true },
-          { id: 'd', text: 'Leave it — contractor accounts often re-engage', correct: false },
-        ],
-        passThreshold: 'all-correct',
-        triggerOn: { stepId: 'sa-5.ex4.s2' },
-        reinforces: 'sa-5.ex4.s2',
-      },
-      {
-        id: 'sa5-q4',
-        bloom: 'application',
-        question: 'Faillog shows 7 failures for temp.contractor — but /etc/login.defs has FAILLOG_ENAB set to "no". What does that combination tell you?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'Failures are still recorded by PAM/sshd, but the system-wide faillog mechanism is disabled — lockout is not happening here', correct: true },
-          { id: 'b', text: 'The user has been correctly locked out', correct: false },
-          { id: 'c', text: 'Auth attempts never reach faillog', correct: false },
-          { id: 'd', text: 'The 7-failure count is fabricated', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-5.ex5.s1' },
-        reinforces: 'sa-5.ex5.s1',
-      },
-      {
-        id: 'sa5-q5',
-        bloom: 'comprehension',
-        question: 'You reviewed `/etc/pam.d/common-auth` and did not see a `pam_tally2.so deny=5 unlock_time=900` line. What control is missing?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'An account lockout policy after repeated failed logins', correct: true },
-          { id: 'b', text: 'Disk encryption for home directories', correct: false },
-          { id: 'c', text: 'A sudoers command whitelist', correct: false },
-          { id: 'd', text: 'Password hashing with yescrypt', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-5.ex1.s2' },
-        reinforces: 'sa-5.ex1.s2',
-      },
-    ],
-
-    completion: { requireAllSteps: true, minQuizScore: 0.8 },
+    completion: { requireAllSteps: true },
   };
 
   // ────────────────────────────────────────────────────────────

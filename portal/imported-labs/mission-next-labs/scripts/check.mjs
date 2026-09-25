@@ -100,6 +100,7 @@ for (const file of [
   'src/data/labs/_schema.js',
   'src/systems/virtualFs.js',
   'src/systems/validator.js',
+  'src/systems/iam-review.js',
   'src/systems/gating.js',
   'src/systems/progress.js',
   'src/data/labs/log-analysis.labs.js',
@@ -347,7 +348,7 @@ adLabs.forEach((lab, index) => {
 assert(MISSION_NEXT_LABS['sa-2'].environment.shell === 'LinuxTerminalShell', 'Expected sa-2 to use LinuxTerminalShell');
 assert(MISSION_NEXT_LABS['sa-3'].environment.shell === 'BurpProxyLabShell', 'Expected sa-3 to use BurpProxyLabShell');
 assert(MISSION_NEXT_LABS['sa-4'].environment.shell === 'LinuxTerminalShell', 'Expected sa-4 to use LinuxTerminalShell');
-assert(MISSION_NEXT_LABS['sa-5'].environment.shell === 'LinuxTerminalShell', 'Expected sa-5 to use LinuxTerminalShell as its mixed-lab base shell');
+assert(MISSION_NEXT_LABS['sa-5'].environment.shell === 'IamReviewShell', 'Expected sa-5 to use its stateful SSH account-review shell');
 
 ['vm-1', 'vm-2', 'vm-3', 'vm-4', 'vm-5'].forEach(id => {
   const lab = MISSION_NEXT_LABS[id];

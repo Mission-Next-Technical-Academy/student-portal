@@ -185,7 +185,7 @@
 
   function cmd_grep(env, args) {
     let i = 0;
-    const flags = { i: false, v: false, c: false, n: false, E: false };
+    const flags = { i: false, v: false, c: false, n: false, E: false, F: false };
     while (i < args.length && args[i].startsWith('-') && args[i] !== '-') {
       const f = args[i].slice(1);
       for (const ch of f) if (flags.hasOwnProperty(ch)) flags[ch] = true;
@@ -205,7 +205,7 @@
     } else return { stdout: '', stderr: 'grep: missing file\n', exitCode: 2 };
 
     let re;
-    try { re = new RegExp(pattern, flags.i ? 'i' : ''); }
+    try { re = new RegExp(flags.F ? pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : pattern, flags.i ? 'i' : ''); }
     catch (e) {
       // fallback: treat as literal
       const lit = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -678,7 +678,7 @@
 
   // ─── React component ──────────────────────────────────────────────────
   function LinuxTerminalShell(props) {
-    const { vfs, initialCwd = '/home/student', user = 'student', host = 'b2b', onCommand, autoFocus = true } = props;
+    const { vfs, initialCwd = '/home/student', user = 'student', host = 'b2b', onCommand, runCommand, autoFocus = true } = props;
     const [cwd, setCwd] = React.useState(initialCwd);
     const [lines, setLines] = React.useState(() => [
       { kind: 'system', text: `Mission Next Linux terminal — ${user}@${host}` },
@@ -770,7 +770,7 @@
 
     function runUserLine(line) {
       if (running) return;
-      const prompt = `${user}@${host}:${cwd === '/home/student' ? '~' : cwd}$ `;
+      const prompt = `${user}@${host}:${cwd === '/home/student' || cwd === '/home/' + user ? '~' : cwd}$ `;
       append('prompt', prompt + line);
       if (!line.trim()) return;
       const next = history.concat([line]).slice(-200);
@@ -778,7 +778,7 @@
       setHistIdx(-1);
 
       // bash engine mutates env.cwd via setter; we run and observe
-      const result = window.MISSION_NEXT_BASH_ENGINE.runLine(env, line);
+      const result = (runCommand || window.MISSION_NEXT_BASH_ENGINE.runLine)(env, line);
       setRunning(true);
       const finish = () => {
         setRunning(false);
@@ -834,7 +834,7 @@
           ))}
           {!pager && !running && (
             <div style={termStyles.inputRow}>
-              <span style={termStyles.prompt}>{`${user}@${host}:${cwd === '/home/student' ? '~' : cwd}$ `}</span>
+              <span style={termStyles.prompt}>{`${user}@${host}:${cwd === '/home/student' || cwd === '/home/' + user ? '~' : cwd}$ `}</span>
               <input
                 ref={inputRef}
                 value={input}

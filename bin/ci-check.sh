@@ -16,3 +16,6 @@ node bin/render_all.js
 
 echo '== Diff whitespace =='
 git diff --check
+
+echo '== IAM SSH access review =='
+node portal/imported-labs/mission-next-labs/scripts/iam-review-check.mjs

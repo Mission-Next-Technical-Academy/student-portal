@@ -5,7 +5,7 @@
   "description": "Mission Next SOC Analyst Track training web app.",
   "scripts": {
     "dev": "python3 -m http.server 5173 --bind 127.0.0.1",
-    "check": "node scripts/check.mjs",
+    "check": "node scripts/check.mjs && node scripts/iam-review-check.mjs",
     "smoke:routes": "node scripts/route-smoke.mjs",
     "visual:smoke": "node scripts/route-smoke.mjs",
     "build": "npm run check",
