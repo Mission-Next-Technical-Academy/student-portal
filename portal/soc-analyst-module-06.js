@@ -442,6 +442,9 @@ let moduleSixState = null;
 let moduleSixUser = null;
 let moduleSixReviewMode = false;
 let moduleSixQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleSixQuizVerifiedElsewhere()).
+let moduleSixQuizForceRetake = false;
 
 function moduleSixFreshDefaults() {
   // LabRuntime intentionally performs a shallow merge. This lab has nested
@@ -450,6 +453,7 @@ function moduleSixFreshDefaults() {
 }
 
 function moduleSixLoad(user) {
+  if (moduleSixUser?.email !== user?.email) moduleSixQuizForceRetake = false;
   moduleSixUser = user;
   const defaults = moduleSixFreshDefaults();
   moduleSixState = LabRuntime.loadCaseState(MODULE_SIX_LAB_ID, 'soc-06', user, defaults);
@@ -531,12 +535,12 @@ function moduleSixLessonComplete(lesson) {
 }
 
 function moduleSixLessonLoops() {
-  return `<div class="m06-lesson-grid" id="m06-lessons">${MODULE_SIX_LESSONS.map((lesson) => {
+  return `<div class="m06-lesson-grid mf-lesson-grid" id="m06-lessons">${MODULE_SIX_LESSONS.map((lesson) => {
     const work = moduleSixLessonWork(lesson.number);
     const complete = moduleSixLessonComplete(lesson);
-    return `<details class="m06-lesson" ${lesson.number === 1 ? 'open' : ''} data-m06-lesson="${lesson.number}">
-      <summary><span class="m06-lesson-number">${String(lesson.number).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${complete ? 'Complete' : 'Scenario → theory → check → applied task'}</small></span>${complete ? '<span aria-label="Lesson complete">✓</span>' : ''}</summary>
-      <div class="m06-lesson-body"><div class="m06-lesson-scenario"><p class="m06-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></div><div class="m06-lesson-theory"><p class="m06-kicker">Theory</p><p>${esc(lesson.theory)}</p></div>
+    return `<details class="m06-lesson mf-lesson" ${lesson.number === 1 ? 'open' : ''} data-m06-lesson="${lesson.number}">
+      <summary><span class="m06-lesson-number mf-lesson-number">${String(lesson.number).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${complete ? 'Complete' : 'Scenario → theory → check → applied task'}</small></span>${complete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
+      <div class="m06-lesson-body mf-lesson-body"><div class="m06-lesson-scenario"><p class="m06-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></div><div class="m06-lesson-theory"><p class="m06-kicker">Theory</p><p>${esc(lesson.theory)}</p></div>
       <div class="m06-lesson-check"><h4>Knowledge check</h4>${lesson.questions.map((question) => { const selected = work.answers?.[question.id]; const answered = selected !== undefined; return `<fieldset><legend>${esc(question.prompt)}</legend>${question.options.map((option, index) => `<label><input type="radio" name="m06-lesson-${lesson.number}-${question.id}" data-m06-lesson-answer data-lesson="${lesson.number}" data-question="${esc(question.id)}" value="${index}" ${selected === index ? 'checked' : ''} /><span>${esc(option)}</span></label>`).join('')}${answered ? `<p class="m06-lesson-feedback ${selected === question.correct ? 'is-pass' : 'is-remediate'}" role="status">${esc(selected === question.correct ? question.good : question.bad)}</p>` : ''}</fieldset>`; }).join('')}</div>
       <div class="m06-lesson-task"><p class="m06-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea data-m06-lesson-task="${lesson.number}" rows="3" maxlength="600" placeholder="Apply the idea to this hunt…">${esc(work.taskText || '')}</textarea><button type="button" data-m06-lesson-submit="${lesson.number}">${complete ? 'Completed' : 'Mark task complete'}</button></div></div></details>`;
   }).join('')}</div>`;
@@ -557,9 +561,24 @@ function moduleSixQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleSixQuizVerifiedElsewhere() {
+  if (moduleSixQuizForceRetake || !moduleSixQuizState || moduleSixQuizState.scored) return false;
+  if (Object.keys(moduleSixQuizState.answers || {}).length > 0) return false;
+  return moduleSixUser?.remoteVerifiedModuleProgress?.['soc-06'] === true
+    || moduleSixUser?.remoteModuleDetail?.['soc-06']?.quizPassed === true
+    || moduleSixUser?.remoteModuleEvidence?.['soc-06']?.['knowledge-check'] === true;
+}
+
 function moduleSixQuizPanel() {
   if (!moduleSixQuizState?.selectedQuestions || moduleSixQuizState.selectedQuestions.length === 0) {
     return `<div class="m06-quiz-empty" id="m06-quiz-feedback" role="status">Loading quiz...</div>`;
+  }
+  if (moduleSixQuizVerifiedElsewhere()) {
+    return `<form class="m06-quiz-form mf-quiz-form" id="m06-quiz-form" novalidate><section class="mf-score is-pass" id="m06-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m06-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleSixQuizState.selectedQuestions;
@@ -569,7 +588,7 @@ function moduleSixQuizPanel() {
   let feedbackHtml = '';
   if (moduleSixQuizState.scored) {
     const passed = moduleSixQuizState.score >= 70;
-    feedbackHtml = `<section class="m06-quiz-score ${passed ? 'm06-quiz-pass' : 'm06-quiz-remediate'}" id="m06-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m06-quiz-score mf-score ${passed ? 'm06-quiz-pass is-pass' : 'm06-quiz-remediate is-remediate'}" id="m06-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m06-quiz-score-heading">
         <div>
           <p class="m06-kicker">Attempt ${moduleSixQuizState.attempts} · best ${moduleSixQuizState.bestScore}/100</p>
@@ -594,8 +613,8 @@ function moduleSixQuizPanel() {
     feedbackHtml = `<div class="m06-quiz-empty" id="m06-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m06-quiz-form" id="m06-quiz-form" novalidate>
-    <div class="m06-panel-heading"><div><p class="m06-kicker">Knowledge check</p><h3 id="m06-quiz-title" tabindex="-1">Test your understanding of threat hunting</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m06-quiz-form mf-quiz-form" id="m06-quiz-form" novalidate>
+    <div class="m06-panel-heading mf-panel-heading"><div><p class="m06-kicker mf-kicker">Knowledge check</p><h3 id="m06-quiz-title" tabindex="-1">Test your understanding of threat hunting</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleSixQuizQuestion(sel, idx)).join('')}
     <div class="m06-quiz-actions">
       <button class="m06-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -942,49 +961,49 @@ function viewModuleSix(user, program) {
 
   return `<div class="m06-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleSixReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m06-main">
-      <section class="m06-hero" aria-labelledby="m06-title"><div><p class="m06-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${moduleSixState.independentLab.completed ? 'Complete' : 'Not started'}</dd></div></dl></section>
+      ${moduleProgressShell(sections, { reviewMode: moduleSixReviewMode })}
+      <main class="m06-main mf-frame">
+      <section class="m06-hero mf-hero" aria-labelledby="m06-title"><div><p class="m06-kicker mf-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede mf-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${moduleSixState.independentLab.completed ? 'Complete' : 'Not started'}</dd></div></dl></section>
 
-      <details class="m06-section-collapsible" ${lectureOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">1</span><div><p class="m06-kicker">Lecture</p><h2 id="m06-lecture">Hypothesis-led hunting foundations</h2></div></div></summary>
-        <div class="m06-section-body">
+      <details class="m06-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">1</span><div><p class="m06-kicker mf-kicker">Lecture</p><h2 id="m06-lecture">Hypothesis-led hunting foundations</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">
           <div class="m06-objective" aria-labelledby="m06-objective-title"><div class="m06-objective-icon"><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m06-kicker">Measurable objective</p><h3 id="m06-objective-title">Test one cross-device execution hypothesis with two scoped queries, bookmark the four records that establish behavior and scope, and communicate a supported disposition.</h3></div></div>
           <section class="m06-section" id="m06-field-guide" aria-labelledby="m06-guide-title"><div class="m06-section-heading"><span>a</span><div><p class="m06-kicker">Field guide</p><h3 id="m06-guide-title">Hunt for evidence, not confirmation</h3></div></div>${moduleSixLessonLoops()}${moduleSixConcepts()}<div class="m06-hunt-loop" aria-label="Hypothesis-led hunting loop"><span>Hypothesis</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Query</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Bookmark</span><i class="ri-bookmark-line" aria-hidden="true"></i><span>Preserve</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope &amp; decide</span></div></section>
           ${moduleSixVideoScript()}
         </div>
       </details>
 
-      <details class="m06-section-collapsible" ${quizOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">2</span><div><p class="m06-kicker">Knowledge Check</p><h2 id="m06-knowledge-check">Test your understanding of threat hunting</h2></div></div></summary>
-        <div class="m06-section-body">${moduleSixQuizPanel()}</div>
+      <details class="m06-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">2</span><div><p class="m06-kicker mf-kicker">Knowledge Check</p><h2 id="m06-knowledge-check">Test your understanding of threat hunting</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">${moduleSixQuizPanel()}</div>
       </details>
 
-      <details class="m06-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">3</span><div><p class="m06-kicker">Practice It · Guided Lab</p><h2 id="m06-guided-lab">Threat Hunt Lab — cross-device script recurrence</h2></div></div></summary>
-        <div class="m06-section-body">
+      <details class="m06-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">3</span><div><p class="m06-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m06-guided-lab">Threat Hunt Lab — cross-device script recurrence</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">
           <div class="m06-role"><i class="ri-user-search-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst conducting a guided hunt</strong><p>You may investigate endpoint activity and sign-in activity in either order. Hints are available when you want them. Your job is to test the stated lead inside the assigned monitoring workflow, not to investigate unrelated systems.</p></div></div>
           <div id="m06-guided-lab-dynamic">${moduleSixGuidedLabPanel()}</div>
         </div>
       </details>
 
-      <details class="m06-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">4</span><div><p class="m06-kicker">Prove It · Assessment Lab</p><h2 id="m06-assessment-lab">Independent case: dormant task backdoor review</h2></div></div></summary>
-        <div class="m06-section-body">
+      <details class="m06-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">4</span><div><p class="m06-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m06-assessment-lab">Independent case: dormant task backdoor review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">
           <div id="m06-assessment-lab-dynamic">${moduleSixAssessmentLabPanel()}</div>
         </div>
       </details>
       <div id="m06-additional-labs-dynamic">${moduleSixAdditionalLabs()}</div>
 
-      <details class="m06-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">5</span><div><p class="m06-kicker">Module Review</p><h2 id="m06-review">Key concepts and takeaways</h2></div></div></summary>
-        <div class="m06-section-body">${moduleSixReview()}</div>
+      <details class="m06-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">5</span><div><p class="m06-kicker mf-kicker">Module Review</p><h2 id="m06-review">Key concepts and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">${moduleSixReview()}</div>
       </details>
 
-      <details class="m06-section-collapsible" ${moduleSixReviewMode ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">6</span><div><p class="m06-kicker">Sources &amp; Further Reading</p><h2 id="m06-sources">Authoritative references on threat hunting</h2></div></div></summary>
-        <div class="m06-section-body">${moduleSourcesBlock(MODULE_SIX_SOURCES_LIST)}</div>
+      <details class="m06-section-collapsible mf-section mf-section-supplemental" ${moduleSixReviewMode ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m06-kicker mf-kicker">Sources &amp; Further Reading</p><h2 id="m06-sources">Authoritative references on threat hunting</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">${moduleSourcesBlock(MODULE_SIX_SOURCES_LIST)}</div>
       </details>
     </main>
     </div>
@@ -1249,6 +1268,12 @@ function wireModuleSixQuiz() {
   });
 
   form.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m06-quiz-retake]')) {
+      event.preventDefault();
+      moduleSixQuizForceRetake = true;
+      form.innerHTML = moduleSixQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m06-quiz-retry]')) return;
     event.preventDefault();
     const previousQuestionIds = moduleSixQuizState.selectedQuestions.map((s) => s.question.id);

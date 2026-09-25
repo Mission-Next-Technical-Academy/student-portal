@@ -1,0 +1,132 @@
+/* Shared module frame — MODULE_STANDARD.md §7.1.
+ *
+ * The "front" of every SOC module (hero, numbered section cards, section
+ * toggles, lesson accordions, knowledge-check score cards) must look exactly
+ * like Module 01. Values below are copied from the `.m01-*` rules in
+ * module-labs.css; Module 01 stays the canonical source, so change it there
+ * first and mirror the value here.
+ *
+ * Modules 02–12 opt in by adding `mf-frame` to their <main> and the `mf-*`
+ * classes alongside their own `mNN-*` classes. Their sections are native
+ * <details> (the card) > <summary> (the heading row) + body, so the card
+ * styling lives on the <details> and the inner header/body wrappers are
+ * flattened. A module stylesheet may lay out its own lab/console internals
+ * but must not restyle these elements. Loaded after every module stylesheet.
+ */
+
+/* ---------- Hero ---------- */
+main.mf-frame .mf-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 42px; align-items: end; padding: clamp(30px, 5vw, 54px); color: #fff; background: linear-gradient(145deg, #081627, #1e3a5f 58%, #183b63); border: 0; border-radius: 24px; box-shadow: 0 18px 48px rgba(10, 22, 40, .18); }
+main.mf-frame .mf-hero h1 { margin: 8px 0 14px; color: #fff; font-size: clamp(34px, 5vw, 52px); line-height: 1.05; letter-spacing: -.025em; }
+main.mf-frame .mf-lede { max-width: 750px; margin: 0; color: rgba(255,255,255,.76); font: 16px/1.75 Inter, sans-serif; }
+main.mf-frame .mf-kicker { margin: 0; color: #f97316; font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+main.mf-frame .mf-stats { min-width: 310px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; grid-template-columns: none; gap: 1px; margin: 0; overflow: hidden; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.16); border-radius: 14px; }
+main.mf-frame .mf-stats > div { padding: 14px 16px; background: rgba(8,22,39,.48); border: 0; border-radius: 0; }
+main.mf-frame .mf-stats dt { color: rgba(255,255,255,.56); font: 10px/1.3 Inter, sans-serif; text-transform: none; letter-spacing: 0; }
+main.mf-frame .mf-stats dd { margin: 5px 0 0; color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; }
+
+/* ---------- Numbered section cards ---------- */
+main.mf-frame .mf-section { display: block; scroll-margin-top: 148px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
+main.mf-frame .mf-section[open] { border-color: #e2e8f0; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
+main.mf-frame > details.mf-section > summary { display: block; margin: 0; padding: 0; list-style: none; cursor: pointer; background: none; border: 0; border-radius: 0; box-shadow: none; }
+main.mf-frame .mf-section > summary::-webkit-details-marker { display: none; }
+main.mf-frame .mf-section > summary::marker { content: ''; }
+/* module-labs.css draws a generic ::after chevron on every
+   `[class*="section-collapsible"] > summary`; the frame uses a real toggle. */
+main.mf-frame > details.mf-section > summary::after,
+main.mf-frame > details.mf-section[open] > summary::after { content: none; display: none; }
+main.mf-frame .mf-section > summary:hover { background: none; }
+main.mf-frame .mf-section > summary:focus-visible { outline: none; }
+main.mf-frame .mf-section > summary:focus-visible .mf-section-toggle { outline: 3px solid rgba(249, 115, 22, .32); outline-offset: 2px; }
+/* Header and body wrappers inside the card are layout only. */
+main.mf-frame .mf-section > summary > section,
+main.mf-frame .mf-section .mf-section-body { margin: 0; padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+main.mf-frame .mf-section-heading { display: flex; align-items: center; gap: 14px; margin: 0 0 22px; padding: 0; background: none; border: 0; }
+main.mf-frame .mf-section-heading > .mf-section-badge { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-size: inherit; font-weight: 800; }
+main.mf-frame .mf-section-heading > div { min-width: 0; }
+main.mf-frame .mf-section-heading h2 { margin: 3px 0 0; color: #1e3a5f; font-size: 23px; line-height: 1.25; }
+main.mf-frame .mf-section-toggle { width: 36px; height: 36px; margin-left: auto; flex: 0 0 auto; display: grid; place-items: center; padding: 0; color: #6b7280; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 999px; font-size: 22px; cursor: pointer; transition: color .2s ease, background-color .2s ease, border-color .2s ease, transform .2s ease; }
+main.mf-frame .mf-section > summary:hover .mf-section-toggle { color: #1e3a5f; background: #f1f5f9; border-color: #cbd5e1; }
+main.mf-frame .mf-section[open] > summary .mf-section-toggle { transform: rotate(180deg); }
+main.mf-frame .mf-lab-section { border-top: 4px solid #f97316; }
+main.mf-frame .mf-lab-section[open] { border-top-color: #f97316; }
+/* Sources & Further Reading: reference material, not a graded step. */
+main.mf-frame .mf-section-supplemental { margin-top: 44px; background: #f8fafc; border: 1px dashed #cbd5e1; box-shadow: none; }
+main.mf-frame .mf-section-supplemental[open] { border-color: #cbd5e1; box-shadow: none; }
+main.mf-frame .mf-section-supplemental .mf-section-heading > .mf-section-badge { background: #64748b; font-size: 18px; }
+main.mf-frame .mf-section-supplemental .mf-section-heading .mf-kicker { color: #64748b; }
+
+/* ---------- Lesson accordion cards ---------- */
+main.mf-frame .mf-lesson-grid { display: grid; gap: 10px; }
+main.mf-frame .mf-lesson { margin: 0; overflow: hidden; background: #fbfdff; border: 1px solid #dbe3ed; border-radius: 14px; box-shadow: none; }
+main.mf-frame .mf-lesson + .mf-lesson { margin-top: 10px; }
+main.mf-frame .mf-lesson > summary { min-height: 88px; display: grid; grid-template-columns: auto auto minmax(0, 1fr); grid-auto-flow: column; grid-auto-columns: auto; align-items: center; gap: 14px; padding: 16px 18px; cursor: pointer; list-style: none; background: none; }
+main.mf-frame .mf-lesson > summary::-webkit-details-marker { display: none; }
+main.mf-frame .mf-lesson > summary::marker { content: ''; }
+main.mf-frame .mf-lesson > summary::before,
+main.mf-frame .mf-lesson > summary::after { content: none; display: none; }
+main.mf-frame .mf-lesson > summary:hover { background: #f8fafc; }
+main.mf-frame .mf-lesson[open] { border-color: #93b4d4; background: #fff; box-shadow: 0 5px 15px rgba(30,58,95,.06); }
+main.mf-frame .mf-lesson-number { width: auto; height: auto; display: inline; margin: 0; padding: 0; color: #94a3b8; background: none; border-radius: 0; font-size: 11px; font-weight: 800; }
+main.mf-frame .mf-lesson-icon { width: 38px; height: 38px; display: grid; place-items: center; color: #1e3a5f; background: #eaf1f8; border-radius: 10px; font-size: 19px; }
+main.mf-frame .mf-lesson-title { min-width: 0; }
+main.mf-frame .mf-lesson-title strong, main.mf-frame .mf-lesson-title small { display: block; }
+main.mf-frame .mf-lesson-title strong { color: #1e3a5f; font-size: 15px; }
+main.mf-frame .mf-lesson-title small { margin-top: 4px; color: #64748b; font: 12px/1.5 Inter, sans-serif; }
+main.mf-frame .mf-lesson-done { width: 24px; height: 24px; display: grid; place-items: center; margin-left: auto; color: #10b981; font-size: 18px; flex: 0 0 auto; }
+main.mf-frame .mf-chevron { width: 32px; height: 32px; display: grid; place-items: center; margin: 0; border-radius: 999px; background: #f9fafb; border: 1px solid #e5e7eb; color: #6b7280; font-size: 20px; transition: transform .2s ease; }
+main.mf-frame .mf-lesson[open] > summary .mf-chevron { transform: rotate(180deg); }
+/* Lesson body: same inset grey panel as .m01-lesson-body. The in-lesson
+   check/task controls mirror .m01-lesson-check / .m01-quiz-options /
+   .m01-lesson-task-input / .m01-lesson-check-btn. */
+main.mf-frame .mf-lesson-body { margin: 0 18px 18px 84px; padding: 17px 19px; color: #475569; background: #f8fafc; border-radius: 11px; font: 14px/1.7 Inter, sans-serif; }
+main.mf-frame .mf-lesson-body p { margin: 0; }
+main.mf-frame .mf-lesson-body .mf-takeaway { margin-top: 12px; padding-top: 12px; color: #1e3a5f; border-top: 1px solid #dbe3ed; }
+main.mf-frame .mf-lesson-body > section, main.mf-frame .mf-lesson-body > div { margin: 0; padding: 0; background: none; border: 0; }
+main.mf-frame .mf-lesson-body > section + section, main.mf-frame .mf-lesson-body > div + div { margin-top: 20px; padding-top: 20px; border-top: 1px solid #dbe3ed; }
+main.mf-frame .mf-lesson-body h4 { margin: 0 0 14px; color: #1e3a5f; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+main.mf-frame .mf-lesson-body fieldset { min-width: 0; margin: 0 0 18px; padding: 0; border: 0; }
+main.mf-frame .mf-lesson-body legend { margin: 0 0 10px; padding: 0; color: #1e3a5f; font-weight: 600; font-size: 13px; line-height: 1.5; }
+main.mf-frame .mf-lesson-body fieldset label { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 9px; padding: 10px 12px; background: #fbfdff; border: 1px solid #dbe3ed; border-radius: 8px; cursor: pointer; transition: all .2s ease; }
+main.mf-frame .mf-lesson-body fieldset label:hover { background: #f1f5f9; border-color: #cbd5e1; }
+main.mf-frame .mf-lesson-body fieldset input[type="radio"] { margin: 3px 0 0; flex: 0 0 auto; }
+main.mf-frame .mf-lesson-body fieldset label span { display: block; color: #475569; font-size: 13px; line-height: 1.5; }
+main.mf-frame .mf-lesson-body textarea { display: block; width: 100%; min-height: 80px; padding: 10px 12px; margin: 10px 0; color: #475569; background: #fbfdff; border: 1px solid #dbe3ed; border-radius: 8px; font: 13px/1.5 Inter, sans-serif; resize: vertical; }
+main.mf-frame .mf-lesson-body textarea:focus { outline: none; border-color: #cbd5e1; background: #fff; box-shadow: 0 0 0 3px rgba(30, 58, 95, .1); }
+main.mf-frame .mf-lesson-body button { display: inline-block; margin-top: 2px; padding: 9px 14px; color: #1e3a5f; background: #eaf1f8; border: 1px solid #cbd5e1; border-radius: 8px; font: 700 12px/1 Inter, sans-serif; cursor: pointer; transition: all .2s ease; }
+main.mf-frame .mf-lesson-body button:hover { background: #dbeafe; border-color: #93b4d4; }
+main.mf-frame .mf-lesson-body button:focus-visible { outline: 3px solid rgba(30, 58, 95, .32); outline-offset: 2px; }
+
+/* ---------- Knowledge-check panel + score cards ---------- */
+main.mf-frame .mf-panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+main.mf-frame .mf-panel-heading h3 { margin: 4px 0 0; color: #1e3a5f; font-size: 19px; }
+/* The knowledge-check form sits directly in the section card, as in Module 01. */
+main.mf-frame .mf-quiz-form { margin: 0; padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
+main.mf-frame .mf-score { margin: 20px 0 0 34px; padding: 19px; border: 1px solid; border-radius: 13px; }
+main.mf-frame .mf-score.is-pass { background: #f0fdf4; border-color: #bbf7d0; }
+main.mf-frame .mf-score.is-remediate { background: #fff7ed; border-color: #fed7aa; }
+/* "Already verified complete" card (account shows the check passed, this
+   browser holds no answers) — see moduleOneQuizPanel(). */
+main.mf-frame .mf-score .mf-kicker, main.mf-frame .mf-section-body .mf-score .mf-kicker { margin: 0; color: #f97316; font: 800 11px/1.4 Inter, sans-serif; letter-spacing: .13em; text-transform: uppercase; }
+main.mf-frame .mf-score h3, main.mf-frame .mf-section-body .mf-score h3 { margin: 4px 0 0; color: #1e3a5f; font-size: 19px; font-weight: inherit; }
+main.mf-frame .mf-score p:not(.mf-kicker), main.mf-frame .mf-section-body .mf-score p:not(.mf-kicker) { margin: 8px 0 0; color: #475569; font: 13px/1.6 Inter, sans-serif; }
+main.mf-frame .mf-score-retake { min-height: 42px; margin-top: 14px; display: inline-flex; align-items: center; gap: 7px; padding: 10px 15px; color: #1e3a5f; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; font: 700 12px 'Space Grotesk', sans-serif; cursor: pointer; }
+main.mf-frame .mf-score-retake:hover, main.mf-frame .mf-score-retake:focus-visible { background: #f8fafc; border-color: #1e3a5f; }
+
+@media (max-width: 920px) {
+  main.mf-frame .mf-hero { grid-template-columns: 1fr; }
+  main.mf-frame .mf-stats { width: 100%; min-width: 0; }
+}
+
+@media (max-width: 620px) {
+  main.mf-frame .mf-hero, main.mf-frame .mf-section { border-radius: 16px; }
+  main.mf-frame .mf-stats { grid-auto-flow: row; grid-template-columns: 1fr; }
+  main.mf-frame .mf-lesson > summary { grid-template-columns: auto minmax(0, 1fr); }
+  main.mf-frame .mf-lesson-number { display: none; }
+  main.mf-frame .mf-lesson-body { margin-left: 18px; }
+  main.mf-frame .mf-panel-heading { flex-direction: column; }
+  main.mf-frame .mf-score { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main.mf-frame .mf-section-toggle, main.mf-frame .mf-chevron { transition: none; }
+}

@@ -12,15 +12,9 @@
 .m07-shell .m07-main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 80px; }
 .m07-shell .m07-kicker { margin: 0; color: #f97316; font: 800 11px/1.3 'Space Grotesk', sans-serif; letter-spacing: .13em; text-transform: uppercase; }
 
-.m07-shell .m07-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 42px; padding: clamp(30px,5vw,54px); color: #fff; background: linear-gradient(150deg,#0c1e32 0%,#1e3a5f 50%,#162d4a 100%); border-radius: 24px; box-shadow: 0 18px 48px rgba(10,22,40,.18); }
-.m07-shell .m07-hero h1 { margin: 8px 0 14px; font-size: clamp(34px,5vw,52px); line-height: 1.05; letter-spacing: -.025em; }
 .m07-shell .m07-lede { max-width: 750px; margin: 0; color: rgba(255,255,255,.76); font: 16px/1.75 Inter,sans-serif; }
 .m07-shell .m07-hero-action { width: fit-content; margin-top: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; color: #fff; background: #f97316; border-radius: 11px; font-size: 13px; font-weight: 700; text-decoration: none; }
 .m07-shell .m07-hero-action:hover, .m07-shell .m07-hero-action:focus-visible { background: #ea580c; }
-.m07-shell .m07-progress { min-width: 310px; display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; margin: 0; overflow: hidden; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.16); border-radius: 14px; }
-.m07-shell .m07-progress div { padding: 14px 16px; background: rgba(12,30,50,.54); }
-.m07-shell .m07-progress dt { color: rgba(255,255,255,.56); font: 10px/1.3 Inter,sans-serif; }
-.m07-shell .m07-progress dd { margin: 5px 0 0; color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; }
 
 .m07-shell .m07-objective { margin-top: 22px; display: flex; align-items: flex-start; gap: 16px; padding: 22px; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 8px 24px rgba(30,58,95,.06); }
 .m07-shell .m07-objective > i { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 12px; font-size: 21px; }
@@ -223,12 +217,6 @@
 .m07-shell .m07-expert p { margin: 5px 0 0; color: #64748b; font: 11px/1.6 Inter,sans-serif; }
 .m07-shell .m07-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-.m07-shell .m07-section-collapsible { margin-top: 24px; background: #fff; border: 1px solid #e5e7eb; border-radius: 20px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
-.m07-shell .m07-section-collapsible summary { list-style: none; cursor: pointer; }
-.m07-shell .m07-section-collapsible summary::-webkit-details-marker { display: none; }
-.m07-shell .m07-section-collapsible .m07-section { margin: 0; padding: clamp(23px,4vw,38px); background: 0; border: 0; box-shadow: none; }
-.m07-shell .m07-section-body { padding: clamp(23px,4vw,38px); border-top: 1px solid #e5e7eb; background: #fff; }
-.m07-shell .m07-section-badge { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-weight: 800; }
 
 .m07-shell .m07-quiz-form { margin-top: 18px; padding: 24px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 16px; }
 .m07-shell .m07-quiz-form > .m07-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0 0 24px 0; }
@@ -278,8 +266,6 @@
 .m07-shell :focus-visible { outline: 3px solid rgba(249,115,22,.38); outline-offset: 2px; }
 
 @media (max-width: 920px) {
-  .m07-shell .m07-hero { grid-template-columns: 1fr; }
-  .m07-shell .m07-progress { width: 100%; min-width: 0; }
   .m07-shell .m07-concepts { grid-template-columns: repeat(2,1fr); }
   .m07-shell .m07-mail-layout { grid-template-columns: 1fr; }
   .m07-shell .m07-mail-list { grid-template-columns: repeat(2,minmax(0,1fr)); max-height: none; }
@@ -309,8 +295,6 @@
 }
 
 @media (max-width: 520px) {
-  .m07-shell .m07-hero { padding: 26px 22px; }
-  .m07-shell .m07-hero h1 { font-size: 34px; }
   .m07-shell .m07-section, .m07-shell .m07-desk-panel { padding: 19px 15px; }
   .m07-shell .m07-workbench > .m07-panel-heading, .m07-shell .m07-artifact > .m07-panel-heading, .m07-shell .m07-artifact > .m07-instruction { margin-right: 15px; margin-left: 15px; }
   .m07-shell .m07-desk-tabs { grid-template-columns: 1fr; }

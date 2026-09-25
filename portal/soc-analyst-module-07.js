@@ -353,6 +353,9 @@ let moduleSevenState = null;
 let moduleSevenUser = null;
 let moduleSevenReviewMode = false;
 let moduleSevenQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleSevenQuizVerifiedElsewhere()).
+let moduleSevenQuizForceRetake = false;
 
 function moduleSevenFreshState() {
   return {
@@ -365,6 +368,7 @@ function moduleSevenFreshState() {
 }
 
 function moduleSevenLoad(user) {
+  if (moduleSevenUser?.email !== user?.email) moduleSevenQuizForceRetake = false;
   moduleSevenUser = user;
   const defaults = moduleSevenFreshState();
   moduleSevenState = LabRuntime.loadCaseState(MODULE_SEVEN_LAB_ID, 'soc-07', user, defaults);
@@ -480,9 +484,24 @@ function moduleSevenQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleSevenQuizVerifiedElsewhere() {
+  if (moduleSevenQuizForceRetake || !moduleSevenQuizState || moduleSevenQuizState.scored) return false;
+  if (Object.keys(moduleSevenQuizState.answers || {}).length > 0) return false;
+  return moduleSevenUser?.remoteVerifiedModuleProgress?.['soc-07'] === true
+    || moduleSevenUser?.remoteModuleDetail?.['soc-07']?.quizPassed === true
+    || moduleSevenUser?.remoteModuleEvidence?.['soc-07']?.['knowledge-check'] === true;
+}
+
 function moduleSevenQuizPanel() {
   if (!moduleSevenQuizState?.selectedQuestions || moduleSevenQuizState.selectedQuestions.length === 0) {
     return `<div class="m07-quiz-empty" id="m07-quiz-feedback" role="status">Loading quiz...</div>`;
+  }
+  if (moduleSevenQuizVerifiedElsewhere()) {
+    return `<form class="m07-quiz-form mf-quiz-form" id="m07-quiz-form" novalidate><section class="mf-score is-pass" id="m07-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m07-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleSevenQuizState.selectedQuestions;
@@ -492,7 +511,7 @@ function moduleSevenQuizPanel() {
   let feedbackHtml = '';
   if (moduleSevenQuizState.scored) {
     const passed = moduleSevenQuizState.score >= 70;
-    feedbackHtml = `<section class="m07-quiz-score ${passed ? 'm07-quiz-pass' : 'm07-quiz-remediate'}" id="m07-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m07-quiz-score mf-score ${passed ? 'm07-quiz-pass is-pass' : 'm07-quiz-remediate is-remediate'}" id="m07-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m07-quiz-score-heading">
         <div>
           <p class="m07-kicker">Attempt ${moduleSevenQuizState.attempts} · best ${moduleSevenQuizState.bestScore}/100</p>
@@ -517,8 +536,8 @@ function moduleSevenQuizPanel() {
     feedbackHtml = `<div class="m07-quiz-empty" id="m07-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m07-quiz-form" id="m07-quiz-form" novalidate>
-    <div class="m07-panel-heading"><div><p class="m07-kicker">Knowledge check</p><h3 id="m07-quiz-title" tabindex="-1">Test your understanding of email and network analysis</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m07-quiz-form mf-quiz-form" id="m07-quiz-form" novalidate>
+    <div class="m07-panel-heading mf-panel-heading"><div><p class="m07-kicker mf-kicker">Knowledge check</p><h3 id="m07-quiz-title" tabindex="-1">Test your understanding of email and network analysis</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleSevenQuizQuestion(sel, idx)).join('')}
     <div class="m07-quiz-actions">
       <button class="m07-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -628,14 +647,14 @@ function viewModuleSeven(user, program) {
 
   return `<div class="m07-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleSevenReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m07-main">
-      <section class="m07-hero" aria-labelledby="m07-title"><div><p class="m07-kicker">Module 07 · ${formatHandsOnDuration(module.durationMinutes)} · analysis practice</p><h1 id="m07-title">${esc(module.title)}</h1><p class="m07-lede">Work through imported Splunk log-analysis modules covering SMTP, FTP, and tunnel traffic, then write up a defensible finding for instructor review.</p></div><dl class="m07-progress" aria-label="Saved lab progress"><div><dt>Curriculum items</dt><dd>${module.lessons}</dd></div><div><dt>Guided Lab</dt><dd>${moduleSevenState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m07-status">${moduleSevenState.completed ? 'Complete' : moduleSevenState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      ${moduleProgressShell(sections, { reviewMode: moduleSevenReviewMode })}
+      <main class="m07-main mf-frame">
+      <section class="m07-hero mf-hero" aria-labelledby="m07-title"><div><p class="m07-kicker mf-kicker">Module 07 · ${formatHandsOnDuration(module.durationMinutes)} · analysis practice</p><h1 id="m07-title">${esc(module.title)}</h1><p class="m07-lede mf-lede">Work through imported Splunk log-analysis modules covering SMTP, FTP, and tunnel traffic, then write up a defensible finding for instructor review.</p></div><dl class="m07-progress mf-stats" aria-label="Saved lab progress"><div><dt>Curriculum items</dt><dd>${module.lessons}</dd></div><div><dt>Guided Lab</dt><dd>${moduleSevenState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m07-status">${moduleSevenState.completed ? 'Complete' : moduleSevenState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
-      <details class="m07-section-collapsible" ${lectureOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">1</span><div><p class="m07-kicker">Lecture</p><h2 id="m07-lecture">Email authentication and network correlation</h2></div></div></summary>
-        <div class="m07-section-body">
+      <details class="m07-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">1</span><div><p class="m07-kicker mf-kicker">Lecture</p><h2 id="m07-lecture">Email authentication and network correlation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m07-section-body mf-section-body">
           <section class="m07-objective" aria-labelledby="m07-objective-title"><i class="ri-focus-3-line" aria-hidden="true"></i><div><p class="m07-kicker">Measurable objective</p><h3 id="m07-objective-title">Analyze real-world-style network and log data and justify a defensible triage decision in your assessment write-up.</h3></div></section>
           <section class="m07-section" id="m07-field-guide" aria-labelledby="m07-guide-title"><div class="m07-section-heading"><span>a</span><div><p class="m07-kicker">Field guide</p><h3 id="m07-guide-title">Follow identity, artifact, delivery, and session</h3></div></div>${moduleSevenConcepts()}<div class="m07-analysis-chain" aria-label="Email and network analysis sequence"><span>Sender identity</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>URL &amp; file</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Delivery trace</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>DNS &amp; TLS</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope &amp; response</span></div></section>
           ${moduleSevenEvidenceDesk()}
@@ -643,36 +662,36 @@ function viewModuleSeven(user, program) {
         </div>
       </details>
 
-      <details class="m07-section-collapsible" ${quizOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">2</span><div><p class="m07-kicker">Knowledge Check</p><h2 id="m07-knowledge-check">Test your understanding of email and network analysis</h2></div></div></summary>
-        <div class="m07-section-body">${moduleSevenQuizPanel()}</div>
+      <details class="m07-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">2</span><div><p class="m07-kicker mf-kicker">Knowledge Check</p><h2 id="m07-knowledge-check">Test your understanding of email and network analysis</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m07-section-body mf-section-body">${moduleSevenQuizPanel()}</div>
       </details>
 
-      <details class="m07-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">3</span><div><p class="m07-kicker">Practice It · Guided Lab</p><h2 id="m07-guided-lab">Log analysis practice</h2></div></div></summary>
-        <div class="m07-section-body">
+      <details class="m07-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">3</span><div><p class="m07-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m07-guided-lab">Log analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m07-section-body mf-section-body">
           <div class="m07-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in the imported training application on this page.</p></div>
           <div id="m07-guided-lab-dynamic">${moduleSevenGuidedLabPanel()}</div>
         </div>
       </details>
 
-      <details class="m07-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">4</span><div><p class="m07-kicker">Prove It · Assessment Labs</p><h2 id="m07-assessment-lab">Independent tunnel and HTTP log analysis review</h2></div></div></summary>
-        <div class="m07-section-body">
+      <details class="m07-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">4</span><div><p class="m07-kicker mf-kicker">Prove It · Assessment Labs</p><h2 id="m07-assessment-lab">Independent tunnel and HTTP log analysis review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m07-section-body mf-section-body">
           <div id="m07-assessment-lab-dynamic">${moduleSevenAssessmentLabPanel()}</div>
         </div>
       </details>
 
       ${moduleSevenAdditionalLabs()}
 
-      <details class="m07-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">5</span><div><p class="m07-kicker">Module Review</p><h2 id="m07-review">Key concepts and takeaways</h2></div></div></summary>
-        <div class="m07-section-body">${moduleSevenReview()}</div>
+      <details class="m07-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">5</span><div><p class="m07-kicker mf-kicker">Module Review</p><h2 id="m07-review">Key concepts and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m07-section-body mf-section-body">${moduleSevenReview()}</div>
       </details>
 
-      <details class="m07-section-collapsible" ${moduleSevenReviewMode ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading"><span class="m07-section-badge">6</span><div><p class="m07-kicker">Sources &amp; Further Reading</p><h2 id="m07-sources">Authoritative references</h2></div></div></summary>
-        <div class="m07-section-body">${moduleSourcesBlock(MODULE_SEVEN_SOURCES_LIST)}</div>
+      <details class="m07-section-collapsible mf-section mf-section-supplemental" ${moduleSevenReviewMode ? 'open' : ''}>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m07-kicker mf-kicker">Sources &amp; Further Reading</p><h2 id="m07-sources">Authoritative references</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m07-section-body mf-section-body">${moduleSourcesBlock(MODULE_SEVEN_SOURCES_LIST)}</div>
       </details>
     </main>
     </div>
@@ -734,6 +753,12 @@ function wireModuleSevenQuiz() {
   });
 
   form.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m07-quiz-retake]')) {
+      event.preventDefault();
+      moduleSevenQuizForceRetake = true;
+      form.innerHTML = moduleSevenQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m07-quiz-retry]')) return;
     event.preventDefault();
     const previousQuestionIds = moduleSevenQuizState.selectedQuestions.map((s) => s.question.id);

@@ -108,6 +108,9 @@ let moduleOneQuizState = null;
 // remote/admin source (see moduleOneQuizPanel()). Reset on every fresh load
 // so it never carries over to a different account/session.
 let moduleOneQuizForceRetake = false;
+// Set when Submit Case is pressed with items still missing, so the list is
+// called out rather than the button silently refusing.
+let moduleOneProveItShowMissing = false;
 let moduleOneReviewMode = false;
 let moduleOneLastSyncedDetail = null;
 
@@ -119,12 +122,39 @@ function moduleOneProveItRedoRequested() {
   return moduleOneUser?.openLabRedosByModuleKey?.['soc-01']?.labKey === 'lab-soc-escalation';
 }
 
+// '' until submitted; then 'review' while the latest attempt awaits faculty,
+// 'graded' once an instructor has reviewed it without sending it back.
+function moduleOneProveItReviewStatus() {
+  if (!moduleOneState?.lab2?.submitted) return '';
+  const attempt = moduleOneUser?.latestLabAttemptByKey?.['lab-soc-escalation'];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+// Instructor per-item notes from a returned attempt, shown wherever the
+// student works the case — not only on the program page's module card.
+function moduleOneProveItRedoFeedback() {
+  if (!moduleOneProveItRedoRequested()) return '';
+  const items = moduleOneUser.openLabRedosByModuleKey['soc-01'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
 // Prove It is Module 1's one graded artifact: a fresh case worked in the same
 // case-console interface as Practice It, minimal guidance, submitted to the
 // instructor. No live score is shown to the student — confirmation only.
 function moduleOneFinalizeProveIt() {
   const performance = moduleOneProveItPerformance();
-  if (performance.missing.length || moduleOneState.lab2.submitted) return;
+  if (moduleOneState.lab2.submitted) return;
+  if (performance.missing.length) {
+    moduleOneProveItShowMissing = true;
+    moduleOneRenderReviewDynamic('m01-review-submission');
+    return;
+  }
+  moduleOneProveItShowMissing = false;
   moduleOneState.lab2.submitted = true;
   moduleOneState.lab2.submittedAt = new Date().toISOString();
   moduleOneState.lab2.completed = true;
@@ -133,6 +163,9 @@ function moduleOneFinalizeProveIt() {
   moduleOneState.lab2.breakdown = performance.breakdown;
   moduleOneState.lab2.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleOneState.lab2.submittedAt });
   moduleOneSave();
+  if (moduleOneUser) {
+    moduleOneUser.latestLabAttemptByKey = { ...(moduleOneUser.latestLabAttemptByKey || {}), 'lab-soc-escalation': { completedAt: moduleOneState.lab2.submittedAt, reviewedAt: null, redoRequested: false } };
+  }
   if (typeof recordLabAttempt === 'function') {
     recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2 } })
       .then((saved) => {
@@ -603,11 +636,14 @@ function moduleOneProveItSubmissionPanel() {
   const performance = moduleOneProveItPerformance();
   const submitted = moduleOneState.lab2.submitted;
   const redoRequested = moduleOneProveItRedoRequested();
-  return `<div class="m01-score-empty" id="m01-review-submission" role="status" aria-live="polite">
-    <strong>${submitted ? 'Submitted for faculty review' : redoRequested ? 'Returned for remediation' : 'Case record'}</strong>
-    <p>${submitted ? 'Module 2 stays locked until your instructor approves the submission.' : redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.' : 'Work the case above — review the evidence, complete every ticket field, and write your analyst notes — then submit for faculty review.'}</p>
+  const reviewStatus = moduleOneProveItReviewStatus();
+  const flagMissing = !submitted && moduleOneProveItShowMissing && performance.missing.length;
+  return `<div class="m01-score-empty${flagMissing ? ' is-missing' : ''}" id="m01-review-submission" role="status" aria-live="polite" tabindex="-1">
+    <strong>${reviewStatus === 'graded' ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : redoRequested ? 'Returned for remediation' : 'Case record'}</strong>
+    <p>${reviewStatus === 'graded' ? 'Your instructor has reviewed this case.' : submitted ? 'Module 2 stays locked until your instructor approves the submission.' : redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.' : 'Work the case above — review the evidence, complete every ticket field, and write your analyst notes — then submit for faculty review.'}</p>
+    ${!submitted ? moduleOneProveItRedoFeedback() : ''}
     ${!submitted && performance.missing.length ? `<ul class="m01-requirements-list">${performance.missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
-    ${!submitted ? `<p class="m01-help">${performance.missing.length ? 'Complete the remaining case-record items, then use Submit Case in the ticket.' : 'Your case record is ready. Use Submit Case in the ticket to send it for faculty review.'}</p>` : ''}
+    ${!submitted ? `<p class="m01-help">${performance.missing.length ? 'Complete the items above, then press Submit Case. Analyst work notes need at least 80 characters.' : 'Your case record is ready. Use Submit Case in the ticket to send it for faculty review.'}</p>` : ''}
   </div>`;
 }
 
@@ -1051,11 +1087,14 @@ function moduleOneProveItLaunchCard() {
     <a class="m01-hero-action" href="?console=prove${esc(location.hash)}" target="_blank" rel="opener">
       <i class="${submitted ? 'ri-eye-line' : redoRequested ? 'ri-refresh-line' : 'ri-play-circle-line'}" aria-hidden="true"></i>
       ${submitted ? 'Review the case' : redoRequested ? 'Resume Assessment Lab' : (state.actionHistory || []).length ? 'Resume Assessment Lab' : 'Launch Assessment Lab'}</a>
-    <p class="m01-lab-launch-status">${submitted
+    <p class="m01-lab-launch-status">${moduleOneProveItReviewStatus() === 'graded'
+      ? 'Lab graded by your instructor. Opens the case console in a new tab if you want to review it.'
+      : submitted
       ? 'Submitted for faculty review. Opens the case console in a new tab if you want to review it.'
       : redoRequested
         ? 'Returned for remediation. Opens the case console in a new tab to review feedback and resubmit.'
         : 'Opens the case console in a new tab — a small, focused workspace for this one case, not the full SOC range.'}</p>
+    ${moduleOneProveItRedoFeedback()}
   </div>`;
 }
 
@@ -1065,6 +1104,7 @@ function moduleOneProveItCaseConsolePane() {
   const state = moduleOneState.lab2;
   const submitted = state.submitted;
   const requirements = moduleOneProveItPerformance().missing;
+  const reviewStatus = moduleOneProveItReviewStatus();
   const phoneNote = scenario.evidence.find((item) => item.id === 'owner');
 
   return `<div class="m01-console" aria-labelledby="m01-console-prove-title">
@@ -1099,7 +1139,9 @@ function moduleOneProveItCaseConsolePane() {
           userOptions: scenario.entityRoster.users.map((entry) => ({ id: entry.id, text: entry.id })),
           deviceOptions: scenario.entityRoster.devices.map((entry) => ({ id: entry.id, text: entry.id })),
           departmentOptions: lab.departmentOptions })}
-          ${!submitted ? `<div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-save-proveit>Save</button><button type="button" class="m01-submit" data-m01-submit-proveit ${requirements.length ? 'disabled' : ''}>Submit Case</button></div>` : ''}
+          <div class="m01-ticket-actions">${submitted
+            ? `<button type="button" class="m01-submit" disabled><i class="${reviewStatus === 'graded' ? 'ri-checkbox-circle-line' : 'ri-time-line'}" aria-hidden="true"></i> ${reviewStatus === 'graded' ? 'Lab Graded' : 'Lab Under Review'}</button>`
+            : `<button type="button" class="m01-reset" data-m01-save-proveit>Save</button><button type="button" class="m01-submit" data-m01-submit-proveit ${requirements.length ? 'aria-describedby="m01-review-submission"' : ''}>Submit Case</button>`}</div>
         </form>
         ${moduleOneProveItSubmissionPanel()}
       </section>

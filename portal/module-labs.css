@@ -474,6 +474,16 @@ main[class*="m1"] > details[class*="section-collapsible"][open] > summary::after
 .m01-requirements-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 7px; }
 .m01-requirements-list li { display: flex; align-items: center; gap: 9px; font-size: 13px; color: #64748b; }
 .m01-requirements-list li i { font-size: 16px; color: #cbd5e1; }
+.m01-score-empty.is-missing { background: #fff7ed; border: 1px solid #fed7aa; }
+.m01-score-empty.is-missing > strong { color: #9a3412; }
+.m01-score-empty.is-missing .m01-requirements-list li { color: #9a3412; }
+.m01-score-empty.is-missing .m01-requirements-list li i { color: #f97316; }
+.m01-submit:disabled i { margin-right: 4px; }
+.m01-redo-feedback { margin: 14px 0 0; padding: 14px 16px; color: #7f1d1d; background: #fef2f2; border: 1px solid #fecaca; border-radius: 11px; font: 13px/1.55 Inter, sans-serif; }
+.m01-redo-feedback > strong { display: flex; align-items: center; gap: 7px; color: #991b1b; font-size: 13px; }
+.m01-redo-feedback ul { margin: 8px 0 0; padding-left: 18px; list-style: disc; }
+.m01-redo-feedback li + li { margin-top: 5px; }
+.m01-redo-feedback p { margin: 6px 0 0; }
 .m01-requirements-list li.is-done { color: #166534; }
 .m01-requirements-list li.is-done i { color: #22c55e; }
 .m01-siem .m01-requirements-list { color: #334155; }

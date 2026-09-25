@@ -375,6 +375,9 @@ const MODULE_ELEVEN_SHARED_CASE = (typeof window !== 'undefined' && window.MISSI
 const MODULE_ELEVEN_SHARED_SLICE_IDS = MODULE_ELEVEN_SHARED_CASE.consumerSlices?.module11 || ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'];
 
 let moduleElevenQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleElevenQuizVerifiedElsewhere()).
+let moduleElevenQuizForceRetake = false;
 let moduleElevenMetricsState = null;
 let moduleElevenReportState = null;
 let moduleElevenUser = null;
@@ -393,6 +396,7 @@ function moduleElevenReportFreshDefaults() {
 }
 
 function moduleElevenLoad(user) {
+  if (moduleElevenUser?.email !== user?.email) moduleElevenQuizForceRetake = false;
   moduleElevenUser = user;
   moduleElevenMetricsState = LabRuntime.loadCaseState(MODULE_ELEVEN_METRICS_LAB_ID, 'soc-11', user, moduleElevenMetricsFreshDefaults());
   moduleElevenReportState = LabRuntime.loadCaseState(MODULE_ELEVEN_REPORT_LAB_ID, 'soc-11', user, moduleElevenReportFreshDefaults());
@@ -456,9 +460,24 @@ function moduleElevenQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleElevenQuizVerifiedElsewhere() {
+  if (moduleElevenQuizForceRetake || !moduleElevenQuizState || moduleElevenQuizState.scored) return false;
+  if (Object.keys(moduleElevenQuizState.answers || {}).length > 0) return false;
+  return moduleElevenUser?.remoteVerifiedModuleProgress?.['soc-11'] === true
+    || moduleElevenUser?.remoteModuleDetail?.['soc-11']?.quizPassed === true
+    || moduleElevenUser?.remoteModuleEvidence?.['soc-11']?.['knowledge-check'] === true;
+}
+
 function moduleElevenQuizPanel() {
   if (!moduleElevenQuizState?.selectedQuestions || moduleElevenQuizState.selectedQuestions.length === 0) {
     return `<div class="m11-quiz-empty" id="m11-quiz-feedback" role="status">Loading quiz…</div>`;
+  }
+  if (moduleElevenQuizVerifiedElsewhere()) {
+    return `<form class="m11-quiz-form mf-quiz-form" id="m11-quiz-form" novalidate><section class="mf-score is-pass" id="m11-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m11-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleElevenQuizState.selectedQuestions;
@@ -468,7 +487,7 @@ function moduleElevenQuizPanel() {
   let feedbackHtml = '';
   if (moduleElevenQuizState.scored) {
     const passed = moduleElevenQuizState.score >= 70;
-    feedbackHtml = `<section class="m11-quiz-score ${passed ? 'm11-quiz-pass' : 'm11-quiz-remediate'}" id="m11-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m11-quiz-score mf-score ${passed ? 'm11-quiz-pass is-pass' : 'm11-quiz-remediate is-remediate'}" id="m11-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m11-quiz-score-heading">
         <div>
           <p class="m11-kicker">Attempt ${moduleElevenQuizState.attempts} · best ${moduleElevenQuizState.bestScore}/100</p>
@@ -493,8 +512,8 @@ function moduleElevenQuizPanel() {
     feedbackHtml = `<div class="m11-quiz-empty" id="m11-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m11-quiz-form" id="m11-quiz-form" novalidate>
-    <div class="m11-panel-heading"><div><p class="m11-kicker">Knowledge check</p><h3 id="m11-quiz-title" tabindex="-1">Test your understanding of SOC operations and reporting</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m11-quiz-form mf-quiz-form" id="m11-quiz-form" novalidate>
+    <div class="m11-panel-heading mf-panel-heading"><div><p class="m11-kicker mf-kicker">Knowledge check</p><h3 id="m11-quiz-title" tabindex="-1">Test your understanding of SOC operations and reporting</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleElevenQuizQuestion(sel, idx)).join('')}
     <div class="m11-quiz-actions">
       <button class="m11-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -546,6 +565,12 @@ function wireModuleElevenQuiz() {
   });
 
   form.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m11-quiz-retake]')) {
+      event.preventDefault();
+      moduleElevenQuizForceRetake = true;
+      form.innerHTML = moduleElevenQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m11-quiz-retry]')) return;
     event.preventDefault();
     const previousQuestionIds = moduleElevenQuizState.selectedQuestions.map((s) => s.question.id);
@@ -654,27 +679,28 @@ function viewModuleEleven(user, program) {
   const reviewOpen = moduleElevenReviewMode;
   const quickNavItems = moduleElevenGetQuickNavItems();
 
-  const html = `<div class="m11-shell">${moduleTopbar(user, program)}${moduleProgressShell(sections, { moduleKey: 'm11', reviewMode: moduleElevenReviewMode })}<div class="mquick-nav-layout"><main class="m11-main">
-<details class="m11-section-collapsible" id="m11-lecture-section" ${lectureOpen ? 'open' : ''}><summary><span class="m11-section-badge">1</span><h2>Lecture</h2></summary><div class="m11-section-body" id="m11-lecture">
+  const html = `<div class="m11-shell">${moduleTopbar(user, program)}<div class="mquick-nav-layout">${moduleProgressShell(sections, { moduleKey: 'm11', reviewMode: moduleElevenReviewMode })}<main class="m11-main mf-frame">
+<section class="m11-hero mf-hero" aria-labelledby="m11-title"><div><p class="m11-kicker mf-kicker">Module 11 · ${formatHandsOnDuration(module.durationMinutes)} · Week 6</p><h1 id="m11-title">${esc(module.title)}</h1><p class="mf-lede">Turn operating signals and technical evidence into decisions that analysts, incident owners, and leaders can act on.</p></div><dl class="mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${sections[2].isComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${sections[3].isComplete ? 'Complete' : 'Not started'}</dd></div></dl></section>
+<details class="m11-section-collapsible mf-section" id="m11-lecture-section" ${lectureOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">1</span><div><p class="m11-kicker mf-kicker">Learn It</p><h2>Lecture</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-lecture">
   <section class="m11-practice-note"><i class="ri-compass-3-line" aria-hidden="true"></i><div><p class="m11-kicker">Independent practice</p><h2>Read the objective and dataset, then choose your own working order.</h2><p>No prescribed sequence or pre-submission hints are provided. Scoring feedback and a reference model appear after you submit.</p></div></section>
   ${moduleElevenScenarioLoops()}
   ${moduleElevenVideoScript()}
 </div></details>
-<details class="m11-section-collapsible" id="m11-knowledge-section" ${quizOpen ? 'open' : ''}><summary><span class="m11-section-badge">2</span><h2>Knowledge Check</h2></summary><div class="m11-section-body" id="m11-knowledge-check">
+<details class="m11-section-collapsible mf-section" id="m11-knowledge-section" ${quizOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">2</span><div><p class="m11-kicker mf-kicker">Module assessment</p><h2>Knowledge Check</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-knowledge-check">
   ${moduleElevenQuizPanel()}
 </div></details>
-<details class="m11-section-collapsible" id="m11-guided-lab-section" ${guidedLabOpen ? 'open' : ''}><summary><span class="m11-section-badge">3</span><div><p class="m11-kicker">Practice It · Guided Lab</p><h2>Guided Lab</h2></div></summary><div class="m11-section-body" id="m11-guided-lab">
+<details class="m11-section-collapsible mf-section mf-lab-section" id="m11-guided-lab-section" ${guidedLabOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">3</span><div><p class="m11-kicker mf-kicker">Practice It · Guided Lab</p><h2>Guided Lab</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-guided-lab">
   <div class="m11-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in the imported training application on this page.</p></div>
   <div id="m11-guided-lab-dynamic">${moduleElevenGuidedLabPanel()}</div>
 </div></details>
-<details class="m11-section-collapsible" id="m11-assessment-lab-section" ${assessmentLabOpen ? 'open' : ''}><summary><span class="m11-section-badge">4</span><div><p class="m11-kicker">Prove It · Assessment Lab</p><h2>Assessment Lab</h2></div></summary><div class="m11-section-body" id="m11-assessment-lab">
+<details class="m11-section-collapsible mf-section" id="m11-assessment-lab-section" ${assessmentLabOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">4</span><div><p class="m11-kicker mf-kicker">Prove It · Assessment Lab</p><h2>Assessment Lab</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-assessment-lab">
   <div id="m11-assessment-lab-dynamic">${moduleElevenAssessmentLabPanel()}</div>
 </div></details>
 <div id="m11-additional-labs-dynamic">${moduleElevenAdditionalLabs()}</div>
-<details class="m11-section-collapsible" id="m11-review-section" ${reviewOpen ? 'open' : ''}><summary><span class="m11-section-badge">5</span><h2>Module Review</h2></summary><div class="m11-section-body" id="m11-review">
+<details class="m11-section-collapsible mf-section" id="m11-review-section" ${reviewOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">5</span><div><p class="m11-kicker mf-kicker">Concept recap</p><h2>Module Review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-review">
   ${moduleElevenReview()}
 </div></details>
-<details class="m11-section-collapsible" id="m11-sources-section" ${moduleElevenReviewMode ? 'open' : ''}><summary><span class="m11-section-badge">6</span><h2>Sources &amp; Further Reading</h2></summary><div class="m11-section-body">
+<details class="m11-section-collapsible mf-section mf-section-supplemental" id="m11-sources-section" ${moduleElevenReviewMode ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m11-kicker mf-kicker">Reference — not a graded step</p><h2>Sources &amp; Further Reading</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body">
   ${moduleSourcesBlock(MODULE_ELEVEN_SOURCES_LIST)}
 </div></details>
 </main></div></div>`;

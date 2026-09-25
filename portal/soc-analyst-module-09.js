@@ -426,6 +426,9 @@ const MODULE_NINE_RESPONSE_OPTIONS = {
 let moduleNineState = null;
 let moduleNineUser = null;
 let moduleNineQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleNineQuizVerifiedElsewhere()).
+let moduleNineQuizForceRetake = false;
 let moduleNineReviewMode = false;
 
 function moduleNineFreshDefaults() {
@@ -452,6 +455,7 @@ function moduleNineFreshDefaults() {
 }
 
 function moduleNineLoad(user) {
+  if (moduleNineUser?.email !== user?.email) moduleNineQuizForceRetake = false;
   moduleNineUser = user;
   const defaults = moduleNineFreshDefaults();
   moduleNineState = LabRuntime.loadCaseState(MODULE_NINE_LAB_ID, 'soc-09', user, defaults);
@@ -551,9 +555,24 @@ function moduleNineQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleNineQuizVerifiedElsewhere() {
+  if (moduleNineQuizForceRetake || !moduleNineQuizState || moduleNineQuizState.scored) return false;
+  if (Object.keys(moduleNineQuizState.answers || {}).length > 0) return false;
+  return moduleNineUser?.remoteVerifiedModuleProgress?.['soc-09'] === true
+    || moduleNineUser?.remoteModuleDetail?.['soc-09']?.quizPassed === true
+    || moduleNineUser?.remoteModuleEvidence?.['soc-09']?.['knowledge-check'] === true;
+}
+
 function moduleNineQuizPanel() {
   if (!moduleNineQuizState?.selectedQuestions || moduleNineQuizState.selectedQuestions.length === 0) {
     return `<div class="m09-quiz-empty" id="m09-quiz-feedback" role="status">Loading quiz…</div>`;
+  }
+  if (moduleNineQuizVerifiedElsewhere()) {
+    return `<form class="m09-quiz-form mf-quiz-form" id="m09-quiz-form" novalidate><section class="mf-score is-pass" id="m09-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m09-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleNineQuizState.selectedQuestions;
@@ -563,7 +582,7 @@ function moduleNineQuizPanel() {
   let feedbackHtml = '';
   if (moduleNineQuizState.scored) {
     const passed = moduleNineQuizState.score >= 70;
-    feedbackHtml = `<section class="m09-quiz-score ${passed ? 'm09-quiz-pass' : 'm09-quiz-remediate'}" id="m09-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m09-quiz-score mf-score ${passed ? 'm09-quiz-pass is-pass' : 'm09-quiz-remediate is-remediate'}" id="m09-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m09-quiz-score-heading">
         <div>
           <p class="m09-kicker">Attempt ${moduleNineQuizState.attempts} · best ${moduleNineQuizState.bestScore}/100</p>
@@ -588,8 +607,8 @@ function moduleNineQuizPanel() {
     feedbackHtml = `<div class="m09-quiz-empty" id="m09-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m09-quiz-form" id="m09-quiz-form" novalidate>
-    <div class="m09-panel-heading"><div><p class="m09-kicker">Knowledge check</p><h3 id="m09-quiz-title" tabindex="-1">Test your understanding of incident response principles</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m09-quiz-form mf-quiz-form" id="m09-quiz-form" novalidate>
+    <div class="m09-panel-heading mf-panel-heading"><div><p class="m09-kicker mf-kicker">Knowledge check</p><h3 id="m09-quiz-title" tabindex="-1">Test your understanding of incident response principles</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleNineQuizQuestion(sel, idx)).join('')}
     <div class="m09-quiz-actions">
       <button class="m09-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -745,51 +764,51 @@ function viewModuleNine(user, program) {
 
   return `<div class="m09-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleNineReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m09-main">
-      <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · ${formatHandsOnDuration(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p></div><dl aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${moduleNineState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Assessment Lab</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      ${moduleProgressShell(sections, { reviewMode: moduleNineReviewMode })}
+      <main class="m09-main mf-frame">
+      <section class="m09-hero mf-hero" aria-labelledby="m09-title"><div><p class="m09-kicker mf-kicker">Module 09 · ${formatHandsOnDuration(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p class="mf-lede">Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p></div><dl class="mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${moduleNineState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Assessment Lab</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
-      <details class="m09-section-collapsible" ${lectureOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">1</span><div><p class="m09-kicker">Lecture</p><h2 id="m09-lecture">Incident response principles: correlation, scope, and proportionate action</h2></div></div></summary>
-        <div class="m09-section-body">
+      <details class="m09-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">1</span><div><p class="m09-kicker mf-kicker">Lecture</p><h2 id="m09-lecture">Incident response principles: correlation, scope, and proportionate action</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">
           <section class="m09-section" id="m09-field-guide" aria-labelledby="m09-guide-title"><div class="m09-section-heading"><span>a</span><div><p class="m09-kicker">Response guide</p><h3 id="m09-guide-title">Act on evidence, not urgency alone</h3></div></div>${moduleNineScenarioLoop()}${moduleNineConcepts()}</section>
           ${moduleNineVideoScript()}
         </div>
       </details>
 
-      <details class="m09-section-collapsible" ${quizOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">2</span><div><p class="m09-kicker">Knowledge Check</p><h2 id="m09-knowledge-check">Test your understanding of incident response principles</h2></div></div></summary>
-        <div class="m09-section-body">
+      <details class="m09-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">2</span><div><p class="m09-kicker mf-kicker">Knowledge Check</p><h2 id="m09-knowledge-check">Test your understanding of incident response principles</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">
           ${moduleNineQuizPanel()}
         </div>
       </details>
 
-      <details class="m09-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">3</span><div><p class="m09-kicker">Practice It · Guided Lab</p><h2 id="m09-guided-lab">Ransomware analysis practice</h2></div></div></summary>
-        <div class="m09-section-body">
+      <details class="m09-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">3</span><div><p class="m09-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m09-guided-lab">Ransomware analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">
           <div class="m09-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in the imported training application on this page.</p></div>
           <div id="m09-guided-lab-dynamic">${moduleNineGuidedLabPanel()}</div>
         </div>
       </details>
 
-      <details class="m09-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">4</span><div><p class="m09-kicker">Prove It · Assessment Lab</p><h2 id="m09-lab">Active ransomware response · INC-4937</h2></div></div></summary>
-        <div class="m09-section-body">
+      <details class="m09-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">4</span><div><p class="m09-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m09-lab">Active ransomware response · INC-4937</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">
           <div class="m09-ticket" aria-labelledby="m09-ticket-title"><div class="m09-ticket-head"><i class="ri-ticket-2-line" aria-hidden="true"></i><div><p class="m09-kicker">Assigned from the Tier 1 queue</p><h3 id="m09-ticket-title">INC-4937 · Endpoint alert, unconfirmed</h3></div><span class="m09-ticket-priority">P3 at intake</span></div><dl class="m09-ticket-grid"><div><dt>Reporting source</dt><dd>Automated endpoint sensor, ws-173</dd></div><div><dt>Reported</dt><dd>10:02 UTC</dd></div><div><dt>Assigned to</dt><dd>You (Tier 1, this shift)</dd></div><div><dt>Acknowledge / respond by</dt><dd>10:17 UTC / 14:02 UTC</dd></div></dl><p class="m09-ticket-note">The queue entry carries only what the sensor reported: possible encryption activity on one endpoint. Everything else below is what you find once you start looking — the ticket does not tell you it is ransomware, that it is contained, or that it is limited to one host.</p></div>
           <div class="m09-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: Tier 1 incident responder</strong><p>Investigate the three sources in any order. You may initiate playbook-approved containment and recommend later phases; the incident lead and system owners retain execution authority.</p></div></div>
           <div id="m09-lab-dynamic">${moduleNineDynamic()}</div>
         </div>
       </details>
 
-      <details class="m09-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">5</span><div><p class="m09-kicker">Module Review</p><h2 id="m09-review">Key concepts and takeaways</h2></div></div></summary>
-        <div class="m09-section-body">${moduleNineReview()}</div>
+      <details class="m09-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">5</span><div><p class="m09-kicker mf-kicker">Module Review</p><h2 id="m09-review">Key concepts and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">${moduleNineReview()}</div>
       </details>
 
-      <details class="m09-section-collapsible" ${moduleNineReviewMode ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">6</span><div><p class="m09-kicker">Sources &amp; Further Reading</p><h2 id="m09-sources">Authoritative references</h2></div></div></summary>
-        <div class="m09-section-body">${moduleSourcesBlock(MODULE_NINE_SOURCES_LIST)}</div>
+      <details class="m09-section-collapsible mf-section mf-section-supplemental" ${moduleNineReviewMode ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m09-kicker mf-kicker">Sources &amp; Further Reading</p><h2 id="m09-sources">Authoritative references</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">${moduleSourcesBlock(MODULE_NINE_SOURCES_LIST)}</div>
       </details>
     </main>
     </div>
@@ -902,6 +921,12 @@ function wireModuleNineQuiz() {
 
   // Event delegation for retry button - CRITICAL: use event delegation, not one-time querySelector
   quizForm.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m09-quiz-retake]')) {
+      event.preventDefault();
+      moduleNineQuizForceRetake = true;
+      quizForm.innerHTML = moduleNineQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m09-quiz-retry]')) return;
     // Reset quiz state and select new questions
     const previousQuestionIds = moduleNineQuizState.lastQuizQuestionIds || [];

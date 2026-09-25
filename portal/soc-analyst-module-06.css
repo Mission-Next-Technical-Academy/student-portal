@@ -12,15 +12,9 @@
 .m06-shell .m06-main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 80px; }
 .m06-shell .m06-kicker { margin: 0; color: #f97316; font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 
-.m06-shell .m06-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 42px; align-items: end; padding: clamp(30px, 5vw, 54px); color: #fff; background: linear-gradient(150deg, #0c1e32 0%, #1e3a5f 50%, #162d4a 100%); border-radius: 24px; box-shadow: 0 18px 48px rgba(10, 22, 40, .18); }
-.m06-shell .m06-hero h1 { margin: 8px 0 14px; font-size: clamp(34px, 5vw, 52px); line-height: 1.05; letter-spacing: -.025em; }
 .m06-shell .m06-lede { max-width: 750px; margin: 0; color: rgba(255, 255, 255, .76); font: 16px/1.75 Inter, sans-serif; }
 .m06-shell .m06-hero-action { width: fit-content; margin-top: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; color: #fff; background: #f97316; border-radius: 11px; font-size: 13px; font-weight: 700; text-decoration: none; }
 .m06-shell .m06-hero-action:hover, .m06-shell .m06-hero-action:focus-visible { background: #ea580c; }
-.m06-shell .m06-progress { min-width: 310px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 0; overflow: hidden; background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .16); border-radius: 14px; }
-.m06-shell .m06-progress div { padding: 14px 16px; background: rgba(12, 30, 50, .54); }
-.m06-shell .m06-progress dt { color: rgba(255, 255, 255, .56); font: 10px/1.3 Inter, sans-serif; }
-.m06-shell .m06-progress dd { margin: 5px 0 0; font-size: 13px; font-weight: 700; white-space: nowrap; }
 
 .m06-shell .m06-objective { margin-top: 22px; display: flex; align-items: flex-start; gap: 16px; padding: 22px; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 8px 24px rgba(30, 58, 95, .06); }
 .m06-shell .m06-objective-icon { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 12px; font-size: 21px; }
@@ -166,15 +160,7 @@
 .m06-shell .m06-expert-model p { margin: 5px 0 0; color: #64748b; font: 11px/1.6 Inter, sans-serif; }
 .m06-shell .m06-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
-.m06-shell .m06-section-badge { display: grid; place-items: center; background: #1e3a5f; font-weight: 700; border-radius: 8px; font-size: 13px; }
 
-.m06-shell .m06-section-collapsible { margin: 0; border: 0; padding: 0; }
-.m06-shell .m06-section-collapsible > summary { list-style: none; cursor: pointer; }
-.m06-shell .m06-section-collapsible > summary::-webkit-details-marker { display: none; }
-.m06-shell .m06-section-collapsible > summary .m06-section { margin: 0; padding: 18px clamp(20px, 4vw, 38px); background: #f8fafc; border: 1px solid #e5e7eb; }
-.m06-shell .m06-section-collapsible > summary .m06-section-heading { margin-bottom: 0; }
-.m06-shell .m06-section-collapsible[open] > summary .m06-section { background: #fff; border: 1px solid #dbe3ed; }
-.m06-shell .m06-section-collapsible .m06-section-body { padding: 0 clamp(20px, 4vw, 38px) clamp(23px, 4vw, 38px); }
 .m06-shell .m06-section-collapsible .m06-section-body h3 { margin-top: 22px; color: #1e3a5f; font-size: 17px; font-weight: 700; }
 .m06-shell .m06-section-collapsible .m06-section-body h3:first-child { margin-top: 0; }
 .m06-shell .m06-section-collapsible .m06-section-body p { margin: 10px 0; color: #4b5563; font: 14px/1.65 Inter, sans-serif; }
@@ -227,8 +213,6 @@
 .m06-shell :focus-visible { outline: 3px solid rgba(249, 115, 22, .38); outline-offset: 2px; }
 
 @media (max-width: 920px) {
-  .m06-shell .m06-hero { grid-template-columns: 1fr; }
-  .m06-shell .m06-progress { width: 100%; min-width: 0; }
   .m06-shell .m06-concept-grid { grid-template-columns: repeat(2, 1fr); }
   .m06-shell .m06-query-layout { grid-template-columns: 1fr; }
   .m06-shell .m06-score-grid { grid-template-columns: repeat(2, 1fr); }
@@ -256,8 +240,6 @@
 }
 
 @media (max-width: 480px) {
-  .m06-shell .m06-hero { padding: 26px 22px; }
-  .m06-shell .m06-hero h1 { font-size: 34px; }
   .m06-shell .m06-section, .m06-shell .m06-panel, .m06-shell .m06-source-panel { padding: 19px 15px; }
   .m06-shell .m06-workspace { padding: 0; }
   .m06-shell .m06-workspace > .m06-panel-heading, .m06-shell .m06-workspace > .m06-instruction { margin-right: 15px; margin-left: 15px; }

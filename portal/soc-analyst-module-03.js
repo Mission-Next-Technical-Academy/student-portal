@@ -393,8 +393,12 @@ let moduleThreeState = null;
 let moduleThreeUser = null;
 let moduleThreeReviewMode = false;
 let moduleThreeQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleThreeQuizVerifiedElsewhere()).
+let moduleThreeQuizForceRetake = false;
 
 function moduleThreeLoad(user) {
+  if (moduleThreeUser?.email !== user?.email) moduleThreeQuizForceRetake = false;
   moduleThreeUser = user;
   moduleThreeState = LabRuntime.loadCaseState(MODULE_THREE_LAB_ID, 'soc-03', user, MODULE_THREE_DEFAULT_STATE);
   try {
@@ -514,9 +518,9 @@ function moduleThreeFieldGuide() {
 function moduleThreeLessonLoop(lesson, index) {
   const work = moduleThreeState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
   const feedback = work.feedback?.length ? `<p class="m03-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
-  return `<details class="m03-lesson-loop" id="m03-lesson-${esc(lesson.id)}" ${work.taskComplete ? '' : 'open'}>
-    <summary><span class="m03-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m03-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m03-chevron" aria-hidden="true"></i>'}</summary>
-    <div class="m03-lesson-loop-body">
+  return `<details class="m03-lesson-loop mf-lesson" id="m03-lesson-${esc(lesson.id)}" ${work.taskComplete ? '' : 'open'}>
+    <summary><span class="m03-lesson-number mf-lesson-number">${String(index + 1).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
+    <div class="m03-lesson-loop-body mf-lesson-body">
       <section><p class="m03-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section>
       <section><p class="m03-kicker">Theory</p><p>${esc(lesson.theory)}</p></section>
       <section><p class="m03-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m03-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m03-lesson-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m03-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m03-lesson-check" data-m03-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section>
@@ -593,9 +597,24 @@ function moduleThreeQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleThreeQuizVerifiedElsewhere() {
+  if (moduleThreeQuizForceRetake || !moduleThreeQuizState || moduleThreeQuizState.scored) return false;
+  if (Object.keys(moduleThreeQuizState.answers || {}).length > 0) return false;
+  return moduleThreeUser?.remoteVerifiedModuleProgress?.['soc-03'] === true
+    || moduleThreeUser?.remoteModuleDetail?.['soc-03']?.quizPassed === true
+    || moduleThreeUser?.remoteModuleEvidence?.['soc-03']?.['knowledge-check'] === true;
+}
+
 function moduleThreeQuizPanel() {
   if (!moduleThreeQuizState?.selectedQuestions || moduleThreeQuizState.selectedQuestions.length === 0) {
     return `<div class="m03-quiz-empty" id="m03-quiz-feedback" role="status">Loading quiz...</div>`;
+  }
+  if (moduleThreeQuizVerifiedElsewhere()) {
+    return `<form class="m03-quiz-form mf-quiz-form" id="m03-quiz-form" novalidate><section class="mf-score is-pass" id="m03-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m03-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleThreeQuizState.selectedQuestions;
@@ -605,7 +624,7 @@ function moduleThreeQuizPanel() {
   let feedbackHtml = '';
   if (moduleThreeQuizState.scored) {
     const passed = moduleThreeQuizState.score >= 70;
-    feedbackHtml = `<section class="m03-quiz-score ${passed ? 'm03-quiz-pass' : 'm03-quiz-remediate'}" id="m03-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m03-quiz-score mf-score ${passed ? 'm03-quiz-pass is-pass' : 'm03-quiz-remediate is-remediate'}" id="m03-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m03-quiz-score-heading">
         <div>
           <p class="m03-kicker">Attempt ${moduleThreeQuizState.attempts} · best ${moduleThreeQuizState.bestScore}/100</p>
@@ -630,8 +649,8 @@ function moduleThreeQuizPanel() {
     feedbackHtml = `<div class="m03-quiz-empty" id="m03-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m03-quiz-form" id="m03-quiz-form" novalidate>
-    <div class="m03-panel-heading"><div><p class="m03-kicker">Knowledge check</p><h3 id="m03-quiz-title" tabindex="-1">Test your understanding of SIEM correlation concepts</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m03-quiz-form mf-quiz-form" id="m03-quiz-form" novalidate>
+    <div class="m03-panel-heading mf-panel-heading"><div><p class="m03-kicker mf-kicker">Knowledge check</p><h3 id="m03-quiz-title" tabindex="-1">Test your understanding of SIEM correlation concepts</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleThreeQuizQuestion(sel, idx)).join('')}
     <div class="m03-quiz-actions">
       <button class="m03-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -677,13 +696,13 @@ function viewModuleThree(user, program) {
   const quickNavItems = moduleThreeGetQuickNavItems();
 
   const lectureSection = `
-    <details class="m03-section-collapsible" ${lectureOpen ? 'open' : ''}>
+    <details class="m03-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section" id="m03-lecture" aria-labelledby="m03-lecture-title">
-          <div class="m03-section-heading"><span>1</span><div><p class="m03-kicker">Core concepts and practice</p><h2 id="m03-lecture-title">Log normalization, correlation, and triage</h2></div></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">1</span><div><p class="m03-kicker mf-kicker">Core concepts and practice</p><h2 id="m03-lecture-title">Log normalization, correlation, and triage</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m03-section m03-section-body" aria-labelledby="m03-lecture-title">
+      <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-lecture-title">
         ${moduleThreeVideoScript()}
         ${moduleThreeLessonLoopsView()}
         ${moduleThreeLecture()}
@@ -692,68 +711,68 @@ function viewModuleThree(user, program) {
     </details>`;
 
   const quizSection = `
-    <details class="m03-section-collapsible" ${quizOpen ? 'open' : ''}>
+    <details class="m03-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section" id="m03-knowledge-check" aria-labelledby="m03-quiz-title">
-          <div class="m03-section-heading"><span>2</span><div><p class="m03-kicker">Interactive knowledge check</p><h2 id="m03-quiz-title">Test your understanding of SIEM correlation</h2></div></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m03-kicker mf-kicker">Interactive knowledge check</p><h2 id="m03-quiz-title">Test your understanding of SIEM correlation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m03-section m03-section-body" aria-labelledby="m03-quiz-title"><div id="m03-quiz-dynamic">${moduleThreeQuizPanel()}</div></section>
+      <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-quiz-title"><div id="m03-quiz-dynamic">${moduleThreeQuizPanel()}</div></section>
     </details>`;
 
   const guidedLabSection = `
-    <details class="m03-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
+    <details class="m03-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-guided-lab" aria-labelledby="m03-guided-lab-title">
-          <div class="m03-section-heading"><span>3</span><div><p class="m03-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Investigate CASE-MN-428 in the SIEM console</h2></div></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m03-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Investigate CASE-MN-428 in the SIEM console</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m03-section m03-section-body m03-lab-section" aria-labelledby="m03-guided-lab-title">
+      <section class="m03-section m03-section-body mf-section-body m03-lab-section" aria-labelledby="m03-guided-lab-title">
         <div class="m03-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> A simulated SIEM with fictional telemetry. Queries run in your browser, and nothing here touches a real system.</p></div>
         <div id="m03-guided-lab-dynamic">${moduleThreeGuidedLabPanel()}</div>
       </section>
     </details>`;
 
   const assessmentLabSection = `
-    <details class="m03-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
+    <details class="m03-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-assessment-lab" aria-labelledby="m03-assessment-lab-title">
-          <div class="m03-section-heading"><span>4</span><div><p class="m03-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent SIEM case: CASE-MN-517</h2></div></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m03-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent SIEM case: CASE-MN-517</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m03-section m03-section-body m03-lab-section" aria-labelledby="m03-assessment-lab-title">
+      <section class="m03-section m03-section-body mf-section-body m03-lab-section" aria-labelledby="m03-assessment-lab-title">
         <div id="m03-assessment-lab-dynamic">${moduleThreeAssessmentLabPanel()}</div>
       </section>
     </details>`;
 
   const reviewSection = `
-    <details class="m03-section-collapsible" ${reviewOpen ? 'open' : ''}>
+    <details class="m03-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section" id="m03-review" aria-labelledby="m03-review-title">
-          <div class="m03-section-heading"><span>5</span><div><p class="m03-kicker">Concept recap</p><h2 id="m03-review-title">Module review and takeaways</h2></div></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">5</span><div><p class="m03-kicker mf-kicker">Concept recap</p><h2 id="m03-review-title">Module review and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m03-section m03-section-body" aria-labelledby="m03-review-title">${moduleThreeReview()}</section>
+      <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-review-title">${moduleThreeReview()}</section>
     </details>`;
 
   const sourcesSection = `
-    <details class="m03-section-collapsible" ${moduleThreeReviewMode ? 'open' : ''}>
+    <details class="m03-section-collapsible mf-section mf-section-supplemental" ${moduleThreeReviewMode ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section" id="m03-sources" aria-labelledby="m03-sources-title">
-          <div class="m03-section-heading"><span>6</span><div><p class="m03-kicker">Supporting resources</p><h2 id="m03-sources-title">Further reading on SIEM and correlation</h2></div></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m03-kicker mf-kicker">Supporting resources</p><h2 id="m03-sources-title">Further reading on SIEM and correlation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m03-section m03-section-body" id="m03-sources-section" aria-labelledby="m03-sources-title">${moduleSourcesBlock(MODULE_THREE_SOURCES)}</section>
+      <section class="m03-section m03-section-body mf-section-body" id="m03-sources-section" aria-labelledby="m03-sources-title">${moduleSourcesBlock(MODULE_THREE_SOURCES)}</section>
     </details>`;
 
   return `<div class="m03-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleThreeReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m03-main">
-      <section class="m03-hero" aria-labelledby="m03-title">
-        <div><p class="m03-kicker">Module 03 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m03-title">${esc(module.title)}</h1><p>Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p></div>
-        <dl class="m03-status" aria-label="Saved lab status"><div><dt>Guided Lab</dt><dd>${moduleThreeState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m03-status">${complete ? 'Complete' : moduleThreeState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
+      ${moduleProgressShell(sections, { reviewMode: moduleThreeReviewMode })}
+      <main class="m03-main mf-frame">
+      <section class="m03-hero mf-hero" aria-labelledby="m03-title">
+        <div><p class="m03-kicker mf-kicker">Module 03 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m03-title">${esc(module.title)}</h1><p class="mf-lede">Use normalized telemetry to separate a suspicious service-account sequence from believable operational noise, then explain the evidence as a defensible analyst handoff.</p></div>
+        <dl class="m03-status mf-stats" aria-label="Saved lab status"><div><dt>Guided Lab</dt><dd>${moduleThreeState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m03-status">${complete ? 'Complete' : moduleThreeState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
       </section>
 
       <section class="m03-objective" aria-labelledby="m03-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m03-kicker">One measurable objective</p><h2 id="m03-objective-title">Analyze real-world-style logs and justify a defensible triage decision in your assessment write-up.</h2></div></section>
@@ -888,6 +907,14 @@ function wireModuleThreeQuiz() {
   });
 
   quizForm.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m03-quiz-retake]')) {
+      event.preventDefault();
+      moduleThreeQuizForceRetake = true;
+      moduleThreeRenderQuiz('m03-quiz-title');
+      // The container re-render replaced the form element; wire the new one.
+      wireModuleThreeQuiz();
+      return;
+    }
     if (!event.target.closest('[data-m03-quiz-retry]')) return;
     const previousQuestionIds = moduleThreeState.lastQuizQuestionIds || [];
     Object.assign(moduleThreeQuizState, resetQuizAttempt(moduleThreeQuizState, MODULE_THREE_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true, preserveScoredResult: true }));

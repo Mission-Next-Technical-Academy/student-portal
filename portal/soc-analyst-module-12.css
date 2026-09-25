@@ -7,23 +7,19 @@
 .m12-simulation { padding: 7px 11px; color: #1e3a5f; background: #eff6ff; border: 1px solid #dbeafe; border-radius: 999px; }
 .m12-exit { color: #1e3a5f; text-decoration: none; }
 .m12-exit:hover, .m12-exit:focus-visible { color: #c2410c; text-decoration: underline; }
-.m12-main { width: min(1280px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 80px; }
+.m12-main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 80px; }
 .m12-kicker { margin: 0; color: #f97316; font: 800 11px/1.4 Inter, sans-serif; letter-spacing: .13em; text-transform: uppercase; }
 
-.m12-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 40px; padding: clamp(30px,5vw,54px); color: #fff; background: linear-gradient(150deg,#0c1e32 0%,#1e3a5f 55%,#162d4a 100%); border-radius: 24px; box-shadow: 0 18px 48px rgba(10,22,40,.18); }
-.m12-hero h1 { margin: 8px 0 14px; font-size: clamp(36px,5vw,56px); line-height: 1.04; letter-spacing: -.035em; }
-.m12-hero p:not(.m12-kicker):not(.m12-launch-note) { max-width: 760px; margin: 0; color: rgba(255,255,255,.72); font: 16px/1.7 Inter, sans-serif; }
-.m12-hero dl { min-width: 310px; display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; margin: 0; overflow: hidden; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.16); border-radius: 14px; }
-.m12-hero dl div { padding: 14px 15px; background: rgba(8,22,39,.52); }
-.m12-hero dt { color: rgba(255,255,255,.54); font: 10px/1.3 Inter, sans-serif; }
-.m12-hero dd { margin: 5px 0 0; font-size: 12px; font-weight: 800; white-space: nowrap; }
 .m12-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .m12-primary, .m12-secondary { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px; border-radius: 11px; font-size: 13px; font-weight: 800; text-decoration: none; }
 .m12-primary { color: #fff; background: #f97316; }
 .m12-primary:hover, .m12-primary:focus-visible { background: #ea580c; }
 .m12-secondary { color: #fff; border: 1px solid rgba(255,255,255,.22); }
 .m12-secondary:hover, .m12-secondary:focus-visible { background: rgba(255,255,255,.1); }
-.m12-hero .m12-launch-note { margin: 9px 0 0; color: rgba(255,255,255,.48); font: 10px/1.5 Inter, sans-serif; }
+main.mf-frame .m12-hero .m12-launch-note { margin: 9px 0 0; color: rgba(255,255,255,.48); font: 10px/1.5 Inter, sans-serif; }
+/* The Pass tile carries a long rubric phrase; let it wrap instead of starving the hero copy column. */
+main.mf-frame .m12-hero .mf-stats { max-width: 420px; }
+main.mf-frame .m12-hero .mf-stats dd { white-space: normal; }
 .m12-hero-locked { align-items: center; }
 .m12-lock-mark { min-width: 190px; display: grid; place-items: center; padding: 24px; background: rgba(8,22,39,.48); border: 1px solid rgba(255,255,255,.14); border-radius: 16px; }
 .m12-lock-mark i { color: #f97316; font-size: 30px; }
@@ -33,18 +29,7 @@
 .m12-objective { display: flex; align-items: flex-start; gap: 16px; margin-top: 22px; padding: 22px; background: #fff; border: 1px solid #dbe3ed; border-radius: 16px; box-shadow: 0 8px 24px rgba(30,58,95,.06); }
 .m12-objective > div:first-child { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #f97316; border-radius: 12px; font-size: 21px; }
 .m12-objective h2 { margin: 5px 0 0; color: #1e3a5f; font-size: 18px; line-height: 1.48; }
-.m12-section { scroll-margin-top: 20px; margin-top: 24px; padding: clamp(23px,4vw,38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
-.m12-section-collapsible { display: block; margin-top: 20px; overflow: hidden; background: #fff; border: 1px solid #dbe3ed; border-radius: 18px; box-shadow: 0 8px 24px rgba(30,58,95,.05); }
-.m12-section-collapsible > summary { padding: 18px clamp(18px,3vw,30px); cursor: pointer; list-style: none; }
-.m12-section-collapsible > summary::-webkit-details-marker { display: none; }
-.m12-section-collapsible > summary .m12-section-heading { margin: 0; }
-.m12-section-collapsible > summary .m12-section-heading h2 { font-size: 20px; }
-.m12-section-collapsible > .m12-section { margin: 0; padding: 0 clamp(18px,3vw,30px) 26px; border: 0; border-radius: 0; box-shadow: none; }
-.m12-section-collapsible[open] { border-color: #93b4d4; }
 .m12-range-section { border-top: 4px solid #f97316; }
-.m12-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 17px; }
-.m12-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-weight: 800; }
-.m12-section-heading h2 { margin: 3px 0 0; color: #1e3a5f; font-size: 23px; line-height: 1.25; }
 .m12-muted { margin: 0 0 20px; color: #64748b; font: 12px/1.65 Inter, sans-serif; }
 
 .m12-prereq-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 9px; }
@@ -169,8 +154,6 @@
 .m12-shell :focus-visible { outline: 3px solid rgba(249,115,22,.38); outline-offset: 2px; }
 
 @media (max-width: 1000px) {
-  .m12-hero { grid-template-columns: 1fr; }
-  .m12-hero dl { width: 100%; min-width: 0; }
   .m12-console-nav { grid-template-columns: repeat(2,1fr); }
   .m12-requirements { grid-template-columns: repeat(2,1fr); }
   .m12-timeline-inputs { grid-template-columns: repeat(2,1fr); }
@@ -180,13 +163,11 @@
   .m12-topbar { align-items: flex-start; }
   .m12-top-actions { align-items: flex-end; flex-direction: column; gap: 6px; }
   .m12-simulation { display: none; }
-  .m12-main { width: min(100% - 24px,1280px); padding-top: 24px; }
-  .m12-hero { padding: 26px 22px; border-radius: 18px; }
+  .m12-main { width: min(100% - 24px, 1180px); padding-top: 22px; }
   .m12-hero dl, .m12-prereq-grid, .m12-requirements, .m12-console-nav, .m12-evidence-grid, .m12-form-grid, .m12-check-grid, .m12-two-col, .m12-score-grid { grid-template-columns: 1fr; }
   .m12-lock-mark { width: 100%; box-sizing: border-box; }
   .m12-objective { padding: 17px; }
   .m12-objective h2 { font-size: 16px; }
-  .m12-section { padding: 18px 14px; border-radius: 16px; }
   .m12-form-grid fieldset.m12-wide { grid-column: auto; }
   .m12-console-nav button { min-height: 50px; justify-content: flex-start; padding-left: 16px; }
   .m12-console { margin: 10px; padding: 12px; }

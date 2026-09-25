@@ -166,9 +166,12 @@ async function fetchUserDetails(userId, trackCode) {
   let remoteModuleDetail = {};
   let remoteCaseState = {};
   let openLabRedosByModuleKey = {};
+  // Most recent attempt per lab, so a lab's submit control can tell
+  // "under review" (reviewed_at null) from "graded" without another query.
+  let latestLabAttemptByKey = {};
   let studentMessages = [];
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, studentMessages };
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, studentMessages };
   }
 
   const [
@@ -195,7 +198,7 @@ async function fetchUserDetails(userId, trackCode) {
     // redo clears on its own — no separate acknowledgment step needed.
     mntSupabase
       .from('lab_attempts')
-      .select('id, lab_key, completed_at, redo_requested')
+      .select('id, lab_key, completed_at, reviewed_at, redo_requested')
       .eq('user_id', userId)
       .eq('track_code', trackCode)
       .not('completed_at', 'is', null)
@@ -238,6 +241,9 @@ async function fetchUserDetails(userId, trackCode) {
     (attemptRows || []).forEach((row) => {
       if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
     });
+    latestByLabKey.forEach((row, labKey) => {
+      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true };
+    });
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
     if (openAttempts.length) {
       const { data: feedbackRows, error: feedbackError } = await mntSupabase
@@ -270,7 +276,7 @@ async function fetchUserDetails(userId, trackCode) {
     studentMessages = messageRows || [];
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, studentMessages };
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, studentMessages };
 }
 
 async function buildUserFromSession(session) {

@@ -447,8 +447,12 @@ let moduleFourState = null;
 let moduleFourUser = null;
 let moduleFourReviewMode = false;
 let moduleFourQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleFourQuizVerifiedElsewhere()).
+let moduleFourQuizForceRetake = false;
 
 function moduleFourLoad(user) {
+  if (moduleFourUser?.email !== user?.email) moduleFourQuizForceRetake = false;
   moduleFourUser = user;
   moduleFourState = LabRuntime.loadCaseState(MODULE_FOUR_LAB_ID, 'soc-04', user, MODULE_FOUR_DEFAULT_STATE);
   ['reviewedStations', 'selectedEvidence', 'ruleRunResults', 'automationLog', 'hintsOpened', 'feedback', 'flags'].forEach((key) => {
@@ -543,9 +547,9 @@ function moduleFourVideoScript() {
 function moduleFourLessonLoop(lesson, index) {
   const work = moduleFourState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
   const feedback = work.feedback?.length ? `<p class="m04-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
-  return `<details class="m04-lesson-loop" ${work.taskComplete ? '' : 'open'}>
-    <summary><span class="m04-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m04-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m04-chevron" aria-hidden="true"></i>'}</summary>
-    <div class="m04-lesson-loop-body"><section><p class="m04-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m04-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m04-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m04-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m04-lesson-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m04-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m04-lesson-check" data-m04-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m04-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m04-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m04-lesson-task-button" data-m04-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div>
+  return `<details class="m04-lesson-loop mf-lesson" ${work.taskComplete ? '' : 'open'}>
+    <summary><span class="m04-lesson-number mf-lesson-number">${String(index + 1).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
+    <div class="m04-lesson-loop-body mf-lesson-body"><section><p class="m04-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m04-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m04-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m04-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m04-lesson-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m04-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m04-lesson-check" data-m04-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m04-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m04-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m04-lesson-task-button" data-m04-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div>
   </details>`;
 }
 
@@ -621,9 +625,24 @@ function moduleFourQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleFourQuizVerifiedElsewhere() {
+  if (moduleFourQuizForceRetake || !moduleFourQuizState || moduleFourQuizState.scored) return false;
+  if (Object.keys(moduleFourQuizState.answers || {}).length > 0) return false;
+  return moduleFourUser?.remoteVerifiedModuleProgress?.['soc-04'] === true
+    || moduleFourUser?.remoteModuleDetail?.['soc-04']?.quizPassed === true
+    || moduleFourUser?.remoteModuleEvidence?.['soc-04']?.['knowledge-check'] === true;
+}
+
 function moduleFourQuizPanel() {
   if (!moduleFourQuizState?.selectedQuestions || moduleFourQuizState.selectedQuestions.length === 0) {
     return `<div class="m04-quiz-empty" id="m04-quiz-feedback" role="status">Loading quiz...</div>`;
+  }
+  if (moduleFourQuizVerifiedElsewhere()) {
+    return `<form class="m04-quiz-form mf-quiz-form" id="m04-quiz-form" novalidate><section class="mf-score is-pass" id="m04-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m04-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleFourQuizState.selectedQuestions;
@@ -633,7 +652,7 @@ function moduleFourQuizPanel() {
   let feedbackHtml = '';
   if (moduleFourQuizState.scored) {
     const passed = moduleFourQuizState.score >= 70;
-    feedbackHtml = `<section class="m04-quiz-score ${passed ? 'm04-quiz-pass' : 'm04-quiz-remediate'}" id="m04-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m04-quiz-score mf-score ${passed ? 'm04-quiz-pass is-pass' : 'm04-quiz-remediate is-remediate'}" id="m04-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m04-quiz-score-heading">
         <div>
           <p class="m04-kicker">Attempt ${moduleFourQuizState.attempts} · best ${moduleFourQuizState.bestScore}/100</p>
@@ -658,8 +677,8 @@ function moduleFourQuizPanel() {
     feedbackHtml = `<div class="m04-quiz-empty" id="m04-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m04-quiz-form" id="m04-quiz-form" novalidate>
-    <div class="m04-panel-heading"><div><p class="m04-kicker">Knowledge check</p><h3 id="m04-quiz-title" tabindex="-1">Test your understanding of detection concepts</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m04-quiz-form mf-quiz-form" id="m04-quiz-form" novalidate>
+    <div class="m04-panel-heading mf-panel-heading"><div><p class="m04-kicker mf-kicker">Knowledge check</p><h3 id="m04-quiz-title" tabindex="-1">Test your understanding of detection concepts</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleFourQuizQuestion(sel, idx)).join('')}
     <div class="m04-quiz-actions">
       <button class="m04-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -949,13 +968,13 @@ function viewModuleFour(user, program) {
   const quickNavItems = moduleFourGetQuickNavItems();
 
   const lectureSection = `
-    <details class="m04-section-collapsible" ${lectureOpen ? 'open' : ''}>
+    <details class="m04-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
       <summary class="m04-section-summary">
         <section class="m04-section" id="m04-lecture" aria-labelledby="m04-lecture-title">
-          <div class="m04-section-heading"><span>1</span><div><p class="m04-kicker">Core concepts and practice</p><h2 id="m04-lecture-title">Detection rule tuning, enrichment, and automation</h2></div></div>
+          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">1</span><div><p class="m04-kicker mf-kicker">Core concepts and practice</p><h2 id="m04-lecture-title">Detection rule tuning, enrichment, and automation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m04-section m04-section-body" aria-labelledby="m04-lecture-title">
+      <section class="m04-section m04-section-body mf-section-body" aria-labelledby="m04-lecture-title">
         ${moduleFourVideoScript()}
         ${moduleFourLecture()}
         <div class="m04-guide-grid">
@@ -967,23 +986,23 @@ function viewModuleFour(user, program) {
     </details>`;
 
   const quizSection = `
-    <details class="m04-section-collapsible" ${quizOpen ? 'open' : ''}>
+    <details class="m04-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
       <summary class="m04-section-summary">
         <section class="m04-section" id="m04-knowledge-check" aria-labelledby="m04-quiz-title">
-          <div class="m04-section-heading"><span>2</span><div><p class="m04-kicker">Interactive knowledge check</p><h2 id="m04-quiz-title">Test your detection engineering knowledge</h2></div></div>
+          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m04-kicker mf-kicker">Interactive knowledge check</p><h2 id="m04-quiz-title">Test your detection engineering knowledge</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m04-section m04-section-body" aria-labelledby="m04-quiz-title"><div id="m04-quiz-dynamic">${moduleFourQuizPanel()}</div></section>
+      <section class="m04-section m04-section-body mf-section-body" aria-labelledby="m04-quiz-title"><div id="m04-quiz-dynamic">${moduleFourQuizPanel()}</div></section>
     </details>`;
 
   const guidedLabSection = `
-    <details class="m04-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
+    <details class="m04-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
       <summary class="m04-section-summary">
         <section class="m04-section m04-lab-section" id="m04-guided-lab" aria-labelledby="m04-guided-lab-title">
-          <div class="m04-section-heading"><span>3</span><div><p class="m04-kicker">Practice It · Guided Lab</p><h2 id="m04-guided-lab-title">Detection rule studio: tune, test, and enrich</h2></div></div>
+          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m04-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m04-guided-lab-title">Detection rule studio: tune, test, and enrich</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m04-section m04-section-body m04-lab-section" aria-labelledby="m04-guided-lab-title">
+      <section class="m04-section m04-section-body mf-section-body m04-lab-section" aria-labelledby="m04-guided-lab-title">
         <div class="m04-signposts" aria-label="Assisted lab signposts"><div><span>A</span>Inspect either source first</div><div><span>B</span>Test and enrich</div><div><span>C</span>Choose bounded action</div><div><span>D</span>Explain the package</div></div>
         <div class="m04-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This isolated surface contains one fictional rule, one authentication slice, and one intelligence snapshot. No other course environment or future-module evidence is reachable here.</p></div>
         <div id="m04-guided-lab-dynamic">${moduleFourGuidedLabPanel()}</div>
@@ -991,45 +1010,45 @@ function viewModuleFour(user, program) {
     </details>`;
 
   const assessmentLabSection = `
-    <details class="m04-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
+    <details class="m04-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
       <summary class="m04-section-summary">
         <section class="m04-section m04-lab-section" id="m04-assessment-lab" aria-labelledby="m04-assessment-lab-title">
-          <div class="m04-section-heading"><span>4</span><div><p class="m04-kicker">Prove It · Assessment Lab</p><h2 id="m04-assessment-lab-title">Detection package: score and submit</h2></div></div>
+          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m04-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m04-assessment-lab-title">Detection package: score and submit</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m04-section m04-section-body m04-lab-section" aria-labelledby="m04-assessment-lab-title">
+      <section class="m04-section m04-section-body mf-section-body m04-lab-section" aria-labelledby="m04-assessment-lab-title">
         <div id="m04-assessment-lab-dynamic">${moduleFourAssessmentLabPanel()}</div>
       </section>
     </details>`;
 
   const reviewSection = `
-    <details class="m04-section-collapsible" ${reviewOpen ? 'open' : ''}>
+    <details class="m04-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
       <summary class="m04-section-summary">
         <section class="m04-section" id="m04-review" aria-labelledby="m04-review-title">
-          <div class="m04-section-heading"><span>5</span><div><p class="m04-kicker">Concept recap</p><h2 id="m04-review-title">Module review and takeaways</h2></div></div>
+          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">5</span><div><p class="m04-kicker mf-kicker">Concept recap</p><h2 id="m04-review-title">Module review and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m04-section m04-section-body" aria-labelledby="m04-review-title">${moduleFourReview()}</section>
+      <section class="m04-section m04-section-body mf-section-body" aria-labelledby="m04-review-title">${moduleFourReview()}</section>
     </details>`;
 
   const sourcesSection = `
-    <details class="m04-section-collapsible" ${moduleFourReviewMode ? 'open' : ''}>
+    <details class="m04-section-collapsible mf-section mf-section-supplemental" ${moduleFourReviewMode ? 'open' : ''}>
       <summary class="m04-section-summary">
         <section class="m04-section" id="m04-sources" aria-labelledby="m04-sources-title">
-          <div class="m04-section-heading"><span>6</span><div><p class="m04-kicker">Supporting resources</p><h2 id="m04-sources-title">Further reading on detection and automation</h2></div></div>
+          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m04-kicker mf-kicker">Supporting resources</p><h2 id="m04-sources-title">Further reading on detection and automation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
-      <section class="m04-section m04-section-body" id="m04-sources-section" aria-labelledby="m04-sources-title">${moduleSourcesBlock(MODULE_FOUR_SOURCES)}</section>
+      <section class="m04-section m04-section-body mf-section-body" id="m04-sources-section" aria-labelledby="m04-sources-title">${moduleSourcesBlock(MODULE_FOUR_SOURCES)}</section>
     </details>`;
 
   return `<div class="m04-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleFourReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m04-main">
-      <section class="m04-hero" aria-labelledby="m04-title">
-        <div><p class="m04-kicker">Module 04 · ${formatHandsOnDuration(module.durationMinutes)} · assisted workflow</p><h1 id="m04-title">${esc(module.title)}</h1><p>Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p></div>
-        <dl class="m04-status" aria-label="Saved lab status"><div><dt>Guided Lab</dt><dd>${moduleFourState.ruleRuns > 0 && moduleFourState.enrichedIndicator ? 'Complete' : (moduleFourState.ruleRuns || moduleFourState.enrichedIndicator) ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m04-status">${complete ? 'Complete' : moduleFourState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
+      ${moduleProgressShell(sections, { reviewMode: moduleFourReviewMode })}
+      <main class="m04-main mf-frame">
+      <section class="m04-hero mf-hero" aria-labelledby="m04-title">
+        <div><p class="m04-kicker mf-kicker">Module 04 · ${formatHandsOnDuration(module.durationMinutes)} · assisted workflow</p><h1 id="m04-title">${esc(module.title)}</h1><p class="mf-lede">Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p></div>
+        <dl class="m04-status mf-stats" aria-label="Saved lab status"><div><dt>Guided Lab</dt><dd>${moduleFourState.ruleRuns > 0 && moduleFourState.enrichedIndicator ? 'Complete' : (moduleFourState.ruleRuns || moduleFourState.enrichedIndicator) ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m04-status">${complete ? 'Complete' : moduleFourState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
       </section>
 
       <section class="m04-objective" aria-labelledby="m04-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m04-kicker">One measurable objective</p><h2 id="m04-objective-title">Tune a detection to catch one distributed password spray while excluding one benign retry pattern, then justify enrichment and bounded automation with at least ${MODULE_FOUR_PASSING_SCORE}/100.</h2></div></section>
@@ -1095,6 +1114,14 @@ function wireModuleFourQuiz() {
   });
 
   quizForm.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m04-quiz-retake]')) {
+      event.preventDefault();
+      moduleFourQuizForceRetake = true;
+      moduleFourRenderQuiz('m04-quiz-title');
+      // The container re-render replaced the form element; wire the new one.
+      wireModuleFourQuiz();
+      return;
+    }
     if (!event.target.closest('[data-m04-quiz-retry]')) return;
     const previousQuestionIds = moduleFourState.lastQuizQuestionIds || [];
     Object.assign(moduleFourQuizState, resetQuizAttempt(moduleFourQuizState, MODULE_FOUR_QUIZ_BANKS, { previousQuestionIds, shuffleOptions: true, preserveScoredResult: true }));

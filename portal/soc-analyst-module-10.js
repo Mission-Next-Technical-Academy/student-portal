@@ -341,6 +341,9 @@ const MODULE_TEN_SOURCES_LIST = [
 ];
 
 let moduleTenQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleTenQuizVerifiedElsewhere()).
+let moduleTenQuizForceRetake = false;
 let moduleTenReviewMode = false;
 let moduleTenUser = null;
 
@@ -356,6 +359,7 @@ let moduleTenGuidedState = null;
 let moduleTenAssessmentState = null;
 
 function moduleTenLoad(user) {
+  if (moduleTenUser?.email !== user?.email) moduleTenQuizForceRetake = false;
   moduleTenUser = user;
   moduleTenGuidedState = LabRuntime.loadCaseState(MODULE_TEN_GUIDED_LAB_ID, 'soc-10', user, MODULE_TEN_GUIDED_DEFAULT_STATE);
   moduleTenAssessmentState = LabRuntime.loadCaseState(MODULE_TEN_ASSESSMENT_LAB_ID, 'soc-10', user, MODULE_TEN_ASSESSMENT_DEFAULT_STATE);
@@ -481,9 +485,24 @@ function moduleTenQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleTenQuizVerifiedElsewhere() {
+  if (moduleTenQuizForceRetake || !moduleTenQuizState || moduleTenQuizState.scored) return false;
+  if (Object.keys(moduleTenQuizState.answers || {}).length > 0) return false;
+  return moduleTenUser?.remoteVerifiedModuleProgress?.['soc-10'] === true
+    || moduleTenUser?.remoteModuleDetail?.['soc-10']?.quizPassed === true
+    || moduleTenUser?.remoteModuleEvidence?.['soc-10']?.['knowledge-check'] === true;
+}
+
 function moduleTenQuizPanel() {
   if (!moduleTenQuizState?.selectedQuestions || moduleTenQuizState.selectedQuestions.length === 0) {
     return `<div class="m10-quiz-empty" id="m10-quiz-feedback" role="status">Loading quiz…</div>`;
+  }
+  if (moduleTenQuizVerifiedElsewhere()) {
+    return `<form class="m10-quiz-form mf-quiz-form" id="m10-quiz-form" novalidate><section class="mf-score is-pass" id="m10-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m10-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleTenQuizState.selectedQuestions;
@@ -493,7 +512,7 @@ function moduleTenQuizPanel() {
   let feedbackHtml = '';
   if (moduleTenQuizState.scored) {
     const passed = moduleTenQuizState.score >= 70;
-    feedbackHtml = `<section class="m10-quiz-score ${passed ? 'm10-quiz-pass' : 'm10-quiz-remediate'}" id="m10-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m10-quiz-score mf-score ${passed ? 'm10-quiz-pass is-pass' : 'm10-quiz-remediate is-remediate'}" id="m10-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m10-quiz-score-heading">
         <div>
           <p class="m10-kicker">Attempt ${moduleTenQuizState.attempts} · best ${moduleTenQuizState.bestScore}/100</p>
@@ -518,8 +537,8 @@ function moduleTenQuizPanel() {
     feedbackHtml = `<div class="m10-quiz-empty" id="m10-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m10-quiz-form" id="m10-quiz-form" novalidate>
-    <div class="m10-panel-heading"><div><p class="m10-kicker">Knowledge check</p><h3 id="m10-quiz-title" tabindex="-1">Test your understanding of evidence handling and timeline reconstruction</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m10-quiz-form mf-quiz-form" id="m10-quiz-form" novalidate>
+    <div class="m10-panel-heading mf-panel-heading"><div><p class="m10-kicker mf-kicker">Knowledge check</p><h3 id="m10-quiz-title" tabindex="-1">Test your understanding of evidence handling and timeline reconstruction</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleTenQuizQuestion(sel, idx)).join('')}
     <div class="m10-quiz-actions">
       <button class="m10-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -594,53 +613,53 @@ function viewModuleTen(user, program) {
 
   return `<div class="m10-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleTenReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m10-main">
-      <section class="m10-hero" aria-labelledby="m10-title"><div><p class="m10-kicker">Module 10 · ${formatHandsOnDuration(module.durationMinutes)} · independent</p><h1 id="m10-title">${esc(module.title)}</h1><p>Preserve incident evidence, document custody, and reconstruct a separate case from chronology and demonstrated behavior. ATT&CK remains subordinate to the evidence as a behavior framework; it does not replace the case record.</p></div><dl aria-label="Module lab progress"><div><dt>Guided Lab</dt><dd>${moduleTenGuidedState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m10-status">${complete ? 'Complete' : moduleTenAssessmentState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      ${moduleProgressShell(sections, { reviewMode: moduleTenReviewMode })}
+      <main class="m10-main mf-frame">
+      <section class="m10-hero mf-hero" aria-labelledby="m10-title"><div><p class="m10-kicker mf-kicker">Module 10 · ${formatHandsOnDuration(module.durationMinutes)} · independent</p><h1 id="m10-title">${esc(module.title)}</h1><p class="mf-lede">Preserve incident evidence, document custody, and reconstruct a separate case from chronology and demonstrated behavior. ATT&CK remains subordinate to the evidence as a behavior framework; it does not replace the case record.</p></div><dl class="mf-stats" aria-label="Module lab progress"><div><dt>Guided Lab</dt><dd>${moduleTenGuidedState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m10-status">${complete ? 'Complete' : moduleTenAssessmentState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
-      <details class="m10-section-collapsible" ${lectureOpen ? 'open' : ''}>
-        <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">1</span><div><p class="m10-kicker">Lecture</p><h2 id="m10-lecture">Evidence acquisition, custody, timeline reconstruction, and bounded conclusions</h2></div></div></summary>
-        <div class="m10-section-body">
+      <details class="m10-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
+        <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge">1</span><div><p class="m10-kicker mf-kicker">Lecture</p><h2 id="m10-lecture">Evidence acquisition, custody, timeline reconstruction, and bounded conclusions</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m10-section-body mf-section-body">
           <section class="m10-boundary"><i class="ri-lock-2-line" aria-hidden="true"></i><p><strong>Bounded practice:</strong> this is incident evidence handling and case documentation, not a full digital-forensics program. Acquisition and specialist examination remain with authorized specialists; each exercise contains only its assigned synthetic case dataset.</p></section>
           ${moduleTenScenarioLoops()}
           ${moduleTenVideoScript()}
         </div>
       </details>
 
-      <details class="m10-section-collapsible" ${quizOpen ? 'open' : ''}>
-        <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">2</span><div><p class="m10-kicker">Knowledge Check</p><h2 id="m10-knowledge-check">Test your understanding of evidence handling and timeline reconstruction</h2></div></div></summary>
-        <div class="m10-section-body">
+      <details class="m10-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
+        <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge">2</span><div><p class="m10-kicker mf-kicker">Knowledge Check</p><h2 id="m10-knowledge-check">Test your understanding of evidence handling and timeline reconstruction</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m10-section-body mf-section-body">
           <div id="m10-quiz-panel">${moduleTenQuizPanel()}</div>
         </div>
       </details>
 
-      <details class="m10-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">3</span><div><p class="m10-kicker">Practice It · Guided Lab</p><h2 id="m10-guided-lab">Windows forensics practice</h2></div></div></summary>
-        <div class="m10-section-body">
+      <details class="m10-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge">3</span><div><p class="m10-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m10-guided-lab">Windows forensics practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m10-section-body mf-section-body">
           <div class="m10-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in the imported training application on this page.</p></div>
           <div id="m10-guided-lab-dynamic">${moduleTenGuidedLabPanel()}</div>
         </div>
       </details>
 
-      <details class="m10-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">4</span><div><p class="m10-kicker">Prove It · Assessment Lab</p><h2 id="m10-assessment-lab">Independent Windows forensics review</h2></div></div></summary>
-        <div class="m10-section-body">
+      <details class="m10-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge">4</span><div><p class="m10-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m10-assessment-lab">Independent Windows forensics review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m10-section-body mf-section-body">
           <div id="m10-assessment-lab-dynamic">${moduleTenAssessmentLabPanel()}</div>
         </div>
       </details>
       ${moduleTenAdditionalLabs()}
 
-      <details class="m10-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">5</span><div><p class="m10-kicker">Review</p><h2 id="m10-review">Module Review</h2></div></div></summary>
-        <div class="m10-section-body">
+      <details class="m10-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
+        <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge">5</span><div><p class="m10-kicker mf-kicker">Review</p><h2 id="m10-review">Module Review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m10-section-body mf-section-body">
           ${moduleTenReview()}
         </div>
       </details>
 
-      <details class="m10-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m10-section"><div class="m10-section-heading"><span class="m10-section-badge">6</span><div><p class="m10-kicker">Sources</p><h2 id="m10-sources">Further Reading & Citation</h2></div></div></summary>
-        <div class="m10-section-body">
+      <details class="m10-section-collapsible mf-section mf-section-supplemental" ${reviewOpen ? 'open' : ''}>
+        <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m10-kicker mf-kicker">Sources</p><h2 id="m10-sources">Further Reading & Citation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m10-section-body mf-section-body">
           ${moduleSourcesBlock(MODULE_TEN_SOURCES_LIST)}
         </div>
       </details>
@@ -714,6 +733,12 @@ function wireModuleTenQuiz() {
   });
 
   form.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m10-quiz-retake]')) {
+      event.preventDefault();
+      moduleTenQuizForceRetake = true;
+      form.innerHTML = moduleTenQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m10-quiz-retry]')) return;
     moduleTenQuizState = {
       selectedQuestions: moduleTenQuizState.selectedQuestions.map((sq) => ({ ...sq })),

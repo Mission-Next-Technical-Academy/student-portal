@@ -404,8 +404,12 @@ let moduleFiveState = null;
 let moduleFiveUser = null;
 let moduleFiveReviewMode = false;
 let moduleFiveQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleFiveQuizVerifiedElsewhere()).
+let moduleFiveQuizForceRetake = false;
 
 function moduleFiveLoad(user) {
+  if (moduleFiveUser?.email !== user?.email) moduleFiveQuizForceRetake = false;
   moduleFiveUser = user;
   moduleFiveState = LabRuntime.loadCaseState(MODULE_FIVE_LAB_ID, 'soc-05', user, MODULE_FIVE_DEFAULT_STATE);
   if (!Array.isArray(moduleFiveState.feedback)) moduleFiveState.feedback = [];
@@ -486,9 +490,24 @@ function moduleFiveQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleFiveQuizVerifiedElsewhere() {
+  if (moduleFiveQuizForceRetake || !moduleFiveQuizState || moduleFiveQuizState.scored) return false;
+  if (Object.keys(moduleFiveQuizState.answers || {}).length > 0) return false;
+  return moduleFiveUser?.remoteVerifiedModuleProgress?.['soc-05'] === true
+    || moduleFiveUser?.remoteModuleDetail?.['soc-05']?.quizPassed === true
+    || moduleFiveUser?.remoteModuleEvidence?.['soc-05']?.['knowledge-check'] === true;
+}
+
 function moduleFiveQuizPanel() {
   if (!moduleFiveQuizState?.selectedQuestions || moduleFiveQuizState.selectedQuestions.length === 0) {
     return `<div class="m05-quiz-empty" id="m05-quiz-feedback" role="status">Loading quiz...</div>`;
+  }
+  if (moduleFiveQuizVerifiedElsewhere()) {
+    return `<form class="m05-quiz-form mf-quiz-form" id="m05-quiz-form" novalidate><section class="mf-score is-pass" id="m05-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m05-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleFiveQuizState.selectedQuestions;
@@ -498,7 +517,7 @@ function moduleFiveQuizPanel() {
   let feedbackHtml = '';
   if (moduleFiveQuizState.scored) {
     const passed = moduleFiveQuizState.score >= 70;
-    feedbackHtml = `<section class="m05-quiz-score ${passed ? 'm05-quiz-pass' : 'm05-quiz-remediate'}" id="m05-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m05-quiz-score mf-score ${passed ? 'm05-quiz-pass is-pass' : 'm05-quiz-remediate is-remediate'}" id="m05-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m05-quiz-score-heading">
         <div>
           <p class="m05-kicker">Attempt ${moduleFiveQuizState.attempts} · best ${moduleFiveQuizState.bestScore}/100</p>
@@ -523,8 +542,8 @@ function moduleFiveQuizPanel() {
     feedbackHtml = `<div class="m05-quiz-empty" id="m05-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m05-quiz-form" id="m05-quiz-form" novalidate>
-    <div class="m05-panel-heading"><div><p class="m05-kicker">Knowledge check</p><h3 id="m05-quiz-title" tabindex="-1">Test your understanding of endpoint investigation</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m05-quiz-form mf-quiz-form" id="m05-quiz-form" novalidate>
+    <div class="m05-panel-heading mf-panel-heading"><div><p class="m05-kicker mf-kicker">Knowledge check</p><h3 id="m05-quiz-title" tabindex="-1">Test your understanding of endpoint investigation</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleFiveQuizQuestion(sel, idx)).join('')}
     <div class="m05-quiz-actions">
       <button class="m05-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -578,14 +597,14 @@ function moduleFiveReview() {
 function moduleFiveLessonLoop(lesson, index) {
   const work = moduleFiveState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
   const feedback = work.feedback?.length ? `<p class="m05-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
-  return `<details class="m05-lesson-loop" ${work.taskComplete ? '' : (index === 0 ? 'open' : '')}>
-    <summary><span class="m05-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m05-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m05-chevron" aria-hidden="true"></i>'}</summary>
-    <div class="m05-lesson-loop-body"><section><p class="m05-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m05-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m05-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m05-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m05-loop-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m05-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option.text)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m05-lesson-check" data-m05-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m05-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m05-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m05-lesson-task-button" data-m05-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div>
+  return `<details class="m05-lesson-loop mf-lesson" ${work.taskComplete ? '' : (index === 0 ? 'open' : '')}>
+    <summary><span class="m05-lesson-number mf-lesson-number">${String(index + 1).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
+    <div class="m05-lesson-loop-body mf-lesson-body"><section><p class="m05-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m05-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m05-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m05-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m05-loop-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m05-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option.text)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m05-lesson-check" data-m05-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m05-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m05-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m05-lesson-task-button" data-m05-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div>
   </details>`;
 }
 
 function moduleFiveLessonGrid() {
-  return `<section class="m05-lesson-loops" id="m05-lesson-loops" aria-labelledby="m05-lesson-loops-title"><div class="m05-panel-heading"><div><p class="m05-kicker">Four-part lesson loops</p><h3 id="m05-lesson-loops-title">Practice the fake-CAPTCHA execution chain</h3></div><span>10 lessons · embedded in existing theory minutes</span></div><div class="m05-lesson-grid">${MODULE_FIVE_LESSON_LOOPS.map(moduleFiveLessonLoop).join('')}</div></section>`;
+  return `<section class="m05-lesson-loops" id="m05-lesson-loops" aria-labelledby="m05-lesson-loops-title"><div class="m05-panel-heading"><div><p class="m05-kicker">Four-part lesson loops</p><h3 id="m05-lesson-loops-title">Practice the fake-CAPTCHA execution chain</h3></div><span>10 lessons · embedded in existing theory minutes</span></div><div class="m05-lesson-grid mf-lesson-grid">${MODULE_FIVE_LESSON_LOOPS.map(moduleFiveLessonLoop).join('')}</div></section>`;
 }
 
 
@@ -676,45 +695,45 @@ function viewModuleFive(user, program) {
 
   return `<div class="m05-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleFiveReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m05-main">
-      <section class="m05-hero" aria-labelledby="m05-title"><div><p class="m05-kicker">Module 05 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p>Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p></div><dl><div><dt>Guided Lab</dt><dd>${moduleFiveState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m05-status">${complete ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      ${moduleProgressShell(sections, { reviewMode: moduleFiveReviewMode })}
+      <main class="m05-main mf-frame">
+      <section class="m05-hero mf-hero" aria-labelledby="m05-title"><div><p class="m05-kicker mf-kicker">Module 05 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p class="mf-lede">Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p></div><dl class="mf-stats"><div><dt>Guided Lab</dt><dd>${moduleFiveState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m05-status">${complete ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
-      <details class="m05-section-collapsible" ${lectureOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">1</span><div><p class="m05-kicker">Lecture</p><h2 id="m05-lecture">Endpoint investigation foundations</h2></div></div></summary>
-        <div class="m05-section-body">${moduleFiveLecture()}${moduleFiveVideoScript()}${moduleFiveLessonGrid()}</div>
+      <details class="m05-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">1</span><div><p class="m05-kicker mf-kicker">Lecture</p><h2 id="m05-lecture">Endpoint investigation foundations</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">${moduleFiveLecture()}${moduleFiveVideoScript()}${moduleFiveLessonGrid()}</div>
       </details>
 
-      <details class="m05-section-collapsible" ${quizOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">2</span><div><p class="m05-kicker">Knowledge Check</p><h2 id="m05-knowledge-check">Test your understanding of endpoint investigation</h2></div></div></summary>
-        <div class="m05-section-body">${moduleFiveQuizPanel()}</div>
+      <details class="m05-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">2</span><div><p class="m05-kicker mf-kicker">Knowledge Check</p><h2 id="m05-knowledge-check">Test your understanding of endpoint investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">${moduleFiveQuizPanel()}</div>
       </details>
 
-      <details class="m05-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">3</span><div><p class="m05-kicker">Practice It · Guided Lab</p><h2 id="m05-guided-lab">Malware analysis practice</h2></div></div></summary>
-        <div class="m05-section-body">
+      <details class="m05-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">3</span><div><p class="m05-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m05-guided-lab">Malware analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">
           <div class="m05-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in the imported training application on this page.</p></div>
           <div id="m05-guided-lab-dynamic">${moduleFiveGuidedLabPanel()}</div>
         </div>
       </details>
 
-      <details class="m05-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">4</span><div><p class="m05-kicker">Prove It · Assessment Labs</p><h2 id="m05-assessment-lab">Independent Sysmon and keylogger event analysis</h2></div></div></summary>
-        <div class="m05-section-body">
+      <details class="m05-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">4</span><div><p class="m05-kicker mf-kicker">Prove It · Assessment Labs</p><h2 id="m05-assessment-lab">Independent Sysmon and keylogger event analysis</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">
           <div id="m05-assessment-lab-dynamic">${moduleFiveAssessmentLabPanel()}</div>
         </div>
       </details>
       ${moduleFiveAdditionalLabs()}
 
-      <details class="m05-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">5</span><div><p class="m05-kicker">Module Review</p><h2 id="m05-review">Key concepts and takeaways</h2></div></div></summary>
-        <div class="m05-section-body">${moduleFiveReview()}</div>
+      <details class="m05-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">5</span><div><p class="m05-kicker mf-kicker">Module Review</p><h2 id="m05-review">Key concepts and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">${moduleFiveReview()}</div>
       </details>
 
-      <details class="m05-section-collapsible" ${moduleFiveReviewMode ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">6</span><div><p class="m05-kicker">Sources & Further Reading</p><h2 id="m05-sources">Authoritative references on endpoint investigation</h2></div></div></summary>
-        <div class="m05-section-body">${moduleSourcesBlock(MODULE_FIVE_SOURCES)}</div>
+      <details class="m05-section-collapsible mf-section mf-section-supplemental" ${moduleFiveReviewMode ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m05-kicker mf-kicker">Sources & Further Reading</p><h2 id="m05-sources">Authoritative references on endpoint investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">${moduleSourcesBlock(MODULE_FIVE_SOURCES)}</div>
       </details>
     </main>
     </div>
@@ -772,6 +791,12 @@ function wireModuleFiveQuiz() {
   });
 
   form.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m05-quiz-retake]')) {
+      event.preventDefault();
+      moduleFiveQuizForceRetake = true;
+      form.innerHTML = moduleFiveQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m05-quiz-retry]')) return;
     event.preventDefault();
     const previousQuestionIds = moduleFiveQuizState.selectedQuestions.map((s) => s.question.id);

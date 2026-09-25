@@ -255,3 +255,35 @@ Before changing an interactive lab or assessment, read
 Learn It → Practice It → Prove It progression, instructor-reviewable Prove It
 submissions, readable student responses, competency scoring, partial credit,
 and multiple valid investigative paths.
+
+### 7.1 Module front-of-page card standard (locked 2026-09-25)
+
+The front of every module — everything a student sees before entering a lab
+console — must look and behave exactly like Module 01. Labs/consoles may vary
+by domain; the frame around them may not. Canonical source: the `.m01-*`
+rules in `portal/module-labs.css` and the markup in
+`portal/soc-analyst-module-01.js`. When a module differs, change the module,
+not the reference.
+
+| Element | Standard (Module 01) |
+|---|---|
+| Hero | dark navy gradient card (`#081627 → #1e3a5f → #183b63`), orange kicker, large title, stat tiles on the right (lessons / guided lab / status) |
+| Section card | white, `1px #e2e8f0` border, `20px` radius, `0 8px 24px rgba(30,58,95,.05)` shadow, `24px` top gap |
+| Section heading | `40×40` navy numbered badge (`11px` radius), orange uppercase kicker, `23px` navy title |
+| Section toggle | round `36×36` button, `#f9fafb` fill, `#e5e7eb` border, **`ri-arrow-down-s-line`** chevron, rotates 180° when open; right-aligned in the heading |
+| Lesson card | `<details>`, `#fbfdff` fill, `#dbe3ed` border, `14px` radius; summary = number · `38×38` icon tile · title/summary · green check when done · `ri-arrow-down-s-line` chevron (rotates 180° on open); open state gets `#93b4d4` border + white fill + soft shadow |
+| Knowledge-check card | same panel heading (`kicker` + `h3` + `N/M answered`), pass = `#f0fdf4`/`#bbf7d0`, remediate = `#fff7ed`/`#fed7aa` |
+| Already-complete quiz | when the account shows the quiz passed but this browser holds no answers, render the **"Already verified complete"** pass card with a **Retake** button — never a blank `0/N answered` form, never fabricated answers |
+
+Rules:
+- One chevron icon family everywhere: `ri-arrow-down-s-line`, rotated on open.
+  No `ri-arrow-right-line`, `ri-arrow-down-line`, `+/-`, or native
+  `<details>` markers for collapsible cards.
+- No per-module recolouring of these elements. Module accent colour is not a thing.
+- Shared look lives in shared CSS; a module stylesheet may lay out its own
+  lab/console internals but must not restyle the frame elements above.
+- A submit button on a graded lab is clickable until the work is
+  submitted; if items are missing, clicking it lists them. It only greys out
+  (with a label) when the work is **Under review** or **Graded**. Instructor
+  redo notes must appear inside the module and the lab console, not only on
+  the program card.

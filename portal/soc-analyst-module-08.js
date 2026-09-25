@@ -402,9 +402,13 @@ const MODULE_EIGHT_DEFAULT_STATE = {
 let moduleEightState = null;
 let moduleEightUser = null;
 let moduleEightQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleEightQuizVerifiedElsewhere()).
+let moduleEightQuizForceRetake = false;
 let moduleEightReviewMode = false;
 
 function moduleEightLoad(user) {
+  if (moduleEightUser?.email !== user?.email) moduleEightQuizForceRetake = false;
   moduleEightUser = user;
   moduleEightState = LabRuntime.loadCaseState(MODULE_EIGHT_LAB_ID, 'soc-08', user, MODULE_EIGHT_DEFAULT_STATE);
   if (!Array.isArray(moduleEightState.feedback)) moduleEightState.feedback = [];
@@ -454,7 +458,7 @@ function moduleEightConcepts() {
 function moduleEightLessonLoop(lesson, index) {
   const work = moduleEightState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
   const feedback = work.feedback?.length ? `<p class="m08-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
-  return `<details class="m08-lesson-loop" ${work.taskComplete ? '' : 'open'}><summary><span class="m08-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${lesson.minutes} minutes · ${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m08-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line" aria-hidden="true"></i>'}</summary><div class="m08-lesson-loop-body"><section><p class="m08-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m08-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m08-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m08-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m08-lesson-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m08-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m08-lesson-check" data-m08-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m08-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m08-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m08-lesson-task-button" data-m08-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div></details>`;
+  return `<details class="m08-lesson-loop mf-lesson" ${work.taskComplete ? '' : 'open'}><summary><span class="m08-lesson-number mf-lesson-number">${String(index + 1).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${lesson.minutes} minutes · ${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary><div class="m08-lesson-loop-body mf-lesson-body"><section><p class="m08-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m08-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m08-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m08-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m08-lesson-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m08-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m08-lesson-check" data-m08-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m08-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m08-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m08-lesson-task-button" data-m08-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div></details>`;
 }
 
 function moduleEightLessonLoopsView() {
@@ -518,9 +522,24 @@ function moduleEightQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleEightQuizVerifiedElsewhere() {
+  if (moduleEightQuizForceRetake || !moduleEightQuizState || moduleEightQuizState.scored) return false;
+  if (Object.keys(moduleEightQuizState.answers || {}).length > 0) return false;
+  return moduleEightUser?.remoteVerifiedModuleProgress?.['soc-08'] === true
+    || moduleEightUser?.remoteModuleDetail?.['soc-08']?.quizPassed === true
+    || moduleEightUser?.remoteModuleEvidence?.['soc-08']?.['knowledge-check'] === true;
+}
+
 function moduleEightQuizPanel() {
   if (!moduleEightQuizState?.selectedQuestions || moduleEightQuizState.selectedQuestions.length === 0) {
     return `<div class="m08-quiz-empty" id="m08-quiz-feedback" role="status">Loading quiz…</div>`;
+  }
+  if (moduleEightQuizVerifiedElsewhere()) {
+    return `<form class="m08-quiz-form mf-quiz-form" id="m08-quiz-form" novalidate><section class="mf-score is-pass" id="m08-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m08-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleEightQuizState.selectedQuestions;
@@ -530,7 +549,7 @@ function moduleEightQuizPanel() {
   let feedbackHtml = '';
   if (moduleEightQuizState.scored) {
     const passed = moduleEightQuizState.score >= 70;
-    feedbackHtml = `<section class="m08-quiz-score ${passed ? 'm08-quiz-pass' : 'm08-quiz-remediate'}" id="m08-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m08-quiz-score mf-score ${passed ? 'm08-quiz-pass is-pass' : 'm08-quiz-remediate is-remediate'}" id="m08-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m08-quiz-score-heading">
         <div>
           <p class="m08-kicker">Attempt ${moduleEightQuizState.attempts} · best ${moduleEightQuizState.bestScore}/100</p>
@@ -555,8 +574,8 @@ function moduleEightQuizPanel() {
     feedbackHtml = `<div class="m08-quiz-empty" id="m08-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m08-quiz-form" id="m08-quiz-form" novalidate>
-    <div class="m08-panel-heading"><div><p class="m08-kicker">Knowledge check</p><h3 id="m08-quiz-title" tabindex="-1">Test your understanding of vulnerability prioritization</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m08-quiz-form mf-quiz-form" id="m08-quiz-form" novalidate>
+    <div class="m08-panel-heading mf-panel-heading"><div><p class="m08-kicker mf-kicker">Knowledge check</p><h3 id="m08-quiz-title" tabindex="-1">Test your understanding of vulnerability prioritization</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleEightQuizQuestion(sel, idx)).join('')}
     <div class="m08-quiz-actions">
       <button class="m08-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -675,48 +694,48 @@ function viewModuleEight(user, program) {
 
   return `<div class="m08-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleEightReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m08-main">
-      <section class="m08-hero" aria-labelledby="m08-title"><div><p class="m08-kicker">Module 08 · ${formatHandsOnDuration(module.durationMinutes)} · SOC prioritization</p><h1 id="m08-title">${esc(module.title)}</h1><p class="m08-lede">Validate assigned findings, weigh exploitability, reachability, business impact, and controls, then prioritize and escalate them through the SOC workflow. Enterprise scanning governance, remediation-program ownership, and risk acceptance remain outside this module.</p></div><dl class="m08-progress" aria-label="Saved Module 08 progress"><div><dt>Guided Lab</dt><dd>${moduleEightState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m08-status">${complete ? 'Complete' : moduleEightState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      ${moduleProgressShell(sections, { reviewMode: moduleEightReviewMode })}
+      <main class="m08-main mf-frame">
+      <section class="m08-hero mf-hero" aria-labelledby="m08-title"><div><p class="m08-kicker mf-kicker">Module 08 · ${formatHandsOnDuration(module.durationMinutes)} · SOC prioritization</p><h1 id="m08-title">${esc(module.title)}</h1><p class="m08-lede mf-lede">Validate assigned findings, weigh exploitability, reachability, business impact, and controls, then prioritize and escalate them through the SOC workflow. Enterprise scanning governance, remediation-program ownership, and risk acceptance remain outside this module.</p></div><dl class="m08-progress mf-stats" aria-label="Saved Module 08 progress"><div><dt>Guided Lab</dt><dd>${moduleEightState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m08-status">${complete ? 'Complete' : moduleEightState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
-      <details class="m08-section-collapsible" ${lectureOpen ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading"><span class="m08-section-badge">1</span><div><p class="m08-kicker">Lecture</p><h2 id="m08-lecture">Vulnerability prioritization using contextual risk</h2></div></div></summary>
-        <div class="m08-section-body">
+      <details class="m08-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
+        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">1</span><div><p class="m08-kicker mf-kicker">Lecture</p><h2 id="m08-lecture">Vulnerability prioritization using contextual risk</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m08-section-body mf-section-body">
           <section class="m08-section" id="m08-field-guide" aria-labelledby="m08-guide-title"><div class="m08-section-heading"><span>a</span><div><p class="m08-kicker">Field guide</p><h3 id="m08-guide-title">Treat vulnerability data as a decision input</h3></div></div><p class="m08-intro">The base score describes technical severity under standard assumptions. Your priority must also explain whether this instance is actually affected, reachable, exploitable, important, and protected.</p>${moduleEightConcepts()}${moduleEightLessonLoopsView()}</section>
           ${moduleEightVideoScript()}
         </div>
       </details>
 
-      <details class="m08-section-collapsible" ${quizOpen ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading"><span class="m08-section-badge">2</span><div><p class="m08-kicker">Knowledge Check</p><h2 id="m08-knowledge-check">Test your understanding of vulnerability prioritization</h2></div></div></summary>
-        <div class="m08-section-body">${moduleEightQuizPanel()}</div>
+      <details class="m08-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
+        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">2</span><div><p class="m08-kicker mf-kicker">Knowledge Check</p><h2 id="m08-knowledge-check">Test your understanding of vulnerability prioritization</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m08-section-body mf-section-body">${moduleEightQuizPanel()}</div>
       </details>
 
-      <details class="m08-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading"><span class="m08-section-badge">3</span><div><p class="m08-kicker">Practice It · Guided Lab</p><h2 id="m08-guided-lab">Vulnerability management practice</h2></div></div></summary>
-        <div class="m08-section-body">
+      <details class="m08-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">3</span><div><p class="m08-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m08-guided-lab">Vulnerability management practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m08-section-body mf-section-body">
           <div class="m08-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Lab boundary:</strong><p>These labs open in the imported training application on this page.</p></div></div>
           <div id="m08-guided-lab-dynamic">${moduleEightGuidedLabPanel()}</div>
         </div>
       </details>
 
-      <details class="m08-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading"><span class="m08-section-badge">4</span><div><p class="m08-kicker">Prove It · Assessment Lab</p><h2 id="m08-assessment-lab">Independent vulnerability remediation review</h2></div></div></summary>
-        <div class="m08-section-body">
+      <details class="m08-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">4</span><div><p class="m08-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m08-assessment-lab">Independent vulnerability remediation review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m08-section-body mf-section-body">
           <div id="m08-assessment-lab-dynamic">${moduleEightAssessmentLabPanel()}</div>
         </div>
       </details>
       ${moduleEightAdditionalLabs()}
 
-      <details class="m08-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading"><span class="m08-section-badge">5</span><div><p class="m08-kicker">Module Review</p><h2 id="m08-review">Key concepts and takeaways</h2></div></div></summary>
-        <div class="m08-section-body">${moduleEightReview()}</div>
+      <details class="m08-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
+        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">5</span><div><p class="m08-kicker mf-kicker">Module Review</p><h2 id="m08-review">Key concepts and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m08-section-body mf-section-body">${moduleEightReview()}</div>
       </details>
 
-      <details class="m08-section-collapsible" ${moduleEightReviewMode ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading"><span class="m08-section-badge">6</span><div><p class="m08-kicker">Sources &amp; Further Reading</p><h2 id="m08-sources">Authoritative references</h2></div></div></summary>
-        <div class="m08-section-body">${moduleSourcesBlock(MODULE_EIGHT_SOURCES_LIST)}</div>
+      <details class="m08-section-collapsible mf-section mf-section-supplemental" ${moduleEightReviewMode ? 'open' : ''}>
+        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m08-kicker mf-kicker">Sources &amp; Further Reading</p><h2 id="m08-sources">Authoritative references</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m08-section-body mf-section-body">${moduleSourcesBlock(MODULE_EIGHT_SOURCES_LIST)}</div>
       </details>
     </main>
     </div>
@@ -799,6 +818,12 @@ function wireModuleEightQuiz() {
   });
 
   form.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m08-quiz-retake]')) {
+      event.preventDefault();
+      moduleEightQuizForceRetake = true;
+      form.innerHTML = moduleEightQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m08-quiz-retry]')) return;
     event.preventDefault();
     const previousQuestionIds = moduleEightQuizState.selectedQuestions.map((s) => s.question.id);
