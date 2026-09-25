@@ -563,26 +563,26 @@
             <p class="m01-lede">Trace a connection from identity and device to resource and policy in one console. Authentication confirms identity; authorization decides what that identity may access.</p>
           </div></section>
 
-          <section class="m01-section m02e-section" id="m02e-learn" aria-labelledby="m02e-learn-title">
-            <div class="m01-section-heading"><span>1</span><div><p class="m01-kicker">Learn It · guided walkthrough</p><h2 id="m02e-learn-title">Read a connection the way an analyst does</h2></div></div>
+          <details class="m01-section m02e-section m02e-section-collapsible" id="m02e-learn" open aria-labelledby="m02e-learn-title">
+            <summary class="m01-section-heading"><span>1</span><div><p class="m01-kicker">Learn It · guided walkthrough</p><h2 id="m02e-learn-title">Read a connection the way an analyst does</h2></div></summary>
             ${learnCallout()}
             <div class="m02e-console-wrap" id="m02e-console-learn">${consoleHtml('learn')}</div>
-          </section>
+          </details>
 
-          <section class="m01-section m02e-section" id="m02e-practice" aria-labelledby="m02e-practice-title">
-            <div class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Practice It · Guided Lab</p><h2 id="m02e-practice-title">Security assessment practice</h2></div></div>
+          <details class="m01-section m02e-section m02e-section-collapsible" id="m02e-practice" open aria-labelledby="m02e-practice-title">
+            <summary class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Practice It · Guided Lab</p><h2 id="m02e-practice-title">Security assessment practice</h2></div></summary>
             ${practicePanel()}
-          </section>
+          </details>
 
-          <section class="m01-section m02e-section" id="m02e-prove" aria-labelledby="m02e-prove-title">
-            <div class="m01-section-heading"><span>3</span><div><p class="m01-kicker">Prove It · Assessment Lab</p><h2 id="m02e-prove-title">Independent Active Directory log review</h2></div></div>
+          <details class="m01-section m02e-section m02e-section-collapsible" id="m02e-prove" open aria-labelledby="m02e-prove-title">
+            <summary class="m01-section-heading"><span>3</span><div><p class="m01-kicker">Prove It · Assessment Lab</p><h2 id="m02e-prove-title">Independent Active Directory log review</h2></div></summary>
             ${provePanel()}
-          </section>
+          </details>
 
-          <section class="m01-section m01-section-supplemental m02e-section" id="m02e-sources" aria-labelledby="m02e-sources-title">
-            <div class="m01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Reference — not a graded step</p><h2 id="m02e-sources-title">Sources &amp; Further Reading</h2></div></div>
+          <details class="m01-section m01-section-supplemental m02e-section m02e-section-collapsible" id="m02e-sources" open aria-labelledby="m02e-sources-title">
+            <summary class="m01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Reference — not a graded step</p><h2 id="m02e-sources-title">Sources &amp; Further Reading</h2></div></summary>
             ${moduleSourcesBlock(SOURCES)}
-          </section>
+          </details>
         </main>
       </div>
     </div>`;
