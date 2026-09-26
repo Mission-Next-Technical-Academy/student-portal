@@ -514,7 +514,7 @@ function moduleSevenLoad(user) {
   }
   if (!moduleSevenState.labProgress || typeof moduleSevenState.labProgress !== 'object') moduleSevenState.labProgress = {};
   // Backward compat: a pre-case-record submission only had `completed` +
-  // `notes`. Preserve it as an already-submitted case record so the student
+  // `notes`. Preserve it as an already-submitted ITSM ticket so the student
   // still sees Lab Under Review / Lab Graded, never a reset or a crash.
   if (!moduleSevenState.caseRecord || typeof moduleSevenState.caseRecord !== 'object') {
     moduleSevenState.caseRecord = {

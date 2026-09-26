@@ -44,7 +44,7 @@ Avoid detached questions such as:
 - "Should this be escalated?"
 - "What happened?"
 
-when those answers naturally belong inside the case record itself.
+when those answers naturally belong inside the ITSM ticket itself.
 
 Instead, the learner should update the actual simulated incident record.
 
@@ -173,7 +173,7 @@ session_id=7fc2a441
 This begins preparing students for later SIEM and command-line log work
 without requiring queries in Module 01.
 
-## 4. Incident / Case Record
+## 4. ITSM Incident Ticket
 
 The right pane should behave like a normal workplace ticket.
 
@@ -221,7 +221,7 @@ Resolution / Handoff
 │                                                      │
 └──────────────────────────────────────────────────────┘
 
-[ Save ]                               [ Submit Case ]
+[ Update Ticket ]                               [ Submit Lab ]
 ```
 
 Fields should exist because the job requires them.
@@ -358,7 +358,7 @@ Guidance should be substantially reduced.
 Example opening instruction:
 
 > An alert has been assigned to you. Investigate the available evidence,
-> determine the appropriate disposition, and complete the case record.
+> determine the appropriate disposition, and complete the ITSM ticket.
 
 That should be close to the full instruction.
 
@@ -439,7 +439,7 @@ This action history helps distinguish "guessed the right answer" from
 
 ## 11. What the Instructor Grades
 
-The primary graded artifact is the completed case record, supported by
+The primary graded artifact is the completed ITSM ticket, supported by
 the student's meaningful activity history.
 
 The instructor should be able to answer:
@@ -522,7 +522,7 @@ Do not create a separate remediation worksheet.
 - readable log/event table;
 - expandable raw/structured log records;
 - affected user/device context;
-- incident/case record;
+- incident/ITSM ticket;
 - severity;
 - disposition;
 - escalation;

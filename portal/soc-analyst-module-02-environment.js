@@ -108,9 +108,9 @@
   ];
   const ASSESSMENT_MIN_NOTE_LENGTH = 80;
 
-  // ---------------------------------------------------------- Case Record
+  // ---------------------------------------------------------- ITSM Ticket
   // docs/specs/MODULE_STANDARD.md §7.2: the Assessment Lab's one graded artifact is the
-  // standard Incident / Case Record ticket (portal/case-record.js), not a
+  // standard ITSM Incident Ticket (portal/case-record.js), not a
   // bare write-up. Module 02 has no larger identity/device cast to draw a
   // 6-8 entry roster from — the console's own five identities/devices (DATA
   // above) are the whole cast, reused here as user/device options. The
@@ -694,7 +694,7 @@
   function provePanel() {
     const cr = state.prove.caseRecord;
     const missing = proveItMissing();
-    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete both Guided Lab projects again as independent assessments, then work the case below into the standard Incident / Case Record for instructor review.</p>${missionNextLabLaunchGroup(2, 'assessment', ASSESSMENT_LAB_LINKS, state.labProgress)}${caseRecordPane(cr, {
+    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete both Guided Lab projects again as independent assessments, then work the case below into the standard ITSM Incident Ticket for instructor review.</p>${missionNextLabLaunchGroup(2, 'assessment', ASSESSMENT_LAB_LINKS, state.labProgress)}${caseRecordPane(cr, {
       ...caseSpec(cr.submitted === true),
       missing,
       formId: 'm02e-prove-form',

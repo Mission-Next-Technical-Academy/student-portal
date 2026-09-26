@@ -213,11 +213,12 @@ const M03E_PROVE = (function () {
 const M03E_DATA = { practice: M03E_PRACTICE, prove: M03E_PROVE };
 
 const M03E_TABS = [['alerts', 'Alerts'], ['search', 'Log Search'], ['timeline', 'Timeline'], ['entities', 'Entities'], ['sources', 'Data Sources'], ['watchlists', 'Watchlists'], ['evidence', 'Evidence']];
-// The assessment console carries the standard Incident / Case Record
+const M03E_ITSM_TAB = ['itsm', 'ITSM Ticket'];
+// The assessment console carries the standard ITSM ticket
 // (docs/specs/MODULE_STANDARD.md §7.2) as its own tab, so the ticket is worked beside
 // the logs instead of below the console.
-const M03E_CASE_TAB = ['case', 'Case Record'];
-const m03eTabs = (scope) => (scope === 'prove' ? [...M03E_TABS, M03E_CASE_TAB] : M03E_TABS);
+const M03E_CASE_TAB = ['case', 'ITSM Ticket'];
+const m03eTabs = (scope) => (scope === 'prove' ? [...M03E_TABS, M03E_CASE_TAB] : [M03E_ITSM_TAB, ...M03E_TABS]);
 
 /* ------------------------------------------------------------ guided steps
  * Decreasing support: the first steps hand over a full query, the middle
@@ -228,6 +229,8 @@ const m03eRidsIn = (result) => new Set((result?.rows || []).map((row) => row.__r
 const m03eHasAll = (set, ids) => ids.every((id) => set.has(id));
 
 const M03E_GUIDE_STEPS = [
+  { id: 'itsm', tab: 'itsm', title: 'Everything becomes a ticket', body: 'In real SOC work, the ticket is the system of record. The console helps you investigate, but the ticket is where the work becomes visible to the team: status, severity, affected user, evidence, notes, escalation, and handoff.', task: 'Open the ITSM Ticket tab and read how the investigation maps into the incident ticket.', lookFor: 'Evidence goes in pins and notes. Decisions go in ticket fields. Anything the next analyst must do goes in the handoff.',
+    check: (st) => st.tab === 'itsm' },
   { id: 'alert', tab: 'alerts', title: 'Start from the alert', body: 'The normalized event set from the previous card is already loaded. An alert is a lead, not a verdict. Read the rule and its entities before querying.', task: 'Open ALT-3101 in the alert queue and read its rule and entities.', lookFor: 'acct-428, source IP 198.51.100.18, session S-8841, and the four required actions.',
     check: (st) => st.seen.includes('alert:ALT-3101') },
   { id: 'auth', tab: 'search', title: 'Read the raw source first', body: 'Start with one source you understand. AuthLog records who signed in, from where, and whether it worked.', task: 'Run a query that returns every AuthLog record for acct-428.', hint: 'AuthLog\n| where Account == "acct-428"', lookFor: 'A failed sign-in followed by a success from 198.51.100.18; the source time was converted from UTC−04:00.',
@@ -274,7 +277,7 @@ const M03E_ACTIONS = [
   ['wipe-laptop', 'Wipe m.ortiz’s laptop'],
 ];
 
-// ------------------------------------------------------------ Case Record
+// ------------------------------------------------------------ ITSM ticket
 // docs/specs/MODULE_STANDARD.md §7.2 / CASE_RECORD_MIGRATION.md: the Assessment Lab's
 // determination form becomes the standard ticket. The 7-account scope
 // assessment keeps its own selects as `spec.findings` (one per account); the
@@ -580,6 +583,21 @@ function m03eEvidenceView(scope) {
   return `<section><div class="m03e-table-wrap"><table class="m03e-table"><caption>PINNED EVIDENCE · ${pins.length}</caption>${pins.length ? `<thead><tr><th></th><th>TIME</th><th>SOURCE</th><th>EVENT</th><th>ACCOUNT</th><th>SOURCE IP</th><th>SESSION</th><th>DETAIL</th></tr></thead><tbody>${pins.map((r) => `<tr data-m03e-select="${scope}:record:${esc(r.__rid)}" tabindex="0" class="${m03eIsSelected(st, 'record', r.__rid) ? 'is-selected' : ''}"><td>${m03ePinButton(scope, r.__rid)}</td><td>${esc(m03eTime(r.TimeGenerated))}</td><td>${m03eChip(r.EventSource)}</td><td>${esc(r.EventType)}</td><td>${esc(r.Account)}</td><td class="m03e-mono">${esc(r.SourceIp)}</td><td class="m03e-mono">${esc(r.SessionId)}</td><td>${esc(r.Detail)}</td></tr>`).join('')}</tbody>` : ''}</table></div>${pins.length ? '' : '<div class="m03e-results-empty">Nothing pinned yet. Use the pin button on a Log Search result or a Timeline entry.</div>'}<p class="m03e-muted m03e-note">${scope === 'prove' ? 'Pinned records are submitted with your assessment as your selected evidence.' : 'Pinned records are your case evidence — the rows a teammate needs to reproduce your finding.'}</p></section>`;
 }
 
+function m03eItsmGuideView() {
+  return `<section class="m03e-itsm-guide" aria-labelledby="m03e-itsm-title">
+    <p class="m03e-label">ITSM TICKET WORKFLOW</p>
+    <h2 id="m03e-itsm-title">The ticket is the official record of the incident.</h2>
+    <p>ITSM means <strong>IT Service Management</strong>. In a SOC, the ITSM incident ticket tracks the work: what happened, who or what is affected, how serious it is, what evidence supports it, and who needs to act next.</p>
+    <div class="m03e-itsm-map">
+      <div><strong>1. Investigate</strong><span>Use alerts, searches, timelines, entities, sources, and watchlists to find facts.</span></div>
+      <div><strong>2. Preserve evidence</strong><span>Pin the exact records another analyst would need to verify your conclusion.</span></div>
+      <div><strong>3. Complete fields</strong><span>Set status, severity, affected user/device, disposition, escalation, and scope.</span></div>
+      <div><strong>4. Handoff</strong><span>Write clear notes: observations, analysis, confirmed scope, unknowns, and requested next action.</span></div>
+    </div>
+    <p class="m03e-itsm-rule">Simple rule: if it matters to the incident, it belongs in the ticket. The console is how you find the answer; the ticket is how the team trusts, routes, reviews, and continues the work.</p>
+  </section>`;
+}
+
 function m03eNativeRecord(row) {
   const map = M03E_SOURCE_MAPPINGS[row.EventSource];
   if (!map) return '';
@@ -652,7 +670,8 @@ function m03eGuideBar() {
   if (done) {
     return `<aside class="m03e-guide is-complete${st.guideCollapsed ? ' is-collapsed' : ''}" aria-label="Guided lab"><div class="m03e-guide-head"><span class="m03e-label">GUIDED LAB · COMPLETE</span>${progress}<button type="button" class="m03e-guide-toggle" data-m03e-guide-collapse aria-expanded="${!st.guideCollapsed}"><i class="ri-arrow-up-s-line" aria-hidden="true"></i><span class="m03e-sr-only">Toggle guide</span></button></div><div class="m03e-guide-body"><h3>Case debrief: CASE-MN-428</h3><p>AuthLog recorded a failed sign-in at 09:02 and a successful sign-in at 09:04 for acct-428. The same S-8841 session from 198.51.100.18 granted a directory role at 09:08 and exported application data at 09:12. Source provenance and raw IDs remain available for verification.</p><p>The 09:10 svc-backup restart is a separate SystemLog event under approved change CHG-221: it has a different identity, no S-8841 session, and a different source IP. <strong>Verdict:</strong> suspicious authentication-to-export sequence. <strong>Scope:</strong> acct-428 and the observed session; broader access and export destination remain to be checked. The handoff records this distinction and a bounded next step.</p><button type="button" class="m03e-guide-next" data-m03e-guide-restart>Restart guide</button></div></aside>`;
   }
-  return `<aside class="m03e-guide${st.guideCollapsed ? ' is-collapsed' : ''}${passed ? ' is-passed' : ''}" aria-label="Guided lab step"><div class="m03e-guide-head"><span class="m03e-label">GUIDED LAB · STEP ${st.guideStep + 1} OF ${total}</span>${progress}<button type="button" class="m03e-guide-toggle" data-m03e-guide-collapse aria-expanded="${!st.guideCollapsed}"><i class="ri-arrow-up-s-line" aria-hidden="true"></i><span class="m03e-sr-only">${st.guideCollapsed ? 'Show guide' : 'Hide guide'}</span></button></div><div class="m03e-guide-body"><h3>${esc(step.title)}</h3><p>${esc(step.body)}</p><p class="m03e-guide-task"><strong>Your task:</strong> ${esc(step.task)}</p>${step.hint ? `<p class="m03e-guide-hint"><strong>${st.guideStep <= 2 ? 'Query' : 'Pattern'}:</strong> <code>${esc(step.hint).replace(/\n/g, ' ')}</code>${st.guideStep <= 2 ? ` <button type="button" data-m03e-insert="${esc(step.hint)}">Insert</button>` : ''}</p>` : ''}<p class="m03e-guide-look"><strong>Look for:</strong> ${esc(step.lookFor)}</p><div class="m03e-guide-actions">${st.tab !== step.tab ? `<button type="button" class="m03e-guide-go" data-m03e-tab="practice:${step.tab}">Go to ${esc(M03E_TABS.find((t) => t[0] === step.tab)[1])}</button>` : ''}<span class="m03e-guide-status" role="status">${passed ? '<i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Step complete' : '<i class="ri-loader-4-line" aria-hidden="true"></i> Waiting for your evidence…'}</span><button type="button" class="m03e-guide-next" data-m03e-guide-next ${passed ? '' : 'disabled'}>${st.guideStep === total - 1 ? 'Finish guided lab' : 'Next step'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></div></div></aside>`;
+  const tabLabel = m03eTabs('practice').find((t) => t[0] === step.tab)?.[1] || step.tab;
+  return `<aside class="m03e-guide${st.guideCollapsed ? ' is-collapsed' : ''}${passed ? ' is-passed' : ''}" aria-label="Guided lab step"><div class="m03e-guide-head"><span class="m03e-label">GUIDED LAB · STEP ${st.guideStep + 1} OF ${total}</span>${progress}<button type="button" class="m03e-guide-toggle" data-m03e-guide-collapse aria-expanded="${!st.guideCollapsed}"><i class="ri-arrow-up-s-line" aria-hidden="true"></i><span class="m03e-sr-only">${st.guideCollapsed ? 'Show guide' : 'Hide guide'}</span></button></div><div class="m03e-guide-body"><h3>${esc(step.title)}</h3><p>${esc(step.body)}</p><p class="m03e-guide-task"><strong>Your task:</strong> ${esc(step.task)}</p>${step.hint ? `<p class="m03e-guide-hint"><strong>${['auth','sort'].includes(step.id) ? 'Query' : 'Pattern'}:</strong> <code>${esc(step.hint).replace(/\n/g, ' ')}</code>${['auth','sort'].includes(step.id) ? ` <button type="button" data-m03e-insert="${esc(step.hint)}">Insert</button>` : ''}</p>` : ''}<p class="m03e-guide-look"><strong>Look for:</strong> ${esc(step.lookFor)}</p><div class="m03e-guide-actions">${st.tab !== step.tab ? `<button type="button" class="m03e-guide-go" data-m03e-tab="practice:${step.tab}">Go to ${esc(tabLabel)}</button>` : ''}<span class="m03e-guide-status" role="status">${passed ? '<i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Step complete' : '<i class="ri-loader-4-line" aria-hidden="true"></i> Waiting for your evidence…'}</span><button type="button" class="m03e-guide-next" data-m03e-guide-next ${passed ? '' : 'disabled'}>${st.guideStep === total - 1 ? 'Finish guided lab' : 'Next step'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></div></div></aside>`;
 }
 
 function m03eStepPassed(step) {
@@ -662,6 +681,7 @@ function m03eStepPassed(step) {
 
 function m03eViewBody(scope) {
   const tab = m03eState(scope).tab;
+  if (tab === 'itsm' && scope === 'practice') return m03eItsmGuideView();
   if (tab === 'search') return m03eSearchView(scope);
   if (tab === 'timeline') return m03eTimelineView(scope);
   if (tab === 'entities') return m03eEntitiesView(scope);
@@ -672,7 +692,7 @@ function m03eViewBody(scope) {
   return m03eAlertsView(scope);
 }
 
-// Evidence shows its pin count; Case Record shows how many ticket items are
+// Evidence shows its pin count; ITSM Ticket shows how many ticket items are
 // still open, or a check once submitted.
 function m03eTabsNav(scope) {
   const st = m03eState(scope);
@@ -760,6 +780,8 @@ function m03eCaseSpec(disabled) {
   const st = m03eState('prove');
   return {
     caseId: M03E_PROVE.caseId,
+    ticketId: 'INC-MN-517',
+    ticketType: 'Security incident · linked case CASE-MN-517',
     userOptions: M03E_USER_OPTIONS,
     deviceOptions: M03E_DEVICE_OPTIONS,
     departmentOptions: M03E_DEPARTMENT_OPTIONS,
@@ -784,7 +806,7 @@ function m03eProveMissing() {
   return missing;
 }
 
-// The Case Record tab: the standard ticket, with a line tying it back to
+// The incident ticket tab: the standard ticket, with a line tying it back to
 // the evidence the learner pinned (pins and query history go with it).
 function m03eCaseRecordView() {
   const st = m03eState('prove');
@@ -812,7 +834,7 @@ function m03eCaseRecordView() {
 
 function moduleThreeAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m03e-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">TICKET ${esc(M03E_PROVE.caseId)} · ASSIGNED TO YOU</p><p>Overnight, the SIEM raised a password-spray alert and, a few minutes later, an inbox-forwarding alert. Your lead’s request: <em>“Work out what happened, which accounts are actually affected, and what we should do. Put it in a handoff I can pass to identity response.”</em></p><p class="m03e-muted">You have the same console as the Guided Lab, with different telemetry and no guide. Pin the records that support your findings, then complete the ticket in the console’s <strong>Case Record</strong> tab.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">INCIDENT INC-MN-517 · CASE ${esc(M03E_PROVE.caseId)} · ASSIGNED TO YOU</p><p>Overnight, the SIEM raised a password-spray alert and, a few minutes later, an inbox-forwarding alert. Your lead’s request: <em>“Work out what happened, which accounts are actually affected, and what we should do. Put it in a handoff I can pass to identity response.”</em></p><p class="m03e-muted">Use the same console as the Guided Lab, with different telemetry and no guide. Start from the alert queue, pin the records that support your findings, then complete <strong>INC-MN-517</strong> in the console’s <strong>ITSM Ticket</strong> tab.</p></div>
     <div class="m03e-console-host" id="m03e-console-prove">${moduleThreeConsoleHtml('prove')}</div>
   </div>`;
 }
@@ -988,7 +1010,7 @@ function m03eSubmitAssessment() {
   moduleThreeState.score = performance.score;
   moduleThreeState.bestScore = Math.max(moduleThreeState.bestScore || 0, performance.score);
   moduleThreeState.notes = [d.handoff.observations, d.handoff.analysis, d.handoff.scope, d.handoff.nextAction].join('\n\n');
-  moduleThreeState.feedback = ['Submitted. Your case record, pinned evidence and handoff are recorded for instructor review.'];
+  moduleThreeState.feedback = ['Submitted. Your ITSM ticket, pinned evidence and handoff are recorded for instructor review.'];
   if (Array.isArray(moduleThreeState.flags) && !moduleThreeState.flags.includes(MODULE_THREE_FLAG)) moduleThreeState.flags.push(MODULE_THREE_FLAG);
 
   const data = M03E_PROVE;
@@ -1075,7 +1097,7 @@ function wireModuleThreeConsole() {
       m03eHandleFormInput(ev);
       // A select/checkbox pick (unlike typing) is safe to re-render on, and
       // it is the only way the conditional "Route to Department" field and
-      // the requirements list stay honest as the case record changes.
+      // the requirements list stay honest as the ITSM ticket changes.
       if (ev.target.tagName !== 'TEXTAREA') {
         const prove = document.getElementById('m03e-prove-panel');
         if (prove) { prove.outerHTML = moduleThreeAssessmentLabPanel(); m03eAttachEditor('prove'); }

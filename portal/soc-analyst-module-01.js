@@ -76,7 +76,7 @@ const MODULE_ONE_DEFAULT_STATE = {
   validationError: '',
   lastSubmittedAt: '',
   attempts: 0,
-  // Practice is deliberately the same job-shaped case record as Prove It.
+  // Practice is deliberately the same job-shaped ITSM ticket as Prove It.
   // Its coaching reacts to what the learner opens and records, rather than
   // asking them to type facts back into a disguised quiz.
   practice: {
@@ -108,7 +108,7 @@ let moduleOneQuizState = null;
 // remote/admin source (see moduleOneQuizPanel()). Reset on every fresh load
 // so it never carries over to a different account/session.
 let moduleOneQuizForceRetake = false;
-// Set when Submit Case is pressed with items still missing, so the list is
+// Set when Submit Lab is pressed with items still missing, so the list is
 // called out rather than the button silently refusing.
 let moduleOneProveItShowMissing = false;
 let moduleOneReviewMode = false;
@@ -820,7 +820,7 @@ function moduleOneEvidenceList(scenario, reviewed, attribute, disabled = false) 
       </button></li>`).join('')}</ul>`;
 }
 
-// Thin wrappers over the shared Incident / Case Record (portal/case-record.js).
+// Thin wrappers over the shared ITSM Incident Ticket (portal/case-record.js).
 // Module 01 is the reference the shared renderer was lifted from.
 function moduleOneTicketFields(state, spec) {
   // Practice It (ALT-1001) keeps the small fixed roster/department list it
@@ -839,7 +839,7 @@ function moduleOneTicketFields(state, spec) {
 }
 
 // Practice It: a guided case (ALT-1001 / j.santos) in its own focused case
-// console — alert queue, log/evidence pane, incident/case record. Per
+// console — alert queue, log/evidence pane, ITSM ticket. Per
 // docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md, this is NOT the full SOC range: a small,
 // original, vendor-neutral workspace scoped to exactly this case. Hints and
 // coachmarks are fine here; this is coached, ungraded, retry-friendly
@@ -909,7 +909,7 @@ function moduleOneLogTable(scenario, state) {
 }
 
 // The three-pane case console body (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §2):
-// Alert Queue / Logs+Evidence / Incident-Case Record. Reuses the same
+// Alert Queue / Logs+Evidence / ITSM Ticket. Reuses the same
 // moduleOneState.practice record and moduleOneTicketFields() the LMS-side
 // card used to render inline — only the log pane and the shell around it
 // are new.
@@ -928,7 +928,7 @@ function moduleOneCaseConsolePane() {
   const reviewed = new Set(moduleOneState.reviewedEvidence);
   const step = !reviewed.size ? 'Step 1: Read the alert, then open the sign-in log rows below it.'
     : (!state.affectedUser || !state.affectedDevice) ? 'Step 2: Determine scope. Add the affected user and device to the case.'
-      : 'Step 3: Set severity and disposition, write your work note, then save or submit the case.';
+      : 'Step 3: Set severity and disposition, write your work note, then update or submit the ticket.';
   const phoneNote = scenario.evidence.find((item) => item.id === 'confirmation');
   return `<div class="m01-console" aria-labelledby="m01cc-console-title">
     <div class="m01-console-header">
@@ -955,10 +955,10 @@ function moduleOneCaseConsolePane() {
         ${moduleOneLogTable(scenario, state)}
         ${phoneNote ? `<p class="m01cc-phone-note"><i class="ri-phone-line" aria-hidden="true"></i> ${esc(phoneNote.detail)}</p>` : ''}
       </section>
-      <section class="m01-console-pane m01-console-ticket" aria-label="Incident / case record">
-        <p class="m01-console-pane-title">Incident / Case Record</p>
+      <section class="m01-console-pane m01-console-ticket" aria-label="ITSM incident ticket">
+        <p class="m01-console-pane-title">ITSM Incident Ticket</p>
         <form id="m01-practice-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: false })}
-          <div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-practice-save>Save</button><button type="button" class="m01-submit" data-m01-practice-check>Submit Case</button></div>
+          <div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-practice-save>Update Ticket</button><button type="button" class="m01-submit" data-m01-practice-check>Submit Lab</button></div>
         </form>
         ${moduleOneState.consoleCompleted
           ? moduleOneGuidedLabFeedback()
@@ -1081,8 +1081,8 @@ function moduleOneProveItCaseConsolePane() {
         ${moduleOneLogTable(scenario, state)}
         ${phoneNote ? `<p class="m01cc-phone-note"><i class="ri-phone-line" aria-hidden="true"></i> ${esc(phoneNote.detail)}</p>` : ''}
       </section>
-      <section class="m01-console-pane m01-console-ticket" aria-label="Incident / case record">
-        <p class="m01-console-pane-title">Incident / Case Record</p>
+      <section class="m01-console-pane m01-console-ticket" aria-label="ITSM incident ticket">
+        <p class="m01-console-pane-title">ITSM Incident Ticket</p>
         <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted, entitySelects: true,
           userOptions: scenario.entityRoster.users.map((entry) => ({ id: entry.id, text: entry.id })),
           deviceOptions: scenario.entityRoster.devices.map((entry) => ({ id: entry.id, text: entry.id })),

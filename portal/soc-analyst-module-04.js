@@ -365,7 +365,7 @@ const MODULE_FOUR_DEFAULT_STATE = {
   lessonWork: {},
   independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
   labProgress: {},
-  // Standard Incident / Case Record for the m04-assessment Prove It
+  // Standard ITSM Incident Ticket for the m04-assessment Prove It
   // submission (docs/specs/MODULE_STANDARD.md §7.2).
   caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
 };
@@ -446,7 +446,7 @@ const MODULE_FOUR_RELEVANT_EVIDENCE = [
   'TI-801',
 ];
 
-// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2) for the Prove It
+// Standard ITSM Incident Ticket (docs/specs/MODULE_STANDARD.md §7.2) for the Prove It
 // submission — `m04-assessment`, the only form here that calls
 // recordLabAttempt() for MODULE_FOUR_CATALOG_LAB_KEY. The independent lab
 // (m04-independent-form) is Practice It — locally scored, no catalog
@@ -665,7 +665,7 @@ function moduleFourLoad(user) {
   if (typeof moduleFourState.notes !== 'string') moduleFourState.notes = '';
   if (!moduleFourState.labProgress || typeof moduleFourState.labProgress !== 'object') moduleFourState.labProgress = {};
 
-  // Standard case record — init/migrate; never crash on an old saved shape.
+  // Standard ITSM ticket — init/migrate; never crash on an old saved shape.
   if (!moduleFourState.caseRecord || typeof moduleFourState.caseRecord !== 'object') {
     moduleFourState.caseRecord = JSON.parse(JSON.stringify(MODULE_FOUR_DEFAULT_STATE.caseRecord));
   }
@@ -1525,8 +1525,8 @@ function wireModuleFourAssessmentLab() {
       moduleFourRenderAssessment('m04-independent-title');
       return;
     }
-    // The Incident / Case Record form (caseRecordPane) has no native submit
-    // path of its own — Submit Case is a type="button" handled above — but
+    // The ITSM Incident Ticket form (caseRecordPane) has no native submit
+    // path of its own — Submit Lab is a type="button" handled above — but
     // guard here too in case a future markup change adds one.
     if (event.target.id === 'm04-assessment') event.preventDefault();
   });

@@ -26,13 +26,13 @@ const MODULE_ELEVEN_QUIZ_BANKS = [
         prompt: `A post-closure dashboard shows an SLA dip during the INC-4937 review window. What is the BEST source-review move before briefing leadership?`,
         options: [
           { id: 'a', text: 'Treat the dip as proof that every queued alert was part of the ransomware case.' },
-          { id: 'b', text: 'Separate the health metric from case evidence, compare the metric window to the declared case records, and state any unscoped queue causes as unknown.' },
+          { id: 'b', text: 'Separate the health metric from case evidence, compare the metric window to the declared ITSM tickets, and state any unscoped queue causes as unknown.' },
           { id: 'c', text: 'Remove the dip from the report so closure appears successful.' },
           { id: 'd', text: 'Assign the dip to a named person without reviewing the source rows.' },
         ],
         correctId: 'b',
         feedbackCorrect: `Correct. A health metric is an operational signal. Compare it with the bounded case slice, preserve uncertainty, and avoid turning correlation into incident scope or blame.`,
-        feedbackIncorrect: `Metrics and case records answer different questions. Review both sources, state the relationship as a hypothesis when appropriate, and retain unknowns instead of overclaiming.`,
+        feedbackIncorrect: `Metrics and ITSM tickets answer different questions. Review both sources, state the relationship as a hypothesis when appropriate, and retain unknowns instead of overclaiming.`,
       },
     ],
   },
@@ -374,7 +374,7 @@ const MODULE_ELEVEN_SHARED_CASE = (typeof window !== 'undefined' && window.MISSI
   || { contractVersion: 'm09-ransomware-evidence-v1', organization: 'Mission Next Labs', incidentId: 'INC-4937', title: 'Operation Cedar Lock — active ransomware response', status: 'contained-in-lab-slice', entities: { endpoint: 'ws-173', account: 'acct-173', fileServer: 'fs-02' }, timeBasis: 'Synthetic UTC training timeline; all addresses are documentation-range fixtures.', notEstablished: ['enterprise-wide compromise', 'data exfiltration', 'specific operator identity'], consumerSlices: { module11: ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'] } };
 const MODULE_ELEVEN_SHARED_SLICE_IDS = MODULE_ELEVEN_SHARED_CASE.consumerSlices?.module11 || ['M09-E01', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08'];
 
-// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2) for the
+// Standard ITSM Incident Ticket (docs/specs/MODULE_STANDARD.md §7.2) for the
 // Assessment Lab's Prove It submission. Authored from the shared M09
 // evidence contract this module consumes (MODULE_ELEVEN_SHARED_CASE):
 // INC-4937, the ws-173/acct-173 endpoint-and-identity compromise, with
@@ -740,7 +740,7 @@ function moduleElevenScenarioLoops() {
     <article><p class="m11-kicker">Lesson 1 · Applied task</p><h4>Brief the incoming shift</h4><p>Choose the material signals, propose a scoped improvement, name the escalation owner, and write the next verification point.</p></article>
     <article><p class="m11-kicker">Lesson 2 · Scenario</p><h4>Turn the shared slice into an executive brief</h4><p>Read ${esc(MODULE_ELEVEN_SHARED_CASE.incidentId)} through ${esc(MODULE_ELEVEN_SHARED_SLICE_IDS.join(', '))}; the briefing must preserve the bounded impact on ${esc(MODULE_ELEVEN_SHARED_CASE.entities.endpoint)} and the unresolved wider-scope questions.</p></article>
     <article><p class="m11-kicker">Lesson 2 · Theory</p><h4>Audience and accountability</h4><p>Technical notes retain entities and evidence. Executive language states business effect, residual risk, ownership, and next action without attribution or unsupported certainty.</p></article>
-    <article><p class="m11-kicker">Lesson 2 · Knowledge check</p><h4>Separate observation from inference</h4><p>Review each shared-case record before selecting it. The quiz and evidence table reward bounded statements, not a complete story invented from typical ransomware behavior.</p></article>
+    <article><p class="m11-kicker">Lesson 2 · Knowledge check</p><h4>Separate observation from inference</h4><p>Review each shared-ITSM ticket before selecting it. The quiz and evidence table reward bounded statements, not a complete story invented from typical ransomware behavior.</p></article>
     <article><p class="m11-kicker">Lesson 2 · Applied task</p><h4>Deliver the independent report</h4><p>Write the case note, executive summary, escalation request, and closure conditions from the shared slice. Keep unknowns and the monitoring owner visible.</p></article>
     <article><p class="m11-kicker">Lesson 3 · Scenario</p><h4>Close the communication loop</h4><p>Leadership needs a concise status after containment, while the SOC needs a measurable control-improvement handoff.</p></article>
     <article><p class="m11-kicker">Lesson 3 · Theory</p><h4>Closure needs verification and ownership</h4><p>Containment is not closure. Confirm recovery, review monitoring results, record residual uncertainty, and assign a named control owner with a due point.</p></article>

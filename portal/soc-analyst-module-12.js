@@ -165,7 +165,7 @@ const MODULE_TWELVE_PREPARATION_LECTURES = [
   {
     title: 'Environment architecture',
     focus: 'Understand how the synthetic range connects signals, evidence, and case work.',
-    script: 'The range presents several analyst surfaces over one shared incident slice. Alert and message records establish the lead; process, endpoint, identity, and network records let you pivot and correlate; enrichment and exposure records add context; response and case records capture decisions. Treat each surface as a source with a different purpose, then join observations by entity and time rather than by a convenient story.',
+    script: 'The range presents several analyst surfaces over one shared incident slice. Alert and message records establish the lead; process, endpoint, identity, and network records let you pivot and correlate; enrichment and exposure records add context; response and ITSM tickets capture decisions. Treat each surface as a source with a different purpose, then join observations by entity and time rather than by a convenient story.',
     practice: 'Use the console labels to predict the next useful pivot: alert → message → process → network/identity → scope and exposure → response → case.',
   },
   {
@@ -200,7 +200,7 @@ const MODULE_TWELVE_PREPARATION_LECTURES = [
   },
 ];
 
-// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2). The capstone's
+// Standard ITSM Incident Ticket (docs/specs/MODULE_STANDARD.md §7.2). The capstone's
 // ten scored rubric domains stay exactly as designed — this only gives the
 // case a standard ticket core (status/severity/affected user+device/
 // disposition/escalation) so it opens the same way every other module's

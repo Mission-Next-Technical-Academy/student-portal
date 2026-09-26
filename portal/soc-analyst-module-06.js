@@ -405,7 +405,7 @@ const MODULE_SIX_SOURCES = {
 
 const MODULE_SIX_EXPECTED_BOOKMARKS = ['EP-602', 'EP-604', 'ID-612', 'ID-614'];
 
-// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2). Module 06 has
+// Standard ITSM Incident Ticket (docs/specs/MODULE_STANDARD.md §7.2). Module 06 has
 // two catalog-graded Prove It submissions — `m06-form` (catalog key
 // MODULE_SIX_CATALOG_LAB_KEY, 'lab-threat-hunt') and `m06-independent-form`
 // (catalog key 'lab-threat-hunt-independent') — both call recordLabAttempt()
@@ -737,7 +737,7 @@ const MODULE_SIX_DEFAULT_STATE = {
   lessonWork: {},
   independentLab: {
     task: '', owner: '', scope: '', disposition: '', rationale: '', completed: false, score: 0,
-    // Standard Incident / Case Record for the m06-independent-form Prove It
+    // Standard ITSM Incident Ticket for the m06-independent-form Prove It
     // submission (docs/specs/MODULE_STANDARD.md §7.2).
     caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
   },
@@ -769,7 +769,7 @@ const MODULE_SIX_DEFAULT_STATE = {
   validationError: '',
   lastSubmittedAt: '',
   labProgress: {},
-  // Standard Incident / Case Record for the m06-form Prove It submission
+  // Standard ITSM Incident Ticket for the m06-form Prove It submission
   // (docs/specs/MODULE_STANDARD.md §7.2).
   caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
 };
@@ -808,7 +808,7 @@ function moduleSixLoad(user) {
     if (!Array.isArray(moduleSixState[key])) moduleSixState[key] = [];
   });
 
-  // Standard case records — init/migrate both tickets; never crash on an
+  // Standard ITSM tickets — init/migrate both tickets; never crash on an
   // old saved shape.
   if (!moduleSixState.caseRecord || typeof moduleSixState.caseRecord !== 'object') {
     moduleSixState.caseRecord = JSON.parse(JSON.stringify(MODULE_SIX_DEFAULT_STATE.caseRecord));

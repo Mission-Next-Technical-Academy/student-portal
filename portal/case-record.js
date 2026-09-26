@@ -1,10 +1,10 @@
-// Standard Incident / Case Record — the one ticket every SOC module's graded
+// Standard ITSM Incident Ticket — the one ticket every SOC module's graded
 // Prove It submission is written on. Module 01's NST-2407 case console is the
 // reference (docs/specs/MODULE_STANDARD.md §7.2); this file is that renderer lifted out
-// so every module produces the same ticket: CASE id + Status, Severity,
+// so every module produces the same ticket: Incident id + Status, Severity,
 // Affected User, Affected Device, Disposition, Escalation required (+ Route to
 // Department when required), module findings, Analyst Work Notes, Save /
-// Submit Case, and the requirements panel under it.
+// Submit Lab, and the requirements panel under it.
 //
 // Markup keeps the canonical `.m01-ticket-*` / `.m01-score-empty` classes in
 // portal/module-labs.css. Modules must not restyle them.
@@ -99,7 +99,9 @@ function caseRecordFields(state, spec) {
     ? `<label class="m01-ticket-field"><span>Affected User</span><button type="button" class="m01-entity-control ${isCorrect('affectedUser', state.affectedUser) ? 'is-correct' : ''}" data-m01-entity="user" ${disabled ? 'disabled' : ''}>${esc(state.affectedUser || 'Add user')} <i class="ri-add-line" aria-hidden="true"></i></button></label><label class="m01-ticket-field"><span>Affected Device</span><button type="button" class="m01-entity-control ${isCorrect('affectedDevice', state.affectedDevice) ? 'is-correct' : ''}" data-m01-entity="device" ${disabled ? 'disabled' : ''}>${esc(state.affectedDevice || 'Add device')} <i class="ri-add-line" aria-hidden="true"></i></button></label>`
     : `${caseRecordSelect('affectedUser', 'Affected User', state.affectedUser, userOptions, disabled)}${caseRecordSelect('affectedDevice', 'Affected Device', state.affectedDevice, deviceOptions, disabled)}`;
 
-  return `<div class="m01-ticket-case"><strong>CASE ${esc(spec.caseId || '')}</strong>${caseRecordSelect('status', 'Status', state.status, CASE_RECORD_STATUS_OPTIONS, disabled, isCorrect('status', state.status))}</div>
+  const ticketId = spec.ticketId || spec.caseId || '';
+  const ticketType = spec.ticketType || 'Security incident';
+  return `<div class="m01-ticket-case"><div class="m01-ticket-id"><span>ITSM Incident Ticket</span><strong>${esc(ticketId)}</strong><small>${esc(ticketType)}</small></div>${caseRecordSelect('status', 'Status', state.status, CASE_RECORD_STATUS_OPTIONS, disabled, isCorrect('status', state.status))}</div>
     <div class="m01-ticket-grid">
       ${caseRecordSelect('severity', 'Severity', severity, CASE_RECORD_SEVERITY_OPTIONS, disabled, isCorrect('severity', severity))}
       ${entities}
@@ -136,7 +138,7 @@ function caseRecordMissing(state, spec = {}) {
 }
 
 // Writes one ticket control's value into state. Returns true when the name
-// belonged to the case record. `finding:<name>` selects land in
+// belonged to the ITSM ticket. `finding:<name>` selects land in
 // state.findings.
 function caseRecordApply(state, name, value) {
   if (name.startsWith('finding:')) {
@@ -160,7 +162,7 @@ function caseRecordActions(spec) {
     const graded = spec.reviewStatus === 'graded';
     return `<div class="m01-ticket-actions"><button type="button" class="m01-submit" disabled><i class="${graded ? 'ri-checkbox-circle-line' : 'ri-time-line'}" aria-hidden="true"></i> ${graded ? 'Lab Graded' : 'Lab Under Review'}</button></div>`;
   }
-  return `<div class="m01-ticket-actions"><button type="button" class="m01-reset" ${spec.saveAttr}>Save</button><button type="button" class="m01-submit" ${spec.submitAttr} ${spec.hasMissing ? `aria-describedby="${esc(spec.panelId)}"` : ''}>Submit Case</button></div>`;
+  return `<div class="m01-ticket-actions"><button type="button" class="m01-reset" ${spec.saveAttr}>Update Ticket</button><button type="button" class="m01-submit" ${spec.submitAttr} ${spec.hasMissing ? `aria-describedby="${esc(spec.panelId)}"` : ''}>Submit Lab</button></div>`;
 }
 
 // spec: { panelId, missing, submitted, reviewStatus, redoRequested,
@@ -170,27 +172,27 @@ function caseRecordPanel(spec) {
   const submitted = spec.submitted === true;
   const graded = spec.reviewStatus === 'graded';
   const flagMissing = !submitted && spec.showMissing && missing.length;
-  const title = graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : spec.redoRequested ? 'Returned for remediation' : 'Case record';
+  const title = graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
   const body = graded ? 'Your instructor has reviewed this case.'
     : submitted ? (spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
       : spec.redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.'
-        : 'Work the case above — review the evidence, complete every ticket field, and write your analyst notes — then submit for faculty review.';
+        : 'Use the console evidence to complete the incident ticket. Submit only after the ticket fields, notes, and handoff are ready for faculty review.';
   return `<div class="m01-score-empty${flagMissing ? ' is-missing' : ''}" id="${esc(spec.panelId)}" role="status" aria-live="polite" tabindex="-1">
     <strong>${title}</strong>
     <p>${body}</p>
     ${!submitted ? (spec.redoHtml || '') : ''}
     ${!submitted && missing.length ? `<ul class="m01-requirements-list">${missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
-    ${!submitted ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Case. Analyst work notes need at least ${CASE_RECORD_NOTES_MIN} characters.` : 'Your case record is ready. Use Submit Case in the ticket to send it for faculty review.'}</p>` : ''}
+    ${!submitted ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${CASE_RECORD_NOTES_MIN} characters.` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}
   </div>`;
 }
 
-// The whole "Incident / Case Record" pane: title, form, actions, panel.
+// The whole "ITSM Incident Ticket" pane: title, form, actions, panel.
 // spec = caseRecordFields spec + caseRecordActions spec + caseRecordPanel
 // spec + formId.
 function caseRecordPane(state, spec) {
   const missing = spec.missing || caseRecordMissing(state, spec);
-  return `<section class="m01-console-pane m01-console-ticket" aria-label="Incident / case record">
-    <p class="m01-console-pane-title">Incident / Case Record</p>
+  return `<section class="m01-console-pane m01-console-ticket" aria-label="ITSM incident ticket">
+    <p class="m01-console-pane-title">ITSM Incident Ticket</p>
     <form id="${esc(spec.formId)}" class="m01-ticket-form" novalidate>${caseRecordFields(state, { ...spec, disabled: spec.disabled ?? state.submitted === true })}
       ${caseRecordActions({ ...spec, submitted: state.submitted === true, hasMissing: missing.length > 0 })}
     </form>

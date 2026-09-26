@@ -356,12 +356,12 @@ const MODULE_FIVE_DEFAULT_STATE = {
   notes: '',
   lessonWork: {},
   labProgress: {},
-  // Standard Incident / Case Record for the m05-assessment Prove It
+  // Standard ITSM Incident Ticket for the m05-assessment Prove It
   // submission (docs/specs/MODULE_STANDARD.md §7.2).
   caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
 };
 
-// Standard Incident / Case Record for the Prove It submission — the form is
+// Standard ITSM Incident Ticket for the Prove It submission — the form is
 // `m05-assessment`, replacing the old free-form `m05-assessment-form`. It is
 // the only form here that calls recordLabAttempt() for
 // MODULE_FIVE_CATALOG_LAB_KEY. The two imported assessment labs
@@ -566,7 +566,7 @@ function moduleFiveLoad(user) {
   if (typeof moduleFiveState.practiceNotes !== 'string') moduleFiveState.practiceNotes = '';
   if (!moduleFiveState.labProgress || typeof moduleFiveState.labProgress !== 'object') moduleFiveState.labProgress = {};
 
-  // Standard case record — init/migrate; never crash on an old saved shape.
+  // Standard ITSM ticket — init/migrate; never crash on an old saved shape.
   if (!moduleFiveState.caseRecord || typeof moduleFiveState.caseRecord !== 'object') {
     moduleFiveState.caseRecord = JSON.parse(JSON.stringify(MODULE_FIVE_DEFAULT_STATE.caseRecord));
   }

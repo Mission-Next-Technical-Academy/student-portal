@@ -552,7 +552,7 @@ function moduleEightLoad(user) {
   if (typeof moduleEightState.practiceNotes !== 'string') moduleEightState.practiceNotes = '';
   if (!moduleEightState.labProgress || typeof moduleEightState.labProgress !== 'object') moduleEightState.labProgress = {};
   // Backward compat: a pre-case-record submission only had `completed` +
-  // `notes`. Preserve it as an already-submitted case record so the student
+  // `notes`. Preserve it as an already-submitted ITSM ticket so the student
   // still sees Lab Under Review / Lab Graded, never a reset or a crash.
   if (!moduleEightState.caseRecord || typeof moduleEightState.caseRecord !== 'object') {
     moduleEightState.caseRecord = {

@@ -514,7 +514,7 @@ function moduleNineLoad(user) {
   if (!moduleNineState.labProgress || typeof moduleNineState.labProgress !== 'object') moduleNineState.labProgress = {};
   // Backward compat: a pre-case-record attempt kept classification/scope/
   // severity/escalation/notes as top-level fields. Preserve a passed
-  // attempt as an already-submitted case record (Lab Under Review / Lab
+  // attempt as an already-submitted ITSM ticket (Lab Under Review / Lab
   // Graded, never reset); carry over the still-valid classification/scope
   // finding ids and notes text. A never-passed in-progress attempt starts
   // fresh on the standard ticket rather than guessing at unmappable old

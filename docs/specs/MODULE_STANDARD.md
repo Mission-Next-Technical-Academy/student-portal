@@ -288,25 +288,25 @@ Rules:
   redo notes must appear inside the module and the lab console, not only on
   the program card.
 
-### 7.2 Incident / Case Record — the one graded submission (locked 2026-09-25)
+### 7.2 ITSM Incident Ticket — the one graded submission (locked 2026-09-25)
 
 Every graded Prove It submission in the SOC course is written on the same
 incident ticket. Module 01's NST-2407 case console is the reference; the
 renderer is `portal/case-record.js` and its styles are the `.m01-ticket-*` /
 `.m01-score-empty` / `.m01-requirements-list` rules in `portal/module-labs.css`.
-When anyone says **"use the case record"** or **"incident ticket"**, it means this.
+When anyone says **"use the ITSM ticket"** or **"incident ticket"**, it means this.
 
 Ticket anatomy, in this order:
 
 | Part | Standard |
 |---|---|
-| Pane title | `Incident / Case Record` |
-| Header row | `CASE <id>` + **Status** (In Progress / Pending / Resolved) |
+| Pane title | `ITSM Incident Ticket` |
+| Header row | `ITSM Incident Ticket` + ticket/case id + **Status** (In Progress / Pending / Resolved) |
 | Grid | **Severity** (Critical/High/Medium/Low) · **Affected User** · **Affected Device** · **Disposition** · **Escalation required** (Required / Not required) · **Route to Department** (only when Required) |
 | Module findings | optional extra selects in the same grid (`spec.findings`) or a block under it (`spec.findingsHtml`) for the module's domain decisions — rule threshold, hunt hypothesis, ATT&CK mapping, etc. |
 | Notes | **Analyst Work Notes** textarea, ≥ 80 characters |
-| Actions | `Save` (secondary) + `Submit Case` (orange); after submit a single grey `Lab Under Review` / `Lab Graded` button |
-| Requirements panel | `Case record` card listing every missing item; turns orange "Not ready to submit yet" when Submit is pressed early; shows instructor redo notes |
+| Actions | `Update Ticket` (secondary) + `Submit Lab` (orange); after submit a single grey `Lab Under Review` / `Lab Graded` button |
+| Requirements panel | `ITSM ticket` card listing every missing item; turns orange "Not ready to submit yet" when Submit is pressed early; shows instructor redo notes |
 
 Rules:
 - Use `caseRecordPane()` / `caseRecordFields()` + `caseRecordMissing()` +
@@ -314,7 +314,7 @@ Rules:
   `caseRecordApply()`; send `caseRecordSummary()` as the readable record in the
   `recordLabAttempt()` payload.
 - Module-specific graded decisions go **inside** the ticket as findings, never
-  as a separate form beside it. One module, one ticket, one Submit Case.
+  as a separate form beside it. One module, one ITSM ticket, one Submit Lab.
 - Each module supplies its own case id, user/device roster (confirmed entity +
   plausible pivots + noise, as in Module 01's `entityRoster`) and department
   list. Answer keys stay in module data; Prove It shows no live right/wrong.

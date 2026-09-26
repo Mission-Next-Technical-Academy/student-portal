@@ -340,7 +340,7 @@ const MODULE_TEN_SOURCES_LIST = [
   },
 ];
 
-// Standard Incident / Case Record (docs/specs/MODULE_STANDARD.md §7.2) for the
+// Standard ITSM Incident Ticket (docs/specs/MODULE_STANDARD.md §7.2) for the
 // Assessment Lab's Prove It submission. Authored from the imported
 // windows-forensics scenarios this module assigns: wf-1's event-log
 // intrusion sequence (j.sanders / WKSTN-19, failed logons -> success ->
@@ -762,7 +762,7 @@ function viewModuleTen(user, program) {
     <div class="mquick-nav-layout">
       ${moduleProgressShell(sections, { reviewMode: moduleTenReviewMode })}
       <main class="m10-main mf-frame">
-      <section class="m10-hero mf-hero" aria-labelledby="m10-title"><div><p class="m10-kicker mf-kicker">Module 10 · ${formatHandsOnDuration(module.durationMinutes)} · independent</p><h1 id="m10-title">${esc(module.title)}</h1><p class="mf-lede">Preserve incident evidence, document custody, and reconstruct a separate case from chronology and demonstrated behavior. ATT&CK remains subordinate to the evidence as a behavior framework; it does not replace the case record.</p></div><dl class="mf-stats" aria-label="Module lab progress"><div><dt>Guided Lab</dt><dd>${moduleTenGuidedState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m10-status">${complete ? 'Complete' : moduleTenAssessmentState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m10-hero mf-hero" aria-labelledby="m10-title"><div><p class="m10-kicker mf-kicker">Module 10 · ${formatHandsOnDuration(module.durationMinutes)} · independent</p><h1 id="m10-title">${esc(module.title)}</h1><p class="mf-lede">Preserve incident evidence, document custody, and reconstruct a separate case from chronology and demonstrated behavior. ATT&CK remains subordinate to the evidence as a behavior framework; it does not replace the ITSM ticket.</p></div><dl class="mf-stats" aria-label="Module lab progress"><div><dt>Guided Lab</dt><dd>${moduleTenGuidedState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m10-status">${complete ? 'Complete' : moduleTenAssessmentState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m10-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
         <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge">1</span><div><p class="m10-kicker mf-kicker">Lecture</p><h2 id="m10-lecture">Evidence acquisition, custody, timeline reconstruction, and bounded conclusions</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
