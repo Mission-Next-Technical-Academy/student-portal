@@ -1,0 +1,55 @@
+/* Prove It lab maximize / minimize — see lab-maximize.js. */
+
+.lab-max-btn {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  margin-left: auto; padding: 8px 14px;
+  color: #1e3a5f; background: #fff; border: 1px solid #cbd5e1; border-radius: 999px;
+  font: 700 12px/1 Inter, sans-serif; letter-spacing: .01em; white-space: nowrap; cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.lab-max-btn i { font-size: 16px; line-height: 1; }
+.lab-max-btn:hover { color: #c2410c; border-color: #f97316; background: #fff7ed; }
+.lab-max-btn:focus-visible { outline: 3px solid rgba(249, 115, 22, .35); outline-offset: 2px; }
+/* The collapse chevron sits right after the button; only one of them may
+   carry the auto margin that pushes the pair to the right edge. */
+.lab-max-heading > .lab-max-btn ~ .mf-section-toggle,
+.lab-max-heading > .lab-max-btn ~ .m01-section-collapse { margin-left: 10px; }
+
+/* Maximized state */
+html.lab-max-open, html.lab-max-open body { overflow: hidden; }
+
+.lab-max-active {
+  position: fixed !important; inset: 0 !important; z-index: 95 !important;
+  width: auto !important; max-width: none !important; height: auto !important;
+  margin: 0 !important; padding: 0 clamp(14px, 2.5vw, 36px) 40px !important;
+  overflow: auto !important; overscroll-behavior: contain;
+  background: #f8fafc !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+}
+
+.lab-max-active .lab-max-bar {
+  position: sticky; top: 0; z-index: 30;
+  margin: 0 calc(-1 * clamp(14px, 2.5vw, 36px)) 24px !important;
+  padding: 12px clamp(14px, 2.5vw, 36px) !important;
+  /* !important: module frames reset <summary> background/border/shadow with
+     higher-specificity selectors (main.mf-frame > details.mf-section > summary). */
+  background: #fff !important; border: 0 !important; border-bottom: 1px solid #e2e8f0 !important;
+  border-radius: 0 !important; box-shadow: 0 6px 18px rgba(15, 23, 42, .06) !important;
+  cursor: default !important;
+}
+.lab-max-active summary.lab-max-bar > section,
+.lab-max-active summary.lab-max-bar .lab-max-heading { margin: 0 !important; padding: 0 !important; border: 0; background: none; box-shadow: none; }
+.lab-max-active .lab-max-heading h2 { font-size: 19px; }
+.lab-max-active .mf-section-toggle,
+.lab-max-active .m01-section-collapse { display: none !important; }
+
+.lab-max-active .lab-max-btn { color: #fff; background: #1e3a5f; border-color: #1e3a5f; }
+.lab-max-active .lab-max-btn:hover { color: #fff; background: #c2410c; border-color: #c2410c; }
+
+@media (max-width: 640px) {
+  .lab-max-btn { padding: 8px 10px; }
+  .lab-max-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-max-btn { transition: none; }
+}

@@ -16,7 +16,7 @@
 .m03e-console>header p{margin:0;color:#9db8d3;font-size:10px;font-weight:800;letter-spacing:.12em}
 .m03e-console>header h2{margin:4px 0 0;color:#fff;font-size:19px}
 .m03e-case{padding:6px 10px;border:1px solid #ffffff2e;border-radius:999px;color:#b9cce0;font:600 11px ui-monospace,Consolas,monospace}
-.m03e-console>nav{display:flex;overflow:auto;background:#fff;border-bottom:1px solid #dbe3ed}
+.m03e-console>nav{display:flex;flex-wrap:wrap;row-gap:0;background:#fff;border-bottom:1px solid #dbe3ed}
 .m03e-console>nav button{flex:0 0 auto;padding:13px 14px;border:0;border-bottom:3px solid transparent;background:#fff;color:#64748b;font-size:12px;font-weight:700;cursor:pointer}
 .m03e-console>nav button.is-active{color:#1e3a5f;border-color:#f97316}
 .m03e-console>nav b{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:4px;padding:0 5px;border-radius:9px;background:#f97316;color:#fff;font-size:10px}
