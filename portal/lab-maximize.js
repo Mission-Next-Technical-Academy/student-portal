@@ -1,6 +1,6 @@
-/* Maximize / minimize for every Prove It assessment lab.
+/* Maximize / minimize for every guided and assessment lab.
  *
- * Assessment labs render inside the module's stacked section cards, so wide
+ * Labs render inside the module's stacked section cards, so wide
  * simulator chrome (tab strips, query toolbars, entity panes) often scrolls
  * horizontally inside a narrow card where students miss it.  This adds one
  * Maximize control to each Prove It card that pins the card over the whole
@@ -21,7 +21,7 @@
   let savedScroll = 0;
   let scheduled = false;
 
-  function proveCards() {
+  function labCards() {
     const app = document.getElementById('app');
     if (!app) return [];
     const cards = [];
@@ -29,7 +29,8 @@
       // Other lab cards (e.g. Module 12's investigation range) opt in with
       // data-lab-maximize; their first kicker + <h2> heading gets the button.
       const optIn = kicker.closest('[data-lab-maximize]');
-      if (!optIn && !/^\s*Prove It\b/.test(kicker.textContent || '')) return;
+      const label = (kicker.textContent || '').trim();
+      if (!optIn && !/^((Practice It|Prove It)\b|Guided Lab\b)/i.test(label)) return;
       const title = kicker.nextElementSibling;
       if (!title || title.tagName !== 'H2') return;
       const card = optIn || kicker.closest('details') || kicker.closest('.m01-section') || kicker.closest('section');
@@ -79,7 +80,7 @@
 
   function sync() {
     scheduled = false;
-    const cards = proveCards();
+    const cards = labCards();
     let found = null;
     cards.forEach(({ card, kicker }, index) => {
       ensureButton(card, kicker, index);
