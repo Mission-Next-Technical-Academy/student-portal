@@ -874,7 +874,7 @@ function moduleSixGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: MODULE_SIX_LESSONS.every((lesson) => moduleSixLessonComplete(lesson)), scrollId: 'm06-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSixQuizState?.passed, scrollId: 'm06-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleSixState.completed, scrollId: 'm06-guided-lab' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleSixGuidedChecks().every((check) => check[2]), scrollId: 'm06-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleSixState.independentLab.completed, scrollId: 'm06-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm06-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm06-sources', gated: false, supplemental: true },
@@ -898,7 +898,7 @@ function moduleSixGetQuickNavItems() {
     id: 'm06-guided-lab',
     title: 'Guided Lab',
     kind: 'lab',
-    isComplete: moduleSixState.completed === true,
+    isComplete: moduleSixGuidedChecks().every((check) => check[2]),
     scrollId: 'm06-guided-lab',
   });
   items.push({
@@ -1179,7 +1179,8 @@ function moduleSixArtifact() {
 }
 
 function moduleSixGuidedLabPanel() {
-  return `${moduleSixHypothesis()}${moduleSixSourceWorkspace()}${moduleSixArtifact()}`;
+  const complete = moduleSixGuidedChecks().every((check) => check[2]);
+  return `${moduleSixGuidedGuide()}<div class="m03e-panel" id="m06-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">HUNT HNT-6411 · PRACTICE IT · CROSS-DEVICE BEHAVIOR REVIEW</p><p>An unfamiliar script fingerprint appears beneath two document-viewing processes and contacts the same destination. Test recurrence across the endpoint and identity records, retain a focused evidence set, and write a scoped hunt conclusion with a response handoff.</p></div><div class="m03e-console-host" id="m03e-console-m06-guided">${moduleThreeConsoleHtml('m06-guided')}</div></div><p class="m06-guided-status" role="status">${complete ? 'Guided Lab complete: the hunt record and evidence milestones are saved.' : 'Use the hunt console to test the lead; progress saves as you work.'}</p>`;
 }
 
 /* The Module 3 console carrying Module 4 and 5 tools on this hunt case, with
@@ -1255,6 +1256,113 @@ const MODULE_SIX_CONSOLE = (() => {
   });
 })();
 
+// Practice It: a separate cross-device script recurrence fixture and console
+// state, using the same cumulative packs and evidence mechanics as Prove It.
+const MODULE_SIX_GUIDED_LAB_ID = 'm06-guided-cross-device-hunt-v1';
+const MODULE_SIX_GUIDED_FIXTURE = {
+  schemaVersion: 1,
+  scenario: {
+    id: 'M06-GUIDED-2026-09-27', stateKey: 'm06-guided-hunt-actions-v1', fixedAt: '2026-09-27T10:35:00Z',
+    start: '2026-09-27T10:00:00Z', end: '2026-09-27T10:35:00Z',
+    seedLead: { id: 'M06-GUIDE-LEAD-001', type: 'cross_device_script_indicator', device: 'ws-421', account: 'acct-602', artifactLabel: 'Seed indicator', artifact: 'Unsigned PowerShell script hash a…', observation: 'An unsigned script and the same unfamiliar destination recur beneath document-viewing processes on two workstations. No alert was raised.' },
+    scope: { devices: ['ws-421', 'ws-537', 'ws-612'], accounts: ['acct-602', 'acct-684', 'acct-712'], timeStart: '2026-09-27T10:00:00Z', timeEnd: '2026-09-27T10:35:00Z', note: 'ws-612 provides a signed software baseline; the two seed workstations have different users and parent processes.' },
+    telemetrySchema: { required: ['id', 'time', 'eventType', 'device', 'host', 'account', 'processId', 'parentProcessId', 'action', 'result', 'source'], eventTypes: ['process_start', 'file_indicator', 'network_connection', 'identity_activity'], references: 'Process IDs and related event IDs are scenario-local.' },
+    telemetry: [
+      { id: 'M06-GUIDE-201', time: '2026-09-27T10:04:02Z', eventType: 'process_start', device: 'ws-421', host: 'WS-421', account: 'acct-602', processId: '4210', parentProcessId: null, image: 'C:\\Program Files\\Northstar\\DocPreview.exe', commandLine: 'DocPreview.exe "C:\\Users\\acct-602\\Downloads\\benefits.pdf"', action: 'document_opened', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-202'] },
+      { id: 'M06-GUIDE-202', time: '2026-09-27T10:04:08Z', eventType: 'process_start', device: 'ws-421', host: 'WS-421', account: 'acct-602', processId: '4218', parentProcessId: '4210', image: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', commandLine: 'powershell.exe -NoProfile -File C:\\Users\\acct-602\\Downloads\\benefits_form.ps1', scriptPath: 'C:\\Users\\acct-602\\Downloads\\benefits_form.ps1', action: 'process_start', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-201', 'M06-GUIDE-203', 'M06-GUIDE-204'] },
+      { id: 'M06-GUIDE-203', time: '2026-09-27T10:04:11Z', eventType: 'file_indicator', device: 'ws-421', host: 'WS-421', account: 'acct-602', processId: '4218', parentProcessId: '4210', path: 'C:\\Users\\acct-602\\Downloads\\benefits_form.ps1', sha256: 'a'.repeat(64), signer: 'Unsigned', action: 'file_observed', result: 'unsigned_low_prevalence_script', source: 'SyntheticFileTelemetry', relatedEventIds: ['M06-GUIDE-202', 'M06-GUIDE-204'] },
+      { id: 'M06-GUIDE-204', time: '2026-09-27T10:04:16Z', eventType: 'network_connection', device: 'ws-421', host: 'WS-421', account: 'acct-602', processId: '4218', parentProcessId: '4210', destination: '192.0.2.145', destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result: 'allowed', source: 'SyntheticNetwork', relatedEventIds: ['M06-GUIDE-202', 'M06-GUIDE-203', 'M06-GUIDE-205'] },
+      { id: 'M06-GUIDE-205', time: '2026-09-27T10:05:01Z', eventType: 'identity_activity', device: 'ws-421', host: 'WS-421', account: 'acct-602', identity: 'acct-602', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', result: 'success', source: 'SyntheticIdentity', relatedEventIds: ['M06-GUIDE-204'] },
+      { id: 'M06-GUIDE-206', time: '2026-09-27T10:18:02Z', eventType: 'process_start', device: 'ws-537', host: 'WS-537', account: 'acct-684', processId: '5370', parentProcessId: null, image: 'C:\\Program Files\\Northstar\\MailViewer.exe', commandLine: 'MailViewer.exe /open benefits.pdf', action: 'document_opened', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-207'] },
+      { id: 'M06-GUIDE-207', time: '2026-09-27T10:18:10Z', eventType: 'process_start', device: 'ws-537', host: 'WS-537', account: 'acct-684', processId: '5378', parentProcessId: '5370', image: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', commandLine: 'powershell.exe -NoProfile -File C:\\Users\\acct-684\\Downloads\\benefits_form.ps1', scriptPath: 'C:\\Users\\acct-684\\Downloads\\benefits_form.ps1', action: 'process_start', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-206', 'M06-GUIDE-208', 'M06-GUIDE-209'] },
+      { id: 'M06-GUIDE-208', time: '2026-09-27T10:18:13Z', eventType: 'file_indicator', device: 'ws-537', host: 'WS-537', account: 'acct-684', processId: '5378', parentProcessId: '5370', path: 'C:\\Users\\acct-684\\Downloads\\benefits_form.ps1', sha256: 'a'.repeat(64), signer: 'Unsigned', action: 'file_observed', result: 'unsigned_low_prevalence_script', source: 'SyntheticFileTelemetry', relatedEventIds: ['M06-GUIDE-207', 'M06-GUIDE-209'] },
+      { id: 'M06-GUIDE-209', time: '2026-09-27T10:18:19Z', eventType: 'network_connection', device: 'ws-537', host: 'WS-537', account: 'acct-684', processId: '5378', parentProcessId: '5370', destination: '192.0.2.145', destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result: 'allowed', source: 'SyntheticNetwork', relatedEventIds: ['M06-GUIDE-207', 'M06-GUIDE-208', 'M06-GUIDE-210'] },
+      { id: 'M06-GUIDE-210', time: '2026-09-27T10:19:02Z', eventType: 'identity_activity', device: 'ws-537', host: 'WS-537', account: 'acct-684', identity: 'acct-684', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', result: 'success', source: 'SyntheticIdentity', relatedEventIds: ['M06-GUIDE-209'] },
+      { id: 'M06-GUIDE-211', time: '2026-09-27T10:25:00Z', eventType: 'process_start', device: 'ws-612', host: 'WS-612', account: 'acct-712', processId: '6120', parentProcessId: null, image: 'C:\\Program Files\\Nimbus\\Sync\\NimbusSync.exe', commandLine: 'NimbusSync.exe /update /silent', signer: 'CN=Nimbus Software', action: 'approved_update_check', result: 'signed_binary', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-212'] },
+      { id: 'M06-GUIDE-212', time: '2026-09-27T10:25:12Z', eventType: 'network_connection', device: 'ws-612', host: 'WS-612', account: 'acct-712', processId: '6120', parentProcessId: null, destination: 'updates.nimbus.example', destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result: 'approved_service', source: 'SyntheticNetwork', relatedEventIds: ['M06-GUIDE-211'] },
+    ],
+    expectedTruth: {
+      hypothesis: 'The same unsigned PowerShell script hash and unfamiliar destination recur on ws-421 and ws-537 beneath different document viewers. The evidence supports a bounded cross-device execution pattern but does not establish payload transfer, web-protocol use, or enterprise-wide scope.',
+      supportedTechniques: [{ id: 'T1059.001', name: 'PowerShell', evidenceEventIds: ['M06-GUIDE-202', 'M06-GUIDE-207'], rationale: 'Process telemetry records PowerShell running the same unsigned low-prevalence script on two endpoints.' }],
+      unsupportedTechniques: [
+        { id: 'T1105', name: 'Ingress Tool Transfer', evidenceEventIds: ['M06-GUIDE-202', 'M06-GUIDE-204', 'M06-GUIDE-207', 'M06-GUIDE-209'], missingEvidence: ['No downloaded-file event or transfer command is recorded.'], contradictoryEvidence: [], rationale: 'A subsequent outbound connection does not prove that a tool was transferred onto either host.' },
+        { id: 'T1071.001', name: 'Web Protocols', evidenceEventIds: ['M06-GUIDE-204', 'M06-GUIDE-209'], missingEvidence: ['The records show TCP port 443 but no HTTP(S) application-layer evidence.'], contradictoryEvidence: [], rationale: 'Port 443 alone does not establish web protocol or command-and-control use.' },
+      ],
+    },
+  },
+};
+const MODULE_SIX_GUIDED_DEVICES = [
+  { id: 'ws-421', hostname: 'WS-421', platform: 'Windows 11', role: 'User workstation', owner: 'acct-602', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-537', hostname: 'WS-537', platform: 'Windows 11', role: 'User workstation', owner: 'acct-684', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-612', hostname: 'WS-612', platform: 'Windows 11', role: 'User workstation', owner: 'acct-712', zone: 'CORP-USER', status: 'Online' },
+];
+const MODULE_SIX_GUIDED_HUNT_SOURCES = { process_start: 'DeviceProcessEvents', file_indicator: 'DeviceFileEvents', network_connection: 'DeviceNetworkEvents', identity_activity: 'IdentityEvents' };
+const MODULE_SIX_GUIDED_CONSOLE_DATA = (() => {
+  const s = MODULE_SIX_GUIDED_FIXTURE.scenario;
+  const events = s.telemetry.map((event) => m03eRow(MODULE_SIX_GUIDED_HUNT_SOURCES[event.eventType], event.id, event.time.slice(0, 10), event.time.slice(11, 19), {
+    EventType: event.eventType, EndpointEventType: event.eventType === 'file_indicator' ? 'file_hash' : event.eventType,
+    Account: event.account, Host: event.host, DeviceId: event.device, ProcessId: event.processId || '', ParentProcessId: event.parentProcessId || '',
+    Image: event.image || '', CommandLine: event.commandLine || '', ScriptPath: event.scriptPath || '', FilePath: event.path || event.scriptPath || '',
+    Sha256: event.sha256 || '', Signer: event.signer || '', DestinationIp: /^[\d.]+$/.test(event.destination || '') ? event.destination : '',
+    Domain: /^[\d.]+$/.test(event.destination || '') ? '' : (event.destination || ''), DestinationPort: event.destinationPort || '',
+    Action: event.action, Result: event.result, RelatedEventIds: event.relatedEventIds || [], Detail: event.commandLine || event.path || event.destination || event.action,
+  }));
+  const person = (account, name) => ({ Account: account, DisplayName: name, Type: 'User', Department: 'Operations', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' });
+  return { ...m03eBuildDataset({ caseId: 'HNT-6411', day: s.end.slice(0, 10), events,
+    identities: [person('acct-602', 'Analyst Seed User'), person('acct-684', 'Comparison User'), person('acct-712', 'Nimbus Service User')],
+    ips: [{ SourceIp: '192.0.2.145', Type: 'External', Country: '—', Asn: 'Unclassified test network', FirstSeen: '2026-09-27 10:04', Reputation: 'No reputation data' }],
+    watchlists: { ApprovedSoftware: { title: 'Approved software inventory', rows: [{ Product: 'NimbusSync', Publisher: 'CN=Nimbus Software', Path: 'C:\\Program Files\\Nimbus\\Sync\\NimbusSync.exe', Deployment: 'Managed workstations', Status: 'Approved' }] } },
+    alerts: [{ id: 'ALT-6411', time: '2026-09-27T10:04:16Z', severity: 'Medium', title: 'Repeated script indicator across endpoints', entities: ['WS-421', 'WS-537', 'acct-602', 'acct-684'], rule: 'Unfamiliar destination correlated with unsigned script execution', query: 'DeviceNetworkEvents\n| where DestinationIp == "192.0.2.145"' }],
+  }), now: s.end };
+})();
+const MODULE_SIX_GUIDED_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: MODULE_SIX_GUIDED_FIXTURE.scenario.id, caseId: 'HNT-6411', end: MODULE_SIX_GUIDED_FIXTURE.scenario.end, data: MODULE_SIX_GUIDED_CONSOLE_DATA });
+const MODULE_SIX_GUIDED_M05_FIXTURE = SocConsoleTools.m05Fixture({ id: MODULE_SIX_GUIDED_FIXTURE.scenario.id, stateKey: 'm06-guided-endpoint-tools-v1', devices: MODULE_SIX_GUIDED_DEVICES, data: MODULE_SIX_GUIDED_CONSOLE_DATA });
+let moduleSixGuidedState = null;
+let moduleSixGuidedUser = null;
+function moduleSixGuidedLoad(user) {
+  moduleSixGuidedUser = user;
+  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'HNT-6411', scenarioId: MODULE_SIX_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
+  moduleSixGuidedState = LabRuntime.loadCaseState(MODULE_SIX_GUIDED_LAB_ID, 'soc-06', user, defaults);
+  moduleSixGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleSixGuidedState.caseRecord || {}) };
+  moduleSixGuidedState.tools ||= {};
+  moduleSixGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleSixGuidedState.tools.m04 }, MODULE_SIX_GUIDED_M04_FIXTURE).assessment;
+  moduleSixGuidedState.tools.m05 = SocM05AssessmentState.normalize(moduleSixGuidedState.tools.m05, MODULE_SIX_GUIDED_M05_FIXTURE);
+}
+function moduleSixGuidedSave() { if (moduleSixGuidedUser && moduleSixGuidedState) LabRuntime.saveCaseState(MODULE_SIX_GUIDED_LAB_ID, 'soc-06', moduleSixGuidedUser, moduleSixGuidedState); }
+function moduleSixGuidedM04Tools() { return moduleSixGuidedState.tools.m04; }
+function moduleSixGuidedM06Load() { return SocM06AssessmentState.load(moduleSixGuidedUser, MODULE_SIX_GUIDED_FIXTURE); }
+function moduleSixGuidedM06Store(state) { SocM06AssessmentState.save(moduleSixGuidedUser, state, MODULE_SIX_GUIDED_FIXTURE); moduleSixGuidedSave(); }
+function moduleSixGuidedChecks() {
+  const state = moduleSixGuidedM06Load();
+  const deviceByEvent = new Map(MODULE_SIX_GUIDED_FIXTURE.scenario.telemetry.map((event) => [event.id, event.device]));
+  const bookmarkedDevices = new Set((state.bookmarks || []).map((id) => deviceByEvent.get(id)).filter(Boolean));
+  return [
+    ['hypothesis', 'Save a testable hypothesis tied to this lead.', (state.hypotheses || []).some((item) => item.seedLeadId === MODULE_SIX_GUIDED_FIXTURE.scenario.seedLead.id)],
+    ['hunt', 'Search the scoped records and bookmark the recurring evidence.', (state.queryHistory || []).length >= 2 && bookmarkedDevices.size >= 2],
+    ['conclusion', 'Record the supported ATT&CK mapping, conclusion, and case handoff.', (state.mappings || []).length > 0 && (state.conclusions || []).length > 0 && Boolean(moduleSixGuidedState.caseRecord.notes?.trim())],
+  ];
+}
+function moduleSixGuidedGuide() {
+  const checks = moduleSixGuidedChecks();
+  return `<details class="m06-console-guide" ${moduleSixGuidedState.guideOpen ? 'open' : ''}><summary>Hunt checkpoints · ${checks.filter((check) => check[2]).length}/${checks.length}</summary><ol>${checks.map((check) => `<li>${check[1]} <span>${check[2] ? 'Done' : 'Pending'}</span></li>`).join('')}</ol><details><summary>Optional hint</summary><p>Compare the parent processes and script hashes on both hosts; TCP port 443 alone does not establish web protocol or payload transfer.</p></details></details>`;
+}
+const MODULE_SIX_GUIDED_CONSOLE = SocConsoleTools.mount('m06-guided', {
+  data: MODULE_SIX_GUIDED_CONSOLE_DATA, stateRoot: () => moduleSixGuidedState, save: moduleSixGuidedSave,
+  title: 'SIEM & THREAT HUNTING · PRACTICE', ariaLabel: 'Module 06 guided hunt console', idPrefix: 'guided-m06',
+  sourceMappings: {
+    DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine']] },
+    DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['result', 'Result']] },
+    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+    IdentityEvents: { native: 'Identity session context (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['identity', 'Account'], ['action', 'Action'], ['result', 'Result']] },
+  },
+  packs: [
+    { id: 'm04', ctx: { assessment: moduleSixGuidedM04Tools, fixture: MODULE_SIX_GUIDED_M04_FIXTURE, save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
+    { id: 'm05', ctx: { fixture: MODULE_SIX_GUIDED_M05_FIXTURE, ...SocConsoleTools.embedded(() => moduleSixGuidedState, 'm05', SocM05AssessmentState.normalize, MODULE_SIX_GUIDED_M05_FIXTURE, moduleSixGuidedSave), save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
+    { id: 'm06', ctx: { fixture: MODULE_SIX_GUIDED_FIXTURE, load: moduleSixGuidedM06Load, store: moduleSixGuidedM06Store, save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
+  ],
+  caseView: () => caseRecordPane(moduleSixGuidedState.caseRecord, { caseId: 'HNT-6411', ticketId: 'INC-6411', ticketType: 'Threat hunt findings · Detection Engineering', userOptions: [{ id: 'acct-602', text: 'acct-602' }, { id: 'acct-684', text: 'acct-684' }, { id: 'acct-712', text: 'acct-712' }], deviceOptions: MODULE_SIX_GUIDED_DEVICES.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'detection-engineering', text: 'Detection Engineering' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm06-guided-case', saveAttr: 'data-m06-guided-save-case', submitAttr: 'data-m06-guided-submit-case', panelId: 'm06-guided-case-panel', notesPlaceholder: 'State the repeated behavior, two-device scope, evidence limit, and recommended detection or response follow-up.' }),
+});
+
 function moduleSixCaseTicket() {
   const lab = moduleSixState.independentLab;
   const cr = lab.caseRecord;
@@ -1327,6 +1435,7 @@ function wireModuleSixAdditionalLabsGating(root) {
 
 function viewModuleSix(user, program) {
   moduleSixLoad(user);
+  moduleSixGuidedLoad(user);
   const module = program.modules['soc-06'];
   const sections = moduleSixGetSections();
   const lectureOpen = moduleSixReviewMode || !sections[0].isComplete;
@@ -1341,7 +1450,7 @@ function viewModuleSix(user, program) {
     <div class="mquick-nav-layout">
       ${moduleProgressShell(sections, { reviewMode: moduleSixReviewMode })}
       <main class="m06-main mf-frame">
-      <section class="m06-hero mf-hero" aria-labelledby="m06-title"><div><p class="m06-kicker mf-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede mf-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${moduleSixState.independentLab.completed ? 'Complete' : 'Not started'}</dd></div></dl></section>
+      <section class="m06-hero mf-hero" aria-labelledby="m06-title"><div><p class="m06-kicker mf-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede mf-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd id="m06-status">${moduleSixGuidedChecks().every((check) => check[2]) ? 'Complete' : moduleSixGuidedChecks().some((check) => check[2]) ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${moduleSixState.independentLab.completed ? 'Complete' : 'Not started'}</dd></div></dl></section>
 
       <details class="m06-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
         <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">1</span><div><p class="m06-kicker mf-kicker">Lecture</p><h2 id="m06-lecture">Hypothesis-led hunting foundations</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
@@ -1391,174 +1500,54 @@ function moduleSixRenderGuidedLab(focusId) {
   const root = document.getElementById('m06-guided-lab-dynamic');
   if (!root) return;
   root.innerHTML = moduleSixGuidedLabPanel();
+  const host = root.querySelector('#m03e-console-m06-guided');
+  if (host) { MODULE_SIX_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m06-guided'); }
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
 function wireModuleSixGuidedLab() {
   const root = document.getElementById('m06-guided-lab-dynamic');
-  if (!root || !moduleSixState) return;
-
-  root.addEventListener('click', (event) => {
-    const sourceButton = event.target.closest('[data-m06-source]');
-    if (sourceButton) {
-      moduleSixState.activeSource = sourceButton.dataset.m06Source;
-      moduleSixState.detailEvent = '';
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-workspace-title');
-      return;
-    }
-
-    if (event.target.closest('[data-m06-run]')) {
-      const sourceKey = moduleSixState.activeSource;
-      const editor = root.querySelector('#m06-query-editor');
-      moduleSixState.queryDrafts[sourceKey] = editor ? editor.value : moduleSixState.queryDrafts[sourceKey];
-      const result = moduleSixRunQuery(sourceKey, moduleSixState.queryDrafts[sourceKey]);
-      moduleSixState.queryRuns[sourceKey] = (Number(moduleSixState.queryRuns[sourceKey]) || 0) + 1;
-      moduleSixState.queryPassed[sourceKey] = result.passed;
-      moduleSixState.queryResultIds[sourceKey] = result.rows.map((row) => row.id);
-      const source = MODULE_SIX_SOURCES[sourceKey];
-      moduleSixState.queryFeedback[sourceKey] = result.passed
-        ? `Two matches remain in chronological order. Inspect and bookmark the rows that support the hypothesis.`
-        : `${result.tableOk ? 'Table recognized.' : `Start with ${source.table}.`} ${result.canonicalField === source.expectedField && result.value === source.expectedValue ? 'Pivot recognized.' : `Filter ${source.expectedField} to the seed value.`} ${result.sortOk ? 'Time sort recognized.' : 'Sort TimeGenerated ascending.'} ${result.rows.length} row${result.rows.length === 1 ? '' : 's'} returned.`;
-      moduleSixState.detailEvent = '';
-      moduleSixState.validationError = '';
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-query-feedback');
-      return;
-    }
-
-    const bookmarkButton = event.target.closest('[data-m06-bookmark]');
-    if (bookmarkButton) {
-      const id = bookmarkButton.dataset.m06Bookmark;
-      moduleSixState.bookmarks = moduleSixState.bookmarks.includes(id)
-        ? moduleSixState.bookmarks.filter((item) => item !== id)
-        : [...moduleSixState.bookmarks, id];
-      moduleSixState.selectedEvidence = [...moduleSixState.bookmarks];
-      moduleSixState.validationError = '';
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-bookmark-title');
-      return;
-    }
-
-    const detailButton = event.target.closest('[data-m06-detail]');
-    if (detailButton) {
-      moduleSixState.detailEvent = detailButton.dataset.m06Detail;
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-row-detail');
-      return;
-    }
-
-    if (event.target.closest('[data-m06-detail-close]')) {
-      moduleSixState.detailEvent = '';
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-workspace-title');
-      return;
-    }
-
-    if (event.target.closest('[data-m06-reset]')) {
-      if (moduleSixState.caseRecord.submitted) return;
-      if (typeof window.confirm === 'function' && !window.confirm('Reset only this Module 06 lab? Your saved hunt attempt will be cleared.')) return;
-      const independentLab = moduleSixState.independentLab;
-      moduleSixState = LabRuntime.resetCaseState(MODULE_SIX_LAB_ID, 'soc-06', moduleSixUser, moduleSixFreshDefaults());
-      moduleSixState.independentLab = independentLab;
-      moduleSixSave();
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_CATALOG_LAB_KEY, false);
-      moduleSixRenderGuidedLab('m06-hypothesis-title');
-      const status = document.getElementById('m06-status');
-      if (status) status.textContent = 'Not started';
-      return;
-    }
-
-    if (event.target.closest('[data-m06-save-case]')) {
-      moduleSixState.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
-      moduleSixSave();
-      moduleSixRenderGuidedLab();
-      return;
-    }
-
-    if (event.target.closest('[data-m06-submit-case]')) {
-      if (moduleSixState.caseRecord.submitted) return;
-      const spec = moduleSixHuntCaseSpec();
-      const missing = caseRecordMissing(moduleSixState.caseRecord, spec);
-      if (missing.length) {
-        moduleSixProveItShowMissing = true;
-        moduleSixSave();
-        moduleSixRenderGuidedLab('m06-case-panel');
-        return;
-      }
-      moduleSixProveItShowMissing = false;
-      const result = moduleSixHuntCaseScore();
-      const submittedAt = new Date().toISOString();
-      moduleSixState.caseRecord.submitted = true;
-      moduleSixState.caseRecord.submittedAt = submittedAt;
-      moduleSixState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: submittedAt });
-      moduleSixState.attempts = (moduleSixState.attempts || 0) + 1;
-      moduleSixState.score = result.score;
-      moduleSixState.bestScore = Math.max(moduleSixState.bestScore || 0, result.score);
-      moduleSixState.breakdown = result.breakdown;
-      moduleSixState.feedback = result.feedback;
-      moduleSixState.lastSubmittedAt = submittedAt;
-      // Submitted = complete pending faculty review (Module 01 model); the
-      // 70% bar is applied by instructor review, not by locking the student out.
-      moduleSixState.completed = true;
-      if (moduleSixState.completed && !moduleSixState.flags.includes(MODULE_SIX_FLAG)) moduleSixState.flags.push(MODULE_SIX_FLAG);
-      moduleSixSave();
-      if (moduleSixUser) {
-        moduleSixUser.latestLabAttemptByKey = { ...(moduleSixUser.latestLabAttemptByKey || {}), [MODULE_SIX_CATALOG_LAB_KEY]: { completedAt: submittedAt, reviewedAt: null, redoRequested: false } };
-      }
-      if (typeof recordLabAttempt === 'function') {
-        recordLabAttempt(moduleSixUser, MODULE_SIX_CATALOG_LAB_KEY, {
-          state: 'complete',
-          score: result.score,
-          result: {
-            breakdown: result.breakdown,
-            feedback: result.feedback,
-            critical_errors: result.criticalErrors,
-            case_record: moduleSixState.caseRecord,
-            case_display: caseRecordDisplay(moduleSixState.caseRecord, spec),
-            case_summary: caseRecordSummary(moduleSixState.caseRecord, spec),
-            attempts: moduleSixState.attempts,
-          },
-        }).then((saved) => { if (saved && moduleSixProveItRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06']; });
-      }
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_CATALOG_LAB_KEY);
-      moduleSixRenderGuidedLab('m06-case-panel');
-      const status = document.getElementById('m06-status');
-      if (status) status.textContent = moduleSixState.completed ? 'Complete' : 'In progress';
-    }
-  });
-
+  if (!root || !moduleSixGuidedState) return;
+  const host = root.querySelector('#m03e-console-m06-guided');
+  if (host) { MODULE_SIX_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m06-guided'); }
+  if (!root.dataset.m06GuidedObserver) {
+    root.dataset.m06GuidedObserver = 'true';
+    const observer = new MutationObserver(() => {
+      const guide = root.querySelector('.m06-console-guide');
+      if (!guide) return;
+      const next = document.createElement('div'); next.innerHTML = moduleSixGuidedGuide();
+      const nextGuide = next.firstElementChild;
+      if (guide.innerHTML !== nextGuide.innerHTML) { nextGuide.open = guide.open; guide.replaceWith(nextGuide); }
+      const checks = moduleSixGuidedChecks();
+      const complete = checks.every((check) => check[2]);
+      const status = root.querySelector('.m06-guided-status');
+      if (status) status.textContent = complete ? 'Guided Lab complete: the hunt record and evidence milestones are saved.' : 'Use the hunt console to test the lead; progress saves as you work.';
+      const badge = document.getElementById('m06-status');
+      if (badge) badge.textContent = complete ? 'Complete' : checks.some((check) => check[2]) ? 'In progress' : 'Not started';
+    });
+    observer.observe(root, { childList: true, subtree: true });
+  }
   root.addEventListener('input', (event) => {
-    if (event.target.name === 'queryDraft') {
-      moduleSixState.queryDrafts[moduleSixState.activeSource] = event.target.value;
-      moduleSixSave();
-      return;
-    }
-    if (event.target.name === 'notes' && event.target.closest('#m06-form')) {
-      caseRecordApply(moduleSixState.caseRecord, 'notes', event.target.value);
-      moduleSixSave();
-    }
+    if (event.target.matches('#guided-m06-m06-guided-case [name="notes"]')) moduleSixGuidedState.caseRecord.notes = event.target.value;
   });
-
   root.addEventListener('change', (event) => {
-    const input = event.target;
-    if (input.closest('#m06-form') && caseRecordApply(moduleSixState.caseRecord, input.name, input.value)) {
-      moduleSixState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
-      moduleSixSave();
+    const field = event.target.closest('#guided-m06-m06-guided-case [name]');
+    if (!field) return;
+    if (field.name.startsWith('finding:')) moduleSixGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
+    else moduleSixGuidedState.caseRecord[field.name] = field.value;
+    moduleSixGuidedSave();
+  });
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m06-guided-submit-case]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m06-guided-save-case]')) {
+      event.preventDefault();
+      moduleSixGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
+      moduleSixGuidedSave();
+      m03eRender('m06-guided');
       return;
     }
-    if (['hypothesis', 'iocRelationship', 'nextAction'].includes(input.name)) {
-      moduleSixState[input.name] = input.value;
-      moduleSixSave();
-      return;
-    }
-    const checkboxFields = { scopedDevices: 'scopedDevices', scopedAccounts: 'scopedAccounts', techniques: 'techniques' };
-    if (checkboxFields[input.name]) {
-      const key = checkboxFields[input.name];
-      moduleSixState[key] = input.checked
-        ? [...new Set([...moduleSixState[key], input.value])]
-        : moduleSixState[key].filter((item) => item !== input.value);
-      moduleSixSave();
+    if (event.target.closest('.m06-console-guide > summary')) {
+      requestAnimationFrame(() => { moduleSixGuidedState.guideOpen = Boolean(root.querySelector('.m06-console-guide')?.open); moduleSixGuidedSave(); });
     }
   });
 }

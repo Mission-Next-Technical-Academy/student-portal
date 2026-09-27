@@ -708,7 +708,7 @@ function moduleFourGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm04-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleFourQuizState?.passed, scrollId: 'm04-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleFourState.ruleRuns > 0 && Boolean(moduleFourState.enrichedIndicator), scrollId: 'm04-guided-lab' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleFourGuidedChecks().every((check) => check[2]), scrollId: 'm04-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleFourState.completed, scrollId: 'm04-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm04-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm04-sources-section', gated: false, supplemental: true },
@@ -733,7 +733,7 @@ function moduleFourGetQuickNavItems() {
     id: 'm04-guided-lab',
     title: 'Guided Lab',
     kind: 'lab',
-    isComplete: moduleFourState.ruleRuns > 0 && Boolean(moduleFourState.enrichedIndicator),
+    isComplete: moduleFourGuidedChecks().every((check) => check[2]),
     scrollId: 'm04-guided-lab',
   });
   items.push({
@@ -1100,12 +1100,7 @@ function moduleFourAssessmentReview(payload) {
 }
 
 function moduleFourGuidedLabPanel() {
-  const station = moduleFourState.activeStation === 'rule'
-    ? moduleFourRuleStation()
-    : moduleFourState.activeStation === 'intel'
-      ? moduleFourIntelStation()
-      : `<section class="m04-start-panel" aria-label="Choose a starting desk"><i class="ri-route-line" aria-hidden="true"></i><div><strong>Choose either desk to begin.</strong><p>This assisted lab signposts the required outputs but leaves the investigation order to you.</p></div></section>`;
-  return `${moduleFourProgressStrip()}${moduleFourStationChooser()}${station}${moduleFourIndependentLab()}`;
+  return `${moduleFourGuidedGuide()}<div class="m03e-panel" id="m04-guided-console-panel"><div class="m03e-brief"><p class="m03e-label">CASE DET-4478 · PRACTICE IT · SOC DETECTION QUEUE</p><p>Review a reported burst of sign-in failures, decide how to tune a detection, and document a bounded response. You choose the investigation path.</p></div><div class="m03e-console-host" id="m03e-console-m04-guided">${moduleThreeConsoleHtml('m04-guided')}</div></div>`;
 }
 
 // The Module 3 SIEM, mounted on the independent M04 assessment data. Module 4
@@ -1153,6 +1148,99 @@ const MODULE_FOUR_CONSOLE = SocConsoleTools.mount('m04', {
   caseBadge: () => (moduleFourState.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
 });
 
+// Practice It uses a separately persisted case root and a distinct scenario;
+// none of its console or tool-pack state is stored under the Prove It lab ID.
+const MODULE_FOUR_GUIDED_LAB_ID = 'm04-guided-detection-console-v1';
+let moduleFourGuidedState = null;
+let moduleFourGuidedUser = null;
+const moduleFourGuidedClone = (value) => JSON.parse(JSON.stringify(value));
+function moduleFourGuidedReplace(value) {
+  const replacements = {
+    'M04-ASSESS-2026-09-24': 'M04-GUIDED-2026-09-27', 'DET-4424': 'DET-4478',
+    'M04-A-001': 'GL4-A-101', 'M04-A-002': 'GL4-A-102', 'M04-A-003': 'GL4-A-103', 'M04-A-004': 'GL4-A-104', 'M04-A-005': 'GL4-A-105', 'M04-A-006': 'GL4-A-106', 'M04-A-007': 'GL4-A-107', 'M04-A-008': 'GL4-A-108', 'M04-A-009': 'GL4-A-109',
+    'M04-R-001': 'GL4-R-201', 'M04-R-002': 'GL4-R-202', 'M04-I-001': 'GL4-I-301', 'M04-I-002': 'GL4-I-302', 'M04-I-003': 'GL4-I-303',
+    '198.51.100.64': '192.0.2.144', '203.0.113.77': '203.0.113.177',
+    'acct-41': 'acct-61', 'acct-42': 'acct-62', 'acct-43': 'acct-63', 'acct-44': 'acct-64', 'acct-45': 'acct-65',
+  };
+  if (typeof value === 'string') return Object.entries(replacements).reduce((result, [from, to]) => result.split(from).join(to), value);
+  if (Array.isArray(value)) return value.map(moduleFourGuidedReplace);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleFourGuidedReplace(item)]));
+  return value;
+}
+const MODULE_FOUR_GUIDED_FIXTURE = moduleFourGuidedReplace(moduleFourGuidedClone(SocM04AssessmentData));
+MODULE_FOUR_GUIDED_FIXTURE.scenario.telemetry = [
+  { id: 'GL4-A-101', time: '2026-09-27T10:11:00Z', type: 'AuthFailure', account: 'acct-61', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
+  { id: 'GL4-A-102', time: '2026-09-27T10:12:00Z', type: 'AuthFailure', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
+  { id: 'GL4-A-103', time: '2026-09-27T10:13:00Z', type: 'AuthFailure', account: 'acct-63', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
+  { id: 'GL4-A-104', time: '2026-09-27T10:14:00Z', type: 'AuthSuccess', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Success', device: 'Unknown' },
+  { id: 'GL4-A-105', time: '2026-09-27T10:16:00Z', type: 'AuthFailure', account: 'acct-17', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
+  { id: 'GL4-A-106', time: '2026-09-27T10:17:00Z', type: 'AuthFailure', account: 'acct-17', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
+  { id: 'GL4-A-107', time: '2026-09-27T10:18:00Z', type: 'AuthFailure', account: 'acct-17', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
+];
+MODULE_FOUR_GUIDED_FIXTURE.scenario.start = '2026-09-27T10:10:00Z';
+MODULE_FOUR_GUIDED_FIXTURE.scenario.end = '2026-09-27T10:20:00Z';
+MODULE_FOUR_GUIDED_FIXTURE.scenario.generatedAt = '2026-09-27T10:21:00Z';
+MODULE_FOUR_GUIDED_FIXTURE.scenario.truth = {
+  maliciousSourceIp: '192.0.2.144', targetedAccounts: ['acct-61', 'acct-62', 'acct-63'], confirmedCompromisedAccounts: ['acct-62'],
+  successfulAuthenticationEventIds: ['GL4-A-104'], corroboratingIocIds: ['GL4-I-301'], unrelatedIocIds: ['GL4-I-302', 'GL4-I-303'],
+  benignRetry: { sourceIp: '203.0.113.177', account: 'acct-17', eventIds: ['GL4-A-105', 'GL4-A-106', 'GL4-A-107'], explanationReportId: 'GL4-R-201' },
+  rule: { groupingField: 'sourceIp', metric: 'distinctAccounts', threshold: 3, windowMinutes: 5, matchEventIds: ['GL4-A-101', 'GL4-A-102', 'GL4-A-103', 'GL4-A-104'], excludeEventIds: ['GL4-A-105', 'GL4-A-106', 'GL4-A-107'] },
+};
+MODULE_FOUR_GUIDED_FIXTURE.scenario.reports[0].summary = 'acct-17 mail retries follow the completed credential refresh; treat them as a managed-client baseline.';
+MODULE_FOUR_GUIDED_FIXTURE.scenario.reports[1].summary = '192.0.2.144 is linked to a current distributed credential-guessing cluster; corroborate the report against local sign-in activity.';
+const MODULE_FOUR_GUIDED_CONSOLE_DATA = (() => {
+  const scenario = MODULE_FOUR_GUIDED_FIXTURE.scenario;
+  const day = scenario.start.slice(0, 10);
+  const events = scenario.telemetry.map((event) => m03eRow('AuthLog', event.id, day, event.time.slice(11, 19), {
+    EventType: event.type, Account: event.account, SourceIp: event.sourceIp, Result: event.result, Device: event.device, Host: 'idp-07',
+    Detail: event.result === 'Failure' ? 'Invalid password' : 'Sign-in succeeded',
+  }));
+  const user = (account, department, usual) => ({ Account: account, DisplayName: account, Type: 'User', Department: department, Owner: '—', Privileged: 'No', UsualSourceIp: usual, Notes: '' });
+  return m03eBuildDataset({ caseId: scenario.caseId, day, events,
+    identities: [user('acct-61', 'Research', '10.55.4.10'), user('acct-62', 'Design', '10.55.4.12'), user('acct-63', 'Operations', '10.55.4.10'), { ...user('acct-17', 'Operations', '203.0.113.177'), Notes: 'Uses the managed mail client' }],
+    ips: [
+      { SourceIp: '192.0.2.144', Type: 'External', Country: '—', Asn: 'Unresolved residential proxy', FirstSeen: `${day} 10:11`, Reputation: 'New to the tenant; current intelligence report requires local corroboration.' },
+      { SourceIp: '203.0.113.177', Type: 'External', Country: '—', Asn: 'Mission Next managed mail relay', FirstSeen: '2025-02-03 08:00', Reputation: 'Known managed mail-client egress' },
+    ], watchlists: { ChangeTickets: { title: 'Approved change tickets', rows: [{ ChangeId: 'CR-288', Summary: 'Credential refresh (Messaging Operations)', Account: 'acct-17', Window: `${day} 10:10–10:20`, Status: 'Completed' }] } }, alerts: [],
+  });
+})();
+function moduleFourGuidedLoad(user) {
+  moduleFourGuidedUser = user;
+  const defaults = {
+    assessment: {}, console: {}, caseRecord: { caseId: 'DET-4478', scenarioId: MODULE_FOUR_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] },
+    guideCollapsed: false,
+  };
+  moduleFourGuidedState = LabRuntime.loadCaseState(MODULE_FOUR_GUIDED_LAB_ID, 'soc-04', user, defaults);
+  moduleFourGuidedState.assessment = SocM04AssessmentState.normalize(moduleFourGuidedState, MODULE_FOUR_GUIDED_FIXTURE).assessment;
+  if (!Array.isArray(moduleFourGuidedState.assessment.iocs)) moduleFourGuidedState.assessment.iocs = moduleFourGuidedClone(MODULE_FOUR_GUIDED_FIXTURE.scenario.iocs);
+  if (!Array.isArray(moduleFourGuidedState.assessment.reports)) moduleFourGuidedState.assessment.reports = moduleFourGuidedClone(MODULE_FOUR_GUIDED_FIXTURE.scenario.reports);
+  moduleFourGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleFourGuidedState.caseRecord || {}) };
+}
+function moduleFourGuidedSave() {
+  if (moduleFourGuidedUser && moduleFourGuidedState) LabRuntime.saveCaseState(MODULE_FOUR_GUIDED_LAB_ID, 'soc-04', moduleFourGuidedUser, moduleFourGuidedState);
+}
+function moduleFourGuidedAssessment() { return moduleFourGuidedState.assessment; }
+function moduleFourGuidedChecks() {
+  const state = m03eState('m04-guided');
+  const assessment = moduleFourGuidedState.assessment;
+  return [
+    ['alert', 'Inspect the generated alert and its affected entities.', state.seen?.some((tag) => tag.startsWith('alert:'))],
+    ['query', 'Run a KQL query against the sign-in records.', (state.queryLog || []).length > 0],
+    ['rule', 'Save and run a detection rule against this case.', (assessment.rules || []).length > 0 && (assessment.executions || []).length > 0],
+    ['ticket', 'Record the investigation in the ITSM case tab.', Boolean(moduleFourGuidedState.caseRecord.actionHistory?.length || moduleFourGuidedState.caseRecord.notes)],
+  ];
+}
+function moduleFourGuidedGuide() {
+  const checks = moduleFourGuidedChecks();
+  return `<details class="m04-console-guide" ${moduleFourGuidedState.guideCollapsed ? '' : 'open'}><summary>Console Guide · ${checks.filter((item) => item[2]).length}/${checks.length} tasks observed</summary><ol>${checks.map((item) => `<li>${item[1]} <span>${item[2] ? 'Complete' : 'In progress'}</span></li>`).join('')}</ol><details><summary>Optional hint</summary><p>Compare the alert grouping with a query grouped by source address, then check current intelligence before choosing a response.</p></details></details>`;
+}
+const MODULE_FOUR_GUIDED_CONSOLE = SocConsoleTools.mount('m04-guided', {
+  data: MODULE_FOUR_GUIDED_CONSOLE_DATA, stateRoot: () => moduleFourGuidedState, save: moduleFourGuidedSave,
+  title: 'SIEM & DETECTION ENGINEERING · PRACTICE', ariaLabel: 'Module 04 guided detection console', idPrefix: 'guided',
+  packs: [{ id: 'm04', ctx: { assessment: moduleFourGuidedAssessment, fixture: MODULE_FOUR_GUIDED_FIXTURE, save: moduleFourGuidedSave, rerender: () => moduleFourRenderGuided(), console: () => m03eState('m04-guided') } }],
+  caseView: () => `<section class="m03e-case-view"><p class="m03e-case-attach">${m03eState('m04-guided').pins.length} pinned evidence record(s) and ${m03eState('m04-guided').queryLog.length} query record(s) are available to cite in this case.</p>${caseRecordPane(moduleFourGuidedState.caseRecord, { caseId: 'DET-4478', ticketId: 'INC-4478', ticketType: 'Detection tuning · SOC Detection Queue', userOptions: [{ id: 'acct-61', text: 'acct-61' }, { id: 'acct-62', text: 'acct-62' }, { id: 'acct-63', text: 'acct-63' }, { id: 'acct-64', text: 'acct-64' }, { id: 'acct-65', text: 'acct-65' }], deviceOptions: [{ id: '192.0.2.144', text: '192.0.2.144 · reported source' }, { id: '203.0.113.177', text: '203.0.113.177 · managed client' }], departmentOptions: [{ id: 'soc-detection-queue', text: 'SOC Detection Queue' }, { id: 'identity-operations', text: 'Identity Operations' }], formId: 'm04-guided-case-form', saveAttr: 'data-m04-guided-case-save', submitAttr: 'data-m04-guided-case-submit', panelId: 'm04-guided-case-status', notesPlaceholder: 'Record the alert, query and rule evidence, tuning decision, and safe follow-up.' })}</section>`,
+});
+
 
 function moduleFourAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m04-prove-panel">
@@ -1172,6 +1260,7 @@ function moduleFourAdditionalLabs() {
 
 function viewModuleFour(user, program) {
   moduleFourLoad(user);
+  moduleFourGuidedLoad(user);
   const complete = moduleFourState.completed === true;
   const module = program.modules['soc-04'];
   const sections = moduleFourGetSections();
@@ -1348,6 +1437,8 @@ function moduleFourRenderGuided(focusId) {
   const root = document.getElementById('m04-guided-lab-dynamic');
   if (!root) return;
   root.innerHTML = moduleFourGuidedLabPanel();
+  const consoleHost = root.querySelector('#m03e-console-m04-guided');
+  if (consoleHost) { MODULE_FOUR_GUIDED_CONSOLE.wire(consoleHost); m03eAttachEditor('m04-guided'); }
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -1368,7 +1459,42 @@ function moduleFourOpenStation(station) {
 
 function wireModuleFourGuidedLab() {
   const root = document.getElementById('m04-guided-lab-dynamic');
-  if (!root || !moduleFourState) return;
+  if (!root || !moduleFourGuidedState) return;
+  const consoleHost = root.querySelector('#m03e-console-m04-guided');
+  if (consoleHost) { MODULE_FOUR_GUIDED_CONSOLE.wire(consoleHost); m03eAttachEditor('m04-guided'); }
+  if (!root.dataset.guideObserver) {
+    root.dataset.guideObserver = 'true';
+    const observer = new MutationObserver(() => {
+      const guide = root.querySelector('.m04-console-guide');
+      if (!guide) return;
+      const next = document.createElement('div'); next.innerHTML = moduleFourGuidedGuide();
+      const nextGuide = next.firstElementChild;
+      if (guide.innerHTML !== nextGuide.innerHTML) { nextGuide.open = guide.open; guide.replaceWith(nextGuide); }
+    });
+    observer.observe(root, { childList: true, subtree: true });
+  }
+  root.addEventListener('input', (event) => {
+    if (event.target.matches('#guided-m04-guided-case-form [name="notes"]')) moduleFourGuidedState.caseRecord.notes = event.target.value;
+  });
+  root.addEventListener('change', (event) => {
+    const field = event.target.closest('#guided-m04-guided-case-form [name]');
+    if (!field) return;
+    if (field.name.startsWith('finding:')) moduleFourGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
+    else moduleFourGuidedState.caseRecord[field.name] = field.value;
+    moduleFourGuidedSave();
+  });
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m04-guided-case-submit]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m04-guided-case-save]')) {
+      event.preventDefault();
+      moduleFourGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
+      moduleFourGuidedSave(); m03eRender('m04-guided'); return;
+    }
+    if (event.target.closest('.m04-console-guide > summary')) {
+      requestAnimationFrame(() => { moduleFourGuidedState.guideCollapsed = !root.querySelector('.m04-console-guide')?.open; moduleFourGuidedSave(); });
+    }
+  });
+  return;
 
   // The independent lab is Practice It: locally scored, never the Assessment Lab.
   root.addEventListener('change', (event) => {

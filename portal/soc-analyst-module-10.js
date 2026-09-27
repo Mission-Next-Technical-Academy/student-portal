@@ -489,7 +489,7 @@ let moduleTenQuizForceRetake = false;
 let moduleTenReviewMode = false;
 let moduleTenUser = null;
 
-const MODULE_TEN_GUIDED_DEFAULT_STATE = { practiceComplete: false, practiceNotes: '', lastQuizQuestionIds: [], labProgress: {} };
+const MODULE_TEN_GUIDED_DEFAULT_STATE = { practiceComplete: false, practiceNotes: '', lastQuizQuestionIds: [], labProgress: {}, caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] } };
 const MODULE_TEN_ASSESSMENT_DEFAULT_STATE = {
   completed: false, attempts: 0, feedback: [], validationError: '', lastSubmittedAt: '', notes: '', flags: [], labProgress: {},
   // Standard case-record ticket fields (docs/specs/MODULE_STANDARD.md §7.2).
@@ -503,11 +503,13 @@ const MODULE_TEN_ASSESSMENT_LAB_IDS = ['assessment-1', 'assessment-2', 'addition
 
 let moduleTenGuidedState = null;
 let moduleTenAssessmentState = null;
+let moduleTenGuidedEvidenceState = null;
 
 function moduleTenLoad(user) {
   if (moduleTenUser?.email !== user?.email) moduleTenQuizForceRetake = false;
   moduleTenUser = user;
   moduleTenGuidedState = LabRuntime.loadCaseState(MODULE_TEN_GUIDED_LAB_ID, 'soc-10', user, MODULE_TEN_GUIDED_DEFAULT_STATE);
+  moduleTenGuidedEvidenceState = SocM10AssessmentState.load(user, MODULE_TEN_GUIDED_FIXTURE);
   moduleTenAssessmentState = LabRuntime.loadCaseState(MODULE_TEN_ASSESSMENT_LAB_ID, 'soc-10', user, MODULE_TEN_ASSESSMENT_DEFAULT_STATE);
   if (typeof moduleTenGuidedState.practiceNotes !== 'string') moduleTenGuidedState.practiceNotes = '';
   if (!Array.isArray(moduleTenGuidedState.lastQuizQuestionIds)) moduleTenGuidedState.lastQuizQuestionIds = [];
@@ -550,23 +552,17 @@ function moduleTenLoad(user) {
 }
 
 function moduleTenSaveGuided() { if (moduleTenUser && moduleTenGuidedState) LabRuntime.saveCaseState(MODULE_TEN_GUIDED_LAB_ID, 'soc-10', moduleTenUser, moduleTenGuidedState); }
+function moduleTenSaveGuidedEvidence(next = moduleTenGuidedEvidenceState) { if (moduleTenUser && next) moduleTenGuidedEvidenceState = SocM10AssessmentState.save(moduleTenUser, next, MODULE_TEN_GUIDED_FIXTURE); }
 function moduleTenSaveAssessment() { if (moduleTenUser && moduleTenAssessmentState) LabRuntime.saveCaseState(MODULE_TEN_ASSESSMENT_LAB_ID, 'soc-10', moduleTenUser, moduleTenAssessmentState); }
 
 
 function moduleTenGuidedLabPanel() {
-  const bucket = moduleTenGuidedState.labProgress;
-  const launchGroup = missionNextLabLaunchGroup(10, 'guided', [
-    { title: 'Analyzing Windows Registry for Evidence of Malicious Activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-2/lab', labId: 'guided-1' },
-    { title: 'Forensic Analysis of Windows File Systems and Artifacts', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-3/lab', labId: 'guided-2' },
-  ], bucket);
-  const readyToMark = missionNextAllLabsComplete(bucket, MODULE_TEN_GUIDED_LAB_IDS);
-  const canMark = moduleTenGuidedState.practiceComplete || readyToMark;
-  return `<section class="m10-external-lab" id="m10-guided-lab-panel">
-    <p class="m10-panel-instruction">Work through both imported Windows-forensics projects below; each opens on this page with its own guided tasks. Mark each lab complete after you finish it, note what you found, then mark the Guided Lab complete.</p>
-    ${launchGroup}
-    <label class="m10-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m10-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleTenGuidedState.practiceNotes)}</textarea></label>
-    <div class="m10-actions"><button type="button" class="m10-submit" data-m10-practice-complete ${canMark ? '' : 'disabled'}>${moduleTenGuidedState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
-    ${!canMark ? '<p class="m10-help">Mark both labs above complete before marking the Guided Lab complete.</p>' : ''}
+  const evidence = moduleTenGuidedEvidenceState || {};
+  const complete = moduleTenGuidedComplete();
+  return `<section class="m10-guided-case"><p class="m10-panel-instruction">Preserve a defensible evidence set and write what its chronology supports.</p>
+    <details class="m10-console-guide"><summary>Guide · ${complete ? 'handoff recorded' : `${Object.keys(evidence.locker || {}).length} artifacts in locker`}</summary><ol><li>Acquire only relevant artifacts and keep source hashes traceable.</li><li>Resolve hash mismatch and custody before drawing conclusions.</li><li>Separate supported sequence from unknown impact in the case ticket.</li></ol></details>
+    <div class="m03e-console-host" id="m03e-console-m10-guided">${moduleThreeConsoleHtml('m10-guided')}</div>
+    <p class="m10-guided-status" role="status">${complete ? 'Practice evidence handoff complete.' : 'Continue the evidence workflow and save the independent case ticket.'}</p>
   </section>`;
 }
 
@@ -577,27 +573,59 @@ const MODULE_TEN_ARTIFACT_TABLES = {
   email_message: 'EmailEvents', mail_trace: 'EmailEvents', file: 'DeviceFileEvents', process_log: 'DeviceProcessEvents',
   registry: 'DeviceRegistryEvents', network_log: 'ProxyEvents', memory_image: 'ForensicAcquisitions', system_log: 'SystemLog',
 };
-const MODULE_TEN_CONSOLE_DATA = (function () {
-  const s = SocM10AssessmentData.scenario;
+function moduleTenBuildConsoleData(fixture, caseId) {
+  const s = fixture.scenario;
+  const identities = [...new Set(s.artifacts.map((artifact) => artifact.account).filter((account) => account && account !== 'SYSTEM'))]
+    .map((account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Service owner', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: `Identity represented in case ${s.caseId}` }));
+  const workstation = s.artifacts.find((artifact) => artifact.type === 'process_log')?.host || s.artifacts[0]?.host || '';
+  const primaryUser = s.artifacts.find((artifact) => artifact.host === workstation && artifact.account !== 'SYSTEM')?.account || '';
   const events = s.artifacts.map((a) => m03eRow(MODULE_TEN_ARTIFACT_TABLES[a.type] || 'CaseArtifacts', a.id, a.time.slice(0, 10), a.time.slice(11, 19), {
     EventType: a.type, Account: a.account, Host: a.host, DeviceId: a.host, Result: a.title, SourceSystem: a.source, SourceSha256: a.sourceHash, Detail: `${a.title}. ${a.detail}`,
   }));
   return {
     ...m03eBuildDataset({
-      caseId: s.caseId,
+      caseId,
       day: s.start.slice(0, 10),
       events,
-      identities: [
-        { Account: 'j.sanders', DisplayName: 'J. Sanders', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: 'Primary user of WKSTN-19' },
-        { Account: 'jdoe', DisplayName: 'J. Doe', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: 'Primary user of WKS-DESK-07' },
-      ],
+      identities,
       ips: [],
       watchlists: { Custodians: { title: 'Evidence custodians', rows: s.custodians.map((item) => ({ Custodian: item.id, Role: item.label })) } },
-      alerts: [{ id: s.request.id, time: s.request.receivedAt, severity: 'High', title: 'Evidence collection request for contained WKSTN-19', entities: ['WKSTN-19', 'j.sanders'], rule: s.request.text, query: 'UnifiedEvents\n| where Host == "WKSTN-19"\n| sort by TimeGenerated asc' }],
+      alerts: [{ id: s.request.id, time: s.request.receivedAt, severity: 'High', title: `Evidence collection request for contained ${workstation}`, entities: [workstation, primaryUser], rule: s.request.text, query: `UnifiedEvents\n| where Host == "${workstation}"\n| sort by TimeGenerated asc` }],
     }),
     now: s.end,
   };
-}());
+}
+const MODULE_TEN_CONSOLE_DATA = moduleTenBuildConsoleData(SocM10AssessmentData, SocM10AssessmentData.scenario.caseId);
+const MODULE_TEN_GUIDED_CASE_ID = 'EVD-6620';
+const MODULE_TEN_GUIDED_REPLACEMENTS = {
+  'M10-': 'M10G-', 'ART-': 'PRACT-', 'EVD-5510': 'EVD-6620', 'INC-5510': 'INC-6620', 'REQ-5510': 'REQ-6620', 'WKSTN-19': 'WKSTN-42',
+  'DEV-WKSTN-19': 'DEV-WKSTN-42', 'MAIL-GW-01': 'MAIL-GW-02', 'PROXY-01': 'PROXY-02', 'j.sanders': 'm.chen',
+  'WKS-DESK-07': 'WKS-FIN-12', 'jdoe': 'a.rivera', '2026-09-27': '2026-10-02', 'Q3 remittance': 'Vendor contract renewal',
+  'Q3_Remittance.docm': 'Vendor_Renewal.docm', 'svchelp.exe': 'syncagent.exe', 'svchelp': 'syncagent', 'q3.zip': 'vendor_records.zip',
+};
+function moduleTenGuidedClone(value) {
+  if (typeof value === 'string') return Object.entries(MODULE_TEN_GUIDED_REPLACEMENTS).reduce((text, [from, to]) => text.split(from).join(to), value);
+  if (Array.isArray(value)) return value.map(moduleTenGuidedClone);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleTenGuidedClone(item)]));
+  return value;
+}
+const MODULE_TEN_GUIDED_FIXTURE = (() => {
+  const fixture = moduleTenGuidedClone(SocM10AssessmentData);
+  fixture.scenario.stateKey = 'm10-guided-evidence-actions-v1';
+  fixture.scenario.artifacts.forEach((artifact, index) => {
+    artifact.sourceHash = String(index + 1).padStart(2, '0').repeat(32);
+    artifact.verificationHash = index === 2 ? 'ee'.repeat(32) : artifact.sourceHash;
+    if (artifact.reacquiredVerificationHash) artifact.reacquiredVerificationHash = artifact.sourceHash;
+  });
+  fixture.expectedTruth.requiredArtifactIds = ['PRACT-01', 'PRACT-02', 'PRACT-03', 'PRACT-04', 'PRACT-05', 'PRACT-07'];
+  fixture.expectedTruth.noiseArtifactIds = ['PRACT-10'];
+  fixture.expectedTruth.mismatchArtifactId = 'PRACT-03';
+  fixture.expectedTruth.specialistArtifactId = 'PRACT-09';
+  fixture.expectedTruth.originalsForHold = ['PRACT-01', 'PRACT-02', 'PRACT-04', 'PRACT-07'];
+  fixture.expectedTruth.chain = [...fixture.expectedTruth.requiredArtifactIds];
+  fixture.expectedTruth.rootCauseArtifactIds = ['PRACT-01', 'PRACT-02', 'PRACT-03'];
+  return fixture;
+})();
 const MODULE_TEN_DEVICES = [
   { id: 'WKSTN-19', hostname: 'WKSTN-19', platform: 'Windows 11', role: 'User workstation (isolated)', owner: 'j.sanders', zone: 'CORP-USER', status: 'Isolated' },
 ];
@@ -624,6 +652,31 @@ const MODULE_TEN_TOOL_FIXTURES = (() => {
         { id: 'M10-LINK-002', from: s.incidentId, to: 'j.sanders', relation: 'opened_attachment', evidenceId: 'ART-02' },
       ],
       evidence: s.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'WKSTN-19' ? 'wkstn-19' : 'j.sanders', summary: a.title })),
+    }),
+  };
+})();
+const MODULE_TEN_GUIDED_CONSOLE_DATA = moduleTenBuildConsoleData(MODULE_TEN_GUIDED_FIXTURE, MODULE_TEN_GUIDED_CASE_ID);
+const MODULE_TEN_GUIDED_DEVICES = [{ id: 'WKSTN-42', hostname: 'WKSTN-42', platform: 'Windows 11', role: 'User workstation (isolated)', owner: 'm.chen', zone: 'CORP-FINANCE', status: 'Isolated' }];
+const MODULE_TEN_GUIDED_TOOL_FIXTURES = (() => {
+  const s = MODULE_TEN_GUIDED_FIXTURE.scenario;
+  return {
+    m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: s.caseId, end: s.end, data: MODULE_TEN_GUIDED_CONSOLE_DATA }),
+    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm10-guided-endpoint-tools-v1', devices: MODULE_TEN_GUIDED_DEVICES, data: MODULE_TEN_GUIDED_CONSOLE_DATA }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M10G-LEAD-001', type: 'evidence_request', device: 'WKSTN-42', account: 'm.chen', taskName: '—', observation: s.request.text }, devices: ['WKSTN-42', 'MAIL-GW-02', 'PROXY-02'], data: MODULE_TEN_GUIDED_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm10-guided-mail-tools-v1', start: s.start, end: s.end }),
+    m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm10-guided-exposure-tools-v1', start: s.start, end: s.end }),
+    m09: SocConsoleTools.m09Fixture({
+      id: s.id, stateKey: 'm10-guided-response-tools-v1', start: s.start, end: s.end,
+      incident: { id: s.incidentId, title: 'WKSTN-42 document intrusion (contained)', reportedAt: s.containedAt, sourceEntityId: 'wkstn-42', sourceEvidenceId: 'PRACT-03', summary: 'A document attachment led to script execution and persistence on WKSTN-42; the host is isolated.' },
+      entities: [
+        { id: 'wkstn-42', type: 'endpoint', hostname: 'WKSTN-42', ownerAccountId: 'm.chen', deviceId: 'DEV-WKSTN-42', status: 'isolated' },
+        { id: 'm.chen', type: 'identity', displayName: 'M. Chen', registeredDeviceId: 'DEV-WKSTN-42', status: 'active' },
+        { id: 'DEV-WKSTN-42', type: 'device', hostname: 'WKSTN-42', linkedEntityId: 'wkstn-42' },
+        { id: 'file-syncagent-42', type: 'file', linkedEntityId: 'wkstn-42', path: 'C:\\Users\\m.chen\\AppData\\Roaming\\syncagent.exe' },
+        { id: 'persist-syncagent-42', type: 'persistence', linkedEntityId: 'wkstn-42', name: 'syncagent' },
+      ],
+      edges: [{ id: 'M10-LINK-GUIDED-01', from: s.incidentId, to: 'wkstn-42', relation: 'confirmed_execution', evidenceId: 'PRACT-03' }],
+      evidence: s.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'WKSTN-42' ? 'wkstn-42' : 'm.chen', summary: a.title })),
     }),
   };
 })();
@@ -675,6 +728,64 @@ const MODULE_TEN_CONSOLE = (() => {
   });
 })();
 
+function moduleTenGuidedM04Tools() {
+  moduleTenGuidedState.tools ||= {};
+  if (!moduleTenGuidedState.tools.m04?.schemaVersion) moduleTenGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleTenGuidedState.tools.m04 }, MODULE_TEN_GUIDED_TOOL_FIXTURES.m04).assessment;
+  return moduleTenGuidedState.tools.m04;
+}
+const MODULE_TEN_GUIDED_CONSOLE = (() => {
+  const save = () => moduleTenSaveGuided();
+  const base = { save, rerender: () => moduleTenRenderGuided(), console: () => m03eState('m10-guided') };
+  const fx = MODULE_TEN_GUIDED_TOOL_FIXTURES;
+  const root = () => moduleTenGuidedState;
+  return SocConsoleTools.mount('m10-guided', {
+    data: MODULE_TEN_GUIDED_CONSOLE_DATA, stateRoot: root, save, idPrefix: 'guided-m10',
+    title: 'SIEM & EVIDENCE HANDLING · PRACTICE', ariaLabel: 'Module 10 guided evidence handling console',
+    sourceMappings: {
+      EmailEvents: { native: 'Mail gateway export (JSON)', fields: [['received', 'TimeGenerated'], ['recipient', 'Account'], ['summary', 'Detail']] },
+      DeviceFileEvents: { native: 'Disk image file listing (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['user', 'Account'], ['sha256', 'SourceSha256']] },
+      DeviceProcessEvents: { native: 'Endpoint sensor process log (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['user', 'Account'], ['summary', 'Detail']] },
+      DeviceRegistryEvents: { native: 'Registry hive extract (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['summary', 'Detail']] },
+      ProxyEvents: { native: 'Web proxy log (text)', fields: [['time', 'TimeGenerated'], ['client', 'Host'], ['summary', 'Detail']] },
+      ForensicAcquisitions: { native: 'Forensic acquisition record (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['sha256', 'SourceSha256']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleTenGuidedM04Tools, fixture: fx.m04 } },
+      { id: 'm05', ctx: { ...base, fixture: fx.m05, ...SocConsoleTools.embedded(root, 'm05', SocM05AssessmentState.normalize, fx.m05, save) } },
+      { id: 'm06', ctx: { ...base, fixture: fx.m06, ...SocConsoleTools.embedded(root, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
+      { id: 'm07', ctx: { ...base, fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
+      { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
+      { id: 'm09', ctx: { ...base, fixture: fx.m09, evidence: MODULE_TEN_GUIDED_FIXTURE.scenario.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'WKSTN-42' ? 'wkstn-42' : 'm.chen', title: a.title, summary: a.detail })), routes: [{ id: 'guided-digital-forensics', text: 'Digital Forensics + Incident Lead', fit: 100 }], ...SocConsoleTools.embedded(root, 'm09', SocM09AssessmentState.normalize, fx.m09, save) } },
+      { id: 'm10', ctx: { ...base, fixture: MODULE_TEN_GUIDED_FIXTURE, load: () => moduleTenGuidedEvidenceState, store: moduleTenSaveGuidedEvidence } },
+    ],
+    caseView: () => caseRecordPane(moduleTenGuidedState.caseRecord, {
+      caseId: MODULE_TEN_GUIDED_CASE_ID, ticketId: 'IR-6620', ticketType: 'Forensic evidence preservation · Incident Response',
+      userOptions: [{ id: 'm.chen', text: 'm.chen · affected user' }, { id: 'a.rivera', text: 'a.rivera · delivered, unopened recipient' }],
+      deviceOptions: [{ id: 'WKSTN-42', text: 'WKSTN-42 · isolated endpoint' }, { id: 'WKS-FIN-12', text: 'WKS-FIN-12 · unaffected comparison' }],
+      departmentOptions: [{ id: 'guided-digital-forensics', text: 'Digital Forensics + Incident Lead' }, { id: 'legal-hold', text: 'Legal Hold Repository' }],
+      formId: 'm10-guided-case-form', saveAttr: 'data-m10-guided-save-case', submitAttr: 'data-m10-guided-submit-case', panelId: 'm10-guided-case-panel',
+      notesPlaceholder: 'Document the acquired evidence and custody, supported chronology, specialist work, and limits such as unproven exfiltration.',
+    }),
+  });
+})();
+
+function moduleTenGuidedComplete() {
+  const state = moduleTenGuidedEvidenceState || {};
+  const locker = Object.values(state.locker || {});
+  const held = state.legalHold?.artifactIds || [];
+  const cr = moduleTenGuidedState?.caseRecord || {};
+  return locker.length >= 4 && locker.every((item) => item.integrity === 'verified') && (state.timeline || []).length >= 3
+    && held.length >= 2 && Boolean(cr.status && cr.affectedUser && cr.affectedDevice && cr.severity && cr.disposition && cr.escalateTo && cr.notes?.trim().length >= 40);
+}
+
+function moduleTenRenderGuided() {
+  const root = document.getElementById('m10-guided-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleTenGuidedLabPanel();
+  MODULE_TEN_GUIDED_CONSOLE.wire(root);
+  m03eAttachEditor('m10-guided');
+}
+
 function moduleTenCaseTicket() {
   const spec = moduleTenCaseSpec();
   return `${caseRecordPane(moduleTenAssessmentState, {
@@ -721,7 +832,7 @@ function moduleTenGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm10-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleTenQuizState?.passed, scrollId: 'm10-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleTenGuidedState.practiceComplete, scrollId: 'm10-guided-lab' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleTenGuidedComplete(), scrollId: 'm10-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleTenAssessmentState.completed, scrollId: 'm10-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm10-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm10-sources', gated: false, supplemental: true },
@@ -823,7 +934,7 @@ function moduleTenScenarioLoops() {
     <article><p class="m10-kicker">Lesson 1 · Scenario</p><h4>Receive a post-containment evidence intake</h4><p>A synthetic Windows endpoint has been isolated. Registry, file-system, and deleted-file artifacts are available for intake.</p></article>
     <article><p class="m10-kicker">Lesson 1 · Theory</p><h4>Integrity, provenance, custody</h4><p>Hash meaning, UTC basis, acquisition controls, and documented handoffs answer different review questions.</p></article>
     <article><p class="m10-kicker">Lesson 1 · Knowledge check</p><h4>Choose what can be preserved</h4><p>Explain which artifacts are assigned evidence and which remain baseline context.</p></article>
-    <article><p class="m10-kicker">Lesson 1 · Applied task</p><h4>Complete the Guided Lab</h4><p>Work the imported Windows-registry and file-system forensics projects and record what you found.</p></article>
+    <article><p class="m10-kicker">Lesson 1 · Applied task</p><h4>Complete the Guided Lab</h4><p>Build a preserved evidence set, resolve its integrity checks, and hand off a bounded reconstruction.</p></article>
     <article><p class="m10-kicker">Lesson 2 · Scenario</p><h4>Reconstruct the impact sequence</h4><p>Compare endpoint, service-control, isolation, and baseline records from the same synthetic incident.</p></article>
     <article><p class="m10-kicker">Lesson 2 · Theory</p><h4>Map behavior only when demonstrated</h4><p>ATT&amp;CK organizes observed behavior; it does not supply missing access, operator, or lateral-movement facts.</p></article>
     <article><p class="m10-kicker">Lesson 2 · Knowledge check</p><h4>Separate fact from inference</h4><p>Use source review to test whether a relationship or technique is supported, not merely plausible.</p></article>
@@ -868,7 +979,7 @@ function viewModuleTen(user, program) {
     <div class="mquick-nav-layout">
       ${moduleProgressShell(sections, { reviewMode: moduleTenReviewMode })}
       <main class="m10-main mf-frame">
-      <section class="m10-hero mf-hero" aria-labelledby="m10-title"><div><p class="m10-kicker mf-kicker">Module 10 · ${formatHandsOnDuration(module.durationMinutes)} · independent</p><h1 id="m10-title">${esc(module.title)}</h1><p class="mf-lede">Preserve incident evidence, document custody, and reconstruct a separate case from chronology and demonstrated behavior. ATT&CK remains subordinate to the evidence as a behavior framework; it does not replace the ITSM ticket.</p></div><dl class="mf-stats" aria-label="Module lab progress"><div><dt>Guided Lab</dt><dd>${moduleTenGuidedState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m10-status">${complete ? 'Complete' : moduleTenAssessmentState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m10-hero mf-hero" aria-labelledby="m10-title"><div><p class="m10-kicker mf-kicker">Module 10 · ${formatHandsOnDuration(module.durationMinutes)} · independent</p><h1 id="m10-title">${esc(module.title)}</h1><p class="mf-lede">Preserve incident evidence, document custody, and reconstruct a separate case from chronology and demonstrated behavior. ATT&CK remains subordinate to the evidence as a behavior framework; it does not replace the ITSM ticket.</p></div><dl class="mf-stats" aria-label="Module lab progress"><div><dt>Guided Lab</dt><dd>${moduleTenGuidedComplete() ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m10-status">${complete ? 'Complete' : moduleTenAssessmentState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m10-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
         <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge">1</span><div><p class="m10-kicker mf-kicker">Lecture</p><h2 id="m10-lecture">Evidence acquisition, custody, timeline reconstruction, and bounded conclusions</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
@@ -887,9 +998,9 @@ function viewModuleTen(user, program) {
       </details>
 
       <details class="m10-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge">3</span><div><p class="m10-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m10-guided-lab">Windows forensics practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m10-section"><div class="m10-section-heading mf-section-heading"><span class="m10-section-badge mf-section-badge">3</span><div><p class="m10-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m10-guided-lab">Forensic evidence handling practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m10-section-body mf-section-body">
-          <div class="m10-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in the imported training application on this page.</p></div>
+          <div class="m10-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Practice case:</strong> Guided evidence actions and the forensic ticket save independently from the assessment.</p></div>
           <div id="m10-guided-lab-dynamic">${moduleTenGuidedLabPanel()}</div>
         </div>
       </details>
@@ -1024,20 +1135,23 @@ function moduleTenRewireAssessmentLabGating() {
 function wireModuleTenGuidedLab() {
   const root = document.getElementById('m10-guided-lab-dynamic');
   if (!root || !moduleTenGuidedState) return;
-  moduleTenRewireGuidedLabGating();
-  root.addEventListener('input', (event) => {
-    if (event.target.matches('[data-m10-practice-notes]')) {
-      moduleTenGuidedState.practiceNotes = event.target.value;
-      moduleTenSaveGuided();
-    }
+  MODULE_TEN_GUIDED_CONSOLE.wire(root);
+  root.addEventListener('change', (event) => {
+    const field = event.target.closest('#m10-guided-case-form [name]');
+    if (!field) return;
+    if (field.name.startsWith('finding:')) moduleTenGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
+    else moduleTenGuidedState.caseRecord[field.name] = field.value;
+    moduleTenGuidedState.practiceComplete = moduleTenGuidedComplete();
+    moduleTenSaveGuided();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m10-practice-complete]')) {
-      if (!moduleTenGuidedState.practiceComplete && !missionNextAllLabsComplete(moduleTenGuidedState.labProgress, MODULE_TEN_GUIDED_LAB_IDS)) return;
-      moduleTenGuidedState.practiceComplete = true;
+    if (event.target.closest('[data-m10-guided-submit-case]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m10-guided-save-case]')) {
+      event.preventDefault();
+      moduleTenGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
+      moduleTenGuidedState.practiceComplete = moduleTenGuidedComplete();
       moduleTenSaveGuided();
-      root.innerHTML = moduleTenGuidedLabPanel();
-      moduleTenRewireGuidedLabGating();
+      moduleTenRenderGuided();
     }
   });
 }

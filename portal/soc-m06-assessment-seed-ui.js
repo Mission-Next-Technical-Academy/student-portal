@@ -6,9 +6,9 @@ const SocM06AssessmentSeedUi = (() => {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
 
-  function hypothesisFrom(state) {
+  function hypothesisFrom(state, leadId) {
     const hypotheses = Array.isArray(state?.hypotheses) ? state.hypotheses : [];
-    return hypotheses.find((item) => item && typeof item === 'object' && !Array.isArray(item) && item.seedLeadId === 'M06-LEAD-001') || {};
+    return hypotheses.find((item) => item && typeof item === 'object' && !Array.isArray(item) && item.seedLeadId === leadId) || {};
   }
 
   function render(fixture, state, options = {}) {
@@ -19,7 +19,7 @@ const SocM06AssessmentSeedUi = (() => {
     }
 
     const e = escapeHtml;
-    const hypothesis = hypothesisFrom(state);
+    const hypothesis = hypothesisFrom(state, lead.id);
     const devices = scenario.scope.devices.slice(0, 5);
     const start = String(scenario.scope.timeStart || '').slice(0, 20);
     const end = String(scenario.scope.timeEnd || '').slice(0, 20);
@@ -28,7 +28,7 @@ const SocM06AssessmentSeedUi = (() => {
     return `<section class="m06-seed-review" aria-label="Seed lead review" data-m06-seed-lead="${e(lead.id)}">
       <h3>Seed lead review</h3>
       <p><strong>Lead status:</strong> Unverified</p>
-      <dl><dt>Observation</dt><dd>${e(lead.observation)}</dd><dt>Lead type</dt><dd>${e(lead.type)}</dd><dt>Device</dt><dd>${e(lead.device)}</dd><dt>Account</dt><dd>${e(lead.account)}</dd><dt>Task</dt><dd>${e(lead.taskName)}</dd></dl>
+      <dl><dt>Observation</dt><dd>${e(lead.observation)}</dd><dt>Lead type</dt><dd>${e(lead.type)}</dd><dt>Device</dt><dd>${e(lead.device)}</dd><dt>Account</dt><dd>${e(lead.account)}</dd><dt>${e(lead.artifactLabel || 'Artifact')}</dt><dd>${e(lead.artifact || lead.taskName || 'Not recorded')}</dd></dl>
       <p><strong>Hunt scope:</strong> ${devices.map(e).join(', ')}</p>
       <p><strong>UTC window:</strong> ${e(start)} to ${e(end)}</p>
       <form data-m06-hypothesis-form data-seed-lead-id="${e(lead.id)}">

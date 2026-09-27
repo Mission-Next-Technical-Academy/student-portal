@@ -61,7 +61,7 @@ const SocConsoleTools = (() => {
     onSelect: (ctx, type, id) => { if (type === 'alert' && (ctx.assessment().alerts || []).some((alert) => alert.id === id)) SocM04RulesUi.selectAlert(ctx.assessment(), id); },
     wire(root, ctx) {
       root.addEventListener('input', (event) => {
-        if (event.target.matches('#m04-query-editor')) {
+        if (event.target.matches('#m04-query-editor, [data-m04-query-editor]')) {
           const assessment = ctx.assessment();
           if (assessment.queryText !== event.target.value) {
             assessment.queryText = event.target.value;
@@ -72,7 +72,7 @@ const SocConsoleTools = (() => {
           ctx.save();
           return;
         }
-        if (event.target.matches('#m04-query-name, [data-m04-search-query-name]')) {
+        if (event.target.matches('#m04-query-name, [data-m04-query-name], [data-m04-search-query-name]')) {
           ctx.assessment().queryName = event.target.value;
           ctx.save();
           return;
@@ -1282,12 +1282,12 @@ const SocConsoleTools = (() => {
   // Mount the Module 3 console for one module with the packs it carries.
   // packs: [{ id: 'm04', ctx }, …] in module order. Case alerts from the
   // module's dataset stay in the queue beside any rule-generated alerts.
-  function mount(scope, { data, stateRoot, save, title, ariaLabel, packs = [], caseView, caseBadge, extraTabs = [], views = {} }) {
+  function mount(scope, { data, stateRoot, save, title, ariaLabel, packs = [], caseView, caseBadge, extraTabs = [], views = {}, idPrefix = '' }) {
     const active = packs.map(({ id, ctx }) => ({ pack: PACKS[id], ctx: { scope, ...ctx } }));
     const packViews = Object.assign({}, ...active.map(({ pack, ctx }) => (pack.views ? pack.views(ctx) : {})), views);
     const note = active.map(({ pack }) => pack.alertsNote).filter(Boolean).pop();
     m03eMountConsole(scope, {
-      data, stateRoot, save, title, ariaLabel, caseView, caseBadge,
+      data, stateRoot, save, title, ariaLabel, caseView, caseBadge, idPrefix,
       extraTabs: [...active.flatMap(({ pack }) => pack.tabs || []), ...extraTabs],
       views: packViews,
       alerts: () => [...(data.alerts || []), ...active.flatMap(({ pack, ctx }) => (pack.alerts ? pack.alerts(ctx) : []))],

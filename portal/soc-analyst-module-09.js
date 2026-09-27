@@ -476,6 +476,10 @@ const MODULE_NINE_RESPONSE_OPTIONS = {
 let moduleNineState = null;
 let moduleNineUser = null;
 let moduleNineQuizState = null;
+let moduleNineGuidedState = null;
+let moduleNineGuidedActionState = null;
+let moduleNineGuidedSelectedIncidentId = null;
+let moduleNineGuidedSelectedEntityId = null;
 // Set when the learner explicitly asks to retake a knowledge check that the
 // account already records as passed (see moduleNineQuizVerifiedElsewhere()).
 let moduleNineQuizForceRetake = false;
@@ -502,6 +506,10 @@ function moduleNineLoad(user) {
   moduleNineUser = user;
   const defaults = moduleNineFreshDefaults();
   moduleNineState = LabRuntime.loadCaseState(MODULE_NINE_LAB_ID, 'soc-09', user, defaults);
+  moduleNineGuidedState = LabRuntime.loadCaseState('m09-guided-incident-response-v1', 'soc-09', user, {
+    completed: false, caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
+  });
+  moduleNineGuidedActionState = SocM09AssessmentState.load(user, MODULE_NINE_GUIDED_FIXTURE);
   ['reviewedSources', 'selectedEvidence', 'hintsOpened', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleNineState[key])) moduleNineState[key] = [];
   });
@@ -569,6 +577,10 @@ function moduleNineSave() {
   if (moduleNineUser && moduleNineState) LabRuntime.saveCaseState(MODULE_NINE_LAB_ID, 'soc-09', moduleNineUser, moduleNineState);
 }
 
+function moduleNineGuidedSave() {
+  if (moduleNineUser && moduleNineGuidedState) LabRuntime.saveCaseState('m09-guided-incident-response-v1', 'soc-09', moduleNineUser, moduleNineGuidedState);
+}
+
 function moduleNineAllRows() {
   return Object.values(MODULE_NINE_SOURCES).flatMap((source) => source.rows);
 }
@@ -581,7 +593,7 @@ function moduleNineGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm09-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleNineQuizState?.passed, scrollId: 'm09-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleNineState.practiceComplete, scrollId: 'm09-guided-lab' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleNineGuidedComplete(), scrollId: 'm09-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleNineState.completed, scrollId: 'm09-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm09-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm09-sources', gated: false, supplemental: true },
@@ -925,21 +937,25 @@ function moduleNineArtifact() {
 
 /* The Module 3 console carrying Modules 4–8 on INC-4937, plus Incident,
  * Response and Recovery. Every evidence record is also a Log Search row. */
-const MODULE_NINE_EVIDENCE = [
-  ...Object.entries(MODULE_NINE_SOURCES).flatMap(([source, group]) => group.rows.map((row) => ({ ...row, source, time: `2026-09-27T${row.time}:00Z` }))),
-  ...SocM09AssessmentData.scenario.evidence.map((item) => ({ id: item.id, source: item.type, time: item.time, entity: item.entityId, title: item.type.replace(/_/g, ' '), summary: item.summary, detail: item.summary })),
-].sort((a, b) => a.id.localeCompare(b.id));
+function moduleNineBuildEvidence(fixture, sources) {
+  const day = fixture.scenario.start.slice(0, 10);
+  return [
+    ...Object.entries(sources).flatMap(([source, group]) => group.rows.map((row) => ({ ...row, source, time: `${day}T${row.time}:00Z` }))),
+    ...fixture.scenario.evidence.map((item) => ({ id: item.id, source: item.type, time: item.time, entity: item.entityId, title: item.type.replace(/_/g, ' '), summary: item.summary, detail: item.summary })),
+  ].sort((a, b) => a.id.localeCompare(b.id));
+}
+const MODULE_NINE_EVIDENCE = moduleNineBuildEvidence(SocM09AssessmentData, MODULE_NINE_SOURCES);
 const MODULE_NINE_EVIDENCE_TABLES = { endpoint: 'DeviceEvents', identity: 'IdentityEvents', scope: 'ScopeChecks' };
-const MODULE_NINE_CONSOLE_DATA = (function () {
-  const s = SocM09AssessmentData.scenario;
-  const events = MODULE_NINE_EVIDENCE.map((item) => m03eRow(MODULE_NINE_EVIDENCE_TABLES[item.source] || 'ResponseRecords', item.id, item.time.slice(0, 10), item.time.slice(11, 19), {
+function moduleNineBuildConsoleData(fixture, evidence, caseId) {
+  const s = fixture.scenario;
+  const events = evidence.map((item) => m03eRow(MODULE_NINE_EVIDENCE_TABLES[item.source] || 'ResponseRecords', item.id, item.time.slice(0, 10), item.time.slice(11, 19), {
     EventType: item.title, Account: String(item.entity).startsWith('acct-') ? item.entity : (s.entities.find((entity) => entity.id === item.entity)?.ownerAccountId || ''),
     Host: String(item.entity).startsWith('acct-') ? '' : item.entity, DeviceId: s.entities.find((entity) => entity.id === item.entity)?.deviceId || '',
     Result: item.summary, Detail: item.detail || item.summary,
   }));
   return {
     ...m03eBuildDataset({
-      caseId: 'INC-4937',
+      caseId,
       day: s.start.slice(0, 10),
       events,
       identities: [{ Account: 'acct-173', DisplayName: 'User 173', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '192.0.2.173', Notes: 'Registered workstation ws-173' }],
@@ -952,7 +968,44 @@ const MODULE_NINE_CONSOLE_DATA = (function () {
     }),
     now: s.end,
   };
-}());
+}
+const MODULE_NINE_CONSOLE_DATA = moduleNineBuildConsoleData(SocM09AssessmentData, MODULE_NINE_EVIDENCE, 'INC-4937');
+const MODULE_NINE_GUIDED_CASE_ID = 'INC-5942';
+const MODULE_NINE_GUIDED_REPLACEMENTS = {
+  'M09-': 'M09G-', 'INC-4937': 'INC-5942', 'ws-173': 'ws-294', 'WS-173': 'WS-294', 'acct-173': 'acct-294',
+  'DEV-173': 'DEV-294', 'fs-02': 'fs-05', 'FS-02': 'FS-05', 'DEV-FS-02': 'DEV-FS-05',
+  'session-173-REMOTE': 'session-294-REMOTE', 'backup-ws-173': 'backup-ws-294', 'backup-fs-02': 'backup-fs-05',
+  'RP-WS-173': 'RP-WS-294', 'RP-FS-02': 'RP-FS-05', 'Unmanaged client': 'Unmanaged contractor laptop',
+  '192.0.2.173': '192.0.2.194', '203.0.113.173': '203.0.113.194', 'DEV-UNKNOWN-173': 'DEV-UNKNOWN-294', '2026-09-27': '2026-10-01',
+  'Operation Cedar Lock': 'Operation Amber Vault', 'worker.bin': 'syncsvc.dat', 'worker': 'syncsvc', 'User 173': 'User 294',
+};
+function moduleNineGuidedClone(value) {
+  if (typeof value === 'string') return Object.entries(MODULE_NINE_GUIDED_REPLACEMENTS).reduce((text, [from, to]) => text.split(from).join(to), value);
+  if (Array.isArray(value)) return value.map(moduleNineGuidedClone);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleNineGuidedClone(item)]));
+  return value;
+}
+const MODULE_NINE_GUIDED_FIXTURE = (() => {
+  const fixture = moduleNineGuidedClone(SocM09AssessmentData);
+  fixture.scenario.stateKey = 'm09-guided-incident-actions-v1';
+  fixture.scenario.incidentGraph.edges.forEach((edge, index) => { edge.id = `M09-LINK-GUIDED-${String(index + 1).padStart(3, '0')}`; });
+  return fixture;
+})();
+const MODULE_NINE_GUIDED_SOURCES = moduleNineGuidedClone(MODULE_NINE_SOURCES);
+const MODULE_NINE_GUIDED_EVIDENCE = moduleNineBuildEvidence(MODULE_NINE_GUIDED_FIXTURE, MODULE_NINE_GUIDED_SOURCES);
+const MODULE_NINE_GUIDED_CONSOLE_DATA = moduleNineBuildConsoleData(MODULE_NINE_GUIDED_FIXTURE, MODULE_NINE_GUIDED_EVIDENCE, MODULE_NINE_GUIDED_CASE_ID);
+const MODULE_NINE_GUIDED_DEVICES = MODULE_NINE_GUIDED_FIXTURE.scenario.entities.filter((entity) => entity.type === 'device')
+  .map((device) => ({ id: device.id, hostname: device.hostname, platform: '—', role: device.linkedEntityId ? 'Managed device' : 'Unmanaged client', owner: '—', zone: '—', status: 'Online' }));
+const MODULE_NINE_GUIDED_TOOL_FIXTURES = (() => {
+  const s = MODULE_NINE_GUIDED_FIXTURE.scenario;
+  return {
+    m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: MODULE_NINE_GUIDED_CASE_ID, end: s.end, data: MODULE_NINE_GUIDED_CONSOLE_DATA }),
+    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm09-guided-endpoint-tools-v1', devices: MODULE_NINE_GUIDED_DEVICES, data: MODULE_NINE_GUIDED_CONSOLE_DATA }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M09G-LEAD-001', type: 'confirmed_incident', device: 'ws-294', account: 'acct-294', taskName: '—', observation: 'Confirmed encryption impact on ws-294 overlaps an unfamiliar remote session.' }, devices: ['ws-294', 'fs-05'], data: MODULE_NINE_GUIDED_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm09-guided-mail-tools-v1', start: s.start, end: s.end }),
+    m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm09-guided-exposure-tools-v1', start: s.start, end: s.end }),
+  };
+})();
 const MODULE_NINE_DEVICES = SocM09AssessmentData.scenario.entities.filter((entity) => entity.type === 'device')
   .map((device) => ({ id: device.id, hostname: device.hostname, platform: '—', role: device.linkedEntityId ? 'Managed device' : 'Unmanaged client', owner: '—', zone: '—', status: 'Online' }));
 const MODULE_NINE_TOOL_FIXTURES = (() => {
@@ -1005,21 +1058,77 @@ const MODULE_NINE_CONSOLE = (() => {
   });
 })();
 
+function moduleNineGuidedM04Tools() {
+  moduleNineGuidedState.tools ||= {};
+  const fixture = MODULE_NINE_GUIDED_TOOL_FIXTURES.m04;
+  if (!moduleNineGuidedState.tools.m04?.schemaVersion) moduleNineGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleNineGuidedState.tools.m04 }, fixture).assessment;
+  return moduleNineGuidedState.tools.m04;
+}
+const MODULE_NINE_GUIDED_CONSOLE = (() => {
+  const save = () => moduleNineGuidedSave();
+  const base = { save, rerender: () => moduleNineRenderGuided(), console: () => m03eState('m09-guided') };
+  const fx = MODULE_NINE_GUIDED_TOOL_FIXTURES;
+  return SocConsoleTools.mount('m09-guided', {
+    data: MODULE_NINE_GUIDED_CONSOLE_DATA, stateRoot: () => moduleNineGuidedState, save,
+    title: 'SIEM & INCIDENT RESPONSE · PRACTICE', ariaLabel: 'Module 09 guided incident response console', idPrefix: 'guided-m09',
+    sourceMappings: {
+      DeviceEvents: { native: 'Endpoint response telemetry (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
+      IdentityEvents: { native: 'Identity session records (JSON)', fields: [['time', 'TimeGenerated'], ['account', 'Account'], ['title', 'EventType'], ['detail', 'Detail']] },
+      ScopeChecks: { native: 'Incident scope checks (JSON)', fields: [['time', 'TimeGenerated'], ['scope', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
+      ResponseRecords: { native: 'Response inventory records (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['type', 'EventType'], ['summary', 'Detail']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleNineGuidedM04Tools, fixture: fx.m04 } },
+      { id: 'm05', ctx: { ...base, fixture: fx.m05, ...SocConsoleTools.embedded(() => moduleNineGuidedState, 'm05', SocM05AssessmentState.normalize, fx.m05, save) } },
+      { id: 'm06', ctx: { ...base, fixture: fx.m06, ...SocConsoleTools.embedded(() => moduleNineGuidedState, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
+      { id: 'm07', ctx: { ...base, fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineGuidedState, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
+      { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineGuidedState, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
+      { id: 'm09', ctx: { ...base, fixture: MODULE_NINE_GUIDED_FIXTURE, evidence: MODULE_NINE_GUIDED_EVIDENCE,
+        routes: [{ id: 'guided-ir-lead', text: 'Incident Lead + Endpoint/Identity Owners', fit: 100, note: 'Authorized to execute remediation and validate recovery.' }],
+        load: () => moduleNineGuidedActionState,
+        store: (next) => { moduleNineGuidedActionState = SocM09AssessmentState.save(moduleNineUser, next, MODULE_NINE_GUIDED_FIXTURE); moduleNineGuidedSave(); },
+      } },
+    ],
+    caseView: () => caseRecordPane(moduleNineGuidedState.caseRecord, {
+      caseId: MODULE_NINE_GUIDED_CASE_ID, ticketId: 'IR-5942', ticketType: 'Ransomware response · Incident Response',
+      userOptions: [{ id: 'acct-294', text: 'acct-294 · account under review' }, { id: 'svc-backup', text: 'svc-backup · known service account' }],
+      deviceOptions: [{ id: 'ws-294', text: 'ws-294 · confirmed endpoint impact' }, { id: 'fs-05', text: 'fs-05 · observed service disruption' }],
+      departmentOptions: [{ id: 'guided-ir-lead', text: 'Incident Lead + Endpoint/Identity Owners' }, { id: 'service-desk', text: 'Service Desk' }],
+      formId: 'm09-guided-case-form', saveAttr: 'data-m09-guided-save-case', submitAttr: 'data-m09-guided-submit-case', panelId: 'm09-guided-case-panel',
+      notesPlaceholder: 'State confirmed impact, containment and recovery status, evidence limits, and next owner actions.',
+    }),
+  });
+})();
+
+function moduleNineGuidedComplete() {
+  const state = moduleNineGuidedActionState || {};
+  const workflow = state.incidentWorkflows?.[MODULE_NINE_GUIDED_CASE_ID] || {};
+  const cr = moduleNineGuidedState?.caseRecord || {};
+  return state.selectedIncidentId === MODULE_NINE_GUIDED_CASE_ID && (state.reviewedEvidenceIds || []).length >= 3
+    && (state.actionHistory || []).length > 0 && Boolean(workflow.status && cr.status && cr.affectedUser && cr.affectedDevice && cr.severity && cr.disposition && cr.escalateTo && cr.notes?.trim().length >= 35);
+}
+
+function moduleNineGuidedLabPanel() {
+  return `<section class="m09-guided-case"><p class="m09-panel-instruction">Investigate the evidence and response outcomes, then record a bounded handoff.</p>
+    <details class="m09-console-guide"><summary>Practice guide · ${moduleNineGuidedComplete() ? 'milestones observed' : 'progress saved'}</summary><ol><li>Correlate impact and identity evidence; state what is still unknown.</li><li>Preserve evidence and verify approvals and outcomes before disruptive actions.</li><li>Record the supported scope and recovery conditions in the incident ticket.</li></ol></details>
+    <div class="m03e-console-host" id="m03e-console-m09-guided">${moduleThreeConsoleHtml('m09-guided')}</div>
+    <p class="m09-guided-status" role="status">${moduleNineGuidedComplete() ? 'Practice handoff complete.' : 'Complete investigation actions and save the incident ticket to finish.'}</p>
+  </section>`;
+}
+
+function moduleNineRenderGuided() {
+  const root = document.getElementById('m09-guided-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleNineGuidedLabPanel();
+  MODULE_NINE_GUIDED_CONSOLE.wire(root);
+  m03eAttachEditor('m09-guided');
+}
+
 function moduleNineDynamic() {
   return `<div class="m03e-panel" id="m09-prove-panel">
     <div class="m03e-brief"><p class="m03e-label">INCIDENT INC-4937 · CONFIRMED · ASSIGNED TO YOU</p><p>A confirmed incident with endpoint and identity impact is yours to run. Your incident lead’s request: <em>“Contain what we can prove, get each disruptive step approved, check what actually worked, and bring the machine back from a backup we can trust — then tell me what risk is left.”</em> Confirm priority and ownership, preserve evidence before you remove anything, contain the right targets through the approval gate, verify each action’s outcome, deal with persistence, credentials and sessions, recover from a known-good backup, validate and monitor, escalate the remaining gaps, and update the ITSM ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m09">${moduleThreeConsoleHtml('m09')}</div>
   </div>`;
-}
-
-function moduleNineGuidedLabPanel() {
-  const href = 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-3/lab';
-  return `<section class="m09-external-lab" id="m09-guided-lab-panel">
-    <p class="m09-panel-instruction">Work through the imported malware-analysis project below; it opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(9, 'guided', [{ title: 'Analyzing a Ransomware Sample', detail: 'Imported malware-analysis project. Opens on this page with its own guided tasks.', href, labId: 'guided-1', requireNote: true }], moduleNineState.labProgress)}
-    <label class="m09-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m09-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleNineState.practiceNotes)}</textarea></label>
-    <div class="m09-actions"><button type="button" class="m09-submit" data-m09-practice-complete>${moduleNineState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
-  </section>`;
 }
 
 function viewModuleNine(user, program) {
@@ -1038,7 +1147,7 @@ function viewModuleNine(user, program) {
     <div class="mquick-nav-layout">
       ${moduleProgressShell(sections, { reviewMode: moduleNineReviewMode })}
       <main class="m09-main mf-frame">
-      <section class="m09-hero mf-hero" aria-labelledby="m09-title"><div><p class="m09-kicker mf-kicker">Module 09 · ${formatHandsOnDuration(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p class="mf-lede">Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p></div><dl class="mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${moduleNineState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Assessment Lab</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m09-hero mf-hero" aria-labelledby="m09-title"><div><p class="m09-kicker mf-kicker">Module 09 · ${formatHandsOnDuration(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p class="mf-lede">Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p></div><dl class="mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${moduleNineGuidedComplete() ? 'Complete' : 'Not started'}</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Assessment Lab</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m09-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
         <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">1</span><div><p class="m09-kicker mf-kicker">Lecture</p><h2 id="m09-lecture">Incident response principles: correlation, scope, and proportionate action</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
@@ -1058,7 +1167,7 @@ function viewModuleNine(user, program) {
       <details class="m09-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
         <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">3</span><div><p class="m09-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m09-guided-lab">Ransomware analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m09-section-body mf-section-body">
-          <div class="m09-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in the imported training application on this page.</p></div>
+          <div class="m09-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Practice case:</strong> Incident response decisions and case notes save independently from the Assessment Lab.</p></div>
           <div id="m09-guided-lab-dynamic">${moduleNineGuidedLabPanel()}</div>
         </div>
       </details>
@@ -1390,24 +1499,23 @@ function wireModuleNineGuidedLabGating(root) {
 function wireModuleNineGuidedLab() {
   const root = document.getElementById('m09-guided-lab-dynamic');
   if (!root || !moduleNineState) return;
-  wireModuleNineGuidedLabGating(root);
-  root.addEventListener('input', (event) => {
-    if (event.target.matches('[data-m09-practice-notes]')) {
-      moduleNineState.practiceNotes = event.target.value;
-      moduleNineSave();
-    }
+  MODULE_NINE_GUIDED_CONSOLE.wire(root);
+  root.addEventListener('change', (event) => {
+    const field = event.target.closest('#m09-guided-case-form [name]');
+    if (!field) return;
+    if (field.name.startsWith('finding:')) moduleNineGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
+    else moduleNineGuidedState.caseRecord[field.name] = field.value;
+    moduleNineGuidedState.completed = moduleNineGuidedComplete();
+    moduleNineGuidedSave();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m09-practice-complete]')) {
-      if (!missionNextAllLabsComplete(moduleNineState.labProgress, ['guided-1'])) {
-        root.innerHTML = moduleNineGuidedLabPanel();
-        wireModuleNineGuidedLabGating(root);
-        return;
-      }
-      moduleNineState.practiceComplete = true;
-      moduleNineSave();
-      root.innerHTML = moduleNineGuidedLabPanel();
-      wireModuleNineGuidedLabGating(root);
+    if (event.target.closest('[data-m09-guided-submit-case]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m09-guided-save-case]')) {
+      event.preventDefault();
+      moduleNineGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
+      moduleNineGuidedState.completed = moduleNineGuidedComplete();
+      moduleNineGuidedSave();
+      moduleNineRenderGuided();
     }
   });
 }

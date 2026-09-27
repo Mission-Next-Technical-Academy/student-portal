@@ -251,3 +251,12 @@
 @media (prefers-reduced-motion: reduce) {
   .m06-shell .m06-hero-action { transition: none; }
 }
+
+.m06-console-guide { margin: 0 0 14px; padding: 13px 16px; color: #1e3a5f; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; font: 12px/1.55 Inter, sans-serif; }
+.m06-console-guide > summary, .m06-console-guide details > summary { cursor: pointer; font-weight: 800; }
+.m06-console-guide ol { margin: 10px 0; padding-left: 22px; }
+.m06-console-guide li { padding: 3px 0; }
+.m06-console-guide li span { margin-left: 8px; color: #64748b; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.m06-console-guide details { padding-top: 8px; border-top: 1px solid #e2e8f0; }
+.m06-console-guide p, .m06-guided-status { color: #475569; font: 12px/1.55 Inter, sans-serif; }
+.m06-guided-status { padding: 10px 14px; background: #f8fafc; border-left: 3px solid #f97316; }

@@ -312,6 +312,15 @@
 .m07-shell .m07-review-section p { margin: 12px 0 0; color: #475569; font: 12px/1.65 Inter,sans-serif; }
 .m07-shell :focus-visible { outline: 3px solid rgba(249,115,22,.38); outline-offset: 2px; }
 
+.m07-console-guide { margin: 0 0 14px; padding: 13px 16px; color: #1e3a5f; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; font: 12px/1.55 Inter, sans-serif; }
+.m07-console-guide > summary, .m07-console-guide details > summary { cursor: pointer; font-weight: 800; }
+.m07-console-guide ol { margin: 10px 0; padding-left: 22px; }
+.m07-console-guide li { padding: 3px 0; }
+.m07-console-guide li span { margin-left: 8px; color: #64748b; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.m07-console-guide details { padding-top: 8px; border-top: 1px solid #e2e8f0; }
+.m07-console-guide p, .m07-guided-status { color: #475569; font: 12px/1.55 Inter, sans-serif; }
+.m07-guided-status { padding: 10px 14px; background: #f8fafc; border-left: 3px solid #f97316; }
+
 @media (max-width: 920px) {
   .m07-shell .m07-concepts { grid-template-columns: repeat(2,1fr); }
   .m07-shell .m07-mail-layout { grid-template-columns: 1fr; }

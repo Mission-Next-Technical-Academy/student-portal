@@ -834,7 +834,7 @@ function m03eTabsNav(scope) {
 
 function moduleThreeConsoleHtml(scope) {
   const st = m03eState(scope), data = M03E_DATA[scope], mount = M03E_MOUNTS[scope];
-  return SocConsoleCore.renderShell({
+  let html = SocConsoleCore.renderShell({
     shellClass: 'm03e-console',
     ariaLabel: mount?.ariaLabel || 'SIEM and log analysis console',
     eyebrow: `MISSION NEXT ENVIRONMENT · ${scope === 'practice' ? 'GUIDED' : 'ASSESSMENT'}`,
@@ -848,6 +848,13 @@ function moduleThreeConsoleHtml(scope) {
     viewHtml: m03eViewBody(scope),
     drawerHtml: st.tab === 'case' ? '' : m03eDrawer(scope),
   });
+  if (mount?.idPrefix) {
+    const prefix = mount.idPrefix;
+    html = html.replace(/\bid="([^"]+)"/g, (_all, id) => `id="${prefix}-${id}"`)
+      .replace(/\bfor="([^"]+)"/g, (_all, id) => `for="${prefix}-${id}"`)
+      .replace(/\baria-labelledby="([^"]+)"/g, (_all, ids) => `aria-labelledby="${ids.split(/\s+/).map((id) => `${prefix}-${id}`).join(' ')}"`);
+  }
+  return html;
 }
 
 /* ------------------------------------------------------------ practice / prove panels */
@@ -978,13 +985,14 @@ function moduleThreeAssessmentLabPanel() {
 /* ------------------------------------------------------------ actions */
 
 function m03eSave(scope) { if (M03E_MOUNTS[scope]) M03E_MOUNTS[scope].save(); else moduleThreeSave(); }
+function m03eDomId(scope, id) { const prefix = M03E_MOUNTS[scope]?.idPrefix; return prefix ? `${prefix}-${id}` : id; }
 
 function m03eRender(scope, { keepEditor = false } = {}) {
   const host = document.getElementById(`m03e-console-${scope}`);
   if (!host) return;
   if (keepEditor && m03eState(scope).tab === 'search') {
     // Re-render everything except the editor, so focus and caret survive a run.
-    const res = document.getElementById(`m03e-results-${scope}`);
+    const res = document.getElementById(m03eDomId(scope, `m03e-results-${scope}`));
     if (res) res.innerHTML = m03eResultsHtml(scope);
     const drawer = host.querySelector('.m03e-drawer');
     if (drawer) drawer.outerHTML = m03eDrawer(scope);
@@ -1000,14 +1008,14 @@ function m03eRender(scope, { keepEditor = false } = {}) {
 }
 
 function m03eAttachEditor(scope) {
-  const ta = document.getElementById(`m03e-kql-${scope}`);
+  const ta = document.getElementById(m03eDomId(scope, `m03e-kql-${scope}`));
   if (!ta || typeof attachKqlEditor !== 'function') return;
   attachKqlEditor(ta, { tables: () => M03E_DATA[scope].tables, onRun: () => m03eRun(scope) });
 }
 
 function m03eRun(scope, query) {
   const st = m03eState(scope);
-  const ta = document.getElementById(`m03e-kql-${scope}`);
+  const ta = document.getElementById(m03eDomId(scope, `m03e-kql-${scope}`));
   const q = query != null ? query : (ta ? ta.value : st.query);
   SocKqlSearchUi.executeQuery(st, q, {
     evaluate: () => m03eResult(scope),
@@ -1221,7 +1229,7 @@ function m03eWireMountedConsole(section, scope) {
     if ((ev.key === 'Enter' || ev.key === ' ') && inConsole(ev) && ev.target.matches('[data-m03e-select]') && ev.target.tagName !== 'BUTTON') { ev.preventDefault(); m03eHandleClick(scope, ev); }
   });
   section.addEventListener('change', (ev) => { if (inConsole(ev) && ev.target.matches('[data-m03e-timeline]')) m03eHandleChange(scope, ev); });
-  section.addEventListener('input', (ev) => { if (ev.target.id === `m03e-kql-${scope}`) { m03eState(scope).query = ev.target.value; m03eSave(scope); } });
+  section.addEventListener('input', (ev) => { if (ev.target.id === m03eDomId(scope, `m03e-kql-${scope}`)) { m03eState(scope).query = ev.target.value; m03eSave(scope); } });
 }
 
 function wireModuleThreeConsole() {
@@ -1261,7 +1269,7 @@ function wireModuleThreeConsole() {
       }
     });
     section.addEventListener('input', (ev) => {
-      if (ev.target.id === `m03e-kql-${scope}`) { m03eState(scope).query = ev.target.value; m03eSave(); return; }
+      if (ev.target.id === m03eDomId(scope, `m03e-kql-${scope}`)) { m03eState(scope).query = ev.target.value; m03eSave(); return; }
       if (ev.target.matches('[data-m03-practice-notes]')) {
         moduleThreeState.practiceNotes = ev.target.value;
         m03eSave();

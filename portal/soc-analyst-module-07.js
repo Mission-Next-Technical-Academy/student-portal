@@ -602,7 +602,7 @@ function moduleSevenGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm07-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSevenQuizState?.passed, scrollId: 'm07-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleSevenState.practiceComplete, scrollId: 'm07-guided-lab' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleSevenGuidedChecks().every((check) => check[2]), scrollId: 'm07-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleSevenState.completed, scrollId: 'm07-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm07-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm07-sources', gated: false, supplemental: true },
@@ -721,18 +721,8 @@ function moduleSevenReview() {
 
 
 function moduleSevenGuidedLabPanel() {
-  const labs = [
-    { title: 'SMTP Log Analysis — Phishing Campaign Detection', detail: 'Trace a phishing campaign through mail log evidence', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/smtp-log-analysis', labId: 'guided-1' },
-    { title: 'Network Traffic Analysis of a Trojan', detail: 'Identify trojan behavior in captured network traffic', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab', labId: 'guided-2' },
-  ];
-  const gateOk = missionNextAllLabsComplete(moduleSevenState.labProgress, ['guided-1', 'guided-2']);
-  return `<section class="m07-external-lab" id="m07-guided-lab-panel">
-    <p class="m07-panel-instruction">Work through both imported Splunk log-analysis modules below; each opens on this page with its own guided tasks. Mark each lab complete, then note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(7, 'guided', labs, moduleSevenState.labProgress)}
-    <label class="m07-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m07-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleSevenState.practiceNotes)}</textarea></label>
-    ${!gateOk ? `<p class="m07-help" role="status">Mark both guided labs above complete before marking the Guided Lab complete.</p>` : ''}
-    <div class="m07-actions"><button type="button" class="m07-submit" data-m07-practice-complete ${gateOk ? '' : 'disabled'}>${moduleSevenState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
-  </section>`;
+  const complete = moduleSevenGuidedChecks().every((check) => check[2]);
+  return `${moduleSevenGuidedGuide()}<div class="m03e-panel" id="m07-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE NEC-0748 · PRACTICE IT · SHARED-FILE MESSAGE REVIEW</p><p>A shared-file expiry notice reached two mailboxes with different gateway outcomes. Determine who was exposed, correlate the click with DNS and TLS records, separate the legitimate HR portal, and document what remains unverified.</p></div><div class="m03e-console-host" id="m03e-console-m07-guided">${moduleThreeConsoleHtml('m07-guided')}</div></div><p class="m07-guided-status" role="status">${complete ? 'Guided Lab complete: the mail and network evidence is linked to your case.' : 'Use the console to establish exposure and correlate the network trail; progress saves as you work.'}</p>`;
 }
 
 /* The Module 3 console carrying Modules 4–6 on this case, plus Email and
@@ -833,6 +823,162 @@ const MODULE_SEVEN_CONSOLE = (() => {
   });
 })();
 
+// Practice It uses a distinct message/network case and a separate action
+// store, while retaining the same mail, network, SIEM, endpoint, and hunt tools.
+const MODULE_SEVEN_GUIDED_LAB_ID = 'm07-guided-shared-file-case-v1';
+const MODULE_SEVEN_GUIDED_REPLACEMENTS = {
+  'M07-ASSESS-2026-09-27': 'M07-GUIDED-2026-09-27', 'm07-network-email-assessment-v1': 'm07-guided-mail-network-actions-v1',
+  'M07-GROUP-DELIVERED': 'M07-GL-GROUP-DELIVERED', 'M07-GROUP-BLOCKED': 'M07-GL-GROUP-BLOCKED',
+  'M07-MSG-001': 'M07-GL-MSG-301', 'M07-URL-001': 'M07-GL-URL-302', 'M07-REDIRECT-001': 'M07-GL-REDIRECT-303', 'M07-REDIRECT-002': 'M07-GL-REDIRECT-304', 'M07-ATTACH-001': 'M07-GL-ATTACH-305',
+  'M07-DELIVERY-001': 'M07-GL-DELIVERY-311', 'M07-DELIVERY-002': 'M07-GL-DELIVERY-312', 'M07-QR-014': 'M07-GL-RECIPIENT-313',
+  'M07-DNS-001': 'M07-GL-DNS-321', 'M07-TLS-001': 'M07-GL-TLS-331', 'M07-FW-001': 'M07-GL-FW-341', 'M07-PROXY-001': 'M07-GL-PROXY-351',
+  'M07-DNS-002': 'M07-GL-DNS-322', 'M07-TLS-002': 'M07-GL-TLS-332', 'M07-FW-002': 'M07-GL-FW-342', 'M07-PROXY-002': 'M07-GL-PROXY-352',
+  'M07-PROC-001': 'M07-GL-PROC-361', 'M07-PROC-002': 'M07-GL-PROC-362',
+  'acct-63': 'acct-91', 'acct-82': 'acct-97', 'acct-17': 'acct-55', 'WS-517': 'WS-733', 'WS-204': 'WS-208',
+  '203.0.113.88': '192.0.2.211', '198.51.100.24': '203.0.113.65', '192.0.2.57': '10.20.4.20', '192.0.2.84': '10.20.4.88',
+  'invoice-qr.example': 'doc-access.example', 'payroll.northwind.example': 'hr.paperless-share.example', 'northwind-billing.example': 'paperless-share.example',
+  'mailer.northwind-billing.example': 'notify.paperless-share.example', 'billing@northwind-billing.example': 'notice@paperless-share.example',
+  'bounce@mailer.northwind-billing.example': 'bounce@notify.paperless-share.example', '7f3a': 'c91d',
+  ['a'.repeat(64)]: 'd'.repeat(64), ['b'.repeat(64)]: 'e'.repeat(64), ['c'.repeat(64)]: 'f'.repeat(64),
+  '2026-09-27T10:': '2026-09-27T11:',
+};
+function moduleSevenGuidedReplace(value) {
+  if (typeof value === 'string') return Object.entries(MODULE_SEVEN_GUIDED_REPLACEMENTS).reduce((result, [from, to]) => result.split(from).join(to), value);
+  if (Array.isArray(value)) return value.map(moduleSevenGuidedReplace);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [moduleSevenGuidedReplace(key), moduleSevenGuidedReplace(item)]));
+  return value;
+}
+const MODULE_SEVEN_GUIDED_FIXTURE = moduleSevenGuidedReplace(JSON.parse(JSON.stringify(SocM07AssessmentData)));
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.stateKey = 'm07-guided-mail-network-actions-v1';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.start = '2026-09-27T11:00:00Z';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.end = '2026-09-27T11:20:00Z';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.fixedAt = '2026-09-27T11:20:00Z';
+Object.assign(MODULE_SEVEN_GUIDED_FIXTURE.scenario.messages[0], {
+  subject: 'Shared file expires today',
+  from: { displayName: 'Paperless Share', address: 'notice@paperless-share.example' },
+  replyTo: 'help@paperless-share.example', returnPath: 'bounce@notify.paperless-share.example',
+  headerMessageId: '<share-notice-301@notify.paperless-share.example>',
+  authentication: { spf: 'fail', dkim: 'pass', dmarc: 'fail', aligned: false },
+});
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.messages[0].urls[0].original = 'https://document-view.example/notice/c91d';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.messages[0].urls[0].redirects = [
+  { id: 'M07-GL-REDIRECT-303', status: 302, url: 'https://document-view.example/r/c91d' },
+  { id: 'M07-GL-REDIRECT-304', status: 200, url: 'https://doc-access.example/shared/c91d' },
+];
+Object.assign(MODULE_SEVEN_GUIDED_FIXTURE.scenario.messages[0].attachments[0], { fileName: 'shared-file-notice.html', mediaType: 'text/html', sizeBytes: 24576, sha256: 'd'.repeat(64) });
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.networkEvents.find((event) => event.id === 'M07-GL-DNS-321').domain = 'doc-access.example';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.networkEvents.find((event) => event.id === 'M07-GL-TLS-331').sni = 'doc-access.example';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.networkEvents.find((event) => event.id === 'M07-GL-PROXY-351').url = 'https://doc-access.example/shared/c91d';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.networkEvents.find((event) => event.id === 'M07-GL-DNS-322').domain = 'hr.paperless-share.example';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.networkEvents.find((event) => event.id === 'M07-GL-TLS-332').sni = 'hr.paperless-share.example';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.networkEvents.find((event) => event.id === 'M07-GL-PROXY-352').url = 'https://hr.paperless-share.example/portal';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.endpointProcessEvents[0].commandLine = 'chrome.exe https://doc-access.example/shared/c91d';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.endpointProcessEvents[1].commandLine = 'msedge.exe https://hr.paperless-share.example/portal';
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.packetSamples.forEach((sample) => { sample.sampleText = sample.sampleText.replaceAll('invoice-qr.example', 'doc-access.example').replaceAll('203.0.113.88', '192.0.2.211').replaceAll('/invoice/c91d', '/shared/c91d'); });
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.expectedTruth.confirmed = [
+  'The shared-file expiry notice reached acct-91 on WS-733; the copy addressed to acct-97 was blocked by the gateway.',
+  'acct-91 opened the message. The subsequent lookup for doc-access.example resolved to 192.0.2.211, followed by TLS with matching SNI.',
+];
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.expectedTruth.unconfirmed = [
+  'Endpoint execution is not established by the available browser process record.',
+  'Credential entry or credential compromise is not established by the mail and network evidence.',
+];
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.expectedTruth.incidentChain = [
+  { step: 'message_delivery', status: 'confirmed', recipientIds: ['acct-91'], evidence: 'M07-GL-DELIVERY-311' },
+  { step: 'recipient_open', status: 'confirmed', recipientIds: ['acct-91'], evidence: 'M07-GL-RECIPIENT-313' },
+  { step: 'dns_resolution', status: 'confirmed', domain: 'doc-access.example', address: '192.0.2.211', evidence: 'M07-GL-DNS-321' },
+  { step: 'tls_connection', status: 'confirmed', address: '192.0.2.211', sni: 'doc-access.example', evidence: 'M07-GL-TLS-331' },
+  { step: 'endpoint_execution', status: 'unverified', evidence: null },
+  { step: 'credential_compromise', status: 'unverified', evidence: null },
+];
+
+function moduleSevenGuidedBuildConsoleData() {
+  const s = MODULE_SEVEN_GUIDED_FIXTURE.scenario;
+  const message = s.messages[0];
+  const row = (source, id, time, fields) => m03eRow(source, id, time.slice(0, 10), time.slice(11, 19), fields);
+  const related = (event) => [event.relatedRecipientEventId, event.relatedDnsEventId, event.relatedTlsEventId, event.relatedProxyEventId].filter(Boolean);
+  const events = [
+    ...s.deliveryEvents.map((event) => row('EmailEvents', event.id, event.timestamp, { EventType: 'message_delivery', Account: event.recipientId, Subject: message.subject, Sender: message.from.address, ReturnPath: message.returnPath, ReplyTo: message.replyTo, Spf: message.authentication.spf, Dkim: message.authentication.dkim, Dmarc: message.authentication.dmarc, Result: event.status, NetworkMessageId: event.messageId, Detail: `${message.subject} from ${message.from.address}` })),
+    ...s.recipientEvents.map((event) => row('EmailInteractionEvents', event.id, event.timestamp, { EventType: event.type, Account: event.recipientId, Host: event.deviceId, DeviceId: event.deviceId, NetworkMessageId: event.messageId, UrlId: event.urlId, Result: 'observed', Detail: `${event.type} on ${event.deviceId}` })),
+    ...s.networkEvents.map((event) => row({ dns_query: 'DnsEvents', tls_session: 'TlsEvents', firewall_flow: 'FirewallEvents', proxy_request: 'ProxyEvents' }[event.type] || 'NetworkEvents', event.id, event.timestamp, { EventType: event.type, Account: event.recipientId, Host: event.deviceId, DeviceId: event.deviceId, Domain: event.domain || event.sni || '', Answers: (event.answers || []).join(', '), SourceIp: event.sourceIp || '', DestinationIp: event.destinationIp || '', DestinationPort: event.destinationPort || '', Url: event.url || '', Result: event.action || event.status || 'observed', RelatedEventIds: related(event), Detail: event.url || (event.domain ? `${event.domain} → ${(event.answers || []).join(', ')}` : `${event.destinationIp}:${event.destinationPort}`) })),
+    ...s.endpointProcessEvents.map((event) => row('DeviceProcessEvents', event.id, event.timestamp, { EventType: event.type, Account: event.recipientId, Host: event.deviceId, DeviceId: event.deviceId, Image: event.imagePath, CommandLine: event.commandLine, ParentProcess: event.parentProcessName, ProcessId: event.processName, ParentProcessId: event.parentProcessName, Result: 'success', RelatedEventIds: related(event), Detail: event.commandLine })),
+  ];
+  const person = (account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' });
+  return { ...m03eBuildDataset({ caseId: 'NEC-0748', day: s.start.slice(0, 10), events,
+    identities: ['acct-91', 'acct-97', 'acct-55'].map(person),
+    ips: [{ SourceIp: '192.0.2.211', Type: 'External', Country: '—', Asn: 'Unclassified file-hosting test range', FirstSeen: '2026-09-27 11:08', Reputation: 'No reputation data' }, { SourceIp: '203.0.113.65', Type: 'External', Country: '—', Asn: 'Paperless Share HR portal', FirstSeen: '2025-02-01 08:00', Reputation: 'Known business service' }],
+    watchlists: {}, alerts: [{ id: 'ALT-7481', time: '2026-09-27T11:03:05Z', severity: 'Medium', title: 'Shared-file notice failed DMARC alignment', entities: ['notice@paperless-share.example'], rule: 'Mail gateway: DMARC fail on an external message', query: 'EmailEvents\\n| where Dmarc == "fail"' }],
+  }), now: s.end };
+}
+const MODULE_SEVEN_GUIDED_CONSOLE_DATA = moduleSevenGuidedBuildConsoleData();
+const MODULE_SEVEN_GUIDED_DEVICES = [
+  { id: 'WS-733', hostname: 'WS-733', platform: 'Windows 11', role: 'User workstation', owner: 'acct-91', zone: 'CORP-USER', status: 'Online' },
+  { id: 'WS-208', hostname: 'WS-208', platform: 'Windows 11', role: 'User workstation', owner: 'acct-55', zone: 'CORP-USER', status: 'Online' },
+];
+const MODULE_SEVEN_GUIDED_TOOL_FIXTURES = {
+  m04: SocConsoleTools.m04Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, caseId: 'NEC-0748', end: MODULE_SEVEN_GUIDED_FIXTURE.scenario.end, data: MODULE_SEVEN_GUIDED_CONSOLE_DATA }),
+  m05: SocConsoleTools.m05Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, stateKey: 'm07-guided-endpoint-tools-v1', devices: MODULE_SEVEN_GUIDED_DEVICES, data: MODULE_SEVEN_GUIDED_CONSOLE_DATA }),
+  m06: SocConsoleTools.m06Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, lead: { id: 'M07-GUIDED-LEAD-001', type: 'suspected_delivery_chain', device: 'WS-733', account: 'acct-91', taskName: '—', observation: 'An external shared-file message failed DMARC alignment and may have reached a user.' }, devices: ['WS-733', 'WS-208'], data: MODULE_SEVEN_GUIDED_CONSOLE_DATA, timeStart: MODULE_SEVEN_GUIDED_FIXTURE.scenario.start, timeEnd: MODULE_SEVEN_GUIDED_FIXTURE.scenario.end }),
+};
+let moduleSevenGuidedState = null;
+let moduleSevenGuidedAssessmentState = null;
+let moduleSevenGuidedUser = null;
+let moduleSevenGuidedNetworkFilters = {};
+function moduleSevenGuidedLoad(user) {
+  moduleSevenGuidedUser = user;
+  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'NEC-0748', scenarioId: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
+  moduleSevenGuidedState = LabRuntime.loadCaseState(MODULE_SEVEN_GUIDED_LAB_ID, 'soc-07', user, defaults);
+  moduleSevenGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleSevenGuidedState.caseRecord || {}) };
+  moduleSevenGuidedState.tools ||= {};
+  moduleSevenGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleSevenGuidedState.tools.m04 }, MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m04).assessment;
+  moduleSevenGuidedState.tools.m05 = SocM05AssessmentState.normalize(moduleSevenGuidedState.tools.m05, MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m05);
+  moduleSevenGuidedState.tools.m06 = SocM06AssessmentState.normalize(moduleSevenGuidedState.tools.m06, MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m06);
+  moduleSevenGuidedAssessmentState = SocM07AssessmentState.load(user, MODULE_SEVEN_GUIDED_FIXTURE);
+}
+function moduleSevenGuidedSave() { if (moduleSevenGuidedUser && moduleSevenGuidedState) LabRuntime.saveCaseState(MODULE_SEVEN_GUIDED_LAB_ID, 'soc-07', moduleSevenGuidedUser, moduleSevenGuidedState); }
+function moduleSevenGuidedM04Tools() { return moduleSevenGuidedState.tools.m04; }
+function moduleSevenGuidedM07Store(state) { moduleSevenGuidedAssessmentState = SocM07AssessmentState.save(moduleSevenGuidedUser, state, MODULE_SEVEN_GUIDED_FIXTURE); moduleSevenGuidedSave(); }
+function moduleSevenGuidedChecks() {
+  const action = moduleSevenGuidedAssessmentState;
+  const selected = new Set((action.evidenceChanges || []).filter((entry) => entry.operation === 'add').map((entry) => entry.eventId));
+  const network = MODULE_SEVEN_GUIDED_FIXTURE.scenario.networkEvents;
+  const benignReviewed = (action.reviewedNetworkEventIds || []).some((id) => network.find((event) => event.id === id)?.benignLookalike === true);
+  const incident = (action.incidentLinks || []).at(-1);
+  return [
+    ['exposure', 'Review the message and confirm the delivered versus blocked recipient scope.', (action.reviewedMessageIds || []).includes('M07-GL-MSG-301') && (action.actionHistory || []).some((entry) => entry.type === 'recipient_search')],
+    ['network', 'Correlate the click with the matching DNS and TLS destination; review the HR lookalike.', ['M07-GL-RECIPIENT-313', 'M07-GL-DNS-321', 'M07-GL-TLS-331'].every((id) => selected.has(id) || (action.reviewedNetworkEventIds || []).includes(id)) && benignReviewed],
+    ['case', 'Link the supported evidence to an incident and state what remains unverified in your ticket.', Boolean(incident && !incident.eventIds.some((id) => network.find((event) => event.id === id)?.benignLookalike) && moduleSevenGuidedState.caseRecord.notes?.trim())],
+  ];
+}
+function moduleSevenGuidedGuide() {
+  const checks = moduleSevenGuidedChecks();
+  return `<details class="m07-console-guide" ${moduleSevenGuidedState.guideOpen ? 'open' : ''}><summary>Investigation checkpoints · ${checks.filter((check) => check[2]).length}/${checks.length}</summary><ol>${checks.map((check) => `<li>${check[1]} <span>${check[2] ? 'Done' : 'Pending'}</span></li>`).join('')}</ol><details><summary>Optional hint</summary><p>Match the message's final URL host to the resolver answer and TLS SNI; keep the trusted HR portal out of the case.</p></details></details>`;
+}
+const MODULE_SEVEN_GUIDED_CONSOLE = (() => {
+  const base = { save: moduleSevenGuidedSave, rerender: () => moduleSevenRenderGuidedPanel(), console: () => m03eState('m07-guided') };
+  const tool = (key, normalize) => SocConsoleTools.embedded(() => moduleSevenGuidedState, key, normalize, MODULE_SEVEN_GUIDED_TOOL_FIXTURES[key], moduleSevenGuidedSave);
+  return SocConsoleTools.mount('m07-guided', {
+    data: MODULE_SEVEN_GUIDED_CONSOLE_DATA, stateRoot: () => moduleSevenGuidedState, save: moduleSevenGuidedSave,
+    title: 'SIEM & NETWORK / EMAIL ANALYSIS · PRACTICE', ariaLabel: 'Module 07 guided email and network console', idPrefix: 'guided-m07',
+    sourceMappings: {
+      EmailEvents: { native: 'Mail gateway message trace (JSON)', fields: [['received', 'TimeGenerated'], ['recipient', 'Account'], ['subject', 'Subject'], ['from', 'Sender'], ['spf', 'Spf'], ['dkim', 'Dkim'], ['dmarc', 'Dmarc'], ['delivery', 'Result']] },
+      EmailInteractionEvents: { native: 'Mailbox interaction audit (JSON)', fields: [['timestamp', 'TimeGenerated'], ['recipient', 'Account'], ['device', 'DeviceId'], ['action', 'EventType'], ['url_id', 'UrlId']] },
+      DnsEvents: { native: 'Resolver query log (text)', fields: [['ts', 'TimeGenerated'], ['client', 'DeviceId'], ['query', 'Domain'], ['answers', 'Answers']] },
+      TlsEvents: { native: 'TLS session log (JSON)', fields: [['ts', 'TimeGenerated'], ['client', 'DeviceId'], ['server_ip', 'DestinationIp'], ['port', 'DestinationPort'], ['sni', 'Domain']] },
+      FirewallEvents: { native: 'Perimeter firewall flows (key=value)', fields: [['ts', 'TimeGenerated'], ['src', 'SourceIp'], ['dst', 'DestinationIp'], ['dport', 'DestinationPort'], ['action', 'Result']] },
+      ProxyEvents: { native: 'Web proxy access log (text)', fields: [['ts', 'TimeGenerated'], ['client', 'DeviceId'], ['url', 'Url'], ['status', 'Result']] },
+      DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['user', 'Account'], ['image', 'Image'], ['command_line', 'CommandLine'], ['parent', 'ParentProcess']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleSevenGuidedM04Tools, fixture: MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m04 } },
+      { id: 'm05', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m05, ...tool('m05', SocM05AssessmentState.normalize) } },
+      { id: 'm06', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m06, ...tool('m06', SocM06AssessmentState.normalize) } },
+      { id: 'm07', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_FIXTURE, ui: { get networkFilters() { return moduleSevenGuidedNetworkFilters; }, set networkFilters(value) { moduleSevenGuidedNetworkFilters = value; } }, box: { get state() { return moduleSevenGuidedAssessmentState; }, set state(value) { moduleSevenGuidedAssessmentState = value; } }, store: moduleSevenGuidedM07Store } },
+    ],
+    caseView: () => caseRecordPane(moduleSevenGuidedState.caseRecord, { caseId: 'NEC-0748', ticketId: 'INC-0748', ticketType: 'Shared-file phishing exposure · Messaging Security', userOptions: [{ id: 'acct-91', text: 'acct-91 · delivered/clicked' }, { id: 'acct-97', text: 'acct-97 · gateway blocked' }, { id: 'acct-55', text: 'acct-55 · HR baseline' }], deviceOptions: [{ id: 'WS-733', text: 'WS-733 · clicked user device' }, { id: 'WS-208', text: 'WS-208 · HR portal baseline' }], departmentOptions: [{ id: 'messaging-security', text: 'Messaging Security' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm07-guided-case', saveAttr: 'data-m07-guided-save-case', submitAttr: 'data-m07-guided-submit-case', panelId: 'm07-guided-case-panel', notesPlaceholder: 'Document message authentication, delivery scope, click-to-network correlation, and unverified endpoint/credential outcomes.' }),
+  });
+})();
+
 function moduleSevenCaseTicket() {
   const cr = moduleSevenState.caseRecord;
   const spec = moduleSevenProveItSpec();
@@ -865,6 +1011,7 @@ function moduleSevenAdditionalLabs() {
 
 function viewModuleSeven(user, program) {
   moduleSevenLoad(user);
+  moduleSevenGuidedLoad(user);
   const module = program.modules['soc-07'];
   const sections = moduleSevenGetSections();
   const lectureOpen = moduleSevenReviewMode || !sections[0].isComplete;
@@ -879,7 +1026,7 @@ function viewModuleSeven(user, program) {
     <div class="mquick-nav-layout">
       ${moduleProgressShell(sections, { reviewMode: moduleSevenReviewMode })}
       <main class="m07-main mf-frame">
-      <section class="m07-hero mf-hero" aria-labelledby="m07-title"><div><p class="m07-kicker mf-kicker">Module 07 · ${formatHandsOnDuration(module.durationMinutes)} · analysis practice</p><h1 id="m07-title">${esc(module.title)}</h1><p class="m07-lede mf-lede">Work through imported Splunk log-analysis modules covering SMTP, FTP, and tunnel traffic, then write up a defensible finding for instructor review.</p></div><dl class="m07-progress mf-stats" aria-label="Saved lab progress"><div><dt>Curriculum items</dt><dd>${module.lessons}</dd></div><div><dt>Guided Lab</dt><dd>${moduleSevenState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m07-status">${moduleSevenState.completed ? 'Complete' : moduleSevenState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m07-hero mf-hero" aria-labelledby="m07-title"><div><p class="m07-kicker mf-kicker">Module 07 · ${formatHandsOnDuration(module.durationMinutes)} · analysis practice</p><h1 id="m07-title">${esc(module.title)}</h1><p class="m07-lede mf-lede">Trace a suspicious shared-file notice from mail authentication and delivery through the user's network session, while keeping unverified endpoint and credential outcomes explicit.</p></div><dl class="m07-progress mf-stats" aria-label="Saved lab progress"><div><dt>Curriculum items</dt><dd>${module.lessons}</dd></div><div><dt>Guided Lab</dt><dd id="m07-guided-status">${moduleSevenGuidedChecks().every((check) => check[2]) ? 'Complete' : moduleSevenGuidedChecks().some((check) => check[2]) ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m07-status">${moduleSevenState.completed ? 'Complete' : moduleSevenState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m07-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
         <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">1</span><div><p class="m07-kicker mf-kicker">Lecture</p><h2 id="m07-lecture">Email authentication and network correlation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
@@ -897,9 +1044,8 @@ function viewModuleSeven(user, program) {
       </details>
 
       <details class="m07-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">3</span><div><p class="m07-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m07-guided-lab">Log analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">3</span><div><p class="m07-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m07-guided-lab">Shared-file message and network investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m07-section-body mf-section-body">
-          <div class="m07-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in the imported training application on this page.</p></div>
           <div id="m07-guided-lab-dynamic">${moduleSevenGuidedLabPanel()}</div>
         </div>
       </details>
@@ -1007,35 +1153,56 @@ function wireModuleSevenQuiz() {
   });
 }
 
-function wireModuleSevenGuidedLabGating(root) {
-  wireMissionNextLabGating(root, moduleSevenState.labProgress, () => {
-    moduleSevenSave();
-    root.innerHTML = moduleSevenGuidedLabPanel();
-    wireModuleSevenGuidedLabGating(root);
-  });
+function moduleSevenRenderGuidedPanel() {
+  const root = document.getElementById('m07-guided-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleSevenGuidedLabPanel();
+  const host = root.querySelector('#m03e-console-m07-guided');
+  if (host) { MODULE_SEVEN_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m07-guided'); }
 }
 
 function wireModuleSevenGuidedLab() {
   const root = document.getElementById('m07-guided-lab-dynamic');
-  if (!root || !moduleSevenState) return;
-  wireModuleSevenGuidedLabGating(root);
+  if (!root || !moduleSevenGuidedState) return;
+  const host = root.querySelector('#m03e-console-m07-guided');
+  if (host) { MODULE_SEVEN_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m07-guided'); }
+  if (!root.dataset.m07GuidedObserver) {
+    root.dataset.m07GuidedObserver = 'true';
+    const observer = new MutationObserver(() => {
+      const guide = root.querySelector('.m07-console-guide');
+      if (!guide) return;
+      const next = document.createElement('div'); next.innerHTML = moduleSevenGuidedGuide();
+      const nextGuide = next.firstElementChild;
+      if (guide.innerHTML !== nextGuide.innerHTML) { nextGuide.open = guide.open; guide.replaceWith(nextGuide); }
+      const complete = moduleSevenGuidedChecks().every((check) => check[2]);
+      const status = root.querySelector('.m07-guided-status');
+      if (status) status.textContent = complete ? 'Guided Lab complete: the mail and network evidence is linked to your case.' : 'Use the console to establish exposure and correlate the network trail; progress saves as you work.';
+      const badge = document.getElementById('m07-guided-status');
+      if (badge) badge.textContent = complete ? 'Complete' : moduleSevenGuidedChecks().some((check) => check[2]) ? 'In progress' : 'Not started';
+    });
+    observer.observe(root, { childList: true, subtree: true });
+  }
   root.addEventListener('input', (event) => {
-    if (event.target.matches('[data-m07-practice-notes]')) {
-      moduleSevenState.practiceNotes = event.target.value;
-      moduleSevenSave();
-    }
+    if (event.target.matches('#guided-m07-m07-guided-case [name="notes"]')) moduleSevenGuidedState.caseRecord.notes = event.target.value;
+  });
+  root.addEventListener('change', (event) => {
+    const field = event.target.closest('#guided-m07-m07-guided-case [name]');
+    if (!field) return;
+    if (field.name.startsWith('finding:')) moduleSevenGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
+    else moduleSevenGuidedState.caseRecord[field.name] = field.value;
+    moduleSevenGuidedSave();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m07-practice-complete]')) {
-      if (!missionNextAllLabsComplete(moduleSevenState.labProgress, ['guided-1', 'guided-2'])) {
-        root.innerHTML = moduleSevenGuidedLabPanel();
-        wireModuleSevenGuidedLabGating(root);
-        return;
-      }
-      moduleSevenState.practiceComplete = true;
-      moduleSevenSave();
-      root.innerHTML = moduleSevenGuidedLabPanel();
-      wireModuleSevenGuidedLabGating(root);
+    if (event.target.closest('[data-m07-guided-submit-case]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m07-guided-save-case]')) {
+      event.preventDefault();
+      moduleSevenGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
+      moduleSevenGuidedSave();
+      m03eRender('m07-guided');
+      return;
+    }
+    if (event.target.closest('.m07-console-guide > summary')) {
+      requestAnimationFrame(() => { moduleSevenGuidedState.guideOpen = Boolean(root.querySelector('.m07-console-guide')?.open); moduleSevenGuidedSave(); });
     }
   });
 }

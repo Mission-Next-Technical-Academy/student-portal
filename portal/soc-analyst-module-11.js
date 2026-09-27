@@ -3,6 +3,27 @@
  */
 
 const MODULE_ELEVEN_METRICS_LAB_ID = 'm11-soc-metrics-v1';
+const MODULE_ELEVEN_GUIDED_CASE_ID = 'OPS-6640';
+const MODULE_ELEVEN_GUIDED_REPLACEMENTS = {
+  'M11-': 'M11G-', 'Q-': 'GQ-', 'R-': 'GR-', 'OPS-5511': 'OPS-6640', 'INC-4937': 'INC-6240', 'INC-5020': 'INC-6242',
+  'ws-173': 'ws-264', 'acct-173': 'acct-264', 'fs-02': 'fs-07', 'an-okafor': 'an-blake', 'an-ruiz': 'an-morgan',
+  'an-chen': 'an-jordan', 'an-patel': 'an-silva', 'ir-lead-owners': 'response-leads', 'identity-owners': 'directory-owners',
+  'detection-engineering': 'detection-content', 'fs02-service-owner': 'fs07-service-owner', 'SHIFT-0927-DAY': 'SHIFT-1004-EARLY',
+  '2026-09-27': '2026-10-04', 'Analyst Okafor': 'Analyst Blake', 'Analyst Ruiz': 'Analyst Morgan',
+  'Analyst Chen': 'Analyst Jordan', 'Analyst Patel': 'Analyst Silva',
+};
+function moduleElevenGuidedClone(value) {
+  if (typeof value === 'string') return Object.entries(MODULE_ELEVEN_GUIDED_REPLACEMENTS).reduce((text, [from, to]) => text.split(from).join(to), value);
+  if (Array.isArray(value)) return value.map(moduleElevenGuidedClone);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleElevenGuidedClone(item)]));
+  return value;
+}
+const MODULE_ELEVEN_GUIDED_FIXTURE = (() => {
+  const fixture = moduleElevenGuidedClone(SocM11AssessmentData);
+  fixture.scenario.stateKey = 'm11-guided-operations-actions-v1';
+  fixture.expectedTruth.dueBy = '2026-10-11';
+  return fixture;
+})();
 const MODULE_ELEVEN_QUIZ_BANKS = [
   {
     conceptId: 'shared-case-source-review',
@@ -536,6 +557,10 @@ function moduleElevenLoad(user) {
   moduleElevenUser = user;
   moduleElevenMetricsState = LabRuntime.loadCaseState(MODULE_ELEVEN_METRICS_LAB_ID, 'soc-11', user, moduleElevenMetricsFreshDefaults());
   moduleElevenReportState = LabRuntime.loadCaseState(MODULE_ELEVEN_REPORT_LAB_ID, 'soc-11', user, moduleElevenReportFreshDefaults());
+  moduleElevenGuidedState = LabRuntime.loadCaseState('m11-guided-operations-v1', 'soc-11', user, {
+    completed: false, caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
+  });
+  moduleElevenGuidedOpsState = SocM11AssessmentState.load(user, MODULE_ELEVEN_GUIDED_FIXTURE);
   ['feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleElevenMetricsState[key])) moduleElevenMetricsState[key] = [];
   });
@@ -581,6 +606,28 @@ function moduleElevenLoad(user) {
 
 function moduleElevenSaveMetrics() {
   if (moduleElevenUser && moduleElevenMetricsState) LabRuntime.saveCaseState(MODULE_ELEVEN_METRICS_LAB_ID, 'soc-11', moduleElevenUser, moduleElevenMetricsState);
+}
+
+function moduleElevenGuidedSave() {
+  if (moduleElevenUser && moduleElevenGuidedState) LabRuntime.saveCaseState('m11-guided-operations-v1', 'soc-11', moduleElevenUser, moduleElevenGuidedState);
+}
+
+function moduleElevenMaybeCompleteGuided() {
+  if (!moduleElevenGuidedComplete()) return false;
+  if (!moduleElevenGuidedState.completed) {
+    moduleElevenGuidedState.completed = true;
+    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_METRICS_CATALOG_KEY);
+  }
+  moduleElevenGuidedSave();
+  return true;
+}
+
+function moduleElevenUpdateGuidedProgress() {
+  const complete = moduleElevenMaybeCompleteGuided();
+  const status = document.querySelector('#m11-guided-lab-dynamic .m11-guided-status');
+  if (status) status.textContent = complete ? 'Practice shift record complete.' : 'Progress saved. Finish the operations and reporting handoff.';
+  const summary = document.querySelector('#m11-guided-lab-dynamic .m11-console-guide summary');
+  if (summary) summary.textContent = complete ? 'Guide · handoff recorded' : 'Guide · progress saved';
 }
 
 function moduleElevenSaveReport() {
@@ -762,7 +809,7 @@ function moduleElevenGetSections() {
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm11-lecture' },
     { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleElevenQuizState?.passed, scrollId: 'm11-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleElevenMetricsState.practiceComplete, scrollId: 'm11-guided-lab' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleElevenGuidedComplete(), scrollId: 'm11-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleElevenReportState.completed, scrollId: 'm11-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm11-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm11-sources-section', gated: false, supplemental: true },
@@ -781,15 +828,33 @@ function moduleElevenGetQuickNavItems() {
 }
 
 
+function moduleElevenGuidedComplete() {
+  const ops = moduleElevenGuidedOpsState || {};
+  const cr = moduleElevenGuidedState?.caseRecord || {};
+  return (ops.priorityOrder || []).length > 0 && (ops.interpretations || []).length > 0 && (ops.handoffs || []).length > 0
+    && Boolean(ops.reports?.executive?.summary && ops.reports?.technical?.summary && cr.status && cr.affectedUser && cr.affectedDevice && cr.severity && cr.disposition && cr.escalateTo && cr.notes?.trim().length >= 35);
+}
+
+function moduleElevenGuidedCaseTicket() {
+  const s = MODULE_ELEVEN_GUIDED_FIXTURE.scenario;
+  const endpoint = s.incident.entities.find((id) => id.startsWith('ws-'));
+  const user = s.incident.entities.find((id) => id.startsWith('acct-'));
+  const routes = s.escalationRoutes.map((route) => ({ id: route.id, text: route.label }));
+  return caseRecordPane(moduleElevenGuidedState.caseRecord, {
+    caseId: MODULE_ELEVEN_GUIDED_CASE_ID, ticketId: 'INC-6240', ticketType: 'SOC Operations & Shift Handoff',
+    userOptions: [{ id: user, text: `${user} · affected incident account` }], deviceOptions: [{ id: endpoint, text: `${endpoint} · confirmed impact endpoint` }],
+    departmentOptions: routes, formId: 'm11-guided-case-form', saveAttr: 'data-m11-guided-save-case', submitAttr: 'data-m11-guided-submit-case', panelId: 'm11-guided-case-panel',
+    notesPlaceholder: 'Summarize the queue risk, case scope, named follow-up owner, and next verification time.',
+  });
+}
+
 function moduleElevenGuidedLabPanel() {
-  const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_METRICS_CATALOG_KEY);
-  return `<section class="m11-external-lab" id="m11-guided-lab-panel">
-    <p class="m11-panel-instruction">Launch the imported Active Directory monitoring project below and work through its guided tasks on this page. When you're done, note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(11, 'guided', [{ title: 'Active Directory Monitoring with Grafana', detail: `${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. Imported Active Directory monitoring project.`, href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-1/lab', labId: 'guided-1', requireNote: true }], moduleElevenMetricsState.labProgress)}
-    <label class="m11-text-label" for="m11-practice-notes">Working notes (optional)</label>
-    <p class="m11-field-help">What did you find? Any blockers?</p>
-    <textarea id="m11-practice-notes" rows="4" maxlength="900" data-m11-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleElevenMetricsState.practiceNotes)}</textarea>
-    <div class="m11-actions"><button type="button" class="m11-submit" data-m11-practice-complete>${moduleElevenMetricsState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+  const complete = moduleElevenGuidedComplete();
+  const ops = moduleElevenGuidedOpsState || {};
+  return `<section class="m11-guided-case"><p class="m11-panel-instruction">Run this synthetic shift, leave a bounded handoff, and write the audience reports.</p>
+    <details class="m11-console-guide"><summary>Guide · ${complete ? 'handoff recorded' : 'progress saved'}</summary><ol><li>Prioritize the live queue using severity, impact, and SLA age.</li><li>Interpret metrics separately from incident proof; save a shift handoff and reports.</li><li>Record the residual risk and next owner in the case ticket.</li></ol><p>${ops.priorityOrder?.length ? 'Queue priority saved.' : ''} ${ops.handoffs?.length ? 'Shift handoff saved.' : ''} ${ops.reports?.executive?.summary ? 'Executive report saved.' : ''}</p></details>
+    <div class="m03e-console-host" id="m03e-console-m11-guided">${moduleThreeConsoleHtml('m11-guided')}</div>
+    <p class="m11-guided-status" role="status">${complete ? 'Practice shift record complete.' : 'Complete the operations and reporting workflow, then save the incident ticket.'}</p>
   </section>`;
 }
 
@@ -812,14 +877,14 @@ function moduleElevenAdditionalLabs() {
 // The shift assessment uses the same Module 3 console shell as the earlier
 // investigations. Operational actions and audience-specific reporting live
 // in dedicated console tabs and are persisted by the append-only M11 engine.
-function moduleElevenConsoleData() {
-  const s = SocM11AssessmentData.scenario;
+function moduleElevenConsoleData(fixture = SocM11AssessmentData) {
+  const s = fixture.scenario;
   const events = s.queue.map((item, index) => m03eRow('AlertQueue', item.id, item.createdAt.slice(0, 10), item.createdAt.slice(11, 19), {
     EventType: item.kind, Host: item.title, Account: item.assigneeId || 'unassigned', Result: item.status,
     Severity: item.severity, RuleId: item.ruleId, BusinessImpact: item.businessImpact,
     Detail: `SLA ${item.slaMinutes} minutes; queue position ${index + 1}`,
   })).concat(s.incident.recoveryEvidence.map((e) => m03eRow('RecoveryRecords', e.id, e.time.slice(0, 10), e.time.slice(11, 19), {
-    EventType: 'RecoveryValidation', Host: e.id === 'M11-REC-04' ? 'fs-02' : 'ws-173', Account: 'soc-analyst', Result: e.status, Detail: e.summary,
+    EventType: 'RecoveryValidation', Host: /file-share/i.test(e.summary) ? s.incident.entities.find((id) => id.startsWith('fs-')) : s.incident.entities.find((id) => id.startsWith('ws-')), Account: 'soc-analyst', Result: e.status, Detail: e.summary,
   })));
   return m03eBuildDataset({ caseId: s.caseId, day: s.start.slice(0, 10), events,
     identities: s.analysts.map((a) => ({ Account: a.id, DisplayName: a.name, Type: a.role, Department: 'SOC', Owner: a.name, Privileged: 'No', UsualSourceIp: '—' })),
@@ -828,40 +893,43 @@ function moduleElevenConsoleData() {
     alerts: s.queue.map((item) => ({ id: item.id, time: item.createdAt, severity: item.severity, title: item.title, entities: s.incident.entities, rule: item.ruleId, query: `AlertQueue\n| where EventId == "${item.id}"` })), now: s.end,
   });
 }
-function moduleElevenToolFixtures(data) {
-  const s = SocM11AssessmentData.scenario;
-  const evidence = s.incident.recoveryEvidence.map((e) => ({ id: e.id, type: 'recovery_record', time: e.time, entityId: e.id === 'M11-REC-04' ? 'fs-02' : 'ws-173', summary: e.summary }));
-  const m10Artifacts = s.incident.recoveryEvidence.map((e, i) => ({ id: e.id, type: 'recovery_record', time: e.time, host: e.id === 'M11-REC-04' ? 'fs-02' : 'ws-173', account: 'soc-analyst', title: e.summary, source: 'Recovery validation record', methods: ['log_export'], sourceHash: String(i + 1).repeat(64), verificationHash: String(i + 1).repeat(64), detail: e.summary }));
+function moduleElevenToolFixtures(data, fixture = SocM11AssessmentData) {
+  const s = fixture.scenario;
+  const endpoint = s.incident.entities.find((id) => id.startsWith('ws-'));
+  const account = s.incident.entities.find((id) => id.startsWith('acct-'));
+  const service = s.incident.entities.find((id) => id.startsWith('fs-'));
+  const evidence = s.incident.recoveryEvidence.map((e) => ({ id: e.id, type: 'recovery_record', time: e.time, entityId: /file-share/i.test(e.summary) ? service : endpoint, summary: e.summary }));
+  const m10Artifacts = s.incident.recoveryEvidence.map((e, i) => ({ id: e.id, type: 'recovery_record', time: e.time, host: /file-share/i.test(e.summary) ? service : endpoint, account: 'soc-analyst', title: e.summary, source: 'Recovery validation record', methods: ['log_export'], sourceHash: String(i + 1).repeat(64), verificationHash: String(i + 1).repeat(64), detail: e.summary }));
   return {
     m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: s.caseId, end: s.end, data }),
-    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm11-endpoint-tools-v1', devices: s.incident.entities.filter((x) => x.startsWith('ws-') || x.startsWith('fs-')).map((id) => ({ id, hostname: id, platform: 'Windows', role: id === 'fs-02' ? 'File service' : 'Workstation', owner: 'SOC', zone: 'CORP', status: 'Recovered / validation pending' })), data }),
-    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M11-LEAD-001', type: 'recovery_review', device: 'ws-173', account: 'acct-173', taskName: 'Recovery validation', observation: s.incident.containment }, devices: ['ws-173', 'fs-02'], data, timeStart: s.start, timeEnd: s.end }),
+    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm11-endpoint-tools-v1', devices: s.incident.entities.filter((x) => x.startsWith('ws-') || x.startsWith('fs-')).map((id) => ({ id, hostname: id, platform: 'Windows', role: id.startsWith('fs-') ? 'File service' : 'Workstation', owner: 'SOC', zone: 'CORP', status: 'Recovered / validation pending' })), data }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M11-LEAD-001', type: 'recovery_review', device: endpoint, account, taskName: 'Recovery validation', observation: s.incident.containment }, devices: [endpoint, service], data, timeStart: s.start, timeEnd: s.end }),
     m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm11-mail-tools-v1', start: s.start, end: s.end }),
     m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm11-exposure-tools-v1', start: s.start, end: s.end }),
     m09: SocConsoleTools.m09Fixture({ id: s.id, stateKey: 'm11-response-tools-v1', start: s.start, end: s.end,
-      incident: { id: s.incident.id, title: s.incident.title, reportedAt: s.start, sourceEntityId: 'ws-173', sourceEvidenceId: 'M11-REC-01', summary: s.incident.containment },
-      entities: [{ id: 'ws-173', type: 'endpoint', hostname: 'ws-173', ownerAccountId: 'acct-173', status: 'isolated' }, { id: 'acct-173', type: 'identity', displayName: 'acct-173', status: 'active' }, { id: 'fs-02', type: 'file_service', hostname: 'fs-02', status: 'validation_pending' }],
-      edges: [{ from: s.incident.id, to: 'ws-173', relation: 'contained', evidenceId: 'M11-REC-01' }, { from: s.incident.id, to: 'acct-173', relation: 'session_overlap', evidenceId: 'M11-REC-05' }], evidence }),
+      incident: { id: s.incident.id, title: s.incident.title, reportedAt: s.start, sourceEntityId: endpoint, sourceEvidenceId: s.incident.recoveryEvidence[0].id, summary: s.incident.containment },
+      entities: [{ id: endpoint, type: 'endpoint', hostname: endpoint, ownerAccountId: account, status: 'isolated' }, { id: account, type: 'identity', displayName: account, status: 'active' }, { id: service, type: 'file_service', hostname: service, status: 'validation_pending' }],
+      edges: [{ from: s.incident.id, to: endpoint, relation: 'contained', evidenceId: s.incident.recoveryEvidence[0].id }, { from: s.incident.id, to: account, relation: 'session_overlap', evidenceId: s.incident.recoveryEvidence[4].id }], evidence }),
     m10: { schemaVersion: 1, scenario: { id: s.id, caseId: s.caseId, incidentId: s.incident.id, stateKey: 'm11-evidence-locker-v1', start: s.start, end: s.end, fixedAt: s.end, containedAt: s.start,
-      request: { id: 'REQ-INC-4937', from: 'Incident lead', receivedAt: s.start, text: 'Preserve recovery and scope records with defensible custody; distinguish completed recovery checks from pending owner validation.' },
+      request: { id: `REQ-${s.incident.id}`, from: 'Incident lead', receivedAt: s.start, text: 'Preserve recovery and scope records with defensible custody; distinguish completed recovery checks from pending owner validation.' },
       custodians: [{ id: 'soc-analyst', label: 'SOC analyst' }, { id: 'service-owner', label: 'Service owner' }, { id: 'identity-owner', label: 'Identity owner' }], artifacts: m10Artifacts } },
   };
 }
 
-function moduleElevenOpsHtml() {
-  const s = SocM11AssessmentData.scenario; const state = moduleElevenOpsState;
-  const metrics = SocM11AssessmentMetrics.compute(SocM11AssessmentData, state);
+function moduleElevenOpsHtml(fixture = SocM11AssessmentData, state = moduleElevenOpsState) {
+  const s = fixture.scenario;
+  const metrics = SocM11AssessmentMetrics.compute(fixture, state);
   const itemOptions = s.queue.map((x) => `<option value="${esc(x.id)}">${esc(x.id)} · ${esc(x.title)}</option>`).join('');
   const analystOptions = s.analysts.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
   const ownerOptions = [...s.analysts.map((x) => ({ id: x.id, name: x.name })), ...s.ownerIds.map((id) => ({ id, name: id }))].map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
   return `<section class="m03-console-extra"><h3>Shift Operations</h3><p>Prioritize the live queue, assign work, and record the handoff for the incoming shift.</p>
-    <form data-m11-operation="priority"><label>Priority order (highest first)<input name="order" required placeholder="Q-03, Q-02, Q-04"></label><button>Save order</button></form>
+    <form data-m11-operation="priority"><label>Priority order (highest first)<input name="order" required placeholder="${esc(s.queue.slice(1, 4).map((item) => item.id).join(', '))}"></label><button>Save order</button></form>
     <form data-m11-operation="assign"><label>Queue item<select name="itemId">${itemOptions}</select></label><label>Assign to<select name="analystId">${analystOptions}</select></label><button>Assign</button></form>
     <form data-m11-operation="escalate"><label>Queue item<select name="itemId">${itemOptions}</select></label><label>Route<select name="route">${s.escalationRoutes.map((r) => `<option value="${esc(r.id)}">${esc(r.label)}</option>`).join('')}</select></label><label>Reason<textarea name="reason" required minlength="10"></textarea></label><button>Escalate</button></form>
     <form data-m11-operation="metrics"><label>Metric interpretation<textarea name="text" required minlength="40"></textarea></label><button>Record interpretation</button></form>
     <form data-m11-operation="noise"><label>Rule<select name="ruleId">${s.rules.map((r) => `<option value="${esc(r.id)}">${esc(r.id)} · ${esc(r.name)}</option>`).join('')}</select></label><label>Rationale<textarea name="rationale" required minlength="10"></textarea></label><label>Improvement<textarea name="improvement" required minlength="20"></textarea></label><button>Flag rule</button></form>
-    <form data-m11-operation="handoff"><label>Summary<textarea name="summary" required minlength="40"></textarea></label><label>Open items (comma separated IDs)<input name="openItems" required placeholder="Q-01, Q-02, Q-03, Q-04"></label><label>Risks<textarea name="risks" required></textarea></label><label>Next actions<textarea name="nextActions" required></textarea></label><button>Save handoff</button></form>
-    <form data-m11-operation="followup"><label>Title<input name="title" required minlength="5"></label><label>Kind<select name="kind"><option value="follow_up">Follow up</option><option value="lesson">Lesson learned</option><option value="detection">Detection improvement</option></select></label><label>Owner<select name="ownerId">${ownerOptions}</select></label><label>Due date<input name="dueDate" type="date" min="${esc(s.start.slice(0, 10))}" max="${esc(SocM11AssessmentData.expectedTruth.dueBy)}" required></label><label>Evidence<select name="evidenceId"><option value="">None</option>${s.incident.recoveryEvidence.map((e) => `<option value="${esc(e.id)}">${esc(e.id)}</option>`).join('')}</select></label><button>Add action</button></form>
+    <form data-m11-operation="handoff"><label>Summary<textarea name="summary" required minlength="40"></textarea></label><label>Open items (comma separated IDs)<input name="openItems" required placeholder="${esc(s.queue.filter((item) => item.status !== 'closed').slice(0, 4).map((item) => item.id).join(', '))}"></label><label>Risks<textarea name="risks" required></textarea></label><label>Next actions<textarea name="nextActions" required></textarea></label><button>Save handoff</button></form>
+    <form data-m11-operation="followup"><label>Title<input name="title" required minlength="5"></label><label>Kind<select name="kind"><option value="follow_up">Follow up</option><option value="lesson">Lesson learned</option><option value="detection">Detection improvement</option></select></label><label>Owner<select name="ownerId">${ownerOptions}</select></label><label>Due date<input name="dueDate" type="date" min="${esc(s.start.slice(0, 10))}" max="${esc(fixture.expectedTruth?.dueBy || s.end.slice(0, 10))}" required></label><label>Evidence<select name="evidenceId"><option value="">None</option>${s.incident.recoveryEvidence.map((e) => `<option value="${esc(e.id)}">${esc(e.id)}</option>`).join('')}</select></label><button>Add action</button></form>
     <h4>Shift metrics · ${esc(metrics.at)}</h4><div class="m03e-table-wrap"><table class="m03e-table"><thead><tr><th>Measure</th><th>Value</th><th>Interpretation boundary</th></tr></thead><tbody>
       <tr><td>Alert volume</td><td>${esc(metrics.alertVolume)}</td><td>One fixed synthetic shift</td></tr>
       <tr><td>Mean time to acknowledge</td><td>${esc(metrics.mttaMinutes)} min</td><td>Dispositioned/acknowledged items only</td></tr>
@@ -874,17 +942,20 @@ function moduleElevenOpsHtml() {
     <p>${metrics.caveats.map(esc).join(' ')}</p><p role="status">${state.actionHistory.length} operational actions saved.</p></section>`;
 }
 
-function moduleElevenReportingHtml() {
-  const s = SocM11AssessmentData.scenario; const state = moduleElevenOpsState;
+function moduleElevenReportingHtml(fixture = SocM11AssessmentData, state = moduleElevenOpsState) {
+  const s = fixture.scenario;
   const fieldNames = [['summary','Summary'],['confirmedScope','Confirmed scope'],['unknowns','Unknowns'],['businessImpact','Business impact'],['containmentStatus','Containment status'],['recoveryStatus','Recovery status'],['residualRisk','Residual risk']];
   return `<section class="m03-console-extra"><h3>Reporting and Closure</h3><p>Write a bounded report for each audience. Include recovery limits and named follow-up owners before deciding whether the incident can close.</p>
     ${['technical','executive','escalation','closure'].map((kind) => `<form data-m11-report="${kind}"><h4>${kind[0].toUpperCase()+kind.slice(1)} report</h4>${fieldNames.map(([name,label]) => `<label>${label}<textarea name="${name}" ${name === 'summary' ? 'required minlength="20"' : ''}>${esc(state.reports?.[kind]?.[name] || '')}</textarea></label>`).join('')}<button>Save ${kind} report</button></form>`).join('')}
-    <form data-m11-operation="closure"><label>Decision<select name="decision"><option value="retain">Retain open</option><option value="close">Close</option></select></label><label>Rationale<textarea name="rationale" required minlength="30"></textarea></label><label>Recovery evidence<input name="evidenceIds" placeholder="M11-REC-04, M11-REC-05"></label><button>Record closure decision</button></form>
+    <form data-m11-operation="closure"><label>Decision<select name="decision"><option value="retain">Retain open</option><option value="close">Close</option></select></label><label>Rationale<textarea name="rationale" required minlength="30"></textarea></label><label>Recovery evidence<input name="evidenceIds" placeholder="${esc(s.incident.recoveryEvidence.slice(-2).map((e) => e.id).join(', '))}"></label><button>Record closure decision</button></form>
     <p role="status">${state.actionHistory.length} actions saved. Assessment scoring occurs when the ticket is submitted.</p></section>`;
 }
 
 let moduleElevenOpsState = null;
+let moduleElevenGuidedOpsState = null;
+let moduleElevenGuidedState = null;
 let moduleElevenConsole = null;
+let moduleElevenGuidedConsole = null;
 function moduleElevenMountConsole() {
   const save = () => { moduleElevenMetricsState.console ||= {}; moduleElevenMetricsState.console.m11 = m03eState('m11'); moduleElevenSaveMetrics(); };
   const data = moduleElevenConsoleData();
@@ -905,27 +976,53 @@ function moduleElevenMountConsole() {
   });
 }
 
-function moduleElevenWireConsole() {
-  const root = document.getElementById('m03e-console-m11'); if (!root) return;
+function moduleElevenMountGuidedConsole() {
+  const save = () => { moduleElevenGuidedState.console ||= {}; moduleElevenGuidedState.console['m11-guided'] = m03eState('m11-guided'); moduleElevenGuidedSave(); };
+  const data = moduleElevenConsoleData(MODULE_ELEVEN_GUIDED_FIXTURE);
+  const fx = moduleElevenToolFixtures(data, MODULE_ELEVEN_GUIDED_FIXTURE);
+  const root = () => moduleElevenGuidedState;
+  const packs = [
+    { id: 'm04', ctx: { fixture: fx.m04, assessment: () => { moduleElevenGuidedState.tools ||= {}; if (!moduleElevenGuidedState.tools.m04) moduleElevenGuidedState.tools.m04 = SocM04AssessmentState.normalize({}, fx.m04).assessment; return moduleElevenGuidedState.tools.m04; }, console: () => m03eState('m11-guided'), save, rerender: () => m03eRender('m11-guided') } },
+    { id: 'm05', ctx: { fixture: fx.m05, ...SocConsoleTools.embedded(root, 'm05', SocM05AssessmentState.normalize, fx.m05, save) } },
+    { id: 'm06', ctx: { fixture: fx.m06, ...SocConsoleTools.embedded(root, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
+    { id: 'm07', ctx: { fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
+    { id: 'm08', ctx: { fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
+    { id: 'm09', ctx: { fixture: fx.m09, evidence: fx.m09.scenario.evidence, routes: MODULE_ELEVEN_GUIDED_FIXTURE.scenario.escalationRoutes.map((route) => ({ id: route.id, text: route.label })), ...SocConsoleTools.embedded(root, 'm09', SocM09AssessmentState.normalize, fx.m09, save) } },
+    { id: 'm10', ctx: { fixture: fx.m10, console: () => m03eState('m11-guided'), load: () => SocM10AssessmentState.normalize(moduleElevenGuidedState.tools?.m10 || {}, fx.m10), store: (next) => { moduleElevenGuidedState.tools ||= {}; moduleElevenGuidedState.tools.m10 = SocM10AssessmentState.normalize(next, fx.m10); save(); } } },
+  ];
+  moduleElevenGuidedConsole = SocConsoleTools.mount('m11-guided', { data, stateRoot: root, save, packs,
+    title: 'SOC OPERATIONS & REPORTING · PRACTICE', ariaLabel: 'Module 11 guided SOC operations and reporting console', idPrefix: 'guided-m11',
+    extraTabs: [['operations', 'Operations'], ['reporting', 'Reporting']],
+    views: { operations: () => moduleElevenOpsHtml(MODULE_ELEVEN_GUIDED_FIXTURE, moduleElevenGuidedOpsState), reporting: () => moduleElevenReportingHtml(MODULE_ELEVEN_GUIDED_FIXTURE, moduleElevenGuidedOpsState) },
+    caseView: () => moduleElevenGuidedCaseTicket(),
+  });
+}
+
+function moduleElevenWireConsole(root = document.getElementById('m03e-console-m11'), fixture = SocM11AssessmentData,
+  getState = () => moduleElevenOpsState, setState = (next) => { moduleElevenOpsState = next; },
+  saveState = (state) => SocM11AssessmentState.save(moduleElevenUser, state, SocM11AssessmentData), consoleMount = moduleElevenConsole) {
+  if (!root) return;
   root.addEventListener('submit', (event) => {
     const form = event.target.closest('[data-m11-operation], [data-m11-report]'); if (!form) return;
-    event.preventDefault(); const d = Object.fromEntries(new FormData(form)); const at = SocM11AssessmentData.scenario.fixedAt;
+    event.preventDefault(); const d = Object.fromEntries(new FormData(form)); const at = fixture.scenario.fixedAt;
+    let state = getState();
     try {
-      if (form.dataset.m11Report) moduleElevenOpsState = SocM11AssessmentState.report(moduleElevenOpsState, SocM11AssessmentData, form.dataset.m11Report, d, at);
+      if (form.dataset.m11Report) state = SocM11AssessmentState.report(state, fixture, form.dataset.m11Report, d, at);
       else switch (form.dataset.m11Operation) {
-        case 'priority': moduleElevenOpsState = SocM11AssessmentState.setPriority(moduleElevenOpsState, SocM11AssessmentData, d.order.split(',').map((x) => x.trim()).filter(Boolean), at); break;
-        case 'assign': moduleElevenOpsState = SocM11AssessmentState.assign(moduleElevenOpsState, SocM11AssessmentData, d.itemId, d.analystId, at); break;
-        case 'escalate': moduleElevenOpsState = SocM11AssessmentState.escalate(moduleElevenOpsState, SocM11AssessmentData, d.itemId, d.route, d.reason, at); break;
-        case 'metrics': moduleElevenOpsState = SocM11AssessmentState.recordMetricInterpretation(moduleElevenOpsState, SocM11AssessmentData, d.text, at); break;
-        case 'noise': moduleElevenOpsState = SocM11AssessmentState.flagNoisyRule(moduleElevenOpsState, SocM11AssessmentData, d.ruleId, d.rationale, d.improvement, at); break;
-        case 'handoff': moduleElevenOpsState = SocM11AssessmentState.handoff(moduleElevenOpsState, SocM11AssessmentData, { summary: d.summary, openItems: d.openItems.split(',').map((x) => x.trim()).filter(Boolean), risks: d.risks.split('\n').map((x) => x.trim()).filter(Boolean), nextActions: d.nextActions.split('\n').map((x) => x.trim()).filter(Boolean) }, at); break;
-        case 'followup': moduleElevenOpsState = SocM11AssessmentState.improvementAction(moduleElevenOpsState, SocM11AssessmentData, d, at); break;
-        case 'closure': moduleElevenOpsState = SocM11AssessmentState.closureDecision(moduleElevenOpsState, SocM11AssessmentData, { ...d, evidenceIds: (d.evidenceIds || '').split(',').map((x) => x.trim()).filter(Boolean) }, at); break;
+        case 'priority': state = SocM11AssessmentState.setPriority(state, fixture, d.order.split(',').map((x) => x.trim()).filter(Boolean), at); break;
+        case 'assign': state = SocM11AssessmentState.assign(state, fixture, d.itemId, d.analystId, at); break;
+        case 'escalate': state = SocM11AssessmentState.escalate(state, fixture, d.itemId, d.route, d.reason, at); break;
+        case 'metrics': state = SocM11AssessmentState.recordMetricInterpretation(state, fixture, d.text, at); break;
+        case 'noise': state = SocM11AssessmentState.flagNoisyRule(state, fixture, d.ruleId, d.rationale, d.improvement, at); break;
+        case 'handoff': state = SocM11AssessmentState.handoff(state, fixture, { summary: d.summary, openItems: d.openItems.split(',').map((x) => x.trim()).filter(Boolean), risks: d.risks.split('\n').map((x) => x.trim()).filter(Boolean), nextActions: d.nextActions.split('\n').map((x) => x.trim()).filter(Boolean) }, at); break;
+        case 'followup': state = SocM11AssessmentState.improvementAction(state, fixture, d, at); break;
+        case 'closure': state = SocM11AssessmentState.closureDecision(state, fixture, { ...d, evidenceIds: (d.evidenceIds || '').split(',').map((x) => x.trim()).filter(Boolean) }, at); break;
       }
-      SocM11AssessmentState.save(moduleElevenUser, moduleElevenOpsState, SocM11AssessmentData); m03eRender('m11');
+      setState(state); saveState(state); m03eRender(fixture === SocM11AssessmentData ? 'm11' : 'm11-guided');
+      if (fixture === MODULE_ELEVEN_GUIDED_FIXTURE) moduleElevenUpdateGuidedProgress();
     } catch (error) { const status = form.parentElement.querySelector('[role="status"]'); if (status) status.textContent = error.message; }
   });
-  moduleElevenConsole?.wire(root);
+  consoleMount?.wire(root);
 }
 
 function viewModuleEleven(user, program) {
@@ -933,6 +1030,8 @@ function viewModuleEleven(user, program) {
   moduleElevenOpsState = SocM11AssessmentState.load(user, SocM11AssessmentData);
   moduleElevenMetricsState.console = { ...(moduleElevenMetricsState.console || {}), m11: moduleElevenMetricsState.console?.m11 || {} };
   moduleElevenMountConsole();
+  moduleElevenGuidedState.console = { ...(moduleElevenGuidedState.console || {}), 'm11-guided': moduleElevenGuidedState.console?.['m11-guided'] || {} };
+  moduleElevenMountGuidedConsole();
   const module = program.modules['soc-11'];
   const sections = moduleElevenGetSections();
   const lectureOpen = moduleElevenReviewMode || !sections[0].isComplete;
@@ -953,7 +1052,7 @@ function viewModuleEleven(user, program) {
   ${moduleElevenQuizPanel()}
 </div></details>
 <details class="m11-section-collapsible mf-section mf-lab-section" id="m11-guided-lab-section" ${guidedLabOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">3</span><div><p class="m11-kicker mf-kicker">Practice It · Guided Lab</p><h2>Guided Lab</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-guided-lab">
-  <div class="m11-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in the imported training application on this page.</p></div>
+  <div class="m11-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Practice shift:</strong> Queue, reporting, tool, and case state are saved separately from the scored Assessment Lab.</p></div>
   <div id="m11-guided-lab-dynamic">${moduleElevenGuidedLabPanel()}</div>
 </div></details>
 <details class="m11-section-collapsible mf-section" id="m11-assessment-lab-section" ${assessmentLabOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">4</span><div><p class="m11-kicker mf-kicker">Prove It · Assessment Lab</p><h2>Assessment Lab</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-assessment-lab">
@@ -972,20 +1071,30 @@ function viewModuleEleven(user, program) {
 
 function wireModuleElevenGuidedLab() {
   const root = document.getElementById('m11-guided-lab-dynamic');
-  if (!root || !moduleElevenMetricsState) return;
-  root.addEventListener('input', (event) => {
-    if (event.target.matches('[data-m11-practice-notes]')) {
-      moduleElevenMetricsState.practiceNotes = event.target.value;
-      moduleElevenSaveMetrics();
-    }
+  if (!root || !moduleElevenGuidedState) return;
+  const consoleRoot = document.getElementById('m03e-console-m11-guided');
+  moduleElevenWireConsole(consoleRoot, MODULE_ELEVEN_GUIDED_FIXTURE, () => moduleElevenGuidedOpsState,
+    (next) => { moduleElevenGuidedOpsState = next; },
+    (next) => { moduleElevenGuidedOpsState = SocM11AssessmentState.save(moduleElevenUser, next, MODULE_ELEVEN_GUIDED_FIXTURE); moduleElevenGuidedSave(); },
+    moduleElevenGuidedConsole);
+  root.addEventListener('change', (event) => {
+    const field = event.target.closest('#m11-guided-case-form [name]');
+    if (!field) return;
+    if (field.name.startsWith('finding:')) moduleElevenGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
+    else moduleElevenGuidedState.caseRecord[field.name] = field.value;
+    moduleElevenGuidedState.completed = moduleElevenGuidedComplete();
+    moduleElevenGuidedSave();
+    moduleElevenUpdateGuidedProgress();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m11-practice-complete]')) {
-      moduleElevenMetricsState.practiceComplete = true;
-      if (!moduleElevenMetricsState.flags.includes(MODULE_ELEVEN_METRICS_FLAG)) moduleElevenMetricsState.flags.push(MODULE_ELEVEN_METRICS_FLAG);
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_METRICS_CATALOG_KEY);
-      moduleElevenSaveMetrics();
-      root.innerHTML = moduleElevenGuidedLabPanel();
+    if (event.target.closest('[data-m11-guided-submit-case]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m11-guided-save-case]')) {
+      event.preventDefault();
+      moduleElevenGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
+      moduleElevenGuidedState.completed = moduleElevenGuidedComplete();
+      moduleElevenGuidedSave();
+      m03eRender('m11-guided');
+      moduleElevenUpdateGuidedProgress();
     }
   });
 }
