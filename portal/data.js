@@ -2198,6 +2198,10 @@ const LABS = [
     facultyEvaluation: 'Faculty applies the capstone rubric to investigation, technical execution, triage, evidence handling, documentation, escalation, analysis, and reporting.',
     description: 'A twelve-stage security investigation spanning email, identity, endpoint, network, threat intelligence, hunting, vulnerability analysis, response, evidence, and reporting.',
     skills: ['Full Investigation Lifecycle'], simEntry: '#/defender/home' }),
+  labRecord({ key: 'lab-capstone-simulator-practice', module: 'soc-12', title: 'Legacy Capstone Simulator Practice (Optional)', difficulty: 'Advanced', minutes: 60, optional: true, isCapstone: false,
+    objective: 'Explore the retained standalone capstone simulator as optional practice.',
+    description: 'Supplementary simulator practice. This activity is separate from the cumulative Assessment Lab and never gates module progress.',
+    skills: ['SOC Investigation Practice'], simEntry: '#/defender/home' }),
 
   /* IT Help Desk lab catalogue. Only Modules 1, 2, and 12 have a built,
    * scored lab — see the compliance.sourceNotes on the it-support program

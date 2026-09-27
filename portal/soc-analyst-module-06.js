@@ -448,8 +448,8 @@ const MODULE_SIX_HUNT_DEPARTMENT_OPTIONS = [
 
 const MODULE_SIX_BACKDOOR_ENTITY_ROSTER = {
   users: [
-    { id: 'acct-184', text: 'acct-184 (created the UpdateHealth task on ws-318)', tier: 'principal' },
-    { id: 'svc-patch', text: 'svc-patch (created the signed comparison-host task)', tier: 'pivot' },
+    { id: 'acct-184', text: 'acct-184 (UpdateHealth task account on ws-318)', tier: 'principal' },
+    { id: 'acct-271', text: 'acct-271 (comparison-host task account)', tier: 'pivot' },
     { id: 'acct-27', text: 'acct-27', tier: 'noise' },
     { id: 'acct-41', text: 'acct-41', tier: 'noise' },
     { id: 'acct-18', text: 'acct-18', tier: 'noise' },
@@ -610,7 +610,8 @@ function moduleSixBackdoorCaseSpec() {
       { name: 'scopeAssessment', label: 'Current scope', options: MODULE_SIX_SCOPE_ASSESSMENT_FINDING_OPTIONS, missing: 'Assess the current scope' },
       { name: 'responseAction', label: 'Recommended response action', options: MODULE_SIX_RESPONSE_ACTION_FINDING_OPTIONS, missing: 'Recommend a response action' },
     ],
-    extraMissing: !missionNextAllLabsComplete(moduleSixState.labProgress, ['additional-1', 'additional-2', 'additional-3']) ? ['Mark all required imported labs complete'] : [],
+    // Optional Labs never gate the assessment ticket.
+    extraMissing: [],
   };
 }
 
@@ -1181,28 +1182,115 @@ function moduleSixGuidedLabPanel() {
   return `${moduleSixHypothesis()}${moduleSixSourceWorkspace()}${moduleSixArtifact()}`;
 }
 
-function moduleSixAssessmentLabPanel() {
+/* The Module 3 console carrying Module 4 and 5 tools on this hunt case, with
+ * Module 6's Hunting and ATT&CK workspaces. */
+const MODULE_SIX_HUNT_SOURCES = {
+  scheduled_task: 'DeviceTaskEvents', process_start: 'DeviceProcessEvents', file_indicator: 'DeviceFileEvents',
+  network_connection: 'DeviceNetworkEvents', identity_activity: 'IdentityEvents',
+};
+const MODULE_SIX_CONSOLE_DATA = (function () {
+  const s = SocM06AssessmentData.scenario;
+  const events = s.telemetry.map((e) => m03eRow(MODULE_SIX_HUNT_SOURCES[e.eventType] || 'DeviceEvents', e.id, e.time.slice(0, 10), e.time.slice(11, 19), {
+    EventType: e.eventType, Account: e.account, Host: e.host, DeviceId: e.device, ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
+    Image: e.image || '', CommandLine: e.commandLine || '', ScriptPath: e.scriptPath || '', FilePath: e.path || '', Sha256: e.sha256 || '', Signer: e.signer || '',
+    TaskName: e.taskName || '', TaskPath: e.taskPath || '', MaintenanceId: e.maintenanceId || '', SourceIp: '',
+    DestinationIp: /^[\d.]+$/.test(e.destination || '') ? e.destination : '', Domain: /^[\d.]+$/.test(e.destination || '') ? '' : (e.destination || ''), DestinationPort: e.destinationPort || '',
+    Action: e.action, Result: e.result, RelatedEventIds: e.relatedEventIds || [],
+    EndpointEventType: e.eventType === 'file_indicator' ? 'file_hash' : e.eventType,
+    Detail: e.commandLine || e.taskPath || e.path || (e.destination ? `${e.destination}:${e.destinationPort}` : e.action),
+  }));
+  const user = (account, notes) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Operations', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: notes });
+  return {
+    ...m03eBuildDataset({
+      caseId: MODULE_SIX_BACKDOOR_CASE_ID,
+      day: s.end.slice(0, 10),
+      events,
+      identities: [user('acct-184', 'Signed in on ws-318'), user('acct-271', 'Signed in on ws-355')],
+      ips: [{ SourceIp: '198.51.100.88', Type: 'External', Country: '—', Asn: 'Unclassified hosting', FirstSeen: '2026-09-27 09:04', Reputation: 'No reputation data' }],
+      watchlists: {
+        ChangeTickets: { title: 'Approved change tickets', rows: [
+          { ChangeId: 'CHG-2048', Summary: 'Contoso health-agent maintenance run', Device: 'ws-355', Window: '2026-09-27 09:00–10:00', Status: 'Approved' },
+        ] },
+      },
+      alerts: [],
+    }),
+    now: s.end,
+  };
+}());
+const MODULE_SIX_DEVICES = [
+  { id: 'ws-318', hostname: 'WS-318', platform: 'Windows 11', role: 'User workstation', owner: 'acct-184', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-355', hostname: 'WS-355', platform: 'Windows 11', role: 'User workstation', owner: 'acct-271', zone: 'CORP-USER', status: 'Online' },
+];
+const MODULE_SIX_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: SocM06AssessmentData.scenario.id, caseId: MODULE_SIX_BACKDOOR_CASE_ID, end: SocM06AssessmentData.scenario.end, data: MODULE_SIX_CONSOLE_DATA });
+const MODULE_SIX_M05_FIXTURE = SocConsoleTools.m05Fixture({ id: SocM06AssessmentData.scenario.id, stateKey: 'm06-endpoint-tools-v1', devices: MODULE_SIX_DEVICES, data: MODULE_SIX_CONSOLE_DATA });
+
+function moduleSixM04Tools() {
+  moduleSixState.tools ||= {};
+  if (!moduleSixState.tools.m04?.schemaVersion) moduleSixState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleSixState.tools.m04 }, MODULE_SIX_M04_FIXTURE).assessment;
+  return moduleSixState.tools.m04;
+}
+
+const MODULE_SIX_CONSOLE = (() => {
+  const base = { save: () => moduleSixSave(), rerender: () => moduleSixRenderAssessment(), console: () => m03eState('m06') };
+  return SocConsoleTools.mount('m06', {
+    data: MODULE_SIX_CONSOLE_DATA,
+    stateRoot: () => moduleSixState,
+    save: () => moduleSixSave(),
+    title: 'SIEM & THREAT HUNTING',
+    ariaLabel: 'Module 06 threat hunting assessment console',
+    sourceMappings: {
+      DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['change_ref', 'MaintenanceId'], ['result', 'Result']] },
+      DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine']] },
+      DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['result', 'Result']] },
+      DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+      IdentityEvents: { native: 'Identity session context (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['identity', 'Account'], ['action', 'Action'], ['result', 'Result']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleSixM04Tools, fixture: MODULE_SIX_M04_FIXTURE } },
+      { id: 'm05', ctx: { ...base, fixture: MODULE_SIX_M05_FIXTURE, ...SocConsoleTools.embedded(() => moduleSixState, 'm05', SocM05AssessmentState.normalize, MODULE_SIX_M05_FIXTURE, () => moduleSixSave()) } },
+      { id: 'm06', ctx: { ...base, fixture: SocM06AssessmentData, load: () => SocM06AssessmentState.load(moduleSixUser, SocM06AssessmentData), store: (next) => SocM06AssessmentState.save(moduleSixUser, next, SocM06AssessmentData) } },
+    ],
+    caseView: () => moduleSixCaseTicket(),
+    caseBadge: () => (moduleSixState.independentLab.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+  });
+})();
+
+function moduleSixCaseTicket() {
   const lab = moduleSixState.independentLab;
   const cr = lab.caseRecord;
   const spec = moduleSixBackdoorCaseSpec();
-  const missing = caseRecordMissing(cr, spec);
-  return `<section class="m06-panel m06-independent" id="m06-independent-lab" aria-labelledby="m06-independent-title">
-    <div class="m06-panel-heading"><div><p class="m06-kicker">Independent case · same Threat Hunt Lab tool, no hints</p><h3 id="m06-independent-title">Dormant task backdoor review</h3></div></div>
-    <p class="m06-instruction"><strong>Fresh case, different decision path:</strong> Mission Next Labs has no alert for a scheduled task named <code>UpdateHealth</code> on <code>ws-318</code>. It runs weekly from a user-writable folder and was created by <code>acct-184</code>. A second host (<code>ws-355</code>) has the same task name but a signed script under approved maintenance. Choose a bounded disposition; do not treat the absence of an alert as proof of safety.</p>
-    ${caseRecordPane(cr, {
-      ...spec,
-      missing,
-      formId: 'm06-independent-form',
-      saveAttr: 'data-m06-independent-save-case',
-      submitAttr: 'data-m06-independent-submit-case',
-      panelId: 'm06-independent-case-panel',
-      showMissing: moduleSixIndependentProveItShowMissing,
-      redoRequested: moduleSixIndependentRedoRequested(),
-      redoHtml: moduleSixIndependentRedoFeedback(),
-      reviewStatus: moduleSixIndependentReviewStatus(),
-      lockedMessage: 'Module 7 stays locked until your instructor approves the submission.',
-    })}
-  </section>`;
+  return `${caseRecordPane(cr, {
+    ...spec,
+    missing: caseRecordMissing(cr, spec),
+    formId: 'm06-independent-form',
+    saveAttr: 'data-m06-independent-save-case',
+    submitAttr: 'data-m06-independent-submit-case',
+    panelId: 'm06-independent-case-panel',
+    showMissing: moduleSixIndependentProveItShowMissing,
+    redoRequested: moduleSixIndependentRedoRequested(),
+    redoHtml: moduleSixIndependentRedoFeedback(),
+    reviewStatus: moduleSixIndependentReviewStatus(),
+    lockedMessage: 'Module 7 stays locked until your instructor approves the submission.',
+  })}${cr.submitted && cr.reviewPayload ? moduleSixAssessmentReview(cr.reviewPayload) : ''}`;
+}
+
+function moduleSixAssessmentReview(payload) {
+  const criteria = Array.isArray(payload.criteria) ? payload.criteria : [];
+  return `<section class="m04-assessment-review" data-m06-submitted-review aria-label="Submitted assessment feedback"><h4>Assessment review</h4><p><strong>${esc(payload.score)}/${esc(payload.maxScore)} points</strong> · ${payload.passed ? 'Passing' : 'Needs remediation'}</p><ol>${criteria.map((criterion) => `<li><strong>${esc(criterion.label)}: ${esc(criterion.points)}/${esc(criterion.max)}</strong>${criterion.misses?.length ? `<p>Review: ${criterion.misses.map((item) => esc(item)).join('; ')}</p>` : ''}</li>`).join('')}</ol></section>`;
+}
+
+function moduleSixAssessmentLabPanel() {
+  return `<div class="m03e-panel" id="m06-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">HUNT ${esc(MODULE_SIX_BACKDOOR_CASE_ID)} · NO ALERT · ASSIGNED TO YOU</p><p>There is no alert — only a lead: a weekly scheduled task named <code>UpdateHealth</code> on <code>ws-318</code> runs a script from a user-writable folder. Your lead’s request: <em>“Find out whether this is something, and prove only what the evidence shows.”</em> Write a testable hypothesis, choose a bounded time and entity scope, search and pivot through related activity, bookmark the minimum evidence chain, decide whether the hypothesis is supported, map only demonstrated behavior to ATT&amp;CK, propose a detection improvement, and complete the ITSM ticket with your limits and next steps.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m06">${moduleThreeConsoleHtml('m06')}</div>
+  </div>`;
+}
+
+function moduleSixRenderAssessment() {
+  const root = document.getElementById('m06-assessment-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleSixAssessmentLabPanel();
+  m03eAttachEditor('m06');
 }
 
 function moduleSixExactSelection(selected, expected, points) {
@@ -1221,9 +1309,9 @@ function moduleSixRowById(id) {
 }
 
 function moduleSixAdditionalLabs() {
-  return missionNextLabLaunchGroup(6, 'additional', [
-    { title: 'DNS Log Analysis — C2 Beaconing & Tunneling', detail: 'Optional: Splunk-style DNS query telemetry practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dns-log-analysis', labId: 'additional-1', requireNote: true },
-    { title: 'SSH Log Analysis — Brute Force & Credential Stuffing', detail: 'Optional: Splunk-style SSH auth-log practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ssh-log-analysis', labId: 'additional-2', requireNote: true },
+  return missionNextOptionalLabsSection(6, [
+    { title: 'DNS Log Analysis — C2 Beaconing & Tunneling', detail: 'Splunk-style DNS query telemetry practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dns-log-analysis', labId: 'additional-1', requireNote: true },
+    { title: 'SSH Log Analysis — Brute Force & Credential Stuffing', detail: 'Splunk-style SSH auth-log practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ssh-log-analysis', labId: 'additional-2', requireNote: true },
     { title: 'Network Traffic Analysis of a Trojan', detail: 'Network IOCs and threat-hunting pivots', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab', labId: 'additional-3', requireNote: true },
   ], moduleSixState.labProgress);
 }
@@ -1478,6 +1566,7 @@ function wireModuleSixGuidedLab() {
 function wireModuleSixAssessmentLab() {
   const root = document.getElementById('m06-assessment-lab-dynamic');
   if (!root || !moduleSixState) return;
+  MODULE_SIX_CONSOLE.wire(root);
 
   root.addEventListener('change', (event) => {
     const input = event.target;
@@ -1498,7 +1587,7 @@ function wireModuleSixAssessmentLab() {
     if (event.target.closest('[data-m06-independent-save-case]')) {
       moduleSixState.independentLab.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
       moduleSixSave();
-      root.innerHTML = moduleSixAssessmentLabPanel();
+      moduleSixRenderAssessment();
       return;
     }
 
@@ -1510,14 +1599,17 @@ function wireModuleSixAssessmentLab() {
       if (missing.length) {
         moduleSixIndependentProveItShowMissing = true;
         moduleSixSave();
-        root.innerHTML = moduleSixAssessmentLabPanel();
+        moduleSixRenderAssessment();
         return;
       }
       moduleSixIndependentProveItShowMissing = false;
-      const result = moduleSixBackdoorCaseScore();
+      const result = SocM06AssessmentScorer.score(SocM06AssessmentState.load(moduleSixUser, SocM06AssessmentData), SocM06AssessmentData);
       const submittedAt = new Date().toISOString();
       lab.caseRecord.submitted = true;
       lab.caseRecord.submittedAt = submittedAt;
+      lab.caseRecord.caseId = MODULE_SIX_BACKDOOR_CASE_ID;
+      lab.caseRecord.scenarioId = SocM06AssessmentData.scenario.id;
+      lab.caseRecord.reviewPayload = { ...JSON.parse(JSON.stringify(result)), caseId: MODULE_SIX_BACKDOOR_CASE_ID, scenarioId: SocM06AssessmentData.scenario.id };
       lab.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: submittedAt });
       lab.score = result.score;
       // Submitted = complete pending faculty review (Module 01 model); the
@@ -1532,9 +1624,11 @@ function wireModuleSixAssessmentLab() {
           state: 'complete',
           score: result.score,
           result: {
-            breakdown: result.breakdown,
-            feedback: result.feedback,
-            critical_errors: result.criticalErrors,
+            rubric_version: result.rubricVersion,
+            breakdown: result.criteria,
+            feedback: result.review.feedback,
+            review_payload: lab.caseRecord.reviewPayload,
+            critical_errors: result.criticalMisses,
             case_record: lab.caseRecord,
             case_display: caseRecordDisplay(lab.caseRecord, spec),
             case_summary: caseRecordSummary(lab.caseRecord, spec),
@@ -1542,7 +1636,7 @@ function wireModuleSixAssessmentLab() {
         }).then((saved) => { if (saved && moduleSixIndependentRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06-independent']; });
       }
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY);
-      root.innerHTML = moduleSixAssessmentLabPanel();
+      moduleSixRenderAssessment();
     }
   });
 }

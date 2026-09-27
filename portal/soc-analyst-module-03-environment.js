@@ -48,7 +48,10 @@ function m03eBuildDataset(spec) {
   // Learners have to sort to see the sequence; the guide checks that they did.
   const newestFirst = (rows) => rows.slice().sort((a, b) => b.TimeGenerated.localeCompare(a.TimeGenerated));
   const tables = {};
-  ['AuthLog', 'DirectoryAudit', 'AppAudit', 'SystemLog'].forEach((name) => { tables[name] = newestFirst(spec.events.filter((row) => row.EventSource === name)); });
+  // Later modules add their own sources (endpoint, email, network…) via a
+  // mount's sourceMappings; every source becomes a queryable table.
+  const sources = [...new Set([...Object.keys(M03E_SOURCE_MAPPINGS), ...spec.events.map((row) => row.EventSource)])];
+  sources.forEach((name) => { tables[name] = newestFirst(spec.events.filter((row) => row.EventSource === name)); });
   tables.UnifiedEvents = newestFirst(spec.events.map((row) => {
     const out = { __rid: row.__rid };
     M03E_UNIFIED_FIELDS.forEach((f) => { out[f] = row[f] ?? ''; });
@@ -212,13 +215,27 @@ const M03E_PROVE = (function () {
 
 const M03E_DATA = { practice: M03E_PRACTICE, prove: M03E_PROVE };
 
+// Later SOC modules mount this same console on their own assessment data, so
+// Modules 4–12 keep every Module 3 tab and behavior and add only their own
+// tabs. A mount supplies: data (m03eBuildDataset shape), stateRoot() and save(),
+// eyebrow/title, extraTabs, views {tabId: () => html}, caseView/caseBadge, and
+// optional alerts(), alertDetailHtml(alert), resultsActionsHtml(), onSelect().
+const M03E_MOUNTS = {};
+function m03eMountConsole(scope, mount) {
+  M03E_MOUNTS[scope] = mount;
+  Object.assign(M03E_SOURCE_MAPPINGS, mount.sourceMappings || {});
+  M03E_DATA[scope] = mount.data;
+  M03E_STATE_DEFAULTS[scope] = M03E_SCOPE_DEFAULT;
+}
+
 const M03E_TABS = [['alerts', 'Alerts'], ['search', 'Log Search'], ['timeline', 'Timeline'], ['entities', 'Entities'], ['sources', 'Data Sources'], ['watchlists', 'Watchlists'], ['evidence', 'Evidence']];
 const M03E_ITSM_TAB = ['itsm', 'ITSM Ticket'];
 // The assessment console carries the standard ITSM ticket
 // (docs/specs/MODULE_STANDARD.md §7.2) as its own tab, so the ticket is worked beside
 // the logs instead of below the console.
 const M03E_CASE_TAB = ['case', 'ITSM Ticket'];
-const m03eTabs = (scope) => (scope === 'prove' ? [...M03E_TABS, M03E_CASE_TAB] : [M03E_ITSM_TAB, ...M03E_TABS]);
+const m03eTabs = (scope) => (M03E_MOUNTS[scope] ? [...M03E_TABS, ...(M03E_MOUNTS[scope].extraTabs || []), M03E_CASE_TAB]
+  : scope === 'prove' ? [...M03E_TABS, M03E_CASE_TAB] : [M03E_ITSM_TAB, ...M03E_TABS]);
 
 /* ------------------------------------------------------------ guided steps
  * Decreasing support: the first steps hand over a full query, the middle
@@ -447,23 +464,18 @@ const M03E_SCOPE_DEFAULT = { tab: 'alerts', query: '', lastQuery: '', selected: 
 const M03E_PRACTICE_DEFAULT = { ...M03E_SCOPE_DEFAULT, guideStep: 0, guideCollapsed: false };
 const M03E_PROVE_DEFAULT = { ...M03E_SCOPE_DEFAULT, determination: m03eNormalizeDetermination({}), startedAt: '', submittedAt: '', attempts: 0, submitMessage: '' };
 
-// Normalize each scope object once and hand back that same object afterwards;
-// callers hold references across renders, so a fresh copy per call would
-// silently drop their writes.
-const m03eNormalized = new WeakSet();
-function m03eState(scope) {
-  const root = moduleThreeState;
-  if (!root.console || typeof root.console !== 'object') root.console = {};
-  if (m03eNormalized.has(root.console[scope])) return root.console[scope];
-  const defaults = scope === 'practice' ? M03E_PRACTICE_DEFAULT : M03E_PROVE_DEFAULT;
-  const saved = root.console[scope] && typeof root.console[scope] === 'object' ? root.console[scope] : {};
-  const st = { ...JSON.parse(JSON.stringify(defaults)), ...saved };
-  ['pins', 'seen', 'queryLog'].forEach((k) => { if (!Array.isArray(st[k])) st[k] = []; });
-  if (scope === 'prove') st.determination = m03eNormalizeDetermination(st.determination);
-  root.console[scope] = st;
-  m03eNormalized.add(st);
-  return st;
-}
+const M03E_STATE_DEFAULTS = { practice: M03E_PRACTICE_DEFAULT, prove: M03E_PROVE_DEFAULT };
+const m03eStateAdapter = SocConsoleCore.createStateAdapter({
+  containerKey: 'console',
+  defaultsByScope: M03E_STATE_DEFAULTS,
+  normalizeState(st, scope) {
+    ['pins', 'seen', 'queryLog'].forEach((key) => { if (!Array.isArray(st[key])) st[key] = []; });
+    if (scope === 'prove') st.determination = m03eNormalizeDetermination(st.determination);
+  },
+});
+
+function m03eState(scope) { return m03eStateAdapter.get(M03E_MOUNTS[scope] ? M03E_MOUNTS[scope].stateRoot() : moduleThreeState, scope); }
+const m03eAlerts = (scope) => (M03E_MOUNTS[scope]?.alerts ? M03E_MOUNTS[scope].alerts() : M03E_DATA[scope].alerts);
 
 function m03eSeen(st, tag) { if (!st.seen.includes(tag)) st.seen.push(tag); }
 
@@ -487,8 +499,11 @@ const m03eChip = (source) => `<span class="m03e-src m03e-src-${M03E_SOURCE_COLOR
 const m03eSev = (sev) => `<span class="m03e-sev m03e-sev-${esc(String(sev).toLowerCase())}">${esc(sev)}</span>`;
 
 function m03ePinButton(scope, rid) {
-  const pinned = m03eState(scope).pins.includes(rid);
-  return `<button type="button" class="m03e-pin${pinned ? ' is-pinned' : ''}" data-m03e-pin="${scope}:${esc(rid)}" aria-pressed="${pinned}" title="${pinned ? 'Remove from evidence' : 'Pin as evidence'}"><i class="${pinned ? 'ri-pushpin-fill' : 'ri-pushpin-line'}" aria-hidden="true"></i><span class="m03e-sr-only">${pinned ? 'Unpin' : 'Pin'} ${esc(rid)}</span></button>`;
+  return SocEvidenceUi.renderPinButton({
+    scope, id: rid, pinned: SocEvidenceUi.isPinned(m03eState(scope), rid),
+    attributes: (currentScope, id) => `data-m03e-pin="${currentScope}:${esc(id)}"`,
+    escapeHtml: esc,
+  });
 }
 
 function m03eIsSelected(st, type, id) { return st.selected && st.selected.type === type && st.selected.id === id; }
@@ -504,37 +519,59 @@ function m03eEntityNames(data) {
 
 function m03eAlertsView(scope) {
   const st = m03eState(scope), data = M03E_DATA[scope];
-  return `<section><div class="m03e-table-wrap"><table class="m03e-table"><caption>ALERT QUEUE · ${esc(data.caseId)} · ${esc(data.day)}</caption><thead><tr><th>TIME (UTC)</th><th>SEVERITY</th><th>ALERT</th><th>ENTITIES</th><th>ID</th></tr></thead><tbody>${data.alerts.slice().sort((a, b) => b.time.localeCompare(a.time)).map((a) => `<tr class="${m03eIsSelected(st, 'alert', a.id) ? 'is-selected' : ''}" data-m03e-select="${scope}:alert:${esc(a.id)}" tabindex="0"><td>${esc(m03eTime(a.time))}</td><td>${m03eSev(a.severity)}</td><td><strong>${esc(a.title)}</strong></td><td>${esc(a.entities.join(', '))}</td><td class="m03e-mono">${esc(a.id)}</td></tr>`).join('')}</tbody></table></div><p class="m03e-muted m03e-note">Alerts are generated by scheduled detection queries over the normalized tables. Select one to see the rule and open it in Log Search.</p></section>`;
+  return SocAlertQueueUi.render({
+    scope, rows: m03eAlerts(scope).slice().sort((a, b) => b.time.localeCompare(a.time)),
+    caption: `ALERT QUEUE · ${data.caseId} · ${data.day}`,
+    columns: [
+      { header: 'TIME (UTC)', render: (a) => esc(m03eTime(a.time)) },
+      { header: 'SEVERITY', render: (a) => m03eSev(a.severity) },
+      { header: 'ALERT', render: (a) => `<strong>${esc(a.title)}</strong>` },
+      { header: 'ENTITIES', render: (a) => esc(a.entities.join(', ')) },
+      { header: 'ID', className: 'm03e-mono', render: (a) => esc(a.id) },
+    ],
+    selectedRow: (a) => m03eIsSelected(st, 'alert', a.id),
+    rowAttributes: (currentScope, a) => `data-m03e-select="${esc(currentScope)}:alert:${esc(a.id)}"`,
+    footerHtml: `<p class="m03e-muted m03e-note">${M03E_MOUNTS[scope]?.alertsNote || 'Alerts are generated by scheduled detection queries over the normalized tables. Select one to see the rule and open it in Log Search.'}</p>`,
+    escapeHtml: esc,
+  });
 }
 
 function m03eSchemaPanel(scope) {
   const data = M03E_DATA[scope];
-  const cols = MnKql.tableColumns(data.tables);
-  const groups = [['Normalized events', ['UnifiedEvents']], ['Source tables', ['AuthLog', 'DirectoryAudit', 'AppAudit', 'SystemLog']], ['Context', ['IdentityInfo', 'IpIntel', ...Object.keys(data.watchlists)]]];
-  return `<aside class="m03e-schema" aria-label="Tables"><p class="m03e-label">SCHEMA</p>${groups.map(([title, names]) => `<div class="m03e-schema-group"><em>${esc(title)}</em>${names.map((name) => `<details><summary><button type="button" data-m03e-table="${scope}:${esc(name)}" title="Insert ${esc(name)} | take 20">${esc(name)}</button><span>${data.tables[name].length}</span></summary><ul>${cols[name].map((c) => `<li>${esc(c)}</li>`).join('')}</ul></details>`).join('')}</div>`).join('')}</aside>`;
+  const columns = MnKql.tableColumns(data.tables);
+  const groups = [['Normalized events', ['UnifiedEvents']], ['Source tables', Object.keys(M03E_SOURCE_MAPPINGS).filter((name) => (data.tables[name] || []).length)], ['Context', ['IdentityInfo', 'IpIntel', ...Object.keys(data.watchlists)]]];
+  return SocKqlSearchUi.renderSchema({
+    scope, tables: data.tables, columns, groups, prefix: 'm03e', escapeHtml: esc,
+    renderTableButton: (currentScope, name) => `data-m03e-table="${currentScope}:${esc(name)}"`,
+  });
 }
 
 function m03eResultsHtml(scope) {
-  const st = m03eState(scope);
-  const r = m03eResult(scope);
-  if (!r) return '<div class="m03e-results-empty">Run a query to see results. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs from the editor.</div>';
-  if (r.error) return `<div class="m03e-query-error" role="alert"><i class="ri-error-warning-line" aria-hidden="true"></i> ${esc(r.error)}</div>`;
-  const rows = r.rows || [], cols = r.cols || [];
-  const pinnable = rows.some((row) => row.__rid);
-  const shown = rows.slice(0, 200);
-  const cell = (v) => esc(v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : v);
-  return `<div class="m03e-results-bar"><strong>${rows.length} row${rows.length === 1 ? '' : 's'}</strong><span>${esc(cols.join(' · '))}</span>${pinnable ? '' : rows.length ? '<span class="m03e-muted">Aggregated rows cannot be pinned — pin from a row-level query.</span>' : ''}</div>
-    ${rows.length ? `<div class="m03e-table-wrap m03e-results-grid"><table class="m03e-table m03e-grid"><thead><tr>${pinnable ? '<th aria-label="Pin"></th>' : ''}${cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${shown.map((row) => `<tr class="${row.__rid && m03eIsSelected(st, 'record', row.__rid) ? 'is-selected' : ''}" ${row.__rid ? `data-m03e-select="${scope}:record:${esc(row.__rid)}" tabindex="0"` : ''}>${pinnable ? `<td>${row.__rid ? m03ePinButton(scope, row.__rid) : ''}</td>` : ''}${cols.map((c) => `<td>${c === 'EventSource' ? m03eChip(row[c]) : c === 'TimeGenerated' ? esc(String(row[c]).replace('T', ' ').replace('Z', '')) : cell(row[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${rows.length > 200 ? '<p class="m03e-muted">Showing the first 200 rows.</p>' : ''}` : '<div class="m03e-results-empty">No rows matched. Check the time window, field names and exact values before widening the search.</div>'}`;
+  return (M03E_MOUNTS[scope]?.resultsActionsHtml?.() || '') + SocKqlSearchUi.renderResults({
+    result: m03eResult(scope), scope, prefix: 'm03e', escapeHtml: esc,
+    selectedRow: (row) => m03eIsSelected(scope, 'record', row.__rid),
+    rowAttributes: (currentScope, row) => `data-m03e-select="${currentScope}:record:${esc(row.__rid)}" tabindex="0"`,
+    renderPin: (currentScope, row) => m03ePinButton(currentScope, row.__rid),
+    renderEventSource: m03eChip,
+  });
 }
 
 function m03eSearchView(scope) {
   const st = m03eState(scope);
-  const examples = scope === 'practice' ? `<div class="m03e-examples"><span class="m03e-label">EXAMPLES</span>${[
+  const examples = scope === 'practice' ? [
     ['Recent sign-ins', 'AuthLog\n| take 20'],
     ['Failures by IP', 'AuthLog\n| where Result == "Failure"\n| summarize Failures = count() by SourceIp'],
     ['Events per source', 'UnifiedEvents\n| summarize Events = count() by EventSource'],
-  ].map(([label, q]) => `<button type="button" data-m03e-example="${scope}" data-query="${esc(q)}">${esc(label)}</button>`).join('')}</div>` : '';
-  return `<section class="m03e-search"><div class="m03e-search-layout">${m03eSchemaPanel(scope)}<div class="m03e-search-main"><div class="m03e-editor-host"><textarea class="kql" id="m03e-kql-${scope}" rows="6" aria-label="KQL query">${esc(st.query)}</textarea></div><div class="m03e-search-actions"><button type="button" class="m03e-primary" data-m03e-run="${scope}"><i class="ri-play-fill" aria-hidden="true"></i> Run query</button><button type="button" class="m03e-secondary" data-m03e-clear="${scope}">Clear</button><span class="m03e-muted">Lab clock: ${esc(M03E_DATA[scope].now.replace('T', ' ').slice(0, 16))} UTC · ago() is relative to it</span></div>${examples}<div class="m03e-results" id="m03e-results-${scope}">${m03eResultsHtml(scope)}</div></div></div></section>`;
+  ] : [];
+  const historyHtml = st.queryLog.length ? SocKqlSearchUi.renderHistory({ entries: st.queryLog, prefix: 'm03e', escapeHtml: esc }) : '';
+  return SocKqlSearchUi.renderSearch({
+    scope, query: st.query, clock: M03E_DATA[scope].now.replace('T', ' ').slice(0, 16),
+    schemaHtml: m03eSchemaPanel(scope), resultsHtml: m03eResultsHtml(scope), examples, historyHtml,
+    prefix: 'm03e', escapeHtml: esc,
+    renderRunAttributes: (currentScope) => `data-m03e-run="${currentScope}"`,
+    renderClearAttributes: (currentScope) => `data-m03e-clear="${currentScope}"`,
+    renderExampleAttributes: (currentScope, query) => `data-m03e-example="${currentScope}" data-query="${esc(query)}"`,
+  });
 }
 
 function m03eTimelineView(scope) {
@@ -546,21 +583,32 @@ function m03eTimelineView(scope) {
   // gap that overlaps the timeline's window so the learner sees it.
   const gaps = rows.length ? data.tables.SystemLog.filter((g) => /Gap|Heartbeat/.test(g.EventType) && g.Result !== 'Healthy' && g.TimeGenerated >= rows[0].TimeGenerated && g.TimeGenerated <= rows[rows.length - 1].TimeGenerated && !rows.includes(g)) : [];
   const items = [...rows.map((r) => ({ kind: 'event', row: r })), ...gaps.map((g) => ({ kind: 'gap', row: g }))].sort((a, b) => a.row.TimeGenerated.localeCompare(b.row.TimeGenerated));
-  const opt = (v) => `<option value="${esc(v)}" ${v === target ? 'selected' : ''}>${esc(v)}</option>`;
-  return `<section class="m03e-timeline"><div class="m03e-timeline-head"><label>Entity <select data-m03e-timeline="${scope}"><option value="">Choose an account or IP…</option><optgroup label="Accounts">${accounts.map(opt).join('')}</optgroup><optgroup label="IP addresses">${ips.map(opt).join('')}</optgroup></select></label><span class="m03e-legend">${Object.keys(M03E_SOURCE_COLORS).map(m03eChip).join('')}</span></div>
-    ${!target ? '<div class="m03e-results-empty">Choose an entity to lay every source on one clock.</div>' : `<ol class="m03e-tl">${items.map(({ kind, row }) => kind === 'gap'
+  return SocTimelineUi.render({
+    scope, selectedEntity: target,
+    entityGroups: [{ label: 'Accounts', values: accounts }, { label: 'IP addresses', values: ips }],
+    items, selectAttributes: (currentScope) => `data-m03e-timeline="${currentScope}"`,
+    legendHtml: Object.keys(M03E_SOURCE_COLORS).map(m03eChip).join(''),
+    placeholder: 'Choose an account or IP…', escapeHtml: esc,
+    renderItem: ({ kind, row }) => kind === 'gap'
       ? `<li class="m03e-tl-gap"><span class="m03e-tl-time">${esc(m03eTime(row.TimeGenerated))}</span><div><strong><i class="ri-alert-line" aria-hidden="true"></i> Telemetry: ${esc(row.Host)} ${esc(row.EventType)}</strong><p>${esc(row.Detail)}</p></div></li>`
-      : `<li class="m03e-tl-item m03e-tl-${M03E_SOURCE_COLORS[row.EventSource]}${m03eIsSelected(st, 'record', row.__rid) ? ' is-selected' : ''}" data-m03e-select="${scope}:record:${esc(row.__rid)}" tabindex="0"><span class="m03e-tl-time">${esc(m03eTime(row.TimeGenerated))}</span><div>${m03eChip(row.EventSource)} <strong>${esc(row.EventType)}</strong> · ${esc(row.Account)} · <span class="m03e-mono">${esc(row.SourceIp)}</span> · <span class="m03e-${row.Result === 'Success' ? 'ok' : row.Result === 'Failure' || row.Result === 'Interrupted' ? 'bad' : 'warn'}">${esc(row.Result)}</span><p>${esc(row.Detail)}${row.SessionId && row.SessionId !== '—' ? ` · session <span class="m03e-mono">${esc(row.SessionId)}</span>` : ''}</p></div>${m03ePinButton(scope, row.__rid)}</li>`).join('')}</ol>`}</section>`;
+      : `<li class="m03e-tl-item m03e-tl-${M03E_SOURCE_COLORS[row.EventSource] || 'other'}${m03eIsSelected(st, 'record', row.__rid) ? ' is-selected' : ''}" data-m03e-select="${scope}:record:${esc(row.__rid)}" tabindex="0"><span class="m03e-tl-time">${esc(m03eTime(row.TimeGenerated))}</span><div>${m03eChip(row.EventSource)} <strong>${esc(row.EventType)}</strong> · ${esc(row.Account)} · <span class="m03e-mono">${esc(row.SourceIp)}</span> · <span class="m03e-${row.Result === 'Success' ? 'ok' : row.Result === 'Failure' || row.Result === 'Interrupted' ? 'bad' : 'warn'}">${esc(row.Result)}</span><p>${esc(row.Detail)}${row.SessionId && row.SessionId !== '—' ? ` · session <span class="m03e-mono">${esc(row.SessionId)}</span>` : ''}</p></div>${m03ePinButton(scope, row.__rid)}</li>`,
+  });
 }
 
 function m03eEntitiesView(scope) {
   const st = m03eState(scope), data = M03E_DATA[scope];
   const kind = st.entityKind || 'account';
   const { hosts } = m03eEntityNames(data);
-  const list = kind === 'account' ? data.tables.IdentityInfo.map((i) => [i.Account, `${i.DisplayName} · ${i.Type} · ${i.Department}`])
-    : kind === 'ip' ? data.tables.IpIntel.map((i) => [i.SourceIp, `${i.Type} · ${i.Country} · ${i.Asn}`])
-    : hosts.map((h) => [h, `${data.tables.UnifiedEvents.filter((r) => r.Host === h).length} events`]);
-  return `<section class="m03e-listing"><div class="m03e-subtabs">${[['account', 'Accounts'], ['ip', 'IP addresses'], ['host', 'Hosts']].map(([k, label]) => `<button type="button" class="${kind === k ? 'is-active' : ''}" data-m03e-entitykind="${scope}:${k}">${label}</button>`).join('')}</div>${list.map(([id, sub]) => `<button type="button" class="${m03eIsSelected(st, kind, id) ? 'is-selected' : ''}" data-m03e-select="${scope}:${kind}:${esc(id)}"><strong>${esc(id)}</strong><span>${esc(sub)}</span><i class="ri-arrow-right-line" aria-hidden="true"></i></button>`).join('')}</section>`;
+  const rows = kind === 'account' ? data.tables.IdentityInfo.map((i) => ({ id: i.Account, subtitle: `${i.DisplayName} · ${i.Type} · ${i.Department}` }))
+    : kind === 'ip' ? data.tables.IpIntel.map((i) => ({ id: i.SourceIp, subtitle: `${i.Type} · ${i.Country} · ${i.Asn}` }))
+    : hosts.map((h) => ({ id: h, subtitle: `${data.tables.UnifiedEvents.filter((r) => r.Host === h).length} events` }));
+  return SocEntityUi.renderList({
+    scope, kind, rows, kinds: [{ id: 'account', label: 'Accounts' }, { id: 'ip', label: 'IP addresses' }, { id: 'host', label: 'Hosts' }],
+    isSelected: (type, id) => m03eIsSelected(st, type, id),
+    kindAttributes: (currentScope, type) => `data-m03e-entitykind="${currentScope}:${type}"`,
+    rowAttributes: (currentScope, type, id) => `data-m03e-select="${currentScope}:${type}:${esc(id)}"`,
+    escapeHtml: esc,
+  });
 }
 
 function m03eSourcesView(scope) {
@@ -569,7 +617,7 @@ function m03eSourcesView(scope) {
     const gaps = data.tables.SystemLog.filter((r) => /Gap|Heartbeat/.test(r.EventType) && r.Result !== 'Healthy' && (name === 'SystemLog' || (name === 'AuthLog' && /^idp/.test(r.Host)) || (name === 'AppAudit' && /app|mail|docs/.test(r.Host))));
     return gaps.length ? `<span class="m03e-warn">Degraded · ${gaps.length} collector event${gaps.length === 1 ? '' : 's'}</span>` : '<span class="m03e-ok">Healthy</span>';
   };
-  return `<section><div class="m03e-table-wrap"><table class="m03e-table"><caption>CONNECTED DATA SOURCES</caption><thead><tr><th>TABLE</th><th>NATIVE FORMAT</th><th>EVENTS</th><th>FIRST</th><th>LAST</th><th>HEALTH</th></tr></thead><tbody>${Object.keys(M03E_SOURCE_MAPPINGS).map((name) => { const rows = data.tables[name]; const times = rows.map((r) => r.TimeGenerated).sort(); return `<tr class="${m03eIsSelected(st, 'source', name) ? 'is-selected' : ''}" data-m03e-select="${scope}:source:${name}" tabindex="0"><td>${m03eChip(name)}</td><td>${esc(M03E_SOURCE_MAPPINGS[name].native)}</td><td>${rows.length}</td><td>${esc(m03eTime(times[0]))}</td><td>${esc(m03eTime(times[times.length - 1]))}</td><td>${health(name)}</td></tr>`; }).join('')}</tbody></table></div><p class="m03e-muted m03e-note">Each source arrives in its own format. The SIEM parser maps native fields to shared names (Account, SourceIp, TimeGenerated…) in <strong>UnifiedEvents</strong>, while keeping <strong>EventSource</strong> and the original detail so every match can be verified against its source. Select a source to see its field mapping.</p></section>`;
+  return `<section><div class="m03e-table-wrap"><table class="m03e-table"><caption>CONNECTED DATA SOURCES</caption><thead><tr><th>TABLE</th><th>NATIVE FORMAT</th><th>EVENTS</th><th>FIRST</th><th>LAST</th><th>HEALTH</th></tr></thead><tbody>${Object.keys(M03E_SOURCE_MAPPINGS).filter((name) => (data.tables[name] || []).length).map((name) => { const rows = data.tables[name]; const times = rows.map((r) => r.TimeGenerated).sort(); return `<tr class="${m03eIsSelected(st, 'source', name) ? 'is-selected' : ''}" data-m03e-select="${scope}:source:${name}" tabindex="0"><td>${m03eChip(name)}</td><td>${esc(M03E_SOURCE_MAPPINGS[name].native)}</td><td>${rows.length}</td><td>${esc(m03eTime(times[0]))}</td><td>${esc(m03eTime(times[times.length - 1]))}</td><td>${health(name)}</td></tr>`; }).join('')}</tbody></table></div><p class="m03e-muted m03e-note">Each source arrives in its own format. The SIEM parser maps native fields to shared names (Account, SourceIp, TimeGenerated…) in <strong>UnifiedEvents</strong>, while keeping <strong>EventSource</strong> and the original detail so every match can be verified against its source. Select a source to see its field mapping.</p></section>`;
 }
 
 function m03eWatchlistsView(scope) {
@@ -579,8 +627,23 @@ function m03eWatchlistsView(scope) {
 
 function m03eEvidenceView(scope) {
   const st = m03eState(scope), data = M03E_DATA[scope];
-  const pins = st.pins.map((id) => data.records[id]).filter(Boolean).sort((a, b) => a.TimeGenerated.localeCompare(b.TimeGenerated));
-  return `<section><div class="m03e-table-wrap"><table class="m03e-table"><caption>PINNED EVIDENCE · ${pins.length}</caption>${pins.length ? `<thead><tr><th></th><th>TIME</th><th>SOURCE</th><th>EVENT</th><th>ACCOUNT</th><th>SOURCE IP</th><th>SESSION</th><th>DETAIL</th></tr></thead><tbody>${pins.map((r) => `<tr data-m03e-select="${scope}:record:${esc(r.__rid)}" tabindex="0" class="${m03eIsSelected(st, 'record', r.__rid) ? 'is-selected' : ''}"><td>${m03ePinButton(scope, r.__rid)}</td><td>${esc(m03eTime(r.TimeGenerated))}</td><td>${m03eChip(r.EventSource)}</td><td>${esc(r.EventType)}</td><td>${esc(r.Account)}</td><td class="m03e-mono">${esc(r.SourceIp)}</td><td class="m03e-mono">${esc(r.SessionId)}</td><td>${esc(r.Detail)}</td></tr>`).join('')}</tbody>` : ''}</table></div>${pins.length ? '' : '<div class="m03e-results-empty">Nothing pinned yet. Use the pin button on a Log Search result or a Timeline entry.</div>'}<p class="m03e-muted m03e-note">${scope === 'prove' ? 'Pinned records are submitted with your assessment as your selected evidence.' : 'Pinned records are your case evidence — the rows a teammate needs to reproduce your finding.'}</p></section>`;
+  return SocEvidenceUi.renderTray({
+    scope, state: st, records: data.records, escapeHtml: esc,
+    columns: [
+      { header: 'TIME', render: (r) => esc(m03eTime(r.TimeGenerated)) },
+      { header: 'SOURCE', render: (r) => m03eChip(r.EventSource) },
+      { header: 'EVENT', render: (r) => esc(r.EventType) },
+      { header: 'ACCOUNT', render: (r) => esc(r.Account) },
+      { header: 'SOURCE IP', className: 'm03e-mono', render: (r) => esc(r.SourceIp) },
+      { header: 'SESSION', className: 'm03e-mono', render: (r) => esc(r.SessionId) },
+      { header: 'DETAIL', render: (r) => esc(r.Detail) },
+    ],
+    rowAttributes: (currentScope, r) => `data-m03e-select="${currentScope}:record:${esc(r.__rid)}"`,
+    selectedRow: (r) => m03eIsSelected(st, 'record', r.__rid),
+    renderPin: (currentScope, r) => m03ePinButton(currentScope, r.__rid),
+    emptyMessage: 'Nothing pinned yet. Use the pin button on a Log Search result or a Timeline entry.',
+    footerHtml: `<p class="m03e-muted m03e-note">${scope !== 'practice' ? 'Pinned records are submitted with your assessment as your selected evidence.' : 'Pinned records are your case evidence — the rows a teammate needs to reproduce your finding.'}</p>`,
+  });
 }
 
 function m03eItsmGuideView() {
@@ -615,8 +678,24 @@ function m03eDrawer(scope) {
   const timelineBtn = (entity) => `<button type="button" data-m03e-show-timeline="${scope}:${esc(entity)}"><i class="ri-time-line" aria-hidden="true"></i> Show timeline</button>`;
   let title = 'DETAILS', content = '<p>Select an alert, record, entity, source or watchlist to see its details here.</p>';
   if (sel?.type === 'alert') {
-    const a = data.alerts.find((x) => x.id === sel.id);
-    if (a) { title = 'ALERT'; content = `<h3>${esc(a.title)}</h3><dl class="m03e-fields">${m03eField('Alert ID', a.id)}${m03eField('Severity', a.severity)}${m03eField('Fired', a.time.replace('T', ' ').replace('Z', ' UTC'))}${m03eField('Entities', a.entities.join(', '))}</dl><h4>Detection rule</h4><p>${esc(a.rule)}</p><pre class="m03e-code">${esc(a.query)}</pre>${hunt('Open rule query in Log Search', a.query)}${a.entities.map((e) => timelineBtn(e)).join('')}`; }
+    const a = m03eAlerts(scope).find((x) => x.id === sel.id);
+    if (a) {
+      title = 'ALERT';
+      content = SocAlertQueueUi.renderDetail({
+        alert: a,
+        fields: [
+          { label: 'Alert ID', value: a.id },
+          { label: 'Severity', value: a.severity },
+          { label: 'Fired', value: a.time.replace('T', ' ').replace('Z', ' UTC') },
+          { label: 'Entities', value: a.entities.join(', ') },
+        ],
+        ruleHeading: 'Detection rule',
+        huntAction: (query) => hunt('Open rule query in Log Search', query),
+        timelineAction: timelineBtn,
+        renderField: m03eField,
+        escapeHtml: esc,
+      }) + (M03E_MOUNTS[scope]?.alertDetailHtml?.(a) || '');
+    }
   }
   if (sel?.type === 'record') {
     const r = data.records[sel.id];
@@ -630,18 +709,36 @@ function m03eDrawer(scope) {
     const i = data.tables.IdentityInfo.find((x) => x.Account === sel.id);
     const count = data.tables.UnifiedEvents.filter((r) => r.Account === sel.id).length;
     title = 'ACCOUNT';
-    content = `<h3>${esc(sel.id)}</h3>${i ? `<p>${esc(i.DisplayName)}</p><dl class="m03e-fields">${m03eField('Type', i.Type)}${m03eField('Department', i.Department)}${m03eField('Owner', i.Owner)}${m03eField('Privileged', i.Privileged)}${m03eField('Usual source IP', i.UsualSourceIp)}${m03eField('Events in window', count)}</dl>${i.Notes ? `<p class="m03e-callout-note">${esc(i.Notes)}</p>` : ''}` : `<dl class="m03e-fields">${m03eField('Directory record', 'None (system or host identity)')}${m03eField('Events in window', count)}</dl>`}${hunt('Hunt this account', `UnifiedEvents\n| where Account == "${sel.id}"\n| sort by TimeGenerated asc`)}${timelineBtn(sel.id)}`;
+    content = SocEntityUi.renderProfile({
+      id: sel.id, subtitle: i?.DisplayName,
+      fields: i ? [['Type', i.Type], ['Department', i.Department], ['Owner', i.Owner], ['Privileged', i.Privileged], ['Usual source IP', i.UsualSourceIp], ['Events in window', count]].map(([label, value]) => ({ label, value }))
+        : [{ label: 'Directory record', value: 'None (system or host identity)' }, { label: 'Events in window', value: count }],
+      note: i?.Notes,
+      actionsHtml: SocEntityUi.renderPivotButton({ scope, kind: 'account', value: sel.id, label: 'Hunt this account', escapeHtml: esc }) + timelineBtn(sel.id),
+      escapeHtml: esc,
+    });
   }
   if (sel?.type === 'ip') {
     const i = data.tables.IpIntel.find((x) => x.SourceIp === sel.id);
     const accts = [...new Set(data.tables.UnifiedEvents.filter((r) => r.SourceIp === sel.id).map((r) => r.Account))];
     title = 'IP ADDRESS';
-    content = `<h3 class="m03e-mono">${esc(sel.id)}</h3><dl class="m03e-fields">${i ? `${m03eField('Type', i.Type)}${m03eField('Country', i.Country)}${m03eField('Network', i.Asn)}${m03eField('First seen', i.FirstSeen)}` : ''}${m03eField('Accounts seen', accts.join(', '))}</dl>${i ? `<p class="m03e-callout-note">${esc(i.Reputation)}</p>` : ''}${hunt('Hunt this IP', `UnifiedEvents\n| where SourceIp == "${sel.id}"\n| sort by TimeGenerated asc`)}${timelineBtn(sel.id)}`;
+    content = SocEntityUi.renderProfile({
+      id: sel.id, mono: true,
+      fields: [...(i ? [['Type', i.Type], ['Country', i.Country], ['Network', i.Asn], ['First seen', i.FirstSeen]].map(([label, value]) => ({ label, value })) : []), { label: 'Accounts seen', value: accts.join(', ') }],
+      note: i?.Reputation,
+      actionsHtml: SocEntityUi.renderPivotButton({ scope, kind: 'ip', value: sel.id, label: 'Hunt this IP', escapeHtml: esc }) + timelineBtn(sel.id),
+      escapeHtml: esc,
+    });
   }
   if (sel?.type === 'host') {
     const rows = data.tables.UnifiedEvents.filter((r) => r.Host === sel.id);
     title = 'HOST';
-    content = `<h3>${esc(sel.id)}</h3><dl class="m03e-fields">${m03eField('Events', rows.length)}${m03eField('Sources', [...new Set(rows.map((r) => r.EventSource))].join(', '))}${m03eField('Accounts', [...new Set(rows.map((r) => r.Account))].join(', '))}</dl>${hunt('Hunt this host', `UnifiedEvents\n| where Host == "${sel.id}"\n| sort by TimeGenerated asc`)}`;
+    content = SocEntityUi.renderProfile({
+      id: sel.id,
+      fields: [{ label: 'Events', value: rows.length }, { label: 'Sources', value: [...new Set(rows.map((r) => r.EventSource))].join(', ') }, { label: 'Accounts', value: [...new Set(rows.map((r) => r.Account))].join(', ') }],
+      actionsHtml: SocEntityUi.renderPivotButton({ scope, kind: 'host', value: sel.id, label: 'Hunt this host', escapeHtml: esc }),
+      escapeHtml: esc,
+    });
   }
   if (sel?.type === 'source') {
     const map = M03E_SOURCE_MAPPINGS[sel.id];
@@ -666,12 +763,37 @@ function m03eGuideBar() {
   const done = st.guideStep >= total;
   const step = M03E_GUIDE_STEPS[Math.min(st.guideStep, total - 1)];
   const passed = !done && m03eStepPassed(step);
-  const progress = `<div class="m03e-guide-progress" aria-hidden="true">${M03E_GUIDE_STEPS.map((s, i) => `<span class="${i < st.guideStep ? 'is-done' : i === st.guideStep ? 'is-current' : ''}"></span>`).join('')}</div>`;
+  const tabLabel = !done ? (m03eTabs('practice').find((t) => t[0] === step.tab)?.[1] || step.tab) : '';
   if (done) {
-    return `<aside class="m03e-guide is-complete${st.guideCollapsed ? ' is-collapsed' : ''}" aria-label="Guided lab"><div class="m03e-guide-head"><span class="m03e-label">GUIDED LAB · COMPLETE</span>${progress}<button type="button" class="m03e-guide-toggle" data-m03e-guide-collapse aria-expanded="${!st.guideCollapsed}"><i class="ri-arrow-up-s-line" aria-hidden="true"></i><span class="m03e-sr-only">Toggle guide</span></button></div><div class="m03e-guide-body"><h3>Case debrief: CASE-MN-428</h3><p>AuthLog recorded a failed sign-in at 09:02 and a successful sign-in at 09:04 for acct-428. The same S-8841 session from 198.51.100.18 granted a directory role at 09:08 and exported application data at 09:12. Source provenance and raw IDs remain available for verification.</p><p>The 09:10 svc-backup restart is a separate SystemLog event under approved change CHG-221: it has a different identity, no S-8841 session, and a different source IP. <strong>Verdict:</strong> suspicious authentication-to-export sequence. <strong>Scope:</strong> acct-428 and the observed session; broader access and export destination remain to be checked. The handoff records this distinction and a bounded next step.</p><button type="button" class="m03e-guide-next" data-m03e-guide-restart>Restart guide</button></div></aside>`;
+    return consoleGuideCard({
+      steps: M03E_GUIDE_STEPS,
+      step: st.guideStep,
+      docked: st.guideCollapsed,
+      prefix: 'm03e',
+      doneTitle: 'Case debrief: CASE-MN-428',
+      doneText: 'AuthLog recorded a failed sign-in at 09:02 and a successful sign-in at 09:04 for acct-428. The same S-8841 session from 198.51.100.18 granted a directory role at 09:08 and exported application data at 09:12. The 09:10 svc-backup restart is separate and approved under CHG-221. Scope is acct-428 and the observed session; broader access remains a next check.',
+    });
   }
-  const tabLabel = m03eTabs('practice').find((t) => t[0] === step.tab)?.[1] || step.tab;
-  return `<aside class="m03e-guide${st.guideCollapsed ? ' is-collapsed' : ''}${passed ? ' is-passed' : ''}" aria-label="Guided lab step"><div class="m03e-guide-head"><span class="m03e-label">GUIDED LAB · STEP ${st.guideStep + 1} OF ${total}</span>${progress}<button type="button" class="m03e-guide-toggle" data-m03e-guide-collapse aria-expanded="${!st.guideCollapsed}"><i class="ri-arrow-up-s-line" aria-hidden="true"></i><span class="m03e-sr-only">${st.guideCollapsed ? 'Show guide' : 'Hide guide'}</span></button></div><div class="m03e-guide-body"><h3>${esc(step.title)}</h3><p>${esc(step.body)}</p><p class="m03e-guide-task"><strong>Your task:</strong> ${esc(step.task)}</p>${step.hint ? `<p class="m03e-guide-hint"><strong>${['auth','sort'].includes(step.id) ? 'Query' : 'Pattern'}:</strong> <code>${esc(step.hint).replace(/\n/g, ' ')}</code>${['auth','sort'].includes(step.id) ? ` <button type="button" data-m03e-insert="${esc(step.hint)}">Insert</button>` : ''}</p>` : ''}<p class="m03e-guide-look"><strong>Look for:</strong> ${esc(step.lookFor)}</p><div class="m03e-guide-actions">${st.tab !== step.tab ? `<button type="button" class="m03e-guide-go" data-m03e-tab="practice:${step.tab}">Go to ${esc(tabLabel)}</button>` : ''}<span class="m03e-guide-status" role="status">${passed ? '<i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Step complete' : '<i class="ri-loader-4-line" aria-hidden="true"></i> Waiting for your evidence…'}</span><button type="button" class="m03e-guide-next" data-m03e-guide-next ${passed ? '' : 'disabled'}>${st.guideStep === total - 1 ? 'Finish guided lab' : 'Next step'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button></div></div></aside>`;
+  const item = {
+    title: step.title,
+    body: `${step.body} Your task: ${step.task}`,
+    lookFor: step.lookFor,
+    lab: `${st.tab !== step.tab ? `Go to ${tabLabel}. ` : ''}${step.hint ? `${['auth','sort'].includes(step.id) ? 'Query' : 'Pattern'}: ${step.hint.replace(/\n/g, ' ')}` : ''}`,
+  };
+  return `${consoleGuideCard({ steps: M03E_GUIDE_STEPS, step: st.guideStep, docked: st.guideCollapsed, prefix: 'm03e', item })}
+    <div class="m03e-guide-controls" role="status">
+      ${st.tab !== step.tab ? `<button type="button" class="m03e-guide-go" data-m03e-tab="practice:${step.tab}">Go to ${esc(tabLabel)}</button>` : ''}
+      ${step.hint && ['auth','sort'].includes(step.id) ? `<button type="button" class="m03e-guide-go" data-m03e-insert="${esc(step.hint)}">Insert query</button>` : ''}
+      <span class="m03e-guide-status">${passed ? '<i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Step complete' : '<i class="ri-loader-4-line" aria-hidden="true"></i> Waiting for your evidence'}</span>
+    </div>`;
+}
+
+function m03ePositionGuide() {
+  const tip = document.getElementById('m03e-learn-tip');
+  if (!tip || typeof consoleGuidePosition !== 'function') return;
+  const workspace = document.querySelector('#m03e-console-practice .m03e-workspace');
+  const target = workspace?.querySelector('.m03e-view .is-selected') || workspace?.querySelector('.m03e-view');
+  consoleGuidePosition(tip, workspace, target, { alignLeft: m03eState('practice').tab === 'itsm' });
 }
 
 function m03eStepPassed(step) {
@@ -681,6 +803,9 @@ function m03eStepPassed(step) {
 
 function m03eViewBody(scope) {
   const tab = m03eState(scope).tab;
+  const mount = M03E_MOUNTS[scope];
+  if (mount?.views?.[tab]) return mount.views[tab]();
+  if (tab === 'case' && mount) return mount.caseView();
   if (tab === 'itsm' && scope === 'practice') return m03eItsmGuideView();
   if (tab === 'search') return m03eSearchView(scope);
   if (tab === 'timeline') return m03eTimelineView(scope);
@@ -699,6 +824,7 @@ function m03eTabsNav(scope) {
   const badge = (id) => {
     if (id === 'evidence' && st.pins.length) return ` <b>${st.pins.length}</b>`;
     if (id !== 'case') return '';
+    if (M03E_MOUNTS[scope]) return M03E_MOUNTS[scope].caseBadge?.() || '';
     if (st.determination.submitted) return ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>';
     const open = m03eProveMissing().length;
     return open ? ` <b title="${open} item${open === 1 ? '' : 's'} left">${open}</b>` : '';
@@ -707,11 +833,21 @@ function m03eTabsNav(scope) {
 }
 
 function moduleThreeConsoleHtml(scope) {
-  const st = m03eState(scope), data = M03E_DATA[scope];
-  return `<section class="m03e-console" aria-label="SIEM and log analysis console"><header><div><p>MISSION NEXT ENVIRONMENT · ${scope === 'practice' ? 'GUIDED' : 'ASSESSMENT'}</p><h2>SIEM &amp; LOG ANALYSIS</h2></div><span class="m03e-case">${esc(data.caseId)} · ${esc(data.day)} · ${data.tables.UnifiedEvents.length} events</span></header>
-    ${scope === 'practice' ? m03eGuideBar() : ''}
-    ${m03eTabsNav(scope)}
-    <div class="m03e-workspace${st.tab === 'case' ? ' is-case' : ''}"><div class="m03e-view">${m03eViewBody(scope)}</div>${st.tab === 'case' ? '' : m03eDrawer(scope)}</div></section>`;
+  const st = m03eState(scope), data = M03E_DATA[scope], mount = M03E_MOUNTS[scope];
+  return SocConsoleCore.renderShell({
+    shellClass: 'm03e-console',
+    ariaLabel: mount?.ariaLabel || 'SIEM and log analysis console',
+    eyebrow: `MISSION NEXT ENVIRONMENT · ${scope === 'practice' ? 'GUIDED' : 'ASSESSMENT'}`,
+    title: mount?.title || 'SIEM & LOG ANALYSIS',
+    contextHtml: `<span class="m03e-case">${esc(data.caseId)} · ${esc(data.day)} · ${data.tables.UnifiedEvents.length} events</span>`,
+    navigationHtml: m03eTabsNav(scope),
+    workspaceClassName: 'm03e-workspace',
+    workspaceClass: st.tab === 'case' ? 'is-case' : '',
+    guideHtml: scope === 'practice' ? m03eGuideBar() : '',
+    viewClassName: 'm03e-view',
+    viewHtml: m03eViewBody(scope),
+    drawerHtml: st.tab === 'case' ? '' : m03eDrawer(scope),
+  });
 }
 
 /* ------------------------------------------------------------ practice / prove panels */
@@ -841,7 +977,7 @@ function moduleThreeAssessmentLabPanel() {
 
 /* ------------------------------------------------------------ actions */
 
-function m03eSave() { moduleThreeSave(); }
+function m03eSave(scope) { if (M03E_MOUNTS[scope]) M03E_MOUNTS[scope].save(); else moduleThreeSave(); }
 
 function m03eRender(scope, { keepEditor = false } = {}) {
   const host = document.getElementById(`m03e-console-${scope}`);
@@ -852,7 +988,7 @@ function m03eRender(scope, { keepEditor = false } = {}) {
     if (res) res.innerHTML = m03eResultsHtml(scope);
     const drawer = host.querySelector('.m03e-drawer');
     if (drawer) drawer.outerHTML = m03eDrawer(scope);
-    const guide = host.querySelector('.m03e-guide');
+    const guide = host.querySelector('#m03e-learn-tip');
     if (guide && scope === 'practice') guide.outerHTML = m03eGuideBar();
     const tabs = host.querySelector('nav');
     if (tabs) tabs.outerHTML = m03eTabsNav(scope);
@@ -860,7 +996,7 @@ function m03eRender(scope, { keepEditor = false } = {}) {
     host.innerHTML = moduleThreeConsoleHtml(scope);
     m03eAttachEditor(scope);
   }
-  if (scope === 'practice') m03eSyncPractice();
+  if (scope === 'practice') { m03eSyncPractice(); m03ePositionGuide(); }
 }
 
 function m03eAttachEditor(scope) {
@@ -873,23 +1009,21 @@ function m03eRun(scope, query) {
   const st = m03eState(scope);
   const ta = document.getElementById(`m03e-kql-${scope}`);
   const q = query != null ? query : (ta ? ta.value : st.query);
-  st.query = q;
-  st.lastQuery = q;
-  const r = m03eResult(scope);
-  if (r && !r.error) {
-    // Record meaningful actions only: which sources the result touched and
-    // whether it linked more than one source on a shared entity.
-    const rows = r.rows || [];
-    const data = M03E_DATA[scope];
-    const sources = [...new Set(rows.map((row) => row.__rid && data.records[row.__rid]?.EventSource).filter(Boolean))];
-    const watch = Object.keys(data.watchlists).filter((w) => new RegExp(`\\b${w}\\b`).test(q));
-    watch.forEach((w) => m03eSeen(st, `watchlist:${w}`));
-    const keys = ['Account', 'SourceIp', 'SessionId'];
-    const pivot = sources.length >= 2 && keys.some((k) => { const vals = new Set(rows.map((row) => data.records[row.__rid]?.[k]).filter((v) => v && v !== '—')); return vals.size === 1; });
-    st.queryLog.push({ at: new Date().toISOString(), query: q.slice(0, 600), rows: rows.length, sources, pivot });
-    if (st.queryLog.length > 60) st.queryLog.splice(0, st.queryLog.length - 60);
-  }
-  m03eSave();
+  SocKqlSearchUi.executeQuery(st, q, {
+    evaluate: () => m03eResult(scope),
+    makeHistoryEntry: (r, currentQuery) => {
+      // Keep module-specific source and pivot interpretation in the scenario.
+      const rows = r.rows || [];
+      const data = M03E_DATA[scope];
+      const sources = [...new Set(rows.map((row) => row.__rid && data.records[row.__rid]?.EventSource).filter(Boolean))];
+      const watch = Object.keys(data.watchlists).filter((w) => new RegExp(`\\b${w}\\b`).test(currentQuery));
+      watch.forEach((w) => m03eSeen(st, `watchlist:${w}`));
+      const keys = ['Account', 'SourceIp', 'SessionId'];
+      const pivot = sources.length >= 2 && keys.some((k) => { const vals = new Set(rows.map((row) => data.records[row.__rid]?.[k]).filter((v) => v && v !== '—')); return vals.size === 1; });
+      return { at: new Date().toISOString(), query: currentQuery.slice(0, 600), rows: rows.length, sources, pivot };
+    },
+  });
+  m03eSave(scope);
   m03eRender(scope, { keepEditor: true });
 }
 
@@ -908,7 +1042,7 @@ function m03eSyncPractice() {
 function m03eGoTo(scope, tab) {
   const st = m03eState(scope);
   st.tab = tab;
-  m03eSave();
+  m03eSave(scope);
   m03eRender(scope);
 }
 
@@ -920,9 +1054,8 @@ function m03eHandleClick(scope, ev) {
   if (d.m03ePin) {
     ev.stopPropagation();
     const rid = d.m03ePin.split(':').slice(1).join(':');
-    const i = st.pins.indexOf(rid);
-    if (i >= 0) st.pins.splice(i, 1); else st.pins.push(rid);
-    m03eSave(); m03eRender(scope, { keepEditor: true });
+    SocEvidenceUi.togglePin(st, rid, { records: M03E_DATA[scope].records });
+    m03eSave(scope); m03eRender(scope, { keepEditor: true });
     return;
   }
   if (d.m03eSelect) {
@@ -933,40 +1066,48 @@ function m03eHandleClick(scope, ev) {
     if (['account', 'ip', 'host'].includes(type)) m03eSeen(st, `entity:${type}:${id}`);
     if (type === 'source') m03eSeen(st, `source:${id}`);
     if (type === 'watchlist') m03eSeen(st, `watchlist:${id}`);
-    m03eSave(); m03eRender(scope, { keepEditor: true });
+    M03E_MOUNTS[scope]?.onSelect?.(type, id);
+    m03eSave(scope); m03eRender(scope, { keepEditor: true });
     return;
   }
   if (d.m03eTab) { m03eGoTo(scope, d.m03eTab.split(':')[1]); return; }
-  if (d.m03eEntitykind) { st.entityKind = d.m03eEntitykind.split(':')[1]; m03eSave(); m03eRender(scope); return; }
+  if (d.m03eEntitykind) { st.entityKind = d.m03eEntitykind.split(':')[1]; m03eSave(scope); m03eRender(scope); return; }
   if (d.m03eRun != null) { m03eRun(scope); return; }
-  if (d.m03eClear != null) { st.query = ''; st.lastQuery = ''; m03eSave(); m03eRender(scope); return; }
-  if (d.m03eTable) { const name = d.m03eTable.split(':')[1]; ev.preventDefault(); st.query = `${name}\n| take 20`; m03eSave(); m03eRender(scope); return; }
+  if (d.m03eClear != null) { SocKqlSearchUi.clearQuery(st); m03eSave(scope); m03eRender(scope); return; }
+  if (d.m03eTable) { const name = d.m03eTable.split(':')[1]; ev.preventDefault(); SocKqlSearchUi.selectTemplate(st, `${name}\n| take 20`); m03eSave(scope); m03eRender(scope); return; }
   if (d.m03eExample != null || d.m03eHunt != null || d.m03eInsert != null) {
     const q = d.query || d.m03eInsert;
-    st.query = q; st.tab = 'search';
-    m03eSave(); m03eRender(scope);
+    SocKqlSearchUi.selectTemplate(st, q, { tab: 'search' });
+    m03eSave(scope); m03eRender(scope);
     if (d.m03eInsert == null) m03eRun(scope, q);
     return;
   }
-  if (d.m03eShowTimeline) { st.timelineEntity = d.m03eShowTimeline.split(':').slice(1).join(':'); m03eSeen(st, `timeline:${st.timelineEntity}`); st.tab = 'timeline'; m03eSave(); m03eRender(scope); return; }
-  if (el.hasAttribute('data-m03e-guide-collapse')) { st.guideCollapsed = !st.guideCollapsed; m03eSave(); m03eRender(scope, { keepEditor: true }); return; }
+  if (d.m03eShowTimeline) { st.timelineEntity = d.m03eShowTimeline.split(':').slice(1).join(':'); m03eSeen(st, `timeline:${st.timelineEntity}`); st.tab = 'timeline'; m03eSave(scope); m03eRender(scope); return; }
+  if (el.hasAttribute('data-m03e-guide-collapse')) { st.guideCollapsed = !st.guideCollapsed; m03eSave(scope); m03eRender(scope, { keepEditor: true }); return; }
   if (el.hasAttribute('data-m03e-guide-next')) {
+    if (st.guideStep >= M03E_GUIDE_STEPS.length) {
+      st.guideStep = 0;
+      st.tab = M03E_GUIDE_STEPS[0].tab;
+      st.guideCollapsed = false;
+      m03eSave(scope); m03eRender(scope);
+      return;
+    }
     const step = M03E_GUIDE_STEPS[st.guideStep];
     if (!step || !m03eStepPassed(step)) return;
     st.guideStep += 1;
     const next = M03E_GUIDE_STEPS[st.guideStep];
     if (next) st.tab = next.tab;
-    m03eSave(); m03eRender(scope);
+    m03eSave(scope); m03eRender(scope);
     if (st.guideStep >= M03E_GUIDE_STEPS.length) moduleThreeRefreshLabPanels();
     return;
   }
-  if (el.hasAttribute('data-m03e-guide-restart')) { st.guideStep = 0; st.tab = 'alerts'; m03eSave(); m03eRender(scope); }
+  if (el.hasAttribute('data-m03e-guide-restart')) { st.guideStep = 0; st.tab = M03E_GUIDE_STEPS[0].tab; m03eSave(scope); m03eRender(scope); }
 }
 
 function m03eHandleChange(scope, ev) {
   const st = m03eState(scope);
   const t = ev.target;
-  if (t.matches('[data-m03e-timeline]')) { st.timelineEntity = t.value; if (t.value) m03eSeen(st, `timeline:${t.value}`); m03eSave(); m03eRender(scope); }
+  if (t.matches('[data-m03e-timeline]')) { st.timelineEntity = t.value; if (t.value) m03eSeen(st, `timeline:${t.value}`); m03eSave(scope); m03eRender(scope); }
 }
 
 // Assessment form edits are autosaved as a draft; nothing is scored until submit.
@@ -1061,11 +1202,26 @@ function m03eSubmitAssessment() {
 
 function moduleThreeRefreshLabPanels() {
   const practice = document.getElementById('m03e-practice-panel');
-  if (practice) { practice.outerHTML = moduleThreeGuidedLabPanel(); m03eAttachEditor('practice'); }
+  if (practice) { practice.outerHTML = moduleThreeGuidedLabPanel(); m03eAttachEditor('practice'); m03ePositionGuide(); }
   const prove = document.getElementById('m03e-prove-panel');
   if (prove) { prove.outerHTML = moduleThreeAssessmentLabPanel(); m03eAttachEditor('prove'); }
   const statusGuided = document.querySelector('.m03-status dd');
   if (statusGuided) statusGuided.textContent = moduleThreeState.practiceComplete ? 'Complete' : 'In progress';
+}
+
+// Event wiring for a mounted console. The host module keeps its own handlers
+// for its own tabs and ticket; this covers the shared Module 3 behavior.
+function m03eWireMountedConsole(section, scope) {
+  if (!section || section.dataset.m03eWired === scope) return;
+  section.dataset.m03eWired = scope;
+  m03eAttachEditor(scope);
+  const inConsole = (ev) => ev.target.closest(`#m03e-console-${scope}`);
+  section.addEventListener('click', (ev) => { if (inConsole(ev)) m03eHandleClick(scope, ev); });
+  section.addEventListener('keydown', (ev) => {
+    if ((ev.key === 'Enter' || ev.key === ' ') && inConsole(ev) && ev.target.matches('[data-m03e-select]') && ev.target.tagName !== 'BUTTON') { ev.preventDefault(); m03eHandleClick(scope, ev); }
+  });
+  section.addEventListener('change', (ev) => { if (inConsole(ev) && ev.target.matches('[data-m03e-timeline]')) m03eHandleChange(scope, ev); });
+  section.addEventListener('input', (ev) => { if (ev.target.id === `m03e-kql-${scope}`) { m03eState(scope).query = ev.target.value; m03eSave(scope); } });
 }
 
 function wireModuleThreeConsole() {
@@ -1074,6 +1230,7 @@ function wireModuleThreeConsole() {
     if (!section || section.dataset.m03eWired === '1') return;
     section.dataset.m03eWired = '1';
     m03eAttachEditor(scope);
+    if (scope === 'practice') m03ePositionGuide();
     section.addEventListener('click', (ev) => {
       if (scope === 'prove') {
         if (ev.target.closest('[data-m03e-submit-prove]')) { m03eSubmitAssessment(); return; }
@@ -1114,9 +1271,7 @@ function wireModuleThreeConsole() {
           const passed = m03eStepPassed(step);
           const next = section.querySelector('[data-m03e-guide-next]');
           const status = section.querySelector('.m03e-guide-status');
-          if (next) next.disabled = !passed;
           if (status) status.innerHTML = passed ? '<i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Step complete' : '<i class="ri-loader-4-line" aria-hidden="true"></i> Waiting for a bounded handoff…';
-          section.querySelector('.m03e-guide')?.classList.toggle('is-passed', passed);
         }
         return;
       }

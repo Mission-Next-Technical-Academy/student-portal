@@ -794,38 +794,145 @@ function moduleElevenGuidedLabPanel() {
 }
 
 function moduleElevenAssessmentLabPanel() {
-  const moduleLab = LABS.find((item) => item.key === MODULE_ELEVEN_REPORT_CATALOG_KEY);
-  const spec = moduleElevenCaseSpec();
-  const performance = moduleElevenCasePerformance();
-  const casePane = caseRecordPane(moduleElevenReportState, {
-    ...spec,
-    missing: performance.missing,
-    formId: 'm11-assessment-form',
-    saveAttr: 'data-m11-save-case',
-    submitAttr: 'data-m11-submit-case',
-    panelId: 'm11-case-panel',
-    reviewStatus: moduleElevenCaseReviewStatus(),
-    redoRequested: moduleElevenCaseRedoRequested(),
-    redoHtml: moduleElevenCaseRedoFeedback(),
-    showMissing: moduleElevenReportState.showMissing === true,
-    lockedMessage: 'Module 11 completion stays pending until your instructor approves the submission.',
-  });
+  const scored = moduleElevenReportState.assessmentScore;
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
-    <p class="m11-panel-instruction">Launch the imported Active Directory metrics project below, complete it, then work the case ticket for instructor review.</p>
-    ${missionNextLabLaunchGroup(11, 'assessment', [{ title: 'Visualizing Active Directory Performance Metrics with Cacti', detail: `${formatInstructionalMinutes(moduleLab?.instructionalMinutes)} allocated. Imported Active Directory metrics project.`, href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab', labId: 'assessment-1', requireNote: true }], moduleElevenReportState.labProgress)}
-    ${casePane}
+    <p class="m11-panel-instruction">Complete the scored shift assessment in the Operations and Reporting tabs, then submit your work. Imported practice is listed separately under Optional Labs.</p>
+    ${scored ? `<section class="m04-assessment-review"><h3>Shift assessment result</h3><p><strong>${esc(scored.score)}/${esc(scored.maxScore)} points</strong> · ${scored.passed ? 'Passed' : 'Review and improve'}</p></section>` : '<p><button type="button" data-m11-submit-score>Submit shift assessment</button></p>'}
   </section>`;
 }
 
 function moduleElevenAdditionalLabs() {
   return missionNextLabLaunchGroup(11, 'additional', [
+    { title: 'Visualizing Active Directory Performance Metrics with Cacti', detail: 'Optional dashboard and reporting practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab', labId: 'assessment-1', requireNote: true },
     { title: 'Real-time Active Directory Metrics with Datadog', detail: 'Operational monitoring and metric context', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-3/lab', labId: 'additional-1', requireNote: true },
     { title: 'Active Directory Performance Monitoring with Checkmk', detail: 'Service checks and monitoring ownership', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-5/lab', labId: 'additional-2', requireNote: true },
   ], moduleElevenReportState.labProgress);
 }
 
+// The shift assessment uses the same Module 3 console shell as the earlier
+// investigations. Operational actions and audience-specific reporting live
+// in dedicated console tabs and are persisted by the append-only M11 engine.
+function moduleElevenConsoleData() {
+  const s = SocM11AssessmentData.scenario;
+  const events = s.queue.map((item, index) => m03eRow('AlertQueue', item.id, item.createdAt.slice(0, 10), item.createdAt.slice(11, 19), {
+    EventType: item.kind, Host: item.title, Account: item.assigneeId || 'unassigned', Result: item.status,
+    Severity: item.severity, RuleId: item.ruleId, BusinessImpact: item.businessImpact,
+    Detail: `SLA ${item.slaMinutes} minutes; queue position ${index + 1}`,
+  })).concat(s.incident.recoveryEvidence.map((e) => m03eRow('RecoveryRecords', e.id, e.time.slice(0, 10), e.time.slice(11, 19), {
+    EventType: 'RecoveryValidation', Host: e.id === 'M11-REC-04' ? 'fs-02' : 'ws-173', Account: 'soc-analyst', Result: e.status, Detail: e.summary,
+  })));
+  return m03eBuildDataset({ caseId: s.caseId, day: s.start.slice(0, 10), events,
+    identities: s.analysts.map((a) => ({ Account: a.id, DisplayName: a.name, Type: a.role, Department: 'SOC', Owner: a.name, Privileged: 'No', UsualSourceIp: '—' })),
+    ips: [], watchlists: { Rules: { title: 'Detection rules', rows: s.rules.map((r) => ({ RuleId: r.id, Rule: r.name, Owner: r.owner })) },
+      RecoveryEvidence: { title: 'Recovery evidence', rows: s.incident.recoveryEvidence.map((e) => ({ EvidenceId: e.id, Time: e.time, Status: e.status, Summary: e.summary })) } },
+    alerts: s.queue.map((item) => ({ id: item.id, time: item.createdAt, severity: item.severity, title: item.title, entities: s.incident.entities, rule: item.ruleId, query: `AlertQueue\n| where EventId == "${item.id}"` })), now: s.end,
+  });
+}
+function moduleElevenToolFixtures(data) {
+  const s = SocM11AssessmentData.scenario;
+  const evidence = s.incident.recoveryEvidence.map((e) => ({ id: e.id, type: 'recovery_record', time: e.time, entityId: e.id === 'M11-REC-04' ? 'fs-02' : 'ws-173', summary: e.summary }));
+  const m10Artifacts = s.incident.recoveryEvidence.map((e, i) => ({ id: e.id, type: 'recovery_record', time: e.time, host: e.id === 'M11-REC-04' ? 'fs-02' : 'ws-173', account: 'soc-analyst', title: e.summary, source: 'Recovery validation record', methods: ['log_export'], sourceHash: String(i + 1).repeat(64), verificationHash: String(i + 1).repeat(64), detail: e.summary }));
+  return {
+    m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: s.caseId, end: s.end, data }),
+    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm11-endpoint-tools-v1', devices: s.incident.entities.filter((x) => x.startsWith('ws-') || x.startsWith('fs-')).map((id) => ({ id, hostname: id, platform: 'Windows', role: id === 'fs-02' ? 'File service' : 'Workstation', owner: 'SOC', zone: 'CORP', status: 'Recovered / validation pending' })), data }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M11-LEAD-001', type: 'recovery_review', device: 'ws-173', account: 'acct-173', taskName: 'Recovery validation', observation: s.incident.containment }, devices: ['ws-173', 'fs-02'], data, timeStart: s.start, timeEnd: s.end }),
+    m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm11-mail-tools-v1', start: s.start, end: s.end }),
+    m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm11-exposure-tools-v1', start: s.start, end: s.end }),
+    m09: SocConsoleTools.m09Fixture({ id: s.id, stateKey: 'm11-response-tools-v1', start: s.start, end: s.end,
+      incident: { id: s.incident.id, title: s.incident.title, reportedAt: s.start, sourceEntityId: 'ws-173', sourceEvidenceId: 'M11-REC-01', summary: s.incident.containment },
+      entities: [{ id: 'ws-173', type: 'endpoint', hostname: 'ws-173', ownerAccountId: 'acct-173', status: 'isolated' }, { id: 'acct-173', type: 'identity', displayName: 'acct-173', status: 'active' }, { id: 'fs-02', type: 'file_service', hostname: 'fs-02', status: 'validation_pending' }],
+      edges: [{ from: s.incident.id, to: 'ws-173', relation: 'contained', evidenceId: 'M11-REC-01' }, { from: s.incident.id, to: 'acct-173', relation: 'session_overlap', evidenceId: 'M11-REC-05' }], evidence }),
+    m10: { schemaVersion: 1, scenario: { id: s.id, caseId: s.caseId, incidentId: s.incident.id, stateKey: 'm11-evidence-locker-v1', start: s.start, end: s.end, fixedAt: s.end, containedAt: s.start,
+      request: { id: 'REQ-INC-4937', from: 'Incident lead', receivedAt: s.start, text: 'Preserve recovery and scope records with defensible custody; distinguish completed recovery checks from pending owner validation.' },
+      custodians: [{ id: 'soc-analyst', label: 'SOC analyst' }, { id: 'service-owner', label: 'Service owner' }, { id: 'identity-owner', label: 'Identity owner' }], artifacts: m10Artifacts } },
+  };
+}
+
+function moduleElevenOpsHtml() {
+  const s = SocM11AssessmentData.scenario; const state = moduleElevenOpsState;
+  const metrics = SocM11AssessmentMetrics.compute(SocM11AssessmentData, state);
+  const itemOptions = s.queue.map((x) => `<option value="${esc(x.id)}">${esc(x.id)} · ${esc(x.title)}</option>`).join('');
+  const analystOptions = s.analysts.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  const ownerOptions = [...s.analysts.map((x) => ({ id: x.id, name: x.name })), ...s.ownerIds.map((id) => ({ id, name: id }))].map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  return `<section class="m03-console-extra"><h3>Shift Operations</h3><p>Prioritize the live queue, assign work, and record the handoff for the incoming shift.</p>
+    <form data-m11-operation="priority"><label>Priority order (highest first)<input name="order" required placeholder="Q-03, Q-02, Q-04"></label><button>Save order</button></form>
+    <form data-m11-operation="assign"><label>Queue item<select name="itemId">${itemOptions}</select></label><label>Assign to<select name="analystId">${analystOptions}</select></label><button>Assign</button></form>
+    <form data-m11-operation="escalate"><label>Queue item<select name="itemId">${itemOptions}</select></label><label>Route<select name="route">${s.escalationRoutes.map((r) => `<option value="${esc(r.id)}">${esc(r.label)}</option>`).join('')}</select></label><label>Reason<textarea name="reason" required minlength="10"></textarea></label><button>Escalate</button></form>
+    <form data-m11-operation="metrics"><label>Metric interpretation<textarea name="text" required minlength="40"></textarea></label><button>Record interpretation</button></form>
+    <form data-m11-operation="noise"><label>Rule<select name="ruleId">${s.rules.map((r) => `<option value="${esc(r.id)}">${esc(r.id)} · ${esc(r.name)}</option>`).join('')}</select></label><label>Rationale<textarea name="rationale" required minlength="10"></textarea></label><label>Improvement<textarea name="improvement" required minlength="20"></textarea></label><button>Flag rule</button></form>
+    <form data-m11-operation="handoff"><label>Summary<textarea name="summary" required minlength="40"></textarea></label><label>Open items (comma separated IDs)<input name="openItems" required placeholder="Q-01, Q-02, Q-03, Q-04"></label><label>Risks<textarea name="risks" required></textarea></label><label>Next actions<textarea name="nextActions" required></textarea></label><button>Save handoff</button></form>
+    <form data-m11-operation="followup"><label>Title<input name="title" required minlength="5"></label><label>Kind<select name="kind"><option value="follow_up">Follow up</option><option value="lesson">Lesson learned</option><option value="detection">Detection improvement</option></select></label><label>Owner<select name="ownerId">${ownerOptions}</select></label><label>Due date<input name="dueDate" type="date" min="${esc(s.start.slice(0, 10))}" max="${esc(SocM11AssessmentData.expectedTruth.dueBy)}" required></label><label>Evidence<select name="evidenceId"><option value="">None</option>${s.incident.recoveryEvidence.map((e) => `<option value="${esc(e.id)}">${esc(e.id)}</option>`).join('')}</select></label><button>Add action</button></form>
+    <h4>Shift metrics · ${esc(metrics.at)}</h4><div class="m03e-table-wrap"><table class="m03e-table"><thead><tr><th>Measure</th><th>Value</th><th>Interpretation boundary</th></tr></thead><tbody>
+      <tr><td>Alert volume</td><td>${esc(metrics.alertVolume)}</td><td>One fixed synthetic shift</td></tr>
+      <tr><td>Mean time to acknowledge</td><td>${esc(metrics.mttaMinutes)} min</td><td>Dispositioned/acknowledged items only</td></tr>
+      <tr><td>Mean time to contain</td><td>${esc(metrics.mttrMinutes)} min</td><td>Recorded containment timestamps only</td></tr>
+      <tr><td>Open backlog</td><td>${esc(metrics.backlog)}</td><td>Closed records excluded</td></tr>
+      <tr><td>Unassigned open work</td><td>${esc(metrics.unassigned)}</td><td>Assignment updates reflect in workload below</td></tr></tbody></table></div>
+    <h4>SLA and queue</h4><div class="m03e-table-wrap"><table class="m03e-table"><thead><tr><th>Item</th><th>Priority / impact</th><th>Assignee</th><th>Elapsed / SLA</th><th>Status</th></tr></thead><tbody>${metrics.queue.map((item) => `<tr><td>${esc(item.id)} · ${esc(item.title)}</td><td>${esc(item.severity)} / ${esc(item.businessImpact)}</td><td>${esc(item.assigneeId || 'Unassigned')}</td><td>${esc(item.ageMinutes)} / ${esc(item.slaMinutes)} min</td><td>${esc(item.sla)}</td></tr>`).join('')}</tbody></table></div>
+    <h4>Rule noise and analyst workload</h4><div class="m03e-table-wrap"><table class="m03e-table"><thead><tr><th>Rule</th><th>Alerts</th><th>Dispositioned</th><th>Non-true-positive rate</th></tr></thead><tbody>${metrics.ruleNoise.map((item) => `<tr><td>${esc(item.ruleId)} · ${esc(item.name)}</td><td>${esc(item.alerts)}</td><td>${esc(item.dispositioned)}</td><td>${item.nonTruePositiveRate === null ? 'Not enough dispositions' : `${esc(Math.round(item.nonTruePositiveRate * 100))}%`}</td></tr>`).join('')}</tbody></table></div>
+    <ul>${metrics.workload.map((item) => `<li>${esc(item.name)}: ${esc(item.openItems)}/${esc(item.capacity)} open${item.overCapacity ? ' · over capacity' : ''}</li>`).join('')}</ul>
+    <p>${metrics.caveats.map(esc).join(' ')}</p><p role="status">${state.actionHistory.length} operational actions saved.</p></section>`;
+}
+
+function moduleElevenReportingHtml() {
+  const s = SocM11AssessmentData.scenario; const state = moduleElevenOpsState;
+  const fieldNames = [['summary','Summary'],['confirmedScope','Confirmed scope'],['unknowns','Unknowns'],['businessImpact','Business impact'],['containmentStatus','Containment status'],['recoveryStatus','Recovery status'],['residualRisk','Residual risk']];
+  return `<section class="m03-console-extra"><h3>Reporting and Closure</h3><p>Write a bounded report for each audience. Include recovery limits and named follow-up owners before deciding whether the incident can close.</p>
+    ${['technical','executive','escalation','closure'].map((kind) => `<form data-m11-report="${kind}"><h4>${kind[0].toUpperCase()+kind.slice(1)} report</h4>${fieldNames.map(([name,label]) => `<label>${label}<textarea name="${name}" ${name === 'summary' ? 'required minlength="20"' : ''}>${esc(state.reports?.[kind]?.[name] || '')}</textarea></label>`).join('')}<button>Save ${kind} report</button></form>`).join('')}
+    <form data-m11-operation="closure"><label>Decision<select name="decision"><option value="retain">Retain open</option><option value="close">Close</option></select></label><label>Rationale<textarea name="rationale" required minlength="30"></textarea></label><label>Recovery evidence<input name="evidenceIds" placeholder="M11-REC-04, M11-REC-05"></label><button>Record closure decision</button></form>
+    <p role="status">${state.actionHistory.length} actions saved. Assessment scoring occurs when the ticket is submitted.</p></section>`;
+}
+
+let moduleElevenOpsState = null;
+let moduleElevenConsole = null;
+function moduleElevenMountConsole() {
+  const save = () => { moduleElevenMetricsState.console ||= {}; moduleElevenMetricsState.console.m11 = m03eState('m11'); moduleElevenSaveMetrics(); };
+  const data = moduleElevenConsoleData();
+  const fx = moduleElevenToolFixtures(data); const root = () => moduleElevenMetricsState;
+  const packs = [
+    { id: 'm04', ctx: { fixture: fx.m04, assessment: () => { moduleElevenMetricsState.tools ||= {}; if (!moduleElevenMetricsState.tools.m04) moduleElevenMetricsState.tools.m04 = SocM04AssessmentState.normalize({}, fx.m04).assessment; return moduleElevenMetricsState.tools.m04; }, console: () => m03eState('m11'), save, rerender: () => m03eRender('m11') } },
+    { id: 'm05', ctx: { fixture: fx.m05, ...SocConsoleTools.embedded(root, 'm05', SocM05AssessmentState.normalize, fx.m05, save) } },
+    { id: 'm06', ctx: { fixture: fx.m06, ...SocConsoleTools.embedded(root, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
+    { id: 'm07', ctx: { fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
+    { id: 'm08', ctx: { fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
+    { id: 'm09', ctx: { fixture: fx.m09, evidence: fx.m09.scenario.evidence, routes: SocM11AssessmentData.scenario.escalationRoutes.map((route) => ({ id: route.id, text: route.label })), ...SocConsoleTools.embedded(root, 'm09', SocM09AssessmentState.normalize, fx.m09, save) } },
+    { id: 'm10', ctx: { fixture: fx.m10, console: () => m03eState('m11'), load: () => SocM10AssessmentState.normalize(moduleElevenMetricsState.tools?.m10 || {}, fx.m10), store: (next) => { moduleElevenMetricsState.tools ||= {}; moduleElevenMetricsState.tools.m10 = SocM10AssessmentState.normalize(next, fx.m10); save(); } } },
+  ];
+  moduleElevenConsole = SocConsoleTools.mount('m11', { data, stateRoot: () => moduleElevenMetricsState, save, packs,
+    title: 'SOC OPERATIONS & REPORTING', ariaLabel: 'Module 11 SOC operations and reporting console',
+    extraTabs: [['operations', 'Operations'], ['reporting', 'Reporting']],
+    views: { operations: moduleElevenOpsHtml, reporting: moduleElevenReportingHtml },
+  });
+}
+
+function moduleElevenWireConsole() {
+  const root = document.getElementById('m03e-console-m11'); if (!root) return;
+  root.addEventListener('submit', (event) => {
+    const form = event.target.closest('[data-m11-operation], [data-m11-report]'); if (!form) return;
+    event.preventDefault(); const d = Object.fromEntries(new FormData(form)); const at = SocM11AssessmentData.scenario.fixedAt;
+    try {
+      if (form.dataset.m11Report) moduleElevenOpsState = SocM11AssessmentState.report(moduleElevenOpsState, SocM11AssessmentData, form.dataset.m11Report, d, at);
+      else switch (form.dataset.m11Operation) {
+        case 'priority': moduleElevenOpsState = SocM11AssessmentState.setPriority(moduleElevenOpsState, SocM11AssessmentData, d.order.split(',').map((x) => x.trim()).filter(Boolean), at); break;
+        case 'assign': moduleElevenOpsState = SocM11AssessmentState.assign(moduleElevenOpsState, SocM11AssessmentData, d.itemId, d.analystId, at); break;
+        case 'escalate': moduleElevenOpsState = SocM11AssessmentState.escalate(moduleElevenOpsState, SocM11AssessmentData, d.itemId, d.route, d.reason, at); break;
+        case 'metrics': moduleElevenOpsState = SocM11AssessmentState.recordMetricInterpretation(moduleElevenOpsState, SocM11AssessmentData, d.text, at); break;
+        case 'noise': moduleElevenOpsState = SocM11AssessmentState.flagNoisyRule(moduleElevenOpsState, SocM11AssessmentData, d.ruleId, d.rationale, d.improvement, at); break;
+        case 'handoff': moduleElevenOpsState = SocM11AssessmentState.handoff(moduleElevenOpsState, SocM11AssessmentData, { summary: d.summary, openItems: d.openItems.split(',').map((x) => x.trim()).filter(Boolean), risks: d.risks.split('\n').map((x) => x.trim()).filter(Boolean), nextActions: d.nextActions.split('\n').map((x) => x.trim()).filter(Boolean) }, at); break;
+        case 'followup': moduleElevenOpsState = SocM11AssessmentState.improvementAction(moduleElevenOpsState, SocM11AssessmentData, d, at); break;
+        case 'closure': moduleElevenOpsState = SocM11AssessmentState.closureDecision(moduleElevenOpsState, SocM11AssessmentData, { ...d, evidenceIds: (d.evidenceIds || '').split(',').map((x) => x.trim()).filter(Boolean) }, at); break;
+      }
+      SocM11AssessmentState.save(moduleElevenUser, moduleElevenOpsState, SocM11AssessmentData); m03eRender('m11');
+    } catch (error) { const status = form.parentElement.querySelector('[role="status"]'); if (status) status.textContent = error.message; }
+  });
+  moduleElevenConsole?.wire(root);
+}
+
 function viewModuleEleven(user, program) {
   moduleElevenLoad(user);
+  moduleElevenOpsState = SocM11AssessmentState.load(user, SocM11AssessmentData);
+  moduleElevenMetricsState.console = { ...(moduleElevenMetricsState.console || {}), m11: moduleElevenMetricsState.console?.m11 || {} };
+  moduleElevenMountConsole();
   const module = program.modules['soc-11'];
   const sections = moduleElevenGetSections();
   const lectureOpen = moduleElevenReviewMode || !sections[0].isComplete;
@@ -850,7 +957,7 @@ function viewModuleEleven(user, program) {
   <div id="m11-guided-lab-dynamic">${moduleElevenGuidedLabPanel()}</div>
 </div></details>
 <details class="m11-section-collapsible mf-section" id="m11-assessment-lab-section" ${assessmentLabOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">4</span><div><p class="m11-kicker mf-kicker">Prove It · Assessment Lab</p><h2>Assessment Lab</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-assessment-lab">
-  <div id="m11-assessment-lab-dynamic">${moduleElevenAssessmentLabPanel()}</div>
+  <div id="m11-assessment-lab-dynamic">${moduleElevenAssessmentLabPanel()}<div class="m03e-console-host" id="m03e-console-m11">${moduleThreeConsoleHtml('m11')}</div></div>
 </div></details>
 <div id="m11-additional-labs-dynamic">${moduleElevenAdditionalLabs()}</div>
 <details class="m11-section-collapsible mf-section" id="m11-review-section" ${reviewOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">5</span><div><p class="m11-kicker mf-kicker">Concept recap</p><h2>Module Review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-review">
@@ -863,19 +970,9 @@ function viewModuleEleven(user, program) {
   return html;
 }
 
-function wireModuleElevenGuidedLabGating(root) {
-  if (!root || !moduleElevenMetricsState) return;
-  wireMissionNextLabGating(root, moduleElevenMetricsState.labProgress, () => {
-    moduleElevenSaveMetrics();
-    root.innerHTML = moduleElevenGuidedLabPanel();
-    wireModuleElevenGuidedLabGating(root);
-  });
-}
-
 function wireModuleElevenGuidedLab() {
   const root = document.getElementById('m11-guided-lab-dynamic');
   if (!root || !moduleElevenMetricsState) return;
-  wireModuleElevenGuidedLabGating(root);
   root.addEventListener('input', (event) => {
     if (event.target.matches('[data-m11-practice-notes]')) {
       moduleElevenMetricsState.practiceNotes = event.target.value;
@@ -884,116 +981,57 @@ function wireModuleElevenGuidedLab() {
   });
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m11-practice-complete]')) {
-      if (!missionNextAllLabsComplete(moduleElevenMetricsState.labProgress, ['guided-1'])) {
-        root.innerHTML = moduleElevenGuidedLabPanel();
-        wireModuleElevenGuidedLabGating(root);
-        return;
-      }
       moduleElevenMetricsState.practiceComplete = true;
       if (!moduleElevenMetricsState.flags.includes(MODULE_ELEVEN_METRICS_FLAG)) moduleElevenMetricsState.flags.push(MODULE_ELEVEN_METRICS_FLAG);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_METRICS_CATALOG_KEY);
       moduleElevenSaveMetrics();
       root.innerHTML = moduleElevenGuidedLabPanel();
-      wireModuleElevenGuidedLabGating(root);
     }
   });
 }
 
-function wireModuleElevenAssessmentLabGating(root) {
-  if (!root || !moduleElevenReportState) return;
-  wireMissionNextLabGating(root, moduleElevenReportState.labProgress, () => {
-    moduleElevenSaveReport();
-    root.innerHTML = moduleElevenAssessmentLabPanel();
-    wireModuleElevenAssessmentLabGating(root);
-  });
-}
-
 function moduleElevenFinalizeCase(root) {
-  const performance = moduleElevenCasePerformance();
   if (moduleElevenReportState.submitted) return;
-  if (performance.missing.length) {
-    moduleElevenReportState.showMissing = true;
-    moduleElevenSaveReport();
-    root.innerHTML = moduleElevenAssessmentLabPanel();
-    wireModuleElevenAssessmentLabGating(root);
-    return;
-  }
+  const scored = SocM11AssessmentScorer.score(moduleElevenOpsState, SocM11AssessmentData);
   moduleElevenReportState.showMissing = false;
   moduleElevenReportState.submitted = true;
   moduleElevenReportState.completed = true;
   moduleElevenReportState.attempts = (moduleElevenReportState.attempts || 0) + 1;
   moduleElevenReportState.lastSubmittedAt = new Date().toISOString();
-  moduleElevenReportState.score = performance.score;
-  moduleElevenReportState.breakdown = performance.breakdown;
+  moduleElevenReportState.score = scored.score;
+  moduleElevenReportState.assessmentScore = scored;
+  moduleElevenReportState.breakdown = scored.criteria;
   moduleElevenReportState.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleElevenReportState.lastSubmittedAt });
   if (!moduleElevenReportState.flags.includes(MODULE_ELEVEN_REPORT_FLAG)) moduleElevenReportState.flags.push(MODULE_ELEVEN_REPORT_FLAG);
   moduleElevenSaveReport();
   if (moduleElevenUser) {
     moduleElevenUser.latestLabAttemptByKey = { ...(moduleElevenUser.latestLabAttemptByKey || {}), [MODULE_ELEVEN_REPORT_CATALOG_KEY]: { completedAt: moduleElevenReportState.lastSubmittedAt, reviewedAt: null, redoRequested: false } };
   }
-  const spec = moduleElevenCaseSpec();
   if (typeof recordLabAttempt === 'function') {
     recordLabAttempt(moduleElevenUser, MODULE_ELEVEN_REPORT_CATALOG_KEY, {
       state: 'complete',
-      score: performance.score,
-      result: {
-        breakdown: performance.breakdown,
-        feedback: performance.feedback,
-        critical_errors: performance.criticalErrors,
-        case_record: moduleElevenReportState,
-        case_display: caseRecordDisplay(moduleElevenReportState, spec),
-        case_summary: caseRecordSummary(moduleElevenReportState, spec),
-        notes: moduleElevenReportState.notes,
-      },
+      score: scored.score,
+      result: { ...scored, action_history: moduleElevenOpsState.actionHistory },
     }).then((saved) => {
       if (saved && moduleElevenCaseRedoRequested()) delete moduleElevenUser.openLabRedosByModuleKey['soc-11'];
     });
   }
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_REPORT_CATALOG_KEY);
   root.innerHTML = moduleElevenAssessmentLabPanel();
-  wireModuleElevenAssessmentLabGating(root);
 }
 
 function wireModuleElevenAssessmentLab() {
   const root = document.getElementById('m11-assessment-lab-dynamic');
   if (!root || !moduleElevenReportState) return;
-  wireModuleElevenAssessmentLabGating(root);
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m11-submit-case]')) { moduleElevenFinalizeCase(root); return; }
-    if (event.target.closest('[data-m11-save-case]')) {
-      moduleElevenReportState.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
-      moduleElevenSaveReport();
-      root.innerHTML = moduleElevenAssessmentLabPanel();
-      wireModuleElevenAssessmentLabGating(root);
-    }
-  });
-  root.addEventListener('change', (event) => {
-    if (!event.target.closest('#m11-assessment-form')) return;
-    const { name, value } = event.target;
-    if (!name || !caseRecordApply(moduleElevenReportState, name, value)) return;
-    moduleElevenReportState.actionHistory.push({ action: `Updated ${name}`, at: new Date().toISOString() });
-    moduleElevenSaveReport();
-    root.innerHTML = moduleElevenAssessmentLabPanel();
-    wireModuleElevenAssessmentLabGating(root);
-  });
-  root.addEventListener('input', (event) => {
-    if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && event.target.closest('#m11-assessment-form')) {
-      caseRecordApply(moduleElevenReportState, 'notes', event.target.value);
-      moduleElevenSaveReport();
-    }
-  });
-}
+    if (event.target.closest('[data-m11-submit-score]')) { moduleElevenFinalizeCase(root); return; }
 
-function wireModuleElevenAdditionalLabsGating(root) {
-  if (!root || !moduleElevenReportState) return;
-  wireMissionNextLabGating(root, moduleElevenReportState.labProgress, () => {
-    moduleElevenSaveReport();
-    root.innerHTML = moduleElevenAdditionalLabs();
-    wireModuleElevenAdditionalLabsGating(root);
   });
+
 }
 
 function wireModuleEleven() {
+  moduleElevenWireConsole();
   // Wire review toggle
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
@@ -1015,7 +1053,7 @@ function wireModuleEleven() {
   // Wire labs
   wireModuleElevenGuidedLab();
   wireModuleElevenAssessmentLab();
-  wireModuleElevenAdditionalLabsGating(document.getElementById('m11-additional-labs-dynamic'));
+  // Imported additional labs are practice only and do not gate module progress.
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 11, moduleKey: 'soc-11', view: viewModuleEleven, wire: wireModuleEleven });

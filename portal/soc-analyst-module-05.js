@@ -358,7 +358,8 @@ const MODULE_FIVE_DEFAULT_STATE = {
   labProgress: {},
   // Standard ITSM Incident Ticket for the m05-assessment Prove It
   // submission (docs/specs/MODULE_STANDARD.md §7.2).
-  caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
+  caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, caseId: '', scenarioId: '', submitted: false, submittedAt: '', actionHistory: [] },
+  assessmentAttempts: [],
 };
 
 // Standard ITSM Incident Ticket for the Prove It submission — the form is
@@ -369,18 +370,15 @@ const MODULE_FIVE_DEFAULT_STATE = {
 // analysis — portal/imported-labs/mission-next-labs, sources lap-5/ma-4)
 // stay as prerequisite evidence gates above the ticket, same as before.
 //
-// The case is authored from this module's own established fixture — the
-// fake-CAPTCHA → PowerShell → persistence chain on fictional workstation
-// WS-LAB-27, referenced throughout MODULE_FIVE_LESSON_LOOPS — since neither
-// imported lab document carries its own named host/user fixture to draw a
-// roster from.
-const MODULE_FIVE_CASE_ID = 'EDR-5119';
+// The scored case identity and entities come from the immutable assessment fixture.
+const MODULE_FIVE_LEGACY_CASE_ID = 'EDR-5119';
+const MODULE_FIVE_CASE_ID = SocM05AssessmentData.scenario.caseId;
 const MODULE_FIVE_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
 const MODULE_FIVE_ENTITY_ROSTER = {
   users: [
-    { id: 'j.alvarez', text: 'j.alvarez (WS-LAB-27 primary user)', tier: 'principal' },
-    { id: 'm.reyes', text: 'm.reyes (shared IT-support login, occasional access to WS-LAB-27)', tier: 'pivot' },
+    { id: 'CORP\\j.alvarez', text: 'CORP\\j.alvarez (affected user)', tier: 'principal' },
+    { id: 'CORP\\m.reyes', text: 'CORP\\m.reyes (benign updater activity)', tier: 'pivot' },
     { id: 'p.chen', text: 'p.chen', tier: 'noise' },
     { id: 'r.diallo', text: 'r.diallo', tier: 'noise' },
     { id: 'k.osei', text: 'k.osei', tier: 'noise' },
@@ -388,13 +386,9 @@ const MODULE_FIVE_ENTITY_ROSTER = {
     { id: 'a.silva', text: 'a.silva', tier: 'noise' },
   ],
   devices: [
-    { id: 'WS-LAB-27', text: 'WS-LAB-27 (fake-CAPTCHA → PowerShell chain observed here)', tier: 'principal' },
-    { id: 'WS-LAB-14', text: 'WS-LAB-14 (adjacent workstation, same subnet, no evidence)', tier: 'pivot' },
-    { id: 'WS-LAB-03', text: 'WS-LAB-03', tier: 'noise' },
-    { id: 'WS-LAB-09', text: 'WS-LAB-09', tier: 'noise' },
-    { id: 'WS-LAB-22', text: 'WS-LAB-22', tier: 'noise' },
-    { id: 'SRV-FILE-02', text: 'SRV-FILE-02', tier: 'noise' },
-    { id: 'SRV-DC-01', text: 'SRV-DC-01', tier: 'noise' },
+    { id: 'M05-DEV-001', text: 'WS-ASSESS-27 (affected endpoint)', tier: 'principal' },
+    { id: 'M05-DEV-002', text: 'WS-ASSESS-14 (benign comparison)', tier: 'pivot' },
+    { id: 'M05-DEV-003', text: 'SRV-ASSESS-02', tier: 'noise' },
   ],
 };
 
@@ -405,10 +399,10 @@ const MODULE_FIVE_DEPARTMENT_OPTIONS = [
   { id: 'help-desk', text: 'IT Help Desk', fit: 10, note: 'Not a fit — this is confirmed malicious execution with persistence, not a routine help-desk ticket.', bounce: 'Help Desk cannot contain a malware persistence mechanism; this needs Endpoint/EDR Response.' },
 ];
 
+// Only the assessment itself gates the ticket; the imported projects are
+// Optional Labs and never gate scoring or progress.
 function moduleFiveExtraMissing() {
-  const missing = [];
-  if (!missionNextAllLabsComplete(moduleFiveState.labProgress, ['assessment-1', 'assessment-2'])) missing.push('Mark both imported assessment labs complete');
-  return missing;
+  return [];
 }
 
 function moduleFiveCaseSpec() {
@@ -417,7 +411,7 @@ function moduleFiveCaseSpec() {
     userOptions: MODULE_FIVE_ENTITY_ROSTER.users,
     deviceOptions: MODULE_FIVE_ENTITY_ROSTER.devices,
     departmentOptions: MODULE_FIVE_DEPARTMENT_OPTIONS,
-    notesPlaceholder: 'Summarize what the Sysmon and keylogger labs surfaced, the WS-LAB-27 execution chain, your assessment, and your recommended action…',
+    notesPlaceholder: 'Summarize the endpoint execution chain, your assessment, and your recommended action for WS-ASSESS-27…',
     extraMissing: moduleFiveExtraMissing(),
   };
 }
@@ -575,6 +569,31 @@ function moduleFiveLoad(user) {
   });
   if (!moduleFiveState.caseRecord.findings || typeof moduleFiveState.caseRecord.findings !== 'object') moduleFiveState.caseRecord.findings = {};
   if (!Array.isArray(moduleFiveState.caseRecord.actionHistory)) moduleFiveState.caseRecord.actionHistory = [];
+  if (!Array.isArray(moduleFiveState.assessmentAttempts)) moduleFiveState.assessmentAttempts = [];
+  let caseIdentityMigrated = false;
+  if (moduleFiveState.caseRecord.caseId !== MODULE_FIVE_CASE_ID
+    || moduleFiveState.caseRecord.scenarioId !== SocM05AssessmentData.scenario.id) {
+    if (moduleFiveState.caseRecord.caseId && moduleFiveState.caseRecord.caseId !== MODULE_FIVE_LEGACY_CASE_ID
+      && !moduleFiveState.caseRecord.legacyCaseId) moduleFiveState.caseRecord.legacyCaseId = moduleFiveState.caseRecord.caseId;
+    if (moduleFiveState.caseRecord.caseId === MODULE_FIVE_LEGACY_CASE_ID && !moduleFiveState.caseRecord.legacyCaseId) {
+      moduleFiveState.caseRecord.legacyCaseId = MODULE_FIVE_LEGACY_CASE_ID;
+    }
+    const oldUser = moduleFiveState.caseRecord.affectedUser;
+    const oldDevice = moduleFiveState.caseRecord.affectedDevice;
+    if (oldUser === 'j.alvarez' || oldUser === 'm.reyes') {
+      moduleFiveState.caseRecord.legacyEntities ||= {};
+      moduleFiveState.caseRecord.legacyEntities.affectedUser = oldUser;
+      moduleFiveState.caseRecord.affectedUser = oldUser === 'j.alvarez' ? 'CORP\\j.alvarez' : 'CORP\\m.reyes';
+    }
+    if (oldDevice === 'WS-LAB-27' || oldDevice === 'WS-LAB-14') {
+      moduleFiveState.caseRecord.legacyEntities ||= {};
+      moduleFiveState.caseRecord.legacyEntities.affectedDevice = oldDevice;
+      moduleFiveState.caseRecord.affectedDevice = oldDevice === 'WS-LAB-27' ? 'M05-DEV-001' : 'M05-DEV-002';
+    }
+    moduleFiveState.caseRecord.caseId = MODULE_FIVE_CASE_ID;
+    moduleFiveState.caseRecord.scenarioId = SocM05AssessmentData.scenario.id;
+    caseIdentityMigrated = true;
+  }
   if (typeof moduleFiveState.caseRecord.submitted !== 'boolean') moduleFiveState.caseRecord.submitted = false;
   // Backward compat: the pre-migration m05-assessment-form only recorded
   // `attempts`/`completed` and a free-text `notes`. Treat any such
@@ -592,6 +611,8 @@ function moduleFiveLoad(user) {
   if (moduleFiveProveItRedoRequested() && moduleFiveState.caseRecord.submitted === true) {
     moduleFiveState.caseRecord.submitted = false;
     moduleFiveState.caseRecord.submittedAt = '';
+    moduleFiveSave();
+  } else if (caseIdentityMigrated) {
     moduleFiveSave();
   }
 
@@ -780,35 +801,108 @@ function moduleFiveGuidedLabPanel() {
   </section>`;
 }
 
+const MODULE_FIVE_OPTIONAL_LABS = [
+  { title: 'Analyzing Windows Sysmon Events for Security Incidents', detail: 'Independent Sysmon log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-5/lab', labId: 'assessment-1' },
+  { title: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-4/lab', labId: 'assessment-2' },
+];
+
 function moduleFiveAdditionalLabs() {
-  return missionNextAdditionalLabsSection(5, []);
+  return missionNextOptionalLabsSection(5, MODULE_FIVE_OPTIONAL_LABS, moduleFiveState.labProgress);
+}
+
+/* The Module 3 console, carrying Module 4's tools, with Module 5's Endpoint
+ * workspace. Endpoint telemetry is also normalized into Log Search tables. */
+const MODULE_FIVE_ENDPOINT_SOURCES = {
+  process_start: 'DeviceProcessEvents', file_create: 'DeviceFileEvents', file_hash: 'DeviceFileEvents',
+  persistence_change: 'DeviceRegistryEvents', sensor_control: 'DeviceAlertEvents',
+};
+const MODULE_FIVE_CONSOLE_DATA = (function () {
+  const s = SocM05AssessmentData.scenario;
+  const day = s.start.slice(0, 10);
+  const events = s.telemetry.map((e) => m03eRow(MODULE_FIVE_ENDPOINT_SOURCES[e.eventType] || 'DeviceEvents', e.id, day, e.time.slice(11, 19), {
+    EventType: e.eventType, Account: e.user, Host: e.host, DeviceId: e.deviceId, ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
+    Image: e.image || '', CommandLine: e.commandLine || '', FilePath: e.filePath || '', Sha256: e.sha256 || '', RegistryPath: e.registryPath || '',
+    Action: e.action, Result: e.result, Url: e.url || '', Signer: e.signer || '', Prevalence: e.prevalence ?? '', Reputation: e.reputation || '',
+    Detail: e.commandLine || e.registryPath || e.filePath || e.action,
+  }));
+  const person = (account, name, owner) => ({ Account: account, DisplayName: name, Type: owner ? 'Service' : 'User', Department: owner ? 'IT Operations' : 'Finance', Owner: owner || '—', Privileged: owner ? 'Yes' : 'No', UsualSourceIp: '—', Notes: '' });
+  return {
+    ...m03eBuildDataset({
+      caseId: s.caseId,
+      day,
+      events,
+      identities: [person('CORP\\j.alvarez', 'J. Alvarez'), person('CORP\\m.reyes', 'M. Reyes'), person('SYSTEM', 'Local system', 'Endpoint platform')],
+      ips: [],
+      watchlists: {
+        ApprovedSoftware: { title: 'Approved software inventory', rows: [
+          { Product: 'Acme Updater', Publisher: 'CN=Acme Software LLC', Path: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', Deployment: 'All workstations', Status: 'Approved' },
+        ] },
+      },
+      alerts: [
+        { id: 'ALT-5127', time: '2026-09-27T09:05:33Z', severity: 'High', title: 'Endpoint sensor detection on WS-ASSESS-27', entities: ['WS-ASSESS-27', 'CORP\\j.alvarez'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "WS-ASSESS-27"' },
+      ],
+    }),
+    now: s.end,
+  };
+}());
+const MODULE_FIVE_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: SocM05AssessmentData.scenario.id, caseId: MODULE_FIVE_CASE_ID, end: SocM05AssessmentData.scenario.end, data: MODULE_FIVE_CONSOLE_DATA });
+
+function moduleFiveM04Tools() {
+  moduleFiveState.tools ||= {};
+  if (!moduleFiveState.tools.m04?.schemaVersion) moduleFiveState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleFiveState.tools.m04 }, MODULE_FIVE_M04_FIXTURE).assessment;
+  return moduleFiveState.tools.m04;
+}
+
+const MODULE_FIVE_CONSOLE = SocConsoleTools.mount('m05', {
+  data: MODULE_FIVE_CONSOLE_DATA,
+  stateRoot: () => moduleFiveState,
+  save: () => moduleFiveSave(),
+  title: 'SIEM & ENDPOINT INVESTIGATION',
+  ariaLabel: 'Module 05 endpoint assessment console',
+  sourceMappings: {
+    DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['user', 'Account'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine'], ['url', 'Url']] },
+    DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['prevalence', 'Prevalence'], ['reputation', 'Reputation']] },
+    DeviceRegistryEvents: { native: 'EDR registry telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['key', 'RegistryPath'], ['action', 'Action'], ['result', 'Result']] },
+    DeviceAlertEvents: { native: 'EDR sensor control outcomes (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['control', 'Action'], ['outcome', 'Result']] },
+  },
+  packs: [
+    { id: 'm04', ctx: { assessment: moduleFiveM04Tools, fixture: MODULE_FIVE_M04_FIXTURE, save: () => moduleFiveSave(), rerender: () => moduleFiveRenderAssessment(), console: () => m03eState('m05') } },
+    { id: 'm05', ctx: { fixture: SocM05AssessmentData, load: () => SocM05AssessmentState.load(moduleFiveUser, SocM05AssessmentData), store: (next) => SocM05AssessmentState.save(moduleFiveUser, next, SocM05AssessmentData), save: () => moduleFiveSave(), rerender: () => moduleFiveRenderAssessment(), console: () => m03eState('m05') } },
+  ],
+  caseView: () => moduleFiveCaseTicket(),
+  caseBadge: () => (moduleFiveState.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+});
+
+function moduleFiveCaseTicket() {
+  const cr = moduleFiveState.caseRecord;
+  const spec = moduleFiveCaseSpec();
+  return caseRecordPane(cr, {
+    ...spec,
+    missing: caseRecordMissing(cr, spec),
+    formId: 'm05-assessment',
+    saveAttr: 'data-m05-save-case',
+    submitAttr: 'data-m05-submit-case',
+    panelId: 'm05-case-panel',
+    showMissing: moduleFiveProveItShowMissing,
+    redoRequested: moduleFiveProveItRedoRequested(),
+    redoHtml: moduleFiveProveItRedoFeedback(),
+    reviewStatus: moduleFiveProveItReviewStatus(),
+    lockedMessage: 'Module 6 stays locked until your instructor approves the submission.',
+  });
 }
 
 function moduleFiveAssessmentLabPanel() {
-  const labs = [
-    { title: 'Analyzing Windows Sysmon Events for Security Incidents', detail: 'Independent Sysmon log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-5/lab', labId: 'assessment-1' },
-    { title: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-4/lab', labId: 'assessment-2' },
-  ];
-  const cr = moduleFiveState.caseRecord;
-  const spec = moduleFiveCaseSpec();
-  const missing = caseRecordMissing(cr, spec);
-  return `<section class="m05-external-lab" id="m05-assessment-lab-panel">
-    <p class="m05-panel-instruction">Complete both imported assessment projects below, then work the incident ticket for instructor review.</p>
-    ${missionNextLabLaunchGroup(5, 'assessment', labs, moduleFiveState.labProgress)}
-    ${caseRecordPane(cr, {
-      ...spec,
-      missing,
-      formId: 'm05-assessment',
-      saveAttr: 'data-m05-save-case',
-      submitAttr: 'data-m05-submit-case',
-      panelId: 'm05-case-panel',
-      showMissing: moduleFiveProveItShowMissing,
-      redoRequested: moduleFiveProveItRedoRequested(),
-      redoHtml: moduleFiveProveItRedoFeedback(),
-      reviewStatus: moduleFiveProveItReviewStatus(),
-      lockedMessage: 'Module 6 stays locked until your instructor approves the submission.',
-    })}
-  </section>`;
+  return `<div class="m03e-panel" id="m05-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_FIVE_CASE_ID)} · ENDPOINT ALERT · ASSIGNED TO YOU</p><p>The EDR sensor raised an alert on a user workstation. Your lead’s request: <em>“Work out what actually ran, whether it stuck, and whether our control stopped it — then tell the endpoint team exactly what to do and why.”</em> Pivot from the alert to the device, follow the process chain, judge the file and hash, find any persistence, decide what the control did, bound the scope, preserve the strongest evidence, request only proportionate action, and complete the ITSM ticket.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m05">${moduleThreeConsoleHtml('m05')}</div>
+  </div>`;
+}
+
+function moduleFiveRenderAssessment() {
+  const root = document.getElementById('m05-assessment-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleFiveAssessmentLabPanel();
+  m03eAttachEditor('m05');
 }
 
 function moduleFiveLecture() {
@@ -883,12 +977,12 @@ function viewModuleFive(user, program) {
       </details>
 
       <details class="m05-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">4</span><div><p class="m05-kicker mf-kicker">Prove It · Assessment Labs</p><h2 id="m05-assessment-lab">Independent Sysmon and keylogger event analysis</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">4</span><div><p class="m05-kicker mf-kicker">Prove It · Assessment Labs</p><h2 id="m05-assessment-lab">Endpoint alert investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m05-section-body mf-section-body">
           <div id="m05-assessment-lab-dynamic">${moduleFiveAssessmentLabPanel()}</div>
         </div>
       </details>
-      ${moduleFiveAdditionalLabs()}
+      <div id="m05-optional-labs-dynamic">${moduleFiveAdditionalLabs()}</div>
 
       <details class="m05-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
         <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">5</span><div><p class="m05-kicker mf-kicker">Module Review</p><h2 id="m05-review">Key concepts and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
@@ -1047,18 +1141,12 @@ function wireModuleFiveGuidedLab() {
   });
 }
 
-function wireModuleFiveAssessmentLabGating(root) {
-  wireMissionNextLabGating(root, moduleFiveState.labProgress, () => {
-    moduleFiveSave();
-    root.innerHTML = moduleFiveAssessmentLabPanel();
-    wireModuleFiveAssessmentLabGating(root);
-  });
-}
+function wireModuleFiveAssessmentLabGating() {}
 
 function wireModuleFiveAssessmentLab() {
   const root = document.getElementById('m05-assessment-lab-dynamic');
   if (!root || !moduleFiveState) return;
-  wireModuleFiveAssessmentLabGating(root);
+  MODULE_FIVE_CONSOLE.wire(root);
 
   root.addEventListener('change', (event) => {
     const input = event.target;
@@ -1079,8 +1167,7 @@ function wireModuleFiveAssessmentLab() {
     if (event.target.closest('[data-m05-save-case]')) {
       moduleFiveState.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
       moduleFiveSave();
-      root.innerHTML = moduleFiveAssessmentLabPanel();
-      wireModuleFiveAssessmentLabGating(root);
+      moduleFiveRenderAssessment();
       return;
     }
 
@@ -1091,22 +1178,48 @@ function wireModuleFiveAssessmentLab() {
       if (missing.length) {
         moduleFiveProveItShowMissing = true;
         moduleFiveSave();
-        root.innerHTML = moduleFiveAssessmentLabPanel();
-        wireModuleFiveAssessmentLabGating(root);
+        moduleFiveRenderAssessment();
         return;
       }
       moduleFiveProveItShowMissing = false;
-      const result = moduleFiveCaseScore();
+      const assessmentState = SocM05AssessmentState.load(moduleFiveUser, SocM05AssessmentData);
+      const scored = SocM05AssessmentScorer.score(assessmentState, SocM05AssessmentData);
       const submittedAt = new Date().toISOString();
+      const attemptNumber = Math.max(Number(moduleFiveState.attempts) || 0, moduleFiveState.assessmentAttempts.length) + 1;
+      const revision = (Number(moduleFiveState.caseRecord.revision) || 0) + 1;
+      const truth = SocM05AssessmentData.scenario.expectedTruth;
+      const reviewPayload = {
+        score: scored.score,
+        rawScore: scored.rawScore,
+        maxScore: scored.maxScore,
+        passed: scored.passed,
+        criticalMisses: scored.criticalMisses,
+        criteria: scored.criteria,
+        rubricVersion: scored.rubricVersion,
+        scenarioId: SocM05AssessmentData.scenario.id,
+        caseId: SocM05AssessmentData.scenario.caseId,
+        entityIdentity: {
+          affectedUser: truth.confirmedUser.value,
+          affectedDevice: truth.confirmedDevice.value,
+          hostname: SocM05AssessmentData.scenario.devices.find((device) => device.id === truth.confirmedDevice.value)?.hostname || '',
+        },
+        revision,
+        attemptNumber,
+        submittedAt,
+      };
+      moduleFiveState.caseRecord.caseId = MODULE_FIVE_CASE_ID;
+      moduleFiveState.caseRecord.scenarioId = SocM05AssessmentData.scenario.id;
+      moduleFiveState.caseRecord.revision = revision;
+      moduleFiveState.caseRecord.attemptNumber = attemptNumber;
+      moduleFiveState.caseRecord.reviewPayload = reviewPayload;
       moduleFiveState.caseRecord.submitted = true;
       moduleFiveState.caseRecord.submittedAt = submittedAt;
       moduleFiveState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: submittedAt });
       moduleFiveState.attempts = (moduleFiveState.attempts || 0) + 1;
+      moduleFiveState.assessmentAttempts.push(JSON.parse(JSON.stringify({ ...reviewPayload, caseRecord: moduleFiveState.caseRecord })));
       moduleFiveState.lastSubmittedAt = submittedAt;
-      moduleFiveState.score = result.score;
-      moduleFiveState.bestScore = Math.max(moduleFiveState.bestScore || 0, result.score);
-      moduleFiveState.breakdown = result.breakdown;
-      moduleFiveState.feedback = result.feedback;
+      moduleFiveState.score = scored.score;
+      moduleFiveState.bestScore = Math.max(moduleFiveState.bestScore || 0, scored.score);
       // No pass/fail gate existed pre-migration — a submitted case was
       // always complete, instructor-reviewed. Unchanged here.
       moduleFiveState.completed = true;
@@ -1118,12 +1231,10 @@ function wireModuleFiveAssessmentLab() {
       if (typeof recordLabAttempt === 'function') {
         recordLabAttempt(moduleFiveUser, MODULE_FIVE_CATALOG_LAB_KEY, {
           state: 'complete',
-          score: result.score,
+          score: scored.score,
           result: {
-            breakdown: result.breakdown,
-            feedback: result.feedback,
-            critical_errors: result.criticalErrors,
-            case_record: moduleFiveState.caseRecord,
+            case_record: JSON.parse(JSON.stringify(moduleFiveState.caseRecord)),
+            review_payload: reviewPayload,
             case_display: caseRecordDisplay(moduleFiveState.caseRecord, spec),
             case_summary: caseRecordSummary(moduleFiveState.caseRecord, spec),
             notes: moduleFiveState.caseRecord.notes,
@@ -1133,8 +1244,7 @@ function wireModuleFiveAssessmentLab() {
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFiveUser, 'soc-analyst', 'soc-05', MODULE_FIVE_CATALOG_LAB_KEY);
       const status = document.getElementById('m05-status');
       if (status) status.textContent = 'Complete';
-      root.innerHTML = moduleFiveAssessmentLabPanel();
-      wireModuleFiveAssessmentLabGating(root);
+      moduleFiveRenderAssessment();
     }
   });
 }
@@ -1146,6 +1256,17 @@ function wireModuleFive() {
   wireModuleFiveLessons();
   wireModuleFiveGuidedLab();
   wireModuleFiveAssessmentLab();
+  wireModuleFiveOptionalLabs();
+}
+
+function wireModuleFiveOptionalLabs() {
+  const root = document.getElementById('m05-optional-labs-dynamic');
+  if (!root || !moduleFiveState) return;
+  wireMissionNextLabGating(root, moduleFiveState.labProgress, () => {
+    moduleFiveSave();
+    root.innerHTML = moduleFiveAdditionalLabs();
+    wireModuleFiveOptionalLabs();
+  });
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 5, moduleKey: 'soc-05',

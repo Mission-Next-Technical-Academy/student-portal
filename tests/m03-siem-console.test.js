@@ -5,9 +5,9 @@
 const fs = require('fs'), vm = require('vm'), path = require('path'), assert = require('assert');
 const PORTAL = path.join(__dirname, '..', 'portal');
 
-const ctx = { console, esc: (s) => String(s ?? ''), moduleThreeState: { console: {} }, MODULE_THREE_FLAG: 'F', MODULE_THREE_CATALOG_LAB_KEY: 'lab-siem-triage' };
+const ctx = { console, esc: (s) => String(s ?? ''), caseRecordMissing: () => [], moduleThreeState: { console: {} }, MODULE_THREE_FLAG: 'F', MODULE_THREE_CATALOG_LAB_KEY: 'lab-siem-triage' };
 vm.createContext(ctx);
-for (const f of ['kql-engine.js', 'soc-analyst-module-03-environment.js']) vm.runInContext(fs.readFileSync(path.join(PORTAL, f), 'utf8'), ctx, { filename: f });
+for (const f of ['kql-engine.js', 'soc-console-core.js', 'soc-kql-search-ui.js', 'soc-evidence-ui.js', 'soc-entity-ui.js', 'soc-timeline-ui.js', 'soc-alert-queue-ui.js', 'soc-analyst-module-03-environment.js']) vm.runInContext(fs.readFileSync(path.join(PORTAL, f), 'utf8'), ctx, { filename: f });
 // JSON round-trip: values from the vm realm have foreign prototypes, which
 // deepStrictEqual treats as unequal.
 const run = (code) => { const v = vm.runInContext(code, ctx); return v === undefined ? v : JSON.parse(JSON.stringify(v)); };
@@ -18,12 +18,77 @@ const t = (name, fn) => { try { fn(); console.log(`  ok   ${name}`); } catch (e)
 const q = (scope, query) => run(`MnKql.evaluate(${JSON.stringify(query)}, M03E_DATA.${scope}.tables, { now: M03E_DATA.${scope}.now })`);
 
 console.log('KQL engine');
+t('alert queue preserves case caption, descending time, severity, entities, and selected row', () => {
+  const alerts = run('M03E_DATA.prove.alerts');
+  ctx.moduleThreeState.console.prove = { selected: { type: 'alert', id: 'ALT-5171' } };
+  const html = run("m03eAlertsView('prove')");
+  assert.match(html, /<caption>ALERT QUEUE · CASE-MN-517 · 2026-09-21<\/caption>/);
+  const ids = [...html.matchAll(/data-m03e-select="prove:alert:(ALT-\d+)"/g)].map((match) => match[1]);
+  assert.deepStrictEqual(ids, ['ALT-5172', 'ALT-5173', 'ALT-5171', 'ALT-5170']);
+  assert.match(html, /<tr class="is-selected" data-m03e-select="prove:alert:ALT-5171" tabindex="0">/);
+  assert.match(html, /m03e-sev m03e-sev-medium/);
+  assert.match(html, /t\.nguyen, 198\.51\.100\.140/);
+  assert.deepStrictEqual(run('M03E_DATA.prove.alerts').map((alert) => alert.id), alerts.map((alert) => alert.id));
+});
+t('alert details preserve detection metadata, query, and entity actions', () => {
+  ctx.moduleThreeState.console.prove = { selected: { type: 'alert', id: 'ALT-5171' } };
+  const html = run("m03eDrawer('prove')");
+  assert.match(html, /<p class="m03e-label">ALERT<\/p>/);
+  assert.match(html, /<h4>Detection rule<\/h4>/);
+  assert.match(html, /<pre class="m03e-code">/);
+  assert.match(html, /data-m03e-hunt="prove"/);
+  assert.match(html, /data-m03e-show-timeline="prove:/);
+});
+t('shared shell preserves the assessment console structure', () => {
+  ctx.moduleThreeState.console.practice = { tab: 'search', pins: ['A-1006'] };
+  const practice = run("m03eState('practice')");
+  assert.strictEqual(practice.tab, 'search');
+  assert.deepStrictEqual(practice.pins, ['A-1006']);
+  assert.strictEqual(ctx.moduleThreeState.console.practice.tab, 'search');
+
+  const html = run("moduleThreeConsoleHtml('prove')");
+  assert.match(html, /<section class="m03e-console" aria-label="SIEM and log analysis console">/);
+  assert.match(html, /<nav role="tablist">/);
+  assert.match(html, /<div class="m03e-workspace"><div class="m03e-view">/);
+  assert.match(html, /<aside class="m03e-drawer"/);
+  assert.deepStrictEqual(Object.keys(ctx.moduleThreeState.console).sort(), ['practice', 'prove']);
+  ctx.moduleThreeState.console.prove.queryLog = [{ at: '09:00', query: 'AuthLog | take 1', rows: 1, sources: ['AuthLog'], pivot: false }];
+  assert.match(run("m03eSearchView('prove')"), /Query history · 1/);
+  ctx.moduleThreeState.console.prove.pins = ['A-5001'];
+  assert.match(run("m03eEvidenceView('prove')"), /PINNED EVIDENCE · 1/);
+  assert.match(run("m03ePinButton('prove', 'A-5001')"), /aria-pressed="true"/);
+  assert.match(run("m03eEntitiesView('prove')"), /data-m03e-entitykind="prove:account"/);
+  ctx.moduleThreeState.console.prove.selected = { type: 'account', id: 'm.ortiz' };
+  const entityProfile = run("m03eDrawer('prove')");
+  assert.match(entityProfile, /m\.ortiz/);
+  assert.match(entityProfile, /data-m03e-hunt="prove"/);
+  ctx.moduleThreeState.console.prove.timelineEntity = 'm.ortiz';
+  const timeline = run("m03eTimelineView('prove')");
+  assert.match(timeline, /data-m03e-timeline="prove"/);
+  assert.match(timeline, /class="m03e-tl-item/);
+  assert.match(timeline, /data-m03e-pin="prove:/);
+});
+t('entity profiles use normalized pivot queries and retain timeline actions', () => {
+  const cases = [
+    ['account', 'acct-428', 'Account', 'Hunt this account', true],
+    ['ip', '198.51.100.18', 'SourceIp', 'Hunt this IP', true],
+    ['host', 'billing-app', 'Host', 'Hunt this host', false],
+  ];
+  for (const [kind, id, field, label, hasTimeline] of cases) {
+    ctx.moduleThreeState.console.practice.selected = { type: kind, id };
+    const html = run("m03eDrawer('practice')");
+    const query = `UnifiedEvents\n| where ${field} == "${id}"\n| sort by TimeGenerated asc`;
+    assert.ok(html.includes(`data-m03e-hunt="practice" data-query="${query}"`), kind);
+    assert.ok(html.includes(`${label}</button>`), kind);
+    assert.strictEqual(html.includes(`data-m03e-show-timeline="practice:${id}"`), hasTimeline, kind);
+  }
+});
 t('unknown table is an explicit error', () => assert.match(q('practice', 'Nope | take 5').error, /Unknown table/));
 t('unsupported operator is an explicit error', () => assert.match(q('practice', 'AuthLog | frobnicate x').error, /Unsupported operator/));
 t('where + sort asc returns ordered rows', () => {
   const r = q('practice', 'AuthLog\n| where Account == "acct-428"\n| sort by TimeGenerated asc');
-  assert.strictEqual(r.rows.length, 5);
-  assert.deepStrictEqual(r.rows.map((x) => x.EventId), ['A-1001', 'A-1003', 'A-1004', 'A-1005', 'A-1006']);
+  assert.strictEqual(r.rows.length, 3);
+  assert.deepStrictEqual(r.rows.map((x) => x.EventId), ['A-1001', 'A-1003', 'A-1006']);
 });
 t('project keeps hidden record id but not as a column', () => {
   const r = q('practice', 'UnifiedEvents | where SessionId == "S-8841" | project TimeGenerated, EventSource');
@@ -31,8 +96,8 @@ t('project keeps hidden record id but not as a column', () => {
   assert.deepStrictEqual(r.cols, ['TimeGenerated', 'EventSource']);
 });
 t('summarize count by', () => {
-  const r = q('practice', 'UnifiedEvents | where SourceIp == "198.51.100.24" | summarize Events = count() by Account');
-  assert.deepStrictEqual(r.rows.map((x) => [x.Account, x.Events]), [['acct-428', 7]]);
+  const r = q('practice', 'UnifiedEvents | where SourceIp == "198.51.100.18" | summarize Events = count() by Account');
+  assert.deepStrictEqual(r.rows.map((x) => [x.Account, x.Events]), [['acct-428', 5]]);
 });
 t('distinct, count, dcount, between, ago on lab clock', () => {
   assert.strictEqual(q('prove', 'AuthLog | where Result == "Failure" | distinct SourceIp').rows.length, 2);
@@ -61,11 +126,11 @@ t('session step needs 3+ sources', () => {
   assert.ok(!stepPasses('session', 'AuthLog | where SessionId == "S-8841"'));
 });
 t('scope step needs an aggregate over the attacker IP', () => {
-  assert.ok(stepPasses('scope', 'UnifiedEvents | where SourceIp == "198.51.100.24" | summarize count() by Account'));
-  assert.ok(!stepPasses('scope', 'UnifiedEvents | where SourceIp == "198.51.100.24"'));
+  assert.ok(stepPasses('scope', 'UnifiedEvents | where SourceIp == "198.51.100.18" | summarize count() by Account'));
+  assert.ok(!stepPasses('scope', 'UnifiedEvents | where SourceIp == "198.51.100.18"'));
 });
 t('pin step needs the three chain records', () => {
-  assert.ok(stepPasses('pin', null, { pins: ['A-1006', 'D-2001', 'P-3002'] }));
+  assert.ok(stepPasses('pin', null, { pins: ['A-1003', 'A-1006', 'D-2001', 'P-3001', 'S-4001'] }));
   assert.ok(!stepPasses('pin', null, { pins: ['A-1006'] }));
 });
 

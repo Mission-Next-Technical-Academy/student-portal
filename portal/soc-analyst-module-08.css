@@ -207,6 +207,50 @@
 .m08-shell .m08-review-section li { margin: 6px 0; }
 .m08-shell .m08-review-section strong { color: #1e3a5f; font-weight: 700; }
 .m08-shell .m08-review-section p { margin: 12px 0 0; color: #475569; font: 12px/1.65 Inter, sans-serif; }
+.m08-shell .m08-assessment-findings { margin: 0 0 24px; padding: 18px; background: #fff; border: 1px solid #dbe3ed; border-radius: 8px; }
+.m08-shell .m08-assessment-findings > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.m08-shell .m08-assessment-findings h3, .m08-shell .m08-assessment-findings h4 { margin: 3px 0; color: #1e3a5f; }
+.m08-shell .m08-assessment-findings > header > span { color: #64748b; font: 700 11px Inter, sans-serif; }
+.m08-shell .m08-assessment-filters { display: grid; grid-template-columns: repeat(6, minmax(110px, 1fr)); gap: 8px; margin: 0 0 14px; }
+.m08-shell .m08-assessment-filters label { display: grid; gap: 4px; color: #475569; font-size: 10px; font-weight: 700; }
+.m08-shell .m08-assessment-filters input, .m08-shell .m08-assessment-filters select { width: 100%; min-width: 0; min-height: 34px; padding: 6px; color: #334155; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; font: 11px Inter, sans-serif; }
+.m08-shell .m08-assessment-finding-layout { display: grid; grid-template-columns: minmax(220px, .7fr) minmax(0, 1.8fr); gap: 14px; }
+.m08-shell .m08-assessment-finding-list { display: grid; align-content: start; gap: 6px; }
+.m08-shell .m08-assessment-finding-list > button { min-width: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; text-align: left; color: #334155; background: #fff; border: 1px solid #dbe3ed; border-radius: 5px; cursor: pointer; }
+.m08-shell .m08-assessment-finding-list > button[aria-current="true"] { border-color: #1e3a5f; box-shadow: inset 3px 0 #f97316; }
+.m08-shell .m08-assessment-finding-list strong, .m08-shell .m08-assessment-finding-list small { display: block; overflow-wrap: anywhere; }
+.m08-shell .m08-assessment-finding-list small { margin-top: 3px; color: #64748b; font-size: 10px; }
+.m08-shell .m08-assessment-review-state { flex: 0 0 auto; color: #475569; font-size: 10px; }
+.m08-shell .m08-assessment-finding-detail { min-width: 0; padding: 14px; background: #f8fafc; border: 1px solid #dbe3ed; border-radius: 6px; }
+.m08-shell .m08-assessment-finding-heading { display: flex; justify-content: space-between; gap: 10px; }
+.m08-shell .m08-assessment-finding-heading code { overflow-wrap: anywhere; color: #64748b; font-size: 10px; }
+.m08-shell .m08-assessment-finding-detail dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.m08-shell .m08-assessment-finding-detail dl > div { min-width: 0; padding: 8px; background: #fff; border: 1px solid #e2e8f0; }
+.m08-shell .m08-assessment-finding-detail dt { color: #64748b; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.m08-shell .m08-assessment-finding-detail dd { margin: 4px 0 0; color: #334155; font-size: 11px; overflow-wrap: anywhere; }
+.m08-shell .m08-assessment-priority-note { padding: 9px; color: #334155; background: #fff; border-left: 3px solid #f97316; font-size: 11px; }
+.m08-shell .m08-assessment-evidence { display: grid; gap: 6px; margin: 12px 0; }
+.m08-shell .m08-assessment-evidence h5, .m08-shell .m08-assessment-finding-detail form h5 { margin: 4px 0; color: #1e3a5f; }
+.m08-shell .m08-assessment-evidence article { padding: 9px; background: #fff; border-left: 2px solid #f97316; }
+.m08-shell .m08-assessment-evidence article strong, .m08-shell .m08-assessment-evidence article span { display: block; color: #475569; font-size: 10px; }
+.m08-shell .m08-assessment-evidence article p { margin: 4px 0 0; color: #64748b; font-size: 10px; line-height: 1.5; }
+.m08-shell .m08-assessment-finding-detail form { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid #dbe3ed; }
+.m08-shell .m08-assessment-finding-detail form > label { display: grid; gap: 4px; color: #475569; font-size: 10px; font-weight: 700; }
+.m08-shell .m08-assessment-finding-detail select, .m08-shell .m08-assessment-finding-detail textarea { width: 100%; min-height: 34px; padding: 7px; color: #334155; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; font: 11px Inter, sans-serif; }
+.m08-shell .m08-assessment-finding-detail textarea { min-height: 64px; resize: vertical; }
+.m08-shell .m08-assessment-finding-detail fieldset { display: grid; gap: 5px; border: 1px solid #cbd5e1; }
+.m08-shell .m08-assessment-finding-detail fieldset label { color: #475569; font-size: 10px; overflow-wrap: anywhere; }
+.m08-shell .m08-assessment-finding-detail form > button { width: fit-content; min-height: 34px; padding: 7px 11px; color: #fff; background: #1e3a5f; border: 0; border-radius: 4px; font: 700 10px Inter, sans-serif; cursor: pointer; }
+.m08-shell .m08-assessment-followups { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #dbe3ed; }
+.m08-shell .m08-assessment-followups h5 { margin: 4px 0; color: #1e3a5f; }
+.m08-shell .m08-assessment-followups form { display: grid; gap: 8px; min-width: 0; padding: 10px; background: #fff; border: 1px solid #dbe3ed; }
+.m08-shell .m08-assessment-followups form > p { margin: 0; overflow-wrap: anywhere; color: #475569; font-size: 10px; }
+.m08-shell .m08-assessment-followups form > label { display: grid; gap: 4px; color: #475569; font-size: 10px; font-weight: 700; }
+.m08-shell .m08-assessment-followups textarea { width: 100%; min-height: 58px; padding: 7px; resize: vertical; color: #334155; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; font: 11px Inter, sans-serif; }
+.m08-shell .m08-assessment-followups fieldset { display: grid; gap: 5px; min-width: 0; border: 1px solid #cbd5e1; }
+.m08-shell .m08-assessment-followups fieldset label { overflow-wrap: anywhere; color: #475569; font-size: 10px; }
+.m08-shell .m08-assessment-followups form > button { width: fit-content; min-height: 34px; padding: 7px 11px; color: #fff; background: #1e3a5f; border: 0; border-radius: 4px; font: 700 10px Inter, sans-serif; cursor: pointer; }
+.m08-shell [data-m08-review-status] { color: #166534; font: 11px Inter, sans-serif; }
 .m08-shell :focus-visible { outline: 3px solid rgba(249, 115, 22, .38); outline-offset: 2px; }
 
 @media (max-width: 1000px) {
@@ -215,6 +259,8 @@
 }
 
 @media (max-width: 800px) {
+  .m08-shell .m08-assessment-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .m08-shell .m08-assessment-finding-layout { grid-template-columns: 1fr; }
   .m08-shell .m08-concept-grid { grid-template-columns: repeat(2, 1fr); }
   .m08-shell .m08-two-column { grid-template-columns: 1fr; }
   .m08-shell .m08-score-grid { grid-template-columns: repeat(2, 1fr); }
@@ -231,7 +277,12 @@
   .m08-shell .m08-cvss { display: grid !important; }
 }
 
+@media (max-width: 420px) {
+  .m08-shell .m08-assessment-filters { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 620px) {
+  .m08-shell .m08-assessment-findings { padding: 12px; }
   .m08-shell .m08-main { width: min(100% - 24px, 1180px); padding-top: 22px; }
   .m08-shell .m08-topbar { padding-inline: 14px; }
   .m08-shell .m08-brand img { height: 34px; }

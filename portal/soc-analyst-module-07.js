@@ -20,24 +20,16 @@ const MODULE_SEVEN_PRIMARY_CATALOG_KEY = MODULE_SEVEN_CATALOG_LAB_KEYS[MODULE_SE
 // portal/imported-labs/mission-next-labs/src/data.js: one incident chain —
 // web-shell foothold -> persistent GRE tunnel -> anonymous-FTP exfiltration.
 const MODULE_SEVEN_CASE_ID = 'NEC-0731';
+// The ticket's entities are the M07 assessment case's own recipients and devices.
 const MODULE_SEVEN_ENTITY_ROSTER = {
   users: [
-    { id: 'svc-webapp01', tier: 'principal' },
-    { id: 'd.kwan', tier: 'pivot' },
-    { id: 't.alvarez', tier: 'noise' },
-    { id: 'r.nakamura', tier: 'noise' },
-    { id: 'm.owusu', tier: 'noise' },
-    { id: 'c.ferreira', tier: 'noise' },
-    { id: 'guest-conf01', tier: 'noise' },
+    { id: 'acct-63', tier: 'principal' },
+    { id: 'acct-82', tier: 'pivot' },
+    { id: 'acct-17', tier: 'noise' },
   ],
   devices: [
-    { id: 'SRV-WEB07', tier: 'principal' },
-    { id: 'FTP-DC02', tier: 'pivot' },
-    { id: 'WKS-118', tier: 'noise' },
-    { id: 'WKS-244', tier: 'noise' },
-    { id: 'DB-PROD03', tier: 'noise' },
-    { id: 'PRT-SVC01', tier: 'noise' },
-    { id: 'LAP-902', tier: 'noise' },
+    { id: 'WS-517', tier: 'principal' },
+    { id: 'WS-204', tier: 'noise' },
   ],
 };
 const MODULE_SEVEN_DEPARTMENT_OPTIONS = [
@@ -389,6 +381,8 @@ const MODULE_SEVEN_SOURCES_LIST = [
 
 let moduleSevenState = null;
 let moduleSevenUser = null;
+let moduleSevenAssessmentState = null;
+let moduleSevenAssessmentNetworkFilters = { query: '', type: 'all', device: '' };
 let moduleSevenReviewMode = false;
 let moduleSevenQuizState = null;
 // Set when the learner explicitly asks to retake a knowledge check that the
@@ -439,7 +433,7 @@ function moduleSevenProveItSpec() {
     userOptions: MODULE_SEVEN_ENTITY_ROSTER.users.map((entry) => ({ id: entry.id, text: entry.id })),
     deviceOptions: MODULE_SEVEN_ENTITY_ROSTER.devices.map((entry) => ({ id: entry.id, text: entry.id })),
     departmentOptions: MODULE_SEVEN_DEPARTMENT_OPTIONS,
-    notesPlaceholder: 'Summarize what the tunnel-log and HTTP-log modules surfaced, your analysis, and your recommended action…',
+    notesPlaceholder: 'Summarize the confirmed delivery chain, what remains unverified, the noise you excluded, and your recommended action…',
     saveAttr: 'data-m07-save-proveit',
     submitAttr: 'data-m07-submit-proveit',
     lockedMessage: 'Module 8 stays locked until your instructor approves the submission.',
@@ -502,6 +496,9 @@ function moduleSevenProveItPerformance() {
 function moduleSevenLoad(user) {
   if (moduleSevenUser?.email !== user?.email) moduleSevenQuizForceRetake = false;
   moduleSevenUser = user;
+  if (typeof SocM07AssessmentState !== 'undefined' && typeof SocM07AssessmentData !== 'undefined') {
+    moduleSevenAssessmentState = SocM07AssessmentState.load(user, SocM07AssessmentData);
+  }
   const defaults = moduleSevenFreshState();
   moduleSevenState = LabRuntime.loadCaseState(MODULE_SEVEN_LAB_ID, 'soc-07', user, defaults);
   ['feedback', 'flags'].forEach((key) => {
@@ -738,37 +735,132 @@ function moduleSevenGuidedLabPanel() {
   </section>`;
 }
 
-function moduleSevenAssessmentLabPanel() {
-  const labs = [
-    { title: 'Tunnel Log Analysis — GRE Covert Channel Detection', detail: 'Independent tunnel/GRE log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/gre-tunnel-log-analysis', labId: 'assessment-1' },
-    { title: 'HTTP Log Analysis', detail: 'Web attack detection in HTTP access logs', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis', labId: 'assessment-2' },
+/* The Module 3 console carrying Modules 4–6 on this case, plus Email and
+ * Network. Mail, DNS, TLS, firewall, proxy and process records are also
+ * normalized into Log Search tables. */
+const MODULE_SEVEN_CONSOLE_DATA = (function () {
+  const s = SocM07AssessmentData.scenario;
+  const message = s.messages[0];
+  const row = (source, id, time, fields) => m03eRow(source, id, time.slice(0, 10), time.slice(11, 19), fields);
+  const related = (e) => [e.relatedRecipientEventId, e.relatedDnsEventId, e.relatedTlsEventId, e.relatedProxyEventId].filter(Boolean);
+  const events = [
+    ...s.deliveryEvents.map((e) => row('EmailEvents', e.id, e.timestamp, {
+      EventType: 'message_delivery', Account: e.recipientId, Subject: message.subject, Sender: message.from.address, ReturnPath: message.returnPath, ReplyTo: message.replyTo,
+      Spf: message.authentication.spf, Dkim: message.authentication.dkim, Dmarc: message.authentication.dmarc, Result: e.status, NetworkMessageId: e.messageId, Detail: `${message.subject} from ${message.from.address}`,
+    })),
+    ...s.recipientEvents.map((e) => row('EmailInteractionEvents', e.id, e.timestamp, {
+      EventType: e.type, Account: e.recipientId, Host: e.deviceId, DeviceId: e.deviceId, NetworkMessageId: e.messageId, UrlId: e.urlId, Result: 'observed', Detail: `${e.type} on ${e.deviceId}`,
+    })),
+    ...s.networkEvents.map((e) => row({ dns_query: 'DnsEvents', tls_session: 'TlsEvents', firewall_flow: 'FirewallEvents', proxy_request: 'ProxyEvents' }[e.type] || 'NetworkEvents', e.id, e.timestamp, {
+      EventType: e.type, Account: e.recipientId, Host: e.deviceId, DeviceId: e.deviceId, Domain: e.domain || e.sni || '', Answers: (e.answers || []).join(', '),
+      SourceIp: e.sourceIp || '', DestinationIp: e.destinationIp || '', DestinationPort: e.destinationPort || '', Url: e.url || '', Result: e.action || e.status || 'observed',
+      RelatedEventIds: related(e), Detail: e.url || (e.domain ? `${e.domain} → ${(e.answers || []).join(', ')}` : `${e.destinationIp}:${e.destinationPort}`),
+    })),
+    ...s.endpointProcessEvents.map((e) => row('DeviceProcessEvents', e.id, e.timestamp, {
+      EventType: e.type, Account: e.recipientId, Host: e.deviceId, DeviceId: e.deviceId, Image: e.imagePath, CommandLine: e.commandLine, ParentProcess: e.parentProcessName,
+      ProcessId: e.processName, ParentProcessId: e.parentProcessName,
+      Result: 'success', RelatedEventIds: related(e), Detail: e.commandLine,
+    })),
   ];
-  const gateOk = missionNextAllLabsComplete(moduleSevenState.labProgress, MODULE_SEVEN_COMPLETION_LAB_IDS);
-  const performance = moduleSevenProveItPerformance();
-  return `<section class="m07-external-lab" id="m07-assessment-lab-panel">
-    <p class="m07-panel-instruction">Complete both imported assessment log-analysis modules below, then work the incident ticket for instructor review.</p>
-    ${missionNextLabLaunchGroup(7, 'assessment', labs, moduleSevenState.labProgress)}
-    ${!gateOk ? `<p class="m07-help" role="status">Mark both assessment labs and the required FTP log analysis lab (below) complete before submitting.</p>` : ''}
-    ${caseRecordPane(moduleSevenState.caseRecord, {
-      ...moduleSevenProveItSpec(),
-      missing: performance.missing,
-      reviewStatus: moduleSevenProveItReviewStatus(),
-      redoRequested: moduleSevenProveItRedoRequested(),
-      redoHtml: moduleSevenProveItRedoFeedback(),
-      showMissing: moduleSevenProveItShowMissing,
-    })}
-  </section>`;
+  return {
+    ...m03eBuildDataset({
+      caseId: MODULE_SEVEN_CASE_ID,
+      day: s.start.slice(0, 10),
+      events,
+      identities: ['acct-63', 'acct-82', 'acct-17'].map((account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' })),
+      ips: [
+        { SourceIp: '203.0.113.88', Type: 'External', Country: '—', Asn: 'Unclassified hosting', FirstSeen: '2026-09-27 10:08', Reputation: 'No reputation data' },
+        { SourceIp: '198.51.100.24', Type: 'External', Country: '—', Asn: 'Northwind payroll SaaS', FirstSeen: '2025-02-01 08:00', Reputation: 'Known business service' },
+      ],
+      watchlists: {},
+      alerts: [
+        { id: 'ALT-7101', time: '2026-09-27T10:03:05Z', severity: 'Medium', title: 'Inbound message failed DMARC alignment', entities: [message.from.address], rule: 'Mail gateway: DMARC fail on an external message', query: 'EmailEvents\n| where Dmarc == "fail"' },
+      ],
+    }),
+    now: s.end,
+  };
+}());
+const MODULE_SEVEN_DEVICES = [
+  { id: 'WS-517', hostname: 'WS-517', platform: 'Windows 11', role: 'User workstation', owner: 'acct-63', zone: 'CORP-USER', status: 'Online' },
+  { id: 'WS-204', hostname: 'WS-204', platform: 'Windows 11', role: 'User workstation', owner: 'acct-17', zone: 'CORP-USER', status: 'Online' },
+];
+const MODULE_SEVEN_TOOL_FIXTURES = {
+  m04: SocConsoleTools.m04Fixture({ id: SocM07AssessmentData.scenario.id, caseId: MODULE_SEVEN_CASE_ID, end: SocM07AssessmentData.scenario.end, data: MODULE_SEVEN_CONSOLE_DATA }),
+  m05: SocConsoleTools.m05Fixture({ id: SocM07AssessmentData.scenario.id, stateKey: 'm07-endpoint-tools-v1', devices: MODULE_SEVEN_DEVICES, data: MODULE_SEVEN_CONSOLE_DATA }),
+  m06: SocConsoleTools.m06Fixture({
+    id: SocM07AssessmentData.scenario.id,
+    lead: { id: 'M07-LEAD-001', type: 'suspected_delivery_chain', device: 'WS-517', account: 'acct-63', taskName: '—', observation: 'An external invoice message failed DMARC alignment and may have reached a user.' },
+    devices: ['WS-517', 'WS-204'], data: MODULE_SEVEN_CONSOLE_DATA, timeStart: SocM07AssessmentData.scenario.start, timeEnd: SocM07AssessmentData.scenario.end,
+  }),
+};
+
+function moduleSevenM04Tools() {
+  moduleSevenState.tools ||= {};
+  if (!moduleSevenState.tools.m04?.schemaVersion) moduleSevenState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleSevenState.tools.m04 }, MODULE_SEVEN_TOOL_FIXTURES.m04).assessment;
+  return moduleSevenState.tools.m04;
 }
 
+const MODULE_SEVEN_CONSOLE = (() => {
+  const base = { save: () => moduleSevenSave(), rerender: () => moduleSevenRenderAssessmentPanel(), console: () => m03eState('m07') };
+  const tool = (key, normalize) => SocConsoleTools.embedded(() => moduleSevenState, key, normalize, MODULE_SEVEN_TOOL_FIXTURES[key], () => moduleSevenSave());
+  return SocConsoleTools.mount('m07', {
+    data: MODULE_SEVEN_CONSOLE_DATA,
+    stateRoot: () => moduleSevenState,
+    save: () => moduleSevenSave(),
+    title: 'SIEM & NETWORK / EMAIL ANALYSIS',
+    ariaLabel: 'Module 07 network and email assessment console',
+    sourceMappings: {
+      EmailEvents: { native: 'Mail gateway message trace (JSON)', fields: [['received', 'TimeGenerated'], ['recipient', 'Account'], ['subject', 'Subject'], ['from', 'Sender'], ['return_path', 'ReturnPath'], ['reply_to', 'ReplyTo'], ['spf', 'Spf'], ['dkim', 'Dkim'], ['dmarc', 'Dmarc'], ['delivery', 'Result']] },
+      EmailInteractionEvents: { native: 'Mailbox interaction audit (JSON)', fields: [['timestamp', 'TimeGenerated'], ['recipient', 'Account'], ['device', 'DeviceId'], ['action', 'EventType'], ['url_id', 'UrlId']] },
+      DnsEvents: { native: 'Resolver query log (text)', fields: [['ts', 'TimeGenerated'], ['client', 'DeviceId'], ['query', 'Domain'], ['answers', 'Answers']] },
+      TlsEvents: { native: 'TLS session log (JSON)', fields: [['ts', 'TimeGenerated'], ['client', 'DeviceId'], ['server_ip', 'DestinationIp'], ['port', 'DestinationPort'], ['sni', 'Domain']] },
+      FirewallEvents: { native: 'Perimeter firewall flows (key=value)', fields: [['ts', 'TimeGenerated'], ['src', 'SourceIp'], ['dst', 'DestinationIp'], ['dport', 'DestinationPort'], ['action', 'Result']] },
+      ProxyEvents: { native: 'Web proxy access log (text)', fields: [['ts', 'TimeGenerated'], ['client', 'DeviceId'], ['url', 'Url'], ['status', 'Result']] },
+      DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['user', 'Account'], ['image', 'Image'], ['command_line', 'CommandLine'], ['parent', 'ParentProcess']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleSevenM04Tools, fixture: MODULE_SEVEN_TOOL_FIXTURES.m04 } },
+      { id: 'm05', ctx: { ...base, fixture: MODULE_SEVEN_TOOL_FIXTURES.m05, ...tool('m05', SocM05AssessmentState.normalize) } },
+      { id: 'm06', ctx: { ...base, fixture: MODULE_SEVEN_TOOL_FIXTURES.m06, ...tool('m06', SocM06AssessmentState.normalize) } },
+      { id: 'm07', ctx: {
+        ...base, fixture: SocM07AssessmentData, ui: { networkFilters: moduleSevenAssessmentNetworkFilters },
+        box: { get state() { return moduleSevenAssessmentState; }, set state(value) { moduleSevenAssessmentState = value; } },
+        store: (next) => SocM07AssessmentState.save(moduleSevenUser, next, SocM07AssessmentData),
+      } },
+    ],
+    caseView: () => moduleSevenCaseTicket(),
+    caseBadge: () => (moduleSevenState.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+  });
+})();
+
+function moduleSevenCaseTicket() {
+  const cr = moduleSevenState.caseRecord;
+  const spec = moduleSevenProveItSpec();
+  return `${caseRecordPane(cr, {
+    ...spec,
+    missing: caseRecordMissing(cr, spec),
+    reviewStatus: moduleSevenProveItReviewStatus(),
+    redoRequested: moduleSevenProveItRedoRequested(),
+    redoHtml: moduleSevenProveItRedoFeedback(),
+    showMissing: moduleSevenProveItShowMissing,
+  })}${cr.submitted && cr.reviewPayload ? `<section class="m04-assessment-review" data-m07-submitted-review><h4>Assessment review</h4><p><strong>${esc(cr.reviewPayload.score)}/${esc(cr.reviewPayload.maxScore)} points</strong></p><ol>${(cr.reviewPayload.criteria || []).map((criterion) => `<li><strong>${esc(criterion.label)}: ${esc(criterion.points)}/${esc(criterion.max)}</strong></li>`).join('')}</ol></section>` : ''}`;
+}
+
+function moduleSevenAssessmentLabPanel() {
+  return `<div class="m03e-panel" id="m07-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_SEVEN_CASE_ID)} · SUSPECTED DELIVERY CHAIN · ASSIGNED TO YOU</p><p>The mail gateway flagged an external invoice message. Your lead’s request: <em>“Tell me who actually got it, what they did with it, and what their machine did next — and keep what we can prove separate from what we can’t.”</em> Validate the sender and authentication, inspect the URL, determine delivery and recipient scope, correlate the user action with endpoint and DNS/TLS/network activity, separate it from nearby noise, preserve email and network evidence, create or update the incident, and complete the ITSM ticket.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m07">${moduleThreeConsoleHtml('m07')}</div>
+  </div>`;
+}
+
+const MODULE_SEVEN_OPTIONAL_LABS = [
+  { title: 'Tunnel Log Analysis — GRE Covert Channel Detection', detail: 'Independent tunnel/GRE log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/gre-tunnel-log-analysis', labId: 'assessment-1' },
+  { title: 'HTTP Log Analysis', detail: 'Web attack detection in HTTP access logs', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/http-log-analysis', labId: 'assessment-2' },
+  { title: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', detail: 'Supplementary log-analysis practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ftp-log-analysis', labId: 'additional-ftp-log-analysis' },
+];
+
 function moduleSevenAdditionalLabs() {
-  const labs = [
-    { title: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', detail: 'Optional supplementary log-analysis practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ftp-log-analysis', labId: 'additional-ftp-log-analysis' },
-  ];
-  return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-7">
-    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-7">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
-    <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Complete them for credit alongside the Guided Lab and Assessment Lab.</p>
-    <div id="m07-additional-lab-dynamic">${missionNextLabLaunchGroup(7, 'additional', labs, moduleSevenState.labProgress)}</div>
-  </section>`;
+  return `<div id="m07-additional-lab-dynamic">${missionNextOptionalLabsSection(7, MODULE_SEVEN_OPTIONAL_LABS, moduleSevenState.labProgress)}</div>`;
 }
 
 function viewModuleSeven(user, program) {
@@ -953,37 +1045,26 @@ function wireModuleSevenAdditionalLabGating() {
   if (!root || !moduleSevenState) return;
   wireMissionNextLabGating(root, moduleSevenState.labProgress, () => {
     moduleSevenSave();
-    root.innerHTML = missionNextLabLaunchGroup(7, 'additional', [
-      { title: 'FTP Log Analysis — Anonymous Access & Data Exfiltration', detail: 'Optional supplementary log-analysis practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ftp-log-analysis', labId: 'additional-ftp-log-analysis' },
-    ], moduleSevenState.labProgress);
+    root.outerHTML = moduleSevenAdditionalLabs();
     wireModuleSevenAdditionalLabGating();
-    const assessmentRoot = document.getElementById('m07-assessment-lab-dynamic');
-    if (assessmentRoot) {
-      assessmentRoot.innerHTML = moduleSevenAssessmentLabPanel();
-      wireModuleSevenAssessmentLabGating(assessmentRoot);
-    }
   });
 }
 
-function wireModuleSevenAssessmentLabGating(root) {
-  wireMissionNextLabGating(root, moduleSevenState.labProgress, () => {
-    moduleSevenSave();
-    root.innerHTML = moduleSevenAssessmentLabPanel();
-    wireModuleSevenAssessmentLabGating(root);
-  });
-}
+function wireModuleSevenAssessmentLabGating() {}
 
 function moduleSevenRenderAssessmentPanel(focusId) {
   const root = document.getElementById('m07-assessment-lab-dynamic');
   if (!root) return;
   root.innerHTML = moduleSevenAssessmentLabPanel();
-  wireModuleSevenAssessmentLabGating(root);
+  m03eAttachEditor('m07');
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
 function moduleSevenFinalizeProveIt() {
-  const performance = moduleSevenProveItPerformance();
   if (moduleSevenState.caseRecord.submitted) return;
+  const missing = caseRecordMissing(moduleSevenState.caseRecord, moduleSevenProveItSpec());
+  const scored = SocM07AssessmentScorer.score(SocM07AssessmentState.load(moduleSevenUser, SocM07AssessmentData), SocM07AssessmentData);
+  const performance = { missing, score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses || [] };
   if (performance.missing.length) {
     moduleSevenProveItShowMissing = true;
     moduleSevenRenderAssessmentPanel('m07-review-submission');
@@ -993,6 +1074,10 @@ function moduleSevenFinalizeProveIt() {
   const now = new Date().toISOString();
   moduleSevenState.caseRecord.submitted = true;
   moduleSevenState.caseRecord.submittedAt = now;
+  moduleSevenState.caseRecord.caseId = MODULE_SEVEN_CASE_ID;
+  moduleSevenState.caseRecord.scenarioId = SocM07AssessmentData.scenario.id;
+  moduleSevenState.caseRecord.reviewPayload = { ...JSON.parse(JSON.stringify(scored)), caseId: MODULE_SEVEN_CASE_ID, scenarioId: SocM07AssessmentData.scenario.id };
+  moduleSevenState.score = scored.score;
   moduleSevenState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: now });
   moduleSevenState.attempts = (moduleSevenState.attempts || 0) + 1;
   moduleSevenState.lastSubmittedAt = now;
@@ -1006,8 +1091,10 @@ function moduleSevenFinalizeProveIt() {
       state: 'complete',
       score: performance.score,
       result: {
+        rubric_version: scored.rubricVersion,
         breakdown: performance.breakdown,
         feedback: performance.feedback,
+        review_payload: moduleSevenState.caseRecord.reviewPayload,
         critical_errors: performance.criticalErrors,
         case_record: moduleSevenState.caseRecord,
         case_display: caseRecordDisplay(moduleSevenState.caseRecord, caseSpec),
@@ -1025,7 +1112,7 @@ function moduleSevenFinalizeProveIt() {
 function wireModuleSevenAssessmentLab() {
   const root = document.getElementById('m07-assessment-lab-dynamic');
   if (!root || !moduleSevenState) return;
-  wireModuleSevenAssessmentLabGating(root);
+  MODULE_SEVEN_CONSOLE.wire(root);
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m07-submit-proveit]')) { moduleSevenFinalizeProveIt(); return; }
     if (event.target.closest('[data-m07-save-proveit]')) {
@@ -1036,7 +1123,8 @@ function wireModuleSevenAssessmentLab() {
   });
   root.addEventListener('change', (event) => {
     const input = event.target;
-    if (!input.name || moduleSevenState.caseRecord.submitted) return;
+    // Only the ITSM ticket form writes ticket fields.
+    if (!input.name || !input.closest('#m07-assessment-form') || moduleSevenState.caseRecord.submitted) return;
     if (caseRecordApply(moduleSevenState.caseRecord, input.name, input.value)) {
       moduleSevenState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
       moduleSevenSave();
@@ -1045,7 +1133,7 @@ function wireModuleSevenAssessmentLab() {
   });
   root.addEventListener('input', (event) => {
     const field = event.target;
-    if (field.tagName === 'TEXTAREA' && field.name === 'notes' && !moduleSevenState.caseRecord.submitted) {
+    if (field.tagName === 'TEXTAREA' && field.name === 'notes' && field.closest('#m07-assessment-form') && !moduleSevenState.caseRecord.submitted) {
       moduleSevenState.caseRecord.notes = field.value;
       moduleSevenSave();
     }

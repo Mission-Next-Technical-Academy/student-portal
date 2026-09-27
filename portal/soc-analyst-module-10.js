@@ -452,8 +452,9 @@ function moduleTenCaseSpec() {
     userOptions: MODULE_TEN_CASE.userOptions,
     deviceOptions: MODULE_TEN_CASE.deviceOptions,
     departmentOptions: MODULE_TEN_CASE.departmentOptions,
-    notesPlaceholder: 'Summarize the acquisition/custody findings, the timeline you reconstructed, and your recommended handoff…',
-    extraMissing: labsReady ? [] : ['Mark both required labs above complete'],
+    notesPlaceholder: 'Summarize the evidence package and custody, the reconstructed chain, what is not established, and the specialist handoff…',
+    // Optional Labs never gate the ticket; the locker and reconstruction are scored on submit.
+    extraMissing: [],
     disabled: moduleTenAssessmentState.submitted === true,
   };
 }
@@ -569,17 +570,116 @@ function moduleTenGuidedLabPanel() {
   </section>`;
 }
 
-function moduleTenAssessmentLabPanel() {
-  const bucket = moduleTenAssessmentState.labProgress;
-  const launchGroup = missionNextLabLaunchGroup(10, 'assessment', [
-    { title: 'Recovering and Analyzing Deleted Files on Windows Systems', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-5/lab', labId: 'assessment-1' },
-    { title: 'Investigating Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-1/lab', labId: 'assessment-2' },
-  ], bucket);
+/* The Module 3 console carrying Modules 4–9 on EVD-5510, plus the Evidence
+ * Locker and Reconstruction. Every artifact is a Log Search row; pinning it
+ * queues it for locker intake. */
+const MODULE_TEN_ARTIFACT_TABLES = {
+  email_message: 'EmailEvents', mail_trace: 'EmailEvents', file: 'DeviceFileEvents', process_log: 'DeviceProcessEvents',
+  registry: 'DeviceRegistryEvents', network_log: 'ProxyEvents', memory_image: 'ForensicAcquisitions', system_log: 'SystemLog',
+};
+const MODULE_TEN_CONSOLE_DATA = (function () {
+  const s = SocM10AssessmentData.scenario;
+  const events = s.artifacts.map((a) => m03eRow(MODULE_TEN_ARTIFACT_TABLES[a.type] || 'CaseArtifacts', a.id, a.time.slice(0, 10), a.time.slice(11, 19), {
+    EventType: a.type, Account: a.account, Host: a.host, DeviceId: a.host, Result: a.title, SourceSystem: a.source, SourceSha256: a.sourceHash, Detail: `${a.title}. ${a.detail}`,
+  }));
+  return {
+    ...m03eBuildDataset({
+      caseId: s.caseId,
+      day: s.start.slice(0, 10),
+      events,
+      identities: [
+        { Account: 'j.sanders', DisplayName: 'J. Sanders', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: 'Primary user of WKSTN-19' },
+        { Account: 'jdoe', DisplayName: 'J. Doe', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: 'Primary user of WKS-DESK-07' },
+      ],
+      ips: [],
+      watchlists: { Custodians: { title: 'Evidence custodians', rows: s.custodians.map((item) => ({ Custodian: item.id, Role: item.label })) } },
+      alerts: [{ id: s.request.id, time: s.request.receivedAt, severity: 'High', title: 'Evidence collection request for contained WKSTN-19', entities: ['WKSTN-19', 'j.sanders'], rule: s.request.text, query: 'UnifiedEvents\n| where Host == "WKSTN-19"\n| sort by TimeGenerated asc' }],
+    }),
+    now: s.end,
+  };
+}());
+const MODULE_TEN_DEVICES = [
+  { id: 'WKSTN-19', hostname: 'WKSTN-19', platform: 'Windows 11', role: 'User workstation (isolated)', owner: 'j.sanders', zone: 'CORP-USER', status: 'Isolated' },
+];
+const MODULE_TEN_TOOL_FIXTURES = (() => {
+  const s = SocM10AssessmentData.scenario;
+  return {
+    m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: s.caseId, end: s.end, data: MODULE_TEN_CONSOLE_DATA }),
+    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm10-endpoint-tools-v1', devices: MODULE_TEN_DEVICES, data: MODULE_TEN_CONSOLE_DATA }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M10-LEAD-001', type: 'evidence_request', device: 'WKSTN-19', account: 'j.sanders', taskName: '—', observation: s.request.text }, devices: ['WKSTN-19', 'MAIL-GW-01', 'PROXY-01'], data: MODULE_TEN_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm10-mail-tools-v1', start: s.start, end: s.end }),
+    m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm10-exposure-tools-v1', start: s.start, end: s.end }),
+    m09: SocConsoleTools.m09Fixture({
+      id: s.id, stateKey: 'm10-response-tools-v1', start: s.start, end: s.end,
+      incident: { id: s.incidentId, title: 'WKSTN-19 macro intrusion (contained)', reportedAt: '2026-09-27T09:10:00Z', sourceEntityId: 'wkstn-19', sourceEvidenceId: 'ART-03', summary: 'Macro-enabled attachment led to PowerShell execution and persistence on WKSTN-19; the host is isolated.' },
+      entities: [
+        { id: 'wkstn-19', type: 'endpoint', hostname: 'WKSTN-19', ownerAccountId: 'j.sanders', deviceId: 'DEV-WKSTN-19', status: 'isolated' },
+        { id: 'j.sanders', type: 'identity', displayName: 'J. Sanders', registeredDeviceId: 'DEV-WKSTN-19', status: 'active' },
+        { id: 'DEV-WKSTN-19', type: 'device', hostname: 'WKSTN-19', linkedEntityId: 'wkstn-19' },
+        { id: 'file-svchelp-19', type: 'file', linkedEntityId: 'wkstn-19', path: 'C:\\Users\\j.sanders\\AppData\\Roaming\\svchelp.exe' },
+        { id: 'persist-svchelp-19', type: 'persistence', linkedEntityId: 'wkstn-19', name: 'svchelp' },
+      ],
+      edges: [
+        { id: 'M10-LINK-001', from: s.incidentId, to: 'wkstn-19', relation: 'confirmed_execution', evidenceId: 'ART-03' },
+        { id: 'M10-LINK-002', from: s.incidentId, to: 'j.sanders', relation: 'opened_attachment', evidenceId: 'ART-02' },
+      ],
+      evidence: s.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'WKSTN-19' ? 'wkstn-19' : 'j.sanders', summary: a.title })),
+    }),
+  };
+})();
+
+function moduleTenM04Tools() {
+  moduleTenAssessmentState.tools ||= {};
+  if (!moduleTenAssessmentState.tools.m04?.schemaVersion) moduleTenAssessmentState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleTenAssessmentState.tools.m04 }, MODULE_TEN_TOOL_FIXTURES.m04).assessment;
+  return moduleTenAssessmentState.tools.m04;
+}
+
+// The carried ATT&CK workspace's mappings are graded against this case.
+function moduleTenAttackMappings() {
+  return SocM06AssessmentState.normalize(JSON.parse(JSON.stringify(moduleTenAssessmentState.tools?.m06 || {})), MODULE_TEN_TOOL_FIXTURES.m06).mappings;
+}
+
+const MODULE_TEN_CONSOLE = (() => {
+  const save = () => moduleTenSaveAssessment();
+  const base = { save, rerender: () => moduleTenRenderAssessment(), console: () => m03eState('m10') };
+  const fx = MODULE_TEN_TOOL_FIXTURES;
+  const root = () => moduleTenAssessmentState;
+  return SocConsoleTools.mount('m10', {
+    data: MODULE_TEN_CONSOLE_DATA,
+    stateRoot: root,
+    save,
+    title: 'SIEM & EVIDENCE HANDLING',
+    ariaLabel: 'Module 10 evidence handling assessment console',
+    sourceMappings: {
+      EmailEvents: { native: 'Mail gateway export (JSON)', fields: [['received', 'TimeGenerated'], ['recipient', 'Account'], ['gateway', 'Host'], ['summary', 'Detail']] },
+      DeviceFileEvents: { native: 'Disk image file listing (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['user', 'Account'], ['sha256', 'SourceSha256']] },
+      DeviceProcessEvents: { native: 'Endpoint sensor process log (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['user', 'Account'], ['summary', 'Detail']] },
+      DeviceRegistryEvents: { native: 'Registry hive extract (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['summary', 'Detail']] },
+      ProxyEvents: { native: 'Web proxy log (text)', fields: [['time', 'TimeGenerated'], ['client', 'Host'], ['summary', 'Detail']] },
+      ForensicAcquisitions: { native: 'Forensic acquisition record (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['sha256', 'SourceSha256']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleTenM04Tools, fixture: fx.m04 } },
+      { id: 'm05', ctx: { ...base, fixture: fx.m05, ...SocConsoleTools.embedded(root, 'm05', SocM05AssessmentState.normalize, fx.m05, save) } },
+      { id: 'm06', ctx: { ...base, fixture: fx.m06, ...SocConsoleTools.embedded(root, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
+      { id: 'm07', ctx: { ...base, fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
+      { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
+      { id: 'm09', ctx: {
+        ...base, fixture: fx.m09, evidence: SocM10AssessmentData.scenario.artifacts.map((a) => ({ id: a.id, time: a.time, title: a.title, summary: a.detail })),
+        routes: MODULE_TEN_CASE.departmentOptions, ...SocConsoleTools.embedded(root, 'm09', SocM09AssessmentState.normalize, fx.m09, save),
+      } },
+      { id: 'm10', ctx: { ...base, fixture: SocM10AssessmentData, load: () => SocM10AssessmentState.load(moduleTenUser, SocM10AssessmentData), store: (next) => SocM10AssessmentState.save(moduleTenUser, next, SocM10AssessmentData) } },
+    ],
+    caseView: () => moduleTenCaseTicket(),
+    caseBadge: () => (moduleTenAssessmentState.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+  });
+})();
+
+function moduleTenCaseTicket() {
   const spec = moduleTenCaseSpec();
-  const performance = moduleTenCasePerformance();
-  const casePane = caseRecordPane(moduleTenAssessmentState, {
+  return `${caseRecordPane(moduleTenAssessmentState, {
     ...spec,
-    missing: performance.missing,
+    missing: caseRecordMissing(moduleTenAssessmentState, spec),
     formId: 'm10-assessment-form',
     saveAttr: 'data-m10-save-case',
     submitAttr: 'data-m10-submit-case',
@@ -589,26 +689,32 @@ function moduleTenAssessmentLabPanel() {
     redoHtml: moduleTenCaseRedoFeedback(),
     showMissing: moduleTenAssessmentState.showMissing === true,
     lockedMessage: 'Module 10 completion stays pending until your instructor approves the submission.',
-  });
-  return `<section class="m10-external-lab" id="m10-assessment-lab-panel">
-    <p class="m10-panel-instruction">Complete the imported Windows-forensics deleted-files and event-log projects below, mark each one complete, then work the case ticket for instructor review.</p>
-    ${launchGroup}
-    ${casePane}
-  </section>`;
+  })}${moduleTenAssessmentState.submitted && moduleTenAssessmentState.reviewPayload ? `<section class="m04-assessment-review" data-m10-submitted-review><h4>Assessment review</h4><p><strong>${esc(moduleTenAssessmentState.reviewPayload.score)}/${esc(moduleTenAssessmentState.reviewPayload.maxScore)} points</strong></p></section>` : ''}`;
 }
 
+function moduleTenAssessmentLabPanel() {
+  return `<div class="m03e-panel" id="m10-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(SocM10AssessmentData.scenario.caseId)} · POST-CONTAINMENT EVIDENCE REQUEST · ASSIGNED TO YOU</p><p>WKSTN-19 is isolated and Legal has asked for a defensible evidence package. Your lead’s request: <em>“Collect what we need to show how j.sanders was compromised and whether anything left, keep custody clean, and don’t write down anything the evidence doesn’t support.”</em> Pin the evidence the reconstruction needs, take it into the locker with its source and acquisition context, verify every hash, transfer custody where a specialist needs it, preserve the originals under legal hold, reconstruct the timeline, separate fact from analysis, support the root cause, map only evidenced behavior to ATT&amp;CK, record what is still unknown, and complete the ITSM ticket.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m10">${moduleThreeConsoleHtml('m10')}</div>
+  </div>`;
+}
+
+function moduleTenRenderAssessment() {
+  const root = document.getElementById('m10-assessment-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleTenAssessmentLabPanel();
+  m03eAttachEditor('m10');
+}
+
+const MODULE_TEN_OPTIONAL_LABS = [
+  { title: 'Recovering and Analyzing Deleted Files on Windows Systems', detail: 'Deleted-file recovery practice', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-5/lab', labId: 'assessment-1' },
+  { title: 'Investigating Windows Event Logs for Security Incidents', detail: 'Windows event evidence and account activity', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-1/lab', labId: 'assessment-2' },
+  { title: 'Extracting and Interpreting Browser Artifacts on Windows', detail: 'Browser history and user-activity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-4/lab', labId: 'additional-1' },
+  { title: 'File System Security Assessment', detail: 'Permissions and file-integrity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'additional-2' },
+];
+
 function moduleTenAdditionalLabs() {
-  const bucket = moduleTenAssessmentState.labProgress;
-  const launchGroup = missionNextLabLaunchGroup(10, 'additional', [
-    { title: 'Extracting and Interpreting Browser Artifacts on Windows', detail: 'Browser history and user-activity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/windows-forensics/project/wf-4/lab', labId: 'additional-1' },
-    { title: 'File System Security Assessment', detail: 'Permissions and file-integrity evidence', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'additional-2' },
-  ], bucket);
-  if (!launchGroup) return '';
-  return `<section class="mn-additional-labs" id="m10-additional-labs" aria-labelledby="mn-additional-labs-10">
-    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-10">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
-    <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Mark each one complete after you finish it, alongside the Guided Lab and Assessment Lab.</p>
-    ${launchGroup}
-  </section>`;
+  return `<div id="m10-additional-labs">${missionNextOptionalLabsSection(10, MODULE_TEN_OPTIONAL_LABS, moduleTenAssessmentState.labProgress)}</div>`;
 }
 
 function moduleTenGetSections() {
@@ -912,13 +1018,7 @@ function moduleTenRewireGuidedLabGating() {
 }
 
 function moduleTenRewireAssessmentLabGating() {
-  const root = document.getElementById('m10-assessment-lab-dynamic');
-  if (!root || !moduleTenAssessmentState) return;
-  wireMissionNextLabGating(root, moduleTenAssessmentState.labProgress, () => {
-    moduleTenSaveAssessment();
-    root.innerHTML = moduleTenAssessmentLabPanel();
-    moduleTenRewireAssessmentLabGating();
-  });
+  m03eAttachEditor('m10');
 }
 
 function wireModuleTenGuidedLab() {
@@ -943,13 +1043,13 @@ function wireModuleTenGuidedLab() {
 }
 
 function moduleTenFinalizeCase(root) {
-  const performance = moduleTenCasePerformance();
   if (moduleTenAssessmentState.submitted) return;
+  const scored = SocM10AssessmentScorer.score(SocM10AssessmentState.load(moduleTenUser, SocM10AssessmentData), SocM10AssessmentData, { mappings: moduleTenAttackMappings() });
+  const performance = { missing: caseRecordMissing(moduleTenAssessmentState, moduleTenCaseSpec()), score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses };
   if (performance.missing.length) {
     moduleTenAssessmentState.showMissing = true;
     moduleTenSaveAssessment();
-    root.innerHTML = moduleTenAssessmentLabPanel();
-    moduleTenRewireAssessmentLabGating();
+    moduleTenRenderAssessment();
     return;
   }
   moduleTenAssessmentState.showMissing = false;
@@ -959,6 +1059,9 @@ function moduleTenFinalizeCase(root) {
   moduleTenAssessmentState.lastSubmittedAt = new Date().toISOString();
   moduleTenAssessmentState.score = performance.score;
   moduleTenAssessmentState.breakdown = performance.breakdown;
+  moduleTenAssessmentState.caseId = SocM10AssessmentData.scenario.caseId;
+  moduleTenAssessmentState.scenarioId = SocM10AssessmentData.scenario.id;
+  moduleTenAssessmentState.reviewPayload = { ...JSON.parse(JSON.stringify(scored)), caseId: SocM10AssessmentData.scenario.caseId, scenarioId: SocM10AssessmentData.scenario.id };
   moduleTenAssessmentState.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleTenAssessmentState.lastSubmittedAt });
   if (!moduleTenAssessmentState.flags.includes('M10-ASSESSMENT-LAB-COMPLETE')) moduleTenAssessmentState.flags.push('M10-ASSESSMENT-LAB-COMPLETE');
   moduleTenSaveAssessment();
@@ -971,8 +1074,10 @@ function moduleTenFinalizeCase(root) {
       state: 'complete',
       score: performance.score,
       result: {
+        rubric_version: scored.rubricVersion,
         breakdown: performance.breakdown,
         feedback: performance.feedback,
+        review_payload: moduleTenAssessmentState.reviewPayload,
         critical_errors: performance.criticalErrors,
         case_record: moduleTenAssessmentState,
         case_display: caseRecordDisplay(moduleTenAssessmentState, spec),
@@ -986,28 +1091,29 @@ function moduleTenFinalizeCase(root) {
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTenUser, 'soc-analyst', 'soc-10', MODULE_TEN_ASSESSMENT_KEY);
   const status = document.getElementById('m10-status');
   if (status) status.textContent = 'Complete';
-  root.innerHTML = moduleTenAssessmentLabPanel();
-  moduleTenRewireAssessmentLabGating();
+  moduleTenRenderAssessment();
 }
 
 function wireModuleTenAssessmentLab() {
   const root = document.getElementById('m10-assessment-lab-dynamic');
   if (!root || !moduleTenAssessmentState) return;
+  MODULE_TEN_CONSOLE.wire(root);
   moduleTenRewireAssessmentLabGating();
-  const additionalRoot = document.getElementById('m10-additional-labs');
-  if (additionalRoot) {
-    wireMissionNextLabGating(additionalRoot, moduleTenAssessmentState.labProgress, () => {
+  const wireOptional = () => {
+    const optional = document.getElementById('m10-additional-labs');
+    if (optional) wireMissionNextLabGating(optional, moduleTenAssessmentState.labProgress, () => {
       moduleTenSaveAssessment();
-      moduleTenRewireAssessmentLabGating();
+      optional.outerHTML = moduleTenAdditionalLabs();
+      wireOptional();
     });
-  }
+  };
+  wireOptional();
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m10-submit-case]')) { moduleTenFinalizeCase(root); return; }
     if (event.target.closest('[data-m10-save-case]')) {
       moduleTenAssessmentState.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
       moduleTenSaveAssessment();
-      root.innerHTML = moduleTenAssessmentLabPanel();
-      moduleTenRewireAssessmentLabGating();
+      moduleTenRenderAssessment();
     }
   });
   root.addEventListener('change', (event) => {
@@ -1016,8 +1122,7 @@ function wireModuleTenAssessmentLab() {
     if (!name || !caseRecordApply(moduleTenAssessmentState, name, value)) return;
     moduleTenAssessmentState.actionHistory.push({ action: `Updated ${name}`, at: new Date().toISOString() });
     moduleTenSaveAssessment();
-    root.innerHTML = moduleTenAssessmentLabPanel();
-    moduleTenRewireAssessmentLabGating();
+    moduleTenRenderAssessment();
   });
   root.addEventListener('input', (event) => {
     if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && event.target.closest('#m10-assessment-form')) {

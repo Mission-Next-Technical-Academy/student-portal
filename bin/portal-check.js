@@ -128,32 +128,14 @@ vm.runInContext(`
 ctx.URLSearchParams = URLSearchParams;
 ctx.URL = URL;
 
-// Keep the harness aligned with portal/index.html's dependency order. In
-// particular, Modules 3–11 call itsRegisterCoachModule at load time, which
-// is defined by it-support-shared.js. Alphabetically loading every
-// *-module-##.js file first made the checker fail even though the browser
-// loaded the real application correctly.
-const moduleFiles = fs.readdirSync(PORTAL).filter((f) => /-module-\d\d\.js$/.test(f)).sort();
-const files = [
-  'release.js',
-  'data.js',
-  'lab-runtime.js',
-  'case-record.js',
-  'console-guide.js',
-  'module-registry.js',
-  // Module 03's SIEM console (and the KQL engine it runs) loads before the
-  // module file that renders it, matching portal/index.html script order.
-  'kql-engine.js',
-  'soc-analyst-module-03-environment.js',
-  ...moduleFiles.filter((f) => f.startsWith('soc-analyst-')),
-  // Module 02's environment is deliberately an additive layer loaded after
-  // its legacy isolated lab, matching portal/index.html script order.
-  'soc-analyst-module-02-environment.js',
-  'it-support-shared.js',
-  ...moduleFiles.filter((f) => f.startsWith('it-support-')),
-  ...moduleFiles.filter((f) => !f.startsWith('soc-analyst-') && !f.startsWith('it-support-')),
-  'app.js',
-];
+// Keep the harness aligned with portal/index.html's dependency order. Modules
+// register against shared components and earlier module adapters as the page
+// loads them, so an independently sorted module list does not reflect runtime.
+const indexHtml = fs.readFileSync(path.join(PORTAL, 'index.html'), 'utf8');
+const files = [...indexHtml.matchAll(/<script\s+src="([^"]+)"/g)]
+  .map((match) => match[1].split('?')[0])
+  .filter((file) => !file.startsWith('vendor/') && file !== 'supabase-config.js' && file !== 'm360-entry.js')
+  .map((file) => path.basename(file));
 
 for (const file of files) {
   try {

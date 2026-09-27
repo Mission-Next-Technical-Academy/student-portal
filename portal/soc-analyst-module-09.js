@@ -811,10 +811,9 @@ function moduleNineProveItRedoFeedback() {
 }
 
 function moduleNineProveItSpec() {
+  // The response itself is worked in the console's Incident, Response and
+  // Recovery workspaces and scored by the M09 rubric on submit.
   const extraMissing = [];
-  if (moduleNineState.reviewedSources.length < 3) extraMissing.push('Review all three evidence sources');
-  if (moduleNineState.selectedEvidence.length < 4) extraMissing.push('Select at least four evidence records');
-  if (Object.values(moduleNineState.responsePlan).some((items) => !items.length)) extraMissing.push('Choose at least one action in every response phase');
   return {
     formId: 'm09-form',
     panelId: 'm09-review-submission',
@@ -826,7 +825,6 @@ function moduleNineProveItSpec() {
       { name: 'classification', label: 'Incident classification', options: MODULE_NINE_CLASSIFICATION_OPTIONS, missing: 'Classify the incident' },
       { name: 'scope', label: 'Defensible current scope', options: MODULE_NINE_SCOPE_OPTIONS, missing: 'Record the defensible current scope' },
     ],
-    findingsHtml: moduleNineResponsePlanHtml(),
     notesPlaceholder: 'Incident state: … Confirmed scope: … Evidence: … Requested response: … Recovery condition: …',
     notesMin: 140,
     extraMissing,
@@ -925,8 +923,93 @@ function moduleNineArtifact() {
     })}`;
 }
 
+/* The Module 3 console carrying Modules 4–8 on INC-4937, plus Incident,
+ * Response and Recovery. Every evidence record is also a Log Search row. */
+const MODULE_NINE_EVIDENCE = [
+  ...Object.entries(MODULE_NINE_SOURCES).flatMap(([source, group]) => group.rows.map((row) => ({ ...row, source, time: `2026-09-27T${row.time}:00Z` }))),
+  ...SocM09AssessmentData.scenario.evidence.map((item) => ({ id: item.id, source: item.type, time: item.time, entity: item.entityId, title: item.type.replace(/_/g, ' '), summary: item.summary, detail: item.summary })),
+].sort((a, b) => a.id.localeCompare(b.id));
+const MODULE_NINE_EVIDENCE_TABLES = { endpoint: 'DeviceEvents', identity: 'IdentityEvents', scope: 'ScopeChecks' };
+const MODULE_NINE_CONSOLE_DATA = (function () {
+  const s = SocM09AssessmentData.scenario;
+  const events = MODULE_NINE_EVIDENCE.map((item) => m03eRow(MODULE_NINE_EVIDENCE_TABLES[item.source] || 'ResponseRecords', item.id, item.time.slice(0, 10), item.time.slice(11, 19), {
+    EventType: item.title, Account: String(item.entity).startsWith('acct-') ? item.entity : (s.entities.find((entity) => entity.id === item.entity)?.ownerAccountId || ''),
+    Host: String(item.entity).startsWith('acct-') ? '' : item.entity, DeviceId: s.entities.find((entity) => entity.id === item.entity)?.deviceId || '',
+    Result: item.summary, Detail: item.detail || item.summary,
+  }));
+  return {
+    ...m03eBuildDataset({
+      caseId: 'INC-4937',
+      day: s.start.slice(0, 10),
+      events,
+      identities: [{ Account: 'acct-173', DisplayName: 'User 173', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '192.0.2.173', Notes: 'Registered workstation ws-173' }],
+      ips: [
+        { SourceIp: '192.0.2.173', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN', FirstSeen: '—', Reputation: 'Registered workstation' },
+        { SourceIp: '203.0.113.173', Type: 'External', Country: '—', Asn: 'Unmanaged client network', FirstSeen: '2026-09-27 10:05', Reputation: 'No history' },
+      ],
+      watchlists: {},
+      alerts: s.incidentQueue.map((incident) => ({ id: incident.id, time: incident.reportedAt, severity: 'High', title: incident.title, entities: [incident.sourceEntityId], rule: incident.summary, query: `DeviceEvents\n| where Host == "${incident.sourceEntityId}"` })),
+    }),
+    now: s.end,
+  };
+}());
+const MODULE_NINE_DEVICES = SocM09AssessmentData.scenario.entities.filter((entity) => entity.type === 'device')
+  .map((device) => ({ id: device.id, hostname: device.hostname, platform: '—', role: device.linkedEntityId ? 'Managed device' : 'Unmanaged client', owner: '—', zone: '—', status: 'Online' }));
+const MODULE_NINE_TOOL_FIXTURES = (() => {
+  const s = SocM09AssessmentData.scenario;
+  return {
+    m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: 'INC-4937', end: s.end, data: MODULE_NINE_CONSOLE_DATA }),
+    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm09-endpoint-tools-v1', devices: MODULE_NINE_DEVICES, data: MODULE_NINE_CONSOLE_DATA }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M09-LEAD-001', type: 'confirmed_incident', device: 'ws-173', account: 'acct-173', taskName: '—', observation: 'Confirmed ransomware impact on ws-173 with an overlapping remote session.' }, devices: ['ws-173', 'fs-02'], data: MODULE_NINE_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm09-mail-tools-v1', start: s.start, end: s.end }),
+    m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm09-exposure-tools-v1', start: s.start, end: s.end }),
+  };
+})();
+
+function moduleNineM04Tools() {
+  moduleNineState.tools ||= {};
+  if (!moduleNineState.tools.m04?.schemaVersion) moduleNineState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleNineState.tools.m04 }, MODULE_NINE_TOOL_FIXTURES.m04).assessment;
+  return moduleNineState.tools.m04;
+}
+
+const MODULE_NINE_CONSOLE = (() => {
+  const save = () => moduleNineSave();
+  const base = { save, rerender: () => moduleNineRender(), console: () => m03eState('m09') };
+  const fx = MODULE_NINE_TOOL_FIXTURES;
+  return SocConsoleTools.mount('m09', {
+    data: MODULE_NINE_CONSOLE_DATA,
+    stateRoot: () => moduleNineState,
+    save,
+    title: 'SIEM & INCIDENT RESPONSE',
+    ariaLabel: 'Module 09 incident response assessment console',
+    sourceMappings: {
+      DeviceEvents: { native: 'Endpoint sensor records (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
+      IdentityEvents: { native: 'Identity session records (JSON)', fields: [['time', 'TimeGenerated'], ['account', 'Account'], ['title', 'EventType'], ['detail', 'Detail']] },
+      ScopeChecks: { native: 'Scoping search results (JSON)', fields: [['time', 'TimeGenerated'], ['scope', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
+      ResponseRecords: { native: 'Response inventory records (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['type', 'EventType'], ['summary', 'Detail']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleNineM04Tools, fixture: fx.m04 } },
+      { id: 'm05', ctx: { ...base, fixture: fx.m05, ...SocConsoleTools.embedded(() => moduleNineState, 'm05', SocM05AssessmentState.normalize, fx.m05, save) } },
+      { id: 'm06', ctx: { ...base, fixture: fx.m06, ...SocConsoleTools.embedded(() => moduleNineState, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
+      { id: 'm07', ctx: { ...base, fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineState, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
+      { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineState, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
+      { id: 'm09', ctx: {
+        ...base, fixture: SocM09AssessmentData, evidence: MODULE_NINE_EVIDENCE, routes: MODULE_NINE_DEPARTMENT_OPTIONS,
+        load: () => SocM09AssessmentState.load(moduleNineUser, SocM09AssessmentData),
+        store: (next) => SocM09AssessmentState.save(moduleNineUser, next, SocM09AssessmentData),
+      } },
+    ],
+    caseView: () => moduleNineArtifact(),
+    caseBadge: () => (moduleNineState.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+  });
+})();
+
 function moduleNineDynamic() {
-  return `${moduleNineInvestigation()}${moduleNineArtifact()}`;
+  return `<div class="m03e-panel" id="m09-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">INCIDENT INC-4937 · CONFIRMED · ASSIGNED TO YOU</p><p>A confirmed incident with endpoint and identity impact is yours to run. Your incident lead’s request: <em>“Contain what we can prove, get each disruptive step approved, check what actually worked, and bring the machine back from a backup we can trust — then tell me what risk is left.”</em> Confirm priority and ownership, preserve evidence before you remove anything, contain the right targets through the approval gate, verify each action’s outcome, deal with persistence, credentials and sessions, recover from a known-good backup, validate and monitor, escalate the remaining gaps, and update the ITSM ticket.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m09">${moduleThreeConsoleHtml('m09')}</div>
+  </div>`;
 }
 
 function moduleNineGuidedLabPanel() {
@@ -1014,6 +1097,7 @@ function moduleNineRender(focusId) {
   const root = document.getElementById('m09-lab-dynamic');
   if (!root) return;
   root.innerHTML = moduleNineDynamic();
+  m03eAttachEditor('m09');
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -1103,6 +1187,7 @@ function wireModuleNineQuiz() {
 function wireModuleNineLab() {
   const root = document.getElementById('m09-lab-dynamic');
   if (!root || !moduleNineState) return;
+  MODULE_NINE_CONSOLE.wire(root);
   root.addEventListener('keydown', (event) => {
     const tab = event.target.closest('[data-m09-source]');
     if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -1170,7 +1255,7 @@ function wireModuleNineLab() {
 
   root.addEventListener('input', (event) => {
     const field = event.target;
-    if (field.tagName === 'TEXTAREA' && field.name === 'notes' && !moduleNineState.caseRecord.submitted) {
+    if (field.tagName === 'TEXTAREA' && field.name === 'notes' && field.closest('#m09-form') && !moduleNineState.caseRecord.submitted) {
       moduleNineState.caseRecord.notes = field.value;
       moduleNineSave();
     }
@@ -1192,7 +1277,8 @@ function wireModuleNineLab() {
       moduleNineSave();
       return;
     }
-    if (input.name && !moduleNineState.caseRecord.submitted && caseRecordApply(moduleNineState.caseRecord, input.name, input.value)) {
+    // Only the ITSM ticket form writes ticket fields (the Incident form reuses severity/status).
+    if (input.name && input.closest('#m09-form') && !moduleNineState.caseRecord.submitted && caseRecordApply(moduleNineState.caseRecord, input.name, input.value)) {
       moduleNineState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
       moduleNineSave();
       moduleNineRender();
@@ -1201,8 +1287,10 @@ function wireModuleNineLab() {
 }
 
 function moduleNineFinalizeProveIt() {
-  const performance = moduleNineProveItPerformance();
   if (moduleNineState.caseRecord.submitted) return;
+  const missing = caseRecordMissing(moduleNineState.caseRecord, moduleNineProveItSpec());
+  const scored = SocM09AssessmentScorer.score(SocM09AssessmentState.load(moduleNineUser, SocM09AssessmentData), SocM09AssessmentData);
+  const performance = { missing, score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses };
   if (performance.missing.length) {
     moduleNineProveItShowMissing = true;
     moduleNineRender('m09-review-submission');
@@ -1212,6 +1300,10 @@ function moduleNineFinalizeProveIt() {
   const now = new Date().toISOString();
   moduleNineState.caseRecord.submitted = true;
   moduleNineState.caseRecord.submittedAt = now;
+  moduleNineState.caseRecord.caseId = 'INC-4937';
+  moduleNineState.caseRecord.scenarioId = SocM09AssessmentData.scenario.id;
+  moduleNineState.caseRecord.reviewPayload = { ...JSON.parse(JSON.stringify(scored)), caseId: 'INC-4937', scenarioId: SocM09AssessmentData.scenario.id };
+  moduleNineState.score = scored.score;
   moduleNineState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: now });
   moduleNineState.attempts = (moduleNineState.attempts || 0) + 1;
   moduleNineState.lastSubmittedAt = now;
@@ -1225,8 +1317,10 @@ function moduleNineFinalizeProveIt() {
       state: 'complete',
       score: performance.score,
       result: {
+        rubric_version: scored.rubricVersion,
         breakdown: performance.breakdown,
         feedback: performance.feedback,
+        review_payload: moduleNineState.caseRecord.reviewPayload,
         critical_errors: performance.criticalErrors,
         case_record: moduleNineState.caseRecord,
         case_display: caseRecordDisplay(moduleNineState.caseRecord, caseSpec),

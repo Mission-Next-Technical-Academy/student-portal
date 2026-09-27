@@ -5,6 +5,7 @@
 
 const MODULE_TWELVE_LAB_ID = 'm12-integrated-capstone-v1';
 const MODULE_TWELVE_CATALOG_KEY = 'lab-capstone';
+const MODULE_TWELVE_OPTIONAL_SIMULATOR_KEY = 'lab-capstone-simulator-practice';
 const MODULE_TWELVE_FLAG = 'M12-CAPSTONE-INVESTIGATION-PASSED';
 const MODULE_TWELVE_PASSING_SCORE = 70;
 
@@ -256,7 +257,7 @@ function moduleTwelveFreshDefaults() {
     // Standard case-record ticket fields (docs/specs/MODULE_STANDARD.md §7.2).
     submitted: false, status: '', severity: '', affectedUser: '', affectedDevice: '',
     disposition: '', escalation: '', escalateTo: '', findings: {}, actionHistory: [],
-    showMissing: false,
+    showMissing: false, tools: {}, assessmentState: null, reviewPayload: null,
   };
 }
 
@@ -282,6 +283,8 @@ function moduleTwelveLoad(user, program) {
   moduleTwelveUser = user;
   moduleTwelveProgram = program;
   moduleTwelveState = LabRuntime.loadCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', user, moduleTwelveFreshDefaults());
+  moduleTwelveState.assessmentState = SocM12AssessmentState.load(user, SocM12AssessmentData);
+  if (!moduleTwelveState.tools || typeof moduleTwelveState.tools !== 'object') moduleTwelveState.tools = {};
   ['reviewedConsoles', 'selectedEvidence', 'stageVisits', 'hintsOpened', 'feedback', 'criticalErrors', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleTwelveState[key])) moduleTwelveState[key] = [];
   });
@@ -322,7 +325,10 @@ function moduleTwelveLoad(user, program) {
 }
 
 function moduleTwelveSave() {
-  if (moduleTwelveUser && moduleTwelveState) LabRuntime.saveCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', moduleTwelveUser, moduleTwelveState);
+  if (moduleTwelveUser && moduleTwelveState) {
+    SocM12AssessmentState.save(moduleTwelveUser, moduleTwelveState.assessmentState || {}, SocM12AssessmentData);
+    LabRuntime.saveCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', moduleTwelveUser, moduleTwelveState);
+  }
 }
 
 function moduleTwelveSetEqual(actual, expected) {
@@ -336,44 +342,19 @@ function moduleTwelveValues(name) {
   return Array.isArray(value) ? value : [];
 }
 
-function moduleTwelveLaunchUrl() {
-  const lab = typeof LABS !== 'undefined' ? LABS.find((item) => item.key === MODULE_TWELVE_CATALOG_KEY) : null;
+function moduleTwelveLaunchUrl(labKey = MODULE_TWELVE_CATALOG_KEY) {
+  const lab = typeof LABS !== 'undefined' ? LABS.find((item) => item.key === labKey) : null;
   const route = lab && lab.simEntry ? lab.simEntry : '#/defender/home';
-  return `${SIM_ORIGIN}?lab=${encodeURIComponent(MODULE_TWELVE_CATALOG_KEY)}&module=soc-12${route}`;
+  return `${SIM_ORIGIN}?lab=${encodeURIComponent(labKey)}&module=soc-12${route}`;
 }
 
 function moduleTwelveScore() {
-  const a = moduleTwelveState.answers;
-  const state = moduleTwelveState;
-  const timelineCorrect = a.t1 === 'email' && a.t2 === 'execution' && a.t3 === 'network' && a.t4 === 'identity';
-  const disposition = caseRecordDisposition(state);
-  const severity = caseRecordSeverity(state);
-  const domains = [
-    ['Triage', disposition === MODULE_TWELVE_CASE.correctDisposition && severity === MODULE_TWELVE_CASE.correctSeverity && a.priority === 'p1'],
-    ['Query', a.query === 'correlated-pivot'],
-    ['Timeline', timelineCorrect],
-    ['Scope', moduleTwelveSetEqual(moduleTwelveValues('scope'), ['acct-204', 'ws-204']) && a.scopeLimit === 'bounded' && state.affectedUser === MODULE_TWELVE_CASE.correctAffectedUser && state.affectedDevice === MODULE_TWELVE_CASE.correctAffectedDevice],
-    ['Enrichment', a.enrichment === 'correlated-malicious' && a.exposurePriority === 'audit-policy'],
-    ['ATT&CK', moduleTwelveSetEqual(moduleTwelveValues('attack'), ['T1059.007', 'T1071.001', 'T1204.001', 'T1547.001'])],
-    ['Detection', a.detection === 'parent-hash-destination' && a.tuning === 'signed-approved-parent'],
-    ['Response', moduleTwelveSetEqual(moduleTwelveValues('response'), ['block-ioc', 'isolate-ws204', 'preserve', 'revoke-acct204']) && state.escalation === 'required' && state.escalateTo === MODULE_TWELVE_CASE.correctEscalateTo],
-    ['Reporting', moduleTwelveState.executiveSummary.trim().length >= 180 && moduleTwelveState.notes.trim().length >= 260],
-    ['Closure', a.closure === 'verified-recovery' && a.followup === 'policy-owner' && moduleTwelveState.closureNote.trim().length >= 100],
-  ];
-  const criticalErrors = [];
-  if (disposition === 'benign-close') criticalErrors.push('The confirmed incident was closed as benign.');
-  if (state.escalation === 'not-required') criticalErrors.push('A confirmed incident with endpoint and identity impact was marked as not requiring escalation.');
-  if (moduleTwelveValues('scope').includes('acct-091')) criticalErrors.push('The response targeted an unrelated identity.');
-  if (moduleTwelveValues('response').includes('delete-evidence')) criticalErrors.push('Evidence deletion breaks preservation and review.');
-  if (moduleTwelveValues('response').includes('shutdown-all')) criticalErrors.push('Enterprise-wide shutdown is unsupported by the bounded scope.');
-  if (a.closure === 'close-after-block') criticalErrors.push('The case was closed before recovery validation.');
-  const raw = domains.reduce((sum, item) => sum + (item[1] ? 10 : 0), 0);
-  const hintPenalty = Math.min(moduleTwelveState.hintsOpened.length * 5, 15);
-  const score = Math.max(0, raw - hintPenalty);
+  const score = SocM12AssessmentScorer.score(moduleTwelveState.assessmentState, SocM12AssessmentData);
+  const criticalErrors = score.unsafeExecution ? ['An unsafe state-changing action executed outside approved scope.'] : [];
   return {
-    score, raw, hintPenalty, criticalErrors,
-    breakdown: domains.map(([label, correct]) => ({ label, score: correct ? 10 : 0 })),
-    feedback: domains.filter((item) => !item[1]).map((item) => `Revisit ${item[0]}: the submitted conclusion is incomplete or unsupported by the synthetic record.`),
+    score: score.score, raw: score.rawScore, criticalErrors, scorePayload: score,
+    breakdown: score.criteria.map((item) => ({ label: item.label, score: item.points, max: item.max, evidence: item.supportingEvidence, misses: item.misses })),
+    feedback: score.review.feedback, hintPenalty: 0,
   };
 }
 
@@ -399,17 +380,7 @@ function moduleTwelveLockedView(user, program) {
 }
 
 function moduleTwelveConsole() {
-  const current = MODULE_TWELVE_CONSOLES[moduleTwelveState.activeConsole];
-  return `<div class="m12-console-shell">
-    <nav class="m12-console-nav" aria-label="Integrated investigation consoles">${Object.entries(MODULE_TWELVE_CONSOLES).map(([key, consoleItem]) => `<button type="button" data-m12-console="${key}" aria-current="${key === moduleTwelveState.activeConsole ? 'page' : 'false'}"><i class="${consoleItem.icon}" aria-hidden="true"></i><span>${esc(consoleItem.label)}</span>${moduleTwelveState.reviewedConsoles.includes(key) ? '<i class="ri-checkbox-circle-fill m12-reviewed" aria-label="Reviewed"></i>' : ''}</button>`).join('')}</nav>
-    <section class="m12-console" aria-live="polite" aria-labelledby="m12-console-title">
-      <div class="m12-console-title"><div><p class="m12-kicker">${esc(current.kicker)}</p><h3 id="m12-console-title">${esc(current.label)}</h3><p>${esc(current.brief)}</p></div><span>${current.rows.length} records</span></div>
-      <div class="m12-table-wrap"><table><thead><tr><th>Record</th><th>Time / entity</th><th>Source</th><th>Observation</th></tr></thead><tbody>
-        ${current.rows.map((row) => `<tr>${row.map((cell, index) => `<td data-label="${['Record', 'Time / entity', 'Source', 'Observation'][index]}">${index === 0 ? `<code>${esc(cell)}</code>` : esc(cell)}</td>`).join('')}</tr>`).join('')}
-      </tbody></table></div>
-      <button class="m12-review" type="button" data-m12-review="${esc(moduleTwelveState.activeConsole)}"><i class="ri-bookmark-3-line" aria-hidden="true"></i> Mark console reviewed</button>
-    </section>
-  </div>`;
+  return `<div class="m03e-console-host" id="m03e-console-m12">${moduleThreeConsoleHtml('m12')}</div>`;
 }
 
 function moduleTwelveEvidenceTray() {
@@ -486,44 +457,55 @@ function moduleTwelveExtraMissing() {
 }
 
 function moduleTwelveAssessment() {
-  const spec = moduleTwelveCaseSpec();
-  const performance = { missing: caseRecordMissing(moduleTwelveState, spec) };
-  const casePane = caseRecordPane(moduleTwelveState, {
-    ...spec,
-    missing: performance.missing,
-    formId: 'm12-assessment',
-    saveAttr: 'data-m12-save-case',
-    submitAttr: 'data-m12-submit-case',
-    panelId: 'm12-case-panel',
-    showMissing: moduleTwelveState.showMissing === true,
-    lockedMessage: 'Your capstone record is saved. Instructor review confirms the pass.',
-  });
+  const state = moduleTwelveState.assessmentState || SocM12AssessmentState.fresh(SocM12AssessmentData);
+  const evidence = SocM12AssessmentData.scenario.evidence;
+  const techniques = SocM12AssessmentData.expectedTruth.demonstratedAttack;
+  const selected = new Set(state.selectedEvidence || []);
   return `<div class="m12-assessment">
-    <div class="m12-assessment-heading"><div><p class="m12-kicker">Portfolio artifact</p><h2>Independent incident record</h2><p>Submit conclusions in any working order. Every section is required; the labels do not reveal the underlying attack chronology.</p></div><span>Pass ${MODULE_TWELVE_PASSING_SCORE}% + no critical errors</span></div>
-    ${casePane}
-    <div class="m12-actions"><button type="button" class="m12-reset" data-m12-reset ${moduleTwelveState.submitted ? 'disabled' : ''}><i class="ri-restart-line" aria-hidden="true"></i> Reset capstone only</button></div>
+    <div class="m12-assessment-heading"><div><p class="m12-kicker">Portfolio artifact</p><h2>Independent incident record</h2><p>Build a defensible record from the cumulative console. Submit at any point for criterion-level partial credit.</p></div><span>Pass ${MODULE_TWELVE_PASSING_SCORE}% · 100 points</span></div>
+    <section class="m12-report-preview"><h3>Evidence selection and determinations</h3><div class="m12-evidence-grid">${evidence.map((item) => `<label><input type="checkbox" name="m12-selected-evidence" value="${esc(item.id)}" ${selected.has(item.id) ? 'checked' : ''}><span><strong>${esc(item.id)} · ${esc(item.source)}</strong><small>${esc(item.class)} · ${esc(item.entityIds.join(', '))} · ${esc(item.at.slice(11, 19))}</small></span></label>`).join('')}</div>
+      <form data-m12-assessment-action="investigation"><h4>Record an investigation finding</h4><label>Domain<select name="domain"><option>identity</option><option>email</option><option>endpoint</option><option>network</option><option>exposure</option><option>timeline</option><option>scope</option></select></label><label>Finding<textarea name="finding" required minlength="20" maxlength="1000"></textarea></label><label>Evidence IDs<input name="evidenceIds" placeholder="EM-212, EP-301"></label><button>Save finding</button></form>
+      <form data-m12-assessment-action="intel"><h4>Threat intelligence decision</h4><label>Indicator<select name="indicatorId"><option>TI-601</option><option>TI-603</option></select></label><label>Decision<select name="decision"><option>malicious</option><option>benign</option><option>unknown</option></select></label><label>Rationale<textarea name="rationale" required minlength="20"></textarea></label><button>Save assessment</button></form>
+      <form data-m12-assessment-action="query"><h4>Query test</h4><label>Query<textarea name="query" required minlength="10" placeholder="Write a reproducible cross-source query"></textarea></label><p>The console evaluates the query against capstone telemetry. Returned evidence and coverage are recorded automatically.</p><button>Run query</button></form>
+      <form data-m12-assessment-action="review-alert"><h4>Review alert</h4><label>Alert<select name="alertId">${[...SocM12AssessmentData.scenario.queue,...state.generatedAlerts].map((item)=>`<option>${esc(item.id)}</option>`).join('')}</select></label><label>Disposition<select name="disposition"><option>true-positive</option><option>benign-positive</option><option>false-positive</option><option>needs-investigation</option></select></label><label>Rationale<textarea name="reason" required minlength="15"></textarea></label><button>Record alert review</button></form>
+      <form data-m12-assessment-action="incident-link"><h4>Link alert to incident</h4><label>Alert<select name="alertId">${[...SocM12AssessmentData.scenario.queue,...state.generatedAlerts].map((item)=>`<option>${esc(item.id)}</option>`).join('')}</select></label><label>Incident ID<input name="incidentId" value="INC-4821" required></label><button>Save relationship</button></form>
+      <form data-m12-assessment-action="rule"><h4>Detection rule</h4><label>Rule<select name="ruleId"><option>RULE-01</option><option>RULE-02</option><option>RULE-03</option></select></label><label>Tested query<textarea name="query" required minlength="20"></textarea></label><label><input type="checkbox" name="schedule"> Schedule recurring execution</label><label>Frequency<select name="frequency"><option>hourly</option><option>daily</option><option>weekly</option></select></label><button>Save rule and schedule</button></form>
+      <form data-m12-assessment-action="attack"><h4>ATT&amp;CK mapping</h4><label>Technique<select name="technique">${techniques.map((id) => `<option>${esc(id)}</option>`).join('')}<option>T1021.001</option></select></label><label>Evidence IDs<input name="evidenceIds" placeholder="EP-301"></label><button>Record mapping</button></form>
+      <form data-m12-assessment-action="workflow"><h4>Bounded response workflow</h4><label>Workflow name<input name="name" required value="Amber Finch contained response"></label><fieldset><legend>Nodes</legend><div class="m12-check-grid">${SocM12AssessmentData.scenario.workflowNodes.map((node)=>`<label><input type="checkbox" name="nodes" value="${esc(node)}"> ${esc(node)}</label>`).join('')}</div></fieldset><label>Edges in order (one source&gt;target per line)<textarea name="edges" placeholder="preserve&gt;approval&#10;approval&gt;isolate"></textarea></label><button>Save workflow graph</button></form>
+      <form data-m12-assessment-action="approval"><h4>Action approval</h4><label>Action<select name="action"><option>isolate</option><option>revoke-session</option><option>restore</option></select></label><label>Target<input name="target" required placeholder="ws-204"></label><label><input type="checkbox" name="approved"> Approved</label><button>Record decision</button></form>
+      <form data-m12-assessment-action="execute"><h4>Execute a response action</h4><label>Action<input name="action" required placeholder="isolate"></label><label>Target<input name="target" required placeholder="ws-204"></label><button>Execute in training range</button><p>Protected and out-of-scope actions are blocked by the range.</p></form>
+      <form data-m12-assessment-action="recovery"><h4>Eradication and recovery</h4><label>Step<select name="action"><option>remove-persistence</option><option>restore</option><option>scan</option><option>monitor</option></select></label><label>Target<input name="target" required placeholder="ws-204 or BK-204-0900"></label><button>Record validation</button></form>
+    </section><div class="m12-actions"><button type="button" data-m12-submit-capstone ${moduleTwelveState.submitted ? 'disabled' : ''}>Submit capstone for scoring</button><button type="button" class="m12-reset" data-m12-reset ${moduleTwelveState.submitted ? 'disabled' : ''}>Reset capstone only</button></div>${moduleTwelveFeedback()}
   </div>`;
 }
 
 function moduleTwelveFeedback() {
-  if (!moduleTwelveState.breakdown) return `<div class="m12-score-empty"><strong>No scored attempt yet.</strong><p>Your work saves locally as you investigate. A pass requires ${MODULE_TWELVE_PASSING_SCORE}% or higher and no critical response, evidence, identity, triage, or closure error.</p></div>`;
+  if (!moduleTwelveState.breakdown) return `<div class="m12-score-empty"><strong>No scored attempt yet.</strong><p>Your actions and reports save as you investigate. Submit at any point for an explainable score and partial credit.</p></div>`;
   const passed = moduleTwelveState.completed;
-  return `<section class="m12-score ${passed ? 'is-pass' : 'is-remediate'}" aria-live="polite"><div class="m12-score-heading"><div><p class="m12-kicker">${passed ? 'Capstone passed' : 'Remediation required'}</p><h3>${passed ? 'End-to-end investigation complete' : 'Revise and resubmit the incident record'}</h3><p>Best ${moduleTwelveState.bestScore}% · ${moduleTwelveState.attempts} attempt${moduleTwelveState.attempts === 1 ? '' : 's'} · ${moduleTwelveState.hintsOpened.length * 5} hint points used</p></div><span>${moduleTwelveState.score}%</span></div>
-    <div class="m12-score-grid">${moduleTwelveState.breakdown.map((item) => `<div><strong>${item.score}/10</strong><span>${esc(item.label)}</span></div>`).join('')}</div>
-    ${moduleTwelveState.criticalErrors.length ? `<div class="m12-critical"><strong>Critical-error gate</strong><ul>${moduleTwelveState.criticalErrors.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
-    ${moduleTwelveState.feedback.length ? `<div class="m12-remediation"><strong>Explainable scoring</strong><ul>${moduleTwelveState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '<p class="m12-perfect">All ten scored domains are supported by the submitted artifact.</p>'}
-    ${moduleTwelveReportPreview()}
-    ${passed ? `<div class="m12-portfolio"><i class="ri-award-line" aria-hidden="true"></i><div><strong>Portfolio-ready capstone record earned</strong><p>The synthetic incident report, timeline, evidence decisions, response plan, and closure record remain saved to this anonymous local learner profile.</p></div></div>` : ''}</section>`;
+  return `<section class="m12-score ${passed ? 'is-pass' : 'is-remediate'}" aria-live="polite"><div class="m12-score-heading"><div><p class="m12-kicker">${passed ? 'Capstone passed' : 'Remediation required'}</p><h3>${passed ? 'End-to-end investigation complete' : 'Revise and resubmit the incident record'}</h3><p>Best ${moduleTwelveState.bestScore}/100 · ${moduleTwelveState.attempts} attempt${moduleTwelveState.attempts === 1 ? '' : 's'} · ${esc(moduleTwelveState.lastSubmittedAt || '')}</p></div><span>${moduleTwelveState.score}/100</span></div>
+    <div class="m12-score-grid">${moduleTwelveState.breakdown.map((item) => `<div><strong>${item.score}/${item.max}</strong><span>${esc(item.label)}</span></div>`).join('')}</div>
+    ${moduleTwelveState.criticalErrors.length ? `<div class="m12-critical"><strong>Safety cap</strong><ul>${moduleTwelveState.criticalErrors.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
+    <div class="m12-remediation"><strong>Explainable scoring</strong><ul>${moduleTwelveState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>
+    ${moduleTwelveReportPreview()}</section>`;
 }
-
 function moduleTwelveReportPreview() {
-  const a = moduleTwelveState.answers;
-  return `<section class="m12-report-preview" aria-labelledby="m12-report-title"><p class="m12-kicker">Incident report output</p><h4 id="m12-report-title">INC-4821 · Operation Amber Finch</h4><dl><div><dt>Priority</dt><dd>${esc(a.priority || 'Not submitted')}</dd></div><div><dt>Scope</dt><dd>${esc(moduleTwelveValues('scope').join(', ') || 'Not submitted')}</dd></div><div><dt>Exposure decision</dt><dd>${esc(a.exposurePriority || 'Not submitted')}</dd></div><div><dt>Disposition</dt><dd>${esc(a.closure || 'Not submitted')}</dd></div></dl><h5>Executive finding</h5><p>${esc(moduleTwelveState.executiveSummary || 'Submit the assessment to generate the report finding.')}</p><h5>Technical narrative</h5><p>${esc(moduleTwelveState.notes || 'The evidence-backed technical narrative will appear here after submission.')}</p><h5>Closure and follow-up</h5><p>${esc(moduleTwelveState.closureNote || 'The recovery validation and accountable follow-up will appear here after submission.')}</p></section>`;
+  const reports=moduleTwelveState.assessmentState?.reports||{};
+  return `<section class="m12-report-preview" aria-labelledby="m12-report-title"><p class="m12-kicker">Student Analyst Response</p><h4 id="m12-report-title">INC-4821 · Operation Amber Finch</h4>${['technical','executive','lessons'].map((kind)=>`<h5>${esc(kind[0].toUpperCase()+kind.slice(1))} report</h5><p style="white-space:pre-wrap">${esc(reports[kind]?.text||'No response recorded.')}</p>${reports[kind]?.evidenceIds?.length?`<small>Evidence: ${esc(reports[kind].evidenceIds.join(', '))}</small>`:''}`).join('')}</section>`;
 }
 
 function moduleTwelveMissionStatus() {
-  const visited = new Set(moduleTwelveState.stageVisits || []);
-  return `<div class="m12-stage-note"><strong>12-stage progress tracker</strong><span>Progress aid only · one integrated rubric and one capstone submission</span></div><div class="m12-requirements">${MODULE_TWELVE_REQUIREMENTS.map(([label, detail], index) => { const complete = visited.has(label.toLowerCase()) || (index === 11 && moduleTwelveState.completed); return `<div class="${complete ? 'is-seen' : ''}"><span>${String(index + 1).padStart(2,'0')}</span><p><strong>${esc(label)} ${complete ? '· reviewed' : '· open'}</strong><small>${esc(detail)}</small><em>${esc(MODULE_TWELVE_ARC_CALLBACKS[index])}</em></p></div>`; }).join('')}</div>`;
+  const assessment = moduleTwelveState.assessmentState || {};
+  const actions = Array.isArray(assessment.actionHistory) ? assessment.actionHistory : [];
+  const has = (type) => actions.some((item) => item.type === type);
+  const hasDomain = (domain) => (assessment.investigations || []).some((item) => item.domain === domain);
+  const reviewed = [
+    has('review-alert'), has('query-run'), hasDomain('timeline'), hasDomain('scope') || has('incident-link'),
+    has('intel-decision'), has('attack-map'), has('rule-save') || has('rule-schedule'),
+    has('workflow-design') || has('approval') || has('execute'),
+    (assessment.selectedEvidence || []).length > 0 || Object.keys(moduleTwelveState.tools?.m10?.locker || {}).length > 0,
+    has('report'), has('closure') || (assessment.recovery || []).length > 0, (moduleTwelveState.attempts || 0) > 0,
+  ];
+  return `<div class="m12-stage-note"><strong>12-stage progress tracker</strong><span>Progress aid only · one integrated rubric and one capstone submission</span></div><div class="m12-requirements">${MODULE_TWELVE_REQUIREMENTS.map(([label, detail], index) => { const complete = reviewed[index]; return `<div class="${complete ? 'is-seen' : ''}"><span>${String(index + 1).padStart(2,'0')}</span><p><strong>${esc(label)} ${complete ? '· reviewed' : '· open'}</strong><small>${esc(detail)}</small><em>${esc(MODULE_TWELVE_ARC_CALLBACKS[index])}</em></p></div>`; }).join('')}</div>`;
 }
 
 function moduleTwelvePreparation() {
@@ -555,29 +537,34 @@ function moduleTwelveGetSections() {
 function viewModuleTwelve(user, program) {
   moduleTwelveLoad(user, program);
   if (!moduleTwelveUnlocked(user, program)) return moduleTwelveLockedView(user, program);
+  SocM12AssessmentConsole.mount(null);
   const module = program.modules['soc-12'];
   const sections = moduleTwelveGetSections();
   return `<div class="m12-shell">${moduleTwelveHeader(user, program)}<div class="mquick-nav-layout">${moduleUnifiedNav(sections, { moduleKey: 'm12' })}<main class="m12-main mf-frame">
     <section class="m12-hero mf-hero" aria-labelledby="m12-title"><div><p class="m12-kicker mf-kicker">Module 12 · ${formatHandsOnDuration(module.durationMinutes)} · Final Assessment</p><h1 id="m12-title">${esc(module.title)}</h1><p class="m12-kicker mf-kicker">Case scenario · Operation Amber Finch</p><p class="mf-lede">Investigate a synthetic high-priority signal across the complete Mission Next security operations range. Discover what happened, bound impact, improve detection, direct response, and close the case with a portfolio-grade report. This capstone integrates all competencies from Modules 01–11 into one independent Prove assessment.</p>
-      <div class="m12-hero-actions"><a class="m12-primary" href="${esc(moduleTwelveLaunchUrl())}" target="_blank" rel="noopener" data-m12-launch><i class="ri-terminal-box-line" aria-hidden="true"></i> Open integrated simulator</a><a class="m12-secondary" href="#m12-range"><i class="ri-arrow-down-line" aria-hidden="true"></i> Investigate here</a></div><p class="m12-launch-note">${moduleTwelveState.simulatorLaunched ? 'Simulator launch recorded. Portal work remains saved separately.' : 'Opens the catalogue route in a new tab; all data is fictional.'}</p></div>
-      <dl class="mf-stats"><div><dt>Case</dt><dd>INC-4821</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Pass</dt><dd>${MODULE_TWELVE_PASSING_SCORE}% (seven of ten domains) + safety gate</dd></div></dl></section>
-    <section class="m12-objective"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Rubric scoring</p><h2>Ten scored domains (10 points each): Triage, Query, Timeline, Scope, Enrichment, ATT&CK, Detection, Response, Reporting, and Closure. Pass requires 70 points plus no critical-error violations (false triage, unsafe scope, evidence loss, or unsupported closure).</h2></div></section>
+      <div class="m12-hero-actions"><a class="m12-secondary" href="#m12-range"><i class="ri-arrow-down-line" aria-hidden="true"></i> Investigate here</a><a class="m12-primary" href="#m12-assessment-section"><i class="ri-file-check-line" aria-hidden="true"></i> Open capstone assessment</a></div></div>
+      <dl class="mf-stats"><div><dt>Case</dt><dd>INC-4821</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Pass</dt><dd>${MODULE_TWELVE_PASSING_SCORE}/100 · safety cap for executed unsafe actions</dd></div></dl></section>
+    <section class="m12-objective"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Rubric scoring</p><h2>Eight competencies: Intelligence and preparation (10), queries and detection (18), alert and incident management (12), cross-domain investigation (18), timeline/scope/evidence/ATT&amp;CK (12), tuning/automation/containment (14), eradication/recovery (8), and reporting/operations/lessons (8). Total: 100 points; pass: 70.</h2></div></section>
     <section class="m12-objective"><div><i class="ri-git-merge-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Prior instruction</p><h2>This capstone draws on skills from all 11 prior modules: SOC operations foundations (M01), network and identity foundations (M02), SIEM and log analysis (M03), detection rule tuning (M04), endpoint investigation (M05), threat hunting (M06), network and email analysis (M07), vulnerability prioritization (M08), incident response (M09), evidence handling and case documentation (M10), and SOC metrics and communication (M11).</h2></div></section>
     ${moduleTwelvePreparation()}
     <details class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m12-kicker mf-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">The twelve requirements may be completed in any order. They describe the deliverable, not the attacker's sequence; discover chronology from the evidence. Amber Finch is the capstone composite: Cedar Lock (M09–M11) rehearsed the response, custody, and reporting handoffs, while this case asks you to integrate those decisions with the earlier identity, SIEM, detection, endpoint, hunting, network, and prioritization work.</p>${moduleTwelveMissionStatus()}</section></details>
-    <details class="m12-section-collapsible mf-section mf-lab-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m12-kicker mf-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-range-section mf-section-body" id="m12-range"><div id="m12-console-root">${moduleTwelveConsole()}</div>${moduleTwelveEvidenceTray()}</section></details>
+    <details class="m12-section-collapsible mf-section mf-lab-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m12-kicker mf-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-range-section mf-section-body" id="m12-range"><div id="m12-console-root">${moduleTwelveConsole()}</div></section></details>
     <details class="m12-section-collapsible mf-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m12-kicker mf-kicker">Prove It</p><h2>Capstone assessment</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-assessment-section mf-section-body" id="m12-assessment-section">${moduleTwelveAssessment()}</section></details>
+    <details class="m12-section-collapsible mf-section mf-lab-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">+</span><div><p class="m12-kicker mf-kicker">Optional Labs</p><h2>Supplementary capstone simulator</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">This legacy simulator is optional practice. It does not affect the scored Assessment Lab, submission, attempts, or module progress.</p><a class="m12-secondary" href="${esc(moduleTwelveLaunchUrl(MODULE_TWELVE_OPTIONAL_SIMULATOR_KEY))}" target="_blank" rel="noopener" data-m12-launch>Open optional simulator</a></section></details>
   </main></div></div>`;
 }
 
 function moduleTwelveRender(focusId) {
   const root = document.getElementById('app');
   if (!root || !moduleTwelveUser || !moduleTwelveProgram) return;
+  SocM12AssessmentConsole.mount(null); // register M03 mount before rendering its shell
   root.innerHTML = viewModuleTwelve(moduleTwelveUser, moduleTwelveProgram);
   wireCommon();
   // This helper replaces the whole app shell, so restore this module's own
   // delegated listeners in addition to the shared portal listeners.
   wireModuleTwelveLab();
+  const consoleRoot=document.getElementById('m03e-console-m12');
+  if(consoleRoot) SocM12AssessmentConsole.mount(consoleRoot);
   if (focusId) requestAnimationFrame(() => { const target = document.getElementById(focusId); if (target) target.focus(); });
 }
 
@@ -589,7 +576,42 @@ function wireModuleTwelveLab() {
   // replacement; without it one click could produce two scored attempts.
   if (shell.dataset.m12Wired === 'true') return;
   shell.dataset.m12Wired = 'true';
+  shell.addEventListener('submit', (event) => {
+    const form=event.target.closest('[data-m12-assessment-action]'); if(!form)return;
+    event.preventDefault(); const data=new FormData(form), value=(name)=>String(data.get(name)||''), list=(name)=>value(name).split(',').map(x=>x.trim()).filter(Boolean);
+    const api=SocM12AssessmentState, fixture=SocM12AssessmentData, old=moduleTwelveState.assessmentState;
+    try {
+      let next=old; const action=form.dataset.m12AssessmentAction;
+      if(action==='investigation') next=api.record(old,fixture,'investigation',{domain:value('domain'),finding:value('finding'),evidenceIds:list('evidenceIds')});
+      else if(action==='intel') next=api.record(old,fixture,'intel-decision',{indicatorId:value('indicatorId'),decision:value('decision'),rationale:value('rationale')});
+      else if(action==='review-alert') next=api.record(old,fixture,'review-alert',{alertId:value('alertId'),disposition:value('disposition'),reason:value('reason')});
+      else if(action==='incident-link') next=api.record(old,fixture,'incident-link',{alertId:value('alertId'),incidentId:value('incidentId')});
+      else if(action==='query') next=api.record(old,fixture,'query-run',{query:value('query')});
+      else if(action==='rule') {
+        const tested=SocM12AssessmentConsole.evaluateQuery(value('query'));
+        next=api.record(next,fixture,'rule-save',{ruleId:value('ruleId'),query:value('query'),outcome:tested.outcome});
+        if(data.has('schedule')) next=api.record(next,fixture,'rule-schedule',{ruleId:value('ruleId'),frequency:value('frequency')});
+      } else if(action==='attack') next=api.record(old,fixture,'attack-map',{technique:value('technique'),evidenceIds:list('evidenceIds')});
+      else if(action==='workflow') { const edges=value('edges').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{const [from,to]=x.split('>').map(y=>y.trim());return {from,to};}); next=api.record(old,fixture,'workflow-design',{name:value('name'),nodes:data.getAll('nodes'),edges}); }
+      else if(action==='approval') next=api.record(old,fixture,'approval',{action:value('action'),target:value('target'),approved:data.has('approved')});
+      else if(action==='execute') next=api.record(old,fixture,'execute',{action:value('action'),target:value('target')});
+      else if(action==='recovery') next=api.record(old,fixture,'recovery',{action:value('action'),target:value('target')});
+      moduleTwelveState.assessmentState=next;
+      const stageMap={intel:'enrichment',query:'query',rule:'detection',attack:'attack',workflow:'detection',approval:'response',execute:'response',recovery:'closure','review-alert':'triage','incident-link':'scope',investigation:value('domain')==='timeline'?'timeline':value('domain')==='scope'?'scope':'investigation'};
+      moduleTwelveState.stageVisits=[...new Set([...moduleTwelveState.stageVisits,stageMap[action]||'investigation'])];
+      moduleTwelveSave(); moduleTwelveRender('m12-assessment-section');
+    } catch(error) { const alert=document.createElement('p'); alert.setAttribute('role','alert'); alert.textContent=error.message; form.append(alert); }
+  });
+  shell.addEventListener('change',(event)=>{
+    const input=event.target;
+    if(input.name!=='m12-selected-evidence') return;
+    const current=moduleTwelveState.assessmentState;
+    moduleTwelveState.assessmentState=SocM12AssessmentState.record(current,SocM12AssessmentData,'evidence-select',{evidenceId:input.value,selected:input.checked});
+    if(!moduleTwelveState.stageVisits.includes('evidence'))moduleTwelveState.stageVisits.push('evidence');
+    moduleTwelveSave();
+  });
   shell.addEventListener('click', (event) => {
+    if(event.target.closest('[data-m12-submit-capstone]')) { moduleTwelveFinalize(); return; }
     const consoleButton = event.target.closest('[data-m12-console]');
     if (consoleButton) {
       moduleTwelveState.activeConsole = consoleButton.dataset.m12Console;
@@ -607,6 +629,7 @@ function wireModuleTwelveLab() {
       if (moduleTwelveState.submitted) return;
       if (typeof window.confirm === 'function' && !window.confirm('Reset only the Module 12 capstone? Modules 01–11 and other labs remain unchanged.')) return;
       moduleTwelveState = LabRuntime.resetCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', moduleTwelveUser, moduleTwelveFreshDefaults());
+      moduleTwelveState.assessmentState = SocM12AssessmentState.reset(moduleTwelveUser,SocM12AssessmentData);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTwelveUser, 'soc-analyst', 'soc-12', MODULE_TWELVE_CATALOG_KEY, false);
       moduleTwelveRender('m12-title');
       return;
@@ -665,19 +688,8 @@ function wireModuleTwelveLab() {
   });
   function moduleTwelveFinalize() {
     if (moduleTwelveState.submitted) return;
-    const form = document.getElementById('m12-assessment');
-    if (form) {
-      moduleTwelveState.executiveSummary = form.elements.executiveSummary?.value ?? moduleTwelveState.executiveSummary;
-      moduleTwelveState.closureNote = form.elements.closureNote?.value ?? moduleTwelveState.closureNote;
-      if (form.elements.notes) caseRecordApply(moduleTwelveState, 'notes', form.elements.notes.value);
-    }
-    ['evidence','reporting','submission'].forEach((stage) => { if (!moduleTwelveState.stageVisits.includes(stage)) moduleTwelveState.stageVisits.push(stage); });
     const spec = moduleTwelveCaseSpec();
-    const missing = caseRecordMissing(moduleTwelveState, spec);
-    if (missing.length) {
-      moduleTwelveState.showMissing = true;
-      moduleTwelveSave(); moduleTwelveRender('m12-case-panel'); return;
-    }
+    if (!moduleTwelveState.stageVisits.includes('submission')) moduleTwelveState.stageVisits.push('submission');
     moduleTwelveState.showMissing = false;
     const result = moduleTwelveScore();
     moduleTwelveState.attempts += 1;
@@ -686,6 +698,7 @@ function wireModuleTwelveLab() {
     moduleTwelveState.breakdown = result.breakdown;
     moduleTwelveState.feedback = result.feedback;
     moduleTwelveState.criticalErrors = result.criticalErrors;
+    moduleTwelveState.reviewPayload = result.scorePayload;
     moduleTwelveState.lastSubmittedAt = new Date().toISOString();
     moduleTwelveState.completed = result.score >= MODULE_TWELVE_PASSING_SCORE && result.criticalErrors.length === 0;
     // Once passed, the capstone ticket locks (submitted -> Lab Graded/Under
@@ -711,17 +724,27 @@ function wireModuleTwelveLab() {
           case_display: caseRecordDisplay(moduleTwelveState, spec),
           case_summary: caseRecordSummary(moduleTwelveState, spec),
           notes: moduleTwelveState.notes,
+          studentResponses: moduleTwelveState.assessmentState.reports,
+          selectedEvidence: moduleTwelveState.assessmentState.selectedEvidence,
+          actionHistory: moduleTwelveState.assessmentState.actionHistory,
+          reviewPayload: result.scorePayload,
         },
       });
     }
     const artifactContent = {
-      responses: moduleTwelveState.answers,
-      executiveSummary: moduleTwelveState.executiveSummary,
-      analystNarrative: moduleTwelveState.notes,
-      closureNote: moduleTwelveState.closureNote,
+      responses: moduleTwelveState.assessmentState.reports,
+      studentResponses: moduleTwelveState.assessmentState.reports,
+      actionHistory: moduleTwelveState.assessmentState.actionHistory,
+      selectedEvidence: moduleTwelveState.assessmentState.selectedEvidence,
+      determinations: moduleTwelveState.assessmentState.investigations,
+      actions: [...moduleTwelveState.assessmentState.executions, ...moduleTwelveState.assessmentState.recovery],
+      executiveSummary: moduleTwelveState.assessmentState.reports.executive?.text || '',
+      analystNarrative: moduleTwelveState.assessmentState.reports.technical?.text || '',
+      closureNote: moduleTwelveState.assessmentState.closure?.rationale || '',
       caseRecord: { status: moduleTwelveState.status, severity: moduleTwelveState.severity, affectedUser: moduleTwelveState.affectedUser, affectedDevice: moduleTwelveState.affectedDevice, disposition: moduleTwelveState.disposition, escalation: moduleTwelveState.escalation, escalateTo: moduleTwelveState.escalateTo },
       score: result.score,
       breakdown: result.breakdown,
+      reviewPayload: result.scorePayload,
       feedback: result.feedback,
       criticalErrors: result.criticalErrors,
       hintPenalty: result.hintPenalty,
@@ -732,7 +755,7 @@ function wireModuleTwelveLab() {
       persistPortfolioArtifact(moduleTwelveUser, {
         moduleKey: 'soc-12', labKey: MODULE_TWELVE_CATALOG_KEY,
         kind: 'capstone_report', title: `SOC Analyst Capstone — attempt ${moduleTwelveState.attempts}`,
-        content: artifactContent, rubricVersion: 'soc-analyst-capstone-v1',
+        content: artifactContent, rubricVersion: 'm12-cumulative-capstone-v1',
       });
     }
     if (moduleTwelveState.completed) {

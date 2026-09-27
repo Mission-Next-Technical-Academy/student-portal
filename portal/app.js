@@ -3941,7 +3941,7 @@ function moduleCompletion(program, moduleKey, user) {
   const remoteComplete = (user.remoteVerifiedModuleProgress || {})[moduleKey] === true;
   const engagement = loadModuleEngagement(user);
   const moduleId = moduleEngagementId(program.slug, moduleKey);
-  const labs = programLabs(program).filter((lab) => lab.module === moduleKey);
+  const labs = programLabs(program).filter((lab) => lab.module === moduleKey && lab.optional !== true);
   const contentOpened = fixtureState === 'complete' || remoteComplete || remoteState === 'in_progress'
     || engagement.openedModules.includes(moduleId);
   const allLabsComplete = remoteComplete || labs.every((lab) => {
@@ -4208,6 +4208,19 @@ window.addEventListener('message', (event) => {
   if (labRoute) location.hash = labRoute[1];
 });
 
+/* SOC Modules 4–12: retained supplemental labs, shown apart from the scored
+ * Assessment Lab. Completing them is tracked but never required, scored or
+ * used to gate a submission or module progress. */
+function missionNextOptionalLabsSection(moduleNumber, labs, bucket) {
+  const group = missionNextLabLaunchGroup(moduleNumber, 'optional', labs, bucket);
+  if (!group) return '';
+  return `<section class="mn-additional-labs mn-optional-labs" aria-labelledby="mn-optional-labs-${moduleNumber}">
+    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">OPTIONAL LABS</p><h2 id="mn-optional-labs-${moduleNumber}">Optional Mission Next Labs</h2></div><span>Not graded · never required</span></div>
+    <p class="mn-additional-labs-copy">Extra practice on this module's topic. They do not affect your Assessment Lab score, submission or module progress.</p>
+    ${group}
+  </section>`;
+}
+
 function missionNextAdditionalLabsSection(moduleNumber, links) {
   const items = Array.isArray(links) ? links : [];
   if (!items.length) return '';
@@ -4225,7 +4238,7 @@ function missionNextAdditionalLabsSection(moduleNumber, links) {
  * total to get a "Guided Lab 2"-style label; a single lab of that kind gets
  * the plain "Guided Lab"/"Assessment Lab" label with no number. */
 function missionNextLabLaunchLabel(kind, index, total) {
-  const kindLabel = kind === 'assessment' ? 'Assessment Lab' : kind === 'additional' ? 'Required Lab' : 'Guided Lab';
+  const kindLabel = kind === 'assessment' ? 'Assessment Lab' : kind === 'additional' ? 'Required Lab' : kind === 'optional' ? 'Optional Lab' : 'Guided Lab';
   return total > 1 ? `${kindLabel} ${index}` : kindLabel;
 }
 
@@ -5120,7 +5133,7 @@ function moduleCard(program, key, user) {
               : completion.contentOpened || completion.fixtureState !== 'not_started' ? 'in_progress'
               : 'not_started';
   const s = STATE_STYLES[state];
-  const labs = programLabs(program).filter((lab) => lab.module === key);
+  const labs = programLabs(program).filter((lab) => lab.module === key && lab.optional !== true);
   const curriculumItems = Array.isArray(m.curriculumItems) ? m.curriculumItems : [];
   const parentRecords = moduleParentRecords(program, m, labs);
   const completionLabel = completion.complete

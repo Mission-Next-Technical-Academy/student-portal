@@ -451,27 +451,23 @@ const MODULE_FOUR_RELEVANT_EVIDENCE = [
 // recordLabAttempt() for MODULE_FOUR_CATALOG_LAB_KEY. The independent lab
 // (m04-independent-form) is Practice It — locally scored, no catalog
 // attempt — and is out of scope for this migration.
-const MODULE_FOUR_CASE_ID = 'DET-4415';
+const MODULE_FOUR_CASE_ID = SocM04AssessmentData.scenario.caseId;
 const MODULE_FOUR_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
-// Confirmed entity = acct-24 (targeted by the spray and the one account that
-// authenticated afterward). Pivots = the other four sprayed accounts —
-// plausible but not the confirmed principal. Noise = accounts untouched by
-// the 198.51.100.44 cluster, pulled from the same event/intel volume as
-// Module 01's entityRoster distractors are.
+// Keep the submitted case selections anchored to the immutable assessment truth.
 const MODULE_FOUR_ENTITY_ROSTER = {
   users: [
-    { id: 'acct-24', text: 'acct-24', tier: 'principal' },
-    { id: 'acct-21', text: 'acct-21', tier: 'pivot' },
-    { id: 'acct-22', text: 'acct-22', tier: 'pivot' },
-    { id: 'acct-23', text: 'acct-23', tier: 'pivot' },
-    { id: 'acct-25', text: 'acct-25', tier: 'pivot' },
-    { id: 'acct-06', text: 'acct-06', tier: 'noise' },
-    { id: 'acct-17', text: 'acct-17', tier: 'noise' },
-    { id: 'acct-08', text: 'acct-08', tier: 'noise' },
+    { id: 'acct-44', text: 'acct-44', tier: 'principal' },
+    { id: 'acct-41', text: 'acct-41', tier: 'pivot' },
+    { id: 'acct-42', text: 'acct-42', tier: 'pivot' },
+    { id: 'acct-43', text: 'acct-43', tier: 'pivot' },
+    { id: 'acct-45', text: 'acct-45', tier: 'pivot' },
+    { id: 'acct-46', text: 'acct-46', tier: 'noise' },
+    { id: 'acct-47', text: 'acct-47', tier: 'noise' },
+    { id: 'acct-48', text: 'acct-48', tier: 'noise' },
   ],
   devices: [
-    { id: '198.51.100.44', text: '198.51.100.44 (unresolved source)', tier: 'principal' },
+    { id: '198.51.100.64', text: '198.51.100.64 (unresolved source)', tier: 'principal' },
     { id: '203.0.113.77', text: '203.0.113.77 (managed mail client)', tier: 'pivot' },
     { id: '10.44.3.18', text: '10.44.3.18 (East office managed)', tier: 'noise' },
     { id: '10.44.3.22', text: '10.44.3.22 (East office managed)', tier: 'noise' },
@@ -517,9 +513,7 @@ function moduleFourCaseSpec() {
     findings: [
       { name: 'intelAssessment', label: 'Intelligence interpretation', options: MODULE_FOUR_INTEL_FINDING_OPTIONS, missing: 'Interpret the attached intelligence' },
       { name: 'ruleDisposition', label: 'Rule deployment decision', options: MODULE_FOUR_RULE_DISPOSITION_FINDING_OPTIONS, missing: 'Decide how to deploy the tuned rule' },
-      { name: 'automationChoice', label: 'Bounded automation choice', options: MODULE_FOUR_AUTOMATION_FINDING_OPTIONS, missing: 'Choose a bounded automation playbook' },
     ],
-    findingsHtml: moduleFourCaseAutomationHtml(),
     extraMissing: moduleFourExtraMissing(),
   };
 }
@@ -541,11 +535,7 @@ function moduleFourCaseAutomationHtml() {
 
 function moduleFourExtraMissing() {
   const missing = [];
-  if (!missionNextAllLabsComplete(moduleFourState.labProgress, ['additional-1', 'additional-2', 'additional-3'])) missing.push('Mark all required imported labs complete');
-  if (moduleFourState.selectedEvidence.length < 6) missing.push('Select at least six evidence artifacts across the two sources in the Guided Lab');
-  if (!moduleFourState.ruleRuns) missing.push('Run the rule simulation in the Guided Lab');
-  if (!moduleFourState.enrichedIndicator) missing.push('Attach an intelligence indicator in the Guided Lab');
-  if (!moduleFourState.automationRan) missing.push('Run the selected automation playbook');
+  if (!(moduleFourState.assessment.executions || []).some((execution) => execution.status === 'completed')) missing.push('Run at least one analytics rule against the assessment telemetry');
   return missing;
 }
 
@@ -628,7 +618,7 @@ function moduleFourCaseScore() {
     breakdown: { affected_entity: entityPoints, severity: severityPoints, disposition: dispositionPoints, escalation: escalationPoints, detection_logic: detectionLogicPoints, domain_findings: domainFindingsPoints, analyst_notes: notesPoints },
     department, bounced,
     feedback: [
-      entityPoints >= 15 ? 'Affected entity/scope: correct — acct-24 and 198.51.100.44 are the confirmed affected user and device.' : entityPoints > 0 ? 'Affected entity/scope: partial credit — a related account or source is supported by the evidence, but acct-24/198.51.100.44 is the confirmed pair.' : 'Affected entity/scope: review — acct-24 and 198.51.100.44 are the confirmed affected user and device, supported by the authentication log.',
+      entityPoints >= 15 ? 'Affected entity/scope: correct — acct-44 and 198.51.100.64 are the confirmed affected user and source.' : entityPoints > 0 ? 'Affected entity/scope: partial credit — a related account or source is supported by the evidence, but acct-44/198.51.100.64 is the confirmed pair.' : 'Affected entity/scope: review — acct-44 and 198.51.100.64 are the confirmed affected user and source, supported by the authentication log.',
       severityPoints ? 'Severity: correct — High.' : 'Severity: review — a distributed spray with a successful sign-in is High severity.',
       dispositionPoints ? 'Disposition: correct — confirmed malicious activity.' : 'Disposition: review — the successful sign-in after a distributed spray is confirmed malicious activity, not a false positive.',
       routingFeedback,
@@ -654,7 +644,7 @@ let moduleFourQuizForceRetake = false;
 function moduleFourLoad(user) {
   if (moduleFourUser?.email !== user?.email) moduleFourQuizForceRetake = false;
   moduleFourUser = user;
-  moduleFourState = LabRuntime.loadCaseState(MODULE_FOUR_LAB_ID, 'soc-04', user, MODULE_FOUR_DEFAULT_STATE);
+  moduleFourState = SocM04AssessmentState.load(user, MODULE_FOUR_DEFAULT_STATE, SocM04AssessmentData);
   ['reviewedStations', 'selectedEvidence', 'ruleRunResults', 'automationLog', 'hintsOpened', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleFourState[key])) moduleFourState[key] = [];
   });
@@ -672,6 +662,17 @@ function moduleFourLoad(user) {
   ['status', 'severity', 'affectedUser', 'affectedDevice', 'disposition', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
     if (typeof moduleFourState.caseRecord[key] !== 'string') moduleFourState.caseRecord[key] = '';
   });
+  const caseRecord = moduleFourState.caseRecord;
+  if (caseRecord.caseId === 'DET-4415' || (!caseRecord.caseId && caseRecord.attemptedCaseId === 'DET-4415')
+    || ['acct-21', 'acct-22', 'acct-23', 'acct-24', 'acct-25'].includes(caseRecord.affectedUser)
+    || caseRecord.affectedDevice === '198.51.100.44') {
+    caseRecord.legacyCaseId = 'DET-4415';
+  }
+  caseRecord.caseId = MODULE_FOUR_CASE_ID;
+  caseRecord.scenarioId = SocM04AssessmentData.scenario.id;
+  const legacyAccounts = { 'acct-21': 'acct-41', 'acct-22': 'acct-42', 'acct-23': 'acct-43', 'acct-24': 'acct-44', 'acct-25': 'acct-45' };
+  if (legacyAccounts[caseRecord.affectedUser]) caseRecord.affectedUser = legacyAccounts[caseRecord.affectedUser];
+  if (caseRecord.affectedDevice === '198.51.100.44') caseRecord.affectedDevice = '198.51.100.64';
   if (!moduleFourState.caseRecord.findings || typeof moduleFourState.caseRecord.findings !== 'object') moduleFourState.caseRecord.findings = {};
   if (!Array.isArray(moduleFourState.caseRecord.actionHistory)) moduleFourState.caseRecord.actionHistory = [];
   if (typeof moduleFourState.caseRecord.submitted !== 'boolean') moduleFourState.caseRecord.submitted = false;
@@ -746,7 +747,7 @@ function moduleFourGetQuickNavItems() {
 }
 
 function moduleFourSave() {
-  if (moduleFourUser && moduleFourState) LabRuntime.saveCaseState(MODULE_FOUR_LAB_ID, 'soc-04', moduleFourUser, moduleFourState);
+  if (moduleFourUser && moduleFourState) SocM04AssessmentState.save(moduleFourUser, moduleFourState, SocM04AssessmentData);
 }
 
 function moduleFourVideoScript() {
@@ -1070,8 +1071,6 @@ function moduleFourIntelStation() {
 }
 
 function moduleFourArtifact() {
-  const ready = moduleFourState.ruleRuns > 0 && Boolean(moduleFourState.enrichedIndicator);
-  if (!ready) return `<section class="m04-artifact-locked" aria-label="Detection package locked"><i class="ri-lock-line" aria-hidden="true"></i><div><strong>Detection package</strong><p>Run at least one rule simulation and attach one intelligence indicator in the Guided Lab. You may complete those desks in either order.</p></div></section>`;
   const cr = moduleFourState.caseRecord;
   const spec = moduleFourCaseSpec();
   const missing = caseRecordMissing(cr, spec);
@@ -1090,7 +1089,14 @@ function moduleFourArtifact() {
       reviewStatus: moduleFourProveItReviewStatus(),
       lockedMessage: 'Module 5 stays locked until your instructor approves the submission.',
     })}
+    ${cr.submitted && cr.reviewPayload ? moduleFourAssessmentReview(cr.reviewPayload) : ''}
   </section>`;
+}
+
+function moduleFourAssessmentReview(payload) {
+  const criteria = Array.isArray(payload.criteria) ? payload.criteria : [];
+  const feedback = Array.isArray(payload.review?.feedback) ? payload.review.feedback : [];
+  return `<section class="m04-assessment-review" data-m04-submitted-review aria-label="Submitted assessment feedback"><h4>Assessment review</h4><p><strong>${esc(payload.score)}/${esc(payload.maxScore)} points</strong> · ${payload.passed ? 'Passing' : 'Needs remediation'}</p>${payload.criticalMisses?.length ? `<ul>${payload.criticalMisses.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>` : ''}<ol>${criteria.map((criterion) => `<li><strong>${esc(criterion.label)}: ${esc(criterion.points)}/${esc(criterion.max)}</strong>${criterion.supportingEvidence?.length ? `<p>Evidence: ${criterion.supportingEvidence.map((item) => esc(item)).join('; ')}</p>` : ''}${criterion.misses?.length ? `<p>Review: ${criterion.misses.map((item) => esc(item)).join('; ')}</p>` : ''}${criterion.deductions?.length ? `<p>Deductions: ${criterion.deductions.map((item) => `${esc(item.points)} points: ${esc(item.reason)}`).join('; ')}</p>` : ''}</li>`).join('')}</ol>${feedback.length ? `<ul>${feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>` : ''}</section>`;
 }
 
 function moduleFourGuidedLabPanel() {
@@ -1099,18 +1105,67 @@ function moduleFourGuidedLabPanel() {
     : moduleFourState.activeStation === 'intel'
       ? moduleFourIntelStation()
       : `<section class="m04-start-panel" aria-label="Choose a starting desk"><i class="ri-route-line" aria-hidden="true"></i><div><strong>Choose either desk to begin.</strong><p>This assisted lab signposts the required outputs but leaves the investigation order to you.</p></div></section>`;
-  return `${moduleFourProgressStrip()}${moduleFourStationChooser()}${station}`;
+  return `${moduleFourProgressStrip()}${moduleFourStationChooser()}${station}${moduleFourIndependentLab()}`;
 }
 
+// The Module 3 SIEM, mounted on the independent M04 assessment data. Module 4
+// adds only Threat Intelligence, Analytics Rules and Automation; everything
+// else (and the ITSM ticket tab) is the Module 3 console unchanged.
+const MODULE_FOUR_CONSOLE_DATA = (function () {
+  const s = SocM04AssessmentData.scenario;
+  const day = s.start.slice(0, 10);
+  const events = s.telemetry.map((e) => m03eRow('AuthLog', e.id, day, e.time.slice(11, 19), {
+    EventType: e.type, Account: e.account, SourceIp: e.sourceIp, Result: e.result, Device: e.device, Host: 'idp-04',
+    Detail: e.result === 'Failure' ? 'Invalid password' : 'Sign-in succeeded',
+  }));
+  const user = (account, department, usual) => ({ Account: account, DisplayName: account, Type: 'User', Department: department, Owner: '—', Privileged: 'No', UsualSourceIp: usual, Notes: '' });
+  return {
+    ...m03eBuildDataset({
+      caseId: s.caseId,
+      day,
+      events,
+      identities: [user('acct-41', 'Finance', '10.44.3.18'), user('acct-42', 'Operations', '10.44.3.22'), user('acct-43', 'Legal', '10.44.3.18'), user('acct-44', 'Finance', '10.44.3.22'), user('acct-45', 'Sales', '10.44.3.18'), { ...user('acct-17', 'Operations', '203.0.113.77'), Notes: 'Uses the managed mail client' }],
+      ips: [
+        { SourceIp: '198.51.100.64', Type: 'External', Country: '—', Asn: 'Unresolved hosting network', FirstSeen: `${day} 09:01`, Reputation: 'No internal history. Check Threat Intelligence for reporting on this address.' },
+        { SourceIp: '203.0.113.77', Type: 'External', Country: '—', Asn: 'Mission Next managed mail relay', FirstSeen: '2025-01-10 08:00', Reputation: 'Known managed mail-client egress' },
+      ],
+      watchlists: {
+        ChangeTickets: { title: 'Approved change tickets', rows: [
+          { ChangeId: 'CR-204', Summary: 'Credential rotation (Identity Operations)', Account: 'acct-17', Window: `${day} 08:45–09:15`, Status: 'Completed' },
+        ] },
+      },
+      alerts: [],
+    }),
+    now: s.end,
+  };
+}());
+
+const moduleFourAssessment = () => moduleFourState.assessment;
+
+const MODULE_FOUR_CONSOLE = SocConsoleTools.mount('m04', {
+  data: MODULE_FOUR_CONSOLE_DATA,
+  stateRoot: () => moduleFourState,
+  save: () => moduleFourSave(),
+  title: 'SIEM & DETECTION ENGINEERING',
+  ariaLabel: 'Module 04 detection assessment console',
+  packs: [{ id: 'm04', ctx: { assessment: moduleFourAssessment, fixture: SocM04AssessmentData, save: () => moduleFourSave(), rerender: () => moduleFourRenderAssessment(), console: () => m03eState('m04') } }],
+  caseView: () => moduleFourArtifact(),
+  caseBadge: () => (moduleFourState.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+});
+
+
 function moduleFourAssessmentLabPanel() {
-  return `${moduleFourArtifact()}${moduleFourIndependentLab()}`;
+  return `<div class="m03e-panel" id="m04-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_FOUR_CASE_ID)} · NORMAL SHIFT · ASSIGNED TO YOU</p><p>Threat Desk has sent a new intelligence report. Your lead’s request: <em>“Decide what this report means for us, turn it into a detection that works on our telemetry, and put what you did and why in the ticket.”</em> Evaluate the report and its indicators, test a query in Log Search, save it as an analytics rule, run and schedule it, review what it raises, choose only safe automation, and complete the ITSM ticket.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m04">${moduleThreeConsoleHtml('m04')}</div>
+  </div>`;
 }
 
 function moduleFourAdditionalLabs() {
-  return missionNextLabLaunchGroup(4, 'additional', [
+  return missionNextOptionalLabsSection(4, [
     { title: 'DHCP Log Analysis — Rogue DHCP Server Detection', detail: 'Network telemetry and automated detection', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dhcp-log-analysis', labId: 'additional-1', requireNote: true },
-    { title: 'Active Directory Health Checks using Nagios', detail: 'Optional supplementary AD monitoring practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-4/lab', labId: 'additional-2', requireNote: true },
-    { title: 'Active Directory Monitoring and Alerting with Prometheus', detail: 'Optional supplementary AD monitoring practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-6/lab', labId: 'additional-3', requireNote: true },
+    { title: 'Active Directory Health Checks using Nagios', detail: 'Supplementary AD monitoring practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-4/lab', labId: 'additional-2', requireNote: true },
+    { title: 'Active Directory Monitoring and Alerting with Prometheus', detail: 'Supplementary AD monitoring practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-6/lab', labId: 'additional-3', requireNote: true },
   ], moduleFourState.labProgress);
 }
 
@@ -1300,6 +1355,7 @@ function moduleFourRenderAssessment(focusId) {
   const root = document.getElementById('m04-assessment-lab-dynamic');
   if (!root) return;
   root.innerHTML = moduleFourAssessmentLabPanel();
+  m03eAttachEditor('m04');
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -1313,6 +1369,39 @@ function moduleFourOpenStation(station) {
 function wireModuleFourGuidedLab() {
   const root = document.getElementById('m04-guided-lab-dynamic');
   if (!root || !moduleFourState) return;
+
+  // The independent lab is Practice It: locally scored, never the Assessment Lab.
+  root.addEventListener('change', (event) => {
+    const input = event.target;
+    if (input.matches('[data-m04-independent-answer]')) {
+      moduleFourState.independentLab.answers[input.dataset.questionId] = input.value;
+      moduleFourSave();
+    }
+  });
+  root.addEventListener('input', (event) => {
+    if (event.target.matches('[data-m04-independent-notes]')) {
+      moduleFourState.independentLab.notes = event.target.value;
+      moduleFourSave();
+      return;
+    }
+  });
+  root.addEventListener('submit', (event) => {
+    if (event.target.id === 'm04-independent-form') {
+      event.preventDefault();
+      const state = moduleFourState.independentLab;
+      const missing = MODULE_FOUR_INDEPENDENT_LAB.questions.some((question) => !state.answers?.[question.id]);
+      if (missing) { state.feedback = [`Answer all ${MODULE_FOUR_INDEPENDENT_LAB.questions.length} independent-lab decisions before scoring.`]; moduleFourSave(); moduleFourRenderGuided('m04-independent-title'); return; }
+      const correct = MODULE_FOUR_INDEPENDENT_LAB.questions.filter((question) => state.answers[question.id] === question.correct).length;
+      state.attempts += 1;
+      state.score = Math.round((correct / MODULE_FOUR_INDEPENDENT_LAB.questions.length) * 100);
+      state.completed = state.score >= 70;
+      state.feedback = MODULE_FOUR_INDEPENDENT_LAB.questions.map((question) => state.answers[question.id] === question.correct ? `${question.id}: Correct — the evidence supports a bounded, approval-aware response.` : `${question.id}: Revisit the evidence chain; do not let a nearby benign event erase the stronger sequence or justify broad disruption.`);
+      if (state.completed) state.feedback.push('Independent lab passed. You preserved evidence and kept disruptive response approval-gated.');
+      moduleFourSave();
+      moduleFourRenderGuided('m04-independent-title');
+      return;
+    }
+  });
 
   root.addEventListener('click', (event) => {
     const stationButton = event.target.closest('[data-m04-station]');
@@ -1392,29 +1481,19 @@ function wireModuleFourGuidedLab() {
 function wireModuleFourAssessmentLab() {
   const root = document.getElementById('m04-assessment-lab-dynamic');
   if (!root || !moduleFourState) return;
+  MODULE_FOUR_CONSOLE.wire(root);
 
   root.addEventListener('change', (event) => {
     const input = event.target;
-    if (input.matches('[data-m04-independent-answer]')) {
-      moduleFourState.independentLab.answers[input.dataset.questionId] = input.value;
-      moduleFourSave();
-      return;
-    }
     if (input.closest('#m04-assessment') && caseRecordApply(moduleFourState.caseRecord, input.name, input.value)) {
       moduleFourState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
       moduleFourSave();
-      // A finding change can flip the "run automation" button's disabled
-      // state (automationChoice) — re-render so it reflects the new pick.
+      // Re-render so the conditional ticket fields and missing list stay honest.
       moduleFourRenderAssessment();
     }
   });
 
   root.addEventListener('input', (event) => {
-    if (event.target.matches('[data-m04-independent-notes]')) {
-      moduleFourState.independentLab.notes = event.target.value;
-      moduleFourSave();
-      return;
-    }
     if (event.target.name === 'notes' && event.target.closest('#m04-assessment')) {
       caseRecordApply(moduleFourState.caseRecord, 'notes', event.target.value);
       moduleFourSave();
@@ -1456,16 +1535,24 @@ function wireModuleFourAssessmentLab() {
         return;
       }
       moduleFourProveItShowMissing = false;
-      const result = moduleFourCaseScore();
+      const result = SocM04AssessmentScorer.score(moduleFourState, SocM04AssessmentData);
       const submittedAt = new Date().toISOString();
+      moduleFourState.caseRecord.caseId = MODULE_FOUR_CASE_ID;
+      moduleFourState.caseRecord.scenarioId = SocM04AssessmentData.scenario.id;
       moduleFourState.caseRecord.submitted = true;
       moduleFourState.caseRecord.submittedAt = submittedAt;
+      moduleFourState.caseRecord.score = result.score;
+      moduleFourState.caseRecord.reviewPayload = {
+        ...JSON.parse(JSON.stringify(result)),
+        caseId: MODULE_FOUR_CASE_ID,
+        scenarioId: SocM04AssessmentData.scenario.id,
+      };
       moduleFourState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: submittedAt });
       moduleFourState.attempts = (moduleFourState.attempts || 0) + 1;
       moduleFourState.score = result.score;
       moduleFourState.bestScore = Math.max(moduleFourState.bestScore || 0, result.score);
-      moduleFourState.breakdown = result.breakdown;
-      moduleFourState.feedback = result.feedback;
+      moduleFourState.breakdown = result.criteria.map((criterion) => ({ id: criterion.id, score: criterion.points, max: criterion.max }));
+      moduleFourState.feedback = result.review.feedback.slice();
       moduleFourState.lastSubmittedAt = submittedAt;
       // Submitted = complete pending faculty review (Module 01 model); the
       // 70% bar is applied by instructor review, not by locking the student out.
@@ -1480,9 +1567,11 @@ function wireModuleFourAssessmentLab() {
           state: 'complete',
           score: result.score,
           result: {
-            breakdown: result.breakdown,
-            feedback: result.feedback,
-            critical_errors: result.criticalErrors,
+            rubric_version: result.rubricVersion,
+            breakdown: result.criteria,
+            feedback: result.review.feedback,
+            review_payload: moduleFourState.caseRecord.reviewPayload,
+            critical_errors: result.criticalMisses,
             case_record: moduleFourState.caseRecord,
             case_display: caseRecordDisplay(moduleFourState.caseRecord, spec),
             case_summary: caseRecordSummary(moduleFourState.caseRecord, spec),
@@ -1500,7 +1589,7 @@ function wireModuleFourAssessmentLab() {
     if (event.target.closest('[data-m04-reset]')) {
       if (moduleFourState.caseRecord.submitted) return;
       if (!window.confirm('Reset only the Module 04 detection lab? Course progress and other labs will not be changed.')) return;
-      moduleFourState = LabRuntime.resetCaseState(MODULE_FOUR_LAB_ID, 'soc-04', moduleFourUser, MODULE_FOUR_DEFAULT_STATE);
+      moduleFourState = SocM04AssessmentState.reset(moduleFourUser, MODULE_FOUR_DEFAULT_STATE, SocM04AssessmentData);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFourUser, 'soc-analyst', 'soc-04', MODULE_FOUR_CATALOG_LAB_KEY, false);
       const status = document.getElementById('m04-status');
       if (status) status.textContent = 'Not started';
@@ -1510,21 +1599,6 @@ function wireModuleFourAssessmentLab() {
   });
 
   root.addEventListener('submit', (event) => {
-    if (event.target.id === 'm04-independent-form') {
-      event.preventDefault();
-      const state = moduleFourState.independentLab;
-      const missing = MODULE_FOUR_INDEPENDENT_LAB.questions.some((question) => !state.answers?.[question.id]);
-      if (missing) { state.feedback = [`Answer all ${MODULE_FOUR_INDEPENDENT_LAB.questions.length} independent-lab decisions before scoring.`]; moduleFourSave(); moduleFourRenderAssessment('m04-independent-title'); return; }
-      const correct = MODULE_FOUR_INDEPENDENT_LAB.questions.filter((question) => state.answers[question.id] === question.correct).length;
-      state.attempts += 1;
-      state.score = Math.round((correct / MODULE_FOUR_INDEPENDENT_LAB.questions.length) * 100);
-      state.completed = state.score >= 70;
-      state.feedback = MODULE_FOUR_INDEPENDENT_LAB.questions.map((question) => state.answers[question.id] === question.correct ? `${question.id}: Correct — the evidence supports a bounded, approval-aware response.` : `${question.id}: Revisit the evidence chain; do not let a nearby benign event erase the stronger sequence or justify broad disruption.`);
-      if (state.completed) state.feedback.push('Independent lab passed. You preserved evidence and kept disruptive response approval-gated.');
-      moduleFourSave();
-      moduleFourRenderAssessment('m04-independent-title');
-      return;
-    }
     // The ITSM Incident Ticket form (caseRecordPane) has no native submit
     // path of its own — Submit Lab is a type="button" handled above — but
     // guard here too in case a future markup change adds one.

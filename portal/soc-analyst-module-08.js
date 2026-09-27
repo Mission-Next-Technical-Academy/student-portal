@@ -473,7 +473,7 @@ function moduleEightProveItSpec() {
     deviceOptions: MODULE_EIGHT_ENTITY_ROSTER.devices.map((entry) => ({ id: entry.id, text: entry.id })),
     dispositionOptions: MODULE_EIGHT_DISPOSITION_OPTIONS,
     departmentOptions: MODULE_EIGHT_DEPARTMENT_OPTIONS,
-    notesPlaceholder: 'Summarize what the WSUS and OpenVAS labs surfaced, your analysis, and your recommended action…',
+    notesPlaceholder: 'Summarize which findings are current and applicable, what is reachable, the priority and why (not CVSS alone), owner and due date, and any accepted risk…',
     saveAttr: 'data-m08-save-proveit',
     submitAttr: 'data-m08-submit-proveit',
     lockedMessage: 'Module 9 stays locked until your instructor approves the submission.',
@@ -536,6 +536,9 @@ function moduleEightProveItPerformance() {
 let moduleEightState = null;
 let moduleEightUser = null;
 let moduleEightQuizState = null;
+let moduleEightAssessmentSelectedFindingId = '';
+let moduleEightAssessmentState = null;
+let moduleEightAssessmentFilters = {};
 // Set when the learner explicitly asks to retake a knowledge check that the
 // account already records as passed (see moduleEightQuizVerifiedElsewhere()).
 let moduleEightQuizForceRetake = false;
@@ -544,6 +547,7 @@ let moduleEightReviewMode = false;
 function moduleEightLoad(user) {
   if (moduleEightUser?.email !== user?.email) moduleEightQuizForceRetake = false;
   moduleEightUser = user;
+  moduleEightAssessmentState = SocM08AssessmentState.load(user, SocM08AssessmentData);
   moduleEightState = LabRuntime.loadCaseState(MODULE_EIGHT_LAB_ID, 'soc-08', user, MODULE_EIGHT_DEFAULT_STATE);
   if (!Array.isArray(moduleEightState.feedback)) moduleEightState.feedback = [];
   if (!Array.isArray(moduleEightState.flags)) moduleEightState.flags = [];
@@ -783,41 +787,128 @@ function moduleEightGuidedLabPanel() {
   </section>`;
 }
 
+const MODULE_EIGHT_OPTIONAL_LABS = [
+  { title: 'Patch Management and Vulnerability Remediation using WSUS', detail: 'Patch deployment and remediation practice', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-5/lab', labId: 'assessment-1' },
+  { title: 'Network Vulnerability Scanning with OpenVAS', detail: 'OpenVAS scan interpretation and remediation', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-1/lab', labId: 'assessment-2' },
+  { title: 'Web Application Vulnerability Detection with OWASP ZAP', detail: 'Web vulnerability discovery and review', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-4/lab', labId: 'additional-1' },
+  { title: 'Web Application Security Assessment', detail: 'Application findings and risk assessment', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-3/lab', labId: 'additional-2' },
+];
+
 function moduleEightAdditionalLabs() {
-  const bucket = moduleEightState.labProgress;
-  const launchGroup = missionNextLabLaunchGroup(8, 'additional', [
-    { title: 'Web Application Vulnerability Detection with OWASP ZAP', detail: 'Web vulnerability discovery and review', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-4/lab', labId: 'additional-1' },
-    { title: 'Web Application Security Assessment', detail: 'Application findings and risk assessment', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-3/lab', labId: 'additional-2' },
-  ], bucket);
-  if (!launchGroup) return '';
-  return `<section class="mn-additional-labs" id="m08-additional-labs" aria-labelledby="mn-additional-labs-8">
-    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-8">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
-    <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Mark each one complete after you finish it, alongside the Guided Lab and Assessment Lab.</p>
-    ${launchGroup}
-  </section>`;
+  return `<div id="m08-additional-labs">${missionNextOptionalLabsSection(8, MODULE_EIGHT_OPTIONAL_LABS, moduleEightState.labProgress)}</div>`;
+}
+
+/* The Module 3 console carrying Modules 4–7 on this case, plus Exposure.
+ * Findings and every kind of supporting evidence are Log Search tables. */
+const MODULE_EIGHT_CONSOLE_DATA = (function () {
+  const s = SocM08AssessmentData.scenario;
+  const assetOf = (findingId) => s.findings.find((finding) => finding.id === findingId)?.assetId || '';
+  const ownerOf = (assetId) => s.assetInventory.find((asset) => asset.assetId === assetId)?.ownerId || '';
+  const row = (source, id, time, fields) => m03eRow(source, id, time.slice(0, 10), time.slice(11, 19), fields);
+  const evidence = (source, item, assetId) => row(source, item.id, item.observedAt, {
+    EventType: item.kind, Host: assetId, DeviceId: assetId, Account: ownerOf(assetId), FindingId: item.findingId || '', Source: item.source, Result: item.kind, Detail: item.detail,
+  });
+  const events = [
+    ...s.findings.map((f) => row('VulnerabilityFindings', f.id, f.observedAt, {
+      EventType: 'vulnerability_finding', Host: f.assetId, DeviceId: f.assetId, Account: ownerOf(f.assetId), Product: f.product, Cve: f.cve, CvssScore: f.cvss.baseScore,
+      CvssVector: f.cvss.vector, Scanner: f.scanner, Freshness: f.freshness.status, ScanAt: f.freshness.scanAt, Result: f.freshness.status, Detail: `${f.cve} · ${f.product} · CVSS ${f.cvss.baseScore}`,
+    })),
+    ...s.findingEvidence.map((e) => evidence('FindingEvidence', e, assetOf(e.findingId))),
+    ...s.assetEvidence.map((e) => evidence('AssetEvidence', e, e.assetId)),
+    ...s.incidentEvidence.map((e) => evidence('IncidentEvidence', e, assetOf(e.findingId))),
+    ...s.riskAcceptanceEvidence.map((e) => evidence('RiskExceptionEvidence', e, assetOf(e.findingId))),
+  ];
+  return {
+    ...m03eBuildDataset({
+      caseId: MODULE_EIGHT_CASE_ID,
+      day: s.start.slice(0, 10),
+      events,
+      identities: [...new Set(s.assetInventory.map((asset) => asset.ownerId))].map((account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Service owner', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: `Owns ${s.assetInventory.filter((asset) => asset.ownerId === account).map((asset) => asset.assetId).join(', ')}` })),
+      ips: [],
+      watchlists: {
+        AssetInventory: { title: 'Asset inventory', rows: s.assetInventory.map((asset) => ({ AssetId: asset.assetId, Hostname: asset.hostname, Function: asset.function, Owner: asset.ownerId, Environment: asset.environment, Criticality: asset.criticality.tier, Zone: asset.reachability.zone })) },
+      },
+      alerts: s.incidents.map((incident) => ({ id: incident.id, time: s.incidentEvidence.find((item) => item.incidentId === incident.id)?.observedAt || s.start, severity: 'High', title: incident.title, entities: [...new Set(incident.findingIds.map(assetOf))], rule: 'Open incident: validation and exposure review', query: 'VulnerabilityFindings\n| sort by CvssScore desc' })),
+    }),
+    now: s.end,
+  };
+}());
+const MODULE_EIGHT_DEVICES = SocM08AssessmentData.scenario.assetInventory.map((asset) => ({ id: asset.assetId, hostname: asset.hostname, platform: '—', role: asset.function, owner: asset.ownerId, zone: asset.reachability.zone, status: 'Online' }));
+const MODULE_EIGHT_TOOL_FIXTURES = (() => {
+  const s = SocM08AssessmentData.scenario;
+  return {
+    m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: MODULE_EIGHT_CASE_ID, end: s.end, data: MODULE_EIGHT_CONSOLE_DATA }),
+    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm08-endpoint-tools-v1', devices: MODULE_EIGHT_DEVICES, data: MODULE_EIGHT_CONSOLE_DATA }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M08-LEAD-001', type: 'vulnerability_findings', device: 'WEB-DMZ-14', account: 'p.diallo', taskName: '—', observation: 'New scanner findings on production DMZ assets need validation and prioritization.' }, devices: MODULE_EIGHT_DEVICES.map((device) => device.id), data: MODULE_EIGHT_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm08-mail-tools-v1', start: s.start, end: s.end }),
+  };
+})();
+
+function moduleEightM04Tools() {
+  moduleEightState.tools ||= {};
+  if (!moduleEightState.tools.m04?.schemaVersion) moduleEightState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleEightState.tools.m04 }, MODULE_EIGHT_TOOL_FIXTURES.m04).assessment;
+  return moduleEightState.tools.m04;
+}
+
+const MODULE_EIGHT_CONSOLE = (() => {
+  const save = () => moduleEightSave();
+  const base = { save, rerender: () => moduleEightRenderAssessment(), console: () => m03eState('m08') };
+  const fx = MODULE_EIGHT_TOOL_FIXTURES;
+  return SocConsoleTools.mount('m08', {
+    data: MODULE_EIGHT_CONSOLE_DATA,
+    stateRoot: () => moduleEightState,
+    save,
+    title: 'SIEM & EXPOSURE PRIORITIZATION',
+    ariaLabel: 'Module 08 vulnerability prioritization assessment console',
+    sourceMappings: {
+      VulnerabilityFindings: { native: 'Scanner findings export (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['product', 'Product'], ['cve', 'Cve'], ['cvss', 'CvssScore'], ['scanner', 'Scanner'], ['freshness', 'Freshness']] },
+      FindingEvidence: { native: 'Finding validation records (JSON)', fields: [['observed', 'TimeGenerated'], ['finding', 'FindingId'], ['kind', 'EventType'], ['source', 'Source'], ['detail', 'Detail']] },
+      AssetEvidence: { native: 'Asset context records (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['kind', 'EventType'], ['source', 'Source'], ['detail', 'Detail']] },
+      IncidentEvidence: { native: 'Incident triage records (JSON)', fields: [['observed', 'TimeGenerated'], ['finding', 'FindingId'], ['kind', 'EventType'], ['detail', 'Detail']] },
+      RiskExceptionEvidence: { native: 'Risk review records (JSON)', fields: [['observed', 'TimeGenerated'], ['finding', 'FindingId'], ['kind', 'EventType'], ['detail', 'Detail']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleEightM04Tools, fixture: fx.m04 } },
+      { id: 'm05', ctx: { ...base, fixture: fx.m05, ...SocConsoleTools.embedded(() => moduleEightState, 'm05', SocM05AssessmentState.normalize, fx.m05, save) } },
+      { id: 'm06', ctx: { ...base, fixture: fx.m06, ...SocConsoleTools.embedded(() => moduleEightState, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
+      { id: 'm07', ctx: { ...base, fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleEightState, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
+      { id: 'm08', ctx: {
+        ...base, fixture: SocM08AssessmentData,
+        ui: { get selectedFindingId() { return moduleEightAssessmentSelectedFindingId; }, set selectedFindingId(value) { moduleEightAssessmentSelectedFindingId = value; }, get filters() { return moduleEightAssessmentFilters; }, set filters(value) { moduleEightAssessmentFilters = value; } },
+        box: { get state() { return moduleEightAssessmentState; }, set state(value) { moduleEightAssessmentState = value; } },
+        store: (next) => SocM08AssessmentState.save(moduleEightUser, next, SocM08AssessmentData),
+      } },
+    ],
+    caseView: () => moduleEightCaseTicket(),
+    caseBadge: () => (moduleEightState.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+  });
+})();
+
+function moduleEightCaseTicket() {
+  const cr = moduleEightState.caseRecord;
+  const spec = moduleEightProveItSpec();
+  return `${caseRecordPane(cr, {
+    ...spec,
+    missing: caseRecordMissing(cr, spec),
+    reviewStatus: moduleEightProveItReviewStatus(),
+    redoRequested: moduleEightProveItRedoRequested(),
+    redoHtml: moduleEightProveItRedoFeedback(),
+    showMissing: moduleEightProveItShowMissing,
+  })}${cr.submitted && cr.reviewPayload ? `<section class="m04-assessment-review" data-m08-submitted-review><h4>Assessment review</h4><p><strong>${esc(cr.reviewPayload.score)}/${esc(cr.reviewPayload.maxScore)} points</strong></p><ol>${(cr.reviewPayload.criteria || []).map((criterion) => `<li><strong>${esc(criterion.label)}: ${esc(criterion.points)}/${esc(criterion.max)}</strong></li>`).join('')}</ol></section>` : ''}`;
 }
 
 function moduleEightAssessmentLabPanel() {
-  const bucket = moduleEightState.labProgress;
-  const launchGroup = missionNextLabLaunchGroup(8, 'assessment', [
-    { title: 'Patch Management and Vulnerability Remediation using WSUS', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-5/lab', labId: 'assessment-1' },
-    { title: 'Network Vulnerability Scanning with OpenVAS', detail: 'OpenVAS scan interpretation and remediation', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-1/lab', labId: 'assessment-2' },
-  ], bucket);
-  const readyToSubmit = missionNextAllLabsComplete(bucket, MODULE_EIGHT_ASSESSMENT_LAB_IDS);
-  const performance = moduleEightProveItPerformance();
-  return `<section class="m08-external-lab" id="m08-assessment-lab-panel">
-    <p class="m08-panel-instruction">Complete the imported patch-management and vulnerability-scanning projects below, mark each one complete, then work the incident ticket for instructor review.</p>
-    ${launchGroup}
-    ${!readyToSubmit ? '<p class="m08-help">Mark both labs above complete before submitting for review.</p>' : ''}
-    ${caseRecordPane(moduleEightState.caseRecord, {
-      ...moduleEightProveItSpec(),
-      missing: performance.missing,
-      reviewStatus: moduleEightProveItReviewStatus(),
-      redoRequested: moduleEightProveItRedoRequested(),
-      redoHtml: moduleEightProveItRedoFeedback(),
-      showMissing: moduleEightProveItShowMissing,
-    })}
-  </section>`;
+  return `<div class="m03e-panel" id="m08-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_EIGHT_CASE_ID)} · FINDINGS REVIEW · ASSIGNED TO YOU</p><p>Several scanner findings have landed on assets that appear in SOC telemetry. Your lead’s request: <em>“Tell me which of these actually matter to us right now, who fixes them, and by when — and don’t just sort by CVSS.”</em> Validate that each finding is current and applicable, decide what is exposed or reachable, weigh severity against asset value and incident evidence, separate urgent remediation from unrelated high scores, account for compensating controls, assign an owner, due date and escalation, link the incident where supported, and complete the ITSM ticket.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m08">${moduleThreeConsoleHtml('m08')}</div>
+  </div>`;
+}
+
+function moduleEightRenderAssessment() {
+  const root = document.getElementById('m08-assessment-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleEightAssessmentLabPanel();
+  m03eAttachEditor('m08');
 }
 
 function viewModuleEight(user, program) {
@@ -893,10 +984,11 @@ function moduleEightRender(focusId) {
     guidedRoot.innerHTML = moduleEightGuidedLabPanel();
     wireMissionNextLabGating(guidedRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
   }
-  const assessmentRoot = document.getElementById('m08-assessment-lab-dynamic');
-  if (assessmentRoot) {
-    assessmentRoot.innerHTML = moduleEightAssessmentLabPanel();
-    wireMissionNextLabGating(assessmentRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
+  moduleEightRenderAssessment();
+  const optionalRoot = document.getElementById('m08-additional-labs');
+  if (optionalRoot) {
+    optionalRoot.outerHTML = moduleEightAdditionalLabs();
+    wireMissionNextLabGating(document.getElementById('m08-additional-labs'), moduleEightState.labProgress, moduleEightHandleLabProgressChange);
   }
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
   const status = document.getElementById('m08-status');
@@ -990,7 +1082,7 @@ function wireModuleEightLab() {
   const guidedRoot = document.getElementById('m08-guided-lab-dynamic');
   if (guidedRoot) wireMissionNextLabGating(guidedRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
   const assessmentRoot = document.getElementById('m08-assessment-lab-dynamic');
-  if (assessmentRoot) wireMissionNextLabGating(assessmentRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
+  if (assessmentRoot) MODULE_EIGHT_CONSOLE.wire(assessmentRoot);
   const additionalRoot = document.getElementById('m08-additional-labs');
   if (additionalRoot) wireMissionNextLabGating(additionalRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
 
@@ -1057,7 +1149,7 @@ function wireModuleEightLab() {
       moduleEightState.practiceNotes = event.target.value;
       moduleEightSave();
     }
-    if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && !moduleEightState.caseRecord.submitted) {
+    if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && event.target.closest('#m08-assessment-form') && !moduleEightState.caseRecord.submitted) {
       moduleEightState.caseRecord.notes = event.target.value;
       moduleEightSave();
     }
@@ -1072,7 +1164,8 @@ function wireModuleEightLab() {
       moduleEightSave();
       return;
     }
-    if (input.name && !moduleEightState.caseRecord.submitted && caseRecordApply(moduleEightState.caseRecord, input.name, input.value)) {
+    // Only the ITSM ticket form writes ticket fields (the Exposure forms reuse names like status/notes).
+    if (input.name && input.closest('#m08-assessment-form') && !moduleEightState.caseRecord.submitted && caseRecordApply(moduleEightState.caseRecord, input.name, input.value)) {
       moduleEightState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
       moduleEightSave();
       moduleEightRender();
@@ -1081,8 +1174,10 @@ function wireModuleEightLab() {
 }
 
 function moduleEightFinalizeProveIt() {
-  const performance = moduleEightProveItPerformance();
   if (moduleEightState.caseRecord.submitted) return;
+  const missing = caseRecordMissing(moduleEightState.caseRecord, moduleEightProveItSpec());
+  const scored = SocM08AssessmentScorer.score(SocM08AssessmentState.load(moduleEightUser, SocM08AssessmentData), SocM08AssessmentData);
+  const performance = { missing, score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses || [] };
   if (performance.missing.length) {
     moduleEightProveItShowMissing = true;
     moduleEightRender('m08-review-submission');
@@ -1092,6 +1187,10 @@ function moduleEightFinalizeProveIt() {
   const now = new Date().toISOString();
   moduleEightState.caseRecord.submitted = true;
   moduleEightState.caseRecord.submittedAt = now;
+  moduleEightState.caseRecord.caseId = MODULE_EIGHT_CASE_ID;
+  moduleEightState.caseRecord.scenarioId = SocM08AssessmentData.scenario.id;
+  moduleEightState.caseRecord.reviewPayload = { ...JSON.parse(JSON.stringify(scored)), caseId: MODULE_EIGHT_CASE_ID, scenarioId: SocM08AssessmentData.scenario.id };
+  moduleEightState.score = scored.score;
   moduleEightState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: now });
   moduleEightState.attempts = (moduleEightState.attempts || 0) + 1;
   moduleEightState.lastSubmittedAt = now;
@@ -1105,8 +1204,10 @@ function moduleEightFinalizeProveIt() {
       state: 'complete',
       score: performance.score,
       result: {
+        rubric_version: scored.rubricVersion,
         breakdown: performance.breakdown,
         feedback: performance.feedback,
+        review_payload: moduleEightState.caseRecord.reviewPayload,
         critical_errors: performance.criticalErrors,
         case_record: moduleEightState.caseRecord,
         case_display: caseRecordDisplay(moduleEightState.caseRecord, caseSpec),
