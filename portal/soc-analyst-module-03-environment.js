@@ -622,7 +622,7 @@ function m03eSourcesView(scope) {
 
 function m03eWatchlistsView(scope) {
   const st = m03eState(scope), data = M03E_DATA[scope];
-  return `<section class="m03e-listing"><h2>WATCHLISTS</h2>${Object.entries(data.watchlists).map(([name, w]) => `<button type="button" class="${m03eIsSelected(st, 'watchlist', name) ? 'is-selected' : ''}" data-m03e-select="${scope}:watchlist:${esc(name)}"><strong>${esc(name)}</strong><span>${esc(w.title)} · ${w.rows.length} entr${w.rows.length === 1 ? 'y' : 'ies'} · queryable as a table</span><i class="ri-arrow-right-line" aria-hidden="true"></i></button>`).join('')}</section>`;
+  return `<section class="m03e-listing"><h2>WATCHLISTS</h2>${Object.entries(data.watchlists).map(([name, w]) => `<button type="button" class="${m03eIsSelected(st, 'watchlist', name) ? 'is-selected' : ''}" data-m03e-select="${scope}:watchlist:${esc(name)}"><strong>${esc(name)}</strong><span>${esc(w.title)} · ${w.rows.length} entr${w.rows.length === 1 ? 'y' : 'ies'} · queryable as a table</span><i class="ri-arrow-right-line" aria-hidden="true"></i></button>`).join('') || '<p class="m03e-muted">No watchlists are loaded for this case. Approved-activity context for this investigation comes from its telemetry and ticket instead.</p>'}</section>`;
 }
 
 function m03eEvidenceView(scope) {
@@ -805,7 +805,7 @@ function m03eViewBody(scope) {
   const tab = m03eState(scope).tab;
   const mount = M03E_MOUNTS[scope];
   if (mount?.views?.[tab]) return mount.views[tab]();
-  if (tab === 'case' && mount) return mount.caseView();
+  if (tab === 'case' && mount) return mount.caseView ? mount.caseView() : '<p class="m03e-muted">This console has no ticket; record your work in the module\'s assessment section.</p>';
   if (tab === 'itsm' && scope === 'practice') return m03eItsmGuideView();
   if (tab === 'search') return m03eSearchView(scope);
   if (tab === 'timeline') return m03eTimelineView(scope);
@@ -1036,6 +1036,8 @@ function m03eRun(scope, query) {
 }
 
 function m03eSyncPractice() {
+  // Every page runs every module's wire(); off Module 3 there is no state to sync.
+  if (!moduleThreeState) return;
   // Mirror guide completion into the module's section state and status pill.
   const done = moduleThreePracticeComplete();
   if (done && !moduleThreeState.practiceComplete) {

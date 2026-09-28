@@ -1168,19 +1168,12 @@ function wireModuleSevenGuidedLab() {
   if (host) { MODULE_SEVEN_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m07-guided'); }
   if (!root.dataset.m07GuidedObserver) {
     root.dataset.m07GuidedObserver = 'true';
-    const observer = new MutationObserver(() => {
-      const guide = root.querySelector('.m07-console-guide');
-      if (!guide) return;
-      const next = document.createElement('div'); next.innerHTML = moduleSevenGuidedGuide();
-      const nextGuide = next.firstElementChild;
-      if (guide.innerHTML !== nextGuide.innerHTML) { nextGuide.open = guide.open; guide.replaceWith(nextGuide); }
-      const complete = moduleSevenGuidedChecks().every((check) => check[2]);
-      const status = root.querySelector('.m07-guided-status');
-      if (status) status.textContent = complete ? 'Guided Lab complete: the mail and network evidence is linked to your case.' : 'Use the console to establish exposure and correlate the network trail; progress saves as you work.';
-      const badge = document.getElementById('m07-guided-status');
-      if (badge) badge.textContent = complete ? 'Complete' : moduleSevenGuidedChecks().some((check) => check[2]) ? 'In progress' : 'Not started';
-    });
-    observer.observe(root, { childList: true, subtree: true });
+    SocConsoleTools.watchGuide(root, { selector: '.m07-console-guide', render: moduleSevenGuidedGuide, update: () => {
+      const checks = moduleSevenGuidedChecks();
+      const complete = checks.every((check) => check[2]);
+      SocConsoleTools.setText(root.querySelector('.m07-guided-status'), complete ? 'Guided Lab complete: the mail and network evidence is linked to your case.' : 'Use the console to establish exposure and correlate the network trail; progress saves as you work.');
+      SocConsoleTools.setText(document.getElementById('m07-guided-status'), complete ? 'Complete' : checks.some((check) => check[2]) ? 'In progress' : 'Not started');
+    } });
   }
   root.addEventListener('input', (event) => {
     if (event.target.matches('#guided-m07-m07-guided-case [name="notes"]')) moduleSevenGuidedState.caseRecord.notes = event.target.value;

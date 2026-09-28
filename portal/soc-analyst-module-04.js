@@ -1464,14 +1464,7 @@ function wireModuleFourGuidedLab() {
   if (consoleHost) { MODULE_FOUR_GUIDED_CONSOLE.wire(consoleHost); m03eAttachEditor('m04-guided'); }
   if (!root.dataset.guideObserver) {
     root.dataset.guideObserver = 'true';
-    const observer = new MutationObserver(() => {
-      const guide = root.querySelector('.m04-console-guide');
-      if (!guide) return;
-      const next = document.createElement('div'); next.innerHTML = moduleFourGuidedGuide();
-      const nextGuide = next.firstElementChild;
-      if (guide.innerHTML !== nextGuide.innerHTML) { nextGuide.open = guide.open; guide.replaceWith(nextGuide); }
-    });
-    observer.observe(root, { childList: true, subtree: true });
+    SocConsoleTools.watchGuide(root, { selector: '.m04-console-guide', render: moduleFourGuidedGuide });
   }
   root.addEventListener('input', (event) => {
     if (event.target.matches('#guided-m04-guided-case-form [name="notes"]')) moduleFourGuidedState.caseRecord.notes = event.target.value;

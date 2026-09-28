@@ -1336,6 +1336,50 @@ const SocConsoleTools = (() => {
     },
   };
 
+  /* ---------------------------------------------------------- guided guide */
+
+  // Keep a guided lab's "Console Guide" checklist (and any status text) in
+  // step with the console. The observer disconnects while it writes and
+  // batches to one update per frame: writing inside the observed subtree
+  // otherwise re-triggers it forever and freezes the page on the first click.
+  function watchGuide(root, { selector, render, update }) {
+    const options = { childList: true, subtree: true };
+    const rendered = new WeakMap();
+    let queued = false;
+    const sync = () => {
+      const guide = root.querySelector(selector);
+      if (guide) {
+        const html = render();
+        if (rendered.get(guide) !== html) {
+          const holder = document.createElement('div');
+          holder.innerHTML = html;
+          const next = holder.firstElementChild;
+          next.open = guide.open;
+          guide.replaceWith(next);
+          rendered.set(next, html);
+        }
+      }
+      if (update) update();
+    };
+    const observer = new MutationObserver(() => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        observer.disconnect();
+        try { sync(); } finally { observer.observe(root, options); }
+      });
+    });
+    observer.observe(root, options);
+    return observer;
+  }
+
+  // Assigning textContent always replaces the node's children, even with the
+  // same text, so only write when the text actually changes.
+  function setText(element, text) {
+    if (element && element.textContent !== text) element.textContent = text;
+  }
+
   /* ---------------------------------------------------------------- mount */
 
   // Mount the Module 3 console for one module with the packs it carries.
@@ -1363,5 +1407,5 @@ const SocConsoleTools = (() => {
     };
   }
 
-  return Object.freeze({ PACKS, mount, embedded, embeddedBox, m04Fixture, m05Fixture, m06Fixture, m07Fixture, m08Fixture, m09Fixture, esc });
+  return Object.freeze({ PACKS, mount, watchGuide, setText, embedded, embeddedBox, m04Fixture, m05Fixture, m06Fixture, m07Fixture, m08Fixture, m09Fixture, esc });
 })();

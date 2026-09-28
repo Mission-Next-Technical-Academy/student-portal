@@ -1227,17 +1227,10 @@ function wireModuleFiveGuidedLab() {
   if (host) { MODULE_FIVE_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m05-guided'); }
   if (!root.dataset.m05GuidedObserver) {
     root.dataset.m05GuidedObserver = 'true';
-    const observer = new MutationObserver(() => {
-      const guide = root.querySelector('.m05-console-guide');
-      if (!guide) return;
-      const next = document.createElement('div'); next.innerHTML = moduleFiveGuidedGuide();
-      const nextGuide = next.firstElementChild;
-      if (guide.innerHTML !== nextGuide.innerHTML) { nextGuide.open = guide.open; guide.replaceWith(nextGuide); }
+    SocConsoleTools.watchGuide(root, { selector: '.m05-console-guide', render: moduleFiveGuidedGuide, update: () => {
       const complete = moduleFiveGuidedChecks().every((check) => check[2]);
-      const status = root.querySelector('.m05-guided-status');
-      if (status) status.textContent = complete ? 'Guided Lab complete: all investigation checks are recorded.' : 'Complete the investigation in the console; progress is saved automatically.';
-    });
-    observer.observe(root, { childList: true, subtree: true });
+      SocConsoleTools.setText(root.querySelector('.m05-guided-status'), complete ? 'Guided Lab complete: all investigation checks are recorded.' : 'Complete the investigation in the console; progress is saved automatically.');
+    } });
   }
   root.addEventListener('input', (event) => {
     if (event.target.matches('#guided-m05-guided-case [name="notes"]')) moduleFiveGuidedState.caseRecord.notes = event.target.value;

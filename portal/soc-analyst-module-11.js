@@ -973,6 +973,8 @@ function moduleElevenMountConsole() {
     title: 'SOC OPERATIONS & REPORTING', ariaLabel: 'Module 11 SOC operations and reporting console',
     extraTabs: [['operations', 'Operations'], ['reporting', 'Reporting']],
     views: { operations: moduleElevenOpsHtml, reporting: moduleElevenReportingHtml },
+    // The shift assessment has no ticket of its own; it is submitted below the console.
+    caseView: () => `<p class="m03e-muted">${esc(data.caseId)} · Record the shift in the Operations and Reporting tabs, then use <strong>Submit shift assessment</strong> below the console.</p>`,
   });
 }
 

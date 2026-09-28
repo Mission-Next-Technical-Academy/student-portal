@@ -1512,20 +1512,12 @@ function wireModuleSixGuidedLab() {
   if (host) { MODULE_SIX_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m06-guided'); }
   if (!root.dataset.m06GuidedObserver) {
     root.dataset.m06GuidedObserver = 'true';
-    const observer = new MutationObserver(() => {
-      const guide = root.querySelector('.m06-console-guide');
-      if (!guide) return;
-      const next = document.createElement('div'); next.innerHTML = moduleSixGuidedGuide();
-      const nextGuide = next.firstElementChild;
-      if (guide.innerHTML !== nextGuide.innerHTML) { nextGuide.open = guide.open; guide.replaceWith(nextGuide); }
+    SocConsoleTools.watchGuide(root, { selector: '.m06-console-guide', render: moduleSixGuidedGuide, update: () => {
       const checks = moduleSixGuidedChecks();
       const complete = checks.every((check) => check[2]);
-      const status = root.querySelector('.m06-guided-status');
-      if (status) status.textContent = complete ? 'Guided Lab complete: the hunt record and evidence milestones are saved.' : 'Use the hunt console to test the lead; progress saves as you work.';
-      const badge = document.getElementById('m06-status');
-      if (badge) badge.textContent = complete ? 'Complete' : checks.some((check) => check[2]) ? 'In progress' : 'Not started';
-    });
-    observer.observe(root, { childList: true, subtree: true });
+      SocConsoleTools.setText(root.querySelector('.m06-guided-status'), complete ? 'Guided Lab complete: the hunt record and evidence milestones are saved.' : 'Use the hunt console to test the lead; progress saves as you work.');
+      SocConsoleTools.setText(document.getElementById('m06-status'), complete ? 'Complete' : checks.some((check) => check[2]) ? 'In progress' : 'Not started');
+    } });
   }
   root.addEventListener('input', (event) => {
     if (event.target.matches('#guided-m06-m06-guided-case [name="notes"]')) moduleSixGuidedState.caseRecord.notes = event.target.value;
