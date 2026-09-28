@@ -26,6 +26,7 @@ assert.equal(vm.runInContext('SocM12AssessmentConsole.dataset().caseId', context
 const observed = vm.runInContext('SocM12AssessmentConsole.evaluateQuery("DeviceProcessEvents | where EventId == \\\"EP-301\\\"")', context);
 assert.equal(observed.outcome, 'narrow');
 assert.deepEqual(Array.from(observed.matchedEvidence), ['EP-301'], 'query outcome and evidence come from MnKql rows');
+vm.runInContext(read('portal/attack-catalog.js'), context, { filename: 'portal/attack-catalog.js' });
 vm.runInContext(read('portal/soc-analyst-module-12.js'), context, { filename: 'portal/soc-analyst-module-12.js' });
 vm.runInContext('moduleTwelveState = moduleTwelveFreshDefaults(); moduleTwelveState.assessmentState = SocM12AssessmentState.fresh(SocM12AssessmentData);', context);
 const html = vm.runInContext('moduleTwelveAssessment()', context);

@@ -7,7 +7,7 @@ const assert = require('assert');
 const context = {};
 vm.createContext(context);
 const root = path.join(__dirname, '..', 'portal');
-for (const file of ['soc-m06-assessment-data.js', 'soc-m06-assessment-state.js', 'soc-m06-assessment-actions.js', 'soc-m06-assessment-related-search.js']) {
+for (const file of ['soc-m06-assessment-data.js', 'soc-m06-assessment-state.js', 'soc-m06-assessment-actions.js', 'attack-catalog.js', 'soc-m06-assessment-related-search.js']) {
   vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
 }
 const api = vm.runInContext('SocM06AssessmentActions', context);

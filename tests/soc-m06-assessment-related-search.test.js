@@ -7,7 +7,7 @@ const assert = require('assert');
 const context = {};
 vm.createContext(context);
 const root = path.join(__dirname, '..', 'portal');
-for (const file of ['soc-m06-assessment-data.js', 'soc-m06-assessment-state.js', 'soc-m06-assessment-actions.js', 'soc-m06-assessment-related-search.js']) {
+for (const file of ['soc-m06-assessment-data.js', 'soc-m06-assessment-state.js', 'soc-m06-assessment-actions.js', 'attack-catalog.js', 'soc-m06-assessment-related-search.js']) {
   vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
 }
 const fixture = vm.runInContext('SocM06AssessmentData', context);
@@ -195,10 +195,20 @@ assert.throws(() => api.saveMapping(evidenceState, fixture, { tacticId: 'TA0002'
   status: 'supported', rationale: 'No event IDs', eventIds: [] }, '2026-09-27T09:22:08Z'), /cite evidence/);
 assert.throws(() => api.saveMapping(evidenceState, fixture, { tacticId: 'TA0003', techniqueId: 'T1059.001', confidence: 50,
   status: 'supported', rationale: 'Wrong tactic', eventIds: ['M06-EVT-003'] }, '2026-09-27T09:22:08Z'), /valid tactic/);
-assert.ok(api.renderMappingPanel(fixture, evidenceState).includes('ATT&amp;CK mappings'));
-assert.ok(api.renderMappingPanel(fixture, evidenceState).includes('M06-EVT-003'));
-assert.ok(api.renderMappingPanel(fixture, evidenceState).includes('Correct mapping'));
-assert.ok(api.renderMappingPanel(fixture, evidenceState).includes('data-m06-mapping-remove-form'));
+const mappingPanel = api.renderMappingPanel(fixture, evidenceState);
+assert.ok(mappingPanel.includes('data-m06-mapping-panel'));
+assert.ok(mappingPanel.includes('M06-EVT-003'));
+assert.ok(mappingPanel.includes('data-m06-mapping-edit'));
+assert.ok(mappingPanel.includes('data-m06-mapping-remove-form'));
+// The matrix is the full ATT&CK Enterprise catalog in attack.mitre.org order,
+// and a technique is only selectable under the tactics MITRE lists it in.
+const attackCatalog = vm.runInContext('MnAttackCatalog', context);
+assert.strictEqual((mappingPanel.match(/class="attack-col"/g) || []).length, attackCatalog.tactics.length, 'one matrix column per ATT&CK tactic');
+assert.ok(mappingPanel.indexOf('>Reconnaissance<') < mappingPanel.indexOf('>Initial Access<') && mappingPanel.indexOf('>Initial Access<') < mappingPanel.indexOf('>Impact<'), 'tactic columns follow matrix order');
+assert.deepStrictEqual([...mappingPanel.matchAll(/data-attack-pick="(TA\d+):T1053\.005"/g)].map((match) => match[1]), ['TA0002', 'TA0003', 'TA0004'],
+  'Scheduled Task is offered only under Execution, Persistence and Privilege Escalation');
+assert.ok(!mappingPanel.includes('data-attack-pick="TA0001:T1053.005"'), 'an invalid tactic/technique pairing has no cell');
+assert.ok(mappingPanel.includes(attackCatalog.NOTICE.replace(/&/g, '&amp;')) || mappingPanel.includes(attackCatalog.NOTICE), 'MITRE attribution notice is shown');
 let handoffState = api.proposeHandoff(evidenceState, fixture, {
   eventIds: ['M06-EVT-003', 'M06-EVT-005'], destination: 'incident',
   rationale: 'PowerShell execution and an outbound connection warrant scoped review.',

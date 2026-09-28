@@ -6,7 +6,7 @@ const assert = require('assert');
 
 const context = {};
 vm.createContext(context);
-for (const file of ['soc-assessment-scorer.js', 'soc-m06-assessment-data.js', 'soc-m06-assessment-state.js', 'soc-m06-assessment-actions.js', 'soc-m06-assessment-related-search.js', 'soc-m06-assessment-rubric.js', 'soc-m06-assessment-scorer.js']) {
+for (const file of ['soc-assessment-scorer.js', 'soc-m06-assessment-data.js', 'soc-m06-assessment-state.js', 'soc-m06-assessment-actions.js', 'attack-catalog.js', 'soc-m06-assessment-related-search.js', 'soc-m06-assessment-rubric.js', 'soc-m06-assessment-scorer.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'portal', file), 'utf8'), context);
 }
 const fixture = vm.runInContext('SocM06AssessmentData', context);

@@ -5,29 +5,15 @@ const SocM06AssessmentRelatedSearch = (() => {
   const MAX_RANGE_MS = 24 * 60 * 60 * 1000;
   const SEARCH_LIMIT = 100;
   const QUERY_FIELDS = Object.freeze({ eventType: 'eventType', device: 'device', account: 'account', action: 'action', result: 'result' });
-  // A bounded ATT&CK catalog shared by every module that carries the ATT&CK
-  // workspace (Modules 6–12). Each module's rubric grades only its own truth.
-  const TACTICS = Object.freeze({
-    TA0001: 'Initial Access', TA0002: 'Execution', TA0003: 'Persistence', TA0004: 'Privilege Escalation', TA0005: 'Defense Evasion',
-    TA0006: 'Credential Access', TA0008: 'Lateral Movement', TA0010: 'Exfiltration', TA0011: 'Command and Control', TA0040: 'Impact',
-  });
-  const TECHNIQUES = Object.freeze({
-    'T1053.005': { name: 'Scheduled Task', tactics: ['TA0002', 'TA0003'] },
-    'T1059.001': { name: 'PowerShell', tactics: ['TA0002'] },
-    T1105: { name: 'Ingress Tool Transfer', tactics: ['TA0011'] },
-    'T1071.001': { name: 'Web Protocols', tactics: ['TA0011'] },
-    T1078: { name: 'Valid Accounts', tactics: ['TA0001', 'TA0003', 'TA0004', 'TA0005'] },
-    'T1110.003': { name: 'Password Spraying', tactics: ['TA0006'] },
-    'T1204.001': { name: 'User Execution: Malicious Link', tactics: ['TA0002'] },
-    'T1204.002': { name: 'User Execution: Malicious File', tactics: ['TA0002'] },
-    'T1547.001': { name: 'Registry Run Keys / Startup Folder', tactics: ['TA0003', 'TA0004'] },
-    'T1566.001': { name: 'Spearphishing Attachment', tactics: ['TA0001'] },
-    'T1566.002': { name: 'Spearphishing Link', tactics: ['TA0001'] },
-    T1190: { name: 'Exploit Public-Facing Application', tactics: ['TA0001'] },
-    'T1021.001': { name: 'Remote Desktop Protocol', tactics: ['TA0008'] },
-    T1567: { name: 'Exfiltration Over Web Service', tactics: ['TA0010'] },
-    T1486: { name: 'Data Encrypted for Impact', tactics: ['TA0040'] },
-  });
+  // The full MITRE ATT&CK Enterprise catalog (portal/attack-catalog.js) is
+  // shared by every module that carries the ATT&CK workspace (Modules 6–12).
+  // Any real technique/tactic pairing is a valid learner mapping; each
+  // module's rubric grades only its own truth.
+  const TACTICS = Object.freeze(Object.fromEntries(MnAttackCatalog.tactics.map((tactic) => [tactic.id, tactic.name])));
+  const TECHNIQUES = Object.freeze(Object.fromEntries(MnAttackCatalog.techniqueIds().map((id) => {
+    const technique = MnAttackCatalog.technique(id);
+    return [id, Object.freeze({ name: technique.fullName, tactics: technique.tactics })];
+  })));
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -322,22 +308,61 @@ const SocM06AssessmentRelatedSearch = (() => {
         <details><summary>Status history (${item.statusHistory.length})</summary><ol>${item.statusHistory.map((entry) => `<li>${e(entry.status)} · ${e(entry.timestamp)} · evidence: ${entry.eventIds.map(e).join(', ')}${entry.note ? `<p>${e(entry.note)}</p>` : ''}</li>`).join('') || '<li>No status changes recorded.</li>'}</ol></details></li>`).join('') || '<li>No handoff proposals.</li>'}</ul></section>`;
   }
 
+  const MAPPING_STATUS = Object.freeze({ supported: 'Supported', needs_review: 'Needs review', unsupported: 'Unsupported' });
+
+  // One matrix cell. Selecting it only fills the form's hidden tactic and
+  // technique fields (soc-console-tools.js wires the click); the column the
+  // cell sits in fixes the tactic, so an invalid pairing cannot be chosen.
+  function attackCell(tacticId, techniqueId, mapped, label) {
+    const e = escapeHtml;
+    const status = mapped.get(`${tacticId}:${techniqueId}`);
+    return `<button type="button" class="attack-cell${status ? ` is-${status.replace('_', '-')}` : ''}" data-attack-pick="${e(tacticId)}:${e(techniqueId)}" aria-pressed="false"${status ? ` title="Mapped · ${e(MAPPING_STATUS[status])}"` : ''}><span class="attack-cell-name">${e(label)}</span><span class="attack-cell-id">${e(techniqueId)}</span></button>`;
+  }
+
+  function renderMatrix(mapped) {
+    const e = escapeHtml;
+    return MnAttackCatalog.tactics.map((tactic) => {
+      const ids = MnAttackCatalog.column(tactic.id);
+      const items = ids.map((id) => {
+        const technique = MnAttackCatalog.technique(id);
+        const subs = MnAttackCatalog.subsIn(id, tactic.id);
+        const search = [id, technique.name, ...subs.flatMap((sub) => [sub, MnAttackCatalog.technique(sub).name])].join(' ').toLowerCase();
+        const subMapped = subs.some((sub) => mapped.has(`${tactic.id}:${sub}`));
+        return `<li class="attack-tech${subMapped ? ' has-mapped-sub' : ''}" data-attack-search="${e(search)}">${attackCell(tactic.id, id, mapped, technique.name)}${subs.length ? `<details class="attack-subs"${subMapped ? ' open' : ''}><summary>${subs.length} sub-technique${subs.length === 1 ? '' : 's'}</summary><ul>${subs.map((sub) => `<li>${attackCell(tactic.id, sub, mapped, MnAttackCatalog.technique(sub).name)}</li>`).join('')}</ul></details>` : ''}</li>`;
+      }).join('');
+      return `<section class="attack-col" aria-label="${e(tactic.name)}"><header class="attack-col-head"><a href="${e(MnAttackCatalog.url(tactic.id))}" target="_blank" rel="noopener">${e(tactic.name)}</a><span>${e(tactic.id)} · ${ids.length} techniques</span></header><ul>${items}</ul></section>`;
+    }).join('');
+  }
+
   function renderMappingPanel(fixture, state) {
     const e = escapeHtml;
     const scenario = fixture?.scenario;
     if (!scenario) return '';
-    const editing = state?.editingMapping || null;
-    const eventOptions = scenario.telemetry.map((event) => `<label><input type="checkbox" name="eventIds" value="${e(event.id)}"${editing?.eventIds.includes(event.id) ? ' checked' : ''}> ${e(event.id)} · ${e(event.eventType)} · ${e(event.device)}</label>`).join('');
-    const techniqueOptions = Object.entries(TECHNIQUES).map(([id, item]) => `<option value="${e(id)}">${e(id)} · ${e(item.name)}</option>`).join('');
-    const tacticOptions = Object.entries(TACTICS).map(([id, name]) => `<option value="${e(id)}">${e(name)} (${e(id)})</option>`).join('');
-    return `<section data-m06-mapping-panel aria-label="ATT&CK mappings"><h3>ATT&amp;CK mappings</h3>
-      <form data-m06-mapping-form><label>Tactic <select name="tacticId" required>${tacticOptions}</select></label>
-      <label>Technique <select name="techniqueId" required>${techniqueOptions}</select></label>
-      <label>Confidence <input name="confidence" type="number" min="0" max="100" step="1" value="50" required></label>
-      <label>Status <select name="status" required><option value="needs_review">Needs review</option><option value="supported">Supported</option><option value="unsupported">Unsupported</option></select></label>
-      <label>Rationale <textarea name="rationale" maxlength="2000" required>${e(editing?.rationale || '')}</textarea></label><fieldset><legend>Evidence event references</legend>${eventOptions}</fieldset>
-      <button type="submit">${editing ? 'Save correction' : 'Save mapping'}</button><button type="button" data-m06-mapping-cancel hidden>Cancel correction</button></form><p data-m06-mapping-feedback role="status"></p>
-      <ul>${(state?.mappings || []).map((item) => `<li><strong>${e(TACTICS[item.tacticId])} · ${e(item.techniqueId)} ${e(TECHNIQUES[item.techniqueId]?.name || '')}</strong> · ${e(item.status)} · ${e(item.confidence)}% confidence · Events: ${item.eventIds.map(e).join(', ')}<p>${e(item.rationale)}</p><button type="button" data-m06-mapping-edit="${e(item.tacticId)}:${e(item.techniqueId)}">Correct mapping</button><form data-m06-mapping-remove-form="${e(item.tacticId)}:${e(item.techniqueId)}"><label>Removal reason <input name="reason" maxlength="500" required></label><button type="submit">Remove mapping</button></form></li>`).join('') || '<li>No mappings saved.</li>'}</ul></section>`;
+    const mappings = state?.mappings || [];
+    const mapped = new Map(mappings.map((item) => [`${item.tacticId}:${item.techniqueId}`, item.status]));
+    const statusOptions = Object.entries(MAPPING_STATUS).map(([id, label]) => `<option value="${e(id)}">${e(label)}</option>`).join('');
+    const eventOptions = scenario.telemetry.map((event) => `<label class="attack-evidence"><input type="checkbox" name="eventIds" value="${e(event.id)}"><span><strong>${e(event.id)}</strong> ${e(event.eventType)}<small>${e(event.device)}</small></span></label>`).join('');
+    const savedRows = mappings.map((item) => {
+      const key = `${e(item.tacticId)}:${e(item.techniqueId)}`;
+      return `<tr><td>${e(TACTICS[item.tacticId] || item.tacticId)}</td><td><a href="${e(MnAttackCatalog.url(item.techniqueId))}" target="_blank" rel="noopener"><strong>${e(item.techniqueId)}</strong></a> ${e(TECHNIQUES[item.techniqueId]?.name || '')}</td><td><span class="attack-pill is-${e(item.status.replace('_', '-'))}">${e(MAPPING_STATUS[item.status] || item.status)}</span></td><td>${e(item.confidence)}%</td><td>${item.eventIds.map((id) => `<code>${e(id)}</code>`).join(' ')}</td><td class="attack-rationale">${e(item.rationale)}</td>
+        <td class="attack-row-actions"><button type="button" data-m06-mapping-edit="${key}">Correct</button><details><summary>Remove</summary><form data-m06-mapping-remove-form="${key}"><label>Removal reason <input name="reason" maxlength="500" required></label><button type="submit">Remove mapping</button></form></details></td></tr>`;
+    }).join('');
+    return `<section class="attack-panel" data-m06-mapping-panel aria-label="ATT&CK mappings">
+      <header class="attack-head"><div><h3>ATT&amp;CK<sup>®</sup> mappings</h3><p>MITRE ATT&amp;CK Enterprise v${e(MnAttackCatalog.VERSION)}. Select the cell for the behaviour your evidence shows. A technique listed under several tactics is mapped once per tactic.</p></div>
+        <label class="attack-filter"><span>Find technique</span><input type="search" data-attack-filter placeholder="ID or name, e.g. T1053 or scheduled" autocomplete="off"></label></header>
+      <ul class="attack-legend" aria-label="Legend"><li><i class="is-selected"></i>Selected</li><li><i class="is-supported"></i>Supported</li><li><i class="is-needs-review"></i>Needs review</li><li><i class="is-unsupported"></i>Unsupported</li></ul>
+      <div class="attack-matrix" tabindex="0" aria-label="ATT&CK Enterprise matrix, scroll horizontally for all tactics">${renderMatrix(mapped)}</div>
+      <p class="attack-notice">${e(MnAttackCatalog.NOTICE)}</p>
+      <form class="attack-form" data-m06-mapping-form><input type="hidden" name="tacticId" value=""><input type="hidden" name="techniqueId" value="">
+        <div class="attack-selected" data-attack-selected aria-live="polite">No technique selected. Choose a cell in the matrix above.</div>
+        <div class="attack-form-grid"><label>Status <select name="status" required><option value="">Choose…</option>${statusOptions}</select></label>
+        <label>Confidence (0–100) <input name="confidence" type="number" min="0" max="100" step="1" value="50" required></label></div>
+        <label>Rationale <textarea name="rationale" rows="3" maxlength="2000" required placeholder="What in the cited events demonstrates (or rules out) this technique?"></textarea></label>
+        <fieldset class="attack-evidence-set"><legend>Evidence event references</legend><div class="attack-evidence-grid">${eventOptions}</div></fieldset>
+        <div class="attack-form-actions"><button type="submit" class="attack-primary">Save mapping</button><button type="button" data-m06-mapping-cancel hidden>Cancel correction</button></div></form>
+      <p data-m06-mapping-feedback role="status"></p>
+      <h4>Saved mappings (${mappings.length})</h4>
+      ${savedRows ? `<div class="attack-table-wrap"><table class="attack-table"><thead><tr><th>Tactic</th><th>Technique</th><th>Status</th><th>Confidence</th><th>Evidence</th><th>Rationale</th><th></th></tr></thead><tbody>${savedRows}</tbody></table></div>` : '<p class="attack-empty">No mappings saved.</p>'}</section>`;
   }
 
   function render(results, options = {}) {

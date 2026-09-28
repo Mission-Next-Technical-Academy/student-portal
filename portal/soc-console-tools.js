@@ -483,6 +483,54 @@ const SocConsoleTools = (() => {
       telemetry, expectedTruth: { supportedTechniques: catalog, unsupportedTechniques: [] } } };
   }
 
+  // The ATT&CK matrix fills the mapping form's hidden tactic/technique
+  // fields; the column a cell sits in fixes the tactic.
+  function m06SelectAttackCell(root, tacticId, techniqueId) {
+    const form = root.querySelector('[data-m06-mapping-form]');
+    if (!form) return;
+    form.elements.tacticId.value = tacticId;
+    form.elements.techniqueId.value = techniqueId;
+    const key = tacticId && techniqueId ? `${tacticId}:${techniqueId}` : '';
+    root.querySelectorAll('[data-attack-pick]').forEach((cell) => {
+      const on = cell.dataset.attackPick === key;
+      cell.classList.toggle('is-selected', on);
+      cell.setAttribute('aria-pressed', String(on));
+      if (on) {
+        const subs = cell.closest('details.attack-subs');
+        if (subs) subs.open = true;
+        cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    });
+    const banner = form.querySelector('[data-attack-selected]');
+    const technique = key && MnAttackCatalog.technique(techniqueId);
+    if (banner) {
+      banner.classList.toggle('has-selection', !!technique);
+      banner.innerHTML = technique
+        ? `<span>${esc(MnAttackCatalog.tactic(tacticId)?.name || tacticId)}</span> <i class="ri-arrow-right-s-line" aria-hidden="true"></i> <strong>${esc(techniqueId)}</strong> ${esc(technique.fullName)} <a href="${esc(MnAttackCatalog.url(techniqueId))}" target="_blank" rel="noopener">View on attack.mitre.org</a>`
+        : 'No technique selected. Choose a cell in the matrix above.';
+    }
+  }
+
+  function m06FilterAttackMatrix(root, value) {
+    const terms = String(value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const matrix = root.querySelector('.attack-matrix');
+    if (!matrix) return;
+    matrix.classList.toggle('is-filtering', terms.length > 0);
+    matrix.querySelectorAll('.attack-tech').forEach((item) => {
+      const hit = terms.length > 0 && terms.every((term) => item.dataset.attackSearch.includes(term));
+      item.classList.toggle('is-match', hit);
+      const subs = item.querySelector('details.attack-subs');
+      if (subs && terms.length) subs.open = hit && [...subs.querySelectorAll('[data-attack-pick]')].some((cell) => terms.every((term) => cell.textContent.toLowerCase().includes(term)));
+    });
+    // Bring the first match into the matrix viewport without moving the page.
+    const first = matrix.querySelector('.attack-tech.is-match');
+    if (first) {
+      const box = matrix.getBoundingClientRect(), at = first.getBoundingClientRect();
+      const head = first.closest('.attack-col')?.querySelector('.attack-col-head')?.offsetHeight || 0;
+      matrix.scrollTo({ left: matrix.scrollLeft + at.left - box.left - 6, top: matrix.scrollTop + at.top - box.top - head - 6 });
+    }
+  }
+
   function m06Error(root, selector, error) {
     const feedback = root.querySelector(selector);
     if (feedback) feedback.textContent = error.message;
@@ -561,6 +609,7 @@ const SocConsoleTools = (() => {
           event.preventDefault();
           run('[data-m06-mapping-feedback]', (state, fixture) => {
             const values = data();
+            if (!values.get('techniqueId')) throw new Error('Select a technique cell in the ATT&CK matrix first.');
             const replaces = form.dataset.replaces ? (() => { const [tacticId, techniqueId] = form.dataset.replaces.split(':'); return { tacticId, techniqueId }; })() : null;
             return SocM06AssessmentRelatedSearch.saveMapping(state, fixture, {
               tacticId: values.get('tacticId'), techniqueId: values.get('techniqueId'), confidence: Number(values.get('confidence')),
@@ -593,6 +642,10 @@ const SocConsoleTools = (() => {
         }
       });
 
+      root.addEventListener('input', (event) => {
+        if (event.target.matches('[data-attack-filter]')) m06FilterAttackMatrix(root, event.target.value);
+      });
+
       root.addEventListener('change', (event) => {
         if (!event.target.matches('[data-m06-collection-select]')) return;
         run('[data-m06-evidence-feedback]', (state, fixture) => SocM06AssessmentRelatedSearch.selectCollection(state, fixture, event.target.value, now()));
@@ -616,6 +669,12 @@ const SocConsoleTools = (() => {
           run('[data-m06-query-feedback]', (state, fixture) => SocM06AssessmentRelatedSearch.runSavedQuery(state, fixture, scope, runSaved.dataset.m06RunSavedQuery, now()).state);
           return;
         }
+        const pick = event.target.closest('[data-attack-pick]');
+        if (pick) {
+          const [tacticId, techniqueId] = pick.dataset.attackPick.split(':');
+          m06SelectAttackCell(root, tacticId, techniqueId);
+          return;
+        }
         const edit = event.target.closest('[data-m06-mapping-edit], [data-m06-mapping-cancel]');
         if (!edit) return;
         const form = root.querySelector('[data-m06-mapping-form]');
@@ -626,13 +685,13 @@ const SocConsoleTools = (() => {
           edit.hidden = true;
           form.querySelector('[type="submit"]').textContent = 'Save mapping';
           form.querySelectorAll('[name="eventIds"]').forEach((input) => { input.checked = false; });
+          m06SelectAttackCell(root, '', '');
           return;
         }
         const [tacticId, techniqueId] = edit.dataset.m06MappingEdit.split(':');
         const item = (ctx.load().mappings || []).find((mapping) => mapping.tacticId === tacticId && mapping.techniqueId === techniqueId);
         if (!item) return;
-        form.elements.tacticId.value = item.tacticId;
-        form.elements.techniqueId.value = item.techniqueId;
+        m06SelectAttackCell(root, item.tacticId, item.techniqueId);
         form.elements.confidence.value = item.confidence;
         form.elements.status.value = item.status;
         form.elements.rationale.value = item.rationale;

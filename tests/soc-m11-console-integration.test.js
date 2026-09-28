@@ -27,6 +27,7 @@ const context = vm.createContext({ console });
 vm.runInContext(fs.readFileSync(path.join(root, 'portal/soc-m11-assessment-data.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(root, 'portal/soc-m09-assessment-state.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(root, 'portal/soc-m10-assessment-state.js'), 'utf8'), context);
+vm.runInContext(fs.readFileSync(path.join(root, 'portal/attack-catalog.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(root, 'portal/soc-m06-assessment-related-search.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(root, 'portal/soc-console-tools.js'), 'utf8'), context);
 const adapter = moduleJs.slice(moduleJs.indexOf('function moduleElevenToolFixtures(data) {'), moduleJs.indexOf('\nfunction moduleElevenOpsHtml()'));

@@ -24,7 +24,7 @@ vm.createContext(context);
 for (const file of [
   'lab-runtime.js', 'soc-assessment-scorer.js', 'kql-engine.js',
   'soc-m05-assessment-data.js', 'soc-m05-assessment-state.js', 'soc-m05-assessment-actions.js',
-  'soc-m06-assessment-data.js', 'soc-m06-assessment-actions.js', 'soc-m06-assessment-state.js', 'soc-m06-assessment-related-search.js',
+  'soc-m06-assessment-data.js', 'soc-m06-assessment-actions.js', 'soc-m06-assessment-state.js', 'attack-catalog.js', 'soc-m06-assessment-related-search.js',
   'soc-m07-assessment-data.js', 'soc-m07-assessment-state.js',
   'soc-m08-assessment-data.js', 'soc-m08-assessment-state.js',
   'soc-m09-assessment-data.js', 'soc-m09-assessment-state.js',
