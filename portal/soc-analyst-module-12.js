@@ -5,7 +5,6 @@
 
 const MODULE_TWELVE_LAB_ID = 'm12-integrated-capstone-v1';
 const MODULE_TWELVE_CATALOG_KEY = 'lab-capstone';
-const MODULE_TWELVE_OPTIONAL_SIMULATOR_KEY = 'lab-capstone-simulator-practice';
 const MODULE_TWELVE_FLAG = 'M12-CAPSTONE-INVESTIGATION-PASSED';
 const MODULE_TWELVE_PASSING_SCORE = 70;
 
@@ -342,12 +341,6 @@ function moduleTwelveValues(name) {
   return Array.isArray(value) ? value : [];
 }
 
-function moduleTwelveLaunchUrl(labKey = MODULE_TWELVE_CATALOG_KEY) {
-  const lab = typeof LABS !== 'undefined' ? LABS.find((item) => item.key === labKey) : null;
-  const route = lab && lab.simEntry ? lab.simEntry : '#/defender/home';
-  return `${SIM_ORIGIN}?lab=${encodeURIComponent(labKey)}&module=soc-12${route}`;
-}
-
 function moduleTwelveScore() {
   const score = SocM12AssessmentScorer.score(moduleTwelveState.assessmentState, SocM12AssessmentData);
   const criticalErrors = score.unsafeExecution ? ['An unsafe state-changing action executed outside approved scope.'] : [];
@@ -552,7 +545,6 @@ function viewModuleTwelve(user, program) {
     <details class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m12-kicker mf-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">The twelve requirements may be completed in any order. They describe the deliverable, not the attacker's sequence; discover chronology from the evidence. Amber Finch is the capstone composite: Cedar Lock (M09–M11) rehearsed the response, custody, and reporting handoffs, while this case asks you to integrate those decisions with the earlier identity, SIEM, detection, endpoint, hunting, network, and prioritization work.</p>${moduleTwelveMissionStatus()}</section></details>
     <details class="m12-section-collapsible mf-section mf-lab-section" data-lab-maximize><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m12-kicker mf-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-range-section mf-section-body" id="m12-range"><div id="m12-console-root">${moduleTwelveConsole()}</div></section></details>
     <details class="m12-section-collapsible mf-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m12-kicker mf-kicker">Prove It</p><h2>Capstone assessment</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-assessment-section mf-section-body" id="m12-assessment-section">${moduleTwelveAssessment()}</section></details>
-    <details class="m12-section-collapsible mf-section mf-lab-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">+</span><div><p class="m12-kicker mf-kicker">Optional Labs</p><h2>Supplementary capstone simulator</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">This legacy simulator is optional practice. It does not affect the scored Assessment Lab, submission, attempts, or module progress.</p><a class="m12-secondary" href="${esc(moduleTwelveLaunchUrl(MODULE_TWELVE_OPTIONAL_SIMULATOR_KEY))}" target="_blank" rel="noopener" data-m12-launch>Open optional simulator</a></section></details>
   </main></div></div>`;
 }
 
@@ -626,7 +618,6 @@ function wireModuleTwelveLab() {
       if (!moduleTwelveState.reviewedConsoles.includes(key)) moduleTwelveState.reviewedConsoles.push(key);
       moduleTwelveSave(); moduleTwelveRender('m12-console-title'); return;
     }
-    if (event.target.closest('[data-m12-launch]')) { moduleTwelveState.simulatorLaunched = true; moduleTwelveSave(); return; }
     if (event.target.closest('[data-m12-reset]')) {
       if (moduleTwelveState.submitted) return;
       if (typeof window.confirm === 'function' && !window.confirm('Reset only the Module 12 capstone? Modules 01–11 and other labs remain unchanged.')) return;
