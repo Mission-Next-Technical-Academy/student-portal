@@ -74,8 +74,8 @@ const SocM12AssessmentConsole = (() => {
       {id:'m04',ctx:{...base,fixture:fx.m04,...embedded('m04',fx.m04,(v,f)=>SocM04AssessmentState.normalize({assessment:v},f).assessment),assessment:()=>SocM04AssessmentState.normalize({assessment:moduleTwelveState.tools?.m04||{}},fx.m04).assessment}},
       {id:'m05',ctx:{...base,fixture:fx.m05,...embedded('m05',fx.m05,SocM05AssessmentState.normalize)}},
       {id:'m06',ctx:{...base,fixture:fx.m06,...embedded('m06',fx.m06,SocM06AssessmentState.normalize)}},
-      {id:'m07',ctx:{...base,fixture:fx.m07,ui:{},...SocConsoleTools.embeddedBox(parent(),'m07',SocM07AssessmentState.normalize,fx.m07,save)}},
-      {id:'m08',ctx:{...base,fixture:fx.m08,ui:{},...SocConsoleTools.embeddedBox(parent(),'m08',SocM08AssessmentState.normalize,fx.m08,save)}},
+      {id:'m07',ctx:{...base,fixture:fx.m07,ui:{},...SocConsoleTools.embeddedBox(parent,'m07',SocM07AssessmentState.normalize,fx.m07,save)}},
+      {id:'m08',ctx:{...base,fixture:fx.m08,ui:{},...SocConsoleTools.embeddedBox(parent,'m08',SocM08AssessmentState.normalize,fx.m08,save)}},
       {id:'m09',ctx:{...base,fixture:fx.m09,evidence:fx.m09.scenario.evidence,routes:[{id:'tier2',text:'Tier 2 Incident Response'}],...embedded('m09',fx.m09,SocM09AssessmentState.normalize)}},
       {id:'m10',ctx:{...base,fixture:fx.m10,console:()=>m03eState('m12'),load:()=>SocM10AssessmentState.normalize(moduleTwelveState.tools?.m10||{},fx.m10),store:(next)=>{moduleTwelveState.tools||={};moduleTwelveState.tools.m10=SocM10AssessmentState.normalize(next,fx.m10);save();}}},
     ];
