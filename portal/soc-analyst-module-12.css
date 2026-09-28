@@ -93,6 +93,27 @@ main.mf-frame .m12-hero .mf-stats dd { white-space: normal; }
 .m12-assessment-heading h2 { margin: 4px 0; color: #1e3a5f; font-size: 24px; }
 .m12-assessment-heading p:last-child { margin: 0; color: #64748b; font: 11px/1.5 Inter,sans-serif; }
 .m12-assessment-heading > span { padding: 7px 10px; color: #1e3a5f; background: #eef6ff; border: 1px solid #cfe2f7; border-radius: 999px; font-size: 9px; font-weight: 800; white-space: nowrap; }
+.m12-record { margin-top: 20px; padding: 20px; background: #fff; border: 1px solid #dbe3ed; border-radius: 12px; }
+.m12-record-heading h3 { margin: 0; color: #1e3a5f; font-size: 16px; }
+.m12-record-heading p { margin: 3px 0 0; color: #64748b; font: 11px/1.5 Inter,sans-serif; }
+.m12-action-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+.m12-action-card { min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 18px; background: #f8fafc; border: 1px solid #dbe3ed; border-radius: 10px; }
+.m12-action-card h4 { margin: 0 0 2px; padding-bottom: 10px; color: #1e3a5f; border-bottom: 1px solid #e2e8f0; font: 800 13px 'Space Grotesk',sans-serif; }
+.m12-action-card > label:not(.m12-inline-check) { display: flex; flex-direction: column; gap: 6px; color: #475569; font: 700 10px/1.4 Inter,sans-serif; letter-spacing: .03em; text-transform: uppercase; }
+.m12-action-card input:not([type="checkbox"]), .m12-action-card select, .m12-action-card textarea { box-sizing: border-box; width: 100%; min-height: 38px; margin: 0; padding: 9px 11px; color: #172033; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; font: 400 12px/1.5 Inter,sans-serif; letter-spacing: normal; text-transform: none; transition: border-color .15s, box-shadow .15s; }
+.m12-action-card textarea { min-height: 88px; resize: vertical; }
+.m12-action-card input::placeholder, .m12-action-card textarea::placeholder { color: #94a3b8; }
+.m12-action-card input:not([type="checkbox"]):focus, .m12-action-card select:focus, .m12-action-card textarea:focus { outline: none; border-color: #f97316; box-shadow: 0 0 0 3px rgba(249,115,22,.18); }
+.m12-action-card input[type="checkbox"] { width: 16px; height: 16px; flex: 0 0 auto; margin: 0; accent-color: #f97316; }
+.m12-inline-check { display: flex; align-items: center; gap: 9px; color: #334155; font: 600 12px Inter,sans-serif; cursor: pointer; }
+.m12-action-card fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.m12-action-card legend { margin-bottom: 6px; padding: 0; color: #475569; font: 700 10px Inter,sans-serif; letter-spacing: .03em; text-transform: uppercase; }
+.m12-action-card .m12-check-grid { grid-template-columns: repeat(auto-fill,minmax(130px,1fr)); }
+.m12-action-card .m12-check-grid label { align-items: center; margin: 0; padding: 9px 10px; background: #fff; color: #334155; font: 600 12px Inter,sans-serif; }
+.m12-action-card .m12-check-grid label:has(input:checked) { background: #fffaf5; border-color: #f97316; }
+.m12-form-note { margin: 0; color: #64748b; font: 11px/1.5 Inter,sans-serif; }
+.m12-form-submit { align-self: flex-start; min-height: 36px; margin-top: auto; padding: 8px 14px; color: #fff; background: #1e3a5f; border: 1px solid #1e3a5f; border-radius: 8px; font: 800 12px 'Space Grotesk',sans-serif; cursor: pointer; }
+.m12-form-submit:hover, .m12-form-submit:focus-visible { background: #16304f; }
 .m12-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 20px; }
 .m12-form-grid fieldset { min-width: 0; margin: 0; padding: 18px; background: #fff; border: 1px solid #dbe3ed; border-radius: 12px; }
 .m12-form-grid fieldset.m12-wide { grid-column: 1/-1; }
@@ -164,11 +185,13 @@ main.mf-frame .m12-hero .mf-stats dd { white-space: normal; }
   .m12-top-actions { align-items: flex-end; flex-direction: column; gap: 6px; }
   .m12-simulation { display: none; }
   .m12-main { width: min(100% - 24px, 1180px); padding-top: 22px; }
-  .m12-hero dl, .m12-prereq-grid, .m12-requirements, .m12-console-nav, .m12-evidence-grid, .m12-form-grid, .m12-check-grid, .m12-two-col, .m12-score-grid { grid-template-columns: 1fr; }
+  .m12-hero dl, .m12-prereq-grid, .m12-requirements, .m12-console-nav, .m12-evidence-grid, .m12-action-grid, .m12-form-grid, .m12-check-grid, .m12-two-col, .m12-score-grid { grid-template-columns: 1fr; }
   .m12-lock-mark { width: 100%; box-sizing: border-box; }
   .m12-objective { padding: 17px; }
   .m12-objective h2 { font-size: 16px; }
   .m12-form-grid fieldset.m12-wide { grid-column: auto; }
+  .m12-record { padding: 14px; }
+  .m12-action-card { padding: 14px; }
   .m12-console-nav button { min-height: 50px; justify-content: flex-start; padding-left: 16px; }
   .m12-console { margin: 10px; padding: 12px; }
   .m12-console-title, .m12-assessment-heading { flex-direction: column; }
