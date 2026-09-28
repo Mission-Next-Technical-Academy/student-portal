@@ -220,7 +220,7 @@ const PROGRAMS = [
     stats: [
       { icon: 'ri-calendar-line', label: 'Duration', value: '6 Weeks' },
       { icon: 'ri-stack-line', label: 'Learning Experience', value: '12 Modules' },
-      { icon: 'ri-time-line', label: 'Approved Program', value: '60 Clock Hours' },
+      { icon: 'ri-time-line', label: 'Approved Program', value: '72 Clock Hours' },
       { icon: 'ri-flask-line', label: 'Lab Instruction', value: '23 Hours' },
       { icon: 'ri-global-line', label: 'Delivery', value: 'Online' },
       { icon: 'ri-award-line', label: 'Credential', value: 'Diploma' },
