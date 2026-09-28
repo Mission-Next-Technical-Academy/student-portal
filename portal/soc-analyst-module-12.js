@@ -525,7 +525,7 @@ function moduleTwelveGetSections() {
     { id: 'preparation', title: 'Capstone preparation', type: 'lecture', isComplete: true, scrollId: 'm12-preparation', gated: false },
     { id: 'mission', title: 'Mission requirements', type: 'lab', isComplete: complete, scrollId: 'm12-mission-title', gated: false },
     { id: 'investigation', title: 'Investigation consoles', type: 'lab', isComplete: complete, scrollId: 'm12-range', gated: false },
-    { id: 'assessment', title: 'Capstone submission', type: 'review', isComplete: complete, scrollId: 'm12-assessment-section', gated: false },
+    { id: 'assessment', title: 'Assessment Lab', type: 'review', isComplete: complete, scrollId: 'm12-assessment-section', gated: false },
   ];
 }
 
