@@ -83,7 +83,11 @@ const SocM12AssessmentConsole = (() => {
       extraTabs:[['operations','Operations'],['reporting','Reporting']],views:{operations:()=>operations({state:()=>moduleTwelveState.assessmentState}),reporting:()=>reporting({state:()=>moduleTwelveState.assessmentState})},
       caseView:()=>`<p class="m03e-muted">INC-4821 · Operation Amber Finch. Complete the portfolio incident record in the Assessment section below the console.</p>`,
       caseBadge:()=>moduleTwelveState.submitted?' <i class="ri-checkbox-circle-fill" aria-label="Submitted"></i>':''});
-    if(!root) return;
+    // Every render registers the mount (so the shell HTML can be built), but
+    // a given console root is wired once: pack listeners have no guard of
+    // their own, and a double-wired root handles each click twice.
+    if(!root || root.dataset.m12ConsoleWired==='true') return;
+    root.dataset.m12ConsoleWired='true';
     mounted.wire(root);
     root.addEventListener('submit',(event)=>{
       const form=event.target.closest('[data-m12-action], [data-m12-report]'); if(!form)return; event.preventDefault();

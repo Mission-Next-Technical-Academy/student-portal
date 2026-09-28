@@ -557,14 +557,17 @@ function moduleTwelveRender(focusId) {
   // This helper replaces the whole app shell, so restore this module's own
   // delegated listeners in addition to the shared portal listeners.
   wireModuleTwelveLab();
-  const consoleRoot=document.getElementById('m03e-console-m12');
-  if(consoleRoot) SocM12AssessmentConsole.mount(consoleRoot);
   if (focusId) requestAnimationFrame(() => { const target = document.getElementById(focusId); if (target) target.focus(); });
 }
 
 function wireModuleTwelveLab() {
   const shell = document.querySelector('.m12-shell');
   if (!shell || !moduleTwelveState || !moduleTwelveUnlocked(moduleTwelveUser, moduleTwelveProgram)) return;
+  // The console must be wired on the first route render too, not only after
+  // moduleTwelveRender(); otherwise its tabs are inert until some other
+  // action re-renders the page. mount() is idempotent per console root.
+  const consoleRoot = document.getElementById('m03e-console-m12');
+  if (consoleRoot) SocM12AssessmentConsole.mount(consoleRoot);
   // wireCommon() dispatches registered-module wiring itself. Keep this guard
   // because moduleTwelveRender() also calls us explicitly after a full-shell
   // replacement; without it one click could produce two scored attempts.
