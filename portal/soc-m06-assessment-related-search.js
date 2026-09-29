@@ -296,14 +296,14 @@ const SocM06AssessmentRelatedSearch = (() => {
     const scenario = fixture?.scenario;
     if (!scenario) return '';
     const e = escapeHtml;
-    return `<section data-m06-handoff-panel aria-label="Handoff proposals"><h3>Evidence handoff proposal</h3>
-      <form data-m06-handoff-form><fieldset><legend>Selected fixture evidence (1–20)</legend>${scenario.telemetry.map((event) =>
-        `<label><input type="checkbox" name="eventIds" value="${e(event.id)}"> ${e(event.id)} · ${e(event.eventType)} · ${e(event.device)}</label>`).join('')}</fieldset>
+    return `<section data-m06-handoff-panel aria-label="Handoff proposals"><header class="m06-panel-header"><div><span class="m06-step">05 · Escalate</span><h3>Evidence handoff proposal</h3></div></header>
+      <form data-m06-handoff-form><fieldset class="m06-choice-set m06-field-wide"><legend>Selected fixture evidence <span>Choose 1–20</span></legend><div class="m06-choice-grid">${scenario.telemetry.map((event) =>
+        `<label><input type="checkbox" name="eventIds" value="${e(event.id)}"><span><strong>${e(event.id)}</strong><small>${e(event.eventType)} · ${e(event.device)}</small></span></label>`).join('')}</div></fieldset>
       <label>Destination <select name="destination" required><option value="alert">Alert</option><option value="incident">Incident</option><option value="rule">Detection rule</option></select></label>
-      <label>Rationale <textarea name="rationale" maxlength="1000" required></textarea></label>
-      <label>Recommendation <textarea name="recommendation" maxlength="1000" required></textarea></label>
-      <button type="submit">Propose handoff</button></form><p data-m06-handoff-feedback role="status"></p>
-      <ul>${(state?.handoffs || []).map((item) => `<li><strong>${e(item.destination)}</strong> · ${e(item.id)} · ${item.eventIds.map(e).join(', ')}<p>Status: ${e(item.status)}</p><p>${e(item.rationale)}</p><p>${e(item.recommendation)}</p>
+      <label>Rationale <textarea name="rationale" maxlength="1000" required placeholder="Why does this evidence require escalation?"></textarea></label>
+      <label class="m06-field-wide">Recommendation <textarea name="recommendation" maxlength="1000" required placeholder="What should the receiving team do next?"></textarea></label>
+      <div class="m06-form-actions m06-field-wide"><button type="submit">Propose handoff</button><p data-m06-handoff-feedback role="status"></p></div></form>
+      <ul class="m06-record-list">${(state?.handoffs || []).map((item) => `<li><strong>${e(item.destination)}</strong> · ${e(item.id)} · ${item.eventIds.map(e).join(', ')}<p>Status: ${e(item.status)}</p><p>${e(item.rationale)}</p><p>${e(item.recommendation)}</p>
         ${['proposed', 'in_review'].includes(item.status) ? `<form data-m06-handoff-status-form="${e(item.id)}"><label>Update status <select name="status" required><option value="in_review">In review</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option></select></label><label>Analyst note <textarea name="note" maxlength="500"></textarea></label><button type="submit">Save status</button></form><p data-m06-handoff-status-feedback="${e(item.id)}" role="status"></p>` : ''}
         <details><summary>Status history (${item.statusHistory.length})</summary><ol>${item.statusHistory.map((entry) => `<li>${e(entry.status)} · ${e(entry.timestamp)} · evidence: ${entry.eventIds.map(e).join(', ')}${entry.note ? `<p>${e(entry.note)}</p>` : ''}</li>`).join('') || '<li>No status changes recorded.</li>'}</ol></details></li>`).join('') || '<li>No handoff proposals.</li>'}</ul></section>`;
   }
@@ -370,7 +370,7 @@ const SocM06AssessmentRelatedSearch = (() => {
     if (!events.length) return '<section data-m06-related-results aria-label="Related event results"><p role="status">No matching events.</p></section>';
     const e = escapeHtml;
     return `<section data-m06-related-results aria-label="Related event results"><ol>${events.map((event) =>
-      `<li data-event-id="${e(event.id)}"><time datetime="${e(event.time)}">${e(event.time)}</time> <strong>${e(event.eventType)}</strong> <span>${e(event.device)} / ${e(event.account)}</span> <span>${e(event.action)}: ${e(event.result)}</span>${options.pivotFromEventId ? ` <button type="button" data-m06-pivot-from="${e(options.pivotFromEventId)}" data-m06-pivot-to="${e(event.id)}">Pivot</button>` : ''}${options.relatedPivots ? (event.relatedEventIds || []).map((to) => ` <button type="button" data-m06-pivot-from="${e(event.id)}" data-m06-pivot-to="${e(to)}">Pivot to ${e(to)}</button>`).join('') : ''}${options.bookmarks ? ` <button type="button" data-m06-bookmark="${e(event.id)}">${options.bookmarks.includes(event.id) ? 'Remove bookmark' : 'Bookmark'}</button>` : ''}</li>`).join('')}</ol></section>`;
+      `<li data-event-id="${e(event.id)}"><div><time datetime="${e(event.time)}">${e(event.time)}</time><strong>${e(event.eventType)}</strong></div><span>${e(event.device)} / ${e(event.account)}</span><span>${e(event.action)}: ${e(event.result)}</span><div class="m06-result-actions">${options.pivotFromEventId ? `<button type="button" data-m06-pivot-from="${e(options.pivotFromEventId)}" data-m06-pivot-to="${e(event.id)}">Pivot</button>` : ''}${options.relatedPivots ? (event.relatedEventIds || []).map((to) => `<button type="button" data-m06-pivot-from="${e(event.id)}" data-m06-pivot-to="${e(to)}">Pivot to ${e(to)}</button>`).join('') : ''}${options.bookmarks ? `<button type="button" data-m06-bookmark="${e(event.id)}">${options.bookmarks.includes(event.id) ? 'Remove bookmark' : 'Bookmark'}</button>` : ''}</div></li>`).join('')}</ol></section>`;
   }
 
   function renderSearch(fixture, state) {
@@ -386,12 +386,12 @@ const SocM06AssessmentRelatedSearch = (() => {
     const type = ['all', 'device', 'account'].includes(previous.entityType) ? previous.entityType : 'device';
     const value = previous.entityValue || scenario.scope.devices[0];
     const choices = type === 'account' ? [...new Set(scenario.telemetry.map((event) => event.account).filter(Boolean))] : scenario.scope.devices;
-    return `<section data-m06-related-search aria-label="Related event search"><h3>Related event search</h3>
+    return `<section data-m06-related-search aria-label="Related event search"><header class="m06-panel-header"><div><span class="m06-step">02 · Search</span><h3>Related event search</h3></div></header>
       <form data-m06-search-form><label>Search text <input name="query" maxlength="4000" value="${e(previous.query || '')}"></label>
       <label>Start UTC <input name="startTime" type="text" value="${e(start)}"></label><label>End UTC <input name="endTime" type="text" value="${e(end)}"></label>
       <label>Entity <select name="entityType"><option value="all"${type === 'all' ? ' selected' : ''}>All entities</option><option value="device"${type === 'device' ? ' selected' : ''}>Device</option><option value="account"${type === 'account' ? ' selected' : ''}>Account</option></select></label>
       <label>Entity value <select name="entityValue">${choices.map((item) => `<option value="${e(item)}"${item === value ? ' selected' : ''}>${e(item)}</option>`).join('')}</select></label>
-      <button type="submit">Search events</button></form>${render(previous.resultEventIds?.map((id) => scenario.telemetry.find((event) => event.id === id)).filter(Boolean) || [], { bookmarks: state?.bookmarks || [], relatedPivots: true })}</section>`;
+      <div class="m06-form-actions"><button type="submit">Search events</button></div></form>${render(previous.resultEventIds?.map((id) => scenario.telemetry.find((event) => event.id === id)).filter(Boolean) || [], { bookmarks: state?.bookmarks || [], relatedPivots: true })}</section>`;
   }
 
   function renderEvidencePanel(fixture, state) {
@@ -402,13 +402,13 @@ const SocM06AssessmentRelatedSearch = (() => {
     const currentResults = (state?.queryHistory || []).at(-1)?.resultEventIds || [];
     const selectableIds = [...new Set([...currentResults, ...(selected?.eventIds || [])])];
     const eventMap = new Map(scenario.telemetry.map((event) => [event.id, event]));
-    return `<section data-m06-evidence-panel aria-label="Bookmarks and evidence collections"><h3>Evidence</h3>
-      <h4>Bookmarks (${(state?.bookmarks || []).length}/100)</h4><ul>${(state?.bookmarks || []).map((id) => `<li>${e(id)} <button type="button" data-m06-bookmark="${e(id)}">Remove</button></li>`).join('') || '<li>No bookmarked events.</li>'}</ul>
+    return `<section data-m06-evidence-panel aria-label="Bookmarks and evidence collections"><header class="m06-panel-header"><div><span class="m06-step">04 · Curate</span><h3>Evidence collection</h3></div><span class="m06-count-badge">${(state?.bookmarks || []).length}/100 bookmarks</span></header>
+      <ul class="m06-bookmark-list">${(state?.bookmarks || []).map((id) => `<li><span>${e(id)}</span><button type="button" data-m06-bookmark="${e(id)}">Remove</button></li>`).join('') || '<li class="m06-empty-state">No bookmarked events.</li>'}</ul>
       <label>Selected collection <select data-m06-collection-select><option value="">No collection selected</option>${(state?.collections || []).map((item) => `<option value="${e(item.id)}"${item.id === selected?.id ? ' selected' : ''}>${e(item.name)} (${item.eventIds.length}/100)</option>`).join('')}</select></label>
       <form data-m06-collection-form><label>Collection name <input name="name" maxlength="80" required value="${e(selected?.name || '')}"></label>
-      <p data-m06-evidence-feedback role="status"></p><fieldset><legend>Fixture events</legend>${selectableIds.map((id) => `<label><input type="checkbox" name="eventIds" value="${e(id)}"${selected?.eventIds.includes(id) ? ' checked' : ''}> ${e(id)} · ${e(eventMap.get(id)?.eventType || '')}</label>`).join('') || '<p>Run a saved query to choose evidence events.</p>'}</fieldset>
-      <button type="submit">${selected ? 'Save collection' : 'Create collection'}</button></form>
-      <ol>${(selected?.eventIds || []).map((id) => `<li>${e(id)} · ${e(eventMap.get(id)?.eventType || '')}</li>`).join('') || '<li>Selected collection is empty.</li>'}</ol></section>`;
+      <p data-m06-evidence-feedback role="status"></p><fieldset class="m06-choice-set m06-field-wide"><legend>Fixture events</legend><div class="m06-choice-grid">${selectableIds.map((id) => `<label><input type="checkbox" name="eventIds" value="${e(id)}"${selected?.eventIds.includes(id) ? ' checked' : ''}><span><strong>${e(id)}</strong><small>${e(eventMap.get(id)?.eventType || '')}</small></span></label>`).join('') || '<p class="m06-empty-state">Run a saved query to choose evidence events.</p>'}</div></fieldset>
+      <div class="m06-form-actions m06-field-wide"><button type="submit">${selected ? 'Save collection' : 'Create collection'}</button></div></form>
+      <ol class="m06-record-list">${(selected?.eventIds || []).map((id) => `<li>${e(id)} · ${e(eventMap.get(id)?.eventType || '')}</li>`).join('') || '<li>Selected collection is empty.</li>'}</ol></section>`;
   }
 
   function renderSavedQueryPanel(fixture, state) {
@@ -420,15 +420,15 @@ const SocM06AssessmentRelatedSearch = (() => {
     const latestEvents = latest?.resultEventIds?.map((id) => scenario.telemetry.find((event) => event.id === id)).filter(Boolean) || [];
     const maxStart = new Date(Date.parse(scenario.scope.timeEnd) - MAX_RANGE_MS).toISOString();
     const start = Date.parse(scenario.scope.timeStart) < Date.parse(maxStart) ? maxStart : scenario.scope.timeStart;
-    return `<section data-m06-saved-query-panel aria-label="Saved queries"><h3>Saved queries</h3>
-      <p>Grammar: <code>field == "value"</code>, joined with lowercase <code>and</code>. Fields: ${Object.keys(QUERY_FIELDS).map(e).join(', ')}. Exact equality only.</p>
+    return `<section data-m06-saved-query-panel aria-label="Saved queries"><header class="m06-panel-header"><div><span class="m06-step">03 · Make repeatable</span><h3>Saved queries</h3></div></header>
+      <p class="m06-query-help"><strong>Query grammar</strong><code>field == "value"</code> joined with lowercase <code>and</code><span>Available fields: ${Object.keys(QUERY_FIELDS).map(e).join(', ')}</span><span>Exact equality only</span></p>
       <form data-m06-save-query-form><label>Query name <input name="name" maxlength="80" required></label>
-      <label>Query <textarea name="query" maxlength="500" required placeholder='eventType == "process_start" and device == "ws-318"'></textarea></label>
+      <label class="m06-field-wide">Query <textarea name="query" maxlength="500" required placeholder='eventType == "process_start" and device == "ws-318"'></textarea></label>
       <label>Start UTC <input name="startTime" value="${e(start)}" required></label><label>End UTC <input name="endTime" value="${e(scenario.scope.timeEnd)}" required></label>
       <label>Entity type <select name="entityType"><option value="all">All entities</option><option value="device" selected>Device</option><option value="account">Account</option></select></label>
       <label>Entity value <input name="entityValue" value="${e(scenario.scope.devices[0])}" required></label>
-      <button type="submit">Save query</button></form><p data-m06-query-feedback role="status"></p>
-      <ul>${definitions.map((item) => `<li><strong>${e(item.name)}</strong> <code>${e(item.query)}</code> <button type="button" data-m06-run-saved-query="${e(item.id)}">Run</button></li>`).join('') || '<li>No saved queries.</li>'}</ul>
+      <div class="m06-form-actions m06-field-wide"><button type="submit">Save query</button><p data-m06-query-feedback role="status"></p></div></form>
+      <ul class="m06-record-list">${definitions.map((item) => `<li><strong>${e(item.name)}</strong><code>${e(item.query)}</code><button type="button" data-m06-run-saved-query="${e(item.id)}">Run</button></li>`).join('') || '<li>No saved queries.</li>'}</ul>
       ${latest ? `<p role="status">Last run: ${e(latest.name)} · ${e(latest.resultCount)} results · ${e(latest.timestamp)}</p>${render(latestEvents, { bookmarks: state?.bookmarks || [] })}` : '<p role="status">No query runs yet.</p>'}</section>`;
   }
 

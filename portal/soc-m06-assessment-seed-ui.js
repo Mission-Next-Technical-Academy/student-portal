@@ -26,22 +26,17 @@ const SocM06AssessmentSeedUi = (() => {
     const confidence = ['low', 'medium', 'high'].includes(hypothesis.confidence) ? hypothesis.confidence : 'medium';
 
     return `<section class="m06-seed-review" aria-label="Seed lead review" data-m06-seed-lead="${e(lead.id)}">
-      <h3>Seed lead review</h3>
-      <p><strong>Lead status:</strong> Unverified</p>
-      <dl><dt>Observation</dt><dd>${e(lead.observation)}</dd><dt>Lead type</dt><dd>${e(lead.type)}</dd><dt>Device</dt><dd>${e(lead.device)}</dd><dt>Account</dt><dd>${e(lead.account)}</dd><dt>${e(lead.artifactLabel || 'Artifact')}</dt><dd>${e(lead.artifact || lead.taskName || 'Not recorded')}</dd></dl>
-      <p><strong>Hunt scope:</strong> ${devices.map(e).join(', ')}</p>
-      <p><strong>UTC window:</strong> ${e(start)} to ${e(end)}</p>
+      <header class="m06-panel-header"><div><span class="m06-step">01 · Frame the lead</span><h3>Seed lead review</h3></div><span class="m06-status-badge">Unverified</span></header>
+      <dl class="m06-lead-facts"><div class="m06-lead-observation"><dt>Observation</dt><dd>${e(lead.observation)}</dd></div><div><dt>Lead type</dt><dd>${e(lead.type)}</dd></div><div><dt>Device</dt><dd>${e(lead.device)}</dd></div><div><dt>Account</dt><dd>${e(lead.account)}</dd></div><div><dt>${e(lead.artifactLabel || 'Artifact')}</dt><dd>${e(lead.artifact || lead.taskName || 'Not recorded')}</dd></div></dl>
+      <div class="m06-scope-strip"><p><span>Hunt scope</span><strong>${devices.map(e).join(', ')}</strong></p><p><span>UTC window</span><strong>${e(start)} to ${e(end)}</strong></p></div>
       <form data-m06-hypothesis-form data-seed-lead-id="${e(lead.id)}">
-        <label for="m06-hypothesis">Working hypothesis</label>
-        <textarea id="m06-hypothesis" name="text" data-m06-hypothesis-text maxlength="2000">${e(hypothesis.text)}</textarea>
-        <label for="m06-hypothesis-rationale">Rationale</label>
-        <textarea id="m06-hypothesis-rationale" name="rationale" data-m06-hypothesis-rationale maxlength="2000">${e(hypothesis.rationale)}</textarea>
-        <label for="m06-hypothesis-confidence">Confidence</label>
-        <select id="m06-hypothesis-confidence" name="confidence" data-m06-hypothesis-confidence>
+        <label for="m06-hypothesis"><span>Working hypothesis</span><textarea id="m06-hypothesis" name="text" data-m06-hypothesis-text maxlength="2000">${e(hypothesis.text)}</textarea></label>
+        <label for="m06-hypothesis-rationale"><span>Rationale</span><textarea id="m06-hypothesis-rationale" name="rationale" data-m06-hypothesis-rationale maxlength="2000">${e(hypothesis.rationale)}</textarea></label>
+        <label for="m06-hypothesis-confidence" class="m06-confidence-field"><span>Confidence</span><select id="m06-hypothesis-confidence" name="confidence" data-m06-hypothesis-confidence>
           <option value="low"${confidence === 'low' ? ' selected' : ''}>Low</option>
           <option value="medium"${confidence === 'medium' ? ' selected' : ''}>Medium</option>
           <option value="high"${confidence === 'high' ? ' selected' : ''}>High</option>
-        </select>
+        </select></label>
         ${options.formExtraHtml || ''}
       </form>
     </section>`;
