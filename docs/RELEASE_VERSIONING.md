@@ -19,3 +19,14 @@ For every deployment release:
 The displayed version is deliberately not derived from a live Git command:
 GitHub Pages serves static files, and the portal must remain functional when
 opened locally or offline.
+
+## Production build counter (auto)
+
+Deployed builds are versioned automatically as `1.<N>`, where `N` is the
+commit count on `master` (`git rev-list --count HEAD`). `.github/workflows/pages.yml`
+generates `release.js` into the assembled site on every push to `master`, so the
+footer counter increments with each push and no version-bump commit is needed.
+The deploy never edits source. `VERSION` and `portal/release.js` are kept equal
+to the deployed number by `bin/stamp-version.sh` (run it before a commit, or any
+time, to sync them to `1.<count after the next commit>`). The manual
+`release:` tag procedure above is superseded by this counter.

@@ -27,6 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history: the deployed version is 1.<commit count on master>.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -46,6 +49,18 @@ jobs:
           # must survive verbatim.
           touch _site/.nojekyll
 
+          # Auto-incrementing build version: every push to master deploys as
+          # 1.<total commits>. Stamped into the assembled site only, so no
+          # version-bump commit is needed and nothing loops. The ?v= bump
+          # busts the cached release.js.
+          BUILD_VERSION="1.$(git rev-list --count HEAD)"
+          printf '%s\n' \
+            "/* Generated at deploy time by pages.yml; do not edit. */" \
+            "const PORTAL_RELEASE = Object.freeze({ version: '${BUILD_VERSION}' });" \
+            > _site/release.js
+          sed -i "s|release.js?v=[^\"]*|release.js?v=${BUILD_VERSION}|" _site/index.html
+          echo "Deploying portal version ${BUILD_VERSION}"
+
           # Gate 3 M360 integration is deliberately deployment-scoped. The
           # main portal application remains untouched: portal/index.html now
           # includes the additive m360-entry.js script tag directly in
@@ -64,6 +79,8 @@ jobs:
           test -f _site/m360/m360-data.js
           test -f _site/m360/m360-production-bridge.js
           test -f _site/m360-entry.js
+          grep -Eq "version: '1\.[0-9]+'" _site/release.js
+          grep -Eq 'release\.js\?v=1\.[0-9]+' _site/index.html
           grep -q 'src="m360-entry.js?v=' _site/index.html
           # A hardcoded simulator origin is the one regression that looks fine
           # in CI and breaks every lab button in production. The localhost
