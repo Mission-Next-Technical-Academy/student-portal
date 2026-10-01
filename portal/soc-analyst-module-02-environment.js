@@ -574,8 +574,11 @@
   // completion. Never clears completion.
   function creditLegacyGuidedLab() {
     if (state.practice.complete) return;
+    // Per-learner evidence only. missionNextImportedLabCompleted() also reads a
+    // browser-wide localStorage key shared by everyone on the device, so it
+    // would credit the next learner on a shared lab computer.
     const legacyDone = LEGACY_GUIDED_LABS.every((lab) => state.labProgress[lab.labId]?.complete === true
-      || missionNextImportedLabCompleted(user, 'soc-02', lab.importedLabId));
+      || Boolean(user?.remoteCaseState?.['soc-02']?.[`imported-lab-progress:${lab.importedLabId}`]?.completedAt));
     if (legacyDone || user?.remoteVerifiedModuleProgress?.['soc-02'] === true) {
       state.practice.complete = true;
       save();
