@@ -1588,7 +1588,7 @@ function initUserProgress(username) {
 
 function markTaskComplete(username, moduleId, taskId, points) {
   const p = getProgress();
-  if (!p[username]) initUserProgress(username);
+  if (!p[username]) p[username] = initUserProgress(username);
   if (!p[username][moduleId]) p[username][moduleId] = { started:false, completedTasks:[], score:0, lastAccessed:null };
   const mp = p[username][moduleId];
   if (!mp.completedTasks.includes(taskId)) { mp.completedTasks.push(taskId); mp.score += points; }

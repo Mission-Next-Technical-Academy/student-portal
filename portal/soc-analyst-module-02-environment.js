@@ -100,11 +100,13 @@
     { title: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'guided-sa2', importedLabId: 'sa-2', verified: true },
   ];
   const GUIDED_LAB_IDS = GUIDED_LAB_LINKS.map((lab) => lab.labId);
-  const ASSESSMENT_LAB_LINKS = [
-    // Assessment copies of the two Guided Labs. Separate progress IDs ensure
-    // completing the Guided Labs does not automatically complete these copies.
-    { title: 'User Account Security Assessment', detail: 'User permissions and account-activity review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-5/lab', labId: 'assessment-copy-1', importedLabId: 'sa-5', requireNote: true },
-    { title: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'assessment-copy-2', importedLabId: 'sa-2', requireNote: true },
+  // Optional repeat runs of the two Guided Labs, shown in the shared Optional
+  // Labs section like Modules 04-11. They never gate the ITSM ticket or module
+  // progress. labIds keep their old 'assessment-copy-*' slots so existing
+  // learner records still map.
+  const OPTIONAL_LAB_LINKS = [
+    { title: 'User Account Security Assessment', detail: 'User permissions and account-activity review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-5/lab', labId: 'assessment-copy-1', importedLabId: 'sa-5' },
+    { title: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'assessment-copy-2', importedLabId: 'sa-2' },
   ];
   const ASSESSMENT_MIN_NOTE_LENGTH = 80;
 
@@ -165,7 +167,6 @@
       notesPlaceholder: 'Summarize the account and filesystem access findings, your analysis, and your recommended actions…',
       notesMin: ASSESSMENT_MIN_NOTE_LENGTH,
       disabled,
-      extraMissing: missionNextAllLabsComplete(state.labProgress, ASSESSMENT_LAB_LINKS.map((lab) => lab.labId)) ? [] : ['Complete both Assessment Lab projects above'],
     };
   }
 
@@ -528,6 +529,15 @@
       wireLabGating('prove');
       syncGuideGateNav();
     }
+    if (scope === 'optional') {
+      const panel = document.getElementById('m02e-optional-labs');
+      if (panel) panel.outerHTML = optionalLabsPanel();
+      wireLabGating('optional');
+    }
+  }
+
+  function optionalLabsPanel() {
+    return `<div id="m02e-optional-labs">${missionNextOptionalLabsSection(2, OPTIONAL_LAB_LINKS, state.labProgress)}</div>`;
   }
 
   // Rewires the [data-mn-lab-toggle]/[data-mn-lab-note] controls inside a
@@ -536,7 +546,7 @@
   // onChange callback just saves and re-renders that scope so the toggle
   // label/style and any downstream gate message stay current.
   function wireLabGating(scope) {
-    const panelId = scope === 'practice' ? 'm02e-practice-panel' : 'm02e-prove-panel';
+    const panelId = scope === 'practice' ? 'm02e-practice-panel' : scope === 'optional' ? 'm02e-optional-labs' : 'm02e-prove-panel';
     const panel = document.getElementById(panelId);
     if (!panel) return;
     wireMissionNextLabGating(panel, state.labProgress, () => {
@@ -694,7 +704,7 @@
   function provePanel() {
     const cr = state.prove.caseRecord;
     const missing = proveItMissing();
-    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Complete both Guided Lab projects again as independent assessments, then work the case below into the standard ITSM Incident Ticket for instructor review.</p>${missionNextLabLaunchGroup(2, 'assessment', ASSESSMENT_LAB_LINKS, state.labProgress)}${caseRecordPane(cr, {
+    return `<div class="m02e-prove-panel" id="m02e-prove-panel"><p class="m02e-label">ASSESSMENT LAB</p><p class="m02e-panel-instruction">Work the case below into the standard ITSM Incident Ticket for instructor review.</p>${caseRecordPane(cr, {
       ...caseSpec(cr.submitted === true),
       missing,
       formId: 'm02e-prove-form',
@@ -742,7 +752,7 @@
       case_record: cr,
       case_display: caseRecordDisplay(cr, spec),
       case_summary: caseRecordSummary(cr, spec),
-      access_review: { selectedEvent: ASSESSMENT_LAB_LINKS.map((l) => l.title).join(' + '), decision: 'Submitted for review', evidenceReferenced: [], analystNote: cr.notes },
+      access_review: { selectedEvent: `${CASE_ID} ITSM Incident Ticket`, decision: 'Submitted for review', evidenceReferenced: [], analystNote: cr.notes },
     };
 
     if (typeof recordLabAttempt === 'function') {
@@ -797,6 +807,8 @@
             ${provePanel()}
           </details>
 
+          ${optionalLabsPanel()}
+
           <details class="m01-section m01-section-supplemental m02e-section m02e-section-collapsible" id="m02e-sources" open aria-labelledby="m02e-sources-title">
             <summary class="m01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Reference — not a graded step</p><h2 id="m02e-sources-title">Sources &amp; Further Reading</h2></div></summary>
             ${moduleSourcesBlock(SOURCES)}
@@ -812,6 +824,7 @@
 
     wireLabGating('practice');
     wireLabGating('prove');
+    wireLabGating('optional');
 
     wireReviewToggle({
       button: document.querySelector('[data-mnav-review-toggle]'),

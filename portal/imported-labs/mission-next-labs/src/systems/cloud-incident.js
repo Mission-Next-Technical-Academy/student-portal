@@ -30,7 +30,9 @@
       const line=String(command||'').trim();
       try {
         let m=/^az\s+monitor\s+log-analytics\s+query\s+-w\s+(\S+)\s+--analytics-query\s+(["'])([\s\S]*)\2$/i.exec(line);
-        if(m){const rows=query(m[3]);if(/^\s*Heartbeat\b/i.test(m[3]))state.queryHeartbeat=rows.some(r=>r.resource===facts.recoveryVm&&r.workspace===facts.workspace);return result(JSON.stringify(rows,null,2),{lastQuery:m[3],queryRows:rows,heartbeat:state.queryHeartbeat});}
+        // Bare KQL typed straight into the shell (what the placeholder and step hint show) runs the same query.
+        const kql=m?m[3]:(/^(SigninLogs|AzureActivity|Heartbeat)\b/i.test(line)?line:null);
+        if(kql!==null){const rows=query(kql);if(/^\s*Heartbeat\b/i.test(kql))state.queryHeartbeat=rows.some(r=>r.resource===facts.recoveryVm&&r.workspace===facts.workspace);return result(JSON.stringify(rows,null,2),{lastQuery:kql,queryRows:rows,heartbeat:state.queryHeartbeat});}
         if(/^cat\s+.*ir-ticket\.txt$/i.test(line)){state.ticketViewed=true;return result(state.files['ir-ticket.txt'],{ticketViewed:true});}
         m=/^az\s+resource\s+list\b|^az\s+vm\s+list\b|^az\s+network\s+nsg\s+rule\s+list\b/i.exec(line);
         if(m){state.scoped=true;return result(JSON.stringify({vm:cloud.vm,nsg:cloud.activity.filter(x=>x.operation.includes('securityRules/write')),roleAssignment:cloud.activity.find(x=>x.operation.includes('roleAssignments/write'))},null,2),{scoped:true});}

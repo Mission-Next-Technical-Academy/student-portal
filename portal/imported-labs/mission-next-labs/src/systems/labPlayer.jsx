@@ -298,7 +298,7 @@
 
         {labComplete && (
           <div role="status" style={lpStyles.completionBanner}>
-            <strong>Mission Next lab complete.</strong> {lab.completionMessage || 'All required steps are verified. Return to Module 3 to submit your assessment write-up.'}
+            <strong>Mission Next lab complete.</strong> {lab.completionMessage || 'All required steps are verified. Use Back to return to your module.'}
           </div>
         )}
 

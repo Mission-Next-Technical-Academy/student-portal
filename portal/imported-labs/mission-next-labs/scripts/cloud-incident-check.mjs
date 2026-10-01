@@ -20,6 +20,8 @@ for(const seed of ['A','B']){
   const summarized=execute('az monitor log-analytics query -w workspace --analytics-query "AzureActivity | summarize count() by operation"');
   assert.match(summarized.stdout,/count_/,'cloud queries must use the shared KQL summarize operator');
   assert.equal(run('az monitor log-analytics query -w workspace --analytics-query "SigninLogs | explode"').exitCode,1,'unsupported KQL must surface an explicit error');
+  const bare=execute('SigninLogs | where riskState == "atRisk"');
+  assert.match(bare.stdout,/atRisk/,'bare KQL typed into the shell (the step hint) must return rows');
   assert.equal(engine.check('detect').ok,true,JSON.stringify(engine.state.queries));
   execute('az resource list --tag IncidentId=incident');assert.equal(engine.check('scope').ok,true);
   execute(`az ad user update --id ${engine.facts.actor}`);execute(`az ad user revoke-sign-in-sessions --id ${engine.facts.actor}`);execute(`az network nsg rule delete --nsg-name ${engine.facts.nsg}`);

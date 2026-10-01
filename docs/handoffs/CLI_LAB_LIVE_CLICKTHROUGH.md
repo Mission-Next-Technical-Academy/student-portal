@@ -1,6 +1,7 @@
 # Optional CLI Lab rewrite — live click-through (post-deploy check)
 
-**Status:** open · **Owner:** next session + Alex (needs a real student login)
+**Status:** run 2026-10-01; P1–P4 pass, one manual check left (log out and
+back in, see Results) · **Owner:** Alex
 **Release under test:** `d799b65` on `master`, live as **v1.501** (2026-10-01)
 **Live portal:** https://mission-next-technical-academy.github.io/student-portal/
 
@@ -102,3 +103,49 @@ before pushing. Every push to `master` deploys and bumps the version.
 
 Once all P1–P3 rows pass, mark this file **closed** and update the
 `mnt-optional-cli-lab-rewrite` memory ("Still open: logged-in click-through").
+
+## Results — 2026-10-01
+
+Run on `localhost:8768` (portal served from the working tree; lab code identical
+to v1.501) as test student `…-SOCAN` against the live Supabase project, Chrome,
+console watched throughout. That account was already at 12/12 modules.
+
+| # | Result | Notes |
+|---|---|---|
+| 1 | PASS | `sa-5` 15/15; wrong IP (roster's 10.10.24.88) rejected, correct accepted; reload at step 7 resumed 7/15 still SSH-connected; Back → Module 02; card "Completed — all lab steps verified" |
+| 2 | PASS | `sa-2` 13/13; `other::r-x` rejected; reload at step 6 resumed; card verified complete; Module 02 → 100% |
+| 3–4 | CHANGED | Owner moved the `sa-5`/`sa-2` Assessment copies to Optional Labs (see below). Before that change: the cards opened the shared lab state, and the ITSM ticket blocked Submit with a short note and empty fields (only "Updated notes" was logged, nothing was submitted). The 80-char minimum belongs to the ticket's Analyst Work Notes, not to the per-lab notes. Test edits were reverted. |
+| 5 | PASS* | GRE lab 60/60, Back → Module 07. *The first answer submit in a browser with no `mission_next_progress` entry threw `TypeError … 'mod-5'` in `markTaskComplete` (`src/data.js`); predates the rewrite (`25cf6bd`). Fixed. |
+| 6 | PASS | HTTP lab loads; same shell and code path as #5 |
+| 7 | PASS | `sa-3` title matches the M08 card; steps 1–2 terminal, then the neutral Traffic Inspector; 4/4; Back → Module 08 |
+| P3 | PASS | All 21 linked imported labs render with no console errors |
+| P4 | PASS* | `sa-4`, `sa-6`/`sa-7` ("NEW TO POWERSHELL?"), `sa-9` boot. *`sa-8` rejected bare KQL (`bash: unsupported command: SigninLogs`) even though its placeholder and step hint show bare KQL. Fixed, with a regression assertion in `scripts/cloud-incident-check.mjs`. |
+
+Still to do by hand: log out and back in as the test student and confirm the
+Module 02 Guided cards still show complete. Signing in is a manual step.
+
+### Changes made from this run
+
+- **Module 02 Assessment Lab (owner request):** the `sa-5`/`sa-2` copies moved
+  out of Prove It into the shared Optional Labs section (`OPTIONAL_LAB_LINKS`,
+  same `assessment-copy-*` labIds). They no longer gate the IAM-5502 ticket.
+  The ticket itself is unchanged.
+- `src/data.js` `markTaskComplete`: use the object `initUserProgress` returns.
+- `src/systems/labPlayer.jsx`: the default completion banner said "Return to
+  Module 3…" in every module. It now says "Use Back to return to your module."
+- `src/systems/cloud-incident.js`: bare `SigninLogs`/`AzureActivity`/`Heartbeat`
+  KQL runs through the same query path as `az monitor log-analytics query`.
+- Cache-bust strings bumped for every changed script.
+
+### Found, not fixed (outside the rewrite scope, needs a decision)
+
+- **Per-lab note boxes lose focus after every keystroke.** The
+  `wireMissionNextLabGating` (`portal/app.js`) `input` handler calls the
+  module's `onChange`, which saves and re-renders the panel. A student can
+  only type one character per click (paste works). This affects every
+  `requireNote: true` card: M04 and M06 Optional Labs, and M11's
+  `additional` lab group. Module 02 no longer uses note cards. Fix: update the
+  bucket on `input` and persist without re-rendering, or re-render on
+  `change`. `app.js` is shared code, so this needs owner sign-off.
+- Wrong answers in the CLI labs clear the box with no visible "incorrect"
+  message. This is the existing behavior.

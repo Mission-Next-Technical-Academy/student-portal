@@ -136,8 +136,15 @@ focused check for the imported app, so `npm run check` is the source for the
 new per-lab checks. Browser verification covered route rendering, not full
 interactive solves or resume-after-reload for S6/S7.
 
-Shipped 2026-10-01 as `d799b65` (live v1.501). **Open:** logged-in live
-click-through. Checklist in `docs/handoffs/CLI_LAB_LIVE_CLICKTHROUGH.md`.
+Shipped 2026-10-01 as `d799b65` (live v1.501). Logged-in click-through run
+2026-10-01 against localhost:8768 (same lab code as v1.501, live Supabase,
+test student `…-SOCAN`); results and follow-ups are in
+`docs/handoffs/CLI_LAB_LIVE_CLICKTHROUGH.md`. No rewrite regressions found.
+Owner decision the same day: Module 02's `sa-5`/`sa-2` Assessment copies are
+now **Optional Labs** (shared `missionNextOptionalLabsSection`), no longer
+gating the IAM-5502 ITSM ticket. Note the Splunk shells still show the
+`splunk>` logo; the S7 "neutralized SIEM branding" line above is stale,
+because those shells were restored to HEAD in the scope correction.
 
 Next: S9 server-side validation remains deferred while these labs are optional
 and ungraded. Do not begin it unless they are later assessed and the scope is
