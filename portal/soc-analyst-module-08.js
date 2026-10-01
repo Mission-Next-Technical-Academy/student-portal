@@ -638,11 +638,14 @@ function moduleEightLessonLoopsView() {
 }
 
 function moduleEightGetSections() {
+  // Server-verified modules (finished on another device, before the 09-27
+  // lab rebuild, or by admin override) read complete instead of empty.
+  const verified = moduleEightUser?.remoteVerifiedModuleProgress?.['soc-08'] === true;
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm08-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleEightQuizState?.passed, scrollId: 'm08-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleEightGuidedComplete(), scrollId: 'm08-guided-lab' },
-    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleEightState.completed, scrollId: 'm08-assessment-lab' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleEightQuizState?.passed, scrollId: 'm08-knowledge-check' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleEightGuidedComplete(), scrollId: 'm08-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleEightState.completed, scrollId: 'm08-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm08-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm08-sources', gated: false, supplemental: true },
   ];

@@ -4348,7 +4348,18 @@ function wireMissionNextLabGating(root, bucket, onChange) {
       if (!id) return;
       if (!bucket[id]) bucket[id] = { complete: false, note: '' };
       bucket[id].note = ta.value;
+      const { selectionStart, selectionEnd } = ta;
       if (typeof onChange === 'function') onChange(id, bucket[id]);
+      // Callers save and re-render synchronously, which replaces this
+      // textarea. Put focus and the caret back on its replacement so the
+      // learner can keep typing.
+      if (!ta.isConnected) {
+        const next = document.querySelector(`[data-mn-lab-note="${CSS.escape(id)}"]`);
+        if (next) {
+          next.focus({ preventScroll: true });
+          next.setSelectionRange(selectionStart, selectionEnd);
+        }
+      }
     });
   });
 }

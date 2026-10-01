@@ -829,11 +829,14 @@ function moduleTenAdditionalLabs() {
 }
 
 function moduleTenGetSections() {
+  // Server-verified modules (finished on another device, before the 09-27
+  // lab rebuild, or by admin override) read complete instead of empty.
+  const verified = moduleTenUser?.remoteVerifiedModuleProgress?.['soc-10'] === true;
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm10-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleTenQuizState?.passed, scrollId: 'm10-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleTenGuidedComplete(), scrollId: 'm10-guided-lab' },
-    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleTenAssessmentState.completed, scrollId: 'm10-assessment-lab' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleTenQuizState?.passed, scrollId: 'm10-knowledge-check' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleTenGuidedComplete(), scrollId: 'm10-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleTenAssessmentState.completed, scrollId: 'm10-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm10-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm10-sources', gated: false, supplemental: true },
   ];

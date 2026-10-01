@@ -705,11 +705,14 @@ function moduleFourLoad(user) {
 }
 
 function moduleFourGetSections() {
+  // Server-verified modules (finished on another device, before the 09-27
+  // lab rebuild, or by admin override) read complete instead of empty.
+  const verified = moduleFourUser?.remoteVerifiedModuleProgress?.['soc-04'] === true;
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm04-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleFourQuizState?.passed, scrollId: 'm04-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleFourGuidedChecks().every((check) => check[2]), scrollId: 'm04-guided-lab' },
-    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleFourState.completed, scrollId: 'm04-assessment-lab' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleFourQuizState?.passed, scrollId: 'm04-knowledge-check' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleFourGuidedChecks().every((check) => check[2]), scrollId: 'm04-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleFourState.completed, scrollId: 'm04-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm04-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm04-sources-section', gated: false, supplemental: true },
   ];

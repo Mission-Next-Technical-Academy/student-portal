@@ -867,7 +867,8 @@ function moduleThreeGuidedLabPanel() {
   // The ingest gate (added 2026-09-25) must not lock learners who already
   // finished the Guided Lab before the flag existed.
   const ingestReady = m03eState('practice').normalizedIngestReady
-    || moduleThreeState.practiceComplete === true || moduleThreeState.completed === true;
+    || moduleThreeState.practiceComplete === true || moduleThreeState.completed === true
+    || moduleThreeUser?.remoteVerifiedModuleProgress?.['soc-03'] === true;
   if (!ingestReady) {
     return `<div class="m03e-panel" id="m03e-practice-panel"><p class="m03e-panel-instruction">First normalize and ingest the four source logs in card 1, <strong>Log normalization, correlation, and triage</strong>, then select <strong>Open investigation workspace</strong>. This case’s alert and normalized events will load here.</p></div>`;
   }

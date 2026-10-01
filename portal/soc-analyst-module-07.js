@@ -599,11 +599,14 @@ function moduleSevenEvidenceDesk() {
 }
 
 function moduleSevenGetSections() {
+  // Server-verified modules (finished on another device, before the 09-27
+  // lab rebuild, or by admin override) read complete instead of empty.
+  const verified = moduleSevenUser?.remoteVerifiedModuleProgress?.['soc-07'] === true;
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm07-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSevenQuizState?.passed, scrollId: 'm07-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleSevenGuidedChecks().every((check) => check[2]), scrollId: 'm07-guided-lab' },
-    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleSevenState.completed, scrollId: 'm07-assessment-lab' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleSevenQuizState?.passed, scrollId: 'm07-knowledge-check' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleSevenGuidedChecks().every((check) => check[2]), scrollId: 'm07-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleSevenState.completed, scrollId: 'm07-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm07-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm07-sources', gated: false, supplemental: true },
   ];

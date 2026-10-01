@@ -554,11 +554,13 @@ function moduleThreeSave() {
 }
 
 function moduleThreeGetSections() {
+  // Server-verified modules read complete instead of empty (see Modules 04-11).
+  const verified = moduleThreeUser?.remoteVerifiedModuleProgress?.['soc-03'] === true;
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm03-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleThreeQuizState?.passed, scrollId: 'm03-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleThreeState.practiceComplete, scrollId: 'm03-guided-lab' },
-    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleThreeState.completed, scrollId: 'm03-assessment-lab' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleThreeQuizState?.passed, scrollId: 'm03-knowledge-check' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleThreeState.practiceComplete, scrollId: 'm03-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleThreeState.completed, scrollId: 'm03-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm03-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm03-sources-section', gated: false, supplemental: true },
   ];

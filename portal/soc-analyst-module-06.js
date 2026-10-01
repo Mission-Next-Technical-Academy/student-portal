@@ -871,11 +871,14 @@ function moduleSixSave() {
 }
 
 function moduleSixGetSections() {
+  // Server-verified modules (finished on another device, before the 09-27
+  // lab rebuild, or by admin override) read complete instead of empty.
+  const verified = moduleSixUser?.remoteVerifiedModuleProgress?.['soc-06'] === true;
   return [
     { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: MODULE_SIX_LESSONS.every((lesson) => moduleSixLessonComplete(lesson)), scrollId: 'm06-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSixQuizState?.passed, scrollId: 'm06-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleSixGuidedChecks().every((check) => check[2]), scrollId: 'm06-guided-lab' },
-    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleSixState.independentLab.completed, scrollId: 'm06-assessment-lab' },
+    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleSixQuizState?.passed, scrollId: 'm06-knowledge-check' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleSixGuidedChecks().every((check) => check[2]), scrollId: 'm06-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleSixState.independentLab.completed, scrollId: 'm06-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm06-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm06-sources', gated: false, supplemental: true },
   ];
