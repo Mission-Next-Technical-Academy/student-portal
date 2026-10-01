@@ -88,19 +88,24 @@
     { id: 'authorization', prompt: 'The account lab finds a user in an administrative group. What makes that a security finding?', options: [{ id: 'a', text: 'The privilege exceeds the documented job need or approved scope' }, { id: 'b', text: 'The user authenticated successfully' }, { id: 'c', text: 'The group name contains the word admin' }, { id: 'd', text: 'The account exists in the directory' }], correct: 'a', correctMsg: 'Correct. The finding is the mismatch between granted privilege and approved job need or scope.', incorrectMsg: 'Authentication and a group label are not enough. Compare the granted privilege with documented job need and approval.' },
   ];
 
-  // Imported Mission Next training labs (portal/imported-labs/mission-next-labs/),
-  // wired in place of the bespoke HR-FILE-01 case simulation. Each opens the
-  // static imported app on this page; its Back button returns through browser
-  // history to the module that launched it.
-  const GUIDED_LAB_LINKS = [
-    // labId stays 'guided-2' so existing learner records keep their slot.
-    // verified: completion comes from the lab player, never a manual toggle.
-    { title: 'User Account Security Assessment', detail: 'User permissions and account-activity review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-5/lab', labId: 'guided-2', importedLabId: 'sa-5', verified: true },
-    // Formerly the standalone "Additional Mission Next Lab" (labId 'additional-sa2').
-    { title: 'File System Security Assessment', detail: 'Filesystem permissions and access review', href: 'imported-labs/mission-next-labs/index.html#/track/security-assessments/project/sa-2/lab', labId: 'guided-sa2', importedLabId: 'sa-2', verified: true },
+  // Guided Lab: the HR-FILE-01 access decision, worked in this module's own
+  // SIEM console (restored 2026-10-01 after 25cf6bd swapped it for imported
+  // CLI labs). John authenticates but his groups are not authorized by the
+  // HR file policy, so the evidence-backed decision is DENY.
+  const PRACTICE_HINTS = [
+    'Open John Smith’s identity in the console to see his assigned groups.',
+    'Open the HR-FILE-01 policy to see which groups it authorizes.',
+    'Compare John’s groups against the policy’s authorized groups — a successful sign-in is not the same as being authorized.',
   ];
-  const GUIDED_LAB_IDS = GUIDED_LAB_LINKS.map((lab) => lab.labId);
-  // Optional repeat runs of the two Guided Labs, shown in the shared Optional
+  const PRACTICE_EVIDENCE = ['Identity groups', 'Device compliance', 'Destination policy', 'Protocol / port', 'MFA status'];
+  const PRACTICE_REQUIRED_EVIDENCE = ['Identity groups', 'Destination policy'];
+  // Learners who finished the Guided Lab while it was the sa-5 + sa-2 imported
+  // labs keep that credit (owner decision 2026-10-01).
+  const LEGACY_GUIDED_LABS = [
+    { labId: 'guided-2', importedLabId: 'sa-5' },
+    { labId: 'guided-sa2', importedLabId: 'sa-2' },
+  ];
+  // The imported sa-5/sa-2 command-line labs, shown in the shared Optional
   // Labs section like Modules 04-11. They never gate the ITSM ticket or module
   // progress. labIds keep their old 'assessment-copy-*' slots so existing
   // learner records still map.
@@ -218,7 +223,7 @@
 
   const DEFAULT = {
     learn: { walkthroughVersion: 3, guideFlowVersion: 1, step: 0, guideStep: -1, guideUnlocked: false, guideCompleted: false, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
-    practice: { notes: '', complete: false },
+    practice: { tab: 'activity', selected: { type: 'event', id: 'evt-john-hr-denied' }, opened: [], decision: '', evidence: [], rationale: '', hint: -1, feedback: '', notes: '', complete: false },
     prove: { notes: '', submitted: false, attempts: 0, feedback: [], lastSubmittedAt: '', showMissing: false, caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] } },
     completed: false,
     labProgress: {},
@@ -334,10 +339,12 @@
       save();
     }
     state.learn.knowledgeAnswers = state.learn.knowledgeAnswers && typeof state.learn.knowledgeAnswers === 'object' ? state.learn.knowledgeAnswers : {};
-    // Practice It / Prove It are now imported-lab launch panels with a
-    // write-up, not entity-selection scopes, so they merge flat against their
-    // own defaults instead of going through normalizeScope's console shape.
-    state.practice = { ...DEFAULT.practice, ...(state.practice && typeof state.practice === 'object' ? state.practice : {}) };
+    // Practice It is a console scope again (HR-FILE-01 Guided Lab); Prove It
+    // is the ITSM ticket, so it merges flat against its own defaults.
+    state.practice = normalizeScope(state.practice, DEFAULT.practice);
+    if (!Array.isArray(state.practice.evidence)) state.practice.evidence = [];
+    if (typeof state.practice.rationale !== 'string') state.practice.rationale = '';
+    if (typeof state.practice.hint !== 'number') state.practice.hint = -1;
     state.prove = { ...DEFAULT.prove, ...(state.prove && typeof state.prove === 'object' ? state.prove : {}) };
     if (!Array.isArray(state.prove.feedback)) state.prove.feedback = [];
     if (typeof state.practice.notes !== 'string') state.practice.notes = '';
@@ -562,19 +569,17 @@
     return state.learn.guideCompleted || state.practice.complete;
   }
 
-  // Guided Lab completion is earned inside the imported lab (every step
-  // verified), then mirrored here. Re-read on each render so returning from
-  // the lab updates the card without any manual step.
-  function syncVerifiedGuidedLabs() {
-    let changed = false;
-    GUIDED_LAB_LINKS.forEach((lab) => {
-      const done = missionNextImportedLabCompleted(user, 'soc-02', lab.importedLabId);
-      const entry = state.labProgress[lab.labId] || { complete: false, note: '' };
-      if (entry.complete !== done) { state.labProgress[lab.labId] = { ...entry, complete: done }; changed = true; }
-    });
-    const practiceDone = missionNextAllLabsComplete(state.labProgress, GUIDED_LAB_IDS);
-    if (state.practice.complete !== practiceDone) { state.practice.complete = practiceDone; changed = true; }
-    if (changed) save();
+  // One-way credit: a learner who finished both imported labs while they were
+  // the Guided Lab, or whose module is server-verified, keeps Guided Lab
+  // completion. Never clears completion.
+  function creditLegacyGuidedLab() {
+    if (state.practice.complete) return;
+    const legacyDone = LEGACY_GUIDED_LABS.every((lab) => state.labProgress[lab.labId]?.complete === true
+      || missionNextImportedLabCompleted(user, 'soc-02', lab.importedLabId));
+    if (legacyDone || user?.remoteVerifiedModuleProgress?.['soc-02'] === true) {
+      state.practice.complete = true;
+      save();
+    }
   }
 
   function syncGuideGateNav() {
@@ -640,7 +645,7 @@
     }).join('');
     const heading = done ? 'Walkthrough complete' : state.learn.step === 0 ? 'Ready to decode the signal?' : 'How a SOC analyst turns noise into signal';
     const intro = done
-      ? state.learn.guideCompleted ? 'The console guide is complete. Your Guided Labs are available below.' : 'All six ideas are here to revisit. Open the console guide below to inspect the evidence.'
+      ? state.learn.guideCompleted ? 'The console guide is complete. Your Guided Lab is available below.' : 'All six ideas are here to revisit. Open the console guide below to inspect the evidence.'
       : state.learn.step === 0 ? 'Six ideas will build into one analyst workflow as you move through the console.' : `${state.learn.step} of ${LEARN_STEPS.length} ideas decoded · finish all six to open the console guide below.`;
     const label = done ? 'LEARN IT · WALKTHROUGH COMPLETE' : state.learn.step === 0 ? 'LEARN IT · SIX QUICK IDEAS' : `LEARN IT · STEP ${state.learn.step} OF ${LEARN_STEPS.length} · ${esc(LEARN_STEPS[step].title)}`;
     const action = done
@@ -685,14 +690,34 @@
 
   // ------------------------------------------------------------- Practice It
 
+  function practiceGateSatisfied() {
+    const opened = state.practice.opened;
+    return opened.includes('user:john') && (opened.includes('policy:hr-policy') || opened.includes('resource:hr'));
+  }
+
   function practicePanel() {
     const p = state.practice;
-    if (!guidedLabsUnlocked()) return '<div class="m02e-practice-panel" id="m02e-practice-panel"><div class="m02e-practice-locked" role="status"><strong>Guided Labs unlock after the console guide.</strong><p>Reveal all six Learn It ideas, open the console guide, then finish its six explanations to start these labs.</p></div></div>';
-    syncVerifiedGuidedLabs();
+    if (!guidedLabsUnlocked()) return '<div class="m02e-practice-panel" id="m02e-practice-panel"><div class="m02e-practice-locked" role="status"><strong>The Guided Lab unlocks after the console guide.</strong><p>Reveal all six Learn It ideas, open the console guide, then finish its six explanations to start the Guided Lab.</p></div></div>';
+    creditLegacyGuidedLab();
+    const decision = practiceGateSatisfied() || p.complete
+      ? `<div class="m02e-decision-artifact"><p class="m02e-label">DECISION ARTIFACT</p><h3>Should John’s access to HR-FILE-01 be allowed?</h3><div class="m02e-decisions">${['ALLOW', 'DENY', 'ESCALATE'].map((d) => `<button type="button" class="${p.decision === d ? 'is-selected' : ''}" data-m02e-practice-decision="${d}">${d}</button>`).join('')}</div><h4>Supporting evidence</h4>${PRACTICE_EVIDENCE.map((item) => `<label><input type="checkbox" data-m02e-practice-evidence value="${esc(item)}" ${p.evidence.includes(item) ? 'checked' : ''}> ${esc(item)}</label>`).join('')}<label class="m02e-rationale">Analyst rationale<textarea data-m02e-practice-note rows="2" maxlength="400" placeholder="State what the evidence shows.">${esc(p.rationale || '')}</textarea></label><div class="m02e-panel-actions"><button class="m02e-primary" type="button" data-m02e-practice-submit>Check reasoning</button><button class="m02e-secondary" type="button" data-m02e-hint>Hint (${Math.min(p.hint + 2, PRACTICE_HINTS.length)}/${PRACTICE_HINTS.length})</button></div></div>`
+      : '<div class="m02e-decision-artifact m02e-gate" role="status"><p class="m02e-label">DECISION ARTIFACT · LOCKED</p><p>Open John Smith’s identity and the HR-FILE-01 policy in the console above before recording a decision. Authentication alone does not tell you whether access is authorized.</p></div>';
     const status = p.complete
-      ? '<div class="m02e-feedback is-correct" role="status">Guided Labs complete — every lab step was verified.</div>'
-      : '<div class="m02e-feedback" role="status">The Guided Lab completes automatically once you finish every step inside both labs.</div>';
-    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">GUIDED LAB</p><p class="m02e-panel-instruction">Work through both imported security-assessment projects below; each opens on this page with its own guided tasks. Completing every step in both labs completes the Guided Lab.</p>${missionNextLabLaunchGroup(2, 'guided', GUIDED_LAB_LINKS, state.labProgress)}<label class="m02e-rationale">Working notes (optional)<textarea data-m02e-practice-notes rows="4" maxlength="900" placeholder="What did you find? Any blockers?">${esc(p.notes)}</textarea></label>${status}</div>`;
+      ? `<div class="m02e-feedback is-correct" role="status">${esc(p.feedback || 'Guided Lab complete.')}</div>`
+      : p.feedback ? `<div class="m02e-feedback" role="status">${esc(p.feedback)}</div>` : '';
+    return `<div class="m02e-practice-panel" id="m02e-practice-panel"><p class="m02e-label">GUIDED LAB</p><p class="m02e-panel-instruction">John Smith signed in successfully and reached HR-FILE-01 at 08:17, but the request was denied. Use the console to compare John’s identity and groups with the HR file policy, then record whether his access should be allowed and the evidence that supports it.</p><div class="m02e-console-wrap" id="m02e-console-practice">${consoleHtml('practice')}</div>${decision}${status}</div>`;
+  }
+
+  function submitPractice() {
+    const p = state.practice;
+    const evidenceOk = PRACTICE_REQUIRED_EVIDENCE.every((x) => p.evidence.includes(x));
+    const correct = p.decision === 'DENY' && evidenceOk;
+    if (correct) p.complete = true;
+    p.feedback = correct
+      ? 'Correct. John authenticated successfully, but Operations-Read is not authorized by HR-FILE-01’s HR-Read policy — the access should be denied.'
+      : 'Reassess: a successful sign-in confirms identity, not permission. Compare John’s groups to HR-FILE-01’s authorized groups before deciding.';
+    save();
+    renderScope('practice');
   }
 
   // ---------------------------------------------------------------- Prove It
@@ -778,7 +803,7 @@
 
   function view(u, program) {
     load(u);
-    syncVerifiedGuidedLabs();
+    creditLegacyGuidedLab();
     const module = program?.modules?.['soc-02'] || {};
     return `<div class="m01-shell m02e-shell">
       ${moduleTopbar(u, program)}
@@ -798,7 +823,7 @@
           </details>
 
           <details class="m01-section m02e-section m02e-section-collapsible" id="m02e-practice" open aria-labelledby="m02e-practice-title">
-            <summary class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Practice It · Guided Lab</p><h2 id="m02e-practice-title">Security assessment practice</h2></div></summary>
+            <summary class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Practice It · Guided Lab</p><h2 id="m02e-practice-title">HR file access decision in the SIEM console</h2></div></summary>
             ${practicePanel()}
           </details>
 
@@ -870,6 +895,9 @@
         return;
       }
       if (button.hasAttribute('data-m02e-knowledge-submit')) { state.learn.knowledgeScored = true; save(); renderScope('learn'); return; }
+      if (button.dataset.m02ePracticeDecision) { state.practice.decision = button.dataset.m02ePracticeDecision; save(); renderScope('practice'); return; }
+      if (button.hasAttribute('data-m02e-hint')) { const p = state.practice; p.hint = Math.min(PRACTICE_HINTS.length - 1, p.hint + 1); if (!p.complete) p.feedback = PRACTICE_HINTS[p.hint]; save(); renderScope('practice'); return; }
+      if (button.hasAttribute('data-m02e-practice-submit')) { submitPractice(); return; }
       if (button.hasAttribute('data-m02e-submit-prove')) { submitProve(); return; }
       if (button.hasAttribute('data-m02e-save-prove')) {
         state.prove.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
@@ -880,13 +908,14 @@
     root.onchange = (ev) => {
       const t = ev.target;
       if (t.matches('[data-m02e-knowledge-answer]')) { state.learn.knowledgeAnswers[t.dataset.questionId] = t.value; state.learn.knowledgeScored = false; save(); renderScope('learn'); return; }
+      if (t.matches('[data-m02e-practice-evidence]')) { state.practice.evidence = t.checked ? [...new Set([...state.practice.evidence, t.value])] : state.practice.evidence.filter((x) => x !== t.value); save(); return; }
       if (ev.target.closest('#m02e-prove-form') && t.name && caseRecordApply(state.prove.caseRecord, t.name, t.value)) {
         state.prove.caseRecord.actionHistory.push({ action: `Updated ${t.name}`, at: new Date().toISOString() });
         save(); renderScope('prove'); return;
       }
     };
     root.oninput = (ev) => {
-      if (ev.target.matches('[data-m02e-practice-notes]')) { state.practice.notes = ev.target.value; save(); return; }
+      if (ev.target.matches('[data-m02e-practice-note]')) { state.practice.rationale = ev.target.value; save(); return; }
       if (ev.target.closest('#m02e-prove-form') && ev.target.tagName === 'TEXTAREA' && ev.target.name) {
         caseRecordApply(state.prove.caseRecord, ev.target.name, ev.target.value);
         save(); return;
