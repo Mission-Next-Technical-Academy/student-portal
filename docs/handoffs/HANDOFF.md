@@ -9,6 +9,143 @@ pointer and must not become a second task queue.
 The prior chronological engineering handoff is preserved at
 `archive/session-logs/HANDOFF_THROUGH_2026-09-10.md`.
 
+## Optional CLI Lab deep rewrite — S1–S8 complete; S9 deferred, 2026-09-30
+
+> **Scope correction (end of 2026-09-30):** `sa-2` and `sa-5` are Module 02
+> Guided + Assessment Labs, and Splunk-track shells back Module 07 Assessment
+> Labs. `sa-2`, `sa-5` (engine + check), `vm-2`, Splunk chrome and catalog copy
+> are restored to HEAD; the sa-2 rewrite now lives as unlinked `sa-9`; `sa-3`
+> keeps its original title. See "Scope correction audit" in the plan. The
+> S1/S3/S7 notes below describe the pre-correction state for those items.
+
+Scope is locked to behavior inside `portal/imported-labs/mission-next-labs/`.
+The course portal, module pages, native Guided Labs/Assessment Labs, SIEM/case
+consoles, card placement and grading remain unchanged. See
+`docs/workstreams/soc-analyst-track-reimagining/CLI_LAB_REWRITE_PLAN.md`.
+
+S1 added `src/systems/scenario-engine.js` and ported the existing `sa-5` IAM
+Optional Lab onto its isolated state, command-dispatch, named-check, denial and
+phase primitives. The visible 15-step flow and progress IDs are unchanged.
+Authentication answers are now derived from the fixture's `auth.log`; tests
+mutate the source IP, successful-login time and failure count and confirm that
+grading follows those facts instead of duplicated literals.
+
+S2 added `src/data/fixtures/operation-night-shift.js` and its adjacent fixture
+map. Seeds A/B deterministically vary the account, RFC 5737 source address,
+timestamps, hosts, subscription and resource names while keeping every Linux,
+Windows and cloud artifact internally consistent. Windows evidence includes
+structured 4625/4624 type-10/4688 records and serialized Security event XML.
+Cloud evidence includes sign-in/activity rows and a strictly ordered snapshot,
+verification, rogue-VM containment/deletion, approved-image rebuild and later
+Heartbeat sequence. `scripts/scenario-fixture-check.mjs` verifies determinism,
+variant differences, chronology, cross-artifact facts, reserved data and fresh
+object graphs. Imported-app checks and full repository CI pass.
+
+### S3 — Linux Log Triage + File System Split (complete 2026-09-30, re-verified)
+
+The first S3 pass only rewrote lab text and validated with hardcoded builders and
+regex placeholders; it overclaimed. It is now finished:
+
+- **sa-4 (L2, 12 steps)** and **sa-2 (L3a 5 steps, L3b 8 steps; 4 exercises)**
+  build their virtual host from the S1 scenario engine and S2 fixtures, seed A or
+  B (stable per learner + lab). Engines: `src/systems/linux-log-triage.js`,
+  `src/systems/host-integrity.js`, shared helpers in
+  `src/systems/night-shift-common.js`, terminal wrapper
+  `src/shells/NightShiftShell.jsx`; `labPlayer.jsx` now passes `{user, labId}` to
+  `environment.fs`. sa-5 is not seeded and is unchanged.
+- Expected answers are recomputed from the host's files at validation time; the
+  lab definitions contain no fixture answers (checked for both seeds).
+- L3b is request-only: on-host remediation is refused; evidence steps need
+  `cp -p` copies matching AIDE's reported hashes plus a `custody.csv` row.
+- Lab ids and routes are unchanged. Surviving steps keep their ids
+  (`sa-2.ex0.s1-s4`, `sa-4.ex1.s2`, `sa-4.ex4.s2`, `sa-4.ex4.s3`); ids of removed
+  install steps are retired, not reused, so old install completions no longer
+  count. New steps use fresh ids.
+- Verified: `npm run check` (now includes `scripts/linux-log-triage-check.mjs` and
+  `scripts/host-integrity-check.mjs`), `bash bin/ci-check.sh` exit 0,
+  `git diff --check`, headless-Chrome render of both embedded routes with typed
+  commands. `smoke:routes` still fails only on the known `#/tracks` expectation.
+- Caveats: `bin/ci-check.sh` runs only `iam-review-check.mjs` for this app, so
+  the new checks run under `npm run check` but not CI (`bin/` is out of
+  boundary). Not browser-verified: a full solve, resume after reload, and
+  instructor-dashboard display of the new ids.
+
+### S4 — Windows Jump Host Triage (complete)
+
+Added `src/systems/powershell-triage.js` and the optional `sa-6` lab in
+`portal/imported-labs/mission-next-labs/`. The existing `sa-4` remains the Linux
+Audit Gap lab with its current route and progress IDs. The engine runs only
+against seeded Operation Night Shift Windows fixtures (A/B), evaluates a
+restricted stateful PowerShell object pipeline, and rejects unsupported
+commands. L4 covers 4624/4625 RDP correlation, 4688/process relationships,
+scheduled task and Run-key persistence, Get-FileHash assessment, established
+beacon connections, and a read-only containment handoff. The imported
+security-assessments catalog lists `sa-6`; course module cards, routes and
+grading remain untouched.
+
+`npm run check` passes, including `scripts/powershell-triage-check.mjs` which
+exercises three alternate command paths for each command-graded evidence step
+on both fixture variants, state-based grading, CSV export and unsupported
+syntax. `git diff --check` and Node syntax checks pass. Browser interaction and
+workspace-resume behavior were not separately verified.
+
+### S5 — Contain, Collect, Rebuild (complete)
+
+Added fixture-backed recovery settings and `src/systems/powershell-rebuild.js`,
+a restricted browser-only PowerShell runner, plus `src/shells/PowerShellScriptShell.jsx`
+with a line-numbered editor, Save/Run controls and a command prompt. The new
+optional `sa-7` lab is listed in the imported app's catalog. It simulates the
+ticketed account/session containment and management-subnet firewall rules,
+Security log export → hash → custody record, scoped task/Run-key removal and
+verification, and a scripted Windows VM rebuild. State grading requires the
+approved fixture image, isolated network/NSG, no public IP, baseline, monitoring
+extension, SIEM diagnostics, Heartbeat, incident tag and a post-configuration
+VM query. Heartbeat must come from a query for that VM and workspace; unrelated
+queries or extensions do not pass. Literal passwords and common secret aliases
+fail; reruns reuse the same VM. DNS/traffic cutover is outside this ticket and
+remains with a separate change owner. No course portal or module wiring changed.
+
+`npm run check` passes, including the new A/B engine check for authority,
+evidence ordering, interpreter constructs, secret rejection, unsafe rebuilds,
+false success text, unrelated Heartbeat query, wrong monitoring extension and
+idempotence. `git diff --check` and Node syntax checks pass. Headless Chrome rendered the direct `sa-7` route with its editor and
+command panel. A full interactive browser solve and authenticated portal
+round-trip remain unverified.
+
+### Exact continuation point
+
+S6–S8 are complete. S6 added the simulated Cloud Shell and optional `sa-8`
+"Cloud Identity & Workload Incident" lab, reusing `portal/kql-engine.js` for
+Log Analytics queries. Its A/B check covers risky sign-in/activity pivots,
+scope, authorized identity/NSG response, snapshot verification before VM
+deletion, role removal, restricted scripted rebuild, and Heartbeat. The script
+runner operates only on fixture state in the browser.
+
+S7 reframed `sa-3` as an authorized scanner-report and access-log correlation
+exercise with a neutral Traffic Inspector, asset exposure review, and finding
+rationale. The imported vulnerability-management `vm-2` UI/source and visible
+SIEM search branding were also neutralized. Remaining `splunk` strings are
+internal route/shell identifiers retained for compatibility; the listed
+student-visible surfaces contain no Nessus, Burp, or Splunk vendor chrome.
+
+S8 expanded `scripts/route-smoke.mjs` to directly render `sa-2` through `sa-8`
+and corrected stale `#/tracks` expected text. `npm run check` passes all
+existing and S6/S7 focused checks; `npm run smoke:routes` passes all 15 routes.
+Run `bash bin/ci-check.sh` for the repository gate; note it runs only the IAM
+focused check for the imported app, so `npm run check` is the source for the
+new per-lab checks. Browser verification covered route rendering, not full
+interactive solves or resume-after-reload for S6/S7.
+
+Next: S9 server-side validation remains deferred while these labs are optional
+and ungraded. Do not begin it unless they are later assessed and the scope is
+explicitly reopened. Preserve the locked boundary below.
+
+The learner-facing boundary remains non-negotiable: all portal navigation,
+module pages, card placement, Guided/Assessment Labs, SIEM/case consoles,
+and grading are unchanged. Do not edit `portal/index.html`, `portal/app.js`,
+`portal/soc-analyst-module-*.js`, shared grading, or module wiring. Work only
+in `portal/imported-labs/mission-next-labs/` and handoff documents.
+
 ## Module 1 learner-facing lab names corrected, 2026-09-21
 
 Module 1 now uses the requested stage names throughout the learner-facing

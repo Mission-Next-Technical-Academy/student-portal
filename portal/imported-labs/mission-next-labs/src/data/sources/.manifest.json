@@ -19,7 +19,7 @@
     "ma-4": { "sha256": "37357ab150437e6cc86efbcde75f2569ef366d1088bae81d9354b90178b4bf7f", "bytes": 4378 },
     "ma-5": { "sha256": "f062eef6c1c03a407e73178baab4177835da9b60f748223ebcc5cd2d876da926", "bytes": 4335 },
     "sa-2": { "sha256": "261c60ac55c3739e3721cab757410fad4d646956c80ae145f5eee6e9329c54c9", "bytes": 3684 },
-    "sa-3": { "sha256": "4e087898c76325c95d7e96122ace7d3d83b9262e97c96e54b0b58aa8eb1fa895", "bytes": 4087 },
+    "sa-3": { "sha256": "155e696c01f6e41da36a5303416b49eecd881da72d7d60abe48af503d4dcedf8", "bytes": 894 },
     "sa-4": { "sha256": "914b093adfc6241772a2362be40cd01392f42a8a8a05b0983c093145773fab0d", "bytes": 5139 },
     "sa-5": { "sha256": "bd458aefbd6caf390f2e95ff84985210d60fba730507d093793fb6e58b42bcd8", "bytes": 4372 },
     "vm-1": { "sha256": "bcb8f8fd00f6bcde863bc78097da0dea48b7daf82e98398f65236f80b5c6d1f7", "bytes": 3448 },

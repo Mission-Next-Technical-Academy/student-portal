@@ -54,13 +54,25 @@
     const vfs = React.useMemo(() => {
       if (!lab.environment || typeof lab.environment.fs !== 'function') return null;
       try {
-        const tree = lab.environment.fs();
+        const tree = lab.environment.fs({ user: user && user.username, labId: lab.id });
         if (window.createVirtualFs) return window.createVirtualFs(tree || {});
       } catch (e) {
         console.error('[LabPlayer] failed to build vfs', e);
       }
       return null;
     }, [lab.id]);
+    const powershellEngine = React.useMemo(() => {
+      if (!lab.environment || lab.environment.engine !== 'MISSION_NEXT_POWERSHELL_TRIAGE') return null;
+      return window.MISSION_NEXT_POWERSHELL_TRIAGE.create({ user: user && user.username, labId: lab.id });
+    }, [lab.id, user && user.username]);
+    const powershellRebuildEngine = React.useMemo(() => {
+      if (!lab.environment || lab.environment.engine !== 'MISSION_NEXT_POWERSHELL_REBUILD') return null;
+      return window.MISSION_NEXT_POWERSHELL_REBUILD.create({ user: user && user.username, labId: lab.id });
+    }, [lab.id, user && user.username]);
+    const cloudIncidentEngine = React.useMemo(() => {
+      if (!lab.environment || lab.environment.engine !== 'MISSION_NEXT_CLOUD_INCIDENT') return null;
+      return window.MISSION_NEXT_CLOUD_INCIDENT.create({ user: user && user.username, labId: lab.id });
+    }, [lab.id, user && user.username]);
 
     const flat = React.useMemo(() => flattenSteps(lab), [lab]);
 
@@ -100,6 +112,9 @@
         completed: overrides.completed || Array.from(completedSet),
         uiPath: overrides.uiPath || uiPath,
         commandResult: overrides.commandResult || null,
+        powershellEngine,
+        powershellRebuildEngine,
+        cloudIncidentEngine,
       };
     }
 
@@ -306,6 +321,9 @@
                 onStateRestored={applyShellResult}
                 activeStep={activeStep}
                 simState={buildSimState()}
+                powershellEngine={powershellEngine}
+                powershellRebuildEngine={powershellRebuildEngine}
+                cloudIncidentEngine={cloudIncidentEngine}
                 autoFocus
                 {...shellProps}
                 {...(shellName === 'NotepadShell'
@@ -331,7 +349,9 @@
             <ScenarioPanel scenario={lab.scenario} />
 
             <div style={lpStyles.beginnerGuide}>
-              <div style={lpStyles.beginnerGuideTitle}>NEW TO BASH?</div>
+              <div style={lpStyles.beginnerGuideTitle}>
+                {shellName === 'PowerShellShell' || shellName === 'PowerShellScriptShell' ? 'NEW TO POWERSHELL?' : 'NEW TO BASH?'}
+              </div>
               <div style={lpStyles.beginnerGuideBody}>
                 {lab.beginnerGuide || <>Click the active step, type the command shown in the terminal, and press <kbd style={lpStyles.key}>Enter</kbd>.
                 You can use <kbd style={lpStyles.key}>↑</kbd> to reuse a previous command and <kbd style={lpStyles.key}>Tab</kbd> to complete a path.

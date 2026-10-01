@@ -29,8 +29,23 @@ const requiredFiles = [
   'src/data/labs/security-assessments.labs.js',
   'src/data/labs/active-directory.labs.js',
   'src/systems/lab-runtime.js',
+  'src/systems/scenario-engine.js',
+  'src/systems/powershell-triage.js',
+  'src/systems/powershell-rebuild.js',
+  'src/systems/cloud-incident.js',
+  'src/systems/night-shift-common.js',
+  'src/systems/linux-log-triage.js',
+  'src/systems/host-integrity.js',
+  'src/shells/NightShiftShell.jsx',
+  'src/shells/CloudShell.jsx',
+  'src/data/fixtures/operation-night-shift.js',
   'src/data/labs/windows-forensics.labs.js',
 ];
+
+const cloudEngineSource=fs.readFileSync(path.join(root,'src/systems/cloud-incident.js'),'utf8');
+assert(cloudEngineSource.includes('window.MISSION_NEXT_CLOUD_INCIDENT={create}'),'Expected cloud incident engine export');
+const cloudShellSource=fs.readFileSync(path.join(root,'src/shells/CloudShell.jsx'),'utf8');
+assert(cloudShellSource.includes('window.CloudShell=CloudShell'),'Expected CloudShell export');
 
 for (const file of requiredFiles) {
   const fullPath = path.join(root, file);
@@ -60,9 +75,9 @@ assert(logAnalysisShellsSource.includes('Object.assign(window, { KibanaLabShell 
 assert(logAnalysisShellsSource.includes('kibana create index-pattern logstash-*'), 'Expected KibanaLabShell to expose index-pattern creation workflow');
 assert(logAnalysisShellsSource.includes('kibana dashboard save credential-stuffing-overview'), 'Expected KibanaLabShell to expose dashboard save workflow');
 const securityAssessmentShellsSource = fs.readFileSync(path.join(root, 'src/shells/security-assessments-shells.jsx'), 'utf8');
-assert(securityAssessmentShellsSource.includes('function BurpProxyLabShell'), 'Expected security-assessments-shells.jsx to define BurpProxyLabShell');
+assert(securityAssessmentShellsSource.includes('function TrafficInspectorShell'), 'Expected security-assessments-shells.jsx to define TrafficInspectorShell');
 assert(securityAssessmentShellsSource.includes('function IamMatrixLabShell'), 'Expected security-assessments-shells.jsx to define IamMatrixLabShell');
-assert(securityAssessmentShellsSource.includes('Object.assign(window, { BurpProxyLabShell, IamMatrixLabShell })'), 'Expected security-assessments-shells.jsx to export its shells on window');
+assert(securityAssessmentShellsSource.includes('Object.assign(window, { TrafficInspectorShell, IamMatrixLabShell })'), 'Expected security-assessments-shells.jsx to export its shells on window');
 assert(securityAssessmentShellsSource.includes('window.MISSION_NEXT_BASH_ENGINE.BUILTINS'), 'Expected security-assessments-shells.jsx to extend the bash builtins');
 const windowsForensicsShellsSource = fs.readFileSync(path.join(root, 'src/shells/windows-forensics-shells.jsx'), 'utf8');
 assert(windowsForensicsShellsSource.includes('function WindowsEventLogsLabShell'), 'Expected windows-forensics-shells.jsx to define WindowsEventLogsLabShell');
@@ -96,10 +111,15 @@ vm.createContext(sandbox);
 for (const file of [
   'src/data.js',
   'src/query-engine.js',
+  'src/data/fixtures/operation-night-shift.js',
   // Phase 0 additions — new-shape lab schema + systems + registered labs
   'src/data/labs/_schema.js',
   'src/systems/virtualFs.js',
   'src/systems/validator.js',
+  'src/systems/scenario-engine.js',
+  'src/systems/night-shift-common.js',
+  'src/systems/linux-log-triage.js',
+  'src/systems/host-integrity.js',
   'src/systems/iam-review.js',
   'src/systems/gating.js',
   'src/systems/progress.js',
@@ -124,13 +144,17 @@ assert(Array.isArray(MODULES) && MODULES.length === 7, 'Expected seven training 
 assert(Array.isArray(WINDOWS_FORENSICS_PROJECTS) && WINDOWS_FORENSICS_PROJECTS.length === 5, 'Expected five Windows forensics projects');
 assert(Array.isArray(LOG_ANALYSIS_PROJECTS) && LOG_ANALYSIS_PROJECTS.length === 5, 'Expected five log analysis projects');
 assert(Array.isArray(ACTIVE_DIRECTORY_PROJECTS) && ACTIVE_DIRECTORY_PROJECTS.length === 6, 'Expected six Active Directory projects');
-assert(Array.isArray(SECURITY_ASSESSMENT_PROJECTS) && SECURITY_ASSESSMENT_PROJECTS.length === 4, 'Expected four security assessment projects');
+assert(Array.isArray(SECURITY_ASSESSMENT_PROJECTS) && SECURITY_ASSESSMENT_PROJECTS.length === 8, 'Expected eight security assessment projects');
 assert(Array.isArray(VULNERABILITY_MANAGEMENT_PROJECTS) && VULNERABILITY_MANAGEMENT_PROJECTS.length === 5, 'Expected five vulnerability management projects');
 assert(Array.isArray(MALWARE_ANALYSIS_PROJECTS) && MALWARE_ANALYSIS_PROJECTS.length === 5, 'Expected five malware analysis projects');
 assert(Array.isArray(TRAINING_CATALOG) && TRAINING_CATALOG.length === 7, 'Expected seven training catalog entries');
 assert(MALWARE_ANALYSIS_PROJECTS.every(project => project.simulation === true), 'Expected malware analysis projects to be simulation-only');
-assert(Array.isArray(ALL_PROJECT_LABS) && ALL_PROJECT_LABS.length === 30, 'Expected local catalog labs for every external project');
+assert(Array.isArray(ALL_PROJECT_LABS) && ALL_PROJECT_LABS.length === 34, 'Expected local catalog labs for every external project');
 assert(TRAINING_CATALOG.find(track => track.id === 'log-analysis').projects.every(project => project.lab), 'Expected catalog projects to expose local labs');
+assert(TRAINING_CATALOG.find(track => track.id === 'security-assessments').projects.some(project => project.id === 'sa-6'), 'Expected Windows Jump Host Triage in the imported security assessments catalog');
+assert(TRAINING_CATALOG.find(track => track.id === 'security-assessments').projects.some(project => project.id === 'sa-7'), 'Expected Contain, Collect, Rebuild in the imported security assessments catalog');
+assert(TRAINING_CATALOG.find(track => track.id === 'security-assessments').projects.some(project => project.id === 'sa-8'), 'Expected Cloud Identity & Workload Incident in the imported security assessments catalog');
+assert(TRAINING_CATALOG.find(track => track.id === 'security-assessments').projects.some(project => project.id === 'sa-9'), 'Expected File Server Integrity Triage in the imported security assessments catalog');
 assert(TRAINING_CATALOG.find(track => track.id === 'windows-forensics').projects.every(project => project.lab), 'Expected Windows projects to expose local labs');
 assert(typeof executeQuery === 'function', 'Expected query engine to load');
 
@@ -252,7 +276,10 @@ assert(Array.isArray(lap1.exercises) && lap1.exercises.length === 5, 'Expected l
 assert(Array.isArray(lap2.exercises) && lap2.exercises.length === 5, 'Expected lap-2 to have 5 upstream exercises');
 assert(Array.isArray(lap4.exercises) && lap4.exercises.length === 5, 'Expected lap-4 to have 5 upstream exercises');
 assert(Array.isArray(sa2.exercises) && sa2.exercises.length === 4, 'Expected sa-2 to have 4 exercises (Tripwire/OSSEC cut)');
-assert(Array.isArray(sa3.exercises) && sa3.exercises.length === 5, 'Expected sa-3 to have 5 upstream exercises');
+assert(Array.isArray(sa3.exercises) && sa3.exercises.length === 1 && sa3.exercises[0].steps.length === 4, 'Expected sa-3 to have one four-step finding-validation exercise');
+assert(sa3.title === 'Web Application Security Assessment', 'Expected sa-3 to keep the title the Module 08 card links to');
+assert(sa3.scenario.incident.includes('authorized AppSec team'), 'Expected sa-3 to use the authorized report handoff');
+assert(sa3.exercises[0].steps.every(step => !/install|scan https|fuzz/i.test(step.instruction)), 'sa-3 must not ask learners to install tools or run scans');
 assert(Array.isArray(sa4.exercises) && sa4.exercises.length === 5, 'Expected sa-4 to have 5 upstream exercises');
 assert(Array.isArray(sa5.exercises) && sa5.exercises.length === 5, 'Expected sa-5 to have 5 upstream exercises');
 assert(Array.isArray(vm1.exercises) && vm1.exercises.length === 5, 'Expected vm-1 to expose 5 schema-based exercises');
@@ -341,13 +368,15 @@ adLabs.forEach((lab, index) => {
   assert(lab, `Expected MISSION_NEXT_LABS["${id}"] to be registered`);
   const errs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(lab);
   assert(errs.length === 0, `${id} schema errors: ` + errs.join('; '));
-  const expectedExercises = id === 'sa-2' ? 4 : 5;
+  const expectedExercises = id === 'sa-2' ? 4 : id === 'sa-3' ? 1 : 5;
   assert(Array.isArray(lab.exercises) && lab.exercises.length === expectedExercises, `Expected ${id} to have ${expectedExercises} exercises`);
   assert(manifest.snapshots[id] && manifest.snapshots[id].sha256 === lab.source.sha256, `Expected ${id} source sha256 to match manifest`);
 });
-assert(MISSION_NEXT_LABS['sa-2'].environment.shell === 'LinuxTerminalShell', 'Expected sa-2 to use LinuxTerminalShell');
-assert(MISSION_NEXT_LABS['sa-3'].environment.shell === 'BurpProxyLabShell', 'Expected sa-3 to use BurpProxyLabShell');
-assert(MISSION_NEXT_LABS['sa-4'].environment.shell === 'LinuxTerminalShell', 'Expected sa-4 to use LinuxTerminalShell');
+assert(MISSION_NEXT_LABS['sa-2'].environment.shell === 'LinuxTerminalShell', 'Expected sa-2 to use LinuxTerminalShell (Module 02 Guided/Assessment Lab; unchanged)');
+assert(MISSION_NEXT_LABS['sa-9'].environment.shell === 'NightShiftShell', 'Expected sa-9 to use the Night Shift terminal shell');
+assert(MISSION_NEXT_LAB_SCHEMA.validateLabShape(MISSION_NEXT_LABS['sa-9']).length === 0, 'sa-9 schema errors');
+assert(MISSION_NEXT_LABS['sa-3'].environment.shell === 'TrafficInspectorShell', 'Expected sa-3 to use TrafficInspectorShell');
+assert(MISSION_NEXT_LABS['sa-4'].environment.shell === 'NightShiftShell', 'Expected sa-4 to use the Night Shift terminal shell');
 assert(MISSION_NEXT_LABS['sa-5'].environment.shell === 'IamReviewShell', 'Expected sa-5 to use its stateful SSH account-review shell');
 
 ['vm-1', 'vm-2', 'vm-3', 'vm-4', 'vm-5'].forEach(id => {
@@ -355,7 +384,7 @@ assert(MISSION_NEXT_LABS['sa-5'].environment.shell === 'IamReviewShell', 'Expect
   assert(lab, `Expected MISSION_NEXT_LABS["${id}"] to be registered`);
   const errs = MISSION_NEXT_LAB_SCHEMA.validateLabShape(lab);
   assert(errs.length === 0, `${id} schema errors: ` + errs.join('; '));
-  const expectedExercises = id === 'sa-2' ? 4 : 5;
+  const expectedExercises = id === 'sa-2' ? 4 : id === 'sa-3' ? 1 : 5;
   assert(Array.isArray(lab.exercises) && lab.exercises.length === expectedExercises, `Expected ${id} to have ${expectedExercises} exercises`);
   assert(manifest.snapshots[id] && manifest.snapshots[id].sha256 === lab.source.sha256, `Expected ${id} source sha256 to match manifest`);
 });

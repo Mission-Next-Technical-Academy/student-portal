@@ -119,6 +119,21 @@
       return got === expected ? { ok: true } : { ok: false, reason: `${got} !== ${expected}` };
     },
 
+    powershellTriage(step, simState, submission) {
+      const engine = simState && simState.powershellEngine;
+      return engine ? engine.check(step.validation.check, submission) : { ok:false, reason:'PowerShell scenario state is unavailable.' };
+    },
+
+    powershellRebuild(step, simState, submission) {
+      const engine = simState && simState.powershellRebuildEngine;
+      return engine ? engine.check(step.validation.check, submission) : { ok:false, reason:'PowerShell rebuild state is unavailable.' };
+    },
+
+    cloudIncident(step, simState, submission) {
+      const engine = simState && simState.cloudIncidentEngine;
+      return engine ? engine.check(step.validation.check, submission) : { ok:false, reason:'Cloud incident state is unavailable.' };
+    },
+
   };
 
   function validateStep(step, simState, submission) {

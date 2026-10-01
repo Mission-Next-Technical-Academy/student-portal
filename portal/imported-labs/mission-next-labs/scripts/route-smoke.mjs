@@ -13,6 +13,46 @@ const chromeExecOptions = { encoding:'utf8', stdio:['ignore', 'pipe', 'pipe'], m
 
 const routes = [
   {
+    name:'sa-2 file system lab (Module 02 guided/assessment; unchanged)',
+    hash:'#/track/security-assessments/project/sa-2/lab',
+    expect:['File System Security Assessment', 'EXERCISES'],
+  },
+  {
+    name:'sa-3 web finding lab',
+    hash:'#/track/security-assessments/project/sa-3/lab',
+    expect:['Web Application Security Assessment', 'Traffic Inspector', 'Authorized AppSec Evidence'],
+  },
+  {
+    name:'sa-4 linux log triage lab',
+    hash:'#/track/security-assessments/project/sa-4/lab',
+    expect:['Linux Log Triage: The Audit Gap', 'EXERCISES'],
+  },
+  {
+    name:'sa-5 identity review lab',
+    hash:'#/track/security-assessments/project/sa-5/lab',
+    expect:['User Account Security Assessment', 'EXERCISES'],
+  },
+  {
+    name:'sa-6 windows jump host lab',
+    hash:'#/track/security-assessments/project/sa-6/lab',
+    expect:['Windows Jump Host Triage', 'PowerShell'],
+  },
+  {
+    name:'sa-7 containment and rebuild lab',
+    hash:'#/track/security-assessments/project/sa-7/lab',
+    expect:['Contain, Collect, Rebuild', 'Rebuild-JumpHost.ps1'],
+  },
+  {
+    name:'sa-8 cloud incident lab',
+    hash:'#/track/security-assessments/project/sa-8/lab',
+    expect:['Cloud Identity &amp; Workload Incident', 'Cloud Shell', 'SIMULATION ONLY'],
+  },
+  {
+    name:'sa-9 file server integrity lab',
+    hash:'#/track/security-assessments/project/sa-9/lab',
+    expect:['File Server Integrity Triage', 'EXERCISES'],
+  },
+  {
     name:'log analysis catalog blocked',
     hash:'#/track/log-analysis',
     expect:['Open this lab from the course module'],
@@ -45,7 +85,7 @@ const routes = [
   {
     name:'training paths refresh',
     hash:'#/tracks',
-    expect:['Open this lab from the course module', 'Mission Next Lab'],
+    expect:['Open this lab from the course module', 'Choose a lab environment'],
   },
   {
     name:'malware catalogue blocked',
