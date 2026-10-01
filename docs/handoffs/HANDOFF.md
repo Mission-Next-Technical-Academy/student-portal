@@ -136,6 +136,9 @@ focused check for the imported app, so `npm run check` is the source for the
 new per-lab checks. Browser verification covered route rendering, not full
 interactive solves or resume-after-reload for S6/S7.
 
+Shipped 2026-10-01 as `d799b65` (live v1.501). **Open:** logged-in live
+click-through. Checklist in `docs/handoffs/CLI_LAB_LIVE_CLICKTHROUGH.md`.
+
 Next: S9 server-side validation remains deferred while these labs are optional
 and ungraded. Do not begin it unless they are later assessed and the scope is
 explicitly reopened. Preserve the locked boundary below.
