@@ -439,14 +439,12 @@ const MODULE_ELEVEN_CASE = {
 };
 
 function moduleElevenCaseSpec() {
-  const labsReady = missionNextAllLabsComplete(moduleElevenReportState.labProgress, ['assessment-1', 'additional-1', 'additional-2']);
   return {
     caseId: MODULE_ELEVEN_CASE.caseId,
     userOptions: MODULE_ELEVEN_CASE.userOptions,
     deviceOptions: MODULE_ELEVEN_CASE.deviceOptions,
     departmentOptions: MODULE_ELEVEN_CASE.departmentOptions,
     notesPlaceholder: 'Summarize the operational-metrics signal, the shared-case evidence it corresponds to, and your recommended escalation/closure…',
-    extraMissing: labsReady ? [] : ['Mark all required labs above complete'],
     disabled: moduleElevenReportState.submitted === true,
   };
 }
@@ -866,12 +864,24 @@ function moduleElevenAssessmentLabPanel() {
   </section>`;
 }
 
+// Imported practice only: shown in the shared Optional Labs section (like
+// Modules 04-10) and never gates the SIEM Guided/Assessment Labs.
 function moduleElevenAdditionalLabs() {
-  return missionNextLabLaunchGroup(11, 'additional', [
-    { title: 'Visualizing Active Directory Performance Metrics with Cacti', detail: 'Optional dashboard and reporting practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab', labId: 'assessment-1', requireNote: true },
-    { title: 'Real-time Active Directory Metrics with Datadog', detail: 'Operational monitoring and metric context', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-3/lab', labId: 'additional-1', requireNote: true },
-    { title: 'Active Directory Performance Monitoring with Checkmk', detail: 'Service checks and monitoring ownership', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-5/lab', labId: 'additional-2', requireNote: true },
+  return missionNextOptionalLabsSection(11, [
+    { title: 'Visualizing Active Directory Performance Metrics with Cacti', detail: 'Optional dashboard and reporting practice', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-7/lab', labId: 'assessment-1' },
+    { title: 'Real-time Active Directory Metrics with Datadog', detail: 'Operational monitoring and metric context', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-3/lab', labId: 'additional-1' },
+    { title: 'Active Directory Performance Monitoring with Checkmk', detail: 'Service checks and monitoring ownership', href: 'imported-labs/mission-next-labs/index.html#/track/active-directory/project/ad-5/lab', labId: 'additional-2' },
   ], moduleElevenReportState.labProgress);
+}
+
+function wireModuleElevenOptionalLabs() {
+  const root = document.getElementById('m11-additional-labs-dynamic');
+  if (!root || !moduleElevenReportState) return;
+  wireMissionNextLabGating(root, moduleElevenReportState.labProgress, () => {
+    moduleElevenSaveReport();
+    root.innerHTML = moduleElevenAdditionalLabs();
+    wireModuleElevenOptionalLabs();
+  });
 }
 
 // The shift assessment uses the same Module 3 console shell as the earlier
@@ -1143,6 +1153,7 @@ function wireModuleElevenAssessmentLab() {
 
 function wireModuleEleven() {
   moduleElevenWireConsole();
+  wireModuleElevenOptionalLabs();
   // Wire review toggle
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
