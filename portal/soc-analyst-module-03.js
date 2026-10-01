@@ -1101,7 +1101,9 @@ function wireModuleThreeNormalizationLab() {
     }
     if (event.target.closest('[data-m03-open-workspace]')) {
       const practice = moduleThreeState.console?.practice || (moduleThreeState.console ||= {}).practice || {};
-      if (!practice.normalizedIngestReady) {
+      // Fresh start only for learners who never finished the Guided Lab;
+      // never wipe a completed lab (or its notes) by re-running ingest.
+      if (!practice.normalizedIngestReady && moduleThreeState.practiceComplete !== true && moduleThreeState.completed !== true) {
         practice.guideStep = 0;
         practice.tab = 'alerts';
         practice.pins = [];
