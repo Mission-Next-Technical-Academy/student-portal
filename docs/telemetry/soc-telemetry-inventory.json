@@ -1,0 +1,6465 @@
+{
+  "scriptVersion": 1,
+  "countingRules": [
+    "Unique source event = one distinct EventId across a scenario's source tables. A native row copied into UnifiedEvents is the same event; UnifiedEvents rows are never added to the total.",
+    "Source tables include telemetry tables and, where a module authors them as evidence (vulnerability findings, response, recovery, custody records), evidence-record tables; those are broken out as \"evidence records\" and are included in the unique-event total. AlertQueue rows (M11) are alert items and are counted only as alerts.",
+    "Lookups (IdentityInfo, IpIntel), watchlists, metrics and fixture context arrays (reports, IOCs, devices, messages, entities...) are counted separately and never as events.",
+    "Authored alerts = dataset alert queue as shipped. Learner- or rule-generated alerts (Analytics Rules, saved queries, generated alerts) are excluded and are zero at baseline.",
+    "\"Queryable\" means rows reachable through the KQL console tables. M01 and M02 events are display-only table rows in their own panes.",
+    "Coverage % = share of unique source events that carry a non-empty value for the canonical field in the source row (empty, null, \"—\" and \"-\" count as missing; TimeGenerated must be ISO-8601 UTC). Host/DeviceId counts either. The UnifiedEvents-view coverage (JSON only) reads the lower-case aliases the view exposes.",
+    "Entities are distinct case-insensitive Account, Host/DeviceId, IPv4 (Source/Destination), Domain, SessionId and ProcessId values on source events.",
+    "Benign/distractor and coverage tags come only from the fixtures themselves (truth/expectedTruth key paths such as benign*, noise*, unrelated*, exclude*, row fields class/classification/signalClass, and M01 entity-roster \"noise\" tiers). Without such tags the value is \"untagged\". Delayed/collector rows and change-linked rows are reported as structural indicators, not tags.",
+    "Independence compares guided vs assessment EventIds, content signatures (type/account/host/IPs/domain/url/detail) and entity overlap; an overlapping entity is \"answer-bearing\" if it appears in the assessment truth/rubric text.",
+    "Method per scenario: runtime (datasets read from the loaded portal scripts), static-extraction (declared inside an IIFE, literal extracted), static-fixture (fallback from the standalone data file)."
+  ],
+  "portalScriptsLoaded": 87,
+  "loadErrors": [],
+  "runtimeFallbacks": [],
+  "scenarios": [
+    {
+      "module": 1,
+      "scenario": "guided",
+      "label": "Practice — NST alert orientation",
+      "caseId": "ALT-1001",
+      "method": "runtime",
+      "methodNote": "Case-console log pane (paged table); not KQL-queryable. Evidence items are display-only checklist records.",
+      "uniqueSourceEvents": 9,
+      "telemetryEvents": 9,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 0,
+      "displayOnlyEvents": 9,
+      "tables": [
+        {
+          "name": "SignInLog (display)",
+          "kind": "event",
+          "queryable": false,
+          "rows": 9
+        }
+      ],
+      "sourceTableCount": 1,
+      "lookups": {
+        "IdentityInfo": 0,
+        "IpIntel": 0,
+        "watchlists": {},
+        "evidenceItems": 4,
+        "entityRoster": 0
+      },
+      "viewRows": 9,
+      "unifiedViewRows": 0,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "ALT-1001"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "One authored case alert; no rule engine in this module.",
+        "entityRefsResolved": "n/a (alert entity is a label)"
+      },
+      "entities": {
+        "accounts": 1,
+        "hosts": 1,
+        "ips": 1,
+        "domains": 0,
+        "sessions": 1,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 9,
+          "pct": 100
+        },
+        "Account": {
+          "count": 9,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 9,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 9,
+          "pct": 100
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 9,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 1,
+          "pct": 11.1
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 0,
+          "pct": 0
+        },
+        "RawEvent": {
+          "count": 9,
+          "pct": 100
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": null,
+      "nonCanonicalFields": {},
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "evidence": {
+          "rows": 4,
+          "mappedIntoTables": 0
+        }
+      }
+    },
+    {
+      "module": 1,
+      "scenario": "assessment",
+      "label": "Prove — NST-2407 escalation",
+      "caseId": "NST-2407",
+      "method": "runtime",
+      "methodNote": "Case-console log pane (paged table); not KQL-queryable. Evidence items are display-only checklist records.",
+      "uniqueSourceEvents": 46,
+      "telemetryEvents": 46,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 0,
+      "displayOnlyEvents": 46,
+      "tables": [
+        {
+          "name": "SignInLog (display)",
+          "kind": "event",
+          "queryable": false,
+          "rows": 46
+        }
+      ],
+      "sourceTableCount": 1,
+      "lookups": {
+        "IdentityInfo": 0,
+        "IpIntel": 0,
+        "watchlists": {},
+        "evidenceItems": 4,
+        "entityRoster": 16
+      },
+      "viewRows": 46,
+      "unifiedViewRows": 0,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "NST-2407"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "One authored case alert; no rule engine in this module.",
+        "entityRefsResolved": "n/a (alert entity is a label)"
+      },
+      "entities": {
+        "accounts": 8,
+        "hosts": 8,
+        "ips": 8,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 46,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 46,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 46,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 46,
+          "pct": 100
+        },
+        "Account": {
+          "count": 46,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 42,
+          "pct": 91.3
+        },
+        "SourceIp": {
+          "count": 45,
+          "pct": 97.8
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 46,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 0,
+          "pct": 0
+        },
+        "RawEvent": {
+          "count": 46,
+          "pct": 100
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": null,
+      "nonCanonicalFields": {},
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 36,
+        "coverageTagged": 0,
+        "benignIds": [
+          "evt-noise-d.williams-0",
+          "evt-noise-d.williams-1",
+          "evt-noise-d.williams-2",
+          "evt-noise-d.williams-3",
+          "evt-noise-d.williams-4",
+          "evt-noise-d.williams-5",
+          "evt-noise-k.osei-0",
+          "evt-noise-k.osei-1",
+          "evt-noise-k.osei-2",
+          "evt-noise-k.osei-3",
+          "evt-noise-k.osei-4",
+          "evt-noise-k.osei-5",
+          "evt-noise-m.diaz-0",
+          "evt-noise-m.diaz-1",
+          "evt-noise-m.diaz-2",
+          "evt-noise-m.diaz-3",
+          "evt-noise-m.diaz-4",
+          "evt-noise-m.diaz-5",
+          "evt-noise-n.ibrahim-0",
+          "evt-noise-n.ibrahim-1",
+          "evt-noise-n.ibrahim-2",
+          "evt-noise-n.ibrahim-3",
+          "evt-noise-n.ibrahim-4",
+          "evt-noise-n.ibrahim-5",
+          "evt-noise-r.patel-0",
+          "evt-noise-r.patel-1",
+          "evt-noise-r.patel-2",
+          "evt-noise-r.patel-3",
+          "evt-noise-r.patel-4",
+          "evt-noise-r.patel-5",
+          "evt-noise-t.brooks-0",
+          "evt-noise-t.brooks-1",
+          "evt-noise-t.brooks-2",
+          "evt-noise-t.brooks-3",
+          "evt-noise-t.brooks-4",
+          "evt-noise-t.brooks-5"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "evidence": {
+          "rows": 4,
+          "mappedIntoTables": 0
+        }
+      }
+    },
+    {
+      "module": 2,
+      "scenario": "guided",
+      "label": "Console walkthrough (Learn/Practice console)",
+      "caseId": null,
+      "method": "static-extraction",
+      "methodNote": "Network & Identity console data is declared inside an IIFE in soc-analyst-module-02-environment.js; read by extracting the DATA literal. Entity inventory (users/devices/resources/policies) is display-only context.",
+      "uniqueSourceEvents": 6,
+      "telemetryEvents": 6,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 0,
+      "displayOnlyEvents": 6,
+      "tables": [
+        {
+          "name": "AccessActivity (display)",
+          "kind": "event",
+          "queryable": false,
+          "rows": 6
+        }
+      ],
+      "sourceTableCount": 1,
+      "lookups": {
+        "IdentityInfo": 5,
+        "IpIntel": 0,
+        "watchlists": {},
+        "devices": 5,
+        "resources": 4,
+        "policies": 4
+      },
+      "viewRows": 6,
+      "unifiedViewRows": 0,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 0,
+        "authoredIds": [],
+        "ruleOrLearnerGenerated": 0,
+        "note": "No alert queue in this console.",
+        "entityRefsResolved": "n/a"
+      },
+      "entities": {
+        "accounts": 4,
+        "hosts": 4,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 0,
+          "pct": 0
+        },
+        "EventId": {
+          "count": 6,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 6,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 0,
+          "pct": 0
+        },
+        "Account": {
+          "count": 6,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 6,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 6,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 0,
+          "pct": 0
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": null,
+      "nonCanonicalFields": {
+        "_policy": 6,
+        "_resource": 6
+      },
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0,
+        "fixtureViolationFlags": [
+          "evt-john-hr-allowed"
+        ]
+      },
+      "context": {
+        "users": {
+          "rows": 5
+        },
+        "devices": {
+          "rows": 5
+        },
+        "resources": {
+          "rows": 4
+        },
+        "policies": {
+          "rows": 4
+        }
+      },
+      "legacyTrustPathLab": {
+        "note": "Legacy soc-analyst-module-02.js still ships MODULE_TWO_LAB display records (not part of the active console).",
+        "signIns": 5,
+        "network": 3,
+        "access": 3,
+        "total": 11
+      }
+    },
+    {
+      "module": 2,
+      "scenario": "assessment",
+      "label": "Prove It (imported Mission Next lab; independent case CASE-MN-317 questions only)",
+      "caseId": "CASE-MN-317",
+      "method": "static-extraction",
+      "methodNote": "Practice/Prove launch imported labs (portal/imported-labs/mission-next-labs); no event rows are authored in the SOC portal sources. The in-portal MODULE_TWO_INDEPENDENT_LAB carries scenario text and questions only.",
+      "uniqueSourceEvents": 0,
+      "telemetryEvents": 0,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 0,
+      "displayOnlyEvents": 0,
+      "tables": [],
+      "sourceTableCount": 0,
+      "lookups": {
+        "IdentityInfo": 0,
+        "IpIntel": 0,
+        "watchlists": {}
+      },
+      "viewRows": 0,
+      "unifiedViewRows": 0,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 0,
+        "authoredIds": [],
+        "ruleOrLearnerGenerated": 0,
+        "note": "None authored in portal sources.",
+        "entityRefsResolved": "n/a"
+      },
+      "entities": {
+        "accounts": 0,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 0,
+          "pct": 0
+        },
+        "EventId": {
+          "count": 0,
+          "pct": 0
+        },
+        "EventSource": {
+          "count": 0,
+          "pct": 0
+        },
+        "EventType": {
+          "count": 0,
+          "pct": 0
+        },
+        "Account": {
+          "count": 0,
+          "pct": 0
+        },
+        "Host/DeviceId": {
+          "count": 0,
+          "pct": 0
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 0,
+          "pct": 0
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 0,
+          "pct": 0
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": null,
+      "nonCanonicalFields": {},
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "questions": {
+          "rows": 3
+        }
+      }
+    },
+    {
+      "module": 3,
+      "scenario": "guided",
+      "label": "Practice — CASE-MN-428",
+      "caseId": "CASE-MN-428",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 18,
+      "telemetryEvents": 18,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 18,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "AppAudit",
+          "kind": "event",
+          "queryable": true,
+          "rows": 4
+        },
+        {
+          "name": "AuthLog",
+          "kind": "event",
+          "queryable": true,
+          "rows": 9
+        },
+        {
+          "name": "DirectoryAudit",
+          "kind": "event",
+          "queryable": true,
+          "rows": 3
+        },
+        {
+          "name": "SystemLog",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        }
+      ],
+      "sourceTableCount": 4,
+      "lookups": {
+        "IdentityInfo": 5,
+        "IpIntel": 6,
+        "watchlists": {
+          "ChangeTickets": 3,
+          "TravelNotices": 1
+        }
+      },
+      "viewRows": 51,
+      "unifiedViewRows": 18,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "ALT-3101"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "3/3"
+      },
+      "entities": {
+        "accounts": 7,
+        "hosts": 4,
+        "ips": 8,
+        "domains": 0,
+        "sessions": 6,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 18,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 18,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 18,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 18,
+          "pct": 100
+        },
+        "Account": {
+          "count": 18,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 18,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 18,
+          "pct": 100
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 18,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 11,
+          "pct": 61.1
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 18,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 18,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 18,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 18,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 18,
+          "pct": 100
+        },
+        "Account": {
+          "count": 18,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 18,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 18,
+          "pct": 100
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 18,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 11,
+          "pct": 61.1
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 18,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 18,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "Application": 4,
+        "AuthMethod": 9,
+        "ChangeId": 1,
+        "Country": 9,
+        "InitiatedBy": 3,
+        "RawTimestamp": 1,
+        "Records": 4,
+        "TargetGroup": 3
+      },
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 1,
+        "changeLinkedRows": 1
+      },
+      "context": {},
+      "fixtureScenarioId": null
+    },
+    {
+      "module": 3,
+      "scenario": "assessment",
+      "label": "Prove — CASE-MN-517",
+      "caseId": "CASE-MN-517",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 27,
+      "telemetryEvents": 27,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 27,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "AppAudit",
+          "kind": "event",
+          "queryable": true,
+          "rows": 7
+        },
+        {
+          "name": "AuthLog",
+          "kind": "event",
+          "queryable": true,
+          "rows": 16
+        },
+        {
+          "name": "DirectoryAudit",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "SystemLog",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        }
+      ],
+      "sourceTableCount": 4,
+      "lookups": {
+        "IdentityInfo": 7,
+        "IpIntel": 4,
+        "watchlists": {
+          "ChangeTickets": 2,
+          "TravelNotices": 1,
+          "LegacyAuthExceptions": 1
+        }
+      },
+      "viewRows": 69,
+      "unifiedViewRows": 27,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 4,
+        "authoredIds": [
+          "ALT-5170",
+          "ALT-5171",
+          "ALT-5172",
+          "ALT-5173"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "5/5"
+      },
+      "entities": {
+        "accounts": 9,
+        "hosts": 5,
+        "ips": 7,
+        "domains": 0,
+        "sessions": 4,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 27,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 27,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 27,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 27,
+          "pct": 100
+        },
+        "Account": {
+          "count": 27,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 27,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 27,
+          "pct": 100
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 27,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 12,
+          "pct": 44.4
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 27,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 27,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 27,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 27,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 27,
+          "pct": 100
+        },
+        "Account": {
+          "count": 27,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 27,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 27,
+          "pct": 100
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 27,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 12,
+          "pct": 44.4
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 27,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 27,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "Application": 7,
+        "AuthMethod": 16,
+        "ChangeId": 1,
+        "Country": 16,
+        "InitiatedBy": 2,
+        "Records": 7
+      },
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 1,
+        "changeLinkedRows": 1
+      },
+      "context": {},
+      "fixtureScenarioId": null
+    },
+    {
+      "module": 4,
+      "scenario": "guided",
+      "label": "Guided DET-4478",
+      "caseId": "DET-4478",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 7,
+      "telemetryEvents": 7,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 7,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "AuthLog",
+          "kind": "event",
+          "queryable": true,
+          "rows": 7
+        }
+      ],
+      "sourceTableCount": 1,
+      "lookups": {
+        "IdentityInfo": 4,
+        "IpIntel": 2,
+        "watchlists": {
+          "ChangeTickets": 1
+        }
+      },
+      "viewRows": 21,
+      "unifiedViewRows": 7,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 0,
+        "authoredIds": [],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "0/0"
+      },
+      "entities": {
+        "accounts": 4,
+        "hosts": 1,
+        "ips": 2,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 7,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 7,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 7,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 7,
+          "pct": 100
+        },
+        "Account": {
+          "count": 7,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 7,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 7,
+          "pct": 100
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 7,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 7,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 7,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 7,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 7,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 7,
+          "pct": 100
+        },
+        "Account": {
+          "count": 7,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 7,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 7,
+          "pct": 100
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 7,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 7,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 7,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "Device": 7
+      },
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 3,
+        "coverageTagged": 0,
+        "benignIds": [
+          "GL4-A-105",
+          "GL4-A-106",
+          "GL4-A-107"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "telemetry": {
+          "rows": 7,
+          "mappedIntoTables": 7
+        },
+        "reports": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        },
+        "iocs": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        }
+      },
+      "fixtureScenarioId": "M04-GUIDED-2026-09-27"
+    },
+    {
+      "module": 4,
+      "scenario": "assessment",
+      "label": "Assessment DET-4424",
+      "caseId": "DET-4424",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 9,
+      "telemetryEvents": 9,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 9,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "AuthLog",
+          "kind": "event",
+          "queryable": true,
+          "rows": 9
+        }
+      ],
+      "sourceTableCount": 1,
+      "lookups": {
+        "IdentityInfo": 6,
+        "IpIntel": 2,
+        "watchlists": {
+          "ChangeTickets": 1
+        }
+      },
+      "viewRows": 27,
+      "unifiedViewRows": 9,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 0,
+        "authoredIds": [],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "0/0"
+      },
+      "entities": {
+        "accounts": 6,
+        "hosts": 1,
+        "ips": 2,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 9,
+          "pct": 100
+        },
+        "Account": {
+          "count": 9,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 9,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 9,
+          "pct": 100
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 9,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 9,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 9,
+          "pct": 100
+        },
+        "Account": {
+          "count": 9,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 9,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 9,
+          "pct": 100
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 9,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 9,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 9,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "Device": 9
+      },
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 3,
+        "coverageTagged": 0,
+        "benignIds": [
+          "M04-A-007",
+          "M04-A-008",
+          "M04-A-009"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "telemetry": {
+          "rows": 9,
+          "mappedIntoTables": 9
+        },
+        "reports": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        },
+        "iocs": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        }
+      },
+      "fixtureScenarioId": "M04-ASSESS-2026-09-24"
+    },
+    {
+      "module": 5,
+      "scenario": "guided",
+      "label": "Guided endpoint",
+      "caseId": "EDR-5204",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 13,
+      "telemetryEvents": 13,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 13,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceAlertEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "DeviceFileEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 4
+        },
+        {
+          "name": "DeviceProcessEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 7
+        },
+        {
+          "name": "DeviceRegistryEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        }
+      ],
+      "sourceTableCount": 4,
+      "lookups": {
+        "IdentityInfo": 3,
+        "IpIntel": 0,
+        "watchlists": {
+          "ApprovedSoftware": 1
+        }
+      },
+      "viewRows": 30,
+      "unifiedViewRows": 13,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "ALT-5204"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "2/2"
+      },
+      "entities": {
+        "accounts": 3,
+        "hosts": 4,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 7
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 13,
+          "pct": 100
+        },
+        "Account": {
+          "count": 13,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 13,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 13,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 13,
+          "pct": 100
+        },
+        "ParentProcessId": {
+          "count": 9,
+          "pct": 69.2
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 13,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 13,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 13,
+          "pct": 100
+        },
+        "Account": {
+          "count": 13,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 13,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 13,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 13,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 13,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "CommandLine": 7,
+        "FilePath": 9,
+        "Image": 13,
+        "Prevalence": 3,
+        "RegistryPath": 1,
+        "Reputation": 3,
+        "Sha256": 9,
+        "Signer": 5
+      },
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 4,
+        "coverageTagged": 0,
+        "benignIds": [
+          "M05-PR-208",
+          "M05-PR-209",
+          "M05-PR-210",
+          "M05-PR-211"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "devices": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        },
+        "telemetry": {
+          "rows": 13,
+          "mappedIntoTables": 13
+        }
+      },
+      "fixtureScenarioId": "M05-GUIDED-2026-09-27"
+    },
+    {
+      "module": 5,
+      "scenario": "assessment",
+      "label": "Assessment endpoint",
+      "caseId": "EDR-5127",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 13,
+      "telemetryEvents": 13,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 13,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceAlertEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "DeviceFileEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 4
+        },
+        {
+          "name": "DeviceProcessEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 7
+        },
+        {
+          "name": "DeviceRegistryEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        }
+      ],
+      "sourceTableCount": 4,
+      "lookups": {
+        "IdentityInfo": 3,
+        "IpIntel": 0,
+        "watchlists": {
+          "ApprovedSoftware": 1
+        }
+      },
+      "viewRows": 30,
+      "unifiedViewRows": 13,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "ALT-5127"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "2/2"
+      },
+      "entities": {
+        "accounts": 3,
+        "hosts": 4,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 7
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 13,
+          "pct": 100
+        },
+        "Account": {
+          "count": 13,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 13,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 1,
+          "pct": 7.7
+        },
+        "Result": {
+          "count": 13,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 13,
+          "pct": 100
+        },
+        "ParentProcessId": {
+          "count": 9,
+          "pct": 69.2
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 13,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 13,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 13,
+          "pct": 100
+        },
+        "Account": {
+          "count": 13,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 13,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 13,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 13,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 13,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "CommandLine": 7,
+        "FilePath": 8,
+        "Image": 13,
+        "Prevalence": 3,
+        "RegistryPath": 1,
+        "Reputation": 3,
+        "Sha256": 9,
+        "Signer": 3
+      },
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 4,
+        "coverageTagged": 0,
+        "benignIds": [
+          "M05-EVT-008",
+          "M05-EVT-009",
+          "M05-EVT-010",
+          "M05-EVT-011"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "devices": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        },
+        "telemetry": {
+          "rows": 13,
+          "mappedIntoTables": 13
+        }
+      },
+      "fixtureScenarioId": "M05-ASSESS-2026-09-27"
+    },
+    {
+      "module": 6,
+      "scenario": "guided",
+      "label": "Guided HNT-6411",
+      "caseId": "HNT-6411",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 12,
+      "telemetryEvents": 12,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 12,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceFileEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "DeviceNetworkEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 3
+        },
+        {
+          "name": "DeviceProcessEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 5
+        },
+        {
+          "name": "IdentityEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        }
+      ],
+      "sourceTableCount": 4,
+      "lookups": {
+        "IdentityInfo": 3,
+        "IpIntel": 1,
+        "watchlists": {
+          "ApprovedSoftware": 1
+        }
+      },
+      "viewRows": 29,
+      "unifiedViewRows": 12,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "ALT-6411"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "4/4"
+      },
+      "entities": {
+        "accounts": 3,
+        "hosts": 3,
+        "ips": 1,
+        "domains": 1,
+        "sessions": 0,
+        "processes": 5
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 12,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 12,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 12,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 12,
+          "pct": 100
+        },
+        "Account": {
+          "count": 12,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 12,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 2,
+          "pct": 16.7
+        },
+        "Domain": {
+          "count": 1,
+          "pct": 8.3
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 12,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 10,
+          "pct": 83.3
+        },
+        "ParentProcessId": {
+          "count": 6,
+          "pct": 50
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 12,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 12,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 12,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 12,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 12,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 12,
+          "pct": 100
+        },
+        "Account": {
+          "count": 12,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 12,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 12,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 12,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 12,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "CommandLine": 5,
+        "DestinationPort": 3,
+        "EndpointEventType": 12,
+        "FilePath": 4,
+        "Image": 5,
+        "RelatedEventIds": 12,
+        "ScriptPath": 2,
+        "Sha256": 2,
+        "Signer": 3
+      },
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "telemetry": {
+          "rows": 12,
+          "mappedIntoTables": 12
+        }
+      },
+      "fixtureScenarioId": "M06-GUIDED-2026-09-27"
+    },
+    {
+      "module": 6,
+      "scenario": "assessment",
+      "label": "Assessment hunt",
+      "caseId": "BKD-6318",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 9,
+      "telemetryEvents": 9,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 9,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceFileEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "DeviceNetworkEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "DeviceProcessEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 3
+        },
+        {
+          "name": "DeviceTaskEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "IdentityEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        }
+      ],
+      "sourceTableCount": 5,
+      "lookups": {
+        "IdentityInfo": 2,
+        "IpIntel": 1,
+        "watchlists": {
+          "ChangeTickets": 1
+        }
+      },
+      "viewRows": 22,
+      "unifiedViewRows": 9,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 0,
+        "authoredIds": [],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "0/0"
+      },
+      "entities": {
+        "accounts": 2,
+        "hosts": 2,
+        "ips": 1,
+        "domains": 1,
+        "sessions": 0,
+        "processes": 3
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 9,
+          "pct": 100
+        },
+        "Account": {
+          "count": 9,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 9,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 1,
+          "pct": 11.1
+        },
+        "Domain": {
+          "count": 1,
+          "pct": 11.1
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 9,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 7,
+          "pct": 77.8
+        },
+        "ParentProcessId": {
+          "count": 4,
+          "pct": 44.4
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 9,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 9,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 9,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 9,
+          "pct": 100
+        },
+        "Account": {
+          "count": 9,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 9,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 9,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 9,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 9,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "CommandLine": 3,
+        "DestinationPort": 2,
+        "EndpointEventType": 9,
+        "FilePath": 1,
+        "Image": 3,
+        "MaintenanceId": 1,
+        "RelatedEventIds": 9,
+        "ScriptPath": 1,
+        "Sha256": 1,
+        "Signer": 2,
+        "TaskName": 2,
+        "TaskPath": 2
+      },
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "telemetry": {
+          "rows": 9,
+          "mappedIntoTables": 9
+        }
+      },
+      "fixtureScenarioId": "M06-ASSESS-2026-09-27"
+    },
+    {
+      "module": 7,
+      "scenario": "guided",
+      "label": "Guided NEC-0748",
+      "caseId": "NEC-0748",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 13,
+      "telemetryEvents": 13,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 13,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceProcessEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "DnsEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "EmailEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "EmailInteractionEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "FirewallEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "ProxyEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "TlsEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        }
+      ],
+      "sourceTableCount": 7,
+      "lookups": {
+        "IdentityInfo": 3,
+        "IpIntel": 2,
+        "watchlists": {}
+      },
+      "viewRows": 31,
+      "unifiedViewRows": 13,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "ALT-7481"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "0/1"
+      },
+      "entities": {
+        "accounts": 3,
+        "hosts": 2,
+        "ips": 4,
+        "domains": 2,
+        "sessions": 0,
+        "processes": 2
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 13,
+          "pct": 100
+        },
+        "Account": {
+          "count": 13,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 11,
+          "pct": 84.6
+        },
+        "SourceIp": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "DestinationIp": {
+          "count": 4,
+          "pct": 30.8
+        },
+        "Domain": {
+          "count": 4,
+          "pct": 30.8
+        },
+        "Url": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "Result": {
+          "count": 13,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "ParentProcessId": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 13,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 13,
+          "pct": 100
+        },
+        "Account": {
+          "count": 13,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 11,
+          "pct": 84.6
+        },
+        "SourceIp": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 13,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 13,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 13,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "Answers": 2,
+        "CommandLine": 2,
+        "DestinationPort": 4,
+        "Dkim": 2,
+        "Dmarc": 2,
+        "Image": 2,
+        "NetworkMessageId": 3,
+        "ParentProcess": 2,
+        "RelatedEventIds": 9,
+        "ReplyTo": 2,
+        "ReturnPath": 2,
+        "Sender": 2,
+        "Spf": 2,
+        "Subject": 2,
+        "UrlId": 1
+      },
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 1,
+        "coverageTagged": 0,
+        "benignIds": [
+          "M07-GL-PROC-362"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "recipientGroups": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        },
+        "messages": {
+          "rows": 1,
+          "mappedIntoTables": 0
+        },
+        "deliveryEvents": {
+          "rows": 2,
+          "mappedIntoTables": 2
+        },
+        "recipientEvents": {
+          "rows": 1,
+          "mappedIntoTables": 1
+        },
+        "networkEvents": {
+          "rows": 8,
+          "mappedIntoTables": 8
+        },
+        "packetSamples": {
+          "rows": 3,
+          "mappedIntoTables": 3
+        },
+        "endpointProcessEvents": {
+          "rows": 2,
+          "mappedIntoTables": 2
+        }
+      },
+      "fixtureScenarioId": "M07-GUIDED-2026-09-27"
+    },
+    {
+      "module": 7,
+      "scenario": "assessment",
+      "label": "Assessment network/email",
+      "caseId": "NEC-0731",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 13,
+      "telemetryEvents": 13,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 13,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceProcessEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "DnsEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "EmailEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "EmailInteractionEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "FirewallEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "ProxyEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "TlsEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        }
+      ],
+      "sourceTableCount": 7,
+      "lookups": {
+        "IdentityInfo": 3,
+        "IpIntel": 2,
+        "watchlists": {}
+      },
+      "viewRows": 31,
+      "unifiedViewRows": 13,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "ALT-7101"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "0/1"
+      },
+      "entities": {
+        "accounts": 3,
+        "hosts": 2,
+        "ips": 4,
+        "domains": 2,
+        "sessions": 0,
+        "processes": 2
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 13,
+          "pct": 100
+        },
+        "Account": {
+          "count": 13,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 11,
+          "pct": 84.6
+        },
+        "SourceIp": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "DestinationIp": {
+          "count": 4,
+          "pct": 30.8
+        },
+        "Domain": {
+          "count": 4,
+          "pct": 30.8
+        },
+        "Url": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "Result": {
+          "count": 13,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "ParentProcessId": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 13,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 13,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 13,
+          "pct": 100
+        },
+        "Account": {
+          "count": 13,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 11,
+          "pct": 84.6
+        },
+        "SourceIp": {
+          "count": 2,
+          "pct": 15.4
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 13,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 13,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 13,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "Answers": 2,
+        "CommandLine": 2,
+        "DestinationPort": 4,
+        "Dkim": 2,
+        "Dmarc": 2,
+        "Image": 2,
+        "NetworkMessageId": 3,
+        "ParentProcess": 2,
+        "RelatedEventIds": 9,
+        "ReplyTo": 2,
+        "ReturnPath": 2,
+        "Sender": 2,
+        "Spf": 2,
+        "Subject": 2,
+        "UrlId": 1
+      },
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 1,
+        "coverageTagged": 0,
+        "benignIds": [
+          "M07-PROC-002"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "recipientGroups": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        },
+        "messages": {
+          "rows": 1,
+          "mappedIntoTables": 0
+        },
+        "deliveryEvents": {
+          "rows": 2,
+          "mappedIntoTables": 2
+        },
+        "recipientEvents": {
+          "rows": 1,
+          "mappedIntoTables": 1
+        },
+        "networkEvents": {
+          "rows": 8,
+          "mappedIntoTables": 8
+        },
+        "packetSamples": {
+          "rows": 3,
+          "mappedIntoTables": 3
+        },
+        "endpointProcessEvents": {
+          "rows": 2,
+          "mappedIntoTables": 2
+        }
+      },
+      "fixtureScenarioId": "M07-ASSESS-2026-09-27"
+    },
+    {
+      "module": 8,
+      "scenario": "guided",
+      "label": "Guided vulnerability",
+      "caseId": "VLN-PRACTICE-0849",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 22,
+      "telemetryEvents": 0,
+      "evidenceRecords": 22,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 22,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "AssetEvidence",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 8
+        },
+        {
+          "name": "FindingEvidence",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 9
+        },
+        {
+          "name": "IncidentEvidence",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "RiskExceptionEvidence",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "VulnerabilityFindings",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 3
+        }
+      ],
+      "sourceTableCount": 5,
+      "lookups": {
+        "IdentityInfo": 2,
+        "IpIntel": 0,
+        "watchlists": {
+          "AssetInventory": 2
+        }
+      },
+      "viewRows": 48,
+      "unifiedViewRows": 22,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "M08G-INCIDENT-001"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "1/1"
+      },
+      "entities": {
+        "accounts": 2,
+        "hosts": 2,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 22,
+          "pct": 100
+        },
+        "Account": {
+          "count": 22,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 22,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 22,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 22,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 22,
+          "pct": 100
+        },
+        "Account": {
+          "count": 22,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 22,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 22,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 22,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 22,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "Cve": 3,
+        "CvssScore": 3,
+        "CvssVector": 3,
+        "FindingId": 11,
+        "Freshness": 3,
+        "Product": 3,
+        "ScanAt": 3,
+        "Scanner": 3,
+        "Source": 19
+      },
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "assetInventory": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        },
+        "findings": {
+          "rows": 3,
+          "mappedIntoTables": 3
+        },
+        "findingEvidence": {
+          "rows": 9,
+          "mappedIntoTables": 9
+        },
+        "incidents": {
+          "rows": 1,
+          "mappedIntoTables": 0
+        },
+        "incidentEvidence": {
+          "rows": 1,
+          "mappedIntoTables": 1
+        },
+        "riskAcceptanceDispositions": {
+          "rows": 1,
+          "mappedIntoTables": 0
+        },
+        "riskAcceptanceEvidence": {
+          "rows": 1,
+          "mappedIntoTables": 1
+        },
+        "escalationRoutes": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        },
+        "assetEvidence": {
+          "rows": 8,
+          "mappedIntoTables": 8
+        }
+      },
+      "fixtureScenarioId": "M08G-GUIDED-2026-10-01"
+    },
+    {
+      "module": 8,
+      "scenario": "assessment",
+      "label": "Assessment vulnerability",
+      "caseId": "VLN-0842",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 22,
+      "telemetryEvents": 0,
+      "evidenceRecords": 22,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 22,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "AssetEvidence",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 8
+        },
+        {
+          "name": "FindingEvidence",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 9
+        },
+        {
+          "name": "IncidentEvidence",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "RiskExceptionEvidence",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "VulnerabilityFindings",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 3
+        }
+      ],
+      "sourceTableCount": 5,
+      "lookups": {
+        "IdentityInfo": 2,
+        "IpIntel": 0,
+        "watchlists": {
+          "AssetInventory": 2
+        }
+      },
+      "viewRows": 48,
+      "unifiedViewRows": 22,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "M08-INCIDENT-001"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "1/1"
+      },
+      "entities": {
+        "accounts": 2,
+        "hosts": 2,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 22,
+          "pct": 100
+        },
+        "Account": {
+          "count": 22,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 22,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 22,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 22,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 22,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 22,
+          "pct": 100
+        },
+        "Account": {
+          "count": 22,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 22,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 22,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 22,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 22,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "Cve": 3,
+        "CvssScore": 3,
+        "CvssVector": 3,
+        "FindingId": 11,
+        "Freshness": 3,
+        "Product": 3,
+        "ScanAt": 3,
+        "Scanner": 3,
+        "Source": 19
+      },
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "assetInventory": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        },
+        "findings": {
+          "rows": 3,
+          "mappedIntoTables": 3
+        },
+        "findingEvidence": {
+          "rows": 9,
+          "mappedIntoTables": 9
+        },
+        "incidents": {
+          "rows": 1,
+          "mappedIntoTables": 0
+        },
+        "incidentEvidence": {
+          "rows": 1,
+          "mappedIntoTables": 1
+        },
+        "riskAcceptanceDispositions": {
+          "rows": 1,
+          "mappedIntoTables": 0
+        },
+        "riskAcceptanceEvidence": {
+          "rows": 1,
+          "mappedIntoTables": 1
+        },
+        "escalationRoutes": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        },
+        "assetEvidence": {
+          "rows": 8,
+          "mappedIntoTables": 8
+        }
+      },
+      "fixtureScenarioId": "M08-ASSESS-2026-09-27"
+    },
+    {
+      "module": 9,
+      "scenario": "guided",
+      "label": "Guided response",
+      "caseId": "INC-5942",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 16,
+      "telemetryEvents": 7,
+      "evidenceRecords": 9,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 16,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 4
+        },
+        {
+          "name": "IdentityEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 3
+        },
+        {
+          "name": "ResponseRecords",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 6
+        },
+        {
+          "name": "ScopeChecks",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 3
+        }
+      ],
+      "sourceTableCount": 4,
+      "lookups": {
+        "IdentityInfo": 1,
+        "IpIntel": 2,
+        "watchlists": {}
+      },
+      "viewRows": 35,
+      "unifiedViewRows": 16,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "INC-5942"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "1/1"
+      },
+      "entities": {
+        "accounts": 1,
+        "hosts": 10,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 16,
+          "pct": 100
+        },
+        "Account": {
+          "count": 10,
+          "pct": 62.5
+        },
+        "Host/DeviceId": {
+          "count": 12,
+          "pct": 75
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 16,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 16,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 16,
+          "pct": 100
+        },
+        "Account": {
+          "count": 10,
+          "pct": 62.5
+        },
+        "Host/DeviceId": {
+          "count": 12,
+          "pct": 75
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 16,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 16,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 16,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {},
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "incidentQueue": {
+          "rows": 1,
+          "mappedIntoTables": 0
+        },
+        "entities": {
+          "rows": 13,
+          "mappedIntoTables": 0
+        },
+        "backups": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        },
+        "evidence": {
+          "rows": 6,
+          "mappedIntoTables": 6
+        },
+        "actionOutcomeExamples": {
+          "rows": 5,
+          "mappedIntoTables": 0
+        }
+      },
+      "fixtureScenarioId": "M09G-ASSESS-2026-10-01"
+    },
+    {
+      "module": 9,
+      "scenario": "assessment",
+      "label": "Assessment INC-4937",
+      "caseId": "INC-4937",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 16,
+      "telemetryEvents": 7,
+      "evidenceRecords": 9,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 16,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 4
+        },
+        {
+          "name": "IdentityEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 3
+        },
+        {
+          "name": "ResponseRecords",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 6
+        },
+        {
+          "name": "ScopeChecks",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 3
+        }
+      ],
+      "sourceTableCount": 4,
+      "lookups": {
+        "IdentityInfo": 1,
+        "IpIntel": 2,
+        "watchlists": {}
+      },
+      "viewRows": 35,
+      "unifiedViewRows": 16,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "INC-4937"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "1/1"
+      },
+      "entities": {
+        "accounts": 1,
+        "hosts": 10,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 16,
+          "pct": 100
+        },
+        "Account": {
+          "count": 10,
+          "pct": 62.5
+        },
+        "Host/DeviceId": {
+          "count": 12,
+          "pct": 75
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 16,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 16,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 16,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 16,
+          "pct": 100
+        },
+        "Account": {
+          "count": 10,
+          "pct": 62.5
+        },
+        "Host/DeviceId": {
+          "count": 12,
+          "pct": 75
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 16,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 16,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 16,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {},
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "incidentQueue": {
+          "rows": 1,
+          "mappedIntoTables": 0
+        },
+        "entities": {
+          "rows": 13,
+          "mappedIntoTables": 0
+        },
+        "backups": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        },
+        "evidence": {
+          "rows": 6,
+          "mappedIntoTables": 6
+        },
+        "actionOutcomeExamples": {
+          "rows": 5,
+          "mappedIntoTables": 0
+        }
+      },
+      "fixtureScenarioId": "M09-ASSESS-2026-09-27"
+    },
+    {
+      "module": 10,
+      "scenario": "guided",
+      "label": "Guided evidence handling",
+      "caseId": "EVD-6620",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 10,
+      "telemetryEvents": 9,
+      "evidenceRecords": 1,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 10,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceFileEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 3
+        },
+        {
+          "name": "DeviceProcessEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "DeviceRegistryEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "EmailEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "ForensicAcquisitions",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "ProxyEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "SystemLog",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        }
+      ],
+      "sourceTableCount": 7,
+      "lookups": {
+        "IdentityInfo": 2,
+        "IpIntel": 0,
+        "watchlists": {
+          "Custodians": 3
+        }
+      },
+      "viewRows": 25,
+      "unifiedViewRows": 10,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "REQ-6620"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "2/2"
+      },
+      "entities": {
+        "accounts": 3,
+        "hosts": 3,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 10,
+          "pct": 100
+        },
+        "Account": {
+          "count": 10,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 10,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 10,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 10,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 10,
+          "pct": 100
+        },
+        "Account": {
+          "count": 10,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 10,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 10,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 10,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 10,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "SourceSha256": 10,
+        "SourceSystem": 10
+      },
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 1,
+        "coverageTagged": 0,
+        "benignIds": [
+          "PRACT-10"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "custodians": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        },
+        "artifacts": {
+          "rows": 10,
+          "mappedIntoTables": 10
+        }
+      },
+      "fixtureScenarioId": "M10G-ASSESS-2026-10-02"
+    },
+    {
+      "module": 10,
+      "scenario": "assessment",
+      "label": "Assessment reconstruction",
+      "caseId": "EVD-5510",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 10,
+      "telemetryEvents": 9,
+      "evidenceRecords": 1,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [],
+      "queryableEvents": 10,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceFileEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 3
+        },
+        {
+          "name": "DeviceProcessEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "DeviceRegistryEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "EmailEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        },
+        {
+          "name": "ForensicAcquisitions",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "ProxyEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "SystemLog",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        }
+      ],
+      "sourceTableCount": 7,
+      "lookups": {
+        "IdentityInfo": 2,
+        "IpIntel": 0,
+        "watchlists": {
+          "Custodians": 3
+        }
+      },
+      "viewRows": 25,
+      "unifiedViewRows": 10,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 1,
+        "authoredIds": [
+          "REQ-5510"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "2/2"
+      },
+      "entities": {
+        "accounts": 3,
+        "hosts": 3,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 10,
+          "pct": 100
+        },
+        "Account": {
+          "count": 10,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 10,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 10,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 10,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 10,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 10,
+          "pct": 100
+        },
+        "Account": {
+          "count": 10,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 10,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 10,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 10,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 10,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {
+        "SourceSha256": 10,
+        "SourceSystem": 10
+      },
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 1,
+        "coverageTagged": 0,
+        "benignIds": [
+          "ART-10"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "custodians": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        },
+        "artifacts": {
+          "rows": 10,
+          "mappedIntoTables": 10
+        }
+      },
+      "fixtureScenarioId": "M10-ASSESS-2026-09-27"
+    },
+    {
+      "module": 11,
+      "scenario": "guided",
+      "label": "Guided operations",
+      "caseId": "OPS-6640",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 5,
+      "telemetryEvents": 0,
+      "evidenceRecords": 5,
+      "alertRecordRows": 12,
+      "duplicateEventIds": [],
+      "queryableEvents": 5,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "AlertQueue",
+          "kind": "alert-record",
+          "queryable": true,
+          "rows": 12
+        },
+        {
+          "name": "RecoveryRecords",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 5
+        }
+      ],
+      "sourceTableCount": 1,
+      "lookups": {
+        "IdentityInfo": 4,
+        "IpIntel": 0,
+        "watchlists": {
+          "Rules": 5,
+          "RecoveryEvidence": 5
+        }
+      },
+      "viewRows": 48,
+      "unifiedViewRows": 17,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 12,
+        "authoredIds": [
+          "GQ-01",
+          "GQ-02",
+          "GQ-03",
+          "GQ-04",
+          "GQ-05",
+          "GQ-06",
+          "GQ-07",
+          "GQ-08",
+          "GQ-09",
+          "GQ-10",
+          "GQ-11",
+          "GQ-12"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "AlertQueue rows are the authored queue items (also present as dataset alerts); they are counted once, as alerts.",
+        "entityRefsResolved": "24/36"
+      },
+      "entities": {
+        "accounts": 1,
+        "hosts": 2,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 5,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 5,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 5,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 5,
+          "pct": 100
+        },
+        "Account": {
+          "count": 5,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 5,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 5,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 5,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 17,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 17,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 17,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 17,
+          "pct": 100
+        },
+        "Account": {
+          "count": 17,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 17,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 17,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 17,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 17,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {},
+      "tagging": {
+        "method": "untagged",
+        "benignOrDistractor": "untagged",
+        "coverageTagged": "untagged",
+        "benignIds": [],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "analysts": {
+          "rows": 4,
+          "mappedIntoTables": 0
+        },
+        "escalationRoutes": {
+          "rows": 4,
+          "mappedIntoTables": 0
+        },
+        "rules": {
+          "rows": 5,
+          "mappedIntoTables": 0
+        },
+        "queue": {
+          "rows": 12,
+          "mappedIntoTables": 12
+        },
+        "audiences": {
+          "rows": 5,
+          "mappedIntoTables": 0
+        }
+      },
+      "fixtureScenarioId": "M11G-ASSESS-2026-10-04"
+    },
+    {
+      "module": 11,
+      "scenario": "assessment",
+      "label": "Assessment operations",
+      "caseId": "OPS-5511",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 5,
+      "telemetryEvents": 0,
+      "evidenceRecords": 5,
+      "alertRecordRows": 12,
+      "duplicateEventIds": [],
+      "queryableEvents": 5,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "AlertQueue",
+          "kind": "alert-record",
+          "queryable": true,
+          "rows": 12
+        },
+        {
+          "name": "RecoveryRecords",
+          "kind": "evidence-record",
+          "queryable": true,
+          "rows": 5
+        }
+      ],
+      "sourceTableCount": 1,
+      "lookups": {
+        "IdentityInfo": 4,
+        "IpIntel": 0,
+        "watchlists": {
+          "Rules": 5,
+          "RecoveryEvidence": 5
+        }
+      },
+      "viewRows": 48,
+      "unifiedViewRows": 17,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 12,
+        "authoredIds": [
+          "Q-01",
+          "Q-02",
+          "Q-03",
+          "Q-04",
+          "Q-05",
+          "Q-06",
+          "Q-07",
+          "Q-08",
+          "Q-09",
+          "Q-10",
+          "Q-11",
+          "Q-12"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "AlertQueue rows are the authored queue items (also present as dataset alerts); they are counted once, as alerts.",
+        "entityRefsResolved": "24/36"
+      },
+      "entities": {
+        "accounts": 1,
+        "hosts": 2,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 5,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 5,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 5,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 5,
+          "pct": 100
+        },
+        "Account": {
+          "count": 5,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 5,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 5,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 5,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 17,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 17,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 17,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 17,
+          "pct": 100
+        },
+        "Account": {
+          "count": 17,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 17,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 17,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 17,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 17,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {},
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 3,
+        "coverageTagged": 0,
+        "benignIds": [
+          "Q-04",
+          "Q-08",
+          "Q-09"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "analysts": {
+          "rows": 4,
+          "mappedIntoTables": 0
+        },
+        "escalationRoutes": {
+          "rows": 4,
+          "mappedIntoTables": 0
+        },
+        "rules": {
+          "rows": 5,
+          "mappedIntoTables": 0
+        },
+        "queue": {
+          "rows": 12,
+          "mappedIntoTables": 12
+        },
+        "audiences": {
+          "rows": 5,
+          "mappedIntoTables": 0
+        }
+      },
+      "fixtureScenarioId": "M11-ASSESS-2026-09-27"
+    },
+    {
+      "module": 12,
+      "scenario": "guided",
+      "label": "No separate guided scenario (assessment console only)",
+      "method": "n/a",
+      "methodNote": "Module 12 mounts only the independent capstone case.",
+      "uniqueSourceEvents": null,
+      "notApplicable": true
+    },
+    {
+      "module": 12,
+      "scenario": "assessment",
+      "label": "Assessment Amber Finch INC-4821",
+      "caseId": "INC-4821",
+      "method": "runtime",
+      "methodNote": "",
+      "uniqueSourceEvents": 7,
+      "telemetryEvents": 7,
+      "evidenceRecords": 0,
+      "alertRecordRows": 0,
+      "duplicateEventIds": [
+        {
+          "id": "BEN-101",
+          "tables": [
+            "DeviceProcessEvents",
+            "DeviceProcessEvents"
+          ]
+        }
+      ],
+      "queryableEvents": 7,
+      "displayOnlyEvents": 0,
+      "tables": [
+        {
+          "name": "DeviceProcessEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 3
+        },
+        {
+          "name": "DeviceRegistryEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "EmailEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "IdentityLogonEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 1
+        },
+        {
+          "name": "NetworkSessionEvents",
+          "kind": "event",
+          "queryable": true,
+          "rows": 2
+        }
+      ],
+      "sourceTableCount": 5,
+      "lookups": {
+        "IdentityInfo": 3,
+        "IpIntel": 2,
+        "watchlists": {
+          "ThreatIntelligence": 2,
+          "Backups": 2
+        }
+      },
+      "viewRows": 25,
+      "unifiedViewRows": 8,
+      "unifiedCopiesMatchSource": true,
+      "alerts": {
+        "authored": 3,
+        "authoredIds": [
+          "AL-1201",
+          "AL-1202",
+          "AL-1203"
+        ],
+        "ruleOrLearnerGenerated": 0,
+        "note": "Learner/rule-generated alerts are excluded (zero at baseline).",
+        "entityRefsResolved": "3/3"
+      },
+      "entities": {
+        "accounts": 2,
+        "hosts": 3,
+        "ips": 1,
+        "domains": 0,
+        "sessions": 0,
+        "processes": 0
+      },
+      "coverage": {
+        "TimeGenerated": {
+          "count": 7,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 7,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 7,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 7,
+          "pct": 100
+        },
+        "Account": {
+          "count": 7,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 7,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 1,
+          "pct": 14.3
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 7,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 0,
+          "pct": 0
+        },
+        "Detail": {
+          "count": 7,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "unifiedViewCoverage": {
+        "TimeGenerated": {
+          "count": 8,
+          "pct": 100
+        },
+        "EventId": {
+          "count": 8,
+          "pct": 100
+        },
+        "EventSource": {
+          "count": 8,
+          "pct": 100
+        },
+        "EventType": {
+          "count": 8,
+          "pct": 100
+        },
+        "Account": {
+          "count": 8,
+          "pct": 100
+        },
+        "Host/DeviceId": {
+          "count": 8,
+          "pct": 100
+        },
+        "SourceIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "DestinationIp": {
+          "count": 0,
+          "pct": 0
+        },
+        "Domain": {
+          "count": 0,
+          "pct": 0
+        },
+        "Url": {
+          "count": 0,
+          "pct": 0
+        },
+        "Result": {
+          "count": 8,
+          "pct": 100
+        },
+        "SessionId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "ParentProcessId": {
+          "count": 0,
+          "pct": 0
+        },
+        "CorrelationId": {
+          "count": 0,
+          "pct": 0
+        },
+        "Action": {
+          "count": 8,
+          "pct": 100
+        },
+        "Detail": {
+          "count": 8,
+          "pct": 100
+        },
+        "RawEvent": {
+          "count": 0,
+          "pct": 0
+        },
+        "IngestionTime": {
+          "count": 0,
+          "pct": 0
+        },
+        "Collector": {
+          "count": 0,
+          "pct": 0
+        },
+        "CoverageStatus": {
+          "count": 0,
+          "pct": 0
+        }
+      },
+      "nonCanonicalFields": {},
+      "tagging": {
+        "method": "fixture-tags",
+        "benignOrDistractor": 1,
+        "coverageTagged": 0,
+        "benignIds": [
+          "BEN-101"
+        ],
+        "coverageIds": [],
+        "structuralCoverageCaveatRows": 0,
+        "changeLinkedRows": 0
+      },
+      "context": {
+        "entities": {
+          "rows": 5,
+          "mappedIntoTables": 0
+        },
+        "evidence": {
+          "rows": 7,
+          "mappedIntoTables": 7
+        },
+        "queue": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        },
+        "rules": {
+          "rows": 3,
+          "mappedIntoTables": 0
+        },
+        "backups": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        },
+        "intelligence": {
+          "rows": 2,
+          "mappedIntoTables": 0
+        }
+      },
+      "fixtureScenarioId": "M12-AMBER-FINCH-2026-09-27"
+    }
+  ],
+  "independence": {
+    "1": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 0,
+        "hosts": 1,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "independent"
+    },
+    "2": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 0,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "independent"
+    },
+    "3": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 1,
+        "hosts": 0,
+        "ips": 1,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [
+        "m.ortiz"
+      ],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "overlap"
+    },
+    "4": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 1,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [
+        "acct-17"
+      ],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "overlap"
+    },
+    "5": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 1,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "independent"
+    },
+    "6": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 0,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "independent"
+    },
+    "7": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 0,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "independent"
+    },
+    "8": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 0,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "independent"
+    },
+    "9": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 2,
+      "sharedEntities": {
+        "accounts": 0,
+        "hosts": 2,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "content-similar"
+    },
+    "10": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 1,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "independent"
+    },
+    "11": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 1,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "independent"
+    },
+    "12": {
+      "sharedEventIds": 0,
+      "sharedEventIdList": [],
+      "identicalContentRows": 0,
+      "sharedEntities": {
+        "accounts": 0,
+        "hosts": 0,
+        "ips": 0,
+        "domains": 0,
+        "sessions": 0
+      },
+      "answerBearingSharedEntities": [],
+      "fixturesIdentical": false,
+      "sameCaseOrScenarioId": false,
+      "verdict": "independent"
+    }
+  },
+  "progression": {
+    "rows": [
+      {
+        "module": 1,
+        "assessmentUniqueEvents": 46,
+        "targetBand": "M01-M02",
+        "eventTarget": "8-18",
+        "status": "above band",
+        "sourceTables": 1,
+        "sourceTarget": "1-3",
+        "authoredAlerts": 1,
+        "alertTarget": "1-3"
+      },
+      {
+        "module": 2,
+        "assessmentUniqueEvents": null,
+        "targetBand": "M01-M02",
+        "eventTarget": "8-18",
+        "status": "n/a",
+        "sourceTables": 0,
+        "sourceTarget": "1-3",
+        "authoredAlerts": 0,
+        "alertTarget": "1-3"
+      },
+      {
+        "module": 3,
+        "assessmentUniqueEvents": 27,
+        "targetBand": "M03-M04",
+        "eventTarget": "20-45",
+        "status": "within band",
+        "sourceTables": 4,
+        "sourceTarget": "4-6",
+        "authoredAlerts": 4,
+        "alertTarget": "3-6"
+      },
+      {
+        "module": 4,
+        "assessmentUniqueEvents": 9,
+        "targetBand": "M03-M04",
+        "eventTarget": "20-45",
+        "status": "below band",
+        "sourceTables": 1,
+        "sourceTarget": "4-6",
+        "authoredAlerts": 0,
+        "alertTarget": "3-6"
+      },
+      {
+        "module": 5,
+        "assessmentUniqueEvents": 13,
+        "targetBand": "M05-M06",
+        "eventTarget": "35-70",
+        "status": "below band",
+        "sourceTables": 4,
+        "sourceTarget": "5-8",
+        "authoredAlerts": 1,
+        "alertTarget": "4-8"
+      },
+      {
+        "module": 6,
+        "assessmentUniqueEvents": 9,
+        "targetBand": "M05-M06",
+        "eventTarget": "35-70",
+        "status": "below band",
+        "sourceTables": 5,
+        "sourceTarget": "5-8",
+        "authoredAlerts": 0,
+        "alertTarget": "4-8"
+      },
+      {
+        "module": 7,
+        "assessmentUniqueEvents": 13,
+        "targetBand": "M07-M09",
+        "eventTarget": "50-100",
+        "status": "below band",
+        "sourceTables": 7,
+        "sourceTarget": "7-10",
+        "authoredAlerts": 1,
+        "alertTarget": "5-10"
+      },
+      {
+        "module": 8,
+        "assessmentUniqueEvents": 22,
+        "targetBand": "M07-M09",
+        "eventTarget": "50-100",
+        "status": "below band",
+        "sourceTables": 5,
+        "sourceTarget": "7-10",
+        "authoredAlerts": 1,
+        "alertTarget": "5-10"
+      },
+      {
+        "module": 9,
+        "assessmentUniqueEvents": 16,
+        "targetBand": "M07-M09",
+        "eventTarget": "50-100",
+        "status": "below band",
+        "sourceTables": 4,
+        "sourceTarget": "7-10",
+        "authoredAlerts": 1,
+        "alertTarget": "5-10"
+      },
+      {
+        "module": 10,
+        "assessmentUniqueEvents": 10,
+        "targetBand": "M10-M11",
+        "eventTarget": "60-120",
+        "status": "below band",
+        "sourceTables": 7,
+        "sourceTarget": "n/a",
+        "authoredAlerts": 1,
+        "alertTarget": "6-12"
+      },
+      {
+        "module": 11,
+        "assessmentUniqueEvents": 5,
+        "targetBand": "M10-M11",
+        "eventTarget": "60-120",
+        "status": "below band",
+        "sourceTables": 1,
+        "sourceTarget": "n/a",
+        "authoredAlerts": 12,
+        "alertTarget": "6-12"
+      },
+      {
+        "module": 12,
+        "assessmentUniqueEvents": 7,
+        "targetBand": "M12",
+        "eventTarget": "100-180",
+        "status": "below band",
+        "sourceTables": 5,
+        "sourceTarget": "10-+",
+        "authoredAlerts": 3,
+        "alertTarget": "8-15"
+      }
+    ],
+    "nonMonotonicSteps": [
+      "M03 (27) is below M01 (46)",
+      "M04 (9) is below M03 (27)",
+      "M06 (9) is below M05 (13)",
+      "M09 (16) is below M08 (22)",
+      "M10 (10) is below M09 (16)",
+      "M11 (5) is below M10 (10)"
+    ],
+    "m12IsLargest": false
+  },
+  "roadmapClaims": [
+    {
+      "id": "M04-events",
+      "claim": "M04 has nine explicit authentication events, two reports and three IOCs",
+      "verdict": "confirmed",
+      "measured": "9 unique AuthLog events, 2 reports, 3 IOCs (reports/IOCs are display-only context records, not queryable)"
+    },
+    {
+      "id": "M05-events",
+      "claim": "M05 has 13 assessment events incl. signed-updater comparisons on another host",
+      "verdict": "confirmed",
+      "measured": "13 unique events across 4 tables, 4 hosts, benign-tagged 4"
+    },
+    {
+      "id": "M12-alerts",
+      "claim": "M12 has three initial alerts",
+      "verdict": "confirmed",
+      "measured": "3 authored alerts (AL-1201, AL-1202, AL-1203)"
+    },
+    {
+      "id": "M12-evidence",
+      "claim": "M12 has seven named evidence records (the roadmap says the small lists are supplemented by tool fixtures)",
+      "verdict": "confirmed with a defect",
+      "measured": "7 unique queryable events. The console adapter additionally pushes a second BEN-101 row (1 duplicate EventId), so the dataset has 8 rows; tool packs (M04-M10) reuse these same evidence ids and add no further source events to the dataset"
+    },
+    {
+      "id": "M04-M06-empty-alerts",
+      "claim": "M04/M06 console base data has empty alert arrays before learner-generated rules",
+      "verdict": "confirmed",
+      "measured": "Assessment authored alerts: M04=0, M06=0"
+    },
+    {
+      "id": "guided-alerts",
+      "claim": "Guided fixtures add authored alerts where assessments have none",
+      "verdict": "partly corrected",
+      "measured": "Guided authored alerts: M04=0, M06=1 (M04 guided is also empty)"
+    },
+    {
+      "id": "M03-sources",
+      "claim": "M03 has four native source formats normalised into UnifiedEvents",
+      "verdict": "confirmed",
+      "measured": "Practice 18 events, Prove 27 events; UnifiedEvents copies match source rows: true"
+    },
+    {
+      "id": "M11-queue",
+      "claim": "M11 queue/recovery data is adapted into AlertQueue and watchlists",
+      "verdict": "confirmed",
+      "measured": "12 AlertQueue items (alerts, counted once), 5 RecoveryRecords evidence rows, lookups {\"Rules\":5,\"RecoveryEvidence\":5}"
+    },
+    {
+      "id": "progression",
+      "claim": "M12 is intended to be the largest searchable assessment slice and counts rise by stage",
+      "verdict": "corrected",
+      "measured": "Assessment unique events by module: 46, n/a, 27, 9, 13, 9, 13, 22, 16, 10, 5, 7. Non-monotonic steps: M03 (27) is below M01 (46); M04 (9) is below M03 (27); M06 (9) is below M05 (13); M09 (16) is below M08 (22); M10 (10) is below M09 (16); M11 (5) is below M10 (10)"
+    },
+    {
+      "id": "target-bands",
+      "claim": "Roadmap target bands are \"starting targets\", not claims about current totals",
+      "verdict": "confirmed",
+      "measured": "Modules below their band: M4, M5, M6, M7, M8, M9, M10, M11, M12"
+    },
+    {
+      "id": "independence",
+      "claim": "Guided and assessment fixtures should not share answer-bearing identities/event ids",
+      "verdict": "corrected",
+      "measured": "Answer-bearing/identifier overlap in: M3, M4; content-similar rows (same type/host/detail, different ids) in: M9"
+    },
+    {
+      "id": "canonical-fields",
+      "claim": "Field standardisation is present but inconsistent at the data-contract level",
+      "verdict": "confirmed",
+      "measured": "Canonical fields absent from every scenario fixture: CorrelationId, IngestionTime, Collector, CoverageStatus; present only in M01: RawEvent. Fields stored on M05 source rows but missing from its UnifiedEvents view: Url, ProcessId, ParentProcessId"
+    },
+    {
+      "id": "M06-guided",
+      "claim": "M06 guided case has a repeated-script alert and two-device evidence",
+      "verdict": "corrected",
+      "measured": "Guided: 1 authored alert, 3 distinct hosts, 12 events; assessment: 2 hosts, 9 events"
+    },
+    {
+      "id": "M01-M02-not-siem",
+      "claim": "M01/M02 are not searchable SIEM datasets; M02 activity is a focused slice",
+      "verdict": "confirmed",
+      "measured": "M01: 46 display-only sign-in rows (Prove), 0 queryable; M02 console: 6 access-activity rows, 0 queryable, and no event rows are authored for its Prove lab in portal sources (imported lab)"
+    },
+    {
+      "id": "M08-evidence-records",
+      "claim": "M08 is not primarily a raw log-analysis module",
+      "verdict": "confirmed",
+      "measured": "22 evidence-record rows (findings, evidence, incident, exception) and 0 telemetry events; 2 asset-inventory lookup rows"
+    },
+    {
+      "id": "M10-alert",
+      "claim": "M10 includes an evidence-request alert and mapped forensic artifacts",
+      "verdict": "confirmed",
+      "measured": "1 authored alert (REQ-5510); 10 artifacts mapped into 7 tables"
+    }
+  ]
+}
