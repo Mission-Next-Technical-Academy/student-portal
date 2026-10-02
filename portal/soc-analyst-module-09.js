@@ -58,8 +58,8 @@ const MODULE_NINE_SOURCES = {
     icon: 'ri-user-shared-line',
     prompt: 'Correlate the account activity to the impact window without treating every successful sign-in as hostile.',
     rows: [
-      { id: 'M09-E05', time: '09:58', entity: 'acct-173', title: 'Interactive sign-in from managed workstation', summary: '192.0.2.173 · ws-173 · MFA satisfied', detail: 'The account authenticated from its registered workstation before the impact behavior.', relevant: false },
-      { id: 'M09-E06', time: '10:05', entity: 'acct-173', title: 'Unfamiliar remote session overlaps encryption', summary: '203.0.113.173 · unmanaged client', detail: 'The session overlaps the ws-173 encryption window. It is correlation evidence, not proof of operator identity.', relevant: true },
+      { id: 'M09-E05', time: '09:58', entity: 'acct-173', host: 'ws-173', title: 'Interactive sign-in from managed workstation', summary: '192.0.2.173 · ws-173 · MFA satisfied', detail: 'The account authenticated from its registered workstation before the impact behavior.', relevant: false },
+      { id: 'M09-E06', time: '10:05', entity: 'acct-173', host: 'unmanaged-173', title: 'Unfamiliar remote session overlaps encryption', summary: '203.0.113.173 · unmanaged client', detail: 'The session overlaps the ws-173 encryption window. It is correlation evidence, not proof of operator identity.', relevant: true },
       { id: 'M09-E07', time: '10:11', entity: 'acct-173', title: 'Account owner denied the remote session', summary: 'Synthetic service-desk callback SD-4937', detail: 'The account owner confirmed the workstation was in use but denied the unmanaged client session.', relevant: true },
     ],
   },
@@ -949,11 +949,29 @@ function moduleNineBuildEvidence(fixture, sources) {
 }
 const MODULE_NINE_EVIDENCE = moduleNineBuildEvidence(SocM09AssessmentData, MODULE_NINE_SOURCES);
 const MODULE_NINE_EVIDENCE_TABLES = { endpoint: 'DeviceEvents', identity: 'IdentityEvents', scope: 'ScopeChecks' };
+/* Console identity for an evidence record (entity identity contract, docs/telemetry/SOC_TELEMETRY_SCHEMA.md):
+ * Host = DeviceId = the lower-case hostname of the device behind the entity; the scenario's inventory/device
+ * entity id (DEV-173, DEV-UNKNOWN-173) is kept as AssetId because response actions target it. Rows that are
+ * not about a host (owner callback, credential state, scope searches) carry no Host key; scope-check labels
+ * move to CheckName. Account is never blank: the owner/session account, else the acting principal. */
+function moduleNineEvidenceIdentity(s, item) {
+  const byId = (id) => s.entities.find((entity) => entity.id === id);
+  const entity = byId(item.entity);
+  if (!entity) return { Account: 'soc-analyst', CheckName: item.entity };
+  if (entity.type === 'identity') {
+    const device = item.host ? s.entities.find((other) => other.type === 'device' && other.hostname === item.host) : null;
+    return item.host ? { Account: entity.id, Host: item.host, DeviceId: item.host, ...(device ? { AssetId: device.id } : {}) } : { Account: entity.id };
+  }
+  const device = entity.type === 'device' ? entity : byId(entity.deviceId);
+  const host = device?.hostname || entity.id;
+  const account = entity.ownerAccountId || entity.accountId
+    || (entity.type === 'backup_set' ? 'svc-backup' : entity.type === 'file_service' ? 'system' : 'soc-analyst');
+  return { Account: account, Host: host, DeviceId: host, ...(device ? { AssetId: device.id } : {}), ...(entity.type === 'session' ? { SessionId: entity.id } : {}) };
+}
 function moduleNineBuildConsoleData(fixture, evidence, caseId) {
   const s = fixture.scenario;
   const events = evidence.map((item) => m03eRow(MODULE_NINE_EVIDENCE_TABLES[item.source] || 'ResponseRecords', item.id, item.time.slice(0, 10), item.time.slice(11, 19), {
-    EventType: item.title, Account: String(item.entity).startsWith('acct-') ? item.entity : (s.entities.find((entity) => entity.id === item.entity)?.ownerAccountId || ''),
-    Host: String(item.entity).startsWith('acct-') ? '' : item.entity, DeviceId: s.entities.find((entity) => entity.id === item.entity)?.deviceId || '',
+    EventType: item.title, ...moduleNineEvidenceIdentity(s, item),
     Result: item.summary, Detail: item.detail || item.summary,
   })).concat((s.telemetry || []).map((item) => m03eRow(item.table, item.id, item.time.slice(0, 10), item.time.slice(11, 19), { SessionId: '—', ...item.fields })));
   return {
@@ -962,7 +980,7 @@ function moduleNineBuildConsoleData(fixture, evidence, caseId) {
       day: s.start.slice(0, 10),
       events,
       identities: [{ Account: 'acct-173', DisplayName: 'User 173', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '192.0.2.173', Notes: 'Registered workstation ws-173' },
-        ...[...new Set((s.telemetry || []).map((item) => item.fields.Account).filter((account) => account && account !== 'acct-173'))].map((account) => ({ Account: account, DisplayName: account, Type: account.startsWith('svc-') ? 'Service' : account.startsWith('guest-') ? 'Guest' : 'User', Department: account.startsWith('svc-') ? 'IT operations' : 'Corporate', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' }))],
+        ...[...new Set((s.telemetry || []).map((item) => item.fields.Account).filter((account) => account && account !== 'acct-173'))].map((account) => ({ Account: account, DisplayName: account, Type: account.startsWith('svc-') ? 'Service' : account.startsWith('guest-') ? 'Guest' : account === 'system' ? 'Built-in' : account.startsWith('soc-') ? 'Analyst' : 'User', Department: account.startsWith('svc-') || account === 'system' ? 'IT operations' : account.startsWith('soc-') ? 'Security operations' : 'Corporate', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: account === 'system' ? 'Operating-system principal (native SYSTEM)' : '' }))],
       ips: [
         { SourceIp: '192.0.2.173', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN', FirstSeen: '—', Reputation: 'Registered workstation' },
         { SourceIp: '203.0.113.173', Type: 'External', Country: '—', Asn: 'Unmanaged client network', FirstSeen: '2026-09-27 10:05', Reputation: 'No history' },
@@ -981,7 +999,7 @@ const MODULE_NINE_GUIDED_REPLACEMENTS = {
   'DEV-173': 'DEV-294', 'fs-02': 'fs-05', 'FS-02': 'FS-05', 'DEV-FS-02': 'DEV-FS-05',
   'session-173-REMOTE': 'session-294-REMOTE', 'backup-ws-173': 'backup-ws-294', 'backup-fs-02': 'backup-fs-05',
   'RP-WS-173': 'RP-WS-294', 'RP-FS-02': 'RP-FS-05', 'Unmanaged client': 'Unmanaged contractor laptop',
-  '192.0.2.173': '192.0.2.194', '203.0.113.173': '203.0.113.194', 'DEV-UNKNOWN-173': 'DEV-UNKNOWN-294', '2026-09-27': '2026-10-01',
+  '192.0.2.173': '192.0.2.194', '203.0.113.173': '203.0.113.194', 'DEV-UNKNOWN-173': 'DEV-UNKNOWN-294', 'unmanaged-173': 'unmanaged-294', '2026-09-27': '2026-10-01',
   'acct-045': 'acct-118', 'acct-220': 'acct-231', 'acct-338': 'acct-352', 'guest-311': 'guest-407', 'ws-054': 'ws-126', 'ws-311': 'ws-388', 'DEV-054': 'DEV-126', 'DEV-311': 'DEV-388',
   'print-08': 'print-03', 'DEV-PRINT-08': 'DEV-PRINT-03', 'db-02': 'db-05', 'DEV-DB-02': 'DEV-DB-05', 'wifi-gw-01': 'wifi-gw-02', '192.0.2.52': '192.0.2.76', '198.51.100.52': '198.51.100.88', '198.51.100.60': '198.51.100.96',
   'finance$': 'projects$', 'Scoped search': 'Bounded sweep', 'Data access check': 'Egress review',
@@ -1003,8 +1021,10 @@ const MODULE_NINE_GUIDED_FIXTURE = (() => {
 const MODULE_NINE_GUIDED_SOURCES = moduleNineGuidedClone(MODULE_NINE_SOURCES);
 const MODULE_NINE_GUIDED_EVIDENCE = moduleNineBuildEvidence(MODULE_NINE_GUIDED_FIXTURE, MODULE_NINE_GUIDED_SOURCES);
 const MODULE_NINE_GUIDED_CONSOLE_DATA = moduleNineBuildConsoleData(MODULE_NINE_GUIDED_FIXTURE, MODULE_NINE_GUIDED_EVIDENCE, MODULE_NINE_GUIDED_CASE_ID);
-const MODULE_NINE_GUIDED_DEVICES = MODULE_NINE_GUIDED_FIXTURE.scenario.entities.filter((entity) => entity.type === 'device')
-  .map((device) => ({ id: device.id, hostname: device.hostname, platform: '—', role: device.linkedEntityId ? 'Managed device' : 'Unmanaged client', owner: '—', zone: '—', status: 'Online' }));
+// Endpoint-tool device ids follow the console DeviceId (= lower-case Host); the inventory id stays as assetId.
+const moduleNineEndpointDevices = (fixture) => fixture.scenario.entities.filter((entity) => entity.type === 'device')
+  .map((device) => ({ id: device.hostname, assetId: device.id, hostname: device.hostname, platform: '—', role: device.deviceClass || (device.linkedEntityId ? 'Managed device' : 'Unmanaged client'), owner: '—', zone: '—', status: 'Online' }));
+const MODULE_NINE_GUIDED_DEVICES = moduleNineEndpointDevices(MODULE_NINE_GUIDED_FIXTURE);
 const MODULE_NINE_GUIDED_TOOL_FIXTURES = (() => {
   const s = MODULE_NINE_GUIDED_FIXTURE.scenario;
   return {
@@ -1015,8 +1035,7 @@ const MODULE_NINE_GUIDED_TOOL_FIXTURES = (() => {
     m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm09-guided-exposure-tools-v1', start: s.start, end: s.end }),
   };
 })();
-const MODULE_NINE_DEVICES = SocM09AssessmentData.scenario.entities.filter((entity) => entity.type === 'device')
-  .map((device) => ({ id: device.id, hostname: device.hostname, platform: '—', role: device.linkedEntityId ? 'Managed device' : 'Unmanaged client', owner: '—', zone: '—', status: 'Online' }));
+const MODULE_NINE_DEVICES = moduleNineEndpointDevices(SocM09AssessmentData);
 const MODULE_NINE_TOOL_FIXTURES = (() => {
   const s = SocM09AssessmentData.scenario;
   return {
