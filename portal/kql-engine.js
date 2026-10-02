@@ -757,7 +757,12 @@ function mockKqlEvaluate(expr, bindings = {}, cache = { bindingResults: {}, tabl
   const initialRows = mockKqlNormalizeRows(mockKqlEvaluateSource(sourceExpr, mergedBindings, cache));
   const result = { rows: [], cols: [], render: null, source: sourceExpr };
   result.rows = mockKqlApplyPipeline(initialRows, segments, mergedBindings, cache, result);
-  result.cols = result.rows.length ? Object.keys(result.rows[0]) : (initialRows.length ? Object.keys(initialRows[0]) : ['(no rows)']);
+  // Columns are the union of keys in first-seen order, so a column absent from the
+  // first row (e.g. Host on a non-host ScopeChecks row) still shows for the others.
+  const colRows = result.rows.length ? result.rows : initialRows.slice(0, 1);
+  const colSet = new Set();
+  colRows.forEach((row) => Object.keys(row || {}).forEach((k) => colSet.add(k)));
+  result.cols = colSet.size ? [...colSet] : ['(no rows)'];
   if (!result.rows.length && initialRows.length && !segments.length) result.rows = initialRows;
   if (!result.cols.length) result.cols = ['(no rows)'];
   return result;

@@ -847,7 +847,7 @@ function moduleFiveExtraFields(e) {
 function moduleFivePrincipal(native) {
   const qualified = String(native).match(/^([^\\]+)\\(.+)$/);
   return qualified
-    ? { Account: qualified[2].toLowerCase(), AccountDomain: qualified[1], AccountNative: native }
+    ? { Account: qualified[2].toLowerCase(), AccountDomain: qualified[1].toLowerCase(), AccountNative: native }
     : { Account: String(native).toLowerCase(), AccountDomain: '', AccountNative: native };
 }
 function moduleFiveDetail(e) { return e.commandLine || e.registryPath || e.filePath || (e.destination ? `${e.destination}:${e.destinationPort}` : '') || e.taskName || e.action; }
