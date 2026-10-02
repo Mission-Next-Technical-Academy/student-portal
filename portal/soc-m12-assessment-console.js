@@ -4,26 +4,53 @@ const SocM12AssessmentConsole = (() => {
   'use strict';
   const SOURCE = {
     EmailEvents:{native:'Mail gateway message trace (JSON)',fields:[['timestamp','TimeGenerated'],['recipient','Account'],['host','Host'],['summary','Detail']]},
+    EmailUrlEvents:{native:'Mail click-time protection log (JSON)',fields:[['timestamp','TimeGenerated'],['recipient','Account'],['url','Url'],['verdict','Result']]},
     DeviceProcessEvents:{native:'Endpoint process telemetry (JSON)',fields:[['timestamp','TimeGenerated'],['device','Host'],['user','Account'],['command','Detail']]},
+    DeviceFileEvents:{native:'Endpoint file telemetry (JSON)',fields:[['timestamp','TimeGenerated'],['device','Host'],['user','Account'],['path','FilePath']]},
     DeviceRegistryEvents:{native:'Registry audit export (JSON)',fields:[['timestamp','TimeGenerated'],['device','Host'],['user','Account'],['change','Detail']]},
+    DeviceNetworkEvents:{native:'Endpoint network connection log (JSON)',fields:[['timestamp','TimeGenerated'],['device','Host'],['dst','DestinationIp'],['verdict','Result']]},
+    DeviceSensorHealth:{native:'Endpoint sensor health feed (JSON)',fields:[['timestamp','TimeGenerated'],['device','Host'],['state','EventType'],['coverage','CoverageStatus']]},
     IdentityLogonEvents:{native:'Identity provider session log (JSON)',fields:[['timestamp','TimeGenerated'],['principal','Account'],['source_ip','SourceIp'],['summary','Detail']]},
     NetworkSessionEvents:{native:'Network session telemetry (JSON)',fields:[['timestamp','TimeGenerated'],['device','Host'],['destination','DestinationIp'],['summary','Detail']]},
+    DnsEvents:{native:'Resolver query log (text)',fields:[['ts','TimeGenerated'],['client','DeviceId'],['query','Domain'],['answers','Answers']]},
+    ProxyEvents:{native:'Web proxy access log (text)',fields:[['ts','TimeGenerated'],['client','DeviceId'],['url','Url'],['status','Result']]},
+    FirewallEvents:{native:'Perimeter firewall flows (key=value)',fields:[['ts','TimeGenerated'],['src','SourceIp'],['dst','DestinationIp'],['action','Result']]},
+    VulnerabilityFindings:{native:'Exposure and finding records (JSON)',fields:[['time','TimeGenerated'],['asset','Host'],['state','EventType'],['summary','Detail']]},
+    ScanRuns:{native:'Scanner job records (JSON)',fields:[['time','TimeGenerated'],['scanner','Host'],['job','EventType'],['status','Result']]},
+    BackupEvents:{native:'Backup catalog job records (JSON)',fields:[['time','TimeGenerated'],['target','Host'],['job','EventType'],['status','Result']]},
+    ResponseRecords:{native:'Response inventory records (JSON)',fields:[['time','TimeGenerated'],['entity','Host'],['type','EventType'],['summary','Detail']]},
+    EvidenceCustodyLog:{native:'Evidence custody ledger (JSON)',fields:[['time','TimeGenerated'],['custodian','Account'],['action','EventType'],['summary','Detail']]},
+    ShiftLog:{native:'SOC shift log (JSON)',fields:[['time','TimeGenerated'],['author','Account'],['entry','EventType'],['note','Detail']]},
   };
+  const lc=(v)=>typeof v==='string'?v.toLowerCase():v;
   function dataset() {
     const s=SocM12AssessmentData.scenario, day=s.start.slice(0,10);
+    const d=SocM12AssessmentData;
+    const normalize=(row)=>({...row,Host:lc(row.Host),DeviceId:lc(row.DeviceId)});
     const events=s.evidence.map((e)=>{
       const account=e.entityIds.find(id=>id.startsWith('acct-'))||'system';
       const host=e.entityIds.find(id=>id.startsWith('ws-'))||'idp-02';
       const type=e.id==='EM-212'?'LinkOpened':e.id==='EP-301'?'ScriptExecution':e.id==='EP-303'?'PersistenceCreated':e.id==='ID-402'?'TokenRefresh':e.id==='NW-501'?'OutboundConnection':'ScopeCheck';
-      return m03eRow(e.source,e.id,day,e.at.slice(11,19),{Account:account,Host:host,DeviceId:host,EventType:type,Result:e.class,DestinationIp:e.entityIds.find(id=>/^\d/.test(id))||'',Detail:`${e.id} · ${e.class} evidence · ${e.entityIds.join(', ')}`});
+      return normalize(m03eRow(e.source,e.id,day,e.at.slice(11,19),{Account:account,Host:host,DeviceId:host,EventType:type,Result:'Allowed',DestinationIp:e.entityIds.find(id=>/^\d/.test(id))||'',...(d.evidenceFields[e.id]||{})}));
     });
-    events.push(m03eRow('DeviceProcessEvents','BEN-101',day,'09:12:00',{Account:'system',Host:'WS-118',DeviceId:'WS-118',EventType:'SignedInventoryScript',Result:'Allowed',Detail:'Approved inventory script; signed publisher and expected path.'}));
-    const alerts=s.queue.map((a)=>({id:a.id,time:'2026-09-27T09:14:00Z',severity:a.severity,title:a.signal,entities:[a.entityId],rule:'Cumulative shift alert triage',query:`AlertQueue\n| where EventId == "${a.id}"`}));
+    (d.telemetry||[]).forEach(({EventSource,EventId,at,...fields})=>events.push(normalize(m03eRow(EventSource,EventId,day,at,{DeviceId:fields.Host,...fields}))));
+    const alerts=s.queue.map((a)=>({id:a.id,time:`${day}T${a.at||'09:14:00'}Z`,severity:a.severity,title:a.signal,entities:[a.entityId],rule:'Cumulative shift alert triage',query:`AlertQueue\n| where EventId == "${a.id}"`}));
     return m03eBuildDataset({caseId:s.caseId,day,events,alerts,identities:[
       {Account:'acct-204',DisplayName:'Finance user',Type:'User',Department:'Finance',Owner:'Finance',Privileged:'No',UsualSourceIp:'10.20.4.204'},
       {Account:'acct-091',DisplayName:'Unrelated user',Type:'User',Department:'Operations',Owner:'Operations',Privileged:'No',UsualSourceIp:'10.20.4.91'},
       {Account:'system',DisplayName:'Local system',Type:'Service',Department:'Endpoint',Owner:'Endpoint',Privileged:'Yes',UsualSourceIp:'—'},
-    ],ips:[{Ip:'203.0.113.72',Reputation:'High confidence malicious in correlated incident context'},{Ip:'198.51.100.20',Reputation:'Approved update service'}],watchlists:{
+      {Account:'acct-112',DisplayName:'Finance analyst',Type:'User',Department:'Finance',Owner:'Finance',Privileged:'No',UsualSourceIp:'192.0.2.12'},
+      {Account:'acct-133',DisplayName:'Field sales user',Type:'User',Department:'Sales',Owner:'Sales',Privileged:'No',UsualSourceIp:'192.0.2.33'},
+      {Account:'acct-157',DisplayName:'Finance planner',Type:'User',Department:'Finance',Owner:'Finance',Privileged:'No',UsualSourceIp:'192.0.2.57'},
+      {Account:'acct-166',DisplayName:'Help desk analyst',Type:'User',Department:'IT',Owner:'IT',Privileged:'Yes',UsualSourceIp:'192.0.2.66'},
+      {Account:'acct-188',DisplayName:'HR coordinator',Type:'User',Department:'HR',Owner:'HR',Privileged:'No',UsualSourceIp:'192.0.2.88'},
+      {Account:'svc-patch',DisplayName:'Patch scheduler',Type:'Service',Department:'IT',Owner:'IT',Privileged:'Yes',UsualSourceIp:'192.0.2.70'},
+      {Account:'svc-report',DisplayName:'Ledger report job',Type:'Service',Department:'Finance',Owner:'Finance',Privileged:'No',UsualSourceIp:'192.0.2.60'},
+      {Account:'backup-job',DisplayName:'Backup job',Type:'Service',Department:'IT',Owner:'IT',Privileged:'No',UsualSourceIp:'192.0.2.80'},
+    ],ips:[{Ip:'203.0.113.72',Reputation:'High confidence malicious in correlated incident context'},{Ip:'198.51.100.20',Reputation:'Approved update service'},{Ip:'203.0.113.140',Reputation:'Vendor monitoring service'},{Ip:'198.51.100.90',Reputation:'Offsite backup vault'},{Ip:'198.51.100.44',Reputation:'Content delivery network'},{Ip:'198.51.100.77',Reputation:'Residential broadband, Germany'}],watchlists:{
+      ChangeTickets:{title:'Change tickets',rows:[{ChangeId:'CHG-9201',Scope:'ws-142',Summary:'Monitoring agent rollout',Window:'2026-09-27T10:00Z/12:00Z'},{ChangeId:'CHG-9204',Scope:'ws-177',Summary:'Managed installer for IT agent',Window:'2026-09-27T11:30Z/13:30Z'},{ChangeId:'CHG-9207',Scope:'weekend change window',Summary:'Planned restarts, service credential rotation, month-end export',Window:'2026-09-27T11:00Z/14:00Z'}]},
+      TravelNotices:{title:'Travel notices',rows:[{Account:'acct-133',Destination:'Germany',From:'2026-09-26',To:'2026-09-28'}]},
+      ApprovedSoftware:{title:'Approved software',rows:[{Name:'inventory-script.exe',Publisher:'Mission Next IT',Sha256:SocM12AssessmentData.telemetry.find(r=>r.EventId==='EP-309').Sha256},{Name:'policy-update.js (ITOps copy)',Publisher:'Mission Next IT',Sha256:SocM12AssessmentData.telemetry.find(r=>r.EventId==='EP-308').Sha256}]},
       ThreatIntelligence:{title:'Threat intelligence',rows:SocM12AssessmentData.scenario.intelligence.map(x=>({Indicator:x.indicator,Confidence:x.confidence,Context:x.context}))},
       Backups:{title:'Recovery points',rows:SocM12AssessmentData.scenario.backups.map(x=>({BackupId:x.id,DeviceId:x.deviceId,Trust:x.trust,Time:x.at}))},
     },now:s.end});
@@ -40,9 +67,12 @@ const SocM12AssessmentConsole = (() => {
     const s=SocM12AssessmentData.scenario, id=s.id;
     const m04=SocConsoleTools.m04Fixture({id,caseId:s.caseId,end:s.end,data});
     const devices=[{id:'ws-204',hostname:'WS-204',platform:'Windows',role:'Finance workstation',owner:'acct-204',zone:'CORP',status:'investigation'},
-      {id:'ws-118',hostname:'WS-118',platform:'Windows',role:'Workstation',owner:'system',zone:'CORP',status:'monitor'}];
+      {id:'ws-118',hostname:'WS-118',platform:'Windows',role:'Workstation',owner:'system',zone:'CORP',status:'monitor'},
+      {id:'ws-131',hostname:'WS-131',platform:'Windows',role:'Finance workstation',owner:'acct-157',zone:'CORP',status:'monitor'},
+      {id:'ws-142',hostname:'WS-142',platform:'Windows',role:'Workstation',owner:'system',zone:'CORP',status:'monitor'},
+      {id:'ws-177',hostname:'WS-177',platform:'Windows',role:'Workstation',owner:'system',zone:'CORP',status:'monitor'}];
     const m05=SocConsoleTools.m05Fixture({id,stateKey:'m12-m05-tools-v1',devices,data});
-    const m06=SocConsoleTools.m06Fixture({id,lead:{id:'M12-LEAD-001',type:'alert',device:'WS-204',account:'acct-204',taskName:'Investigate Amber Finch',observation:'High priority process alert with related identity and network signals.'},devices:['WS-204','WS-118'],data,timeStart:s.start,timeEnd:s.end});
+    const m06=SocConsoleTools.m06Fixture({id,lead:{id:'M12-LEAD-001',type:'alert',device:'ws-204',account:'acct-204',taskName:'Investigate Amber Finch',observation:'High priority process alert with related identity and network signals.'},devices:['ws-204','ws-118','ws-131','ws-142','ws-177'],data,timeStart:s.start,timeEnd:s.end});
     const m07=SocConsoleTools.m07Fixture({id,stateKey:'m12-m07-tools-v1',start:s.start,end:s.end});
     const m08=SocConsoleTools.m08Fixture({id,stateKey:'m12-m08-tools-v1',start:s.start,end:s.end});
     const artifacts=s.evidence.map((e,i)=>({id:e.id,type:e.source,time:e.at,host:e.entityIds.find(x=>x.startsWith('ws-'))||'IDP-02',account:e.entityIds.find(x=>x.startsWith('acct-'))||'soc-analyst',title:e.id,source:e.source,methods:['log_export'],sourceHash:String(i+1).repeat(64).slice(0,64),verificationHash:String(i+1).repeat(64).slice(0,64),detail:`${e.class} evidence: ${e.entityIds.join(', ')}`}));
@@ -65,6 +95,7 @@ const SocM12AssessmentConsole = (() => {
       <p role="status">${Object.keys(state.reports).length} report(s) saved.</p></section>`;
   }
   function mount(root) {
+    if(typeof M03E_SOURCE_MAPPINGS!=='undefined') Object.entries(SOURCE).forEach(([name,map])=>{ if(!M03E_SOURCE_MAPPINGS[name]) M03E_SOURCE_MAPPINGS[name]=map; });
     const data=dataset(), fx=fixtures(data), parent=()=>moduleTwelveState;
     const initialAlerts=data.alerts.slice();
     Object.defineProperty(data,'alerts',{configurable:true,enumerable:true,get:()=>[...initialAlerts,...(moduleTwelveState.assessmentState?.generatedAlerts||[]).map(a=>({id:a.id,time:SocM12AssessmentData.scenario.end,severity:a.severity,title:a.title,entities:a.entities,rule:a.ruleId,query:'Learner-tested query'}))]});

@@ -64,6 +64,8 @@ assert.strictEqual(config.scenarioId, vm.runInContext('SocM04AssessmentData.scen
 assert.ok(writes.length >= 1, 'legacy M04 state migration is persisted');
 assert.strictEqual(writes[0][0], 'm04-detection-enrichment-v1');
 
+// The section list now evaluates the Guided Lab checklist, which reads the guided console's state.
+vm.runInContext('moduleFourGuidedLoad({ email: "learner@example.test" })', context);
 const authoredAssessmentSections = local("moduleFourGetSections().filter((section) => section.title === 'Assessment Lab')");
 assert.strictEqual(authoredAssessmentSections.length, 1, 'M04 navigation authors exactly one Assessment Lab entry');
 assert.strictEqual(authoredAssessmentSections[0].scrollId, 'm04-assessment-lab');
@@ -85,9 +87,11 @@ assert.strictEqual((composedAssessmentPanel.match(/class="m03e-console"/g) || []
 assert.match(composedAssessmentPanel, /id="m03e-console-m04"/);
 assert.doesNotMatch(composedAssessmentPanel, /m04-shared-console/, 'the separate M04 console is no longer composed');
 for (const tab of consoleTabs) assert.match(composedAssessmentPanel, new RegExp(`data-m03e-tab="m04:${tab}"`), `console exposes the ${tab} tab`);
-assert.match(composedAssessmentPanel, /DET-4424 · 2026-09-24 · 9 events/);
+assert.match(composedAssessmentPanel, /DET-4424 · 2026-09-24 · \d+ events/);
 assert.doesNotMatch(composedAssessmentPanel, /m04-independent-lab|m04-independent-form/, 'the independent practice lab is not in the Assessment Lab');
-assert.match(vm.runInContext('moduleFourGuidedLabPanel()', context), /id="m04-independent-lab"[\s\S]*?id="m04-independent-form"/, 'the independent lab remains available under Practice It');
+const guidedPanel = vm.runInContext('moduleFourGuidedLabPanel()', context);
+assert.match(guidedPanel, /id="m03e-console-m04-guided"/, 'Practice It is the DET-4478 case in the Module 3 SIEM console');
+assert.doesNotMatch(guidedPanel, /m04-independent-lab|m04-independent-form/, 'the retired independent form lab is not composed into Practice It');
 assert.doesNotMatch(composedAssessmentPanel, /data-module-assessment-form|Independent evidence submission/,
   'the generic legacy assessment card/form is not composed into M04');
 const caseTab = vm.runInContext("m03eState('m04').tab = 'case'; moduleFourAssessmentLabPanel()", context);
@@ -106,7 +110,7 @@ const rulesView = vm.runInContext("m03eState('m04').tab = 'rules'; moduleThreeCo
 assert.match(rulesView, /data-m04-console-workspace="rules"/);
 assert.doesNotMatch(rulesView, /data-m04-query-form/, 'queries are written in Log Search, not a second editor');
 const visibleSearchEvidence = vm.runInContext("Object.assign(m03eState('m04'), { tab: 'search', lastQuery: 'AuthLog | take 5' }); moduleThreeConsoleHtml('m04')", context);
-assert.match(visibleSearchEvidence, /M04-A-00\d/, 'queried synthetic telemetry remains visible for learner investigation');
+assert.match(visibleSearchEvidence, /M04-A-\d{3}/, 'queried synthetic telemetry remains visible for learner investigation');
 assert.match(visibleSearchEvidence, /data-m04-save-search-query/, 'a Log Search result can be saved as a rule query');
 assert.doesNotMatch(visibleSearchEvidence, /confirmedCompromisedAccounts|successfulAuthenticationEventIds|matchEventIds|excludeEventIds|maliciousSourceIp|targetedAccounts/,
   'rendered query evidence does not include the evaluator answer key');
@@ -149,7 +153,7 @@ const saveCalls = [];
 storage.set('m04-detection-enrichment-v1:soc-04:learner@example.test', local('moduleFourState'));
 context.LabRuntime = {
   loadCaseState: (labId, moduleKey, user, defaults) => {
-    assert.ok(['m04-detection-enrichment-v1', 'm05-endpoint-assessment-v1', 'm05-endpoint-chain-v1'].includes(labId), 'M04/M05 assessment and existing M05 lesson keys remain module-scoped');
+    assert.ok(['m04-detection-enrichment-v1', 'm04-guided-detection-console-v1', 'm05-endpoint-assessment-v1', 'm05-endpoint-chain-v1', 'm05-guided-endpoint-chain-v1'].includes(labId), 'M04/M05 assessment, guided and existing M05 lesson keys remain module-scoped');
     assert.strictEqual(moduleKey, labId.startsWith('m04-') ? 'soc-04' : 'soc-05');
     return storage.get(`${labId}:${moduleKey}:${user.email}`) || defaults;
   },
@@ -214,6 +218,7 @@ assert.strictEqual(storage.has('m05-endpoint-assessment-v1:soc-05:learner@exampl
 // M05 navigation must share the learner-visible Assessment Lab destination,
 // while its loaded module and persisted case identity remain independent.
 vm.runInContext('moduleFiveLoad({ email: "learner@example.test" })', context);
+vm.runInContext('moduleFiveGuidedLoad({ email: "learner@example.test" })', context);
 const m05AssessmentSections = local("moduleFiveGetSections().filter((section) => section.title === 'Assessment Lab')");
 assert.strictEqual(m05AssessmentSections.length, 1, 'M05 navigation authors exactly one Assessment Lab entry');
 assert.strictEqual(m05AssessmentSections[0].scrollId, 'm05-assessment-lab');

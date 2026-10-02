@@ -1,9 +1,24 @@
 # SOC Telemetry Audit and Sprint Roadmap
 
-**Status:** Discovery complete; implementation backlog for staged delivery  
+**Status:** ✅ Sprints 0–6 implemented 2026-10-02 (see per-sprint notes and open items below)  
 **Audit date:** 2026-10-02  
 **Scope:** SOC Analyst course Modules 1–12; synthetic logs, alerts, tables, schemas, and analyst search experience  
 **Guardrails:** Preserve the Academy UI, module/Learn-Practice-Prove structure, and lab identities. Increase available telemetry progressively across modules; do not redesign the course or expose later-module answers early.
+
+## Next AI — start here (2026-10-02, after Sprint 6)
+
+All seven sprints have shipped as data-only changes. The whole `tests/*.test.js` suite passes (72/72), including the three suites that failed before this work. Regenerate the current counts with `node scripts/soc-telemetry-inventory.js` (outputs live in `docs/telemetry/`). Validate fixtures with `SocTelemetrySchema` (contract: `docs/telemetry/SOC_TELEMETRY_SCHEMA.md`).
+
+**Assessment progression now (unique events / tables / alerts):** M01 46/1/1 · M02 imported · M03 33/4/5 · M04 37/4/0 (rule-generated) · M05 52/7/5 · M06 51/6/4 · M07 75/9/6 · M08 66/7/6 · M09 70/8/7 · M10 106/8/1 · M11 95/6/12 · M12 167/22/14. M12 is the maximum on every axis. The dips at M04/M06/M08/M10 are documented objective-specific exceptions in the inventory's "Progression curve".
+
+**Open items (not done):**
+1. M01 guided (9 events) cannot grow without editing shared `portal/data.js`.
+2. M04: decide whether the new below-threshold decoy groups belong in `truth.rule.excludeEventIds`.
+3. Cross-module pivot inconsistencies were reported, not fixed, outside M12. Host casing is upper in M05–M08/M10 and lower elsewhere. Host≠DeviceId in M05/M06 and on 57 M09 rows. Account formats are mixed (`CORP\user`, `SYSTEM`, `acct-NN`, `a.okafor`). M09/M11 put free text in `Host`. Some M07/M09 rows have no Account. M08 uses a `Source` key.
+4. M12 static panels show AL-48xx ids, but the queue uses AL-12xx.
+5. M10 guided/assessment overlap: they share the `SYSTEM` account and one host (pre-existing ART-10 data).
+6. `moduleFourIndependentLab()` in `portal/soc-analyst-module-04.js` is dead code; Practice It is now the DET-4478 SIEM case.
+7. Not yet verified in a signed-in browser session. Only the node suites and fixture validation have run.
 
 ## Executive assessment
 
@@ -204,7 +219,9 @@ Run these as separate, reviewable implementation sprints. Each sprint has a narr
 
 **Delegation brief:** “Enrich M10 custody/reconstruction and M11 operations/reporting datasets only, with realistic volume and provenance/time semantics. Preserve existing UI, rubrics and submissions; keep operational indicators distinguishable from event evidence.”
 
-### Sprint 6 — Capstone scaling and course-wide regression
+### Sprint 6 — Capstone scaling and course-wide regression ✅ (2026-10-02)
+
+> **Done.** M12 unique events 7→167, tables 5→22, alert candidates 3→14 (11 competing, mostly benign), accounts/hosts/IPs 2/3/1→19/17/28. Changes are in `portal/soc-m12-assessment-data.js`: a 160-row `telemetry` array, intel TI-602/604/605, `evidenceFields` overlays, and instructor-only `telemetryPurposes`/`alertDispositions`/`alertDiscriminators`/`benignBackgroundEventIds`/`coverageGaps`. `portal/soc-m12-assessment-console.js` now dedupes `BEN-101` and adds identities, IPs, watchlists (ChangeTickets/TravelNotices/ApprovedSoftware) and 3 M05-pack devices. Coverage caveats: ws-142 sensor gap 08:30–09:50 and ws-131 gap 11:10–11:40. Gateway rows bound NW-504's "no match" on 203.0.113.72. Late proxy ingestion and ShiftLog handoff rows were added, plus weekend change window CHG-9207. Answer key, rubric and scorer are unchanged. M12 defects fixed: student-visible `Result` had leaked "primary/supporting/benign" answer labels; ID-402 lacked SourceIp; host casing was mixed; M06 pack lead/scope devices were upper-case and never matched. Shared defect fixed: `SocConsoleTools.mount` dropped `sourceMappings`, so the M07/M09 mappings never registered (`portal/soc-console-tools.js`). The inventory script's claim text was refreshed, and a "Progression curve" section was added. Stale tests fixed: `soc-m06-cumulative-console-integration` (guard missed the guided case forms) and `soc-m04-assessment-console` (guided state, event-count/ID regexes, lab allowlist, and the retired independent-lab assertion). Test `tests/soc-telemetry-sprint6.test.js`.
 
 **Purpose:** Make M12 the highest-volume, highest-ambiguity scenario while confirming that the gradual progression is real and fair.
 

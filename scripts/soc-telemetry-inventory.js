@@ -571,7 +571,45 @@ function progression(scenarios) {
     if (prev && evs[i] < prev.n) violations.push(`M${String(i + 1).padStart(2, '0')} (${evs[i]}) is below M${String(prev.i + 1).padStart(2, '0')} (${prev.n})`);
     prev = { i, n: evs[i] };
   }
-  return { rows, nonMonotonicSteps: violations, m12IsLargest: evs[11] != null && evs[11] === Math.max(...evs.filter((x) => x != null)) };
+  return { rows, nonMonotonicSteps: violations, m12IsLargest: evs[11] != null && evs[11] === Math.max(...evs.filter((x) => x != null)), curve: capabilityCurve(scenarios) };
+}
+
+// Documented objective-specific exceptions: a module may dip on one dimension for a stated lesson objective.
+const CURVE_EXCEPTIONS = {
+  1: 'Assessment 46 is a deliberate case-triage evidence log (one display-only source, one alert), not a SIEM search slice.',
+  2: 'Prove is an imported lab with no authored event rows; only the guided access-activity slice (11 rows) is authored in portal sources.',
+  4: 'Authored alerts are 0 by design: the learner produces alerts by running their own analytics rules; volume comes from 17 accounts of authentication noise.',
+  6: 'Hunting objective: depth is process/file/network telemetry on a few hosts and one IP, so entity breadth and alerts stay lower than M05.',
+  8: 'Non-log vulnerability/asset lab: most rows are evidence records (findings, asset and scanner evidence), with few network entities.',
+  10: 'Non-log custody lab: 106 rows are artifact source events and a hash/custody ledger around a single evidence-request alert.',
+  11: 'Operations lab: rule-volume and shift metrics are lookups (DailyOpsMetrics, ShiftOpsMetrics, RuleAlertVolume, RuleChanges) and are not counted as events; the 12 queue alerts are the evidence.',
+};
+
+function capabilityCurve(scenarios) {
+  const asm = (m) => scenarios.find((s) => s.module === m && s.scenario === 'assessment');
+  const total = (s) => (s && s.entities ? s.entities.accounts + s.entities.hosts + s.entities.ips + s.entities.domains + s.entities.sessions : 0);
+  const a12 = asm(12);
+  const ref = { events: a12 ? a12.uniqueSourceEvents : 1, tables: a12 ? a12.sourceTableCount : 1, alerts: a12 ? a12.alerts.authored : 1, entities: Math.max(1, total(a12)) };
+  const rows = [];
+  for (let m = 1; m <= 12; m += 1) {
+    const a = asm(m);
+    if (!a || !a.uniqueSourceEvents) { rows.push({ module: m, events: null, sources: null, alertCandidates: null, entities: null, index: null, rises: 'n/a', exception: CURVE_EXCEPTIONS[m] || '' }); continue; }
+    const entities = total(a);
+    const index = Math.round(1000 * (a.uniqueSourceEvents / ref.events + a.sourceTableCount / ref.tables + a.alerts.authored / ref.alerts + entities / ref.entities) / 4) / 1000;
+    rows.push({ module: m, events: a.uniqueSourceEvents, sources: a.sourceTableCount, alertCandidates: a.alerts.authored, entities, index, rises: '', exception: CURVE_EXCEPTIONS[m] || '' });
+  }
+  let prev = null; const unexplained = [];
+  for (const r of rows) {
+    if (r.index == null) continue;
+    if (prev == null) r.rises = 'baseline';
+    else if (r.index > prev.index) r.rises = 'yes';
+    else { r.rises = r.exception ? 'no (documented exception)' : 'no (UNEXPLAINED)'; if (!r.exception) unexplained.push(`M${r.module}`); }
+    prev = r;
+  }
+  const idx = rows.filter((r) => r.index != null);
+  return { rows, unexplainedDips: unexplained, m12HighestIndex: idx.length > 0 && idx[idx.length - 1].module === 12 && idx.every((r) => r.index <= idx[idx.length - 1].index),
+    m12MostEvents: idx.every((r) => r.events <= (a12 ? a12.uniqueSourceEvents : 0)), m12MostAlerts: idx.every((r) => r.alertCandidates <= (a12 ? a12.alerts.authored : 0)),
+    note: 'Index = mean of (unique events, source tables, alert candidates, distinct entities) each as a fraction of the M12 value. Entities = accounts + hosts + IPs + domains + sessions on source events. M04-M12 mount the cumulative M03 console, so tool capability never regresses even where a data dimension dips.' };
 }
 
 function checkClaims(scenarios, indep) {
@@ -580,39 +618,39 @@ function checkClaims(scenarios, indep) {
   const add = (id, claim, verdict, measured) => out.push({ id, claim, verdict, measured });
   const a4 = get(4, 'assessment'); const g4 = get(4, 'guided');
   const m4data = loadFixtureCounts();
-  add('M04-events', 'M04 has nine explicit authentication events, two reports and three IOCs',
-    a4 && a4.uniqueSourceEvents === 9 && m4data.m04Reports === 2 && m4data.m04Iocs === 3 ? 'confirmed' : 'corrected',
-    `${a4 ? a4.uniqueSourceEvents : '?'} unique AuthLog events, ${m4data.m04Reports} reports, ${m4data.m04Iocs} IOCs (reports/IOCs are display-only context records, not queryable)`);
+  add('M04-events', 'Baseline: M04 assessment had nine authentication events, two reports and three IOCs',
+    a4 && a4.uniqueSourceEvents > 9 ? 'superseded (enriched)' : 'confirmed',
+    `Now ${a4 ? a4.uniqueSourceEvents : '?'} unique events across ${a4 ? a4.sourceTableCount : '?'} tables (${a4 ? a4.entities.accounts : '?'} accounts); ${m4data.m04Reports} reports and ${m4data.m04Iocs} IOCs remain display-only context records, not queryable`);
   const a5 = get(5, 'assessment');
-  add('M05-events', 'M05 has 13 assessment events incl. signed-updater comparisons on another host',
-    a5 && a5.uniqueSourceEvents === 13 && a5.entities.hosts > 1 ? 'confirmed' : 'corrected',
-    `${a5 ? a5.uniqueSourceEvents : '?'} unique events across ${a5 ? a5.sourceTableCount : '?'} tables, ${a5 ? a5.entities.hosts : '?'} hosts, benign-tagged ${a5 ? a5.tagging.benignOrDistractor : '?'}`);
+  add('M05-events', 'Baseline: M05 assessment had 13 events incl. signed-updater comparisons on another host',
+    a5 && a5.uniqueSourceEvents > 13 && a5.entities.hosts > 1 ? 'superseded (enriched)' : 'confirmed',
+    `Now ${a5 ? a5.uniqueSourceEvents : '?'} unique events across ${a5 ? a5.sourceTableCount : '?'} tables, ${a5 ? a5.entities.hosts : '?'} hosts, benign-tagged ${a5 ? a5.tagging.benignOrDistractor : '?'}`);
   const a12 = get(12, 'assessment');
   const dupes = a12 ? a12.duplicateEventIds.length : 0;
-  add('M12-alerts', 'M12 has three initial alerts', a12 && a12.alerts.authored === 3 ? 'confirmed' : 'corrected', `${a12 ? a12.alerts.authored : '?'} authored alerts (${a12 ? a12.alerts.authoredIds.join(', ') : ''})`);
-  add('M12-evidence', 'M12 has seven named evidence records (the roadmap says the small lists are supplemented by tool fixtures)',
-    a12 && a12.uniqueSourceEvents === 7 ? (dupes ? 'confirmed with a defect' : 'confirmed') : 'corrected',
-    `${a12 ? a12.uniqueSourceEvents : '?'} unique queryable events. The console adapter additionally pushes a second BEN-101 row (${dupes} duplicate EventId${dupes === 1 ? '' : 's'}), so the dataset has ${a12 ? a12.tables.reduce((n, t) => n + t.rows, 0) : '?'} rows; tool packs (M04-M10) reuse these same evidence ids and add no further source events to the dataset`);
+  add('M12-alerts', 'Baseline: M12 had three initial alerts', a12 && a12.alerts.authored > 3 ? 'superseded (enriched)' : 'confirmed', `Now ${a12 ? a12.alerts.authored : '?'} authored alert candidates (${a12 ? a12.alerts.authoredIds.join(', ') : ''}), including competing benign ones`);
+  add('M12-evidence', 'Baseline: M12 had seven named evidence records and the console adapter pushed a duplicate BEN-101 row',
+    a12 && a12.uniqueSourceEvents > 7 ? (dupes ? 'enriched; duplicate EventIds remain' : 'superseded (enriched, duplicate fixed)') : 'confirmed',
+    `Now ${a12 ? a12.uniqueSourceEvents : '?'} unique queryable events in ${a12 ? a12.sourceTableCount : '?'} tables (${dupes} duplicate EventId${dupes === 1 ? '' : 's'}); the seven original evidence ids are unchanged, tool packs (M04-M10) reuse the same rows and add no further source events`);
   const a6 = get(6, 'assessment'); const g6 = get(6, 'guided');
-  add('M04-M06-empty-alerts', 'M04/M06 console base data has empty alert arrays before learner-generated rules',
-    a4 && a6 && a4.alerts.authored === 0 && a6.alerts.authored === 0 ? 'confirmed' : 'corrected',
-    `Assessment authored alerts: M04=${a4 ? a4.alerts.authored : '?'}, M06=${a6 ? a6.alerts.authored : '?'}`);
-  add('guided-alerts', 'Guided fixtures add authored alerts where assessments have none',
-    g6 && g6.alerts.authored > 0 && g4 && g4.alerts.authored > 0 ? 'confirmed' : (g6 && g6.alerts.authored > 0 ? 'partly corrected' : 'corrected'),
-    `Guided authored alerts: M04=${g4 ? g4.alerts.authored : '?'}, M06=${g6 ? g6.alerts.authored : '?'} (M04 guided is also empty)`);
+  add('M04-M06-empty-alerts', 'Baseline: M04/M06 console base data had empty alert arrays before learner-generated rules',
+    a4 && a6 && a4.alerts.authored === 0 && a6.alerts.authored === 0 ? 'confirmed' : (a6 && a6.alerts.authored > 0 ? 'M06 superseded (authored alerts added); M04 alerts still come from learner rules' : 'partly superseded'),
+    `Assessment authored alerts: M04=${a4 ? a4.alerts.authored : '?'} (alerts are produced by the learner's analytics rules by design), M06=${a6 ? a6.alerts.authored : '?'}`);
+  add('guided-alerts', 'Baseline: guided fixtures authored alerts where assessments had none',
+    g6 && g6.alerts.authored > 0 && g4 && g4.alerts.authored > 0 ? 'confirmed' : (g6 && g6.alerts.authored > 0 ? 'M06 only; M04 guided alerts come from the learner' : 'superseded'),
+    `Guided authored alerts: M04=${g4 ? g4.alerts.authored : '?'}, M06=${g6 ? g6.alerts.authored : '?'}; assessment M04=${a4 ? a4.alerts.authored : '?'}, M06=${a6 ? a6.alerts.authored : '?'}`);
   const a3 = get(3, 'assessment'); const g3 = get(3, 'guided');
-  add('M03-sources', 'M03 has four native source formats normalised into UnifiedEvents', a3 && a3.tables.filter((t) => t.kind === 'event').length === 4 ? 'confirmed' : 'corrected',
+  add('M03-sources', 'M03 has four native source formats normalised into UnifiedEvents (still true)', a3 && a3.tables.filter((t) => t.kind === 'event').length === 4 ? 'confirmed' : 'corrected',
     `Practice ${g3 ? g3.uniqueSourceEvents : '?'} events, Prove ${a3 ? a3.uniqueSourceEvents : '?'} events; UnifiedEvents copies match source rows: ${a3 ? a3.unifiedCopiesMatchSource : '?'}`);
   const a11 = get(11, 'assessment');
   add('M11-queue', 'M11 queue/recovery data is adapted into AlertQueue and watchlists',
     a11 && a11.alerts.authored === 12 ? 'confirmed' : 'corrected',
     `${a11 ? a11.alerts.authored : '?'} AlertQueue items (alerts, counted once), ${a11 ? a11.evidenceRecords : '?'} RecoveryRecords evidence rows, lookups ${a11 ? JSON.stringify(a11.lookups.watchlists) : ''}`);
   const prog = progression(scenarios);
-  add('progression', 'M12 is intended to be the largest searchable assessment slice and counts rise by stage',
-    prog.nonMonotonicSteps.length === 0 && prog.m12IsLargest ? 'confirmed' : 'corrected',
+  add('progression', 'M12 is the largest searchable assessment slice and counts rise by stage (documented objective-specific exceptions in the Progression curve section)',
+    prog.m12IsLargest ? (prog.nonMonotonicSteps.length ? 'M12 largest; row-count dips are documented exceptions' : 'confirmed') : 'corrected',
     `Assessment unique events by module: ${prog.rows.map((r) => (r.assessmentUniqueEvents == null ? "n/a" : r.assessmentUniqueEvents)).join(', ')}. Non-monotonic steps: ${prog.nonMonotonicSteps.join('; ') || 'none'}`);
   const below = prog.rows.filter((r) => r.status === 'below band').map((r) => `M${r.module}`);
-  add('target-bands', 'Roadmap target bands are "starting targets", not claims about current totals', 'confirmed', `Modules below their band: ${below.join(', ') || 'none'}`);
+  add('target-bands', 'Roadmap target bands are "starting targets", not claims about current totals', 'confirmed', `Modules below their band: ${below.join(', ') || 'none'}${below.length ? ' (objective-specific: see Progression curve exceptions)' : ''}`);
   const sharedIssues = Object.entries(indep).filter(([, v]) => v && v.verdict === 'overlap').map(([m]) => `M${m}`);
   const similar = Object.entries(indep).filter(([, v]) => v && v.verdict === 'content-similar').map(([m]) => `M${m}`);
   add('independence', 'Guided and assessment fixtures should not share answer-bearing identities/event ids',
@@ -626,19 +664,19 @@ function checkClaims(scenarios, indep) {
   add('canonical-fields', 'Field standardisation is present but inconsistent at the data-contract level',
     'confirmed', `Canonical fields absent from every scenario fixture: ${neverPresent.join(', ') || 'none'}; present only in M01: ${onlyM01.join(', ') || 'none'}. Fields stored on M05 source rows but missing from its UnifiedEvents view: ${dropped.join(', ') || 'none'}`);
   const g6c = get(6, 'guided');
-  add('M06-guided', 'M06 guided case has a repeated-script alert and two-device evidence',
-    g6c && g6c.alerts.authored === 1 && g6c.entities.hosts === 2 ? 'confirmed' : 'corrected',
+  add('M06-guided', 'Baseline: M06 guided case had one repeated-script alert and two-device evidence',
+    g6c && g6c.uniqueSourceEvents > 12 ? 'superseded (enriched)' : 'confirmed',
     `Guided: ${g6c ? g6c.alerts.authored : '?'} authored alert, ${g6c ? g6c.entities.hosts : '?'} distinct hosts, ${g6c ? g6c.uniqueSourceEvents : '?'} events; assessment: ${a6 ? a6.entities.hosts : '?'} hosts, ${a6 ? a6.uniqueSourceEvents : '?'} events`);
   const a1 = get(1, 'assessment'); const a2 = get(2, 'guided'); const a8 = get(8, 'assessment'); const a10 = get(10, 'assessment');
   add('M01-M02-not-siem', 'M01/M02 are not searchable SIEM datasets; M02 activity is a focused slice',
     a1 && a1.queryableEvents === 0 && a2 && a2.queryableEvents === 0 ? 'confirmed' : 'corrected',
     `M01: ${a1 ? a1.uniqueSourceEvents : '?'} display-only sign-in rows (Prove), 0 queryable; M02 console: ${a2 ? a2.uniqueSourceEvents : '?'} access-activity rows, 0 queryable, and no event rows are authored for its Prove lab in portal sources (imported lab)`);
   add('M08-evidence-records', 'M08 is not primarily a raw log-analysis module',
-    a8 && a8.telemetryEvents === 0 ? 'confirmed' : 'corrected',
+    a8 && a8.evidenceRecords > a8.telemetryEvents ? 'confirmed' : 'corrected',
     `${a8 ? a8.evidenceRecords : '?'} evidence-record rows (findings, evidence, incident, exception) and ${a8 ? a8.telemetryEvents : '?'} telemetry events; ${a8 ? a8.lookups.watchlists.AssetInventory || 0 : '?'} asset-inventory lookup rows`);
-  add('M10-alert', 'M10 includes an evidence-request alert and mapped forensic artifacts',
+  add('M10-alert', 'M10 includes an evidence-request alert and mapped forensic artifacts and custody ledger',
     a10 && a10.alerts.authored === 1 ? 'confirmed' : 'corrected',
-    `${a10 ? a10.alerts.authored : '?'} authored alert (${a10 ? a10.alerts.authoredIds.join(', ') : ''}); ${a10 ? a10.uniqueSourceEvents : '?'} artifacts mapped into ${a10 ? a10.sourceTableCount : '?'} tables`);
+    `${a10 ? a10.alerts.authored : '?'} authored alert (${a10 ? a10.alerts.authoredIds.join(', ') : ''}); ${a10 ? a10.uniqueSourceEvents : '?'} rows (artifact source events, custody ledger, acquisitions) mapped into ${a10 ? a10.sourceTableCount : '?'} tables`);
   return out;
 }
 
@@ -740,6 +778,16 @@ function renderMarkdown(inv) {
   L.push('');
   L.push(`Non-monotonic steps: ${inv.progression.nonMonotonicSteps.join('; ') || 'none'}. M12 is the largest assessment slice: ${inv.progression.m12IsLargest ? 'yes' : 'no'}.`);
   L.push('');
+  L.push('## Progression curve (assessment scenario, overall evidence capability)');
+  L.push('');
+  L.push(inv.progression.curve.note);
+  L.push('');
+  L.push('| Mod | Unique events | Source tables | Alert candidates | Entities | Capability index | Rises vs previous | Documented objective-specific exception |');
+  L.push('|---:|---:|---:|---:|---:|---:|---|---|');
+  for (const r of inv.progression.curve.rows) L.push(`| ${r.module} | ${m(r.events)} | ${m(r.sources)} | ${m(r.alertCandidates)} | ${m(r.entities)} | ${m(r.index)} | ${r.rises} | ${r.exception || '—'} |`);
+  L.push('');
+  L.push(`Unexplained dips: ${inv.progression.curve.unexplainedDips.join(', ') || 'none'}. M12 has the highest capability index: ${inv.progression.curve.m12HighestIndex ? 'yes' : 'no'}; most unique events: ${inv.progression.curve.m12MostEvents ? 'yes' : 'no'}; most alert candidates: ${inv.progression.curve.m12MostAlerts ? 'yes' : 'no'}.`);
+  L.push('');
   L.push('## Findings vs roadmap');
   L.push('');
   L.push('| Check | Roadmap claim | Verdict | Measured |');
@@ -760,4 +808,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { buildInventory, renderMarkdown, CANONICAL_FIELDS };
+module.exports = { buildInventory, renderMarkdown, CANONICAL_FIELDS, loadPortal, evalLive, SPECS };
