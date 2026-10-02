@@ -1,8 +1,8 @@
 # SOC Telemetry Audit and Sprint Roadmap
 
-**Status:** ✅ Sprints 0–6 implemented 2026-10-02 (see per-sprint notes and open items below)  
-**Audit date:** 2026-10-02  
-**Scope:** SOC Analyst course Modules 1–12; synthetic logs, alerts, tables, schemas, and analyst search experience  
+**Status:** ✅ Sprints 0–6 implemented 2026-10-02 (see per-sprint notes and open items below)\
+**Audit date:** 2026-10-02\
+**Scope:** SOC Analyst course Modules 1–12; synthetic logs, alerts, tables, schemas, and analyst search experience\
 **Guardrails:** Preserve the Academy UI, module/Learn-Practice-Prove structure, and lab identities. Increase available telemetry progressively across modules; do not redesign the course or expose later-module answers early.
 
 ## Next AI — start here (2026-10-02, after Sprint 6)

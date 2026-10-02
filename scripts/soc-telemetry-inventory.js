@@ -797,8 +797,7 @@ function renderMarkdown(inv) {
   L.push('## Method notes per scenario');
   L.push('');
   for (const s of inv.scenarios) L.push(`- M${String(s.module).padStart(2, '0')} ${s.scenario}${s.label ? ` (${s.label})` : ''}: ${s.method}. ${s.methodNote || ''}${s.legacyTrustPathLab ? ' ' + s.legacyTrustPathLab.note + ` (${s.legacyTrustPathLab.total} records).` : ''}`);
-  L.push('');
-  return L.join('\n');
+  return L.map((line) => line.replace(/[ \t]+$/, '')).join('\n');
 }
 
 function main() {

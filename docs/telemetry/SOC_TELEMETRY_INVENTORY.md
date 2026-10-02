@@ -238,24 +238,23 @@ Unexplained dips: none. M12 has the highest capability index: yes; most unique e
 - M01 assessment (Prove — NST-2407 escalation): runtime. Case-console log pane (paged table); not KQL-queryable. Evidence items are display-only checklist records.
 - M02 guided (Console walkthrough (Learn/Practice console)): static-extraction. Network & Identity console data is declared inside an IIFE in soc-analyst-module-02-environment.js; read by extracting the DATA literal. Entity inventory (users/devices/resources/policies) is display-only context. Legacy soc-analyst-module-02.js still ships MODULE_TWO_LAB display records (not part of the active console). (11 records).
 - M02 assessment (Prove It (imported Mission Next lab; independent case CASE-MN-317 questions only)): static-extraction. Practice/Prove launch imported labs (portal/imported-labs/mission-next-labs); no event rows are authored in the SOC portal sources. The in-portal MODULE_TWO_INDEPENDENT_LAB carries scenario text and questions only.
-- M03 guided (Practice — CASE-MN-428): runtime. 
-- M03 assessment (Prove — CASE-MN-517): runtime. 
-- M04 guided (Guided DET-4478): runtime. 
-- M04 assessment (Assessment DET-4424): runtime. 
-- M05 guided (Guided endpoint): runtime. 
-- M05 assessment (Assessment endpoint): runtime. 
-- M06 guided (Guided HNT-6411): runtime. 
-- M06 assessment (Assessment hunt): runtime. 
-- M07 guided (Guided NEC-0748): runtime. 
-- M07 assessment (Assessment network/email): runtime. 
-- M08 guided (Guided vulnerability): runtime. 
-- M08 assessment (Assessment vulnerability): runtime. 
-- M09 guided (Guided response): runtime. 
-- M09 assessment (Assessment INC-4937): runtime. 
-- M10 guided (Guided evidence handling): runtime. 
-- M10 assessment (Assessment reconstruction): runtime. 
-- M11 guided (Guided operations): runtime. 
-- M11 assessment (Assessment operations): runtime. 
+- M03 guided (Practice — CASE-MN-428): runtime.
+- M03 assessment (Prove — CASE-MN-517): runtime.
+- M04 guided (Guided DET-4478): runtime.
+- M04 assessment (Assessment DET-4424): runtime.
+- M05 guided (Guided endpoint): runtime.
+- M05 assessment (Assessment endpoint): runtime.
+- M06 guided (Guided HNT-6411): runtime.
+- M06 assessment (Assessment hunt): runtime.
+- M07 guided (Guided NEC-0748): runtime.
+- M07 assessment (Assessment network/email): runtime.
+- M08 guided (Guided vulnerability): runtime.
+- M08 assessment (Assessment vulnerability): runtime.
+- M09 guided (Guided response): runtime.
+- M09 assessment (Assessment INC-4937): runtime.
+- M10 guided (Guided evidence handling): runtime.
+- M10 assessment (Assessment reconstruction): runtime.
+- M11 guided (Guided operations): runtime.
+- M11 assessment (Assessment operations): runtime.
 - M12 guided (No separate guided scenario (assessment console only)): n/a. Module 12 mounts only the independent capstone case.
-- M12 assessment (Assessment Amber Finch INC-4821): runtime. 
-
+- M12 assessment (Assessment Amber Finch INC-4821): runtime.
