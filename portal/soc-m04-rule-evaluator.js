@@ -2,7 +2,11 @@
 const SocM04RuleEvaluator = (() => {
   'use strict';
 
-  const DEFAULT_FIELDS = ['TimeGenerated', 'EventId', 'EventType', 'Account', 'SourceIp', 'Result', 'Device'];
+  const DEFAULT_FIELDS = ['TimeGenerated', 'EventId', 'EventType', 'Account', 'SourceIp', 'Result', 'DeviceClass'];
+  // Saved rules from before the entity-identity contract name the column "Device"; it is now DeviceClass.
+  const LEGACY_FIELDS = { Device: 'DeviceClass' };
+  const upgradeField = (field) => (Object.hasOwn(LEGACY_FIELDS, field) ? LEGACY_FIELDS[field] : field);
+  const upgradeSafeguard = (value, key) => (value && Object.hasOwn(LEGACY_FIELDS, value[key]) ? { ...value, [key]: upgradeField(value[key]) } : value);
   const fieldsFor = (fixture) => (Array.isArray(fixture?.ruleFields) ? fixture.ruleFields : DEFAULT_FIELDS);
 
   function telemetryTables(fixture, windowMinutes) {
@@ -28,7 +32,7 @@ const SocM04RuleEvaluator = (() => {
       return Number.isFinite(time) && time >= start && time <= end;
     }).map((row) => ({
       TimeGenerated: row.time, EventId: row.id, EventType: row.type,
-      Account: row.account, SourceIp: row.sourceIp, Result: row.result, Device: row.device,
+      Account: row.account, SourceIp: row.sourceIp, Result: row.result, DeviceClass: row.deviceClass,
     }));
     return { AuthLog: rows };
   }
@@ -42,7 +46,7 @@ const SocM04RuleEvaluator = (() => {
     return field === 'TimeGenerated' ? row.time : field === 'EventId' ? row.id
       : field === 'EventType' ? row.type : field === 'Account' ? row.account
         : field === 'SourceIp' ? row.sourceIp : field === 'Result' ? row.result
-          : field === 'Device' ? row.device : row[field];
+          : field === 'DeviceClass' ? row.deviceClass : row[field];
   }
 
   function exclusionMatches(actual, operator, expected) {
@@ -58,7 +62,7 @@ const SocM04RuleEvaluator = (() => {
   function applySafeguards(candidates, rule, fixture, windowStart, evaluatedAt) {
     const telemetry = fixture.scenario.telemetry || [];
     const rowsById = new Map(telemetry.map((row) => [String(row.id), row]));
-    const exclusion = rule.exclusion?.enabled === true ? rule.exclusion : null;
+    const exclusion = rule.exclusion?.enabled === true ? upgradeSafeguard(rule.exclusion, 'field') : null;
     const exclusionValid = exclusion && fieldsFor(fixture).includes(exclusion.field)
       && ['==', '!=', 'contains', 'startswith'].includes(exclusion.operator)
       && typeof exclusion.value === 'string' && exclusion.value.length > 0;
@@ -77,7 +81,7 @@ const SocM04RuleEvaluator = (() => {
         _evidenceRows: evidenceRows,
       };
     });
-    const suppression = rule.suppression?.enabled === true ? rule.suppression : null;
+    const suppression = rule.suppression?.enabled === true ? upgradeSafeguard(rule.suppression, 'groupField') : null;
     const suppressionValid = suppression && fieldsFor(fixture).includes(suppression.groupField)
       && Number.isSafeInteger(suppression.windowMinutes) && suppression.windowMinutes >= 1 && suppression.windowMinutes <= 1440;
     const windowMs = suppressionValid ? suppression.windowMinutes * 60000 : 0;
@@ -136,7 +140,7 @@ const SocM04RuleEvaluator = (() => {
       return { succeeded: false, error: String(error?.message || error), candidates: [], evaluatedAt };
     }
     if (result.error) return { succeeded: false, error: result.error, candidates: [], evaluatedAt };
-    const exclusion = rule.exclusion?.enabled === true ? rule.exclusion : null;
+    const exclusion = rule.exclusion?.enabled === true ? upgradeSafeguard(rule.exclusion, 'field') : null;
     const excludedByGroup = new Map();
     if (exclusion) {
       const fields = fieldsFor(fixture);

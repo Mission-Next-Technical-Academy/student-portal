@@ -1105,7 +1105,7 @@ const MODULE_FOUR_CONSOLE_DATA = (function () {
   const s = SocM04AssessmentData.scenario;
   const day = s.start.slice(0, 10);
   const events = s.telemetry.map((e) => m03eRow('AuthLog', e.id, day, e.time.slice(11, 19), {
-    EventType: e.type, Account: e.account, SourceIp: e.sourceIp, Result: e.result, Device: e.device, Host: 'idp-04',
+    EventType: e.type, Account: e.account, SourceIp: e.sourceIp, Result: e.result, DeviceClass: e.deviceClass, Host: 'idp-04',
     Detail: e.result === 'Failure' ? 'Invalid password' : 'Sign-in succeeded',
   }));
   // Sprint 2 context sources (console-only: Log Search and the Entities/Timeline views read them; the
@@ -1185,27 +1185,27 @@ function moduleFourGuidedReplace(value) {
 }
 const MODULE_FOUR_GUIDED_FIXTURE = moduleFourGuidedReplace(moduleFourGuidedClone(SocM04AssessmentData));
 MODULE_FOUR_GUIDED_FIXTURE.scenario.telemetry = [
-  { id: 'GL4-A-101', time: '2026-09-27T10:11:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-61', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
-  { id: 'GL4-A-102', time: '2026-09-27T10:12:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
-  { id: 'GL4-A-103', time: '2026-09-27T10:13:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-63', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
-  { id: 'GL4-A-104', time: '2026-09-27T10:14:00Z', source: 'AuthLog', type: 'AuthSuccess', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Success', device: 'Unknown' },
-  { id: 'GL4-A-105', time: '2026-09-27T10:16:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-67', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
-  { id: 'GL4-A-106', time: '2026-09-27T10:17:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-67', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
-  { id: 'GL4-A-107', time: '2026-09-27T10:18:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-67', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
+  { id: 'GL4-A-101', time: '2026-09-27T10:11:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-61', sourceIp: '192.0.2.144', result: 'Failure', deviceClass: 'Unknown' },
+  { id: 'GL4-A-102', time: '2026-09-27T10:12:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Failure', deviceClass: 'Unknown' },
+  { id: 'GL4-A-103', time: '2026-09-27T10:13:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-63', sourceIp: '192.0.2.144', result: 'Failure', deviceClass: 'Unknown' },
+  { id: 'GL4-A-104', time: '2026-09-27T10:14:00Z', source: 'AuthLog', type: 'AuthSuccess', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Success', deviceClass: 'Unknown' },
+  { id: 'GL4-A-105', time: '2026-09-27T10:16:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-67', sourceIp: '203.0.113.177', result: 'Failure', deviceClass: 'Managed mail client' },
+  { id: 'GL4-A-106', time: '2026-09-27T10:17:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-67', sourceIp: '203.0.113.177', result: 'Failure', deviceClass: 'Managed mail client' },
+  { id: 'GL4-A-107', time: '2026-09-27T10:18:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-67', sourceIp: '203.0.113.177', result: 'Failure', deviceClass: 'Managed mail client' },
   // Sprint 2 background and alternate-explanation rows (purposes in truth.rowPurpose).
-  { id: 'GL4-A-111', source: 'AuthLog', time: '2026-09-27T10:10:30Z', type: 'AuthSuccess', account: 'acct-61', sourceIp: '10.55.4.10', result: 'Success', device: 'Managed workstation' },
-  { id: 'GL4-A-112', source: 'AuthLog', time: '2026-09-27T10:12:20Z', type: 'AuthSuccess', account: 'acct-68', sourceIp: '10.55.4.14', result: 'Success', device: 'Managed workstation' },
-  { id: 'GL4-A-113', source: 'AuthLog', time: '2026-09-27T10:13:40Z', type: 'AuthSuccess', account: 'acct-69', sourceIp: '10.55.4.15', result: 'Success', device: 'Managed workstation' },
-  { id: 'GL4-A-114', source: 'AuthLog', time: '2026-09-27T10:15:10Z', type: 'AuthSuccess', account: 'acct-63', sourceIp: '10.55.4.10', result: 'Success', device: 'Managed workstation' },
-  { id: 'GL4-A-115', source: 'AuthLog', time: '2026-09-27T10:17:45Z', type: 'AuthSuccess', account: 'acct-70', sourceIp: '10.55.4.16', result: 'Success', device: 'Managed workstation' },
-  { id: 'GL4-A-116', source: 'AuthLog', time: '2026-09-27T10:18:30Z', type: 'AuthFailure', account: 'acct-71', sourceIp: '203.0.113.190', result: 'Failure', device: 'Branch workstation' },
-  { id: 'GL4-A-117', source: 'AuthLog', time: '2026-09-27T10:18:50Z', type: 'AuthSuccess', account: 'acct-71', sourceIp: '203.0.113.190', result: 'Success', device: 'Branch workstation' },
-  { id: 'GL4-A-118', source: 'AuthLog', time: '2026-09-27T10:12:00Z', type: 'AuthFailure', account: 'svc-probe', sourceIp: '10.55.0.9', result: 'Failure', device: 'Synthetic probe' },
-  { id: 'GL4-A-119', source: 'AuthLog', time: '2026-09-27T10:17:00Z', type: 'AuthFailure', account: 'svc-probe', sourceIp: '10.55.0.9', result: 'Failure', device: 'Synthetic probe' },
-  { id: 'GL4-A-120', source: 'AuthLog', time: '2026-09-27T10:11:50Z', type: 'AuthSuccess', account: 'acct-69', sourceIp: '10.55.4.15', result: 'Success', device: 'Managed workstation' },
-  { id: 'GL4-A-121', source: 'AuthLog', time: '2026-09-27T10:14:25Z', type: 'AuthSuccess', account: 'acct-68', sourceIp: '10.55.4.14', result: 'Success', device: 'Managed workstation' },
-  { id: 'GL4-A-122', source: 'AuthLog', time: '2026-09-27T10:16:55Z', type: 'AuthSuccess', account: 'acct-61', sourceIp: '10.55.4.10', result: 'Success', device: 'Managed workstation' },
-  { id: 'GL4-A-123', source: 'AuthLog', time: '2026-09-27T10:19:05Z', type: 'AuthSuccess', account: 'acct-70', sourceIp: '10.55.4.16', result: 'Success', device: 'Managed workstation' },
+  { id: 'GL4-A-111', source: 'AuthLog', time: '2026-09-27T10:10:30Z', type: 'AuthSuccess', account: 'acct-61', sourceIp: '10.55.4.10', result: 'Success', deviceClass: 'Managed workstation' },
+  { id: 'GL4-A-112', source: 'AuthLog', time: '2026-09-27T10:12:20Z', type: 'AuthSuccess', account: 'acct-68', sourceIp: '10.55.4.14', result: 'Success', deviceClass: 'Managed workstation' },
+  { id: 'GL4-A-113', source: 'AuthLog', time: '2026-09-27T10:13:40Z', type: 'AuthSuccess', account: 'acct-69', sourceIp: '10.55.4.15', result: 'Success', deviceClass: 'Managed workstation' },
+  { id: 'GL4-A-114', source: 'AuthLog', time: '2026-09-27T10:15:10Z', type: 'AuthSuccess', account: 'acct-63', sourceIp: '10.55.4.10', result: 'Success', deviceClass: 'Managed workstation' },
+  { id: 'GL4-A-115', source: 'AuthLog', time: '2026-09-27T10:17:45Z', type: 'AuthSuccess', account: 'acct-70', sourceIp: '10.55.4.16', result: 'Success', deviceClass: 'Managed workstation' },
+  { id: 'GL4-A-116', source: 'AuthLog', time: '2026-09-27T10:18:30Z', type: 'AuthFailure', account: 'acct-71', sourceIp: '203.0.113.190', result: 'Failure', deviceClass: 'Branch workstation' },
+  { id: 'GL4-A-117', source: 'AuthLog', time: '2026-09-27T10:18:50Z', type: 'AuthSuccess', account: 'acct-71', sourceIp: '203.0.113.190', result: 'Success', deviceClass: 'Branch workstation' },
+  { id: 'GL4-A-118', source: 'AuthLog', time: '2026-09-27T10:12:00Z', type: 'AuthFailure', account: 'svc-probe', sourceIp: '10.55.0.9', result: 'Failure', deviceClass: 'Synthetic probe' },
+  { id: 'GL4-A-119', source: 'AuthLog', time: '2026-09-27T10:17:00Z', type: 'AuthFailure', account: 'svc-probe', sourceIp: '10.55.0.9', result: 'Failure', deviceClass: 'Synthetic probe' },
+  { id: 'GL4-A-120', source: 'AuthLog', time: '2026-09-27T10:11:50Z', type: 'AuthSuccess', account: 'acct-69', sourceIp: '10.55.4.15', result: 'Success', deviceClass: 'Managed workstation' },
+  { id: 'GL4-A-121', source: 'AuthLog', time: '2026-09-27T10:14:25Z', type: 'AuthSuccess', account: 'acct-68', sourceIp: '10.55.4.14', result: 'Success', deviceClass: 'Managed workstation' },
+  { id: 'GL4-A-122', source: 'AuthLog', time: '2026-09-27T10:16:55Z', type: 'AuthSuccess', account: 'acct-61', sourceIp: '10.55.4.10', result: 'Success', deviceClass: 'Managed workstation' },
+  { id: 'GL4-A-123', source: 'AuthLog', time: '2026-09-27T10:19:05Z', type: 'AuthSuccess', account: 'acct-70', sourceIp: '10.55.4.16', result: 'Success', deviceClass: 'Managed workstation' },
 ];
 MODULE_FOUR_GUIDED_FIXTURE.scenario.start = '2026-09-27T10:10:00Z';
 MODULE_FOUR_GUIDED_FIXTURE.scenario.end = '2026-09-27T10:20:00Z';
@@ -1229,7 +1229,7 @@ const MODULE_FOUR_GUIDED_CONSOLE_DATA = (() => {
   const scenario = MODULE_FOUR_GUIDED_FIXTURE.scenario;
   const day = scenario.start.slice(0, 10);
   const events = scenario.telemetry.map((event) => m03eRow('AuthLog', event.id, day, event.time.slice(11, 19), {
-    EventType: event.type, Account: event.account, SourceIp: event.sourceIp, Result: event.result, Device: event.device, Host: 'idp-07',
+    EventType: event.type, Account: event.account, SourceIp: event.sourceIp, Result: event.result, DeviceClass: event.deviceClass, Host: 'idp-07',
     Detail: event.result === 'Failure' ? 'Invalid password' : 'Sign-in succeeded',
   }));
   // Sprint 2 console-only context sources (the rule evaluator runs on the AuthLog telemetry).

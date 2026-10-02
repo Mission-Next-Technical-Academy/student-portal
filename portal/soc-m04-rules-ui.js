@@ -4,7 +4,7 @@ const SocM04RulesUi = (() => {
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-  const TELEMETRY_FIELDS = Object.freeze(['TimeGenerated', 'EventId', 'EventType', 'Account', 'SourceIp', 'Result', 'Device']);
+  const TELEMETRY_FIELDS = Object.freeze(['TimeGenerated', 'EventId', 'EventType', 'Account', 'SourceIp', 'Result', 'DeviceClass']);
   const EXCLUSION_OPERATORS = Object.freeze(['==', '!=', 'contains', 'startswith']);
   const MIN_FREQUENCY_MINUTES = 5;
   const MAX_FREQUENCY_MINUTES = 10080;
@@ -142,7 +142,7 @@ const SocM04RulesUi = (() => {
 
   function tables(fixture) {
     if (fixture.consoleTables) return fixture.consoleTables;
-    return { AuthLog: fixture.scenario.telemetry.map((row) => ({ TimeGenerated: row.time, EventId: row.id, EventType: row.type, Account: row.account, SourceIp: row.sourceIp, Result: row.result, Device: row.device })) };
+    return { AuthLog: fixture.scenario.telemetry.map((row) => ({ TimeGenerated: row.time, EventId: row.id, EventType: row.type, Account: row.account, SourceIp: row.sourceIp, Result: row.result, DeviceClass: row.deviceClass })) };
   }
 
   function test(assessment, fixture, query, timestamp) {

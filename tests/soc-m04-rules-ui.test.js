@@ -42,7 +42,7 @@ assert.strictEqual(state.actionHistory.at(-1).type, 'rule_change');
 assert.strictEqual(state.actionHistory.at(-1).timestamp, '2026-09-24T09:34:30Z');
 assert.strictEqual(state.actionHistory.at(-1).details.operation, 'rule-draft-edit');
 const safeguardFields = {
-  exclusion: { enabled: true, field: 'Device', operator: 'contains', value: '<managed & trusted>', reason: 'Approved device exception' },
+  exclusion: { enabled: true, field: 'DeviceClass', operator: 'contains', value: '<managed & trusted>', reason: 'Approved device exception' },
   suppression: { enabled: true, groupField: 'SourceIp', windowMinutes: 15 },
 };
 const safeguardRule = api.updateSafeguards(state, draft.id, safeguardFields, '2026-09-24T09:34:40Z');
@@ -127,7 +127,7 @@ assert.match(rendered, /Rule schedule/);
 assert.match(rendered, /Execution history/);
 assert.match(rendered, /Success sign-in rule/);
 assert.match(rendered, /Group by Account; alert at 2 matches over 30 minutes/);
-assert.match(rendered, /Exclude Device contains &lt;managed &amp; trusted&gt; \(Approved device exception\)/);
+assert.match(rendered, /Exclude DeviceClass contains &lt;managed &amp; trusted&gt; \(Approved device exception\)/);
 assert.match(rendered, /Suppression enabled by SourceIp for 15 minutes/);
 assert.ok(!rendered.includes('<managed & trusted>'), 'preview escapes learner-authored config values');
 assert.match(rendered, /AuthLog \| where Result == &quot;Success&quot; and SourceIp == &quot;198.51.100.64&quot; \| project EventId, Account, SourceIp/);

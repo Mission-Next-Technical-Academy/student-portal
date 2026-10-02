@@ -38,8 +38,8 @@ assert.deepStrictEqual(local(raw.candidates.filter((c) => c.thresholdMet).map((c
 const exclusionCases = [
   [{ field: 'SourceIp', operator: '==', value: '203.0.113.77' }, ['M04-A-007', 'M04-A-008', 'M04-A-009']],
   [{ field: 'EventType', operator: '!=', value: 'AuthSuccess' }, ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005', 'M04-A-007', 'M04-A-008', 'M04-A-009', 'M04-A-109', 'M04-A-111', 'M04-A-113', 'M04-A-115', 'M04-A-116', 'M04-A-117', 'M04-A-118', 'M04-A-119']],
-  [{ field: 'Device', operator: 'contains', value: 'MAIL CLIENT' }, ['M04-A-007', 'M04-A-008', 'M04-A-009']],
-  [{ field: 'Device', operator: 'startswith', value: 'managed' }, ['M04-A-007', 'M04-A-008', 'M04-A-009']],
+  [{ field: 'DeviceClass', operator: 'contains', value: 'MAIL CLIENT' }, ['M04-A-007', 'M04-A-008', 'M04-A-009']],
+  [{ field: 'DeviceClass', operator: 'startswith', value: 'managed' }, ['M04-A-007', 'M04-A-008', 'M04-A-009']],
 ];
 for (const [exclusion, expectedIds] of exclusionCases) {
   const result = api.evaluate({ ...base, exclusion: { ...exclusion, enabled: true, reason: 'test safeguard' } }, fixture);
@@ -47,10 +47,13 @@ for (const [exclusion, expectedIds] of exclusionCases) {
   assert.ok(result.excludedCandidates.every((candidate) => candidate.exclusion.reason === 'test safeguard'));
   assert.strictEqual(result.retainedCandidates.length + result.excludedCandidates.length + result.suppressedCandidates.length, result.candidates.length);
 }
+// A rule saved before the entity-identity contract names the column "Device"; it must still evaluate as DeviceClass.
+const legacyDeviceRule = api.evaluate({ ...base, exclusion: { enabled: true, field: 'Device', operator: 'startswith', value: 'managed', reason: 'legacy field name' } }, fixture);
+assert.deepStrictEqual(local(legacyDeviceRule.excludedCandidates.flatMap((candidate) => candidate.exclusion.evidence.map((item) => item.eventId)).sort()), ['M04-A-007', 'M04-A-008', 'M04-A-009']);
 const mixedFixture = local(fixture);
-mixedFixture.scenario.telemetry.push({ id: 'M04-A-010', time: '2026-09-24T09:04:30Z', type: 'AuthFailure', account: 'acct-99', sourceIp: '198.51.100.64', result: 'Failure', device: 'Managed client' });
+mixedFixture.scenario.telemetry.push({ id: 'M04-A-010', time: '2026-09-24T09:04:30Z', type: 'AuthFailure', account: 'acct-99', sourceIp: '198.51.100.64', result: 'Failure', deviceClass: 'Managed client' });
 const rowScopedExclusion = api.evaluate({ ...base, threshold: 5,
-  exclusion: { enabled: true, field: 'Device', operator: 'contains', value: 'managed', reason: 'Known managed retry' },
+  exclusion: { enabled: true, field: 'DeviceClass', operator: 'contains', value: 'managed', reason: 'Known managed retry' },
 }, mixedFixture);
 const metRetained = rowScopedExclusion.retainedCandidates.filter((candidate) => candidate.thresholdMet);
 assert.strictEqual(metRetained.length, 1, 'excluding one event must not discard its whole grouped source');
