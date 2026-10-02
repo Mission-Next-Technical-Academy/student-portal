@@ -13,9 +13,9 @@ const MODULE_TWELVE_CONSOLES = {
     label: 'Alert queue', icon: 'ri-alarm-warning-line', kicker: 'Triage',
     brief: 'Prioritize the signal and decide whether it represents an incident.',
     rows: [
-      ['AL-4821', 'High', 'Script host contacted a rare destination', 'WS-204 · acct-204 · 09:14', 'New'],
-      ['AL-4818', 'Medium', 'Approved inventory script used an encoded argument', 'WS-118 · system · 08:40', 'Benign change'],
-      ['AL-4812', 'Low', 'Repeated sign-in failures', 'acct-091 · 07:55', 'Resolved'],
+      ['AL-1201', 'High', 'Suspicious script execution', 'WS-204 · acct-204 · 09:14', 'New'],
+      ['AL-1205', 'Medium', 'Approved inventory script used an encoded argument', 'WS-118 · system · 08:40', 'New'],
+      ['AL-1204', 'Medium', 'Repeated sign-in failures', 'acct-091 · 08:12', 'New'],
     ],
   },
   email: {
