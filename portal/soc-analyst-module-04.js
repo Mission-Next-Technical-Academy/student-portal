@@ -363,7 +363,6 @@ const MODULE_FOUR_DEFAULT_STATE = {
   lastSubmittedAt: '',
   notes: '',
   lessonWork: {},
-  independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
   labProgress: {},
   // Standard ITSM Incident Ticket for the m04-assessment Prove It
   // submission (docs/specs/MODULE_STANDARD.md §7.2).
@@ -407,16 +406,6 @@ const MODULE_FOUR_LESSON_LOOPS = [
     ], task: 'Name two low-risk automated steps and one approval-gated action for this campaign, with the reason for the boundary.' },
 ];
 
-const MODULE_FOUR_INDEPENDENT_LAB = {
-  title: 'Independent lab: fake-verification loader alert', caseId: 'INC-4404',
-  scenario: 'Mission Next Labs receives a medium-confidence alert for ws-244 after acct-244 opened a fake verification page. A child process launched a script interpreter, then a browser credential store was read. A signed updater event and a help-desk test are nearby distractors. Decide what the evidence supports and how to tune the follow-up.',
-  questions: [
-    { id: 'signal', label: 'Which combination is the strongest detection signal?', options: [{ id: 'chain', text: 'Fake-verification page → script interpreter child process → browser credential-store read on ws-244' }, { id: 'signed', text: 'The signed updater alone proves the workstation is clean' }, { id: 'severity', text: 'Medium severity means no further review is needed' }], correct: 'chain' },
-    { id: 'scope', label: 'What scope is supportable now?', options: [{ id: 'bounded', text: 'acct-244 and ws-244; broader credential exposure remains unconfirmed' }, { id: 'tenant', text: 'Every Mission Next Labs endpoint is compromised' }, { id: 'none', text: 'No scope can be recorded until malware is reverse engineered' }], correct: 'bounded' },
-    { id: 'next', label: 'What is the BEST first automation decision?', options: [{ id: 'preserve', text: 'Preserve process/browser evidence, open a scoped investigation, and require approval before credential/session disruption' }, { id: 'wipe', text: 'Wipe every endpoint that visited the page' }, { id: 'close', text: 'Close because a signed updater also ran' }], correct: 'preserve' },
-  ],
-};
-
 const MODULE_FOUR_AUTH_EVENTS = [
   { id: 'AE-401', time: '09:01', outcome: 'Success', account: 'acct-06', ip: '10.44.3.18', device: 'Managed', region: 'East office', detail: 'Normal interactive sign-in from the account’s assigned workstation.' },
   { id: 'AE-402', time: '09:02', outcome: 'Failed', account: 'acct-07', ip: '203.0.113.97', device: 'Managed', region: 'West office', detail: 'Stored credential rejected after the account’s approved password rotation.' },
@@ -448,9 +437,7 @@ const MODULE_FOUR_RELEVANT_EVIDENCE = [
 
 // Standard ITSM Incident Ticket (docs/specs/MODULE_STANDARD.md §7.2) for the Prove It
 // submission — `m04-assessment`, the only form here that calls
-// recordLabAttempt() for MODULE_FOUR_CATALOG_LAB_KEY. The independent lab
-// (m04-independent-form) is Practice It — locally scored, no catalog
-// attempt — and is out of scope for this migration.
+// recordLabAttempt() for MODULE_FOUR_CATALOG_LAB_KEY.
 const MODULE_FOUR_CASE_ID = SocM04AssessmentData.scenario.caseId;
 const MODULE_FOUR_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
@@ -649,9 +636,6 @@ function moduleFourLoad(user) {
     if (!Array.isArray(moduleFourState[key])) moduleFourState[key] = [];
   });
   if (!moduleFourState.lessonWork || typeof moduleFourState.lessonWork !== 'object') moduleFourState.lessonWork = {};
-  if (!moduleFourState.independentLab || typeof moduleFourState.independentLab !== 'object') moduleFourState.independentLab = JSON.parse(JSON.stringify(MODULE_FOUR_DEFAULT_STATE.independentLab));
-  if (!moduleFourState.independentLab.answers || typeof moduleFourState.independentLab.answers !== 'object') moduleFourState.independentLab.answers = {};
-  if (!Array.isArray(moduleFourState.independentLab.feedback)) moduleFourState.independentLab.feedback = [];
   if (typeof moduleFourState.notes !== 'string') moduleFourState.notes = '';
   if (!moduleFourState.labProgress || typeof moduleFourState.labProgress !== 'object') moduleFourState.labProgress = {};
 
@@ -1535,39 +1519,6 @@ function wireModuleFourGuidedLab() {
     }
   });
   return;
-
-  // The independent lab is Practice It: locally scored, never the Assessment Lab.
-  root.addEventListener('change', (event) => {
-    const input = event.target;
-    if (input.matches('[data-m04-independent-answer]')) {
-      moduleFourState.independentLab.answers[input.dataset.questionId] = input.value;
-      moduleFourSave();
-    }
-  });
-  root.addEventListener('input', (event) => {
-    if (event.target.matches('[data-m04-independent-notes]')) {
-      moduleFourState.independentLab.notes = event.target.value;
-      moduleFourSave();
-      return;
-    }
-  });
-  root.addEventListener('submit', (event) => {
-    if (event.target.id === 'm04-independent-form') {
-      event.preventDefault();
-      const state = moduleFourState.independentLab;
-      const missing = MODULE_FOUR_INDEPENDENT_LAB.questions.some((question) => !state.answers?.[question.id]);
-      if (missing) { state.feedback = [`Answer all ${MODULE_FOUR_INDEPENDENT_LAB.questions.length} independent-lab decisions before scoring.`]; moduleFourSave(); moduleFourRenderGuided('m04-independent-title'); return; }
-      const correct = MODULE_FOUR_INDEPENDENT_LAB.questions.filter((question) => state.answers[question.id] === question.correct).length;
-      state.attempts += 1;
-      state.score = Math.round((correct / MODULE_FOUR_INDEPENDENT_LAB.questions.length) * 100);
-      state.completed = state.score >= 70;
-      state.feedback = MODULE_FOUR_INDEPENDENT_LAB.questions.map((question) => state.answers[question.id] === question.correct ? `${question.id}: Correct — the evidence supports a bounded, approval-aware response.` : `${question.id}: Revisit the evidence chain; do not let a nearby benign event erase the stronger sequence or justify broad disruption.`);
-      if (state.completed) state.feedback.push('Independent lab passed. You preserved evidence and kept disruptive response approval-gated.');
-      moduleFourSave();
-      moduleFourRenderGuided('m04-independent-title');
-      return;
-    }
-  });
 
   root.addEventListener('click', (event) => {
     const stationButton = event.target.closest('[data-m04-station]');
