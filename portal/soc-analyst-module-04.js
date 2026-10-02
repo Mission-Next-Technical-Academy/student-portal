@@ -918,14 +918,6 @@ function moduleFourReview() {
   </section>`;
 }
 
-
-function moduleFourIndependentLab() {
-  const state = moduleFourState.independentLab;
-  const answered = MODULE_FOUR_INDEPENDENT_LAB.questions.filter((q) => state.answers?.[q.id]).length;
-  const feedback = state.feedback?.length ? `<div class="m04-independent-feedback ${state.completed ? 'is-pass' : 'is-hint'}" role="status"><strong>${state.score}/100 — ${state.completed ? 'Independent lab complete' : 'Review and retry'}</strong><ul>${state.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-  return `<section class="m04-independent-lab" id="m04-independent-lab" aria-labelledby="m04-independent-title"><div class="m04-panel-heading"><div><p class="m04-kicker">Independent · fresh decision path · included in the existing 120-minute lab allocation</p><h3 id="m04-independent-title">${esc(MODULE_FOUR_INDEPENDENT_LAB.title)}</h3></div><span>${answered}/${MODULE_FOUR_INDEPENDENT_LAB.questions.length} answered</span></div><p class="m04-panel-instruction">${esc(MODULE_FOUR_INDEPENDENT_LAB.scenario)}</p><form id="m04-independent-form">${MODULE_FOUR_INDEPENDENT_LAB.questions.map((q) => `<fieldset class="m04-independent-question"><legend>${esc(q.label)}</legend>${q.options.map((o) => `<label><input type="radio" name="m04-independent-${esc(q.id)}" value="${esc(o.id)}" data-m04-independent-answer data-question-id="${esc(q.id)}" ${state.answers?.[q.id] === o.id ? 'checked' : ''}><span>${esc(o.text)}</span></label>`).join('')}</fieldset>`).join('')}<label class="m04-note-label">Analyst note (optional)<textarea rows="3" maxlength="500" data-m04-independent-notes placeholder="Record the bounded scope and approval boundary…">${esc(state.notes || '')}</textarea></label><button type="submit" class="m04-independent-submit">Score independent lab</button></form>${feedback}</section>`;
-}
-
 function moduleFourRulePreview() {
   const group = moduleFourState.ruleGrouping === 'source-ip' ? 'SourceIp' : 'Account, SourceIp';
   const metric = moduleFourState.ruleMetric === 'distinct-accounts'
