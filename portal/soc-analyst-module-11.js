@@ -11,7 +11,7 @@ const MODULE_ELEVEN_GUIDED_REPLACEMENTS = {
   'detection-engineering': 'detection-content', 'fs02-service-owner': 'fs07-service-owner', 'SHIFT-0927-DAY': 'SHIFT-1004-EARLY',
   '2026-09-27': '2026-10-04', 'Analyst Okafor': 'Analyst Blake', 'Analyst Ruiz': 'Analyst Morgan',
   'Analyst Chen': 'Analyst Jordan', 'Analyst Patel': 'Analyst Silva', 'collector-01': 'collector-11', 'ticketing-01': 'ticketing-02',
-  'siem-scheduler-01': 'siem-scheduler-02', 'paging-01': 'paging-02',
+  'siem-scheduler-01': 'siem-scheduler-02', 'paging-01': 'paging-02', 'PLT-3318': 'PLT-3402',
 };
 // Prior-day series dates (2026-09-17..26) shift by one week in a single pass so the guided case never shares them
 // with the assessment; the shift day itself (2026-09-27) is mapped by the replacement table above.
@@ -967,6 +967,22 @@ function moduleElevenOperationalRows(s) {
       Detail: `${c.collector}: ${c.status}; ingestion lag ${c.ingestionLagSeconds} seconds; ${c.eventsPerMinute} events per minute.` }));
   });
   ops.shiftLog.forEach((e) => rows.push(row('ShiftLog', nextId('SL'), e.time, { Host: 'soc-console', EventType: e.type, Account: e.actor, Result: 'recorded', Detail: e.detail })));
+  // Sprint 7 density: supplemental background, appended so the rows above keep their EventIds. Purpose tags stay in the fixture.
+  const extra = ops.supplemental;
+  if (!extra) return rows;
+  queue.filter((item) => item.assigneeId && item.acknowledgedAt).forEach((item) => {
+    rows.push(row('QueueActivity', nextId('QA'), plus(item.acknowledgedAt, -60), { Host: 'ticketing-01', RuleId: item.ruleId, QueueId: item.id, Severity: item.severity, EventType: 'AlertAssigned', Account: item.assigneeId, Result: 'assigned', IngestionTime: plus(item.acknowledgedAt, -45), Detail: `${item.id} assigned to ${item.assigneeId}.` }));
+  });
+  extra.pageAcknowledgements.forEach((p) => {
+    const item = s.queue.find((q) => q.id === p.queueId);
+    rows.push(row('OnCallPages', nextId('PG'), p.time, { Host: 'paging-01', RuleId: item.ruleId, QueueId: item.id, EventType: 'PageAcknowledged', Account: p.actor, Result: 'acknowledged', Detail: `On-call page for ${item.id} acknowledged on the pager; the queue item is acknowledged separately in QueueActivity.` }));
+  });
+  extra.heartbeats.forEach((c) => {
+    rows.push(row('SourceHealth', nextId('SH'), c.time, { Host: c.host, EventType: 'CollectorHeartbeat', Account: 'siem-collector', Result: c.status, IngestionTime: plus(c.time, c.ingestionLagSeconds),
+      Collector: c.collector, IngestionLagSeconds: c.ingestionLagSeconds, EventsPerMinute: c.eventsPerMinute,
+      Detail: `${c.collector}: ${c.status}; ingestion lag ${c.ingestionLagSeconds} seconds; ${c.eventsPerMinute} events per minute.` }));
+  });
+  extra.shiftLog.forEach((e) => rows.push(row('ShiftLog', nextId('SL'), e.time, { Host: 'soc-console', EventType: e.type, Account: e.actor, Result: 'recorded', Detail: e.detail })));
   return rows;
 }
 function moduleElevenToolFixtures(data, fixture = SocM11AssessmentData) {

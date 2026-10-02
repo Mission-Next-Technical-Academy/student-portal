@@ -81,6 +81,35 @@ const SocM11AssessmentData = (() => {
       { time: t('11:00'), type: 'QueueReview', actor: 'an-okafor', detail: 'Hourly queue review completed; handoff notes started.' },
       { time: t('11:40'), type: 'HandoffDrafted', actor: 'an-okafor', detail: 'Shift handoff package opened for the evening shift lead.' },
     ],
+    /* Sprint 7 density: supplemental operational background. Rows are appended after the original operational
+     * rows so earlier generated EventIds stay stable. `purpose` is an instructor-only tag; it is never copied into
+     * a console row. Nothing here changes the queue, the metrics, the R-04 / CHG-2212 outlier or any answer. */
+    supplemental: {
+      purposes: {
+        AlertAssigned: 'realistic background: ticket lifecycle; derived from the queue (assigned items only), one minute before acknowledgement',
+        PageAcknowledged: 'alternate explanation (time semantics): on-call page receipt is not queue acknowledgement; MTTA comes from QueueActivity AlertAcknowledged',
+      },
+      // On-call page receipt for paged items that were later acknowledged in the queue (actor = queue assignee).
+      pageAcknowledgements: [
+        { queueId: 'Q-01', time: t('08:07'), actor: 'an-okafor' },
+        { queueId: 'Q-11', time: t('08:12'), actor: 'an-ruiz' },
+        { queueId: 'Q-10', time: t('08:32'), actor: 'an-ruiz' },
+        { queueId: 'Q-12', time: t('10:53'), actor: 'an-ruiz' },
+      ],
+      heartbeats: [
+        ...['08:00', '09:00', '10:00', '11:00'].map((hm, hour) => ({ collector: 'Identity provider collector', host: 'idp-collector-01', time: t(hm), status: 'Healthy', ingestionLagSeconds: 2, eventsPerMinute: 3100 + hour * 10,
+          purpose: 'coverage: identity telemetry healthy for the whole shift (no collection gap behind the identity alerts)' })),
+        { collector: 'Endpoint sensor collector', host: 'edr-collector-01', time: t('09:30'), status: 'Healthy', ingestionLagSeconds: 4, eventsPerMinute: 18815, purpose: 'evidence quality: last healthy endpoint heartbeat before the lag' },
+        { collector: 'Endpoint sensor collector', host: 'edr-collector-01', time: t('10:30'), status: 'Recovering', ingestionLagSeconds: 310, eventsPerMinute: 24600, purpose: 'evidence quality: backlog draining above the normal rate; bounds the lag window' },
+        { collector: 'Endpoint sensor collector', host: 'edr-collector-01', time: t('11:30'), status: 'Healthy', ingestionLagSeconds: 4, eventsPerMinute: 18835, purpose: 'recovery validation: endpoint collection back to normal before the last endpoint alerts' },
+      ],
+      shiftLog: [
+        { time: t('08:30'), type: 'StandUp', actor: 'an-okafor', detail: 'Shift stand-up held; analysts confirmed the break rota and the queue view defaults.', purpose: 'realistic background' },
+        { time: t('08:45'), type: 'ToolCheck', actor: 'an-chen', detail: 'Tier 1 queue view filters reset to the shift default (all rules, oldest first).', purpose: 'realistic background' },
+        { time: t('10:16'), type: 'PlatformNotice', actor: 'an-okafor', detail: 'Endpoint sensor collector lag acknowledged; platform ticket PLT-3318 opened. Endpoint alerts may arrive late until it clears.', purpose: 'coverage: makes the collection delay explicit to the shift' },
+        { time: t('10:35'), type: 'PlatformNotice', actor: 'an-okafor', detail: 'Platform team reports the endpoint collector backlog is draining; lag now about five minutes.', purpose: 'recovery validation: platform-side confirmation of the heartbeat trend' },
+      ],
+    },
   };
 
   const scenario = {
