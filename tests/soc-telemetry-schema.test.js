@@ -145,7 +145,7 @@ function report(name, result) {
   // Source field is the sensor name; map it onto the canonical EventSource.
   report('M06', Schema.validateScenario({
     events, start: s.fixedAt && s.start, end: s.end, references: refs,
-    entities: { DeviceId: s.scope.devices, Account: [...s.scope.accounts, 'acct-271'] },
+    entities: { DeviceId: s.scope.devices, Account: [...s.scope.accounts, 'acct-271', 'acct-402', 'acct-sys', 'acct-svc-health'] },
   }, { label: 'M06' }));
   s.telemetrySchema.required.forEach((k) => s.telemetry.forEach((e) => assert.ok(k in e, `${e.id} has ${k}`)));
   s.telemetry.forEach((e) => assert.ok(e.time >= s.scope.timeStart && e.time <= s.scope.timeEnd, `${e.id} in hunt scope`));

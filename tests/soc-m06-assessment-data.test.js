@@ -28,7 +28,7 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(scenario.seedLead)), {
   observation: 'A weekly scheduled task launches a script from a user-writable folder; no alert fired.',
   initialDisposition: 'unverified_lead',
 });
-assert.deepStrictEqual(JSON.parse(JSON.stringify(scenario.scope.devices)), ['ws-318', 'ws-355']);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(scenario.scope.devices)), ['ws-318', 'ws-355', 'ws-402']);
 assert.ok(Date.parse(scenario.scope.timeStart) < Date.parse(scenario.scope.timeEnd));
 assert.ok(scenario.scope.timeEnd <= scenario.end);
 
@@ -40,7 +40,7 @@ assert.strictEqual(scenario.seedLead.device, 'ws-318', 'seed matches the existin
 assert.strictEqual(scenario.seedLead.account, 'acct-184');
 assert.strictEqual(scenario.seedLead.taskName, 'UpdateHealth');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(scenario.telemetrySchema.eventTypes)), [
-  'scheduled_task', 'process_start', 'network_connection', 'identity_activity', 'file_indicator',
+  'scheduled_task', 'process_start', 'network_connection', 'identity_activity', 'file_indicator', 'sensor_health',
 ]);
 assert.ok(scenario.telemetry.length >= 8, 'linked telemetry covers the lead and comparison host');
 const eventIds = scenario.telemetry.map((event) => event.id);
@@ -153,7 +153,7 @@ try { scenario.seedLead.taskName = 'changed'; } catch (_) { /* frozen */ }
 try { scenario.scope.devices.push('ws-other'); } catch (_) { /* frozen */ }
 try { truth.supportedTechniques[0].evidenceEventIds.push('M06-EVT-999'); } catch (_) { /* frozen */ }
 assert.strictEqual(scenario.seedLead.taskName, 'UpdateHealth');
-assert.strictEqual(scenario.scope.devices.length, 2);
+assert.strictEqual(scenario.scope.devices.length, 3);
 assert.ok(!truth.supportedTechniques[0].evidenceEventIds.includes('M06-EVT-999'));
 assert.notStrictEqual(scenario.stateKey, scenario.legacyStateId, 'assessment persistence key is independent of legacy M06 state'); // gitleaks:allow
 assert.deepStrictEqual(Object.keys(scenario).filter((key) => /legacy/i.test(key)), ['legacyStateId'], 'fixture carries only a legacy state identifier, not legacy learner state');

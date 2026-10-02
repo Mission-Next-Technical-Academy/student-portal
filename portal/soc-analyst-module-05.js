@@ -808,7 +808,20 @@ function moduleFiveAdditionalLabs() {
 const MODULE_FIVE_ENDPOINT_SOURCES = {
   process_start: 'DeviceProcessEvents', file_create: 'DeviceFileEvents', file_hash: 'DeviceFileEvents',
   persistence_change: 'DeviceRegistryEvents', sensor_control: 'DeviceAlertEvents',
+  network_connection: 'DeviceNetworkEvents', scheduled_task: 'DeviceTaskEvents', sensor_health: 'DeviceSensorHealth',
 };
+// Optional fields carried only by the network, task and sensor-health records.
+function moduleFiveExtraFields(e) {
+  const out = {};
+  if (e.destination) {
+    const ip = /^[\d.]+$/.test(e.destination);
+    Object.assign(out, { DestinationIp: ip ? e.destination : '', Domain: ip ? '' : e.destination, DestinationPort: e.destinationPort || '', Protocol: e.protocol || '' });
+  }
+  if (e.taskName) Object.assign(out, { TaskName: e.taskName, TaskPath: e.taskPath || '' });
+  if (e.coverageStatus) out.CoverageStatus = e.coverageStatus;
+  return out;
+}
+function moduleFiveDetail(e) { return e.commandLine || e.registryPath || e.filePath || (e.destination ? `${e.destination}:${e.destinationPort}` : '') || e.taskName || e.action; }
 // Practice It has its own endpoint case, event IDs, entities, and persisted
 // console/tool state. It intentionally reuses the assessment schema and UI.
 const MODULE_FIVE_GUIDED_LAB_ID = 'm05-guided-endpoint-chain-v1';
@@ -823,7 +836,15 @@ const MODULE_FIVE_GUIDED_REPLACEMENTS = {
   'CORP\\j.alvarez': 'CORP\\r.patel', 'CORP\\m.reyes': 'CORP\\s.kim', 'j.alvarez': 'r.patel', 'm.reyes': 's.kim',
   'syncsvc.exe': 'cachehost.exe', 'SyncService': 'CacheHost', '4100': '7100', '4172': '7172', '4224': '7224', '3020': '8020', '5090': '8090', '2380': '8380', '6110': '8610',
   ['a'.repeat(64)]: 'c'.repeat(64), ['b'.repeat(64)]: 'd'.repeat(64),
+  'M05-DEV-004': 'M05-GUIDE-104', 'M05-DEV-005': 'M05-GUIDE-105', 'WS-ASSESS-31': 'WS-PRACTICE-18', 'WS-ASSESS-40': 'WS-PRACTICE-27',
+  'd.okafor': 'a.novak', 'l.chen': 'p.shah', 'svc-backup': 'svc-archive', 'Q3-shift-schedule.pdf': 'Onboarding-checklist.pdf', 'FY26-budget.xlsx': 'FY26-headcount.xlsx',
+  'HourlyShareSnapshot': 'HourlySharePrune', 'Snapshot-Shares.ps1': 'Prune-Shares.ps1', 'backup-nas.corp.example': 'archive-nas.corp.example', 'Fabrikam': 'Litware', 'CHG-5120': 'CHG-6120',
+  'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe': 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe', 'AcmeUpdate.exe': 'CloudSync.exe',
+  'updates.acme-software.example': 'sync.contoso-cloud.example', 'teams.microsoft.com': 'presence.teams.microsoft.com', 'intranet.corp.example': 'portal.corp.example', 'Acme Software LLC': 'Contoso Systems Ltd.',
 };
+// Background rows (EVT-014 and later) get their own Practice IDs.
+for (let n = 14; n <= 52; n += 1) MODULE_FIVE_GUIDED_REPLACEMENTS[`M05-EVT-0${n}`] = `M05-PR-2${n}`;
+
 function moduleFiveGuidedReplace(value) {
   if (typeof value === 'string') return Object.entries(MODULE_FIVE_GUIDED_REPLACEMENTS).reduce((result, [from, to]) => result.split(from).join(to), value);
   if (Array.isArray(value)) return value.map(moduleFiveGuidedReplace);
@@ -860,6 +881,10 @@ MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[10].signer = 'CN=Contoso Systems L
 MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[8].time = '2026-09-27T13:20:04Z';
 MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[9].time = '2026-09-27T13:22:42Z';
 MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[10].time = '2026-09-27T13:22:43Z';
+// Practice background rows carry their own file hashes (rotate each hex digit); shared Acme/CloudSync hash already remapped above.
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry.slice(13).forEach((event) => {
+  if (event.sha256 && event.sha256 !== 'd'.repeat(64)) event.sha256 = event.sha256.replace(/[0-9a-f]/g, (digit) => ((parseInt(digit, 16) + 5) % 16).toString(16));
+});
 MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.confirmedDevice.value = 'M05-GUIDE-101';
 MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.confirmedUser.value = 'CORP\\r.patel';
 MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.processAncestry.chain = ['7100', '7172', '7224'];
@@ -876,13 +901,26 @@ const MODULE_FIVE_GUIDED_CONSOLE_DATA = (() => {
   const events = s.telemetry.map((e) => m03eRow(MODULE_FIVE_ENDPOINT_SOURCES[e.eventType] || 'DeviceEvents', e.id, day, e.time.slice(11, 19), {
     EventType: e.eventType, Account: e.user, Host: e.host, DeviceId: e.deviceId, ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
     Image: e.image || '', CommandLine: e.commandLine || '', FilePath: e.filePath || '', Sha256: e.sha256 || '', RegistryPath: e.registryPath || '',
-    Action: e.action, Result: e.result, Url: e.url || '', Signer: e.signer || '', Prevalence: e.prevalence ?? '', Reputation: e.reputation || '', Detail: e.commandLine || e.registryPath || e.filePath || e.action,
+    Action: e.action, Result: e.result, Url: e.url || '', Signer: e.signer || '', Prevalence: e.prevalence ?? '', Reputation: e.reputation || '', Detail: moduleFiveDetail(e), ...moduleFiveExtraFields(e),
   }));
   const person = (account, name, owner) => ({ Account: account, DisplayName: name, Type: owner ? 'Service' : 'User', Department: owner ? 'IT Operations' : 'Engineering', Owner: owner || '—', Privileged: owner ? 'Yes' : 'No', UsualSourceIp: '—', Notes: '' });
   return { ...m03eBuildDataset({ caseId: s.caseId, day, events,
-    identities: [person('CORP\\r.patel', 'R. Patel'), person('CORP\\s.kim', 'S. Kim'), person('SYSTEM', 'Local system', 'Endpoint platform')], ips: [],
-    watchlists: { ApprovedSoftware: { title: 'Approved software inventory', rows: [{ Product: 'Contoso CloudSync', Publisher: 'CN=Contoso Systems Ltd.', Path: 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe', Deployment: 'All workstations', Status: 'Approved' }] } },
-    alerts: [{ id: 'ALT-5204', time: '2026-09-27T13:05:33Z', severity: 'High', title: 'Endpoint sensor detection on WS-PRACTICE-41', entities: ['WS-PRACTICE-41', 'CORP\\r.patel'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "WS-PRACTICE-41"' }],
+    identities: [person('CORP\\r.patel', 'R. Patel'), person('CORP\\s.kim', 'S. Kim'), person('CORP\\a.novak', 'A. Novak'), person('CORP\\p.shah', 'P. Shah'), person('CORP\\svc-archive', 'Archive service', 'IT Operations'), person('SYSTEM', 'Local system', 'Endpoint platform')], ips: [],
+    watchlists: {
+      ApprovedSoftware: { title: 'Approved software inventory', rows: [
+        { Product: 'Contoso CloudSync', Publisher: 'CN=Contoso Systems Ltd.', Path: 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe', Deployment: 'All workstations', Status: 'Approved' },
+        { Product: 'Litware Sync', Publisher: 'CN=Litware Software Inc.', Path: 'C:\\Program Files\\Litware\\Sync\\LitwareSync.exe', Deployment: 'Managed deployment CHG-6118', Status: 'Approved' },
+      ] },
+      ChangeTickets: { title: 'Approved change tickets', rows: [
+        { ChangeId: 'CHG-6118', Summary: 'Litware Sync client rollout', Device: 'WS-PRACTICE-18', Window: '2026-09-27 13:00–14:00', Status: 'Approved' },
+        { ChangeId: 'CHG-6120', Summary: 'Endpoint sensor agent upgrade', Device: 'WS-PRACTICE-27', Window: '2026-09-27 13:00–13:30', Status: 'Approved' },
+      ] },
+    },
+    alerts: [{ id: 'ALT-5204', time: '2026-09-27T13:05:33Z', severity: 'High', title: 'Endpoint sensor detection on WS-PRACTICE-41', entities: ['WS-PRACTICE-41', 'CORP\\r.patel'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "WS-PRACTICE-41"' },
+      { id: 'ALT-5205', time: '2026-09-27T13:13:43Z', severity: 'Low', title: 'Software updater started by services.exe on WS-PRACTICE-12', entities: ['WS-PRACTICE-12', 'CORP\\s.kim'], rule: 'Updater process outside a change window', query: 'DeviceProcessEvents\n| where Host == "WS-PRACTICE-12"' },
+      { id: 'ALT-5206', time: '2026-09-27T13:02:03Z', severity: 'Medium', title: 'PowerShell execution-policy bypass on SRV-PRACTICE-03', entities: ['SRV-PRACTICE-03', 'CORP\\svc-archive'], rule: 'PowerShell launched with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where Host == "SRV-PRACTICE-03"' },
+      { id: 'ALT-5207', time: '2026-09-27T13:07:31Z', severity: 'Medium', title: 'New Run-key value on WS-PRACTICE-18', entities: ['WS-PRACTICE-18', 'SYSTEM'], rule: 'Run-key persistence write', query: 'DeviceRegistryEvents\n| where Host == "WS-PRACTICE-18"' },
+      { id: 'ALT-5208', time: '2026-09-27T13:12:00Z', severity: 'Low', title: 'Endpoint sensor stopped reporting on WS-PRACTICE-27', entities: ['WS-PRACTICE-27', 'CORP\\p.shah'], rule: 'No heartbeat from endpoint sensor for 5 minutes', query: 'DeviceSensorHealth\n| where Host == "WS-PRACTICE-27"' }],
   }), now: s.end };
 })();
 const MODULE_FIVE_GUIDED_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, caseId: MODULE_FIVE_GUIDED_FIXTURE.scenario.caseId, end: MODULE_FIVE_GUIDED_FIXTURE.scenario.end, data: MODULE_FIVE_GUIDED_CONSOLE_DATA });
@@ -922,6 +960,9 @@ const MODULE_FIVE_GUIDED_CONSOLE = SocConsoleTools.mount('m05-guided', {
     DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['prevalence', 'Prevalence'], ['reputation', 'Reputation']] },
     DeviceRegistryEvents: { native: 'EDR registry telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['key', 'RegistryPath'], ['action', 'Action'], ['result', 'Result']] },
     DeviceAlertEvents: { native: 'EDR sensor control outcomes (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['control', 'Action'], ['outcome', 'Result']] },
+    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+    DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['result', 'Result']] },
+    DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
   },
   packs: [
     { id: 'm04', ctx: { assessment: moduleFiveGuidedM04Tools, fixture: MODULE_FIVE_GUIDED_M04_FIXTURE, save: moduleFiveGuidedSave, rerender: () => moduleFiveRenderGuided(), console: () => m03eState('m05-guided') } },
@@ -936,7 +977,7 @@ const MODULE_FIVE_CONSOLE_DATA = (function () {
     EventType: e.eventType, Account: e.user, Host: e.host, DeviceId: e.deviceId, ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
     Image: e.image || '', CommandLine: e.commandLine || '', FilePath: e.filePath || '', Sha256: e.sha256 || '', RegistryPath: e.registryPath || '',
     Action: e.action, Result: e.result, Url: e.url || '', Signer: e.signer || '', Prevalence: e.prevalence ?? '', Reputation: e.reputation || '',
-    Detail: e.commandLine || e.registryPath || e.filePath || e.action,
+    Detail: moduleFiveDetail(e), ...moduleFiveExtraFields(e),
   }));
   const person = (account, name, owner) => ({ Account: account, DisplayName: name, Type: owner ? 'Service' : 'User', Department: owner ? 'IT Operations' : 'Finance', Owner: owner || '—', Privileged: owner ? 'Yes' : 'No', UsualSourceIp: '—', Notes: '' });
   return {
@@ -944,15 +985,24 @@ const MODULE_FIVE_CONSOLE_DATA = (function () {
       caseId: s.caseId,
       day,
       events,
-      identities: [person('CORP\\j.alvarez', 'J. Alvarez'), person('CORP\\m.reyes', 'M. Reyes'), person('SYSTEM', 'Local system', 'Endpoint platform')],
+      identities: [person('CORP\\j.alvarez', 'J. Alvarez'), person('CORP\\m.reyes', 'M. Reyes'), person('CORP\\d.okafor', 'D. Okafor'), person('CORP\\l.chen', 'L. Chen'), person('CORP\\svc-backup', 'Backup service', 'IT Operations'), person('SYSTEM', 'Local system', 'Endpoint platform')],
       ips: [],
       watchlists: {
         ApprovedSoftware: { title: 'Approved software inventory', rows: [
           { Product: 'Acme Updater', Publisher: 'CN=Acme Software LLC', Path: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', Deployment: 'All workstations', Status: 'Approved' },
+          { Product: 'Fabrikam Sync', Publisher: 'CN=Fabrikam Software Inc.', Path: 'C:\\Program Files\\Fabrikam\\Sync\\FabrikamSync.exe', Deployment: 'Managed deployment CHG-5118', Status: 'Approved' },
+        ] },
+        ChangeTickets: { title: 'Approved change tickets', rows: [
+          { ChangeId: 'CHG-5118', Summary: 'Fabrikam Sync client rollout', Device: 'WS-ASSESS-31', Window: '2026-09-27 09:00–10:00', Status: 'Approved' },
+          { ChangeId: 'CHG-5120', Summary: 'Endpoint sensor agent upgrade', Device: 'WS-ASSESS-40', Window: '2026-09-27 09:00–09:30', Status: 'Approved' },
         ] },
       },
       alerts: [
         { id: 'ALT-5127', time: '2026-09-27T09:05:33Z', severity: 'High', title: 'Endpoint sensor detection on WS-ASSESS-27', entities: ['WS-ASSESS-27', 'CORP\\j.alvarez'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "WS-ASSESS-27"' },
+        { id: 'ALT-5128', time: '2026-09-27T09:13:43Z', severity: 'Low', title: 'Software updater started by services.exe on WS-ASSESS-14', entities: ['WS-ASSESS-14', 'CORP\\m.reyes'], rule: 'Updater process outside a change window', query: 'DeviceProcessEvents\n| where Host == "WS-ASSESS-14"' },
+        { id: 'ALT-5129', time: '2026-09-27T09:02:03Z', severity: 'Medium', title: 'PowerShell execution-policy bypass on SRV-ASSESS-02', entities: ['SRV-ASSESS-02', 'CORP\\svc-backup'], rule: 'PowerShell launched with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where Host == "SRV-ASSESS-02"' },
+        { id: 'ALT-5130', time: '2026-09-27T09:07:31Z', severity: 'Medium', title: 'New Run-key value on WS-ASSESS-31', entities: ['WS-ASSESS-31', 'SYSTEM'], rule: 'Run-key persistence write', query: 'DeviceRegistryEvents\n| where Host == "WS-ASSESS-31"' },
+        { id: 'ALT-5131', time: '2026-09-27T09:12:00Z', severity: 'Low', title: 'Endpoint sensor stopped reporting on WS-ASSESS-40', entities: ['WS-ASSESS-40', 'CORP\\l.chen'], rule: 'No heartbeat from endpoint sensor for 5 minutes', query: 'DeviceSensorHealth\n| where Host == "WS-ASSESS-40"' },
       ],
     }),
     now: s.end,
@@ -977,6 +1027,9 @@ const MODULE_FIVE_CONSOLE = SocConsoleTools.mount('m05', {
     DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['prevalence', 'Prevalence'], ['reputation', 'Reputation']] },
     DeviceRegistryEvents: { native: 'EDR registry telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['key', 'RegistryPath'], ['action', 'Action'], ['result', 'Result']] },
     DeviceAlertEvents: { native: 'EDR sensor control outcomes (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['control', 'Action'], ['outcome', 'Result']] },
+    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+    DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['result', 'Result']] },
+    DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
   },
   packs: [
     { id: 'm04', ctx: { assessment: moduleFiveM04Tools, fixture: MODULE_FIVE_M04_FIXTURE, save: () => moduleFiveSave(), rerender: () => moduleFiveRenderAssessment(), console: () => m03eState('m05') } },

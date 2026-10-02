@@ -1190,7 +1190,7 @@ function moduleSixGuidedLabPanel() {
  * Module 6's Hunting and ATT&CK workspaces. */
 const MODULE_SIX_HUNT_SOURCES = {
   scheduled_task: 'DeviceTaskEvents', process_start: 'DeviceProcessEvents', file_indicator: 'DeviceFileEvents',
-  network_connection: 'DeviceNetworkEvents', identity_activity: 'IdentityEvents',
+  network_connection: 'DeviceNetworkEvents', identity_activity: 'IdentityEvents', sensor_health: 'DeviceSensorHealth',
 };
 const MODULE_SIX_CONSOLE_DATA = (function () {
   const s = SocM06AssessmentData.scenario;
@@ -1202,6 +1202,7 @@ const MODULE_SIX_CONSOLE_DATA = (function () {
     Action: e.action, Result: e.result, RelatedEventIds: e.relatedEventIds || [],
     EndpointEventType: e.eventType === 'file_indicator' ? 'file_hash' : e.eventType,
     Detail: e.commandLine || e.taskPath || e.path || (e.destination ? `${e.destination}:${e.destinationPort}` : e.action),
+    ...(e.coverageStatus ? { CoverageStatus: e.coverageStatus } : {}),
   }));
   const user = (account, notes) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Operations', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: notes });
   return {
@@ -1209,14 +1210,24 @@ const MODULE_SIX_CONSOLE_DATA = (function () {
       caseId: MODULE_SIX_BACKDOOR_CASE_ID,
       day: s.end.slice(0, 10),
       events,
-      identities: [user('acct-184', 'Signed in on ws-318'), user('acct-271', 'Signed in on ws-355')],
+      identities: [user('acct-184', 'Signed in on ws-318'), user('acct-271', 'Signed in on ws-355'), user('acct-402', 'Signed in on ws-402'),
+        { Account: 'acct-svc-health', DisplayName: 'Health agent service', Type: 'Service', Department: 'IT Operations', Owner: 'IT Operations', Privileged: 'No', UsualSourceIp: '—', Notes: 'Used by approved health-agent maintenance' },
+        { Account: 'acct-sys', DisplayName: 'Local system', Type: 'Service', Department: 'IT Operations', Owner: 'Endpoint platform', Privileged: 'Yes', UsualSourceIp: '—', Notes: 'Scheduler and sensor context' }],
       ips: [{ SourceIp: '198.51.100.88', Type: 'External', Country: '—', Asn: 'Unclassified hosting', FirstSeen: '2026-09-27 09:04', Reputation: 'No reputation data' }],
       watchlists: {
         ChangeTickets: { title: 'Approved change tickets', rows: [
           { ChangeId: 'CHG-2048', Summary: 'Contoso health-agent maintenance run', Device: 'ws-355', Window: '2026-09-27 09:00–10:00', Status: 'Approved' },
+          { ChangeId: 'CHG-2051', Summary: 'Browser cache cleanup script', Device: 'ws-402', Window: '2026-09-27 09:00–10:00', Status: 'Approved' },
+          { ChangeId: 'CHG-2052', Summary: 'Endpoint sensor agent upgrade', Device: 'ws-402', Window: '2026-09-27 09:15–09:30', Status: 'Approved' },
         ] },
       },
-      alerts: [],
+      // Unrelated alert candidates: none concerns the UpdateHealth lead on ws-318, which remains alert-free.
+      alerts: [
+        { id: 'ALT-6320', time: '2026-09-27T09:05:33Z', severity: 'Medium', title: 'Scheduled task launched PowerShell with execution-policy bypass on ws-402', entities: ['ws-402', 'acct-sys'], rule: 'Scheduled task child process is powershell.exe with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where DeviceId == "ws-402"' },
+        { id: 'ALT-6321', time: '2026-09-27T09:21:05Z', severity: 'Low', title: 'Endpoint sensor service stopped on ws-402', entities: ['ws-402'], rule: 'Sensor service stopped outside a heartbeat interval', query: 'DeviceSensorHealth\n| where DeviceId == "ws-402"' },
+        { id: 'ALT-6322', time: '2026-09-27T09:14:10Z', severity: 'Low', title: 'First-seen binary with outbound connection on ws-355', entities: ['ws-355', 'acct-271'], rule: 'Newly observed executable with an outbound TLS connection', query: 'DeviceNetworkEvents\n| where DeviceId == "ws-355"' },
+        { id: 'ALT-6323', time: '2026-09-27T09:13:50Z', severity: 'Low', title: 'Service-account logon on ws-355', entities: ['ws-355', 'acct-svc-health'], rule: 'Service account logon on a user workstation', query: 'IdentityEvents\n| where DeviceId == "ws-355"' },
+      ],
     }),
     now: s.end,
   };
@@ -1224,6 +1235,7 @@ const MODULE_SIX_CONSOLE_DATA = (function () {
 const MODULE_SIX_DEVICES = [
   { id: 'ws-318', hostname: 'WS-318', platform: 'Windows 11', role: 'User workstation', owner: 'acct-184', zone: 'CORP-USER', status: 'Online' },
   { id: 'ws-355', hostname: 'WS-355', platform: 'Windows 11', role: 'User workstation', owner: 'acct-271', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-402', hostname: 'WS-402', platform: 'Windows 11', role: 'User workstation', owner: 'acct-402', zone: 'CORP-USER', status: 'Online' },
 ];
 const MODULE_SIX_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: SocM06AssessmentData.scenario.id, caseId: MODULE_SIX_BACKDOOR_CASE_ID, end: SocM06AssessmentData.scenario.end, data: MODULE_SIX_CONSOLE_DATA });
 const MODULE_SIX_M05_FIXTURE = SocConsoleTools.m05Fixture({ id: SocM06AssessmentData.scenario.id, stateKey: 'm06-endpoint-tools-v1', devices: MODULE_SIX_DEVICES, data: MODULE_SIX_CONSOLE_DATA });
@@ -1248,6 +1260,7 @@ const MODULE_SIX_CONSOLE = (() => {
       DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['result', 'Result']] },
       DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
       IdentityEvents: { native: 'Identity session context (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['identity', 'Account'], ['action', 'Action'], ['result', 'Result']] },
+      DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
     },
     packs: [
       { id: 'm04', ctx: { ...base, assessment: moduleSixM04Tools, fixture: MODULE_SIX_M04_FIXTURE } },
@@ -1262,14 +1275,73 @@ const MODULE_SIX_CONSOLE = (() => {
 // Practice It: a separate cross-device script recurrence fixture and console
 // state, using the same cumulative packs and evidence mechanics as Prove It.
 const MODULE_SIX_GUIDED_LAB_ID = 'm06-guided-cross-device-hunt-v1';
+// Background-row builders for the Practice It hunt (Sprint 3). Same event shape as the authored rows.
+const moduleSixGuidedSha = (seed) => seed.repeat(Math.ceil(64 / seed.length)).slice(0, 64);
+const moduleSixGuidedEv = (n, time, eventType, device, account, o) => ({
+  id: `M06-GUIDE-${n}`, time: `2026-09-27T${time}Z`, eventType, device, host: device.toUpperCase(), account,
+  processId: null, parentProcessId: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', ...o,
+});
+const moduleSixGuidedProc = (n, time, device, account, pid, ppid, image, commandLine, o = {}) => moduleSixGuidedEv(n, time, 'process_start', device, account, { processId: pid, parentProcessId: ppid, image, commandLine, ...o });
+const moduleSixGuidedNet = (n, time, device, account, pid, ppid, destination, result = 'allowed', o = {}) => moduleSixGuidedEv(n, time, 'network_connection', device, account, { processId: pid, parentProcessId: ppid, destination, destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result, source: 'SyntheticNetwork', ...o });
+const moduleSixGuidedTask = (n, time, device, account, pid, taskName, taskPath, o = {}) => moduleSixGuidedEv(n, time, 'scheduled_task', device, account, { processId: pid, taskName, taskPath, action: 'task_execution', result: 'started', source: 'SyntheticTaskScheduler', ...o });
+const moduleSixGuidedHealth = (n, time, device, o = {}) => moduleSixGuidedEv(n, time, 'sensor_health', device, 'acct-localsys', { action: 'sensor_heartbeat', result: 'healthy', coverageStatus: 'Full', source: 'SyntheticSensorHealth', ...o });
+const moduleSixGuidedFile = (n, time, device, account, pid, ppid, path, seed, signer, result, o = {}) => moduleSixGuidedEv(n, time, 'file_indicator', device, account, { processId: pid, parentProcessId: ppid, path, sha256: moduleSixGuidedSha(seed), signer, action: 'file_observed', result, source: 'SyntheticFileTelemetry', ...o });
+const MODULE_SIX_GUIDED_SVCHOST = 'C:\\Windows\\System32\\svchost.exe';
+const MODULE_SIX_GUIDED_PS = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+const MODULE_SIX_GUIDED_FIREFOX = 'C:\\Program Files\\Mozilla Firefox\\firefox.exe';
+const MODULE_SIX_GUIDED_BACKGROUND = [
+  // ws-421: routine browser/update activity and the signed viewer identity beside the unsigned script.
+  moduleSixGuidedHealth(213, '10:00:10', 'ws-421'),
+  moduleSixGuidedProc(214, '10:01:20', 'ws-421', 'acct-602', '4200', null, MODULE_SIX_GUIDED_FIREFOX, 'firefox.exe', { signer: 'CN=Mozilla Corporation', relatedEventIds: ['M06-GUIDE-215'] }),
+  moduleSixGuidedNet(215, '10:01:31', 'ws-421', 'acct-602', '4200', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-214'] }),
+  moduleSixGuidedProc(216, '10:02:00', 'ws-421', 'acct-localsys', '4205', null, MODULE_SIX_GUIDED_SVCHOST, 'svchost.exe -k netsvcs -p -s Schedule', { relatedEventIds: ['M06-GUIDE-217'] }),
+  moduleSixGuidedTask(217, '10:02:15', 'ws-421', 'acct-localsys', '4205', 'Adobe Acrobat Update Task', '\\Adobe Acrobat Update Task', { relatedEventIds: ['M06-GUIDE-216', 'M06-GUIDE-218'] }),
+  moduleSixGuidedProc(218, '10:02:18', 'ws-421', 'acct-602', '4231', '4205', 'C:\\Program Files (x86)\\Common Files\\Adobe\\ARM\\1.0\\AdobeARMHelper.exe', 'AdobeARMHelper.exe', { signer: 'CN=Adobe Inc.', relatedEventIds: ['M06-GUIDE-217', 'M06-GUIDE-219'] }),
+  moduleSixGuidedNet(219, '10:02:24', 'ws-421', 'acct-602', '4231', '4205', 'armmf.adobe.com', 'allowed', { relatedEventIds: ['M06-GUIDE-218'] }),
+  moduleSixGuidedFile(220, '10:04:05', 'ws-421', 'acct-602', '4210', null, 'C:\\Program Files\\Northstar\\DocPreview.exe', '6c2e90', 'CN=Northstar Software', 'signed_binary', { relatedEventIds: ['M06-GUIDE-201'] }),
+  moduleSixGuidedHealth(221, '10:34:50', 'ws-421'),
+  // ws-537: second seed host baseline, a connection retry and the signed mail viewer identity.
+  moduleSixGuidedHealth(222, '10:00:12', 'ws-537'),
+  moduleSixGuidedProc(223, '10:10:00', 'ws-537', 'acct-684', '5300', null, 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', 'msedge.exe --profile-directory=Default', { signer: 'CN=Microsoft Corporation', relatedEventIds: ['M06-GUIDE-224', 'M06-GUIDE-225'] }),
+  moduleSixGuidedNet(224, '10:10:21', 'ws-537', 'acct-684', '5300', null, 'intranet.northstar.example', 'timed_out', { relatedEventIds: ['M06-GUIDE-223', 'M06-GUIDE-225'] }),
+  moduleSixGuidedNet(225, '10:10:25', 'ws-537', 'acct-684', '5300', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-223', 'M06-GUIDE-224'] }),
+  moduleSixGuidedFile(226, '10:18:05', 'ws-537', 'acct-684', '5370', null, 'C:\\Program Files\\Northstar\\MailViewer.exe', '9b41d7', 'CN=Northstar Software', 'signed_binary', { relatedEventIds: ['M06-GUIDE-206'] }),
+  moduleSixGuidedEv(227, '10:12:40', 'identity_activity', 'ws-537', 'acct-684', { identity: 'acct-684', identityType: 'user', authentication: 'unlock', action: 'session_unlock', source: 'SyntheticIdentity' }),
+  moduleSixGuidedHealth(228, '10:34:52', 'ws-537'),
+  // ws-612: signed baseline host with a retry, an approved update task and sensor heartbeats.
+  moduleSixGuidedHealth(229, '10:00:08', 'ws-612'),
+  moduleSixGuidedFile(230, '10:25:03', 'ws-612', 'acct-712', '6120', null, 'C:\\Program Files\\Nimbus\\Sync\\NimbusSync.exe', 'f05a38', 'CN=Nimbus Software', 'signed_binary', { relatedEventIds: ['M06-GUIDE-211'] }),
+  moduleSixGuidedNet(231, '10:25:40', 'ws-612', 'acct-712', '6120', null, 'updates.nimbus.example', 'allowed', { relatedEventIds: ['M06-GUIDE-211', 'M06-GUIDE-212'] }),
+  moduleSixGuidedTask(232, '10:24:55', 'ws-612', 'acct-localsys', null, 'NimbusSyncUpdate', '\\Nimbus\\NimbusSyncUpdate', { result: 'approved_maintenance', maintenanceId: 'CHG-6104', relatedEventIds: ['M06-GUIDE-211'] }),
+  moduleSixGuidedEv(233, '10:20:10', 'identity_activity', 'ws-612', 'acct-712', { identity: 'acct-712', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', source: 'SyntheticIdentity' }),
+  moduleSixGuidedHealth(234, '10:34:51', 'ws-612'),
+  // ws-655: neighbor host. Signed inventory scan resembles the seed behavior, a bounded sensor gap, and no benefits_form.ps1.
+  moduleSixGuidedHealth(235, '10:00:09', 'ws-655'),
+  moduleSixGuidedProc(236, '10:03:00', 'ws-655', 'acct-655', '6550', null, MODULE_SIX_GUIDED_FIREFOX, 'firefox.exe', { signer: 'CN=Mozilla Corporation', relatedEventIds: ['M06-GUIDE-237'] }),
+  moduleSixGuidedNet(237, '10:03:12', 'ws-655', 'acct-655', '6550', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-236'] }),
+  moduleSixGuidedProc(238, '10:08:00', 'ws-655', 'acct-localsys', '6500', null, MODULE_SIX_GUIDED_SVCHOST, 'svchost.exe -k netsvcs -p -s Schedule', { relatedEventIds: ['M06-GUIDE-239'] }),
+  moduleSixGuidedTask(239, '10:08:20', 'ws-655', 'acct-localsys', '6500', 'WeeklyInventoryScan', '\\Northstar\\WeeklyInventoryScan', { result: 'approved_maintenance', maintenanceId: 'CHG-6107', relatedEventIds: ['M06-GUIDE-238', 'M06-GUIDE-240'] }),
+  moduleSixGuidedProc(240, '10:08:23', 'ws-655', 'acct-localsys', '6544', '6500', MODULE_SIX_GUIDED_PS, 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\\Program Files\\Northstar\\Inventory\\Scan-Inventory.ps1"', { scriptPath: 'C:\\Program Files\\Northstar\\Inventory\\Scan-Inventory.ps1', relatedEventIds: ['M06-GUIDE-239', 'M06-GUIDE-241'] }),
+  moduleSixGuidedFile(241, '10:08:26', 'ws-655', 'acct-localsys', '6544', '6500', 'C:\\Program Files\\Northstar\\Inventory\\Scan-Inventory.ps1', '2d7f64', 'CN=Northstar IT', 'signed_script', { relatedEventIds: ['M06-GUIDE-240'] }),
+  moduleSixGuidedHealth(242, '10:20:00', 'ws-655', { action: 'sensor_service_stopped', result: 'stopped_for_agent_upgrade', coverageStatus: 'Gap', maintenanceId: 'CHG-6108', relatedEventIds: ['M06-GUIDE-243'] }),
+  moduleSixGuidedHealth(243, '10:26:40', 'ws-655', { action: 'sensor_service_started', result: 'reporting_resumed', coverageStatus: 'Partial', maintenanceId: 'CHG-6108', relatedEventIds: ['M06-GUIDE-242'] }),
+  moduleSixGuidedProc(244, '10:29:00', 'ws-655', 'acct-655', '6580', null, 'C:\\Windows\\System32\\notepad.exe', 'notepad.exe'),
+  moduleSixGuidedHealth(245, '10:34:53', 'ws-655'),
+  // Periodic signed-browser polling (regular interval, signed client) and routine office work.
+  moduleSixGuidedNet(246, '10:11:31', 'ws-421', 'acct-602', '4200', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-214', 'M06-GUIDE-215'] }),
+  moduleSixGuidedNet(247, '10:21:31', 'ws-421', 'acct-602', '4200', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-214', 'M06-GUIDE-215'] }),
+  moduleSixGuidedProc(248, '10:14:00', 'ws-612', 'acct-712', '6140', null, 'C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE', 'EXCEL.EXE', { signer: 'CN=Microsoft Corporation', relatedEventIds: ['M06-GUIDE-249'] }),
+  moduleSixGuidedNet(249, '10:14:20', 'ws-612', 'acct-712', '6140', null, 'files.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-248'] }),
+  moduleSixGuidedEv(250, '10:30:00', 'identity_activity', 'ws-537', 'acct-684', { identity: 'acct-684', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', source: 'SyntheticIdentity' }),
+];
 const MODULE_SIX_GUIDED_FIXTURE = {
   schemaVersion: 1,
   scenario: {
     id: 'M06-GUIDED-2026-09-27', stateKey: 'm06-guided-hunt-actions-v1', fixedAt: '2026-09-27T10:35:00Z',
     start: '2026-09-27T10:00:00Z', end: '2026-09-27T10:35:00Z',
     seedLead: { id: 'M06-GUIDE-LEAD-001', type: 'cross_device_script_indicator', device: 'ws-421', account: 'acct-602', artifactLabel: 'Seed indicator', artifact: 'Unsigned PowerShell script hash a…', observation: 'An unsigned script and the same unfamiliar destination recur beneath document-viewing processes on two workstations. No alert was raised.' },
-    scope: { devices: ['ws-421', 'ws-537', 'ws-612'], accounts: ['acct-602', 'acct-684', 'acct-712'], timeStart: '2026-09-27T10:00:00Z', timeEnd: '2026-09-27T10:35:00Z', note: 'ws-612 provides a signed software baseline; the two seed workstations have different users and parent processes.' },
-    telemetrySchema: { required: ['id', 'time', 'eventType', 'device', 'host', 'account', 'processId', 'parentProcessId', 'action', 'result', 'source'], eventTypes: ['process_start', 'file_indicator', 'network_connection', 'identity_activity'], references: 'Process IDs and related event IDs are scenario-local.' },
+    scope: { devices: ['ws-421', 'ws-537', 'ws-612', 'ws-655'], accounts: ['acct-602', 'acct-684', 'acct-712'], timeStart: '2026-09-27T10:00:00Z', timeEnd: '2026-09-27T10:35:00Z', note: 'ws-612 provides a signed software baseline; the two seed workstations have different users and parent processes. ws-655 is a neighboring workstation used for baseline and bounded negative checks.' },
+    telemetrySchema: { required: ['id', 'time', 'eventType', 'device', 'host', 'account', 'processId', 'parentProcessId', 'action', 'result', 'source'], eventTypes: ['process_start', 'file_indicator', 'network_connection', 'identity_activity', 'scheduled_task', 'sensor_health'], references: 'Process IDs and related event IDs are scenario-local.' },
     telemetry: [
       { id: 'M06-GUIDE-201', time: '2026-09-27T10:04:02Z', eventType: 'process_start', device: 'ws-421', host: 'WS-421', account: 'acct-602', processId: '4210', parentProcessId: null, image: 'C:\\Program Files\\Northstar\\DocPreview.exe', commandLine: 'DocPreview.exe "C:\\Users\\acct-602\\Downloads\\benefits.pdf"', action: 'document_opened', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-202'] },
       { id: 'M06-GUIDE-202', time: '2026-09-27T10:04:08Z', eventType: 'process_start', device: 'ws-421', host: 'WS-421', account: 'acct-602', processId: '4218', parentProcessId: '4210', image: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', commandLine: 'powershell.exe -NoProfile -File C:\\Users\\acct-602\\Downloads\\benefits_form.ps1', scriptPath: 'C:\\Users\\acct-602\\Downloads\\benefits_form.ps1', action: 'process_start', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-201', 'M06-GUIDE-203', 'M06-GUIDE-204'] },
@@ -1283,8 +1355,23 @@ const MODULE_SIX_GUIDED_FIXTURE = {
       { id: 'M06-GUIDE-210', time: '2026-09-27T10:19:02Z', eventType: 'identity_activity', device: 'ws-537', host: 'WS-537', account: 'acct-684', identity: 'acct-684', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', result: 'success', source: 'SyntheticIdentity', relatedEventIds: ['M06-GUIDE-209'] },
       { id: 'M06-GUIDE-211', time: '2026-09-27T10:25:00Z', eventType: 'process_start', device: 'ws-612', host: 'WS-612', account: 'acct-712', processId: '6120', parentProcessId: null, image: 'C:\\Program Files\\Nimbus\\Sync\\NimbusSync.exe', commandLine: 'NimbusSync.exe /update /silent', signer: 'CN=Nimbus Software', action: 'approved_update_check', result: 'signed_binary', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-212'] },
       { id: 'M06-GUIDE-212', time: '2026-09-27T10:25:12Z', eventType: 'network_connection', device: 'ws-612', host: 'WS-612', account: 'acct-712', processId: '6120', parentProcessId: null, destination: 'updates.nimbus.example', destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result: 'approved_service', source: 'SyntheticNetwork', relatedEventIds: ['M06-GUIDE-211'] },
+      ...MODULE_SIX_GUIDED_BACKGROUND,
     ],
     expectedTruth: {
+      benignBackground: [
+        { device: 'ws-421', eventIds: ['M06-GUIDE-214', 'M06-GUIDE-215', 'M06-GUIDE-216', 'M06-GUIDE-217', 'M06-GUIDE-218', 'M06-GUIDE-219', 'M06-GUIDE-220', 'M06-GUIDE-246', 'M06-GUIDE-247'] },
+        { device: 'ws-537', eventIds: ['M06-GUIDE-223', 'M06-GUIDE-224', 'M06-GUIDE-225', 'M06-GUIDE-226', 'M06-GUIDE-227', 'M06-GUIDE-250'] },
+        { device: 'ws-612', eventIds: ['M06-GUIDE-230', 'M06-GUIDE-231', 'M06-GUIDE-232', 'M06-GUIDE-233', 'M06-GUIDE-248', 'M06-GUIDE-249'] },
+        { device: 'ws-655', eventIds: ['M06-GUIDE-236', 'M06-GUIDE-237', 'M06-GUIDE-238', 'M06-GUIDE-239', 'M06-GUIDE-240', 'M06-GUIDE-241', 'M06-GUIDE-244'] },
+      ],
+      coverageGaps: [
+        { device: 'ws-655', windowStart: '2026-09-27T10:20:00Z', windowEnd: '2026-09-27T10:26:40Z', eventIds: ['M06-GUIDE-242', 'M06-GUIDE-243'], note: 'Planned sensor upgrade under CHG-6108: no endpoint telemetry exists for ws-655 in this interval.' },
+        { device: 'all', coverageEventIds: ['M06-GUIDE-213', 'M06-GUIDE-221', 'M06-GUIDE-222', 'M06-GUIDE-228', 'M06-GUIDE-229', 'M06-GUIDE-234', 'M06-GUIDE-235', 'M06-GUIDE-245'], note: 'Start and end heartbeats record Full coverage for the four workstations (ws-655 outside its gap).' },
+      ],
+      negativeEvidence: {
+        statement: 'No benefits_form.ps1 execution or connection to 192.0.2.145 is recorded on ws-655 between 10:00:00Z and 10:35:00Z, except that ws-655 has no telemetry from 10:20:00Z to 10:26:40Z. The finding is bounded to this device, these sources and the covered time.',
+        device: 'ws-655', result: 'no_match', coverageEventIds: ['M06-GUIDE-235', 'M06-GUIDE-242', 'M06-GUIDE-243', 'M06-GUIDE-245'],
+      },
       hypothesis: 'The same unsigned PowerShell script hash and unfamiliar destination recur on ws-421 and ws-537 beneath different document viewers. The evidence supports a bounded cross-device execution pattern but does not establish payload transfer, web-protocol use, or enterprise-wide scope.',
       supportedTechniques: [{ id: 'T1059.001', name: 'PowerShell', evidenceEventIds: ['M06-GUIDE-202', 'M06-GUIDE-207'], rationale: 'Process telemetry records PowerShell running the same unsigned low-prevalence script on two endpoints.' }],
       unsupportedTechniques: [
@@ -1298,8 +1385,9 @@ const MODULE_SIX_GUIDED_DEVICES = [
   { id: 'ws-421', hostname: 'WS-421', platform: 'Windows 11', role: 'User workstation', owner: 'acct-602', zone: 'CORP-USER', status: 'Online' },
   { id: 'ws-537', hostname: 'WS-537', platform: 'Windows 11', role: 'User workstation', owner: 'acct-684', zone: 'CORP-USER', status: 'Online' },
   { id: 'ws-612', hostname: 'WS-612', platform: 'Windows 11', role: 'User workstation', owner: 'acct-712', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-655', hostname: 'WS-655', platform: 'Windows 11', role: 'User workstation', owner: 'acct-655', zone: 'CORP-USER', status: 'Online' },
 ];
-const MODULE_SIX_GUIDED_HUNT_SOURCES = { process_start: 'DeviceProcessEvents', file_indicator: 'DeviceFileEvents', network_connection: 'DeviceNetworkEvents', identity_activity: 'IdentityEvents' };
+const MODULE_SIX_GUIDED_HUNT_SOURCES = { process_start: 'DeviceProcessEvents', file_indicator: 'DeviceFileEvents', network_connection: 'DeviceNetworkEvents', identity_activity: 'IdentityEvents', scheduled_task: 'DeviceTaskEvents', sensor_health: 'DeviceSensorHealth' };
 const MODULE_SIX_GUIDED_CONSOLE_DATA = (() => {
   const s = MODULE_SIX_GUIDED_FIXTURE.scenario;
   const events = s.telemetry.map((event) => m03eRow(MODULE_SIX_GUIDED_HUNT_SOURCES[event.eventType], event.id, event.time.slice(0, 10), event.time.slice(11, 19), {
@@ -1308,14 +1396,26 @@ const MODULE_SIX_GUIDED_CONSOLE_DATA = (() => {
     Image: event.image || '', CommandLine: event.commandLine || '', ScriptPath: event.scriptPath || '', FilePath: event.path || event.scriptPath || '',
     Sha256: event.sha256 || '', Signer: event.signer || '', DestinationIp: /^[\d.]+$/.test(event.destination || '') ? event.destination : '',
     Domain: /^[\d.]+$/.test(event.destination || '') ? '' : (event.destination || ''), DestinationPort: event.destinationPort || '',
-    Action: event.action, Result: event.result, RelatedEventIds: event.relatedEventIds || [], Detail: event.commandLine || event.path || event.destination || event.action,
+    Action: event.action, Result: event.result, RelatedEventIds: event.relatedEventIds || [], Detail: event.commandLine || event.path || event.destination || event.taskName || event.action,
+    ...(event.taskName ? { TaskName: event.taskName, TaskPath: event.taskPath || '', MaintenanceId: event.maintenanceId || '' } : {}),
+    ...(event.coverageStatus ? { CoverageStatus: event.coverageStatus } : {}),
   }));
   const person = (account, name) => ({ Account: account, DisplayName: name, Type: 'User', Department: 'Operations', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' });
   return { ...m03eBuildDataset({ caseId: 'HNT-6411', day: s.end.slice(0, 10), events,
-    identities: [person('acct-602', 'Analyst Seed User'), person('acct-684', 'Comparison User'), person('acct-712', 'Nimbus Service User')],
+    identities: [person('acct-602', 'Analyst Seed User'), person('acct-684', 'Comparison User'), person('acct-712', 'Nimbus Service User'), person('acct-655', 'Neighbor User'), { Account: 'acct-localsys', DisplayName: 'Local system', Type: 'Service', Department: 'IT Operations', Owner: 'Endpoint platform', Privileged: 'Yes', UsualSourceIp: '—', Notes: 'Scheduler and sensor context' }],
     ips: [{ SourceIp: '192.0.2.145', Type: 'External', Country: '—', Asn: 'Unclassified test network', FirstSeen: '2026-09-27 10:04', Reputation: 'No reputation data' }],
-    watchlists: { ApprovedSoftware: { title: 'Approved software inventory', rows: [{ Product: 'NimbusSync', Publisher: 'CN=Nimbus Software', Path: 'C:\\Program Files\\Nimbus\\Sync\\NimbusSync.exe', Deployment: 'Managed workstations', Status: 'Approved' }] } },
-    alerts: [{ id: 'ALT-6411', time: '2026-09-27T10:04:16Z', severity: 'Medium', title: 'Repeated script indicator across endpoints', entities: ['WS-421', 'WS-537', 'acct-602', 'acct-684'], rule: 'Unfamiliar destination correlated with unsigned script execution', query: 'DeviceNetworkEvents\n| where DestinationIp == "192.0.2.145"' }],
+    watchlists: {
+      ApprovedSoftware: { title: 'Approved software inventory', rows: [{ Product: 'NimbusSync', Publisher: 'CN=Nimbus Software', Path: 'C:\\Program Files\\Nimbus\\Sync\\NimbusSync.exe', Deployment: 'Managed workstations', Status: 'Approved' }] },
+      ChangeTickets: { title: 'Approved change tickets', rows: [
+        { ChangeId: 'CHG-6104', Summary: 'NimbusSync update window', Device: 'ws-612', Window: '2026-09-27 10:00–11:00', Status: 'Approved' },
+        { ChangeId: 'CHG-6107', Summary: 'Weekly inventory scan script', Device: 'ws-655', Window: '2026-09-27 10:00–11:00', Status: 'Approved' },
+        { ChangeId: 'CHG-6108', Summary: 'Endpoint sensor agent upgrade', Device: 'ws-655', Window: '2026-09-27 10:15–10:30', Status: 'Approved' },
+      ] },
+    },
+    alerts: [{ id: 'ALT-6411', time: '2026-09-27T10:04:16Z', severity: 'Medium', title: 'Repeated script indicator across endpoints', entities: ['WS-421', 'WS-537', 'acct-602', 'acct-684'], rule: 'Unfamiliar destination correlated with unsigned script execution', query: 'DeviceNetworkEvents\n| where DestinationIp == "192.0.2.145"' },
+      { id: 'ALT-6412', time: '2026-09-27T10:08:23Z', severity: 'Medium', title: 'Scheduled task launched PowerShell with execution-policy bypass on WS-655', entities: ['ws-655', 'acct-localsys'], rule: 'Scheduled task child process is powershell.exe with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where DeviceId == "ws-655"' },
+      { id: 'ALT-6413', time: '2026-09-27T10:20:05Z', severity: 'Low', title: 'Endpoint sensor service stopped on WS-655', entities: ['ws-655'], rule: 'Sensor service stopped outside a heartbeat interval', query: 'DeviceSensorHealth\n| where DeviceId == "ws-655"' },
+      { id: 'ALT-6414', time: '2026-09-27T10:24:55Z', severity: 'Low', title: 'Scheduled updater task on WS-612', entities: ['ws-612', 'acct-712'], rule: 'Scheduled task started a vendor updater', query: 'DeviceTaskEvents\n| where DeviceId == "ws-612"' }],
   }), now: s.end };
 })();
 const MODULE_SIX_GUIDED_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: MODULE_SIX_GUIDED_FIXTURE.scenario.id, caseId: 'HNT-6411', end: MODULE_SIX_GUIDED_FIXTURE.scenario.end, data: MODULE_SIX_GUIDED_CONSOLE_DATA });

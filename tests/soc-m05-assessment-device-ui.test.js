@@ -12,7 +12,7 @@ const ui = vm.runInContext('SocM05AssessmentDeviceUi', context);
 const fixture = vm.runInContext('SocM05AssessmentData.scenario', context);
 const realInventory = ui.render(fixture);
 for (const device of fixture.devices) assert.match(realInventory, new RegExp(`data-m05-device-select="${device.id}"`));
-assert.strictEqual((realInventory.match(/data-m05-device-select=/g) || []).length, 3);
+assert.strictEqual((realInventory.match(/data-m05-device-select=/g) || []).length, 5);
 const assessedDevice = ui.render(fixture, 'M05-DEV-001');
 assert.match(assessedDevice, /File and reputation evidence/);
 assert.match(assessedDevice, /syncsvc\.exe/);

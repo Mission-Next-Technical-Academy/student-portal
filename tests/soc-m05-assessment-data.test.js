@@ -84,6 +84,6 @@ try { scenario.devices[0].hostname = 'CHANGED'; } catch (_) { /* Frozen writes c
 try { scenario.devices.push({ id: 'M05-DEV-X' }); } catch (_) { /* Frozen arrays reject mutation. */ }
 try { scenario.telemetrySchema.required.push('answer'); } catch (_) { /* Frozen arrays reject mutation. */ }
 assert.strictEqual(scenario.devices[0].hostname, 'WS-ASSESS-27');
-assert.strictEqual(scenario.devices.length, 3);
+assert.strictEqual(scenario.devices.length, 5);
 assert.strictEqual(scenario.telemetrySchema.required.length, 16);
 console.log('M05 assessment data contract: all checks passed');

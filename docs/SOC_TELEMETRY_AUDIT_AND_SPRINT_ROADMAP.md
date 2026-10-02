@@ -162,7 +162,9 @@ Run these as separate, reviewable implementation sprints. Each sprint has a narr
 
 **Delegation brief:** “Enrich only synthetic scenario rows for SOC Modules 1–4. Keep current UI, lab sections, scoring, IDs where referenced, and case objectives intact. Increase routine activity and explainable distractors gradually; update truth/answer references and the inventory.”
 
-### Sprint 3 — Endpoint and hunt depth (Modules 5–6)
+### Sprint 3 — Endpoint and hunt depth (Modules 5–6) ✅ (2026-10-02)
+
+> **Done.** Unique events / source tables / authored alerts: M05 13/4/1 → 52/7/5 (guided and assessment; guided remains derived from assessment via the replacement map, new Practice IDs `M05-PR-214`–`252`) · M06 assessment 9/5/0 → 51/6/4 · M06 guided 12/4/1 → 50/6/4. New devices WS-ASSESS-31/40 (M05), `ws-402` (M06 assessment, added to `scope.devices`), `ws-655` (M06 guided). Added signed background activity, explainable false leads (backup PowerShell `-ExecutionPolicy Bypass` under service account; managed-installer Run key under change ticket; signed cache-cleanup task), new `sensor_health` / `DeviceSensorHealth` table with heartbeats and a planned upgrade gap, and bounded negative-evidence queries (M05 no `syncsvc.exe` network on WS-ASSESS-27; M06 no `UpdateHealth` on `ws-402`). Tags: `expectedTruth.benignBackground`, `coverageGaps`, `negativeEvidence`, `fixtureNotes.eventPurposes` (not rendered). No scorer/rubric logic or existing EventIds changed; M06 saved `scheduled_task` query on `ws-318` now also returns ordinary `M06-EVT-014`. **Open:** M06 stays in its 09:00–09:30 window (no prior-day baselines); inventory script's static claim text needs a refresh (Sprint 6).
 
 **Purpose:** Make endpoint and hunt tasks require comparison and bounded searching, not just reading a preassembled chain.
 

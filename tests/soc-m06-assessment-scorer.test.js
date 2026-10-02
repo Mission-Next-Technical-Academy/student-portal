@@ -62,7 +62,7 @@ let restoredSource = stateApi.normalize({
     resultEventIds: device === 'ws-318' ? ['M06-EVT-001', 'M06-EVT-003'] : ['M06-EVT-007', 'M06-EVT-008'] })),
   savedQueries: [{ id: savedQueryId, name: 'Task activity', query: 'eventType == "scheduled_task"' }],
   savedQueryRuns: [{ savedQueryId, name: 'Task activity', query: 'eventType == "scheduled_task"', entityType: 'device', entityValue: 'ws-318',
-    startTime: start, endTime: end, timestamp: end, resultEventIds: ['M06-EVT-001'] }],
+    startTime: start, endTime: end, timestamp: end, resultEventIds: ['M06-EVT-014', 'M06-EVT-001'] }],
   pivots: [{ fromEventId: 'M06-EVT-001', toEventId: 'M06-EVT-002', field: 'relatedEventIds', value: 'M06-EVT-002', timestamp: end }],
   collections: [{ id: 'M06-COLLECTION-000001', name: 'Evidence', eventIds: ['M06-EVT-001', 'M06-EVT-003'] }],
   selectedCollectionId: 'M06-COLLECTION-000001',
@@ -73,7 +73,7 @@ let restoredSource = stateApi.normalize({
 const audit = [
   ['hypothesis_edit', { hypothesisId: 'H-000001', text: complete.hypotheses[0].text, relatedEventIds: ['M06-EVT-001'] }],
   ['saved_query_create', { savedQueryId, name: 'Task activity', query: 'eventType == "scheduled_task"' }],
-  ['saved_query_run', { savedQueryId, resultEventIds: ['M06-EVT-001'], resultCount: 1 }],
+  ['saved_query_run', { savedQueryId, resultEventIds: ['M06-EVT-014', 'M06-EVT-001'], resultCount: 2 }],
   ['pivot', { fromEventId: 'M06-EVT-001', toEventId: 'M06-EVT-002', field: 'relatedEventIds', value: 'M06-EVT-002' }],
   ['collection', { collectionId: 'M06-COLLECTION-000001', name: 'Evidence', eventIds: ['M06-EVT-001', 'M06-EVT-003'], operation: 'create' }],
   ...complete.mappings.map((mapping) => ['attack_mapping_change', mapping]),
