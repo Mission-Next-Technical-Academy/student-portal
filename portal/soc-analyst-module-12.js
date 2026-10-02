@@ -25,7 +25,7 @@ const MODULE_TWELVE_CONSOLES = {
       ['EM-210', '09:02', 'Benefits enrollment correction', 'notify@benefits-partner.example', 'acct-204'],
       ['EM-211', '09:03', 'SPF pass; DKIM fail; reply-to mismatch', 'reply@benefits-review.example', 'acct-204'],
       ['EM-212', '09:08', 'Recipient opened linked document', 'redirect → update-check.example', 'acct-204'],
-      ['EM-213', '08:57', 'Quarterly wellness newsletter', 'people-ops@mission-next.example', 'All staff'],
+      ['EM-213', '08:57', 'Quarterly wellness newsletter', 'people-ops@mission-next.example', 'all-staff'],
     ],
   },
   query: {
@@ -102,9 +102,9 @@ const MODULE_TWELVE_CONSOLES = {
     label: 'Case file', icon: 'ri-file-list-3-line', kicker: 'Evidence & reporting',
     brief: 'Preserve the reasoning chain and communicate impact without overstating certainty.',
     rows: [
-      ['EV-901', 'Endpoint export', 'SHA256 recorded; collected 09:44Z', 'Custodian SOC-04'],
-      ['EV-902', 'Identity export', 'Session records; collected 09:46Z', 'Custodian SOC-04'],
-      ['EV-903', 'Email export', 'Headers + redirect chain; collected 09:49Z', 'Custodian SOC-04'],
+      ['EV-901', 'Endpoint export', 'SHA256 recorded; collected 09:44Z', 'Custodian soc-04'],
+      ['EV-902', 'Identity export', 'Session records; collected 09:46Z', 'Custodian soc-04'],
+      ['EV-903', 'Email export', 'Headers + redirect chain; collected 09:49Z', 'Custodian soc-04'],
       ['EV-904', 'Case state', 'INC-4821 · containment pending', 'Owner IR lead'],
     ],
   },
