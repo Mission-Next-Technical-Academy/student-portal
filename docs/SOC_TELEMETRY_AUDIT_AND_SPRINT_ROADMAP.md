@@ -1,24 +1,31 @@
 # SOC Telemetry Audit and Sprint Roadmap
 
-**Status:** ✅ Sprints 0–6 implemented 2026-10-02 (see per-sprint notes and open items below)\
+**Status:** ✅ Sprints 0–6 implemented 2026-10-02; open-items pass 1 done same day (entity identity phase 2 next)\
 **Audit date:** 2026-10-02\
 **Scope:** SOC Analyst course Modules 1–12; synthetic logs, alerts, tables, schemas, and analyst search experience\
 **Guardrails:** Preserve the Academy UI, module/Learn-Practice-Prove structure, and lab identities. Increase available telemetry progressively across modules; do not redesign the course or expose later-module answers early.
 
-## Next AI — start here (2026-10-02, after Sprint 6)
+## Next AI — start here (2026-10-02, after open-items pass 1)
 
-All seven sprints have shipped as data-only changes. The whole `tests/*.test.js` suite passes (72/72), including the three suites that failed before this work. Regenerate the current counts with `node scripts/soc-telemetry-inventory.js` (outputs live in `docs/telemetry/`). Validate fixtures with `SocTelemetrySchema` (contract: `docs/telemetry/SOC_TELEMETRY_SCHEMA.md`).
+All seven sprints shipped as data-only changes. The whole `tests/*.test.js` suite passes (72/72). Regenerate counts with `node scripts/soc-telemetry-inventory.js` (outputs in `docs/telemetry/`). Validate fixtures with `SocTelemetrySchema` (contract: `docs/telemetry/SOC_TELEMETRY_SCHEMA.md`). Check entity identity with `node scripts/soc-entity-identity-lint.js` (report: `docs/telemetry/ENTITY_IDENTITY_LINT.md`; `--strict` exits 1 on violations, `--no-write` skips the report).
 
-**Assessment progression now (unique events / tables / alerts):** M01 46/1/1 · M02 imported · M03 33/4/5 · M04 37/4/0 (rule-generated) · M05 52/7/5 · M06 51/6/4 · M07 75/9/6 · M08 66/7/6 · M09 70/8/7 · M10 106/8/1 · M11 95/6/12 · M12 167/22/14. M12 is the maximum on every axis. The dips at M04/M06/M08/M10 are documented objective-specific exceptions in the inventory's "Progression curve".
+**Assessment progression (unique events / tables / alerts):** M01 46/1/1 · M02 imported · M03 33/4/5 · M04 37/4/0 (rule-generated) · M05 52/7/5 · M06 51/6/4 · M07 75/9/6 · M08 66/7/6 · M09 70/8/7 · M10 106/8/1 · M11 95/6/12 · M12 167/22/14. M12 is the maximum on every axis. The dips at M04/M06/M08/M10 are documented in the inventory's "Progression curve".
+
+**Done in open-items pass 1 (2026-10-02, local commits, not pushed):**
+- M12 static triage panel now shows the live queue ids (AL-1201/1205/1204) with the queue's severity, signal, time and `New` status. The ShiftLog SH-003 reference to `AL-4812` is intentional: it is the earlier overnight alert that AL-1204 recurs from.
+- Removed the unused `moduleFourIndependentLab()` renderer from M04.
+- Entity identity phase 1: an "Entity identity contract" section in `SOC_TELEMETRY_SCHEMA.md` (lower-case single-token Host; DeviceId = Host with inventory ids moved to `AssetId`; normalized lower-case Account with domain/UPN/native kept in `AccountDomain`/`AccountUpn`/`AccountNative`; empty Account only on network tables; `Source` → `SourceNote`), plus the report-only linter. Baseline: 2018 violations on 940 rows; M03 is clean. No fixture data was changed.
+
+**Why identity matters:** the mock KQL engine compares `==`, `!=`, `join` and `summarize` keys case-sensitively, so `WS-204` vs `ws-204` breaks real pivots.
 
 **Open items (not done):**
-1. M01 guided (9 events) cannot grow without editing shared `portal/data.js`.
-2. M04: decide whether the new below-threshold decoy groups belong in `truth.rule.excludeEventIds`.
-3. Cross-module pivot inconsistencies were reported, not fixed, outside M12. Host casing is upper in M05–M08/M10 and lower elsewhere. Host≠DeviceId in M05/M06 and on 57 M09 rows. Account formats are mixed (`CORP\user`, `SYSTEM`, `acct-NN`, `a.okafor`). M09/M11 put free text in `Host`. Some M07/M09 rows have no Account. M08 uses a `Source` key.
-4. M12 static panels show AL-48xx ids, but the queue uses AL-12xx.
-5. M10 guided/assessment overlap: they share the `SYSTEM` account and one host (pre-existing ART-10 data).
-6. `moduleFourIndependentLab()` in `portal/soc-analyst-module-04.js` is dead code; Practice It is now the DET-4478 SIEM case.
-7. Not yet verified in a signed-in browser session. Only the node suites and fixture validation have run.
+1. **Entity identity phase 2 (the main remaining work).** Follow the ordered plan and "rules of engagement" in `docs/telemetry/ENTITY_IDENTITY_LINT.md` § Phase 2: M04 → M12 → M09 → M11 → M10 → M08 → M07 → M06 → M05 → (optional M01, M02). Do one module per sub-agent, migrating the fixture, truth ids, scorer, UI helpers and tests in the same change. M05, M07, M10 and M11 have offending values inside answer keys, so use a strong model for those. Re-run the lint, the inventory (entity counts must not collapse) and the full test suite after each module. Turn on `--strict` in CI once every module is clean. Alex may override the lower-case-host decision before this starts.
+2. M10 guided/assessment overlap: they share the `SYSTEM` account and one host (pre-existing ART-10 data). Fix this together with the M10 step of phase 2.
+3. M04 leftovers from the removed renderer: `MODULE_FOUR_INDEPENDENT_LAB`, `moduleFourState.independentLab`, and the `m04-independent-*` form handlers are now unreachable. Remove them only after confirming no saved-state migration needs `independentLab`.
+4. M12 panel vs queue: AL-1201's queue entry has no `at` field (the panel shows 09:14, which matches the DeviceProcessEvents row). Consider adding `at: '09:14:00'` to the queue entry.
+5. **Needs Alex:** M04 — decide whether the below-threshold decoy groups belong in `truth.rule.excludeEventIds`.
+6. **Needs owner coordination:** M01 guided (9 events) cannot grow without editing shared `portal/data.js`.
+7. Not yet verified in a signed-in browser session. Only the node suites, fixture validation and the lint have run.
 
 ## Executive assessment
 
