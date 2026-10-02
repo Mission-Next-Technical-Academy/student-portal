@@ -27,11 +27,11 @@
       { id: 'helen', name: 'Helen Diaz', username: 'hdiaz', title: 'HR Specialist', department: 'Human Resources', mfa: 'Enabled', groups: ['HR-Read'], device: 'wk44' },
     ],
     devices: [
-      { id: 'wk17', name: 'WKSTN-17', ip: '10.20.4.22', user: 'alice', status: 'Online', management: 'Managed', compliance: 'Compliant', network: 'Corporate LAN' },
-      { id: 'wk23', name: 'WKSTN-23', ip: '10.20.4.31', user: 'john', status: 'Online', management: 'Managed', compliance: 'Compliant', network: 'Corporate LAN' },
-      { id: 'wk31', name: 'WKSTN-31', ip: '10.20.4.38', user: 'ravi', status: 'Online', management: 'Managed', compliance: 'Compliant', network: 'Corporate LAN' },
-      { id: 'wk09', name: 'WKSTN-09', ip: '10.20.4.09', user: 'cora', status: 'Online', management: 'Unmanaged', compliance: 'Non-compliant', network: 'Guest Wi-Fi' },
-      { id: 'wk44', name: 'WKSTN-44', ip: '10.20.4.44', user: 'helen', status: 'Online', management: 'Managed', compliance: 'Compliant', network: 'Corporate LAN' },
+      { id: 'wk17', name: 'wkstn-17', ip: '10.20.4.22', user: 'alice', status: 'Online', management: 'Managed', compliance: 'Compliant', network: 'Corporate LAN' },
+      { id: 'wk23', name: 'wkstn-23', ip: '10.20.4.31', user: 'john', status: 'Online', management: 'Managed', compliance: 'Compliant', network: 'Corporate LAN' },
+      { id: 'wk31', name: 'wkstn-31', ip: '10.20.4.38', user: 'ravi', status: 'Online', management: 'Managed', compliance: 'Compliant', network: 'Corporate LAN' },
+      { id: 'wk09', name: 'wkstn-09', ip: '10.20.4.09', user: 'cora', status: 'Online', management: 'Unmanaged', compliance: 'Non-compliant', network: 'Guest Wi-Fi' },
+      { id: 'wk44', name: 'wkstn-44', ip: '10.20.4.44', user: 'helen', status: 'Online', management: 'Managed', compliance: 'Compliant', network: 'Corporate LAN' },
     ],
     resources: [
       { id: 'finance', name: 'FINANCE-FILE-01', type: 'File Server', ip: '10.20.8.10', zone: 'Internal', classification: 'Confidential', groups: ['Finance-Read'], service: 'SMB', transport: 'TCP', port: '445', internet: 'No' },
@@ -64,7 +64,7 @@
   // Row-purpose tags for the Sprint 2 context rows (documentation only; never rendered).
   const M02_ROW_PURPOSE = {
     'evt-helen-hr': 'baseline: a correct HR-Read allow, for comparison with the confirmed excess',
-    'evt-cora-finance-device': 'alternate explanation: Finance-Read holder denied because WKSTN-09 is unmanaged (device record + policy requirement)',
+    'evt-cora-finance-device': 'alternate explanation: Finance-Read holder denied because wkstn-09 is unmanaged (device record + policy requirement)',
     'evt-ravi-web-late': 'routine repeat of an authorized administrator allow',
     'evt-john-finance-denied': 'baseline: policy correctly denies an out-of-scope request (shows deny path works)',
     'evt-alice-finance-pm': 'routine repeat of an authorized allow',
@@ -88,10 +88,10 @@
 
   // Independent, item-specific explanations for the console walkthrough.
   const CONSOLE_GUIDE_STEPS = [
-    { title: 'Frame the review', body: 'The console is a working environment, not a quiz. Start with the analyst questions that remain useful in any tool: who acted, what they tried to reach, when and where it happened, why it may be expected, and how the request was evaluated.', lookFor: 'WKSTN-17, its connection path, and the requested destination.', lab: 'Both labs use this same evidence-first habit.', tab: 'map', target: ['device', 'wk17'] },
+    { title: 'Frame the review', body: 'The console is a working environment, not a quiz. Start with the analyst questions that remain useful in any tool: who acted, what they tried to reach, when and where it happened, why it may be expected, and how the request was evaluated.', lookFor: 'wkstn-17, its connection path, and the requested destination.', lab: 'Both labs use this same evidence-first habit.', tab: 'map', target: ['device', 'wk17'] },
     { title: 'Trace the network path', body: 'A network map shows the systems, zones, and boundaries a request crosses. Use it to check whether the source can reach the destination over the expected service—and whether that route is intentional.', lookFor: 'The source workstation, the boundary, and FINANCE-FILE-01.', lab: 'Guided · File System Security Assessment', tab: 'map', target: ['resource', 'finance'] },
     { title: 'Read the activity record', body: 'An activity row gives you the facts behind an alert: identity, device, time, destination, service, and result. Establish those facts before deciding whether the access is normal or suspicious.', lookFor: 'Alice’s 08:14 access record and its full details.', lab: 'Guided · User Account Security Assessment', tab: 'activity', target: ['event', 'evt-alice-finance'] },
-    { title: 'Validate identity and device', body: 'A successful sign-in proves only that authentication passed. It does not prove the user was authorized or that their device met security requirements. Compare the identity’s role and groups with the device’s trust state.', lookFor: 'Alice’s Finance-Read group and WKSTN-17’s managed, compliant state.', lab: 'Guided · User Account Security Assessment', tab: 'identities', target: ['user', 'alice'] },
+    { title: 'Validate identity and device', body: 'A successful sign-in proves only that authentication passed. It does not prove the user was authorized or that their device met security requirements. Compare the identity’s role and groups with the device’s trust state.', lookFor: 'Alice’s Finance-Read group and wkstn-17’s managed, compliant state.', lab: 'Guided · User Account Security Assessment', tab: 'identities', target: ['user', 'alice'] },
     { title: 'Understand the resource and policy', body: 'A resource is the system or data being protected. Its classification and expected service tell you what is at stake; its access policy defines which groups and conditions are allowed. Compare both with the actual request.', lookFor: 'FINANCE-FILE-01’s Confidential classification, SMB/TCP 445 service, authorized group, and access policy.', lab: 'Guided · File System Security Assessment', tab: 'resources', target: ['resource', 'finance'] },
     { title: 'Correlate before concluding', body: 'No single field tells the whole story. Correlate the access record with the identity, device, network path, resource, and policy. Then separate what the evidence proves from what still needs investigation.', lookFor: 'Alice’s ALLOWED result, then the identity, device, and policy behind it.', lab: 'Guided + assessment lab handoff', tab: 'activity', target: ['event', 'evt-alice-finance'] },
   ];
@@ -148,11 +148,11 @@
     { id: 'helen', text: 'Helen Diaz (hdiaz) — HR Specialist', tier: 'noise' },
   ];
   const CASE_DEVICE_OPTIONS = [
-    { id: 'wk23', text: 'WKSTN-23 (10.20.4.31) — managed, compliant', tier: 'principal' },
-    { id: 'wk09', text: 'WKSTN-09 (10.20.4.09) — unmanaged, non-compliant', tier: 'pivot' },
-    { id: 'wk17', text: 'WKSTN-17 (10.20.4.22) — managed, compliant', tier: 'noise' },
-    { id: 'wk31', text: 'WKSTN-31 (10.20.4.38) — managed, compliant', tier: 'noise' },
-    { id: 'wk44', text: 'WKSTN-44 (10.20.4.44) — managed, compliant', tier: 'noise' },
+    { id: 'wk23', text: 'wkstn-23 (10.20.4.31) — managed, compliant', tier: 'principal' },
+    { id: 'wk09', text: 'wkstn-09 (10.20.4.09) — unmanaged, non-compliant', tier: 'pivot' },
+    { id: 'wk17', text: 'wkstn-17 (10.20.4.22) — managed, compliant', tier: 'noise' },
+    { id: 'wk31', text: 'wkstn-31 (10.20.4.38) — managed, compliant', tier: 'noise' },
+    { id: 'wk44', text: 'wkstn-44 (10.20.4.44) — managed, compliant', tier: 'noise' },
   ];
   const CASE_DEPARTMENT_OPTIONS = [
     { id: 'identity-response', text: 'Identity Response', fit: 100, note: 'Best fit — the access policy itself needs correction.' },
@@ -216,7 +216,7 @@
       score,
       breakdown: { affected_entity: entityPoints, severity, disposition, escalation, access_finding: finding, analyst_notes: notes },
       feedback: [
-        entityPoints >= 20 ? 'Affected entity/scope: correct — John Smith on WKSTN-23.' : entityPoints > 0 ? 'Affected entity/scope: partial credit — a related entity is supported by the evidence, but John Smith / WKSTN-23 is the confirmed pair.' : 'Affected entity/scope: review — John Smith / WKSTN-23 is the confirmed affected user/device.',
+        entityPoints >= 20 ? 'Affected entity/scope: correct — John Smith on wkstn-23.' : entityPoints > 0 ? 'Affected entity/scope: partial credit — a related entity is supported by the evidence, but John Smith / wkstn-23 is the confirmed pair.' : 'Affected entity/scope: review — John Smith / wkstn-23 is the confirmed affected user/device.',
         severity ? 'Severity: correct.' : 'Severity: review — High fits an internal authorization excess into HR data.',
         disposition ? 'Disposition: correct.' : 'Disposition: review — the log shows an authorization excess, confirmed by evidence.',
         !escalationOk ? 'Routing: not applicable — escalation was set to not required.' : !department ? 'Routing: review — route the case to a department.' : department.fit >= 100 ? `Routing: correct — ${department.text} is the best-fit department.` : department.fit >= 40 ? `Routing: accepted, but not the best fit — ${department.note}` : `Routing: returned — ${department.bounce || department.note}`,
