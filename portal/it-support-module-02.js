@@ -267,7 +267,7 @@ function viewItsModuleTwo(user, program) {
   ];
   return `<div class="its02-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(navSections, { moduleKey: 'its02' })}
+    ${moduleProgressShell(navSections, { moduleKey: 'its02', stageKey: 'its-02' })}
     <main class="its02-main">
       <section class="its02-hero" aria-labelledby="its02-title"><div><p class="its02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its02-title">${esc(module.title)}</h1><p class="its02-lede">Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.</p></div><dl class="its02-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>4</dd></div><div><dt>Labs complete</dt><dd id="its02-status">${labsComplete}/4</dd></div></dl></section>
 

@@ -180,7 +180,7 @@ function viewItsModuleOne(user, program) {
   ];
   return `<div class="its01-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(navSections, { moduleKey: 'its01' })}
+    ${moduleProgressShell(navSections, { moduleKey: 'its01', stageKey: 'its-01' })}
     <main class="its01-main">
       <section class="its01-hero" aria-labelledby="its01-title"><div><p class="its01-kicker">Module 01 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its01-title">${esc(module.title)}</h1><p class="its01-lede">Get set up in the LMS and your lab environment, then build the five-step troubleshooting mindset you'll use in every module that follows.</p></div><dl class="its01-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>2</dd></div><div><dt>Labs complete</dt><dd id="its01-status">${labsComplete}/2</dd></div></dl></section>
 
@@ -223,9 +223,35 @@ function its01CheckLab1Complete() {
   }
 }
 
+// On wide screens the policy text can fit inside its box with no scrollbar,
+// so the scroll listener below never fires and the checkbox would stay
+// disabled forever. If the whole policy is already visible, treat it as read.
+function its01EnableAupIfFits() {
+  if (!its01State || its01State.aupScrolled) return;
+  const aupText = document.querySelector('.its01-shell [data-its01-aup-text]');
+  // clientHeight is 0 while hidden/not laid out; don't count that as "fits".
+  if (!aupText || aupText.clientHeight === 0) return;
+  if (aupText.scrollHeight <= aupText.clientHeight + 8) {
+    its01State.aupScrolled = true;
+    its01Save();
+    its01RenderLab1();
+  }
+}
+
+// wire() runs after every render, so the window listener is added only once.
+let its01AupResizeWired = false;
+
 function wireItsModuleOneLab() {
   const shell = document.querySelector('.its01-shell');
   if (!shell || !its01State) return;
+
+  its01EnableAupIfFits();
+  // Re-check after the browser's next layout pass (fonts/styles can settle late).
+  requestAnimationFrame(its01EnableAupIfFits);
+  if (!its01AupResizeWired) {
+    its01AupResizeWired = true;
+    window.addEventListener('resize', its01EnableAupIfFits);
+  }
 
   shell.addEventListener('change', (event) => {
     const evidenceInput = event.target.closest('[data-itsw-evidence-input]');
