@@ -29,20 +29,20 @@ Load status: 87 portal scripts loaded in a stubbed vm context; 0 load error(s). 
 | 3 | assessment | CASE-MN-517 | runtime | 33 | 33 / 0 | 4 | 33 | 0 | 5 | 9 | 5 | 9 | untagged | untagged | 83 |
 | 4 | guided | DET-4478 | runtime | 25 | 25 / 0 | 4 | 25 | 0 | 0 | 10 | 4 | 9 | 21 | 0 | 63 |
 | 4 | assessment | DET-4424 | runtime | 37 | 37 / 0 | 4 | 37 | 0 | 0 | 17 | 5 | 13 | 31 | 0 | 95 |
-| 5 | guided | EDR-5204 | runtime | 52 | 52 / 0 | 7 | 52 | 0 | 5 | 6 | 10 | 0 | 35 | 4 | 114 |
-| 5 | assessment | EDR-5127 | runtime | 52 | 52 / 0 | 7 | 52 | 0 | 5 | 6 | 10 | 0 | 35 | 4 | 114 |
-| 6 | guided | HNT-6411 | runtime | 50 | 50 / 0 | 6 | 50 | 0 | 4 | 5 | 4 | 1 | 28 | 10 | 110 |
-| 6 | assessment | BKD-6318 | runtime | 51 | 51 / 0 | 6 | 51 | 0 | 4 | 5 | 3 | 1 | 34 | 8 | 111 |
+| 5 | guided | EDR-5204 | runtime | 52 | 52 / 0 | 7 | 52 | 0 | 5 | 6 | 5 | 0 | 35 | 4 | 114 |
+| 5 | assessment | EDR-5127 | runtime | 52 | 52 / 0 | 7 | 52 | 0 | 5 | 6 | 5 | 0 | 35 | 4 | 114 |
+| 6 | guided | HNT-6411 | runtime | 61 | 61 / 0 | 6 | 61 | 0 | 4 | 5 | 4 | 1 | 39 | 10 | 132 |
+| 6 | assessment | BKD-6318 | runtime | 63 | 63 / 0 | 6 | 63 | 0 | 4 | 5 | 3 | 1 | 46 | 8 | 135 |
 | 7 | guided | NEC-0748 | runtime | 75 | 75 / 0 | 9 | 75 | 0 | 6 | 7 | 7 | 13 | 63 | 0 | 162 |
 | 7 | assessment | NEC-0731 | runtime | 75 | 75 / 0 | 9 | 75 | 0 | 6 | 7 | 7 | 13 | 63 | 0 | 162 |
-| 8 | guided | VLN-PRACTICE-0849 | runtime | 66 | 11 / 55 | 7 | 66 | 0 | 6 | 5 | 5 | 0 | 43 | 0 | 142 |
-| 8 | assessment | VLN-0842 | runtime | 66 | 11 / 55 | 7 | 66 | 0 | 6 | 5 | 5 | 0 | 43 | 0 | 142 |
-| 9 | guided | INC-5942 | runtime | 70 | 49 / 21 | 8 | 70 | 0 | 7 | 6 | 20 | 4 | 21 | 0 | 149 |
-| 9 | assessment | INC-4937 | runtime | 70 | 49 / 21 | 8 | 70 | 0 | 7 | 6 | 20 | 4 | 21 | 0 | 148 |
+| 8 | guided | VLN-PRACTICE-0849 | runtime | 86 | 31 / 55 | 7 | 86 | 0 | 6 | 5 | 5 | 0 | 63 | 0 | 182 |
+| 8 | assessment | VLN-0842 | runtime | 86 | 31 / 55 | 7 | 86 | 0 | 6 | 5 | 5 | 0 | 63 | 0 | 182 |
+| 9 | guided | INC-5942 | runtime | 97 | 73 / 24 | 8 | 97 | 0 | 7 | 10 | 10 | 7 | 47 | 0 | 207 |
+| 9 | assessment | INC-4937 | runtime | 97 | 73 / 24 | 8 | 97 | 0 | 7 | 10 | 10 | 7 | 47 | 0 | 206 |
 | 10 | guided | EVD-6620 | runtime | 106 | 103 / 3 | 8 | 106 | 0 | 1 | 9 | 6 | 0 | 38 | 0 | 218 |
 | 10 | assessment | EVD-5510 | runtime | 106 | 103 / 3 | 8 | 106 | 0 | 1 | 9 | 6 | 0 | 38 | 0 | 218 |
-| 11 | guided | OPS-6640 | runtime | 95 | 90 / 5 | 6 | 95 | 0 | 12 | 8 | 10 | 0 | untagged | untagged | 303 |
-| 11 | assessment | OPS-5511 | runtime | 95 | 90 / 5 | 6 | 95 | 0 | 12 | 8 | 10 | 0 | 3 | 0 | 303 |
+| 11 | guided | OPS-6640 | runtime | 117 | 112 / 5 | 6 | 117 | 0 | 12 | 8 | 11 | 0 | untagged | untagged | 347 |
+| 11 | assessment | OPS-5511 | runtime | 117 | 112 / 5 | 6 | 117 | 0 | 12 | 8 | 11 | 0 | 3 | 0 | 347 |
 | 12 | guided | — | n/a | n/a | — | — | — | — | — | — | — | — | — | — | — |
 | 12 | assessment | INC-4821 | runtime | 167 | 157 / 10 | 22 | 167 | 0 | 14 | 19 | 17 | 28 | 97 | 6 | 364 |
 
@@ -60,18 +60,18 @@ Load status: 87 portal scripts loaded in a stubbed vm context; 0 load error(s). 
 | 4 | assessment | AppAudit (2), AuthLog (30), DirectoryAudit (1), SystemLog (4) | IdentityInfo 14, IpIntel 3, ChangeTickets 4 | telemetry 30/30, reports 2/0, iocs 3/0 |
 | 5 | guided | DeviceAlertEvents (2), DeviceFileEvents (11), DeviceNetworkEvents (7), DeviceProcessEvents (20), DeviceRegistryEvents (2), DeviceSensorHealth (8), DeviceTaskEvents (2) | IdentityInfo 6, IpIntel 0, ApprovedSoftware 2, ChangeTickets 2 | devices 5/0, telemetry 52/52 |
 | 5 | assessment | DeviceAlertEvents (2), DeviceFileEvents (11), DeviceNetworkEvents (7), DeviceProcessEvents (20), DeviceRegistryEvents (2), DeviceSensorHealth (8), DeviceTaskEvents (2) | IdentityInfo 6, IpIntel 0, ApprovedSoftware 2, ChangeTickets 2 | devices 5/0, telemetry 52/52 |
-| 6 | guided | DeviceFileEvents (6), DeviceNetworkEvents (12), DeviceProcessEvents (14), DeviceSensorHealth (10), DeviceTaskEvents (3), IdentityEvents (5) | IdentityInfo 5, IpIntel 1, ApprovedSoftware 1, ChangeTickets 3 | telemetry 50/50 |
-| 6 | assessment | DeviceFileEvents (4), DeviceNetworkEvents (13), DeviceProcessEvents (16), DeviceSensorHealth (8), DeviceTaskEvents (5), IdentityEvents (5) | IdentityInfo 5, IpIntel 1, ChangeTickets 3 | telemetry 51/51 |
+| 6 | guided | DeviceFileEvents (7), DeviceNetworkEvents (12), DeviceProcessEvents (17), DeviceSensorHealth (14), DeviceTaskEvents (6), IdentityEvents (5) | IdentityInfo 5, IpIntel 1, ApprovedSoftware 1, ChangeTickets 3 | telemetry 61/61 |
+| 6 | assessment | DeviceFileEvents (8), DeviceNetworkEvents (14), DeviceProcessEvents (18), DeviceSensorHealth (11), DeviceTaskEvents (7), IdentityEvents (5) | IdentityInfo 5, IpIntel 1, ChangeTickets 3 | telemetry 63/63 |
 | 7 | guided | DeviceProcessEvents (7), DnsEvents (10), EmailAttachmentEvents (3), EmailEvents (14), EmailInteractionEvents (8), EmailUrlEvents (7), FirewallEvents (10), ProxyEvents (9), TlsEvents (7) | IdentityInfo 7, IpIntel 5 | recipientGroups 2/0, messages 1/0, deliveryEvents 2/2, recipientEvents 1/1, networkEvents 8/8, packetSamples 3/3, endpointProcessEvents 2/2, backgroundEvents 62/62 |
 | 7 | assessment | DeviceProcessEvents (7), DnsEvents (10), EmailAttachmentEvents (3), EmailEvents (14), EmailInteractionEvents (8), EmailUrlEvents (7), FirewallEvents (10), ProxyEvents (9), TlsEvents (7) | IdentityInfo 7, IpIntel 5 | recipientGroups 2/0, messages 1/0, deliveryEvents 2/2, recipientEvents 1/1, networkEvents 8/8, packetSamples 3/3, endpointProcessEvents 2/2, backgroundEvents 62/62 |
-| 8 | guided | AssetEvidence (20, evidence-record), FindingEvidence (25, evidence-record), IncidentEvidence (1, evidence-record), PatchRecords (4), RiskExceptionEvidence (1, evidence-record), ScanRuns (7), VulnerabilityFindings (8, evidence-record) | IdentityInfo 5, IpIntel 0, AssetInventory 5 | assetInventory 5/0, findings 8/8, findingEvidence 25/25, incidents 1/0, incidentEvidence 1/1, riskAcceptanceDispositions 1/0, riskAcceptanceEvidence 1/1, escalationRoutes 2/0, assetEvidence 20/20, scanRuns 7/7, patchRecords 4/4, alertCandidates 5/0 |
-| 8 | assessment | AssetEvidence (20, evidence-record), FindingEvidence (25, evidence-record), IncidentEvidence (1, evidence-record), PatchRecords (4), RiskExceptionEvidence (1, evidence-record), ScanRuns (7), VulnerabilityFindings (8, evidence-record) | IdentityInfo 5, IpIntel 0, AssetInventory 5 | assetInventory 5/0, findings 8/8, findingEvidence 25/25, incidents 1/0, incidentEvidence 1/1, riskAcceptanceDispositions 1/0, riskAcceptanceEvidence 1/1, escalationRoutes 2/0, assetEvidence 20/20, scanRuns 7/7, patchRecords 4/4, alertCandidates 5/0 |
-| 9 | guided | BackupEvents (4), DeviceEvents (15), DeviceNetworkEvents (5), FileServiceEvents (9), IdentityEvents (10), RecoveryChecks (6), ResponseRecords (14, evidence-record), ScopeChecks (7, evidence-record) | IdentityInfo 7, IpIntel 2 | incidentQueue 1/0, entities 13/0, backups 3/0, evidence 6/6, actionOutcomeExamples 5/0, telemetry 54/54, alertCandidates 6/0 |
-| 9 | assessment | BackupEvents (4), DeviceEvents (15), DeviceNetworkEvents (5), FileServiceEvents (9), IdentityEvents (10), RecoveryChecks (6), ResponseRecords (14, evidence-record), ScopeChecks (7, evidence-record) | IdentityInfo 6, IpIntel 2 | incidentQueue 1/0, entities 13/0, backups 3/0, evidence 6/6, actionOutcomeExamples 5/0, telemetry 54/54, alertCandidates 6/0 |
+| 8 | guided | AssetEvidence (20, evidence-record), FindingEvidence (25, evidence-record), IncidentEvidence (1, evidence-record), PatchRecords (15), RiskExceptionEvidence (1, evidence-record), ScanRuns (16), VulnerabilityFindings (8, evidence-record) | IdentityInfo 5, IpIntel 0, AssetInventory 5 | assetInventory 5/0, findings 8/8, findingEvidence 25/25, incidents 1/0, incidentEvidence 1/1, riskAcceptanceDispositions 1/0, riskAcceptanceEvidence 1/1, escalationRoutes 2/0, assetEvidence 20/20, scanRuns 16/16, patchRecords 15/15, alertCandidates 5/0 |
+| 8 | assessment | AssetEvidence (20, evidence-record), FindingEvidence (25, evidence-record), IncidentEvidence (1, evidence-record), PatchRecords (15), RiskExceptionEvidence (1, evidence-record), ScanRuns (16), VulnerabilityFindings (8, evidence-record) | IdentityInfo 5, IpIntel 0, AssetInventory 5 | assetInventory 5/0, findings 8/8, findingEvidence 25/25, incidents 1/0, incidentEvidence 1/1, riskAcceptanceDispositions 1/0, riskAcceptanceEvidence 1/1, escalationRoutes 2/0, assetEvidence 20/20, scanRuns 16/16, patchRecords 15/15, alertCandidates 5/0 |
+| 9 | guided | BackupEvents (6), DeviceEvents (22), DeviceNetworkEvents (10), FileServiceEvents (13), IdentityEvents (15), RecoveryChecks (7), ResponseRecords (14, evidence-record), ScopeChecks (10, evidence-record) | IdentityInfo 11, IpIntel 2 | incidentQueue 1/0, entities 13/0, backups 3/0, evidence 6/6, actionOutcomeExamples 5/0, telemetry 81/81, alertCandidates 6/0 |
+| 9 | assessment | BackupEvents (6), DeviceEvents (22), DeviceNetworkEvents (10), FileServiceEvents (13), IdentityEvents (15), RecoveryChecks (7), ResponseRecords (14, evidence-record), ScopeChecks (10, evidence-record) | IdentityInfo 10, IpIntel 2 | incidentQueue 1/0, entities 13/0, backups 3/0, evidence 6/6, actionOutcomeExamples 5/0, telemetry 81/81, alertCandidates 6/0 |
 | 10 | guided | DeviceFileEvents (8), DeviceProcessEvents (10), DeviceRegistryEvents (2), EmailEvents (9), EvidenceCustodyLog (53), ForensicAcquisitions (3, evidence-record), ProxyEvents (10), SystemLog (11) | IdentityInfo 3, IpIntel 0, Custodians 3 | custodians 3/0, artifacts 22/22, sourceEvents 31/31 |
 | 10 | assessment | DeviceFileEvents (8), DeviceProcessEvents (10), DeviceRegistryEvents (2), EmailEvents (9), EvidenceCustodyLog (53), ForensicAcquisitions (3, evidence-record), ProxyEvents (10), SystemLog (11) | IdentityInfo 3, IpIntel 0, Custodians 3 | custodians 3/0, artifacts 22/22, sourceEvents 31/31 |
-| 11 | guided | AlertQueue (12, alert-record), OnCallPages (6), QueueActivity (22), RecoveryRecords (5, evidence-record), RuleRuns (40), ShiftLog (6), SourceHealth (16) | IdentityInfo 4, IpIntel 0, Rules 5, RecoveryEvidence 5, DailyOpsMetrics 11, ShiftOpsMetrics 9, RuleAlertVolume 50, RuleChanges 5 | analysts 4/0, escalationRoutes 4/0, rules 5/0, queue 12/12, audiences 5/0 |
-| 11 | assessment | AlertQueue (12, alert-record), OnCallPages (6), QueueActivity (22), RecoveryRecords (5, evidence-record), RuleRuns (40), ShiftLog (6), SourceHealth (16) | IdentityInfo 4, IpIntel 0, Rules 5, RecoveryEvidence 5, DailyOpsMetrics 11, ShiftOpsMetrics 9, RuleAlertVolume 50, RuleChanges 5 | analysts 4/0, escalationRoutes 4/0, rules 5/0, queue 12/12, audiences 5/0 |
+| 11 | guided | AlertQueue (12, alert-record), OnCallPages (10), QueueActivity (29), RecoveryRecords (5, evidence-record), RuleRuns (40), ShiftLog (10), SourceHealth (23) | IdentityInfo 4, IpIntel 0, Rules 5, RecoveryEvidence 5, DailyOpsMetrics 11, ShiftOpsMetrics 9, RuleAlertVolume 50, RuleChanges 5 | analysts 4/0, escalationRoutes 4/0, rules 5/0, queue 12/12, audiences 5/0 |
+| 11 | assessment | AlertQueue (12, alert-record), OnCallPages (10), QueueActivity (29), RecoveryRecords (5, evidence-record), RuleRuns (40), ShiftLog (10), SourceHealth (23) | IdentityInfo 4, IpIntel 0, Rules 5, RecoveryEvidence 5, DailyOpsMetrics 11, ShiftOpsMetrics 9, RuleAlertVolume 50, RuleChanges 5 | analysts 4/0, escalationRoutes 4/0, rules 5/0, queue 12/12, audiences 5/0 |
 | 12 | assessment | AppAudit (8), AuthLog (4), BackupEvents (5), DeviceFileEvents (7), DeviceNetworkEvents (6), DeviceProcessEvents (16), DeviceRegistryEvents (4), DeviceSensorHealth (12), DirectoryAudit (5), DnsEvents (8), EmailEvents (15), EmailUrlEvents (5), EvidenceCustodyLog (4), FirewallEvents (8), IdentityLogonEvents (20), NetworkSessionEvents (7), ProxyEvents (9), ResponseRecords (4, evidence-record), ScanRuns (3), ShiftLog (5), SystemLog (6), VulnerabilityFindings (6, evidence-record) | IdentityInfo 11, IpIntel 6, ChangeTickets 3, TravelNotices 1, ApprovedSoftware 2, ThreatIntelligence 5, Backups 2 | entities 5/0, evidence 7/7, queue 14/0, rules 3/0, backups 2/0, intelligence 5/0 |
 
 ## Canonical-field coverage (% of unique events), Assessment/Prove
@@ -82,23 +82,23 @@ Load status: 87 portal scripts loaded in a stubbed vm context; 0 load error(s). 
 | EventId | 100 | — | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 |
 | EventSource | 100 | — | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 |
 | EventType | 100 | — | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 |
-| Account | 100 | — | 100 | 100 | 100 | 100 | 90.7 | 100 | 67.1 | 100 | 100 | 100 |
-| Host/DeviceId | 91.3 | — | 100 | 100 | 100 | 100 | 68 | 100 | 92.9 | 100 | 100 | 100 |
-| SourceIp | 97.8 | — | 100 | 100 | 0 | 0 | 13.3 | 0 | 7.1 | 0 | 0 | 47.9 |
-| DestinationIp | 0 | — | 0 | 0 | 0 | 2 | 22.7 | 0 | 7.1 | 0 | 0 | 12 |
-| Domain | 0 | — | 0 | 0 | 13.5 | 23.5 | 22.7 | 0 | 0 | 0 | 0 | 15.6 |
+| Account | 100 | — | 100 | 100 | 100 | 100 | 97.3 | 100 | 100 | 100 | 100 | 100 |
+| Host/DeviceId | 91.3 | — | 100 | 100 | 100 | 100 | 68 | 100 | 92.8 | 100 | 100 | 100 |
+| SourceIp | 97.8 | — | 100 | 100 | 0 | 0 | 13.3 | 0 | 10.3 | 0 | 0 | 47.9 |
+| DestinationIp | 0 | — | 0 | 0 | 0 | 1.6 | 22.7 | 0 | 10.3 | 0 | 0 | 12 |
+| Domain | 0 | — | 0 | 0 | 13.5 | 20.6 | 22.7 | 0 | 0 | 0 | 0 | 15.6 |
 | Url | 0 | — | 0 | 0 | 1.9 | 0 | 21.3 | 0 | 0 | 0 | 0 | 9 |
 | Result | 100 | — | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 |
-| SessionId | 0 | — | 45.5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 10.8 |
-| ProcessId | 0 | — | 0 | 0 | 84.6 | 72.5 | 9.3 | 0 | 0 | 0 | 0 | 0 |
-| ParentProcessId | 0 | — | 0 | 0 | 44.2 | 17.6 | 9.3 | 0 | 0 | 0 | 0 | 0 |
+| SessionId | 0 | — | 45.5 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 10.8 |
+| ProcessId | 0 | — | 0 | 0 | 84.6 | 73 | 9.3 | 0 | 0 | 0 | 0 | 0 |
+| ParentProcessId | 0 | — | 0 | 0 | 44.2 | 20.6 | 9.3 | 0 | 0 | 0 | 0 | 0 |
 | CorrelationId | 0 | — | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Action | 0 | — | 0 | 0 | 100 | 100 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Detail | 0 | — | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 |
 | RawEvent | 100 | — | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| IngestionTime | 0 | — | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 63.2 | 40 | 0 |
-| Collector | 0 | — | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 16.8 | 12.6 |
-| CoverageStatus | 0 | — | 0 | 0 | 15.4 | 15.7 | 0 | 0 | 4.3 | 0 | 0 | 7.2 |
+| IngestionTime | 0 | — | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 63.2 | 44.4 | 0 |
+| Collector | 0 | — | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 19.7 | 12.6 |
+| CoverageStatus | 0 | — | 0 | 0 | 15.4 | 17.5 | 0 | 0 | 4.1 | 0 | 0 | 7.2 |
 
 ## Canonical-field coverage (% of unique events), Guided/Practice
 
@@ -108,23 +108,23 @@ Load status: 87 portal scripts loaded in a stubbed vm context; 0 load error(s). 
 | EventId | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | — |
 | EventSource | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | — |
 | EventType | 100 | 0 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | — |
-| Account | 100 | 100 | 100 | 100 | 100 | 100 | 90.7 | 100 | 67.1 | 100 | 100 | — |
-| Host/DeviceId | 100 | 100 | 100 | 100 | 100 | 100 | 68 | 100 | 92.9 | 100 | 100 | — |
-| SourceIp | 100 | 0 | 100 | 100 | 0 | 0 | 13.3 | 0 | 7.1 | 0 | 0 | — |
-| DestinationIp | 0 | 0 | 0 | 0 | 0 | 4 | 22.7 | 0 | 7.1 | 0 | 0 | — |
-| Domain | 0 | 0 | 0 | 0 | 13.5 | 20 | 22.7 | 0 | 0 | 0 | 0 | — |
+| Account | 100 | 100 | 100 | 100 | 100 | 100 | 97.3 | 100 | 100 | 100 | 100 | — |
+| Host/DeviceId | 100 | 100 | 100 | 100 | 100 | 100 | 68 | 100 | 92.8 | 100 | 100 | — |
+| SourceIp | 100 | 0 | 100 | 100 | 0 | 0 | 13.3 | 0 | 10.3 | 0 | 0 | — |
+| DestinationIp | 0 | 0 | 0 | 0 | 0 | 3.3 | 22.7 | 0 | 10.3 | 0 | 0 | — |
+| Domain | 0 | 0 | 0 | 0 | 13.5 | 16.4 | 22.7 | 0 | 0 | 0 | 0 | — |
 | Url | 0 | 0 | 0 | 0 | 0 | 0 | 21.3 | 0 | 0 | 0 | 0 | — |
 | Result | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | — |
-| SessionId | 11.1 | 0 | 60 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | — |
-| ProcessId | 0 | 0 | 0 | 0 | 84.6 | 68 | 9.3 | 0 | 0 | 0 | 0 | — |
-| ParentProcessId | 0 | 0 | 0 | 0 | 44.2 | 20 | 9.3 | 0 | 0 | 0 | 0 | — |
+| SessionId | 11.1 | 0 | 60 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | — |
+| ProcessId | 0 | 0 | 0 | 0 | 84.6 | 65.6 | 9.3 | 0 | 0 | 0 | 0 | — |
+| ParentProcessId | 0 | 0 | 0 | 0 | 44.2 | 19.7 | 9.3 | 0 | 0 | 0 | 0 | — |
 | CorrelationId | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | — |
 | Action | 0 | 0 | 0 | 0 | 100 | 100 | 0 | 0 | 0 | 0 | 0 | — |
 | Detail | 0 | 0 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | 100 | — |
 | RawEvent | 100 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | — |
-| IngestionTime | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 63.2 | 40 | — |
-| Collector | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 16.8 | — |
-| CoverageStatus | 0 | 0 | 0 | 0 | 15.4 | 20 | 0 | 0 | 4.3 | 0 | 0 | — |
+| IngestionTime | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 63.2 | 44.4 | — |
+| Collector | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 19.7 | — |
+| CoverageStatus | 0 | 0 | 0 | 0 | 15.4 | 23 | 0 | 0 | 4.1 | 0 | 0 | — |
 
 ## Alert provenance and entity detail
 
@@ -140,18 +140,18 @@ Load status: 87 portal scripts loaded in a stubbed vm context; 0 load error(s). 
 | 4 | assessment | 0 | 0 | 0/0 | 0 | 0 | 0 | 2 | 2 | none |
 | 5 | guided | 5 | 0 | 10/10 | 4 | 0 | 20 | 0 | 0 | none |
 | 5 | assessment | 5 | 0 | 10/10 | 4 | 0 | 20 | 0 | 0 | none |
-| 6 | guided | 4 (ALT-6411, ALT-6412, ALT-6413, ALT-6414) | 0 | 9/9 | 4 | 0 | 14 | 0 | 0 | none |
-| 6 | assessment | 4 (ALT-6320, ALT-6321, ALT-6322, ALT-6323) | 0 | 7/7 | 6 | 0 | 16 | 0 | 0 | none |
+| 6 | guided | 4 (ALT-6411, ALT-6412, ALT-6413, ALT-6414) | 0 | 9/9 | 4 | 0 | 17 | 0 | 0 | none |
+| 6 | assessment | 4 (ALT-6320, ALT-6321, ALT-6322, ALT-6323) | 0 | 7/7 | 7 | 0 | 18 | 0 | 0 | none |
 | 7 | guided | 6 | 0 | 4/6 | 7 | 0 | 3 | 0 | 0 | none |
 | 7 | assessment | 6 | 0 | 4/6 | 7 | 0 | 3 | 0 | 0 | none |
-| 8 | guided | 6 | 0 | 8/8 | 0 | 0 | 0 | 0 | 4 | none |
-| 8 | assessment | 6 | 0 | 8/8 | 0 | 0 | 0 | 0 | 4 | none |
-| 9 | guided | 7 | 0 | 9/9 | 0 | 0 | 0 | 2 | 0 | none |
-| 9 | assessment | 7 | 0 | 9/9 | 0 | 0 | 0 | 2 | 0 | none |
+| 8 | guided | 6 | 0 | 8/8 | 0 | 0 | 0 | 0 | 15 | none |
+| 8 | assessment | 6 | 0 | 8/8 | 0 | 0 | 0 | 0 | 15 | none |
+| 9 | guided | 7 | 0 | 9/9 | 0 | 1 | 0 | 4 | 0 | none |
+| 9 | assessment | 7 | 0 | 9/9 | 0 | 1 | 0 | 4 | 0 | none |
 | 10 | guided | 1 (REQ-6620) | 0 | 2/2 | 0 | 0 | 0 | 0 | 0 | none |
 | 10 | assessment | 1 (REQ-5510) | 0 | 2/2 | 0 | 0 | 0 | 0 | 0 | none |
-| 11 | guided | 12 | 0 | 24/36 | 0 | 0 | 0 | 16 | 0 | none |
-| 11 | assessment | 12 | 0 | 24/36 | 0 | 0 | 0 | 16 | 0 | none |
+| 11 | guided | 12 | 0 | 24/36 | 0 | 0 | 0 | 23 | 0 | none |
+| 11 | assessment | 12 | 0 | 24/36 | 0 | 0 | 0 | 23 | 0 | none |
 | 12 | assessment | 14 | 0 | 14/14 | 10 | 16 | 0 | 10 | 12 | none |
 
 ## Guided vs assessment independence
@@ -166,8 +166,8 @@ Load status: 87 portal scripts loaded in a stubbed vm context; 0 load error(s). 
 | 6 | 0 | 0 | 0 / 0 / 0 / 0 / 0 | none | false | independent |
 | 7 | 0 | 0 | 0 / 0 / 0 / 0 / 0 | none | false | independent |
 | 8 | 0 | 0 | 0 / 0 / 0 / 0 / 0 | none | false | independent |
-| 9 | 0 | 0 | 1 / 0 / 0 / 0 / 0 | none | false | independent |
-| 10 | 0 | 0 | 1 / 1 / 0 / 0 / 0 | system | false | overlap |
+| 9 | 0 | 0 | 3 / 0 / 0 / 0 / 0 | none | false | independent |
+| 10 | 0 | 0 | 0 / 0 / 0 / 0 / 0 | none | false | independent |
 | 11 | 0 | 0 | 4 / 4 / 0 / 0 / 0 | none | false | independent |
 | 12 | 0 | 0 | 0 / 0 / 0 / 0 / 0 | none | false | independent |
 
@@ -180,15 +180,15 @@ Load status: 87 portal scripts loaded in a stubbed vm context; 0 load error(s). 
 | 3 | 33 | 20-45 | within band | 4 | 4-6 | 5 | 3-6 |
 | 4 | 37 | 20-45 | within band | 4 | 4-6 | 0 | 3-6 |
 | 5 | 52 | 35-70 | within band | 7 | 5-8 | 5 | 4-8 |
-| 6 | 51 | 35-70 | within band | 6 | 5-8 | 4 | 4-8 |
+| 6 | 63 | 35-70 | within band | 6 | 5-8 | 4 | 4-8 |
 | 7 | 75 | 50-100 | within band | 9 | 7-10 | 6 | 5-10 |
-| 8 | 66 | 50-100 | within band | 7 | 7-10 | 6 | 5-10 |
-| 9 | 70 | 50-100 | within band | 8 | 7-10 | 7 | 5-10 |
+| 8 | 86 | 50-100 | within band | 7 | 7-10 | 6 | 5-10 |
+| 9 | 97 | 50-100 | within band | 8 | 7-10 | 7 | 5-10 |
 | 10 | 106 | 60-120 | within band | 8 | n/a | 1 | 6-12 |
-| 11 | 95 | 60-120 | within band | 6 | n/a | 12 | 6-12 |
+| 11 | 117 | 60-120 | within band | 6 | n/a | 12 | 6-12 |
 | 12 | 167 | 100-180 | within band | 22 | 10-+ | 14 | 8-15 |
 
-Non-monotonic steps: M03 (33) is below M01 (46); M06 (51) is below M05 (52); M08 (66) is below M07 (75); M11 (95) is below M10 (106). M12 is the largest assessment slice: yes.
+Non-monotonic steps: M03 (33) is below M01 (46). M12 is the largest assessment slice: yes.
 
 ## Progression curve (assessment scenario, overall evidence capability)
 
@@ -200,13 +200,13 @@ Index = mean of (unique events, source tables, alert candidates, distinct entiti
 | 2 | n/a | n/a | n/a | n/a | n/a | n/a | Prove is an imported lab with no authored event rows; only the guided access-activity slice (11 rows) is authored in portal sources. |
 | 3 | 33 | 4 | 5 | 29 | 0.265 | yes | — |
 | 4 | 37 | 4 | 0 | 35 | 0.198 | no (documented exception) | Authored alerts are 0 by design: the learner produces alerts by running their own analytics rules; volume comes from 17 accounts of authentication noise. |
-| 5 | 52 | 7 | 5 | 20 | 0.302 | yes | — |
-| 6 | 51 | 6 | 4 | 15 | 0.258 | no (documented exception) | Hunting objective: depth is process/file/network telemetry on a few hosts and one IP, so entity breadth and alerts stay lower than M05. |
+| 5 | 52 | 7 | 5 | 15 | 0.288 | yes | — |
+| 6 | 63 | 6 | 4 | 16 | 0.278 | no (documented exception) | Hunting objective: depth is process/file/network telemetry on a few hosts and one IP, so entity breadth and alerts stay lower than M05. |
 | 7 | 75 | 9 | 6 | 34 | 0.416 | yes | — |
-| 8 | 66 | 7 | 6 | 10 | 0.313 | no (documented exception) | Non-log vulnerability/asset lab: most rows are evidence records (findings, asset and scanner evidence), with few network entities. |
-| 9 | 70 | 8 | 7 | 30 | 0.404 | yes | — |
+| 8 | 86 | 7 | 6 | 10 | 0.343 | no (documented exception) | Non-log vulnerability/asset lab: most rows are evidence records (findings, asset and scanner evidence), with few network entities. |
+| 9 | 97 | 8 | 7 | 28 | 0.439 | yes | — |
 | 10 | 106 | 8 | 1 | 15 | 0.309 | no (documented exception) | Non-log custody lab: 106 rows are artifact source events and a hash/custody ledger around a single evidence-request alert. |
-| 11 | 95 | 6 | 12 | 18 | 0.475 | yes | Operations lab: rule-volume and shift metrics are lookups (DailyOpsMetrics, ShiftOpsMetrics, RuleAlertVolume, RuleChanges) and are not counted as events; the 12 queue alerts are the evidence. |
+| 11 | 117 | 6 | 12 | 19 | 0.51 | yes | Operations lab: rule-volume and shift metrics are lookups (DailyOpsMetrics, ShiftOpsMetrics, RuleAlertVolume, RuleChanges) and are not counted as events; the 12 queue alerts are the evidence. |
 | 12 | 167 | 22 | 14 | 90 | 1 | yes | — |
 
 Unexplained dips: none. M12 has the highest capability index: yes; most unique events: yes; most alert candidates: yes.
@@ -216,20 +216,20 @@ Unexplained dips: none. M12 has the highest capability index: yes; most unique e
 | Check | Roadmap claim | Verdict | Measured |
 |---|---|---|---|
 | M04-events | Baseline: M04 assessment had nine authentication events, two reports and three IOCs | **superseded (enriched)** | Now 37 unique events across 4 tables (17 accounts); 2 reports and 3 IOCs remain display-only context records, not queryable |
-| M05-events | Baseline: M05 assessment had 13 events incl. signed-updater comparisons on another host | **superseded (enriched)** | Now 52 unique events across 7 tables, 10 hosts, benign-tagged 35 |
+| M05-events | Baseline: M05 assessment had 13 events incl. signed-updater comparisons on another host | **superseded (enriched)** | Now 52 unique events across 7 tables, 5 hosts, benign-tagged 35 |
 | M12-alerts | Baseline: M12 had three initial alerts | **superseded (enriched)** | Now 14 authored alert candidates (AL-1201, AL-1202, AL-1203, AL-1204, AL-1205, AL-1206, AL-1207, AL-1208, AL-1209, AL-1210, AL-1211, AL-1212, AL-1213, AL-1214), including competing benign ones |
 | M12-evidence | Baseline: M12 had seven named evidence records and the console adapter pushed a duplicate BEN-101 row | **superseded (enriched, duplicate fixed)** | Now 167 unique queryable events in 22 tables (0 duplicate EventIds); the seven original evidence ids are unchanged, tool packs (M04-M10) reuse the same rows and add no further source events |
 | M04-M06-empty-alerts | Baseline: M04/M06 console base data had empty alert arrays before learner-generated rules | **M06 superseded (authored alerts added); M04 alerts still come from learner rules** | Assessment authored alerts: M04=0 (alerts are produced by the learner's analytics rules by design), M06=4 |
 | guided-alerts | Baseline: guided fixtures authored alerts where assessments had none | **M06 only; M04 guided alerts come from the learner** | Guided authored alerts: M04=0, M06=4; assessment M04=0, M06=4 |
 | M03-sources | M03 has four native source formats normalised into UnifiedEvents (still true) | **confirmed** | Practice 25 events, Prove 33 events; UnifiedEvents copies match source rows: true |
 | M11-queue | M11 queue/recovery data is adapted into AlertQueue and watchlists | **confirmed** | 12 AlertQueue items (alerts, counted once), 5 RecoveryRecords evidence rows, lookups {"Rules":5,"RecoveryEvidence":5,"DailyOpsMetrics":11,"ShiftOpsMetrics":9,"RuleAlertVolume":50,"RuleChanges":5} |
-| progression | M12 is the largest searchable assessment slice and counts rise by stage (documented objective-specific exceptions in the Progression curve section) | **M12 largest; row-count dips are documented exceptions** | Assessment unique events by module: 46, n/a, 33, 37, 52, 51, 75, 66, 70, 106, 95, 167. Non-monotonic steps: M03 (33) is below M01 (46); M06 (51) is below M05 (52); M08 (66) is below M07 (75); M11 (95) is below M10 (106) |
+| progression | M12 is the largest searchable assessment slice and counts rise by stage (documented objective-specific exceptions in the Progression curve section) | **M12 largest; row-count dips are documented exceptions** | Assessment unique events by module: 46, n/a, 33, 37, 52, 63, 75, 86, 97, 106, 117, 167. Non-monotonic steps: M03 (33) is below M01 (46) |
 | target-bands | Roadmap target bands are "starting targets", not claims about current totals | **confirmed** | Modules below their band: none |
-| independence | Guided and assessment fixtures should not share answer-bearing identities/event ids | **corrected** | Answer-bearing/identifier overlap in: M10 |
+| independence | Guided and assessment fixtures should not share answer-bearing identities/event ids | **confirmed** | No shared EventIds, identical fixtures or answer-bearing shared entities in any module |
 | canonical-fields | Field standardisation is present but inconsistent at the data-contract level | **confirmed** | Canonical fields absent from every scenario fixture: CorrelationId; present only in M01: RawEvent. Fields stored on M05 source rows but missing from its UnifiedEvents view: Domain, Url, ProcessId, ParentProcessId, CoverageStatus |
-| M06-guided | Baseline: M06 guided case had one repeated-script alert and two-device evidence | **superseded (enriched)** | Guided: 4 authored alert, 4 distinct hosts, 50 events; assessment: 3 hosts, 51 events |
+| M06-guided | Baseline: M06 guided case had one repeated-script alert and two-device evidence | **superseded (enriched)** | Guided: 4 authored alert, 4 distinct hosts, 61 events; assessment: 3 hosts, 63 events |
 | M01-M02-not-siem | M01/M02 are not searchable SIEM datasets; M02 activity is a focused slice | **confirmed** | M01: 46 display-only sign-in rows (Prove), 0 queryable; M02 console: 11 access-activity rows, 0 queryable, and no event rows are authored for its Prove lab in portal sources (imported lab) |
-| M08-evidence-records | M08 is not primarily a raw log-analysis module | **confirmed** | 55 evidence-record rows (findings, evidence, incident, exception) and 11 telemetry events; 5 asset-inventory lookup rows |
+| M08-evidence-records | M08 is not primarily a raw log-analysis module | **confirmed** | 55 evidence-record rows (findings, evidence, incident, exception) and 31 telemetry events; 5 asset-inventory lookup rows |
 | M10-alert | M10 includes an evidence-request alert and mapped forensic artifacts and custody ledger | **confirmed** | 1 authored alert (REQ-5510); 106 rows (artifact source events, custody ledger, acquisitions) mapped into 8 tables |
 
 ## Method notes per scenario

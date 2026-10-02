@@ -1,31 +1,70 @@
 # SOC Telemetry Audit and Sprint Roadmap
 
-**Status:** ✅ Sprints 0–6 implemented 2026-10-02; open-items pass 1 done same day (entity identity phase 2 next)\
+**Status:** ✅ Sprints 0–6, open-items pass 1, entity identity phase 2 (M02, M04–M12) and Sprint 7 density top-up done 2026-10-02; only M01 identity (owner-coordinated) remains\
 **Audit date:** 2026-10-02\
 **Scope:** SOC Analyst course Modules 1–12; synthetic logs, alerts, tables, schemas, and analyst search experience\
 **Guardrails:** Preserve the Academy UI, module/Learn-Practice-Prove structure, and lab identities. Increase available telemetry progressively across modules; do not redesign the course or expose later-module answers early.
 
-## Next AI — start here (2026-10-02, after open-items pass 1)
+## Next AI — start here (2026-10-02, after entity identity phase 2 + Sprint 7)
 
-All seven sprints shipped as data-only changes. The whole `tests/*.test.js` suite passes (72/72). Regenerate counts with `node scripts/soc-telemetry-inventory.js` (outputs in `docs/telemetry/`). Validate fixtures with `SocTelemetrySchema` (contract: `docs/telemetry/SOC_TELEMETRY_SCHEMA.md`). Check entity identity with `node scripts/soc-entity-identity-lint.js` (report: `docs/telemetry/ENTITY_IDENTITY_LINT.md`; `--strict` exits 1 on violations, `--no-write` skips the report).
+Every change is data-first and local (not pushed). The full `tests/*.test.js` suite passes: 77/77. To regenerate the reports, run `node scripts/soc-telemetry-inventory.js > docs/telemetry/SOC_TELEMETRY_INVENTORY.md`, then the same script with `--json > docs/telemetry/soc-telemetry-inventory.json`. The entity lint is `node scripts/soc-entity-identity-lint.js`, which writes `docs/telemetry/ENTITY_IDENTITY_LINT.md`.
 
-**Assessment progression (unique events / tables / alerts):** M01 46/1/1 · M02 imported · M03 33/4/5 · M04 37/4/0 (rule-generated) · M05 52/7/5 · M06 51/6/4 · M07 75/9/6 · M08 66/7/6 · M09 70/8/7 · M10 106/8/1 · M11 95/6/12 · M12 167/22/14. M12 is the maximum on every axis. The dips at M04/M06/M08/M10 are documented in the inventory's "Progression curve".
+**Assessment progression (unique events / tables / alerts):** M01 46/1/1 · M02 imported · M03 33/4/5 · M04 37/4/0 (rule-generated) · M05 52/7/5 · M06 63/6/4 · M07 75/9/6 · M08 86/7/6 · M09 97/8/7 · M10 106/8/1 · M11 117/6/12 · M12 167/22/14. From M03 to M12, unique events now rise at every step. Before this pass there were dips at M06, M08 and M11.
 
-**Done in open-items pass 1 (2026-10-02, local commits, not pushed):**
-- M12 static triage panel now shows the live queue ids (AL-1201/1205/1204) with the queue's severity, signal, time and `New` status. The ShiftLog SH-003 reference to `AL-4812` is intentional: it is the earlier overnight alert that AL-1204 recurs from.
-- Removed the unused `moduleFourIndependentLab()` renderer from M04.
-- Entity identity phase 1: an "Entity identity contract" section in `SOC_TELEMETRY_SCHEMA.md` (lower-case single-token Host; DeviceId = Host with inventory ids moved to `AssetId`; normalized lower-case Account with domain/UPN/native kept in `AccountDomain`/`AccountUpn`/`AccountNative`; empty Account only on network tables; `Source` → `SourceNote`), plus the report-only linter. Baseline: 2018 violations on 940 rows; M03 is clean. No fixture data was changed.
+**Entity identity lint:** 2018 violations went down to 55. All 55 are in M01, which has 55 rows in the shared `portal/data.js`. M02–M12 have 0 violations.
+
+**Done 2026-10-02 (one sub-agent per module in an isolated worktree, cherry-picked onto master):**
+- **M02:** display device names are lower-case (`wkstn-17` …).
+- **M04:**
+  - The AuthLog descriptive `Device` key is now `DeviceClass` in the fixtures, the rule evaluator and the rules UI. A legacy `Device` rule field is still evaluated as `DeviceClass`.
+  - Removed the unreachable independent-lab state and handlers (open item 3). Saved `independentLab` data still loads unchanged.
+- **M05:**
+  - Account changes: `CORP\x` becomes `x`, with `AccountDomain` `corp` and the original in `AccountNative`. `SYSTEM` becomes `system`.
+  - Host = DeviceId = `ws-*`. The inventory ids `M05-DEV-*` and `M05-GUIDE-*` moved to `AssetId`, and ChangeTickets `Device` became `Host`.
+  - `SocM05AssessmentState.canonicalDeviceId/Refs` maps legacy saved ids and upper-case hostnames, so the same picks earn the same score.
+  - The raw-record view keeps native values through dual sourceMappings (`device_id`→DeviceId and →AssetId; `user`→Account and →AccountNative).
+- **M06:**
+  - Hosts are lower-case, and ChangeTickets `Device` became `Host`.
+  - **Density:** assessment 51→63, guided 50→61, made of signed scheduled tasks on comparison hosts, mid-window heartbeats and signed binary inventory. A scheduled task on ws-318 was deliberately avoided because it changed the saved query result.
+- **M07:**
+  - Hosts are lower-case. EmailUrlEvents Account is now the recipient, taken from the matching EmailEvents row by NetworkMessageId.
+  - Device ids in actions are lower-cased, Prove It device scoring ignores case, and saved upper-case ids are rewritten on load.
+- **M08:**
+  - Hosts and asset ids are lower-case. FindingEvidence and AssetEvidence `Source` became `SourceNote`, and AssetInventory `Hostname` became `Host`.
+  - **Density:** 66→86, with new ScanRuns SCAN-008..016 and PatchRecords PATCH-005..015. No new findings were added.
+- **M09:**
+  - Host = DeviceId = hostname, with `DEV-*` moved to `AssetId`. The unmanaged client is `unmanaged-173` (guided `unmanaged-294`), and its label moved to `deviceClass`.
+  - ScopeChecks labels moved to `CheckName`. Rows that are not about a host have no Host key.
+  - Blank accounts were filled with `system`, `soc-analyst` or `svc-backup`.
+  - Scenario entity ids (DEV-173, session-173-REMOTE) are unchanged in the scorer and state.
+  - **Density:** 70→97 (T-055..T-081), with no new tables or alerts.
+- **M10:**
+  - Hosts are lower-case, and `SYSTEM` became `system`. Hashes, the custody ledger and ART-03's mismatch are unchanged.
+  - The rubric's acquisition source-label match ignores case.
+  - **Open item 2 fixed:** the shared host was a hard-coded `EVIDENCE-STAGING`, now `scenario.stagingHost` (guided: `evidence-stage-2`). Guided OS rows now run as `local-service`.
+- **M11:**
+  - The alert title moved out of Host into `AlertTitle`. Each queue item has a real `host` (a service host for account alerts).
+  - AlertQueue `Account` is now `siem-rules`, the rule engine. The assignee moved to `AssigneeId`, which is null when unassigned.
+  - Queue metrics are unchanged: 12 / 7 / 17.3 / 46.7.
+  - **Density:** 95→117, made of assignment, page-ack, collector heartbeat and ShiftLog rows.
+- **M12:**
+  - `SOC-04` became `soc-04`. `All staff` became the `all-staff` token, with the display text in `Audience`.
+  - AL-1201 queue entry gained `at: '09:14:00'` (open item 4).
+- **Shared:**
+  - `portal/kql-engine.js` result columns are now the union of keys across result rows (previously only the first row's keys), so Host no longer disappears when the first row lacks it. Test: `tests/kql-engine-columns.test.js`.
+  - New tests `tests/soc-telemetry-sprint7-m06|m08|m09|m11.test.js`.
+
+**Open items:**
+1. **M01 identity (55 violations), which needs owner coordination.** The rows live in the shared `portal/data.js`. The work is display-only: lower-case the device names, drop `(unmanaged)` from Host, and fix the `—` empty hosts. The answer key has `LAP-442`.
+2. **CI `--strict`.** Enable it once M01 is clean; until then it would fail CI.
+3. **Lint vs contract.** The contract allows a null Host or Account on non-host or alert-queue rows. The lint flags null Host (H4) and empty AlertQueue Account (A4). M09 and M11 sidestepped this, either by omitting the key or by using real tokens. Reconcile the lint before `--strict`.
+4. **Event ceilings in older sprint tests.** The Sprint 4 test caps M09 at 100 (now 97), and the Sprint 5 test caps M11 non-queue events at 120 (now 117). Raise those bands before any further top-up.
+5. **Learner console queries are not migrated.** A query typed before this change (for example `Host == "WKSTN-19"`) now returns 0 rows, because `==` is case-sensitive. These queries are not scored.
+6. **Needs Alex:** M04: decide whether the below-threshold decoy groups belong in `truth.rule.excludeEventIds`.
+7. **M04:** a station/click handler block after the early `return;` in `moduleFourRenderGuided` also looks unreachable. It has not been touched.
+8. **Not verified in a signed-in browser.** Only the node suites, fixture validation, lint and inventory have run.
 
 **Why identity matters:** the mock KQL engine compares `==`, `!=`, `join` and `summarize` keys case-sensitively, so `WS-204` vs `ws-204` breaks real pivots.
-
-**Open items (not done):**
-1. **Entity identity phase 2 (the main remaining work).** Follow the ordered plan and "rules of engagement" in `docs/telemetry/ENTITY_IDENTITY_LINT.md` § Phase 2: M04 → M12 → M09 → M11 → M10 → M08 → M07 → M06 → M05 → (optional M01, M02). Do one module per sub-agent, migrating the fixture, truth ids, scorer, UI helpers and tests in the same change. M05, M07, M10 and M11 have offending values inside answer keys, so use a strong model for those. Re-run the lint, the inventory (entity counts must not collapse) and the full test suite after each module. Turn on `--strict` in CI once every module is clean. Alex may override the lower-case-host decision before this starts.
-2. M10 guided/assessment overlap: they share the `SYSTEM` account and one host (pre-existing ART-10 data). Fix this together with the M10 step of phase 2.
-3. M04 leftovers from the removed renderer: `MODULE_FOUR_INDEPENDENT_LAB`, `moduleFourState.independentLab`, and the `m04-independent-*` form handlers are now unreachable. Remove them only after confirming no saved-state migration needs `independentLab`.
-4. M12 panel vs queue: AL-1201's queue entry has no `at` field (the panel shows 09:14, which matches the DeviceProcessEvents row). Consider adding `at: '09:14:00'` to the queue entry.
-5. **Needs Alex:** M04 — decide whether the below-threshold decoy groups belong in `truth.rule.excludeEventIds`.
-6. **Needs owner coordination:** M01 guided (9 events) cannot grow without editing shared `portal/data.js`.
-7. Not yet verified in a signed-in browser session. Only the node suites, fixture validation and the lint have run.
 
 ## Executive assessment
 
@@ -239,6 +278,10 @@ Run these as separate, reviewable implementation sprints. Each sprint has a narr
 **Acceptance:** M12 is the largest searchable assessment slice and alert candidate set; every scored claim is supported by reachable evidence; every “no match” claim is bounded by source/time coverage; no UI, course structure, grading lifecycle, or module identity is changed.
 
 **Delegation brief:** “Scale the Module 12 Amber Finch data and run the course-wide telemetry inventory/validation. Keep its independent capstone and existing UI/assessment lifecycle. Ensure its unique-event volume and alert candidates exceed prior stages and that evidence references/coverage boundaries remain valid.”
+
+### Sprint 7 — Entity identity phase 2 and density top-up ✅ (2026-10-02)
+
+> **Done.** Every module from M02 to M12 now passes the entity identity contract: the lint went from 2018 violations to 55, all in M01. Assessment unique events were topped up to remove the dips: M06 51→63, M08 66→86, M09 70→97, M11 95→117. The M03→M12 staircase now rises at every step. Answer keys, scorers and metrics are unchanged. Where students' saved state carries old-form ids, it is migrated on load (M05, M07, M10). The shared KQL engine now takes result columns as the union of keys across result rows. See "Next AI — start here" for per-module detail and open items.
 
 ## Cross-sprint implementation rules
 

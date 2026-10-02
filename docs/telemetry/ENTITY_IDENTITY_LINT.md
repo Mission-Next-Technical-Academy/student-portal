@@ -25,18 +25,18 @@ Scope: every console table for M01-M12 (guided + assessment) except derived `Uni
 | Module | Rows checked | H1 | H2 | H3 | H4 | A1 | A2 | A3 | A4 | K1 | S1 | Total | Rows affected |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | M01 | 55 | 42 | 9 | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 55 | 55 |
-| M02 | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 5 |
+| M02 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | M03 | 79 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| M04 | 90 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 50 | 0 | 50 | 50 |
-| M05 | 120 | 208 | 0 | 104 | 0 | 72 | 44 | 0 | 0 | 4 | 0 | 432 | 108 |
-| M06 | 117 | 101 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 6 | 0 | 107 | 103 |
-| M07 | 164 | 196 | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | 206 | 108 |
-| M08 | 152 | 264 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 104 | 0 | 368 | 134 |
-| M09 | 153 | 122 | 4 | 114 | 16 | 0 | 0 | 0 | 46 | 0 | 0 | 302 | 134 |
-| M10 | 218 | 424 | 0 | 0 | 0 | 0 | 28 | 0 | 0 | 0 | 0 | 452 | 212 |
-| M11 | 222 | 0 | 24 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | 0 | 34 | 24 |
-| M12 | 181 | 0 | 0 | 0 | 0 | 0 | 4 | 3 | 0 | 0 | 0 | 7 | 7 |
-| **All** | 1556 | 1362 | 37 | 218 | 20 | 72 | 76 | 13 | 56 | 164 | 0 | 2018 | 940 |
+| M04 | 90 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M05 | 120 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M06 | 140 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M07 | 164 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M08 | 192 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M09 | 215 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M10 | 218 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M11 | 266 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M12 | 181 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| **All** | 1725 | 42 | 9 | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 55 | 55 |
 
 ## Examples (up to 3 per module and rule)
 
@@ -48,7 +48,7 @@ Scope: every console table for M01-M12 (guided + assessment) except derived `Uni
 
 ### M02
 
-- **H1 host-case** (5): `guided/M02 console/wk17` Host=WKSTN-17; `guided/M02 console/wk23` Host=WKSTN-23; `guided/M02 console/wk31` Host=WKSTN-31
+No violations.
 
 ### M03
 
@@ -56,53 +56,39 @@ No violations.
 
 ### M04
 
-- **K1 noncanonical-key** (50): `guided/AuthLog/GL4-A-123` Device="Managed workstation"; `guided/AuthLog/GL4-A-117` Device="Branch workstation"; `guided/AuthLog/GL4-A-107` Device="Managed mail client"
+No violations.
 
 ### M05
 
-- **H1 host-case** (208): `guided/DeviceProcessEvents/M05-PR-252` Host=WS-PRACTICE-27; `guided/DeviceProcessEvents/M05-PR-252` DeviceId=M05-GUIDE-105; `guided/DeviceProcessEvents/M05-PR-213` Host=WS-PRACTICE-12
-- **H3 host-deviceid-mismatch** (104): `guided/DeviceProcessEvents/M05-PR-252` Host=WS-PRACTICE-27 DeviceId=M05-GUIDE-105; `guided/DeviceProcessEvents/M05-PR-213` Host=WS-PRACTICE-12 DeviceId=M05-GUIDE-102; `guided/DeviceProcessEvents/M05-PR-245` Host=WS-PRACTICE-18 DeviceId=M05-GUIDE-104
-- **A1 account-qualified** (72): `guided/DeviceProcessEvents/M05-PR-252` Account=CORP\p.shah; `guided/DeviceProcessEvents/M05-PR-245` Account=CORP\a.novak; `guided/DeviceProcessEvents/M05-PR-208` Account=CORP\r.patel
-- **A2 account-case** (44): `guided/DeviceProcessEvents/M05-PR-213` Account=SYSTEM
-- **K1 noncanonical-key** (4): `guided/ChangeTickets/undefined` Device="WS-PRACTICE-18"; `guided/ChangeTickets/undefined` Device="WS-PRACTICE-27"; `assessment/ChangeTickets/undefined` Device="WS-ASSESS-31"
+No violations.
 
 ### M06
 
-- **H1 host-case** (101): `guided/DeviceProcessEvents/M06-GUIDE-244` Host=WS-655; `guided/DeviceProcessEvents/M06-GUIDE-211` Host=WS-612; `guided/DeviceProcessEvents/M06-GUIDE-207` Host=WS-537
-- **K1 noncanonical-key** (6): `guided/ChangeTickets/undefined` Device="ws-612"; `guided/ChangeTickets/undefined` Device="ws-655"; `assessment/ChangeTickets/undefined` Device="ws-355"
+No violations.
 
 ### M07
 
-- **H1 host-case** (196): `guided/DeviceProcessEvents/M07-GL-BG-PRC-005` Host=WS-421; `guided/DeviceProcessEvents/M07-GL-BG-PRC-005` DeviceId=WS-421; `guided/DeviceProcessEvents/M07-GL-BG-PRC-002` Host=WS-208
-- **A4 account-empty** (10): `guided/EmailUrlEvents/M07-GL-BG-URL-007` Account=""
+No violations.
 
 ### M08
 
-- **H1 host-case** (264): `guided/VulnerabilityFindings/M08G-FINDING-008` Host=CRM-INT-12; `guided/VulnerabilityFindings/M08G-FINDING-008` DeviceId=CRM-INT-12; `guided/VulnerabilityFindings/M08G-FINDING-007` Host=API-EDGE-31
-- **K1 noncanonical-key** (104): `guided/FindingEvidence/M08G-EVID-024` Source="Synthetic service-owner note"; `guided/FindingEvidence/M08G-EVID-025` Source="Synthetic threat-intelligence bulletin"; `guided/FindingEvidence/M08G-EVID-021` Source="Synthetic signed package inventory"
+No violations.
 
 ### M09
 
-- **H1 host-case** (122): `guided/DeviceNetworkEvents/M09G-T-016` DeviceId=DEV-294; `guided/IdentityEvents/M09G-T-032` DeviceId=DEV-388; `guided/IdentityEvents/M09G-T-031` DeviceId=DEV-UNKNOWN-294
-- **H2 host-free-text** (4): `guided/ScopeChecks/M09G-E10` Host="Egress review"; `guided/ScopeChecks/M09G-E09` Host="Bounded sweep"; `assessment/ScopeChecks/M09-E10` Host="Data access check"
-- **H3 host-deviceid-mismatch** (114): `guided/DeviceNetworkEvents/M09G-T-016` Host=ws-294 DeviceId=DEV-294; `guided/IdentityEvents/M09G-T-032` Host=ws-388 DeviceId=DEV-388; `guided/IdentityEvents/M09G-T-027` Host=fs-05 DeviceId=DEV-FS-05
-- **H4 host-empty** (16): `guided/IdentityEvents/M09G-T-031` Host="" (DeviceId=DEV-UNKNOWN-294); `guided/IdentityEvents/M09G-T-030` Host="" (DeviceId=DEV-388); `guided/IdentityEvents/M09G-E07` Host=""
-- **A4 account-empty** (46): `guided/DeviceEvents/M09G-T-011` Account=""
+No violations.
 
 ### M10
 
-- **H1 host-case** (424): `guided/SystemLog/M10G-SRC-31` Host=EDR-MGMT-02; `guided/SystemLog/M10G-SRC-31` DeviceId=EDR-MGMT-02; `guided/SystemLog/M10G-SRC-27` Host=PROXY-02
-- **A2 account-case** (28): `guided/SystemLog/M10G-SRC-25` Account=SYSTEM
+No violations.
 
 ### M11
 
-- **H2 host-free-text** (24): `guided/AlertQueue/GQ-08` Host="DNS lookup to newly registered domain (ws-140)"; `guided/AlertQueue/GQ-03` Host="Office macro spawned PowerShell on ws-219"; `guided/AlertQueue/GQ-02` Host="Password spray against VPN gateway"
-- **A3 account-free-text** (10): `guided/AlertQueue/GQ-08` Account="unassigned"
+No violations.
 
 ### M12
 
-- **A2 account-case** (4): `assessment/EvidenceCustodyLog/EV-904` Account=SOC-04
-- **A3 account-free-text** (3): `assessment/EmailEvents/EM-221` Account="All staff"
+No violations.
 
 ## Phase 2 fix plan
 
@@ -110,64 +96,14 @@ Order: cheapest and lowest grading risk first; each step is one module-by-module
 
 | # | Module | Change | Est. rows | Rules | Risk notes |
 |---:|---|---|---:|---|---|
-| 1 | M04 | Rename descriptive `Device` key ("Managed workstation") on AuthLog to `DeviceClass` | 50 | K1 | Low risk, no answer-key hits; start here. |
-| 2 | M12 | Lower-case `system`, replace free-text `All staff`; canonical already | 7 | A2 A3 | M12 is the reference module; panel alert ids were aligned to the queue in ee17b70. **1 code/test file(s) hard-code offending values.** |
-| 3 | M09 | Host = DeviceId = lower-case hostname; move free text out of Host; fill/designate empty Account | 134 | H1 H2 H3 H4 A4 | Highest row volume of structural fixes (DeviceId `DEV-*` vs Host, free-text Host in ScopeChecks). **4 code/test file(s) hard-code offending values.** |
-| 4 | M11 | Move alert title out of Host on AlertQueue; `unassigned` -> null | 24 | H2 A3 | Alert titles in Host are likely read by queue UI/scorer; check consumers. **TRUTH: 1 offending value(s) appear in the answer key; 2 code/test file(s) hard-code offending values.** |
-| 5 | M10 | Lower-case hosts; bare lower-case `system` | 212 | H1 A2 | Guided and assessment share `SYSTEM` and WKS hosts (open item 5); fix both together. **TRUTH: 4 offending value(s) appear in the answer key; 1 code/test file(s) hard-code offending values.** |
-| 6 | M08 | Lower-case hosts; rename `Source` (and `Hostname`) keys | 134 | H1 K1 | Hosts are asset ids in findings, risk-exception and truth; rename `Source` last. **3 code/test file(s) hard-code offending values.** |
-| 7 | M07 | Lower-case hosts; fill Account on EmailUrlEvents; Firewall Account stays empty | 108 | H1 A4 | Email/URL rows feed answer keys by account. **TRUTH: 2 offending value(s) appear in the answer key; 8 code/test file(s) hard-code offending values.** |
-| 8 | M06 | Lower-case Host/DeviceId (accounts already `acct-*`); rename ChangeTickets `Device` to `Host` | 103 | H1 K1 | Host/DeviceId already equal ignoring case; casing only. **1 code/test file(s) hard-code offending values.** |
-| 9 | M05 | Strip `CORP\`, lower-case `SYSTEM`, Host = DeviceId (`ws-*`), keep inventory ids as alias field | 108 | H1 H3 A1 A2 K1 | Largest semantic change: DeviceId `M05-DEV-00N` is an inventory id used by ChangeTickets/ApprovedSoftware. **TRUTH: 12 offending value(s) appear in the answer key; 9 code/test file(s) hard-code offending values.** |
-| 10 | M01 | Display-only: lower-case device, drop `(unmanaged)` annotation | 55 | H1 H2 H4 | Shared `portal/data.js`; display strings only, optional. **TRUTH: 1 offending value(s) appear in the answer key; 1 code/test file(s) hard-code offending values.** |
-| 11 | M02 | Display-only: lower-case device names (`WKSTN-17`) | 5 | H1 | Imported/console labels; optional. **1 code/test file(s) hard-code offending values.** |
+| 1 | M01 | Display-only: lower-case device, drop `(unmanaged)` annotation | 55 | H1 H2 H4 | Shared `portal/data.js`; display strings only, optional. **TRUTH: 1 offending value(s) appear in the answer key; 1 code/test file(s) hard-code offending values.** |
 
 ### Answer-key and grading risk detail
 
 Offending values (hosts, device ids, accounts that break the contract) found in the module answer key (`truth`/expected objects) and in module scorer/UI/test files. Renaming these in fixtures without updating the same strings in those files changes grading or fails tests.
 
-- **M04** answer-key values: none
-- **M12** answer-key values: none
-  - `portal/soc-analyst-module-12.js` references 2 offending value(s), e.g. `All staff`, `SOC-04`
-- **M09** answer-key values: none
-  - `portal/soc-analyst-module-09.js` references 20 offending value(s), e.g. `DEV-294`, `DEV-388`, `DEV-UNKNOWN-294`
-  - `tests/soc-m09-assessment-data.test.js` references 2 offending value(s), e.g. `DEV-173`, `session-173-REMOTE`
-  - `tests/soc-m09-assessment-scorer.test.js` references 2 offending value(s), e.g. `DEV-173`, `session-173-REMOTE`
-  - `tests/soc-m09-assessment-state.test.js` references 3 offending value(s), e.g. `DEV-173`, `DEV-UNKNOWN-173`, `session-173-REMOTE`
-- **M11** answer-key values: `unassigned`
-  - `portal/soc-analyst-module-11.js` references 1 offending value(s), e.g. `unassigned`
-  - `portal/soc-m11-assessment-metrics.js` references 1 offending value(s), e.g. `unassigned`
-- **M10** answer-key values: `WKSTN-42`, `WKS-FIN-12`, `WKSTN-19`, `WKS-DESK-07`
-  - `portal/soc-analyst-module-10.js` references 12 offending value(s), e.g. `EDR-MGMT-02`, `PROXY-02`, `MAIL-GW-02`
-- **M08** answer-key values: none
-  - `portal/soc-analyst-module-08.js` references 10 offending value(s), e.g. `CRM-INT-12`, `API-EDGE-31`, `DB-ANL-06`
-  - `tests/soc-m08-assessment-data.test.js` references 2 offending value(s), e.g. `WEB-DMZ-14`, `APP-DMZ-22`
-  - `tests/soc-m08-assessment-ui.test.js` references 2 offending value(s), e.g. `WEB-DMZ-14`, `APP-DMZ-22`
-- **M07** answer-key values: `WS-733`, `WS-517`
-  - `portal/soc-analyst-module-07.js` references 4 offending value(s), e.g. `WS-208`, `WS-733`, `WS-204`
-  - `tests/soc-m07-assessment-actions.test.js` references 2 offending value(s), e.g. `WS-204`, `WS-517`
-  - `tests/soc-m07-assessment-data.test.js` references 2 offending value(s), e.g. `WS-204`, `WS-517`
-  - `tests/soc-m07-assessment-email-ui.test.js` references 1 offending value(s), e.g. `WS-517`
-  - `tests/soc-m07-assessment-network-ui.test.js` references 2 offending value(s), e.g. `WS-204`, `WS-517`
-  - `tests/soc-m07-assessment-rubric.test.js` references 1 offending value(s), e.g. `WS-517`
-  - `tests/soc-m07-assessment-scorer.test.js` references 1 offending value(s), e.g. `WS-517`
-  - `tests/soc-m07-assessment-state.test.js` references 1 offending value(s), e.g. `WS-517`
-- **M06** answer-key values: none
-  - `portal/soc-analyst-module-06.js` references 7 offending value(s), e.g. `WS-655`, `WS-612`, `WS-537`
-- **M05** answer-key values: `M05-GUIDE-105`, `M05-GUIDE-102`, `M05-GUIDE-104`, `WS-PRACTICE-41`, `M05-GUIDE-101`, `M05-GUIDE-103`, `M05-DEV-005`, `M05-DEV-004`, `M05-DEV-002`, `WS-ASSESS-27`, `M05-DEV-001`, `M05-DEV-003`
-  - `portal/soc-analyst-module-05.js` references 21 offending value(s), e.g. `WS-PRACTICE-27`, `M05-GUIDE-105`, `WS-PRACTICE-12`
-  - `tests/soc-m05-assessment-actions.test.js` references 2 offending value(s), e.g. `M05-DEV-002`, `M05-DEV-001`
-  - `tests/soc-m05-assessment-console.test.js` references 2 offending value(s), e.g. `M05-DEV-002`, `M05-DEV-001`
-  - `tests/soc-m05-assessment-data.test.js` references 1 offending value(s), e.g. `WS-ASSESS-27`
-  - `tests/soc-m05-assessment-device-ui.test.js` references 3 offending value(s), e.g. `SYSTEM`, `M05-DEV-002`, `M05-DEV-001`
-  - `tests/soc-m05-assessment-rubric.test.js` references 2 offending value(s), e.g. `M05-DEV-002`, `M05-DEV-001`
-  - `tests/soc-m05-assessment-scorer.test.js` references 2 offending value(s), e.g. `M05-DEV-002`, `M05-DEV-001`
-  - `tests/soc-m05-assessment-state.test.js` references 3 offending value(s), e.g. `M05-DEV-002`, `M05-DEV-001`, `M05-DEV-003`
-  - (+1 more files)
 - **M01** answer-key values: `LAP-442`
   - `portal/soc-analyst-module-01.js` references 3 offending value(s), e.g. `WKS-14`, `LAP-442`, `FS-02`
-- **M02** answer-key values: none
-  - `portal/soc-analyst-module-02-environment.js` references 5 offending value(s), e.g. `WKSTN-17`, `WKSTN-23`, `WKSTN-31`
 
 ### Phase 2 rules of engagement
 

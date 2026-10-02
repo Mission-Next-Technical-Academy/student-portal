@@ -1449,7 +1449,7 @@
       "nonCanonicalFields": {
         "Application": 1,
         "ChangeId": 1,
-        "Device": 20,
+        "DeviceClass": 20,
         "InitiatedBy": 1,
         "Records": 1
       },
@@ -1741,7 +1741,7 @@
       "nonCanonicalFields": {
         "Application": 2,
         "ChangeId": 2,
-        "Device": 30,
+        "DeviceClass": 30,
         "InitiatedBy": 1,
         "Records": 2,
         "TargetGroup": 1
@@ -1888,7 +1888,7 @@
       },
       "entities": {
         "accounts": 6,
-        "hosts": 10,
+        "hosts": 5,
         "ips": 0,
         "domains": 4,
         "sessions": 0,
@@ -2067,6 +2067,9 @@
         }
       },
       "nonCanonicalFields": {
+        "AccountDomain": 31,
+        "AccountNative": 52,
+        "AssetId": 52,
         "CommandLine": 22,
         "DestinationPort": 7,
         "FilePath": 30,
@@ -2227,7 +2230,7 @@
       },
       "entities": {
         "accounts": 6,
-        "hosts": 10,
+        "hosts": 5,
         "ips": 0,
         "domains": 4,
         "sessions": 0,
@@ -2406,6 +2409,9 @@
         }
       },
       "nonCanonicalFields": {
+        "AccountDomain": 31,
+        "AccountNative": 52,
+        "AssetId": 52,
         "CommandLine": 22,
         "DestinationPort": 7,
         "FilePath": 29,
@@ -2488,19 +2494,19 @@
       "caseId": "HNT-6411",
       "method": "runtime",
       "methodNote": "",
-      "uniqueSourceEvents": 50,
-      "telemetryEvents": 50,
+      "uniqueSourceEvents": 61,
+      "telemetryEvents": 61,
       "evidenceRecords": 0,
       "alertRecordRows": 0,
       "duplicateEventIds": [],
-      "queryableEvents": 50,
+      "queryableEvents": 61,
       "displayOnlyEvents": 0,
       "tables": [
         {
           "name": "DeviceFileEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 6
+          "rows": 7
         },
         {
           "name": "DeviceNetworkEvents",
@@ -2512,19 +2518,19 @@
           "name": "DeviceProcessEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 14
+          "rows": 17
         },
         {
           "name": "DeviceSensorHealth",
           "kind": "event",
           "queryable": true,
-          "rows": 10
+          "rows": 14
         },
         {
           "name": "DeviceTaskEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 3
+          "rows": 6
         },
         {
           "name": "IdentityEvents",
@@ -2542,8 +2548,8 @@
           "ChangeTickets": 3
         }
       },
-      "viewRows": 110,
-      "unifiedViewRows": 50,
+      "viewRows": 132,
+      "unifiedViewRows": 61,
       "unifiedCopiesMatchSource": true,
       "alerts": {
         "authored": 4,
@@ -2563,31 +2569,31 @@
         "ips": 1,
         "domains": 4,
         "sessions": 0,
-        "processes": 14
+        "processes": 17
       },
       "coverage": {
         "TimeGenerated": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "EventId": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "EventSource": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "EventType": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "Account": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "SourceIp": {
@@ -2596,18 +2602,18 @@
         },
         "DestinationIp": {
           "count": 2,
-          "pct": 4
+          "pct": 3.3
         },
         "Domain": {
           "count": 10,
-          "pct": 20
+          "pct": 16.4
         },
         "Url": {
           "count": 0,
           "pct": 0
         },
         "Result": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "SessionId": {
@@ -2615,23 +2621,23 @@
           "pct": 0
         },
         "ProcessId": {
-          "count": 34,
-          "pct": 68
+          "count": 40,
+          "pct": 65.6
         },
         "ParentProcessId": {
-          "count": 10,
-          "pct": 20
+          "count": 12,
+          "pct": 19.7
         },
         "CorrelationId": {
           "count": 0,
           "pct": 0
         },
         "Action": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "Detail": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "RawEvent": {
@@ -2647,33 +2653,33 @@
           "pct": 0
         },
         "CoverageStatus": {
-          "count": 10,
-          "pct": 20
+          "count": 14,
+          "pct": 23
         }
       },
       "unifiedViewCoverage": {
         "TimeGenerated": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "EventId": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "EventSource": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "EventType": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "Account": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "SourceIp": {
@@ -2693,7 +2699,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "SessionId": {
@@ -2713,11 +2719,11 @@
           "pct": 0
         },
         "Action": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "Detail": {
-          "count": 50,
+          "count": 61,
           "pct": 100
         },
         "RawEvent": {
@@ -2738,22 +2744,22 @@
         }
       },
       "nonCanonicalFields": {
-        "CommandLine": 14,
+        "CommandLine": 17,
         "DestinationPort": 12,
-        "EndpointEventType": 50,
-        "FilePath": 9,
-        "Image": 14,
+        "EndpointEventType": 61,
+        "FilePath": 10,
+        "Image": 17,
         "MaintenanceId": 2,
-        "RelatedEventIds": 38,
+        "RelatedEventIds": 45,
         "ScriptPath": 3,
-        "Sha256": 6,
-        "Signer": 12,
-        "TaskName": 3,
-        "TaskPath": 3
+        "Sha256": 7,
+        "Signer": 16,
+        "TaskName": 6,
+        "TaskPath": 6
       },
       "tagging": {
         "method": "fixture-tags",
-        "benignOrDistractor": 28,
+        "benignOrDistractor": 39,
         "coverageTagged": 10,
         "benignIds": [
           "M06-GUIDE-214",
@@ -2783,7 +2789,18 @@
           "M06-GUIDE-247",
           "M06-GUIDE-248",
           "M06-GUIDE-249",
-          "M06-GUIDE-250"
+          "M06-GUIDE-250",
+          "M06-GUIDE-251",
+          "M06-GUIDE-252",
+          "M06-GUIDE-253",
+          "M06-GUIDE-254",
+          "M06-GUIDE-255",
+          "M06-GUIDE-256",
+          "M06-GUIDE-257",
+          "M06-GUIDE-258",
+          "M06-GUIDE-259",
+          "M06-GUIDE-260",
+          "M06-GUIDE-261"
         ],
         "coverageIds": [
           "M06-GUIDE-213",
@@ -2802,8 +2819,8 @@
       },
       "context": {
         "telemetry": {
-          "rows": 50,
-          "mappedIntoTables": 50
+          "rows": 61,
+          "mappedIntoTables": 61
         }
       },
       "fixtureScenarioId": "M06-GUIDED-2026-09-27"
@@ -2815,43 +2832,43 @@
       "caseId": "BKD-6318",
       "method": "runtime",
       "methodNote": "",
-      "uniqueSourceEvents": 51,
-      "telemetryEvents": 51,
+      "uniqueSourceEvents": 63,
+      "telemetryEvents": 63,
       "evidenceRecords": 0,
       "alertRecordRows": 0,
       "duplicateEventIds": [],
-      "queryableEvents": 51,
+      "queryableEvents": 63,
       "displayOnlyEvents": 0,
       "tables": [
         {
           "name": "DeviceFileEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 4
+          "rows": 8
         },
         {
           "name": "DeviceNetworkEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 13
+          "rows": 14
         },
         {
           "name": "DeviceProcessEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 16
+          "rows": 18
         },
         {
           "name": "DeviceSensorHealth",
           "kind": "event",
           "queryable": true,
-          "rows": 8
+          "rows": 11
         },
         {
           "name": "DeviceTaskEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 5
+          "rows": 7
         },
         {
           "name": "IdentityEvents",
@@ -2868,8 +2885,8 @@
           "ChangeTickets": 3
         }
       },
-      "viewRows": 111,
-      "unifiedViewRows": 51,
+      "viewRows": 135,
+      "unifiedViewRows": 63,
       "unifiedCopiesMatchSource": true,
       "alerts": {
         "authored": 4,
@@ -2887,33 +2904,33 @@
         "accounts": 5,
         "hosts": 3,
         "ips": 1,
-        "domains": 6,
+        "domains": 7,
         "sessions": 0,
-        "processes": 16
+        "processes": 18
       },
       "coverage": {
         "TimeGenerated": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "EventId": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "EventSource": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "EventType": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "Account": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "SourceIp": {
@@ -2922,18 +2939,18 @@
         },
         "DestinationIp": {
           "count": 1,
-          "pct": 2
+          "pct": 1.6
         },
         "Domain": {
-          "count": 12,
-          "pct": 23.5
+          "count": 13,
+          "pct": 20.6
         },
         "Url": {
           "count": 0,
           "pct": 0
         },
         "Result": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "SessionId": {
@@ -2941,23 +2958,23 @@
           "pct": 0
         },
         "ProcessId": {
-          "count": 37,
-          "pct": 72.5
+          "count": 46,
+          "pct": 73
         },
         "ParentProcessId": {
-          "count": 9,
-          "pct": 17.6
+          "count": 13,
+          "pct": 20.6
         },
         "CorrelationId": {
           "count": 0,
           "pct": 0
         },
         "Action": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "Detail": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "RawEvent": {
@@ -2973,33 +2990,33 @@
           "pct": 0
         },
         "CoverageStatus": {
-          "count": 8,
-          "pct": 15.7
+          "count": 11,
+          "pct": 17.5
         }
       },
       "unifiedViewCoverage": {
         "TimeGenerated": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "EventId": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "EventSource": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "EventType": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "Account": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "SourceIp": {
@@ -3019,7 +3036,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "SessionId": {
@@ -3039,11 +3056,11 @@
           "pct": 0
         },
         "Action": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "Detail": {
-          "count": 51,
+          "count": 63,
           "pct": 100
         },
         "RawEvent": {
@@ -3064,22 +3081,22 @@
         }
       },
       "nonCanonicalFields": {
-        "CommandLine": 16,
-        "DestinationPort": 13,
-        "EndpointEventType": 51,
-        "FilePath": 4,
-        "Image": 16,
+        "CommandLine": 18,
+        "DestinationPort": 14,
+        "EndpointEventType": 63,
+        "FilePath": 8,
+        "Image": 18,
         "MaintenanceId": 5,
-        "RelatedEventIds": 41,
+        "RelatedEventIds": 50,
         "ScriptPath": 2,
-        "Sha256": 4,
-        "Signer": 13,
-        "TaskName": 5,
-        "TaskPath": 5
+        "Sha256": 8,
+        "Signer": 19,
+        "TaskName": 7,
+        "TaskPath": 7
       },
       "tagging": {
         "method": "fixture-tags",
-        "benignOrDistractor": 34,
+        "benignOrDistractor": 46,
         "coverageTagged": 8,
         "benignIds": [
           "M06-EVT-011",
@@ -3115,7 +3132,19 @@
           "M06-EVT-048",
           "M06-EVT-049",
           "M06-EVT-050",
-          "M06-EVT-051"
+          "M06-EVT-051",
+          "M06-EVT-052",
+          "M06-EVT-053",
+          "M06-EVT-054",
+          "M06-EVT-055",
+          "M06-EVT-056",
+          "M06-EVT-057",
+          "M06-EVT-058",
+          "M06-EVT-059",
+          "M06-EVT-060",
+          "M06-EVT-061",
+          "M06-EVT-062",
+          "M06-EVT-063"
         ],
         "coverageIds": [
           "M06-EVT-010",
@@ -3132,8 +3161,8 @@
       },
       "context": {
         "telemetry": {
-          "rows": 51,
-          "mappedIntoTables": 51
+          "rows": 63,
+          "mappedIntoTables": 63
         }
       },
       "fixtureScenarioId": "M06-ASSESS-2026-09-27"
@@ -3257,8 +3286,8 @@
           "pct": 100
         },
         "Account": {
-          "count": 68,
-          "pct": 90.7
+          "count": 73,
+          "pct": 97.3
         },
         "Host/DeviceId": {
           "count": 51,
@@ -3343,8 +3372,8 @@
           "pct": 100
         },
         "Account": {
-          "count": 68,
-          "pct": 90.7
+          "count": 73,
+          "pct": 97.3
         },
         "Host/DeviceId": {
           "count": 51,
@@ -3663,8 +3692,8 @@
           "pct": 100
         },
         "Account": {
-          "count": 68,
-          "pct": 90.7
+          "count": 73,
+          "pct": 97.3
         },
         "Host/DeviceId": {
           "count": 51,
@@ -3749,8 +3778,8 @@
           "pct": 100
         },
         "Account": {
-          "count": 68,
-          "pct": 90.7
+          "count": 73,
+          "pct": 97.3
         },
         "Host/DeviceId": {
           "count": 51,
@@ -3957,12 +3986,12 @@
       "caseId": "VLN-PRACTICE-0849",
       "method": "runtime",
       "methodNote": "",
-      "uniqueSourceEvents": 66,
-      "telemetryEvents": 11,
+      "uniqueSourceEvents": 86,
+      "telemetryEvents": 31,
       "evidenceRecords": 55,
       "alertRecordRows": 0,
       "duplicateEventIds": [],
-      "queryableEvents": 66,
+      "queryableEvents": 86,
       "displayOnlyEvents": 0,
       "tables": [
         {
@@ -3987,7 +4016,7 @@
           "name": "PatchRecords",
           "kind": "event",
           "queryable": true,
-          "rows": 4
+          "rows": 15
         },
         {
           "name": "RiskExceptionEvidence",
@@ -3999,7 +4028,7 @@
           "name": "ScanRuns",
           "kind": "event",
           "queryable": true,
-          "rows": 7
+          "rows": 16
         },
         {
           "name": "VulnerabilityFindings",
@@ -4016,8 +4045,8 @@
           "AssetInventory": 5
         }
       },
-      "viewRows": 142,
-      "unifiedViewRows": 66,
+      "viewRows": 182,
+      "unifiedViewRows": 86,
       "unifiedCopiesMatchSource": true,
       "alerts": {
         "authored": 6,
@@ -4043,27 +4072,27 @@
       },
       "coverage": {
         "TimeGenerated": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventId": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventSource": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventType": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Account": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "SourceIp": {
@@ -4083,7 +4112,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "SessionId": {
@@ -4107,7 +4136,7 @@
           "pct": 0
         },
         "Detail": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "RawEvent": {
@@ -4129,27 +4158,27 @@
       },
       "unifiedViewCoverage": {
         "TimeGenerated": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventId": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventSource": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventType": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Account": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "SourceIp": {
@@ -4169,7 +4198,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "SessionId": {
@@ -4189,11 +4218,11 @@
           "pct": 0
         },
         "Action": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Detail": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "RawEvent": {
@@ -4214,8 +4243,8 @@
         }
       },
       "nonCanonicalFields": {
-        "ChangeId": 4,
-        "Coverage": 7,
+        "ChangeId": 15,
+        "Coverage": 16,
         "Cve": 8,
         "CvssScore": 8,
         "CvssVector": 8,
@@ -4223,13 +4252,13 @@
         "Freshness": 8,
         "Product": 8,
         "ScanAt": 8,
-        "ScanMode": 7,
-        "Scanner": 15,
-        "Source": 47
+        "ScanMode": 16,
+        "Scanner": 24,
+        "SourceNote": 47
       },
       "tagging": {
         "method": "fixture-tags",
-        "benignOrDistractor": 43,
+        "benignOrDistractor": 63,
         "coverageTagged": 0,
         "benignIds": [
           "M08G-ASSET-EVID-009",
@@ -4268,17 +4297,37 @@
           "M08G-PATCH-002",
           "M08G-PATCH-003",
           "M08G-PATCH-004",
+          "M08G-PATCH-005",
+          "M08G-PATCH-006",
+          "M08G-PATCH-007",
+          "M08G-PATCH-008",
+          "M08G-PATCH-009",
+          "M08G-PATCH-010",
+          "M08G-PATCH-011",
+          "M08G-PATCH-012",
+          "M08G-PATCH-013",
+          "M08G-PATCH-014",
+          "M08G-PATCH-015",
           "M08G-SCAN-001",
           "M08G-SCAN-002",
           "M08G-SCAN-003",
           "M08G-SCAN-004",
           "M08G-SCAN-005",
           "M08G-SCAN-006",
-          "M08G-SCAN-007"
+          "M08G-SCAN-007",
+          "M08G-SCAN-008",
+          "M08G-SCAN-009",
+          "M08G-SCAN-010",
+          "M08G-SCAN-011",
+          "M08G-SCAN-012",
+          "M08G-SCAN-013",
+          "M08G-SCAN-014",
+          "M08G-SCAN-015",
+          "M08G-SCAN-016"
         ],
         "coverageIds": [],
         "structuralCoverageCaveatRows": 0,
-        "changeLinkedRows": 4
+        "changeLinkedRows": 15
       },
       "context": {
         "assetInventory": {
@@ -4318,12 +4367,12 @@
           "mappedIntoTables": 20
         },
         "scanRuns": {
-          "rows": 7,
-          "mappedIntoTables": 7
+          "rows": 16,
+          "mappedIntoTables": 16
         },
         "patchRecords": {
-          "rows": 4,
-          "mappedIntoTables": 4
+          "rows": 15,
+          "mappedIntoTables": 15
         },
         "alertCandidates": {
           "rows": 5,
@@ -4339,12 +4388,12 @@
       "caseId": "VLN-0842",
       "method": "runtime",
       "methodNote": "",
-      "uniqueSourceEvents": 66,
-      "telemetryEvents": 11,
+      "uniqueSourceEvents": 86,
+      "telemetryEvents": 31,
       "evidenceRecords": 55,
       "alertRecordRows": 0,
       "duplicateEventIds": [],
-      "queryableEvents": 66,
+      "queryableEvents": 86,
       "displayOnlyEvents": 0,
       "tables": [
         {
@@ -4369,7 +4418,7 @@
           "name": "PatchRecords",
           "kind": "event",
           "queryable": true,
-          "rows": 4
+          "rows": 15
         },
         {
           "name": "RiskExceptionEvidence",
@@ -4381,7 +4430,7 @@
           "name": "ScanRuns",
           "kind": "event",
           "queryable": true,
-          "rows": 7
+          "rows": 16
         },
         {
           "name": "VulnerabilityFindings",
@@ -4398,8 +4447,8 @@
           "AssetInventory": 5
         }
       },
-      "viewRows": 142,
-      "unifiedViewRows": 66,
+      "viewRows": 182,
+      "unifiedViewRows": 86,
       "unifiedCopiesMatchSource": true,
       "alerts": {
         "authored": 6,
@@ -4425,27 +4474,27 @@
       },
       "coverage": {
         "TimeGenerated": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventId": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventSource": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventType": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Account": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "SourceIp": {
@@ -4465,7 +4514,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "SessionId": {
@@ -4489,7 +4538,7 @@
           "pct": 0
         },
         "Detail": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "RawEvent": {
@@ -4511,27 +4560,27 @@
       },
       "unifiedViewCoverage": {
         "TimeGenerated": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventId": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventSource": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "EventType": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Account": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "SourceIp": {
@@ -4551,7 +4600,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "SessionId": {
@@ -4571,11 +4620,11 @@
           "pct": 0
         },
         "Action": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "Detail": {
-          "count": 66,
+          "count": 86,
           "pct": 100
         },
         "RawEvent": {
@@ -4596,8 +4645,8 @@
         }
       },
       "nonCanonicalFields": {
-        "ChangeId": 4,
-        "Coverage": 7,
+        "ChangeId": 15,
+        "Coverage": 16,
         "Cve": 8,
         "CvssScore": 8,
         "CvssVector": 8,
@@ -4605,13 +4654,13 @@
         "Freshness": 8,
         "Product": 8,
         "ScanAt": 8,
-        "ScanMode": 7,
-        "Scanner": 15,
-        "Source": 47
+        "ScanMode": 16,
+        "Scanner": 24,
+        "SourceNote": 47
       },
       "tagging": {
         "method": "fixture-tags",
-        "benignOrDistractor": 43,
+        "benignOrDistractor": 63,
         "coverageTagged": 0,
         "benignIds": [
           "M08-ASSET-EVID-009",
@@ -4650,17 +4699,37 @@
           "M08-PATCH-002",
           "M08-PATCH-003",
           "M08-PATCH-004",
+          "M08-PATCH-005",
+          "M08-PATCH-006",
+          "M08-PATCH-007",
+          "M08-PATCH-008",
+          "M08-PATCH-009",
+          "M08-PATCH-010",
+          "M08-PATCH-011",
+          "M08-PATCH-012",
+          "M08-PATCH-013",
+          "M08-PATCH-014",
+          "M08-PATCH-015",
           "M08-SCAN-001",
           "M08-SCAN-002",
           "M08-SCAN-003",
           "M08-SCAN-004",
           "M08-SCAN-005",
           "M08-SCAN-006",
-          "M08-SCAN-007"
+          "M08-SCAN-007",
+          "M08-SCAN-008",
+          "M08-SCAN-009",
+          "M08-SCAN-010",
+          "M08-SCAN-011",
+          "M08-SCAN-012",
+          "M08-SCAN-013",
+          "M08-SCAN-014",
+          "M08-SCAN-015",
+          "M08-SCAN-016"
         ],
         "coverageIds": [],
         "structuralCoverageCaveatRows": 0,
-        "changeLinkedRows": 4
+        "changeLinkedRows": 15
       },
       "context": {
         "assetInventory": {
@@ -4700,12 +4769,12 @@
           "mappedIntoTables": 20
         },
         "scanRuns": {
-          "rows": 7,
-          "mappedIntoTables": 7
+          "rows": 16,
+          "mappedIntoTables": 16
         },
         "patchRecords": {
-          "rows": 4,
-          "mappedIntoTables": 4
+          "rows": 15,
+          "mappedIntoTables": 15
         },
         "alertCandidates": {
           "rows": 5,
@@ -4721,49 +4790,49 @@
       "caseId": "INC-5942",
       "method": "runtime",
       "methodNote": "",
-      "uniqueSourceEvents": 70,
-      "telemetryEvents": 49,
-      "evidenceRecords": 21,
+      "uniqueSourceEvents": 97,
+      "telemetryEvents": 73,
+      "evidenceRecords": 24,
       "alertRecordRows": 0,
       "duplicateEventIds": [],
-      "queryableEvents": 70,
+      "queryableEvents": 97,
       "displayOnlyEvents": 0,
       "tables": [
         {
           "name": "BackupEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 4
+          "rows": 6
         },
         {
           "name": "DeviceEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 15
+          "rows": 22
         },
         {
           "name": "DeviceNetworkEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 5
+          "rows": 10
         },
         {
           "name": "FileServiceEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 9
+          "rows": 13
         },
         {
           "name": "IdentityEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 10
+          "rows": 15
         },
         {
           "name": "RecoveryChecks",
           "kind": "event",
           "queryable": true,
-          "rows": 6
+          "rows": 7
         },
         {
           "name": "ResponseRecords",
@@ -4775,17 +4844,17 @@
           "name": "ScopeChecks",
           "kind": "evidence-record",
           "queryable": true,
-          "rows": 7
+          "rows": 10
         }
       ],
       "sourceTableCount": 8,
       "lookups": {
-        "IdentityInfo": 7,
+        "IdentityInfo": 11,
         "IpIntel": 2,
         "watchlists": {}
       },
-      "viewRows": 149,
-      "unifiedViewRows": 70,
+      "viewRows": 207,
+      "unifiedViewRows": 97,
       "unifiedCopiesMatchSource": true,
       "alerts": {
         "authored": 7,
@@ -4803,45 +4872,45 @@
         "entityRefsResolved": "9/9"
       },
       "entities": {
-        "accounts": 6,
-        "hosts": 20,
-        "ips": 4,
+        "accounts": 10,
+        "hosts": 10,
+        "ips": 7,
         "domains": 0,
-        "sessions": 0,
+        "sessions": 1,
         "processes": 0
       },
       "coverage": {
         "TimeGenerated": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventId": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventSource": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventType": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "Account": {
-          "count": 47,
-          "pct": 67.1
+          "count": 97,
+          "pct": 100
         },
         "Host/DeviceId": {
-          "count": 65,
-          "pct": 92.9
+          "count": 90,
+          "pct": 92.8
         },
         "SourceIp": {
-          "count": 5,
-          "pct": 7.1
+          "count": 10,
+          "pct": 10.3
         },
         "DestinationIp": {
-          "count": 5,
-          "pct": 7.1
+          "count": 10,
+          "pct": 10.3
         },
         "Domain": {
           "count": 0,
@@ -4852,12 +4921,12 @@
           "pct": 0
         },
         "Result": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "SessionId": {
-          "count": 0,
-          "pct": 0
+          "count": 1,
+          "pct": 1
         },
         "ProcessId": {
           "count": 0,
@@ -4876,7 +4945,7 @@
           "pct": 0
         },
         "Detail": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "RawEvent": {
@@ -4892,38 +4961,38 @@
           "pct": 0
         },
         "CoverageStatus": {
-          "count": 3,
-          "pct": 4.3
+          "count": 4,
+          "pct": 4.1
         }
       },
       "unifiedViewCoverage": {
         "TimeGenerated": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventId": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventSource": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventType": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "Account": {
-          "count": 47,
-          "pct": 67.1
+          "count": 97,
+          "pct": 100
         },
         "Host/DeviceId": {
-          "count": 62,
-          "pct": 88.6
+          "count": 90,
+          "pct": 92.8
         },
         "SourceIp": {
-          "count": 5,
-          "pct": 7.1
+          "count": 10,
+          "pct": 10.3
         },
         "DestinationIp": {
           "count": 0,
@@ -4938,12 +5007,12 @@
           "pct": 0
         },
         "Result": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "SessionId": {
-          "count": 0,
-          "pct": 0
+          "count": 1,
+          "pct": 1
         },
         "ProcessId": {
           "count": 0,
@@ -4958,11 +5027,11 @@
           "pct": 0
         },
         "Action": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "Detail": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "RawEvent": {
@@ -4983,13 +5052,15 @@
         }
       },
       "nonCanonicalFields": {
-        "DestinationPort": 5,
-        "Phase": 26,
+        "AssetId": 89,
+        "CheckName": 9,
+        "DestinationPort": 10,
+        "Phase": 27,
         "signalClass": 1
       },
       "tagging": {
         "method": "fixture-tags",
-        "benignOrDistractor": 21,
+        "benignOrDistractor": 47,
         "coverageTagged": 0,
         "benignIds": [
           "M09G-T-007",
@@ -5012,10 +5083,36 @@
           "M09G-T-036",
           "M09G-T-045",
           "M09G-T-046",
-          "M09G-T-053"
+          "M09G-T-053",
+          "M09G-T-055",
+          "M09G-T-056",
+          "M09G-T-057",
+          "M09G-T-058",
+          "M09G-T-059",
+          "M09G-T-060",
+          "M09G-T-061",
+          "M09G-T-062",
+          "M09G-T-063",
+          "M09G-T-064",
+          "M09G-T-065",
+          "M09G-T-066",
+          "M09G-T-067",
+          "M09G-T-068",
+          "M09G-T-070",
+          "M09G-T-071",
+          "M09G-T-072",
+          "M09G-T-073",
+          "M09G-T-074",
+          "M09G-T-075",
+          "M09G-T-076",
+          "M09G-T-077",
+          "M09G-T-078",
+          "M09G-T-079",
+          "M09G-T-080",
+          "M09G-T-081"
         ],
         "coverageIds": [],
-        "structuralCoverageCaveatRows": 2,
+        "structuralCoverageCaveatRows": 4,
         "changeLinkedRows": 0
       },
       "context": {
@@ -5040,8 +5137,8 @@
           "mappedIntoTables": 0
         },
         "telemetry": {
-          "rows": 54,
-          "mappedIntoTables": 54
+          "rows": 81,
+          "mappedIntoTables": 81
         },
         "alertCandidates": {
           "rows": 6,
@@ -5057,49 +5154,49 @@
       "caseId": "INC-4937",
       "method": "runtime",
       "methodNote": "",
-      "uniqueSourceEvents": 70,
-      "telemetryEvents": 49,
-      "evidenceRecords": 21,
+      "uniqueSourceEvents": 97,
+      "telemetryEvents": 73,
+      "evidenceRecords": 24,
       "alertRecordRows": 0,
       "duplicateEventIds": [],
-      "queryableEvents": 70,
+      "queryableEvents": 97,
       "displayOnlyEvents": 0,
       "tables": [
         {
           "name": "BackupEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 4
+          "rows": 6
         },
         {
           "name": "DeviceEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 15
+          "rows": 22
         },
         {
           "name": "DeviceNetworkEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 5
+          "rows": 10
         },
         {
           "name": "FileServiceEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 9
+          "rows": 13
         },
         {
           "name": "IdentityEvents",
           "kind": "event",
           "queryable": true,
-          "rows": 10
+          "rows": 15
         },
         {
           "name": "RecoveryChecks",
           "kind": "event",
           "queryable": true,
-          "rows": 6
+          "rows": 7
         },
         {
           "name": "ResponseRecords",
@@ -5111,17 +5208,17 @@
           "name": "ScopeChecks",
           "kind": "evidence-record",
           "queryable": true,
-          "rows": 7
+          "rows": 10
         }
       ],
       "sourceTableCount": 8,
       "lookups": {
-        "IdentityInfo": 6,
+        "IdentityInfo": 10,
         "IpIntel": 2,
         "watchlists": {}
       },
-      "viewRows": 148,
-      "unifiedViewRows": 70,
+      "viewRows": 206,
+      "unifiedViewRows": 97,
       "unifiedCopiesMatchSource": true,
       "alerts": {
         "authored": 7,
@@ -5139,45 +5236,45 @@
         "entityRefsResolved": "9/9"
       },
       "entities": {
-        "accounts": 6,
-        "hosts": 20,
-        "ips": 4,
+        "accounts": 10,
+        "hosts": 10,
+        "ips": 7,
         "domains": 0,
-        "sessions": 0,
+        "sessions": 1,
         "processes": 0
       },
       "coverage": {
         "TimeGenerated": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventId": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventSource": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventType": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "Account": {
-          "count": 47,
-          "pct": 67.1
+          "count": 97,
+          "pct": 100
         },
         "Host/DeviceId": {
-          "count": 65,
-          "pct": 92.9
+          "count": 90,
+          "pct": 92.8
         },
         "SourceIp": {
-          "count": 5,
-          "pct": 7.1
+          "count": 10,
+          "pct": 10.3
         },
         "DestinationIp": {
-          "count": 5,
-          "pct": 7.1
+          "count": 10,
+          "pct": 10.3
         },
         "Domain": {
           "count": 0,
@@ -5188,12 +5285,12 @@
           "pct": 0
         },
         "Result": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "SessionId": {
-          "count": 0,
-          "pct": 0
+          "count": 1,
+          "pct": 1
         },
         "ProcessId": {
           "count": 0,
@@ -5212,7 +5309,7 @@
           "pct": 0
         },
         "Detail": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "RawEvent": {
@@ -5228,38 +5325,38 @@
           "pct": 0
         },
         "CoverageStatus": {
-          "count": 3,
-          "pct": 4.3
+          "count": 4,
+          "pct": 4.1
         }
       },
       "unifiedViewCoverage": {
         "TimeGenerated": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventId": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventSource": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "EventType": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "Account": {
-          "count": 47,
-          "pct": 67.1
+          "count": 97,
+          "pct": 100
         },
         "Host/DeviceId": {
-          "count": 62,
-          "pct": 88.6
+          "count": 90,
+          "pct": 92.8
         },
         "SourceIp": {
-          "count": 5,
-          "pct": 7.1
+          "count": 10,
+          "pct": 10.3
         },
         "DestinationIp": {
           "count": 0,
@@ -5274,12 +5371,12 @@
           "pct": 0
         },
         "Result": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "SessionId": {
-          "count": 0,
-          "pct": 0
+          "count": 1,
+          "pct": 1
         },
         "ProcessId": {
           "count": 0,
@@ -5294,11 +5391,11 @@
           "pct": 0
         },
         "Action": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "Detail": {
-          "count": 70,
+          "count": 97,
           "pct": 100
         },
         "RawEvent": {
@@ -5319,13 +5416,15 @@
         }
       },
       "nonCanonicalFields": {
-        "DestinationPort": 5,
-        "Phase": 26,
+        "AssetId": 89,
+        "CheckName": 9,
+        "DestinationPort": 10,
+        "Phase": 27,
         "signalClass": 1
       },
       "tagging": {
         "method": "fixture-tags",
-        "benignOrDistractor": 21,
+        "benignOrDistractor": 47,
         "coverageTagged": 0,
         "benignIds": [
           "M09-T-007",
@@ -5348,10 +5447,36 @@
           "M09-T-036",
           "M09-T-045",
           "M09-T-046",
-          "M09-T-053"
+          "M09-T-053",
+          "M09-T-055",
+          "M09-T-056",
+          "M09-T-057",
+          "M09-T-058",
+          "M09-T-059",
+          "M09-T-060",
+          "M09-T-061",
+          "M09-T-062",
+          "M09-T-063",
+          "M09-T-064",
+          "M09-T-065",
+          "M09-T-066",
+          "M09-T-067",
+          "M09-T-068",
+          "M09-T-070",
+          "M09-T-071",
+          "M09-T-072",
+          "M09-T-073",
+          "M09-T-074",
+          "M09-T-075",
+          "M09-T-076",
+          "M09-T-077",
+          "M09-T-078",
+          "M09-T-079",
+          "M09-T-080",
+          "M09-T-081"
         ],
         "coverageIds": [],
-        "structuralCoverageCaveatRows": 2,
+        "structuralCoverageCaveatRows": 4,
         "changeLinkedRows": 0
       },
       "context": {
@@ -5376,8 +5501,8 @@
           "mappedIntoTables": 0
         },
         "telemetry": {
-          "rows": 54,
-          "mappedIntoTables": 54
+          "rows": 81,
+          "mappedIntoTables": 81
         },
         "alertCandidates": {
           "rows": 6,
@@ -5651,6 +5776,7 @@
         }
       },
       "nonCanonicalFields": {
+        "AccountNative": 14,
         "AcquisitionTime": 74,
         "ArtifactId": 52,
         "CustodyFrom": 23,
@@ -5989,6 +6115,7 @@
         }
       },
       "nonCanonicalFields": {
+        "AccountNative": 14,
         "AcquisitionTime": 74,
         "ArtifactId": 52,
         "CustodyFrom": 23,
@@ -6069,12 +6196,12 @@
       "caseId": "OPS-6640",
       "method": "runtime",
       "methodNote": "",
-      "uniqueSourceEvents": 95,
-      "telemetryEvents": 90,
+      "uniqueSourceEvents": 117,
+      "telemetryEvents": 112,
       "evidenceRecords": 5,
       "alertRecordRows": 12,
       "duplicateEventIds": [],
-      "queryableEvents": 95,
+      "queryableEvents": 117,
       "displayOnlyEvents": 0,
       "tables": [
         {
@@ -6087,13 +6214,13 @@
           "name": "OnCallPages",
           "kind": "event",
           "queryable": true,
-          "rows": 6
+          "rows": 10
         },
         {
           "name": "QueueActivity",
           "kind": "event",
           "queryable": true,
-          "rows": 22
+          "rows": 29
         },
         {
           "name": "RecoveryRecords",
@@ -6111,13 +6238,13 @@
           "name": "ShiftLog",
           "kind": "event",
           "queryable": true,
-          "rows": 6
+          "rows": 10
         },
         {
           "name": "SourceHealth",
           "kind": "event",
           "queryable": true,
-          "rows": 16
+          "rows": 23
         }
       ],
       "sourceTableCount": 6,
@@ -6133,8 +6260,8 @@
           "RuleChanges": 5
         }
       },
-      "viewRows": 303,
-      "unifiedViewRows": 107,
+      "viewRows": 347,
+      "unifiedViewRows": 129,
       "unifiedCopiesMatchSource": true,
       "alerts": {
         "authored": 12,
@@ -6158,7 +6285,7 @@
       },
       "entities": {
         "accounts": 8,
-        "hosts": 10,
+        "hosts": 11,
         "ips": 0,
         "domains": 0,
         "sessions": 0,
@@ -6166,27 +6293,27 @@
       },
       "coverage": {
         "TimeGenerated": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "EventId": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "EventSource": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "EventType": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "Account": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "SourceIp": {
@@ -6206,7 +6333,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "SessionId": {
@@ -6230,7 +6357,7 @@
           "pct": 0
         },
         "Detail": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "RawEvent": {
@@ -6238,12 +6365,12 @@
           "pct": 0
         },
         "IngestionTime": {
-          "count": 38,
-          "pct": 40
+          "count": 52,
+          "pct": 44.4
         },
         "Collector": {
-          "count": 16,
-          "pct": 16.8
+          "count": 23,
+          "pct": 19.7
         },
         "CoverageStatus": {
           "count": 0,
@@ -6252,27 +6379,27 @@
       },
       "unifiedViewCoverage": {
         "TimeGenerated": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "EventId": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "EventSource": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "EventType": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "Account": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "SourceIp": {
@@ -6292,7 +6419,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "SessionId": {
@@ -6312,11 +6439,11 @@
           "pct": 0
         },
         "Action": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "Detail": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "RawEvent": {
@@ -6339,12 +6466,12 @@
       "nonCanonicalFields": {
         "AlertsRaised": 40,
         "EventsEvaluated": 40,
-        "EventsPerMinute": 16,
-        "IngestionLagSeconds": 16,
-        "QueueId": 28,
-        "RuleId": 68,
+        "EventsPerMinute": 23,
+        "IngestionLagSeconds": 23,
+        "QueueId": 39,
+        "RuleId": 79,
         "RunDurationMs": 40,
-        "Severity": 22,
+        "Severity": 29,
         "WindowEnd": 40,
         "WindowStart": 40
       },
@@ -6354,7 +6481,7 @@
         "coverageTagged": "untagged",
         "benignIds": [],
         "coverageIds": [],
-        "structuralCoverageCaveatRows": 16,
+        "structuralCoverageCaveatRows": 23,
         "changeLinkedRows": 0
       },
       "context": {
@@ -6388,12 +6515,12 @@
       "caseId": "OPS-5511",
       "method": "runtime",
       "methodNote": "",
-      "uniqueSourceEvents": 95,
-      "telemetryEvents": 90,
+      "uniqueSourceEvents": 117,
+      "telemetryEvents": 112,
       "evidenceRecords": 5,
       "alertRecordRows": 12,
       "duplicateEventIds": [],
-      "queryableEvents": 95,
+      "queryableEvents": 117,
       "displayOnlyEvents": 0,
       "tables": [
         {
@@ -6406,13 +6533,13 @@
           "name": "OnCallPages",
           "kind": "event",
           "queryable": true,
-          "rows": 6
+          "rows": 10
         },
         {
           "name": "QueueActivity",
           "kind": "event",
           "queryable": true,
-          "rows": 22
+          "rows": 29
         },
         {
           "name": "RecoveryRecords",
@@ -6430,13 +6557,13 @@
           "name": "ShiftLog",
           "kind": "event",
           "queryable": true,
-          "rows": 6
+          "rows": 10
         },
         {
           "name": "SourceHealth",
           "kind": "event",
           "queryable": true,
-          "rows": 16
+          "rows": 23
         }
       ],
       "sourceTableCount": 6,
@@ -6452,8 +6579,8 @@
           "RuleChanges": 5
         }
       },
-      "viewRows": 303,
-      "unifiedViewRows": 107,
+      "viewRows": 347,
+      "unifiedViewRows": 129,
       "unifiedCopiesMatchSource": true,
       "alerts": {
         "authored": 12,
@@ -6477,7 +6604,7 @@
       },
       "entities": {
         "accounts": 8,
-        "hosts": 10,
+        "hosts": 11,
         "ips": 0,
         "domains": 0,
         "sessions": 0,
@@ -6485,27 +6612,27 @@
       },
       "coverage": {
         "TimeGenerated": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "EventId": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "EventSource": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "EventType": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "Account": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "SourceIp": {
@@ -6525,7 +6652,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "SessionId": {
@@ -6549,7 +6676,7 @@
           "pct": 0
         },
         "Detail": {
-          "count": 95,
+          "count": 117,
           "pct": 100
         },
         "RawEvent": {
@@ -6557,12 +6684,12 @@
           "pct": 0
         },
         "IngestionTime": {
-          "count": 38,
-          "pct": 40
+          "count": 52,
+          "pct": 44.4
         },
         "Collector": {
-          "count": 16,
-          "pct": 16.8
+          "count": 23,
+          "pct": 19.7
         },
         "CoverageStatus": {
           "count": 0,
@@ -6571,27 +6698,27 @@
       },
       "unifiedViewCoverage": {
         "TimeGenerated": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "EventId": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "EventSource": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "EventType": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "Account": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "Host/DeviceId": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "SourceIp": {
@@ -6611,7 +6738,7 @@
           "pct": 0
         },
         "Result": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "SessionId": {
@@ -6631,11 +6758,11 @@
           "pct": 0
         },
         "Action": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "Detail": {
-          "count": 107,
+          "count": 129,
           "pct": 100
         },
         "RawEvent": {
@@ -6658,12 +6785,12 @@
       "nonCanonicalFields": {
         "AlertsRaised": 40,
         "EventsEvaluated": 40,
-        "EventsPerMinute": 16,
-        "IngestionLagSeconds": 16,
-        "QueueId": 28,
-        "RuleId": 68,
+        "EventsPerMinute": 23,
+        "IngestionLagSeconds": 23,
+        "QueueId": 39,
+        "RuleId": 79,
         "RunDurationMs": 40,
-        "Severity": 22,
+        "Severity": 29,
         "WindowEnd": 40,
         "WindowStart": 40
       },
@@ -6677,7 +6804,7 @@
           "Q-09"
         ],
         "coverageIds": [],
-        "structuralCoverageCaveatRows": 16,
+        "structuralCoverageCaveatRows": 23,
         "changeLinkedRows": 0
       },
       "context": {
@@ -7079,8 +7206,10 @@
         }
       },
       "nonCanonicalFields": {
+        "AccountNative": 4,
         "Answers": 6,
         "Application": 8,
+        "Audience": 3,
         "AuthMethod": 24,
         "Bytes": 8,
         "BytesReceived": 1,
@@ -7387,7 +7516,7 @@
       "sharedEventIdList": [],
       "identicalContentRows": 0,
       "sharedEntities": {
-        "accounts": 1,
+        "accounts": 3,
         "hosts": 0,
         "ips": 0,
         "domains": 0,
@@ -7403,18 +7532,16 @@
       "sharedEventIdList": [],
       "identicalContentRows": 0,
       "sharedEntities": {
-        "accounts": 1,
-        "hosts": 1,
+        "accounts": 0,
+        "hosts": 0,
         "ips": 0,
         "domains": 0,
         "sessions": 0
       },
-      "answerBearingSharedEntities": [
-        "system"
-      ],
+      "answerBearingSharedEntities": [],
       "fixturesIdentical": false,
       "sameCaseOrScenarioId": false,
-      "verdict": "overlap"
+      "verdict": "independent"
     },
     "11": {
       "sharedEventIds": 0,
@@ -7508,7 +7635,7 @@
       },
       {
         "module": 6,
-        "assessmentUniqueEvents": 51,
+        "assessmentUniqueEvents": 63,
         "targetBand": "M05-M06",
         "eventTarget": "35-70",
         "status": "within band",
@@ -7530,7 +7657,7 @@
       },
       {
         "module": 8,
-        "assessmentUniqueEvents": 66,
+        "assessmentUniqueEvents": 86,
         "targetBand": "M07-M09",
         "eventTarget": "50-100",
         "status": "within band",
@@ -7541,7 +7668,7 @@
       },
       {
         "module": 9,
-        "assessmentUniqueEvents": 70,
+        "assessmentUniqueEvents": 97,
         "targetBand": "M07-M09",
         "eventTarget": "50-100",
         "status": "within band",
@@ -7563,7 +7690,7 @@
       },
       {
         "module": 11,
-        "assessmentUniqueEvents": 95,
+        "assessmentUniqueEvents": 117,
         "targetBand": "M10-M11",
         "eventTarget": "60-120",
         "status": "within band",
@@ -7585,10 +7712,7 @@
       }
     ],
     "nonMonotonicSteps": [
-      "M03 (33) is below M01 (46)",
-      "M06 (51) is below M05 (52)",
-      "M08 (66) is below M07 (75)",
-      "M11 (95) is below M10 (106)"
+      "M03 (33) is below M01 (46)"
     ],
     "m12IsLargest": true,
     "curve": {
@@ -7638,18 +7762,18 @@
           "events": 52,
           "sources": 7,
           "alertCandidates": 5,
-          "entities": 20,
-          "index": 0.302,
+          "entities": 15,
+          "index": 0.288,
           "rises": "yes",
           "exception": ""
         },
         {
           "module": 6,
-          "events": 51,
+          "events": 63,
           "sources": 6,
           "alertCandidates": 4,
-          "entities": 15,
-          "index": 0.258,
+          "entities": 16,
+          "index": 0.278,
           "rises": "no (documented exception)",
           "exception": "Hunting objective: depth is process/file/network telemetry on a few hosts and one IP, so entity breadth and alerts stay lower than M05."
         },
@@ -7665,21 +7789,21 @@
         },
         {
           "module": 8,
-          "events": 66,
+          "events": 86,
           "sources": 7,
           "alertCandidates": 6,
           "entities": 10,
-          "index": 0.313,
+          "index": 0.343,
           "rises": "no (documented exception)",
           "exception": "Non-log vulnerability/asset lab: most rows are evidence records (findings, asset and scanner evidence), with few network entities."
         },
         {
           "module": 9,
-          "events": 70,
+          "events": 97,
           "sources": 8,
           "alertCandidates": 7,
-          "entities": 30,
-          "index": 0.404,
+          "entities": 28,
+          "index": 0.439,
           "rises": "yes",
           "exception": ""
         },
@@ -7695,11 +7819,11 @@
         },
         {
           "module": 11,
-          "events": 95,
+          "events": 117,
           "sources": 6,
           "alertCandidates": 12,
-          "entities": 18,
-          "index": 0.475,
+          "entities": 19,
+          "index": 0.51,
           "rises": "yes",
           "exception": "Operations lab: rule-volume and shift metrics are lookups (DailyOpsMetrics, ShiftOpsMetrics, RuleAlertVolume, RuleChanges) and are not counted as events; the 12 queue alerts are the evidence."
         },
@@ -7732,7 +7856,7 @@
       "id": "M05-events",
       "claim": "Baseline: M05 assessment had 13 events incl. signed-updater comparisons on another host",
       "verdict": "superseded (enriched)",
-      "measured": "Now 52 unique events across 7 tables, 10 hosts, benign-tagged 35"
+      "measured": "Now 52 unique events across 7 tables, 5 hosts, benign-tagged 35"
     },
     {
       "id": "M12-alerts",
@@ -7774,7 +7898,7 @@
       "id": "progression",
       "claim": "M12 is the largest searchable assessment slice and counts rise by stage (documented objective-specific exceptions in the Progression curve section)",
       "verdict": "M12 largest; row-count dips are documented exceptions",
-      "measured": "Assessment unique events by module: 46, n/a, 33, 37, 52, 51, 75, 66, 70, 106, 95, 167. Non-monotonic steps: M03 (33) is below M01 (46); M06 (51) is below M05 (52); M08 (66) is below M07 (75); M11 (95) is below M10 (106)"
+      "measured": "Assessment unique events by module: 46, n/a, 33, 37, 52, 63, 75, 86, 97, 106, 117, 167. Non-monotonic steps: M03 (33) is below M01 (46)"
     },
     {
       "id": "target-bands",
@@ -7785,8 +7909,8 @@
     {
       "id": "independence",
       "claim": "Guided and assessment fixtures should not share answer-bearing identities/event ids",
-      "verdict": "corrected",
-      "measured": "Answer-bearing/identifier overlap in: M10"
+      "verdict": "confirmed",
+      "measured": "No shared EventIds, identical fixtures or answer-bearing shared entities in any module"
     },
     {
       "id": "canonical-fields",
@@ -7798,7 +7922,7 @@
       "id": "M06-guided",
       "claim": "Baseline: M06 guided case had one repeated-script alert and two-device evidence",
       "verdict": "superseded (enriched)",
-      "measured": "Guided: 4 authored alert, 4 distinct hosts, 50 events; assessment: 3 hosts, 51 events"
+      "measured": "Guided: 4 authored alert, 4 distinct hosts, 61 events; assessment: 3 hosts, 63 events"
     },
     {
       "id": "M01-M02-not-siem",
@@ -7810,7 +7934,7 @@
       "id": "M08-evidence-records",
       "claim": "M08 is not primarily a raw log-analysis module",
       "verdict": "confirmed",
-      "measured": "55 evidence-record rows (findings, evidence, incident, exception) and 11 telemetry events; 5 asset-inventory lookup rows"
+      "measured": "55 evidence-record rows (findings, evidence, incident, exception) and 31 telemetry events; 5 asset-inventory lookup rows"
     },
     {
       "id": "M10-alert",
