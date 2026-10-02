@@ -30,7 +30,7 @@ vm.runInContext(fs.readFileSync(path.join(root, 'portal/soc-m10-assessment-state
 vm.runInContext(fs.readFileSync(path.join(root, 'portal/attack-catalog.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(root, 'portal/soc-m06-assessment-related-search.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(root, 'portal/soc-console-tools.js'), 'utf8'), context);
-const adapter = moduleJs.slice(moduleJs.indexOf('function moduleElevenToolFixtures(data) {'), moduleJs.indexOf('\nfunction moduleElevenOpsHtml()'));
+const adapter = moduleJs.slice(moduleJs.indexOf('function moduleElevenToolFixtures('), moduleJs.indexOf('\nfunction moduleElevenOpsHtml('));
 context.m03eRow = (source, id, day, time, fields) => ({ EventSource: source, EventId: id, __rid: id, TimeGenerated: `${day}T${time}Z`, ...fields });
 context.m03eBuildDataset = ({ events, identities, ips, watchlists }) => ({
   records: Object.fromEntries(events.map((row) => [row.EventId, row])),
@@ -38,7 +38,7 @@ context.m03eBuildDataset = ({ events, identities, ips, watchlists }) => ({
     ...Object.fromEntries(Object.entries(watchlists).map(([name, list]) => [name, list.rows])) },
   events, identities, ips, watchlists,
 });
-vm.runInContext(moduleJs.slice(moduleJs.indexOf('function moduleElevenConsoleData() {'), moduleJs.indexOf('function moduleElevenToolFixtures(data) {')), context);
+vm.runInContext(moduleJs.slice(moduleJs.indexOf('function moduleElevenConsoleData('), moduleJs.indexOf('function moduleElevenToolFixtures(')), context);
 vm.runInContext(`${adapter}\nthis.fixtureAdapters = moduleElevenToolFixtures(moduleElevenConsoleData());`, context);
 const fixtureJson = JSON.parse(JSON.stringify(context.fixtureAdapters));
 for (const id of ['m04','m05','m06','m07','m08','m09','m10']) assert.ok(fixtureJson[id], `${id} adapter returned a fixture`);

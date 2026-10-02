@@ -10,10 +10,17 @@ const MODULE_ELEVEN_GUIDED_REPLACEMENTS = {
   'an-chen': 'an-jordan', 'an-patel': 'an-silva', 'ir-lead-owners': 'response-leads', 'identity-owners': 'directory-owners',
   'detection-engineering': 'detection-content', 'fs02-service-owner': 'fs07-service-owner', 'SHIFT-0927-DAY': 'SHIFT-1004-EARLY',
   '2026-09-27': '2026-10-04', 'Analyst Okafor': 'Analyst Blake', 'Analyst Ruiz': 'Analyst Morgan',
-  'Analyst Chen': 'Analyst Jordan', 'Analyst Patel': 'Analyst Silva',
+  'Analyst Chen': 'Analyst Jordan', 'Analyst Patel': 'Analyst Silva', 'collector-01': 'collector-11', 'ticketing-01': 'ticketing-02',
+  'siem-scheduler-01': 'siem-scheduler-02', 'paging-01': 'paging-02',
 };
+// Prior-day series dates (2026-09-17..26) shift by one week in a single pass so the guided case never shares them
+// with the assessment; the shift day itself (2026-09-27) is mapped by the replacement table above.
+const moduleElevenShiftSeriesDates = (text) => text.replace(/2026-09-(1[7-9]|2[0-6])/g, (_, d) => {
+  const moved = new Date(Date.UTC(2026, 8, Number(d) + 7));
+  return moved.toISOString().slice(0, 10);
+});
 function moduleElevenGuidedClone(value) {
-  if (typeof value === 'string') return Object.entries(MODULE_ELEVEN_GUIDED_REPLACEMENTS).reduce((text, [from, to]) => text.split(from).join(to), value);
+  if (typeof value === 'string') return moduleElevenShiftSeriesDates(Object.entries(MODULE_ELEVEN_GUIDED_REPLACEMENTS).reduce((text, [from, to]) => text.split(from).join(to), value));
   if (Array.isArray(value)) return value.map(moduleElevenGuidedClone);
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleElevenGuidedClone(item)]));
   return value;
@@ -898,13 +905,66 @@ function moduleElevenConsoleData(fixture = SocM11AssessmentData) {
     Detail: `SLA ${item.slaMinutes} minutes; queue position ${index + 1}`,
   })).concat(s.incident.recoveryEvidence.map((e) => m03eRow('RecoveryRecords', e.id, e.time.slice(0, 10), e.time.slice(11, 19), {
     EventType: 'RecoveryValidation', Host: /file-share/i.test(e.summary) ? s.incident.entities.find((id) => id.startsWith('fs-')) : s.incident.entities.find((id) => id.startsWith('ws-')), Account: 'soc-analyst', Result: e.status, Detail: e.summary,
-  })));
+  }))).concat(moduleElevenOperationalRows(s));
+  const ops = s.operations || { dailyMetrics: [], shiftMetrics: [], ruleVolume: [], ruleChanges: [] };
   return m03eBuildDataset({ caseId: s.caseId, day: s.start.slice(0, 10), events,
     identities: s.analysts.map((a) => ({ Account: a.id, DisplayName: a.name, Type: a.role, Department: 'SOC', Owner: a.name, Privileged: 'No', UsualSourceIp: '—' })),
     ips: [], watchlists: { Rules: { title: 'Detection rules', rows: s.rules.map((r) => ({ RuleId: r.id, Rule: r.name, Owner: r.owner })) },
-      RecoveryEvidence: { title: 'Recovery evidence', rows: s.incident.recoveryEvidence.map((e) => ({ EvidenceId: e.id, Time: e.time, Status: e.status, Summary: e.summary })) } },
+      RecoveryEvidence: { title: 'Recovery evidence', rows: s.incident.recoveryEvidence.map((e) => ({ EvidenceId: e.id, Time: e.time, Status: e.status, Summary: e.summary })) },
+      // Operational metrics are aggregates over a stated window (WindowStart/WindowEnd). They are not events and not incident proof.
+      DailyOpsMetrics: { title: 'Daily SOC metrics (operational)', rows: ops.dailyMetrics.map((m) => ({ MetricId: m.id, WindowStart: m.windowStart, WindowEnd: m.windowEnd, WindowType: m.windowType, AlertVolume: m.alertVolume, AnalystsOnShift: m.analystsOnShift, MttaMinutes: m.mttaMinutes, MttContainMinutes: m.mttcMinutes, SlaAttainmentPct: m.slaAttainmentPct, BacklogAtWindowEnd: m.backlogAtWindowEnd, Note: m.note })) },
+      ShiftOpsMetrics: { title: 'Same-shift metrics, 08:00-12:00 UTC (operational)', rows: ops.shiftMetrics.map((m) => ({ MetricId: m.id, WindowStart: m.windowStart, WindowEnd: m.windowEnd, AlertVolume: m.alertVolume, R04Alerts: m.r04Alerts, OtherRuleAlerts: m.otherRuleAlerts, AnalystsOnShift: m.analystsOnShift, MttaMinutes: m.mttaMinutes, AcknowledgedWithinSlaPct: m.acknowledgedWithinSlaPct })) },
+      RuleAlertVolume: { title: 'Alerts per rule per day (operational)', rows: ops.ruleVolume.map((m) => ({ MetricId: m.id, RuleId: m.ruleId, WindowStart: m.windowStart, WindowEnd: m.windowEnd, Alerts: m.alerts })) },
+      RuleChanges: { title: 'Detection rule change records', rows: ops.ruleChanges.map((c) => ({ ChangeId: c.id, ChangeTime: c.changeTime, RuleId: c.ruleId, Author: c.author, ChangeType: c.type, Summary: c.summary, Approval: c.approval, Status: c.status })) } },
     alerts: s.queue.map((item) => ({ id: item.id, time: item.createdAt, severity: item.severity, title: item.title, entities: s.incident.entities, rule: item.ruleId, query: `AlertQueue\n| where EventId == "${item.id}"` })), now: s.end,
   });
+}
+/* Operational event rows around the shift: ticket lifecycle, on-call pages, rule execution windows, collector
+ * health and the shift log. Each row's TimeGenerated is event time; IngestionTime (where present) is SIEM receipt;
+ * RuleRuns carry the aggregation window as WindowStart/WindowEnd. Queue-derived rows always agree with the queue. */
+function moduleElevenOperationalRows(s) {
+  const ops = s.operations;
+  if (!ops) return [];
+  const prefix = s.id.split('-')[0];
+  const iso = (ms) => new Date(ms).toISOString().replace('.000Z', 'Z');
+  const plus = (value, seconds) => iso(Date.parse(value) + seconds * 1000);
+  const row = (table, id, iso, fields) => m03eRow(table, id, iso.slice(0, 10), iso.slice(11, 19), fields);
+  const rows = [];
+  let n = 0;
+  const nextId = (code) => `${prefix}-${code}-${String(++n).padStart(3, '0')}`;
+  const queue = s.queue.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  queue.forEach((item) => {
+    const base = { Host: 'ticketing-01', RuleId: item.ruleId, QueueId: item.id, Severity: item.severity };
+    rows.push(row('QueueActivity', nextId('QA'), item.createdAt, { ...base, EventType: 'AlertCreated', Account: 'siem-rules', Result: 'new', IngestionTime: plus(item.createdAt, 15), Detail: `${item.id} created by rule ${item.ruleId}; SLA ${item.slaMinutes} minutes.` }));
+    if (item.acknowledgedAt) rows.push(row('QueueActivity', nextId('QA'), item.acknowledgedAt, { ...base, EventType: 'AlertAcknowledged', Account: item.assigneeId || 'unassigned', Result: 'acknowledged', IngestionTime: plus(item.acknowledgedAt, 15), Detail: `${item.id} acknowledged ${Math.round((Date.parse(item.acknowledgedAt) - Date.parse(item.createdAt)) / 60000)} minutes after creation.` }));
+    if (item.containedAt) rows.push(row('QueueActivity', nextId('QA'), item.containedAt, { ...base, EventType: 'ContainmentRecorded', Account: item.assigneeId || 'unassigned', Result: 'contained', IngestionTime: plus(item.containedAt, 15), Detail: `Containment timestamp recorded for ${item.id}.` }));
+    if (item.severity === 'critical' || item.severity === 'high') {
+      rows.push(row('OnCallPages', nextId('PG'), plus(item.createdAt, 30), { Host: 'paging-01', RuleId: item.ruleId, QueueId: item.id, EventType: 'PageSent', Account: 'on-call-router', Result: 'delivered', Detail: `${item.severity} alert ${item.id} paged to the on-call analyst group.` }));
+    }
+  });
+  // Rule execution windows (30 minutes). AlertsRaised is counted from the queue; evaluated volume is stable per rule.
+  // Seven full 30-minute windows from shift start plus a final partial window that closes with the last queued alert.
+  const lastQueued = Math.max(...s.queue.map((q) => Date.parse(q.createdAt)));
+  const windows = Array.from({ length: 7 }, (_, i) => [Date.parse(s.start) + i * 30 * 60000, Date.parse(s.start) + (i + 1) * 30 * 60000]).concat([[Date.parse(s.start) + 7 * 30 * 60000, lastQueued]]);
+  ops.rules.forEach((ruleId, ri) => {
+    const base = ops.ruleRunBase.find((item) => item.ruleId === ruleId);
+    const evaluated = base.evaluated; const duration = base.durationMs;
+    windows.forEach(([from, to], wi) => {
+      const last = wi === windows.length - 1;
+      const raised = s.queue.filter((q) => q.ruleId === ruleId && Date.parse(q.createdAt) >= from && (last ? Date.parse(q.createdAt) <= to : Date.parse(q.createdAt) < to)).length;
+      const share = last ? (to - from) / (30 * 60000) : 1;
+      rows.push(row('RuleRuns', nextId('RX'), iso(to), { Host: 'siem-scheduler-01', RuleId: ruleId, EventType: 'RuleRun', Account: 'siem-rules', Result: last ? 'completed (partial window)' : 'completed',
+        WindowStart: iso(from), WindowEnd: iso(to), EventsEvaluated: Math.round((evaluated + ((wi * 37 + ri * 11) % 90)) * share), AlertsRaised: raised, RunDurationMs: duration + ((wi * 13 + ri * 7) % 60),
+        Detail: `${ruleId} evaluated its ${last ? 'partial ' : '30-minute '}window and raised ${raised} alert${raised === 1 ? '' : 's'}.` }));
+    });
+  });
+  ops.collectors.forEach((c) => {
+    rows.push(row('SourceHealth', nextId('SH'), c.time, { Host: c.host, EventType: 'CollectorHeartbeat', Account: 'siem-collector', Result: c.status, IngestionTime: plus(c.time, c.ingestionLagSeconds),
+      Collector: c.collector, IngestionLagSeconds: c.ingestionLagSeconds, EventsPerMinute: c.eventsPerMinute,
+      Detail: `${c.collector}: ${c.status}; ingestion lag ${c.ingestionLagSeconds} seconds; ${c.eventsPerMinute} events per minute.` }));
+  });
+  ops.shiftLog.forEach((e) => rows.push(row('ShiftLog', nextId('SL'), e.time, { Host: 'soc-console', EventType: e.type, Account: e.actor, Result: 'recorded', Detail: e.detail })));
+  return rows;
 }
 function moduleElevenToolFixtures(data, fixture = SocM11AssessmentData) {
   const s = fixture.scenario;

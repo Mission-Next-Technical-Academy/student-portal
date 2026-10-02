@@ -188,7 +188,9 @@ Run these as separate, reviewable implementation sprints. Each sprint has a narr
 
 **Delegation brief:** “Increase synthetic evidence depth for Modules 7–9 in their existing labs. Preserve assessment objectives and UI. Add cross-domain benign context, relevant alert candidates and response lifecycle evidence; update IDs, schemas, and grading truth together.”
 
-### Sprint 5 — Custody and operational telemetry (Modules 10–11)
+### Sprint 5 — Custody and operational telemetry (Modules 10–11) ✅ (2026-10-02)
+
+> **Done.** M10 10 events/7 tables → 106/8 (new `EvidenceCustodyLog`), artifacts 10→22 (ART-11–22), alerts unchanged (REQ-5510). M11 5 events → 95 across 7 tables, plus the same 12 queue alerts; lookup series (not events): `DailyOpsMetrics` 11, `ShiftOpsMetrics` 9, `RuleAlertVolume` 50, `RuleChanges` 5. M10: decoy artifacts each carry a discriminating fact, 31 background `sourceEvents` (no WKSTN-19 upload; export job explains truncated ART-03), 53-row custody ledger generated from artifacts so hashes can't drift (ART-03 mismatches on both checks), separate event/ingestion/acquisition time fields. M11: ticket lifecycle, on-call pages, rule-run windows reconciling with the queue, collector heartbeats (one EDR lag), shift log; outlier R-04 after CHG-2212 with weekend-staffing and other rule changes as alternate explanations; metric rows carry window fields only, flagged not-incident-evidence. Truth: M10 `expectedTruth.noiseArtifactIds` now 10 ids + new `optionalSupportingArtifactIds` and instructor-only `telemetryPurposes`; M10 guided now inherits the cloned noise list instead of overriding to `PRACT-10`. No scorer/rubric changes; M11 queue metrics still 12 / 7 / 17.3 / 46.7. Fixed pre-existing `soc-m11-console-integration` failure (stale test slice markers). Test `tests/soc-telemetry-sprint5.test.js`. **Open:** inventory flags M10 guided/assessment "overlap" via shared `SYSTEM` account and one host (pre-existing ART-10 data); no `CoverageStatus` rows added (a proxy gap would undercut the ART-08 no-upload conclusion).
 
 **Purpose:** Extend the staircase into forensic provenance, operational baselines, shift metrics, and reporting.
 

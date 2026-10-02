@@ -581,7 +581,8 @@ function moduleTenBuildConsoleData(fixture, caseId) {
   const primaryUser = s.artifacts.find((artifact) => artifact.host === workstation && artifact.account !== 'SYSTEM')?.account || '';
   const events = s.artifacts.map((a) => m03eRow(MODULE_TEN_ARTIFACT_TABLES[a.type] || 'CaseArtifacts', a.id, a.time.slice(0, 10), a.time.slice(11, 19), {
     EventType: a.type, Account: a.account, Host: a.host, DeviceId: a.host, Result: a.title, SourceSystem: a.source, SourceSha256: a.sourceHash, Detail: `${a.title}. ${a.detail}`,
-  }));
+    ...(a.acquisitionTime ? { AcquisitionTime: a.acquisitionTime } : {}), ...(a.ingestionTime ? { IngestionTime: a.ingestionTime } : {}),
+  })).concat(moduleTenSourceEventRows(s), moduleTenProvenanceRows(s));
   return {
     ...m03eBuildDataset({
       caseId,
@@ -595,13 +596,54 @@ function moduleTenBuildConsoleData(fixture, caseId) {
     now: s.end,
   };
 }
+
+/* Background source/system events (fixture.scenario.sourceEvents) become rows in their native tables. */
+function moduleTenSourceEventRows(s) {
+  const hashes = new Map(s.artifacts.map((a) => [a.id, a.sourceHash]));
+  return (s.sourceEvents || []).map((e) => m03eRow(e.table, e.id, e.time.slice(0, 10), e.time.slice(11, 19), {
+    EventType: e.type, Account: e.account, Host: e.host, DeviceId: e.host, Result: e.result, Detail: e.detail,
+    ...(e.ingestionTime ? { IngestionTime: e.ingestionTime } : {}), ...(e.hashOf ? { SourceSha256: hashes.get(e.hashOf) } : {}),
+  }));
+}
+/* Source-side provenance ledger derived from the artifacts so hashes and times can never drift apart: one export
+ * record and one hash-verification record per artifact, a repeat verification for the artifacts the reconstruction
+ * relies on, and the staging-to-analyst release. Event time, ingestion time and acquisition time stay distinct
+ * fields. These are not the learner's actions; those live in the locker history. */
+function moduleTenProvenanceRows(s) {
+  const at = (iso, plusSeconds) => new Date(Date.parse(iso) + plusSeconds * 1000).toISOString().replace('.000Z', 'Z');
+  const row = (id, iso, fields) => m03eRow('EvidenceCustodyLog', id, iso.slice(0, 10), iso.slice(11, 19), fields);
+  const repeat = new Set(s.repeatVerificationIds || []);
+  const rows = [];
+  const prefix = s.id.split('-')[0];
+  let n = 0;
+  const custodian = s.stagingCustodian || 'ir-collection-team';
+  s.artifacts.forEach((a, index) => {
+    const coc = `COC-${s.caseId}-${a.id}`;
+    const base = { Host: a.host, DeviceId: a.host, CustodyId: coc, ArtifactId: a.id, AcquisitionTime: a.acquisitionTime, EventTime: a.time, ...(a.ingestionTime ? { IngestionTime: a.ingestionTime } : {}) };
+    rows.push(row(`${prefix}-CUS-${String(++n).padStart(3, '0')}`, a.acquisitionTime, { ...base, EventType: 'ArtifactExported', Account: custodian, Result: 'Exported', SourceSha256: a.sourceHash,
+      CustodyFrom: 'source-system', CustodyTo: custodian, Detail: `${a.id} exported from ${a.source} by ${custodian}; source-reported SHA-256 recorded. ${coc}.` }));
+    const ok = a.verificationHash === a.sourceHash;
+    rows.push(row(`${prefix}-CUS-${String(++n).padStart(3, '0')}`, at(a.acquisitionTime, 120), { ...base, EventType: 'HashVerification', Account: custodian, Result: ok ? 'Match' : 'Mismatch', SourceSha256: a.verificationHash,
+      Detail: ok ? `${a.id}: re-hash of the staged copy matches the source-reported hash (pass 1). ${coc}.` : `${a.id}: re-hash of the staged copy does NOT match the source-reported ${a.sourceHash.slice(0, 8)}... (pass 1); the staged copy is not reliable. ${coc}.` }));
+    if (repeat.has(a.id)) {
+      rows.push(row(`${prefix}-CUS-${String(++n).padStart(3, '0')}`, at(a.acquisitionTime, 480), { ...base, EventType: 'HashVerification', Account: custodian, Result: ok ? 'Match' : 'Mismatch', SourceSha256: a.verificationHash,
+        Detail: ok ? `${a.id}: repeat hash check before release matches the source-reported hash (pass 2). ${coc}.` : `${a.id}: repeat hash check before release still differs from the source-reported hash (pass 2); the staged copy was not replaced. ${coc}.` }));
+    }
+  });
+  rows.push(row(`${prefix}-CUS-${String(++n).padStart(3, '0')}`, s.stagingReleasedAt || s.request.receivedAt, { Host: 'EVIDENCE-STAGING', DeviceId: 'EVIDENCE-STAGING', EventType: 'CustodyRelease', Account: custodian, Result: 'Released',
+    CustodyFrom: custodian, CustodyTo: 'soc-analyst', Detail: `${s.artifacts.length} staged artifacts released from ${custodian} to the SOC analyst for case ${s.caseId}; the analyst's own intake, verification, transfers and legal hold are recorded in the evidence locker.` }));
+  return rows;
+}
 const MODULE_TEN_CONSOLE_DATA = moduleTenBuildConsoleData(SocM10AssessmentData, SocM10AssessmentData.scenario.caseId);
 const MODULE_TEN_GUIDED_CASE_ID = 'EVD-6620';
 const MODULE_TEN_GUIDED_REPLACEMENTS = {
   'M10-': 'M10G-', 'ART-': 'PRACT-', 'EVD-5510': 'EVD-6620', 'INC-5510': 'INC-6620', 'REQ-5510': 'REQ-6620', 'WKSTN-19': 'WKSTN-42',
   'DEV-WKSTN-19': 'DEV-WKSTN-42', 'MAIL-GW-01': 'MAIL-GW-02', 'PROXY-01': 'PROXY-02', 'j.sanders': 'm.chen',
   'WKS-DESK-07': 'WKS-FIN-12', 'jdoe': 'a.rivera', '2026-09-27': '2026-10-02', 'Q3 remittance': 'Vendor contract renewal',
-  'Q3_Remittance.docm': 'Vendor_Renewal.docm', 'svchelp.exe': 'syncagent.exe', 'svchelp': 'syncagent', 'q3.zip': 'vendor_records.zip',
+  'Q3_Remittance.docm': 'Vendor_Renewal.docm', 'Q3_Payables_Summary': 'Vendor_Statement_Aug', 'Q3 payables summary': 'Vendor statement',
+  'BACKUP-SRV-02': 'BACKUP-SRV-05', 'svc-backup': 'svc-vaultsync', 'm.okoye': 't.lindqvist', 'p.nair': 'd.osei', 'northwind-supply.example': 'cobaltparts.example',
+  'backup.cloudvault.example': 'vault.stor-sync.example', 'erp.finance.example': 'erp.ops.example', 'EDR-MGMT-01': 'EDR-MGMT-02', 'news.example': 'press.example',
+  'KB-2026-09': 'KB-2026-10', 'PO 4471': 'PO 3308', 'svc-memcapture': 'svc-memtool', 'svc-evidence-export': 'svc-export-agent', 'ir-collection-team': 'ir-staging-team', 'EVIDENCE-STAGING': 'EVIDENCE-STAGE-2', 'svchelp.exe': 'syncagent.exe', 'svchelp': 'syncagent', 'q3.zip': 'vendor_records.zip',
 };
 function moduleTenGuidedClone(value) {
   if (typeof value === 'string') return Object.entries(MODULE_TEN_GUIDED_REPLACEMENTS).reduce((text, [from, to]) => text.split(from).join(to), value);
@@ -618,7 +660,6 @@ const MODULE_TEN_GUIDED_FIXTURE = (() => {
     if (artifact.reacquiredVerificationHash) artifact.reacquiredVerificationHash = artifact.sourceHash;
   });
   fixture.expectedTruth.requiredArtifactIds = ['PRACT-01', 'PRACT-02', 'PRACT-03', 'PRACT-04', 'PRACT-05', 'PRACT-07'];
-  fixture.expectedTruth.noiseArtifactIds = ['PRACT-10'];
   fixture.expectedTruth.mismatchArtifactId = 'PRACT-03';
   fixture.expectedTruth.specialistArtifactId = 'PRACT-09';
   fixture.expectedTruth.originalsForHold = ['PRACT-01', 'PRACT-02', 'PRACT-04', 'PRACT-07'];
@@ -710,6 +751,7 @@ const MODULE_TEN_CONSOLE = (() => {
       DeviceRegistryEvents: { native: 'Registry hive extract (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['summary', 'Detail']] },
       ProxyEvents: { native: 'Web proxy log (text)', fields: [['time', 'TimeGenerated'], ['client', 'Host'], ['summary', 'Detail']] },
       ForensicAcquisitions: { native: 'Forensic acquisition record (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['sha256', 'SourceSha256']] },
+      EvidenceCustodyLog: { native: 'Evidence custody ledger (JSON)', fields: [['recorded', 'TimeGenerated'], ['custodian', 'Account'], ['system', 'Host'], ['record', 'EventType'], ['outcome', 'Result'], ['sha256', 'SourceSha256'], ['note', 'Detail']] },
     },
     packs: [
       { id: 'm04', ctx: { ...base, assessment: moduleTenM04Tools, fixture: fx.m04 } },
@@ -748,6 +790,7 @@ const MODULE_TEN_GUIDED_CONSOLE = (() => {
       DeviceRegistryEvents: { native: 'Registry hive extract (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['summary', 'Detail']] },
       ProxyEvents: { native: 'Web proxy log (text)', fields: [['time', 'TimeGenerated'], ['client', 'Host'], ['summary', 'Detail']] },
       ForensicAcquisitions: { native: 'Forensic acquisition record (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['sha256', 'SourceSha256']] },
+      EvidenceCustodyLog: { native: 'Evidence custody ledger (JSON)', fields: [['recorded', 'TimeGenerated'], ['custodian', 'Account'], ['system', 'Host'], ['record', 'EventType'], ['outcome', 'Result'], ['sha256', 'SourceSha256'], ['note', 'Detail']] },
     },
     packs: [
       { id: 'm04', ctx: { ...base, assessment: moduleTenGuidedM04Tools, fixture: fx.m04 } },
