@@ -136,25 +136,25 @@ assert.ok(Date.parse(scenario.start) < Date.parse(scenario.end));
 assert.ok(priorScenarios.every((prior) => scenario.id !== prior.id && scenario.stateKey !== prior.stateKey)); // gitleaks:allow
 assert.deepStrictEqual(JSON.parse(JSON.stringify(scenario.assetInventory.slice(0, 2))), [
   {
-    id: 'M08-ASSET-001', assetId: 'WEB-DMZ-14', hostname: 'web-dmz-14', function: 'Public web service', ownerId: 'p.diallo', environment: 'production',
+    id: 'M08-ASSET-001', assetId: 'web-dmz-14', hostname: 'web-dmz-14', function: 'Public web service', ownerId: 'p.diallo', environment: 'production',
     criticality: { tier: 'critical', rationale: 'Customer-facing authentication and payment entry point.', evidenceIds: ['M08-ASSET-EVID-001'] },
     reachability: { zone: 'internet-facing-dmz', reachableFrom: ['internet'], evidenceIds: ['M08-ASSET-EVID-002'] },
     exposure: { status: 'publicly-accessible', services: ['tcp/443'], evidenceIds: ['M08-ASSET-EVID-003'] },
     compensatingControls: [{ control: 'managed-waf', status: 'partial', evidenceIds: ['M08-ASSET-EVID-004'] }],
   },
   {
-    id: 'M08-ASSET-002', assetId: 'APP-DMZ-22', hostname: 'app-dmz-22', function: 'Application service', ownerId: 'j.moreau', environment: 'production',
+    id: 'M08-ASSET-002', assetId: 'app-dmz-22', hostname: 'app-dmz-22', function: 'Application service', ownerId: 'j.moreau', environment: 'production',
     criticality: { tier: 'high', rationale: 'Internal application backend with limited business impact.', evidenceIds: ['M08-ASSET-EVID-005'] },
-    reachability: { zone: 'restricted-application-network', reachableFrom: ['WEB-DMZ-14'], evidenceIds: ['M08-ASSET-EVID-006'] },
+    reachability: { zone: 'restricted-application-network', reachableFrom: ['web-dmz-14'], evidenceIds: ['M08-ASSET-EVID-006'] },
     exposure: { status: 'restricted-internal', services: ['tcp/8443'], evidenceIds: ['M08-ASSET-EVID-007'] },
     compensatingControls: [{ control: 'network-segmentation', status: 'verified', evidenceIds: ['M08-ASSET-EVID-008'] }],
   },
 ]);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(scenario.expectedPriority)), {
-  assetId: 'WEB-DMZ-14',
+  assetId: 'web-dmz-14',
   ownerId: 'p.diallo',
   priority: 'critical',
-  rationale: 'The existing M08 assessment case identifies WEB-DMZ-14 as the confirmed affected asset and requires urgent remediation routing. Priority must be justified from validated local evidence and asset context, not CVSS alone.',
+  rationale: 'The existing M08 assessment case identifies web-dmz-14 as the confirmed affected asset and requires urgent remediation routing. Priority must be justified from validated local evidence and asset context, not CVSS alone.',
 });
 const findingIds = scenario.findings.map((finding) => finding.id);
 const evidenceIds = scenario.findingEvidence.map((evidence) => evidence.id);
@@ -227,7 +227,7 @@ function assertDeepFrozen(value, label = 'fixture') {
 }
 assertDeepFrozen(data);
 scenario.assetInventory[0].assetId = 'changed';
-assert.strictEqual(scenario.assetInventory[0].assetId, 'WEB-DMZ-14', 'frozen inventory cannot be mutated');
+assert.strictEqual(scenario.assetInventory[0].assetId, 'web-dmz-14', 'frozen inventory cannot be mutated');
 assert.deepStrictEqual(Object.keys(scenario).sort(),
   ['alertCandidates', 'assetEvidence', 'assetInventory', 'end', 'escalationRoutes', 'expectedPriority', 'findingEvidence', 'findings', 'fixedAt', 'id', 'incidentEvidence', 'incidents', 'patchRecords', 'riskAcceptanceDispositions', 'riskAcceptanceEvidence', 'scanRuns', 'start', 'stateKey'].sort(), // gitleaks:allow
   'M08 fixture additions remain explicitly scoped and fixture-backed');

@@ -25,8 +25,8 @@ const MODULE_EIGHT_ENTITY_ROSTER = {
     { id: 'ops-oncall', tier: 'noise' },
   ],
   devices: [
-    { id: 'WEB-DMZ-14', tier: 'principal' },
-    { id: 'APP-DMZ-22', tier: 'pivot' },
+    { id: 'web-dmz-14', tier: 'principal' },
+    { id: 'app-dmz-22', tier: 'pivot' },
     { id: 'WKS-501', tier: 'noise' },
     { id: 'DB-INT-07', tier: 'noise' },
     { id: 'PRT-OFC02', tier: 'noise' },
@@ -515,7 +515,7 @@ function moduleEightProveItPerformance() {
       entityPoints >= 20
         ? 'Affected entity/scope: correct — the validated internet-facing host and its owner.'
         : entityPoints > 0
-          ? 'Affected entity/scope: partial credit — a related host/owner is supported by the evidence, but WEB-DMZ-14 / p.diallo is the confirmed finding.'
+          ? 'Affected entity/scope: partial credit — a related host/owner is supported by the evidence, but web-dmz-14 / p.diallo is the confirmed finding.'
           : 'Affected entity/scope: review the OpenVAS and WSUS evidence for the confirmed affected host and owner.',
       severityOk ? 'Severity: correct.' : 'Severity: review — a validated, internet-reachable, exploitable finding is Critical.',
       dispositionOk ? 'Disposition: correct.' : 'Disposition: review — the scan and patch-status evidence together validate an exploitable, reachable finding.',
@@ -835,7 +835,7 @@ function moduleEightBuildConsoleData(fixture, caseId) {
   const ownerOf = (assetId) => s.assetInventory.find((asset) => asset.assetId === assetId)?.ownerId || '';
   const row = (source, id, time, fields) => m03eRow(source, id, time.slice(0, 10), time.slice(11, 19), fields);
   const evidence = (source, item, assetId) => row(source, item.id, item.observedAt, {
-    EventType: item.kind, Host: assetId, DeviceId: assetId, Account: ownerOf(assetId), FindingId: item.findingId || '', Source: item.source, Result: item.kind, Detail: item.detail,
+    EventType: item.kind, Host: assetId, DeviceId: assetId, Account: ownerOf(assetId), FindingId: item.findingId || '', SourceNote: item.source, Result: item.kind, Detail: item.detail,
   });
   const events = [
     ...s.findings.map((f) => row('VulnerabilityFindings', f.id, f.observedAt, {
@@ -858,7 +858,7 @@ function moduleEightBuildConsoleData(fixture, caseId) {
       identities: [...new Set(s.assetInventory.map((asset) => asset.ownerId))].map((account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Service owner', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: `Owns ${s.assetInventory.filter((asset) => asset.ownerId === account).map((asset) => asset.assetId).join(', ')}` })),
       ips: [],
       watchlists: {
-        AssetInventory: { title: 'Asset inventory', rows: s.assetInventory.map((asset) => ({ AssetId: asset.assetId, Hostname: asset.hostname, Function: asset.function, Owner: asset.ownerId, Environment: asset.environment, Criticality: asset.criticality.tier, Zone: asset.reachability.zone })) },
+        AssetInventory: { title: 'Asset inventory', rows: s.assetInventory.map((asset) => ({ AssetId: asset.assetId, Host: asset.hostname, Function: asset.function, Owner: asset.ownerId, Environment: asset.environment, Criticality: asset.criticality.tier, Zone: asset.reachability.zone })) },
       },
       alerts: [
         ...s.incidents.map((incident) => ({ id: incident.id, time: s.incidentEvidence.find((item) => item.incidentId === incident.id)?.observedAt || s.start, severity: 'High', title: incident.title, entities: [...new Set(incident.findingIds.map(assetOf))], rule: 'Open incident: validation and exposure review', query: 'VulnerabilityFindings\n| sort by CvssScore desc' })),
@@ -871,10 +871,10 @@ function moduleEightBuildConsoleData(fixture, caseId) {
 const MODULE_EIGHT_CONSOLE_DATA = moduleEightBuildConsoleData(SocM08AssessmentData, MODULE_EIGHT_CASE_ID);
 const MODULE_EIGHT_GUIDED_CASE_MAP = {
   'M08-ASSESS-2026-09-27': 'M08-GUIDED-2026-09-27', 'm08-vulnerability-priority-assessment-v1': 'm08-guided-priority-actions-v1',
-  'WEB-DMZ-14': 'API-EDGE-31', 'web-dmz-14': 'api-edge-31', 'APP-DMZ-22': 'PAY-API-09', 'app-dmz-22': 'pay-api-09',
+  'web-dmz-14': 'api-edge-31', 'web-dmz-14': 'api-edge-31', 'app-dmz-22': 'pay-api-09', 'app-dmz-22': 'pay-api-09',
   'p.diallo': 'n.owens', 'j.moreau': 's.ivanov', 'Apache HTTP Server': 'Northstar API Gateway', 'OpenSSL': 'Kestrel TLS Adapter', 'Microsoft SMBv1': 'Legacy Print Protocol',
   'CVE-2021-41773': 'LAB-VULN-041', 'CVE-2022-3786': 'LAB-VULN-052', 'CVE-2017-0144': 'LAB-VULN-063',
-  'HR-PORTAL-07': 'CRM-INT-12', 'hr-portal-07': 'crm-int-12', 'LAB-BUILD-03': 'DEV-CI-04', 'lab-build-03': 'dev-ci-04', 'DB-REP-11': 'DB-ANL-06', 'db-rep-11': 'db-anl-06',
+  'hr-portal-07': 'crm-int-12', 'hr-portal-07': 'crm-int-12', 'lab-build-03': 'dev-ci-04', 'lab-build-03': 'dev-ci-04', 'db-rep-11': 'db-anl-06', 'db-rep-11': 'db-anl-06',
   'a.okafor': 't.brandt', 'r.tanaka': 'l.mendes', 'm.haddad': 'k.osei', 'Employee self-service portal': 'Internal case-management portal', 'Isolated build runner': 'Sandboxed CI worker',
   'Reporting database replica': 'Analytics database replica', 'TLS configuration (legacy 3DES suites)': 'TLS configuration (legacy RC4 suites)', 'Jenkins': 'Foundry CI Server', 'PostgreSQL': 'Meridian SQL', 'OpenSSH': 'Harbor Shell Daemon',
   'CVE-2016-2183': 'LAB-VULN-071', 'CVE-2024-23897': 'LAB-VULN-072', 'CVE-2023-5868': 'LAB-VULN-073', 'CVE-2023-38408': 'LAB-VULN-074', 'CVE-2022-0778': 'LAB-VULN-075',
@@ -892,7 +892,7 @@ const MODULE_EIGHT_GUIDED_FIXTURE = (() => {
   const fixture = moduleEightGuidedClone(SocM08AssessmentData);
   fixture.scenario.stateKey = 'm08-guided-priority-actions-v1';
   fixture.scenario.expectedPriority.findingId = 'M08G-FINDING-001';
-  fixture.scenario.expectedPriority.assetId = 'API-EDGE-31';
+  fixture.scenario.expectedPriority.assetId = 'api-edge-31';
   fixture.scenario.expectedPriority.ownerId = 'n.owens';
   fixture.scenario.expectedPriority.rationale = 'The guided case asks learners to validate a confirmed public API exposure and weigh asset impact, controls, and exploitability.';
   return fixture;
@@ -904,7 +904,7 @@ const MODULE_EIGHT_TOOL_FIXTURES = (() => {
   return {
     m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: MODULE_EIGHT_CASE_ID, end: s.end, data: MODULE_EIGHT_CONSOLE_DATA }),
     m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm08-endpoint-tools-v1', devices: MODULE_EIGHT_DEVICES, data: MODULE_EIGHT_CONSOLE_DATA }),
-    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M08-LEAD-001', type: 'vulnerability_findings', device: 'WEB-DMZ-14', account: 'p.diallo', taskName: '—', observation: 'New scanner findings on production DMZ assets need validation and prioritization.' }, devices: MODULE_EIGHT_DEVICES.map((device) => device.id), data: MODULE_EIGHT_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M08-LEAD-001', type: 'vulnerability_findings', device: 'web-dmz-14', account: 'p.diallo', taskName: '—', observation: 'New scanner findings on production DMZ assets need validation and prioritization.' }, devices: MODULE_EIGHT_DEVICES.map((device) => device.id), data: MODULE_EIGHT_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
     m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm08-mail-tools-v1', start: s.start, end: s.end }),
   };
 })();
@@ -914,7 +914,7 @@ const MODULE_EIGHT_GUIDED_TOOL_FIXTURES = (() => {
   return {
     m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: MODULE_EIGHT_GUIDED_CASE_ID, end: s.end, data: MODULE_EIGHT_GUIDED_CONSOLE_DATA }),
     m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm08-guided-endpoint-tools-v1', devices: MODULE_EIGHT_GUIDED_DEVICES, data: MODULE_EIGHT_GUIDED_CONSOLE_DATA }),
-    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M08G-LEAD-001', type: 'vulnerability_findings', device: 'API-EDGE-31', account: 'n.owens', taskName: '—', observation: 'A confirmed public API finding requires current evidence review and remediation prioritization.' }, devices: MODULE_EIGHT_GUIDED_DEVICES.map((device) => device.id), data: MODULE_EIGHT_GUIDED_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M08G-LEAD-001', type: 'vulnerability_findings', device: 'api-edge-31', account: 'n.owens', taskName: '—', observation: 'A confirmed public API finding requires current evidence review and remediation prioritization.' }, devices: MODULE_EIGHT_GUIDED_DEVICES.map((device) => device.id), data: MODULE_EIGHT_GUIDED_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
     m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm08-guided-mail-tools-v1', start: s.start, end: s.end }),
   };
 })();
@@ -937,8 +937,8 @@ const MODULE_EIGHT_CONSOLE = (() => {
     ariaLabel: 'Module 08 vulnerability prioritization assessment console',
     sourceMappings: {
       VulnerabilityFindings: { native: 'Scanner findings export (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['product', 'Product'], ['cve', 'Cve'], ['cvss', 'CvssScore'], ['scanner', 'Scanner'], ['freshness', 'Freshness']] },
-      FindingEvidence: { native: 'Finding validation records (JSON)', fields: [['observed', 'TimeGenerated'], ['finding', 'FindingId'], ['kind', 'EventType'], ['source', 'Source'], ['detail', 'Detail']] },
-      AssetEvidence: { native: 'Asset context records (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['kind', 'EventType'], ['source', 'Source'], ['detail', 'Detail']] },
+      FindingEvidence: { native: 'Finding validation records (JSON)', fields: [['observed', 'TimeGenerated'], ['finding', 'FindingId'], ['kind', 'EventType'], ['source', 'SourceNote'], ['detail', 'Detail']] },
+      AssetEvidence: { native: 'Asset context records (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['kind', 'EventType'], ['source', 'SourceNote'], ['detail', 'Detail']] },
       ScanRuns: { native: 'Scanner job log (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['scanner', 'Scanner'], ['mode', 'ScanMode'], ['coverage', 'Coverage'], ['outcome', 'Result']] },
       PatchRecords: { native: 'Change tracker export (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['change', 'ChangeId'], ['status', 'Result']] },
       IncidentEvidence: { native: 'Incident triage records (JSON)', fields: [['observed', 'TimeGenerated'], ['finding', 'FindingId'], ['kind', 'EventType'], ['detail', 'Detail']] },
@@ -986,7 +986,7 @@ const MODULE_EIGHT_GUIDED_CONSOLE = (() => {
     caseView: () => caseRecordPane(moduleEightGuidedState.caseRecord, {
       caseId: MODULE_EIGHT_GUIDED_CASE_ID, ticketId: 'INC-0849', ticketType: 'Exposure prioritization · Vulnerability Response',
       userOptions: [{ id: 'n.owens', text: 'n.owens · API service owner' }, { id: 's.ivanov', text: 's.ivanov · backend owner' }],
-      deviceOptions: [{ id: 'API-EDGE-31', text: 'API-EDGE-31 · public API edge' }, { id: 'PAY-API-09', text: 'PAY-API-09 · restricted backend' }],
+      deviceOptions: [{ id: 'api-edge-31', text: 'api-edge-31 · public API edge' }, { id: 'pay-api-09', text: 'pay-api-09 · restricted backend' }],
       departmentOptions: [{ id: 'vulnerability-response', text: 'Vulnerability Response' }, { id: 'service-owner-remediation', text: 'Service Owner Remediation' }, { id: 'security-lead-review', text: 'Security Lead Review' }],
       formId: 'm08-guided-case-form', saveAttr: 'data-m08-guided-save-case', submitAttr: 'data-m08-guided-submit-case', panelId: 'm08-guided-case-panel',
       notesPlaceholder: 'Explain finding validity, exposure and business context, remediation priority, owner, and the limit of any risk exception.',

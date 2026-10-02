@@ -20,7 +20,7 @@ let html = ui.render(fixture, emptyState);
 
 for (const value of ['Findings queue', 'CVE-2021-41773', 'CVSS 3.1 base score', '7.5',
   'Freshness', 'current', 'Applicability', 'confirmed', 'M08-EVID-001', 'Save review',
-  'Comparative asset context', 'WEB-DMZ-14', 'APP-DMZ-22', 'Business impact',
+  'Comparative asset context', 'web-dmz-14', 'app-dmz-22', 'Business impact',
   'Reachability', 'Exposure', 'Compensating controls', 'CVSS describes vulnerability severity',
   'M08-ASSET-EVID-001', 'M08-ASSET-EVID-008']) {
   assert.ok(html.includes(value), `expected rendered findings view to include ${value}`);
@@ -34,7 +34,7 @@ assert.ok(html.includes('data-m08-assessment-select="M08-FINDING-002"'));
 const selectedIds = (markup) => Array.from(markup.matchAll(/data-m08-assessment-select="([^"]+)"/g), (match) => match[1]);
 assert.deepStrictEqual(selectedIds(ui.render(fixture, emptyState, '', { freshness: 'stale' })), ['M08-FINDING-002', 'M08-FINDING-008']);
 assert.deepStrictEqual(selectedIds(ui.render(fixture, emptyState, '', { applicability: 'confirmed' })), ['M08-FINDING-001', 'M08-FINDING-004', 'M08-FINDING-005', 'M08-FINDING-006']);
-assert.deepStrictEqual(selectedIds(ui.render(fixture, emptyState, '', { assetId: 'APP-DMZ-22' })), ['M08-FINDING-002']);
+assert.deepStrictEqual(selectedIds(ui.render(fixture, emptyState, '', { assetId: 'app-dmz-22' })), ['M08-FINDING-002']);
 assert.deepStrictEqual(selectedIds(ui.render(fixture, emptyState, '', { priorityTier: 'critical' })), ['M08-FINDING-001', 'M08-FINDING-003', 'M08-FINDING-007']);
 assert.deepStrictEqual(selectedIds(ui.render(fixture, emptyState, '', { controlStatus: 'verified' })), ['M08-FINDING-002', 'M08-FINDING-004', 'M08-FINDING-005', 'M08-FINDING-008']);
 assert.deepStrictEqual(selectedIds(ui.render(fixture, emptyState, '', { search: 'managed-waf' })), ['M08-FINDING-001', 'M08-FINDING-003', 'M08-FINDING-007']);

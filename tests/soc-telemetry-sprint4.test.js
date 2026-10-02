@@ -146,11 +146,11 @@ for (const m of ['M07', 'M08', 'M09']) {
   assert.strictEqual(priority.id, 'M08-FINDING-001');
   const high = scenario.findings.filter((f) => f.cvss.baseScore >= 9);
   assert.ok(high.length >= 2 && high.every((f) => f.id !== priority.id), 'CVSS >= 9 findings exist and none is the expected priority');
-  const hasIsolation = scenario.assetInventory.find((a) => a.assetId === 'LAB-BUILD-03');
+  const hasIsolation = scenario.assetInventory.find((a) => a.assetId === 'lab-build-03');
   assert.strictEqual(hasIsolation.exposure.status, 'not-exposed');
-  // Reachability linkage: DB-REP-11 is reachable only from APP-DMZ-22, which is reachable only from the answer asset.
-  assert.deepStrictEqual(scenario.assetInventory.find((a) => a.assetId === 'DB-REP-11').reachability.reachableFrom, ['APP-DMZ-22']);
-  assert.deepStrictEqual(scenario.assetInventory.find((a) => a.assetId === 'APP-DMZ-22').reachability.reachableFrom, ['WEB-DMZ-14']);
+  // Reachability linkage: db-rep-11 is reachable only from app-dmz-22, which is reachable only from the answer asset.
+  assert.deepStrictEqual(scenario.assetInventory.find((a) => a.assetId === 'db-rep-11').reachability.reachableFrom, ['app-dmz-22']);
+  assert.deepStrictEqual(scenario.assetInventory.find((a) => a.assetId === 'app-dmz-22').reachability.reachableFrom, ['web-dmz-14']);
   // Planned change is not a fix.
   assert.ok(scenario.patchRecords.every((p) => !/^(applied|completed|closed)$/.test(p.status)), 'no patch record claims remediation is complete');
   // The critical-CVSS alert matches only findings that context and applicability deprioritise.
