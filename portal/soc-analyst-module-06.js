@@ -1333,6 +1333,18 @@ const MODULE_SIX_GUIDED_BACKGROUND = [
   moduleSixGuidedProc(248, '10:14:00', 'ws-612', 'acct-712', '6140', null, 'C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE', 'EXCEL.EXE', { signer: 'CN=Microsoft Corporation', relatedEventIds: ['M06-GUIDE-249'] }),
   moduleSixGuidedNet(249, '10:14:20', 'ws-612', 'acct-712', '6140', null, 'files.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-248'] }),
   moduleSixGuidedEv(250, '10:30:00', 'identity_activity', 'ws-537', 'acct-684', { identity: 'acct-684', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', source: 'SyntheticIdentity' }),
+  // Sprint 7 density: routine signed scheduled tasks, mid-window heartbeats before the ws-655 gap, signed Office identity on the baseline host.
+  moduleSixGuidedHealth(251, '10:17:30', 'ws-421'),
+  moduleSixGuidedHealth(252, '10:17:31', 'ws-537'),
+  moduleSixGuidedHealth(253, '10:17:32', 'ws-612'),
+  moduleSixGuidedHealth(254, '10:17:33', 'ws-655'),
+  moduleSixGuidedTask(255, '10:22:00', 'ws-537', 'acct-localsys', null, 'MicrosoftEdgeUpdateTaskMachineUA', '\\MicrosoftEdgeUpdateTaskMachineUA', { relatedEventIds: ['M06-GUIDE-256'] }),
+  moduleSixGuidedProc(256, '10:22:03', 'ws-537', 'acct-localsys', '5395', null, 'C:\\Program Files (x86)\\Microsoft\\EdgeUpdate\\MicrosoftEdgeUpdate.exe', 'MicrosoftEdgeUpdate.exe /ua /installsource scheduler', { signer: 'CN=Microsoft Corporation', relatedEventIds: ['M06-GUIDE-255'] }),
+  moduleSixGuidedTask(257, '10:28:00', 'ws-421', 'acct-localsys', '4205', 'Microsoft Compatibility Appraiser', '\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser', { relatedEventIds: ['M06-GUIDE-258'] }),
+  moduleSixGuidedProc(258, '10:28:03', 'ws-421', 'acct-localsys', '4290', '4205', 'C:\\Windows\\System32\\CompatTelRunner.exe', 'CompatTelRunner.exe -m:appraiser.dll', { signer: 'CN=Microsoft Windows', relatedEventIds: ['M06-GUIDE-257'] }),
+  moduleSixGuidedTask(259, '10:12:00', 'ws-655', 'acct-localsys', '6500', 'GoogleUpdateTaskMachineCore', '\\GoogleUpdateTaskMachineCore', { relatedEventIds: ['M06-GUIDE-260'] }),
+  moduleSixGuidedProc(260, '10:12:03', 'ws-655', 'acct-localsys', '6560', '6500', 'C:\\Program Files (x86)\\Google\\Update\\GoogleUpdate.exe', 'GoogleUpdate.exe /c', { signer: 'CN=Google LLC', relatedEventIds: ['M06-GUIDE-259'] }),
+  moduleSixGuidedFile(261, '10:14:02', 'ws-612', 'acct-712', '6140', null, 'C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE', 'b52e84', 'CN=Microsoft Corporation', 'signed_binary', { relatedEventIds: ['M06-GUIDE-248'] }),
 ];
 const MODULE_SIX_GUIDED_FIXTURE = {
   schemaVersion: 1,
@@ -1357,12 +1369,17 @@ const MODULE_SIX_GUIDED_FIXTURE = {
       { id: 'M06-GUIDE-212', time: '2026-09-27T10:25:12Z', eventType: 'network_connection', device: 'ws-612', host: 'ws-612', account: 'acct-712', processId: '6120', parentProcessId: null, destination: 'updates.nimbus.example', destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result: 'approved_service', source: 'SyntheticNetwork', relatedEventIds: ['M06-GUIDE-211'] },
       ...MODULE_SIX_GUIDED_BACKGROUND,
     ],
+    fixtureNotes: {
+      eventPurposes: {
+        'M06-GUIDE-251..261': 'Sprint 7 density: mid-window heartbeats before the ws-655 gap (coverage), routine signed scheduled tasks and children on ws-421/ws-537/ws-655 (background and scope check: ws-655 has other task activity so the bounded no-match stays meaningful), signed Office binary identity on the baseline host.',
+      },
+    },
     expectedTruth: {
       benignBackground: [
-        { device: 'ws-421', eventIds: ['M06-GUIDE-214', 'M06-GUIDE-215', 'M06-GUIDE-216', 'M06-GUIDE-217', 'M06-GUIDE-218', 'M06-GUIDE-219', 'M06-GUIDE-220', 'M06-GUIDE-246', 'M06-GUIDE-247'] },
-        { device: 'ws-537', eventIds: ['M06-GUIDE-223', 'M06-GUIDE-224', 'M06-GUIDE-225', 'M06-GUIDE-226', 'M06-GUIDE-227', 'M06-GUIDE-250'] },
-        { device: 'ws-612', eventIds: ['M06-GUIDE-230', 'M06-GUIDE-231', 'M06-GUIDE-232', 'M06-GUIDE-233', 'M06-GUIDE-248', 'M06-GUIDE-249'] },
-        { device: 'ws-655', eventIds: ['M06-GUIDE-236', 'M06-GUIDE-237', 'M06-GUIDE-238', 'M06-GUIDE-239', 'M06-GUIDE-240', 'M06-GUIDE-241', 'M06-GUIDE-244'] },
+        { device: 'ws-421', eventIds: ['M06-GUIDE-214', 'M06-GUIDE-215', 'M06-GUIDE-216', 'M06-GUIDE-217', 'M06-GUIDE-218', 'M06-GUIDE-219', 'M06-GUIDE-220', 'M06-GUIDE-246', 'M06-GUIDE-247', 'M06-GUIDE-251', 'M06-GUIDE-257', 'M06-GUIDE-258'] },
+        { device: 'ws-537', eventIds: ['M06-GUIDE-223', 'M06-GUIDE-224', 'M06-GUIDE-225', 'M06-GUIDE-226', 'M06-GUIDE-227', 'M06-GUIDE-250', 'M06-GUIDE-252', 'M06-GUIDE-255', 'M06-GUIDE-256'] },
+        { device: 'ws-612', eventIds: ['M06-GUIDE-230', 'M06-GUIDE-231', 'M06-GUIDE-232', 'M06-GUIDE-233', 'M06-GUIDE-248', 'M06-GUIDE-249', 'M06-GUIDE-253', 'M06-GUIDE-261'] },
+        { device: 'ws-655', eventIds: ['M06-GUIDE-236', 'M06-GUIDE-237', 'M06-GUIDE-238', 'M06-GUIDE-239', 'M06-GUIDE-240', 'M06-GUIDE-241', 'M06-GUIDE-244', 'M06-GUIDE-254', 'M06-GUIDE-259', 'M06-GUIDE-260'] },
       ],
       coverageGaps: [
         { device: 'ws-655', windowStart: '2026-09-27T10:20:00Z', windowEnd: '2026-09-27T10:26:40Z', eventIds: ['M06-GUIDE-242', 'M06-GUIDE-243'], note: 'Planned sensor upgrade under CHG-6108: no endpoint telemetry exists for ws-655 in this interval.' },
