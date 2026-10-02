@@ -67,6 +67,11 @@ const full = scorer.score(state, fixture, { mappings });
 assert.strictEqual(full.score, 100, `a complete, supported reconstruction earns full credit: ${JSON.stringify(plain(full.criteria).map((c) => [c.id, c.points]))}`);
 assert.ok(detectedOnly.criteria.find((c) => c.id === 'hash-integrity').points < 10, 'detecting the mismatch without resolving it is partial');
 assert.deepStrictEqual(plain(scorer.score(state, fixture, { mappings })), plain(full), 'scoring is deterministic');
+// Hostnames moved to lower case; a locker saved with the earlier upper-case source labels (WKSTN-19 disk image) scores the same.
+const legacyLabels = plain(state);
+Object.values(legacyLabels.locker).forEach((item) => { item.source = item.source.replace(/wkstn-19|mail-gw-01|proxy-01/g, (host) => host.toUpperCase()); });
+assert.ok(Object.values(legacyLabels.locker).some((item) => /WKSTN-19/.test(item.source)), 'legacy labels exercised');
+assert.deepStrictEqual(plain(scorer.score(legacyLabels, fixture, { mappings })), plain(full), 'source label case does not change the score');
 assert.strictEqual(scorer.score(state, fixture, { mappings: [...mappings, { techniqueId: 'T1567', status: 'supported', eventIds: ['ART-07'] }] }).criteria.find((c) => c.id === 'attack-linkage').points, 0, 'mapping unevidenced exfiltration loses ATT&CK credit');
 
 const overclaim = api.statement(state, fixture, { kind: 'analysis', text: 'Exfiltration confirmed from the staging archive.', artifactIds: ['ART-07'] }, at());

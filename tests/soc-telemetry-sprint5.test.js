@@ -86,7 +86,7 @@ vm.runInContext(between(m10Src, 'const MODULE_TEN_GUIDED_CASE_ID', 'const MODULE
   assert.strictEqual(release[0].CustodyTo, 'soc-analyst');
   assert.ok(Date.parse(release[0].TimeGenerated) <= Date.parse(s.end));
 
-  // Source events: honest hash links, in window, and no proxy upload for WKSTN-19.
+  // Source events: honest hash links, in window, and no proxy upload for wkstn-19.
   const src = events.filter((e) => /^M10-SRC-/.test(e.EventId));
   assert.strictEqual(src.length, s.sourceEvents.length);
   assert.strictEqual(src.find((e) => e.EventId === 'M10-SRC-30').SourceSha256, art('ART-09').sourceHash);
@@ -103,7 +103,31 @@ vm.runInContext(between(m10Src, 'const MODULE_TEN_GUIDED_CASE_ID', 'const MODULE
   const ids = new Set(events.map((e) => e.EventId));
   assert.ok(gData.events.every((e) => !ids.has(e.EventId)), 'no shared EventIds');
   const text = JSON.stringify(gData.events);
-  ['WKSTN-19', 'MAIL-GW-01', 'BACKUP-SRV-02', 'svc-backup', 'northwind-supply', 'EDR-MGMT-01', 'm.okoye', 'p.nair', '2026-09-27'].forEach((x) => assert.ok(!text.includes(x), `guided leaks ${x}`));
+  ['wkstn-19', 'mail-gw-01', 'backup-srv-02', 'svc-backup', 'northwind-supply', 'edr-mgmt-01', 'evidence-staging', 'm.okoye', 'p.nair', '2026-09-27'].forEach((x) => assert.ok(!text.toLowerCase().includes(x), `guided leaks ${x}`));
+
+  // Entity identity contract: lower-case Host = DeviceId, `system` with the native form kept in AccountNative.
+  [events, gData.events].forEach((rows) => rows.forEach((e) => {
+    if (e.Host !== undefined) { assert.strictEqual(e.Host, e.Host.toLowerCase(), `${e.EventId} host lower-case`); assert.strictEqual(e.DeviceId, e.Host, `${e.EventId} DeviceId = Host`); }
+    assert.strictEqual(e.Account, String(e.Account).toLowerCase(), `${e.EventId} account lower-case`);
+  }));
+  const sys = events.filter((e) => e.Account === 'system');
+  assert.ok(sys.length > 0 && sys.every((e) => e.AccountNative === 'SYSTEM'), 'system rows keep native SYSTEM');
+  assert.ok(!data.identities.some((i) => i.Account === 'system'), 'built-in principal has no identity row');
+
+  // Shipped guided fixture (with its account adjustment) shares no host or account with the assessment.
+  vm.runInContext(between(m10Src, 'const MODULE_TEN_GUIDED_FIXTURE = (() => {', 'const MODULE_TEN_DEVICES'), context);
+  const shipped = context.moduleTenBuildConsoleData(vm.runInContext('MODULE_TEN_GUIDED_FIXTURE', context), 'EVD-6620');
+  validate('M10 guided (shipped)', shipped.events, local(vm.runInContext('MODULE_TEN_GUIDED_FIXTURE.scenario', context)));
+  const entitySet = (rows, key) => new Set(rows.map((e) => e[key]).filter(Boolean));
+  ['Host', 'Account'].forEach((key) => {
+    const guidedSet = entitySet(shipped.events, key);
+    const shared = [...entitySet(events, key)].filter((v) => guidedSet.has(v));
+    assert.deepStrictEqual(shared, [], `guided and assessment share ${key} values`);
+  });
+  assert.ok(shipped.events.filter((e) => e.Account === 'local-service').every((e) => e.AccountNative === 'NT AUTHORITY\\LOCAL SERVICE'));
+  assert.ok(!shipped.identities.some((i) => i.Account === 'local-service'), 'guided built-in principal has no identity row');
+  const guidedMismatch = shipped.events.filter((e) => e.ArtifactId === 'PRACT-03' && e.EventType === 'HashVerification');
+  assert.ok(guidedMismatch.length === 2 && guidedMismatch.every((e) => e.Result === 'Mismatch'), 'guided PRACT-03 still mismatches on both checks');
 }
 
 /* ---------- Module 11 ---------- */

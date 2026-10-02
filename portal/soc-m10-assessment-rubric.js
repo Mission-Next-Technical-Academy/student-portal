@@ -38,7 +38,10 @@ const SocM10AssessmentRubric = (() => {
     const noise = truth.noiseArtifactIds.filter((id) => locker[id]);
     add('evidence-selection', held.length === required.length && !noise.length ? 'observed' : held.length >= 4 ? 'partial' : held.length ? 'incomplete' : 'unknown', held);
 
-    const metadataOk = held.filter((id) => locker[id].source === byId.get(id).source && byId.get(id).methods.includes(locker[id].method) && String(locker[id].acquiredBy || '').trim());
+    // Source labels embed hostnames, which moved to lower case (entity identity contract); compare ignoring case so a
+    // locker item recorded with the earlier upper-case label (WKSTN-19 disk image) still matches.
+    const sameSource = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+    const metadataOk = held.filter((id) => sameSource(locker[id].source, byId.get(id).source) &&byId.get(id).methods.includes(locker[id].method) && String(locker[id].acquiredBy || '').trim());
     add('acquisition-metadata', held.length && metadataOk.length === required.length ? 'observed' : metadataOk.length >= required.length / 2 ? 'partial' : held.length ? 'incomplete' : 'unknown', metadataOk);
 
     const verified = held.filter((id) => locker[id].integrity === 'verified' && locker[id].verifiedHash === byId.get(id).sourceHash);

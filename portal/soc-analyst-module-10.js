@@ -343,7 +343,7 @@ const MODULE_TEN_SOURCES_LIST = [
 // Standard ITSM Incident Ticket (docs/specs/MODULE_STANDARD.md §7.2) for the
 // Assessment Lab's Prove It submission. Authored from the imported
 // windows-forensics scenarios this module assigns: wf-1's event-log
-// intrusion sequence (j.sanders / WKSTN-19, failed logons -> success ->
+// intrusion sequence (j.sanders / wkstn-19, failed logons -> success ->
 // PowerShell execution) and wf-5's deleted-file staging on jdoe's desktop
 // (portal/imported-labs/mission-next-labs/src/data/labs/windows-forensics.labs.js).
 // Answer key stays here, never shown live in Prove It.
@@ -358,17 +358,17 @@ const MODULE_TEN_CASE = {
     { id: 'r.patel', text: 'r.patel', tier: 'noise' },
   ],
   deviceOptions: [
-    { id: 'WKSTN-19', text: 'WKSTN-19', tier: 'principal' },
-    { id: 'WKS-DESK-07', text: 'WKS-DESK-07 (jdoe desktop)', tier: 'pivot' },
-    { id: 'WKSTN-42', text: 'WKSTN-42', tier: 'noise' },
-    { id: 'SRV-FILE-02', text: 'SRV-FILE-02', tier: 'noise' },
-    { id: 'LAP-233', text: 'LAP-233', tier: 'noise' },
-    { id: 'WKSTN-08', text: 'WKSTN-08', tier: 'noise' },
+    { id: 'wkstn-19', text: 'wkstn-19', tier: 'principal' },
+    { id: 'wks-desk-07', text: 'wks-desk-07 (jdoe desktop)', tier: 'pivot' },
+    { id: 'wkstn-42', text: 'wkstn-42', tier: 'noise' },
+    { id: 'srv-file-02', text: 'srv-file-02', tier: 'noise' },
+    { id: 'lap-233', text: 'lap-233', tier: 'noise' },
+    { id: 'wkstn-08', text: 'wkstn-08', tier: 'noise' },
   ],
   departmentOptions: [
     { id: 'tier2-soc', text: 'Tier 2 SOC — Incident Response', fit: 100 },
     { id: 'digital-forensics', text: 'Digital Forensics Team', fit: 70,
-      note: 'Forensics can image and preserve WKSTN-19 and the recovered files, but this case also needs the account-compromise leg contained — Tier 2 SOC owns both together.' },
+      note: 'Forensics can image and preserve wkstn-19 and the recovered files, but this case also needs the account-compromise leg contained — Tier 2 SOC owns both together.' },
     { id: 'identity-response', text: 'Identity Response', fit: 55,
       note: 'Identity Response can reset j.sanders, but has no authority over the endpoint evidence and deleted-file staging — Tier 2 SOC coordinates both.' },
     { id: 'help-desk', text: 'Help Desk', fit: 10,
@@ -377,7 +377,7 @@ const MODULE_TEN_CASE = {
   correctStatus: 'in-progress',
   correctSeverity: 'high',
   correctAffectedUser: 'j.sanders',
-  correctAffectedDevice: 'WKSTN-19',
+  correctAffectedDevice: 'wkstn-19',
   correctDisposition: 'true-positive',
   correctEscalation: 'required',
   correctEscalateTo: 'tier2-soc',
@@ -399,7 +399,8 @@ function moduleTenCasePerformance() {
   const missing = caseRecordMissing(state, spec);
 
   const userTier = lab.userOptions.find((entry) => entry.id === state.affectedUser)?.tier;
-  const deviceTier = lab.deviceOptions.find((entry) => entry.id === state.affectedDevice)?.tier;
+  // Hostnames are case-insensitive: a ticket saved before the lower-case host migration (WKSTN-19) scores as wkstn-19.
+  const deviceTier = lab.deviceOptions.find((entry) => entry.id === String(state.affectedDevice || '').toLowerCase())?.tier;
   const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
   const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
 
@@ -414,8 +415,8 @@ function moduleTenCasePerformance() {
   const entityFeedback = entityPoints >= 20
     ? 'Affected entity/scope: correct — the confirmed user and device.'
     : entityPoints > 0
-      ? 'Affected entity/scope: partial credit — a related entity is supported by the evidence, but j.sanders/WKSTN-19 is the confirmed affected user/device.'
-      : 'Affected entity/scope: review — j.sanders/WKSTN-19 is the confirmed affected user/device, supported by the event-log evidence.';
+      ? 'Affected entity/scope: partial credit — a related entity is supported by the evidence, but j.sanders/wkstn-19 is the confirmed affected user/device.'
+      : 'Affected entity/scope: review — j.sanders/wkstn-19 is the confirmed affected user/device, supported by the event-log evidence.';
   const routingFeedback = !escalationRequiredOk
     ? 'Routing: not applicable — escalation was set to not required.'
     : !department
@@ -530,6 +531,15 @@ function moduleTenLoad(user) {
   if (typeof moduleTenAssessmentState.submitted !== 'boolean') moduleTenAssessmentState.submitted = false;
   if (typeof moduleTenAssessmentState.showMissing !== 'boolean') moduleTenAssessmentState.showMissing = false;
   if (moduleTenAssessmentState.completed && !moduleTenAssessmentState.submitted) moduleTenAssessmentState.submitted = true;
+  // Hostnames moved to lower case (entity identity contract); keep tickets saved with the old upper-case
+  // device id selected in the dropdown. Only values that match a current option ignoring case are rewritten.
+  moduleTenAssessmentState.affectedDevice = moduleTenCanonicalDevice(moduleTenAssessmentState.affectedDevice, MODULE_TEN_CASE.deviceOptions);
+  if (moduleTenGuidedState.caseRecord && typeof moduleTenGuidedState.caseRecord.affectedDevice === 'string') {
+    moduleTenGuidedState.caseRecord.affectedDevice = moduleTenCanonicalDevice(moduleTenGuidedState.caseRecord.affectedDevice, MODULE_TEN_GUIDED_DEVICE_OPTIONS);
+  }
+  // Carried tool workspaces (endpoint device selection, hunt query scope) may hold the old upper-case host ids.
+  if (moduleTenAssessmentState.tools) moduleTenAssessmentState.tools = moduleTenLowerHostRefs(moduleTenAssessmentState.tools, MODULE_TEN_CONSOLE_DATA);
+  if (moduleTenGuidedState.tools) moduleTenGuidedState.tools = moduleTenLowerHostRefs(moduleTenGuidedState.tools, MODULE_TEN_GUIDED_CONSOLE_DATA);
 
   // Initialize quiz state
   if (!moduleTenQuizState) {
@@ -549,6 +559,22 @@ function moduleTenLoad(user) {
   }
 
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-10');
+}
+
+function moduleTenCanonicalDevice(value, options) {
+  const match = (options || []).find((option) => option.id.toLowerCase() === String(value || '').toLowerCase());
+  return match ? match.id : value;
+}
+// Rewrites any saved string that is exactly a dataset host written in another case (WKSTN-19 -> wkstn-19); nothing else changes.
+function moduleTenLowerHostRefs(value, data) {
+  const hosts = new Set(Object.values(data.tables || {}).flat().map((row) => String(row.Host || '').toLowerCase()).filter(Boolean));
+  const walk = (node) => {
+    if (typeof node === 'string') return node !== node.toLowerCase() && hosts.has(node.toLowerCase()) ? node.toLowerCase() : node;
+    if (Array.isArray(node)) return node.map(walk);
+    if (node && typeof node === 'object') return Object.fromEntries(Object.entries(node).map(([key, item]) => [key, walk(item)]));
+    return node;
+  };
+  return walk(value);
 }
 
 function moduleTenSaveGuided() { if (moduleTenUser && moduleTenGuidedState) LabRuntime.saveCaseState(MODULE_TEN_GUIDED_LAB_ID, 'soc-10', moduleTenUser, moduleTenGuidedState); }
@@ -573,14 +599,16 @@ const MODULE_TEN_ARTIFACT_TABLES = {
   email_message: 'EmailEvents', mail_trace: 'EmailEvents', file: 'DeviceFileEvents', process_log: 'DeviceProcessEvents',
   registry: 'DeviceRegistryEvents', network_log: 'ProxyEvents', memory_image: 'ForensicAcquisitions', system_log: 'SystemLog',
 };
+// Well-known OS principals (normalized Account form) are not people: no IdentityInfo row, never the primary user.
+const MODULE_TEN_BUILTIN_ACCOUNTS = new Set(['system', 'local-service', 'network-service']);
 function moduleTenBuildConsoleData(fixture, caseId) {
   const s = fixture.scenario;
-  const identities = [...new Set(s.artifacts.map((artifact) => artifact.account).filter((account) => account && account !== 'SYSTEM'))]
+  const identities = [...new Set(s.artifacts.map((artifact) => artifact.account).filter((account) => account && !MODULE_TEN_BUILTIN_ACCOUNTS.has(account)))]
     .map((account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Service owner', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: `Identity represented in case ${s.caseId}` }));
   const workstation = s.artifacts.find((artifact) => artifact.type === 'process_log')?.host || s.artifacts[0]?.host || '';
-  const primaryUser = s.artifacts.find((artifact) => artifact.host === workstation && artifact.account !== 'SYSTEM')?.account || '';
+  const primaryUser = s.artifacts.find((artifact) => artifact.host === workstation && !MODULE_TEN_BUILTIN_ACCOUNTS.has(artifact.account))?.account || '';
   const events = s.artifacts.map((a) => m03eRow(MODULE_TEN_ARTIFACT_TABLES[a.type] || 'CaseArtifacts', a.id, a.time.slice(0, 10), a.time.slice(11, 19), {
-    EventType: a.type, Account: a.account, Host: a.host, DeviceId: a.host, Result: a.title, SourceSystem: a.source, SourceSha256: a.sourceHash, Detail: `${a.title}. ${a.detail}`,
+    EventType: a.type, Account: a.account, ...(a.accountNative ? { AccountNative: a.accountNative } : {}), Host: a.host, DeviceId: a.host, Result: a.title, SourceSystem: a.source, SourceSha256: a.sourceHash, Detail: `${a.title}. ${a.detail}`,
     ...(a.acquisitionTime ? { AcquisitionTime: a.acquisitionTime } : {}), ...(a.ingestionTime ? { IngestionTime: a.ingestionTime } : {}),
   })).concat(moduleTenSourceEventRows(s), moduleTenProvenanceRows(s));
   return {
@@ -601,7 +629,7 @@ function moduleTenBuildConsoleData(fixture, caseId) {
 function moduleTenSourceEventRows(s) {
   const hashes = new Map(s.artifacts.map((a) => [a.id, a.sourceHash]));
   return (s.sourceEvents || []).map((e) => m03eRow(e.table, e.id, e.time.slice(0, 10), e.time.slice(11, 19), {
-    EventType: e.type, Account: e.account, Host: e.host, DeviceId: e.host, Result: e.result, Detail: e.detail,
+    EventType: e.type, Account: e.account, ...(e.accountNative ? { AccountNative: e.accountNative } : {}), Host: e.host, DeviceId: e.host, Result: e.result, Detail: e.detail,
     ...(e.ingestionTime ? { IngestionTime: e.ingestionTime } : {}), ...(e.hashOf ? { SourceSha256: hashes.get(e.hashOf) } : {}),
   }));
 }
@@ -617,6 +645,7 @@ function moduleTenProvenanceRows(s) {
   const prefix = s.id.split('-')[0];
   let n = 0;
   const custodian = s.stagingCustodian || 'ir-collection-team';
+  const stagingHost = s.stagingHost || 'evidence-staging';
   s.artifacts.forEach((a, index) => {
     const coc = `COC-${s.caseId}-${a.id}`;
     const base = { Host: a.host, DeviceId: a.host, CustodyId: coc, ArtifactId: a.id, AcquisitionTime: a.acquisitionTime, EventTime: a.time, ...(a.ingestionTime ? { IngestionTime: a.ingestionTime } : {}) };
@@ -630,20 +659,20 @@ function moduleTenProvenanceRows(s) {
         Detail: ok ? `${a.id}: repeat hash check before release matches the source-reported hash (pass 2). ${coc}.` : `${a.id}: repeat hash check before release still differs from the source-reported hash (pass 2); the staged copy was not replaced. ${coc}.` }));
     }
   });
-  rows.push(row(`${prefix}-CUS-${String(++n).padStart(3, '0')}`, s.stagingReleasedAt || s.request.receivedAt, { Host: 'EVIDENCE-STAGING', DeviceId: 'EVIDENCE-STAGING', EventType: 'CustodyRelease', Account: custodian, Result: 'Released',
+  rows.push(row(`${prefix}-CUS-${String(++n).padStart(3, '0')}`, s.stagingReleasedAt || s.request.receivedAt, { Host: stagingHost, DeviceId: stagingHost, EventType: 'CustodyRelease', Account: custodian, Result: 'Released',
     CustodyFrom: custodian, CustodyTo: 'soc-analyst', Detail: `${s.artifacts.length} staged artifacts released from ${custodian} to the SOC analyst for case ${s.caseId}; the analyst's own intake, verification, transfers and legal hold are recorded in the evidence locker.` }));
   return rows;
 }
 const MODULE_TEN_CONSOLE_DATA = moduleTenBuildConsoleData(SocM10AssessmentData, SocM10AssessmentData.scenario.caseId);
 const MODULE_TEN_GUIDED_CASE_ID = 'EVD-6620';
 const MODULE_TEN_GUIDED_REPLACEMENTS = {
-  'M10-': 'M10G-', 'ART-': 'PRACT-', 'EVD-5510': 'EVD-6620', 'INC-5510': 'INC-6620', 'REQ-5510': 'REQ-6620', 'WKSTN-19': 'WKSTN-42',
-  'DEV-WKSTN-19': 'DEV-WKSTN-42', 'MAIL-GW-01': 'MAIL-GW-02', 'PROXY-01': 'PROXY-02', 'j.sanders': 'm.chen',
-  'WKS-DESK-07': 'WKS-FIN-12', 'jdoe': 'a.rivera', '2026-09-27': '2026-10-02', 'Q3 remittance': 'Vendor contract renewal',
+  'M10-': 'M10G-', 'ART-': 'PRACT-', 'EVD-5510': 'EVD-6620', 'INC-5510': 'INC-6620', 'REQ-5510': 'REQ-6620', 'wkstn-19': 'wkstn-42',
+  'DEV-WKSTN-19': 'DEV-WKSTN-42', 'mail-gw-01': 'mail-gw-02', 'proxy-01': 'proxy-02', 'j.sanders': 'm.chen',
+  'wks-desk-07': 'wks-fin-12', 'jdoe': 'a.rivera', '2026-09-27': '2026-10-02', 'Q3 remittance': 'Vendor contract renewal',
   'Q3_Remittance.docm': 'Vendor_Renewal.docm', 'Q3_Payables_Summary': 'Vendor_Statement_Aug', 'Q3 payables summary': 'Vendor statement',
-  'BACKUP-SRV-02': 'BACKUP-SRV-05', 'svc-backup': 'svc-vaultsync', 'm.okoye': 't.lindqvist', 'p.nair': 'd.osei', 'northwind-supply.example': 'cobaltparts.example',
-  'backup.cloudvault.example': 'vault.stor-sync.example', 'erp.finance.example': 'erp.ops.example', 'EDR-MGMT-01': 'EDR-MGMT-02', 'news.example': 'press.example',
-  'KB-2026-09': 'KB-2026-10', 'PO 4471': 'PO 3308', 'svc-memcapture': 'svc-memtool', 'svc-evidence-export': 'svc-export-agent', 'ir-collection-team': 'ir-staging-team', 'EVIDENCE-STAGING': 'EVIDENCE-STAGE-2', 'svchelp.exe': 'syncagent.exe', 'svchelp': 'syncagent', 'q3.zip': 'vendor_records.zip',
+  'backup-srv-02': 'backup-srv-05', 'svc-backup': 'svc-vaultsync', 'm.okoye': 't.lindqvist', 'p.nair': 'd.osei', 'northwind-supply.example': 'cobaltparts.example',
+  'backup.cloudvault.example': 'vault.stor-sync.example', 'erp.finance.example': 'erp.ops.example', 'edr-mgmt-01': 'edr-mgmt-02', 'news.example': 'press.example',
+  'KB-2026-09': 'KB-2026-10', 'PO 4471': 'PO 3308', 'svc-memcapture': 'svc-memtool', 'svc-evidence-export': 'svc-export-agent', 'ir-collection-team': 'ir-staging-team', 'evidence-staging': 'evidence-stage-2', 'svchelp.exe': 'syncagent.exe', 'svchelp': 'syncagent', 'q3.zip': 'vendor_records.zip',
 };
 function moduleTenGuidedClone(value) {
   if (typeof value === 'string') return Object.entries(MODULE_TEN_GUIDED_REPLACEMENTS).reduce((text, [from, to]) => text.split(from).join(to), value);
@@ -654,6 +683,11 @@ function moduleTenGuidedClone(value) {
 const MODULE_TEN_GUIDED_FIXTURE = (() => {
   const fixture = moduleTenGuidedClone(SocM10AssessmentData);
   fixture.scenario.stateKey = 'm10-guided-evidence-actions-v1';
+  // Independence: the practice case must not share principals with the assessment (which uses `system`), so its
+  // OS-initiated background rows run under the LOCAL SERVICE built-in instead. Account-only change; no ids or hashes.
+  [...fixture.scenario.artifacts, ...fixture.scenario.sourceEvents].forEach((item) => {
+    if (item.account === 'system') Object.assign(item, { account: 'local-service', accountNative: 'NT AUTHORITY\\LOCAL SERVICE' });
+  });
   fixture.scenario.artifacts.forEach((artifact, index) => {
     artifact.sourceHash = String(index + 1).padStart(2, '0').repeat(32);
     artifact.verificationHash = index === 2 ? 'ee'.repeat(32) : artifact.sourceHash;
@@ -668,23 +702,23 @@ const MODULE_TEN_GUIDED_FIXTURE = (() => {
   return fixture;
 })();
 const MODULE_TEN_DEVICES = [
-  { id: 'WKSTN-19', hostname: 'WKSTN-19', platform: 'Windows 11', role: 'User workstation (isolated)', owner: 'j.sanders', zone: 'CORP-USER', status: 'Isolated' },
+  { id: 'wkstn-19', hostname: 'wkstn-19', platform: 'Windows 11', role: 'User workstation (isolated)', owner: 'j.sanders', zone: 'CORP-USER', status: 'Isolated' },
 ];
 const MODULE_TEN_TOOL_FIXTURES = (() => {
   const s = SocM10AssessmentData.scenario;
   return {
     m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: s.caseId, end: s.end, data: MODULE_TEN_CONSOLE_DATA }),
     m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm10-endpoint-tools-v1', devices: MODULE_TEN_DEVICES, data: MODULE_TEN_CONSOLE_DATA }),
-    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M10-LEAD-001', type: 'evidence_request', device: 'WKSTN-19', account: 'j.sanders', taskName: '—', observation: s.request.text }, devices: ['WKSTN-19', 'MAIL-GW-01', 'PROXY-01'], data: MODULE_TEN_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M10-LEAD-001', type: 'evidence_request', device: 'wkstn-19', account: 'j.sanders', taskName: '—', observation: s.request.text }, devices: ['wkstn-19', 'mail-gw-01', 'proxy-01'], data: MODULE_TEN_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
     m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm10-mail-tools-v1', start: s.start, end: s.end }),
     m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm10-exposure-tools-v1', start: s.start, end: s.end }),
     m09: SocConsoleTools.m09Fixture({
       id: s.id, stateKey: 'm10-response-tools-v1', start: s.start, end: s.end,
-      incident: { id: s.incidentId, title: 'WKSTN-19 macro intrusion (contained)', reportedAt: '2026-09-27T09:10:00Z', sourceEntityId: 'wkstn-19', sourceEvidenceId: 'ART-03', summary: 'Macro-enabled attachment led to PowerShell execution and persistence on WKSTN-19; the host is isolated.' },
+      incident: { id: s.incidentId, title: 'wkstn-19 macro intrusion (contained)', reportedAt: '2026-09-27T09:10:00Z', sourceEntityId: 'wkstn-19', sourceEvidenceId: 'ART-03', summary: 'Macro-enabled attachment led to PowerShell execution and persistence on wkstn-19; the host is isolated.' },
       entities: [
-        { id: 'wkstn-19', type: 'endpoint', hostname: 'WKSTN-19', ownerAccountId: 'j.sanders', deviceId: 'DEV-WKSTN-19', status: 'isolated' },
+        { id: 'wkstn-19', type: 'endpoint', hostname: 'wkstn-19', ownerAccountId: 'j.sanders', deviceId: 'DEV-WKSTN-19', status: 'isolated' },
         { id: 'j.sanders', type: 'identity', displayName: 'J. Sanders', registeredDeviceId: 'DEV-WKSTN-19', status: 'active' },
-        { id: 'DEV-WKSTN-19', type: 'device', hostname: 'WKSTN-19', linkedEntityId: 'wkstn-19' },
+        { id: 'DEV-WKSTN-19', type: 'device', hostname: 'wkstn-19', linkedEntityId: 'wkstn-19' },
         { id: 'file-svchelp-19', type: 'file', linkedEntityId: 'wkstn-19', path: 'C:\\Users\\j.sanders\\AppData\\Roaming\\svchelp.exe' },
         { id: 'persist-svchelp-19', type: 'persistence', linkedEntityId: 'wkstn-19', name: 'svchelp' },
       ],
@@ -692,32 +726,33 @@ const MODULE_TEN_TOOL_FIXTURES = (() => {
         { id: 'M10-LINK-001', from: s.incidentId, to: 'wkstn-19', relation: 'confirmed_execution', evidenceId: 'ART-03' },
         { id: 'M10-LINK-002', from: s.incidentId, to: 'j.sanders', relation: 'opened_attachment', evidenceId: 'ART-02' },
       ],
-      evidence: s.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'WKSTN-19' ? 'wkstn-19' : 'j.sanders', summary: a.title })),
+      evidence: s.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'wkstn-19' ? 'wkstn-19' : 'j.sanders', summary: a.title })),
     }),
   };
 })();
 const MODULE_TEN_GUIDED_CONSOLE_DATA = moduleTenBuildConsoleData(MODULE_TEN_GUIDED_FIXTURE, MODULE_TEN_GUIDED_CASE_ID);
-const MODULE_TEN_GUIDED_DEVICES = [{ id: 'WKSTN-42', hostname: 'WKSTN-42', platform: 'Windows 11', role: 'User workstation (isolated)', owner: 'm.chen', zone: 'CORP-FINANCE', status: 'Isolated' }];
+const MODULE_TEN_GUIDED_DEVICE_OPTIONS = [{ id: 'wkstn-42', text: 'wkstn-42 · isolated endpoint' }, { id: 'wks-fin-12', text: 'wks-fin-12 · unaffected comparison' }];
+const MODULE_TEN_GUIDED_DEVICES = [{ id: 'wkstn-42', hostname: 'wkstn-42', platform: 'Windows 11', role: 'User workstation (isolated)', owner: 'm.chen', zone: 'CORP-FINANCE', status: 'Isolated' }];
 const MODULE_TEN_GUIDED_TOOL_FIXTURES = (() => {
   const s = MODULE_TEN_GUIDED_FIXTURE.scenario;
   return {
     m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: s.caseId, end: s.end, data: MODULE_TEN_GUIDED_CONSOLE_DATA }),
     m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm10-guided-endpoint-tools-v1', devices: MODULE_TEN_GUIDED_DEVICES, data: MODULE_TEN_GUIDED_CONSOLE_DATA }),
-    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M10G-LEAD-001', type: 'evidence_request', device: 'WKSTN-42', account: 'm.chen', taskName: '—', observation: s.request.text }, devices: ['WKSTN-42', 'MAIL-GW-02', 'PROXY-02'], data: MODULE_TEN_GUIDED_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M10G-LEAD-001', type: 'evidence_request', device: 'wkstn-42', account: 'm.chen', taskName: '—', observation: s.request.text }, devices: ['wkstn-42', 'mail-gw-02', 'proxy-02'], data: MODULE_TEN_GUIDED_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
     m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm10-guided-mail-tools-v1', start: s.start, end: s.end }),
     m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm10-guided-exposure-tools-v1', start: s.start, end: s.end }),
     m09: SocConsoleTools.m09Fixture({
       id: s.id, stateKey: 'm10-guided-response-tools-v1', start: s.start, end: s.end,
-      incident: { id: s.incidentId, title: 'WKSTN-42 document intrusion (contained)', reportedAt: s.containedAt, sourceEntityId: 'wkstn-42', sourceEvidenceId: 'PRACT-03', summary: 'A document attachment led to script execution and persistence on WKSTN-42; the host is isolated.' },
+      incident: { id: s.incidentId, title: 'wkstn-42 document intrusion (contained)', reportedAt: s.containedAt, sourceEntityId: 'wkstn-42', sourceEvidenceId: 'PRACT-03', summary: 'A document attachment led to script execution and persistence on wkstn-42; the host is isolated.' },
       entities: [
-        { id: 'wkstn-42', type: 'endpoint', hostname: 'WKSTN-42', ownerAccountId: 'm.chen', deviceId: 'DEV-WKSTN-42', status: 'isolated' },
+        { id: 'wkstn-42', type: 'endpoint', hostname: 'wkstn-42', ownerAccountId: 'm.chen', deviceId: 'DEV-WKSTN-42', status: 'isolated' },
         { id: 'm.chen', type: 'identity', displayName: 'M. Chen', registeredDeviceId: 'DEV-WKSTN-42', status: 'active' },
-        { id: 'DEV-WKSTN-42', type: 'device', hostname: 'WKSTN-42', linkedEntityId: 'wkstn-42' },
+        { id: 'DEV-WKSTN-42', type: 'device', hostname: 'wkstn-42', linkedEntityId: 'wkstn-42' },
         { id: 'file-syncagent-42', type: 'file', linkedEntityId: 'wkstn-42', path: 'C:\\Users\\m.chen\\AppData\\Roaming\\syncagent.exe' },
         { id: 'persist-syncagent-42', type: 'persistence', linkedEntityId: 'wkstn-42', name: 'syncagent' },
       ],
       edges: [{ id: 'M10-LINK-GUIDED-01', from: s.incidentId, to: 'wkstn-42', relation: 'confirmed_execution', evidenceId: 'PRACT-03' }],
-      evidence: s.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'WKSTN-42' ? 'wkstn-42' : 'm.chen', summary: a.title })),
+      evidence: s.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'wkstn-42' ? 'wkstn-42' : 'm.chen', summary: a.title })),
     }),
   };
 })();
@@ -798,13 +833,13 @@ const MODULE_TEN_GUIDED_CONSOLE = (() => {
       { id: 'm06', ctx: { ...base, fixture: fx.m06, ...SocConsoleTools.embedded(root, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
       { id: 'm07', ctx: { ...base, fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
       { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(root, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
-      { id: 'm09', ctx: { ...base, fixture: fx.m09, evidence: MODULE_TEN_GUIDED_FIXTURE.scenario.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'WKSTN-42' ? 'wkstn-42' : 'm.chen', title: a.title, summary: a.detail })), routes: [{ id: 'guided-digital-forensics', text: 'Digital Forensics + Incident Lead', fit: 100 }], ...SocConsoleTools.embedded(root, 'm09', SocM09AssessmentState.normalize, fx.m09, save) } },
+      { id: 'm09', ctx: { ...base, fixture: fx.m09, evidence: MODULE_TEN_GUIDED_FIXTURE.scenario.artifacts.map((a) => ({ id: a.id, type: a.type, time: a.time, entityId: a.host === 'wkstn-42' ? 'wkstn-42' : 'm.chen', title: a.title, summary: a.detail })), routes: [{ id: 'guided-digital-forensics', text: 'Digital Forensics + Incident Lead', fit: 100 }], ...SocConsoleTools.embedded(root, 'm09', SocM09AssessmentState.normalize, fx.m09, save) } },
       { id: 'm10', ctx: { ...base, fixture: MODULE_TEN_GUIDED_FIXTURE, load: () => moduleTenGuidedEvidenceState, store: moduleTenSaveGuidedEvidence } },
     ],
     caseView: () => caseRecordPane(moduleTenGuidedState.caseRecord, {
       caseId: MODULE_TEN_GUIDED_CASE_ID, ticketId: 'IR-6620', ticketType: 'Forensic evidence preservation · Incident Response',
       userOptions: [{ id: 'm.chen', text: 'm.chen · affected user' }, { id: 'a.rivera', text: 'a.rivera · delivered, unopened recipient' }],
-      deviceOptions: [{ id: 'WKSTN-42', text: 'WKSTN-42 · isolated endpoint' }, { id: 'WKS-FIN-12', text: 'WKS-FIN-12 · unaffected comparison' }],
+      deviceOptions: MODULE_TEN_GUIDED_DEVICE_OPTIONS,
       departmentOptions: [{ id: 'guided-digital-forensics', text: 'Digital Forensics + Incident Lead' }, { id: 'legal-hold', text: 'Legal Hold Repository' }],
       formId: 'm10-guided-case-form', saveAttr: 'data-m10-guided-save-case', submitAttr: 'data-m10-guided-submit-case', panelId: 'm10-guided-case-panel',
       notesPlaceholder: 'Document the acquired evidence and custody, supported chronology, specialist work, and limits such as unproven exfiltration.',
@@ -848,7 +883,7 @@ function moduleTenCaseTicket() {
 
 function moduleTenAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m10-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(SocM10AssessmentData.scenario.caseId)} · POST-CONTAINMENT EVIDENCE REQUEST · ASSIGNED TO YOU</p><p>WKSTN-19 is isolated and Legal has asked for a defensible evidence package. Your lead’s request: <em>“Collect what we need to show how j.sanders was compromised and whether anything left, keep custody clean, and don’t write down anything the evidence doesn’t support.”</em> Pin the evidence the reconstruction needs, take it into the locker with its source and acquisition context, verify every hash, transfer custody where a specialist needs it, preserve the originals under legal hold, reconstruct the timeline, separate fact from analysis, support the root cause, map only evidenced behavior to ATT&amp;CK, record what is still unknown, and complete the ITSM ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(SocM10AssessmentData.scenario.caseId)} · POST-CONTAINMENT EVIDENCE REQUEST · ASSIGNED TO YOU</p><p>wkstn-19 is isolated and Legal has asked for a defensible evidence package. Your lead’s request: <em>“Collect what we need to show how j.sanders was compromised and whether anything left, keep custody clean, and don’t write down anything the evidence doesn’t support.”</em> Pin the evidence the reconstruction needs, take it into the locker with its source and acquisition context, verify every hash, transfer custody where a specialist needs it, preserve the originals under legal hold, reconstruct the timeline, separate fact from analysis, support the root cause, map only evidenced behavior to ATT&amp;CK, record what is still unknown, and complete the ITSM ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m10">${moduleThreeConsoleHtml('m10')}</div>
   </div>`;
 }
