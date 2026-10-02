@@ -202,7 +202,7 @@ function viewItsModuleTwelve(user, program) {
   ];
   return `<div class="its12-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(navSections, { moduleKey: 'its12' })}
+    ${moduleProgressShell(navSections, { moduleKey: 'its12', stageKey: 'its-12' })}
     <main class="its12-main">
       <section class="its12-hero" aria-labelledby="its12-title"><p class="its12-kicker">Module 12 · Capstone · ${formatInstructionalMinutes(module.durationMinutes)}</p><h1 id="its12-title">${esc(module.title)}</h1><p class="its12-lede">Nothing new — this is where you prove you can do the job. A realistic queue, real resolve-or-escalate calls, a knowledge-base article, and an honest look back at your own work.</p>
         <dl class="its12-progress" aria-label="Saved capstone progress"><div><dt>Tickets</dt><dd>${ITS12_TICKETS.length}</dd></div><div><dt>Status</dt><dd id="its12-status">${its12State.completed ? 'Complete' : its12State.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
