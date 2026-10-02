@@ -900,7 +900,10 @@ function wireModuleElevenOptionalLabs() {
 function moduleElevenConsoleData(fixture = SocM11AssessmentData) {
   const s = fixture.scenario;
   const events = s.queue.map((item, index) => m03eRow('AlertQueue', item.id, item.createdAt.slice(0, 10), item.createdAt.slice(11, 19), {
-    EventType: item.kind, Host: item.title, Account: item.assigneeId || 'unassigned', Result: item.status,
+    // Entity identity contract: Host is the system the alert fired on (never the title); Account is the principal
+    // that raised the queue record (the rule engine, as in QueueActivity AlertCreated); the owner is AssigneeId,
+    // null while unassigned.
+    EventType: item.kind, AlertTitle: item.title, Host: item.host, Account: 'siem-rules', AssigneeId: item.assigneeId || null, Result: item.status,
     Severity: item.severity, RuleId: item.ruleId, BusinessImpact: item.businessImpact,
     Detail: `SLA ${item.slaMinutes} minutes; queue position ${index + 1}`,
   })).concat(s.incident.recoveryEvidence.map((e) => m03eRow('RecoveryRecords', e.id, e.time.slice(0, 10), e.time.slice(11, 19), {
@@ -936,8 +939,8 @@ function moduleElevenOperationalRows(s) {
   queue.forEach((item) => {
     const base = { Host: 'ticketing-01', RuleId: item.ruleId, QueueId: item.id, Severity: item.severity };
     rows.push(row('QueueActivity', nextId('QA'), item.createdAt, { ...base, EventType: 'AlertCreated', Account: 'siem-rules', Result: 'new', IngestionTime: plus(item.createdAt, 15), Detail: `${item.id} created by rule ${item.ruleId}; SLA ${item.slaMinutes} minutes.` }));
-    if (item.acknowledgedAt) rows.push(row('QueueActivity', nextId('QA'), item.acknowledgedAt, { ...base, EventType: 'AlertAcknowledged', Account: item.assigneeId || 'unassigned', Result: 'acknowledged', IngestionTime: plus(item.acknowledgedAt, 15), Detail: `${item.id} acknowledged ${Math.round((Date.parse(item.acknowledgedAt) - Date.parse(item.createdAt)) / 60000)} minutes after creation.` }));
-    if (item.containedAt) rows.push(row('QueueActivity', nextId('QA'), item.containedAt, { ...base, EventType: 'ContainmentRecorded', Account: item.assigneeId || 'unassigned', Result: 'contained', IngestionTime: plus(item.containedAt, 15), Detail: `Containment timestamp recorded for ${item.id}.` }));
+    if (item.acknowledgedAt) rows.push(row('QueueActivity', nextId('QA'), item.acknowledgedAt, { ...base, EventType: 'AlertAcknowledged', Account: item.assigneeId || 'soc-analyst', Result: 'acknowledged', IngestionTime: plus(item.acknowledgedAt, 15), Detail: `${item.id} acknowledged ${Math.round((Date.parse(item.acknowledgedAt) - Date.parse(item.createdAt)) / 60000)} minutes after creation.` }));
+    if (item.containedAt) rows.push(row('QueueActivity', nextId('QA'), item.containedAt, { ...base, EventType: 'ContainmentRecorded', Account: item.assigneeId || 'soc-analyst', Result: 'contained', IngestionTime: plus(item.containedAt, 15), Detail: `Containment timestamp recorded for ${item.id}.` }));
     if (item.severity === 'critical' || item.severity === 'high') {
       rows.push(row('OnCallPages', nextId('PG'), plus(item.createdAt, 30), { Host: 'paging-01', RuleId: item.ruleId, QueueId: item.id, EventType: 'PageSent', Account: 'on-call-router', Result: 'delivered', Detail: `${item.severity} alert ${item.id} paged to the on-call analyst group.` }));
     }

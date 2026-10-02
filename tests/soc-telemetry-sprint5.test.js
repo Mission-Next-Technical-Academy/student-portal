@@ -125,6 +125,18 @@ vm.runInContext(`${between(m11Src, 'function moduleElevenConsoleData(', 'functio
   assert.ok(events.length >= 60 && events.length <= 120, `M11 events in band (${events.length})`);
   assert.strictEqual(new Set(a.events.map((e) => e.EventId)).size, a.events.length);
   assert.strictEqual(s.queue.length, 12, 'queue unchanged');
+  // Entity identity (phase 2): AlertQueue Host is a hostname token, the title lives in AlertTitle, no placeholder accounts.
+  for (const built of [a, g]) {
+    const aq = built.events.filter((e) => e.EventSource === 'AlertQueue');
+    assert.strictEqual(aq.length, 12);
+    aq.forEach((row) => {
+      assert.match(row.Host, /^[a-z0-9][a-z0-9._-]*$/, `${row.EventId} Host is a host token`);
+      assert.ok(row.AlertTitle && row.AlertTitle !== row.Host, `${row.EventId} keeps its title in AlertTitle`);
+      assert.strictEqual(row.Account, 'siem-rules');
+    });
+    assert.ok(built.events.every((e) => e.Account !== 'unassigned'), 'no placeholder Account');
+    assert.strictEqual(aq.filter((row) => row.AssigneeId === null).length, 5, 'unassigned items carry AssigneeId null');
+  }
 
   // Scored truth is untouched.
   const m = Metrics.compute(M11, {});

@@ -11,8 +11,11 @@ const SocM11AssessmentData = (() => {
 
   const day = '2026-09-27';
   const t = (hms) => `${day}T${hms}:00Z`;
+  // host: the single system the alert fired on (the endpoint, or the gateway/identity/mail service for
+  // account-centric detections). The title is display text only and never stands in for a host.
+  // assigneeId null means unassigned (no placeholder string).
   const item = (id, fields) => ({
-    id, kind: 'alert', assigneeId: null, acknowledgedAt: null, containedAt: null, status: 'new', recordedDisposition: null, ...fields,
+    id, kind: 'alert', host: null, assigneeId: null, acknowledgedAt: null, containedAt: null, status: 'new', recordedDisposition: null, ...fields,
   });
 
   /* Operational telemetry. Four distinct time semantics:
@@ -109,18 +112,18 @@ const SocM11AssessmentData = (() => {
       { id: 'R-05', name: 'Rapid file-rename burst', owner: 'detection-engineering' },
     ],
     queue: [
-      item('Q-01', { kind: 'incident', title: 'INC-4937 ransomware on ws-173 (recovery phase)', ruleId: 'R-05', severity: 'critical', businessImpact: 'high', createdAt: t('08:05'), slaMinutes: 15, acknowledgedAt: t('08:09'), containedAt: t('08:40'), status: 'in_progress', assigneeId: 'an-okafor' }),
-      item('Q-02', { title: 'Password spray against VPN gateway', ruleId: 'R-02', severity: 'high', businessImpact: 'high', createdAt: t('11:10'), slaMinutes: 60 }),
-      item('Q-03', { title: 'Office macro spawned PowerShell on ws-219', ruleId: 'R-03', severity: 'critical', businessImpact: 'high', createdAt: t('11:35'), slaMinutes: 30 }),
-      item('Q-04', { title: 'Impossible travel sign-in for acct-311', ruleId: 'R-01', severity: 'medium', businessImpact: 'medium', createdAt: t('10:30'), slaMinutes: 60 }),
-      item('Q-05', { title: 'DNS lookup to newly registered domain (ws-051)', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('08:20'), slaMinutes: 120, acknowledgedAt: t('08:50'), status: 'closed', assigneeId: 'an-chen', recordedDisposition: 'false_positive' }),
-      item('Q-06', { title: 'DNS lookup to newly registered domain (ws-088)', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('08:45'), slaMinutes: 120, acknowledgedAt: t('09:10'), status: 'closed', assigneeId: 'an-chen', recordedDisposition: 'benign_positive' }),
-      item('Q-07', { title: 'DNS lookup to newly registered domain (ws-102)', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('09:30'), slaMinutes: 120, acknowledgedAt: t('09:55'), status: 'closed', assigneeId: 'an-patel', recordedDisposition: 'false_positive' }),
-      item('Q-08', { title: 'DNS lookup to newly registered domain (ws-140)', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('11:40'), slaMinutes: 120 }),
-      item('Q-09', { title: 'DNS lookup to newly registered domain (ws-163)', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('09:00'), slaMinutes: 120 }),
-      item('Q-10', { title: 'Password spray against OWA', ruleId: 'R-02', severity: 'high', businessImpact: 'medium', createdAt: t('08:30'), slaMinutes: 60, acknowledgedAt: t('08:40'), containedAt: t('09:30'), status: 'closed', assigneeId: 'an-ruiz', recordedDisposition: 'true_positive' }),
-      item('Q-11', { title: 'Office macro spawned shell on ws-044', ruleId: 'R-03', severity: 'high', businessImpact: 'medium', createdAt: t('08:10'), slaMinutes: 30, acknowledgedAt: t('08:22'), containedAt: t('08:55'), status: 'closed', assigneeId: 'an-ruiz', recordedDisposition: 'true_positive' }),
-      item('Q-12', { kind: 'incident', title: 'INC-5020 suspicious inbox rule on acct-208', ruleId: 'R-01', severity: 'high', businessImpact: 'medium', createdAt: t('10:50'), slaMinutes: 30, acknowledgedAt: t('11:05'), status: 'in_progress', assigneeId: 'an-ruiz' }),
+      item('Q-01', { kind: 'incident', title: 'INC-4937 ransomware on ws-173 (recovery phase)', host: 'ws-173', ruleId: 'R-05', severity: 'critical', businessImpact: 'high', createdAt: t('08:05'), slaMinutes: 15, acknowledgedAt: t('08:09'), containedAt: t('08:40'), status: 'in_progress', assigneeId: 'an-okafor' }),
+      item('Q-02', { title: 'Password spray against VPN gateway', host: 'vpn-gw-01', ruleId: 'R-02', severity: 'high', businessImpact: 'high', createdAt: t('11:10'), slaMinutes: 60 }),
+      item('Q-03', { title: 'Office macro spawned PowerShell on ws-219', host: 'ws-219', ruleId: 'R-03', severity: 'critical', businessImpact: 'high', createdAt: t('11:35'), slaMinutes: 30 }),
+      item('Q-04', { title: 'Impossible travel sign-in for acct-311', host: 'idp-01', ruleId: 'R-01', severity: 'medium', businessImpact: 'medium', createdAt: t('10:30'), slaMinutes: 60 }),
+      item('Q-05', { title: 'DNS lookup to newly registered domain (ws-051)', host: 'ws-051', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('08:20'), slaMinutes: 120, acknowledgedAt: t('08:50'), status: 'closed', assigneeId: 'an-chen', recordedDisposition: 'false_positive' }),
+      item('Q-06', { title: 'DNS lookup to newly registered domain (ws-088)', host: 'ws-088', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('08:45'), slaMinutes: 120, acknowledgedAt: t('09:10'), status: 'closed', assigneeId: 'an-chen', recordedDisposition: 'benign_positive' }),
+      item('Q-07', { title: 'DNS lookup to newly registered domain (ws-102)', host: 'ws-102', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('09:30'), slaMinutes: 120, acknowledgedAt: t('09:55'), status: 'closed', assigneeId: 'an-patel', recordedDisposition: 'false_positive' }),
+      item('Q-08', { title: 'DNS lookup to newly registered domain (ws-140)', host: 'ws-140', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('11:40'), slaMinutes: 120 }),
+      item('Q-09', { title: 'DNS lookup to newly registered domain (ws-163)', host: 'ws-163', ruleId: 'R-04', severity: 'low', businessImpact: 'low', createdAt: t('09:00'), slaMinutes: 120 }),
+      item('Q-10', { title: 'Password spray against OWA', host: 'owa-01', ruleId: 'R-02', severity: 'high', businessImpact: 'medium', createdAt: t('08:30'), slaMinutes: 60, acknowledgedAt: t('08:40'), containedAt: t('09:30'), status: 'closed', assigneeId: 'an-ruiz', recordedDisposition: 'true_positive' }),
+      item('Q-11', { title: 'Office macro spawned shell on ws-044', host: 'ws-044', ruleId: 'R-03', severity: 'high', businessImpact: 'medium', createdAt: t('08:10'), slaMinutes: 30, acknowledgedAt: t('08:22'), containedAt: t('08:55'), status: 'closed', assigneeId: 'an-ruiz', recordedDisposition: 'true_positive' }),
+      item('Q-12', { kind: 'incident', title: 'INC-5020 suspicious inbox rule on acct-208', host: 'mail-01', ruleId: 'R-01', severity: 'high', businessImpact: 'medium', createdAt: t('10:50'), slaMinutes: 30, acknowledgedAt: t('11:05'), status: 'in_progress', assigneeId: 'an-ruiz' }),
     ],
     incident: {
       id: 'INC-4937',
