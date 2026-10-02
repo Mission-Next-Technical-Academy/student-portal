@@ -878,7 +878,7 @@ const MODULE_EIGHT_GUIDED_CASE_MAP = {
   'a.okafor': 't.brandt', 'r.tanaka': 'l.mendes', 'm.haddad': 'k.osei', 'Employee self-service portal': 'Internal case-management portal', 'Isolated build runner': 'Sandboxed CI worker',
   'Reporting database replica': 'Analytics database replica', 'TLS configuration (legacy 3DES suites)': 'TLS configuration (legacy RC4 suites)', 'Jenkins': 'Foundry CI Server', 'PostgreSQL': 'Meridian SQL', 'OpenSSH': 'Harbor Shell Daemon',
   'CVE-2016-2183': 'LAB-VULN-071', 'CVE-2024-23897': 'LAB-VULN-072', 'CVE-2023-5868': 'LAB-VULN-073', 'CVE-2023-38408': 'LAB-VULN-074', 'CVE-2022-0778': 'LAB-VULN-075',
-  'CHG-5521': 'CHG-6840', 'CHG-5530': 'CHG-6841', 'CHG-5533': 'CHG-6842', 'CHG-5538': 'CHG-6843', '2026-09-29': '2026-10-03', 'HR portal': 'case portal', '3DES': 'RC4', 'ssh-agent': 'key-agent', 'tcp/5432': 'tcp/3306', 'tcp/8080': 'tcp/9090', 'corp-vpn': 'staff-vpn', 'corp-lan': 'staff-lan',
+  'CHG-5521': 'CHG-6840', 'CHG-5530': 'CHG-6841', 'CHG-5533': 'CHG-6842', 'CHG-5538': 'CHG-6843', 'CHG-5540': 'CHG-6850', 'CHG-5541': 'CHG-6851', 'CHG-5542': 'CHG-6852', 'CHG-5543': 'CHG-6853', 'CHG-5544': 'CHG-6854', 'CHG-5545': 'CHG-6855', 'CHG-5546': 'CHG-6856', 'CHG-5547': 'CHG-6857', 'CHG-5548': 'CHG-6858', 'CHG-5549': 'CHG-6859', 'CHG-5550': 'CHG-6860', '2026-09-29': '2026-10-03', 'HR portal': 'case portal', '3DES': 'RC4', 'ssh-agent': 'key-agent', 'tcp/5432': 'tcp/3306', 'tcp/8080': 'tcp/9090', 'corp-vpn': 'staff-vpn', 'corp-lan': 'staff-lan',
   '2026-05-20': '2026-06-20',
   'M08-': 'M08G-', '2026-09-27': '2026-10-01', '2026-06-02': '2026-07-02',
 };
