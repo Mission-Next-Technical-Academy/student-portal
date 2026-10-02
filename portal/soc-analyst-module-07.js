@@ -28,10 +28,20 @@ const MODULE_SEVEN_ENTITY_ROSTER = {
     { id: 'acct-17', tier: 'noise' },
   ],
   devices: [
-    { id: 'WS-517', tier: 'principal' },
-    { id: 'WS-204', tier: 'noise' },
+    { id: 'ws-517', tier: 'principal' },
+    { id: 'ws-204', tier: 'noise' },
   ],
 };
+// Entity identity contract: Module 07 hosts are lower-case. State saved before
+// that change can hold the old upper-case ids (ticket Affected Device, embedded
+// endpoint/hunt tool records); rewrite exact matches so they still resolve.
+const MODULE_SEVEN_LEGACY_HOSTS = { 'WS-517': 'ws-517', 'WS-204': 'ws-204', 'WS-733': 'ws-733', 'WS-208': 'ws-208' };
+function moduleSevenMigrateLegacyHosts(value) {
+  if (typeof value === 'string') return Object.prototype.hasOwnProperty.call(MODULE_SEVEN_LEGACY_HOSTS, value) ? MODULE_SEVEN_LEGACY_HOSTS[value] : value;
+  if (Array.isArray(value)) return value.map(moduleSevenMigrateLegacyHosts);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleSevenMigrateLegacyHosts(item)]));
+  return value;
+}
 const MODULE_SEVEN_DEPARTMENT_OPTIONS = [
   { id: 'tier2-soc-net', text: 'Tier 2 SOC — Network Intrusion', fit: 100, note: 'Owns active tunnel/C2 and exfiltration response.' },
   { id: 'app-sec', text: 'Application Security', fit: 60, note: 'Owns the vulnerable web app, but not the active exfiltration response.' },
@@ -293,10 +303,10 @@ const MODULE_SEVEN_QUIZ_BANKS = [
       },
       {
         id: 'm07-q-scope-2',
-        prompt: "Analysis shows a phishing message reached acct-63 on WS-517 and the user opened it, but trace blocked an identical copy before it was delivered to acct-82. What should the containment decision be?",
+        prompt: "Analysis shows a phishing message reached acct-63 on ws-517 and the user opened it, but trace blocked an identical copy before it was delivered to acct-82. What should the containment decision be?",
         options: [
           { id: 'a', text: 'Disable both acct-63 and acct-82 because both were targeted.' },
-          { id: 'b', text: 'Focus on acct-63 and WS-517 (confirmed exposure); document the blocked copy as evidence of scope and continued threat.' },
+          { id: 'b', text: 'Focus on acct-63 and ws-517 (confirmed exposure); document the blocked copy as evidence of scope and continued threat.' },
           { id: 'c', text: 'Reset only acct-82 because acct-63 likely has no risk.' },
           { id: 'd', text: 'Archive the message and close the case.' },
         ],
@@ -451,7 +461,7 @@ function moduleSevenProveItPerformance() {
   const missing = caseRecordMissing(state, { ...spec, extraMissing: gateOk ? [] : ['Mark both assessment labs and the required FTP log analysis lab complete'] });
 
   const userTier = MODULE_SEVEN_ENTITY_ROSTER.users.find((entry) => entry.id === state.affectedUser)?.tier;
-  const deviceTier = MODULE_SEVEN_ENTITY_ROSTER.devices.find((entry) => entry.id === state.affectedDevice)?.tier;
+  const deviceTier = MODULE_SEVEN_ENTITY_ROSTER.devices.find((entry) => entry.id === String(state.affectedDevice || '').toLowerCase())?.tier;
   const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
   const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
 
@@ -523,6 +533,8 @@ function moduleSevenLoad(user) {
   ['status', 'affectedUser', 'affectedDevice', 'severity', 'disposition', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
     if (typeof moduleSevenState.caseRecord[key] !== 'string') moduleSevenState.caseRecord[key] = '';
   });
+  moduleSevenState.caseRecord.affectedDevice = moduleSevenMigrateLegacyHosts(moduleSevenState.caseRecord.affectedDevice);
+  if (moduleSevenState.tools && typeof moduleSevenState.tools === 'object') moduleSevenState.tools = moduleSevenMigrateLegacyHosts(moduleSevenState.tools);
   if (!moduleSevenState.caseRecord.findings || typeof moduleSevenState.caseRecord.findings !== 'object') moduleSevenState.caseRecord.findings = {};
   if (!Array.isArray(moduleSevenState.caseRecord.actionHistory)) moduleSevenState.caseRecord.actionHistory = [];
   if (typeof moduleSevenState.caseRecord.submitted !== 'boolean') moduleSevenState.caseRecord.submitted = Boolean(moduleSevenState.completed);
@@ -584,13 +596,13 @@ function moduleSevenEvidenceDesk() {
     <div class="m07-panel-heading"><div><p class="m07-kicker">Analyst desk · formative practice</p><h3 id="m07-evidence-desk-title">Make the bounded call</h3></div><span class="m07-chip">Case M07-QR-014</span></div>
     <p class="m07-instruction">You are the analyst on queue. Use the evidence slice below; separate delivery, interaction, and compromise instead of collapsing them into one verdict.</p>
     <div class="m07-evidence-grid">
-      <div class="m07-evidence-card"><strong>Email and trace</strong><dl><div><dt>Recipient</dt><dd>acct-63 · WS-517</dd></div><div><dt>Message trace</dt><dd>Delivered to Inbox at 10:15 UTC</dd></div><div><dt>Second copy</dt><dd>acct-82 · blocked at gateway</dd></div></dl></div>
+      <div class="m07-evidence-card"><strong>Email and trace</strong><dl><div><dt>Recipient</dt><dd>acct-63 · ws-517</dd></div><div><dt>Message trace</dt><dd>Delivered to Inbox at 10:15 UTC</dd></div><div><dt>Second copy</dt><dd>acct-82 · blocked at gateway</dd></div></dl></div>
       <div class="m07-evidence-card"><strong>Network pivot</strong><dl><div><dt>10:16 UTC</dt><dd>User opened the QR-invoice message</dd></div><div><dt>10:17 UTC</dt><dd>DNS: invoice-qr.example → 203.0.113.88</dd></div><div><dt>10:17:37 UTC</dt><dd>TLS SNI: invoice-qr.example → 203.0.113.88</dd></div></dl></div>
     </div>
     <form class="m07-evidence-form" data-m07-evidence-form>
-      <fieldset><legend>1. What exposure is confirmed?</legend><label><input type="radio" name="m07-exposure" value="acct-63" ${desk.exposure === 'acct-63' ? 'checked' : ''}> acct-63 / WS-517 received the message; acct-82 was protected by the gateway</label><label><input type="radio" name="m07-exposure" value="all" ${desk.exposure === 'all' ? 'checked' : ''}> Both accounts were exposed because both were targeted</label></fieldset>
+      <fieldset><legend>1. What exposure is confirmed?</legend><label><input type="radio" name="m07-exposure" value="acct-63" ${desk.exposure === 'acct-63' ? 'checked' : ''}> acct-63 / ws-517 received the message; acct-82 was protected by the gateway</label><label><input type="radio" name="m07-exposure" value="all" ${desk.exposure === 'all' ? 'checked' : ''}> Both accounts were exposed because both were targeted</label></fieldset>
       <fieldset><legend>2. How strong is the email-to-network correlation?</legend><label><input type="radio" name="m07-correlation" value="corroborated" ${desk.correlation === 'corroborated' ? 'checked' : ''}> Strong corroboration of interaction with the message artifact; it does not prove credential compromise</label><label><input type="radio" name="m07-correlation" value="proof" ${desk.correlation === 'proof' ? 'checked' : ''}> Proof that the user entered credentials and the endpoint is compromised</label></fieldset>
-      <label class="m07-evidence-select">3. Choose the next authorized action<select name="m07-action"><option value="">Select an action…</option><option value="scope" ${desk.action === 'scope' ? 'selected' : ''}>Investigate acct-63 / WS-517, preserve evidence, reset sessions, and search for the indicator</option><option value="disable-all" ${desk.action === 'disable-all' ? 'selected' : ''}>Disable both accounts immediately and close the case</option><option value="close" ${desk.action === 'close' ? 'selected' : ''}>Close the case because DNS and TLS alone are not a verdict</option></select></label>
+      <label class="m07-evidence-select">3. Choose the next authorized action<select name="m07-action"><option value="">Select an action…</option><option value="scope" ${desk.action === 'scope' ? 'selected' : ''}>Investigate acct-63 / ws-517, preserve evidence, reset sessions, and search for the indicator</option><option value="disable-all" ${desk.action === 'disable-all' ? 'selected' : ''}>Disable both accounts immediately and close the case</option><option value="close" ${desk.action === 'close' ? 'selected' : ''}>Close the case because DNS and TLS alone are not a verdict</option></select></label>
       <label class="m07-evidence-note">Analyst note <textarea name="m07-evidence-note" rows="3" maxlength="500" placeholder="State what is known, what is not proven, and what you will do next…">${esc(desk.note || '')}</textarea></label>
       <div class="m07-actions"><button type="submit" class="m07-submit">${desk.complete ? 'Review analyst call' : 'Record analyst call'}</button><p class="m07-form-help">Formative only — this does not alter module completion.</p></div>
       ${feedback}
@@ -778,16 +790,16 @@ const MODULE_SEVEN_CONSOLE_DATA = (function () {
   };
 }());
 const MODULE_SEVEN_DEVICES = [
-  { id: 'WS-517', hostname: 'WS-517', platform: 'Windows 11', role: 'User workstation', owner: 'acct-63', zone: 'CORP-USER', status: 'Online' },
-  { id: 'WS-204', hostname: 'WS-204', platform: 'Windows 11', role: 'User workstation', owner: 'acct-17', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-517', hostname: 'ws-517', platform: 'Windows 11', role: 'User workstation', owner: 'acct-63', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-204', hostname: 'ws-204', platform: 'Windows 11', role: 'User workstation', owner: 'acct-17', zone: 'CORP-USER', status: 'Online' },
 ];
 const MODULE_SEVEN_TOOL_FIXTURES = {
   m04: SocConsoleTools.m04Fixture({ id: SocM07AssessmentData.scenario.id, caseId: MODULE_SEVEN_CASE_ID, end: SocM07AssessmentData.scenario.end, data: MODULE_SEVEN_CONSOLE_DATA }),
   m05: SocConsoleTools.m05Fixture({ id: SocM07AssessmentData.scenario.id, stateKey: 'm07-endpoint-tools-v1', devices: MODULE_SEVEN_DEVICES, data: MODULE_SEVEN_CONSOLE_DATA }),
   m06: SocConsoleTools.m06Fixture({
     id: SocM07AssessmentData.scenario.id,
-    lead: { id: 'M07-LEAD-001', type: 'suspected_delivery_chain', device: 'WS-517', account: 'acct-63', taskName: '—', observation: 'An external invoice message failed DMARC alignment and may have reached a user.' },
-    devices: ['WS-517', 'WS-204'], data: MODULE_SEVEN_CONSOLE_DATA, timeStart: SocM07AssessmentData.scenario.start, timeEnd: SocM07AssessmentData.scenario.end,
+    lead: { id: 'M07-LEAD-001', type: 'suspected_delivery_chain', device: 'ws-517', account: 'acct-63', taskName: '—', observation: 'An external invoice message failed DMARC alignment and may have reached a user.' },
+    devices: ['ws-517', 'ws-204'], data: MODULE_SEVEN_CONSOLE_DATA, timeStart: SocM07AssessmentData.scenario.start, timeEnd: SocM07AssessmentData.scenario.end,
   }),
 };
 
@@ -843,7 +855,7 @@ const MODULE_SEVEN_GUIDED_REPLACEMENTS = {
   'M07-DNS-001': 'M07-GL-DNS-321', 'M07-TLS-001': 'M07-GL-TLS-331', 'M07-FW-001': 'M07-GL-FW-341', 'M07-PROXY-001': 'M07-GL-PROXY-351',
   'M07-DNS-002': 'M07-GL-DNS-322', 'M07-TLS-002': 'M07-GL-TLS-332', 'M07-FW-002': 'M07-GL-FW-342', 'M07-PROXY-002': 'M07-GL-PROXY-352',
   'M07-PROC-001': 'M07-GL-PROC-361', 'M07-PROC-002': 'M07-GL-PROC-362',
-  'acct-63': 'acct-91', 'acct-82': 'acct-97', 'acct-17': 'acct-55', 'WS-517': 'WS-733', 'WS-204': 'WS-208',
+  'acct-63': 'acct-91', 'acct-82': 'acct-97', 'acct-17': 'acct-55', 'ws-517': 'ws-733', 'ws-204': 'ws-208',
   '203.0.113.88': '192.0.2.211', '198.51.100.24': '203.0.113.65', '192.0.2.57': '10.20.4.20', '192.0.2.84': '10.20.4.88',
   'invoice-qr.example': 'doc-access.example', 'payroll.northwind.example': 'hr.paperless-share.example', 'northwind-billing.example': 'paperless-share.example',
   'mailer.northwind-billing.example': 'notify.paperless-share.example', 'billing@northwind-billing.example': 'notice@paperless-share.example',
@@ -885,7 +897,7 @@ MODULE_SEVEN_GUIDED_FIXTURE.scenario.endpointProcessEvents[0].commandLine = 'chr
 MODULE_SEVEN_GUIDED_FIXTURE.scenario.endpointProcessEvents[1].commandLine = 'msedge.exe https://hr.paperless-share.example/portal';
 MODULE_SEVEN_GUIDED_FIXTURE.scenario.packetSamples.forEach((sample) => { sample.sampleText = sample.sampleText.replaceAll('invoice-qr.example', 'doc-access.example').replaceAll('203.0.113.88', '192.0.2.211').replaceAll('/invoice/c91d', '/shared/c91d'); });
 MODULE_SEVEN_GUIDED_FIXTURE.scenario.expectedTruth.confirmed = [
-  'The shared-file expiry notice reached acct-91 on WS-733; the copy addressed to acct-97 was blocked by the gateway.',
+  'The shared-file expiry notice reached acct-91 on ws-733; the copy addressed to acct-97 was blocked by the gateway.',
   'acct-91 opened the message. The subsequent lookup for doc-access.example resolved to 192.0.2.211, followed by TLS with matching SNI.',
 ];
 MODULE_SEVEN_GUIDED_FIXTURE.scenario.expectedTruth.unconfirmed = [
@@ -930,13 +942,13 @@ function moduleSevenGuidedBuildConsoleData() {
 }
 const MODULE_SEVEN_GUIDED_CONSOLE_DATA = moduleSevenGuidedBuildConsoleData();
 const MODULE_SEVEN_GUIDED_DEVICES = [
-  { id: 'WS-733', hostname: 'WS-733', platform: 'Windows 11', role: 'User workstation', owner: 'acct-91', zone: 'CORP-USER', status: 'Online' },
-  { id: 'WS-208', hostname: 'WS-208', platform: 'Windows 11', role: 'User workstation', owner: 'acct-55', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-733', hostname: 'ws-733', platform: 'Windows 11', role: 'User workstation', owner: 'acct-91', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-208', hostname: 'ws-208', platform: 'Windows 11', role: 'User workstation', owner: 'acct-55', zone: 'CORP-USER', status: 'Online' },
 ];
 const MODULE_SEVEN_GUIDED_TOOL_FIXTURES = {
   m04: SocConsoleTools.m04Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, caseId: 'NEC-0748', end: MODULE_SEVEN_GUIDED_FIXTURE.scenario.end, data: MODULE_SEVEN_GUIDED_CONSOLE_DATA }),
   m05: SocConsoleTools.m05Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, stateKey: 'm07-guided-endpoint-tools-v1', devices: MODULE_SEVEN_GUIDED_DEVICES, data: MODULE_SEVEN_GUIDED_CONSOLE_DATA }),
-  m06: SocConsoleTools.m06Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, lead: { id: 'M07-GUIDED-LEAD-001', type: 'suspected_delivery_chain', device: 'WS-733', account: 'acct-91', taskName: '—', observation: 'An external shared-file message failed DMARC alignment and may have reached a user.' }, devices: ['WS-733', 'WS-208'], data: MODULE_SEVEN_GUIDED_CONSOLE_DATA, timeStart: MODULE_SEVEN_GUIDED_FIXTURE.scenario.start, timeEnd: MODULE_SEVEN_GUIDED_FIXTURE.scenario.end }),
+  m06: SocConsoleTools.m06Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, lead: { id: 'M07-GUIDED-LEAD-001', type: 'suspected_delivery_chain', device: 'ws-733', account: 'acct-91', taskName: '—', observation: 'An external shared-file message failed DMARC alignment and may have reached a user.' }, devices: ['ws-733', 'ws-208'], data: MODULE_SEVEN_GUIDED_CONSOLE_DATA, timeStart: MODULE_SEVEN_GUIDED_FIXTURE.scenario.start, timeEnd: MODULE_SEVEN_GUIDED_FIXTURE.scenario.end }),
 };
 let moduleSevenGuidedState = null;
 let moduleSevenGuidedAssessmentState = null;
@@ -947,7 +959,8 @@ function moduleSevenGuidedLoad(user) {
   const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'NEC-0748', scenarioId: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
   moduleSevenGuidedState = LabRuntime.loadCaseState(MODULE_SEVEN_GUIDED_LAB_ID, 'soc-07', user, defaults);
   moduleSevenGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleSevenGuidedState.caseRecord || {}) };
-  moduleSevenGuidedState.tools ||= {};
+  moduleSevenGuidedState.tools = moduleSevenMigrateLegacyHosts(moduleSevenGuidedState.tools || {});
+  moduleSevenGuidedState.caseRecord.affectedDevice = moduleSevenMigrateLegacyHosts(moduleSevenGuidedState.caseRecord.affectedDevice);
   moduleSevenGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleSevenGuidedState.tools.m04 }, MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m04).assessment;
   moduleSevenGuidedState.tools.m05 = SocM05AssessmentState.normalize(moduleSevenGuidedState.tools.m05, MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m05);
   moduleSevenGuidedState.tools.m06 = SocM06AssessmentState.normalize(moduleSevenGuidedState.tools.m06, MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m06);
@@ -995,7 +1008,7 @@ const MODULE_SEVEN_GUIDED_CONSOLE = (() => {
       { id: 'm06', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m06, ...tool('m06', SocM06AssessmentState.normalize) } },
       { id: 'm07', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_FIXTURE, ui: { get networkFilters() { return moduleSevenGuidedNetworkFilters; }, set networkFilters(value) { moduleSevenGuidedNetworkFilters = value; } }, box: { get state() { return moduleSevenGuidedAssessmentState; }, set state(value) { moduleSevenGuidedAssessmentState = value; } }, store: moduleSevenGuidedM07Store } },
     ],
-    caseView: () => caseRecordPane(moduleSevenGuidedState.caseRecord, { caseId: 'NEC-0748', ticketId: 'INC-0748', ticketType: 'Shared-file phishing exposure · Messaging Security', userOptions: [{ id: 'acct-91', text: 'acct-91 · delivered/clicked' }, { id: 'acct-97', text: 'acct-97 · gateway blocked' }, { id: 'acct-55', text: 'acct-55 · HR baseline' }], deviceOptions: [{ id: 'WS-733', text: 'WS-733 · clicked user device' }, { id: 'WS-208', text: 'WS-208 · HR portal baseline' }], departmentOptions: [{ id: 'messaging-security', text: 'Messaging Security' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm07-guided-case', saveAttr: 'data-m07-guided-save-case', submitAttr: 'data-m07-guided-submit-case', panelId: 'm07-guided-case-panel', notesPlaceholder: 'Document message authentication, delivery scope, click-to-network correlation, and unverified endpoint/credential outcomes.' }),
+    caseView: () => caseRecordPane(moduleSevenGuidedState.caseRecord, { caseId: 'NEC-0748', ticketId: 'INC-0748', ticketType: 'Shared-file phishing exposure · Messaging Security', userOptions: [{ id: 'acct-91', text: 'acct-91 · delivered/clicked' }, { id: 'acct-97', text: 'acct-97 · gateway blocked' }, { id: 'acct-55', text: 'acct-55 · HR baseline' }], deviceOptions: [{ id: 'ws-733', text: 'ws-733 · clicked user device' }, { id: 'ws-208', text: 'ws-208 · HR portal baseline' }], departmentOptions: [{ id: 'messaging-security', text: 'Messaging Security' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm07-guided-case', saveAttr: 'data-m07-guided-save-case', submitAttr: 'data-m07-guided-submit-case', panelId: 'm07-guided-case-panel', notesPlaceholder: 'Document message authentication, delivery scope, click-to-network correlation, and unverified endpoint/credential outcomes.' }),
   });
 })();
 

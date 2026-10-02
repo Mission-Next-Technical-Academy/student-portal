@@ -17,7 +17,7 @@ const additions = ['M07-DELIVERY-001', 'M07-DELIVERY-002', 'M07-QR-014'];
 const incident = {
   operation: 'create', incidentId: 'M07-INCIDENT-0001', title: 'QR message network review',
   summary: 'Endpoint execution and credential compromise remain unknown; not established by current evidence.',
-  assessment: 'unknown', recipientIds: ['acct-63'], deviceIds: ['WS-517'], eventIds: chainIds,
+  assessment: 'unknown', recipientIds: ['acct-63'], deviceIds: ['ws-517'], eventIds: chainIds,
 };
 const complete = {
   evidenceChanges: additions.map((eventId) => ({ operation: 'add', eventId, reason: 'Preserve fixture evidence for incident review.' })),

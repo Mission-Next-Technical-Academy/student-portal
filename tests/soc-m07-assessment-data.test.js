@@ -128,7 +128,7 @@ assert.ok(Date.parse(scenario.start) < Date.parse(scenario.fixedAt));
 assert.strictEqual(scenario.end, scenario.fixedAt);
 assert.ok(priorScenarios.every((prior) => scenario.id !== prior.id && scenario.stateKey !== prior.stateKey));
 assert.deepStrictEqual(JSON.parse(JSON.stringify(scenario.recipientGroups)), [
-  { id: 'M07-GROUP-DELIVERED', recipientIds: ['acct-63'], deviceIds: ['WS-517'], delivery: 'delivered' },
+  { id: 'M07-GROUP-DELIVERED', recipientIds: ['acct-63'], deviceIds: ['ws-517'], delivery: 'delivered' },
   { id: 'M07-GROUP-BLOCKED', recipientIds: ['acct-82'], deviceIds: [], delivery: 'blocked_at_gateway' },
 ]);
 assert.strictEqual(scenario.messages.length, 1);
@@ -212,7 +212,7 @@ for (const event of scenario.endpointProcessEvents) {
     `${event.id} proxy linkage resolves to the same device`);
 }
 assert.ok(scenario.networkEvents.filter((event) => event.benignLookalike)
-  .every((event) => event.deviceId === 'WS-204' && event.domain !== 'invoice-qr.example'),
+  .every((event) => event.deviceId === 'ws-204' && event.domain !== 'invoice-qr.example'),
 'benign lookalike traffic is distinct from the incident domain and device');
 assert.strictEqual(scenario.expectedTruth.incidentChain[2].evidence, 'M07-DNS-001');
 assert.strictEqual(scenario.expectedTruth.incidentChain[3].evidence, 'M07-TLS-001');
@@ -257,5 +257,30 @@ for (const [label, corrupt] of corruptedCopies) {
   const copy = JSON.parse(JSON.stringify(scenario));
   corrupt(copy);
   assert.throws(() => validateScenario(copy), undefined, `${label} is rejected`);
+}
+// Entity identity contract: lower-case hosts; EmailUrlEvents always carry the recipient Account.
+{
+  const hostOk = (value) => typeof value === 'string' && /^[a-z0-9][a-z0-9._-]*$/.test(value);
+  const worlds = [['assessment', scenario.backgroundEvents], ['guided', data.buildBackground(data.guidedBackgroundWorld).events]];
+  for (const [label, events] of worlds) {
+    for (const event of events) {
+      for (const key of ['Host', 'DeviceId']) {
+        if (event.fields[key] !== undefined) assert.ok(hostOk(event.fields[key]), `${label} ${event.id} ${key} is a lower-case host token`);
+      }
+      if (event.fields.Host !== undefined && event.fields.DeviceId !== undefined) assert.strictEqual(event.fields.Host, event.fields.DeviceId, `${label} ${event.id} Host equals DeviceId`);
+    }
+    const mailRecipients = new Map();
+    events.filter((event) => event.table === 'EmailEvents').forEach((event) => {
+      if (!mailRecipients.has(event.fields.NetworkMessageId)) mailRecipients.set(event.fields.NetworkMessageId, new Set());
+      mailRecipients.get(event.fields.NetworkMessageId).add(event.fields.Account);
+    });
+    for (const event of events.filter((item) => item.table === 'EmailUrlEvents')) {
+      assert.ok(event.fields.Account, `${label} ${event.id} EmailUrlEvents row carries an Account`);
+      assert.ok(mailRecipients.get(event.fields.NetworkMessageId)?.has(event.fields.Account), `${label} ${event.id} Account is a recipient of that message`);
+    }
+  }
+  [...scenario.recipientGroups.flatMap((group) => group.deviceIds), ...scenario.recipientEvents.map((event) => event.deviceId),
+    ...scenario.networkEvents.map((event) => event.deviceId), ...scenario.endpointProcessEvents.map((event) => event.deviceId)]
+    .forEach((id) => assert.ok(hostOk(id), `case device ${id} is a lower-case host token`));
 }
 console.log('M07 assessment identity and incident-chain contract tests passed.');

@@ -19,7 +19,7 @@ let state = stateApi.normalize({}, fixture);
 
 assert.strictEqual(ui.search(fixture).length, 8);
 assert.deepStrictEqual(Array.from(ui.search(fixture, { type: 'dns_query' }), (event) => event.id), ['M07-DNS-001', 'M07-DNS-002']);
-assert.deepStrictEqual(Array.from(ui.search(fixture, { device: 'WS-517' }), (event) => event.id),
+assert.deepStrictEqual(Array.from(ui.search(fixture, { device: 'ws-517' }), (event) => event.id),
   ['M07-DNS-001', 'M07-TLS-001', 'M07-FW-001', 'M07-PROXY-001']);
 assert.deepStrictEqual(Array.from(ui.search(fixture, { query: 'invoice-qr.example' }), (event) => event.id),
   ['M07-DNS-001', 'M07-TLS-001', 'M07-PROXY-001']);
@@ -47,11 +47,11 @@ assert.strictEqual(ui.packetSample(fixture, 'M07-FOREIGN-001'), null, 'foreign I
 assert.strictEqual(ui.packetSample(fixture, 'https://example.invalid/sample'), null, 'URLs are never packet selectors');
 assert.match(html, /data-m07-process-correlation="M07-PROC-002"/);
 assert.doesNotMatch(html, /expectedTruth|incidentChain|pcap/i);
-assert.doesNotMatch(ui.render(fixture, state, { device: 'WS-517' }), /M07-PROC-002/,
+assert.doesNotMatch(ui.render(fixture, state, { device: 'ws-517' }), /M07-PROC-002/,
   'process detail follows filtered proxy sessions');
 assert.deepStrictEqual(Array.from(ui.correlatedProcesses(fixture, fixture.scenario.networkEvents[3]), (item) => item.id),
   ['M07-PROC-001']);
-const mismatchProxy = { ...fixture.scenario.networkEvents[3], deviceId: 'WS-204' };
+const mismatchProxy = { ...fixture.scenario.networkEvents[3], deviceId: 'ws-204' };
 assert.strictEqual(ui.correlatedProcesses(fixture, mismatchProxy).length, 0, 'device mismatch cannot correlate');
 const unlinkedProxy = { ...fixture.scenario.networkEvents[3], id: 'M07-PROXY-UNLINKED' };
 assert.strictEqual(ui.correlatedProcesses(fixture, unlinkedProxy).length, 0, 'same-device proximity cannot correlate');
@@ -108,7 +108,7 @@ const restored = stateApi.normalize(JSON.parse(JSON.stringify(state)), fixture);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(restored.reviewedNetworkEventIds)), ['M07-DNS-001']);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(restored.pivots)), [JSON.parse(JSON.stringify(pivot))]);
 assert.match(ui.render(fixture, restored), /M07-DNS-001<\/code> → <code>M07-TLS-001/);
-assert.match(ui.render(fixture, restored), /process · chrome\.exe · WS-517 <code>M07-PROC-001/);
+assert.match(ui.render(fixture, restored), /process · chrome\.exe · ws-517 <code>M07-PROC-001/);
 assert.strictEqual(ui.pivotDetails(fixture, 'M07-DNS-001', 'M07-PROC-001'), null,
   'network pivots do not include endpoint process records');
 assert.match(ui.render({}, {}), /Network telemetry is unavailable/);

@@ -120,11 +120,12 @@ for (const m of ['M07', 'M08', 'M09']) {
   const fsPhish = dataset.alerts.find((a) => a.id === 'ALT-7102'); const fsBenign = dataset.alerts.find((a) => a.id === 'ALT-7103');
   assert.strictEqual(fsPhish.rule, fsBenign.rule, 'same rule fires on both');
   const mailToDevice = (dev) => { const clicks = by('EmailInteractionEvents').filter((e) => e.DeviceId === dev && /click/.test(e.EventType)); return clicks.map((c) => mail.find((m) => m.NetworkMessageId === c.NetworkMessageId && m.Account === c.Account)); };
-  assert.ok(mailToDevice('WS-517').every((m) => m && m.Dmarc === 'fail'), 'WS-517 click traces to a DMARC-failed delivery');
-  assert.ok(mailToDevice('WS-311').every((m) => m && m.Dmarc === 'pass' && m.Spf === 'pass'), 'WS-311 click traces to an aligned, authenticated delivery');
+  assert.ok(mailToDevice('ws-517').length > 0 && mailToDevice('ws-311').length > 0, 'both first-seen alert hosts have a mail click to trace');
+  assert.ok(mailToDevice('ws-517').every((m) => m && m.Dmarc === 'fail'), 'ws-517 click traces to a DMARC-failed delivery');
+  assert.ok(mailToDevice('ws-311').every((m) => m && m.Dmarc === 'pass' && m.Spf === 'pass'), 'ws-311 click traces to an aligned, authenticated delivery');
   // Periodic updater: three cadence-matching proxy requests backed by a signed process.
-  assert.strictEqual(by('ProxyEvents').filter((e) => e.DeviceId === 'WS-402' && /\/v2\/check/.test(e.Url)).length, 3);
-  assert.strictEqual(by('DeviceProcessEvents').filter((e) => e.DeviceId === 'WS-402' && e.Signer).length, 3);
+  assert.strictEqual(by('ProxyEvents').filter((e) => e.DeviceId === 'ws-402' && /\/v2\/check/.test(e.Url)).length, 3);
+  assert.strictEqual(by('DeviceProcessEvents').filter((e) => e.DeviceId === 'ws-402' && e.Signer).length, 3);
   // Case-workspace arrays are untouched: the original answer-bearing rows still exist unchanged.
   ['M07-DELIVERY-001', 'M07-DELIVERY-002', 'M07-QR-014', 'M07-DNS-001', 'M07-TLS-001'].forEach((id) => assert.ok(events.some((e) => e.EventId === id), `${id} still present`));
   assert.strictEqual(scenario.messages.length, 1);

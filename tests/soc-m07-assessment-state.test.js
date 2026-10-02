@@ -45,7 +45,7 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(api.normalize({}, fixture))), {
 });
 assert.throws(() => api.normalize({}, { scenario: { ...scenario, stateKey: '' } }), /stateKey/);
 
-const input = { scope: { recipientIds: ['acct-63', 'outside'], deviceIds: ['WS-517', 'WS-999'] },
+const input = { scope: { recipientIds: ['acct-63', 'outside'], deviceIds: ['ws-517', 'ws-999'] },
   reviewedMessageIds: ['M07-MSG-001', 'M07-MSG-001', 'missing'], reviewedNetworkEventIds: ['M07-DNS-001', 'missing'],
   pivots: [{ id: 'pivot-1' }], actionHistory: [{ sequence: 4, type: 'future' }], nextActionSequence: 3 };
 const normalized = api.normalize(input, fixture);
@@ -65,18 +65,18 @@ let audited = api.normalize({}, fixture);
 audited = actions.append(audited, 'message_review', timestamp, { messageId: 'M07-MSG-001', reviewed: true }, fixture);
 audited = actions.append(audited, 'network_review', timestamp, { eventId: 'M07-DNS-001', reviewed: true }, fixture);
 audited = actions.append(audited, 'scope_change', timestamp, {
-  recipientIds: ['acct-63'], deviceIds: ['WS-517'], reason: 'Investigate delivered recipient',
+  recipientIds: ['acct-63'], deviceIds: ['ws-517'], reason: 'Investigate delivered recipient',
 }, fixture);
 audited = actions.append(audited, 'pivot', timestamp, {
   fromEventId: 'M07-DNS-001', toEventId: 'M07-TLS-001', field: 'relatedEvent', value: 'M07-TLS-001',
 }, fixture);
 audited = actions.append(audited, 'incident_link', timestamp, {
   operation: 'create', incidentId: 'M07-INCIDENT-0001', title: 'Correlated activity', assessment: 'unknown',
-  recipientIds: ['acct-63'], deviceIds: ['WS-517'], eventIds: ['M07-DNS-001'], summary: 'Correlated activity',
+  recipientIds: ['acct-63'], deviceIds: ['ws-517'], eventIds: ['M07-DNS-001'], summary: 'Correlated activity',
 }, fixture);
 audited = actions.append(audited, 'incident_link', timestamp, {
   operation: 'update', incidentId: 'M07-INCIDENT-0001', title: 'Correlated activity', assessment: 'supported',
-  recipientIds: ['acct-63'], deviceIds: ['WS-517'], eventIds: ['M07-DNS-001'], summary: 'Confirmed correlation',
+  recipientIds: ['acct-63'], deviceIds: ['ws-517'], eventIds: ['M07-DNS-001'], summary: 'Confirmed correlation',
 }, fixture);
 audited = actions.append(audited, 'evidence_change', timestamp, {
   operation: 'add', eventId: 'M07-TLS-001', reason: 'TLS corroborates the DNS pivot',

@@ -35,7 +35,7 @@ assert.match(initial, /data-m07-incident-workflow/);
 assert.match(initial, /data-m07-incident-form/);
 assert.match(initial, /name="assessment"/);
 assert.match(initial, /name="recipientIds" value="acct-63"/);
-assert.match(initial, /name="deviceIds" value="WS-517"/);
+assert.match(initial, /name="deviceIds" value="ws-517"/);
 assert.match(initial, /name="eventIds" value="M07-DNS-001"/);
 assert.match(initial, /Records not established by linked evidence remain unknown/);
 assert.match(initial, /data-m07-evidence-toggle="M07-MSG-001" aria-pressed="false">Add to evidence: message/);
@@ -57,7 +57,7 @@ assert.doesNotMatch(initial, /expectedTruth|incidentChain/);
 const incidentState = actions.append(initialState, 'incident_link',
   new Date(fixture.scenario.fixedAt).toISOString(), {
     operation: 'create', incidentId: 'M07-INCIDENT-0001', title: '<img src=x>', assessment: 'unknown',
-    recipientIds: ['acct-63'], deviceIds: ['WS-517'], eventIds: ['M07-DNS-001'],
+    recipientIds: ['acct-63'], deviceIds: ['ws-517'], eventIds: ['M07-DNS-001'],
     summary: '<script>not trusted</script>',
   }, fixture);
 const incidentHtml = ui.render(fixture, incidentState);
@@ -71,7 +71,7 @@ assert.doesNotMatch(incidentHtml, /<img src=x>|<script>not trusted/);
 const filteredState = actions.append(initialState, 'recipient_search',
   new Date(fixture.scenario.fixedAt).toISOString(), {
     query: 'acct-63', delivery: 'delivered', interaction: 'clicked', limit: 1,
-    recipientIds: ['acct-63'], deviceIds: ['WS-517'],
+    recipientIds: ['acct-63'], deviceIds: ['ws-517'],
   }, fixture);
 const filteredHtml = ui.render(fixture, filteredState);
 assert.match(filteredHtml, /data-m07-recipient-id="acct-63"/);

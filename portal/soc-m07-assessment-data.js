@@ -54,8 +54,16 @@ const SocM07AssessmentData = (() => {
     const inter = (mmss, m, user, type, urlKey, purpose) => add('EmailInteractionEvents', 'INT', mmss, BEN, purpose, {
       EventType: type, Account: user.acct, Host: user.dev, DeviceId: user.dev, NetworkMessageId: m.nmid, UrlId: urlKey || '', Result: 'observed', Detail: `${type} on ${user.dev}`,
     });
+    // Entity identity contract: EmailUrlEvents always carry the recipient Account. A click-time
+    // verdict names the clicking user; a delivery-time scan (user = null) takes the first
+    // recipient of the same NetworkMessageId from the EmailEvents rows authored above it.
+    const urlRecipient = (m) => {
+      const delivery = events.find((e) => e.table === 'EmailEvents' && e.fields.NetworkMessageId === m.nmid);
+      if (!delivery) throw new Error(`M07 background: no EmailEvents recipient for ${m.nmid}`);
+      return delivery.fields.Account;
+    };
     const urlRow = (mmss, m, user, type, url, verdict, category, purpose) => add('EmailUrlEvents', 'URL', mmss, BEN, purpose, {
-      EventType: type, Account: user ? user.acct : '', Url: url, Verdict: verdict, Category: category, NetworkMessageId: m.nmid, Result: verdict, Detail: `${type}: ${url} -> ${verdict} (${category})`,
+      EventType: type, Account: user ? user.acct : urlRecipient(m), Url: url, Verdict: verdict, Category: category, NetworkMessageId: m.nmid, Result: verdict, Detail: `${type}: ${url} -> ${verdict} (${category})`,
     });
     const attRow = (mmss, m, rcpt, fileName, purpose) => add('EmailAttachmentEvents', 'ATT', mmss, BEN, purpose, {
       EventType: 'attachment_scan', Account: rcpt, FileName: fileName, Verdict: 'clean', NetworkMessageId: m.nmid, Result: 'clean', Detail: `${fileName} scanned: clean`,
@@ -192,12 +200,12 @@ const SocM07AssessmentData = (() => {
   const cert = (hex) => hex.repeat(32);
   const WORLD_ASSESSMENT = {
     p: 'M07-BG', day: '2026-09-27', hh: '10', brandToken: 'northwind-',
-    victim: { acct: 'acct-63', dev: 'WS-517', ip: '192.0.2.57' },
-    clicker: { acct: 'acct-41', dev: 'WS-311', ip: '192.0.2.41' },
-    retry: { acct: 'acct-52', dev: 'WS-402', ip: '192.0.2.52' },
-    noise: { acct: 'acct-70', dev: 'WS-118', ip: '192.0.2.70' },
-    finance: { acct: 'acct-33', dev: 'WS-266', ip: '192.0.2.33' },
-    lookalike: { acct: 'acct-17', dev: 'WS-204', ip: '192.0.2.84' },
+    victim: { acct: 'acct-63', dev: 'ws-517', ip: '192.0.2.57' },
+    clicker: { acct: 'acct-41', dev: 'ws-311', ip: '192.0.2.41' },
+    retry: { acct: 'acct-52', dev: 'ws-402', ip: '192.0.2.52' },
+    noise: { acct: 'acct-70', dev: 'ws-118', ip: '192.0.2.70' },
+    finance: { acct: 'acct-33', dev: 'ws-266', ip: '192.0.2.33' },
+    lookalike: { acct: 'acct-17', dev: 'ws-204', ip: '192.0.2.84' },
     certs: { a: cert('d1'), b: cert('d2'), c: cert('d3') },
     alerts: { fsPhish: 'ALT-7102', fsBenign: 'ALT-7103', periodic: 'ALT-7104', deferral: 'ALT-7105', brand: 'ALT-7106' },
     d: {
@@ -213,12 +221,12 @@ const SocM07AssessmentData = (() => {
   // Independent Practice It world: different people, devices, domains, addresses, hour and EventIds.
   const WORLD_GUIDED = {
     p: 'M07-GL-BG', day: '2026-09-27', hh: '11', brandToken: 'paperless-',
-    victim: { acct: 'acct-91', dev: 'WS-733', ip: '10.20.4.20' },
-    clicker: { acct: 'acct-62', dev: 'WS-319', ip: '10.20.4.62' },
-    retry: { acct: 'acct-74', dev: 'WS-421', ip: '10.20.4.74' },
-    noise: { acct: 'acct-38', dev: 'WS-129', ip: '10.20.4.38' },
-    finance: { acct: 'acct-46', dev: 'WS-277', ip: '10.20.4.46' },
-    lookalike: { acct: 'acct-55', dev: 'WS-208', ip: '10.20.4.88' },
+    victim: { acct: 'acct-91', dev: 'ws-733', ip: '10.20.4.20' },
+    clicker: { acct: 'acct-62', dev: 'ws-319', ip: '10.20.4.62' },
+    retry: { acct: 'acct-74', dev: 'ws-421', ip: '10.20.4.74' },
+    noise: { acct: 'acct-38', dev: 'ws-129', ip: '10.20.4.38' },
+    finance: { acct: 'acct-46', dev: 'ws-277', ip: '10.20.4.46' },
+    lookalike: { acct: 'acct-55', dev: 'ws-208', ip: '10.20.4.88' },
     certs: { a: cert('e1'), b: cert('e2'), c: cert('e3') },
     alerts: { fsPhish: 'ALT-7482', fsBenign: 'ALT-7483', periodic: 'ALT-7484', deferral: 'ALT-7485', brand: 'ALT-7486' },
     d: {
@@ -240,7 +248,7 @@ const SocM07AssessmentData = (() => {
     start: '2026-09-27T10:00:00Z',
     end: '2026-09-27T10:20:00Z',
     recipientGroups: [
-      { id: 'M07-GROUP-DELIVERED', recipientIds: ['acct-63'], deviceIds: ['WS-517'], delivery: 'delivered' },
+      { id: 'M07-GROUP-DELIVERED', recipientIds: ['acct-63'], deviceIds: ['ws-517'], delivery: 'delivered' },
       { id: 'M07-GROUP-BLOCKED', recipientIds: ['acct-82'], deviceIds: [], delivery: 'blocked_at_gateway' },
     ],
     messages: [
@@ -273,17 +281,17 @@ const SocM07AssessmentData = (() => {
       { id: 'M07-DELIVERY-002', messageId: 'M07-MSG-001', recipientId: 'acct-82', groupId: 'M07-GROUP-BLOCKED', status: 'blocked_at_gateway', timestamp: '2026-09-27T10:03:02Z' },
     ],
     recipientEvents: [
-      { id: 'M07-QR-014', messageId: 'M07-MSG-001', recipientId: 'acct-63', deviceId: 'WS-517', type: 'open_and_link_click', timestamp: '2026-09-27T10:08:00Z', urlId: 'M07-URL-001' },
+      { id: 'M07-QR-014', messageId: 'M07-MSG-001', recipientId: 'acct-63', deviceId: 'ws-517', type: 'open_and_link_click', timestamp: '2026-09-27T10:08:00Z', urlId: 'M07-URL-001' },
     ],
     networkEvents: [
-      { id: 'M07-DNS-001', type: 'dns_query', timestamp: '2026-09-27T10:08:04Z', deviceId: 'WS-517', recipientId: 'acct-63', domain: 'invoice-qr.example', answers: ['203.0.113.88'], source: 'resolver-02', relatedRecipientEventId: 'M07-QR-014' },
-      { id: 'M07-TLS-001', type: 'tls_session', timestamp: '2026-09-27T10:08:07Z', deviceId: 'WS-517', recipientId: 'acct-63', destinationIp: '203.0.113.88', destinationPort: 443, sni: 'invoice-qr.example', certificateSha256: 'b'.repeat(64), relatedDnsEventId: 'M07-DNS-001', relatedRecipientEventId: 'M07-QR-014' },
-      { id: 'M07-FW-001', type: 'firewall_flow', timestamp: '2026-09-27T10:08:08Z', deviceId: 'WS-517', recipientId: 'acct-63', sourceIp: '192.0.2.57', destinationIp: '203.0.113.88', destinationPort: 443, action: 'allow', relatedTlsEventId: 'M07-TLS-001' },
-      { id: 'M07-PROXY-001', type: 'proxy_request', timestamp: '2026-09-27T10:08:09Z', deviceId: 'WS-517', recipientId: 'acct-63', method: 'GET', url: 'https://invoice-qr.example/invoice/7f3a', status: 200, relatedTlsEventId: 'M07-TLS-001', relatedRecipientEventId: 'M07-QR-014' },
-      { id: 'M07-DNS-002', type: 'dns_query', timestamp: '2026-09-27T10:11:00Z', deviceId: 'WS-204', recipientId: 'acct-17', domain: 'payroll.northwind.example', answers: ['198.51.100.24'], source: 'resolver-02', relatedRecipientEventId: null, benignLookalike: true },
-      { id: 'M07-TLS-002', type: 'tls_session', timestamp: '2026-09-27T10:11:03Z', deviceId: 'WS-204', recipientId: 'acct-17', destinationIp: '198.51.100.24', destinationPort: 443, sni: 'payroll.northwind.example', certificateSha256: 'c'.repeat(64), relatedDnsEventId: 'M07-DNS-002', relatedRecipientEventId: null, benignLookalike: true },
-      { id: 'M07-FW-002', type: 'firewall_flow', timestamp: '2026-09-27T10:11:04Z', deviceId: 'WS-204', recipientId: 'acct-17', sourceIp: '192.0.2.84', destinationIp: '198.51.100.24', destinationPort: 443, action: 'allow', relatedTlsEventId: 'M07-TLS-002', benignLookalike: true },
-      { id: 'M07-PROXY-002', type: 'proxy_request', timestamp: '2026-09-27T10:11:05Z', deviceId: 'WS-204', recipientId: 'acct-17', method: 'GET', url: 'https://payroll.northwind.example/portal', status: 200, relatedTlsEventId: 'M07-TLS-002', relatedRecipientEventId: null, benignLookalike: true },
+      { id: 'M07-DNS-001', type: 'dns_query', timestamp: '2026-09-27T10:08:04Z', deviceId: 'ws-517', recipientId: 'acct-63', domain: 'invoice-qr.example', answers: ['203.0.113.88'], source: 'resolver-02', relatedRecipientEventId: 'M07-QR-014' },
+      { id: 'M07-TLS-001', type: 'tls_session', timestamp: '2026-09-27T10:08:07Z', deviceId: 'ws-517', recipientId: 'acct-63', destinationIp: '203.0.113.88', destinationPort: 443, sni: 'invoice-qr.example', certificateSha256: 'b'.repeat(64), relatedDnsEventId: 'M07-DNS-001', relatedRecipientEventId: 'M07-QR-014' },
+      { id: 'M07-FW-001', type: 'firewall_flow', timestamp: '2026-09-27T10:08:08Z', deviceId: 'ws-517', recipientId: 'acct-63', sourceIp: '192.0.2.57', destinationIp: '203.0.113.88', destinationPort: 443, action: 'allow', relatedTlsEventId: 'M07-TLS-001' },
+      { id: 'M07-PROXY-001', type: 'proxy_request', timestamp: '2026-09-27T10:08:09Z', deviceId: 'ws-517', recipientId: 'acct-63', method: 'GET', url: 'https://invoice-qr.example/invoice/7f3a', status: 200, relatedTlsEventId: 'M07-TLS-001', relatedRecipientEventId: 'M07-QR-014' },
+      { id: 'M07-DNS-002', type: 'dns_query', timestamp: '2026-09-27T10:11:00Z', deviceId: 'ws-204', recipientId: 'acct-17', domain: 'payroll.northwind.example', answers: ['198.51.100.24'], source: 'resolver-02', relatedRecipientEventId: null, benignLookalike: true },
+      { id: 'M07-TLS-002', type: 'tls_session', timestamp: '2026-09-27T10:11:03Z', deviceId: 'ws-204', recipientId: 'acct-17', destinationIp: '198.51.100.24', destinationPort: 443, sni: 'payroll.northwind.example', certificateSha256: 'c'.repeat(64), relatedDnsEventId: 'M07-DNS-002', relatedRecipientEventId: null, benignLookalike: true },
+      { id: 'M07-FW-002', type: 'firewall_flow', timestamp: '2026-09-27T10:11:04Z', deviceId: 'ws-204', recipientId: 'acct-17', sourceIp: '192.0.2.84', destinationIp: '198.51.100.24', destinationPort: 443, action: 'allow', relatedTlsEventId: 'M07-TLS-002', benignLookalike: true },
+      { id: 'M07-PROXY-002', type: 'proxy_request', timestamp: '2026-09-27T10:11:05Z', deviceId: 'ws-204', recipientId: 'acct-17', method: 'GET', url: 'https://payroll.northwind.example/portal', status: 200, relatedTlsEventId: 'M07-TLS-002', relatedRecipientEventId: null, benignLookalike: true },
     ],
     packetSamples: [
       { eventId: 'M07-DNS-001', summary: 'Synthetic DNS query and response', capturedBytes: 84, protocol: 'DNS', sampleHex: '12 34 01 00 00 01 00 01 00 00 00 00', sampleText: 'invoice-qr.example -> 203.0.113.88' },
@@ -291,8 +299,8 @@ const SocM07AssessmentData = (() => {
       { eventId: 'M07-PROXY-001', summary: 'Synthetic HTTP request metadata; payload omitted', capturedBytes: 96, protocol: 'HTTP', sampleHex: '47 45 54 20 2f 69 6e 76 6f 69 63 65', sampleText: 'GET /invoice/7f3a; payload not included' },
     ],
     endpointProcessEvents: [
-      { id: 'M07-PROC-001', type: 'process_start', timestamp: '2026-09-27T10:08:11Z', deviceId: 'WS-517', recipientId: 'acct-63', processName: 'chrome.exe', imagePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', commandLine: 'chrome.exe https://invoice-qr.example/invoice/7f3a', parentProcessName: 'explorer.exe', relatedProxyEventId: 'M07-PROXY-001', classification: 'browser_activity', establishesPayloadExecution: false },
-      { id: 'M07-PROC-002', type: 'process_start', timestamp: '2026-09-27T10:11:06Z', deviceId: 'WS-204', recipientId: 'acct-17', processName: 'msedge.exe', imagePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', commandLine: 'msedge.exe https://payroll.northwind.example/portal', parentProcessName: 'explorer.exe', relatedProxyEventId: 'M07-PROXY-002', classification: 'benign_lookalike_browser_activity', establishesPayloadExecution: false },
+      { id: 'M07-PROC-001', type: 'process_start', timestamp: '2026-09-27T10:08:11Z', deviceId: 'ws-517', recipientId: 'acct-63', processName: 'chrome.exe', imagePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', commandLine: 'chrome.exe https://invoice-qr.example/invoice/7f3a', parentProcessName: 'explorer.exe', relatedProxyEventId: 'M07-PROXY-001', classification: 'browser_activity', establishesPayloadExecution: false },
+      { id: 'M07-PROC-002', type: 'process_start', timestamp: '2026-09-27T10:11:06Z', deviceId: 'ws-204', recipientId: 'acct-17', processName: 'msedge.exe', imagePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', commandLine: 'msedge.exe https://payroll.northwind.example/portal', parentProcessName: 'explorer.exe', relatedProxyEventId: 'M07-PROXY-002', classification: 'benign_lookalike_browser_activity', establishesPayloadExecution: false },
     ],
     backgroundEvents: BACKGROUND.events,
     backgroundContext: { accounts: BACKGROUND.accounts, ips: BACKGROUND.ips, alerts: BACKGROUND.alerts },
@@ -300,7 +308,7 @@ const SocM07AssessmentData = (() => {
       benignBackgroundEventIds: BACKGROUND.truth.benignBackgroundEventIds,
       alertDispositions: BACKGROUND.truth.alertDispositions,
       confirmed: [
-        'The QR-invoice message was delivered to acct-63 on WS-517; the copy addressed to acct-82 was blocked at the gateway.',
+        'The QR-invoice message was delivered to acct-63 on ws-517; the copy addressed to acct-82 was blocked at the gateway.',
         'acct-63 opened the message. A subsequent lookup for invoice-qr.example resolved to 203.0.113.88, followed by a TLS session to that IP with matching SNI.',
       ],
       unconfirmed: [

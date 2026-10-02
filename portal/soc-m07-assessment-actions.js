@@ -45,7 +45,16 @@ const SocM07AssessmentActions = (() => {
       ...scenario.endpointProcessEvents.map((record) => ({ id: record.id, kind: 'process', label: `${record.processName} · ${record.deviceId}`, recipientId: record.recipientId, deviceId: record.deviceId })),
     ].filter((record) => typeof record.id === 'string');
   }
-  function validDetails(type, details, fixture) {
+  // Entity identity contract: hosts are lower-case. Device ids picked or saved in
+  // any case (e.g. history recorded as `WS-517` before the migration) are folded
+  // to the canonical form so the same scope still validates and scores.
+  function canonicalDetails(details) {
+    if (!details || typeof details !== 'object' || Array.isArray(details)
+      || !Array.isArray(details.deviceIds)) return details;
+    return { ...details, deviceIds: details.deviceIds.map((id) => (typeof id === 'string' ? id.toLowerCase() : id)) };
+  }
+  function validDetails(type, rawDetails, fixture) {
+    const details = canonicalDetails(rawDetails);
     const allowed = refs(fixture);
     if (!TYPES.includes(type) || !details || typeof details !== 'object' || Array.isArray(details)) return false;
     const has = (key) => Object.prototype.hasOwnProperty.call(details, key);
@@ -116,7 +125,8 @@ const SocM07AssessmentActions = (() => {
       && allowed.evidence.has(details.eventId) && text(details.reason, 500);
     return false;
   }
-  function append(state, type, timestamp, details, fixture) {
+  function append(state, type, timestamp, rawDetails, fixture) {
+    const details = canonicalDetails(rawDetails);
     const { scenario } = refs(fixture);
     if (!canonicalTimestamp(timestamp, scenario)) throw new Error('M07 action timestamp must be canonical UTC within the fixture window.');
     if (!validDetails(type, details, fixture)) throw new Error(`Invalid details for M07 action type: ${type}`);
@@ -150,7 +160,7 @@ const SocM07AssessmentActions = (() => {
       return true;
     }).sort((a, b) => a.sequence - b.sequence);
     return valid.slice(-MAX_HISTORY).map((item) => freeze({ id: item.id, sequence: item.sequence,
-      type: item.type, timestamp: item.timestamp, details: clone(item.details) }));
+      type: item.type, timestamp: item.timestamp, details: clone(canonicalDetails(item.details)) }));
   }
   function apply(state, type, details) {
     if (type === 'message_review') {
