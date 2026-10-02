@@ -52,7 +52,7 @@ assert.strictEqual(defaults.schemaVersion, 1);
 assert.strictEqual(defaults.scenarioId, fixture.scenario.id);
 
 const oldShape = {
-  selectedDeviceIds: ['M05-DEV-001', null, 'M05-DEV-002'],
+  selectedDeviceIds: ['ws-assess-27', null, 'ws-assess-14'],
   selectedEventIds: ['M05-EVT-001'],
   reviewedRecords: [{ id: 'review-1', status: 'reviewed' }, null, []],
   actionHistory: [{ id: `${fixture.scenario.id}:ACTION-000003`, sequence: 3, type: 'event_review', timestamp: '2026-09-27T09:15:00Z', details: { eventId: 'M05-EVT-001', status: 'reviewed' } }, false],
@@ -60,12 +60,30 @@ const oldShape = {
   scenarioId: 'wrong-scenario',
 };
 const migrated = api.normalize(oldShape, fixture);
-assert.deepStrictEqual(JSON.parse(JSON.stringify(migrated.selectedDeviceIds)), ['M05-DEV-001', 'M05-DEV-002']);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(migrated.selectedDeviceIds)), ['ws-assess-27', 'ws-assess-14']);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(migrated.reviewedRecords)), [{ id: 'review-1', status: 'reviewed' }]);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(migrated.actionHistory)), [oldShape.actionHistory[0]]);
 assert.strictEqual(migrated.nextActionSequence, 4);
 assert.strictEqual(migrated.scenarioId, fixture.scenario.id);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(api.normalize(migrated, fixture))), JSON.parse(JSON.stringify(migrated)), 'normalization is idempotent');
+
+// Entity identity migration: work saved before device ids became lower-case hostnames
+// (inventory ids M05-DEV-00N, upper-case hostnames) restores onto the canonical device id
+// instead of being dropped, so the learner's picks keep their meaning and score.
+const legacyIds = api.normalize({
+  selectedDeviceIds: ['M05-DEV-001', 'WS-ASSESS-14', 'unknown-device'],
+  evidencePackage: { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-003'], hashes: ['a'.repeat(64)] },
+  approvalRequests: [{ id: `${fixture.scenario.id}:ACTION-000001`, sequence: 1, type: 'endpoint_isolation_request', status: 'pending_approval', deviceId: 'M05-DEV-001', reason: 'Containment review', requestedBy: 'analyst-1' }],
+  edrHandoffs: [{ id: `${fixture.scenario.id}:ACTION-000002`, sequence: 2, deviceIds: ['M05-DEV-001'], eventIds: ['M05-EVT-007'], hashes: ['a'.repeat(64)],
+    summary: 'Detection only', owner: 'analyst-1', recipient: 'endpoint-team', recommendation: 'Isolate host.', status: 'submitted' }],
+  actionHistory: [{ id: `${fixture.scenario.id}:ACTION-000003`, sequence: 3, type: 'device_review', timestamp: '2026-09-27T09:15:00Z', details: { deviceId: 'M05-DEV-001', status: 'reviewed' } }],
+}, fixture);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(legacyIds.selectedDeviceIds)), ['ws-assess-27', 'ws-assess-14', 'unknown-device']);
+assert.strictEqual(legacyIds.evidencePackage.deviceId, 'ws-assess-27');
+assert.strictEqual(legacyIds.approvalRequests[0].deviceId, 'ws-assess-27');
+assert.deepStrictEqual(JSON.parse(JSON.stringify(legacyIds.edrHandoffs[0].deviceIds)), ['ws-assess-27']);
+assert.strictEqual(legacyIds.actionHistory[0].details.deviceId, 'ws-assess-27');
+assert.strictEqual(api.canonicalDeviceId('M05-DEV-999', fixture), 'M05-DEV-999', 'unknown ids are not invented');
 
 const oversized = api.normalize({
   selectedDeviceIds: Array.from({ length: 150 }, (_, i) => `device-${i}`),
@@ -88,13 +106,13 @@ const writesBeforeStableLoad = calls.filter((call) => call[0] === 'save').length
 api.load(user, fixture);
 assert.strictEqual(calls.filter((call) => call[0] === 'save').length, writesBeforeStableLoad, 'normalized load is idempotent and does not rewrite');
 
-const saved = api.save(user, { selectedDeviceIds: ['M05-DEV-003'], reviewedRecords: [{ id: 'r2' }] }, fixture);
-assert.deepStrictEqual(JSON.parse(JSON.stringify(saved.selectedDeviceIds)), ['M05-DEV-003']);
+const saved = api.save(user, { selectedDeviceIds: ['srv-assess-02'], reviewedRecords: [{ id: 'r2' }] }, fixture);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(saved.selectedDeviceIds)), ['srv-assess-02']);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(api.load(user, fixture).reviewedRecords)), [{ id: 'r2' }], 'save restores normalized state');
-const packageState = api.save(user, { selectedDeviceIds: ['M05-DEV-001'], evidencePackage: { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-003'], hashes: ['a'.repeat(64)] } }, fixture);
+const packageState = api.save(user, { selectedDeviceIds: ['ws-assess-27'], evidencePackage: { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-003'], hashes: ['a'.repeat(64)] } }, fixture);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(api.load(user, fixture).evidencePackage)), JSON.parse(JSON.stringify(packageState.evidencePackage)), 'preserved package restores');
-assert.strictEqual(api.normalize({ evidencePackage: { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-010'], hashes: [] } }, fixture).evidencePackage, null, 'cross-device package is rejected during restore');
-assert.strictEqual(api.normalize({ evidencePackage: { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-003'], hashes: ['malformed'] } }, fixture).evidencePackage, null, 'malformed package hash is rejected during restore');
+assert.strictEqual(api.normalize({ evidencePackage: { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-010'], hashes: [] } }, fixture).evidencePackage, null, 'cross-device package is rejected during restore');
+assert.strictEqual(api.normalize({ evidencePackage: { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-003'], hashes: ['malformed'] } }, fixture).evidencePackage, null, 'malformed package hash is rejected during restore');
 const immutableHistory = api.normalize({ actionHistory: [{ id: `${fixture.scenario.id}:ACTION-000001`, sequence: 1, type: 'analysis_note', timestamp: '2026-09-27T09:15:00Z', details: { text: 'Reviewed', relatedEventIds: ['M05-EVT-003'] } }] }, fixture).actionHistory;
 assert.ok(Object.isFrozen(immutableHistory[0]) && Object.isFrozen(immutableHistory[0].details.relatedEventIds), 'restored audit records and nested details are immutable');
 assert.strictEqual(api.normalize({ actionHistory: [
@@ -109,12 +127,12 @@ assert.strictEqual(api.normalize({ actionHistory: [{
   details: { handoffId: `${fixture.scenario.id}:ACTION-000001`, status: 'executed', updatedBy: 'lead' },
 }] }, fixture).actionHistory.length, 0, 'restore rejects unsupported or malformed handoff status updates');
 const validRequests = [
-  { id: `${fixture.scenario.id}:ACTION-000001`, sequence: 1, type: 'endpoint_isolation_request', status: 'pending_approval', deviceId: 'M05-DEV-001', reason: 'Containment review', requestedBy: 'analyst-1' },
-  { id: `${fixture.scenario.id}:ACTION-000002`, sequence: 2, type: 'endpoint_quarantine_request', status: 'pending_approval', deviceId: 'M05-DEV-001', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), reason: 'Malicious file', requestedBy: 'analyst-1' },
+  { id: `${fixture.scenario.id}:ACTION-000001`, sequence: 1, type: 'endpoint_isolation_request', status: 'pending_approval', deviceId: 'ws-assess-27', reason: 'Containment review', requestedBy: 'analyst-1' },
+  { id: `${fixture.scenario.id}:ACTION-000002`, sequence: 2, type: 'endpoint_quarantine_request', status: 'pending_approval', deviceId: 'ws-assess-27', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), reason: 'Malicious file', requestedBy: 'analyst-1' },
 ];
 const restoredRequests = api.normalize({ approvalRequests: [...validRequests,
   { ...validRequests[0], status: 'executed' },
-  { ...validRequests[1], deviceId: 'M05-DEV-002' },
+  { ...validRequests[1], deviceId: 'ws-assess-14' },
   { ...validRequests[1], filePath: 'C:\\unknown.exe' },
   { ...validRequests[0], reason: '' },
 ] }, fixture);
@@ -122,7 +140,7 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(restoredRequests.approvalReques
 assert.ok(Object.isFrozen(restoredRequests.approvalRequests[0]), 'restored approval requests are immutable');
 const validHandoff = {
   id: `${fixture.scenario.id}:ACTION-000003`, sequence: 3,
-  deviceIds: ['M05-DEV-001'], eventIds: ['M05-EVT-007'], hashes: ['a'.repeat(64)],
+  deviceIds: ['ws-assess-27'], eventIds: ['M05-EVT-007'], hashes: ['a'.repeat(64)],
   summary: 'Detection only; execution not prevented', owner: 'analyst-1', recipient: 'endpoint-team',
   recommendation: 'Isolate host and preserve evidence.', status: 'in_progress',
 };
@@ -139,17 +157,17 @@ assert.strictEqual(restoredRequests.nextActionSequence, 3, 'restored request seq
 let persisted = api.normalize({}, fixture);
 const fixtureTelemetryBeforePersistedActions = JSON.stringify(fixture.scenario.telemetry);
 persisted = actions.append(persisted, 'evidence_package_preserved', '2026-09-27T09:15:00Z', {
-  deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-003'], hashes: ['a'.repeat(64)],
+  deviceId: 'ws-assess-27', eventIds: ['M05-EVT-003'], hashes: ['a'.repeat(64)],
 }, fixture);
 persisted = actions.append(persisted, 'endpoint_isolation_request', '2026-09-27T09:15:00Z', {
-  deviceId: 'M05-DEV-001', reason: 'Containment review', requestedBy: 'analyst-1', status: 'pending_approval',
+  deviceId: 'ws-assess-27', reason: 'Containment review', requestedBy: 'analyst-1', status: 'pending_approval',
 }, fixture);
 persisted = actions.append(persisted, 'endpoint_quarantine_request', '2026-09-27T09:15:00Z', {
-  deviceId: 'M05-DEV-001', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64),
+  deviceId: 'ws-assess-27', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64),
   reason: 'Malicious file', requestedBy: 'analyst-1', status: 'pending_approval',
 }, fixture);
 persisted = actions.append(persisted, 'edr_handoff', '2026-09-27T09:15:00Z', {
-  deviceIds: ['M05-DEV-001'], eventIds: ['M05-EVT-007'], hashes: ['a'.repeat(64)],
+  deviceIds: ['ws-assess-27'], eventIds: ['M05-EVT-007'], hashes: ['a'.repeat(64)],
   summary: 'Detection only; execution not prevented', owner: 'analyst-1', recipient: 'endpoint-team',
   recommendation: 'Isolate host and preserve evidence.', status: 'submitted',
 }, fixture);

@@ -152,7 +152,7 @@ const SocM05AssessmentDeviceUi = (() => {
       return `${inventory}<section class="m05-device-detail"><p class="m05-device-empty">${devices.length ? 'Select a device to inspect its profile and timeline.' : 'No devices are available.'}</p></section>`;
     }
 
-    const profile = `<section class="m05-device-profile" aria-label="Device profile"><h3>${e(selected.hostname)}</h3><dl><dt>Device ID</dt><dd>${e(selected.id)}</dd><dt>Platform</dt><dd>${e(selected.platform)}</dd><dt>Role</dt><dd>${e(selected.role)}</dd><dt>Owner</dt><dd>${e(selected.owner)}</dd><dt>Zone</dt><dd>${e(selected.zone)}</dd><dt>Status</dt><dd>${e(selected.status)}</dd></dl></section>`;
+    const profile = `<section class="m05-device-profile" aria-label="Device profile"><h3>${e(selected.hostname)}</h3><dl><dt>Device ID</dt><dd>${e(selected.id)}</dd>${selected.assetId ? `<dt>Asset ID</dt><dd>${e(selected.assetId)}</dd>` : ''}<dt>Platform</dt><dd>${e(selected.platform)}</dd><dt>Role</dt><dd>${e(selected.role)}</dd><dt>Owner</dt><dd>${e(selected.owner)}</dd><dt>Zone</dt><dd>${e(selected.zone)}</dd><dt>Status</dt><dd>${e(selected.status)}</dd></dl></section>`;
     const items = timelineEvents(scenario, selected.id);
     const processRoots = processTree(scenario, selected.id);
     const processTreeView = !processRoots.length

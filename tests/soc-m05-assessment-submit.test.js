@@ -58,13 +58,31 @@ assert.strictEqual(migrated.caseRecord.caseId, 'EDR-5127');
 assert.strictEqual(migrated.caseRecord.scenarioId, 'M05-ASSESS-2026-09-27');
 assert.strictEqual(migrated.caseRecord.legacyCaseId, 'EDR-5119');
 assert.strictEqual(migrated.caseRecord.notes, 'Legacy case rationale.');
-assert.strictEqual(migrated.caseRecord.affectedUser, 'CORP\\j.alvarez');
-assert.strictEqual(migrated.caseRecord.affectedDevice, 'M05-DEV-001');
+assert.strictEqual(migrated.caseRecord.affectedUser, 'j.alvarez');
+assert.strictEqual(migrated.caseRecord.affectedDevice, 'ws-assess-27');
 assert.deepStrictEqual(migrated.caseRecord.legacyEntities, { affectedUser: 'j.alvarez', affectedDevice: 'WS-LAB-27' });
 assert.deepStrictEqual(migrated.caseRecord.actionHistory, [{ action: 'Legacy submission', at: '2026-09-26T12:00:00Z' }]);
 assert.strictEqual(migrated.notes, 'Prior learner work survives identity migration.');
 vm.runInContext('moduleFiveLoad(testUser)', context);
 assert.strictEqual(local('moduleFiveState.caseRecord.legacyCaseId'), 'EDR-5119', 'migration is idempotent');
+
+// Entity identity migration: a ticket saved with the pre-contract EDR-5127 values
+// (CORP\j.alvarez / inventory id M05-DEV-001) maps onto the canonical roster ids and
+// keeps the same entity points.
+const preContractUser = { id: 'pre-contract-learner', email: 'pre@example.test' };
+context.preContractUser = preContractUser;
+context.CASE_RECORD_NOTES_MIN = 100; // supplied by portal/case-record.js in the browser
+records.set('m05-endpoint-chain-v1:soc-05:pre-contract-learner', {
+  caseRecord: { caseId: 'EDR-5127', scenarioId: 'M05-ASSESS-2026-09-27', affectedUser: 'CORP\\j.alvarez', affectedDevice: 'M05-DEV-001', notes: '', findings: {}, actionHistory: [] },
+});
+vm.runInContext('moduleFiveLoad(preContractUser)', context);
+assert.strictEqual(local('moduleFiveState.caseRecord.affectedUser'), 'j.alvarez');
+assert.strictEqual(local('moduleFiveState.caseRecord.affectedDevice'), 'ws-assess-27');
+assert.strictEqual(records.get('m05-endpoint-chain-v1:soc-05:pre-contract-learner').caseRecord.affectedDevice, 'ws-assess-27', 'migrated ticket is persisted');
+assert.strictEqual(local('moduleFiveCaseScore().breakdown.affected_entity'), 20, 'migrated ticket keeps full entity credit');
+vm.runInContext("moduleFiveState.caseRecord.affectedUser = 'CORP\\\\M.Reyes'; moduleFiveState.caseRecord.affectedDevice = 'M05-DEV-002'", context);
+assert.strictEqual(local('moduleFiveCaseScore().breakdown.affected_entity'), 10, 'legacy pivot entities keep partial credit');
+vm.runInContext('moduleFiveLoad(testUser)', context);
 
 const fixture = local('SocM05AssessmentData');
 const independentKey = `${fixture.scenario.stateKey}:soc-05:${user.id}`;
@@ -84,7 +102,10 @@ assert.strictEqual(first.caseRecord.scenarioId, fixture.scenario.id);
 assert.strictEqual(first.caseRecord.reviewPayload.score, first.score);
 assert.strictEqual(first.caseRecord.reviewPayload.revision, 1);
 assert.strictEqual(first.caseRecord.reviewPayload.attemptNumber, 2, 'prior recorded learner attempt is included in attempt numbering');
-assert.strictEqual(first.caseRecord.reviewPayload.entityIdentity.affectedDevice, 'M05-DEV-001');
+assert.strictEqual(first.caseRecord.reviewPayload.entityIdentity.affectedDevice, 'ws-assess-27');
+assert.strictEqual(first.caseRecord.reviewPayload.entityIdentity.affectedUser, 'j.alvarez');
+assert.strictEqual(first.caseRecord.reviewPayload.entityIdentity.hostname, 'ws-assess-27');
+assert.strictEqual(first.caseRecord.reviewPayload.entityIdentity.assetId, 'M05-DEV-001');
 assert.ok(first.caseRecord.reviewPayload.criteria.some((criterion) => criterion.supportingEvidence && criterion.misses));
 assert.strictEqual(first.assessmentAttempts.length, 1);
 assert.strictEqual(catalog.length, 1);

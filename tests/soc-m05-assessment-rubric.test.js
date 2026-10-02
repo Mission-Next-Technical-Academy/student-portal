@@ -15,16 +15,16 @@ const ids = (...values) => values;
 const action = (type, details) => ({ type, details });
 const outcomes = (state) => Object.fromEntries(rubric.extract(state, fixture).criteria.map((item) => [item.id, item.awarded]));
 const complete = {
-  selectedDeviceIds: ['M05-DEV-001'],
+  selectedDeviceIds: ['ws-assess-27'],
   actionHistory: [
-    action('device_review', { deviceId: 'M05-DEV-001', eventIds: ids('M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003') }),
+    action('device_review', { deviceId: 'ws-assess-27', eventIds: ids('M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003') }),
     action('event_review', { eventId: 'M05-EVT-009' }),
     action('analysis_note', { text: 'Browser parent 4100 starts PowerShell 4172 which launches payload 4224. syncsvc.exe is malicious; AcmeUpdater is signed and benign.' }),
     action('analysis_note', { text: 'Run key persistence created under HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\SyncService. Detection only; execution was not prevented.' }),
-    action('evidence_package_preserved', { deviceId: 'M05-DEV-001', eventIds: ids('M05-EVT-003', 'M05-EVT-005', 'M05-EVT-006'), hashes: ['a'.repeat(64)] }),
+    action('evidence_package_preserved', { deviceId: 'ws-assess-27', eventIds: ids('M05-EVT-003', 'M05-EVT-005', 'M05-EVT-006'), hashes: ['a'.repeat(64)] }),
   ],
-  evidencePackage: { deviceId: 'M05-DEV-001', eventIds: ids('M05-EVT-003', 'M05-EVT-005', 'M05-EVT-006'), hashes: ['a'.repeat(64)] },
-  edrHandoffs: [{ id: 'handoff-1', deviceIds: ['M05-DEV-001'], eventIds: ['M05-EVT-005', 'M05-EVT-007'], hashes: ['a'.repeat(64)], recommendation: 'Isolate the affected host and preserve evidence.' }],
+  evidencePackage: { deviceId: 'ws-assess-27', eventIds: ids('M05-EVT-003', 'M05-EVT-005', 'M05-EVT-006'), hashes: ['a'.repeat(64)] },
+  edrHandoffs: [{ id: 'handoff-1', deviceIds: ['ws-assess-27'], eventIds: ['M05-EVT-005', 'M05-EVT-007'], hashes: ['a'.repeat(64)], recommendation: 'Isolate the affected host and preserve evidence.' }],
   approvalRequests: [],
 };
 assert.deepStrictEqual(outcomes(complete), {
@@ -39,7 +39,7 @@ assert.deepStrictEqual(outcomes(complete), {
 });
 
 const partial = {
-  actionHistory: [action('device_review', { deviceId: 'M05-DEV-001', eventId: 'M05-EVT-001' })],
+  actionHistory: [action('device_review', { deviceId: 'ws-assess-27', eventId: 'M05-EVT-001' })],
   edrHandoffs: [], approvalRequests: [],
 };
 const partialResult = rubric.extract(partial, fixture);
@@ -55,14 +55,14 @@ assert.strictEqual(outcomes(ancestryOnly)['malicious-benign-interpretation'], fa
 
 const unsafe = {
   ...complete,
-  approvalRequests: [{ type: 'endpoint_isolation_request', deviceId: 'M05-DEV-002', status: 'approved', reason: 'Containment', requestedBy: 'analyst' }],
+  approvalRequests: [{ type: 'endpoint_isolation_request', deviceId: 'ws-assess-14', status: 'approved', reason: 'Containment', requestedBy: 'analyst' }],
 };
 assert.strictEqual(outcomes(unsafe)['unsafe-action-boundary'], false, 'out-of-scope execution/approval is flagged');
-assert.strictEqual(outcomes({ ...complete, edrHandoffs: [{ ...complete.edrHandoffs[0], deviceIds: ['M05-DEV-001', 'M05-DEV-002'] }] })['affected-device-scope'], false);
+assert.strictEqual(outcomes({ ...complete, edrHandoffs: [{ ...complete.edrHandoffs[0], deviceIds: ['ws-assess-27', 'ws-assess-14'] }] })['affected-device-scope'], false);
 
 const alternate = {
   actionHistory: [action('analysis_note', { text: 'PID 4100 parent to PID 4172 child to PID 4224 ancestry; malicious payload; AcmeUpdater signed updater benign; HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\SyncService registry persistence created; detected but not prevented.' })],
-  selectedDeviceIds: ['M05-DEV-001'], approvalRequests: [], edrHandoffs: [],
+  selectedDeviceIds: ['ws-assess-27'], approvalRequests: [], edrHandoffs: [],
 };
 assert.deepStrictEqual(outcomes(alternate), {
   'process-ancestry': true,

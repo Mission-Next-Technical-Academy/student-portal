@@ -104,9 +104,9 @@ m04 = JSON.parse(JSON.stringify(m04Action.state));
 vm.runInContext(`SocM04AssessmentState.save(testUser, ${JSON.stringify(m04)}, SocM04AssessmentData)`, context);
 
 let m05 = local('SocM05AssessmentState.load(testUser, SocM05AssessmentData)');
-m05.selectedDeviceIds = ['M05-DEV-001'];
+m05.selectedDeviceIds = ['ws-assess-27'];
 m05 = JSON.parse(JSON.stringify(vm.runInContext(
-  `SocM05AssessmentActions.append(${JSON.stringify(m05)}, 'device_review', '2026-09-27T10:01:00Z', { deviceId: 'M05-DEV-001', status: 'reviewed', note: 'Cumulative integration check' }, SocM05AssessmentData)`,
+  `SocM05AssessmentActions.append(${JSON.stringify(m05)}, 'device_review', '2026-09-27T10:01:00Z', { deviceId: 'ws-assess-27', status: 'reviewed', note: 'Cumulative integration check' }, SocM05AssessmentData)`,
   context,
 )));
 vm.runInContext(`SocM05AssessmentState.save(testUser, ${JSON.stringify(m05)}, SocM05AssessmentData)`, context);
@@ -140,7 +140,7 @@ const restoredM08 = local('SocM08AssessmentState.load(testUser, SocM08Assessment
 assert.strictEqual(restoredM04.assessment.activeWorkspace, 'automation');
 assert.strictEqual(restoredM04.assessment.automationActions.at(-1).type, 'indicator_enrichment');
 assert.strictEqual(restoredM04.assessment.actionHistory.at(-1).type, 'automation_action_recorded');
-assert.strictEqual(restoredM05.selectedDeviceIds[0], 'M05-DEV-001');
+assert.strictEqual(restoredM05.selectedDeviceIds[0], 'ws-assess-27');
 assert.strictEqual(restoredM05.actionHistory.at(-1).type, 'device_review');
 assert.strictEqual(restoredM06.actionHistory.at(-1).type, 'hypothesis_edit');
 assert.strictEqual(restoredM06.actionHistory.at(-1).details.text, 'Evidence supports a bounded recurrence hypothesis.');
@@ -173,11 +173,11 @@ assert.strictEqual(new Set(namespaces.map(([_, module]) => module)).size, 5,
   'each assessment uses its own module state key');
 const serialized = [restoredM04, restoredM05, restoredM06, restoredM07, restoredM08].map((state) => JSON.stringify(state));
 assert.match(serialized[0], /M04-I-001/);
-assert.match(serialized[1], /M05-DEV-001/);
+assert.match(serialized[1], /ws-assess-27/);
 assert.match(serialized[2], /M06-HYP-000001/);
 assert.match(serialized[3], /M07-MSG-001/);
 assert.match(serialized[4], /M08-FINDING-001/);
-const actionSentinels = ['M04-I-001', 'M05-DEV-001', 'M06-HYP-000001', 'M07-MSG-001', 'M08-FINDING-001'];
+const actionSentinels = ['M04-I-001', 'ws-assess-27', 'M06-HYP-000001', 'M07-MSG-001', 'M08-FINDING-001'];
 for (let owner = 0; owner < serialized.length; owner += 1) {
   for (let other = 0; other < actionSentinels.length; other += 1) {
     if (owner !== other) {
@@ -188,7 +188,7 @@ for (let owner = 0; owner < serialized.length; owner += 1) {
 }
 
 const m04Html = local(`SocM04AssessmentConsole.render(${JSON.stringify(restoredM04.assessment)})`);
-const m05Html = local(`SocM05AssessmentConsole.render(${JSON.stringify(restoredM05)}, SocM05AssessmentData, 'M05-DEV-001')`);
+const m05Html = local(`SocM05AssessmentConsole.render(${JSON.stringify(restoredM05)}, SocM05AssessmentData, 'ws-assess-27')`);
 local('moduleSixLoad(testUser)');
 const m06Html = local('moduleSixAssessmentLabPanel()');
 local('moduleSevenLoad(testUser)');

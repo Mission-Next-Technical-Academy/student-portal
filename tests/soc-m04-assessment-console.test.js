@@ -201,8 +201,8 @@ assert.strictEqual(m05Fixture.scenario.stateKey, 'm05-endpoint-assessment-v1');
 const m05User = { id: 'learner-m04-m05', email: 'learner@example.test' };
 context.integrationM05User = m05User;
 const m05State = m05StateApi.load(m05User, m05Fixture);
-m05State.selectedDeviceIds = ['M05-DEV-001'];
-m05State.actionHistory = [{ id: `${m05Fixture.scenario.id}:ACTION-000001`, sequence: 1, type: 'device_review', timestamp: '2026-09-27T10:00:00Z', details: { deviceId: 'M05-DEV-001', status: 'reviewed', note: 'Endpoint additions active' } }];
+m05State.selectedDeviceIds = ['ws-assess-27'];
+m05State.actionHistory = [{ id: `${m05Fixture.scenario.id}:ACTION-000001`, sequence: 1, type: 'device_review', timestamp: '2026-09-27T10:00:00Z', details: { deviceId: 'ws-assess-27', status: 'reviewed', note: 'Endpoint additions active' } }];
 m05StateApi.save(m05User, m05State, m05Fixture);
 const m05StorageKey = `${m05Fixture.scenario.stateKey}:soc-05:${m05User.email}`;
 const m04StorageKey = 'm04-detection-enrichment-v1:soc-04:learner@example.test';
@@ -211,8 +211,8 @@ assert.ok(storage.has(m05StorageKey), 'M05 endpoint state persists under its own
 assert.ok(storage.has(m04StorageKey), 'M04 assessment state persists under its own versioned lab key');
 assert.notStrictEqual(m05StorageKey, m04StorageKey);
 assert.strictEqual(storage.get(m04StorageKey).assessment.scenarioId, config.scenarioId, 'M05 restore does not replace or reshape the M04 state');
-assert.strictEqual(storage.get(m05StorageKey).selectedDeviceIds[0], 'M05-DEV-001');
-assert.match(vm.runInContext('SocM05AssessmentConsole.render(SocM05AssessmentState.load(integrationM05User, SocM05AssessmentData), SocM05AssessmentData, "M05-DEV-001")', context), /M05-DEV-001/);
+assert.strictEqual(storage.get(m05StorageKey).selectedDeviceIds[0], 'ws-assess-27');
+assert.match(vm.runInContext('SocM05AssessmentConsole.render(SocM05AssessmentState.load(integrationM05User, SocM05AssessmentData), SocM05AssessmentData, "ws-assess-27")', context), /ws-assess-27/);
 assert.strictEqual(storage.has('m05-endpoint-assessment-v1:soc-05:learner@example.test'), true);
 
 // M05 navigation must share the learner-visible Assessment Lab destination,

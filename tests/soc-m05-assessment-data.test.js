@@ -25,10 +25,13 @@ assert.strictEqual(scenario.start, '2026-09-27T09:00:00Z');
 assert.strictEqual(scenario.end, '2026-09-27T09:30:00Z');
 assert.strictEqual(scenario.generatedAt, '2026-09-27T09:31:00Z');
 assert.ok(scenario.devices.length >= 1);
-assert.ok(scenario.devices.every((device) => device.id.startsWith('M05-DEV-')));
+// Entity identity contract: device id = lower-case hostname; the inventory id moves to assetId.
+assert.ok(scenario.devices.every((device) => device.assetId.startsWith('M05-DEV-')));
+assert.ok(scenario.devices.every((device) => device.id === device.hostname && device.hostname === device.hostname.toLowerCase()));
+assert.strictEqual(new Set(scenario.devices.map((device) => device.assetId)).size, scenario.devices.length);
 assert.strictEqual(new Set(scenario.devices.map((device) => device.id)).size, scenario.devices.length);
 assert.strictEqual(new Set(scenario.devices.map((device) => device.hostname)).size, scenario.devices.length);
-assert.ok(scenario.devices.every((device) => ['id', 'hostname', 'platform', 'role', 'owner', 'zone', 'status'].every((key) => typeof device[key] === 'string')));
+assert.ok(scenario.devices.every((device) => ['id', 'assetId', 'hostname', 'platform', 'role', 'owner', 'zone', 'status'].every((key) => typeof device[key] === 'string')));
 assert.ok(scenario.telemetry.length >= 10, 'fixture includes malicious activity and benign counterexamples');
 const eventsById = new Map(scenario.telemetry.map((event) => [event.id, event]));
 const devicesById = new Map(scenario.devices.map((device) => [device.id, device]));
@@ -41,6 +44,11 @@ for (const event of scenario.telemetry) {
   assert.ok(scenario.telemetrySchema.required.every((field) => Object.hasOwn(event, field)), `event ${event.id} follows required schema`);
   assert.ok(devicesById.has(event.deviceId), `event ${event.id} resolves to an inventoried device`);
   assert.strictEqual(event.host, devicesById.get(event.deviceId).hostname);
+  assert.strictEqual(event.deviceId, event.host, `event ${event.id} DeviceId equals Host`);
+  assert.strictEqual(event.assetId, devicesById.get(event.deviceId).assetId, `event ${event.id} keeps the inventory asset id`);
+  assert.match(event.user, /^[a-z0-9][a-z0-9._-]*$/, `event ${event.id} user is a normalized principal`);
+  assert.strictEqual(typeof event.accountNative, 'string', `event ${event.id} keeps the native principal`);
+  assert.strictEqual(event.accountNative.replace(/^[^\\]+\\/, '').toLowerCase(), event.user);
   const time = Date.parse(event.time);
   assert.match(event.time, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
   assert.strictEqual(`${new Date(time).toISOString().slice(0, 19)}Z`, event.time, `event ${event.id} has a canonical UTC timestamp`);
@@ -83,7 +91,12 @@ assertDeepFrozen(data);
 try { scenario.devices[0].hostname = 'CHANGED'; } catch (_) { /* Frozen writes can throw in strict mode. */ }
 try { scenario.devices.push({ id: 'M05-DEV-X' }); } catch (_) { /* Frozen arrays reject mutation. */ }
 try { scenario.telemetrySchema.required.push('answer'); } catch (_) { /* Frozen arrays reject mutation. */ }
-assert.strictEqual(scenario.devices[0].hostname, 'WS-ASSESS-27');
+assert.strictEqual(scenario.devices[0].hostname, 'ws-assess-27');
+assert.strictEqual(scenario.devices[0].assetId, 'M05-DEV-001');
+assert.strictEqual(truth.confirmedDevice.value, 'ws-assess-27');
+assert.strictEqual(truth.confirmedDevice.assetId, 'M05-DEV-001');
+assert.strictEqual(truth.confirmedUser.value, 'j.alvarez');
+assert.strictEqual(truth.confirmedUser.accountNative, 'CORP\\j.alvarez');
 assert.strictEqual(scenario.devices.length, 5);
 assert.strictEqual(scenario.telemetrySchema.required.length, 16);
 console.log('M05 assessment data contract: all checks passed');

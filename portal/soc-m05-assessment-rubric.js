@@ -25,10 +25,54 @@ const SocM05AssessmentRubric = (() => {
     : Array.isArray(value) ? value.flatMap(strings)
       : value && typeof value === 'object' ? Object.values(value).flatMap(strings) : [];
 
+  // Entity identity contract: devices are keyed by lower-case hostname (device.id), with the
+  // inventory id in device.assetId. Map any known alias (legacy inventory id such as
+  // M05-DEV-001, or a differently-cased hostname) to the canonical id on both the learner
+  // state and the expected truth, so the same picks score the same before and after the
+  // migration. Unknown values pass through unchanged and still fail scope checks.
+  function deviceResolver(fixture) {
+    const devices = list(fixture?.scenario?.devices).filter((device) => device && typeof device === 'object');
+    return (value) => {
+      if (typeof value !== 'string' || !value || devices.some((device) => device.id === value)) return value;
+      const folded = value.toLowerCase();
+      const match = devices.find((device) => device.assetId === value)
+        || devices.find((device) => [device.id, device.hostname, device.assetId]
+          .some((alias) => typeof alias === 'string' && alias.toLowerCase() === folded));
+      return match ? match.id : value;
+    };
+  }
+  const remapIds = (value, dev) => Array.isArray(value) ? value.map(dev) : value;
+  function canonicalRefs(record, dev) {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) return record;
+    const out = { ...record };
+    if (out.deviceId !== undefined) out.deviceId = dev(out.deviceId);
+    if (out.deviceIds !== undefined) out.deviceIds = remapIds(out.deviceIds, dev);
+    if (out.relatedDeviceIds !== undefined) out.relatedDeviceIds = remapIds(out.relatedDeviceIds, dev);
+    if (out.details && typeof out.details === 'object' && !Array.isArray(out.details)) out.details = canonicalRefs(out.details, dev);
+    return out;
+  }
+  function canonicalAssessment(raw, dev) {
+    const records = (value) => Array.isArray(value) ? value.map((item) => canonicalRefs(item, dev)) : value;
+    return {
+      ...raw,
+      selectedDeviceIds: remapIds(raw.selectedDeviceIds, dev),
+      evidencePackage: canonicalRefs(raw.evidencePackage, dev),
+      approvalRequests: records(raw.approvalRequests),
+      edrHandoffs: records(raw.edrHandoffs),
+      actionHistory: records(raw.actionHistory),
+    };
+  }
+
   function extract(state, fixture) {
     const scenario = fixture?.scenario;
-    const truth = scenario?.expectedTruth;
-    const assessment = state && typeof state === 'object' && !Array.isArray(state) ? state : {};
+    const rawTruth = scenario?.expectedTruth;
+    const dev = deviceResolver(fixture);
+    const truth = rawTruth ? {
+      ...rawTruth,
+      confirmedDevice: rawTruth.confirmedDevice ? { ...rawTruth.confirmedDevice, value: dev(rawTruth.confirmedDevice.value) } : rawTruth.confirmedDevice,
+      scope: rawTruth.scope ? { ...rawTruth.scope, deviceIds: remapIds(rawTruth.scope.deviceIds, dev) } : rawTruth.scope,
+    } : rawTruth;
+    const assessment = canonicalAssessment(state && typeof state === 'object' && !Array.isArray(state) ? state : {}, dev);
     const history = list(assessment.actionHistory).filter((item) => item && typeof item === 'object' && !Array.isArray(item));
     const expectedEvents = list(scenario?.telemetry);
     const eventMap = new Map(expectedEvents.map((event) => [event.id, event]));

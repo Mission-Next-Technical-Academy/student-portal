@@ -26,6 +26,37 @@ const SocM05AssessmentState = (() => {
     return value;
   }
 
+  // Entity identity contract: a device is keyed by its lower-case hostname (device.id ===
+  // hostname); the inventory id lives in device.assetId. Saved work from before the
+  // migration may still carry an inventory id (M05-DEV-001 / M05-GUIDE-101) or an
+  // upper-case hostname, so map any known alias to the canonical device.id. Unknown values
+  // are returned unchanged so the existing validators keep rejecting them.
+  function canonicalDeviceId(value, fixture) {
+    if (typeof value !== 'string' || !value) return value;
+    const devices = Array.isArray(fixture?.scenario?.devices) ? fixture.scenario.devices : [];
+    if (devices.some((device) => device.id === value)) return value;
+    const folded = value.toLowerCase();
+    const match = devices.find((device) => device.assetId === value)
+      || devices.find((device) => [device.id, device.hostname, device.assetId]
+        .some((alias) => typeof alias === 'string' && alias.toLowerCase() === folded));
+    return match ? match.id : value;
+  }
+
+  function canonicalDeviceIds(value, fixture) {
+    return Array.isArray(value) ? value.map((id) => canonicalDeviceId(id, fixture)) : value;
+  }
+
+  // Rewrites device references in a saved record to canonical device ids (pure; returns a copy).
+  function canonicalDeviceRefs(record, fixture) {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) return record;
+    const out = { ...record };
+    if (out.deviceId !== undefined) out.deviceId = canonicalDeviceId(out.deviceId, fixture);
+    if (out.deviceIds !== undefined) out.deviceIds = canonicalDeviceIds(out.deviceIds, fixture);
+    if (out.relatedDeviceIds !== undefined) out.relatedDeviceIds = canonicalDeviceIds(out.relatedDeviceIds, fixture);
+    if (out.details && typeof out.details === 'object' && !Array.isArray(out.details)) out.details = canonicalDeviceRefs(out.details, fixture);
+    return out;
+  }
+
   function validEvidencePackage(value, fixture) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || !fixture?.scenario) return false;
     const { deviceId, eventIds, hashes } = value;
@@ -121,22 +152,23 @@ const SocM05AssessmentState = (() => {
     const legacy = source && typeof source === 'object' && !Array.isArray(source) ? source : {};
     const assessment = { ...clone(EMPTY_DEFAULTS), ...legacy };
     assessment.selectedDeviceIds = Array.isArray(legacy.selectedDeviceIds)
-      ? legacy.selectedDeviceIds.filter((id) => typeof id === 'string').slice(0, 100) : [];
+      ? legacy.selectedDeviceIds.filter((id) => typeof id === 'string').slice(0, 100).map((id) => canonicalDeviceId(id, fixture)) : [];
     assessment.selectedEventIds = Array.isArray(legacy.selectedEventIds)
       ? legacy.selectedEventIds.filter((id) => typeof id === 'string').slice(0, 500) : [];
-    assessment.evidencePackage = validEvidencePackage(legacy.evidencePackage, fixture)
-      ? clone(legacy.evidencePackage) : null;
+    const legacyPackage = canonicalDeviceRefs(legacy.evidencePackage, fixture);
+    assessment.evidencePackage = validEvidencePackage(legacyPackage, fixture)
+      ? clone(legacyPackage) : null;
     assessment.approvalRequests = (Array.isArray(legacy.approvalRequests)
-      ? legacy.approvalRequests.filter((item) => validApprovalRequest(item, fixture)).map(clone)
+      ? legacy.approvalRequests.map((item) => canonicalDeviceRefs(item, fixture)).filter((item) => validApprovalRequest(item, fixture)).map(clone)
       : []).slice(-200);
     assessment.edrHandoffs = (Array.isArray(legacy.edrHandoffs)
-      ? legacy.edrHandoffs.filter((item) => validEdrHandoff(item, fixture)).map(clone)
+      ? legacy.edrHandoffs.map((item) => canonicalDeviceRefs(item, fixture)).filter((item) => validEdrHandoff(item, fixture)).map(clone)
       : []).slice(-50);
     assessment.reviewedRecords = (Array.isArray(legacy.reviewedRecords)
       ? legacy.reviewedRecords.filter((item) => item && typeof item === 'object' && !Array.isArray(item)).map(clone)
       : []).slice(-200);
     assessment.actionHistory = (Array.isArray(legacy.actionHistory)
-      ? legacy.actionHistory.filter((item) => validAuditRecord(item, fixture)).map(clone)
+      ? legacy.actionHistory.map((item) => canonicalDeviceRefs(item, fixture)).filter((item) => validAuditRecord(item, fixture)).map(clone)
       : []).slice(-200);
     assessment.actionHistory.forEach(deepFreeze);
     assessment.approvalRequests.forEach(deepFreeze);
@@ -177,5 +209,5 @@ const SocM05AssessmentState = (() => {
     return runtime().saveCaseState(labId, MODULE_KEY, user, normalize(fresh, fixture));
   }
 
-  return Object.freeze({ VERSION, MODULE_KEY, EMPTY_DEFAULTS: clone(EMPTY_DEFAULTS), normalize, validApprovalRequest, validEdrHandoff, load, save, reset });
+  return Object.freeze({ VERSION, MODULE_KEY, EMPTY_DEFAULTS: clone(EMPTY_DEFAULTS), normalize, canonicalDeviceId, canonicalDeviceRefs, validApprovalRequest, validEdrHandoff, load, save, reset });
 })();

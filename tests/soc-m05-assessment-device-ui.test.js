@@ -13,7 +13,7 @@ const fixture = vm.runInContext('SocM05AssessmentData.scenario', context);
 const realInventory = ui.render(fixture);
 for (const device of fixture.devices) assert.match(realInventory, new RegExp(`data-m05-device-select="${device.id}"`));
 assert.strictEqual((realInventory.match(/data-m05-device-select=/g) || []).length, 5);
-const assessedDevice = ui.render(fixture, 'M05-DEV-001');
+const assessedDevice = ui.render(fixture, 'ws-assess-27');
 assert.match(assessedDevice, /File and reputation evidence/);
 assert.match(assessedDevice, /syncsvc\.exe/);
 assert.match(assessedDevice, /Unsigned/);
@@ -23,8 +23,8 @@ assert.match(assessedDevice, /data-linked-process="4224"/);
 assert.match(assessedDevice, /data-linked-endpoint-event="M05-EVT-007"/);
 assert.match(assessedDevice, /CN=Acme Software LLC/);
 assert.doesNotMatch(assessedDevice, /data-linked-process="6110"|M05-EVT-011/);
-assert.match(ui.render(fixture, 'M05-DEV-002'), /Acme Software LLC/);
-assert.doesNotMatch(ui.render(fixture, 'M05-DEV-002'), /syncsvc\.exe|M05-EVT-007/);
+assert.match(ui.render(fixture, 'ws-assess-14'), /Acme Software LLC/);
+assert.doesNotMatch(ui.render(fixture, 'ws-assess-14'), /syncsvc\.exe|M05-EVT-007/);
 const scenario = {
   start: '2026-09-27T09:00:00Z', end: '2026-09-27T09:30:00Z',
   devices: [
@@ -80,7 +80,7 @@ assert.doesNotMatch(escaped, /<img|<script|onmouseover="1/);
 const processScenario = {
   ...scenario,
   telemetry: [
-    { id: 'root', deviceId: 'dev-a', eventType: 'process_start', processId: '1', parentProcessId: null, image: 'C:\\root.exe', commandLine: 'root --ok', user: 'SYSTEM' },
+    { id: 'root', deviceId: 'dev-a', eventType: 'process_start', processId: '1', parentProcessId: null, image: 'C:\\root.exe', commandLine: 'root --ok', user: 'system' },
     { id: 'child', deviceId: 'dev-a', eventType: 'process_start', processId: '2', parentProcessId: '1', image: 'C:\\child.exe', commandLine: 'child /quiet', user: 'alice' },
     { id: 'orphan', deviceId: 'dev-a', eventType: 'process_start', processId: '3', parentProcessId: 'missing', image: 'C:\\orphan.exe', commandLine: 'orphan', user: 'bob' },
     { id: 'cycle-a', deviceId: 'dev-a', eventType: 'process_start', processId: '4', parentProcessId: '5', image: 'cycle-a.exe', commandLine: 'cycle a', user: 'alice' },

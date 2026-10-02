@@ -50,8 +50,8 @@ vm.runInContext(`moduleFiveUser = testUser; moduleFiveState = {
 };`, context);
 const fixture = vm.runInContext('SocM05AssessmentData', context);
 const independent = vm.runInContext('SocM05AssessmentState', context).normalize({
-  selectedDeviceIds: ['M05-DEV-001'],
-  approvalRequests: [{ id: `${fixture.scenario.id}:ACTION-000001`, sequence: 1, type: 'endpoint_isolation_request', status: 'pending_approval', deviceId: 'M05-DEV-001', reason: 'Containment review', requestedBy: 'analyst-1' }],
+  selectedDeviceIds: ['ws-assess-27'],
+  approvalRequests: [{ id: `${fixture.scenario.id}:ACTION-000001`, sequence: 1, type: 'endpoint_isolation_request', status: 'pending_approval', deviceId: 'ws-assess-27', reason: 'Containment review', requestedBy: 'analyst-1' }],
 }, fixture);
 records.set(`${fixture.scenario.stateKey}:soc-05:${user.id}`, independent);
 vm.runInContext(`moduleFiveCaseSpec = () => ({ caseId: 'EDR-5119' });`, context);
@@ -74,7 +74,7 @@ assert.strictEqual((ticketPanel.match(/data-m05-submit-case/g) || []).length, 1,
 assert.strictEqual(vm.runInContext('moduleFiveExtraMissing().length', context), 0, 'optional labs never gate the ticket');
 const panel = vm.runInContext("m03eState('m05').tab = 'endpoint'; moduleFiveAssessmentLabPanel()", context);
 assert.match(panel, /data-m05-console-workspace="endpoint"/);
-assert.match(panel, /data-m05-device-select="M05-DEV-001"/);
+assert.match(panel, /data-m05-device-select="ws-assess-27"/);
 assert.match(panel, /data-m05-response-request/);
 assert.match(panel, /No isolation or quarantine is performed/);
 assert.match(panel, /pending_approval/);
@@ -93,7 +93,7 @@ const root = {
 };
 context.document.getElementById = () => root;
 vm.runInContext('wireModuleFiveAssessmentLab()', context);
-const selectedButton = { dataset: { m05DeviceSelect: 'M05-DEV-002' } };
+const selectedButton = { dataset: { m05DeviceSelect: 'ws-assess-14' } };
 const event = {
   target: { closest(selector) { return selector === '[data-m05-device-select]' ? selectedButton : null; } },
 };
@@ -105,16 +105,16 @@ checkboxes = [
   { kind: 'hash', value: 'a'.repeat(64), checked: true },
 ];
 const saved = records.get('m05-endpoint-assessment-v1:soc-05:integration-learner');
-assert.deepStrictEqual(saved.selectedDeviceIds, ['M05-DEV-002']);
+assert.deepStrictEqual(saved.selectedDeviceIds, ['ws-assess-14']);
 assert.strictEqual(saved.actionHistory.length, 1);
 assert.strictEqual(saved.actionHistory[0].type, 'device_review');
-assert.strictEqual(saved.actionHistory[0].details.deviceId, 'M05-DEV-002');
+assert.strictEqual(saved.actionHistory[0].details.deviceId, 'ws-assess-14');
 assert.match(root.innerHTML, /aria-pressed="true"/);
 assert.match(root.innerHTML, /device_review/);
 assert.match(root.innerHTML, /data-m05-action="M05-ASSESS-2026-09-27:ACTION-000002"/);
 assert.strictEqual(records.get(legacyKey).notes, 'keep legacy', 'interaction writes only independent assessment state');
 
-clickHandler({ target: { closest(selector) { return selector === '[data-m05-device-select]' ? { dataset: { m05DeviceSelect: 'M05-DEV-001' } } : null; } } });
+clickHandler({ target: { closest(selector) { return selector === '[data-m05-device-select]' ? { dataset: { m05DeviceSelect: 'ws-assess-27' } } : null; } } });
 checkboxes = [];
 assert.doesNotThrow(() => clickHandler({ target: { closest(selector) { return selector === '[data-m05-preserve-evidence]' ? { dataset: {} } : null; } } }), 'empty evidence selection is handled without an exception');
 assert.strictEqual(records.get('m05-endpoint-assessment-v1:soc-05:integration-learner').actionHistory.length, 2);
@@ -125,7 +125,7 @@ checkboxes = [
 ];
 clickHandler({ target: { closest(selector) { return selector === '[data-m05-preserve-evidence]' ? { dataset: {} } : null; } } });
 let packageSaved = records.get('m05-endpoint-assessment-v1:soc-05:integration-learner');
-assert.deepStrictEqual(packageSaved.evidencePackage, { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-003', 'M05-EVT-004'], hashes: ['a'.repeat(64)] });
+assert.deepStrictEqual(packageSaved.evidencePackage, { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-003', 'M05-EVT-004'], hashes: ['a'.repeat(64)] });
 assert.strictEqual(packageSaved.actionHistory.at(-1).type, 'evidence_package_preserved');
 assert.strictEqual(packageSaved.actionHistory.at(-1).sequence, 4);
 assert.match(root.innerHTML, /data-m05-preserved-package/);
@@ -150,7 +150,7 @@ const withRequest = records.get('m05-endpoint-assessment-v1:soc-05:integration-l
 assert.ok(prevented, 'request submit is handled without a browser/form side effect');
 assert.strictEqual(withRequest.approvalRequests.at(-1).type, 'endpoint_quarantine_request');
 assert.strictEqual(withRequest.approvalRequests.at(-1).status, 'pending_approval');
-assert.strictEqual(withRequest.approvalRequests.at(-1).deviceId, 'M05-DEV-001');
+assert.strictEqual(withRequest.approvalRequests.at(-1).deviceId, 'ws-assess-27');
 assert.match(root.innerHTML, /pending_approval/);
 assert.match(root.innerHTML, /No isolation or quarantine is performed/);
 assert.strictEqual(JSON.stringify(fixture.scenario.telemetry), telemetryBeforeRequest, 'request submit leaves observed fixture telemetry untouched');

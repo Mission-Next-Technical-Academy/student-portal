@@ -52,7 +52,9 @@ const SocM05AssessmentActions = (() => {
   function append(state, type, timestamp, details, fixture) {
     if (!fixture?.scenario?.id) throw new Error('M05 assessment fixture is required to create an action record.');
     if (!validTimestamp(timestamp)) throw new Error('M05 action timestamp must be a canonical UTC ISO timestamp.');
-    const safeDetails = validateDetails(type, details);
+    // Device references are stored in canonical form (lower-case hostname); a legacy
+    // inventory id or differently-cased hostname for a known device is accepted and mapped.
+    const safeDetails = SocM05AssessmentState.canonicalDeviceRefs(validateDetails(type, details), fixture);
     if (type === 'endpoint_isolation_request' || type === 'endpoint_quarantine_request') {
       if (safeDetails.status !== 'pending_approval' || !safeDetails.reason.trim() || !safeDetails.requestedBy.trim()
         || !fixture.scenario.devices.some((device) => device.id === safeDetails.deviceId)) {

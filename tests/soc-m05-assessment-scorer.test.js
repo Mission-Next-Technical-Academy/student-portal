@@ -14,15 +14,15 @@ const fixture = vm.runInContext('SocM05AssessmentData', context);
 const local = (value) => JSON.parse(JSON.stringify(value));
 const action = (type, details) => ({ type, details });
 const fullState = () => ({
-  selectedDeviceIds: ['M05-DEV-001'],
+  selectedDeviceIds: ['ws-assess-27'],
   actionHistory: [
-    action('device_review', { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003'] }),
+    action('device_review', { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003'] }),
     action('analysis_note', { text: 'Browser parent 4100 starts PowerShell 4172 which launches payload 4224. syncsvc.exe is malicious; AcmeUpdater is signed and benign.' }),
     action('analysis_note', { text: 'Run key persistence created under HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\SyncService. Detection only; execution was not prevented.' }),
-    action('evidence_package_preserved', { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-003', 'M05-EVT-005', 'M05-EVT-006'], hashes: ['a'.repeat(64)] }),
+    action('evidence_package_preserved', { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-003', 'M05-EVT-005', 'M05-EVT-006'], hashes: ['a'.repeat(64)] }),
   ],
-  evidencePackage: { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-003', 'M05-EVT-005', 'M05-EVT-006'], hashes: ['a'.repeat(64)] },
-  edrHandoffs: [{ id: 'handoff-1', deviceIds: ['M05-DEV-001'], eventIds: ['M05-EVT-005', 'M05-EVT-007'], hashes: ['a'.repeat(64)], recommendation: 'Isolate the affected host and preserve evidence.' }],
+  evidencePackage: { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-003', 'M05-EVT-005', 'M05-EVT-006'], hashes: ['a'.repeat(64)] },
+  edrHandoffs: [{ id: 'handoff-1', deviceIds: ['ws-assess-27'], eventIds: ['M05-EVT-005', 'M05-EVT-007'], hashes: ['a'.repeat(64)], recommendation: 'Isolate the affected host and preserve evidence.' }],
   approvalRequests: [],
 });
 
@@ -50,7 +50,7 @@ for (const id of ['persistence', 'prevention-detection', 'affected-device-scope'
 }
 
 const unsafe = fullState();
-unsafe.approvalRequests = [{ type: 'endpoint_isolation_request', deviceId: 'M05-DEV-002', status: 'approved', reason: 'Containment', requestedBy: 'analyst' }];
+unsafe.approvalRequests = [{ type: 'endpoint_isolation_request', deviceId: 'ws-assess-14', status: 'approved', reason: 'Containment', requestedBy: 'analyst' }];
 const capped = scorer.score(unsafe, fixture);
 assert.strictEqual(capped.rawScore, 90);
 assert.strictEqual(capped.score, scorer.SAFETY_CAP);
@@ -59,7 +59,7 @@ assert.strictEqual(capped.review.cap.applied, true);
 assert(capped.criticalMisses.length === 1);
 for (const status of ['approved', 'executed']) {
   const unsafeResponse = fullState();
-  unsafeResponse.approvalRequests = [{ type: 'endpoint_isolation_request', deviceId: 'M05-DEV-001', status, reason: 'Containment', requestedBy: 'analyst' }];
+  unsafeResponse.approvalRequests = [{ type: 'endpoint_isolation_request', deviceId: 'ws-assess-27', status, reason: 'Containment', requestedBy: 'analyst' }];
   const result = scorer.score(unsafeResponse, fixture);
   assert.strictEqual(result.score, scorer.SAFETY_CAP, `${status} response remains capped below passing`);
   assert.strictEqual(result.passed, false);
@@ -72,7 +72,7 @@ const alternatePath = {
   ...fullState(),
   evidencePackage: null,
   actionHistory: [...fullState().actionHistory.filter((item) => item.type !== 'evidence_package_preserved'),
-    action('evidence_package_preserved', { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-005'], hashes: ['a'.repeat(64)] })],
+    action('evidence_package_preserved', { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-005'], hashes: ['a'.repeat(64)] })],
 };
 assert.strictEqual(scorer.score(alternatePath, fixture).criteria.find((item) => item.id === 'evidence-preservation').points, 10,
   'typed preservation audit history is accepted as an alternate evidence path');
@@ -85,7 +85,7 @@ assert.strictEqual(scorer.CRITERIA.reduce((sum, item) => sum + item.weight, 0), 
 
 const criterion = (result, id) => result.criteria.find((item) => item.id === id);
 const ancestryPivot = scorer.score({
-  selectedDeviceIds: ['M05-DEV-001'],
+  selectedDeviceIds: ['ws-assess-27'],
   actionHistory: [
     action('event_review', { eventId: 'M05-EVT-001' }),
     action('event_review', { eventId: 'M05-EVT-002' }),
@@ -104,7 +104,7 @@ assert.strictEqual(criterion(ancestryPivot, 'malicious-benign-interpretation').p
 assert(criterion(ancestryPivot, 'malicious-benign-interpretation').feedback);
 
 const correctedAnalysis = scorer.score({
-  selectedDeviceIds: ['M05-DEV-001'],
+  selectedDeviceIds: ['ws-assess-27'],
   actionHistory: [
     action('analysis_note', { text: 'AcmeUpdater is malicious; quarantine AcmeUpdater.' }),
     action('event_review', { eventId: 'M05-EVT-003' }),
@@ -121,7 +121,7 @@ assert.deepStrictEqual(local(criterion(correctedAnalysis, 'malicious-benign-inte
 assert(criterion(correctedAnalysis, 'malicious-benign-interpretation').supportingEvidence.length);
 
 const independentPartial = scorer.score({
-  selectedDeviceIds: ['M05-DEV-001'],
+  selectedDeviceIds: ['ws-assess-27'],
   actionHistory: [action('event_review', { eventId: 'M05-EVT-001' })],
 }, fixture);
 assert.strictEqual(criterion(independentPartial, 'process-ancestry').points, 7,
@@ -132,7 +132,7 @@ assert(criterion(independentPartial, 'process-ancestry').misses.length,
 assert(criterion(independentPartial, 'process-ancestry').feedback.includes('partial evidence'));
 
 const missedOutcomes = scorer.score({
-  selectedDeviceIds: ['M05-DEV-001'],
+  selectedDeviceIds: ['ws-assess-27'],
   actionHistory: [action('event_review', { eventId: 'M05-EVT-001' })],
 }, fixture);
 for (const [id, feedbackText] of [
@@ -143,5 +143,16 @@ for (const [id, feedbackText] of [
   assert.strictEqual(outcome.points, 0, `${id} is not inferred when its outcome was missed`);
   assert(outcome.misses.some((miss) => miss.includes(feedbackText)), `${id} explains the missing outcome`);
   assert(outcome.feedback.includes('required evidence is missing'));
+}
+// Entity identity migration: the same learner picks recorded with the legacy inventory ids
+// (M05-DEV-001 / M05-DEV-002) or upper-case hostnames score exactly the same as the canonical
+// lower-case hostnames (ws-assess-27 / ws-assess-14).
+const toLegacy = (state, map) => JSON.parse(Object.entries(map).reduce((text, [from, to]) => text.split(`"${from}"`).join(`"${to}"`), JSON.stringify(state)));
+const outOfScope = { ...fullState(), approvalRequests: [{ type: 'endpoint_isolation_request', deviceId: 'ws-assess-14', status: 'pending_approval', reason: 'Containment', requestedBy: 'analyst' }] };
+for (const state of [fullState(), partialState, outOfScope, { ...fullState(), edrHandoffs: [] }]) {
+  const canonical = local(scorer.score(state, fixture));
+  for (const map of [{ 'ws-assess-27': 'M05-DEV-001', 'ws-assess-14': 'M05-DEV-002' }, { 'ws-assess-27': 'WS-ASSESS-27', 'ws-assess-14': 'WS-ASSESS-14' }]) {
+    assert.deepStrictEqual(local(scorer.score(toLegacy(state, map), fixture)), canonical, 'legacy device identifiers score identically');
+  }
 }
 console.log('M05 assessment scorer tests passed.');

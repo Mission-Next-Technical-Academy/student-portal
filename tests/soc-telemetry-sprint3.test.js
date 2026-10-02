@@ -75,7 +75,7 @@ function structure(label, s, devKey, procKey) {
   assert.ok(beats[0].time <= '2026-09-27T09:01:00Z' && beats[beats.length - 1].time >= '2026-09-27T09:29:00Z');
   // Answer-bearing evidence unchanged.
   assert.strictEqual(T.maliciousFile.sha256, 'a'.repeat(64));
-  assert.ok(m05.telemetry.filter((e) => e.sha256 === 'a'.repeat(64)).every((e) => e.deviceId === 'M05-DEV-001'), 'malicious hash only on the affected device');
+  assert.ok(m05.telemetry.filter((e) => e.sha256 === 'a'.repeat(64)).every((e) => e.deviceId === 'ws-assess-27' && e.assetId === 'M05-DEV-001'), 'malicious hash only on the affected device');
   // Decoys carry discriminating facts: signer, prevalence, approved-software/deployment parent.
   const fab = m05.telemetry.find((e) => e.id === 'M05-EVT-041');
   assert.ok(fab.reputation === 'benign' && fab.prevalence > 1000 && /^CN=/.test(fab.signer));

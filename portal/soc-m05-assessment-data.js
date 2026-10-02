@@ -11,9 +11,18 @@ const SocM05AssessmentData = (() => {
 
   // Background-row helpers (Sprint 3). Hashes are synthetic repeating hex seeds.
   const sha = (seed) => seed.repeat(Math.ceil(64 / seed.length)).slice(0, 64);
-  const HOSTS = { 'M05-DEV-001': 'WS-ASSESS-27', 'M05-DEV-002': 'WS-ASSESS-14', 'M05-DEV-003': 'SRV-ASSESS-02', 'M05-DEV-004': 'WS-ASSESS-31', 'M05-DEV-005': 'WS-ASSESS-40' };
-  const row = (n, time, eventType, deviceId, user, o) => ({
-    id: `M05-EVT-${String(n).padStart(3, '0')}`, time: `2026-09-27T${time}Z`, eventType, deviceId, host: HOSTS[deviceId], user,
+  // Entity identity contract: Host = DeviceId = lower-case hostname; the inventory id is
+  // kept in AssetId. Account is the normalized principal; the sensor's native form stays
+  // in accountDomain/accountNative (CORP\p.shah -> p.shah, SYSTEM -> system).
+  const HOSTS = { 'M05-DEV-001': 'ws-assess-27', 'M05-DEV-002': 'ws-assess-14', 'M05-DEV-003': 'srv-assess-02', 'M05-DEV-004': 'ws-assess-31', 'M05-DEV-005': 'ws-assess-40' };
+  const principal = (native) => {
+    const qualified = native.match(/^([^\\]+)\\(.+)$/);
+    return qualified
+      ? { user: qualified[2].toLowerCase(), accountDomain: qualified[1], accountNative: native }
+      : { user: native.toLowerCase(), accountNative: native };
+  };
+  const row = (n, time, eventType, assetId, nativeUser, o) => ({
+    id: `M05-EVT-${String(n).padStart(3, '0')}`, time: `2026-09-27T${time}Z`, eventType, deviceId: HOSTS[assetId], host: HOSTS[assetId], assetId, ...principal(nativeUser),
     processId: null, parentProcessId: null, image: null, commandLine: null, filePath: null, sha256: null, registryPath: null,
     action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null, ...o,
   });
@@ -49,11 +58,11 @@ const SocM05AssessmentData = (() => {
     end: '2026-09-27T09:30:00Z',
     generatedAt: '2026-09-27T09:31:00Z',
     devices: [
-      { id: 'M05-DEV-001', hostname: 'WS-ASSESS-27', platform: 'Windows 11', role: 'User workstation', owner: 'j.alvarez', zone: 'CORP-USER', status: 'Online' },
-      { id: 'M05-DEV-002', hostname: 'WS-ASSESS-14', platform: 'Windows 11', role: 'User workstation', owner: 'm.reyes', zone: 'CORP-USER', status: 'Online' },
-      { id: 'M05-DEV-003', hostname: 'SRV-ASSESS-02', platform: 'Windows Server 2022', role: 'File server', owner: 'IT Operations', zone: 'CORP-SERVER', status: 'Online' },
-      { id: 'M05-DEV-004', hostname: 'WS-ASSESS-31', platform: 'Windows 11', role: 'User workstation', owner: 'd.okafor', zone: 'CORP-USER', status: 'Online' },
-      { id: 'M05-DEV-005', hostname: 'WS-ASSESS-40', platform: 'Windows 11', role: 'User workstation', owner: 'l.chen', zone: 'CORP-USER', status: 'Online' },
+      { id: 'ws-assess-27', assetId: 'M05-DEV-001', hostname: 'ws-assess-27', platform: 'Windows 11', role: 'User workstation', owner: 'j.alvarez', zone: 'CORP-USER', status: 'Online' },
+      { id: 'ws-assess-14', assetId: 'M05-DEV-002', hostname: 'ws-assess-14', platform: 'Windows 11', role: 'User workstation', owner: 'm.reyes', zone: 'CORP-USER', status: 'Online' },
+      { id: 'srv-assess-02', assetId: 'M05-DEV-003', hostname: 'srv-assess-02', platform: 'Windows Server 2022', role: 'File server', owner: 'IT Operations', zone: 'CORP-SERVER', status: 'Online' },
+      { id: 'ws-assess-31', assetId: 'M05-DEV-004', hostname: 'ws-assess-31', platform: 'Windows 11', role: 'User workstation', owner: 'd.okafor', zone: 'CORP-USER', status: 'Online' },
+      { id: 'ws-assess-40', assetId: 'M05-DEV-005', hostname: 'ws-assess-40', platform: 'Windows 11', role: 'User workstation', owner: 'l.chen', zone: 'CORP-USER', status: 'Online' },
     ],
     telemetrySchema: {
       description: 'Endpoint observations use this fixed record shape. Optional file metadata is attached to file_hash observations.',
@@ -62,9 +71,9 @@ const SocM05AssessmentData = (() => {
         id: 'string: unique scenario-local event identifier',
         time: 'string: ISO-8601 UTC timestamp within the scenario window',
         eventType: 'enum: process_start | file_create | file_hash | persistence_change | sensor_control | network_connection | scheduled_task | sensor_health',
-        deviceId: 'string: inventory device identifier',
-        host: 'string: inventory hostname',
-        user: 'string: endpoint security principal',
+        deviceId: 'string: device pivot key, equal to host (lower-case hostname)',
+        host: 'string: inventory hostname (lower-case)',
+        user: 'string: normalized endpoint security principal (lower-case, domain stripped)',
         processId: 'string|null: process identifier when applicable',
         parentProcessId: 'string|null: parent process identifier when applicable',
         image: 'string|null: executable image path',
@@ -81,24 +90,27 @@ const SocM05AssessmentData = (() => {
         destination: 'optional string: network_connection destination host or IP (with destinationPort, protocol)',
         taskName: 'optional string: scheduled_task name (with taskPath)',
         coverageStatus: 'optional enum: Full | Partial | Gap, on sensor_health records',
+        assetId: 'optional string: inventory asset identifier (M05-DEV-00N) for the device',
+        accountDomain: 'optional string: domain the sensor reported for user (e.g. CORP)',
+        accountNative: 'optional string: principal exactly as the sensor reported it (e.g. CORP\\j.alvarez, SYSTEM)',
       },
     },
     telemetry: [
-      { id: 'M05-EVT-001', time: '2026-09-27T09:04:12Z', eventType: 'process_start', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'CORP\\j.alvarez', processId: '4100', parentProcessId: null, image: 'C:\\Program Files\\Browser\\browser.exe', commandLine: 'browser.exe https://portal.example.test/verify/captcha', filePath: null, sha256: null, registryPath: null, action: 'fake_captcha_prompt_displayed', result: 'success', source: 'SyntheticEndpoint', url: 'https://portal.example.test/verify/captcha', pageText: 'Verification failed. Complete the CAPTCHA: press Win+R, paste the verification command, and press Enter.' },
-      { id: 'M05-EVT-002', time: '2026-09-27T09:05:03Z', eventType: 'process_start', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'CORP\\j.alvarez', processId: '4172', parentProcessId: '4100', image: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', commandLine: 'powershell.exe -NoProfile -WindowStyle Hidden -EncodedCommand <synthetic-payload>', filePath: null, sha256: null, registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
-      { id: 'M05-EVT-003', time: '2026-09-27T09:05:18Z', eventType: 'process_start', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'CORP\\j.alvarez', processId: '4224', parentProcessId: '4172', image: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', commandLine: 'syncsvc.exe --install --quiet', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
-      { id: 'M05-EVT-004', time: '2026-09-27T09:05:19Z', eventType: 'file_create', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'CORP\\j.alvarez', processId: '4224', parentProcessId: '4172', image: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', commandLine: null, filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), registryPath: null, action: 'file_create', result: 'created', source: 'SyntheticEndpoint', url: null },
-      { id: 'M05-EVT-005', time: '2026-09-27T09:05:20Z', eventType: 'file_hash', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'CORP\\j.alvarez', processId: '4224', parentProcessId: '4172', image: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', commandLine: null, filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), registryPath: null, action: 'file_reputation_lookup', result: 'malicious', source: 'SyntheticThreatIntel', url: null, signer: 'Unsigned', prevalence: 1, reputation: 'malicious' },
-      { id: 'M05-EVT-006', time: '2026-09-27T09:05:31Z', eventType: 'persistence_change', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'CORP\\j.alvarez', processId: '4224', parentProcessId: '4172', image: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', commandLine: null, filePath: null, sha256: 'a'.repeat(64), registryPath: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\SyncService', action: 'registry_value_set', result: 'created', source: 'SyntheticEndpoint', url: null },
-      { id: 'M05-EVT-007', time: '2026-09-27T09:05:33Z', eventType: 'sensor_control', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'SYSTEM', processId: '4224', parentProcessId: null, image: 'C:\\Program Files\\EndpointAgent\\sensor.exe', commandLine: null, filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), registryPath: null, action: 'execution_control', result: 'detected_not_prevented', source: 'SyntheticEndpoint', url: null },
-      { id: 'M05-EVT-012', time: '2026-09-27T09:11:59Z', eventType: 'process_start', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'SYSTEM', processId: '3020', parentProcessId: null, image: 'C:\\Windows\\System32\\services.exe', commandLine: 'services.exe', filePath: null, sha256: null, registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
-      { id: 'M05-EVT-008', time: '2026-09-27T09:12:04Z', eventType: 'process_start', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'CORP\\j.alvarez', processId: '5090', parentProcessId: '3020', image: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', commandLine: 'AcmeUpdate.exe /silent', filePath: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', sha256: 'b'.repeat(64), registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
-      { id: 'M05-EVT-009', time: '2026-09-27T09:12:05Z', eventType: 'file_hash', deviceId: 'M05-DEV-001', host: 'WS-ASSESS-27', user: 'CORP\\j.alvarez', processId: '5090', parentProcessId: '3020', image: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', commandLine: null, filePath: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', sha256: 'b'.repeat(64), registryPath: null, action: 'file_reputation_lookup', result: 'benign', source: 'SyntheticThreatIntel', url: null, signer: 'CN=Acme Software LLC', prevalence: 1842, reputation: 'benign' },
-      { id: 'M05-EVT-013', time: '2026-09-27T09:13:37Z', eventType: 'process_start', deviceId: 'M05-DEV-002', host: 'WS-ASSESS-14', user: 'SYSTEM', processId: '2380', parentProcessId: null, image: 'C:\\Windows\\System32\\services.exe', commandLine: 'services.exe', filePath: null, sha256: null, registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
-      { id: 'M05-EVT-010', time: '2026-09-27T09:13:42Z', eventType: 'process_start', deviceId: 'M05-DEV-002', host: 'WS-ASSESS-14', user: 'CORP\\m.reyes', processId: '6110', parentProcessId: '2380', image: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', commandLine: 'AcmeUpdate.exe /check', filePath: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', sha256: 'b'.repeat(64), registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
-      { id: 'M05-EVT-011', time: '2026-09-27T09:13:43Z', eventType: 'file_hash', deviceId: 'M05-DEV-002', host: 'WS-ASSESS-14', user: 'CORP\\m.reyes', processId: '6110', parentProcessId: '2380', image: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', commandLine: null, filePath: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', sha256: 'b'.repeat(64), registryPath: null, action: 'file_reputation_lookup', result: 'benign', source: 'SyntheticThreatIntel', url: null, signer: 'CN=Acme Software LLC', prevalence: 1842, reputation: 'benign' },
+      { id: 'M05-EVT-001', time: '2026-09-27T09:04:12Z', eventType: 'process_start', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'j.alvarez', accountDomain: 'CORP', accountNative: 'CORP\\j.alvarez', processId: '4100', parentProcessId: null, image: 'C:\\Program Files\\Browser\\browser.exe', commandLine: 'browser.exe https://portal.example.test/verify/captcha', filePath: null, sha256: null, registryPath: null, action: 'fake_captcha_prompt_displayed', result: 'success', source: 'SyntheticEndpoint', url: 'https://portal.example.test/verify/captcha', pageText: 'Verification failed. Complete the CAPTCHA: press Win+R, paste the verification command, and press Enter.' },
+      { id: 'M05-EVT-002', time: '2026-09-27T09:05:03Z', eventType: 'process_start', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'j.alvarez', accountDomain: 'CORP', accountNative: 'CORP\\j.alvarez', processId: '4172', parentProcessId: '4100', image: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', commandLine: 'powershell.exe -NoProfile -WindowStyle Hidden -EncodedCommand <synthetic-payload>', filePath: null, sha256: null, registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
+      { id: 'M05-EVT-003', time: '2026-09-27T09:05:18Z', eventType: 'process_start', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'j.alvarez', accountDomain: 'CORP', accountNative: 'CORP\\j.alvarez', processId: '4224', parentProcessId: '4172', image: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', commandLine: 'syncsvc.exe --install --quiet', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
+      { id: 'M05-EVT-004', time: '2026-09-27T09:05:19Z', eventType: 'file_create', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'j.alvarez', accountDomain: 'CORP', accountNative: 'CORP\\j.alvarez', processId: '4224', parentProcessId: '4172', image: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', commandLine: null, filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), registryPath: null, action: 'file_create', result: 'created', source: 'SyntheticEndpoint', url: null },
+      { id: 'M05-EVT-005', time: '2026-09-27T09:05:20Z', eventType: 'file_hash', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'j.alvarez', accountDomain: 'CORP', accountNative: 'CORP\\j.alvarez', processId: '4224', parentProcessId: '4172', image: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', commandLine: null, filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), registryPath: null, action: 'file_reputation_lookup', result: 'malicious', source: 'SyntheticThreatIntel', url: null, signer: 'Unsigned', prevalence: 1, reputation: 'malicious' },
+      { id: 'M05-EVT-006', time: '2026-09-27T09:05:31Z', eventType: 'persistence_change', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'j.alvarez', accountDomain: 'CORP', accountNative: 'CORP\\j.alvarez', processId: '4224', parentProcessId: '4172', image: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', commandLine: null, filePath: null, sha256: 'a'.repeat(64), registryPath: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\SyncService', action: 'registry_value_set', result: 'created', source: 'SyntheticEndpoint', url: null },
+      { id: 'M05-EVT-007', time: '2026-09-27T09:05:33Z', eventType: 'sensor_control', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'system', accountNative: 'SYSTEM', processId: '4224', parentProcessId: null, image: 'C:\\Program Files\\EndpointAgent\\sensor.exe', commandLine: null, filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), registryPath: null, action: 'execution_control', result: 'detected_not_prevented', source: 'SyntheticEndpoint', url: null },
+      { id: 'M05-EVT-012', time: '2026-09-27T09:11:59Z', eventType: 'process_start', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'system', accountNative: 'SYSTEM', processId: '3020', parentProcessId: null, image: 'C:\\Windows\\System32\\services.exe', commandLine: 'services.exe', filePath: null, sha256: null, registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
+      { id: 'M05-EVT-008', time: '2026-09-27T09:12:04Z', eventType: 'process_start', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'j.alvarez', accountDomain: 'CORP', accountNative: 'CORP\\j.alvarez', processId: '5090', parentProcessId: '3020', image: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', commandLine: 'AcmeUpdate.exe /silent', filePath: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', sha256: 'b'.repeat(64), registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
+      { id: 'M05-EVT-009', time: '2026-09-27T09:12:05Z', eventType: 'file_hash', deviceId: 'ws-assess-27', host: 'ws-assess-27', assetId: 'M05-DEV-001', user: 'j.alvarez', accountDomain: 'CORP', accountNative: 'CORP\\j.alvarez', processId: '5090', parentProcessId: '3020', image: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', commandLine: null, filePath: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', sha256: 'b'.repeat(64), registryPath: null, action: 'file_reputation_lookup', result: 'benign', source: 'SyntheticThreatIntel', url: null, signer: 'CN=Acme Software LLC', prevalence: 1842, reputation: 'benign' },
+      { id: 'M05-EVT-013', time: '2026-09-27T09:13:37Z', eventType: 'process_start', deviceId: 'ws-assess-14', host: 'ws-assess-14', assetId: 'M05-DEV-002', user: 'system', accountNative: 'SYSTEM', processId: '2380', parentProcessId: null, image: 'C:\\Windows\\System32\\services.exe', commandLine: 'services.exe', filePath: null, sha256: null, registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
+      { id: 'M05-EVT-010', time: '2026-09-27T09:13:42Z', eventType: 'process_start', deviceId: 'ws-assess-14', host: 'ws-assess-14', assetId: 'M05-DEV-002', user: 'm.reyes', accountDomain: 'CORP', accountNative: 'CORP\\m.reyes', processId: '6110', parentProcessId: '2380', image: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', commandLine: 'AcmeUpdate.exe /check', filePath: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', sha256: 'b'.repeat(64), registryPath: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', url: null },
+      { id: 'M05-EVT-011', time: '2026-09-27T09:13:43Z', eventType: 'file_hash', deviceId: 'ws-assess-14', host: 'ws-assess-14', assetId: 'M05-DEV-002', user: 'm.reyes', accountDomain: 'CORP', accountNative: 'CORP\\m.reyes', processId: '6110', parentProcessId: '2380', image: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', commandLine: null, filePath: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', sha256: 'b'.repeat(64), registryPath: null, action: 'file_reputation_lookup', result: 'benign', source: 'SyntheticThreatIntel', url: null, signer: 'CN=Acme Software LLC', prevalence: 1842, reputation: 'benign' },
       /* Sprint 3 background, alternate-explanation and coverage rows. Purposes are listed in fixtureNotes. */
-      // WS-ASSESS-27 (affected device): ordinary collaboration, browser, update and sensor activity.
+      // ws-assess-27 (affected device): ordinary collaboration, browser, update and sensor activity.
       row(14, '09:01:14', 'process_start', 'M05-DEV-001', 'CORP\\j.alvarez', { processId: '2216', image: TEAMS, commandLine: 'ms-teams.exe --system-initiated', filePath: TEAMS, sha256: sha('5e1f3c'), signer: MS }),
       lookup(15, '09:01:15', 'M05-DEV-001', 'CORP\\j.alvarez', '2216', null, TEAMS, sha('5e1f3c'), MS, 48210),
       conn(16, '09:01:22', 'M05-DEV-001', 'CORP\\j.alvarez', '2216', null, TEAMS, 'teams.microsoft.com', 'timed_out'),
@@ -111,13 +123,13 @@ const SocM05AssessmentData = (() => {
       conn(23, '09:12:06', 'M05-DEV-001', 'CORP\\j.alvarez', '5090', '3020', ACME, ACME_DEST),
       heartbeat(24, '09:00:05', 'M05-DEV-001'),
       heartbeat(25, '09:29:50', 'M05-DEV-001'),
-      // WS-ASSESS-14: office work plus a repeat of the signed updater check (retry/duplicate).
+      // ws-assess-14: office work plus a repeat of the signed updater check (retry/duplicate).
       row(26, '09:09:50', 'process_start', 'M05-DEV-002', 'CORP\\m.reyes', { processId: '3320', image: EXCEL, commandLine: 'EXCEL.EXE "C:\\Users\\m.reyes\\Documents\\FY26-budget.xlsx"', filePath: EXCEL, sha256: sha('61c4f0'), signer: MS }),
       conn(27, '09:13:44', 'M05-DEV-002', 'CORP\\m.reyes', '6110', '2380', ACME, ACME_DEST),
       row(28, '09:18:42', 'process_start', 'M05-DEV-002', 'CORP\\m.reyes', { processId: '6480', parentProcessId: '2380', image: ACME, commandLine: 'AcmeUpdate.exe /check', filePath: ACME, sha256: 'b'.repeat(64) }),
       conn(29, '09:18:44', 'M05-DEV-002', 'CORP\\m.reyes', '6480', '2380', ACME, ACME_DEST),
       heartbeat(30, '09:00:08', 'M05-DEV-002'),
-      // SRV-ASSESS-02: scheduled backup PowerShell (policy-bypass look-alike with signed script, service account, task record).
+      // srv-assess-02: scheduled backup PowerShell (policy-bypass look-alike with signed script, service account, task record).
       row(31, '09:00:30', 'process_start', 'M05-DEV-003', 'SYSTEM', { processId: '880', image: SVCHOST, commandLine: 'svchost.exe -k netsvcs -p -s Schedule', filePath: SVCHOST }),
       row(32, '09:02:00', 'scheduled_task', 'M05-DEV-003', 'CORP\\svc-backup', { processId: '880', action: 'task_execution', result: 'started', source: 'SyntheticTaskScheduler', taskName: 'HourlyShareSnapshot', taskPath: '\\IT\\HourlyShareSnapshot' }),
       row(33, '09:02:03', 'process_start', 'M05-DEV-003', 'CORP\\svc-backup', { processId: '1544', parentProcessId: '880', image: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', commandLine: 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File D:\\Ops\\Scripts\\Snapshot-Shares.ps1', filePath: SNAP_PS1, sha256: sha('3a96c8'), signer: 'CN=Contoso IT Operations' }),
@@ -125,7 +137,7 @@ const SocM05AssessmentData = (() => {
       row(35, '09:02:30', 'file_create', 'M05-DEV-003', 'CORP\\svc-backup', { processId: '1544', parentProcessId: '880', image: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', filePath: 'D:\\Snapshots\\Shares\\2026-09-27_0902.vhdx', sha256: sha('84e5b2'), action: 'file_create', result: 'created' }),
       { ...conn(36, '09:02:31', 'M05-DEV-003', 'CORP\\svc-backup', '1544', '880', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', 'backup-nas.corp.example'), destinationPort: 445 },
       heartbeat(37, '09:00:07', 'M05-DEV-003'),
-      // WS-ASSESS-31: managed software install that writes a Run key (persistence look-alike with approved signer and deployment chain).
+      // ws-assess-31: managed software install that writes a Run key (persistence look-alike with approved signer and deployment chain).
       row(38, '09:06:50', 'process_start', 'M05-DEV-004', 'SYSTEM', { processId: '2104', image: 'C:\\Windows\\CCM\\CcmExec.exe', commandLine: 'CcmExec.exe', filePath: 'C:\\Windows\\CCM\\CcmExec.exe', sha256: sha('0f6b29'), signer: MS }),
       row(39, '09:07:10', 'process_start', 'M05-DEV-004', 'SYSTEM', { processId: '5210', parentProcessId: '2104', image: 'C:\\Windows\\System32\\msiexec.exe', commandLine: 'msiexec.exe /i C:\\Windows\\ccmcache\\4\\FabrikamSync-6.2.msi /qn', filePath: 'C:\\Windows\\System32\\msiexec.exe' }),
       row(40, '09:07:24', 'file_create', 'M05-DEV-004', 'SYSTEM', { processId: '5210', parentProcessId: '2104', image: 'C:\\Windows\\System32\\msiexec.exe', filePath: FAB, sha256: sha('d13f7a'), action: 'file_create', result: 'created' }),
@@ -136,7 +148,7 @@ const SocM05AssessmentData = (() => {
       row(45, '09:20:15', 'process_start', 'M05-DEV-004', 'CORP\\d.okafor', { processId: '5902', image: CHROME, commandLine: 'chrome.exe --profile-directory=Default', filePath: CHROME, sha256: sha('72ac4e'), signer: 'CN=Google LLC' }),
       conn(46, '09:20:19', 'M05-DEV-004', 'CORP\\d.okafor', '5902', null, CHROME, 'intranet.corp.example'),
       heartbeat(47, '09:00:06', 'M05-DEV-004'),
-      // WS-ASSESS-40: planned sensor upgrade creates a bounded telemetry gap (coverage record).
+      // ws-assess-40: planned sensor upgrade creates a bounded telemetry gap (coverage record).
       heartbeat(48, '09:00:09', 'M05-DEV-005'),
       row(49, '09:03:12', 'process_start', 'M05-DEV-005', 'CORP\\l.chen', { processId: '2750', image: WINWORD, commandLine: 'WINWORD.EXE /n', filePath: WINWORD, sha256: sha('4b0d93'), signer: MS }),
       heartbeat(50, '09:06:55', 'M05-DEV-005', { action: 'sensor_service_stopped', result: 'stopped_for_agent_upgrade', coverageStatus: 'Gap', commandLine: 'Agent upgrade 7.4.1 to 7.5.0, change CHG-5120' }),
@@ -157,8 +169,8 @@ const SocM05AssessmentData = (() => {
       },
     },
     expectedTruth: {
-      confirmedDevice: { value: 'M05-DEV-001', eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003'] },
-      confirmedUser: { value: 'CORP\\j.alvarez', eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003', 'M05-EVT-006'] },
+      confirmedDevice: { value: 'ws-assess-27', assetId: 'M05-DEV-001', eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003'] },
+      confirmedUser: { value: 'j.alvarez', accountDomain: 'CORP', accountNative: 'CORP\\j.alvarez', eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003', 'M05-EVT-006'] },
       processAncestry: { chain: ['4100', '4172', '4224'], eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003'] },
       maliciousFile: { path: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), signer: 'Unsigned', prevalence: 1, reputation: 'malicious', eventIds: ['M05-EVT-003', 'M05-EVT-004', 'M05-EVT-005'] },
       persistence: { registryPath: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\SyncService', outcome: 'created', eventIds: ['M05-EVT-006'] },
@@ -167,21 +179,21 @@ const SocM05AssessmentData = (() => {
         { type: 'signed_updater', eventIds: ['M05-EVT-008', 'M05-EVT-009'] },
         { type: 'same_updater_other_device', eventIds: ['M05-EVT-010', 'M05-EVT-011'] },
       ],
-      scope: { deviceIds: ['M05-DEV-001'], eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003', 'M05-EVT-004', 'M05-EVT-005', 'M05-EVT-006', 'M05-EVT-007'] },
+      scope: { deviceIds: ['ws-assess-27'], eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003', 'M05-EVT-004', 'M05-EVT-005', 'M05-EVT-006', 'M05-EVT-007'] },
       // Sprint 3 additions below are not read by the scorer; they document background and boundary evidence.
       benignBackground: [
-        { type: 'routine_collaboration_browser_and_edge_update', deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-014', 'M05-EVT-015', 'M05-EVT-016', 'M05-EVT-017', 'M05-EVT-018', 'M05-EVT-019', 'M05-EVT-020', 'M05-EVT-021', 'M05-EVT-022', 'M05-EVT-023'] },
-        { type: 'office_work_and_repeat_signed_updater_check', deviceId: 'M05-DEV-002', eventIds: ['M05-EVT-026', 'M05-EVT-027', 'M05-EVT-028', 'M05-EVT-029'] },
-        { type: 'scheduled_signed_backup_script_with_policy_bypass_flag', deviceId: 'M05-DEV-003', eventIds: ['M05-EVT-031', 'M05-EVT-032', 'M05-EVT-033', 'M05-EVT-034', 'M05-EVT-035', 'M05-EVT-036'] },
-        { type: 'managed_install_with_run_key_and_user_activity', deviceId: 'M05-DEV-004', eventIds: ['M05-EVT-038', 'M05-EVT-039', 'M05-EVT-040', 'M05-EVT-041', 'M05-EVT-042', 'M05-EVT-043', 'M05-EVT-044', 'M05-EVT-045', 'M05-EVT-046'] },
-        { type: 'ordinary_office_activity_around_sensor_upgrade', deviceId: 'M05-DEV-005', eventIds: ['M05-EVT-049', 'M05-EVT-052'] },
+        { type: 'routine_collaboration_browser_and_edge_update', deviceId: 'ws-assess-27', eventIds: ['M05-EVT-014', 'M05-EVT-015', 'M05-EVT-016', 'M05-EVT-017', 'M05-EVT-018', 'M05-EVT-019', 'M05-EVT-020', 'M05-EVT-021', 'M05-EVT-022', 'M05-EVT-023'] },
+        { type: 'office_work_and_repeat_signed_updater_check', deviceId: 'ws-assess-14', eventIds: ['M05-EVT-026', 'M05-EVT-027', 'M05-EVT-028', 'M05-EVT-029'] },
+        { type: 'scheduled_signed_backup_script_with_policy_bypass_flag', deviceId: 'srv-assess-02', eventIds: ['M05-EVT-031', 'M05-EVT-032', 'M05-EVT-033', 'M05-EVT-034', 'M05-EVT-035', 'M05-EVT-036'] },
+        { type: 'managed_install_with_run_key_and_user_activity', deviceId: 'ws-assess-31', eventIds: ['M05-EVT-038', 'M05-EVT-039', 'M05-EVT-040', 'M05-EVT-041', 'M05-EVT-042', 'M05-EVT-043', 'M05-EVT-044', 'M05-EVT-045', 'M05-EVT-046'] },
+        { type: 'ordinary_office_activity_around_sensor_upgrade', deviceId: 'ws-assess-40', eventIds: ['M05-EVT-049', 'M05-EVT-052'] },
       ],
       coverageGaps: [
-        { deviceId: 'M05-DEV-005', windowStart: '2026-09-27T09:06:55Z', windowEnd: '2026-09-27T09:19:20Z', eventIds: ['M05-EVT-050', 'M05-EVT-051'], note: 'Planned sensor upgrade: no endpoint telemetry exists for this device in the interval, so absence of records is not evidence of absence of activity.' },
+        { deviceId: 'ws-assess-40', windowStart: '2026-09-27T09:06:55Z', windowEnd: '2026-09-27T09:19:20Z', eventIds: ['M05-EVT-050', 'M05-EVT-051'], note: 'Planned sensor upgrade: no endpoint telemetry exists for this device in the interval, so absence of records is not evidence of absence of activity.' },
       ],
       negativeEvidence: {
-        statement: 'No outbound network connection by syncsvc.exe is recorded on WS-ASSESS-27 between 09:00:00Z and 09:30:00Z. Sensor heartbeats at 09:00:05Z and 09:29:50Z record Full coverage, so the statement is bounded to this device, source (DeviceNetworkEvents) and window; it does not rule out activity on devices or periods without coverage.',
-        deviceId: 'M05-DEV-001', table: 'DeviceNetworkEvents', match: 'syncsvc.exe', result: 'no_match',
+        statement: 'No outbound network connection by syncsvc.exe is recorded on ws-assess-27 between 09:00:00Z and 09:30:00Z. Sensor heartbeats at 09:00:05Z and 09:29:50Z record Full coverage, so the statement is bounded to this device, source (DeviceNetworkEvents) and window; it does not rule out activity on devices or periods without coverage.',
+        deviceId: 'ws-assess-27', table: 'DeviceNetworkEvents', match: 'syncsvc.exe', result: 'no_match',
         coverageEventIds: ['M05-EVT-024', 'M05-EVT-025'],
       },
     },

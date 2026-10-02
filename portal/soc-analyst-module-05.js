@@ -377,8 +377,8 @@ const MODULE_FIVE_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
 const MODULE_FIVE_ENTITY_ROSTER = {
   users: [
-    { id: 'CORP\\j.alvarez', text: 'CORP\\j.alvarez (affected user)', tier: 'principal' },
-    { id: 'CORP\\m.reyes', text: 'CORP\\m.reyes (benign updater activity)', tier: 'pivot' },
+    { id: 'j.alvarez', text: 'j.alvarez (affected user)', tier: 'principal' },
+    { id: 'm.reyes', text: 'm.reyes (benign updater activity)', tier: 'pivot' },
     { id: 'p.chen', text: 'p.chen', tier: 'noise' },
     { id: 'r.diallo', text: 'r.diallo', tier: 'noise' },
     { id: 'k.osei', text: 'k.osei', tier: 'noise' },
@@ -386,11 +386,29 @@ const MODULE_FIVE_ENTITY_ROSTER = {
     { id: 'a.silva', text: 'a.silva', tier: 'noise' },
   ],
   devices: [
-    { id: 'M05-DEV-001', text: 'WS-ASSESS-27 (affected endpoint)', tier: 'principal' },
-    { id: 'M05-DEV-002', text: 'WS-ASSESS-14 (benign comparison)', tier: 'pivot' },
-    { id: 'M05-DEV-003', text: 'SRV-ASSESS-02', tier: 'noise' },
+    { id: 'ws-assess-27', text: 'ws-assess-27 (affected endpoint)', tier: 'principal' },
+    { id: 'ws-assess-14', text: 'ws-assess-14 (benign comparison)', tier: 'pivot' },
+    { id: 'srv-assess-02', text: 'srv-assess-02', tier: 'noise' },
   ],
 };
+
+// Entity identity contract (docs/telemetry/SOC_TELEMETRY_SCHEMA.md): the ticket and
+// the console pivot on the normalized account (j.alvarez, not CORP\j.alvarez) and the
+// canonical device id (lower-case hostname ws-assess-27; the inventory id M05-DEV-001 is
+// AssetId). Values saved before the migration, or typed in another case/form, are
+// mapped here so the same selection scores the same.
+function moduleFiveCanonicalAccount(value) {
+  return typeof value === 'string' && value ? value.trim().replace(/^[^\\@]+\\/, '').replace(/@.*$/, '').toLowerCase() : value;
+}
+function moduleFiveCanonicalCaseEntities(caseRecord, fixture) {
+  if (!caseRecord || typeof caseRecord !== 'object') return false;
+  const user = moduleFiveCanonicalAccount(caseRecord.affectedUser);
+  const device = SocM05AssessmentState.canonicalDeviceId(caseRecord.affectedDevice, fixture);
+  const changed = user !== caseRecord.affectedUser || device !== caseRecord.affectedDevice;
+  caseRecord.affectedUser = user;
+  caseRecord.affectedDevice = device;
+  return changed;
+}
 
 const MODULE_FIVE_DEPARTMENT_OPTIONS = [
   { id: 'endpoint-response', text: 'Endpoint/EDR Response', fit: 100, note: 'Best fit — a persistence mechanism needs to be contained and removed from the endpoint itself.' },
@@ -411,7 +429,7 @@ function moduleFiveCaseSpec() {
     userOptions: MODULE_FIVE_ENTITY_ROSTER.users,
     deviceOptions: MODULE_FIVE_ENTITY_ROSTER.devices,
     departmentOptions: MODULE_FIVE_DEPARTMENT_OPTIONS,
-    notesPlaceholder: 'Summarize the endpoint execution chain, your assessment, and your recommended action for WS-ASSESS-27…',
+    notesPlaceholder: 'Summarize the endpoint execution chain, your assessment, and your recommended action for ws-assess-27…',
     extraMissing: moduleFiveExtraMissing(),
   };
 }
@@ -452,8 +470,10 @@ function moduleFiveProveItRedoFeedback() {
 function moduleFiveCaseScore() {
   const cr = moduleFiveState.caseRecord;
   const roster = MODULE_FIVE_ENTITY_ROSTER;
-  const userTier = roster.users.find((entry) => entry.id === cr.affectedUser)?.tier;
-  const deviceTier = roster.devices.find((entry) => entry.id === cr.affectedDevice)?.tier;
+  const affectedUser = moduleFiveCanonicalAccount(cr.affectedUser);
+  const affectedDevice = SocM05AssessmentState.canonicalDeviceId(cr.affectedDevice, SocM05AssessmentData);
+  const userTier = roster.users.find((entry) => entry.id === affectedUser)?.tier;
+  const deviceTier = roster.devices.find((entry) => entry.id === affectedDevice)?.tier;
   const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
   const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
 
@@ -489,7 +509,7 @@ function moduleFiveCaseScore() {
     breakdown: { affected_entity: entityPoints, severity: severityPoints, disposition: dispositionPoints, escalation: escalationPoints, analyst_notes: notesPoints },
     department, bounced,
     feedback: [
-      entityPoints >= 20 ? 'Affected entity/scope: correct — j.alvarez and WS-LAB-27 are the confirmed affected user and device.' : entityPoints > 0 ? 'Affected entity/scope: partial credit — a related account or device is supported by the evidence, but j.alvarez/WS-LAB-27 is the confirmed pair.' : 'Affected entity/scope: review — j.alvarez and WS-LAB-27 are the confirmed affected user and device.',
+      entityPoints >= 20 ? 'Affected entity/scope: correct — j.alvarez and ws-assess-27 are the confirmed affected user and device.' : entityPoints > 0 ? 'Affected entity/scope: partial credit — a related account or device is supported by the evidence, but j.alvarez/ws-assess-27 is the confirmed pair.' : 'Affected entity/scope: review — j.alvarez and ws-assess-27 are the confirmed affected user and device.',
       severityPoints ? 'Severity: correct — High.' : 'Severity: review — an execution chain with a persistence entry on one endpoint is High severity.',
       dispositionPoints ? 'Disposition: correct — confirmed malicious activity.' : 'Disposition: review — the fake-CAPTCHA → PowerShell → persistence chain is confirmed malicious activity.',
       routingFeedback,
@@ -583,17 +603,18 @@ function moduleFiveLoad(user) {
     if (oldUser === 'j.alvarez' || oldUser === 'm.reyes') {
       moduleFiveState.caseRecord.legacyEntities ||= {};
       moduleFiveState.caseRecord.legacyEntities.affectedUser = oldUser;
-      moduleFiveState.caseRecord.affectedUser = oldUser === 'j.alvarez' ? 'CORP\\j.alvarez' : 'CORP\\m.reyes';
+      moduleFiveState.caseRecord.affectedUser = oldUser === 'j.alvarez' ? 'j.alvarez' : 'm.reyes';
     }
     if (oldDevice === 'WS-LAB-27' || oldDevice === 'WS-LAB-14') {
       moduleFiveState.caseRecord.legacyEntities ||= {};
       moduleFiveState.caseRecord.legacyEntities.affectedDevice = oldDevice;
-      moduleFiveState.caseRecord.affectedDevice = oldDevice === 'WS-LAB-27' ? 'M05-DEV-001' : 'M05-DEV-002';
+      moduleFiveState.caseRecord.affectedDevice = oldDevice === 'WS-LAB-27' ? 'ws-assess-27' : 'ws-assess-14';
     }
     moduleFiveState.caseRecord.caseId = MODULE_FIVE_CASE_ID;
     moduleFiveState.caseRecord.scenarioId = SocM05AssessmentData.scenario.id;
     caseIdentityMigrated = true;
   }
+  if (moduleFiveCanonicalCaseEntities(moduleFiveState.caseRecord, SocM05AssessmentData)) caseIdentityMigrated = true;
   if (typeof moduleFiveState.caseRecord.submitted !== 'boolean') moduleFiveState.caseRecord.submitted = false;
   // Backward compat: the pre-migration m05-assessment-form only recorded
   // `attempts`/`completed` and a free-text `notes`. Treat any such
@@ -791,7 +812,7 @@ function moduleFiveLessonGrid() {
 
 function moduleFiveGuidedLabPanel() {
   const complete = moduleFiveGuidedChecks().every((check) => check[2]);
-  return `${moduleFiveGuidedGuide()}<div class="m03e-panel" id="m05-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE EDR-5204 · ENDPOINT ALERT · PRACTICE IT</p><p>A script attached to a quarterly forecast email ran on WS-PRACTICE-41. Reconstruct the process chain, assess persistence and sensor coverage, preserve linked evidence, and choose a proportionate response. Work independently; the guide checks recorded actions.</p></div><div class="m03e-console-host" id="m03e-console-m05-guided">${moduleThreeConsoleHtml('m05-guided')}</div></div><p class="m05-guided-status" role="status">${complete ? 'Guided Lab complete: all investigation checks are recorded.' : 'Complete the investigation in the console; progress is saved automatically.'}</p>`;
+  return `${moduleFiveGuidedGuide()}<div class="m03e-panel" id="m05-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE EDR-5204 · ENDPOINT ALERT · PRACTICE IT</p><p>A script attached to a quarterly forecast email ran on ws-practice-41. Reconstruct the process chain, assess persistence and sensor coverage, preserve linked evidence, and choose a proportionate response. Work independently; the guide checks recorded actions.</p></div><div class="m03e-console-host" id="m03e-console-m05-guided">${moduleThreeConsoleHtml('m05-guided')}</div></div><p class="m05-guided-status" role="status">${complete ? 'Guided Lab complete: all investigation checks are recorded.' : 'Complete the investigation in the console; progress is saved automatically.'}</p>`;
 }
 
 const MODULE_FIVE_OPTIONAL_LABS = [
@@ -821,6 +842,14 @@ function moduleFiveExtraFields(e) {
   if (e.coverageStatus) out.CoverageStatus = e.coverageStatus;
   return out;
 }
+// Console columns for the endpoint principal: Account is the normalized pivot; the
+// native form the sensor reported stays in AccountDomain / AccountNative.
+function moduleFivePrincipal(native) {
+  const qualified = String(native).match(/^([^\\]+)\\(.+)$/);
+  return qualified
+    ? { Account: qualified[2].toLowerCase(), AccountDomain: qualified[1], AccountNative: native }
+    : { Account: String(native).toLowerCase(), AccountDomain: '', AccountNative: native };
+}
 function moduleFiveDetail(e) { return e.commandLine || e.registryPath || e.filePath || (e.destination ? `${e.destination}:${e.destinationPort}` : '') || e.taskName || e.action; }
 // Practice It has its own endpoint case, event IDs, entities, and persisted
 // console/tool state. It intentionally reuses the assessment schema and UI.
@@ -831,12 +860,12 @@ const moduleFiveGuidedClone = (value) => JSON.parse(JSON.stringify(value));
 const MODULE_FIVE_GUIDED_REPLACEMENTS = {
   'M05-ASSESS-2026-09-27': 'M05-GUIDED-2026-09-27', 'EDR-5127': 'EDR-5204', 'm05-endpoint-assessment-v1': MODULE_FIVE_GUIDED_LAB_ID,
   'M05-DEV-001': 'M05-GUIDE-101', 'M05-DEV-002': 'M05-GUIDE-102', 'M05-DEV-003': 'M05-GUIDE-103',
-  'WS-ASSESS-27': 'WS-PRACTICE-41', 'WS-ASSESS-14': 'WS-PRACTICE-12', 'SRV-ASSESS-02': 'SRV-PRACTICE-03',
+  'ws-assess-27': 'ws-practice-41', 'ws-assess-14': 'ws-practice-12', 'srv-assess-02': 'srv-practice-03',
   'M05-EVT-001': 'M05-PR-201', 'M05-EVT-002': 'M05-PR-202', 'M05-EVT-003': 'M05-PR-203', 'M05-EVT-004': 'M05-PR-204', 'M05-EVT-005': 'M05-PR-205', 'M05-EVT-006': 'M05-PR-206', 'M05-EVT-007': 'M05-PR-207', 'M05-EVT-008': 'M05-PR-208', 'M05-EVT-009': 'M05-PR-209', 'M05-EVT-010': 'M05-PR-210', 'M05-EVT-011': 'M05-PR-211', 'M05-EVT-012': 'M05-PR-212', 'M05-EVT-013': 'M05-PR-213',
   'CORP\\j.alvarez': 'CORP\\r.patel', 'CORP\\m.reyes': 'CORP\\s.kim', 'j.alvarez': 'r.patel', 'm.reyes': 's.kim',
   'syncsvc.exe': 'cachehost.exe', 'SyncService': 'CacheHost', '4100': '7100', '4172': '7172', '4224': '7224', '3020': '8020', '5090': '8090', '2380': '8380', '6110': '8610',
   ['a'.repeat(64)]: 'c'.repeat(64), ['b'.repeat(64)]: 'd'.repeat(64),
-  'M05-DEV-004': 'M05-GUIDE-104', 'M05-DEV-005': 'M05-GUIDE-105', 'WS-ASSESS-31': 'WS-PRACTICE-18', 'WS-ASSESS-40': 'WS-PRACTICE-27',
+  'M05-DEV-004': 'M05-GUIDE-104', 'M05-DEV-005': 'M05-GUIDE-105', 'ws-assess-31': 'ws-practice-18', 'ws-assess-40': 'ws-practice-27',
   'd.okafor': 'a.novak', 'l.chen': 'p.shah', 'svc-backup': 'svc-archive', 'Q3-shift-schedule.pdf': 'Onboarding-checklist.pdf', 'FY26-budget.xlsx': 'FY26-headcount.xlsx',
   'HourlyShareSnapshot': 'HourlySharePrune', 'Snapshot-Shares.ps1': 'Prune-Shares.ps1', 'backup-nas.corp.example': 'archive-nas.corp.example', 'Fabrikam': 'Litware', 'CHG-5120': 'CHG-6120',
   'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe': 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe', 'AcmeUpdate.exe': 'CloudSync.exe',
@@ -885,8 +914,8 @@ MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[10].time = '2026-09-27T13:22:43Z';
 MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry.slice(13).forEach((event) => {
   if (event.sha256 && event.sha256 !== 'd'.repeat(64)) event.sha256 = event.sha256.replace(/[0-9a-f]/g, (digit) => ((parseInt(digit, 16) + 5) % 16).toString(16));
 });
-MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.confirmedDevice.value = 'M05-GUIDE-101';
-MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.confirmedUser.value = 'CORP\\r.patel';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.confirmedDevice.value = 'ws-practice-41';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.confirmedUser.value = 'r.patel';
 MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.processAncestry.chain = ['7100', '7172', '7224'];
 MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.maliciousFile.path = 'C:\\Users\\r.patel\\AppData\\Local\\Temp\\cachehost.exe';
 MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.persistence.registryPath = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\CacheHost';
@@ -899,11 +928,11 @@ const MODULE_FIVE_GUIDED_CONSOLE_DATA = (() => {
   const s = MODULE_FIVE_GUIDED_FIXTURE.scenario;
   const day = s.start.slice(0, 10);
   const events = s.telemetry.map((e) => m03eRow(MODULE_FIVE_ENDPOINT_SOURCES[e.eventType] || 'DeviceEvents', e.id, day, e.time.slice(11, 19), {
-    EventType: e.eventType, Account: e.user, Host: e.host, DeviceId: e.deviceId, ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
+    EventType: e.eventType, ...moduleFivePrincipal(e.accountNative || e.user), Host: e.host, DeviceId: e.deviceId, AssetId: e.assetId || '', ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
     Image: e.image || '', CommandLine: e.commandLine || '', FilePath: e.filePath || '', Sha256: e.sha256 || '', RegistryPath: e.registryPath || '',
     Action: e.action, Result: e.result, Url: e.url || '', Signer: e.signer || '', Prevalence: e.prevalence ?? '', Reputation: e.reputation || '', Detail: moduleFiveDetail(e), ...moduleFiveExtraFields(e),
   }));
-  const person = (account, name, owner) => ({ Account: account, DisplayName: name, Type: owner ? 'Service' : 'User', Department: owner ? 'IT Operations' : 'Engineering', Owner: owner || '—', Privileged: owner ? 'Yes' : 'No', UsualSourceIp: '—', Notes: '' });
+  const person = (native, name, owner) => ({ ...moduleFivePrincipal(native), DisplayName: name, Type: owner ? 'Service' : 'User', Department: owner ? 'IT Operations' : 'Engineering', Owner: owner || '—', Privileged: owner ? 'Yes' : 'No', UsualSourceIp: '—', Notes: '' });
   return { ...m03eBuildDataset({ caseId: s.caseId, day, events,
     identities: [person('CORP\\r.patel', 'R. Patel'), person('CORP\\s.kim', 'S. Kim'), person('CORP\\a.novak', 'A. Novak'), person('CORP\\p.shah', 'P. Shah'), person('CORP\\svc-archive', 'Archive service', 'IT Operations'), person('SYSTEM', 'Local system', 'Endpoint platform')], ips: [],
     watchlists: {
@@ -912,15 +941,15 @@ const MODULE_FIVE_GUIDED_CONSOLE_DATA = (() => {
         { Product: 'Litware Sync', Publisher: 'CN=Litware Software Inc.', Path: 'C:\\Program Files\\Litware\\Sync\\LitwareSync.exe', Deployment: 'Managed deployment CHG-6118', Status: 'Approved' },
       ] },
       ChangeTickets: { title: 'Approved change tickets', rows: [
-        { ChangeId: 'CHG-6118', Summary: 'Litware Sync client rollout', Device: 'WS-PRACTICE-18', Window: '2026-09-27 13:00–14:00', Status: 'Approved' },
-        { ChangeId: 'CHG-6120', Summary: 'Endpoint sensor agent upgrade', Device: 'WS-PRACTICE-27', Window: '2026-09-27 13:00–13:30', Status: 'Approved' },
+        { ChangeId: 'CHG-6118', Summary: 'Litware Sync client rollout', Host: 'ws-practice-18', AssetId: 'M05-GUIDE-104', Window: '2026-09-27 13:00–14:00', Status: 'Approved' },
+        { ChangeId: 'CHG-6120', Summary: 'Endpoint sensor agent upgrade', Host: 'ws-practice-27', AssetId: 'M05-GUIDE-105', Window: '2026-09-27 13:00–13:30', Status: 'Approved' },
       ] },
     },
-    alerts: [{ id: 'ALT-5204', time: '2026-09-27T13:05:33Z', severity: 'High', title: 'Endpoint sensor detection on WS-PRACTICE-41', entities: ['WS-PRACTICE-41', 'CORP\\r.patel'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "WS-PRACTICE-41"' },
-      { id: 'ALT-5205', time: '2026-09-27T13:13:43Z', severity: 'Low', title: 'Software updater started by services.exe on WS-PRACTICE-12', entities: ['WS-PRACTICE-12', 'CORP\\s.kim'], rule: 'Updater process outside a change window', query: 'DeviceProcessEvents\n| where Host == "WS-PRACTICE-12"' },
-      { id: 'ALT-5206', time: '2026-09-27T13:02:03Z', severity: 'Medium', title: 'PowerShell execution-policy bypass on SRV-PRACTICE-03', entities: ['SRV-PRACTICE-03', 'CORP\\svc-archive'], rule: 'PowerShell launched with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where Host == "SRV-PRACTICE-03"' },
-      { id: 'ALT-5207', time: '2026-09-27T13:07:31Z', severity: 'Medium', title: 'New Run-key value on WS-PRACTICE-18', entities: ['WS-PRACTICE-18', 'SYSTEM'], rule: 'Run-key persistence write', query: 'DeviceRegistryEvents\n| where Host == "WS-PRACTICE-18"' },
-      { id: 'ALT-5208', time: '2026-09-27T13:12:00Z', severity: 'Low', title: 'Endpoint sensor stopped reporting on WS-PRACTICE-27', entities: ['WS-PRACTICE-27', 'CORP\\p.shah'], rule: 'No heartbeat from endpoint sensor for 5 minutes', query: 'DeviceSensorHealth\n| where Host == "WS-PRACTICE-27"' }],
+    alerts: [{ id: 'ALT-5204', time: '2026-09-27T13:05:33Z', severity: 'High', title: 'Endpoint sensor detection on ws-practice-41', entities: ['ws-practice-41', 'r.patel'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "ws-practice-41"' },
+      { id: 'ALT-5205', time: '2026-09-27T13:13:43Z', severity: 'Low', title: 'Software updater started by services.exe on ws-practice-12', entities: ['ws-practice-12', 's.kim'], rule: 'Updater process outside a change window', query: 'DeviceProcessEvents\n| where Host == "ws-practice-12"' },
+      { id: 'ALT-5206', time: '2026-09-27T13:02:03Z', severity: 'Medium', title: 'PowerShell execution-policy bypass on srv-practice-03', entities: ['srv-practice-03', 'svc-archive'], rule: 'PowerShell launched with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where Host == "srv-practice-03"' },
+      { id: 'ALT-5207', time: '2026-09-27T13:07:31Z', severity: 'Medium', title: 'New Run-key value on ws-practice-18', entities: ['ws-practice-18', 'system'], rule: 'Run-key persistence write', query: 'DeviceRegistryEvents\n| where Host == "ws-practice-18"' },
+      { id: 'ALT-5208', time: '2026-09-27T13:12:00Z', severity: 'Low', title: 'Endpoint sensor stopped reporting on ws-practice-27', entities: ['ws-practice-27', 'p.shah'], rule: 'No heartbeat from endpoint sensor for 5 minutes', query: 'DeviceSensorHealth\n| where Host == "ws-practice-27"' }],
   }), now: s.end };
 })();
 const MODULE_FIVE_GUIDED_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, caseId: MODULE_FIVE_GUIDED_FIXTURE.scenario.caseId, end: MODULE_FIVE_GUIDED_FIXTURE.scenario.end, data: MODULE_FIVE_GUIDED_CONSOLE_DATA });
@@ -930,6 +959,7 @@ function moduleFiveGuidedLoad(user) {
   const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'EDR-5204', scenarioId: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
   moduleFiveGuidedState = LabRuntime.loadCaseState(MODULE_FIVE_GUIDED_LAB_ID, 'soc-05', user, defaults);
   moduleFiveGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleFiveGuidedState.caseRecord || {}) };
+  moduleFiveCanonicalCaseEntities(moduleFiveGuidedState.caseRecord, MODULE_FIVE_GUIDED_FIXTURE);
   moduleFiveGuidedState.tools ||= {};
   moduleFiveGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleFiveGuidedState.tools.m04 }, MODULE_FIVE_GUIDED_M04_FIXTURE).assessment;
   moduleFiveGuidedState.tools.m05 = SocM05AssessmentState.normalize(moduleFiveGuidedState.tools.m05, MODULE_FIVE_GUIDED_M05_FIXTURE);
@@ -942,8 +972,8 @@ function moduleFiveGuidedChecks() {
   const consoleState = m03eState('m05-guided');
   const tools = moduleFiveGuidedM05Load();
   return [
-    ['alert', 'Inspect the endpoint alert and follow it to a device.', consoleState.seen?.includes('alert:ALT-5204') || tools.selectedDeviceIds?.includes('M05-GUIDE-101')],
-    ['chain', 'Compare the process, file, persistence, and sensor records.', (consoleState.queryLog || []).length > 0 && tools.selectedDeviceIds?.includes('M05-GUIDE-101')],
+    ['alert', 'Inspect the endpoint alert and follow it to a device.', consoleState.seen?.includes('alert:ALT-5204') || tools.selectedDeviceIds?.includes('ws-practice-41')],
+    ['chain', 'Compare the process, file, persistence, and sensor records.', (consoleState.queryLog || []).length > 0 && tools.selectedDeviceIds?.includes('ws-practice-41')],
     ['evidence', 'Preserve linked telemetry and its file hash.', Boolean(tools.evidencePackage?.eventIds?.length && tools.evidencePackage?.hashes?.length)],
     ['handoff', 'Record a proportionate endpoint response request or EDR handoff.', Boolean(tools.approvalRequests?.length || tools.edrHandoffs?.length)],
   ];
@@ -956,30 +986,30 @@ const MODULE_FIVE_GUIDED_CONSOLE = SocConsoleTools.mount('m05-guided', {
   data: MODULE_FIVE_GUIDED_CONSOLE_DATA, stateRoot: () => moduleFiveGuidedState, save: moduleFiveGuidedSave,
   title: 'SIEM & ENDPOINT INVESTIGATION · PRACTICE', ariaLabel: 'Module 05 guided endpoint console', idPrefix: 'guided',
   sourceMappings: {
-    DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['user', 'Account'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine'], ['url', 'Url']] },
-    DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['prevalence', 'Prevalence'], ['reputation', 'Reputation']] },
-    DeviceRegistryEvents: { native: 'EDR registry telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['key', 'RegistryPath'], ['action', 'Action'], ['result', 'Result']] },
-    DeviceAlertEvents: { native: 'EDR sensor control outcomes (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['control', 'Action'], ['outcome', 'Result']] },
-    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
-    DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['result', 'Result']] },
-    DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
+    DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['user', 'Account'], ['user', 'AccountNative'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine'], ['url', 'Url']] },
+    DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['prevalence', 'Prevalence'], ['reputation', 'Reputation']] },
+    DeviceRegistryEvents: { native: 'EDR registry telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['key', 'RegistryPath'], ['action', 'Action'], ['result', 'Result']] },
+    DeviceAlertEvents: { native: 'EDR sensor control outcomes (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['control', 'Action'], ['outcome', 'Result']] },
+    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+    DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['account', 'Account'], ['account', 'AccountNative'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['result', 'Result']] },
+    DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
   },
   packs: [
     { id: 'm04', ctx: { assessment: moduleFiveGuidedM04Tools, fixture: MODULE_FIVE_GUIDED_M04_FIXTURE, save: moduleFiveGuidedSave, rerender: () => moduleFiveRenderGuided(), console: () => m03eState('m05-guided') } },
     { id: 'm05', ctx: { fixture: MODULE_FIVE_GUIDED_FIXTURE, load: moduleFiveGuidedM05Load, store: moduleFiveGuidedM05Store, save: moduleFiveGuidedSave, rerender: () => moduleFiveRenderGuided(), console: () => m03eState('m05-guided') } },
   ],
-  caseView: () => caseRecordPane(moduleFiveGuidedState.caseRecord, { caseId: 'EDR-5204', ticketId: 'INC-5204', ticketType: 'Endpoint malware investigation · Endpoint Malware Triage', userOptions: [{ id: 'CORP\\r.patel', text: 'CORP\\r.patel' }, { id: 'CORP\\s.kim', text: 'CORP\\s.kim' }], deviceOptions: MODULE_FIVE_GUIDED_FIXTURE.scenario.devices.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'endpoint-malware-triage', text: 'Endpoint Malware Triage' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm05-guided-case', saveAttr: 'data-m05-guided-save-case', submitAttr: 'data-m05-guided-submit-case', panelId: 'm05-guided-case-panel', notesPlaceholder: 'Link process ancestry, file reputation, persistence, sensor outcome, and a bounded response recommendation.' }),
+  caseView: () => caseRecordPane(moduleFiveGuidedState.caseRecord, { caseId: 'EDR-5204', ticketId: 'INC-5204', ticketType: 'Endpoint malware investigation · Endpoint Malware Triage', userOptions: [{ id: 'r.patel', text: 'r.patel' }, { id: 's.kim', text: 's.kim' }], deviceOptions: MODULE_FIVE_GUIDED_FIXTURE.scenario.devices.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'endpoint-malware-triage', text: 'Endpoint Malware Triage' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm05-guided-case', saveAttr: 'data-m05-guided-save-case', submitAttr: 'data-m05-guided-submit-case', panelId: 'm05-guided-case-panel', notesPlaceholder: 'Link process ancestry, file reputation, persistence, sensor outcome, and a bounded response recommendation.' }),
 });
 const MODULE_FIVE_CONSOLE_DATA = (function () {
   const s = SocM05AssessmentData.scenario;
   const day = s.start.slice(0, 10);
   const events = s.telemetry.map((e) => m03eRow(MODULE_FIVE_ENDPOINT_SOURCES[e.eventType] || 'DeviceEvents', e.id, day, e.time.slice(11, 19), {
-    EventType: e.eventType, Account: e.user, Host: e.host, DeviceId: e.deviceId, ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
+    EventType: e.eventType, ...moduleFivePrincipal(e.accountNative || e.user), Host: e.host, DeviceId: e.deviceId, AssetId: e.assetId || '', ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
     Image: e.image || '', CommandLine: e.commandLine || '', FilePath: e.filePath || '', Sha256: e.sha256 || '', RegistryPath: e.registryPath || '',
     Action: e.action, Result: e.result, Url: e.url || '', Signer: e.signer || '', Prevalence: e.prevalence ?? '', Reputation: e.reputation || '',
     Detail: moduleFiveDetail(e), ...moduleFiveExtraFields(e),
   }));
-  const person = (account, name, owner) => ({ Account: account, DisplayName: name, Type: owner ? 'Service' : 'User', Department: owner ? 'IT Operations' : 'Finance', Owner: owner || '—', Privileged: owner ? 'Yes' : 'No', UsualSourceIp: '—', Notes: '' });
+  const person = (native, name, owner) => ({ ...moduleFivePrincipal(native), DisplayName: name, Type: owner ? 'Service' : 'User', Department: owner ? 'IT Operations' : 'Finance', Owner: owner || '—', Privileged: owner ? 'Yes' : 'No', UsualSourceIp: '—', Notes: '' });
   return {
     ...m03eBuildDataset({
       caseId: s.caseId,
@@ -993,16 +1023,16 @@ const MODULE_FIVE_CONSOLE_DATA = (function () {
           { Product: 'Fabrikam Sync', Publisher: 'CN=Fabrikam Software Inc.', Path: 'C:\\Program Files\\Fabrikam\\Sync\\FabrikamSync.exe', Deployment: 'Managed deployment CHG-5118', Status: 'Approved' },
         ] },
         ChangeTickets: { title: 'Approved change tickets', rows: [
-          { ChangeId: 'CHG-5118', Summary: 'Fabrikam Sync client rollout', Device: 'WS-ASSESS-31', Window: '2026-09-27 09:00–10:00', Status: 'Approved' },
-          { ChangeId: 'CHG-5120', Summary: 'Endpoint sensor agent upgrade', Device: 'WS-ASSESS-40', Window: '2026-09-27 09:00–09:30', Status: 'Approved' },
+          { ChangeId: 'CHG-5118', Summary: 'Fabrikam Sync client rollout', Host: 'ws-assess-31', AssetId: 'M05-DEV-004', Window: '2026-09-27 09:00–10:00', Status: 'Approved' },
+          { ChangeId: 'CHG-5120', Summary: 'Endpoint sensor agent upgrade', Host: 'ws-assess-40', AssetId: 'M05-DEV-005', Window: '2026-09-27 09:00–09:30', Status: 'Approved' },
         ] },
       },
       alerts: [
-        { id: 'ALT-5127', time: '2026-09-27T09:05:33Z', severity: 'High', title: 'Endpoint sensor detection on WS-ASSESS-27', entities: ['WS-ASSESS-27', 'CORP\\j.alvarez'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "WS-ASSESS-27"' },
-        { id: 'ALT-5128', time: '2026-09-27T09:13:43Z', severity: 'Low', title: 'Software updater started by services.exe on WS-ASSESS-14', entities: ['WS-ASSESS-14', 'CORP\\m.reyes'], rule: 'Updater process outside a change window', query: 'DeviceProcessEvents\n| where Host == "WS-ASSESS-14"' },
-        { id: 'ALT-5129', time: '2026-09-27T09:02:03Z', severity: 'Medium', title: 'PowerShell execution-policy bypass on SRV-ASSESS-02', entities: ['SRV-ASSESS-02', 'CORP\\svc-backup'], rule: 'PowerShell launched with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where Host == "SRV-ASSESS-02"' },
-        { id: 'ALT-5130', time: '2026-09-27T09:07:31Z', severity: 'Medium', title: 'New Run-key value on WS-ASSESS-31', entities: ['WS-ASSESS-31', 'SYSTEM'], rule: 'Run-key persistence write', query: 'DeviceRegistryEvents\n| where Host == "WS-ASSESS-31"' },
-        { id: 'ALT-5131', time: '2026-09-27T09:12:00Z', severity: 'Low', title: 'Endpoint sensor stopped reporting on WS-ASSESS-40', entities: ['WS-ASSESS-40', 'CORP\\l.chen'], rule: 'No heartbeat from endpoint sensor for 5 minutes', query: 'DeviceSensorHealth\n| where Host == "WS-ASSESS-40"' },
+        { id: 'ALT-5127', time: '2026-09-27T09:05:33Z', severity: 'High', title: 'Endpoint sensor detection on ws-assess-27', entities: ['ws-assess-27', 'j.alvarez'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "ws-assess-27"' },
+        { id: 'ALT-5128', time: '2026-09-27T09:13:43Z', severity: 'Low', title: 'Software updater started by services.exe on ws-assess-14', entities: ['ws-assess-14', 'm.reyes'], rule: 'Updater process outside a change window', query: 'DeviceProcessEvents\n| where Host == "ws-assess-14"' },
+        { id: 'ALT-5129', time: '2026-09-27T09:02:03Z', severity: 'Medium', title: 'PowerShell execution-policy bypass on srv-assess-02', entities: ['srv-assess-02', 'svc-backup'], rule: 'PowerShell launched with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where Host == "srv-assess-02"' },
+        { id: 'ALT-5130', time: '2026-09-27T09:07:31Z', severity: 'Medium', title: 'New Run-key value on ws-assess-31', entities: ['ws-assess-31', 'system'], rule: 'Run-key persistence write', query: 'DeviceRegistryEvents\n| where Host == "ws-assess-31"' },
+        { id: 'ALT-5131', time: '2026-09-27T09:12:00Z', severity: 'Low', title: 'Endpoint sensor stopped reporting on ws-assess-40', entities: ['ws-assess-40', 'l.chen'], rule: 'No heartbeat from endpoint sensor for 5 minutes', query: 'DeviceSensorHealth\n| where Host == "ws-assess-40"' },
       ],
     }),
     now: s.end,
@@ -1023,13 +1053,13 @@ const MODULE_FIVE_CONSOLE = SocConsoleTools.mount('m05', {
   title: 'SIEM & ENDPOINT INVESTIGATION',
   ariaLabel: 'Module 05 endpoint assessment console',
   sourceMappings: {
-    DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['user', 'Account'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine'], ['url', 'Url']] },
-    DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['prevalence', 'Prevalence'], ['reputation', 'Reputation']] },
-    DeviceRegistryEvents: { native: 'EDR registry telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['key', 'RegistryPath'], ['action', 'Action'], ['result', 'Result']] },
-    DeviceAlertEvents: { native: 'EDR sensor control outcomes (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['control', 'Action'], ['outcome', 'Result']] },
-    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
-    DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['result', 'Result']] },
-    DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['hostname', 'Host'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
+    DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['user', 'Account'], ['user', 'AccountNative'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine'], ['url', 'Url']] },
+    DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['prevalence', 'Prevalence'], ['reputation', 'Reputation']] },
+    DeviceRegistryEvents: { native: 'EDR registry telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['key', 'RegistryPath'], ['action', 'Action'], ['result', 'Result']] },
+    DeviceAlertEvents: { native: 'EDR sensor control outcomes (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['control', 'Action'], ['outcome', 'Result']] },
+    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+    DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['account', 'Account'], ['account', 'AccountNative'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['result', 'Result']] },
+    DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
   },
   packs: [
     { id: 'm04', ctx: { assessment: moduleFiveM04Tools, fixture: MODULE_FIVE_M04_FIXTURE, save: () => moduleFiveSave(), rerender: () => moduleFiveRenderAssessment(), console: () => m03eState('m05') } },
@@ -1382,6 +1412,7 @@ function wireModuleFiveAssessmentLab() {
           affectedUser: truth.confirmedUser.value,
           affectedDevice: truth.confirmedDevice.value,
           hostname: SocM05AssessmentData.scenario.devices.find((device) => device.id === truth.confirmedDevice.value)?.hostname || '',
+          assetId: truth.confirmedDevice.assetId || '',
         },
         revision,
         attemptNumber,

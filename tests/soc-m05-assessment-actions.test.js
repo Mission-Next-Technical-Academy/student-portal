@@ -15,16 +15,16 @@ const actions = vm.runInContext('SocM05AssessmentActions', context);
 const local = (value) => JSON.parse(JSON.stringify(value));
 const timestamp = '2026-09-27T09:15:00Z';
 const samples = {
-  device_review: { deviceId: 'M05-DEV-001', status: 'reviewed' },
+  device_review: { deviceId: 'ws-assess-27', status: 'reviewed' },
   event_review: { eventId: 'M05-EVT-001', status: 'reviewed' },
   analysis_note: { text: 'Process chain reviewed', relatedEventIds: ['M05-EVT-001', 'M05-EVT-002'] },
   analysis_update: { field: 'severity', value: 'high', reason: 'Malicious execution evidence' },
-  evidence_selection: { deviceIds: ['M05-DEV-001'], eventIds: ['M05-EVT-003'] },
-  evidence_package_preserved: { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-003'], hashes: ['a'.repeat(64)] },
-  evidence_preservation_request: { deviceIds: ['M05-DEV-001'], eventIds: ['M05-EVT-005'], requestedBy: 'analyst-1' },
-  endpoint_isolation_request: { deviceId: 'M05-DEV-001', reason: 'Containment review', requestedBy: 'analyst-1', status: 'pending_approval' },
-  endpoint_quarantine_request: { deviceId: 'M05-DEV-001', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), reason: 'Malicious file', requestedBy: 'analyst-1', status: 'pending_approval' },
-  edr_handoff: { deviceIds: ['M05-DEV-001'], eventIds: ['M05-EVT-007'], hashes: ['a'.repeat(64)], summary: 'Detection only; execution not prevented', owner: 'analyst-1', recipient: 'endpoint-team', recommendation: 'Isolate host and preserve evidence.', status: 'submitted' },
+  evidence_selection: { deviceIds: ['ws-assess-27'], eventIds: ['M05-EVT-003'] },
+  evidence_package_preserved: { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-003'], hashes: ['a'.repeat(64)] },
+  evidence_preservation_request: { deviceIds: ['ws-assess-27'], eventIds: ['M05-EVT-005'], requestedBy: 'analyst-1' },
+  endpoint_isolation_request: { deviceId: 'ws-assess-27', reason: 'Containment review', requestedBy: 'analyst-1', status: 'pending_approval' },
+  endpoint_quarantine_request: { deviceId: 'ws-assess-27', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), reason: 'Malicious file', requestedBy: 'analyst-1', status: 'pending_approval' },
+  edr_handoff: { deviceIds: ['ws-assess-27'], eventIds: ['M05-EVT-007'], hashes: ['a'.repeat(64)], summary: 'Detection only; execution not prevented', owner: 'analyst-1', recipient: 'endpoint-team', recommendation: 'Isolate host and preserve evidence.', status: 'submitted' },
   edr_handoff_status: { handoffId: `${fixture.scenario.id}:ACTION-000010`, status: 'accepted', updatedBy: 'endpoint-lead' },
   case_update: { field: 'status', value: 'investigating', reason: 'Evidence review underway' },
 };
@@ -53,11 +53,11 @@ for (const [index, type] of actions.TYPES.entries()) {
 
 for (const [type, details] of [
   ['endpoint_isolation_request', { deviceId: 'M05-DEV-999', reason: 'Containment', requestedBy: 'analyst-1', status: 'pending_approval' }],
-  ['endpoint_isolation_request', { deviceId: 'M05-DEV-001', reason: ' ', requestedBy: 'analyst-1', status: 'pending_approval' }],
-  ['endpoint_isolation_request', { deviceId: 'M05-DEV-001', reason: 'Containment', requestedBy: '', status: 'pending_approval' }],
-  ['endpoint_isolation_request', { deviceId: 'M05-DEV-001', reason: 'Containment', requestedBy: 'analyst-1', status: 'executed' }],
-  ['endpoint_quarantine_request', { deviceId: 'M05-DEV-002', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), reason: 'Malicious', requestedBy: 'analyst-1', status: 'pending_approval' }],
-  ['endpoint_quarantine_request', { deviceId: 'M05-DEV-001', filePath: 'C:\\unknown.exe', sha256: 'a'.repeat(64), reason: 'Malicious', requestedBy: 'analyst-1', status: 'pending_approval' }],
+  ['endpoint_isolation_request', { deviceId: 'ws-assess-27', reason: ' ', requestedBy: 'analyst-1', status: 'pending_approval' }],
+  ['endpoint_isolation_request', { deviceId: 'ws-assess-27', reason: 'Containment', requestedBy: '', status: 'pending_approval' }],
+  ['endpoint_isolation_request', { deviceId: 'ws-assess-27', reason: 'Containment', requestedBy: 'analyst-1', status: 'executed' }],
+  ['endpoint_quarantine_request', { deviceId: 'ws-assess-14', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: 'a'.repeat(64), reason: 'Malicious', requestedBy: 'analyst-1', status: 'pending_approval' }],
+  ['endpoint_quarantine_request', { deviceId: 'ws-assess-27', filePath: 'C:\\unknown.exe', sha256: 'a'.repeat(64), reason: 'Malicious', requestedBy: 'analyst-1', status: 'pending_approval' }],
 ]) assert.throws(() => actions.append(state, type, timestamp, details, fixture));
 
 let requestState = stateApi.normalize({}, fixture);
@@ -99,14 +99,14 @@ assert.strictEqual(stateApi.normalize(untrusted, fixture).edrHandoffs.length, 1,
 
 for (const args of [
   [state, 'unknown_action', timestamp, { note: 'x' }, fixture],
-  [state, 'device_review', '09/27/2026', { deviceId: 'M05-DEV-001' }, fixture],
+  [state, 'device_review', '09/27/2026', { deviceId: 'ws-assess-27' }, fixture],
   [state, 'device_review', timestamp, {}, fixture],
-  [state, 'device_review', timestamp, { deviceId: 'M05-DEV-001', executableCommand: 'run' }, fixture],
+  [state, 'device_review', timestamp, { deviceId: 'ws-assess-27', executableCommand: 'run' }, fixture],
   [state, 'device_review', timestamp, { deviceId: '' }, fixture],
   [state, 'analysis_note', timestamp, { text: 'x', relatedEventIds: [4] }, fixture],
-  [state, 'evidence_package_preserved', timestamp, { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-010'], hashes: [] }, fixture],
-  [state, 'evidence_package_preserved', timestamp, { deviceId: 'M05-DEV-001', eventIds: ['M05-EVT-003'], hashes: ['bad'] }, fixture],
-  [state, 'device_review', timestamp, { deviceId: 'M05-DEV-001' }, null],
+  [state, 'evidence_package_preserved', timestamp, { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-010'], hashes: [] }, fixture],
+  [state, 'evidence_package_preserved', timestamp, { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-003'], hashes: ['bad'] }, fixture],
+  [state, 'device_review', timestamp, { deviceId: 'ws-assess-27' }, null],
 ]) assert.throws(() => actions.append(...args));
 assert.strictEqual(actions.validTimestamp('2026-02-30T09:15:00Z'), false);
 
@@ -126,4 +126,12 @@ const restored = stateApi.normalize(local(afterTruncation), fixture);
 assert.deepStrictEqual(local(restored), local(afterTruncation), 'typed history survives normalization and restore unchanged');
 const appendedAfterRestore = actions.append(restored, 'case_update', timestamp, samples.case_update, fixture);
 assert.strictEqual(appendedAfterRestore.actionHistory.at(-1).id, `${fixture.scenario.id}:ACTION-000207`);
+// Entity identity migration: a legacy inventory id (or upper-case hostname) for a known device
+// is recorded under the canonical lower-case hostname; unknown ids are still rejected.
+for (const alias of ['M05-DEV-001', 'WS-ASSESS-27']) {
+  const aliased = actions.append(stateApi.normalize({}, fixture), 'endpoint_isolation_request', timestamp,
+    { deviceId: alias, reason: 'Containment review', requestedBy: 'analyst-1', status: 'pending_approval' }, fixture);
+  assert.strictEqual(aliased.actionHistory.at(-1).details.deviceId, 'ws-assess-27');
+  assert.strictEqual(aliased.approvalRequests.at(-1).deviceId, 'ws-assess-27');
+}
 console.log('M05 assessment action history: all checks passed');
