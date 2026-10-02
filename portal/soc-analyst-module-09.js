@@ -955,19 +955,21 @@ function moduleNineBuildConsoleData(fixture, evidence, caseId) {
     EventType: item.title, Account: String(item.entity).startsWith('acct-') ? item.entity : (s.entities.find((entity) => entity.id === item.entity)?.ownerAccountId || ''),
     Host: String(item.entity).startsWith('acct-') ? '' : item.entity, DeviceId: s.entities.find((entity) => entity.id === item.entity)?.deviceId || '',
     Result: item.summary, Detail: item.detail || item.summary,
-  }));
+  })).concat((s.telemetry || []).map((item) => m03eRow(item.table, item.id, item.time.slice(0, 10), item.time.slice(11, 19), { SessionId: '—', ...item.fields })));
   return {
     ...m03eBuildDataset({
       caseId,
       day: s.start.slice(0, 10),
       events,
-      identities: [{ Account: 'acct-173', DisplayName: 'User 173', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '192.0.2.173', Notes: 'Registered workstation ws-173' }],
+      identities: [{ Account: 'acct-173', DisplayName: 'User 173', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '192.0.2.173', Notes: 'Registered workstation ws-173' },
+        ...[...new Set((s.telemetry || []).map((item) => item.fields.Account).filter((account) => account && account !== 'acct-173'))].map((account) => ({ Account: account, DisplayName: account, Type: account.startsWith('svc-') ? 'Service' : account.startsWith('guest-') ? 'Guest' : 'User', Department: account.startsWith('svc-') ? 'IT operations' : 'Corporate', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' }))],
       ips: [
         { SourceIp: '192.0.2.173', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN', FirstSeen: '—', Reputation: 'Registered workstation' },
         { SourceIp: '203.0.113.173', Type: 'External', Country: '—', Asn: 'Unmanaged client network', FirstSeen: '2026-09-27 10:05', Reputation: 'No history' },
       ],
       watchlists: {},
-      alerts: s.incidentQueue.map((incident) => ({ id: incident.id, time: incident.reportedAt, severity: 'High', title: incident.title, entities: [incident.sourceEntityId], rule: incident.summary, query: `DeviceEvents\n| where Host == "${incident.sourceEntityId}"` })),
+      alerts: s.incidentQueue.map((incident) => ({ id: incident.id, time: incident.reportedAt, severity: 'High', title: incident.title, entities: [incident.sourceEntityId], rule: incident.summary, query: `DeviceEvents\n| where Host == "${incident.sourceEntityId}"` }))
+        .concat((s.alertCandidates || []).map((alert) => ({ id: alert.id, time: alert.time, severity: alert.severity, title: alert.title, entities: alert.entities, rule: alert.rule, query: alert.query }))),
     }),
     now: s.end,
   };
@@ -980,6 +982,10 @@ const MODULE_NINE_GUIDED_REPLACEMENTS = {
   'session-173-REMOTE': 'session-294-REMOTE', 'backup-ws-173': 'backup-ws-294', 'backup-fs-02': 'backup-fs-05',
   'RP-WS-173': 'RP-WS-294', 'RP-FS-02': 'RP-FS-05', 'Unmanaged client': 'Unmanaged contractor laptop',
   '192.0.2.173': '192.0.2.194', '203.0.113.173': '203.0.113.194', 'DEV-UNKNOWN-173': 'DEV-UNKNOWN-294', '2026-09-27': '2026-10-01',
+  'acct-045': 'acct-118', 'acct-220': 'acct-231', 'acct-338': 'acct-352', 'guest-311': 'guest-407', 'ws-054': 'ws-126', 'ws-311': 'ws-388', 'DEV-054': 'DEV-126', 'DEV-311': 'DEV-388',
+  'print-08': 'print-03', 'DEV-PRINT-08': 'DEV-PRINT-03', 'db-02': 'db-05', 'DEV-DB-02': 'DEV-DB-05', 'wifi-gw-01': 'wifi-gw-02', '192.0.2.52': '192.0.2.76', '198.51.100.52': '198.51.100.88', '198.51.100.60': '198.51.100.96',
+  'finance$': 'projects$', 'Scoped search': 'Bounded sweep', 'Data access check': 'Egress review',
+  'The bounded search supports one confirmed endpoint.': 'The bounded sweep supports a single confirmed endpoint.', 'Current evidence does not show data exfiltration.': 'This review found no data exfiltration.',
   'Operation Cedar Lock': 'Operation Amber Vault', 'worker.bin': 'syncsvc.dat', 'worker': 'syncsvc', 'User 173': 'User 294',
 };
 function moduleNineGuidedClone(value) {
@@ -1043,6 +1049,10 @@ const MODULE_NINE_CONSOLE = (() => {
       IdentityEvents: { native: 'Identity session records (JSON)', fields: [['time', 'TimeGenerated'], ['account', 'Account'], ['title', 'EventType'], ['detail', 'Detail']] },
       ScopeChecks: { native: 'Scoping search results (JSON)', fields: [['time', 'TimeGenerated'], ['scope', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
       ResponseRecords: { native: 'Response inventory records (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['type', 'EventType'], ['summary', 'Detail']] },
+      DeviceNetworkEvents: { native: 'Endpoint network connection log (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['dst', 'DestinationIp'], ['dport', 'DestinationPort'], ['verdict', 'Result']] },
+      FileServiceEvents: { native: 'File-service session and availability log (text)', fields: [['time', 'TimeGenerated'], ['service', 'Host'], ['event', 'EventType'], ['user', 'Account'], ['status', 'Result']] },
+      BackupEvents: { native: 'Backup catalog job records (JSON)', fields: [['time', 'TimeGenerated'], ['target', 'Host'], ['job', 'EventType'], ['status', 'Result']] },
+      RecoveryChecks: { native: 'Recovery validation checklist records (JSON)', fields: [['time', 'TimeGenerated'], ['target', 'Host'], ['check', 'EventType'], ['state', 'Result']] },
     },
     packs: [
       { id: 'm04', ctx: { ...base, assessment: moduleNineM04Tools, fixture: fx.m04 } },
@@ -1079,6 +1089,10 @@ const MODULE_NINE_GUIDED_CONSOLE = (() => {
       IdentityEvents: { native: 'Identity session records (JSON)', fields: [['time', 'TimeGenerated'], ['account', 'Account'], ['title', 'EventType'], ['detail', 'Detail']] },
       ScopeChecks: { native: 'Incident scope checks (JSON)', fields: [['time', 'TimeGenerated'], ['scope', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
       ResponseRecords: { native: 'Response inventory records (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['type', 'EventType'], ['summary', 'Detail']] },
+      DeviceNetworkEvents: { native: 'Endpoint network connection log (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['dst', 'DestinationIp'], ['dport', 'DestinationPort'], ['verdict', 'Result']] },
+      FileServiceEvents: { native: 'File-service session and availability log (text)', fields: [['time', 'TimeGenerated'], ['service', 'Host'], ['event', 'EventType'], ['user', 'Account'], ['status', 'Result']] },
+      BackupEvents: { native: 'Backup catalog job records (JSON)', fields: [['time', 'TimeGenerated'], ['target', 'Host'], ['job', 'EventType'], ['status', 'Result']] },
+      RecoveryChecks: { native: 'Recovery validation checklist records (JSON)', fields: [['time', 'TimeGenerated'], ['target', 'Host'], ['check', 'EventType'], ['state', 'Result']] },
     },
     packs: [
       { id: 'm04', ctx: { ...base, assessment: moduleNineGuidedM04Tools, fixture: fx.m04 } },

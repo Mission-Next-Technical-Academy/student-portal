@@ -176,7 +176,9 @@ Run these as separate, reviewable implementation sprints. Each sprint has a narr
 
 **Delegation brief:** “Expand M05–M06 synthetic endpoint/hunt telemetry and truth fixtures only. Add realistic, explainable background records and meaningful false leads. Preserve existing lab UI and separate guided/assessment narratives; validate all event/entity/process references.”
 
-### Sprint 4 — Cross-domain and response evidence (Modules 7–9)
+### Sprint 4 — Cross-domain and response evidence (Modules 7–9) ✅ (2026-10-02)
+
+> **Done.** Unique events / source tables / authored alerts (guided = assessment shape): M07 13/7/1 → 75/9/6 · M08 22/5/1 → 66/7/6 · M09 16/4/1 → 70/8/7. Guided/assessment share no EventIds/hosts/IPs/domains (only `svc-backup` in M09, already in both pickers). M07: ~62 console-only background rows (bulk marketing, HR notice, similar-brand aligned vendor, never-clicked DMARC-fail survey, deferral+retry, quarantine, signed updater, NXDOMAIN retries); new `EmailUrlEvents`/`EmailAttachmentEvents`; correlation hinge — ALT-7102 vs ALT-7103 fire on the same rule and only the clicked mail's DMARC/auth state separates incident from newsletter. M08: 3 comparison assets, 5 findings, finding/asset evidence, scanner jobs (credential-failure run explains stale finding), approved/queued-never-applied patches; decoys include CVSS 9.8 on isolated lab host and non-applicable 9.8 on answer asset. M09: 54 before/after containment rows, request-to-completion outcomes, new `RecoveryChecks` table where nothing passes for ws-173/fs-02/acct-173 (containment ≠ recovery), explicit coverage gaps. Truth: M07 `expectedTruth.benignBackgroundEventIds`/`alertDispositions`; M08 new scenario keys, `expectedPriority` unchanged. No scorer/rubric/action files touched. Fixed: M09 duplicate rows differentiated; M07 guided ALT-7481 query literal `\n` crashed the KQL engine. Test `tests/soc-telemetry-sprint4.test.js`.
 
 **Purpose:** Raise source diversity and alert load while connecting email/network, exposure context, and response lifecycle.
 

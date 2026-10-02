@@ -846,6 +846,9 @@ function moduleEightBuildConsoleData(fixture, caseId) {
     ...s.assetEvidence.map((e) => evidence('AssetEvidence', e, e.assetId)),
     ...s.incidentEvidence.map((e) => evidence('IncidentEvidence', e, assetOf(e.findingId))),
     ...s.riskAcceptanceEvidence.map((e) => evidence('RiskExceptionEvidence', e, assetOf(e.findingId))),
+    // Scanner job context (native job log: scanner, mode, coverage, outcome) and remediation status (change tracker).
+    ...(s.scanRuns || []).map((r) => row('ScanRuns', r.id, r.observedAt, { EventType: 'scan_run', Host: r.assetId, DeviceId: r.assetId, Account: ownerOf(r.assetId), Scanner: r.scanner, ScanMode: r.mode, Coverage: r.coverage, Result: r.outcome, Detail: r.detail })),
+    ...(s.patchRecords || []).map((r) => row('PatchRecords', r.id, r.observedAt, { EventType: 'patch_status', Host: r.assetId, DeviceId: r.assetId, Account: ownerOf(r.assetId), ChangeId: r.changeId, Result: r.status, Detail: r.detail })),
   ];
   return {
     ...m03eBuildDataset({
@@ -857,7 +860,10 @@ function moduleEightBuildConsoleData(fixture, caseId) {
       watchlists: {
         AssetInventory: { title: 'Asset inventory', rows: s.assetInventory.map((asset) => ({ AssetId: asset.assetId, Hostname: asset.hostname, Function: asset.function, Owner: asset.ownerId, Environment: asset.environment, Criticality: asset.criticality.tier, Zone: asset.reachability.zone })) },
       },
-      alerts: s.incidents.map((incident) => ({ id: incident.id, time: s.incidentEvidence.find((item) => item.incidentId === incident.id)?.observedAt || s.start, severity: 'High', title: incident.title, entities: [...new Set(incident.findingIds.map(assetOf))], rule: 'Open incident: validation and exposure review', query: 'VulnerabilityFindings\n| sort by CvssScore desc' })),
+      alerts: [
+        ...s.incidents.map((incident) => ({ id: incident.id, time: s.incidentEvidence.find((item) => item.incidentId === incident.id)?.observedAt || s.start, severity: 'High', title: incident.title, entities: [...new Set(incident.findingIds.map(assetOf))], rule: 'Open incident: validation and exposure review', query: 'VulnerabilityFindings\n| sort by CvssScore desc' })),
+        ...(s.alertCandidates || []).map((alert) => ({ id: alert.id, time: alert.time, severity: alert.severity, title: alert.title, entities: alert.entities, rule: alert.rule, query: alert.query })),
+      ],
     }),
     now: s.end,
   };
@@ -868,6 +874,12 @@ const MODULE_EIGHT_GUIDED_CASE_MAP = {
   'WEB-DMZ-14': 'API-EDGE-31', 'web-dmz-14': 'api-edge-31', 'APP-DMZ-22': 'PAY-API-09', 'app-dmz-22': 'pay-api-09',
   'p.diallo': 'n.owens', 'j.moreau': 's.ivanov', 'Apache HTTP Server': 'Northstar API Gateway', 'OpenSSL': 'Kestrel TLS Adapter', 'Microsoft SMBv1': 'Legacy Print Protocol',
   'CVE-2021-41773': 'LAB-VULN-041', 'CVE-2022-3786': 'LAB-VULN-052', 'CVE-2017-0144': 'LAB-VULN-063',
+  'HR-PORTAL-07': 'CRM-INT-12', 'hr-portal-07': 'crm-int-12', 'LAB-BUILD-03': 'DEV-CI-04', 'lab-build-03': 'dev-ci-04', 'DB-REP-11': 'DB-ANL-06', 'db-rep-11': 'db-anl-06',
+  'a.okafor': 't.brandt', 'r.tanaka': 'l.mendes', 'm.haddad': 'k.osei', 'Employee self-service portal': 'Internal case-management portal', 'Isolated build runner': 'Sandboxed CI worker',
+  'Reporting database replica': 'Analytics database replica', 'TLS configuration (legacy 3DES suites)': 'TLS configuration (legacy RC4 suites)', 'Jenkins': 'Foundry CI Server', 'PostgreSQL': 'Meridian SQL', 'OpenSSH': 'Harbor Shell Daemon',
+  'CVE-2016-2183': 'LAB-VULN-071', 'CVE-2024-23897': 'LAB-VULN-072', 'CVE-2023-5868': 'LAB-VULN-073', 'CVE-2023-38408': 'LAB-VULN-074', 'CVE-2022-0778': 'LAB-VULN-075',
+  'CHG-5521': 'CHG-6840', 'CHG-5530': 'CHG-6841', 'CHG-5533': 'CHG-6842', 'CHG-5538': 'CHG-6843', '2026-09-29': '2026-10-03', 'HR portal': 'case portal', '3DES': 'RC4', 'ssh-agent': 'key-agent', 'tcp/5432': 'tcp/3306', 'tcp/8080': 'tcp/9090', 'corp-vpn': 'staff-vpn', 'corp-lan': 'staff-lan',
+  '2026-05-20': '2026-06-20',
   'M08-': 'M08G-', '2026-09-27': '2026-10-01', '2026-06-02': '2026-07-02',
 };
 function moduleEightGuidedClone(value) {
@@ -927,6 +939,8 @@ const MODULE_EIGHT_CONSOLE = (() => {
       VulnerabilityFindings: { native: 'Scanner findings export (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['product', 'Product'], ['cve', 'Cve'], ['cvss', 'CvssScore'], ['scanner', 'Scanner'], ['freshness', 'Freshness']] },
       FindingEvidence: { native: 'Finding validation records (JSON)', fields: [['observed', 'TimeGenerated'], ['finding', 'FindingId'], ['kind', 'EventType'], ['source', 'Source'], ['detail', 'Detail']] },
       AssetEvidence: { native: 'Asset context records (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['kind', 'EventType'], ['source', 'Source'], ['detail', 'Detail']] },
+      ScanRuns: { native: 'Scanner job log (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['scanner', 'Scanner'], ['mode', 'ScanMode'], ['coverage', 'Coverage'], ['outcome', 'Result']] },
+      PatchRecords: { native: 'Change tracker export (JSON)', fields: [['observed', 'TimeGenerated'], ['asset', 'DeviceId'], ['change', 'ChangeId'], ['status', 'Result']] },
       IncidentEvidence: { native: 'Incident triage records (JSON)', fields: [['observed', 'TimeGenerated'], ['finding', 'FindingId'], ['kind', 'EventType'], ['detail', 'Detail']] },
       RiskExceptionEvidence: { native: 'Risk review records (JSON)', fields: [['observed', 'TimeGenerated'], ['finding', 'FindingId'], ['kind', 'EventType'], ['detail', 'Detail']] },
     },

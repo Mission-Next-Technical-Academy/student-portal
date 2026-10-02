@@ -134,7 +134,7 @@ assert.strictEqual(scenario.fixedAt, '2026-09-27T11:00:00Z');
 assert.strictEqual(scenario.end, scenario.fixedAt);
 assert.ok(Date.parse(scenario.start) < Date.parse(scenario.end));
 assert.ok(priorScenarios.every((prior) => scenario.id !== prior.id && scenario.stateKey !== prior.stateKey)); // gitleaks:allow
-assert.deepStrictEqual(JSON.parse(JSON.stringify(scenario.assetInventory)), [
+assert.deepStrictEqual(JSON.parse(JSON.stringify(scenario.assetInventory.slice(0, 2))), [
   {
     id: 'M08-ASSET-001', assetId: 'WEB-DMZ-14', hostname: 'web-dmz-14', function: 'Public web service', ownerId: 'p.diallo', environment: 'production',
     criticality: { tier: 'critical', rationale: 'Customer-facing authentication and payment entry point.', evidenceIds: ['M08-ASSET-EVID-001'] },
@@ -229,7 +229,7 @@ assertDeepFrozen(data);
 scenario.assetInventory[0].assetId = 'changed';
 assert.strictEqual(scenario.assetInventory[0].assetId, 'WEB-DMZ-14', 'frozen inventory cannot be mutated');
 assert.deepStrictEqual(Object.keys(scenario).sort(),
-  ['assetEvidence', 'assetInventory', 'end', 'escalationRoutes', 'expectedPriority', 'findingEvidence', 'findings', 'fixedAt', 'id', 'incidentEvidence', 'incidents', 'riskAcceptanceDispositions', 'riskAcceptanceEvidence', 'start', 'stateKey'].sort(), // gitleaks:allow
+  ['alertCandidates', 'assetEvidence', 'assetInventory', 'end', 'escalationRoutes', 'expectedPriority', 'findingEvidence', 'findings', 'fixedAt', 'id', 'incidentEvidence', 'incidents', 'patchRecords', 'riskAcceptanceDispositions', 'riskAcceptanceEvidence', 'scanRuns', 'start', 'stateKey'].sort(), // gitleaks:allow
   'M08 fixture additions remain explicitly scoped and fixture-backed');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'portal', 'index.html'), 'utf8');

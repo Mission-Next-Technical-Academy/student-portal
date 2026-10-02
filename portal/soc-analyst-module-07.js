@@ -754,20 +754,24 @@ const MODULE_SEVEN_CONSOLE_DATA = (function () {
       ProcessId: e.processName, ParentProcessId: e.parentProcessName,
       Result: 'success', RelatedEventIds: related(e), Detail: e.commandLine,
     })),
+    // Background mail/network/endpoint telemetry (benign context, retries, similar-brand senders).
+    ...(s.backgroundEvents || []).map((e) => row(e.table, e.id, e.timestamp, e.fields)),
   ];
   return {
     ...m03eBuildDataset({
       caseId: MODULE_SEVEN_CASE_ID,
       day: s.start.slice(0, 10),
       events,
-      identities: ['acct-63', 'acct-82', 'acct-17'].map((account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' })),
+      identities: ['acct-63', 'acct-82', 'acct-17', ...s.backgroundContext.accounts.filter((account) => account !== 'acct-17')].map((account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' })),
       ips: [
         { SourceIp: '203.0.113.88', Type: 'External', Country: '—', Asn: 'Unclassified hosting', FirstSeen: '2026-09-27 10:08', Reputation: 'No reputation data' },
         { SourceIp: '198.51.100.24', Type: 'External', Country: '—', Asn: 'Northwind payroll SaaS', FirstSeen: '2025-02-01 08:00', Reputation: 'Known business service' },
+        ...s.backgroundContext.ips,
       ],
       watchlists: {},
       alerts: [
         { id: 'ALT-7101', time: '2026-09-27T10:03:05Z', severity: 'Medium', title: 'Inbound message failed DMARC alignment', entities: [message.from.address], rule: 'Mail gateway: DMARC fail on an external message', query: 'EmailEvents\n| where Dmarc == "fail"' },
+        ...s.backgroundContext.alerts,
       ],
     }),
     now: s.end,
@@ -810,6 +814,8 @@ const MODULE_SEVEN_CONSOLE = (() => {
       FirewallEvents: { native: 'Perimeter firewall flows (key=value)', fields: [['ts', 'TimeGenerated'], ['src', 'SourceIp'], ['dst', 'DestinationIp'], ['dport', 'DestinationPort'], ['action', 'Result']] },
       ProxyEvents: { native: 'Web proxy access log (text)', fields: [['ts', 'TimeGenerated'], ['client', 'DeviceId'], ['url', 'Url'], ['status', 'Result']] },
       DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['user', 'Account'], ['image', 'Image'], ['command_line', 'CommandLine'], ['parent', 'ParentProcess']] },
+      EmailUrlEvents: { native: 'URL-protection verdict log (JSON)', fields: [['ts', 'TimeGenerated'], ['recipient', 'Account'], ['url', 'Url'], ['verdict', 'Verdict'], ['category', 'Category']] },
+      EmailAttachmentEvents: { native: 'Attachment scan verdicts (JSON)', fields: [['ts', 'TimeGenerated'], ['recipient', 'Account'], ['file', 'FileName'], ['verdict', 'Verdict']] },
     },
     packs: [
       { id: 'm04', ctx: { ...base, assessment: moduleSevenM04Tools, fixture: MODULE_SEVEN_TOOL_FIXTURES.m04 } },
@@ -894,6 +900,14 @@ MODULE_SEVEN_GUIDED_FIXTURE.scenario.expectedTruth.incidentChain = [
   { step: 'endpoint_execution', status: 'unverified', evidence: null },
   { step: 'credential_compromise', status: 'unverified', evidence: null },
 ];
+// Practice It background telemetry is generated from its own world (people, devices, domains, addresses, hour),
+// not from the assessment rows, so no EventId, entity or indicator is shared between the two cases.
+const MODULE_SEVEN_GUIDED_BACKGROUND = SocM07AssessmentData.buildBackground(SocM07AssessmentData.guidedBackgroundWorld);
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.backgroundEvents = MODULE_SEVEN_GUIDED_BACKGROUND.events;
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.backgroundContext = { accounts: MODULE_SEVEN_GUIDED_BACKGROUND.accounts, ips: MODULE_SEVEN_GUIDED_BACKGROUND.ips, alerts: MODULE_SEVEN_GUIDED_BACKGROUND.alerts };
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.expectedTruth.benignBackgroundEventIds = MODULE_SEVEN_GUIDED_BACKGROUND.truth.benignBackgroundEventIds;
+MODULE_SEVEN_GUIDED_FIXTURE.scenario.expectedTruth.alertDispositions = MODULE_SEVEN_GUIDED_BACKGROUND.truth.alertDispositions;
+
 
 function moduleSevenGuidedBuildConsoleData() {
   const s = MODULE_SEVEN_GUIDED_FIXTURE.scenario;
@@ -905,12 +919,13 @@ function moduleSevenGuidedBuildConsoleData() {
     ...s.recipientEvents.map((event) => row('EmailInteractionEvents', event.id, event.timestamp, { EventType: event.type, Account: event.recipientId, Host: event.deviceId, DeviceId: event.deviceId, NetworkMessageId: event.messageId, UrlId: event.urlId, Result: 'observed', Detail: `${event.type} on ${event.deviceId}` })),
     ...s.networkEvents.map((event) => row({ dns_query: 'DnsEvents', tls_session: 'TlsEvents', firewall_flow: 'FirewallEvents', proxy_request: 'ProxyEvents' }[event.type] || 'NetworkEvents', event.id, event.timestamp, { EventType: event.type, Account: event.recipientId, Host: event.deviceId, DeviceId: event.deviceId, Domain: event.domain || event.sni || '', Answers: (event.answers || []).join(', '), SourceIp: event.sourceIp || '', DestinationIp: event.destinationIp || '', DestinationPort: event.destinationPort || '', Url: event.url || '', Result: event.action || event.status || 'observed', RelatedEventIds: related(event), Detail: event.url || (event.domain ? `${event.domain} → ${(event.answers || []).join(', ')}` : `${event.destinationIp}:${event.destinationPort}`) })),
     ...s.endpointProcessEvents.map((event) => row('DeviceProcessEvents', event.id, event.timestamp, { EventType: event.type, Account: event.recipientId, Host: event.deviceId, DeviceId: event.deviceId, Image: event.imagePath, CommandLine: event.commandLine, ParentProcess: event.parentProcessName, ProcessId: event.processName, ParentProcessId: event.parentProcessName, Result: 'success', RelatedEventIds: related(event), Detail: event.commandLine })),
+    ...(s.backgroundEvents || []).map((event) => row(event.table, event.id, event.timestamp, event.fields)),
   ];
   const person = (account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' });
   return { ...m03eBuildDataset({ caseId: 'NEC-0748', day: s.start.slice(0, 10), events,
-    identities: ['acct-91', 'acct-97', 'acct-55'].map(person),
-    ips: [{ SourceIp: '192.0.2.211', Type: 'External', Country: '—', Asn: 'Unclassified file-hosting test range', FirstSeen: '2026-09-27 11:08', Reputation: 'No reputation data' }, { SourceIp: '203.0.113.65', Type: 'External', Country: '—', Asn: 'Paperless Share HR portal', FirstSeen: '2025-02-01 08:00', Reputation: 'Known business service' }],
-    watchlists: {}, alerts: [{ id: 'ALT-7481', time: '2026-09-27T11:03:05Z', severity: 'Medium', title: 'Shared-file notice failed DMARC alignment', entities: ['notice@paperless-share.example'], rule: 'Mail gateway: DMARC fail on an external message', query: 'EmailEvents\\n| where Dmarc == "fail"' }],
+    identities: ['acct-91', 'acct-97', 'acct-55', ...s.backgroundContext.accounts.filter((account) => account !== 'acct-55')].map(person),
+    ips: [{ SourceIp: '192.0.2.211', Type: 'External', Country: '—', Asn: 'Unclassified file-hosting test range', FirstSeen: '2026-09-27 11:08', Reputation: 'No reputation data' }, { SourceIp: '203.0.113.65', Type: 'External', Country: '—', Asn: 'Paperless Share HR portal', FirstSeen: '2025-02-01 08:00', Reputation: 'Known business service' }, ...s.backgroundContext.ips],
+    watchlists: {}, alerts: [{ id: 'ALT-7481', time: '2026-09-27T11:03:05Z', severity: 'Medium', title: 'Shared-file notice failed DMARC alignment', entities: ['notice@paperless-share.example'], rule: 'Mail gateway: DMARC fail on an external message', query: 'EmailEvents\n| where Dmarc == "fail"' }, ...s.backgroundContext.alerts],
   }), now: s.end };
 }
 const MODULE_SEVEN_GUIDED_CONSOLE_DATA = moduleSevenGuidedBuildConsoleData();
@@ -971,6 +986,8 @@ const MODULE_SEVEN_GUIDED_CONSOLE = (() => {
       FirewallEvents: { native: 'Perimeter firewall flows (key=value)', fields: [['ts', 'TimeGenerated'], ['src', 'SourceIp'], ['dst', 'DestinationIp'], ['dport', 'DestinationPort'], ['action', 'Result']] },
       ProxyEvents: { native: 'Web proxy access log (text)', fields: [['ts', 'TimeGenerated'], ['client', 'DeviceId'], ['url', 'Url'], ['status', 'Result']] },
       DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['user', 'Account'], ['image', 'Image'], ['command_line', 'CommandLine'], ['parent', 'ParentProcess']] },
+      EmailUrlEvents: { native: 'URL-protection verdict log (JSON)', fields: [['ts', 'TimeGenerated'], ['recipient', 'Account'], ['url', 'Url'], ['verdict', 'Verdict'], ['category', 'Category']] },
+      EmailAttachmentEvents: { native: 'Attachment scan verdicts (JSON)', fields: [['ts', 'TimeGenerated'], ['recipient', 'Account'], ['file', 'FileName'], ['verdict', 'Verdict']] },
     },
     packs: [
       { id: 'm04', ctx: { ...base, assessment: moduleSevenGuidedM04Tools, fixture: MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m04 } },
