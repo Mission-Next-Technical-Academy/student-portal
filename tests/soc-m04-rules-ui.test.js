@@ -21,7 +21,7 @@ assert.strictEqual(state.actionHistory.at(-1).type, 'query_test');
 assert.strictEqual(state.actionHistory.at(-1).timestamp, '2026-09-24T09:30:00Z');
 assert.throws(() => api.saveQuery(state, 'MissingTable | take 5', '2026-09-24T09:31:00Z'), /Test this exact query successfully/);
 
-const query = 'AuthLog | where Result == "Success" | project EventId, Account, SourceIp';
+const query = 'AuthLog | where Result == "Success" and SourceIp == "198.51.100.64" | project EventId, Account, SourceIp';
 const good = api.test(state, fixture, query, '2026-09-24T09:32:00Z');
 assert.strictEqual(good.succeeded, true);
 assert.strictEqual(good.rows.length, 1);
@@ -130,7 +130,7 @@ assert.match(rendered, /Group by Account; alert at 2 matches over 30 minutes/);
 assert.match(rendered, /Exclude Device contains &lt;managed &amp; trusted&gt; \(Approved device exception\)/);
 assert.match(rendered, /Suppression enabled by SourceIp for 15 minutes/);
 assert.ok(!rendered.includes('<managed & trusted>'), 'preview escapes learner-authored config values');
-assert.match(rendered, /AuthLog \| where Result == &quot;Success&quot; \| project EventId, Account, SourceIp/);
+assert.match(rendered, /AuthLog \| where Result == &quot;Success&quot; and SourceIp == &quot;198.51.100.64&quot; \| project EventId, Account, SourceIp/);
 for (const forbidden of ['maliciousSourceIp', 'confirmedCompromisedAccounts', 'successfulAuthenticationEventIds']) {
   assert.ok(!rendered.includes(forbidden), `UI must not expose truth field ${forbidden}`);
   assert.ok(!JSON.stringify(persisted).includes(forbidden), `learner state must not persist truth field ${forbidden}`);

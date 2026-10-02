@@ -419,18 +419,18 @@ const MODULE_FOUR_INDEPENDENT_LAB = {
 
 const MODULE_FOUR_AUTH_EVENTS = [
   { id: 'AE-401', time: '09:01', outcome: 'Success', account: 'acct-06', ip: '10.44.3.18', device: 'Managed', region: 'East office', detail: 'Normal interactive sign-in from the account’s assigned workstation.' },
-  { id: 'AE-402', time: '09:02', outcome: 'Failed', account: 'acct-17', ip: '203.0.113.77', device: 'Managed', region: 'West office', detail: 'Stored credential rejected after the account’s approved password rotation.' },
+  { id: 'AE-402', time: '09:02', outcome: 'Failed', account: 'acct-07', ip: '203.0.113.97', device: 'Managed', region: 'West office', detail: 'Stored credential rejected after the account’s approved password rotation.' },
   { id: 'AE-403', time: '09:03', outcome: 'Failed', account: 'acct-21', ip: '198.51.100.44', device: 'Unknown', region: 'Unresolved', detail: 'First failure from an unrecognized source and device.' , relevant: true },
-  { id: 'AE-404', time: '09:04', outcome: 'Failed', account: 'acct-17', ip: '203.0.113.77', device: 'Managed', region: 'West office', detail: 'The same managed mail client retried its stored credential.' },
+  { id: 'AE-404', time: '09:04', outcome: 'Failed', account: 'acct-07', ip: '203.0.113.97', device: 'Managed', region: 'West office', detail: 'The same managed mail client retried its stored credential.' },
   { id: 'AE-405', time: '09:05', outcome: 'Failed', account: 'acct-22', ip: '198.51.100.44', device: 'Unknown', region: 'Unresolved', detail: 'A second anonymous account received one password attempt.', relevant: true },
-  { id: 'AE-406', time: '09:06', outcome: 'Failed', account: 'acct-17', ip: '203.0.113.77', device: 'Managed', region: 'West office', detail: 'Repeated stale-client retry on the same account and managed device.' },
+  { id: 'AE-406', time: '09:06', outcome: 'Failed', account: 'acct-07', ip: '203.0.113.97', device: 'Managed', region: 'West office', detail: 'Repeated stale-client retry on the same account and managed device.' },
   { id: 'AE-407', time: '09:07', outcome: 'Failed', account: 'acct-23', ip: '198.51.100.44', device: 'Unknown', region: 'Unresolved', detail: 'A third account received one password attempt from the same source.', relevant: true },
-  { id: 'AE-408', time: '09:08', outcome: 'Failed', account: 'acct-17', ip: '203.0.113.77', device: 'Managed', region: 'West office', detail: 'Fourth retry from the registered client; no other accounts were targeted.' },
+  { id: 'AE-408', time: '09:08', outcome: 'Failed', account: 'acct-07', ip: '203.0.113.97', device: 'Managed', region: 'West office', detail: 'Fourth retry from the registered client; no other accounts were targeted.' },
   { id: 'AE-409', time: '09:09', outcome: 'Failed', account: 'acct-24', ip: '198.51.100.44', device: 'Unknown', region: 'Unresolved', detail: 'A fourth account received one attempt from the unrecognized source.', relevant: true },
-  { id: 'AE-410', time: '09:10', outcome: 'Failed', account: 'acct-17', ip: '203.0.113.77', device: 'Managed', region: 'West office', detail: 'Fifth retry from the known client before its credential cache refreshed.' },
+  { id: 'AE-410', time: '09:10', outcome: 'Failed', account: 'acct-07', ip: '203.0.113.97', device: 'Managed', region: 'West office', detail: 'Fifth retry from the known client before its credential cache refreshed.' },
   { id: 'AE-411', time: '09:11', outcome: 'Failed', account: 'acct-25', ip: '198.51.100.44', device: 'Unknown', region: 'Unresolved', detail: 'A fifth distinct account received one attempt from the same source.', relevant: true },
   { id: 'AE-412', time: '09:12', outcome: 'Success', account: 'acct-24', ip: '198.51.100.44', device: 'Unknown', region: 'Unresolved', detail: 'One targeted account authenticated successfully after the distributed failures.', relevant: true },
-  { id: 'AE-413', time: '09:13', outcome: 'Success', account: 'acct-17', ip: '203.0.113.77', device: 'Managed', region: 'West office', detail: 'The registered client succeeded after receiving the updated credential.' },
+  { id: 'AE-413', time: '09:13', outcome: 'Success', account: 'acct-07', ip: '203.0.113.97', device: 'Managed', region: 'West office', detail: 'The registered client succeeded after receiving the updated credential.' },
   { id: 'AE-414', time: '09:14', outcome: 'Success', account: 'acct-08', ip: '10.44.3.22', device: 'Managed', region: 'East office', detail: 'Normal sign-in from a second assigned workstation.' },
 ];
 
@@ -1116,20 +1116,40 @@ const MODULE_FOUR_CONSOLE_DATA = (function () {
     EventType: e.type, Account: e.account, SourceIp: e.sourceIp, Result: e.result, Device: e.device, Host: 'idp-04',
     Detail: e.result === 'Failure' ? 'Invalid password' : 'Sign-in succeeded',
   }));
+  // Sprint 2 context sources (console-only: Log Search and the Entities/Timeline views read them; the
+  // analytics-rule evaluator runs on the AuthLog telemetry above). Purposes: M04-X-001/002 corroborate
+  // the stale mail-client explanation, X-003/005 collector baseline and lag, X-004 and X-006 explain the
+  // scheduled backup and probe failures, X-007 a routine directory change.
+  const extra = [
+    m03eRow('AppAudit', 'M04-X-001', day, '09:07:20', { EventType: 'MailSyncAuthError', Account: 'acct-17', SourceIp: '203.0.113.77', Host: 'mail-relay-01', Application: 'MailClient', Result: 'Failure', Records: 0, Detail: 'IMAP login rejected: cached credential predates the rotation; client retries every 60 seconds' }),
+    m03eRow('AppAudit', 'M04-X-002', day, '09:12:35', { EventType: 'MailSync', Account: 'acct-17', SourceIp: '203.0.113.77', Host: 'mail-relay-01', Application: 'MailClient', Result: 'Success', Records: 41, Detail: 'Client re-authenticated with the refreshed credential; mailbox sync resumed' }),
+    m03eRow('SystemLog', 'M04-X-003', day, '09:00:10', { EventType: 'CollectorHeartbeat', Account: 'idp-04', SourceIp: '10.44.1.4', Host: 'idp-04', Result: 'Success', Detail: 'Heartbeat on schedule (60-second interval)' }),
+    m03eRow('SystemLog', 'M04-X-004', day, '09:15:20', { EventType: 'ScheduledJobStart', Account: 'svc-backup', SourceIp: '10.44.8.5', Host: 'bk-02', Result: 'Success', ChangeId: 'SCH-044', Detail: 'Backup catch-up job started under svc-backup; vault entry expired, job retries before falling back to the renewed entry' }),
+    m03eRow('SystemLog', 'M04-X-005', day, '09:09:40', { EventType: 'CollectorLag', Account: 'idp-04', SourceIp: '10.44.1.4', Host: 'idp-04', Result: 'Delayed', Detail: 'Branch relay batch ingested 40 seconds late; no events dropped' }),
+    m03eRow('SystemLog', 'M04-X-006', day, '09:05:00', { EventType: 'ScheduledProbe', Account: 'svc-monitor', SourceIp: '10.44.0.9', Host: 'mon-01', Result: 'Success', ChangeId: 'SCH-031', Detail: 'Availability probe of the sign-in endpoint every 5 minutes using a deliberately invalid test credential (failure expected)' }),
+    m03eRow('DirectoryAudit', 'M04-X-007', day, '09:03:15', { EventType: 'GroupAdded', Account: 'acct-55', SourceIp: '10.44.1.20', Host: 'dc-04', Result: 'Success', InitiatedBy: 'it-admin', TargetGroup: 'Finance-Read', Detail: 'Added to Finance-Read (CR-212)' }),
+  ];
+  events.push(...extra);
   const user = (account, department, usual) => ({ Account: account, DisplayName: account, Type: 'User', Department: department, Owner: '—', Privileged: 'No', UsualSourceIp: usual, Notes: '' });
   return {
     ...m03eBuildDataset({
       caseId: s.caseId,
       day,
       events,
-      identities: [user('acct-41', 'Finance', '10.44.3.18'), user('acct-42', 'Operations', '10.44.3.22'), user('acct-43', 'Legal', '10.44.3.18'), user('acct-44', 'Finance', '10.44.3.22'), user('acct-45', 'Sales', '10.44.3.18'), { ...user('acct-17', 'Operations', '203.0.113.77'), Notes: 'Uses the managed mail client' }],
+      identities: [user('acct-41', 'Finance', '10.44.3.18'), user('acct-42', 'Operations', '10.44.3.22'), user('acct-43', 'Legal', '10.44.3.18'), user('acct-44', 'Finance', '10.44.3.22'), user('acct-45', 'Sales', '10.44.3.18'), { ...user('acct-17', 'Operations', '203.0.113.77'), Notes: 'Uses the managed mail client' },
+        user('acct-51', 'Finance', '10.44.3.30'), user('acct-52', 'Operations', '10.44.3.31'), user('acct-53', 'Legal', '10.44.3.33'), user('acct-54', 'Sales', '10.44.3.34'), user('acct-55', 'Finance', '10.44.3.36'),
+        { ...user('acct-31', 'Branch office', '203.0.113.140'), Notes: 'Works from the branch office; shares its NAT egress' }, { ...user('acct-32', 'Branch office', '203.0.113.140'), Notes: 'Works from the branch office; shares its NAT egress' }, { ...user('acct-33', 'Branch office', '203.0.113.140'), Notes: 'Works from the branch office; shares its NAT egress' }],
       ips: [
         { SourceIp: '198.51.100.64', Type: 'External', Country: '—', Asn: 'Unresolved hosting network', FirstSeen: `${day} 09:01`, Reputation: 'No internal history. Check Threat Intelligence for reporting on this address.' },
         { SourceIp: '203.0.113.77', Type: 'External', Country: '—', Asn: 'Mission Next managed mail relay', FirstSeen: '2025-01-10 08:00', Reputation: 'Known managed mail-client egress' },
+        { SourceIp: '203.0.113.140', Type: 'External', Country: '—', Asn: 'Mission Next branch office NAT', FirstSeen: '2024-11-04 08:00', Reputation: 'Known branch egress shared by several staff' },
       ],
       watchlists: {
         ChangeTickets: { title: 'Approved change tickets', rows: [
           { ChangeId: 'CR-204', Summary: 'Credential rotation (Identity Operations)', Account: 'acct-17', Window: `${day} 08:45–09:15`, Status: 'Completed' },
+          { ChangeId: 'CR-212', Summary: 'Grant Finance-Read (Access Management)', Account: 'acct-55', Window: `${day} 09:00–09:10`, Status: 'Completed' },
+          { ChangeId: 'SCH-031', Summary: 'Availability probe, every 5 minutes (invalid test credential, failures expected)', Account: 'svc-monitor', Window: `${day} Every 5 min`, Status: 'Standing' },
+          { ChangeId: 'SCH-044', Summary: 'Backup catch-up job (vault credential renewal retries)', Account: 'svc-backup', Window: `${day} 09:15–09:20`, Status: 'Standing' },
         ] },
       },
       alerts: [],
@@ -1164,6 +1184,7 @@ function moduleFourGuidedReplace(value) {
     'M04-R-001': 'GL4-R-201', 'M04-R-002': 'GL4-R-202', 'M04-I-001': 'GL4-I-301', 'M04-I-002': 'GL4-I-302', 'M04-I-003': 'GL4-I-303',
     '198.51.100.64': '192.0.2.144', '203.0.113.77': '203.0.113.177',
     'acct-41': 'acct-61', 'acct-42': 'acct-62', 'acct-43': 'acct-63', 'acct-44': 'acct-64', 'acct-45': 'acct-65',
+    'acct-17': 'acct-67',
   };
   if (typeof value === 'string') return Object.entries(replacements).reduce((result, [from, to]) => result.split(from).join(to), value);
   if (Array.isArray(value)) return value.map(moduleFourGuidedReplace);
@@ -1172,13 +1193,27 @@ function moduleFourGuidedReplace(value) {
 }
 const MODULE_FOUR_GUIDED_FIXTURE = moduleFourGuidedReplace(moduleFourGuidedClone(SocM04AssessmentData));
 MODULE_FOUR_GUIDED_FIXTURE.scenario.telemetry = [
-  { id: 'GL4-A-101', time: '2026-09-27T10:11:00Z', type: 'AuthFailure', account: 'acct-61', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
-  { id: 'GL4-A-102', time: '2026-09-27T10:12:00Z', type: 'AuthFailure', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
-  { id: 'GL4-A-103', time: '2026-09-27T10:13:00Z', type: 'AuthFailure', account: 'acct-63', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
-  { id: 'GL4-A-104', time: '2026-09-27T10:14:00Z', type: 'AuthSuccess', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Success', device: 'Unknown' },
-  { id: 'GL4-A-105', time: '2026-09-27T10:16:00Z', type: 'AuthFailure', account: 'acct-17', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
-  { id: 'GL4-A-106', time: '2026-09-27T10:17:00Z', type: 'AuthFailure', account: 'acct-17', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
-  { id: 'GL4-A-107', time: '2026-09-27T10:18:00Z', type: 'AuthFailure', account: 'acct-17', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
+  { id: 'GL4-A-101', time: '2026-09-27T10:11:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-61', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
+  { id: 'GL4-A-102', time: '2026-09-27T10:12:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
+  { id: 'GL4-A-103', time: '2026-09-27T10:13:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-63', sourceIp: '192.0.2.144', result: 'Failure', device: 'Unknown' },
+  { id: 'GL4-A-104', time: '2026-09-27T10:14:00Z', source: 'AuthLog', type: 'AuthSuccess', account: 'acct-62', sourceIp: '192.0.2.144', result: 'Success', device: 'Unknown' },
+  { id: 'GL4-A-105', time: '2026-09-27T10:16:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-67', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
+  { id: 'GL4-A-106', time: '2026-09-27T10:17:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-67', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
+  { id: 'GL4-A-107', time: '2026-09-27T10:18:00Z', source: 'AuthLog', type: 'AuthFailure', account: 'acct-67', sourceIp: '203.0.113.177', result: 'Failure', device: 'Managed mail client' },
+  // Sprint 2 background and alternate-explanation rows (purposes in truth.rowPurpose).
+  { id: 'GL4-A-111', source: 'AuthLog', time: '2026-09-27T10:10:30Z', type: 'AuthSuccess', account: 'acct-61', sourceIp: '10.55.4.10', result: 'Success', device: 'Managed workstation' },
+  { id: 'GL4-A-112', source: 'AuthLog', time: '2026-09-27T10:12:20Z', type: 'AuthSuccess', account: 'acct-68', sourceIp: '10.55.4.14', result: 'Success', device: 'Managed workstation' },
+  { id: 'GL4-A-113', source: 'AuthLog', time: '2026-09-27T10:13:40Z', type: 'AuthSuccess', account: 'acct-69', sourceIp: '10.55.4.15', result: 'Success', device: 'Managed workstation' },
+  { id: 'GL4-A-114', source: 'AuthLog', time: '2026-09-27T10:15:10Z', type: 'AuthSuccess', account: 'acct-63', sourceIp: '10.55.4.10', result: 'Success', device: 'Managed workstation' },
+  { id: 'GL4-A-115', source: 'AuthLog', time: '2026-09-27T10:17:45Z', type: 'AuthSuccess', account: 'acct-70', sourceIp: '10.55.4.16', result: 'Success', device: 'Managed workstation' },
+  { id: 'GL4-A-116', source: 'AuthLog', time: '2026-09-27T10:18:30Z', type: 'AuthFailure', account: 'acct-71', sourceIp: '203.0.113.190', result: 'Failure', device: 'Branch workstation' },
+  { id: 'GL4-A-117', source: 'AuthLog', time: '2026-09-27T10:18:50Z', type: 'AuthSuccess', account: 'acct-71', sourceIp: '203.0.113.190', result: 'Success', device: 'Branch workstation' },
+  { id: 'GL4-A-118', source: 'AuthLog', time: '2026-09-27T10:12:00Z', type: 'AuthFailure', account: 'svc-probe', sourceIp: '10.55.0.9', result: 'Failure', device: 'Synthetic probe' },
+  { id: 'GL4-A-119', source: 'AuthLog', time: '2026-09-27T10:17:00Z', type: 'AuthFailure', account: 'svc-probe', sourceIp: '10.55.0.9', result: 'Failure', device: 'Synthetic probe' },
+  { id: 'GL4-A-120', source: 'AuthLog', time: '2026-09-27T10:11:50Z', type: 'AuthSuccess', account: 'acct-69', sourceIp: '10.55.4.15', result: 'Success', device: 'Managed workstation' },
+  { id: 'GL4-A-121', source: 'AuthLog', time: '2026-09-27T10:14:25Z', type: 'AuthSuccess', account: 'acct-68', sourceIp: '10.55.4.14', result: 'Success', device: 'Managed workstation' },
+  { id: 'GL4-A-122', source: 'AuthLog', time: '2026-09-27T10:16:55Z', type: 'AuthSuccess', account: 'acct-61', sourceIp: '10.55.4.10', result: 'Success', device: 'Managed workstation' },
+  { id: 'GL4-A-123', source: 'AuthLog', time: '2026-09-27T10:19:05Z', type: 'AuthSuccess', account: 'acct-70', sourceIp: '10.55.4.16', result: 'Success', device: 'Managed workstation' },
 ];
 MODULE_FOUR_GUIDED_FIXTURE.scenario.start = '2026-09-27T10:10:00Z';
 MODULE_FOUR_GUIDED_FIXTURE.scenario.end = '2026-09-27T10:20:00Z';
@@ -1186,10 +1221,17 @@ MODULE_FOUR_GUIDED_FIXTURE.scenario.generatedAt = '2026-09-27T10:21:00Z';
 MODULE_FOUR_GUIDED_FIXTURE.scenario.truth = {
   maliciousSourceIp: '192.0.2.144', targetedAccounts: ['acct-61', 'acct-62', 'acct-63'], confirmedCompromisedAccounts: ['acct-62'],
   successfulAuthenticationEventIds: ['GL4-A-104'], corroboratingIocIds: ['GL4-I-301'], unrelatedIocIds: ['GL4-I-302', 'GL4-I-303'],
-  benignRetry: { sourceIp: '203.0.113.177', account: 'acct-17', eventIds: ['GL4-A-105', 'GL4-A-106', 'GL4-A-107'], explanationReportId: 'GL4-R-201' },
+  benignRetry: { sourceIp: '203.0.113.177', account: 'acct-67', eventIds: ['GL4-A-105', 'GL4-A-106', 'GL4-A-107'], explanationReportId: 'GL4-R-201' },
+  benignBackgroundEventIds: ['GL4-A-111', 'GL4-A-112', 'GL4-A-113', 'GL4-A-114', 'GL4-A-115', 'GL4-A-116', 'GL4-A-117', 'GL4-A-118', 'GL4-A-119', 'GL4-A-120', 'GL4-A-121', 'GL4-A-122', 'GL4-A-123', 'GL4-X-001', 'GL4-X-002', 'GL4-X-003', 'GL4-X-004', 'GL4-X-005'],
+  rowPurpose: {
+    'GL4-A-111..115, 120..123': 'baseline: routine managed-workstation sign-ins from usual LAN addresses',
+    'GL4-A-116..117': 'tuning: one branch user mistypes once then succeeds (a single account, below any distinct-account threshold)',
+    'GL4-X-001..005': 'context (console-only): mail-client auth error corroborates the refresh explanation, probe schedule, collector heartbeat/lag baseline, routine password change',
+    'GL4-A-118..119': 'tuning: scheduled probe with an invalid test credential (SystemLog + SCH-052 explain it); only a raw failure count would flag it',
+  },
   rule: { groupingField: 'sourceIp', metric: 'distinctAccounts', threshold: 3, windowMinutes: 5, matchEventIds: ['GL4-A-101', 'GL4-A-102', 'GL4-A-103', 'GL4-A-104'], excludeEventIds: ['GL4-A-105', 'GL4-A-106', 'GL4-A-107'] },
 };
-MODULE_FOUR_GUIDED_FIXTURE.scenario.reports[0].summary = 'acct-17 mail retries follow the completed credential refresh; treat them as a managed-client baseline.';
+MODULE_FOUR_GUIDED_FIXTURE.scenario.reports[0].summary = 'acct-67 mail retries follow the completed credential refresh; treat them as a managed-client baseline.';
 MODULE_FOUR_GUIDED_FIXTURE.scenario.reports[1].summary = '192.0.2.144 is linked to a current distributed credential-guessing cluster; corroborate the report against local sign-in activity.';
 const MODULE_FOUR_GUIDED_CONSOLE_DATA = (() => {
   const scenario = MODULE_FOUR_GUIDED_FIXTURE.scenario;
@@ -1198,13 +1240,23 @@ const MODULE_FOUR_GUIDED_CONSOLE_DATA = (() => {
     EventType: event.type, Account: event.account, SourceIp: event.sourceIp, Result: event.result, Device: event.device, Host: 'idp-07',
     Detail: event.result === 'Failure' ? 'Invalid password' : 'Sign-in succeeded',
   }));
+  // Sprint 2 console-only context sources (the rule evaluator runs on the AuthLog telemetry).
+  events.push(
+    m03eRow('AppAudit', 'GL4-X-001', day, '10:16:25', { EventType: 'MailSyncAuthError', Account: 'acct-67', SourceIp: '203.0.113.177', Host: 'mail-relay-02', Application: 'MailClient', Result: 'Failure', Records: 0, Detail: 'IMAP login rejected: cached credential predates the refresh; client retries every 60 seconds' }),
+    m03eRow('SystemLog', 'GL4-X-002', day, '10:10:05', { EventType: 'CollectorHeartbeat', Account: 'idp-07', SourceIp: '10.55.1.4', Host: 'idp-07', Result: 'Success', Detail: 'Heartbeat on schedule (60-second interval)' }),
+    m03eRow('SystemLog', 'GL4-X-003', day, '10:12:00', { EventType: 'ScheduledProbe', Account: 'svc-probe', SourceIp: '10.55.0.9', Host: 'mon-02', Result: 'Success', ChangeId: 'SCH-052', Detail: 'Availability probe every 5 minutes using a deliberately invalid test credential (failure expected)' }),
+    m03eRow('DirectoryAudit', 'GL4-X-004', day, '10:10:40', { EventType: 'PasswordChanged', Account: 'acct-70', SourceIp: '10.55.4.16', Host: 'dc-07', Result: 'Success', InitiatedBy: 'acct-70', TargetGroup: '', Detail: 'Self-service password change' }),
+    m03eRow('SystemLog', 'GL4-X-005', day, '10:19:10', { EventType: 'CollectorLag', Account: 'idp-07', SourceIp: '10.55.1.4', Host: 'idp-07', Result: 'Delayed', Detail: 'Branch relay batch ingested 35 seconds late; no events dropped' }),
+  );
   const user = (account, department, usual) => ({ Account: account, DisplayName: account, Type: 'User', Department: department, Owner: '—', Privileged: 'No', UsualSourceIp: usual, Notes: '' });
   return m03eBuildDataset({ caseId: scenario.caseId, day, events,
-    identities: [user('acct-61', 'Research', '10.55.4.10'), user('acct-62', 'Design', '10.55.4.12'), user('acct-63', 'Operations', '10.55.4.10'), { ...user('acct-17', 'Operations', '203.0.113.177'), Notes: 'Uses the managed mail client' }],
+    identities: [user('acct-61', 'Research', '10.55.4.10'), user('acct-62', 'Design', '10.55.4.12'), user('acct-63', 'Operations', '10.55.4.10'), { ...user('acct-67', 'Operations', '203.0.113.177'), Notes: 'Uses the managed mail client' },
+      user('acct-68', 'Design', '10.55.4.14'), user('acct-69', 'Research', '10.55.4.15'), user('acct-70', 'Operations', '10.55.4.16'), { ...user('acct-71', 'Branch office', '203.0.113.190'), Notes: 'Works from the branch office NAT' }],
     ips: [
+      { SourceIp: '203.0.113.190', Type: 'External', Country: '—', Asn: 'Mission Next branch office NAT', FirstSeen: '2025-03-12 08:00', Reputation: 'Known branch egress' },
       { SourceIp: '192.0.2.144', Type: 'External', Country: '—', Asn: 'Unresolved residential proxy', FirstSeen: `${day} 10:11`, Reputation: 'New to the tenant; current intelligence report requires local corroboration.' },
       { SourceIp: '203.0.113.177', Type: 'External', Country: '—', Asn: 'Mission Next managed mail relay', FirstSeen: '2025-02-03 08:00', Reputation: 'Known managed mail-client egress' },
-    ], watchlists: { ChangeTickets: { title: 'Approved change tickets', rows: [{ ChangeId: 'CR-288', Summary: 'Credential refresh (Messaging Operations)', Account: 'acct-17', Window: `${day} 10:10–10:20`, Status: 'Completed' }] } }, alerts: [],
+    ], watchlists: { ChangeTickets: { title: 'Approved change tickets', rows: [{ ChangeId: 'CR-288', Summary: 'Credential refresh (Messaging Operations)', Account: 'acct-67', Window: `${day} 10:10–10:20`, Status: 'Completed' }, { ChangeId: 'SCH-052', Summary: 'Availability probe, every 5 minutes (invalid test credential, failures expected)', Account: 'svc-probe', Window: `${day} Every 5 min`, Status: 'Standing' }] } }, alerts: [],
   });
 })();
 function moduleFourGuidedLoad(user) {

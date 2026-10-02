@@ -97,25 +97,34 @@ const M03E_PRACTICE = (function () {
       A('A-1002', '08:02:10', { Account: 'j.lee', SourceIp: '10.20.4.31', Result: 'Success', SessionId: 'S-8801', AuthMethod: 'Password + MFA', Country: 'Internal', Detail: 'MFA satisfied' }),
       A('A-1003', '09:02:00', { RawTimestamp: `${d}T05:02:00-04:00`, Account: 'acct-428', SourceIp: '198.51.100.18', Result: 'Failure', AuthMethod: 'Password', Country: 'NL', Detail: 'Invalid password; source timestamp 05:02 UTC−04:00 normalized to 09:02 UTC' }),
       A('A-1004', '09:05:12', { Account: 'j.lee', SourceIp: '203.0.113.9', Result: 'Failure', AuthMethod: 'Password', Country: 'PT', Detail: 'Invalid password' }),
-      A('A-1005', '09:14:03', { Account: 'm.ortiz', SourceIp: '10.20.4.22', Result: 'Failure', AuthMethod: 'Password', Country: 'Internal', Detail: 'Invalid password' }),
+      A('A-1005', '09:14:03', { Account: 'c.ortega', SourceIp: '10.20.4.23', Result: 'Failure', AuthMethod: 'Password', Country: 'Internal', Detail: 'Invalid password' }),
       A('A-1006', '09:04:00', { Account: 'acct-428', SourceIp: '198.51.100.18', Result: 'Success', SessionId: 'S-8841', AuthMethod: 'Password + MFA push', Country: 'NL', Detail: 'MFA push approved' }),
       A('A-1007', '09:21:15', { Account: 'j.lee', SourceIp: '203.0.113.9', Result: 'Failure', AuthMethod: 'Password', Country: 'PT', Detail: 'Invalid password' }),
       A('A-1008', '09:22:02', { Account: 'j.lee', SourceIp: '203.0.113.9', Result: 'Success', SessionId: 'S-8850', AuthMethod: 'Password + MFA', Country: 'PT', Detail: 'MFA satisfied' }),
+      // Sprint 2 context rows (purpose tags in M03E_ROW_PURPOSE; never rendered).
+      A('A-1010', '08:05:30', { Account: 'h.diaz', SourceIp: '10.20.4.44', Result: 'Success', SessionId: 'S-8802', AuthMethod: 'Password + MFA', Country: 'Internal', Detail: 'MFA satisfied' }),
+      A('A-1011', '08:40:12', { Account: 'k.watts', SourceIp: '10.20.4.12', Result: 'Success', SessionId: 'S-8805', AuthMethod: 'Password + MFA', Country: 'Internal', Detail: 'MFA satisfied' }),
+      A('A-1012', '09:16:40', { Account: 'h.diaz', SourceIp: '10.20.4.44', Result: 'Failure', AuthMethod: 'Password', Country: 'Internal', Detail: 'Invalid password' }),
+      A('A-1013', '09:17:05', { Account: 'h.diaz', SourceIp: '10.20.4.44', Result: 'Success', SessionId: 'S-8851', AuthMethod: 'Password + MFA', Country: 'Internal', Detail: 'MFA satisfied' }),
       A('A-1009', '09:40:00', { Account: 'svc-billing', SourceIp: '10.20.4.8', Result: 'Success', SessionId: 'JOB-22', AuthMethod: 'Service credential', Country: 'Internal', Detail: 'Scheduled report job' }),
       D('D-2001', '09:08:00', { Account: 'acct-428', SourceIp: '198.51.100.18', EventType: 'RoleAdded', Result: 'Success', SessionId: 'S-8841', InitiatedBy: 'acct-428', TargetGroup: 'Billing-Exporters', Detail: 'Directory role grant: added to Billing-Exporters' }),
       D('D-2002', '09:29:02', { Account: 'acct-428', SourceIp: '10.20.1.5', EventType: 'RoleRemoved', Result: 'Success', SessionId: 'S-8841', InitiatedBy: 'soc-automation', TargetGroup: 'Billing-Exporters', Detail: 'Removed from Billing-Exporters (automated containment after alert)' }),
       D('D-2003', '08:30:40', { Account: 'h.diaz', SourceIp: '10.20.4.44', EventType: 'GroupAdded', Result: 'Success', SessionId: '—', InitiatedBy: 'it-admin', TargetGroup: 'HR-Read', Detail: 'Added to HR-Read (CHG-199)' }),
       P('P-3001', '09:12:00', { Account: 'acct-428', SourceIp: '198.51.100.18', EventType: 'BulkExport', Result: 'Success', SessionId: 'S-8841', Records: 184, Detail: 'Application export of 184 customer records' }),
       P('P-3002', '08:58:42', { Account: 'acct-428', SourceIp: '198.51.100.18', EventType: 'Search', Result: 'Success', SessionId: 'S-8841', Records: 184, Detail: 'Customer search: all active accounts' }),
-      P('P-3003', '08:50:05', { Account: 'm.ortiz', SourceIp: '10.20.4.22', EventType: 'ViewInvoice', Result: 'Success', SessionId: 'S-8812', Records: 3, Detail: 'Viewed 3 invoices' }),
+      P('P-3003', '08:50:05', { Account: 'c.ortega', SourceIp: '10.20.4.23', EventType: 'ViewInvoice', Result: 'Success', SessionId: 'S-8812', Records: 3, Detail: 'Viewed 3 invoices' }),
       P('P-3004', '09:45:10', { Account: 'svc-billing', SourceIp: '10.20.4.8', EventType: 'ScheduledReport', Result: 'Success', SessionId: 'JOB-22', Records: 2100, Detail: 'Nightly revenue report (CHG-210)' }),
+      D('D-2004', '07:30:05', { Account: 'k.watts', SourceIp: '10.20.4.12', EventType: 'PasswordChanged', Result: 'Success', SessionId: '—', InitiatedBy: 'k.watts', TargetGroup: '', Detail: 'Self-service password change' }),
+      P('P-3005', '08:35:20', { Account: 'k.watts', SourceIp: '10.20.4.12', EventType: 'Search', Result: 'Success', SessionId: 'S-8805', Records: 12, Detail: 'Reconciliation report review: 12 invoices' }),
+      S('S-4003', '08:53:48', { Account: 'billing-app', SourceIp: '10.20.4.8', Host: 'billing-app', EventType: 'CollectorHeartbeat', Result: 'Success', ChangeId: '', Detail: 'Heartbeat on schedule (60-second interval)' }),
       S('S-4001', '09:10:00', { Account: 'svc-backup', SourceIp: '10.20.4.8', Host: 'backup-01', EventType: 'ServiceRestart', Result: 'Success', SessionId: '—', ChangeId: 'CHG-221', Detail: 'Service restart, approved change CHG-221' }),
       S('S-4002', '09:23:50', { Account: 'billing-app', SourceIp: '10.20.4.8', Host: 'billing-app', EventType: 'CollectorHeartbeat', Result: 'Delayed', ChangeId: '', Detail: 'Heartbeat delayed 42 seconds; no events dropped' }),
     ],
     identities: [
       { Account: 'acct-428', DisplayName: 'Billing reconciliation (service)', Type: 'Service account', Department: 'Finance Ops', Owner: 'k.watts', Privileged: 'No', UsualSourceIp: '10.20.4.15', Notes: 'Non-interactive. Interactive or MFA sign-ins are not expected.' },
       { Account: 'j.lee', DisplayName: 'Jordan Lee', Type: 'User', Department: 'Sales', Owner: '—', Privileged: 'No', UsualSourceIp: '10.20.4.31', Notes: 'Frequent traveller' },
-      { Account: 'm.ortiz', DisplayName: 'Maria Ortiz', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '10.20.4.22', Notes: '' },
+      { Account: 'c.ortega', DisplayName: 'Carla Ortega', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '10.20.4.23', Notes: '' },
+      { Account: 'k.watts', DisplayName: 'Kim Watts', Type: 'User', Department: 'Finance Ops', Owner: '—', Privileged: 'No', UsualSourceIp: '10.20.4.12', Notes: 'Owner of the billing reconciliation service account' },
       { Account: 'h.diaz', DisplayName: 'Helen Diaz', Type: 'User', Department: 'Human Resources', Owner: '—', Privileged: 'No', UsualSourceIp: '10.20.4.44', Notes: '' },
       { Account: 'svc-billing', DisplayName: 'Billing platform (service)', Type: 'Service account', Department: 'IT', Owner: 'it-admin', Privileged: 'Yes', UsualSourceIp: '10.20.4.8', Notes: 'Runs scheduled jobs under JOB-* sessions' },
     ],
@@ -124,7 +133,9 @@ const M03E_PRACTICE = (function () {
       { SourceIp: '203.0.113.9', Type: 'External', Country: 'PT', Asn: 'AS64511 · Lisboa Hotel Wi-Fi', FirstSeen: '2026-09-17 19:40', Reputation: 'Neutral: consumer / hospitality network' },
       { SourceIp: '10.20.4.15', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Finance servers', FirstSeen: '—', Reputation: 'Internal' },
       { SourceIp: '10.20.4.8', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Billing platform', FirstSeen: '—', Reputation: 'Internal' },
-      { SourceIp: '10.20.4.22', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Workstations', FirstSeen: '—', Reputation: 'Internal' },
+      { SourceIp: '10.20.4.23', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Workstations', FirstSeen: '—', Reputation: 'Internal' },
+      { SourceIp: '10.20.4.12', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Workstations', FirstSeen: '—', Reputation: 'Internal' },
+      { SourceIp: '10.20.4.44', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Workstations', FirstSeen: '—', Reputation: 'Internal' },
       { SourceIp: '10.20.4.31', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Workstations', FirstSeen: '—', Reputation: 'Internal' },
     ],
     watchlists: {
@@ -139,6 +150,8 @@ const M03E_PRACTICE = (function () {
     },
     alerts: [
       { id: 'ALT-3101', time: `${d}T09:12:00Z`, severity: 'High', title: 'Suspicious authentication-to-export sequence — acct-428', entities: ['acct-428', '198.51.100.18', 'S-8841'], rule: 'Failed sign-in → success → directory role grant → application export within 30 minutes, with at least two shared dimensions (session preferred)', query: 'UnifiedEvents\n| where Account == "acct-428"\n| where SessionId == "S-8841"\n| sort by TimeGenerated asc' },
+      { id: 'ALT-3102', time: `${d}T09:16:40Z`, severity: 'Low', title: 'Failed sign-in followed by success — h.diaz', entities: ['h.diaz', '10.20.4.44'], rule: 'Failed sign-in followed by a success for the same account within 5 minutes', query: 'AuthLog\n| where Account == "h.diaz"\n| sort by TimeGenerated asc' },
+      { id: 'ALT-3103', time: `${d}T09:23:50Z`, severity: 'Informational', title: 'Collector heartbeat delayed — billing-app', entities: ['billing-app'], rule: 'Collector heartbeat later than 30 seconds', query: 'SystemLog\n| where EventType == "CollectorHeartbeat"' },
     ],
   });
 }());
@@ -165,6 +178,9 @@ const M03E_PROVE = (function () {
       A('A-5014', '06:48:52', { Account: 't.nguyen', SourceIp: '198.51.100.140', Result: 'Success', SessionId: 'S-5588', AuthMethod: 'Password + MFA', Country: 'SG', Detail: 'MFA satisfied' }),
       A('A-5015', '07:55:31', { Account: 'm.ortiz', SourceIp: '10.20.4.22', Result: 'Success', SessionId: 'S-5601', AuthMethod: 'Password + MFA', Country: 'Internal', Detail: 'MFA satisfied' }),
       A('A-5016', '08:02:14', { Account: 'a.morgan', SourceIp: '10.20.4.26', Result: 'Success', SessionId: 'S-5605', AuthMethod: 'Password + MFA', Country: 'Internal', Detail: 'MFA satisfied' }),
+      A('A-5017', '06:12:40', { Account: 'p.sato', SourceIp: '10.20.4.33', Result: 'Success', SessionId: 'S-5592', AuthMethod: 'Password + MFA', Country: 'Internal', Detail: 'MFA satisfied; first sign-in after helpdesk reset' }),
+      A('A-5018', '07:20:05', { Account: 'l.brooks', SourceIp: '10.20.4.35', Result: 'Failure', AuthMethod: 'Password', Country: 'Internal', Detail: 'Invalid password' }),
+      A('A-5019', '07:20:31', { Account: 'l.brooks', SourceIp: '10.20.4.35', Result: 'Success', SessionId: 'S-5603', AuthMethod: 'Password + MFA', Country: 'Internal', Detail: 'MFA satisfied' }),
       D('D-6001', '02:16:20', { Account: 'm.ortiz', SourceIp: '203.0.113.77', EventType: 'AppPasswordCreated', Result: 'Success', SessionId: 'S-5520', InitiatedBy: 'm.ortiz', TargetGroup: '', Detail: 'App password "mail-sync" created' }),
       D('D-6002', '05:02:44', { Account: 'p.sato', SourceIp: '10.20.1.12', EventType: 'PasswordReset', Result: 'Success', SessionId: '—', InitiatedBy: 'it-admin', TargetGroup: '', Detail: 'Helpdesk password reset (CHG-311, user lockout)' }),
       P('P-7001', '02:14:02', { Account: 'm.ortiz', SourceIp: '203.0.113.77', Host: 'mail-01', Application: 'MailApp', EventType: 'NewInboxRule', Result: 'Success', SessionId: 'S-5520', Records: 0, Detail: 'Rule "sync": forward all mail to ext-archive@proton-box.example; delete from inbox' }),
@@ -174,6 +190,9 @@ const M03E_PROVE = (function () {
       P('P-7005', '02:33:08', { Account: 'm.ortiz', SourceIp: '203.0.113.77', Host: 'mail-01', Application: 'MailApp', EventType: 'MailItemsAccessed', Result: 'Success', SessionId: 'S-5520', Records: 212, Detail: '212 mailbox items read via IMAP' }),
       P('P-7006', '08:10:40', { Account: 'm.ortiz', SourceIp: '10.20.4.22', Host: 'mail-01', Application: 'MailApp', EventType: 'MailItemsAccessed', Result: 'Success', SessionId: 'S-5601', Records: 14, Detail: '14 mailbox items read in web client' }),
       P('P-7007', '09:10:05', { Account: 't.nguyen', SourceIp: '198.51.100.140', Host: 'docs-01', Application: 'DocsApp', EventType: 'FileDownloaded', Result: 'Success', SessionId: 'S-5588', Records: 1, Detail: 'Sales/APAC-customer-deck.pptx' }),
+      P('P-7008', '08:30:15', { Account: 'a.morgan', SourceIp: '10.20.4.26', Host: 'docs-01', Application: 'DocsApp', EventType: 'FileDownloaded', Result: 'Success', SessionId: 'S-5605', Records: 1, Detail: 'Finance/month-end-close.xlsx' }),
+      S('S-8003', '04:02:40', { Account: 'mail-gw', SourceIp: '10.20.1.30', Host: 'mail-gw', EventType: 'ServiceHealth', Result: 'Success', ChangeId: 'CHG-309', Detail: 'Mail gateway back in service after CHG-309; queue drained' }),
+      S('S-8004', '08:00:05', { Account: 'idp-02', SourceIp: '10.20.1.11', Host: 'idp-02', EventType: 'CollectorHeartbeat', Result: 'Success', ChangeId: '', Detail: 'Heartbeat on schedule; no gap since the 02:20–02:36 backfill' }),
       S('S-8001', '02:20:00', { Account: 'idp-02', SourceIp: '10.20.1.11', Host: 'idp-02', EventType: 'CollectorGap', Result: 'Delayed', ChangeId: '', Detail: 'Ingestion delayed 16 minutes (02:20–02:36); backfill completed, completeness not verified' }),
       S('S-8002', '04:00:12', { Account: 'mail-gw', SourceIp: '10.20.1.30', Host: 'mail-gw', EventType: 'ServiceRestart', Result: 'Success', ChangeId: 'CHG-309', Detail: 'Mail gateway patch restart, approved maintenance' }),
     ],
@@ -191,6 +210,8 @@ const M03E_PROVE = (function () {
       { SourceIp: '198.51.100.140', Type: 'External', Country: 'SG', Asn: 'AS64530 · Marina Bay Hotels', FirstSeen: '2026-09-19 22:10', Reputation: 'Neutral: hospitality network' },
       { SourceIp: '10.20.4.22', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Workstations', FirstSeen: '—', Reputation: 'Internal' },
       { SourceIp: '10.20.4.26', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Workstations', FirstSeen: '—', Reputation: 'Internal' },
+      { SourceIp: '10.20.4.33', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Workstations', FirstSeen: '—', Reputation: 'Internal' },
+      { SourceIp: '10.20.4.35', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN · Workstations', FirstSeen: '—', Reputation: 'Internal' },
     ],
     watchlists: {
       ChangeTickets: { title: 'Approved change tickets', rows: [
@@ -209,10 +230,21 @@ const M03E_PROVE = (function () {
       { id: 'ALT-5171', time: `${d}T02:14:02Z`, severity: 'Medium', title: 'Suspicious inbox forwarding rule', entities: ['m.ortiz'], rule: 'Inbox rule forwarding to an external domain', query: 'AppAudit\n| where EventType == "NewInboxRule"' },
       { id: 'ALT-5172', time: `${d}T06:48:52Z`, severity: 'Low', title: 'Sign-in from new country', entities: ['t.nguyen', '198.51.100.140'], rule: 'Successful sign-in from a country not seen for this account in 30 days', query: 'AuthLog\n| where Account == "t.nguyen"' },
       { id: 'ALT-5173', time: `${d}T02:20:00Z`, severity: 'Informational', title: 'Collector ingestion delayed', entities: ['idp-02'], rule: 'Ingestion latency over 5 minutes', query: 'SystemLog\n| where EventType == "CollectorGap"' },
+      { id: 'ALT-5174', time: `${d}T07:20:05Z`, severity: 'Low', title: 'Failed sign-in followed by success — l.brooks', entities: ['l.brooks', '10.20.4.35'], rule: 'Failed sign-in followed by a success for the same account within 5 minutes', query: 'AuthLog\n| where Account == "l.brooks"\n| sort by TimeGenerated asc' },
     ],
   });
 }());
 
+// Row-purpose tags for Sprint 2 context rows (documentation only; never rendered).
+const M03E_ROW_PURPOSE = {
+  'A-1010': 'routine: h.diaz morning sign-in (baseline)', 'A-1011': 'routine: acct-428 owner signs in from the LAN (contrast with the service-account takeover)',
+  'A-1012': 'alternate explanation: typo failure then success on a usual LAN IP', 'A-1013': 'resolves A-1012; no role grant or export follows for h.diaz (ALT-3102)',
+  'D-2004': 'routine self-service password change', 'P-3005': 'routine small search by the legitimate owner (vs 184-record search)',
+  'S-4003': 'collector baseline: heartbeats are normally on schedule, so S-4002 delay stands out as minor',
+  'A-5017': 'recovery validation: p.sato signs in normally after the CHG-311 reset', 'A-5018': 'alternate explanation: l.brooks typo from usual LAN IP', 'A-5019': 'resolves A-5018 (ALT-5174)',
+  'P-7008': 'routine Finance download from the usual IP/session (decoy for FileDownloaded pivots)', 'S-8003': 'recovery validation: mail gateway healthy after CHG-309',
+  'S-8004': 'coverage: collector heartbeat on schedule after the 02:20–02:36 gap',
+};
 const M03E_DATA = { practice: M03E_PRACTICE, prove: M03E_PROVE };
 
 // Later SOC modules mount this same console on their own assessment data, so

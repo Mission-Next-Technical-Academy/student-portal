@@ -48,11 +48,11 @@ assert.strictEqual(correct.assessment.alerts[0].createdAt, fixture.scenario.end)
 
 const broad = run({ ...base, id: 'M04-RULE-0002', threshold: 2 }, 'M04-EXEC-0002');
 const api = vm.runInContext('SocM04RulesUi', context);
-assert.strictEqual(broad.assessment.alerts.length, 2, 'broad rule alerts only its threshold-met groups');
+assert.strictEqual(broad.assessment.alerts.length, 5, 'broad rule alerts every threshold-met group, including the Sprint 2 background candidates');
 assert.ok(broad.assessment.alerts.every((alert) => alert.executionId === broad.completed.id));
 assert.deepStrictEqual(clone(broad.assessment.alerts.map((alert) => [alert.group, alert.matchCount])), [
-  ['198.51.100.64', 5], ['203.0.113.77', 3],
-], 'broad thresholds expose the lower-volume noisy group as well as the stronger signal');
+  ['10.44.0.9', 3], ['10.44.8.5', 2], ['198.51.100.64', 5], ['203.0.113.140', 3], ['203.0.113.77', 3],
+], 'broad thresholds expose the lower-volume noisy groups (scheduled probe, backup retry, branch egress, stale mail client) as well as the stronger signal');
 const narrow = run({ ...base, id: 'M04-RULE-0005', threshold: 6 }, 'M04-EXEC-0005');
 assert.strictEqual(narrow.completed.status, 'completed');
 assert.deepStrictEqual(clone(narrow.assessment.alerts), [], 'a narrow threshold misses the scenario when no group reaches six matches');
@@ -88,8 +88,8 @@ assert.strictEqual(excluded.assessment.alerts.length, 0, 'fully excluded candida
 assert.strictEqual(excluded.completed.reviewEvidence.excluded.length, 1);
 assert.ok(excluded.completed.reviewEvidence.excluded[0].exclusion.evidence.length > 0);
 const suppressed = run({ ...base, id: 'M04-RULE-0004', threshold: 2, suppression: { enabled: true, groupField: 'EventType', windowMinutes: 15 } }, 'M04-EXEC-0004');
-assert.strictEqual(suppressed.assessment.alerts.length, 1, 'suppressed group is not alerted');
-assert.strictEqual(suppressed.completed.reviewEvidence.suppressed.length, 1);
+assert.strictEqual(suppressed.assessment.alerts.length, 1, 'suppressed groups are not alerted');
+assert.strictEqual(suppressed.completed.reviewEvidence.suppressed.length, 4, 'every later candidate sharing EventType within 15 minutes is suppressed');
 
 function apiRun(assessment, ruleId) {
   const execution = api.recordExecution(assessment, ruleId, fixture.scenario.end, 'manual');

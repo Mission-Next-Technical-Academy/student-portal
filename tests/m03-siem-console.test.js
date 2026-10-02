@@ -24,7 +24,7 @@ t('alert queue preserves case caption, descending time, severity, entities, and 
   const html = run("m03eAlertsView('prove')");
   assert.match(html, /<caption>ALERT QUEUE · CASE-MN-517 · 2026-09-21<\/caption>/);
   const ids = [...html.matchAll(/data-m03e-select="prove:alert:(ALT-\d+)"/g)].map((match) => match[1]);
-  assert.deepStrictEqual(ids, ['ALT-5172', 'ALT-5173', 'ALT-5171', 'ALT-5170']);
+  assert.deepStrictEqual(ids, ['ALT-5174', 'ALT-5172', 'ALT-5173', 'ALT-5171', 'ALT-5170']);
   assert.match(html, /<tr class="is-selected" data-m03e-select="prove:alert:ALT-5171" tabindex="0">/);
   assert.match(html, /m03e-sev m03e-sev-medium/);
   assert.match(html, /t\.nguyen, 198\.51\.100\.140/);
@@ -100,8 +100,8 @@ t('summarize count by', () => {
   assert.deepStrictEqual(r.rows.map((x) => [x.Account, x.Events]), [['acct-428', 5]]);
 });
 t('distinct, count, dcount, between, ago on lab clock', () => {
-  assert.strictEqual(q('prove', 'AuthLog | where Result == "Failure" | distinct SourceIp').rows.length, 2);
-  assert.strictEqual(q('prove', 'AuthLog | count').rows[0].Count, 16);
+  assert.strictEqual(q('prove', 'AuthLog | where Result == "Failure" | distinct SourceIp').rows.length, 3);
+  assert.strictEqual(q('prove', 'AuthLog | count').rows[0].Count, 19);
   assert.strictEqual(q('prove', 'AuthLog | where Result == "Failure" | summarize A = dcount(Account) by SourceIp | where A >= 5').rows[0].SourceIp, '203.0.113.77');
   assert.strictEqual(q('prove', 'AuthLog | where TimeGenerated between (datetime(2026-09-21T02:00:00Z) .. datetime(2026-09-21T02:07:00Z))').rows.length, 6);
   assert.ok(q('prove', 'UnifiedEvents | where TimeGenerated > ago(2h)').rows.length > 0);

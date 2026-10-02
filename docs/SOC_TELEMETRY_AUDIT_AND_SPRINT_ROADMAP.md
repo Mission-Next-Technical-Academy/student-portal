@@ -148,7 +148,9 @@ Run these as separate, reviewable implementation sprints. Each sprint has a narr
 
 **Delegation brief:** “Implement the smallest data-only schema/validation seam for SOC telemetry. Preserve each module’s UI and lab shape. Start with Modules 3–6 and report any fixture correction. Do not standardize by deleting native fields.”
 
-### Sprint 2 — Early-course staircase (Modules 1–4)
+### Sprint 2 — Early-course staircase (Modules 1–4) ✅ (2026-10-02)
+
+> **Done.** Unique events guided/assessment: M01 9/46 (unchanged — guided fixtures live in shared `portal/data.js`, deferred) · M02 6→11 guided (Prove remains imported) · M03 18/27→25/33, alerts 1/4→3/5 · M04 7/9→25/37, accounts 4/6→10/17, new `source: 'AuthLog'` on all events. Added routine sign-ins, typo-then-success decoys (ALT-3102, ALT-5174), collector heartbeats, branch-NAT single-failure retries, scheduled invalid-credential probe, backup-agent retries, watchlist SCH-031/SCH-044/CR-212. Row purpose tags are non-rendered (`truth.rowPurpose`, `benignBackgroundEventIds`, `M03E_ROW_PURPOSE`, `M02_ROW_PURPOSE`). Rubric/scorer/`truth.rule` unchanged — spray remains the only group meeting the 5-distinct-account threshold. Independence fixed: M03 guided `m.ortiz`→`c.ortega` (IP 10.20.4.22→.23); M04 guided `acct-17`→`acct-67`, Learn It sample rows → `acct-07`/203.0.113.97. Test `tests/soc-telemetry-sprint2.test.js`; updated m03-siem-console, soc-m04-alert-generation/rule-evaluator/rules-ui. **Open:** decide whether new below-threshold decoy groups belong in M04 `excludeEventIds`; M04 Learn desk copy "14 records · one 15-minute window" still accurate for its table.
 
 **Purpose:** Add a controlled, visible increase from focused case activity to SIEM and detection noise.
 

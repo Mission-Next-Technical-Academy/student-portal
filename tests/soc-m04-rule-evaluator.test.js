@@ -22,18 +22,22 @@ const beforeFixture = JSON.stringify(fixture);
 const raw = api.evaluate(base, fixture);
 assert.strictEqual(raw.succeeded, true);
 assert.strictEqual(raw.evaluatedAt, fixture.scenario.end, 'evaluation clock is the immutable scenario end');
-assert.deepStrictEqual(local(raw.candidates), [{
-  group: '198.51.100.64', groupingField: 'SourceIp', matchCount: 5, rawRowCount: 5,
-  metricColumn: null, threshold: 4, thresholdMet: true,
-  supportingEventIds: ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005'], disposition: 'retained', exclusion: null, suppression: null,
-}, { group: '203.0.113.77', groupingField: 'SourceIp', matchCount: 3, rawRowCount: 3,
-  metricColumn: null, threshold: 4, thresholdMet: false,
-  supportingEventIds: ['M04-A-007', 'M04-A-008', 'M04-A-009'], disposition: 'retained', exclusion: null, suppression: null,
-}]);
+const cand = (group, ids) => ({ group, groupingField: 'SourceIp', matchCount: ids.length, rawRowCount: ids.length,
+  metricColumn: null, threshold: 4, thresholdMet: ids.length >= 4, supportingEventIds: ids, disposition: 'retained', exclusion: null, suppression: null });
+// Sprint 2: besides the spray (198.51.100.64) and the stale mail client (203.0.113.77), three low-volume
+// background groups appear as below-threshold candidates (scheduled probe, backup retry, branch egress).
+assert.deepStrictEqual(local(raw.candidates), [
+  cand('10.44.0.9', ['M04-A-115', 'M04-A-116', 'M04-A-117']),
+  cand('10.44.8.5', ['M04-A-118', 'M04-A-119']),
+  cand('198.51.100.64', ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005']),
+  cand('203.0.113.140', ['M04-A-109', 'M04-A-111', 'M04-A-113']),
+  cand('203.0.113.77', ['M04-A-007', 'M04-A-008', 'M04-A-009']),
+]);
+assert.deepStrictEqual(local(raw.candidates.filter((c) => c.thresholdMet).map((c) => c.group)), ['198.51.100.64'], 'only the spray meets the default threshold of 4');
 
 const exclusionCases = [
   [{ field: 'SourceIp', operator: '==', value: '203.0.113.77' }, ['M04-A-007', 'M04-A-008', 'M04-A-009']],
-  [{ field: 'EventType', operator: '!=', value: 'AuthSuccess' }, ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005', 'M04-A-007', 'M04-A-008', 'M04-A-009']],
+  [{ field: 'EventType', operator: '!=', value: 'AuthSuccess' }, ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005', 'M04-A-007', 'M04-A-008', 'M04-A-009', 'M04-A-109', 'M04-A-111', 'M04-A-113', 'M04-A-115', 'M04-A-116', 'M04-A-117', 'M04-A-118', 'M04-A-119']],
   [{ field: 'Device', operator: 'contains', value: 'MAIL CLIENT' }, ['M04-A-007', 'M04-A-008', 'M04-A-009']],
   [{ field: 'Device', operator: 'startswith', value: 'managed' }, ['M04-A-007', 'M04-A-008', 'M04-A-009']],
 ];
@@ -48,11 +52,12 @@ mixedFixture.scenario.telemetry.push({ id: 'M04-A-010', time: '2026-09-24T09:04:
 const rowScopedExclusion = api.evaluate({ ...base, threshold: 5,
   exclusion: { enabled: true, field: 'Device', operator: 'contains', value: 'managed', reason: 'Known managed retry' },
 }, mixedFixture);
-assert.strictEqual(rowScopedExclusion.retainedCandidates.length, 1, 'excluding one event must not discard its whole grouped source');
-assert.strictEqual(rowScopedExclusion.retainedCandidates[0].group, '198.51.100.64');
-assert.strictEqual(rowScopedExclusion.retainedCandidates[0].matchCount, 5, 'threshold is recomputed after event-level exclusion');
-assert.ok(!rowScopedExclusion.retainedCandidates[0].supportingEventIds.includes('M04-A-010'));
-assert.deepStrictEqual(local(rowScopedExclusion.retainedCandidates[0].exclusion.evidence.map((item) => item.eventId)), ['M04-A-010']);
+const metRetained = rowScopedExclusion.retainedCandidates.filter((candidate) => candidate.thresholdMet);
+assert.strictEqual(metRetained.length, 1, 'excluding one event must not discard its whole grouped source');
+assert.strictEqual(metRetained[0].group, '198.51.100.64');
+assert.strictEqual(metRetained[0].matchCount, 5, 'threshold is recomputed after event-level exclusion');
+assert.ok(!metRetained[0].supportingEventIds.includes('M04-A-010'));
+assert.deepStrictEqual(local(metRetained[0].exclusion.evidence.map((item) => item.eventId)), ['M04-A-010']);
 assert.strictEqual(rowScopedExclusion.excludedCandidates.length, 1, 'fully excluded groups remain inspectable for audit');
 const disabledSafeguards = api.evaluate({ ...base,
   exclusion: { enabled: false, field: 'not-a-field', operator: 'bad', value: '', reason: '' },
@@ -62,11 +67,14 @@ assert.strictEqual(disabledSafeguards.excludedCandidates.length, 0, 'disabled ex
 assert.strictEqual(disabledSafeguards.suppressedCandidates.length, 0, 'disabled suppression has no effect');
 
 const suppressed = api.evaluate({ ...base, suppression: { enabled: true, groupField: 'EventType', windowMinutes: 15 } }, fixture);
-assert.deepStrictEqual(local(suppressed.suppressedCandidates.map((candidate) => candidate.group)), ['203.0.113.77']);
-assert.strictEqual(suppressed.suppressedCandidates[0].suppression.suppressedByGroup, '198.51.100.64');
-assert.deepStrictEqual(local(suppressed.suppressedCandidates[0].suppression.suppressedByEventIds), ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005']);
-assert.deepStrictEqual(local(suppressed.suppressedCandidates[0].suppression.evidenceEventIds), ['M04-A-007', 'M04-A-008', 'M04-A-009']);
-const outsideSuppressionWindow = api.evaluate({ ...base, suppression: { enabled: true, groupField: 'EventType', windowMinutes: 5 } }, fixture);
+// Sprint 2: the three background groups also fall inside the 15-minute window of the earlier spray candidate.
+assert.deepStrictEqual(local(suppressed.suppressedCandidates.map((candidate) => candidate.group)), ['10.44.0.9', '10.44.8.5', '203.0.113.140', '203.0.113.77']);
+const suppressedMail = suppressed.suppressedCandidates.find((candidate) => candidate.group === '203.0.113.77');
+assert.strictEqual(suppressedMail.suppression.suppressedByGroup, '198.51.100.64');
+assert.deepStrictEqual(local(suppressedMail.suppression.suppressedByEventIds), ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005']);
+assert.deepStrictEqual(local(suppressedMail.suppression.evidenceEventIds), ['M04-A-007', 'M04-A-008', 'M04-A-009']);
+// A 1-minute window is shorter than the gap between every pair of candidate start times (>= 2 minutes).
+const outsideSuppressionWindow = api.evaluate({ ...base, suppression: { enabled: true, groupField: 'EventType', windowMinutes: 1 } }, fixture);
 assert.strictEqual(outsideSuppressionWindow.suppressedCandidates.length, 0, 'candidates outside suppression window remain retained');
 
 const aggregate = api.evaluate({ ...base,
@@ -74,14 +82,15 @@ const aggregate = api.evaluate({ ...base,
   threshold: 4,
 }, fixture);
 assert.strictEqual(aggregate.succeeded, true);
-assert.strictEqual(aggregate.candidates[0].metricColumn, 'Attempts');
-assert.strictEqual(aggregate.candidates[0].matchCount, 5, 'aggregate metric, not summarize output row count, drives threshold');
-assert.strictEqual(aggregate.candidates[0].rawRowCount, 1);
-assert.strictEqual(aggregate.candidates[0].thresholdMet, true);
-assert.deepStrictEqual(local(aggregate.candidates[0].supportingEventIds), ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005']);
+const aggSpray = aggregate.candidates.find((candidate) => candidate.group === '198.51.100.64');
+assert.strictEqual(aggSpray.metricColumn, 'Attempts');
+assert.strictEqual(aggSpray.matchCount, 5, 'aggregate metric, not summarize output row count, drives threshold');
+assert.strictEqual(aggSpray.rawRowCount, 1);
+assert.strictEqual(aggSpray.thresholdMet, true);
+assert.deepStrictEqual(local(aggSpray.supportingEventIds), ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005']);
 
 const narrowWindow = api.evaluate({ ...base, windowMinutes: 16, threshold: 2 }, fixture);
-assert.deepStrictEqual(local(narrowWindow.candidates.map((candidate) => [candidate.group, candidate.matchCount])), [['198.51.100.64', 2], ['203.0.113.77', 3]]);
+assert.deepStrictEqual(local(narrowWindow.candidates.map((candidate) => [candidate.group, candidate.matchCount])), [['10.44.0.9', 3], ['10.44.8.5', 2], ['198.51.100.64', 2], ['203.0.113.140', 3], ['203.0.113.77', 3]]);
 assert.strictEqual(narrowWindow.windowStart, '2026-09-24T09:04:00.000Z');
 const accountGroups = api.evaluate({ ...base, groupingField: 'Account', threshold: 2 }, fixture);
 assert.ok(accountGroups.candidates.some((candidate) => candidate.group === 'acct-17' && candidate.matchCount === 3));

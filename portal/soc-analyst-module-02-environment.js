@@ -52,7 +52,22 @@
       { id: 'evt-john-hr-allowed', time: '08:27', user: 'john', device: 'wk23', resource: 'hr', auth: 'Successful', mfa: 'Satisfied', authorization: 'HR-Read', result: 'ALLOWED', policy: 'hr-policy', violation: true },
       { id: 'evt-ravi-web', time: '08:31', user: 'ravi', device: 'wk31', resource: 'web', auth: 'Successful', mfa: 'Satisfied', authorization: 'Web-Administrators', result: 'ALLOWED', policy: 'web-policy' },
       { id: 'evt-alice-web', time: '08:36', user: 'alice', device: 'wk17', resource: 'web', auth: 'Successful', mfa: 'Satisfied', authorization: 'None', result: 'DENIED', policy: 'web-policy' },
+      // Sprint 2 context rows (purpose tags in M02_ROW_PURPOSE below; not shown to learners).
+      { id: 'evt-helen-hr', time: '08:19', user: 'helen', device: 'wk44', resource: 'hr', auth: 'Successful', mfa: 'Satisfied', authorization: 'HR-Read', result: 'ALLOWED', policy: 'hr-policy' },
+      { id: 'evt-cora-finance-device', time: '08:24', user: 'cora', device: 'wk09', resource: 'finance', auth: 'Successful', mfa: 'Satisfied', authorization: 'Finance-Read', result: 'DENIED', policy: 'finance-policy' },
+      { id: 'evt-ravi-web-late', time: '08:44', user: 'ravi', device: 'wk31', resource: 'web', auth: 'Successful', mfa: 'Satisfied', authorization: 'Web-Administrators', result: 'ALLOWED', policy: 'web-policy' },
+      { id: 'evt-john-finance-denied', time: '08:49', user: 'john', device: 'wk23', resource: 'finance', auth: 'Successful', mfa: 'Satisfied', authorization: 'None', result: 'DENIED', policy: 'finance-policy' },
+      { id: 'evt-alice-finance-pm', time: '09:02', user: 'alice', device: 'wk17', resource: 'finance', auth: 'Successful', mfa: 'Satisfied', authorization: 'Finance-Read', result: 'ALLOWED', policy: 'finance-policy' },
     ],
+  };
+
+  // Row-purpose tags for the Sprint 2 context rows (documentation only; never rendered).
+  const M02_ROW_PURPOSE = {
+    'evt-helen-hr': 'baseline: a correct HR-Read allow, for comparison with the confirmed excess',
+    'evt-cora-finance-device': 'alternate explanation: Finance-Read holder denied because WKSTN-09 is unmanaged (device record + policy requirement)',
+    'evt-ravi-web-late': 'routine repeat of an authorized administrator allow',
+    'evt-john-finance-denied': 'baseline: policy correctly denies an out-of-scope request (shows deny path works)',
+    'evt-alice-finance-pm': 'routine repeat of an authorized allow',
   };
 
   const TABS = [['map', 'Network Map'], ['activity', 'Access Activity'], ['identities', 'Identities'], ['devices', 'Devices'], ['resources', 'Resources'], ['policies', 'Policies']];
