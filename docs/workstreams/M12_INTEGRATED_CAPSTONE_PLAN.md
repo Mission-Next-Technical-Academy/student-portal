@@ -1,6 +1,6 @@
 # Module 12 — Integrated Capstone (retire the form wall)
 
-Status: **plan, not started** · Written 2026-10-03 · Owner: Alex
+Status: **S0 shipped 2026-10-03; next = S1 tool bridge (strong model)** · Written 2026-10-03 · Owner: Alex
 Route: `#/program/soc-analyst/module/12` · Case: INC-4821 · Operation Amber Finch
 
 ## 1. Problem
@@ -165,4 +165,4 @@ module-12 + case-record usage, S4 = rubric/scorer/data).
 
 | Date | Sprint | Commit | Notes |
 |---|---|---|---|
-| — | — | — | not started |
+| 2026-10-03 | S0 ✅ | (this commit) | Done inline (≈12 exact edits, not worth a subagent). Evidence grid: class label removed, sorted by time (list order hinted primary-first). All answer placeholders/prefills removed; every select starts at `Choose…` + `required`; intel select lists all five TI rows. ATT&CK example changed to T1110 (was T1059, the answer's parent). M10 locker detail = `<source> export`, not class. IP reputation + TI-601/602/604 contexts rewritten as feed data, not incident analysis. **Deviation:** rule titles left alone — M12 never renders them (S2 must show rule *logic* so the rule select is meaningful). Checks: all `tests/*.test.js`, `bin/portal-check.js`, `bin/ci-check.sh` pass; vm render has zero leak strings; `bin/console-tab-sweep.js` 304/304 tabs (M12 24). |
