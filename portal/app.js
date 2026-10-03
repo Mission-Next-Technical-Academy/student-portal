@@ -7406,7 +7406,83 @@ function wireCommon() {
   wireModuleQuickNavRail();
   wireRegisteredModuleLabs();
   wireStudentMessages();
+  restoreModulePosition();
 }
+
+// Remember the learner's working position independently for each module.
+// These preferences are local to this browser and are keyed by account and
+// route, so finishing one module never changes another module's menu state.
+function modulePositionStorageKey() {
+  if (!document.querySelector('[data-mquick-nav-rail]')) return null;
+  const route = (location.hash || '').split('#')[1]?.split('?')[0] || '';
+  const userId = _cachedUser?.userId || _cachedUser?.username || 'student';
+  return `mn-module-position:${encodeURIComponent(userId)}:${encodeURIComponent(route)}`;
+}
+
+function readModulePosition() {
+  const key = modulePositionStorageKey();
+  if (!key) return null;
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); }
+  catch (_) { return null; }
+}
+
+function saveModulePosition() {
+  const key = modulePositionStorageKey();
+  if (!key) return;
+  const phaseOpen = [...document.querySelectorAll('.munified-phase-body')]
+    .filter((body) => !body.classList.contains('is-collapsed'))
+    .map((body) => body.id.slice(body.id.lastIndexOf('-') + 1));
+  const openSections = [...document.querySelectorAll('main details[class*="section-collapsible"][open]')]
+    .map((details) => details.id).filter(Boolean);
+  try {
+    localStorage.setItem(key, JSON.stringify({ y: window.scrollY, phaseOpen, openSections }));
+  } catch (_) { /* Storage can be disabled; navigation remains usable. */ }
+}
+
+function restoreModulePosition() {
+  const position = readModulePosition();
+  if (!position) return;
+  if (Array.isArray(position.phaseOpen)) {
+    document.querySelectorAll('.munified-phase-body').forEach((body) => {
+      const phase = body.id.slice(body.id.lastIndexOf('-') + 1);
+      const open = position.phaseOpen.includes(phase);
+      body.classList.toggle('is-collapsed', !open);
+      body.setAttribute('aria-hidden', String(!open));
+      const toggle = document.querySelector(`[data-munified-group-toggle][aria-controls="${CSS.escape(body.id)}"]`);
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.setAttribute('aria-label', `${open ? 'Collapse' : 'Expand'} ${phase === 'learn' ? 'Learn It' : phase === 'practice' ? 'Practice It' : 'Prove It'}`);
+      }
+    });
+  }
+  if (Array.isArray(position.openSections)) {
+    const open = new Set(position.openSections);
+    document.querySelectorAll('main details[class*="section-collapsible"]').forEach((details) => {
+      details.open = open.has(details.id);
+    });
+  }
+  const y = Number(position.y);
+  if (Number.isFinite(y) && y > 0) requestAnimationFrame(() => window.scrollTo(0, y));
+}
+
+let modulePositionSaveTimer = null;
+window.addEventListener('scroll', () => {
+  if (!modulePositionStorageKey()) return;
+  clearTimeout(modulePositionSaveTimer);
+  modulePositionSaveTimer = setTimeout(saveModulePosition, 180);
+}, { passive: true });
+window.addEventListener('pagehide', saveModulePosition);
+document.addEventListener('toggle', (event) => {
+  if (event.target instanceof HTMLDetailsElement && event.target.matches('main details[class*="section-collapsible"]')) {
+    saveModulePosition();
+  }
+}, true);
+document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-munified-group-toggle]')) setTimeout(saveModulePosition, 0);
+}, true);
+document.addEventListener('click', (event) => {
+  if (event.target.closest('a[href^="#/"]')) saveModulePosition();
+}, true);
 
 function openInstructorMessagePane(trigger) {
   document.getElementById('instructor-message-pane')?.remove();
