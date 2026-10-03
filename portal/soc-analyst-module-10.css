@@ -239,3 +239,44 @@
 .m10-console-guide summary { cursor: pointer; font-weight: 700; }
 .m10-console-guide ol { margin: 10px 0 0; padding-left: 22px; color: #475569; }
 .m10-guided-status { margin: 0; color: #475569; font-weight: 650; }
+
+/* Evidence handling chain (lesson Deep Dive) */
+.m10-shell .m10-handling { margin: 18px 0 0; padding: 18px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; }
+.m10-shell .m10-handling-title { margin: 4px 0 4px; color: #1e3a5f; font-size: 17px; }
+.m10-shell .m10-handling-note { margin: 0 0 14px; color: #64748b; font: 12px/1.6 Inter, sans-serif; }
+.m10-shell .m10-handling-chain { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.m10-shell .m10-handling-step { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; }
+.m10-shell .m10-handling-step-provenance { border-style: solid; border-color: #1e3a5f; }
+.m10-shell .m10-handling-step-integrity { border-style: dashed; border-width: 2px; border-color: #f97316; }
+.m10-shell .m10-handling-step summary { display: grid; grid-template-columns: 24px minmax(0, 1fr) 16px; gap: 8px; align-items: start; cursor: pointer; list-style: none; }
+.m10-shell .m10-handling-step summary::-webkit-details-marker { display: none; }
+.m10-shell .m10-handling-step summary:focus-visible { outline: 2px solid #f97316; outline-offset: 2px; border-radius: 6px; }
+.m10-shell .m10-handling-num { width: 24px; height: 24px; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 50%; font: 800 11px Inter, sans-serif; }
+.m10-shell .m10-handling-text { display: grid; gap: 2px; min-width: 0; }
+.m10-shell .m10-handling-text strong { color: #1e3a5f; font-size: 13px; }
+.m10-shell .m10-handling-text span { color: #475569; font: 11px/1.45 Inter, sans-serif; }
+.m10-shell .m10-handling-chevron { color: #64748b; transition: transform .15s; }
+.m10-shell .m10-handling-step details[open] .m10-handling-chevron { transform: rotate(180deg); }
+.m10-shell .m10-handling-step details p { margin: 8px 0 0; padding-left: 32px; color: #334155; font: 11px/1.55 Inter, sans-serif; }
+.m10-shell .m10-handling-chip { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; font: 800 10px Inter, sans-serif; background: #fff; }
+.m10-shell .m10-handling-chip-provenance { color: #1e3a5f; border: 1px solid #1e3a5f; }
+.m10-shell .m10-handling-chip-integrity { color: #9a3412; border: 2px dashed #f97316; }
+.m10-shell .m10-handling-gates { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.m10-shell .m10-handling-gate { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 9px; align-items: start; padding: 11px 12px; border-radius: 10px; background: #fff; }
+.m10-shell .m10-handling-gate i { font-size: 20px; }
+.m10-shell .m10-handling-gate strong { display: block; font-size: 12px; }
+.m10-shell .m10-handling-gate span { display: block; margin-top: 3px; color: #475569; font: 11px/1.5 Inter, sans-serif; }
+.m10-shell .m10-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Sequence arrows: right within a row, down on the stacked layout */
+.m10-shell .m10-handling-chain { column-gap: 22px; }
+.m10-shell .m10-handling-step { position: relative; }
+.m10-shell .m10-handling-step::after { position: absolute; }
+.m10-shell .m10-handling-step:not(:nth-child(3n)):not(:last-child)::after { content: '\2192'; top: 14px; right: -18px; color: #94a3b8; font: 800 14px Inter, sans-serif; }
+@media (max-width: 700px) {
+  .m10-shell .m10-handling-chain, .m10-shell .m10-handling-gates { grid-template-columns: 1fr; }
+  .m10-shell .m10-handling-chain { row-gap: 20px; }
+  .m10-shell .m10-handling-chain .m10-handling-step:not(:last-child)::after { content: '\2193'; top: auto; right: auto; bottom: -19px; left: 18px; height: 16px; line-height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .m10-shell .m10-handling-chevron { transition: none; }
+}

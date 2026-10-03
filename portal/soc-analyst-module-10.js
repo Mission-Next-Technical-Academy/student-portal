@@ -1010,6 +1010,39 @@ function moduleTenQuizPanel() {
   </form>`;
 }
 
+const MODULE_TEN_HANDLING_STEPS = [
+  { title: 'Select', q: 'Which artifacts are assigned evidence?', detail: 'Collect only what the case assigns; unassigned material stays baseline context.', gate: '' },
+  { title: 'Acquire', q: 'How was it copied, and by whom?', detail: 'Record source, method, write protection, and the handler at the moment of copy.', gate: 'provenance' },
+  { title: 'Verify hash', q: 'Does the image hash match the source?', detail: 'Hash source and image; a match shows the bytes are unchanged at that moment only.', gate: 'integrity' },
+  { title: 'Record custody', q: 'Who held it, when, and why?', detail: 'Log each handoff with both custodians, a UTC timestamp, and seal status.', gate: 'provenance' },
+  { title: 'Reconstruct timeline', q: 'What order do verified records show?', detail: 'Order events from controlled artifacts on one labelled time basis.', gate: '' },
+  { title: 'State conclusion', q: 'What is supported, and what is not?', detail: 'Claim only what the controlled evidence shows; list gaps and the specialist handoff.', gate: '' }
+];
+
+function moduleTenHandlingChain() {
+  const gateLabel = { provenance: 'Provenance check', integrity: 'Integrity check' };
+  const gateIcon = { provenance: 'ri-user-search-line', integrity: 'ri-hashtag' };
+  return `<figure class="m10-handling" id="m10-handling" aria-labelledby="m10-handling-title">
+    <p class="m10-kicker">Evidence handling sequence</p>
+    <h3 class="m10-handling-title" id="m10-handling-title">From selected artifact to supported conclusion</h3>
+    <p class="m10-handling-note">Select a step for detail. Two different questions are checked along the way, and passing one never answers the other.</p>
+    <ol class="m10-handling-chain" aria-label="Six-step evidence handling chain">
+      ${MODULE_TEN_HANDLING_STEPS.map((step, index) => `<li class="m10-handling-step${step.gate ? ` m10-handling-step-${step.gate}` : ''}">
+        <details>
+          <summary><span class="m10-handling-num" aria-hidden="true">${index + 1}</span><span class="m10-handling-text"><strong>${esc(step.title)}</strong><span>${esc(step.q)}</span></span><i class="ri-arrow-down-s-line m10-handling-chevron" aria-hidden="true"></i></summary>
+          <p>${esc(step.detail)}</p>
+        </details>
+        ${step.gate ? `<span class="m10-handling-chip m10-handling-chip-${step.gate}"><i class="${gateIcon[step.gate]}" aria-hidden="true"></i>${gateLabel[step.gate]}</span>` : ''}
+      </li>`).join('')}
+    </ol>
+    <div class="m10-handling-gates">
+      <div class="m10-handling-gate m10-handling-chip-provenance"><i class="ri-user-search-line" aria-hidden="true"></i><div><strong>Provenance: where did it come from, who handled it?</strong><span>Answered by acquisition notes and the custody ledger (steps 2 and 4).</span></div></div>
+      <div class="m10-handling-gate m10-handling-chip-integrity"><i class="ri-hashtag" aria-hidden="true"></i><div><strong>Integrity: does the hash still match?</strong><span>Answered only by comparing hashes (step 3).</span></div></div>
+    </div>
+    <figcaption class="m10-sr-only">Six steps in order: select, acquire, verify hash, record custody, reconstruct timeline, state a supported conclusion. Provenance is checked at acquire and record custody. Integrity is checked at verify hash. They are separate checks: a matching hash does not prove custody, and a complete ledger does not prove the bytes are unchanged.</figcaption>
+  </figure>`;
+}
+
 function moduleTenScenarioLoops() {
   return `<div class="m10-loop-grid" aria-label="Module 10 four-part learning loops">
     <article><p class="m10-kicker">Lesson 1 · Scenario</p><h4>Receive a post-containment evidence intake</h4><p>A synthetic Windows endpoint has been isolated. Registry, file-system, and deleted-file artifacts are available for intake.</p></article>
@@ -1067,6 +1100,7 @@ function viewModuleTen(user, program) {
         <div class="m10-section-body mf-section-body">
           <section class="m10-boundary"><i class="ri-lock-2-line" aria-hidden="true"></i><p><strong>Bounded practice:</strong> this is incident evidence handling and case documentation, not a full digital-forensics program. Acquisition and specialist examination remain with authorized specialists; each exercise contains only its assigned synthetic case dataset.</p></section>
           ${moduleTenScenarioLoops()}
+          ${moduleTenHandlingChain()}
           ${moduleTenVideoScript()}
         </div>
       </details>

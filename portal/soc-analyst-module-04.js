@@ -1209,6 +1209,63 @@ MODULE_FOUR_GUIDED_FIXTURE.scenario.truth = {
 };
 MODULE_FOUR_GUIDED_FIXTURE.scenario.reports[0].summary = 'acct-67 mail retries follow the completed credential refresh; treat them as a managed-client baseline.';
 MODULE_FOUR_GUIDED_FIXTURE.scenario.reports[1].summary = '192.0.2.144 is linked to a current distributed credential-guessing cluster; corroborate the report against local sign-in activity.';
+// Teaching visual (Guided Lab reference): same Guided Lab records bucketed two ways. Built from
+// MODULE_FOUR_GUIDED_FIXTURE only, so it never touches the graded Prove It dataset.
+function moduleFourGroupingCompare() {
+  const sc = MODULE_FOUR_GUIDED_FIXTURE.scenario;
+  const truth = sc.truth;
+  const rule = truth.rule;
+  const retryIds = new Set(truth.benignRetry.eventIds);
+  const winMs = rule.windowMinutes * 60000;
+  const rows = sc.telemetry
+    .filter((e) => e.result === 'Failure' || truth.successfulAuthenticationEventIds.includes(e.id))
+    .map((e) => ({ ...e, ms: Date.parse(e.time), tail: e.id.replace(/^GL4-/, ''),
+      kind: retryIds.has(e.id) ? 'retry' : (e.sourceIp === truth.maliciousSourceIp ? 'spray' : 'noise') }))
+    .sort((a, b) => a.ms - b.ms);
+  const hhmm = (e) => e.time.slice(11, 16);
+  const kindLabel = { spray: 'Spray', retry: 'Managed retry', noise: 'Background' };
+  const chip = (e, show) => `<li class="m04-gc-chip is-${e.kind} ${e.result === 'Success' ? 'is-ok' : ''}"><span class="m04-gc-mark" aria-hidden="true">${e.result === 'Success' ? '✓' : '✕'}</span><span class="m04-gc-chip-text"><strong>${esc(e.tail)}</strong> ${esc(hhmm(e))} ${esc(show)}</span><span class="m04-gc-tag">${e.result === 'Success' ? 'Success · ' : ''}${esc(kindLabel[e.kind])}</span></li>`;
+  const bucket = (key) => rows.reduce((m, e) => { (m[e[key]] = m[e[key]] || []).push(e); return m; }, {});
+  const accountThreshold = 3;
+  const byAccount = bucket('account');
+  const byAccountKeys = Object.keys(byAccount);
+  const accountFails = (list) => list.filter((e) => e.result === 'Failure').length;
+  const accountAlerts = byAccountKeys.filter((k) => accountFails(byAccount[k]) >= accountThreshold);
+  const bySource = bucket('sourceIp');
+  const bySourceKeys = Object.keys(bySource);
+  const sourceHit = (list) => {
+    const f = list.filter((e) => e.result === 'Failure');
+    return f.some((a) => new Set(f.filter((b) => b.ms >= a.ms && b.ms < a.ms + winMs).map((b) => b.account)).size >= rule.threshold);
+  };
+  const sourceAlerts = bySourceKeys.filter((k) => sourceHit(bySource[k]));
+  const group = (title, meta, list, show, alert) => `<li class="m04-gc-group ${alert ? 'is-alert' : 'is-quiet'}"><p class="m04-gc-group-head"><strong>${esc(title)}</strong><span>${esc(meta)}</span></p><ul class="m04-gc-chips">${list.map((e) => chip(e, show(e))).join('')}</ul></li>`;
+  const acctCol = byAccountKeys.map((k) => group(k, `${accountFails(byAccount[k])} failure${accountFails(byAccount[k]) === 1 ? '' : 's'} · ${accountAlerts.includes(k) ? 'ALERT' : 'below threshold'}`, byAccount[k], (e) => e.sourceIp, accountAlerts.includes(k))).join('');
+  const srcCol = bySourceKeys.map((k) => { const f = bySource[k].filter((e) => e.result === 'Failure'); const n = new Set(f.map((e) => e.account)).size; return group(k, `${n} distinct account${n === 1 ? '' : 's'} · ${sourceAlerts.includes(k) ? 'ALERT' : 'below threshold'}`, bySource[k], (e) => e.account, sourceAlerts.includes(k)); }).join('');
+  const spraySingles = byAccountKeys.filter((k) => byAccount[k].some((e) => e.kind === 'spray') && !accountAlerts.includes(k)).length;
+  const retryAlerted = accountAlerts.some((k) => byAccount[k].some((e) => e.kind === 'retry'));
+  const sprayCaught = sourceAlerts.includes(truth.maliciousSourceIp);
+  const textEq = `Same ${rows.length} records, two groupings. Grouping by account: ${byAccountKeys.length} buckets, ${accountAlerts.length} alert (${retryAlerted ? 'the managed retry' : 'none'}), and the spray is split across ${spraySingles} single-failure accounts that stay below the threshold of ${accountThreshold}. Grouping by source address in a ${rule.windowMinutes}-minute window: ${bySourceKeys.length} buckets, ${sourceAlerts.length} alert (${sprayCaught ? `source ${truth.maliciousSourceIp}, ${truth.targetedAccounts.length} distinct accounts` : 'none'}); the managed retry, branch mistype and scheduled probe each involve one account and stay quiet.`;
+  return `<details class="m04-gc mf-lesson" id="m04-grouping-compare">
+    <summary><span class="mf-lesson-icon"><i class="ri-git-merge-line" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>Reference: why grouping changes the alert</strong><small>Same Guided Lab records, two groupings</small></span><i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
+    <section class="m04-gc-body" aria-labelledby="m04-gc-title">
+      <h3 id="m04-gc-title" class="m04-gc-title">Same records, different grouping, different alert</h3>
+      <p class="m04-gc-sr">${esc(textEq)}</p>
+      <div class="m04-gc-cols" aria-hidden="false">
+        <section class="m04-gc-col is-current" aria-label="Current: group by account">
+          <p class="m04-gc-colhead"><span class="m04-gc-badge">CURRENT</span> Group by account<small>Illustrative baseline: alert at ${accountThreshold} failures for one account</small></p>
+          <ul class="m04-gc-groups">${acctCol}</ul>
+          <p class="m04-gc-outcome"><strong>Outcome: ${accountAlerts.length} alert.</strong> ${retryAlerted ? 'It is the managed retry (noise). ' : ''}The spray is ${spraySingles} separate single-failure accounts, each below threshold, so it is missed.</p>
+        </section>
+        <section class="m04-gc-col is-proposed" aria-label="Proposed: group by source and time window">
+          <p class="m04-gc-colhead"><span class="m04-gc-badge">PROPOSED</span> Group by source + ${rule.windowMinutes}-minute window<small>Alert at ${rule.threshold} or more distinct accounts from one source</small></p>
+          <ul class="m04-gc-groups">${srcCol}</ul>
+          <p class="m04-gc-outcome"><strong>Outcome: ${sourceAlerts.length} alert.</strong> ${sprayCaught ? `One source reached ${truth.targetedAccounts.length} distinct accounts inside the window: the distributed pattern shows as a single alert. ` : ''}Single-account retries, mistypes and probes stay quiet.</p>
+        </section>
+      </div>
+      <p class="m04-gc-key"><strong>Key:</strong> solid border = part of the spray; dashed border = benign or background; ✕ = failure, ✓ = success. Reference only, nothing here is graded.</p>
+    </section>
+  </details>`;
+}
 const MODULE_FOUR_GUIDED_CONSOLE_DATA = (() => {
   const scenario = MODULE_FOUR_GUIDED_FIXTURE.scenario;
   const day = scenario.start.slice(0, 10);
@@ -1340,6 +1397,7 @@ function viewModuleFour(user, program) {
       <section class="m04-section m04-section-body mf-section-body m04-lab-section" aria-labelledby="m04-guided-lab-title">
         <div class="m04-signposts" aria-label="Assisted lab signposts"><div><span>A</span>Inspect either source first</div><div><span>B</span>Test and enrich</div><div><span>C</span>Choose bounded action</div><div><span>D</span>Explain the package</div></div>
         <div class="m04-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This isolated surface contains one fictional rule, one authentication slice, and one intelligence snapshot. No other course environment or future-module evidence is reachable here.</p></div>
+        ${moduleFourGroupingCompare()}
         <div id="m04-guided-lab-dynamic">${moduleFourGuidedLabPanel()}</div>
       </section>
     </details>`;

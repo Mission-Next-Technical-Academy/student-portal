@@ -1101,6 +1101,54 @@ function moduleFiveRenderAssessment() {
   m03eAttachEditor('m05');
 }
 
+/* Process-ancestry + aligned-timeline teaching visual. Every node, PID, host and
+ * time is read from the Practice It endpoint records (MODULE_FIVE_GUIDED_FIXTURE);
+ * a solid parent→child link is drawn only when the child's ParentProcessId equals
+ * the parent's ProcessId in those records. Everything else is dashed. */
+function moduleFiveAncestryVisual() {
+  const rows = (typeof MODULE_FIVE_GUIDED_FIXTURE !== 'undefined' && MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry) || [];
+  const byId = (id) => rows.find((r) => r.id === id);
+  const [doc, host, drop, reg] = ['M05-PR-201', 'M05-PR-202', 'M05-PR-203', 'M05-PR-206'].map(byId);
+  if (!doc || !host || !drop || !reg) return '';
+  const base = (path) => String(path || '').split('\\').pop();
+  const secs = (r) => Date.parse(r.time) / 1000;
+  const t0 = secs(doc);
+  const clock = (r) => r.time.slice(11, 19);
+  const parentProven = (parent, child) => parent.processId && child.parentProcessId === parent.processId;
+  const dropSigner = (byId('M05-PR-205') || {}).signer;
+  const nodes = [
+    { rec: doc, kind: 'Document viewer', name: base(doc.image), meta: `PID ${doc.processId} · ${doc.action.replace(/_/g, ' ')}`, link: null },
+    { rec: host, kind: 'Script host', name: base(host.image), meta: `PID ${host.processId} · parent PID ${host.parentProcessId}`, link: parentProven(doc, host) ? 'proven' : 'inferred' },
+    { rec: drop, kind: 'Launched file', name: base(drop.image), meta: `PID ${drop.processId} · parent PID ${drop.parentProcessId}${dropSigner ? ` · ${dropSigner}` : ''}`, link: parentProven(host, drop) ? 'proven' : 'inferred' },
+    { rec: reg, kind: 'Persistence write', name: 'Run-key value', meta: `${base(reg.registryPath)} · written by PID ${reg.processId}`, link: 'inferred' },
+    { rec: null, kind: 'Network event', name: 'No record', meta: 'None for this chain in these records', link: 'missing' },
+  ];
+  const linkLabel = { proven: 'proves', inferred: 'corroborates', missing: 'no record' };
+  const items = nodes.map((n, i) => {
+    const link = n.link ? `<span class="m05-anc-link is-${n.link}" aria-hidden="true"><span class="m05-anc-linktext">${esc(linkLabel[n.link])}</span><span class="m05-anc-line"></span></span>` : '';
+    const time = n.rec ? `<time datetime="${esc(n.rec.time)}">${esc(clock(n.rec))}</time><small>${i === 0 ? 'start' : `+${secs(n.rec) - t0}s`}</small>` : '<span>—</span><small>no timestamp</small>';
+    return `<li class="m05-anc-item${n.rec ? '' : ' is-missing'}">${link}<span class="m05-anc-node"><span class="m05-anc-body"><small>${esc(n.kind)}</small><strong>${esc(n.name)}</strong><span>${esc(n.meta)}</span></span><span class="m05-anc-time">${time}</span></span></li>`;
+  }).join('');
+  const summary = `On ${doc.host}, ${base(doc.image)} (PID ${doc.processId}) is recorded as the parent of ${base(host.image)} (PID ${host.processId}), which is recorded as the parent of ${base(drop.image)} (PID ${drop.processId}). Those two links are proven by parent process ID fields. The Run-key write at ${clock(reg)} comes from PID ${reg.processId} and corroborates the chain without being a parent-child link. These records contain no network event for this chain.`;
+  return `<figure class="m05-anc" aria-labelledby="m05-anc-title">
+    <p class="m05-kicker">Reference · ${esc(doc.host)}</p>
+    <h4 id="m05-anc-title">Process ancestry and event order</h4>
+    <ol class="m05-anc-flow">${items}</ol>
+    <ul class="m05-anc-legend" aria-label="Legend">
+      <li><span class="m05-anc-key is-proven" aria-hidden="true"></span>Solid arrow, “proves”: parent→child (record proves) — child's parent PID matches the parent's PID</li>
+      <li><span class="m05-anc-key is-inferred" aria-hidden="true"></span>Dashed arrow, “corroborates”: corroborates — not proven causal — same actor or nearby time only</li>
+      <li><span class="m05-anc-key is-missing" aria-hidden="true"></span>Dotted arrow and outline, “no record”: no record exists; do not fill the gap by assumption</li>
+    </ul>
+    <figcaption class="m05-anc-caption">${esc(summary)} The time at the foot of each box is its record timestamp.</figcaption>
+  </figure>`;
+}
+
+function moduleFiveAncestryReference() {
+  const body = moduleFiveAncestryVisual();
+  if (!body) return '';
+  return `<details class="m05-anc-ref mf-lesson" id="m05-ancestry-reference"><summary><span class="mf-lesson-icon"><i class="ri-node-tree" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>Reference: reading process ancestry</strong><small>Same Guided Lab records, parent→child vs. corroborating</small></span><i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>${body}</details>`;
+}
+
 function moduleFiveLecture() {
   return `<section class="m05-lecture-section">
     <div class="m05-lecture-intro">
@@ -1168,7 +1216,7 @@ function viewModuleFive(user, program) {
       <details class="m05-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
         <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">3</span><div><p class="m05-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m05-guided-lab">Malware analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m05-section-body mf-section-body">
-          <div id="m05-guided-lab-dynamic">${moduleFiveGuidedLabPanel()}</div>
+          ${moduleFiveAncestryReference()}<div id="m05-guided-lab-dynamic">${moduleFiveGuidedLabPanel()}</div>
         </div>
       </details>
 
