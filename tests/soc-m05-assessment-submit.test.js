@@ -33,9 +33,10 @@ const context = {
   createQuizAttempt: () => ({ selectedQuestions: [], answers: {} }),
   MODULE_FIVE_FLAG: 'M05-ENDPOINT-CHAIN-VALIDATED',
 };
+context.window = context;
 vm.createContext(context);
 for (const file of [
-  'soc-assessment-scorer.js', 'soc-console-core.js', 'soc-timeline-ui.js',
+  'learn-it-decks.js', 'learn-it-cards.js', 'soc-assessment-scorer.js', 'soc-console-core.js', 'soc-timeline-ui.js',
   'soc-m05-assessment-data.js', 'soc-m05-assessment-state.js', 'soc-m05-assessment-actions.js',
   'soc-m05-assessment-rubric.js', 'soc-m05-assessment-scorer.js', 'soc-m05-assessment-device-ui.js',
   'soc-m05-assessment-console.js', 'kql-engine.js', 'soc-assessment-evolution.js', 'soc-kql-search-ui.js', 'soc-evidence-ui.js', 'soc-entity-ui.js', 'soc-alert-queue-ui.js', 'soc-analyst-module-03-environment.js', 'soc-m04-assessment-data.js', 'soc-m04-assessment-state.js', 'soc-m04-assessment-actions.js', 'soc-m04-automation.js', 'soc-m04-intelligence-ui.js', 'soc-m04-rules-ui.js', 'soc-m04-rule-evaluator.js', 'soc-m04-assessment-console.js', 'soc-console-tools.js', 'soc-analyst-module-05.js',

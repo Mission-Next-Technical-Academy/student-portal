@@ -803,7 +803,7 @@
             <div class="m02e-console-wrap" id="m02e-console-learn">${consoleHtml('learn')}</div>
           </details>
 
-          <details class="m01-section m02e-section m02e-section-collapsible" id="m02e-practice" open aria-labelledby="m02e-practice-title">
+          <details class="m01-section m02e-section m02e-section-collapsible" id="m02e-practice" data-authored-assessment="soc-02" open aria-labelledby="m02e-practice-title">
             <summary class="m01-section-heading"><span>3</span><div><p class="m01-kicker">Assessment Lab · independent investigation</p><h2 id="m02e-practice-title">Investigate HR file authorization</h2></div></summary>
             ${practicePanel()}
           </details>

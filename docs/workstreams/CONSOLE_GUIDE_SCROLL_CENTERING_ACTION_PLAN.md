@@ -1,6 +1,13 @@
 # Console Guide and SIEM View: Scroll and Centering Action Plan
 
-**Status:** Proposed implementation plan  
+**Status:** Sprints 2–3 implemented 2026-10-03; Sprint 4 desktop pass done, tablet/mobile pass still open.
+Shared: `consoleGuidePosition()` honours a step `target`, places above/below/beside or fits the
+larger gap, measures by layout size in the real containing block; Next/toggle center the card.
+Adoption: every Guided Lab step M01–M11 declares a `target` (M03 15/15); M04–M11 seat the card
+in the workspace with an `M03E_AFTER_RENDER` re-seat hook. Verified headless at 1400×900:
+M01–M06 46/49 steps clean (remaining 3 are a step that asks the learner to open a tab first, the
+docked completion card, and a ~3px edge touch on M02 step 1); M07–M11 clean after Next.
+Not done: narrow/mobile layouts and keyboard/screen-reader pass from Sprint 4.
 **Date:** 2026-10-03  
 **Scope:** SOC Analyst course, Guided Lab and console walkthrough experiences across modules 01–12
 

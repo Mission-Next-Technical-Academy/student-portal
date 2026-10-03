@@ -18,8 +18,10 @@ const context = {
   markModuleContentOpened: () => {},
   createQuizAttempt: () => ({ selectedQuestions: [], answers: {} }),
 };
+context.window = context;
 vm.createContext(context);
 for (const filename of [
+  'case-record.js', 'console-guide.js', 'learn-it-decks.js', 'learn-it-cards.js',
   'soc-assessment-scorer.js',
   'soc-assessment-evolution.js',
   'soc-console-core.js',

@@ -33,9 +33,14 @@ for (let number = 1; number <= 11; number += 1) {
     .filter((file) => fs.existsSync(path.join(portal, file)))
     .map((file) => fs.readFileSync(path.join(portal, file), 'utf8'));
   const source = sources.join('\n');
-  assert.match(source, /guidedLabGuide\(/, `M${id} renders the shared guide`);
-  assert.match(source, /guidedLabDebrief\(/, `M${id} renders the shared practice debrief`);
-  assert.match(source, /contributing/, `M${id} can report contributing evidence in the debrief`);
+  // M02 is the documented exception (MODULE_STANDARD.md §7.3): its Learn It console walkthrough is the
+  // Guided Lab and uses consoleGuideCard; the HR ITSM case is the Assessment Lab (no debrief).
+  const m02 = number === 2;
+  assert.match(source, m02 ? /consoleGuideCard\(/ : /guidedLabGuide\(/, `M${id} renders the shared guide`);
+  if (!m02) {
+    assert.match(source, /guidedLabDebrief\(/, `M${id} renders the shared practice debrief`);
+    assert.match(source, /contributing/, `M${id} can report contributing evidence in the debrief`);
+  }
   assert.doesNotMatch(source, /Launch Guided Lab|Launch Assessment Lab/, `M${id} has no new-tab lab launch buttons`);
   assert.doesNotMatch(source, /target=["']_blank[^>]*>[^<]*(?:Guided|Assessment) Lab/i, `M${id} has no new-tab lab launch link`);
   assert.doesNotMatch(source, /\{ id: 'knowledge-check', title: 'Knowledge Check'/, `M${id} has no redundant Knowledge Check navigation stop`);
@@ -57,22 +62,25 @@ assert.match(sharedCss, /header \.m02e-learn-tip\{opacity:1;visibility:visible\}
 assert.match(sharedCss, /header \.m02e-learn-tip:not\(\.is-collapsed\) \.m02e-tip-body\{display:block\}/, 'header-docked guides can expand');
 const m02Environment = fs.readFileSync(path.join(portal, 'soc-analyst-module-02-environment.js'), 'utf8');
 assert.match(m02Environment, /ITSM Ticket/);
-assert.match(m02Environment, /caseId: 'IAM-GUIDED-02'/);
-assert.doesNotMatch(m02Environment, /DECISION ARTIFACT|data-m02e-practice-submit/);
-const m02AssessmentStart = m02Environment.indexOf('function provePanel()');
-const m02AssessmentEnd = m02Environment.indexOf('function submitProve()', m02AssessmentStart);
-assert.ok(m02AssessmentStart >= 0 && m02AssessmentEnd > m02AssessmentStart, 'M02 Assessment Lab renderer remains separate');
+assert.match(m02Environment, /CASE_ID = 'IAM-5502'/);
+assert.doesNotMatch(m02Environment, /DECISION ARTIFACT|data-m02e-practice-submit|IAM-GUIDED-02/);
+// The Assessment Lab (HR authorization ITSM case) is the only graded M02 ticket; its pane and submit stay separate.
+const m02AssessmentStart = m02Environment.indexOf('function practiceTicketPane()');
+const m02AssessmentEnd = m02Environment.indexOf('function restartPracticeLab()', m02AssessmentStart);
+assert.ok(m02AssessmentStart >= 0 && m02AssessmentEnd > m02AssessmentStart, 'M02 Assessment Lab ticket renderer remains separate');
 const m02AssessmentPanel = m02Environment.slice(m02AssessmentStart, m02AssessmentEnd);
 assert.match(m02AssessmentPanel, /caseRecordPane\(cr/);
-assert.match(m02AssessmentPanel, /formId: 'm02e-prove-form'/);
-assert.match(m02AssessmentPanel, /submitAttr: 'data-m02e-submit-prove'/);
-const m02AssessmentSubmitStart = m02Environment.indexOf('function submitProve()', m02AssessmentEnd);
+assert.match(m02AssessmentPanel, /formId: 'm02e-practice-form'/);
+assert.match(m02AssessmentPanel, /submitAttr: 'data-m02e-submit-practice'/);
+assert.doesNotMatch(m02AssessmentPanel, /guidedLabDebrief|practiceSubmitted: true/, 'M02 Assessment Lab shows no student debrief');
+const m02AssessmentSubmitStart = m02Environment.indexOf('function submitProve()');
 const m02ShellStart = m02Environment.indexOf('// ------------------------------------------------------------------- Shell', m02AssessmentSubmitStart);
+assert.ok(m02AssessmentSubmitStart >= 0 && m02ShellStart > m02AssessmentSubmitStart, 'M02 Assessment Lab submit exists');
 const m02AssessmentSubmit = m02Environment.slice(m02AssessmentSubmitStart, m02ShellStart);
 assert.match(m02AssessmentSubmit, /caseScore\(cr\)/);
 assert.match(m02AssessmentSubmit, /recordLabAttempt\(user, LAB_KEY/);
-assert.match(m02AssessmentSubmit, /state\.prove\.caseRecord/);
-assert.match(m02Environment, /\$\{provePanel\(\)\}/, 'M02 page continues to mount Assessment Lab');
+assert.match(m02AssessmentSubmit, /state\.practice\.caseRecord/);
+assert.match(m02Environment, /\$\{practicePanel\(\)\}/, 'M02 page continues to mount Assessment Lab');
 
 const m12 = fs.readFileSync(path.join(portal, 'soc-analyst-module-12.js'), 'utf8');
 const feedbackStart = m12.indexOf('function moduleTwelveFeedback()');

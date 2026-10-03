@@ -136,8 +136,8 @@ and `bin/console-tab-sweep.js 4,5,10` passes.
 | 04 | Group-by-account vs group-by-source + 5-min window comparison (`moduleFourGroupingCompare`, `.m04-gc-*`). Outcomes are computed, not hardcoded. The per-account "3 failures" baseline is labelled illustrative. | Practice It → Guided Lab, collapsed "Reference: why grouping changes the alert" above the console | Guided Lab fixture (192.0.2.144 spray, acct-67 managed retry). The Prove It scenario uses different values and is not shown. |
 | 10 | Six-step handling chain with separate provenance (solid) and integrity (dashed) checks; expandable steps (`moduleTenHandlingChain`, `.m10-handling*`) | Lecture Deep Dive, after the scenario loops | Static step copy, with no scenario values |
 
-These test failures already existed and were confirmed against a pre-change copy, so they are not caused by this
-work: `soc-m04-assessment-console` (`guidedLabGuide` not loaded), `soc-m04-assessment-submit`,
+Resolved 2026-10-03 (test contexts now load the shared guide/Learn It scripts; stale assertions updated to the
+faculty-review-only design). These test failures had already existed and were not caused by this work: `soc-m04-assessment-console` (`guidedLabGuide` not loaded), `soc-m04-assessment-submit`,
 `soc-m05-assessment-console` (`inConsole`), and `soc-m05-assessment-submit` (`LearnItDecks`). These come from the
 Learn It / console-guide WIP.
 

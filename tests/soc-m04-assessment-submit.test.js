@@ -121,8 +121,11 @@ assert.strictEqual(first.caseRecord.reviewPayload.scenarioId, local('SocM04Asses
 assert.strictEqual(first.score, first.caseRecord.reviewPayload.score);
 assert.ok(first.caseRecord.reviewPayload.criteria.length > 0);
 assert.ok(writes.length > 0, 'submitted score and review payload are persisted to M04 case state');
-assert.match(vm.runInContext('moduleFourArtifact()', context), /data-m04-submitted-review/,
-  'feedback becomes visible only after submission');
+// Assessment Labs show only the standard faculty-review state: no student score or debrief.
+const submittedArtifact = vm.runInContext('moduleFourArtifact()', context);
+assert.doesNotMatch(submittedArtifact, /data-m04-submitted-review/, 'no student-facing score/debrief after submission');
+assert.strictEqual(vm.runInContext('moduleFourProveItReviewStatus()', context), 'review',
+  'submission shows the standard faculty-review state');
 assert.ok(attempts.some((entry) => entry.catalog?.[2]?.result?.review_payload?.score === first.score),
   'catalog attempt includes instructor-readable review payload');
 assert.ok(attempts.some((entry) => entry.catalog?.[2]?.result?.review_payload?.caseId === 'DET-4424'

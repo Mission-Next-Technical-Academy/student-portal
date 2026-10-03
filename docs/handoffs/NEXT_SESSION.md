@@ -13,14 +13,17 @@ unblocked roadmap item, then read only that item's governing specification.
 Do not use the historical notes below as an independent plan; some describe
 superseded Module 1 directions.
 
-**2026-10-03 local work (not committed or deployed):** Learn It cards now use a
-shared horizontal carousel across SOC Modules 01–12. The rollout details and
-copy review are in `docs/workstreams/LEARN_IT_CARDS_ROLLOUT.md` and
-`docs/workstreams/LEARN_IT_DECKS_REVIEW.md`. Local syntax, renderer, portal,
-desktop/mobile carousel, reduced-motion, keyboard-focus, restart, and 304 console
-tab checks passed. M04/M05 legacy lecture paragraphs remain in collapsed Deep
-Dive sections. `master` is 31 commits ahead of `origin/master`; do not push it as
-part of this work.
+**2026-10-03 (committed and deployed to `master`/Pages: 8393c88, 219f22a, and the
+test/check follow-up after them):** Learn It cards use a shared horizontal carousel
+across SOC Modules 01–12 (`docs/workstreams/LEARN_IT_CARDS_ROLLOUT.md`,
+`LEARN_IT_DECKS_REVIEW.md`). Console Guide is now one course-wide standard: per-step
+`target` highlighting, card placed beside the evidence, centered on Next/Minimize,
+labelled Minimize/Show guide, last step wraps to step 1 (see
+`docs/specs/MODULE_STANDARD.md` §7.3 and
+`docs/workstreams/LAB_CLICK_RESPONSIVENESS_FINDINGS.md` → Implementation status).
+Rail lock explains itself; program page has 01–12 module jump buttons (PR #42).
+Real-browser checks: `bin/lab-click-sweep.js` and `bin/console-tab-sweep.js`
+(see memory/README for the NODE_PATH Playwright invocation).
 
 **2026-09-21:** `archive/historical-plans/HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` scoped a
 masked-input, read-the-real-log evidence mechanic for ALT-1001. **Superseded

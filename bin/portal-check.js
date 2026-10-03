@@ -193,6 +193,8 @@ const testPromise = vm.runInContext(`
           const assessmentId = \`standard-\${target.key}-assessment-module\`;
           if (usesGenericAssessment) {
             if (!html.includes(\`id="\${assessmentId}"\`)) throw new Error('missing rendered Assessment Lab surface');
+          } else if (html.includes(\`data-authored-assessment="\${target.key}"\`)) {
+            // Authored Assessment Lab section that declares itself (M02's HR ITSM case).
           } else if (!html.includes('Prove It · Assessment Lab')) {
             throw new Error('missing authored Assessment Lab surface');
           }
