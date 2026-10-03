@@ -220,6 +220,7 @@
 
   // null = default: floating while stepping, docked in the header once complete.
   let guideTipCollapsed = null;
+  let learnView = null; // idea picked from the card strip; null follows the current step
 
   const DEFAULT = {
     learn: { walkthroughVersion: 3, guideFlowVersion: 1, step: 0, guideStep: -1, guideUnlocked: false, guideCompleted: false, tab: 'map', selected: { type: 'device', id: 'wk17' }, opened: [], knowledgeAnswers: {}, knowledgeScored: false },
@@ -521,6 +522,8 @@
       const knowledge = document.getElementById('m02e-knowledge');
       if (knowledge) knowledge.outerHTML = knowledgePanel();
       if (animateLearn) document.querySelectorAll('.m02e-learn-line.is-new [data-m02e-decode-text]').forEach(decodeLearnText);
+      const activeCard = document.querySelector('.m02e-learn-card.is-active');
+      activeCard?.parentElement.scrollTo({ left: activeCard.offsetLeft - activeCard.parentElement.offsetLeft - 8 });
       syncGuideGateNav();
       requestAnimationFrame(positionLearnTip);
     }
@@ -635,17 +638,24 @@
   function learnCallout() {
     const step = Math.max(0, Math.min(state.learn.step - 1, LEARN_STEPS.length - 1));
     const done = learnComplete();
-    // One idea at a time while stepping through; the full list only returns
-    // as a recap once the walkthrough is complete.
-    const visibleSteps = done ? LEARN_STEPS : state.learn.step ? [LEARN_STEPS[step]] : [];
-    const stepLines = visibleSteps.map((item, i) => {
-      const index = done ? i : step;
-      const isNew = !done;
+    const revealed = done ? LEARN_STEPS.length : state.learn.step;
+    // One idea on the canvas at a time; revealed ideas stay reachable through
+    // the card strip instead of stacking into a scrolling list.
+    const viewIndex = revealed ? Math.min(learnView ?? step, revealed - 1) : -1;
+    const isNew = !done && learnView === null && viewIndex === step;
+    const cards = LEARN_STEPS.map((item, i) => {
+      const unlocked = i < revealed;
+      const cls = `m02e-learn-card${i === viewIndex ? ' is-active' : ''}${unlocked ? '' : ' is-locked'}`;
+      const label = unlocked ? esc(item.title) : 'Locked';
+      return `<button class="${cls}" type="button"${unlocked ? ` data-m02e-learn-view="${i}"` : ' disabled'}${i === viewIndex ? ' aria-current="true"' : ''} aria-label="Idea ${i + 1}: ${label}"><span>${String(i + 1).padStart(2, '0')}</span><strong>${unlocked ? label : '<i class="ri-lock-line" aria-hidden="true"></i>'}</strong></button>`;
+    }).join('');
+    const stepLines = viewIndex < 0 ? '' : (() => {
+      const item = LEARN_STEPS[viewIndex];
       const body = isNew
         ? `<span class="m02e-decode-visual" data-m02e-decode-text aria-hidden="true">${esc(item.body)}</span><span class="m02e-sr-only">${esc(item.body)}</span>`
         : esc(item.body);
-      return `<div class="m02e-learn-line${isNew ? ' is-new' : ''}"${isNew ? ' aria-current="step"' : ''}><span class="m02e-learn-line-index">${String(index + 1).padStart(2, '0')}</span><div><h3>${esc(item.title)}</h3><p>${body}</p></div></div>`;
-    }).join('');
+      return `<div class="m02e-learn-line ${isNew ? 'is-new' : 'is-recall'}"${isNew ? ' aria-current="step"' : ''}><span class="m02e-learn-line-index">${String(viewIndex + 1).padStart(2, '0')}</span><div><h3>${esc(item.title)}</h3><p>${body}</p></div></div>`;
+    })();
     const heading = done ? 'Walkthrough complete' : state.learn.step === 0 ? 'Ready to decode the signal?' : 'How a SOC analyst turns noise into signal';
     const intro = done
       ? state.learn.guideCompleted ? 'The console guide is complete. Your Guided Lab is available below.' : 'All six ideas are here to revisit. Open the console guide below to inspect the evidence.'
@@ -654,7 +664,7 @@
     const action = done
       ? '<button class="m02e-secondary" type="button" data-m02e-learn-restart><i class="ri-restart-line" aria-hidden="true"></i> Restart walkthrough</button>'
       : `<button class="m02e-primary" type="button" data-m02e-learn-next>${state.learn.step === 0 ? 'LEARN IT' : step === LEARN_STEPS.length - 1 ? 'Complete the walkthrough' : 'NEXT'} <i class="ri-arrow-right-line" aria-hidden="true"></i></button>`;
-    return `<section class="m02e-callout${done ? ' is-done' : ''}" id="m02e-learn-callout" aria-labelledby="m02e-learn-copy-title"><div class="m02e-learn-heading"><div><p class="m02e-label">${label}</p><h3 id="m02e-learn-copy-title">${heading}</h3><p>${intro}</p></div><div class="m02e-learn-actions">${action}</div></div><div class="m02e-learn-canvas" aria-live="polite">${stepLines || '<p class="m02e-learn-placeholder">The signal is waiting. Start the walkthrough to reveal the first idea.</p>'}</div><div class="m02e-learn-scan" aria-hidden="true"><span style="width:${(state.learn.step / LEARN_STEPS.length) * 100}%"></span></div></section>`;
+    return `<section class="m02e-callout${done ? ' is-done' : ''}" id="m02e-learn-callout" aria-labelledby="m02e-learn-copy-title"><div class="m02e-learn-heading"><div><p class="m02e-label">${label}</p><h3 id="m02e-learn-copy-title">${heading}</h3><p>${intro}</p></div><div class="m02e-learn-actions">${action}</div></div><nav class="m02e-learn-cards" aria-label="Learn It ideas">${cards}</nav><div class="m02e-learn-canvas" aria-live="polite">${stepLines || '<p class="m02e-learn-placeholder">The signal is waiting. Start the walkthrough to reveal the first idea.</p>'}</div><div class="m02e-learn-scan" aria-hidden="true"><span style="width:${(state.learn.step / LEARN_STEPS.length) * 100}%"></span></div></section>`;
   }
 
   function decodeLearnText(element) {
@@ -873,9 +883,17 @@
       if (button.hasAttribute('data-m02e-learn-next')) {
         state.learn.step = Math.min(LEARN_STEPS.length, state.learn.step + 1);
         if (state.learn.step >= LEARN_STEPS.length) state.learn.guideUnlocked = true;
+        learnView = null;
         save(); renderScope('learn', { animateLearn: true }); return;
       }
-      if (button.hasAttribute('data-m02e-learn-restart')) { state.learn.step = 0; state.learn.guideStep = -1; save(); renderScope('learn'); return; }
+      if (button.dataset.m02eLearnView !== undefined) {
+        const i = Number(button.dataset.m02eLearnView);
+        learnView = i === Math.max(0, state.learn.step - 1) && !learnComplete() ? null : i;
+        renderScope('learn');
+        document.querySelector(`[data-m02e-learn-view="${i}"]`)?.focus();
+        return;
+      }
+      if (button.hasAttribute('data-m02e-learn-restart')) { learnView = null; state.learn.step = 0; state.learn.guideStep = -1; save(); renderScope('learn'); return; }
       if (button.hasAttribute('data-m02e-guide-open')) {
         if (!state.learn.guideUnlocked && !learnComplete() && !state.learn.guideCompleted) return;
         state.learn.guideStep = 0;
