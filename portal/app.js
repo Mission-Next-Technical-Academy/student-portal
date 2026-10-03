@@ -4495,7 +4495,12 @@ function standardModuleStageId(moduleKey, stage) {
 }
 
 function normalizeModuleStages(sections, state = {}) {
-  const moduleKey = state.moduleKey || 'module';
+  // Generated stage sections (Foundations / Guided Lab / Assessment Lab) are
+  // rendered by moduleAssessmentModule() with ids built from the module's
+  // catalogue key (e.g. 'its-01'). Some modules pass a different rail key
+  // (e.g. 'its01') for styling/state, so they can pass `stageKey` to make the
+  // rail's links match the section ids. Without it, behavior is unchanged.
+  const moduleKey = state.stageKey || state.moduleKey || 'module';
   const source = Array.isArray(sections) ? sections : [];
   const phaseFor = (section) => {
     if (section.phase) return section.phase;

@@ -146,7 +146,7 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
   ];
   return `<div class="itss-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(navSections, { moduleKey: `its${numLabel}` })}
+    ${moduleProgressShell(navSections, { moduleKey: `its${numLabel}`, stageKey: moduleKey })}
     <main class="itss-main">
       <section class="itss-hero" aria-labelledby="itss-title-${numLabel}"><p class="itss-kicker">Module ${numLabel} · ${formatInstructionalMinutes(module.durationMinutes)} · Week ${esc(String(module.week))}</p><h1 id="itss-title-${numLabel}">${esc(module.title)}</h1><p class="itss-lede">${esc(lede)}</p></section>
 
