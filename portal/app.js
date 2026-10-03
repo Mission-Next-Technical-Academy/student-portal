@@ -5172,6 +5172,41 @@ const STATE_STYLES = {
   draft:       { label: 'In Development', icon: 'ri-tools-line',        cls: 'bg-gray-50 border-gray-200 text-gray-400' },
 };
 
+// One numbered button per module in the program nav, beside Curriculum, so a
+// student can jump straight to any module card without scrolling the list.
+// Completed modules read green, matching the cards' completion dot.
+function moduleJumpButtons(program, user) {
+  const keys = (program.weekGroups || []).flatMap((w) => w.modules || []);
+  if (keys.length < 2) return '';
+  return `<span class="flex items-center gap-1 pl-2 pr-3 mr-1 border-r border-gray-100" aria-label="Jump to module">
+    ${keys.map((key) => {
+      const m = program.modules[key];
+      if (!m) return '';
+      const done = moduleCompletion(program, key, user).complete;
+      return `<a href="#sec-module-${m.number}" data-module-jump="${m.number}" title="Module ${String(m.number).padStart(2, '0')} · ${esc(m.title)}"
+         class="inline-flex items-center justify-center min-w-8 h-8 px-1.5 rounded-lg text-xs font-bold tabular-nums transition-colors
+                ${done ? 'text-[#16a34a] bg-[#dcfce7]/60 hover:bg-[#dcfce7]' : 'text-[#1e3a5f] bg-gray-50 hover:bg-[#1e3a5f]/10'}">${String(m.number).padStart(2, '0')}</a>`;
+    }).join('')}
+  </span>`;
+}
+
+// Program-nav links (sections and module buttons) scroll in place rather
+// than following their href: a bare #sec-… hash would replace the
+// #/program/… route in the address bar, so a reload or a copied link would
+// lose the page.
+if (typeof document !== 'undefined' && !window.moduleJumpBound) {
+  window.moduleJumpBound = true;
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-module-jump], [data-section-jump]');
+    if (!link) return;
+    const card = document.getElementById(link.dataset.sectionJump || `sec-module-${link.dataset.moduleJump}`);
+    if (!card) return;
+    event.preventDefault();
+    const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    card.scrollIntoView({ behavior, block: 'start' });
+  });
+}
+
 function moduleCard(program, key, user) {
   const m = program.modules[key];
   // Locked is DERIVED here, never stored. PLATFORM_ARCHITECTURE.md §4.3.
@@ -5194,7 +5229,7 @@ function moduleCard(program, key, user) {
   const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' || state === 'needs_redo' ? 'Continue Module' : 'Start Module';
 
   return `
-  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${unlocked ? '' : 'mnt-locked'}" data-module-card>
+  <div id="sec-module-${m.number}" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden scroll-mt-32 ${unlocked ? '' : 'mnt-locked'}" data-module-card>
     <div class="w-full p-7 flex items-start gap-5 hover:bg-gray-50/60 transition-colors">
       <div class="flex-1 min-w-0 flex items-start gap-5">
 
@@ -5516,12 +5551,12 @@ function viewProgram(user, slug) {
           ...(hasCapstone ? [['Capstone', 'capstone']] : []),
           [program.careerReadiness ? 'M360 Companion' : 'Career Readiness', 'career-readiness'],
         ].map(([label, anchor]) => `
-          <a href="#sec-${anchor}"
+          <a href="#sec-${anchor}" data-section-jump="sec-${anchor}"
              class="relative whitespace-nowrap text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300
                     cursor-pointer px-4 py-4 hover:bg-[#1e3a5f]/8 group">
             ${label}
             <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
-          </a>`).join('')}
+          </a>${anchor === 'curriculum' ? moduleJumpButtons(program, user) : ''}`).join('')}
       </div>
     </nav>
 
