@@ -278,30 +278,33 @@ const m03eRidsIn = (result) => new Set((result?.rows || []).map((row) => row.__r
 const m03eHasAll = (set, ids) => ids.every((id) => set.has(id));
 
 const M03E_GUIDE_STEPS = [
-  { id: 'itsm', tab: 'itsm', title: 'Everything becomes a ticket', body: 'In real SOC work, the ticket is the system of record. The console helps you investigate, but the ticket is where the work becomes visible to the team: status, severity, affected user, evidence, notes, escalation, and handoff.', task: 'Open the ITSM Ticket tab and read how the investigation maps into the incident ticket.', lookFor: 'Evidence goes in pins and notes. Decisions go in ticket fields. Anything the next analyst must do goes in the handoff.',
+  { id: 'itsm', tab: 'itsm', target: '.m01-ticket-case', title: 'Everything becomes a ticket', body: 'In real SOC work, the ticket is the system of record. The console helps you investigate, but the ticket is where the work becomes visible to the team: status, severity, affected user, evidence, notes, escalation, and handoff.', task: 'Open the ITSM Ticket tab and read how the investigation maps into the incident ticket.', lookFor: 'Evidence goes in pins and notes. Decisions go in ticket fields. Anything the next analyst must do goes in the handoff.',
     check: (st) => st.tab === 'itsm' },
-  { id: 'alert', tab: 'alerts', title: 'Start from the alert', body: 'The normalized event set from the previous card is already loaded. An alert is a lead, not a verdict. Read the rule and its entities before querying.', task: 'Open ALT-3101 in the alert queue and read its rule and entities.', lookFor: 'acct-428, source IP 198.51.100.18, session S-8841, and the four required actions.',
+  { id: 'alert', tab: 'alerts', target: '[data-m03e-select="practice:alert:ALT-3101"]', title: 'Start from the alert', body: 'The normalized event set from the previous card is already loaded. An alert is a lead, not a verdict. Read the rule and its entities before querying.', task: 'Open ALT-3101 in the alert queue and read its rule and entities.', lookFor: 'acct-428, source IP 198.51.100.18, session S-8841, and the four required actions.',
     check: (st) => st.seen.includes('alert:ALT-3101') },
-  { id: 'auth', tab: 'search', title: 'Read the raw source first', body: 'Start with one source you understand. AuthLog records who signed in, from where, and whether it worked.', task: 'Run a query that returns every AuthLog record for acct-428.', hint: 'AuthLog\n| where Account == "acct-428"', lookFor: 'A failed sign-in followed by a success from 198.51.100.18; the source time was converted from UTC−04:00.',
+  { id: 'auth', tab: 'search', target: '#m03e-results-practice', title: 'Read the raw source first', body: 'Start with one source you understand. AuthLog records who signed in, from where, and whether it worked.', task: 'Run a query that returns every AuthLog record for acct-428.', hint: 'AuthLog\n| where Account == "acct-428"', lookFor: 'A failed sign-in followed by a success from 198.51.100.18; the source time was converted from UTC−04:00.',
     check: (st, r) => m03eHasAll(m03eRidsIn(r), ['A-1001', 'A-1003', 'A-1006']) },
-  { id: 'sort', tab: 'search', title: 'Sort before you tell a story', body: 'Search results come back newest-first. Sequence only means something when it is read oldest-first.', task: 'Re-run your acct-428 query sorted oldest-first.', hint: 'AuthLog\n| where Account == "acct-428"\n| sort by TimeGenerated asc', lookFor: 'The 09:02 failure comes before the 09:04 success.',
+  { id: 'sort', tab: 'search', target: '#m03e-results-practice', title: 'Sort before you tell a story', body: 'Search results come back newest-first. Sequence only means something when it is read oldest-first.', task: 'Re-run your acct-428 query sorted oldest-first.', hint: 'AuthLog\n| where Account == "acct-428"\n| sort by TimeGenerated asc', lookFor: 'The 09:02 failure comes before the 09:04 success.',
     check: (st, r) => { const rows = (r?.rows || []).filter((row) => row.TimeGenerated); return rows.length >= 3 && m03eRidsIn(r).has('A-1006') && rows.every((row, i) => i === 0 || String(rows[i - 1].TimeGenerated) <= String(row.TimeGenerated)); } },
-  { id: 'session', tab: 'search', title: 'Pivot across sources', body: 'UnifiedEvents holds the normalized records from the prior card. Prefer session_id, then corroborate with source IP or close timing.', task: 'Query UnifiedEvents on session S-8841, oldest-first.', hint: 'UnifiedEvents\n| where SessionId == "S-8841"\n| sort by TimeGenerated asc', lookFor: 'Four different actions on acct-428, linked by session S-8841 and IP 198.51.100.18.',
+  { id: 'session', tab: 'search', target: '#m03e-results-practice', title: 'Pivot across sources', body: 'UnifiedEvents holds the normalized records from the prior card. Prefer session_id, then corroborate with source IP or close timing.', task: 'Query UnifiedEvents on session S-8841, oldest-first.', hint: 'UnifiedEvents\n| where SessionId == "S-8841"\n| sort by TimeGenerated asc', lookFor: 'Four different actions on acct-428, linked by session S-8841 and IP 198.51.100.18.',
     check: (st, r) => { const rows = (r?.rows || []).filter((row) => row.SessionId === 'S-8841'); return new Set(rows.map((row) => row.EventSource)).size >= 3; } },
-  { id: 'timeline', tab: 'timeline', title: 'See it as a timeline', body: 'A timeline puts every source on one clock. Gaps and bursts show up that a table hides.', task: 'Open the Timeline for acct-428 or for 198.51.100.18.', lookFor: 'The sequence lasts ten minutes from first failure to export.',
+  { id: 'timeline', tab: 'timeline', target: '.m03e-timeline', title: 'See it as a timeline', body: 'A timeline puts every source on one clock. Gaps and bursts show up that a table hides.', task: 'Open the Timeline for acct-428 or for 198.51.100.18.', lookFor: 'The sequence lasts ten minutes from first failure to export.',
     check: (st) => st.seen.includes('timeline:acct-428') || st.seen.includes('timeline:198.51.100.18') },
-  { id: 'baseline', tab: 'entities', title: 'Compare with the baseline', body: 'Whether something is suspicious depends on what is normal for that entity. Check the account owner, type and usual source.', task: 'Open acct-428 and 198.51.100.18 on the Entities tab.', lookFor: 'An unusual interactive/MFA sign-in from a first-seen external IP for a non-interactive service account.',
+  { id: 'baseline', tab: 'entities', target: '[data-m03e-select="practice:account:acct-428"]', title: 'Compare with the baseline', body: 'Whether something is suspicious depends on what is normal for that entity. Check the account owner, type and usual source.', task: 'Open acct-428 and 198.51.100.18 on the Entities tab.', lookFor: 'An unusual interactive/MFA sign-in from a first-seen external IP for a non-interactive service account.',
     check: (st) => st.seen.includes('entity:account:acct-428') && st.seen.includes('entity:ip:198.51.100.18') },
-  { id: 'lookalikes', tab: 'watchlists', title: 'Rule out the lookalikes', body: 'Two other alerts look alarming. Authorized context such as change tickets and travel notices separates benign activity from the real finding.', task: 'Check both the ChangeTickets and TravelNotices watchlists, either on the tab or by querying them.', lookFor: 'Whether j.lee, svc-billing and the acct-428 role grant each have an approved explanation.',
+  { id: 'lookalikes', tab: 'watchlists', target: '[data-m03e-select="practice:watchlist:ChangeTickets"]', title: 'Rule out the lookalikes', body: 'Two other alerts look alarming. Authorized context such as change tickets and travel notices separates benign activity from the real finding.', task: 'Check both the ChangeTickets and TravelNotices watchlists, either on the tab or by querying them.', lookFor: 'Whether j.lee, svc-billing and the acct-428 role grant each have an approved explanation.',
     check: (st) => ['ChangeTickets', 'TravelNotices'].every((w) => st.seen.includes(`watchlist:${w}`)) },
-  { id: 'health', tab: 'sources', title: 'Check your telemetry', body: 'A query can only find what was collected. Confirm the sources are healthy before claiming something did not happen.', task: 'On Data Sources, open AppAudit and SystemLog and read their health and field mapping.', lookFor: 'The billing-app collector delay, and whether any events were dropped.',
+  { id: 'health', tab: 'sources', target: '[data-m03e-select="practice:source:AppAudit"]', title: 'Check your telemetry', body: 'A query can only find what was collected. Confirm the sources are healthy before claiming something did not happen.', task: 'On Data Sources, open AppAudit and SystemLog and read their health and field mapping.', lookFor: 'The billing-app collector delay, and whether any events were dropped.',
     check: (st) => st.seen.includes('source:AppAudit') && st.seen.includes('source:SystemLog') },
-  { id: 'scope', tab: 'search', title: 'Bound the scope', body: 'Before handing off, test whether the source IP touched any other account. An aggregation answers that in one result.', task: 'Write your own query: which accounts did 198.51.100.18 act as, and how many events each?', hint: 'Use | summarize … by Account', lookFor: 'Whether anything besides acct-428 appears.',
+  { id: 'scope', tab: 'search', target: '.m03e-editor-host', title: 'Bound the scope', body: 'Before handing off, test whether the source IP touched any other account. An aggregation answers that in one result.', task: 'Write your own query: which accounts did 198.51.100.18 act as, and how many events each?', hint: 'Use | summarize … by Account', lookFor: 'Whether anything besides acct-428 appears.',
     check: (st, r, q) => /198\.51\.100\.18/.test(q || '') && (r?.cols || []).includes('Account') && (r?.rows || []).length >= 1 && !(r?.rows || []).some((row) => row.__rid) && (r?.rows || []).every((row) => row.Account === 'acct-428') },
-  { id: 'pin', tab: 'evidence', title: 'Preserve the evidence', body: 'A handoff cites records. Pin the linked records and the approved lookalike so the next analyst can verify both inclusion and exclusion.', task: 'Pin the failed and successful sign-ins, role grant, export, and approved restart.', lookFor: 'Four records support the chain; S-4001 remains a separately documented approved change.',
+  { id: 'pin', tab: 'evidence', target: '.m03e-table-wrap', title: 'Preserve the evidence', body: 'A handoff cites records. Pin the linked records and the approved lookalike so the next analyst can verify both inclusion and exclusion.', task: 'Pin the failed and successful sign-ins, role grant, export, and approved restart.', lookFor: 'Four records support the chain; S-4001 remains a separately documented approved change.',
     check: (st) => m03eHasAll(new Set(st.pins), ['A-1003', 'A-1006', 'D-2001', 'P-3001', 'S-4001']) },
-  { id: 'handoff', tab: 'evidence', title: 'Write the analyst handoff', body: 'State the correlated sequence, explain why the 09:10 svc-backup restart is excluded, and name one unresolved question or next check.', task: 'Write the handoff in Working notes below the console. Include acct-428, S-8841, CHG-221, and a scope limit or next step.', lookFor: 'A bounded, reproducible handoff rather than a verdict without evidence.',
-    check: () => /acct-428/.test(moduleThreeState.practiceNotes || '') && /S-8841/.test(moduleThreeState.practiceNotes || '') && /CHG-221/.test(moduleThreeState.practiceNotes || '') && /svc-backup/.test(moduleThreeState.practiceNotes || '') && /(approved|separate|exclud)/i.test(moduleThreeState.practiceNotes || '') && (moduleThreeState.practiceNotes || '').trim().length >= 50 },
+  { id: 'contributing', tab: 'evidence', target: '.m03e-table-wrap', title: 'Weigh contributing evidence', body: 'A correlated record can support the story without identifying where the activity began. Keep both the strongest source and useful context in your handoff.', task: 'Compare the authentication source with the later role and export records.', lookFor: 'Which record establishes the sign-in, and which records show what followed?', check: (st) => st.pins.some((id) => ['A-1003', 'A-1006', 'D-2001', 'P-3001'].includes(id)) },
+  { id: 'handoff', tab: 'itsm', target: '.m01-ticket-notes', title: 'Write the analyst handoff', body: 'State the correlated sequence, explain why the 09:10 svc-backup restart is excluded, and name one unresolved question or next check.', task: 'Write the handoff in the ITSM ticket work notes. Include acct-428, S-8841, CHG-221, and a scope limit or next step.', lookFor: 'A bounded, reproducible handoff rather than a verdict without evidence.',
+    check: () => /acct-428/.test(m03eState('practice').determination.notes || '') && /S-8841/.test(m03eState('practice').determination.notes || '') && /CHG-221/.test(m03eState('practice').determination.notes || '') && /svc-backup/.test(m03eState('practice').determination.notes || '') && /(approved|separate|exclud)/i.test(m03eState('practice').determination.notes || '') && (m03eState('practice').determination.notes || '').trim().length >= 50 },
+  { id: 'decide', tab: 'itsm', target: '.m01-ticket-grid', title: 'Scope and decide', body: 'Use the linked records and the approved lookalike to bound the incident before routing the response.', task: 'Set the ticket severity, disposition, escalation, and department to match the evidence.', lookFor: 'A response scoped to acct-428 and session S-8841, with the approved restart excluded.', check: (st) => Boolean(st.determination?.severity && st.determination?.verdict && st.determination?.escalation) },
+  { id: 'submit', tab: 'itsm', target: '.m01-ticket-actions', title: 'Submit the ticket', body: 'The guide is a reference, not a gate. Finish the ITSM fields, write work notes, and submit the ticket when ready.', task: 'Open the ITSM Ticket tab and submit your case.', lookFor: 'Submitting the ticket completes this Guided Lab. You can move through or skip guide steps at any time.', check: (st) => st.determination?.submitted === true },
 ];
 
 /* ------------------------------------------------------------ assessment rubric
@@ -493,7 +496,7 @@ function moduleThreeScoreAssessment(work) {
 /* ------------------------------------------------------------ state */
 
 const M03E_SCOPE_DEFAULT = { tab: 'alerts', query: '', lastQuery: '', selected: null, pins: [], seen: [], queryLog: [], timelineEntity: '', entityKind: 'account' };
-const M03E_PRACTICE_DEFAULT = { ...M03E_SCOPE_DEFAULT, guideStep: 0, guideCollapsed: false };
+const M03E_PRACTICE_DEFAULT = { ...M03E_SCOPE_DEFAULT, guideStep: 0, guideCollapsed: false, determination: m03eNormalizeDetermination({}) };
 const M03E_PROVE_DEFAULT = { ...M03E_SCOPE_DEFAULT, determination: m03eNormalizeDetermination({}), startedAt: '', submittedAt: '', attempts: 0, submitMessage: '' };
 
 const M03E_STATE_DEFAULTS = { practice: M03E_PRACTICE_DEFAULT, prove: M03E_PROVE_DEFAULT };
@@ -502,7 +505,8 @@ const m03eStateAdapter = SocConsoleCore.createStateAdapter({
   defaultsByScope: M03E_STATE_DEFAULTS,
   normalizeState(st, scope) {
     ['pins', 'seen', 'queryLog'].forEach((key) => { if (!Array.isArray(st[key])) st[key] = []; });
-    if (scope === 'prove') st.determination = m03eNormalizeDetermination(st.determination);
+    if (scope === 'prove' || scope === 'practice') st.determination = m03eNormalizeDetermination(st.determination);
+    if (scope === 'practice' && !st.determination.submitted && Number(st.guideStep) >= M03E_GUIDE_STEPS.length) st.guideStep = M03E_GUIDE_STEPS.length - 1;
   },
 });
 
@@ -678,21 +682,6 @@ function m03eEvidenceView(scope) {
   });
 }
 
-function m03eItsmGuideView() {
-  return `<section class="m03e-itsm-guide" aria-labelledby="m03e-itsm-title">
-    <p class="m03e-label">ITSM TICKET WORKFLOW</p>
-    <h2 id="m03e-itsm-title">The ticket is the official record of the incident.</h2>
-    <p>ITSM means <strong>IT Service Management</strong>. In a SOC, the ITSM incident ticket tracks the work: what happened, who or what is affected, how serious it is, what evidence supports it, and who needs to act next.</p>
-    <div class="m03e-itsm-map">
-      <div><strong>1. Investigate</strong><span>Use alerts, searches, timelines, entities, sources, and watchlists to find facts.</span></div>
-      <div><strong>2. Preserve evidence</strong><span>Pin the exact records another analyst would need to verify your conclusion.</span></div>
-      <div><strong>3. Complete fields</strong><span>Set status, severity, affected user/device, disposition, escalation, and scope.</span></div>
-      <div><strong>4. Handoff</strong><span>Write clear notes: observations, analysis, confirmed scope, unknowns, and requested next action.</span></div>
-    </div>
-    <p class="m03e-itsm-rule">Simple rule: if it matters to the incident, it belongs in the ticket. The console is how you find the answer; the ticket is how the team trusts, routes, reviews, and continues the work.</p>
-  </section>`;
-}
-
 function m03eNativeRecord(row) {
   const map = M03E_SOURCE_MAPPINGS[row.EventSource];
   if (!map) return '';
@@ -792,31 +781,37 @@ function m03eDrawer(scope) {
 function m03eGuideBar() {
   const st = m03eState('practice');
   const total = M03E_GUIDE_STEPS.length;
-  const done = st.guideStep >= total;
+  const done = moduleThreePracticeComplete();
   const step = M03E_GUIDE_STEPS[Math.min(st.guideStep, total - 1)];
   const passed = !done && m03eStepPassed(step);
   const tabLabel = !done ? (m03eTabs('practice').find((t) => t[0] === step.tab)?.[1] || step.tab) : '';
-  if (done) {
-    return consoleGuideCard({
-      steps: M03E_GUIDE_STEPS,
-      step: st.guideStep,
-      docked: st.guideCollapsed,
-      prefix: 'm03e',
-      doneTitle: 'Case debrief: CASE-MN-428',
-      doneText: 'AuthLog recorded a failed sign-in at 09:02 and a successful sign-in at 09:04 for acct-428. The same S-8841 session from 198.51.100.18 granted a directory role at 09:08 and exported application data at 09:12. The 09:10 svc-backup restart is separate and approved under CHG-221. Scope is acct-428 and the observed session; broader access remains a next check.',
-    });
-  }
   const item = {
     title: step.title,
     body: `${step.body} Your task: ${step.task}`,
     lookFor: step.lookFor,
+    target: step.target,
     lab: `${st.tab !== step.tab ? `Go to ${tabLabel}. ` : ''}${step.hint ? `${['auth','sort'].includes(step.id) ? 'Query' : 'Pattern'}: ${step.hint.replace(/\n/g, ' ')}` : ''}`,
   };
-  return `${consoleGuideCard({ steps: M03E_GUIDE_STEPS, step: st.guideStep, docked: st.guideCollapsed, prefix: 'm03e', item })}
+  const debrief = guidedLabDebrief({
+    story: 'AuthLog records a failed sign-in at 09:02 and a successful sign-in at 09:04 for acct-428. The same S-8841 session from 198.51.100.18 granted a directory role at 09:08 and exported application data at 09:12. The 09:10 svc-backup restart is separate and approved under CHG-221. Current evidence bounds the case to acct-428 and the observed session; broader access remains a next check.',
+    fields: [
+      { name: 'Affected user', status: st.determination.affectedUser ? 'captured' : 'missed', note: st.determination.affectedUser },
+      { name: 'Affected device', status: st.determination.affectedDevice ? 'contributing' : 'missed', note: st.determination.affectedDevice || 'Host context supports the investigation; the case does not establish a compromised endpoint.' },
+      { name: 'Disposition / severity', status: st.determination.verdict && st.determination.severity ? 'captured' : 'missed', note: [st.determination.verdict, st.determination.severity].filter(Boolean).join(' · ') },
+      { name: 'Escalation', status: st.determination.escalation ? 'captured' : 'missed', note: st.determination.escalateTo },
+      { name: 'Work notes', status: st.determination.notes ? 'captured' : 'missed', note: st.determination.notes ? 'Submitted with the ticket.' : '' },
+    ],
+    handoff: 'A strong handoff cites the source records and timestamps, links them through the account, session, and source IP, distinguishes the approved restart, records affected scope and uncertainty, and names a specific owner and next action.',
+  });
+  const card = guidedLabGuide('m03', M03E_GUIDE_STEPS, { step: st.guideStep, docked: st.guideCollapsed, prefix: 'm03e', submitted: done, item, debriefHtml: debrief });
+  if (done) return card;
+  const goButton = st.tab !== step.tab ? `<button type="button" class="m03e-guide-go" data-m03e-tab="practice:${step.tab}">Go to ${esc(tabLabel)}</button>` : '';
+  const insertButton = step.hint && ['auth','sort'].includes(step.id) ? `<button type="button" class="m03e-guide-go" data-m03e-insert="${esc(step.hint)}">Insert query</button>` : '';
+  return `${card}
     <div class="m03e-guide-controls" role="status">
-      ${st.tab !== step.tab ? `<button type="button" class="m03e-guide-go" data-m03e-tab="practice:${step.tab}">Go to ${esc(tabLabel)}</button>` : ''}
-      ${step.hint && ['auth','sort'].includes(step.id) ? `<button type="button" class="m03e-guide-go" data-m03e-insert="${esc(step.hint)}">Insert query</button>` : ''}
-      <span class="m03e-guide-status">${passed ? '<i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Step complete' : '<i class="ri-loader-4-line" aria-hidden="true"></i> Waiting for your evidence'}</span>
+      ${goButton}
+      ${insertButton}
+      <span class="m03e-guide-status">${passed ? '<i class="ri-checkbox-circle-fill" aria-hidden="true"></i> Useful evidence observed' : ''}</span>
     </div>`;
 }
 
@@ -838,7 +833,7 @@ function m03eViewBody(scope) {
   const mount = M03E_MOUNTS[scope];
   if (mount?.views?.[tab]) return mount.views[tab]();
   if (tab === 'case' && mount) return mount.caseView ? mount.caseView() : '<p class="m03e-muted">This console has no ticket; record your work in the module\'s assessment section.</p>';
-  if (tab === 'itsm' && scope === 'practice') return m03eItsmGuideView();
+  if (tab === 'itsm' && scope === 'practice') return m03ePracticeTicketView();
   if (tab === 'search') return m03eSearchView(scope);
   if (tab === 'timeline') return m03eTimelineView(scope);
   if (tab === 'entities') return m03eEntitiesView(scope);
@@ -875,7 +870,8 @@ function moduleThreeConsoleHtml(scope) {
     navigationHtml: m03eTabsNav(scope),
     workspaceClassName: 'm03e-workspace',
     workspaceClass: st.tab === 'case' ? 'is-case' : '',
-    guideHtml: scope === 'practice' ? m03eGuideBar() : '',
+    guideHtml: scope === 'practice' && !moduleThreePracticeComplete() ? m03eGuideBar() : '',
+    guideHeaderHtml: scope === 'practice' && moduleThreePracticeComplete() ? m03eGuideBar() : '',
     viewClassName: 'm03e-view',
     viewHtml: m03eViewBody(scope),
     drawerHtml: st.tab === 'case' ? '' : m03eDrawer(scope),
@@ -892,7 +888,7 @@ function moduleThreeConsoleHtml(scope) {
 /* ------------------------------------------------------------ practice / prove panels */
 
 function moduleThreePracticeComplete() {
-  return m03eState('practice').guideStep >= M03E_GUIDE_STEPS.length;
+  return m03eState('practice').determination?.submitted === true || moduleThreeState.practiceComplete === true;
 }
 
 function moduleThreeGuidedLabPanel() {
@@ -906,11 +902,20 @@ function moduleThreeGuidedLabPanel() {
   }
   const st = m03eState('practice');
   return `<div class="m03e-panel" id="m03e-practice-panel">
-    <p class="m03e-panel-instruction">Work CASE-MN-428 from the alert queue to a scoped finding. The guide checks what you actually find, not which buttons you press, so any query that returns the right evidence counts. Support drops as you go: the first steps give you queries, and the last ones give you only the goal.</p>
+    <p class="m03e-panel-instruction">Work CASE-MN-428 from the alert queue to a scoped finding. The guide offers optional progress hints; move through it in any order, and submit the ITSM ticket when your handoff is ready.</p>
     <div class="m03e-console-host" id="m03e-console-practice">${moduleThreeConsoleHtml('practice')}</div>
-    <label class="m03-note-label">Analyst handoff<textarea rows="3" maxlength="900" data-m03-practice-notes placeholder="Link the four events, exclude svc-backup / CHG-221, and state one scope limit or next check.">${esc(moduleThreeState.practiceNotes || '')}</textarea><small>Required for the final guide step. Include acct-428, S-8841, and CHG-221.</small></label>
-    <div class="m03e-feedback${moduleThreeState.practiceComplete ? ' is-correct' : ''}" role="status">${moduleThreeState.practiceComplete ? 'Guided Lab complete: every step was verified from your own evidence.' : `The Guided Lab completes when all ${M03E_GUIDE_STEPS.length} guide steps are verified (${Math.min(st.guideStep, M03E_GUIDE_STEPS.length)} done).`}</div>
   </div>`;
+}
+
+function m03ePracticeCaseSpec(disabled = false) {
+  return { caseId: 'CASE-MN-428', ticketId: 'INC-MN-428-PRACTICE', ticketType: 'Guided practice · SIEM correlation', userOptions: [{ id: 'acct-428', text: 'acct-428 — service account', tier: 'principal' }, { id: 'svc-backup', text: 'svc-backup — approved service account', tier: 'noise' }], deviceOptions: [{ id: 'idp-02', text: 'idp-02 — identity provider node', tier: 'principal' }, { id: 'billing-app', text: 'billing-app — application server', tier: 'pivot' }], departmentOptions: M03E_DEPARTMENT_OPTIONS, dispositionOptions: M03E_DISPOSITION_OPTIONS, notesPlaceholder: 'Summarize the linked events, scope, uncertainty, and next action.', disabled };
+}
+
+function m03ePracticeTicketView() {
+  const st = m03eState('practice'), d = st.determination;
+  const submitted = d.submitted === true;
+  const spec = m03ePracticeCaseSpec(submitted);
+  return `<div class="m03e-case-view">${caseRecordPane(d, { ...spec, practiceSubmitted: true, missing: caseRecordMissing(d, { ...spec, notesMin: 80 }), formId: 'm03e-practice-form', saveAttr: 'data-m03e-save-practice', submitAttr: 'data-m03e-submit-practice', panelId: 'm03e-practice-review', showMissing: st.submitMessage === 'missing', lockedMessage: 'Practice submitted' })}${submitted ? '<button type="button" class="m01-reset" data-m03e-practice-restart>Restart Guided Lab</button>' : '<p class="m03e-muted">Submitting this ticket completes the Guided Lab. The guide never blocks Next.</p>'}</div>`;
 }
 
 // '' until submitted; then 'review' while the latest attempt awaits faculty,
@@ -1008,7 +1013,6 @@ function m03eCaseRecordView() {
       showMissing: st.submitMessage === 'missing',
       lockedMessage: 'Module 4 stays locked until your instructor approves the submission.',
     })}
-    <p class="m03e-muted">Your instructor reviews the submission; the automated score is only a recommendation.</p>
   </div>`;
 }
 
@@ -1021,9 +1025,15 @@ function moduleThreeAssessmentLabPanel() {
 
 /* ------------------------------------------------------------ actions */
 
-function m03eSave(scope) { if (M03E_MOUNTS[scope]) M03E_MOUNTS[scope].save(); else moduleThreeSave(); }
+function m03eSave(scope) {
+  if (scope === 'practice') m03eState('practice').guideVersion = 2;
+  if (M03E_MOUNTS[scope]) M03E_MOUNTS[scope].save(); else moduleThreeSave();
+}
 function m03eDomId(scope, id) { const prefix = M03E_MOUNTS[scope]?.idPrefix; return prefix ? `${prefix}-${id}` : id; }
 
+// Modules that float their own guide card inside a console scope (M04-M06 guided labs)
+// register a callback here to re-seat and re-highlight it after the console re-renders.
+const M03E_AFTER_RENDER = {};
 function m03eRender(scope, { keepEditor = false } = {}) {
   const host = document.getElementById(`m03e-console-${scope}`);
   if (!host) return;
@@ -1042,6 +1052,7 @@ function m03eRender(scope, { keepEditor = false } = {}) {
     m03eAttachEditor(scope);
   }
   if (scope === 'practice') { m03eSyncPractice(); m03ePositionGuide(); }
+  M03E_AFTER_RENDER[scope]?.();
 }
 
 function m03eAttachEditor(scope) {
@@ -1077,7 +1088,7 @@ function m03eSyncPractice() {
   if (!moduleThreeState) return;
   // Mirror guide completion into the module's section state and status pill.
   const done = moduleThreePracticeComplete();
-  if (done && !moduleThreeState.practiceComplete) {
+  if (m03eState('practice').determination?.submitted === true && !moduleThreeState.practiceComplete) {
     moduleThreeState.practiceComplete = true;
     m03eSave();
     const panel = document.getElementById('m03e-practice-panel');
@@ -1133,15 +1144,12 @@ function m03eHandleClick(scope, ev) {
   if (el.hasAttribute('data-m03e-guide-collapse')) { st.guideCollapsed = !st.guideCollapsed; m03eSave(scope); m03eRender(scope, { keepEditor: true }); return; }
   if (el.hasAttribute('data-m03e-guide-next')) {
     if (st.guideStep >= M03E_GUIDE_STEPS.length) {
-      st.guideStep = 0;
-      st.tab = M03E_GUIDE_STEPS[0].tab;
-      st.guideCollapsed = false;
-      m03eSave(scope); m03eRender(scope);
+      m03eRestartPractice();
       return;
     }
     const step = M03E_GUIDE_STEPS[st.guideStep];
-    if (!step || !m03eStepPassed(step)) return;
-    st.guideStep += 1;
+    if (!step) return;
+    st.guideStep = (st.guideStep + 1) % M03E_GUIDE_STEPS.length;
     const next = M03E_GUIDE_STEPS[st.guideStep];
     if (next) st.tab = next.tab;
     m03eSave(scope); m03eRender(scope);
@@ -1149,6 +1157,7 @@ function m03eHandleClick(scope, ev) {
     return;
   }
   if (el.hasAttribute('data-m03e-guide-restart')) { st.guideStep = 0; st.tab = M03E_GUIDE_STEPS[0].tab; m03eSave(scope); m03eRender(scope); }
+  if (el.hasAttribute('data-m03e-practice-restart')) { m03eRestartPractice(); return; }
 }
 
 function m03eHandleChange(scope, ev) {
@@ -1158,8 +1167,8 @@ function m03eHandleChange(scope, ev) {
 }
 
 // Assessment form edits are autosaved as a draft; nothing is scored until submit.
-function m03eHandleFormInput(ev) {
-  const st = m03eState('prove');
+function m03eHandleFormInput(ev, scope = 'prove') {
+  const st = m03eState(scope);
   const d = st.determination;
   const t = ev.target;
   if (!st.startedAt) st.startedAt = new Date().toISOString();
@@ -1173,7 +1182,32 @@ function m03eHandleFormInput(ev) {
   else if (t.dataset.m03eHandoff) d.handoff[t.dataset.m03eHandoff] = t.value;
   else return;
   d.actionHistory.push({ action: `Updated ${t.name || t.dataset.m03eDetList || t.dataset.m03eHandoff}`, at: new Date().toISOString() });
-  m03eSave();
+  m03eSave(scope);
+}
+
+function m03eSubmitPractice() {
+  const st = m03eState('practice'), d = st.determination;
+  if (d.submitted) return;
+  const spec = m03ePracticeCaseSpec(false);
+  const missing = caseRecordMissing(d, { ...spec, notesMin: CASE_RECORD_NOTES_MIN });
+  if (missing.length) { st.submitMessage = 'missing'; st.tab = 'itsm'; m03eSave('practice'); moduleThreeRefreshLabPanels(); return; }
+  st.submitMessage = '';
+  d.submitted = true;
+  st.guideCollapsed = true;
+  d.actionHistory.push({ action: 'Submitted guided practice ticket', at: new Date().toISOString() });
+  st.guideStep = M03E_GUIDE_STEPS.length;
+  moduleThreeState.practiceComplete = true;
+  if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleThreeUser, 'soc-analyst', 'soc-03', MODULE_THREE_CATALOG_LAB_KEY);
+  m03eSave('practice');
+  moduleThreeRefreshLabPanels();
+}
+
+function m03eRestartPractice() {
+  const st = m03eState('practice');
+  Object.assign(st.determination, m03eNormalizeDetermination({}));
+  moduleThreeState.practiceComplete = false;
+  st.guideStep = 0; st.guideCollapsed = false; st.tab = M03E_GUIDE_STEPS[0].tab; st.submitMessage = '';
+  m03eSave('practice'); moduleThreeRefreshLabPanels();
 }
 
 function m03eSubmitAssessment() {
@@ -1279,6 +1313,10 @@ function wireModuleThreeConsole() {
     m03eAttachEditor(scope);
     if (scope === 'practice') m03ePositionGuide();
     section.addEventListener('click', (ev) => {
+      if (scope === 'practice') {
+        if (ev.target.closest('[data-m03e-submit-practice]')) { m03eSubmitPractice(); return; }
+        if (ev.target.closest('[data-m03e-save-practice]')) { m03eSave('practice'); moduleThreeRefreshLabPanels(); return; }
+      }
       if (scope === 'prove') {
         if (ev.target.closest('[data-m03e-submit-prove]')) { m03eSubmitAssessment(); return; }
         if (ev.target.closest('[data-m03e-save-prove]')) {
@@ -1295,16 +1333,21 @@ function wireModuleThreeConsole() {
       if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('[data-m03e-select]') && ev.target.tagName !== 'BUTTON') { ev.preventDefault(); m03eHandleClick(scope, ev); }
     });
     section.addEventListener('change', (ev) => {
-      const inTicket = scope === 'prove' && ev.target.closest('#m03e-prove-form');
+      const inTicket = scope === 'prove' ? ev.target.closest('#m03e-prove-form') : ev.target.closest('#m03e-practice-form');
       if (!inTicket && ev.target.closest(`#m03e-console-${scope}`)) { m03eHandleChange(scope, ev); return; }
       if (!inTicket) return;
-      m03eHandleFormInput(ev);
+      m03eHandleFormInput(ev, scope);
       // A select/checkbox pick (unlike typing) is safe to re-render on, and
       // it is the only way the conditional "Route to Department" field and
       // the requirements list stay honest as the ITSM ticket changes.
       if (ev.target.tagName !== 'TEXTAREA') {
-        const prove = document.getElementById('m03e-prove-panel');
-        if (prove) { prove.outerHTML = moduleThreeAssessmentLabPanel(); m03eAttachEditor('prove'); }
+        if (scope === 'prove') {
+          const prove = document.getElementById('m03e-prove-panel');
+          if (prove) { prove.outerHTML = moduleThreeAssessmentLabPanel(); m03eAttachEditor('prove'); }
+        } else {
+          const practice = document.getElementById('m03e-practice-panel');
+          if (practice) { practice.outerHTML = moduleThreeGuidedLabPanel(); m03eAttachEditor('practice'); m03ePositionGuide(); }
+        }
       }
     });
     section.addEventListener('input', (ev) => {
@@ -1322,9 +1365,17 @@ function wireModuleThreeConsole() {
         }
         return;
       }
-      if (scope === 'prove' && ev.target.closest('#m03e-prove-form') && ev.target.tagName === 'TEXTAREA') m03eHandleFormInput(ev);
+      if (ev.target.closest(scope === 'prove' ? '#m03e-prove-form' : '#m03e-practice-form') && ev.target.tagName === 'TEXTAREA') {
+        m03eHandleFormInput(ev, scope);
+        const step = M03E_GUIDE_STEPS[m03eState('practice').guideStep];
+        if (scope === 'practice' && step?.id === 'handoff') {
+          const status = section.querySelector('.m03e-guide-status');
+          if (status) status.textContent = m03eStepPassed(step) ? 'Useful handoff observed — continue anytime' : '';
+        }
+      }
     });
     section.addEventListener('submit', (ev) => {
+      if (ev.target.id === 'm03e-practice-form') { ev.preventDefault(); m03eSubmitPractice(); return; }
       if (ev.target.id !== 'm03e-prove-form') return;
       ev.preventDefault();
       m03eSubmitAssessment();

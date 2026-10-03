@@ -363,6 +363,7 @@ const MODULE_FOUR_DEFAULT_STATE = {
   lastSubmittedAt: '',
   notes: '',
   lessonWork: {},
+  learnItStep: 0,
   labProgress: {},
   // Standard ITSM Incident Ticket for the m04-assessment Prove It
   // submission (docs/specs/MODULE_STANDARD.md §7.2).
@@ -620,6 +621,7 @@ function moduleFourCaseScore() {
 }
 
 let moduleFourState = null;
+let moduleFourLearnView = null;
 let moduleFourUser = null;
 let moduleFourReviewMode = false;
 let moduleFourQuizState = null;
@@ -629,13 +631,14 @@ let moduleFourProveItShowMissing = false;
 let moduleFourQuizForceRetake = false;
 
 function moduleFourLoad(user) {
-  if (moduleFourUser?.email !== user?.email) moduleFourQuizForceRetake = false;
+  if (moduleFourUser?.email !== user?.email) { moduleFourQuizForceRetake = false; moduleFourLearnView = null; }
   moduleFourUser = user;
   moduleFourState = SocM04AssessmentState.load(user, MODULE_FOUR_DEFAULT_STATE, SocM04AssessmentData);
   ['reviewedStations', 'selectedEvidence', 'ruleRunResults', 'automationLog', 'hintsOpened', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleFourState[key])) moduleFourState[key] = [];
   });
   if (!moduleFourState.lessonWork || typeof moduleFourState.lessonWork !== 'object') moduleFourState.lessonWork = {};
+  if (!Number.isInteger(moduleFourState.learnItStep) || moduleFourState.learnItStep < 0) moduleFourState.learnItStep = 0;
   if (typeof moduleFourState.notes !== 'string') moduleFourState.notes = '';
   if (!moduleFourState.labProgress || typeof moduleFourState.labProgress !== 'object') moduleFourState.labProgress = {};
 
@@ -693,9 +696,8 @@ function moduleFourGetSections() {
   // lab rebuild, or by admin override) read complete instead of empty.
   const verified = moduleFourUser?.remoteVerifiedModuleProgress?.['soc-04'] === true;
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm04-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleFourQuizState?.passed, scrollId: 'm04-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleFourGuidedChecks().every((check) => check[2]), scrollId: 'm04-guided-lab' },
+    { id: 'lecture', title: 'Learn It', type: 'lecture', isComplete: true, scrollId: 'm04-lecture' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || (moduleFourGuidedState.caseRecord.submitted || moduleFourGuidedState.legacyComplete), scrollId: 'm04-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleFourState.completed, scrollId: 'm04-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm04-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm04-sources-section', gated: false, supplemental: true },
@@ -735,6 +737,12 @@ function moduleFourGetQuickNavItems() {
 
 function moduleFourSave() {
   if (moduleFourUser && moduleFourState) SocM04AssessmentState.save(moduleFourUser, moduleFourState, SocM04AssessmentData);
+}
+
+function moduleFourLearnIt() {
+  const deck = window.LearnItDecks?.['soc-04'] || [];
+  if (!deck.length || !window.LearnItCards) return '';
+  return window.LearnItCards.render({ deck, step: moduleFourState.learnItStep, viewed: moduleFourLearnView, done: moduleFourState.learnItStep >= deck.length, prefix: 'm04', id: 'm04-learn-it', headingId: 'm04-learn-it-title', heading: 'Tune detections with evidence', readyHeading: 'Set up your detection decisions', intro: 'Use these ideas to guide the detection engineering practice below.', doneHeading: 'Detection ideas complete', doneIntro: 'Revisit any idea above, then explore the detailed lesson material below.', readyText: 'Start with the balance between finding threats and managing noise.', label: 'LEARN IT', countLabel: 'ideas', readyCountLabel: `${deck.length} QUICK IDEAS`, progressCopy: ({ step, total }) => `${step} of ${total} ideas explored · continue to the lesson material below.`, slideLabel: 'Idea', readyActionLabel: 'LEARN IT', nextActionLabel: 'NEXT', finalActionLabel: 'Complete Learn It', restartLabel: 'Restart Learn It' });
 }
 
 function moduleFourVideoScript() {
@@ -898,7 +906,7 @@ function moduleFourReview() {
       <li><strong>Detection as iteration:</strong> Rules evolve. Test them, measure false positives and false negatives, tune the grouping or threshold, and adjust based on your environment's baselines.</li>
     </ul>
     <h3>Before you continue</h3>
-    <p>You should now understand how detection rules work, why grouping and thresholds matter, how threat intelligence enriches alerts, and where automation needs human oversight. In the field, you will inherit rules that need tuning, integrate threat feeds into playbooks, and build response procedures that balance automation with human judgment. Remember: the best detection system is not perfectly sensitive or perfectly specific—it is tuned to your team's capacity and your organization's risk tolerance.</p>
+    <p>Tune grouping and thresholds to balance coverage with your team's capacity, and use relevant intelligence to add context. Automate safe repeatable work while keeping disruptive actions behind approval and human review.</p>
   </section>`;
 }
 
@@ -1068,14 +1076,7 @@ function moduleFourArtifact() {
       reviewStatus: moduleFourProveItReviewStatus(),
       lockedMessage: 'Module 5 stays locked until your instructor approves the submission.',
     })}
-    ${cr.submitted && cr.reviewPayload ? moduleFourAssessmentReview(cr.reviewPayload) : ''}
   </section>`;
-}
-
-function moduleFourAssessmentReview(payload) {
-  const criteria = Array.isArray(payload.criteria) ? payload.criteria : [];
-  const feedback = Array.isArray(payload.review?.feedback) ? payload.review.feedback : [];
-  return `<section class="m04-assessment-review" data-m04-submitted-review aria-label="Submitted assessment feedback"><h4>Assessment review</h4><p><strong>${esc(payload.score)}/${esc(payload.maxScore)} points</strong> · ${payload.passed ? 'Passing' : 'Needs remediation'}</p>${payload.criticalMisses?.length ? `<ul>${payload.criticalMisses.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>` : ''}<ol>${criteria.map((criterion) => `<li><strong>${esc(criterion.label)}: ${esc(criterion.points)}/${esc(criterion.max)}</strong>${criterion.supportingEvidence?.length ? `<p>Evidence: ${criterion.supportingEvidence.map((item) => esc(item)).join('; ')}</p>` : ''}${criterion.misses?.length ? `<p>Review: ${criterion.misses.map((item) => esc(item)).join('; ')}</p>` : ''}${criterion.deductions?.length ? `<p>Deductions: ${criterion.deductions.map((item) => `${esc(item.points)} points: ${esc(item.reason)}`).join('; ')}</p>` : ''}</li>`).join('')}</ol>${feedback.length ? `<ul>${feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>` : ''}</section>`;
 }
 
 function moduleFourGuidedLabPanel() {
@@ -1143,7 +1144,7 @@ const MODULE_FOUR_CONSOLE = SocConsoleTools.mount('m04', {
   title: 'SIEM & DETECTION ENGINEERING',
   ariaLabel: 'Module 04 detection assessment console',
   packs: [{ id: 'm04', ctx: { assessment: moduleFourAssessment, fixture: SocM04AssessmentData, save: () => moduleFourSave(), rerender: () => moduleFourRenderAssessment(), console: () => m03eState('m04') } }],
-  caseView: () => moduleFourArtifact(),
+    caseView: () => moduleFourArtifact(),
   caseBadge: () => (moduleFourState.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
 });
 
@@ -1303,6 +1304,8 @@ function moduleFourGuidedLoad(user) {
   if (!Array.isArray(moduleFourGuidedState.assessment.iocs)) moduleFourGuidedState.assessment.iocs = moduleFourGuidedClone(MODULE_FOUR_GUIDED_FIXTURE.scenario.iocs);
   if (!Array.isArray(moduleFourGuidedState.assessment.reports)) moduleFourGuidedState.assessment.reports = moduleFourGuidedClone(MODULE_FOUR_GUIDED_FIXTURE.scenario.reports);
   moduleFourGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleFourGuidedState.caseRecord || {}) };
+  if (moduleFourGuidedState.legacyComplete == null) moduleFourGuidedState.legacyComplete = moduleFourGuidedChecks().every((check) => check[2]);
+  if (moduleFourGuidedState.guideStep == null) moduleFourGuidedState.guideStep = 0;
 }
 function moduleFourGuidedSave() {
   if (moduleFourGuidedUser && moduleFourGuidedState) LabRuntime.saveCaseState(MODULE_FOUR_GUIDED_LAB_ID, 'soc-04', moduleFourGuidedUser, moduleFourGuidedState);
@@ -1318,15 +1321,68 @@ function moduleFourGuidedChecks() {
     ['ticket', 'Record the investigation in the ITSM case tab.', Boolean(moduleFourGuidedState.caseRecord.actionHistory?.length || moduleFourGuidedState.caseRecord.notes)],
   ];
 }
-function moduleFourGuidedGuide() {
-  const checks = moduleFourGuidedChecks();
-  return `<details class="m04-console-guide" ${moduleFourGuidedState.guideCollapsed ? '' : 'open'}><summary>Console Guide · ${checks.filter((item) => item[2]).length}/${checks.length} tasks observed</summary><ol>${checks.map((item) => `<li>${item[1]} <span>${item[2] ? 'Complete' : 'In progress'}</span></li>`).join('')}</ol><details><summary>Optional hint</summary><p>Compare the alert grouping with a query grouped by source address, then check current intelligence before choosing a response.</p></details></details>`;
+function moduleFourGuidedSteps() {
+  return [
+    { title: 'Read the ITSM ticket', body: 'Open the ITSM tab and review the fields this investigation needs you to resolve.', lookFor: 'The affected user and device, severity, disposition, escalation, findings, and work notes.', lab: 'Ticket fields: scope and handoff', tab: 'case', target: '.m01-ticket-case' },
+    { title: 'Start from the lead', body: 'Treat the alert or seed observation as a lead to test, not a verdict.', lookFor: 'What the initial signal establishes and what it leaves open.', lab: 'Ticket field: Findings', tab: 'search', target: '.m03e-editor-host' },
+    { title: 'Correlate the records', body: 'Follow the related records across the console and compare the suspicious activity with its baseline.', lookFor: 'Which source identifies the activity and which records corroborate timing, scope, or context.', lab: 'Ticket fields: Affected User, Affected Device, Findings', tab: 'timeline', target: '.m03e-timeline' },
+    { title: 'Separate source from contributing evidence', body: 'A correlated record can strengthen the timeline even when it is not the originating source.', lookFor: 'Whether each record shows where activity began or only confirms that it happened.', lab: 'Ticket field: Findings', tab: 'sources', target: '[data-m03e-select="m04-guided:source:AuthLog"]' },
+    { title: 'Scope and decide', body: 'Choose a severity, disposition, and escalation that match the evidence and confirmed scope.', lookFor: 'The difference between confirmed impact and unresolved questions.', lab: 'Ticket fields: Severity, Disposition, Escalation, Department', tab: 'case', target: '.m01-ticket-grid' },
+    { title: 'Write the handoff and submit', body: 'Summarize the evidence, scope, uncertainty, and next action in work notes, then submit the ITSM ticket.', lookFor: 'A concise record another analyst can act on.', lab: 'Ticket field: Work Notes · Submit completes this Guided Lab', tab: 'case', target: '.m01-ticket-notes' },
+  ];
 }
+function moduleFourGuidedDebrief() {
+  const cr = moduleFourGuidedState.caseRecord;
+  const fields = [['Affected User', cr.affectedUser], ['Affected Device', cr.affectedDevice], ['Severity', cr.severity], ['Disposition', cr.disposition], ['Escalation', cr.escalation], ['Department', cr.escalateTo], ['Findings', Object.keys(cr.findings || {}).length], ['Work Notes', cr.notes]].map(([name, value]) => ({ name, status: !value ? 'missed' : name === 'Findings' || name === 'Affected Device' ? 'contributing' : 'captured', note: !value ? 'Not recorded in the submitted ticket.' : name === 'Findings' || name === 'Affected Device' ? 'Contributes context to the case timeline.' : 'Recorded in the submitted ticket.' }));
+  return guidedLabDebrief({ story: 'The sign-in evidence includes a concentrated burst from the reported source, while the managed mail client and scheduled probe explain separate failures. The submitted scope and tuning decision should distinguish these correlated signals from the primary source evidence.', fields, handoff: 'Include the primary evidence, corroborating records, confirmed scope, unresolved questions, and a proportionate next action.' });
+}
+function moduleFourGuidedGuide() {
+  const item = moduleFourGuidedSteps()[Math.min(moduleFourGuidedState.guideStep, moduleFourGuidedSteps().length - 1)] || {};
+  const consoleState = m03eState('m04-guided');
+  const tabLabel = item.tab === 'case' ? 'ITSM Ticket' : item.tab || '';
+  const moveTab = !moduleFourGuidedState.caseRecord.submitted && item.tab && consoleState.tab !== item.tab;
+  return `${guidedLabGuide('m04g', moduleFourGuidedSteps(), { step: moduleFourGuidedState.guideStep, docked: moduleFourGuidedState.caseRecord.submitted ? moduleFourGuidedState.guideCollapsed !== false : (moduleFourGuidedState.guideCollapsed === true || moduleFourGuidedState.guideOpen === false), prefix: 'm04g', submitted: moduleFourGuidedState.caseRecord.submitted, debriefHtml: moduleFourGuidedDebrief() })}
+    ${moveTab || moduleFourGuidedState.caseRecord.submitted ? `<div class="m03e-guide-controls" role="status">${moveTab ? `<button type="button" class="m03e-guide-go" data-m04g-guide-tab="${esc(item.tab)}">Go to ${esc(tabLabel)}</button>` : ''}${moduleFourGuidedState.caseRecord.submitted ? '<span>Ticket submitted — practice complete</span>' : ''}</div>` : ''}`;
+}
+function moduleFourGuidedRestart() {
+  const cr = moduleFourGuidedState.caseRecord;
+  moduleFourGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleFourGuidedState.guideStep = 0;
+  moduleFourGuidedState.guideCollapsed = false;
+  moduleFourGuidedState.guideOpen = true;
+  moduleFourGuidedSave();
+  moduleFourRenderGuided();
+}
+function moduleFourPositionGuidedGuide(root, host) {
+  const tip = root?.querySelector('#m04g-learn-tip');
+  const workspace = host?.querySelector('.m03e-workspace');
+  if (!tip || !workspace) return;
+  if (moduleFourGuidedState.caseRecord.submitted || moduleFourGuidedState.guideCollapsed === true || moduleFourGuidedState.guideOpen === false) {
+    host.querySelector('header')?.append(tip);
+    consoleGuidePosition(tip, workspace, null);
+  } else {
+    workspace.prepend(tip);
+    consoleGuidePosition(tip, workspace, null);
+  }
+}
+M03E_AFTER_RENDER['m04-guided'] = function () {
+  const root = document.getElementById('m04-guided-lab-dynamic');
+  const host = document.getElementById('m03e-console-m04-guided');
+  if (!root || !host) return;
+  if (!root.querySelector('#m04g-learn-tip')) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = moduleFourGuidedGuide();
+    const fresh = tpl.content.querySelector('#m04g-learn-tip');
+    if (fresh) root.prepend(fresh);
+  }
+  moduleFourPositionGuidedGuide(root, host);
+};
+
 const MODULE_FOUR_GUIDED_CONSOLE = SocConsoleTools.mount('m04-guided', {
   data: MODULE_FOUR_GUIDED_CONSOLE_DATA, stateRoot: () => moduleFourGuidedState, save: moduleFourGuidedSave,
   title: 'SIEM & DETECTION ENGINEERING · PRACTICE', ariaLabel: 'Module 04 guided detection console', idPrefix: 'guided',
   packs: [{ id: 'm04', ctx: { assessment: moduleFourGuidedAssessment, fixture: MODULE_FOUR_GUIDED_FIXTURE, save: moduleFourGuidedSave, rerender: () => moduleFourRenderGuided(), console: () => m03eState('m04-guided') } }],
-  caseView: () => `<section class="m03e-case-view"><p class="m03e-case-attach">${m03eState('m04-guided').pins.length} pinned evidence record(s) and ${m03eState('m04-guided').queryLog.length} query record(s) are available to cite in this case.</p>${caseRecordPane(moduleFourGuidedState.caseRecord, { caseId: 'DET-4478', ticketId: 'INC-4478', ticketType: 'Detection tuning · SOC Detection Queue', userOptions: [{ id: 'acct-61', text: 'acct-61' }, { id: 'acct-62', text: 'acct-62' }, { id: 'acct-63', text: 'acct-63' }, { id: 'acct-64', text: 'acct-64' }, { id: 'acct-65', text: 'acct-65' }], deviceOptions: [{ id: '192.0.2.144', text: '192.0.2.144 · reported source' }, { id: '203.0.113.177', text: '203.0.113.177 · managed client' }], departmentOptions: [{ id: 'soc-detection-queue', text: 'SOC Detection Queue' }, { id: 'identity-operations', text: 'Identity Operations' }], formId: 'm04-guided-case-form', saveAttr: 'data-m04-guided-case-save', submitAttr: 'data-m04-guided-case-submit', panelId: 'm04-guided-case-status', notesPlaceholder: 'Record the alert, query and rule evidence, tuning decision, and safe follow-up.' })}</section>`,
+    caseView: () => { const html = `<section class="m03e-case-view"><p class="m03e-case-attach">${m03eState('m04-guided').pins.length} pinned evidence record(s) and ${m03eState('m04-guided').queryLog.length} query record(s) are available to cite in this case.</p>${caseRecordPane(moduleFourGuidedState.caseRecord, { caseId: 'DET-4478', ticketId: 'INC-4478', ticketType: 'Detection tuning · SOC Detection Queue', userOptions: [{ id: 'acct-61', text: 'acct-61' }, { id: 'acct-62', text: 'acct-62' }, { id: 'acct-63', text: 'acct-63' }, { id: 'acct-64', text: 'acct-64' }, { id: 'acct-65', text: 'acct-65' }], deviceOptions: [{ id: '192.0.2.144', text: '192.0.2.144 · reported source' }, { id: '203.0.113.177', text: '203.0.113.177 · managed client' }], departmentOptions: [{ id: 'soc-detection-queue', text: 'SOC Detection Queue' }, { id: 'identity-operations', text: 'Identity Operations' }], formId: 'm04-guided-case-form', saveAttr: 'data-m04-guided-case-save', submitAttr: 'data-m04-guided-case-submit', panelId: 'm04-guided-case-status', notesPlaceholder: 'Record the alert, query and rule evidence, tuning decision, and safe follow-up.' })}</section>`; return moduleFourGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m04-guided-restart>Restart Guided Lab</button>' : html; },
 });
 
 
@@ -1352,10 +1408,9 @@ function viewModuleFour(user, program) {
   const complete = moduleFourState.completed === true;
   const module = program.modules['soc-04'];
   const sections = moduleFourGetSections();
-  const lectureOpen = moduleFourReviewMode || !sections[0].isComplete;
-  const quizOpen = moduleFourReviewMode || (moduleFourQuizState && !moduleFourQuizState.passed);
-  const guidedLabOpen = moduleFourReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleFourReviewMode || !sections[3].isComplete;
+  const lectureOpen = moduleFourReviewMode || !sections[0].isComplete || moduleFourState.learnItStep < LearnItDecks['soc-04'].length;
+  const guidedLabOpen = moduleFourReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleFourReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleFourReviewMode;
   const quickNavItems = moduleFourGetQuickNavItems();
 
@@ -1367,6 +1422,8 @@ function viewModuleFour(user, program) {
         </section>
       </summary>
       <section class="m04-section m04-section-body mf-section-body" aria-labelledby="m04-lecture-title">
+        ${moduleFourLearnIt()}
+        <details class="m04-deep-dive mf-deep-dive"><summary>Deep Dive · lesson loops and detection reference</summary>
         ${moduleFourVideoScript()}
         ${moduleFourLecture()}
         <div class="m04-guide-grid">
@@ -1374,24 +1431,15 @@ function viewModuleFour(user, program) {
           <article><i class="ri-sound-module-line" aria-hidden="true"></i><h3>Fidelity</h3><p>Test changes against suspicious and benign examples. A quieter rule is only better if it keeps the intended signal.</p></article>
           <article><i class="ri-shield-check-line" aria-hidden="true"></i><h3>Automation boundary</h3><p>Automate repeatable collection and routing. Keep disruptive steps behind approval until confidence and scope justify them.</p></article>
         </div>
+        </details>
       </section>
-    </details>`;
-
-  const quizSection = `
-    <details class="m04-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
-      <summary class="m04-section-summary">
-        <section class="m04-section" id="m04-knowledge-check" aria-labelledby="m04-quiz-title">
-          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m04-kicker mf-kicker">Interactive knowledge check</p><h2 id="m04-quiz-title">Test your detection engineering knowledge</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
-        </section>
-      </summary>
-      <section class="m04-section m04-section-body mf-section-body" aria-labelledby="m04-quiz-title"><div id="m04-quiz-dynamic">${moduleFourQuizPanel()}</div></section>
     </details>`;
 
   const guidedLabSection = `
     <details class="m04-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
       <summary class="m04-section-summary">
         <section class="m04-section m04-lab-section" id="m04-guided-lab" aria-labelledby="m04-guided-lab-title">
-          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m04-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m04-guided-lab-title">Detection rule studio: tune, test, and enrich</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m04-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m04-guided-lab-title">Detection rule studio: tune, test, and enrich</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m04-section m04-section-body mf-section-body m04-lab-section" aria-labelledby="m04-guided-lab-title">
@@ -1406,7 +1454,7 @@ function viewModuleFour(user, program) {
     <details class="m04-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
       <summary class="m04-section-summary">
         <section class="m04-section m04-lab-section" id="m04-assessment-lab" aria-labelledby="m04-assessment-lab-title">
-          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m04-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m04-assessment-lab-title">Detection package: score and submit</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m04-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m04-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m04-assessment-lab-title">Detection package: score and submit</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m04-section m04-section-body mf-section-body m04-lab-section" aria-labelledby="m04-assessment-lab-title">
@@ -1441,13 +1489,12 @@ function viewModuleFour(user, program) {
       <main class="m04-main mf-frame">
       <section class="m04-hero mf-hero" aria-labelledby="m04-title">
         <div><p class="m04-kicker mf-kicker">Module 04 · ${formatHandsOnDuration(module.durationMinutes)} · assisted workflow</p><h1 id="m04-title">${esc(module.title)}</h1><p class="mf-lede">Review and tune a noisy authentication rule, add relevant threat intelligence, and choose bounded automated monitoring that moves the alert forward without outrunning the evidence.</p></div>
-        <dl class="m04-status mf-stats" aria-label="Saved lab status"><div><dt>Guided Lab</dt><dd>${moduleFourState.ruleRuns > 0 && moduleFourState.enrichedIndicator ? 'Complete' : (moduleFourState.ruleRuns || moduleFourState.enrichedIndicator) ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m04-status">${complete ? 'Complete' : moduleFourState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
+        <dl class="m04-status mf-stats" aria-label="Saved lab status"><div><dt>Guided Lab</dt><dd>${moduleFourGuidedState.caseRecord.submitted || moduleFourGuidedState.legacyComplete ? 'Complete' : moduleFourGuidedState.caseRecord.actionHistory.length ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m04-status">${complete ? 'Complete' : moduleFourState.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
       </section>
 
       <section class="m04-objective" aria-labelledby="m04-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m04-kicker">One measurable objective</p><h2 id="m04-objective-title">Tune a detection to catch one distributed password spray while excluding one benign retry pattern, then justify enrichment and bounded automation with at least ${MODULE_FOUR_PASSING_SCORE}/100.</h2></div></section>
 
       ${lectureSection}
-      ${quizSection}
       ${guidedLabSection}
       ${assessmentLabSection}
       <div id="m04-additional-labs-dynamic">${moduleFourAdditionalLabs()}</div>
@@ -1528,6 +1575,7 @@ function moduleFourRenderGuided(focusId) {
   root.innerHTML = moduleFourGuidedLabPanel();
   const consoleHost = root.querySelector('#m03e-console-m04-guided');
   if (consoleHost) { MODULE_FOUR_GUIDED_CONSOLE.wire(consoleHost); m03eAttachEditor('m04-guided'); }
+  moduleFourPositionGuidedGuide(root, consoleHost);
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -1551,10 +1599,7 @@ function wireModuleFourGuidedLab() {
   if (!root || !moduleFourGuidedState) return;
   const consoleHost = root.querySelector('#m03e-console-m04-guided');
   if (consoleHost) { MODULE_FOUR_GUIDED_CONSOLE.wire(consoleHost); m03eAttachEditor('m04-guided'); }
-  if (!root.dataset.guideObserver) {
-    root.dataset.guideObserver = 'true';
-    SocConsoleTools.watchGuide(root, { selector: '.m04-console-guide', render: moduleFourGuidedGuide });
-  }
+  moduleFourPositionGuidedGuide(root, consoleHost);
   root.addEventListener('input', (event) => {
     if (event.target.matches('#guided-m04-guided-case-form [name="notes"]')) moduleFourGuidedState.caseRecord.notes = event.target.value;
   });
@@ -1566,15 +1611,17 @@ function wireModuleFourGuidedLab() {
     moduleFourGuidedSave();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m04-guided-case-submit]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m04-guided-restart]')) { event.preventDefault(); moduleFourGuidedRestart(); return; }
+    if (event.target.closest('[data-m04g-guide-next]')) { event.preventDefault(); if (moduleFourGuidedState.caseRecord.submitted) { moduleFourGuidedRestart(); return; } moduleFourGuidedState.guideStep = (moduleFourGuidedState.guideStep + 1) % moduleFourGuidedSteps().length; { const nextTab = moduleFourGuidedSteps()[moduleFourGuidedState.guideStep]?.tab; if (nextTab) { m03eState('m04-guided').tab = nextTab; m03eSave('m04-guided'); } } moduleFourGuidedSave(); moduleFourRenderGuided(); return; }
+    if (event.target.closest('[data-m04g-guide-tab]')) { event.preventDefault(); const tab = event.target.closest('[data-m04g-guide-tab]').dataset.m04gGuideTab; m03eState('m04-guided').tab = tab; m03eSave('m04-guided'); m03eRender('m04-guided'); return; }
+    if (event.target.closest('[data-m04g-guide-collapse]')) { event.preventDefault(); moduleFourGuidedState.guideCollapsed = !moduleFourGuidedState.guideCollapsed; moduleFourGuidedSave(); moduleFourRenderGuided(); return; }
+    if (event.target.closest('[data-m04-guided-case-submit]')) { event.preventDefault(); if (!moduleFourGuidedState.caseRecord.submitted) { moduleFourGuidedState.caseRecord.submitted = true; moduleFourGuidedState.guideCollapsed = true; moduleFourGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleFourGuidedState.caseRecord.actionHistory.push({ action: 'Submitted practice ticket', at: moduleFourGuidedState.caseRecord.submittedAt }); moduleFourGuidedSave(); moduleFourRenderGuided(); } return; }
     if (event.target.closest('[data-m04-guided-case-save]')) {
       event.preventDefault();
       moduleFourGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
       moduleFourGuidedSave(); m03eRender('m04-guided'); return;
     }
-    if (event.target.closest('.m04-console-guide > summary')) {
-      requestAnimationFrame(() => { moduleFourGuidedState.guideCollapsed = !root.querySelector('.m04-console-guide')?.open; moduleFourGuidedSave(); });
-    }
+
   });
   return;
 
@@ -1828,6 +1875,8 @@ function wireModuleFour() {
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   wireReviewToggle({ button: reviewToggle, sectionSelector: '.m04-section-collapsible', getReviewMode: () => moduleFourReviewMode, setReviewMode: (value) => { moduleFourReviewMode = value; }, enabledLabel: 'Exit Review', disabledLabel: 'Review Module', enabledIcon: 'ri-eye-off-line', disabledIcon: 'ri-eye-line' });
 
+  const learnRoot = document.querySelector('.m04-shell');
+  if (learnRoot) window.LearnItCards?.wire(learnRoot, { prefix: 'm04', onStep: (step) => { moduleFourState.learnItStep = step; moduleFourLearnView = null; moduleFourSave(); const deck = document.getElementById('m04-learn-it'); if (deck) deck.outerHTML = moduleFourLearnIt(); }, onView: (index) => { moduleFourLearnView = index; const deck = document.getElementById('m04-learn-it'); if (deck) deck.outerHTML = moduleFourLearnIt(); } });
   wireModuleFourQuiz();
   wireModuleFourLessons();
   wireModuleFourGuidedLab();

@@ -391,6 +391,7 @@ const MODULE_SEVEN_SOURCES_LIST = [
 
 let moduleSevenState = null;
 let moduleSevenUser = null;
+let moduleSevenLearnItViewed = null;
 let moduleSevenAssessmentState = null;
 let moduleSevenAssessmentNetworkFilters = { query: '', type: 'all', device: '' };
 let moduleSevenReviewMode = false;
@@ -505,12 +506,14 @@ function moduleSevenProveItPerformance() {
 
 function moduleSevenLoad(user) {
   if (moduleSevenUser?.email !== user?.email) moduleSevenQuizForceRetake = false;
+  if (moduleSevenUser?.email !== user?.email) moduleSevenLearnItViewed = null;
   moduleSevenUser = user;
   if (typeof SocM07AssessmentState !== 'undefined' && typeof SocM07AssessmentData !== 'undefined') {
     moduleSevenAssessmentState = SocM07AssessmentState.load(user, SocM07AssessmentData);
   }
   const defaults = moduleSevenFreshState();
   moduleSevenState = LabRuntime.loadCaseState(MODULE_SEVEN_LAB_ID, 'soc-07', user, defaults);
+  moduleSevenState.learnItStep = Number.isInteger(moduleSevenState.learnItStep) ? Math.max(0, Math.min(moduleSevenState.learnItStep, LearnItDecks['soc-07'].length)) : 0;
   ['feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleSevenState[key])) moduleSevenState[key] = [];
   });
@@ -615,9 +618,8 @@ function moduleSevenGetSections() {
   // lab rebuild, or by admin override) read complete instead of empty.
   const verified = moduleSevenUser?.remoteVerifiedModuleProgress?.['soc-07'] === true;
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm07-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleSevenQuizState?.passed, scrollId: 'm07-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleSevenGuidedChecks().every((check) => check[2]), scrollId: 'm07-guided-lab' },
+    { id: 'lecture', title: 'Learn It', type: 'lecture', isComplete: true, scrollId: 'm07-lecture' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || (moduleSevenGuidedState.caseRecord.submitted || moduleSevenGuidedState.legacyComplete), scrollId: 'm07-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleSevenState.completed, scrollId: 'm07-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm07-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm07-sources', gated: false, supplemental: true },
@@ -730,14 +732,14 @@ function moduleSevenReview() {
       <li><strong>Proportionate response:</strong> Scope containment to confirmed exposure. If 1 user clicked, investigate that user. Search for related artifacts and indicators, but do not assume enterprise-wide compromise from limited evidence.</li>
     </ul>
     <h3>Before you continue</h3>
-    <p>You should now be able to read email headers and interpret authentication failures, inspect message artifacts safely, use delivery trace to bound exposure, correlate email indicators with network sessions by timing and destination, and communicate a proportionate investigation scope and response. In Module 08 and beyond, you will apply these cross-source analysis skills in incident response workflows.</p>
+    <p>Read email authentication, inspect artifacts safely, use delivery trace to bound exposure, and correlate email indicators with network sessions. Communicate a proportionate scope and response; Module 08 applies these skills in incident response.</p>
   </section>`;
 }
 
 
 function moduleSevenGuidedLabPanel() {
-  const complete = moduleSevenGuidedChecks().every((check) => check[2]);
-  return `${moduleSevenGuidedGuide()}<div class="m03e-panel" id="m07-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE NEC-0748 · PRACTICE IT · SHARED-FILE MESSAGE REVIEW</p><p>A shared-file expiry notice reached two mailboxes with different gateway outcomes. Determine who was exposed, correlate the click with DNS and TLS records, separate the legitimate HR portal, and document what remains unverified.</p></div><div class="m03e-console-host" id="m03e-console-m07-guided">${moduleThreeConsoleHtml('m07-guided')}</div></div><p class="m07-guided-status" role="status">${complete ? 'Guided Lab complete: the mail and network evidence is linked to your case.' : 'Use the console to establish exposure and correlate the network trail; progress saves as you work.'}</p>`;
+  const complete = moduleSevenGuidedState.caseRecord.submitted === true;
+  return `${moduleSevenGuidedGuide()}<div class="m03e-panel" id="m07-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE NEC-0748 · PRACTICE IT · SHARED-FILE MESSAGE REVIEW</p><p>A shared-file expiry notice reached two mailboxes with different gateway outcomes. Determine who was exposed, correlate the click with DNS and TLS records, separate the legitimate HR portal, and document what remains unverified.</p></div><div class="m03e-console-host" id="m03e-console-m07-guided">${moduleThreeConsoleHtml('m07-guided')}</div></div><p class="m07-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Use the console to establish exposure and correlate the network trail; progress saves as you work.'}</p>`;
 }
 
 /* The Module 3 console carrying Modules 4–6 on this case, plus Email and
@@ -959,12 +961,14 @@ function moduleSevenGuidedLoad(user) {
   const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'NEC-0748', scenarioId: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
   moduleSevenGuidedState = LabRuntime.loadCaseState(MODULE_SEVEN_GUIDED_LAB_ID, 'soc-07', user, defaults);
   moduleSevenGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleSevenGuidedState.caseRecord || {}) };
+  if (moduleSevenGuidedState.guideStep == null) moduleSevenGuidedState.guideStep = 0;
   moduleSevenGuidedState.tools = moduleSevenMigrateLegacyHosts(moduleSevenGuidedState.tools || {});
   moduleSevenGuidedState.caseRecord.affectedDevice = moduleSevenMigrateLegacyHosts(moduleSevenGuidedState.caseRecord.affectedDevice);
   moduleSevenGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleSevenGuidedState.tools.m04 }, MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m04).assessment;
   moduleSevenGuidedState.tools.m05 = SocM05AssessmentState.normalize(moduleSevenGuidedState.tools.m05, MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m05);
   moduleSevenGuidedState.tools.m06 = SocM06AssessmentState.normalize(moduleSevenGuidedState.tools.m06, MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m06);
   moduleSevenGuidedAssessmentState = SocM07AssessmentState.load(user, MODULE_SEVEN_GUIDED_FIXTURE);
+  if (moduleSevenGuidedState.legacyComplete == null) moduleSevenGuidedState.legacyComplete = moduleSevenGuidedChecks().every((check) => check[2]);
 }
 function moduleSevenGuidedSave() { if (moduleSevenGuidedUser && moduleSevenGuidedState) LabRuntime.saveCaseState(MODULE_SEVEN_GUIDED_LAB_ID, 'soc-07', moduleSevenGuidedUser, moduleSevenGuidedState); }
 function moduleSevenGuidedM04Tools() { return moduleSevenGuidedState.tools.m04; }
@@ -981,10 +985,63 @@ function moduleSevenGuidedChecks() {
     ['case', 'Link the supported evidence to an incident and state what remains unverified in your ticket.', Boolean(incident && !incident.eventIds.some((id) => network.find((event) => event.id === id)?.benignLookalike) && moduleSevenGuidedState.caseRecord.notes?.trim())],
   ];
 }
-function moduleSevenGuidedGuide() {
-  const checks = moduleSevenGuidedChecks();
-  return `<details class="m07-console-guide" ${moduleSevenGuidedState.guideOpen ? 'open' : ''}><summary>Investigation checkpoints · ${checks.filter((check) => check[2]).length}/${checks.length}</summary><ol>${checks.map((check) => `<li>${check[1]} <span>${check[2] ? 'Done' : 'Pending'}</span></li>`).join('')}</ol><details><summary>Optional hint</summary><p>Match the message's final URL host to the resolver answer and TLS SNI; keep the trusted HR portal out of the case.</p></details></details>`;
+function moduleSevenGuidedSteps() {
+  return [
+    { title: 'Read the ITSM ticket', body: 'Open the ITSM tab and review the fields this investigation needs you to resolve.', lookFor: 'The affected user and device, severity, disposition, escalation, findings, and work notes.', lab: 'Ticket fields: scope and handoff', tab: 'case', target: '.m01-ticket-id' },
+    { title: 'Start from the lead', body: 'Treat the alert or seed observation as a lead to test, not a verdict.', lookFor: 'What the initial signal establishes and what it leaves open.', lab: 'Ticket field: Findings', target: 'tr[data-m03e-select$=":alert:ALT-7481"], [data-m07-assessment-email] .m07-assessment-message, .m01-ticket-notes' },
+    { title: 'Correlate the records', body: 'Follow the related records across the console and compare the suspicious activity with its baseline.', lookFor: 'Which source identifies the activity and which records corroborate timing, scope, or context.', lab: 'Ticket fields: Affected User, Affected Device, Findings', target: '.m07-assessment-network-results, .m07-assessment-delivery, .m03e-table-wrap, .m01-ticket-grid' },
+    { title: 'Separate source from contributing evidence', body: 'A correlated record can strengthen the timeline even when it is not the originating source.', lookFor: 'Whether each record shows where activity began or only confirms that it happened.', lab: 'Ticket field: Findings', target: '[data-m07-evidence-tray], .m03e-table-wrap, .m01-ticket-notes' },
+    { title: 'Scope and decide', body: 'Choose a severity, disposition, and escalation that match the evidence and confirmed scope.', lookFor: 'The difference between confirmed impact and unresolved questions.', lab: 'Ticket fields: Severity, Disposition, Escalation, Department', tab: 'case', target: '.m01-ticket-grid' },
+    { title: 'Write the handoff and submit', body: 'Summarize the evidence, scope, uncertainty, and next action in work notes, then submit the ITSM ticket.', lookFor: 'A concise record another analyst can act on.', lab: 'Ticket field: Work Notes · Submit completes this Guided Lab', tab: 'case', target: '.m01-ticket-actions' },
+  ];
 }
+function moduleSevenGuidedDebrief() {
+  const cr = moduleSevenGuidedState.caseRecord;
+  const fields = [['Affected User', cr.affectedUser], ['Affected Device', cr.affectedDevice], ['Severity', cr.severity], ['Disposition', cr.disposition], ['Escalation', cr.escalation], ['Department', cr.escalateTo], ['Findings', Object.keys(cr.findings || {}).length], ['Work Notes', cr.notes]].map(([name, value]) => ({ name, status: !value ? 'missed' : name === 'Findings' || name === 'Affected Device' ? 'contributing' : 'captured', note: !value ? 'Not recorded in the submitted ticket.' : name === 'Findings' || name === 'Affected Device' ? 'Contributes context to the case timeline.' : 'Recorded in the submitted ticket.' }));
+  return guidedLabDebrief({ story: 'The message trace supports exposure for the delivered and clicked mailbox while the second recipient was blocked. Matching the message URL with DNS and TLS supports the network trail; the HR portal is a benign comparison, and endpoint or credential impact remains unverified.', fields, handoff: 'Include the primary evidence, corroborating records, confirmed scope, unresolved questions, and a proportionate next action.' });
+}
+function moduleSevenGuidedGuide() {
+  const item = moduleSevenGuidedSteps()[Math.min(moduleSevenGuidedState.guideStep, moduleSevenGuidedSteps().length - 1)] || {};
+  const consoleState = m03eState('m07-guided');
+  const tabLabel = item.tab === 'case' ? 'ITSM Ticket' : item.tab || '';
+  const moveTab = !moduleSevenGuidedState.caseRecord.submitted && item.tab && consoleState.tab !== item.tab;
+  return `${guidedLabGuide('m07g', moduleSevenGuidedSteps(), { step: moduleSevenGuidedState.guideStep, docked: moduleSevenGuidedState.caseRecord.submitted ? moduleSevenGuidedState.guideCollapsed !== false : (moduleSevenGuidedState.guideCollapsed === true || moduleSevenGuidedState.guideOpen === false), prefix: 'm07g', submitted: moduleSevenGuidedState.caseRecord.submitted, debriefHtml: moduleSevenGuidedDebrief() })}
+    ${moveTab || moduleSevenGuidedState.caseRecord.submitted ? `<div class="m03e-guide-controls" role="status">${moveTab ? `<button type="button" class="m03e-guide-go" data-m07g-guide-tab="${esc(item.tab)}">Go to ${esc(tabLabel)}</button>` : ''}${moduleSevenGuidedState.caseRecord.submitted ? '<span>Ticket submitted — practice complete</span>' : ''}</div>` : ''}`;
+}
+function moduleSevenGuidedRestart() {
+  const cr = moduleSevenGuidedState.caseRecord;
+  moduleSevenGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleSevenGuidedState.guideStep = 0;
+  moduleSevenGuidedState.guideCollapsed = false;
+  moduleSevenGuidedState.guideOpen = true;
+  moduleSevenGuidedSave();
+  moduleSevenRenderGuidedPanel();
+}
+function moduleSevenPositionGuidedGuide(root, host) {
+  const tip = root?.querySelector('#m07g-learn-tip');
+  const workspace = host?.querySelector('.m03e-workspace');
+  if (!tip || !workspace) return;
+  if (moduleSevenGuidedState.caseRecord.submitted || moduleSevenGuidedState.guideCollapsed === true || moduleSevenGuidedState.guideOpen === false) {
+    host.querySelector('header')?.append(tip);
+    consoleGuidePosition(tip, workspace, null);
+  } else {
+    workspace.prepend(tip);
+    consoleGuidePosition(tip, workspace, null);
+  }
+}
+M03E_AFTER_RENDER['m07-guided'] = function () {
+  const root = document.getElementById('m07-guided-lab-dynamic');
+  const host = document.getElementById('m03e-console-m07-guided');
+  if (!root || !host) return;
+  if (!root.querySelector('#m07g-learn-tip')) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = moduleSevenGuidedGuide();
+    const fresh = tpl.content.querySelector('#m07g-learn-tip');
+    if (fresh) root.prepend(fresh);
+  }
+  moduleSevenPositionGuidedGuide(root, host);
+};
+
 const MODULE_SEVEN_GUIDED_CONSOLE = (() => {
   const base = { save: moduleSevenGuidedSave, rerender: () => moduleSevenRenderGuidedPanel(), console: () => m03eState('m07-guided') };
   const tool = (key, normalize) => SocConsoleTools.embedded(() => moduleSevenGuidedState, key, normalize, MODULE_SEVEN_GUIDED_TOOL_FIXTURES[key], moduleSevenGuidedSave);
@@ -1008,7 +1065,7 @@ const MODULE_SEVEN_GUIDED_CONSOLE = (() => {
       { id: 'm06', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m06, ...tool('m06', SocM06AssessmentState.normalize) } },
       { id: 'm07', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_FIXTURE, ui: { get networkFilters() { return moduleSevenGuidedNetworkFilters; }, set networkFilters(value) { moduleSevenGuidedNetworkFilters = value; } }, box: { get state() { return moduleSevenGuidedAssessmentState; }, set state(value) { moduleSevenGuidedAssessmentState = value; } }, store: moduleSevenGuidedM07Store } },
     ],
-    caseView: () => caseRecordPane(moduleSevenGuidedState.caseRecord, { caseId: 'NEC-0748', ticketId: 'INC-0748', ticketType: 'Shared-file phishing exposure · Messaging Security', userOptions: [{ id: 'acct-91', text: 'acct-91 · delivered/clicked' }, { id: 'acct-97', text: 'acct-97 · gateway blocked' }, { id: 'acct-55', text: 'acct-55 · HR baseline' }], deviceOptions: [{ id: 'ws-733', text: 'ws-733 · clicked user device' }, { id: 'ws-208', text: 'ws-208 · HR portal baseline' }], departmentOptions: [{ id: 'messaging-security', text: 'Messaging Security' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm07-guided-case', saveAttr: 'data-m07-guided-save-case', submitAttr: 'data-m07-guided-submit-case', panelId: 'm07-guided-case-panel', notesPlaceholder: 'Document message authentication, delivery scope, click-to-network correlation, and unverified endpoint/credential outcomes.' }),
+    caseView: () => { const html = caseRecordPane(moduleSevenGuidedState.caseRecord, { caseId: 'NEC-0748', ticketId: 'INC-0748', ticketType: 'Shared-file phishing exposure · Messaging Security', userOptions: [{ id: 'acct-91', text: 'acct-91 · delivered/clicked' }, { id: 'acct-97', text: 'acct-97 · gateway blocked' }, { id: 'acct-55', text: 'acct-55 · HR baseline' }], deviceOptions: [{ id: 'ws-733', text: 'ws-733 · clicked user device' }, { id: 'ws-208', text: 'ws-208 · HR portal baseline' }], departmentOptions: [{ id: 'messaging-security', text: 'Messaging Security' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm07-guided-case', saveAttr: 'data-m07-guided-save-case', submitAttr: 'data-m07-guided-submit-case', panelId: 'm07-guided-case-panel', notesPlaceholder: 'Document message authentication, delivery scope, click-to-network correlation, and unverified endpoint/credential outcomes.' }); return moduleSevenGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m07-guided-restart>Restart Guided Lab</button>' : html; },
   });
 })();
 
@@ -1022,12 +1079,12 @@ function moduleSevenCaseTicket() {
     redoRequested: moduleSevenProveItRedoRequested(),
     redoHtml: moduleSevenProveItRedoFeedback(),
     showMissing: moduleSevenProveItShowMissing,
-  })}${cr.submitted && cr.reviewPayload ? `<section class="m04-assessment-review" data-m07-submitted-review><h4>Assessment review</h4><p><strong>${esc(cr.reviewPayload.score)}/${esc(cr.reviewPayload.maxScore)} points</strong></p><ol>${(cr.reviewPayload.criteria || []).map((criterion) => `<li><strong>${esc(criterion.label)}: ${esc(criterion.points)}/${esc(criterion.max)}</strong></li>`).join('')}</ol></section>` : ''}`;
+  })}`;
 }
 
 function moduleSevenAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m07-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_SEVEN_CASE_ID)} · SUSPECTED DELIVERY CHAIN · ASSIGNED TO YOU</p><p>The mail gateway flagged an external invoice message. Your lead’s request: <em>“Tell me who actually got it, what they did with it, and what their machine did next — and keep what we can prove separate from what we can’t.”</em> Validate the sender and authentication, inspect the URL, determine delivery and recipient scope, correlate the user action with endpoint and DNS/TLS/network activity, separate it from nearby noise, preserve email and network evidence, create or update the incident, and complete the ITSM ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_SEVEN_CASE_ID)} · SUSPECTED DELIVERY CHAIN · ASSIGNED TO YOU</p><p>The gateway flagged an external invoice; determine who received it, what they did, and what their device did next. Validate sender and URL, bound delivery, correlate endpoint and network evidence, separate noise, preserve artifacts, and complete the incident ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m07">${moduleThreeConsoleHtml('m07')}</div>
   </div>`;
 }
@@ -1042,15 +1099,18 @@ function moduleSevenAdditionalLabs() {
   return `<div id="m07-additional-lab-dynamic">${missionNextOptionalLabsSection(7, MODULE_SEVEN_OPTIONAL_LABS, moduleSevenState.labProgress)}</div>`;
 }
 
+function moduleSevenLearnItMarkup() {
+  return LearnItCards.render({ deck: LearnItDecks['soc-07'], step: moduleSevenState.learnItStep || 0, done: moduleSevenState.learnItStep >= LearnItDecks['soc-07'].length, viewed: moduleSevenLearnItViewed, prefix: 'm07', id: 'm07-learn-it', headingId: 'm07-learn-it-title', heading: 'Learn the key ideas', intro: 'Move through the ideas you will use in the lab.', readyText: 'Build the mental model one idea at a time.', label: 'LEARN IT', countLabel: 'ideas', readyCountLabel: `${LearnItDecks['soc-07'].length} QUICK IDEAS`, nextActionLabel: 'NEXT', finalActionLabel: 'FINISH' });
+}
+
 function viewModuleSeven(user, program) {
   moduleSevenLoad(user);
   moduleSevenGuidedLoad(user);
   const module = program.modules['soc-07'];
   const sections = moduleSevenGetSections();
-  const lectureOpen = moduleSevenReviewMode || !sections[0].isComplete;
-  const quizOpen = moduleSevenReviewMode || (moduleSevenQuizState && !moduleSevenQuizState.passed);
-  const guidedLabOpen = moduleSevenReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleSevenReviewMode || !sections[3].isComplete;
+  const lectureOpen = moduleSevenReviewMode || !sections[0].isComplete || moduleSevenState.learnItStep < LearnItDecks['soc-07'].length;
+  const guidedLabOpen = moduleSevenReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleSevenReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleSevenReviewMode;
   const quickNavItems = moduleSevenGetQuickNavItems();
 
@@ -1059,32 +1119,29 @@ function viewModuleSeven(user, program) {
     <div class="mquick-nav-layout">
       ${moduleProgressShell(sections, { reviewMode: moduleSevenReviewMode })}
       <main class="m07-main mf-frame">
-      <section class="m07-hero mf-hero" aria-labelledby="m07-title"><div><p class="m07-kicker mf-kicker">Module 07 · ${formatHandsOnDuration(module.durationMinutes)} · analysis practice</p><h1 id="m07-title">${esc(module.title)}</h1><p class="m07-lede mf-lede">Trace a suspicious shared-file notice from mail authentication and delivery through the user's network session, while keeping unverified endpoint and credential outcomes explicit.</p></div><dl class="m07-progress mf-stats" aria-label="Saved lab progress"><div><dt>Curriculum items</dt><dd>${module.lessons}</dd></div><div><dt>Guided Lab</dt><dd id="m07-guided-status">${moduleSevenGuidedChecks().every((check) => check[2]) ? 'Complete' : moduleSevenGuidedChecks().some((check) => check[2]) ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m07-status">${moduleSevenState.completed ? 'Complete' : moduleSevenState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m07-hero mf-hero" aria-labelledby="m07-title"><div><p class="m07-kicker mf-kicker">Module 07 · ${formatHandsOnDuration(module.durationMinutes)} · analysis practice</p><h1 id="m07-title">${esc(module.title)}</h1><p class="m07-lede mf-lede">Trace a suspicious shared-file notice from mail authentication and delivery through the user's network session, while keeping unverified endpoint and credential outcomes explicit.</p></div><dl class="m07-progress mf-stats" aria-label="Saved lab progress"><div><dt>Curriculum items</dt><dd>${module.lessons}</dd></div><div><dt>Guided Lab</dt><dd id="m07-guided-status">${moduleSevenGuidedState.caseRecord.submitted || moduleSevenGuidedState.legacyComplete ? 'Complete' : moduleSevenGuidedState.caseRecord.actionHistory.length ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m07-status">${moduleSevenState.completed ? 'Complete' : moduleSevenState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m07-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">1</span><div><p class="m07-kicker mf-kicker">Lecture</p><h2 id="m07-lecture">Email authentication and network correlation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">1</span><div><p class="m07-kicker mf-kicker">Learn It</p><h2 id="m07-lecture">Email authentication and network correlation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m07-section-body mf-section-body">
+          <div id="m07-learn-it-root">${moduleSevenLearnItMarkup()}</div><details class="m07-deep-dive mf-deep-dive"><summary>Deep Dive · reference notes and practice</summary>
           <section class="m07-objective" aria-labelledby="m07-objective-title"><i class="ri-focus-3-line" aria-hidden="true"></i><div><p class="m07-kicker">Measurable objective</p><h3 id="m07-objective-title">Analyze real-world-style network and log data and justify a defensible triage decision in your assessment write-up.</h3></div></section>
           <section class="m07-section" id="m07-field-guide" aria-labelledby="m07-guide-title"><div class="m07-section-heading"><span>a</span><div><p class="m07-kicker">Field guide</p><h3 id="m07-guide-title">Follow identity, artifact, delivery, and session</h3></div></div>${moduleSevenConcepts()}<div class="m07-analysis-chain" aria-label="Email and network analysis sequence"><span>Sender identity</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>URL &amp; file</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Delivery trace</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>DNS &amp; TLS</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope &amp; response</span></div></section>
           ${moduleSevenEvidenceDesk()}
           ${moduleSevenVideoScript()}
+          </details>
         </div>
       </details>
 
-      <details class="m07-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">2</span><div><p class="m07-kicker mf-kicker">Knowledge Check</p><h2 id="m07-knowledge-check">Test your understanding of email and network analysis</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
-        <div class="m07-section-body mf-section-body">${moduleSevenQuizPanel()}</div>
-      </details>
-
       <details class="m07-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">3</span><div><p class="m07-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m07-guided-lab">Shared-file message and network investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">2</span><div><p class="m07-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m07-guided-lab">Shared-file message and network investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m07-section-body mf-section-body">
           <div id="m07-guided-lab-dynamic">${moduleSevenGuidedLabPanel()}</div>
         </div>
       </details>
 
       <details class="m07-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">4</span><div><p class="m07-kicker mf-kicker">Prove It · Assessment Labs</p><h2 id="m07-assessment-lab">Independent tunnel and HTTP log analysis review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m07-section"><div class="m07-section-heading mf-section-heading"><span class="m07-section-badge mf-section-badge">3</span><div><p class="m07-kicker mf-kicker">Prove It · Assessment Labs</p><h2 id="m07-assessment-lab">Independent tunnel and HTTP log analysis review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m07-section-body mf-section-body">
           <div id="m07-assessment-lab-dynamic">${moduleSevenAssessmentLabPanel()}</div>
         </div>
@@ -1192,6 +1249,7 @@ function moduleSevenRenderGuidedPanel() {
   root.innerHTML = moduleSevenGuidedLabPanel();
   const host = root.querySelector('#m03e-console-m07-guided');
   if (host) { MODULE_SEVEN_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m07-guided'); }
+  moduleSevenPositionGuidedGuide(root, host);
 }
 
 function wireModuleSevenGuidedLab() {
@@ -1199,15 +1257,7 @@ function wireModuleSevenGuidedLab() {
   if (!root || !moduleSevenGuidedState) return;
   const host = root.querySelector('#m03e-console-m07-guided');
   if (host) { MODULE_SEVEN_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m07-guided'); }
-  if (!root.dataset.m07GuidedObserver) {
-    root.dataset.m07GuidedObserver = 'true';
-    SocConsoleTools.watchGuide(root, { selector: '.m07-console-guide', render: moduleSevenGuidedGuide, update: () => {
-      const checks = moduleSevenGuidedChecks();
-      const complete = checks.every((check) => check[2]);
-      SocConsoleTools.setText(root.querySelector('.m07-guided-status'), complete ? 'Guided Lab complete: the mail and network evidence is linked to your case.' : 'Use the console to establish exposure and correlate the network trail; progress saves as you work.');
-      SocConsoleTools.setText(document.getElementById('m07-guided-status'), complete ? 'Complete' : checks.some((check) => check[2]) ? 'In progress' : 'Not started');
-    } });
-  }
+  moduleSevenPositionGuidedGuide(root, host);
   root.addEventListener('input', (event) => {
     if (event.target.matches('#guided-m07-m07-guided-case [name="notes"]')) moduleSevenGuidedState.caseRecord.notes = event.target.value;
   });
@@ -1219,7 +1269,11 @@ function wireModuleSevenGuidedLab() {
     moduleSevenGuidedSave();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m07-guided-submit-case]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m07-guided-restart]')) { event.preventDefault(); moduleSevenGuidedRestart(); return; }
+    if (event.target.closest('[data-m07g-guide-next]')) { event.preventDefault(); if (moduleSevenGuidedState.caseRecord.submitted) { moduleSevenGuidedRestart(); return; } moduleSevenGuidedState.guideStep = (moduleSevenGuidedState.guideStep + 1) % moduleSevenGuidedSteps().length; moduleSevenGuidedSave(); moduleSevenRenderGuidedPanel(); return; }
+    if (event.target.closest('[data-m07g-guide-tab]')) { event.preventDefault(); const tab = event.target.closest('[data-m07g-guide-tab]').dataset.m07gGuideTab; m03eState('m07-guided').tab = tab; m03eSave('m07-guided'); m03eRender('m07-guided'); return; }
+    if (event.target.closest('[data-m07g-guide-collapse]')) { event.preventDefault(); moduleSevenGuidedState.guideCollapsed = !moduleSevenGuidedState.guideCollapsed; moduleSevenGuidedSave(); moduleSevenRenderGuidedPanel(); return; }
+    if (event.target.closest('[data-m07-guided-submit-case]')) { event.preventDefault(); if (!moduleSevenGuidedState.caseRecord.submitted) { moduleSevenGuidedState.caseRecord.submitted = true; moduleSevenGuidedState.guideCollapsed = true; moduleSevenGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleSevenGuidedState.caseRecord.actionHistory.push({ action: 'Submitted practice ticket', at: moduleSevenGuidedState.caseRecord.submittedAt }); moduleSevenGuidedSave(); moduleSevenRenderGuidedPanel(); } return; }
     if (event.target.closest('[data-m07-guided-save-case]')) {
       event.preventDefault();
       moduleSevenGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
@@ -1227,9 +1281,7 @@ function wireModuleSevenGuidedLab() {
       m03eRender('m07-guided');
       return;
     }
-    if (event.target.closest('.m07-console-guide > summary')) {
-      requestAnimationFrame(() => { moduleSevenGuidedState.guideOpen = Boolean(root.querySelector('.m07-console-guide')?.open); moduleSevenGuidedSave(); });
-    }
+
   });
 }
 
@@ -1357,6 +1409,18 @@ function wireModuleSevenEvidenceDesk() {
 }
 
 function wireModuleSeven() {
+  const learnRoot = document.querySelector('.m07-shell');
+  if (learnRoot) LearnItCards.wire(learnRoot, { prefix: 'm07', onStep: (step, action) => {
+    moduleSevenState.learnItStep = step;
+    moduleSevenLearnItViewed = null;
+    moduleSevenSave();
+    const target = document.getElementById('m07-learn-it-root');
+    if (target) target.innerHTML = moduleSevenLearnItMarkup();
+  }, onView: (index) => {
+    moduleSevenLearnItViewed = index;
+    const target = document.getElementById('m07-learn-it-root');
+    if (target) target.innerHTML = moduleSevenLearnItMarkup();
+  } });
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
     reviewToggle.addEventListener('click', () => {

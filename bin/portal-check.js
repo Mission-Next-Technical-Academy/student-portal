@@ -39,7 +39,10 @@ vm.runInContext(`
   }, set: () => true });
   var window = new Proxy({ location, history, document }, {
     get: (t, p) => (p in t ? t[p] : (p === 'addEventListener' || p === 'scrollTo' ? () => {} : undefined)),
-    set: () => true });
+    // Browser scripts publish shared components as window properties and
+    // later modules consume those properties as globals. Mirror that binding
+    // in the VM so portal-check follows the same dependency path.
+    set: (t, p, value) => { t[p] = value; globalThis[p] = value; return true; } });
 
   // Stub Supabase for test harness: makes signIn/currentUser async calls resolve properly.
   var mntSupabase = {
@@ -194,6 +197,12 @@ const testPromise = vm.runInContext(`
             throw new Error('missing authored Assessment Lab surface');
           }
           if (!navHtml.includes('Guided Lab')) throw new Error('missing Guided Lab in Practice It navigation');
+        }
+        // SOC M01–M11 keep knowledge checks inside Learn It; standalone
+        // checks duplicate Prove It. M12 keeps its special capstone contract.
+        if (target.program === 'soc-analyst' && target.n <= 11) {
+          if (/id="m\d{2}-knowledge-(?:check|section)"/.test(html)) throw new Error('redundant standalone Knowledge Check card');
+          if (/id="m\d{2}-quiz-dynamic"|id="m\d{2}-quiz-panel"/.test(html)) throw new Error('redundant standalone Knowledge Check panel');
         }
         console.log(\`  module \${target.n}  OK  (\${target.key}, \${html.length} chars)\`);
       } catch (error) {

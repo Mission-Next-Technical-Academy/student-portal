@@ -543,7 +543,7 @@ let moduleElevenReviewMode = false;
 
 function moduleElevenMetricsFreshDefaults() {
   return {
-    practiceComplete: false, practiceNotes: '', feedback: [], validationError: '', lastSubmittedAt: '', labProgress: {},
+    practiceComplete: false, practiceNotes: '', feedback: [], validationError: '', lastSubmittedAt: '', labProgress: {}, learnItStep: 0,
   };
 }
 
@@ -558,13 +558,14 @@ function moduleElevenReportFreshDefaults() {
 }
 
 function moduleElevenLoad(user) {
-  if (moduleElevenUser?.email !== user?.email) moduleElevenQuizForceRetake = false;
+  if (moduleElevenUser?.email !== user?.email) { moduleElevenQuizForceRetake = false; moduleElevenLearnViewed = null; }
   moduleElevenUser = user;
   moduleElevenMetricsState = LabRuntime.loadCaseState(MODULE_ELEVEN_METRICS_LAB_ID, 'soc-11', user, moduleElevenMetricsFreshDefaults());
   moduleElevenReportState = LabRuntime.loadCaseState(MODULE_ELEVEN_REPORT_LAB_ID, 'soc-11', user, moduleElevenReportFreshDefaults());
   moduleElevenGuidedState = LabRuntime.loadCaseState('m11-guided-operations-v1', 'soc-11', user, {
     completed: false, caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
   });
+  if (moduleElevenGuidedState.completed === true && !moduleElevenGuidedState.caseRecord.submitted) { moduleElevenGuidedState.caseRecord.submitted = true; moduleElevenGuidedState.caseRecord.submittedAt ||= new Date().toISOString(); }
   moduleElevenGuidedOpsState = SocM11AssessmentState.load(user, MODULE_ELEVEN_GUIDED_FIXTURE);
   ['feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleElevenMetricsState[key])) moduleElevenMetricsState[key] = [];
@@ -612,6 +613,9 @@ function moduleElevenLoad(user) {
 function moduleElevenSaveMetrics() {
   if (moduleElevenUser && moduleElevenMetricsState) LabRuntime.saveCaseState(MODULE_ELEVEN_METRICS_LAB_ID, 'soc-11', moduleElevenUser, moduleElevenMetricsState);
 }
+let moduleElevenLearnViewed = null;
+function moduleElevenLearnItHtml() { const deck = LearnItDecks['soc-11']; return LearnItCards.render({ deck, step: moduleElevenMetricsState.learnItStep || 0, viewed: moduleElevenLearnViewed, done: (moduleElevenMetricsState.learnItStep || 0) >= deck.length, prefix: 'm11', id: 'm11-learn-it', headingId: 'm11-learn-title', heading: 'Turn operations into decisions', intro: `${deck.length} ideas for queue health, handoffs, and reporting.`, readyHeading: `SOC operations, in ${deck.length} ideas`, readyText: 'Start with the operating principles, then open the Guided Lab.', readyActionLabel: 'LEARN IT', finalActionLabel: 'Finish', doneHeading: 'Operations principles ready', doneIntro: 'Open the Guided Lab to apply these decisions.' }); }
+function moduleElevenWireLearnIt() { const shell = document.querySelector('.m11-shell'); if (!shell || shell.dataset.learnItWired) return; shell.dataset.learnItWired = 'true'; LearnItCards.wire(shell, { prefix: 'm11', onStep: (step) => { moduleElevenMetricsState.learnItStep = step; moduleElevenLearnViewed = null; moduleElevenSaveMetrics(); document.getElementById('m11-learn-it').outerHTML = moduleElevenLearnItHtml(); }, onView: (index) => { moduleElevenLearnViewed = index; document.getElementById('m11-learn-it').outerHTML = moduleElevenLearnItHtml(); shell.querySelector(`[data-m11-learn-view="${index}"]`)?.focus(); } }); }
 
 function moduleElevenGuidedSave() {
   if (moduleElevenUser && moduleElevenGuidedState) LabRuntime.saveCaseState('m11-guided-operations-v1', 'soc-11', moduleElevenUser, moduleElevenGuidedState);
@@ -631,8 +635,6 @@ function moduleElevenUpdateGuidedProgress() {
   const complete = moduleElevenMaybeCompleteGuided();
   const status = document.querySelector('#m11-guided-lab-dynamic .m11-guided-status');
   if (status) status.textContent = complete ? 'Practice shift record complete.' : 'Progress saved. Finish the operations and reporting handoff.';
-  const summary = document.querySelector('#m11-guided-lab-dynamic .m11-console-guide summary');
-  if (summary) summary.textContent = complete ? 'Guide · handoff recorded' : 'Guide · progress saved';
 }
 
 function moduleElevenSaveReport() {
@@ -796,7 +798,7 @@ function moduleElevenScenarioLoops() {
     <article><p class="m11-kicker">Lesson 2 · Applied task</p><h4>Deliver the independent report</h4><p>Write the case note, executive summary, escalation request, and closure conditions from the shared slice. Keep unknowns and the monitoring owner visible.</p></article>
     <article><p class="m11-kicker">Lesson 3 · Scenario</p><h4>Close the communication loop</h4><p>Leadership needs a concise status after containment, while the SOC needs a measurable control-improvement handoff.</p></article>
     <article><p class="m11-kicker">Lesson 3 · Theory</p><h4>Closure needs verification and ownership</h4><p>Containment is not closure. Confirm recovery, review monitoring results, record residual uncertainty, and assign a named control owner with a due point.</p></article>
-    <article><p class="m11-kicker">Lesson 3 · Knowledge check</p><h4>Test the closure claim</h4><p>Use the randomized reasoning quiz and source list to reject premature closure, unsupported exfiltration claims, and role-only escalation.</p></article>
+    <article><p class="m11-kicker">Lesson 3 · Knowledge check</p><h4>Test the closure claim</h4><p>Use the lesson material and source list to reject premature closure, unsupported exfiltration claims, and role-only escalation.</p></article>
     <article><p class="m11-kicker">Lesson 3 · Applied task</p><h4>State the decision and next review</h4><p>Translate the same bounded facts into an audience-appropriate closure note with a condition that can be checked on the next review.</p></article>
     <p class="m11-crosswalk-note"><strong>Supplementary draft crosswalk:</strong> this module primarily relates to Security+ SY0-701 Domain 5 (Security Program Management) with secondary Domain 4 (Security Operations). It is a developer-authored mapping pending curriculum/compliance/faculty review, not an approval, certification, affiliation, or pass guarantee.</p>
   </section>`;
@@ -807,7 +809,7 @@ function moduleElevenVideoScript() {
 }
 
 function moduleElevenReview() {
-  return `<section class="m11-review-section"><h3>Module concepts at a glance</h3><ul><li><strong>Operational metrics vs. incident proof:</strong> A rising MTTD or SLA miss is an operational signal, not direct evidence of a breach. Investigate the signal's root cause before linking it to incident scope.</li><li><strong>Traceability:</strong> When a metric trend occurs, trace it to a specific controllable driver—a rule change, staffing change, or alert-generation threshold. Targeted fixes preserve coverage better than broad disables.</li><li><strong>Audience-appropriate communication:</strong> Technical case notes document entities, actions, and evidence. Executive summaries state business impact, affected scope, residual risk, and next steps in plain language. Write both.</li><li><strong>Escalation accountability:</strong> Escalate upward with quantified risk, a hypothesis, and a specific request to named decision-makers. Broadcast to peers or uncontrolled groups is not escalation.</li><li><strong>Closure discipline:</strong> Close only after verified recovery, a clean monitoring window, and an assigned control owner with a deadline. Closure on containment alone is premature.</li></ul><h3>Before you continue</h3><p>You are ready for Module 12 if you can: distinguish operational signals from incident findings; trace a metrics trend to its controllable driver; rewrite technical evidence as a business-language summary; escalate a decision or action to a named owner with a clear request; and plan case closure with monitoring and control ownership attached. Use your labs to practice each skill and ask for feedback on your handoff notes and executive summaries.</p></section>`;
+  return `<section class="m11-review-section"><h3>Module concepts at a glance</h3><ul><li><strong>Operational metrics vs. incident proof:</strong> A rising MTTD or SLA miss is an operational signal, not direct evidence of a breach. Investigate the signal's root cause before linking it to incident scope.</li><li><strong>Traceability:</strong> When a metric trend occurs, trace it to a specific controllable driver—a rule change, staffing change, or alert-generation threshold. Targeted fixes preserve coverage better than broad disables.</li><li><strong>Audience-appropriate communication:</strong> Technical case notes document entities, actions, and evidence. Executive summaries state business impact, affected scope, residual risk, and next steps in plain language. Write both.</li><li><strong>Escalation accountability:</strong> Escalate upward with quantified risk, a hypothesis, and a specific request to named decision-makers. Broadcast to peers or uncontrolled groups is not escalation.</li><li><strong>Closure discipline:</strong> Close only after verified recovery, a clean monitoring window, and an assigned control owner with a deadline. Closure on containment alone is premature.</li></ul><h3>Before you continue</h3><p>For Module 12, be ready to distinguish metrics from incident findings, trace trends to controllable drivers, and summarize technical evidence in business language. Practice named escalation, clear requests, and closure plans with monitoring and control ownership in your labs.</p></section>`;
 }
 
 function moduleElevenGetSections() {
@@ -815,8 +817,7 @@ function moduleElevenGetSections() {
   // lab rebuild, or by admin override) read complete instead of empty.
   const verified = moduleElevenUser?.remoteVerifiedModuleProgress?.['soc-11'] === true;
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm11-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleElevenQuizState?.passed, scrollId: 'm11-knowledge-check' },
+    { id: 'lecture', title: 'Learn It', type: 'lecture', isComplete: true, scrollId: 'm11-lecture' },
     { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleElevenGuidedComplete(), scrollId: 'm11-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleElevenReportState.completed, scrollId: 'm11-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm11-review' },
@@ -837,6 +838,10 @@ function moduleElevenGetQuickNavItems() {
 
 
 function moduleElevenGuidedComplete() {
+  return moduleElevenGuidedState?.caseRecord?.submitted === true;
+}
+
+function moduleElevenGuidedEvidenceReady() {
   const ops = moduleElevenGuidedOpsState || {};
   const cr = moduleElevenGuidedState?.caseRecord || {};
   return (ops.priorityOrder || []).length > 0 && (ops.interpretations || []).length > 0 && (ops.handoffs || []).length > 0
@@ -848,30 +853,126 @@ function moduleElevenGuidedCaseTicket() {
   const endpoint = s.incident.entities.find((id) => id.startsWith('ws-'));
   const user = s.incident.entities.find((id) => id.startsWith('acct-'));
   const routes = s.escalationRoutes.map((route) => ({ id: route.id, text: route.label }));
-  return caseRecordPane(moduleElevenGuidedState.caseRecord, {
+  const html = caseRecordPane(moduleElevenGuidedState.caseRecord, {
     caseId: MODULE_ELEVEN_GUIDED_CASE_ID, ticketId: 'INC-6240', ticketType: 'SOC Operations & Shift Handoff',
     userOptions: [{ id: user, text: `${user} · affected incident account` }], deviceOptions: [{ id: endpoint, text: `${endpoint} · confirmed impact endpoint` }],
     departmentOptions: routes, formId: 'm11-guided-case-form', saveAttr: 'data-m11-guided-save-case', submitAttr: 'data-m11-guided-submit-case', panelId: 'm11-guided-case-panel',
-    notesPlaceholder: 'Summarize the queue risk, case scope, named follow-up owner, and next verification time.',
+    notesPlaceholder: 'Summarize the queue risk, case scope, named follow-up owner, and next verification time.', practiceSubmitted: true,
   });
+  return moduleElevenGuidedState.caseRecord.submitted ? `${html}<button type="button" class="m01-reset" data-m11-guided-restart>Restart Guided Lab</button>` : html;
+}
+
+function moduleElevenGuidedRestart() {
+  const cr = moduleElevenGuidedState.caseRecord;
+  moduleElevenGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleElevenGuidedState.completed = false; moduleElevenGuidedState.guideStep = 0; moduleElevenGuidedState.guideDocked = false;
+  moduleElevenGuidedSave(); moduleElevenRenderGuided();
+}
+
+function moduleElevenGuidedSteps() {
+  return [
+    { title: 'Read the ticket', body: 'Review the shift context, affected case, and expected decision or handoff.', lookFor: 'The ticket describes the work to resolve; queue metrics alone do not prove an incident.', lab: 'Confirm the case scope and audience.', tab: 'case', target: '.m01-ticket-id' },
+    { title: 'Start from the lead', body: 'Open the highest-priority alert or shift lead and check its age and stated impact.', lookFor: 'The current queue and service context behind the assigned work.', lab: 'Orient to the operational starting point.', tab: 'alerts', target: 'tr[data-m03e-select$=":alert:GQ-01"]' },
+    { title: 'Prioritize the queue', body: 'Compare severity, business impact, and SLA age to select the work needing attention first.', lookFor: 'A measurable reason for urgency and any competing queue risk.', lab: 'Set a defensible priority order.', tab: 'operations', target: 'form[data-m11-operation="priority"]' },
+    { title: 'Trace the signal and handoff', body: 'Connect a metrics trend to a controllable driver and write a clear owner request.', lookFor: 'A rule, staffing, or threshold change and an actionable next step.', lab: 'Prepare technical and audience-appropriate reporting.', tab: 'reporting', target: 'form[data-m11-report="escalation"]' },
+    { title: 'Separate primary and contributing evidence', body: 'Distinguish direct incident findings from operational indicators that provide context but do not prove compromise.', lookFor: 'Case evidence versus queue, response-time, or SLA metrics.', lab: 'State what the shift evidence does and does not establish.', tab: 'reporting', target: 'form[data-m11-report="technical"]' },
+    { title: 'Set scope and decide', body: 'Choose disposition and escalation based on verified case facts, residual risk, and accountable owners.', lookFor: 'A specific decision, request, and verification deadline.', lab: 'Complete the bounded shift handoff.', tab: 'case', target: '.m01-ticket-grid' },
+    { title: 'Submit the ticket', body: 'Record residual risk, next owner, and verification time in the ITSM ticket, then submit.', lookFor: 'A concise handoff that separates metrics from incident proof.', lab: 'Submit the ticket when the handoff is ready.', tab: 'case', target: '.m01-ticket-actions' },
+  ];
 }
 
 function moduleElevenGuidedLabPanel() {
   const complete = moduleElevenGuidedComplete();
-  const ops = moduleElevenGuidedOpsState || {};
+  const cr = moduleElevenGuidedState.caseRecord;
+  const steps = moduleElevenGuidedSteps();
+  if (!complete) { m03eState('m11-guided').tab = steps[Math.min(moduleElevenGuidedState.guideStep || 0, steps.length - 1)].tab; moduleElevenGuidedSave(); }
+  const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
+  const ops = moduleElevenGuidedOpsState || {}; const reports = ops.reports || {};
+  const opsCount = (ops.priorityOrder || []).length + (ops.interpretations || []).length + (ops.handoffs || []).length + (reports.executive?.summary ? 1 : 0) + (reports.technical?.summary ? 1 : 0);
+  const notes = (cr.notes || '').toLowerCase(); const entities = /acct-264/.test(notes) && /ws-264/.test(notes); const bounded = /residual|risk|owner|verify|deadline|follow/.test(notes); const metric = /sla|response|queue|metric|trend/.test(notes);
+  const debrief = complete ? guidedLabDebrief({ story: 'The shift evidence supports an operational queue and service health decision. Metrics such as response time or SLA age are operational signals; they do not by themselves prove a security incident.', fields: [
+    { name: 'Ticket status', status: quality(cr.status, 'in-progress', ['pending']), note: 'Keep follow-up active until the named owner verifies the change.' },
+    { name: 'Affected user', status: quality(cr.affectedUser, MODULE_ELEVEN_GUIDED_FIXTURE.scenario.incident.entities.find((id) => id.startsWith('acct-')), []), note: 'Name the account directly tied to the assigned case.' },
+    { name: 'Affected device', status: quality(cr.affectedDevice, MODULE_ELEVEN_GUIDED_FIXTURE.scenario.incident.entities.find((id) => id.startsWith('ws-')), []), note: 'Name the endpoint directly tied to the assigned case.' },
+    { name: 'Severity', status: quality(cr.severity, 'High', ['Critical']), note: 'Reflect verified incident context; queue severity alone is not proof.' },
+    { name: 'Disposition', status: quality(cr.disposition, 'true-positive', ['false-negative']), note: 'Classify the supported case findings.' },
+    { name: 'Queue and reporting evidence', status: opsCount >= 5 ? 'captured' : opsCount > 0 ? 'contributing' : 'missed', note: 'Use a priority rationale, signal interpretation, actionable handoff, and both report audiences.' },
+    { name: 'Escalation and department', status: cr.escalation === 'required' && cr.escalateTo === 'response-leads' ? 'captured' : cr.escalation === 'required' && cr.escalateTo === 'directory-owners' ? 'contributing' : 'missed', note: 'Assign the shift response lead; directory owners may contribute to follow-up.' },
+    { name: 'Evidence and handoff notes', status: entities && bounded && metric ? 'captured' : entities || bounded || metric ? 'contributing' : 'missed', note: 'Quantify operational context, keep incident scope bounded, and name owner and verification.' },
+  ], handoff: 'A strong handoff quantifies the queue or case risk, separates metrics from incident proof, names the decision maker and action owner, and sets a verification deadline.' }) : '';
+  const guide = guidedLabGuide('m11', steps, { step: moduleElevenGuidedState.guideStep, docked: complete ? moduleElevenGuidedState.guideDocked !== false : moduleElevenGuidedState.guideDocked, prefix: 'm11-guided', submitted: complete, debriefHtml: debrief });
+  const consoleHtml = moduleThreeConsoleHtml('m11-guided');
   return `<section class="m11-guided-case"><p class="m11-panel-instruction">Run this synthetic shift, leave a bounded handoff, and write the audience reports.</p>
-    <details class="m11-console-guide"><summary>Guide · ${complete ? 'handoff recorded' : 'progress saved'}</summary><ol><li>Prioritize the live queue using severity, impact, and SLA age.</li><li>Interpret metrics separately from incident proof; save a shift handoff and reports.</li><li>Record the residual risk and next owner in the case ticket.</li></ol><p>${ops.priorityOrder?.length ? 'Queue priority saved.' : ''} ${ops.handoffs?.length ? 'Shift handoff saved.' : ''} ${ops.reports?.executive?.summary ? 'Executive report saved.' : ''}</p></details>
-    <div class="m03e-console-host" id="m03e-console-m11-guided">${moduleThreeConsoleHtml('m11-guided')}</div>
-    <p class="m11-guided-status" role="status">${complete ? 'Practice shift record complete.' : 'Complete the operations and reporting workflow, then save the incident ticket.'}</p>
+    ${complete ? '' : guide}
+    <div class="m03e-console-host" id="m03e-console-m11-guided">${complete ? consoleHtml.replace('</header>', `${guide}</header>`) : consoleHtml}</div>
+    <p class="m11-guided-status" role="status">${complete ? 'Practice submitted.' : `${moduleElevenGuidedEvidenceReady() ? 'Queue and reporting handoff captured. ' : 'Continue reviewing the shift evidence and reporting needs. '}Submit the ITSM ticket to complete this Guided Lab.`}</p>
   </section>`;
 }
 
 function moduleElevenAssessmentLabPanel() {
-  const scored = moduleElevenReportState.assessmentScore;
+  const submitted = moduleElevenReportState.submitted === true;
+  const graded = moduleElevenCaseReviewStatus() === 'graded';
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
-    <p class="m11-panel-instruction">Complete the scored shift assessment in the Operations and Reporting tabs, then submit your work. Imported practice is listed separately under Optional Labs.</p>
-    ${scored ? `<section class="m04-assessment-review"><h3>Shift assessment result</h3><p><strong>${esc(scored.score)}/${esc(scored.maxScore)} points</strong> · ${scored.passed ? 'Passed' : 'Review and improve'}</p></section>` : '<p><button type="button" data-m11-submit-score>Submit shift assessment</button></p>'}
+    <p class="m11-panel-instruction">Complete the shift assessment in the Operations and Reporting tabs, then submit for faculty review. Imported practice is listed separately under Optional Labs.</p>
+    ${submitted ? `<p role="status">${graded ? 'Lab graded' : 'Submitted for faculty review'}</p>` : '<p><button type="button" data-m11-submit-score>Submit shift assessment</button></p>'}
   </section>`;
+}
+
+function moduleElevenPositionGuidedGuide(root = document.getElementById('m11-guided-lab-dynamic')) {
+  const host = root?.querySelector('#m03e-console-m11-guided');
+  const tip = root?.querySelector('#m11-guided-learn-tip');
+  const workspace = host?.querySelector('.m03e-workspace');
+  if (!host || !tip || !workspace) return;
+  tip.classList.add('is-visible');
+  if (moduleElevenGuidedState.caseRecord.submitted || moduleElevenGuidedState.guideDocked === true) {
+    host.querySelector('header')?.append(tip);
+    consoleGuidePosition(tip, workspace, null);
+  } else {
+    workspace.prepend(tip);
+    consoleGuidePosition(tip, workspace, null);
+  }
+}
+M03E_AFTER_RENDER['m11-guided'] = function () {
+  const root = document.getElementById('m11-guided-lab-dynamic');
+  const host = document.getElementById('m03e-console-m11-guided');
+  if (!root || !host) return;
+  if (!root.querySelector('#m11-guided-learn-tip')) {
+    const complete = moduleElevenGuidedComplete();
+    const cr = moduleElevenGuidedState.caseRecord;
+    const steps = moduleElevenGuidedSteps();
+    const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
+    const ops = moduleElevenGuidedOpsState || {}; const reports = ops.reports || {};
+    const opsCount = (ops.priorityOrder || []).length + (ops.interpretations || []).length + (ops.handoffs || []).length + (reports.executive?.summary ? 1 : 0) + (reports.technical?.summary ? 1 : 0);
+    const notes = (cr.notes || '').toLowerCase(); const entities = /acct-264/.test(notes) && /ws-264/.test(notes); const bounded = /residual|risk|owner|verify|deadline|follow/.test(notes); const metric = /sla|response|queue|metric|trend/.test(notes);
+    const debrief = complete ? guidedLabDebrief({ story: 'The shift evidence supports an operational queue and service health decision. Metrics such as response time or SLA age are operational signals; they do not by themselves prove a security incident.', fields: [
+      { name: 'Ticket status', status: quality(cr.status, 'in-progress', ['pending']), note: 'Keep follow-up active until the named owner verifies the change.' },
+      { name: 'Affected user', status: quality(cr.affectedUser, MODULE_ELEVEN_GUIDED_FIXTURE.scenario.incident.entities.find((id) => id.startsWith('acct-')), []), note: 'Name the account directly tied to the assigned case.' },
+      { name: 'Affected device', status: quality(cr.affectedDevice, MODULE_ELEVEN_GUIDED_FIXTURE.scenario.incident.entities.find((id) => id.startsWith('ws-')), []), note: 'Name the endpoint directly tied to the assigned case.' },
+      { name: 'Severity', status: quality(cr.severity, 'High', ['Critical']), note: 'Reflect verified incident context; queue severity alone is not proof.' },
+      { name: 'Disposition', status: quality(cr.disposition, 'true-positive', ['false-negative']), note: 'Classify the supported case findings.' },
+      { name: 'Queue and reporting evidence', status: opsCount >= 5 ? 'captured' : opsCount > 0 ? 'contributing' : 'missed', note: 'Use a priority rationale, signal interpretation, actionable handoff, and both report audiences.' },
+      { name: 'Escalation and department', status: cr.escalation === 'required' && cr.escalateTo === 'response-leads' ? 'captured' : cr.escalation === 'required' && cr.escalateTo === 'directory-owners' ? 'contributing' : 'missed', note: 'Assign the shift response lead; directory owners may contribute to follow-up.' },
+      { name: 'Evidence and handoff notes', status: entities && bounded && metric ? 'captured' : entities || bounded || metric ? 'contributing' : 'missed', note: 'Quantify operational context, keep incident scope bounded, and name owner and verification.' },
+    ], handoff: 'A strong handoff quantifies the queue or case risk, separates metrics from incident proof, names the decision maker and action owner, and sets a verification deadline.' }) : '';
+    const guide = guidedLabGuide('m11', steps, { step: moduleElevenGuidedState.guideStep, docked: complete ? moduleElevenGuidedState.guideDocked !== false : moduleElevenGuidedState.guideDocked, prefix: 'm11-guided', submitted: complete, debriefHtml: debrief });
+    const tpl = document.createElement('template');
+    tpl.innerHTML = guide;
+    const fresh = tpl.content.querySelector('#m11-guided-learn-tip');
+    if (fresh) root.prepend(fresh);
+  }
+  moduleElevenPositionGuidedGuide(root);
+};
+
+function moduleElevenRenderGuided() {
+  const root = document.getElementById('m11-guided-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleElevenGuidedLabPanel();
+  const consoleRoot = root.querySelector('#m03e-console-m11-guided');
+  moduleElevenWireConsole(consoleRoot, MODULE_ELEVEN_GUIDED_FIXTURE, () => moduleElevenGuidedOpsState,
+    (next) => { moduleElevenGuidedOpsState = next; },
+    (next) => { moduleElevenGuidedOpsState = SocM11AssessmentState.save(moduleElevenUser, next, MODULE_ELEVEN_GUIDED_FIXTURE); moduleElevenGuidedSave(); },
+    moduleElevenGuidedConsole);
+  moduleElevenPositionGuidedGuide(root);
 }
 
 // Imported practice only: shown in the shared Optional Labs section (like
@@ -1128,32 +1229,31 @@ function viewModuleEleven(user, program) {
   moduleElevenMountGuidedConsole();
   const module = program.modules['soc-11'];
   const sections = moduleElevenGetSections();
-  const lectureOpen = moduleElevenReviewMode || !sections[0].isComplete;
-  const quizOpen = moduleElevenReviewMode || (moduleElevenQuizState && !moduleElevenQuizState.passed);
-  const guidedLabOpen = moduleElevenReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleElevenReviewMode || !sections[3].isComplete;
+  const lectureOpen = moduleElevenReviewMode || !sections[0].isComplete || moduleElevenMetricsState.learnItStep < LearnItDecks['soc-11'].length;
+  const guidedLabOpen = moduleElevenReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleElevenReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleElevenReviewMode;
   const quickNavItems = moduleElevenGetQuickNavItems();
 
   const html = `<div class="m11-shell">${moduleTopbar(user, program)}<div class="mquick-nav-layout">${moduleProgressShell(sections, { moduleKey: 'm11', reviewMode: moduleElevenReviewMode })}<main class="m11-main mf-frame">
-<section class="m11-hero mf-hero" aria-labelledby="m11-title"><div><p class="m11-kicker mf-kicker">Module 11 · ${formatHandsOnDuration(module.durationMinutes)} · Week 6</p><h1 id="m11-title">${esc(module.title)}</h1><p class="mf-lede">Turn operating signals and technical evidence into decisions that analysts, incident owners, and leaders can act on.</p></div><dl class="mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${sections[2].isComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${sections[3].isComplete ? 'Complete' : 'Not started'}</dd></div></dl></section>
-<details class="m11-section-collapsible mf-section" id="m11-lecture-section" ${lectureOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">1</span><div><p class="m11-kicker mf-kicker">Learn It</p><h2>Lecture</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-lecture">
+<section class="m11-hero mf-hero" aria-labelledby="m11-title"><div><p class="m11-kicker mf-kicker">Module 11 · ${formatHandsOnDuration(module.durationMinutes)} · Week 6</p><h1 id="m11-title">${esc(module.title)}</h1><p class="mf-lede">Turn operating signals and technical evidence into decisions that analysts, incident owners, and leaders can act on.</p></div><dl class="mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${sections[1].isComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${sections[2].isComplete ? 'Complete' : 'Not started'}</dd></div></dl></section>
+<details class="m11-section-collapsible mf-section" id="m11-lecture-section" ${lectureOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">1</span><div><p class="m11-kicker mf-kicker">Learn It</p><h2>Learn It</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-lecture">
+  ${moduleElevenLearnItHtml()}
+  <details class="m11-deep-dive mf-deep-dive"><summary>Deep Dive · operating guide and reference notes</summary>
   <section class="m11-practice-note"><i class="ri-compass-3-line" aria-hidden="true"></i><div><p class="m11-kicker">Independent practice</p><h2>Read the objective and dataset, then choose your own working order.</h2><p>No prescribed sequence or pre-submission hints are provided. Scoring feedback and a reference model appear after you submit.</p></div></section>
   ${moduleElevenScenarioLoops()}
   ${moduleElevenVideoScript()}
+  </details>
 </div></details>
-<details class="m11-section-collapsible mf-section" id="m11-knowledge-section" ${quizOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">2</span><div><p class="m11-kicker mf-kicker">Module assessment</p><h2>Knowledge Check</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-knowledge-check">
-  ${moduleElevenQuizPanel()}
-</div></details>
-<details class="m11-section-collapsible mf-section mf-lab-section" id="m11-guided-lab-section" ${guidedLabOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">3</span><div><p class="m11-kicker mf-kicker">Practice It · Guided Lab</p><h2>Guided Lab</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-guided-lab">
+<details class="m11-section-collapsible mf-section mf-lab-section" id="m11-guided-lab-section" ${guidedLabOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">2</span><div><p class="m11-kicker mf-kicker">Practice It · Guided Lab</p><h2>Guided Lab</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-guided-lab">
   <div class="m11-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Practice shift:</strong> Queue, reporting, tool, and case state are saved separately from the scored Assessment Lab.</p></div>
   <div id="m11-guided-lab-dynamic">${moduleElevenGuidedLabPanel()}</div>
 </div></details>
-<details class="m11-section-collapsible mf-section" id="m11-assessment-lab-section" ${assessmentLabOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">4</span><div><p class="m11-kicker mf-kicker">Prove It · Assessment Lab</p><h2>Assessment Lab</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-assessment-lab">
+<details class="m11-section-collapsible mf-section" id="m11-assessment-lab-section" ${assessmentLabOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">3</span><div><p class="m11-kicker mf-kicker">Prove It · Assessment Lab</p><h2>Assessment Lab</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-assessment-lab">
   <div id="m11-assessment-lab-dynamic">${moduleElevenAssessmentLabPanel()}<div class="m03e-console-host" id="m03e-console-m11">${moduleThreeConsoleHtml('m11')}</div></div>
 </div></details>
 <div id="m11-additional-labs-dynamic">${moduleElevenAdditionalLabs()}</div>
-<details class="m11-section-collapsible mf-section" id="m11-review-section" ${reviewOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">5</span><div><p class="m11-kicker mf-kicker">Concept recap</p><h2>Module Review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-review">
+<details class="m11-section-collapsible mf-section" id="m11-review-section" ${reviewOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">4</span><div><p class="m11-kicker mf-kicker">Concept recap</p><h2>Module Review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-review">
   ${moduleElevenReview()}
 </div></details>
 <details class="m11-section-collapsible mf-section mf-section-supplemental" id="m11-sources-section" ${moduleElevenReviewMode ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m11-kicker mf-kicker">Reference — not a graded step</p><h2>Sources &amp; Further Reading</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body">
@@ -1171,6 +1271,7 @@ function wireModuleElevenGuidedLab() {
     (next) => { moduleElevenGuidedOpsState = next; },
     (next) => { moduleElevenGuidedOpsState = SocM11AssessmentState.save(moduleElevenUser, next, MODULE_ELEVEN_GUIDED_FIXTURE); moduleElevenGuidedSave(); },
     moduleElevenGuidedConsole);
+  moduleElevenPositionGuidedGuide(root);
   root.addEventListener('change', (event) => {
     const field = event.target.closest('#m11-guided-case-form [name]');
     if (!field) return;
@@ -1181,7 +1282,10 @@ function wireModuleElevenGuidedLab() {
     moduleElevenUpdateGuidedProgress();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m11-guided-submit-case]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m11-guided-restart]')) { event.preventDefault(); moduleElevenGuidedRestart(); return; }
+    if (event.target.closest('[data-m11-guided-submit-case]')) { event.preventDefault(); moduleElevenGuidedState.caseRecord.submitted = true; moduleElevenGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleElevenGuidedState.completed = true; moduleElevenGuidedState.guideStep = 3; moduleElevenGuidedState.guideDocked = true; moduleElevenGuidedSave(); moduleElevenUpdateGuidedProgress(); moduleElevenRenderGuided(); return; }
+    if (event.target.closest('[data-m11-guided-guide-next]')) { moduleElevenGuidedState.guideStep = ((moduleElevenGuidedState.guideStep || 0) + 1) % moduleElevenGuidedSteps().length; moduleElevenGuidedSave(); const tab = moduleElevenGuidedSteps()[moduleElevenGuidedState.guideStep].tab; document.querySelector(`[data-m03e-tab="m11-guided:${tab}"]`)?.click(); moduleElevenRenderGuided(); return; }
+    if (event.target.closest('[data-m11-guided-guide-collapse]')) { moduleElevenGuidedState.guideDocked = !moduleElevenGuidedState.guideDocked; moduleElevenGuidedSave(); moduleElevenRenderGuided(); return; }
     if (event.target.closest('[data-m11-guided-save-case]')) {
       event.preventDefault();
       moduleElevenGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
@@ -1234,6 +1338,7 @@ function wireModuleElevenAssessmentLab() {
 }
 
 function wireModuleEleven() {
+  moduleElevenWireLearnIt();
   moduleElevenWireConsole();
   wireModuleElevenOptionalLabs();
   // Wire review toggle

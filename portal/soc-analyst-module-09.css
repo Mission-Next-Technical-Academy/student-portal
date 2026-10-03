@@ -298,7 +298,4 @@
 
 .m09-guided-case { display: grid; gap: 14px; }
 .m09-guided-case .m09-panel-instruction { margin: 0; color: #475569; }
-.m09-console-guide { padding: 15px 18px; border: 1px solid #dbe3ed; border-radius: 12px; background: #fff; }
-.m09-console-guide summary { cursor: pointer; font-weight: 700; }
-.m09-console-guide ol { margin: 10px 0 0; padding-left: 22px; color: #475569; }
 .m09-guided-status { margin: 0; color: #475569; font-weight: 650; }

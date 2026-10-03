@@ -317,11 +317,6 @@
 .m04-rules-workspace li code { margin: 0 8px; }
 
 /* Module 4 workspaces inside the mounted Module 3 console (m03e-console). */
-.m04-console-guide{margin:0 0 1rem;padding:1rem 1.15rem;border:1px solid var(--line,#d8dee8);border-radius:12px;background:var(--surface,#fff)}
-.m04-console-guide>summary{font-weight:700;cursor:pointer}
-.m04-console-guide ol{display:grid;gap:.5rem;padding-left:1.35rem}
-.m04-console-guide li span{margin-left:.35rem;font-size:.85em;color:var(--muted,#64748b)}
-.m04-console-guide details{margin-top:.6rem}
 .m04-console-extra { color: #172b43; font-size: 13px; }
 .m04-console-extra h4, .m04-console-extra h5 { margin: 14px 0 8px; color: #1e3a5f; }
 .m04-console-extra button { margin: 4px 6px 4px 0; padding: 7px 11px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #1e3a5f; font: 700 12px Inter, sans-serif; cursor: pointer; }
@@ -342,6 +337,9 @@
 .m04-alert-review label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; }
 .m04-alert-review textarea { box-sizing: border-box; width: 100%; padding: 7px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
 .m04-alert-review button { justify-self: start; padding: 7px 11px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #1e3a5f; font: 700 12px Inter, sans-serif; cursor: pointer; }
+
+/* Keep a submitted practice debrief accessible from its docked console header. */
+.m03e-console header .m02e-learn-tip:not(.is-collapsed) .m02e-tip-body { display:block; }
 
 /* Grouping comparison (Guided Lab reference). Solid border = spray, dashed = benign/background. */
 .m04-gc { margin: 14px 0; }

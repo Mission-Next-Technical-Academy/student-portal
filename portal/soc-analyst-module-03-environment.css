@@ -123,6 +123,7 @@
 
 /* Module 3 uses the shared console-guide card; these are only the step helpers. */
 .m03e-guide-controls{position:absolute;right:12px;bottom:12px;z-index:9;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;max-width:min(520px,calc(100% - 24px));padding:8px 10px;border:1px solid #dbeafe;border-radius:9px;background:#ffffffee;box-shadow:0 10px 22px #1e3a5f18}
+.m03e-guide-controls:not(:has(button,.m03e-guide-status:not(:empty))){display:none}
 .m03e-guide-status{color:#1e3a5f;font-size:12px;font-weight:800}
 .m03e-guide-go{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#1e3a5f;font:800 11px Inter,sans-serif;cursor:pointer}
 .m03e-guide-go:hover{border-color:#f97316;color:#c2410c}

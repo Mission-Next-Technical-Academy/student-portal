@@ -4186,7 +4186,13 @@ function missionNextLabAppRoute(labSlug) {
 function missionNextLabPortalHref(moduleNumber, href) {
   const labSlug = missionNextLabSlugFromHref(href);
   const programMatch = typeof location !== 'undefined' && location.hash.match(/^#\/program\/([a-z0-9-]+)/);
-  if (!labSlug || !programMatch || !missionNextLabAppRoute(labSlug)) return href;
+  if (!programMatch) return href;
+  if (!labSlug || !missionNextLabAppRoute(labSlug)) {
+    if (String(href || '').includes('imported-labs/mission-next-labs')) {
+      console.warn('[mission-next-lab] unmapped lab href', href);
+    }
+    return href;
+  }
   return `#/program/${programMatch[1]}/module/${Number(moduleNumber)}/lab/${labSlug}`;
 }
 
@@ -4444,7 +4450,7 @@ function moduleProgressShell(sections, state = {}, options = {}) {
   };
 
   const typeLabel = {
-    lecture: 'Lecture',
+    lecture: 'Learn It',
     quiz: 'Quiz',
     lab: 'Lab',
     review: 'Review',
@@ -4614,14 +4620,11 @@ function moduleQuickNavRail(items, state = {}) {
   if (!Array.isArray(items) || !items.length) return '';
 
   const moduleKey = state.moduleKey || 'm01';
-  const currentIndex = items.findIndex((item) => !item.isComplete);
-  const currentItem = currentIndex >= 0 ? items[currentIndex] : items[items.length - 1];
+  const navStatuses = moduleNavStatuses(items);
 
-  const railItemHtml = items.map((item) => {
-    const isCurrentUncomplete = item === currentItem && !item.isComplete;
-    const statusClass = item.isComplete
-      ? 'mnav-chip-complete'
-      : isCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
+  const railItemHtml = items.map((item, index) => {
+    const nav = navStatuses[index];
+    const statusClass = nav.statusClass;
 
     const icon = item.kind === 'lab' ? 'ri-flask-line'
       : item.kind === 'quiz' ? 'ri-question-line'
@@ -4631,10 +4634,10 @@ function moduleQuickNavRail(items, state = {}) {
       : item.kind === 'quiz' ? 'Quiz'
       : (item.lessonNumber ? `Lesson ${String(item.lessonNumber).padStart(2, '0')}` : 'Lesson');
 
-    const isLocked = statusClass === 'mnav-chip-locked';
-    return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link ${statusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}${isLocked ? ' (complete the current item first)' : ''}" aria-disabled="${isLocked}">
+    return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link ${statusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}" ${moduleNavLockAttrs(nav)}>
       <i class="${esc(icon)}" aria-hidden="true"></i>
       <span class="mquick-nav-label">${esc(item.title)}</span>
+      ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${item.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a></li>`;
   }).join('');
@@ -4649,6 +4652,40 @@ function moduleQuickNavRail(items, state = {}) {
       </ul>
     </nav>
   </aside>`;
+}
+
+/* Per-row sequencing policy shared by every rail renderer.  A row is locked
+ * only when it is unfinished AND an earlier "blocking" row is unfinished.
+ * Blocking rows are gated rows that are neither complete nor in instructor
+ * hands (reviewState 'review' = submitted/awaiting review, 'returned' =
+ * sent back for remediation) and are not Assessment Labs: faculty review
+ * owns an assessment's outcome, so it never gates what follows it, and a
+ * returned or pending assessment stays openable (it is 'current', not
+ * locked, once the lessons and labs before it are done).  Ungated rows are
+ * never locked.  Locked state, aria-disabled, title and click behavior all
+ * read the same {locked, reason, target} result.
+ */
+function moduleNavStatuses(rows, titleOf = (row) => row.title) {
+  const gated = (row) => row.gated !== false;
+  const isAssessment = (row) => row.standardStage === 'assessment' || row.title === 'Assessment Lab';
+  const inReview = (row) => row.reviewState === 'review' || row.reviewState === 'returned';
+  const blockerIndex = rows.findIndex((row) => gated(row) && !row.isComplete && !inReview(row) && !isAssessment(row));
+  const blocker = rows[blockerIndex];
+  return rows.map((row, index) => {
+    if (!gated(row)) return { statusClass: 'munified-row-ungated', locked: false };
+    if (row.isComplete) return { statusClass: 'mnav-chip-complete', locked: false };
+    if (blockerIndex >= 0 && blockerIndex < index) {
+      return { statusClass: 'mnav-chip-locked', locked: true, reason: titleOf(blocker), target: blocker.scrollId };
+    }
+    return { statusClass: 'mnav-chip-current', locked: false };
+  });
+}
+
+// aria-disabled plus the data the click handler reads to explain the lock.
+function moduleNavLockAttrs(nav) {
+  return nav.locked
+    ? `aria-disabled="true" data-mnav-locked-reason="${esc(nav.reason)}" data-mnav-locked-target="${esc(nav.target)}"`
+    : 'aria-disabled="false"';
 }
 
 /* Merged replacement for moduleProgressShell() + moduleQuickNavRail(), used
@@ -4691,9 +4728,20 @@ function moduleUnifiedNav(sections, state = {}) {
   const hasGeneratedAssessment = sections.some((section) => section.standardStage === 'assessment');
   const reviewMode = state.reviewMode || false;
 
+  // Display title for a row; also what a locked row's message names.
+  const navTitleFor = (section) => section.standardStage === 'assessment'
+    ? 'Assessment Lab'
+    : section.standardStage === 'guided'
+      ? 'Guided Lab'
+      // The item inside Practice It has one Academy-wide name.  Individual
+      // lab titles remain on the destination surface, but the rail never
+      // alternates among Module Lab, Hands-On Lab, walkthrough, etc.
+      : section.phase === 'practice' && section.type === 'lab'
+        ? 'Guided Lab'
+        : section.title;
+  const sectionNav = moduleNavStatuses(sections, navTitleFor);
   const gatedSections = sections.filter((s) => s.gated !== false);
-  const currentGatedIndex = gatedSections.findIndex((s) => !s.isComplete);
-  const currentGatedSection = currentGatedIndex >= 0 ? gatedSections[currentGatedIndex] : gatedSections[gatedSections.length - 1];
+  const currentGatedSection = sections.find((s, i) => sectionNav[i].statusClass === 'mnav-chip-current') || gatedSections[gatedSections.length - 1];
   const completedCount = gatedSections.filter((s) => s.isComplete).length;
   const overallPercent = gatedSections.length ? Math.round((completedCount / gatedSections.length) * 100) : 0;
 
@@ -4718,34 +4766,23 @@ function moduleUnifiedNav(sections, state = {}) {
 
   const sectionRow = (section) => {
     const isGated = section.gated !== false;
-    const isCurrentUncomplete = isGated && section === currentGatedSection && !section.isComplete;
-    const statusClass = !isGated
-      ? 'munified-row-ungated'
-      : section.isComplete ? 'mnav-chip-complete' : isCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
-    const isLocked = statusClass === 'mnav-chip-locked';
+    const nav = sectionNav[sections.indexOf(section)];
+    const statusClass = nav.statusClass;
 
     const items = Array.isArray(section.items) ? section.items : null;
     const hasChildren = !!(items && items.length);
-    const childCurrentIndex = hasChildren ? items.findIndex((item) => !item.isComplete) : -1;
-    const childCurrentItem = childCurrentIndex >= 0 ? items[childCurrentIndex] : (hasChildren ? items[items.length - 1] : null);
+    const childNav = hasChildren ? moduleNavStatuses(items) : [];
     const childComplete = hasChildren ? items.filter((item) => item.isComplete).length : 0;
     const groupId = `munified-group-${esc(section.id)}`;
     const isOpen = hasChildren && section === currentGatedSection;
 
-    const navTitle = section.standardStage === 'assessment'
-      ? 'Assessment Lab'
-      : section.standardStage === 'guided'
-        ? 'Guided Lab'
-        // The item inside Practice It has one Academy-wide name.  Individual
-        // lab titles remain on the destination surface, but the rail never
-        // alternates among Module Lab, Hands-On Lab, walkthrough, etc.
-        : section.phase === 'practice' && section.type === 'lab'
-          ? 'Guided Lab'
-          : section.title;
-    const rowHtml = `<a href="#${esc(section.scrollId)}" class="munified-row ${statusClass}" data-mnav-chip-scroll="${esc(section.scrollId)}" aria-disabled="${isLocked}" title="${esc(navTitle)}${isLocked ? ' (complete the current section first)' : ''}">
+    const navTitle = navTitleFor(section);
+    const rowHtml = `<a href="#${esc(section.scrollId)}" class="munified-row ${statusClass}" data-mnav-chip-scroll="${esc(section.scrollId)}" title="${esc(navTitle)}" ${moduleNavLockAttrs(nav)}>
       <i class="${esc(typeIcon[section.type] || 'ri-file-line')}" aria-hidden="true"></i>
       <span class="munified-row-label">${esc(navTitle)}</span>
       ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
+      ${!hasChildren && !section.isComplete && section.reviewState ? `<span class="munified-row-sub">${section.reviewState === 'returned' ? 'Returned' : 'In review'}</span>` : ''}
+      ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a>`;
 
@@ -4757,16 +4794,14 @@ function moduleUnifiedNav(sections, state = {}) {
 
     const childrenHtml = hasChildren
       ? `<ul class="mquick-nav-list munified-group-body" id="${groupId}" ${isOpen ? '' : 'hidden'}>
-          ${items.map((item) => {
-            const itemIsCurrentUncomplete = item === childCurrentItem && !item.isComplete;
-            const itemStatusClass = item.isComplete
-              ? 'mnav-chip-complete'
-              : itemIsCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
-            const itemLocked = itemStatusClass === 'mnav-chip-locked';
+          ${items.map((item, itemIndex) => {
+            const itemNav = childNav[itemIndex];
+            const itemStatusClass = itemNav.statusClass;
             const itemIcon = item.kind === 'lab' ? 'ri-flask-line' : item.kind === 'quiz' ? 'ri-question-line' : 'ri-book-open-line';
-            return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link munified-child-link ${itemStatusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}${itemLocked ? ' (complete the current item first)' : ''}" aria-disabled="${itemLocked}">
+            return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link munified-child-link ${itemStatusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}" ${moduleNavLockAttrs(itemNav)}>
               <i class="${esc(itemIcon)}" aria-hidden="true"></i>
               <span class="mquick-nav-label">${esc(item.title)}</span>
+              ${itemNav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
               ${item.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
             </a></li>`;
           }).join('')}
@@ -4815,6 +4850,7 @@ function moduleUnifiedNav(sections, state = {}) {
       <ul class="mquick-nav-list munified-groups">
         ${rowsHtml}
       </ul>
+      <div class="munified-lock-msg" data-mnav-lock-msg role="status" aria-live="polite"></div>
     </nav>
     ${supplementalSections.length ? `<div class="munified-supplemental" id="munified-supplemental-panel" hidden>
       <div class="munified-supplemental-row">
@@ -7274,7 +7310,7 @@ function wireCommon() {
   document.querySelectorAll('[data-mnav-chip-scroll]').forEach((chip) => {
     chip.addEventListener('click', (e) => {
       e.preventDefault();
-      if (chip.getAttribute('aria-disabled') === 'true') return;
+      if (chip.getAttribute('aria-disabled') === 'true') { showModuleNavLock(chip); return; }
       const target = document.getElementById(chip.dataset.mnavChipScroll);
       revealCourseCardTarget(target);
       target?.scrollIntoView({ behavior: 'smooth' });
@@ -7460,6 +7496,39 @@ function wireStudentMessages() {
   });
 }
 
+// Explain a blocked click in the rail's shared aria-live region (created
+// lazily if a renderer didn't emit one).  Text comes from the row's
+// data-mnav-locked-reason, set from the same lock value that disabled it.
+function showModuleNavLock(el) {
+  const reason = el.dataset.mnavLockedReason || 'the current item';
+  const targetId = el.dataset.mnavLockedTarget;
+  const host = el.closest('[data-mquick-nav-rail]') || document.body;
+  let box = host.querySelector('[data-mnav-lock-msg]');
+  if (!box) {
+    box = document.createElement('div');
+    box.className = 'munified-lock-msg';
+    box.setAttribute('data-mnav-lock-msg', '');
+    box.setAttribute('role', 'status');
+    box.setAttribute('aria-live', 'polite');
+    host.appendChild(box);
+  }
+  const text = document.createElement('span');
+  text.textContent = `Complete ${reason} first.`;
+  box.replaceChildren(text);
+  if (targetId) {
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'munified-lock-go';
+    go.textContent = `Go to ${reason}`;
+    go.addEventListener('click', () => {
+      const target = document.getElementById(targetId);
+      revealCourseCardTarget(target);
+      target?.scrollIntoView({ behavior: 'smooth' });
+    });
+    box.appendChild(go);
+  }
+}
+
 function wireModuleQuickNavRail() {
   wireModuleAccordionCards();
   // Toggle the drawer on mobile and handle lesson opening
@@ -7485,8 +7554,8 @@ function wireModuleQuickNavRail() {
       e.preventDefault();
       // Locked items are visually grayed out, but the link itself still
       // worked underneath — a student could jump straight to lesson 9
-      // without opening 1-8. Stop here rather than opening/scrolling.
-      if (link.getAttribute('aria-disabled') === 'true') return;
+      // without opening 1-8. Stop here rather than opening/scrolling, but say why.
+      if (link.getAttribute('aria-disabled') === 'true') { showModuleNavLock(link); return; }
       const scrollId = link.dataset.mquickNavScroll;
       const target = document.getElementById(scrollId);
       revealCourseCardTarget(target);

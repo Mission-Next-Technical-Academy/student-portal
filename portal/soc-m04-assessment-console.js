@@ -75,7 +75,7 @@ const SocM04AssessmentConsole = (() => {
     return SocConsoleCore.renderShell({
       shellClass: 'm04-shared-console',
       ariaLabel: 'Module 04 detection assessment console',
-      eyebrow: 'MISSION NEXT ENVIRONMENT · ASSESSMENT',
+      eyebrow: 'MISSION NEXT ENVIRONMENT · PRACTICE IT',
       title: 'DETECTION & INTELLIGENCE',
       contextHtml: `<span class="m04-console-context" data-feature-flags="${config.capabilities.join(' ')}">${message}</span>`,
       navigationHtml: nav,

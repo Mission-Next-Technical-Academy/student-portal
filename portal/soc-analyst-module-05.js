@@ -562,6 +562,7 @@ const MODULE_FIVE_LESSON_LOOPS = MODULE_FIVE_LESSONS.map((lesson, index) => ({
 
 let moduleFiveState = null;
 let moduleFiveUser = null;
+let moduleFiveLearnItViewed = null;
 let moduleFiveReviewMode = false;
 let moduleFiveQuizState = null;
 let moduleFiveProveItShowMissing = false;
@@ -571,8 +572,10 @@ let moduleFiveQuizForceRetake = false;
 
 function moduleFiveLoad(user) {
   if (moduleFiveUser?.email !== user?.email) moduleFiveQuizForceRetake = false;
+  if (moduleFiveUser?.email !== user?.email) moduleFiveLearnItViewed = null;
   moduleFiveUser = user;
   moduleFiveState = LabRuntime.loadCaseState(MODULE_FIVE_LAB_ID, 'soc-05', user, MODULE_FIVE_DEFAULT_STATE);
+  moduleFiveState.learnItStep = Number.isInteger(moduleFiveState.learnItStep) ? Math.max(0, Math.min(moduleFiveState.learnItStep, LearnItDecks['soc-05'].length)) : 0;
   if (!Array.isArray(moduleFiveState.feedback)) moduleFiveState.feedback = [];
   if (!Array.isArray(moduleFiveState.flags)) moduleFiveState.flags = [];
   if (!moduleFiveState.lessonWork || typeof moduleFiveState.lessonWork !== 'object') moduleFiveState.lessonWork = {};
@@ -656,9 +659,8 @@ function moduleFiveGetSections() {
   // lab rebuild, or by admin override) read complete instead of empty.
   const verified = moduleFiveUser?.remoteVerifiedModuleProgress?.['soc-05'] === true;
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm05-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleFiveQuizState?.passed, scrollId: 'm05-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleFiveGuidedChecks().every((check) => check[2]), scrollId: 'm05-guided-lab' },
+    { id: 'lecture', title: 'Learn It', type: 'lecture', isComplete: true, scrollId: 'm05-lecture' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || (moduleFiveGuidedState.caseRecord.submitted || moduleFiveGuidedState.legacyComplete), scrollId: 'm05-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleFiveState.completed, scrollId: 'm05-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm05-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm05-sources', gated: false, supplemental: true },
@@ -792,7 +794,7 @@ function moduleFiveReview() {
       <li><strong>Scope and proportionality:</strong> Confine your conclusion to what the data shows. One endpoint is confirmed; other hosts are not proven. Recommend containment (isolate, preserve, escalate) not disruption.</li>
     </ul>
     <h3>Before you continue</h3>
-    <p>You should now be able to read a process tree, build a timeline, evaluate a file using multiple signals, and distinguish observable facts from assumptions. In the field, you will inherit alerts, inspect the telemetry, identify the chain, and decide whether the scope is single-endpoint or wider. Remember: the sensor prevents individual files; you prevent incidents by reading the chain correctly and handing off to responders with confidence.</p>
+    <p>Read process relationships and timelines, then combine signer status, prevalence, reputation, and behavior to assess a file. Keep conclusions within the observed scope and hand off evidence with a proportionate response recommendation.</p>
   </section>`;
 }
 
@@ -811,8 +813,8 @@ function moduleFiveLessonGrid() {
 
 
 function moduleFiveGuidedLabPanel() {
-  const complete = moduleFiveGuidedChecks().every((check) => check[2]);
-  return `${moduleFiveGuidedGuide()}<div class="m03e-panel" id="m05-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE EDR-5204 · ENDPOINT ALERT · PRACTICE IT</p><p>A script attached to a quarterly forecast email ran on ws-practice-41. Reconstruct the process chain, assess persistence and sensor coverage, preserve linked evidence, and choose a proportionate response. Work independently; the guide checks recorded actions.</p></div><div class="m03e-console-host" id="m03e-console-m05-guided">${moduleThreeConsoleHtml('m05-guided')}</div></div><p class="m05-guided-status" role="status">${complete ? 'Guided Lab complete: all investigation checks are recorded.' : 'Complete the investigation in the console; progress is saved automatically.'}</p>`;
+  const complete = moduleFiveGuidedState.caseRecord.submitted === true;
+  return `${moduleFiveGuidedGuide()}<div class="m03e-panel" id="m05-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE EDR-5204 · ENDPOINT ALERT · PRACTICE IT</p><p>A script attached to a quarterly forecast email ran on ws-practice-41. Reconstruct the process chain, assess persistence and sensor coverage, preserve linked evidence, and choose a proportionate response. Correlate the evidence, record your findings, and submit the ITSM ticket to complete this practice lab.</p></div><div class="m03e-console-host" id="m03e-console-m05-guided">${moduleThreeConsoleHtml('m05-guided')}</div></div><p class="m05-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Complete the investigation in the console; progress is saved automatically.'}</p>`;
 }
 
 const MODULE_FIVE_OPTIONAL_LABS = [
@@ -959,10 +961,12 @@ function moduleFiveGuidedLoad(user) {
   const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'EDR-5204', scenarioId: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
   moduleFiveGuidedState = LabRuntime.loadCaseState(MODULE_FIVE_GUIDED_LAB_ID, 'soc-05', user, defaults);
   moduleFiveGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleFiveGuidedState.caseRecord || {}) };
+  if (moduleFiveGuidedState.guideStep == null) moduleFiveGuidedState.guideStep = 0;
   moduleFiveCanonicalCaseEntities(moduleFiveGuidedState.caseRecord, MODULE_FIVE_GUIDED_FIXTURE);
   moduleFiveGuidedState.tools ||= {};
   moduleFiveGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleFiveGuidedState.tools.m04 }, MODULE_FIVE_GUIDED_M04_FIXTURE).assessment;
   moduleFiveGuidedState.tools.m05 = SocM05AssessmentState.normalize(moduleFiveGuidedState.tools.m05, MODULE_FIVE_GUIDED_M05_FIXTURE);
+  if (moduleFiveGuidedState.legacyComplete == null) moduleFiveGuidedState.legacyComplete = moduleFiveGuidedChecks().every((check) => check[2]);
 }
 function moduleFiveGuidedSave() { if (moduleFiveGuidedUser && moduleFiveGuidedState) LabRuntime.saveCaseState(MODULE_FIVE_GUIDED_LAB_ID, 'soc-05', moduleFiveGuidedUser, moduleFiveGuidedState); }
 function moduleFiveGuidedM04Tools() { return moduleFiveGuidedState.tools.m04; }
@@ -978,10 +982,63 @@ function moduleFiveGuidedChecks() {
     ['handoff', 'Record a proportionate endpoint response request or EDR handoff.', Boolean(tools.approvalRequests?.length || tools.edrHandoffs?.length)],
   ];
 }
-function moduleFiveGuidedGuide() {
-  const checks = moduleFiveGuidedChecks();
-  return `<details class="m05-console-guide" ${moduleFiveGuidedState.guideOpen ? 'open' : ''}><summary>Console Guide · ${checks.filter((check) => check[2]).length}/${checks.length} checks</summary><ol>${checks.map((check) => `<li>${check[1]} <span>${check[2] ? 'Done' : 'Pending'}</span></li>`).join('')}</ol><details><summary>Optional hint</summary><p>A device selection opens its profile; correlate the file reputation, Run-key record, and execution control result before requesting action.</p></details></details>`;
+function moduleFiveGuidedSteps() {
+  return [
+    { title: 'Read the ITSM ticket', body: 'Open the ITSM tab and review the fields this investigation needs you to resolve.', lookFor: 'The affected user and device, severity, disposition, escalation, findings, and work notes.', lab: 'Ticket fields: scope and handoff', tab: 'case', target: '.m01-ticket-case' },
+    { title: 'Start from the lead', body: 'Treat the alert or seed observation as a lead to test, not a verdict.', lookFor: 'What the initial signal establishes and what it leaves open.', lab: 'Ticket field: Findings', tab: 'alerts', target: '[data-m03e-select="m05-guided:alert:ALT-5204"]' },
+    { title: 'Correlate the records', body: 'Follow the related records across the console and compare the suspicious activity with its baseline.', lookFor: 'Which source identifies the activity and which records corroborate timing, scope, or context.', lab: 'Ticket fields: Affected User, Affected Device, Findings', tab: 'timeline', target: '.m03e-timeline' },
+    { title: 'Separate source from contributing evidence', body: 'A correlated record can strengthen the timeline even when it is not the originating source.', lookFor: 'Whether each record shows where activity began or only confirms that it happened.', lab: 'Ticket field: Findings', tab: 'sources', target: '[data-m03e-select="m05-guided:source:DeviceProcessEvents"]' },
+    { title: 'Scope and decide', body: 'Choose a severity, disposition, and escalation that match the evidence and confirmed scope.', lookFor: 'The difference between confirmed impact and unresolved questions.', lab: 'Ticket fields: Severity, Disposition, Escalation, Department', tab: 'case', target: '.m01-ticket-grid' },
+    { title: 'Write the handoff and submit', body: 'Summarize the evidence, scope, uncertainty, and next action in work notes, then submit the ITSM ticket.', lookFor: 'A concise record another analyst can act on.', lab: 'Ticket field: Work Notes · Submit completes this Guided Lab', tab: 'case', target: '.m01-ticket-notes' },
+  ];
 }
+function moduleFiveGuidedDebrief() {
+  const cr = moduleFiveGuidedState.caseRecord;
+  const fields = [['Affected User', cr.affectedUser], ['Affected Device', cr.affectedDevice], ['Severity', cr.severity], ['Disposition', cr.disposition], ['Escalation', cr.escalation], ['Department', cr.escalateTo], ['Findings', Object.keys(cr.findings || {}).length], ['Work Notes', cr.notes]].map(([name, value]) => ({ name, status: !value ? 'missed' : name === 'Findings' || name === 'Affected Device' ? 'contributing' : 'captured', note: !value ? 'Not recorded in the submitted ticket.' : name === 'Findings' || name === 'Affected Device' ? 'Contributes context to the case timeline.' : 'Recorded in the submitted ticket.' }));
+  return guidedLabDebrief({ story: 'The endpoint timeline links the email-delivered script to execution and persistence on the practice workstation. File reputation, the Run-key record, and sensor outcome contribute to the incident story; the ticket records the scope and proportionate endpoint response.', fields, handoff: 'Include the primary evidence, corroborating records, confirmed scope, unresolved questions, and a proportionate next action.' });
+}
+function moduleFiveGuidedGuide() {
+  const item = moduleFiveGuidedSteps()[Math.min(moduleFiveGuidedState.guideStep, moduleFiveGuidedSteps().length - 1)] || {};
+  const consoleState = m03eState('m05-guided');
+  const tabLabel = item.tab === 'case' ? 'ITSM Ticket' : item.tab || '';
+  const moveTab = !moduleFiveGuidedState.caseRecord.submitted && item.tab && consoleState.tab !== item.tab;
+  return `${guidedLabGuide('m05g', moduleFiveGuidedSteps(), { step: moduleFiveGuidedState.guideStep, docked: moduleFiveGuidedState.caseRecord.submitted ? moduleFiveGuidedState.guideCollapsed !== false : (moduleFiveGuidedState.guideCollapsed === true || moduleFiveGuidedState.guideOpen === false), prefix: 'm05g', submitted: moduleFiveGuidedState.caseRecord.submitted, debriefHtml: moduleFiveGuidedDebrief() })}
+    ${moveTab || moduleFiveGuidedState.caseRecord.submitted ? `<div class="m03e-guide-controls" role="status">${moveTab ? `<button type="button" class="m03e-guide-go" data-m05g-guide-tab="${esc(item.tab)}">Go to ${esc(tabLabel)}</button>` : ''}${moduleFiveGuidedState.caseRecord.submitted ? '<span>Ticket submitted — practice complete</span>' : ''}</div>` : ''}`;
+}
+function moduleFiveGuidedRestart() {
+  const cr = moduleFiveGuidedState.caseRecord;
+  moduleFiveGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleFiveGuidedState.guideStep = 0;
+  moduleFiveGuidedState.guideCollapsed = false;
+  moduleFiveGuidedState.guideOpen = true;
+  moduleFiveGuidedSave();
+  moduleFiveRenderGuided();
+}
+function moduleFivePositionGuidedGuide(root, host) {
+  const tip = root?.querySelector('#m05g-learn-tip');
+  const workspace = host?.querySelector('.m03e-workspace');
+  if (!tip || !workspace) return;
+  if (moduleFiveGuidedState.caseRecord.submitted || moduleFiveGuidedState.guideCollapsed === true || moduleFiveGuidedState.guideOpen === false) {
+    host.querySelector('header')?.append(tip);
+    consoleGuidePosition(tip, workspace, null);
+  } else {
+    workspace.prepend(tip);
+    consoleGuidePosition(tip, workspace, null);
+  }
+}
+M03E_AFTER_RENDER['m05-guided'] = function () {
+  const root = document.getElementById('m05-guided-lab-dynamic');
+  const host = document.getElementById('m03e-console-m05-guided');
+  if (!root || !host) return;
+  if (!root.querySelector('#m05g-learn-tip')) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = moduleFiveGuidedGuide();
+    const fresh = tpl.content.querySelector('#m05g-learn-tip');
+    if (fresh) root.prepend(fresh);
+  }
+  moduleFivePositionGuidedGuide(root, host);
+};
+
 const MODULE_FIVE_GUIDED_CONSOLE = SocConsoleTools.mount('m05-guided', {
   data: MODULE_FIVE_GUIDED_CONSOLE_DATA, stateRoot: () => moduleFiveGuidedState, save: moduleFiveGuidedSave,
   title: 'SIEM & ENDPOINT INVESTIGATION · PRACTICE', ariaLabel: 'Module 05 guided endpoint console', idPrefix: 'guided',
@@ -998,7 +1055,10 @@ const MODULE_FIVE_GUIDED_CONSOLE = SocConsoleTools.mount('m05-guided', {
     { id: 'm04', ctx: { assessment: moduleFiveGuidedM04Tools, fixture: MODULE_FIVE_GUIDED_M04_FIXTURE, save: moduleFiveGuidedSave, rerender: () => moduleFiveRenderGuided(), console: () => m03eState('m05-guided') } },
     { id: 'm05', ctx: { fixture: MODULE_FIVE_GUIDED_FIXTURE, load: moduleFiveGuidedM05Load, store: moduleFiveGuidedM05Store, save: moduleFiveGuidedSave, rerender: () => moduleFiveRenderGuided(), console: () => m03eState('m05-guided') } },
   ],
-  caseView: () => caseRecordPane(moduleFiveGuidedState.caseRecord, { caseId: 'EDR-5204', ticketId: 'INC-5204', ticketType: 'Endpoint malware investigation · Endpoint Malware Triage', userOptions: [{ id: 'r.patel', text: 'r.patel' }, { id: 's.kim', text: 's.kim' }], deviceOptions: MODULE_FIVE_GUIDED_FIXTURE.scenario.devices.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'endpoint-malware-triage', text: 'Endpoint Malware Triage' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm05-guided-case', saveAttr: 'data-m05-guided-save-case', submitAttr: 'data-m05-guided-submit-case', panelId: 'm05-guided-case-panel', notesPlaceholder: 'Link process ancestry, file reputation, persistence, sensor outcome, and a bounded response recommendation.' }),
+    caseView: () => {
+      const html = caseRecordPane(moduleFiveGuidedState.caseRecord, { caseId: 'EDR-5204', ticketId: 'INC-5204', ticketType: 'Endpoint malware investigation · Endpoint Malware Triage', userOptions: [{ id: 'r.patel', text: 'r.patel' }, { id: 's.kim', text: 's.kim' }], deviceOptions: MODULE_FIVE_GUIDED_FIXTURE.scenario.devices.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'endpoint-malware-triage', text: 'Endpoint Malware Triage' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm05-guided-case', saveAttr: 'data-m05-guided-save-case', submitAttr: 'data-m05-guided-submit-case', panelId: 'm05-guided-case-panel', notesPlaceholder: 'Link process ancestry, file reputation, persistence, sensor outcome, and a bounded response recommendation.' });
+      return moduleFiveGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m05-guided-restart>Restart Guided Lab</button>' : html;
+    },
 });
 const MODULE_FIVE_CONSOLE_DATA = (function () {
   const s = SocM05AssessmentData.scenario;
@@ -1183,16 +1243,19 @@ function moduleFiveLecture() {
   </section>`;
 }
 
+function moduleFiveLearnItMarkup() {
+  return LearnItCards.render({ deck: LearnItDecks['soc-05'], step: moduleFiveState.learnItStep || 0, done: moduleFiveState.learnItStep >= LearnItDecks['soc-05'].length, viewed: moduleFiveLearnItViewed, prefix: 'm05', id: 'm05-learn-it', headingId: 'm05-learn-it-title', heading: 'Learn the key ideas', intro: 'Move through the ideas you will use in the lab.', readyText: 'Build the mental model one idea at a time.', label: 'LEARN IT', countLabel: 'ideas', readyCountLabel: `${LearnItDecks['soc-05'].length} QUICK IDEAS`, nextActionLabel: 'NEXT', finalActionLabel: 'FINISH' });
+}
+
 function viewModuleFive(user, program) {
   moduleFiveLoad(user);
   moduleFiveGuidedLoad(user);
   const complete = moduleFiveState.completed === true;
   const module = program.modules['soc-05'];
   const sections = moduleFiveGetSections();
-  const lectureOpen = moduleFiveReviewMode || !sections[0].isComplete;
-  const quizOpen = moduleFiveReviewMode || (moduleFiveQuizState && !moduleFiveQuizState.passed);
-  const guidedLabOpen = moduleFiveReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleFiveReviewMode || !sections[3].isComplete;
+  const lectureOpen = moduleFiveReviewMode || !sections[0].isComplete || moduleFiveState.learnItStep < LearnItDecks['soc-05'].length;
+  const guidedLabOpen = moduleFiveReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleFiveReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleFiveReviewMode;
   const quickNavItems = moduleFiveGetQuickNavItems();
 
@@ -1201,27 +1264,22 @@ function viewModuleFive(user, program) {
     <div class="mquick-nav-layout">
       ${moduleProgressShell(sections, { reviewMode: moduleFiveReviewMode })}
       <main class="m05-main mf-frame">
-      <section class="m05-hero mf-hero" aria-labelledby="m05-title"><div><p class="m05-kicker mf-kicker">Module 05 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p class="mf-lede">Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p></div><dl class="mf-stats"><div><dt>Guided Lab</dt><dd>${moduleFiveGuidedChecks().every((check) => check[2]) ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m05-status">${complete ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      <section class="m05-hero mf-hero" aria-labelledby="m05-title"><div><p class="m05-kicker mf-kicker">Module 05 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p class="mf-lede">Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p></div><dl class="mf-stats"><div><dt>Guided Lab</dt><dd>${moduleFiveGuidedState.caseRecord.submitted || moduleFiveGuidedState.legacyComplete ? 'Complete' : moduleFiveGuidedState.caseRecord.actionHistory.length ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m05-status">${complete ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m05-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">1</span><div><p class="m05-kicker mf-kicker">Lecture</p><h2 id="m05-lecture">Endpoint investigation foundations</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
-        <div class="m05-section-body mf-section-body">${moduleFiveLecture()}${moduleFiveVideoScript()}${moduleFiveLessonGrid()}</div>
-      </details>
-
-      <details class="m05-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">2</span><div><p class="m05-kicker mf-kicker">Knowledge Check</p><h2 id="m05-knowledge-check">Test your understanding of endpoint investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
-        <div class="m05-section-body mf-section-body">${moduleFiveQuizPanel()}</div>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">1</span><div><p class="m05-kicker mf-kicker">Learn It</p><h2 id="m05-lecture">Endpoint investigation foundations</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body"><div id="m05-learn-it-root">${moduleFiveLearnItMarkup()}</div><details class="m05-deep-dive mf-deep-dive"><summary>Deep Dive · reference notes and practice</summary>${moduleFiveLecture()}${moduleFiveVideoScript()}${moduleFiveLessonGrid()}</details></div>
       </details>
 
       <details class="m05-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">3</span><div><p class="m05-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m05-guided-lab">Malware analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">2</span><div><p class="m05-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m05-guided-lab">Malware analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m05-section-body mf-section-body">
           ${moduleFiveAncestryReference()}<div id="m05-guided-lab-dynamic">${moduleFiveGuidedLabPanel()}</div>
         </div>
       </details>
 
       <details class="m05-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">4</span><div><p class="m05-kicker mf-kicker">Prove It · Assessment Labs</p><h2 id="m05-assessment-lab">Endpoint alert investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">3</span><div><p class="m05-kicker mf-kicker">Prove It · Assessment Labs</p><h2 id="m05-assessment-lab">Endpoint alert investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m05-section-body mf-section-body">
           <div id="m05-assessment-lab-dynamic">${moduleFiveAssessmentLabPanel()}</div>
         </div>
@@ -1359,13 +1417,7 @@ function wireModuleFiveGuidedLab() {
   if (!root || !moduleFiveGuidedState) return;
   const host = root.querySelector('#m03e-console-m05-guided');
   if (host) { MODULE_FIVE_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m05-guided'); }
-  if (!root.dataset.m05GuidedObserver) {
-    root.dataset.m05GuidedObserver = 'true';
-    SocConsoleTools.watchGuide(root, { selector: '.m05-console-guide', render: moduleFiveGuidedGuide, update: () => {
-      const complete = moduleFiveGuidedChecks().every((check) => check[2]);
-      SocConsoleTools.setText(root.querySelector('.m05-guided-status'), complete ? 'Guided Lab complete: all investigation checks are recorded.' : 'Complete the investigation in the console; progress is saved automatically.');
-    } });
-  }
+  moduleFivePositionGuidedGuide(root, host);
   root.addEventListener('input', (event) => {
     if (event.target.matches('#guided-m05-guided-case [name="notes"]')) moduleFiveGuidedState.caseRecord.notes = event.target.value;
   });
@@ -1377,7 +1429,11 @@ function wireModuleFiveGuidedLab() {
     moduleFiveGuidedSave();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m05-guided-submit-case]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m05-guided-restart]')) { event.preventDefault(); moduleFiveGuidedRestart(); return; }
+    if (event.target.closest('[data-m05g-guide-next]')) { event.preventDefault(); if (moduleFiveGuidedState.caseRecord.submitted) { moduleFiveGuidedRestart(); return; } moduleFiveGuidedState.guideStep = (moduleFiveGuidedState.guideStep + 1) % moduleFiveGuidedSteps().length; { const nextTab = moduleFiveGuidedSteps()[moduleFiveGuidedState.guideStep]?.tab; if (nextTab) { m03eState('m05-guided').tab = nextTab; m03eSave('m05-guided'); } } moduleFiveGuidedSave(); moduleFiveRenderGuided(); return; }
+    if (event.target.closest('[data-m05g-guide-tab]')) { event.preventDefault(); const tab = event.target.closest('[data-m05g-guide-tab]').dataset.m05gGuideTab; m03eState('m05-guided').tab = tab; m03eSave('m05-guided'); m03eRender('m05-guided'); return; }
+    if (event.target.closest('[data-m05g-guide-collapse]')) { event.preventDefault(); moduleFiveGuidedState.guideCollapsed = !moduleFiveGuidedState.guideCollapsed; moduleFiveGuidedSave(); moduleFiveRenderGuided(); return; }
+    if (event.target.closest('[data-m05-guided-submit-case]')) { event.preventDefault(); if (!moduleFiveGuidedState.caseRecord.submitted) { moduleFiveGuidedState.caseRecord.submitted = true; moduleFiveGuidedState.guideCollapsed = true; moduleFiveGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleFiveGuidedState.caseRecord.actionHistory.push({ action: 'Submitted practice ticket', at: moduleFiveGuidedState.caseRecord.submittedAt }); moduleFiveGuidedSave(); moduleFiveRenderGuided(); } return; }
     if (event.target.closest('[data-m05-guided-save-case]')) {
       event.preventDefault();
       moduleFiveGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
@@ -1385,9 +1441,7 @@ function wireModuleFiveGuidedLab() {
       m03eRender('m05-guided');
       return;
     }
-    if (event.target.closest('.m05-console-guide > summary')) {
-      requestAnimationFrame(() => { moduleFiveGuidedState.guideOpen = Boolean(root.querySelector('.m05-console-guide')?.open); moduleFiveGuidedSave(); });
-    }
+
   });
 }
 
@@ -1397,6 +1451,7 @@ function moduleFiveRenderGuided() {
   root.innerHTML = moduleFiveGuidedLabPanel();
   const host = root.querySelector('#m03e-console-m05-guided');
   if (host) { MODULE_FIVE_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m05-guided'); }
+  moduleFivePositionGuidedGuide(root, host);
 }
 
 function wireModuleFiveAssessmentLabGating() {}
@@ -1509,6 +1564,18 @@ function wireModuleFiveAssessmentLab() {
 }
 
 function wireModuleFive() {
+  const learnRoot = document.querySelector('.m05-shell');
+  if (learnRoot) LearnItCards.wire(learnRoot, { prefix: 'm05', onStep: (step, action) => {
+    moduleFiveState.learnItStep = step;
+    moduleFiveLearnItViewed = null;
+    moduleFiveSave();
+    const target = document.getElementById('m05-learn-it-root');
+    if (target) target.innerHTML = moduleFiveLearnItMarkup();
+  }, onView: (index) => {
+    moduleFiveLearnItViewed = index;
+    const target = document.getElementById('m05-learn-it-root');
+    if (target) target.innerHTML = moduleFiveLearnItMarkup();
+  } });
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   wireReviewToggle({ button: reviewToggle, sectionSelector: '.m05-section-collapsible', getReviewMode: () => moduleFiveReviewMode, setReviewMode: (value) => { moduleFiveReviewMode = value; }, enabledLabel: 'Close review', disabledLabel: 'Review module', enabledIcon: 'ri-close-line', disabledIcon: 'ri-file-list-line' });
   wireModuleFiveQuiz();

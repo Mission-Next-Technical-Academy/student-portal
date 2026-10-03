@@ -310,9 +310,6 @@
 
 .m08-guided-case { display: grid; gap: 16px; }
 .m08-guided-case .m08-panel-instruction { margin: 0; color: #475569; }
-.m08-practice-guide, .m08-guided-ticket { border: 1px solid #dbe3ed; border-radius: 12px; background: #fff; padding: 16px; }
-.m08-practice-guide summary { cursor: pointer; font-weight: 700; }
-.m08-practice-guide ol { margin-bottom: 0; padding-left: 22px; color: #475569; }
 .m08-guided-ticket { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .m08-guided-ticket h3, .m08-guided-ticket p { grid-column: 1 / -1; margin: 0; }
 .m08-guided-ticket label { display: grid; gap: 5px; font-size: 13px; font-weight: 650; }

@@ -14,6 +14,7 @@ const SocConsoleCore = (() => {
     const eyebrow = escapeHtml(config.eyebrow || 'MISSION NEXT ENVIRONMENT');
     const title = escapeHtml(config.title || 'SOC INVESTIGATION');
     const context = config.contextHtml || '';
+    const guideHeader = config.guideHeaderHtml || '';
     const nav = config.navigationHtml || '';
     const workspaceClassName = escapeHtml(config.workspaceClassName || 'soc-console-workspace');
     const workspaceClass = escapeHtml(config.workspaceClass || '');
@@ -22,7 +23,7 @@ const SocConsoleCore = (() => {
     const view = config.viewHtml || '';
     const drawer = config.drawerHtml || '';
 
-    return `<section class="${shellClass}" aria-label="${label}"><header><div><p>${eyebrow}</p><h2>${title}</h2></div>${context}</header>
+    return `<section class="${shellClass}" aria-label="${label}"><header><div><p>${eyebrow}</p><h2>${title}</h2></div>${context}${guideHeader}</header>
       ${nav}
       <div class="${workspaceClassName}${workspaceClass ? ` ${workspaceClass}` : ''}">${guide}<div class="${viewClassName}">${view}</div>${drawer}</div></section>`;
   }

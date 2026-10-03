@@ -7,103 +7,6 @@ const MODULE_THREE_FLAG = 'M03-SIEM-CORRELATION-COMPLETE';
 const MODULE_THREE_CATALOG_LAB_KEY = 'lab-siem-triage';
 const MODULE_THREE_PASSING_SCORE = 70;
 
-const MODULE_THREE_INTRO_SLIDES = [
-  {
-    eyebrow: 'Slide 1',
-    title: 'Logs are everywhere',
-    body: [
-      'In Information Technology, Operational Technology, and the many devices around us, logs can be created everywhere.',
-      'Everything is connected in one way or another.',
-      'And when something happens, many of those systems can record it.',
-    ],
-    visual: 'logs',
-  },
-  {
-    eyebrow: 'Slide 2',
-    title: 'The world is connected',
-    body: [
-      'This map shows the undersea cables that connect countries around the world.',
-      'A huge amount of internet traffic moves through these cables every day.',
-    ],
-    visual: 'cables',
-  },
-  {
-    eyebrow: 'Slide 3',
-    title: 'How devices communicate',
-    body: [
-      'This is only one way our devices communicate with each other.',
-      'Data might travel through a copper cable pulsing electricity.',
-      'It might travel as rapidly flashing light through fiber-optic cable.',
-      'Or it might travel through frequencies moving through the air to and from our mobile devices.',
-    ],
-    visual: 'signals',
-  },
-  {
-    eyebrow: 'Slide 4',
-    title: 'The OSI model',
-    body: [
-      'This is why, starting in 1977, the OSI Model was created.',
-      'OSI means Open Systems Interconnection.',
-      'It gave us a simple way to understand how technology communicates across seven layers.',
-      'Charles Bachman’s work at Honeywell helped provide the original seven-layer concept.',
-      'Almost every technology you use lives in one or more of these layers.',
-    ],
-    visual: 'osi',
-  },
-  {
-    eyebrow: 'Slide 5',
-    title: 'Physical',
-    body: ['Physical: An Ethernet cable.', 'It is the actual thing carrying the signal from one device to another.'],
-    visual: 'physical',
-  },
-  {
-    eyebrow: 'Slide 6',
-    title: 'Data Link',
-    body: ['Data Link: Your home Wi-Fi router recognizing your phone.', 'It knows your phone is one specific device on the local network.'],
-    visual: 'datalink',
-  },
-  {
-    eyebrow: 'Slide 7',
-    title: 'Network',
-    body: ['Network: Google Maps for network traffic.', 'Routers use IP addresses to figure out where data needs to go.'],
-    visual: 'network',
-  },
-  {
-    eyebrow: 'Slide 8',
-    title: 'Transport',
-    body: ['Transport: A delivery service checking every package arrived.', 'TCP helps make sure data shows up completely and in the right order.'],
-    visual: 'transport',
-  },
-  {
-    eyebrow: 'Slide 9',
-    title: 'Session',
-    body: ['Session: Staying signed in to Netflix.', 'Your session stays active while you move from one episode to the next.'],
-    visual: 'session',
-  },
-  {
-    eyebrow: 'Slide 10',
-    title: 'Presentation',
-    body: ['Presentation: A translator between two people.', 'It changes information into a format both sides understand, like turning encrypted data back into readable information.'],
-    visual: 'presentation',
-  },
-  {
-    eyebrow: 'Slide 11',
-    title: 'Application',
-    body: ['Application: Opening Gmail and sending an email.', 'This is the layer where you directly use the technology.'],
-    visual: 'application',
-  },
-  {
-    eyebrow: 'Slide 12',
-    title: 'Why this matters to a SOC analyst',
-    body: [
-      'Logs can be created at every OSI layer.',
-      'They help us understand what happened, where it happened, and why a piece of hardware or software malfunctioned.',
-      'That gives technicians, and SOC Analysts like you, the evidence needed to investigate and fix the problem.',
-    ],
-    visual: 'soc',
-  },
-];
-
 const MODULE_THREE_QUIZ_BANKS = [
   {
     conceptId: 'log-normalization',
@@ -455,7 +358,7 @@ const MODULE_THREE_DEFAULT_STATE = {
   lastSubmittedAt: '',
   notes: '',
   lessonWork: {},
-  introSlidesComplete: false,
+  learnItStep: 0,
   normalizationLab: { mappings: {}, ingested: false, falseCorrelationSeen: false },
   labProgress: {},
   guidedGateMessage: '',
@@ -489,6 +392,7 @@ const MODULE_THREE_LESSON_LOOPS = [
 ];
 
 let moduleThreeState = null;
+let moduleThreeLearnView = null;
 let moduleThreeUser = null;
 let moduleThreeReviewMode = false;
 let moduleThreeQuizState = null;
@@ -496,23 +400,8 @@ let moduleThreeQuizState = null;
 // account already records as passed (see moduleThreeQuizVerifiedElsewhere()).
 let moduleThreeQuizForceRetake = false;
 
-function moduleThreeHasPriorActivity(state, user) {
-  if (!state || typeof state !== 'object') return false;
-  if (state.completed || state.practiceComplete || state.importedLabComplete) return true;
-  if ((state.attempts || 0) > 0 || (state.bestScore || 0) > 0 || (state.score || 0) > 0) return true;
-  if ((state.notes || '').trim() || (state.practiceNotes || '').trim()) return true;
-  if (state.console && Object.keys(state.console).length > 0) return true;
-  if (state.lessonWork && Object.keys(state.lessonWork).length > 0) return true;
-  if (state.labProgress && Object.keys(state.labProgress).length > 0) return true;
-  if (state.normalizationLab?.ingested || Object.keys(state.normalizationLab?.mappings || {}).length > 0) return true;
-  if (user?.remoteModuleProgress?.['soc-03'] && user.remoteModuleProgress['soc-03'] !== 'not_started') return true;
-  if (user?.remoteVerifiedModuleProgress?.['soc-03'] === true) return true;
-  if (user?.remoteModuleDetail?.['soc-03'] && Object.keys(user.remoteModuleDetail['soc-03']).length > 0) return true;
-  return false;
-}
-
 function moduleThreeLoad(user) {
-  if (moduleThreeUser?.email !== user?.email) moduleThreeQuizForceRetake = false;
+  if (moduleThreeUser?.email !== user?.email) { moduleThreeQuizForceRetake = false; moduleThreeLearnView = null; }
   moduleThreeUser = user;
   moduleThreeState = LabRuntime.loadCaseState(MODULE_THREE_LAB_ID, 'soc-03', user, MODULE_THREE_DEFAULT_STATE);
   try {
@@ -524,16 +413,16 @@ function moduleThreeLoad(user) {
   if (!Array.isArray(moduleThreeState.feedback)) moduleThreeState.feedback = [];
   if (!Array.isArray(moduleThreeState.flags)) moduleThreeState.flags = [];
   if (!moduleThreeState.lessonWork || typeof moduleThreeState.lessonWork !== 'object') moduleThreeState.lessonWork = {};
+  if (!Number.isInteger(moduleThreeState.learnItStep) || moduleThreeState.learnItStep < 0) moduleThreeState.learnItStep = 0;
   moduleThreeState.normalizationLab = { mappings: {}, ingested: false, falseCorrelationSeen: false, ...(moduleThreeState.normalizationLab || {}) };
-  moduleThreeState.introSlidesComplete = moduleThreeState.introSlidesComplete === true || moduleThreeHasPriorActivity(moduleThreeState, user);
   if (typeof moduleThreeState.notes !== 'string') moduleThreeState.notes = '';
   if (typeof moduleThreeState.practiceNotes !== 'string') moduleThreeState.practiceNotes = '';
   moduleThreeState.labProgress = moduleThreeState.labProgress && typeof moduleThreeState.labProgress === 'object' ? moduleThreeState.labProgress : {};
   if (typeof moduleThreeState.guidedGateMessage !== 'string') moduleThreeState.guidedGateMessage = '';
   if (typeof moduleThreeState.assessmentGateMessage !== 'string') moduleThreeState.assessmentGateMessage = '';
-  // Guided Lab completion now comes from the console guide. Earlier manual
-  // "Mark Guided Lab complete" records are kept, never revoked.
-  if (moduleThreeState.console?.practice?.guideStep >= M03E_GUIDE_STEPS.length) moduleThreeState.practiceComplete = true;
+  // Preserve completion saved by the former 12-step guide. New completion is
+  // recorded only when the practice ITSM ticket is submitted.
+  if (moduleThreeState.console?.practice?.guideStep >= 12 && !moduleThreeState.console.practice.guideVersion) moduleThreeState.practiceComplete = true;
   // A returned attempt stays immutable in lab_attempts, but its saved
   // case-state latch must not permanently block resubmission (CASE_RECORD_
   // MIGRATION.md #7), scoped to an open redo for this exact lab.
@@ -557,8 +446,7 @@ function moduleThreeGetSections() {
   // Server-verified modules read complete instead of empty (see Modules 04-11).
   const verified = moduleThreeUser?.remoteVerifiedModuleProgress?.['soc-03'] === true;
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm03-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleThreeQuizState?.passed, scrollId: 'm03-knowledge-check' },
+    { id: 'lecture', title: 'Learn It', type: 'lecture', isComplete: true, scrollId: 'm03-lecture' },
     { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleThreeState.practiceComplete, scrollId: 'm03-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleThreeState.completed, scrollId: 'm03-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm03-review' },
@@ -601,65 +489,10 @@ function moduleThreeVideoScript() {
   return '';
 }
 
-function moduleThreeIntroVisual(kind) {
-  const osiLayers = ['Application', 'Presentation', 'Session', 'Transport', 'Network', 'Data Link', 'Physical'];
-  if (kind === 'cables') {
-    return `<figure class="m03-intro-map">
-      <img src="assets/course-media/submarine-cable-map.png" alt="World map showing submarine communication cable routes connecting continents">
-      <figcaption>Submarine communication cable map, Wikimedia Commons / OpenStreetMap contributors.</figcaption>
-    </figure>`;
-  }
-  if (kind === 'osi') {
-    return `<div class="m03-intro-osi" aria-hidden="true">${osiLayers.map((layer, index) => `<span style="--m03-layer:${index + 1}">${7 - index}. ${esc(layer)}</span>`).join('')}</div>`;
-  }
-  const iconMap = {
-    logs: ['ri-file-list-3-line', 'ri-router-line', 'ri-server-line', 'ri-base-station-line'],
-    signals: ['ri-flashlight-line', 'ri-lightbulb-flash-line', 'ri-signal-tower-line'],
-    physical: ['ri-ethernet-line', 'ri-plug-line'],
-    datalink: ['ri-wifi-line', 'ri-smartphone-line'],
-    network: ['ri-map-pin-2-line', 'ri-route-line'],
-    transport: ['ri-truck-line', 'ri-checkbox-circle-line'],
-    session: ['ri-login-circle-line', 'ri-play-circle-line'],
-    presentation: ['ri-translate-2', 'ri-lock-unlock-line'],
-    application: ['ri-mail-send-line', 'ri-computer-line'],
-    soc: ['ri-search-eye-line', 'ri-shield-check-line', 'ri-file-shield-2-line'],
-  };
-  const icons = iconMap[kind] || iconMap.logs;
-  return `<div class="m03-intro-visual m03-intro-visual-${esc(kind)}" aria-hidden="true">
-    <div class="m03-intro-orbit">${icons.map((icon, index) => `<span style="--m03-node:${index}"><i class="${esc(icon)}"></i></span>`).join('')}</div>
-    <div class="m03-intro-core"><i class="${esc(icons[0])}"></i></div>
-  </div>`;
-}
-
-function moduleThreeIntroDeck() {
-  const complete = moduleThreeState?.introSlidesComplete === true;
-  return `<section class="m03-intro-deck ${complete ? 'is-complete' : ''}" id="m03-intro-deck" aria-labelledby="m03-intro-title" data-m03-intro-complete="${complete ? 'true' : 'false'}">
-    <div class="m03-intro-deck-head">
-      <div><p class="m03-kicker">Opening slides</p><h2 id="m03-intro-title">Before SIEM correlation: where logs come from</h2></div>
-      <div class="m03-intro-controls" aria-label="Slide controls">
-        <button type="button" data-m03-slide-prev aria-label="Previous slide"><i class="ri-arrow-left-s-line" aria-hidden="true"></i></button>
-        <span data-m03-slide-count>1 / ${MODULE_THREE_INTRO_SLIDES.length}</span>
-        <button type="button" data-m03-slide-next aria-label="Next slide"><i class="ri-arrow-right-s-line" aria-hidden="true"></i></button>
-      </div>
-    </div>
-    <div class="m03-intro-stage">
-      ${MODULE_THREE_INTRO_SLIDES.map((slide, index) => `<article class="m03-intro-slide ${index === 0 ? 'is-active' : ''}" data-m03-slide="${index}" ${index === 0 ? '' : 'hidden'}>
-        <div class="m03-intro-copy">
-          <p class="m03-intro-eyebrow">${esc(slide.eyebrow)}</p>
-          <h3>${esc(slide.title)}</h3>
-          ${slide.body.map((line) => `<p>${esc(line)}</p>`).join('')}
-        </div>
-        ${moduleThreeIntroVisual(slide.visual)}
-      </article>`).join('')}
-    </div>
-    <div class="m03-intro-dots" role="tablist" aria-label="Select slide">
-      ${MODULE_THREE_INTRO_SLIDES.map((slide, index) => `<button type="button" role="tab" aria-selected="${index === 0 ? 'true' : 'false'}" aria-label="${esc(slide.eyebrow)}: ${esc(slide.title)}" data-m03-slide-dot="${index}"></button>`).join('')}
-    </div>
-    <div class="m03-intro-gate" data-m03-intro-gate>
-      <i class="${complete ? 'ri-checkbox-circle-line' : 'ri-lock-line'}" aria-hidden="true"></i>
-      <span>${complete ? 'Opening slides complete. Continue to the next card below.' : 'Continue through all 12 opening slides to unlock the next card.'}</span>
-    </div>
-  </section>`;
+function moduleThreeLearnIt() {
+  const deck = window.LearnItDecks?.['soc-03'] || [];
+  if (!deck.length || !window.LearnItCards) return '';
+  return window.LearnItCards.render({ deck, step: moduleThreeState.learnItStep, viewed: moduleThreeLearnView, done: moduleThreeState.learnItStep >= deck.length, prefix: 'm03', id: 'm03-learn-it', headingId: 'm03-learn-it-title', heading: 'Connect the log evidence', readyHeading: 'Start with trustworthy observations', intro: 'Build a compact investigation workflow before practicing in the SIEM below.', doneHeading: 'SIEM investigation ideas complete', doneIntro: 'Revisit any idea above, then continue into the normalized log explorer.', readyText: 'Start with each record’s source, time, entity, and outcome.', label: 'LEARN IT', countLabel: 'ideas', readyCountLabel: `${deck.length} QUICK IDEAS`, progressCopy: ({ step, total }) => `${step} of ${total} ideas explored · continue into the SIEM practice below.`, slideLabel: 'Idea', readyActionLabel: 'LEARN IT', nextActionLabel: 'NEXT', finalActionLabel: 'Complete Learn It', restartLabel: 'Restart Learn It' });
 }
 
 function moduleThreeFieldGuide() {
@@ -794,7 +627,7 @@ function moduleThreeNormalizationLab() {
     <div class="m03-norm-heading"><p class="m03-kicker">Guided lab · Normalize and ingest</p><h3 id="m03-normalization-title">Build a trustworthy shared event set</h3><p>Map equivalent meanings across four raw sources. Keep <code>source_type</code> and <code>raw_event_id</code> visible so each normalized row can be traced back to its original record.</p></div>
     <div class="m03-norm-samples" aria-label="Raw event samples">${rawSamples}</div>
     <p class="m03-norm-hint"><strong>Try the mapping trap:</strong> map <code>SystemLog.service</code> to <code>user</code> once and validate. Review the false correlation, correct the mapping, then validate again.</p>
-    <div class="m03-norm-concepts"><strong>Core concepts to carry forward</strong><p>Normalize meaning, not just field names. Convert source times to UTC before ordering; preserve the original timestamp and offset as context. Prefer a session identifier, then corroborate with another dimension such as source IP or close timing. A match is a lead to verify against raw records and approved change context.</p></div>
+    <div class="m03-norm-concepts"><strong>Core concepts to carry forward</strong><p>Normalize meaning, not just field names, and convert source times to UTC before ordering while preserving the original timestamp and offset. Prefer a session identifier, then corroborate with source IP or close timing; verify matches against raw records and approved changes.</p></div>
     <div class="m03-norm-table-wrap"><table class="m03-norm-table"><thead><tr><th>Shared field</th><th>Source examples</th><th>Your mapping</th></tr></thead><tbody>${fields}<tr><th><code>source_type</code></th><td>AuthLog / DirectoryAudit / AppAudit / SystemLog</td><td><strong>Retain original source label</strong></td></tr><tr><th><code>raw_event_id</code></th><td>Original record ID</td><td><strong>Retain original ID</strong></td></tr></tbody></table></div>
     <p class="m03-norm-hint">Time note: AuthLog’s 05:02 UTC−04:00 is 09:02Z. Convert before ordering; keep the original timestamp and offset available for audit.</p>
     <div class="m03-norm-actions"><button type="button" class="m03-norm-primary" data-m03-validate-ingest>Validate and ingest</button></div>${mappingFeedback}${falseNotice}${success}
@@ -898,7 +731,7 @@ function moduleThreeReview() {
       <li><strong>Shared entities and timing:</strong> The same user, host, or IP address appearing in multiple events within a narrow time window is a correlation signal. Days apart or different entities = weaker signal.</li>
     </ul>
     <h3>Before you continue</h3>
-    <p>You should now understand how SIEM logs are structured, normalized, and queried to support alert triage and incident investigation. In the field, you will read thousands of events and need to sort signal from noise. Remember: normalization bridges format diversity, time reveals sequence, and correlation requires alignment on multiple dimensions, not just coincidental timing.</p>
+    <p>Use normalization to compare sources, timelines to reveal sequence, and multi-dimensional correlation to distinguish linked activity from coincidence. In the field, apply those habits to sort signal from noise during alert triage and investigation.</p>
   </section>`;
 }
 
@@ -908,12 +741,10 @@ function viewModuleThree(user, program) {
   const module = program.modules['soc-03'];
   const sections = moduleThreeGetSections();
   const lectureOpen = moduleThreeReviewMode || !moduleThreeState.normalizationLab?.ingested;
-  const quizOpen = moduleThreeReviewMode || (moduleThreeQuizState && !moduleThreeQuizState.passed);
-  const guidedLabOpen = moduleThreeReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleThreeReviewMode || !sections[3].isComplete;
+  const guidedLabOpen = moduleThreeReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleThreeReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleThreeReviewMode;
   const quickNavItems = moduleThreeGetQuickNavItems();
-  const introComplete = moduleThreeState.introSlidesComplete === true;
 
   const lectureSection = `
     <details class="m03-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
@@ -923,32 +754,21 @@ function viewModuleThree(user, program) {
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-lecture-title">
+        ${moduleThreeLearnIt()}
+        <details class="m03-deep-dive mf-deep-dive"><summary>Deep Dive · field guide and lesson loops</summary>
+          ${moduleThreeFieldGuide()}
+          ${moduleThreeLecture()}
+          ${moduleThreeLessonLoopsView()}
+        </details>
         ${moduleThreeNormalizationLab()}
       </section>
-    </details>`;
-  const postIntroGate = `<div class="m03-post-intro ${introComplete ? 'is-unlocked' : 'is-locked'}" id="m03-post-intro" data-m03-post-intro>
-    <section class="m03-next-card-lock" data-m03-next-card-lock aria-labelledby="m03-next-card-lock-title">
-      <i class="ri-lock-line" aria-hidden="true"></i>
-      <div><p class="m03-kicker">Next card locked</p><h2 id="m03-next-card-lock-title">Finish the opening slides first</h2><p>Reach Slide 12 to unlock Log normalization, correlation, and triage.</p></div>
-    </section>
-    <div class="m03-post-intro-content" data-m03-post-intro-content>${lectureSection}</div>
-  </div>`;
-
-  const quizSection = `
-    <details class="m03-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
-      <summary class="m03-section-summary">
-        <section class="m03-section" id="m03-knowledge-check" aria-labelledby="m03-quiz-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m03-kicker mf-kicker">Interactive knowledge check</p><h2 id="m03-quiz-title">Test your understanding of SIEM correlation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
-        </section>
-      </summary>
-      <section class="m03-section m03-section-body mf-section-body" aria-labelledby="m03-quiz-title"><div id="m03-quiz-dynamic">${moduleThreeQuizPanel()}</div></section>
     </details>`;
 
   const guidedLabSection = `
     <details class="m03-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-guided-lab" aria-labelledby="m03-guided-lab-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m03-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Investigate CASE-MN-428 in the SIEM console</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m03-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m03-guided-lab-title">Investigate CASE-MN-428 in the SIEM console</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body m03-lab-section" aria-labelledby="m03-guided-lab-title">
@@ -961,7 +781,7 @@ function viewModuleThree(user, program) {
     <details class="m03-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
       <summary class="m03-section-summary">
         <section class="m03-section m03-lab-section" id="m03-assessment-lab" aria-labelledby="m03-assessment-lab-title">
-          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m03-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent SIEM case: CASE-MN-517</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
+          <div class="m03-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m03-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m03-assessment-lab-title">Independent SIEM case: CASE-MN-517</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div>
         </section>
       </summary>
       <section class="m03-section m03-section-body mf-section-body m03-lab-section" aria-labelledby="m03-assessment-lab-title">
@@ -1001,9 +821,7 @@ function viewModuleThree(user, program) {
 
       <section class="m03-objective" aria-labelledby="m03-objective-title"><span><i class="ri-focus-2-line" aria-hidden="true"></i></span><div><p class="m03-kicker">One measurable objective</p><h2 id="m03-objective-title">Analyze real-world-style logs and justify a defensible triage decision in your assessment write-up.</h2></div></section>
 
-      ${moduleThreeIntroDeck()}
-      ${postIntroGate}
-      ${quizSection}
+      ${lectureSection}
       ${guidedLabSection}
       ${assessmentLabSection}
       ${reviewSection}
@@ -1130,57 +948,6 @@ function wireModuleThreeNormalizationLab() {
   });
 }
 
-function wireModuleThreeIntroDeck() {
-  const root = document.getElementById('m03-intro-deck');
-  if (!root) return;
-  const slides = Array.from(root.querySelectorAll('[data-m03-slide]'));
-  const dots = Array.from(root.querySelectorAll('[data-m03-slide-dot]'));
-  const count = root.querySelector('[data-m03-slide-count]');
-  const gate = root.querySelector('[data-m03-intro-gate]');
-  const postIntro = document.querySelector('[data-m03-post-intro]');
-  let current = 0;
-  let maxSeen = moduleThreeState.introSlidesComplete === true ? slides.length - 1 : 0;
-  const unlockNextCard = () => {
-    if (moduleThreeState.introSlidesComplete !== true) {
-      moduleThreeState.introSlidesComplete = true;
-      moduleThreeSave();
-    }
-    root.dataset.m03IntroComplete = 'true';
-    root.classList.add('is-complete');
-    if (gate) {
-      gate.innerHTML = '<i class="ri-checkbox-circle-line" aria-hidden="true"></i><span>Opening slides complete. Continue to the next card below.</span>';
-    }
-    if (postIntro) {
-      postIntro.classList.remove('is-locked');
-      postIntro.classList.add('is-unlocked');
-    }
-  };
-  const show = (index) => {
-    const target = Math.max(0, Math.min(slides.length - 1, index));
-    if (target > maxSeen + 1) return;
-    current = target;
-    maxSeen = Math.max(maxSeen, current);
-    slides.forEach((slide, slideIndex) => {
-      const active = slideIndex === current;
-      slide.hidden = !active;
-      slide.classList.toggle('is-active', active);
-    });
-    dots.forEach((dot, dotIndex) => {
-      dot.setAttribute('aria-selected', dotIndex === current ? 'true' : 'false');
-      dot.setAttribute('aria-disabled', dotIndex > maxSeen + 1 ? 'true' : 'false');
-    });
-    if (count) count.textContent = `${current + 1} / ${slides.length}`;
-    if (current === slides.length - 1 && maxSeen === slides.length - 1) unlockNextCard();
-  };
-  if (moduleThreeState.introSlidesComplete === true) unlockNextCard();
-  root.querySelector('[data-m03-slide-prev]')?.addEventListener('click', () => show(current - 1));
-  root.querySelector('[data-m03-slide-next]')?.addEventListener('click', () => show(current + 1));
-  dots.forEach((dot) => dot.addEventListener('click', () => {
-    if (dot.getAttribute('aria-disabled') === 'true') return;
-    show(Number(dot.dataset.m03SlideDot));
-  }));
-  show(current);
-}
 
 function moduleThreeRenderQuiz(focusId) {
   const root = document.getElementById('m03-quiz-dynamic');
@@ -1270,8 +1037,9 @@ function wireModuleThree() {
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   wireReviewToggle({ button: reviewToggle, sectionSelector: '.m03-section-collapsible', getReviewMode: () => moduleThreeReviewMode, setReviewMode: (value) => { moduleThreeReviewMode = value; }, enabledLabel: 'Exit Review', disabledLabel: 'Review Module', enabledIcon: 'ri-eye-off-line', disabledIcon: 'ri-eye-line' });
 
+  const learnRoot = document.querySelector('.m03-shell');
+  if (learnRoot) window.LearnItCards?.wire(learnRoot, { prefix: 'm03', onStep: (step) => { moduleThreeState.learnItStep = step; moduleThreeLearnView = null; moduleThreeSave(); const deck = document.getElementById('m03-learn-it'); if (deck) deck.outerHTML = moduleThreeLearnIt(); }, onView: (index) => { moduleThreeLearnView = index; const deck = document.getElementById('m03-learn-it'); if (deck) deck.outerHTML = moduleThreeLearnIt(); } });
   wireModuleThreeQuiz();
-  wireModuleThreeIntroDeck();
   wireModuleThreeLessons();
   wireModuleThreeNormalizationLab();
   wireModuleThreeConsole();

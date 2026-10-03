@@ -339,6 +339,69 @@ guide` button. Entry point: pulsing orange `Start console guide` button.
 Rules:
 - Author steps as `{ title, body, lookFor, lab }` (plus module keys such as
   `tab`/`target` to move the console to what the step explains).
-- Render with `consoleGuideCard({ steps, step, docked, prefix })` and
-  `consoleGuideStartButton()`; position with `consoleGuidePosition()`.
+- Guided Labs render the shared card through `guidedLabGuide(scope, steps,
+  { step, docked, prefix, submitted, debriefHtml, item })`; position with
+  `consoleGuidePosition()`. The Learn It card may continue to call
+  `consoleGuideCard()` directly.
+- After each step changes the console view, position the card beside its
+  selected evidence and outline that evidence. If a module has no explicit
+  target, `consoleGuidePosition()` follows the selected item in the active
+  view, then its heading. The card's collapse control returns it to the
+  console header/banner; opening it restores the floating guide.
 - No per-module recolouring or alternate tooltip/coachmark styles.
+- The guide is advisory. **Next is always enabled**; a live check may show
+  `Found` / `Not yet`, but it never blocks movement, submission, or leaving the
+  lab. Submitting the ITSM ticket is the only new Guided Lab completion trigger.
+- Guided Labs normally include an ITSM ticket in a console tab. Their final
+  guide step points to that tab and explains that submitting the ticket
+  completes practice. Module 02 is the documented exception: its Learn It
+  console walkthrough is the Guided Lab, completed by finishing the console
+  guide; the HR authorization case's ITSM tab is the Assessment Lab.
+- After ticket submission, the Guide card shows `CONSOLE GUIDE · COMPLETE` and
+  automatically collapses into the console header/banner (as in M02). Expanding
+  it reveals `guidedLabDebrief({ story, fields, handoff })`: what the evidence supports,
+  per-field `captured` / `contributing` / `missed` notes without points, and
+  what a strong handoff includes. The ticket is locked as `Practice submitted`
+  and offers a restart path.
+- Assessment Labs show only `Submitted for faculty review` / `Lab graded` (or
+  the standard returned-for-remediation state). They do not show a debrief,
+  score, points, or right/wrong feedback to the student.
+- Labs stay inline in their Practice It / Prove It section cards. Do not use
+  new-tab launch buttons. Preserve prior guided-lab completion when migrating
+  stored progress.
+
+
+### 7.4 Learn It card (locked)
+
+Every SOC module opens with the shared Learn It card rendered by
+`portal/learn-it-cards.js` and styled by `portal/learn-it-cards.css`. The card
+uses the same heading, numbered slide strip, single-slide canvas, decode
+animation, progress bar, NEXT control, slide recall, and restart behavior in
+every module. Decks supply the slide copy and module-specific `onStep` hooks;
+classes stay generic and the data prefix is configurable.
+
+Persist the current step through the module's existing `LabRuntime` state.
+Keep the viewed slide in memory only. Completing or restarting Learn It must
+not reset unrelated module progress. Each slide is `{ title, body, objective,
+lab }` and maps to a `curriculumItems` key in `portal/data.js`; `lab` is
+`guided`, `assessment`, or `both`. Titles use at most five words. New body copy
+is at most two sentences and 35 words. M02's six original authored slides are
+retained verbatim as a legacy introduction without claiming individual lesson
+objectives. M12 has no curriculum lesson objectives; its recap slides identify
+a real carry-forward objective and the relevant capstone rubric criterion.
+The numbered cards form a horizontal carousel with fixed widths, snap scrolling,
+keyboard focus, and reduced-motion support. The final slide bridges directly to
+the module's Guided Lab (M12's integrated Assessment Lab). Do not introduce a
+hard gate unless the module standard already defines one.
+When a learner recalls an earlier card, NEXT moves to the following recalled
+idea before it reveals the next locked card.
+
+### 7.5 Deep Dive panel
+
+Every SOC module (M01–M12) places one collapsed Deep Dive panel directly under
+its Learn It card. It holds the longer reference material that does not fit
+the two-sentence slides: lecture notes, field guides, models, lesson loops, and
+optional practice checks. Render it as
+`<details class="mNN-deep-dive mf-deep-dive"><summary>Deep Dive · <scope></summary>…</details>`;
+the shared look lives in `.mf-deep-dive` in `portal/learn-it-cards.css`, so do
+not add per-module panel styles. The panel is never a gated or scored step.

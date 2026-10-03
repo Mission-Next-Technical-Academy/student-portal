@@ -347,7 +347,7 @@ const MODULE_EIGHT_QUIZ_BANKS = [
 const MODULE_EIGHT_LESSON_LOOPS = [
   { id: 'decision-input', title: 'Treat vulnerability data as a decision input', minutes: 30,
     scenario: 'Mission Next Labs receives a scanner record for edge-gw-07. The record has a high CVSS, but the analyst cannot yet tell whether the vulnerable service is running or reachable.',
-    theory: 'CVE identifies a published weakness, CVSS describes technical severity under defined assumptions, and exploitability context estimates how practical abuse may be. None of those fields alone proves that the local asset is affected. Validate the running version, service role, exposure, and available controls before ranking it.',
+    theory: 'CVE identifies a published weakness; CVSS describes technical severity under defined assumptions, while exploitability estimates how practical abuse may be. These fields do not prove local impact, so validate the running version, service role, exposure, and controls before ranking.',
     questions: [
       { prompt: 'What should be verified before ranking a scanner finding?', options: ['Affected version and active service path', 'Only the CVSS score', 'The scanner color'], correct: 0, good: 'Correct. Local exposure begins with proof that the affected component and path are present.', bad: 'A score is a decision input, not proof of local exposure. Verify the running version and service path.' },
       { prompt: 'What does a CVSS base score represent?', options: ['Technical severity under stated assumptions', 'Your organization’s final remediation deadline', 'Proof of active exploitation'], correct: 0, good: 'Correct. Base severity must be combined with local context and threat evidence.', bad: 'CVSS is not your deadline and does not prove exploitation. It describes technical severity under a defined model.' },
@@ -363,7 +363,7 @@ const MODULE_EIGHT_LESSON_LOOPS = [
     ], task: 'Draft a short ranking rationale that names the exploitability, exposure, impact, and control evidence you would compare.' },
   { id: 'validate-rank', title: 'Validate before you rank', minutes: 20,
     scenario: 'The edge inventory says edge-gw-07 is decommissioned, yet an external probe still receives a service banner and the load balancer team cannot find a shutdown record.',
-    theory: 'Conflicting sources are an investigation task, not permission to close a finding. Reconcile the asset identity, confirm whether a route is live, record source dates, and preserve the uncertainty. A false positive is a supported disposition only after current evidence explains the conflict.',
+    theory: 'Conflicting sources require investigation, not immediate closure. Reconcile asset identity and live routes, record source dates, and preserve uncertainty; close as a false positive only when current evidence explains the conflict.',
     questions: [
       { prompt: 'What is the safest next action?', options: ['Reconcile inventory and independently test reachability', 'Close because inventory says offline', 'Ignore the probe and trust the oldest record'], correct: 0, good: 'Correct. Conflicting evidence requires corroboration before closure or reprioritization.', bad: 'Do not close on one stale source. Reconcile identity and independently test the route.' },
       { prompt: 'What should the analyst record?', options: ['Source, timestamp, test method, and unresolved conflict', 'Only the preferred conclusion', 'A generic “scanner error” label'], correct: 0, good: 'Correct. The record must let another analyst reproduce the reasoning.', bad: 'Preserve the evidence chain, including dates, method, and what remains uncertain.' },
@@ -535,6 +535,7 @@ function moduleEightProveItPerformance() {
 
 let moduleEightState = null;
 let moduleEightUser = null;
+let moduleEightLearnItViewed = null;
 let moduleEightQuizState = null;
 let moduleEightAssessmentSelectedFindingId = '';
 let moduleEightAssessmentState = null;
@@ -550,12 +551,15 @@ let moduleEightReviewMode = false;
 
 function moduleEightLoad(user) {
   if (moduleEightUser?.email !== user?.email) moduleEightQuizForceRetake = false;
+  if (moduleEightUser?.email !== user?.email) moduleEightLearnItViewed = null;
   moduleEightUser = user;
   moduleEightAssessmentState = SocM08AssessmentState.load(user, SocM08AssessmentData);
   moduleEightState = LabRuntime.loadCaseState(MODULE_EIGHT_LAB_ID, 'soc-08', user, MODULE_EIGHT_DEFAULT_STATE);
+  moduleEightState.learnItStep = Number.isInteger(moduleEightState.learnItStep) ? Math.max(0, Math.min(moduleEightState.learnItStep, LearnItDecks['soc-08'].length)) : 0;
   moduleEightGuidedState = LabRuntime.loadCaseState('m08-guided-exposure-priority-v1', 'soc-08', user, {
     completed: false, caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
   });
+  if (moduleEightGuidedState.completed === true && !moduleEightGuidedState.caseRecord.submitted) { moduleEightGuidedState.caseRecord.submitted = true; moduleEightGuidedState.caseRecord.submittedAt ||= new Date().toISOString(); }
   moduleEightGuidedAssessmentState = SocM08AssessmentState.load(user, MODULE_EIGHT_GUIDED_FIXTURE);
   if (!Array.isArray(moduleEightState.feedback)) moduleEightState.feedback = [];
   if (!Array.isArray(moduleEightState.flags)) moduleEightState.flags = [];
@@ -642,8 +646,7 @@ function moduleEightGetSections() {
   // lab rebuild, or by admin override) read complete instead of empty.
   const verified = moduleEightUser?.remoteVerifiedModuleProgress?.['soc-08'] === true;
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm08-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: verified || moduleEightQuizState?.passed, scrollId: 'm08-knowledge-check' },
+    { id: 'lecture', title: 'Learn It', type: 'lecture', isComplete: true, scrollId: 'm08-lecture' },
     { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleEightGuidedComplete(), scrollId: 'm08-guided-lab' },
     { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleEightState.completed, scrollId: 'm08-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm08-review' },
@@ -777,33 +780,71 @@ function moduleEightReview() {
       <li><strong>Proportionate response:</strong> Remediation timeline should match risk. Active exploitation in a critical service warrants 24–48 hours; a staging environment with no customer data can use the standard patch window.</li>
     </ul>
     <h3>Before you continue</h3>
-    <p>You should now be able to assess vulnerability findings using exploitability, exposure, and control context; validate scanner results against live evidence; design compensating controls with clear ownership and expiry; and close findings via technical verification rather than unverified claims. In later modules and on-the-job, you will apply these prioritization skills in triage, ticket creation, and incident response workflows.</p>
+    <p>Assess findings using exploitability, exposure, and controls; validate scanner results against live evidence; and assign owners and expiry to compensating controls. Close findings with technical verification, then apply these skills in triage, tickets, and incident response.</p>
   </section>`;
 }
 
 
 const MODULE_EIGHT_ASSESSMENT_LAB_IDS = ['assessment-1', 'assessment-2', 'additional-1', 'additional-2'];
 
+function moduleEightGuidedSteps() {
+  return [
+    { title: 'Read the ticket', body: 'Review the assigned asset and request before investigating.', lookFor: 'The case describes a scanner finding; local applicability still needs evidence.', lab: 'Confirm the case ID and requested prioritization handoff.', tab: 'case', target: '.m01-ticket-id' },
+    { title: 'Start from the alert', body: 'Open the assigned finding and orient to its affected component and reported severity.', lookFor: 'The alert is a lead, not proof that the vulnerable service is exposed.', lab: 'Establish the starting finding.', tab: 'alerts', target: 'tr[data-m03e-select$=":alert:M08G-INCIDENT-001"]' },
+    { title: 'Validate applicability', body: 'Check whether the affected version and service path exist on the named asset.', lookFor: 'Current component, version, and service evidence.', lab: 'A finding review tied to the case asset.', tab: 'alerts', target: '.m03e-table-wrap' },
+    { title: 'Compare local risk', body: 'Weigh reachability, exploitability, business impact, and effective controls.', lookFor: 'Evidence that changes the urgency from what CVSS alone suggests.', lab: 'A proportionate remediation decision.', tab: 'evidence', target: '.m03e-table-wrap' },
+    { title: 'Separate primary and contributing evidence', body: 'Identify which source directly establishes the affected service and which records only add context.', lookFor: 'A direct version or exposure record versus related asset or control context.', lab: 'Record findings with their evidentiary role.', tab: 'evidence', target: '.m03e-table-wrap' },
+    { title: 'Set scope and decide', body: 'Choose the supported priority, disposition, escalation route, and responsible owner.', lookFor: 'A bounded conclusion that does not overstate scanner evidence.', lab: 'Complete the risk decision and handoff fields.', tab: 'case', target: '.m01-ticket-grid' },
+    { title: 'Submit the ticket', body: 'Write the evidence and next action in the ITSM ticket, then submit to complete practice.', lookFor: 'A concise rationale, named owner, and verification step.', lab: 'Submit the ticket when your handoff is ready.', tab: 'case', target: '.m01-ticket-actions' },
+  ];
+}
+
 function moduleEightGuidedLabPanel() {
   const s = MODULE_EIGHT_GUIDED_FIXTURE.scenario;
   const state = moduleEightGuidedAssessmentState || SocM08AssessmentState.normalize({}, MODULE_EIGHT_GUIDED_FIXTURE);
   const reviews = new Set((state.findingReviews || []).map((item) => item.findingId));
   const decisions = new Set((state.remediationDecisions || []).map((item) => item.findingId));
-  const complete = moduleEightGuidedComplete();
+  const complete = moduleEightGuidedState?.caseRecord?.submitted === true;
+  const steps = moduleEightGuidedSteps();
+  if (!complete) { m03eState('m08-guided').tab = steps[Math.min(moduleEightGuidedState.guideStep || 0, steps.length - 1)].tab; moduleEightGuidedSave(); }
+  const cr = moduleEightGuidedState.caseRecord;
+  const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
+  const noteQuality = (text) => { const n = (text || '').toLowerCase(); const direct = ['api-edge-31', 'n.owens'].some((v) => n.includes(v)); const evidence = /reach|expos|version|exploit|control|finding/.test(n); const action = /owner|patch|remediat|verify|due|retest/.test(n); return direct && evidence && action ? 'captured' : direct || evidence || action ? 'contributing' : 'missed'; };
+  const debrief = complete ? guidedLabDebrief({ story: 'The case supports prioritizing the confirmed exposed service using current applicability, reachability, asset impact, and controls. A severity score alone does not establish local risk.', fields: [
+    { name: 'Ticket status', status: quality(cr.status, 'in-progress', ['pending']), note: 'Keep the case active while remediation and verification remain open.' },
+    { name: 'Affected user', status: quality(cr.affectedUser, 'n.owens', ['s.ivanov']), note: 'Name the accountable API service owner; the backend owner is supporting context.' },
+    { name: 'Affected device', status: quality(cr.affectedDevice, 'api-edge-31', ['pay-api-09']), note: 'Name the exposed API edge; the restricted backend is contributing context.' },
+    { name: 'Severity', status: quality(cr.severity, 'critical', ['high']), note: 'Base urgency on validated exposure and exploitability.' },
+    { name: 'Disposition', status: quality(cr.disposition, 'validated-exploitable', ['validated-not-reachable']), note: 'State whether current evidence confirms applicability and reachability.' },
+    { name: 'Escalation and department', status: cr.escalation === 'required' && cr.escalateTo === 'vulnerability-response' ? 'captured' : cr.escalation === 'required' && cr.escalateTo === 'service-owner-remediation' ? 'contributing' : 'missed', note: 'Route priority remediation to Vulnerability Response with service-owner coordination.' },
+    { name: 'Evidence and handoff notes', status: noteQuality(cr.notes), note: 'Cite current version and exposure evidence, limits, owner, and technical verification.' },
+  ], handoff: 'A strong handoff names the affected asset, cites current evidence, explains the risk decision and controls, assigns an owner and due date, and states what must be verified.' }) : '';
+  const guide = guidedLabGuide('m08', steps, { step: moduleEightGuidedState.guideStep, docked: complete ? moduleEightGuidedState.guideDocked !== false : moduleEightGuidedState.guideDocked, prefix: 'm08-guided', submitted: complete, debriefHtml: debrief });
+  const consoleHtml = moduleThreeConsoleHtml('m08-guided');
   return `<section class="m08-guided-case" id="m08-guided-lab-panel">
     <p class="m08-panel-instruction">Review the evidence, then decide which finding needs action first. Record your own priority and rationale in the case ticket.</p>
-    <details class="m08-practice-guide"><summary>Practice guide · ${complete ? '3 of 3 milestones observed' : 'progress saved'}</summary><ol><li>${reviews.has(s.expectedPriority.findingId) ? 'Finding review saved.' : 'Validate freshness and applicability; cite local evidence.'}</li><li>${decisions.has(s.expectedPriority.findingId) ? 'Remediation decision saved.' : 'Compare exposure, asset impact, and controls before setting priority.'}</li><li>${complete ? 'Case handoff recorded.' : 'Complete the separate ITSM case ticket with a defensible handoff.'}</li></ol></details>
-    <div class="m03e-console-host" id="m03e-console-m08-guided">${moduleThreeConsoleHtml('m08-guided')}</div>
-    <p class="m08-guided-case-status" role="status">${complete ? 'Practice case complete.' : 'Save the finding review, remediation decision, and ITSM case handoff.'}</p>
+    ${complete ? '' : guide}
+    <div class="m03e-console-host" id="m03e-console-m08-guided">${complete ? consoleHtml.replace('</header>', `${guide}</header>`) : consoleHtml}</div>
+    <p class="m08-guided-case-status" role="status">${complete ? 'Practice submitted.' : `${moduleEightGuidedEvidenceReady() ? 'Finding review and decision captured. ' : 'Keep validating the evidence. '}Submit the ITSM ticket to complete this Guided Lab.`}</p>
   </section>`;
 }
 
-function moduleEightGuidedComplete() {
+function moduleEightGuidedEvidenceReady() {
   const id = MODULE_EIGHT_GUIDED_FIXTURE.scenario.expectedPriority.findingId;
   const reviewed = (moduleEightGuidedAssessmentState?.findingReviews || []).some((item) => item.findingId === id);
   const decided = (moduleEightGuidedAssessmentState?.remediationDecisions || []).some((item) => item.findingId === id);
-  const cr = moduleEightGuidedState?.caseRecord || {};
-  return reviewed && decided && Boolean(cr.status && cr.affectedUser && cr.affectedDevice && cr.severity && cr.disposition && cr.escalation && cr.escalateTo && cr.notes?.trim().length >= 35);
+  return reviewed && decided;
+}
+
+function moduleEightGuidedComplete() {
+  return moduleEightGuidedState?.caseRecord?.submitted === true;
+}
+
+function moduleEightGuidedRestart() {
+  const cr = moduleEightGuidedState.caseRecord;
+  moduleEightGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleEightGuidedState.completed = false; moduleEightGuidedState.guideStep = 0; moduleEightGuidedState.guideDocked = false;
+  moduleEightGuidedSave(); moduleEightRenderGuided();
 }
 
 function moduleEightRenderGuided() {
@@ -812,7 +853,50 @@ function moduleEightRenderGuided() {
   root.innerHTML = moduleEightGuidedLabPanel();
   MODULE_EIGHT_GUIDED_CONSOLE.wire(root);
   m03eAttachEditor('m08-guided');
+  moduleEightPositionGuidedGuide(root);
 }
+
+function moduleEightPositionGuidedGuide(root = document.getElementById('m08-guided-lab-dynamic')) {
+  const host = root?.querySelector('#m03e-console-m08-guided');
+  const tip = root?.querySelector('#m08-guided-learn-tip');
+  const workspace = host?.querySelector('.m03e-workspace');
+  if (!host || !tip || !workspace) return;
+  tip.classList.add('is-visible');
+  if (moduleEightGuidedState.caseRecord.submitted || moduleEightGuidedState.guideDocked === true) {
+    host.querySelector('header')?.append(tip);
+    consoleGuidePosition(tip, workspace, null);
+  } else {
+    workspace.prepend(tip);
+    consoleGuidePosition(tip, workspace, null);
+  }
+}
+M03E_AFTER_RENDER['m08-guided'] = function () {
+  const root = document.getElementById('m08-guided-lab-dynamic');
+  const host = document.getElementById('m03e-console-m08-guided');
+  if (!root || !host) return;
+  if (!root.querySelector('#m08-guided-learn-tip')) {
+    const complete = moduleEightGuidedState?.caseRecord?.submitted === true;
+    const steps = moduleEightGuidedSteps();
+    const cr = moduleEightGuidedState.caseRecord;
+    const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
+    const noteQuality = (text) => { const n = (text || '').toLowerCase(); const direct = ['api-edge-31', 'n.owens'].some((v) => n.includes(v)); const evidence = /reach|expos|version|exploit|control|finding/.test(n); const action = /owner|patch|remediat|verify|due|retest/.test(n); return direct && evidence && action ? 'captured' : direct || evidence || action ? 'contributing' : 'missed'; };
+    const debrief = complete ? guidedLabDebrief({ story: 'The case supports prioritizing the confirmed exposed service using current applicability, reachability, asset impact, and controls. A severity score alone does not establish local risk.', fields: [
+      { name: 'Ticket status', status: quality(cr.status, 'in-progress', ['pending']), note: 'Keep the case active while remediation and verification remain open.' },
+      { name: 'Affected user', status: quality(cr.affectedUser, 'n.owens', ['s.ivanov']), note: 'Name the accountable API service owner; the backend owner is supporting context.' },
+      { name: 'Affected device', status: quality(cr.affectedDevice, 'api-edge-31', ['pay-api-09']), note: 'Name the exposed API edge; the restricted backend is contributing context.' },
+      { name: 'Severity', status: quality(cr.severity, 'critical', ['high']), note: 'Base urgency on validated exposure and exploitability.' },
+      { name: 'Disposition', status: quality(cr.disposition, 'validated-exploitable', ['validated-not-reachable']), note: 'State whether current evidence confirms applicability and reachability.' },
+      { name: 'Escalation and department', status: cr.escalation === 'required' && cr.escalateTo === 'vulnerability-response' ? 'captured' : cr.escalation === 'required' && cr.escalateTo === 'service-owner-remediation' ? 'contributing' : 'missed', note: 'Route priority remediation to Vulnerability Response with service-owner coordination.' },
+      { name: 'Evidence and handoff notes', status: noteQuality(cr.notes), note: 'Cite current version and exposure evidence, limits, owner, and technical verification.' },
+    ], handoff: 'A strong handoff names the affected asset, cites current evidence, explains the risk decision and controls, assigns an owner and due date, and states what must be verified.' }) : '';
+    const guide = guidedLabGuide('m08', steps, { step: moduleEightGuidedState.guideStep, docked: complete ? moduleEightGuidedState.guideDocked !== false : moduleEightGuidedState.guideDocked, prefix: 'm08-guided', submitted: complete, debriefHtml: debrief });
+    const tpl = document.createElement('template');
+    tpl.innerHTML = guide;
+    const fresh = tpl.content.querySelector('#m08-guided-learn-tip');
+    if (fresh) root.prepend(fresh);
+  }
+  moduleEightPositionGuidedGuide(root);
+};
 
 const MODULE_EIGHT_GUIDED_CASE_ID = 'VLN-PRACTICE-0849';
 
@@ -983,15 +1067,15 @@ const MODULE_EIGHT_GUIDED_CONSOLE = (() => {
         box: { get state() { return moduleEightGuidedAssessmentState; }, set state(value) { moduleEightGuidedAssessmentState = value; } },
         store: (next) => SocM08AssessmentState.save(moduleEightUser, next, MODULE_EIGHT_GUIDED_FIXTURE) } },
     ],
-    caseView: () => caseRecordPane(moduleEightGuidedState.caseRecord, {
+    caseView: () => { const html = caseRecordPane(moduleEightGuidedState.caseRecord, {
       caseId: MODULE_EIGHT_GUIDED_CASE_ID, ticketId: 'INC-0849', ticketType: 'Exposure prioritization · Vulnerability Response',
       userOptions: [{ id: 'n.owens', text: 'n.owens · API service owner' }, { id: 's.ivanov', text: 's.ivanov · backend owner' }],
       deviceOptions: [{ id: 'api-edge-31', text: 'api-edge-31 · public API edge' }, { id: 'pay-api-09', text: 'pay-api-09 · restricted backend' }],
       departmentOptions: [{ id: 'vulnerability-response', text: 'Vulnerability Response' }, { id: 'service-owner-remediation', text: 'Service Owner Remediation' }, { id: 'security-lead-review', text: 'Security Lead Review' }],
       formId: 'm08-guided-case-form', saveAttr: 'data-m08-guided-save-case', submitAttr: 'data-m08-guided-submit-case', panelId: 'm08-guided-case-panel',
       notesPlaceholder: 'Explain finding validity, exposure and business context, remediation priority, owner, and the limit of any risk exception.',
-      submitted: false,
-    }),
+      submitted: false, practiceSubmitted: true,
+    }); return moduleEightGuidedState.caseRecord.submitted ? `${html}<button type="button" class="m01-reset" data-m08-guided-restart>Restart Guided Lab</button>` : html; },
   });
 })();
 
@@ -1005,12 +1089,12 @@ function moduleEightCaseTicket() {
     redoRequested: moduleEightProveItRedoRequested(),
     redoHtml: moduleEightProveItRedoFeedback(),
     showMissing: moduleEightProveItShowMissing,
-  })}${cr.submitted && cr.reviewPayload ? `<section class="m04-assessment-review" data-m08-submitted-review><h4>Assessment review</h4><p><strong>${esc(cr.reviewPayload.score)}/${esc(cr.reviewPayload.maxScore)} points</strong></p><ol>${(cr.reviewPayload.criteria || []).map((criterion) => `<li><strong>${esc(criterion.label)}: ${esc(criterion.points)}/${esc(criterion.max)}</strong></li>`).join('')}</ol></section>` : ''}`;
+  })}`;
 }
 
 function moduleEightAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m08-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_EIGHT_CASE_ID)} · FINDINGS REVIEW · ASSIGNED TO YOU</p><p>Several scanner findings have landed on assets that appear in SOC telemetry. Your lead’s request: <em>“Tell me which of these actually matter to us right now, who fixes them, and by when — and don’t just sort by CVSS.”</em> Validate that each finding is current and applicable, decide what is exposed or reachable, weigh severity against asset value and incident evidence, separate urgent remediation from unrelated high scores, account for compensating controls, assign an owner, due date and escalation, link the incident where supported, and complete the ITSM ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_EIGHT_CASE_ID)} · FINDINGS REVIEW · ASSIGNED TO YOU</p><p>Prioritize scanner findings by current applicability, reachability, asset value, incident evidence, and controls, not CVSS alone. Separate urgent work, assign owners and due dates, escalate or link supported incidents, and complete the ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m08">${moduleThreeConsoleHtml('m08')}</div>
   </div>`;
 }
@@ -1022,15 +1106,18 @@ function moduleEightRenderAssessment() {
   m03eAttachEditor('m08');
 }
 
+function moduleEightLearnItMarkup() {
+  return LearnItCards.render({ deck: LearnItDecks['soc-08'], step: moduleEightState.learnItStep || 0, done: moduleEightState.learnItStep >= LearnItDecks['soc-08'].length, viewed: moduleEightLearnItViewed, prefix: 'm08', id: 'm08-learn-it', headingId: 'm08-learn-it-title', heading: 'Learn the key ideas', intro: 'Move through the ideas you will use in the lab.', readyText: 'Build the mental model one idea at a time.', label: 'LEARN IT', countLabel: 'ideas', readyCountLabel: `${LearnItDecks['soc-08'].length} QUICK IDEAS`, nextActionLabel: 'NEXT', finalActionLabel: 'FINISH' });
+}
+
 function viewModuleEight(user, program) {
   moduleEightLoad(user);
   const complete = moduleEightState.completed === true;
   const module = program.modules['soc-08'];
   const sections = moduleEightGetSections();
-  const lectureOpen = moduleEightReviewMode || !sections[0].isComplete;
-  const quizOpen = moduleEightReviewMode || (moduleEightQuizState && !moduleEightQuizState.passed);
-  const guidedLabOpen = moduleEightReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleEightReviewMode || !sections[3].isComplete;
+  const lectureOpen = moduleEightReviewMode || !sections[0].isComplete || moduleEightState.learnItStep < LearnItDecks['soc-08'].length;
+  const guidedLabOpen = moduleEightReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleEightReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleEightReviewMode;
   const quickNavItems = moduleEightGetQuickNavItems();
 
@@ -1042,27 +1129,24 @@ function viewModuleEight(user, program) {
       <section class="m08-hero mf-hero" aria-labelledby="m08-title"><div><p class="m08-kicker mf-kicker">Module 08 · ${formatHandsOnDuration(module.durationMinutes)} · SOC prioritization</p><h1 id="m08-title">${esc(module.title)}</h1><p class="m08-lede mf-lede">Validate assigned findings, weigh exploitability, reachability, business impact, and controls, then prioritize and escalate them through the SOC workflow. Enterprise scanning governance, remediation-program ownership, and risk acceptance remain outside this module.</p></div><dl class="m08-progress mf-stats" aria-label="Saved Module 08 progress"><div><dt>Guided Lab</dt><dd>${moduleEightGuidedComplete() ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m08-status">${complete ? 'Complete' : moduleEightState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
       <details class="m08-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">1</span><div><p class="m08-kicker mf-kicker">Lecture</p><h2 id="m08-lecture">Vulnerability prioritization using contextual risk</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">1</span><div><p class="m08-kicker mf-kicker">Learn It</p><h2 id="m08-lecture">Vulnerability prioritization using contextual risk</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m08-section-body mf-section-body">
+          <div id="m08-learn-it-root">${moduleEightLearnItMarkup()}</div><details class="m08-deep-dive mf-deep-dive"><summary>Deep Dive · reference notes and practice</summary>
           <section class="m08-section" id="m08-field-guide" aria-labelledby="m08-guide-title"><div class="m08-section-heading"><span>a</span><div><p class="m08-kicker">Field guide</p><h3 id="m08-guide-title">Treat vulnerability data as a decision input</h3></div></div><p class="m08-intro">The base score describes technical severity under standard assumptions. Your priority must also explain whether this instance is actually affected, reachable, exploitable, important, and protected.</p>${moduleEightConcepts()}${moduleEightLessonLoopsView()}</section>
           ${moduleEightVideoScript()}
+          </details>
         </div>
       </details>
 
-      <details class="m08-section-collapsible mf-section" ${quizOpen ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">2</span><div><p class="m08-kicker mf-kicker">Knowledge Check</p><h2 id="m08-knowledge-check">Test your understanding of vulnerability prioritization</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
-        <div class="m08-section-body mf-section-body">${moduleEightQuizPanel()}</div>
-      </details>
-
       <details class="m08-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">3</span><div><p class="m08-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m08-guided-lab">Vulnerability management practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">2</span><div><p class="m08-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m08-guided-lab">Vulnerability management practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m08-section-body mf-section-body">
           <div id="m08-guided-lab-dynamic">${moduleEightGuidedLabPanel()}</div>
         </div>
       </details>
 
       <details class="m08-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">4</span><div><p class="m08-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m08-assessment-lab">Independent vulnerability remediation review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <summary class="m08-section"><div class="m08-section-heading mf-section-heading"><span class="m08-section-badge mf-section-badge">3</span><div><p class="m08-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m08-assessment-lab">Independent vulnerability remediation review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
         <div class="m08-section-body mf-section-body">
           <div id="m08-assessment-lab-dynamic">${moduleEightAssessmentLabPanel()}</div>
         </div>
@@ -1094,6 +1178,7 @@ function moduleEightRender(focusId) {
     guidedRoot.innerHTML = moduleEightGuidedLabPanel();
     MODULE_EIGHT_GUIDED_CONSOLE.wire(guidedRoot);
     m03eAttachEditor('m08-guided');
+    moduleEightPositionGuidedGuide(guidedRoot);
   }
   moduleEightRenderAssessment();
   const optionalRoot = document.getElementById('m08-additional-labs');
@@ -1191,15 +1276,22 @@ function wireModuleEightLab() {
   if (!root || !moduleEightState) return;
 
   const guidedRoot = document.getElementById('m08-guided-lab-dynamic');
-  if (guidedRoot) MODULE_EIGHT_GUIDED_CONSOLE.wire(guidedRoot);
+  if (guidedRoot) { MODULE_EIGHT_GUIDED_CONSOLE.wire(guidedRoot); moduleEightPositionGuidedGuide(guidedRoot); }
   const assessmentRoot = document.getElementById('m08-assessment-lab-dynamic');
   if (assessmentRoot) MODULE_EIGHT_CONSOLE.wire(assessmentRoot);
   const additionalRoot = document.getElementById('m08-additional-labs');
   if (additionalRoot) wireMissionNextLabGating(additionalRoot, moduleEightState.labProgress, moduleEightHandleLabProgressChange);
 
   root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m08-guided-restart]')) { event.preventDefault(); moduleEightGuidedRestart(); return; }
     if (event.target.closest('[data-m08-submit-proveit]')) { moduleEightFinalizeProveIt(); return; }
-    if (event.target.closest('[data-m08-guided-submit-case]')) { event.preventDefault(); return; }
+    if (event.target.closest('[data-m08-guided-submit-case]')) {
+      event.preventDefault(); moduleEightGuidedState.caseRecord.submitted = true; moduleEightGuidedState.caseRecord.submittedAt = new Date().toISOString();
+      moduleEightGuidedState.completed = true; moduleEightGuidedState.guideStep = 3; moduleEightGuidedState.guideDocked = true; moduleEightGuidedState.caseRecord.actionHistory.push({ action: 'Practice submitted', at: moduleEightGuidedState.caseRecord.submittedAt });
+      moduleEightGuidedSave(); moduleEightRenderGuided(); return;
+    }
+    if (event.target.closest('[data-m08-guided-guide-next]')) { moduleEightGuidedState.guideStep = ((moduleEightGuidedState.guideStep || 0) + 1) % moduleEightGuidedSteps().length; moduleEightGuidedSave(); const tab = moduleEightGuidedSteps()[moduleEightGuidedState.guideStep].tab; document.querySelector(`[data-m03e-tab="m08-guided:${tab}"]`)?.click(); moduleEightRenderGuided(); return; }
+    if (event.target.closest('[data-m08-guided-guide-collapse]')) { moduleEightGuidedState.guideDocked = !moduleEightGuidedState.guideDocked; moduleEightGuidedSave(); moduleEightRenderGuided(); return; }
     if (event.target.closest('[data-m08-guided-save-case]')) {
       event.preventDefault();
       moduleEightGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
@@ -1340,6 +1432,18 @@ function moduleEightFinalizeProveIt() {
 }
 
 function wireModuleEight() {
+  const learnRoot = document.querySelector('.m08-shell');
+  if (learnRoot) LearnItCards.wire(learnRoot, { prefix: 'm08', onStep: (step, action) => {
+    moduleEightState.learnItStep = step;
+    moduleEightLearnItViewed = null;
+    moduleEightSave();
+    const target = document.getElementById('m08-learn-it-root');
+    if (target) target.innerHTML = moduleEightLearnItMarkup();
+  }, onView: (index) => {
+    moduleEightLearnItViewed = index;
+    const target = document.getElementById('m08-learn-it-root');
+    if (target) target.innerHTML = moduleEightLearnItMarkup();
+  } });
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
     reviewToggle.addEventListener('click', () => {

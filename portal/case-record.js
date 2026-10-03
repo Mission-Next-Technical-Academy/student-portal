@@ -160,7 +160,7 @@ function caseRecordApply(state, name, value) {
 function caseRecordActions(spec) {
   if (spec.submitted) {
     const graded = spec.reviewStatus === 'graded';
-    return `<div class="m01-ticket-actions"><button type="button" class="m01-submit" disabled><i class="${graded ? 'ri-checkbox-circle-line' : 'ri-time-line'}" aria-hidden="true"></i> ${graded ? 'Lab Graded' : 'Lab Under Review'}</button></div>`;
+    return `<div class="m01-ticket-actions"><button type="button" class="m01-submit" disabled><i class="${graded ? 'ri-checkbox-circle-line' : 'ri-time-line'}" aria-hidden="true"></i> ${spec.practiceSubmitted ? 'Practice submitted' : graded ? 'Lab graded' : 'Submitted for faculty review'}</button></div>`;
   }
   return `<div class="m01-ticket-actions"><button type="button" class="m01-reset" ${spec.saveAttr}>Update Ticket</button><button type="button" class="m01-submit" ${spec.submitAttr} ${spec.hasMissing ? `aria-describedby="${esc(spec.panelId)}"` : ''}>Submit Lab</button></div>`;
 }
@@ -172,9 +172,9 @@ function caseRecordPanel(spec) {
   const submitted = spec.submitted === true;
   const graded = spec.reviewStatus === 'graded';
   const flagMissing = !submitted && spec.showMissing && missing.length;
-  const title = graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
+  const title = spec.practiceSubmitted && submitted ? 'Practice submitted' : graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
   const body = graded ? 'Your instructor has reviewed this case.'
-    : submitted ? (spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
+    : submitted ? (spec.practiceSubmitted ? 'Your ungraded practice ticket is recorded.' : spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
       : spec.redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.'
         : 'Use the console evidence to complete the incident ticket. Submit only after the ticket fields, notes, and handoff are ready for faculty review.';
   return `<div class="m01-score-empty${flagMissing ? ' is-missing' : ''}" id="${esc(spec.panelId)}" role="status" aria-live="polite" tabindex="-1">

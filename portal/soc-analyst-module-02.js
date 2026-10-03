@@ -41,7 +41,7 @@ const MODULE_TWO_LESSON_LOOPS = [
 const MODULE_TWO_INDEPENDENT_LAB = {
   title: 'Independent lab: MFA push-bombing and conditional-access review',
   caseId: 'CASE-MN-317',
-  scenario: 'Mission Next Labs administrator acct-317 reports unsolicited MFA push prompts. One prompt was denied, a legacy exception later succeeded, and a conditional-access policy currently excludes a small legacy group. Decide what to verify and how to recommend a scoped policy review.',
+  scenario: 'Mission Next Labs administrator acct-317 reports unsolicited MFA prompts; one was denied before a legacy exception allowed sign-in. A policy excludes a small legacy group, so verify the path and recommend a scoped policy review.',
   questions: [
     { id: 'signal', label: 'What is the strongest initial signal?', options: [{ id: 'push', text: 'Unsolicited repeated prompts plus a later weaker-method success' }, { id: 'geo', text: 'The documentation-range address alone' }, { id: 'none', text: 'No signal because the first prompt was denied' }], correct: 'push' },
     { id: 'scope', label: 'What should the policy review target first?', options: [{ id: 'acct', text: 'acct-317 and the legacy-exception path, with affected resources identified' }, { id: 'all', text: 'Every remote user immediately' }, { id: 'ip', text: 'Only the synthetic source address' }], correct: 'acct' },
@@ -51,7 +51,7 @@ const MODULE_TWO_INDEPENDENT_LAB = {
 
 const MODULE_TWO_FOUNDATIONS = [
   { icon: 'ri-route-line', title: 'Network paths', summary: 'A connection has a source, destination, route, protocol, and outcome.', detail: 'Analysts compare the observed path with expected business routes. An unfamiliar address alone is weak evidence; the device, route, authentication result, and role of the destination add meaning.' },
-  { icon: 'ri-user-key-line', title: 'Identity and accounts', summary: 'An identity represents a person, service, device, or workload.', detail: 'Human and service identities behave differently. A scheduled certificate-based service sign-in may be normal while an interactive human sign-in at that hour may deserve review.' },
+  { icon: 'ri-account-circle-line', title: 'Identity and accounts', summary: 'An identity represents a person, service, device, or workload.', detail: 'Human and service identities behave differently. A scheduled certificate-based service sign-in may be normal while an interactive human sign-in at that hour may deserve review.' },
   { icon: 'ri-login-box-line', title: 'Authentication', summary: 'Authentication answers: who or what proved its identity?', detail: 'Passwords, certificates, security keys, and one-time factors are authentication methods. A success means a control accepted the proof; it does not prove the activity was authorized by the owner.' },
   { icon: 'ri-key-2-line', title: 'Authorization', summary: 'Authorization answers: what is the authenticated identity allowed to do?', detail: 'Roles and permissions govern access after sign-in. Analysts distinguish a sign-in event from a later access change and then assess whether the combination increases risk.' },
   { icon: 'ri-shield-keyhole-line', title: 'MFA', summary: 'Multiple independent factors reduce reliance on a password alone.', detail: 'A denied prompt can be a user mistake, but repeated denials followed by a password-only success from an unmanaged device form a stronger suspicious pattern.' },
@@ -693,7 +693,6 @@ function moduleTwoGetSections() {
   return [
     { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: true, scrollId: 'm02-foundations' },
     { id: 'trust-model', title: 'Trust Model', type: 'lecture', isComplete: true, scrollId: 'm02-model' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleTwoQuizState?.passed, scrollId: 'm02-knowledge-check' },
     { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: moduleTwoLabComplete(), scrollId: 'm02-guided-lab' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm02-sources-section', gated: false, supplemental: true },
   ];
@@ -898,7 +897,7 @@ function moduleTwoScorePanel() {
       <div><strong>${b.communication}/15</strong><span>Communication</span></div>
     </div>
     <ul class="m02-feedback-list">${moduleTwoState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
-    <div class="m02-expert"><strong>Expert reasoning</strong><p>IDN-317 presents a connected chain: stronger authentication was denied, a weaker password-only exception then succeeded from an unmanaged external path, and a production-impacting role appeared without an approval record. The other records have expected device, route, certificate, MFA, or change-reference context. Preserve the four linked records and escalate only IDN-317 for authorized protection and role review.</p></div>
+    <div class="m02-expert"><strong>Expert reasoning</strong><p>IDN-317 links denied stronger authentication, a password-only success from an unmanaged external path, and a production-impacting role with no approval record. Preserve the four linked records and escalate IDN-317 for authorized protection and role review; the other records have expected device, route, certificate, MFA, or change context.</p></div>
   </section>`;
 }
 
@@ -1008,17 +1007,6 @@ function viewModuleTwo(user, program) {
       <section class="m02-section m02-section-body" id="m02-sources-section" aria-labelledby="m02-sources-title">${moduleSourcesBlock(MODULE_TWO_SOURCES)}</section>
     </details>`;
 
-  const quizOpen = moduleTwoReviewMode || (moduleTwoQuizState && !moduleTwoQuizState.passed);
-  const quizSection = `
-    <details class="m02-section-collapsible" ${quizOpen ? 'open' : ''}>
-      <summary class="m02-section-summary">
-        <section class="m02-section" id="m02-knowledge-check" aria-labelledby="m02-quiz-title">
-          <div class="m02-section-heading"><span>4</span><div><p class="m02-kicker">Interactive knowledge check</p><h2 id="m02-quiz-title">Test your understanding of identity and trust concepts</h2></div></div>
-        </section>
-      </summary>
-      <section class="m02-section m02-section-body" aria-labelledby="m02-quiz-title"><div id="m02-quiz-dynamic">${moduleTwoQuizPanel()}</div></section>
-    </details>`;
-
   const labSection = `
     <details class="m02-section-collapsible" ${labOpen ? 'open' : ''}>
       <summary class="m02-section-summary">
@@ -1042,7 +1030,6 @@ function viewModuleTwo(user, program) {
       ${foundationsSection}
       ${trustModelSection}
       ${sourcesSection}
-      ${quizSection}
       ${labSection}
       ${moduleTwoAdditionalLabs()}
     </main>

@@ -549,7 +549,16 @@ const SocConsoleTools = (() => {
         const bookmarked = state.bookmarks || [];
         const latest = (state.conclusions || []).at(-1);
         const conclusion = `<section data-m06-conclusion-panel aria-label="Hunt conclusion"><header class="m06-panel-header"><div><span class="m06-step">06 · Close the hunt</span><h3>Hunt conclusion</h3></div></header>${latest ? `<p class="m06-latest-record"><strong>${esc(latest.disposition)}</strong><span>${esc(latest.text)}</span><small>${esc(latest.eventIds.join(', '))}</small></p>` : ''}<form data-m06-conclusion-form><label>Hypothesis outcome <select name="disposition"><option value="supported">Supported</option><option value="rejected">Rejected</option><option value="unresolved">Unresolved</option></select></label><label class="m06-field-wide">Conclusion, limitations and next steps<textarea name="text" rows="4" maxlength="2000" required placeholder="Summarize what the evidence supports, what remains unknown, and the next action…"></textarea></label><fieldset class="m06-choice-set m06-field-wide"><legend>Bookmarked evidence it rests on</legend><div class="m06-choice-grid">${bookmarked.map((eventId) => `<label><input type="checkbox" name="eventIds" value="${esc(eventId)}"><span><strong>${esc(eventId)}</strong></span></label>`).join('') || '<p class="m06-empty-state">Bookmark evidence first.</p>'}</div></fieldset><div class="m06-form-actions m06-field-wide"><button type="submit">Record conclusion</button><p data-m06-conclusion-feedback role="status"></p></div></form></section>`;
-        return `<section class="m04-console-extra m06-console-extra" data-m06-console-workspace="hunting"><div class="m06-workspace-intro"><div><span>INVESTIGATION WORKFLOW</span><h3>Validate the lead, preserve the evidence, and document the decision.</h3></div><p>Work from top to bottom. Each numbered panel saves a distinct part of your analysis.</p></div>${SocM06AssessmentSeedUi.render(fixture, state, { formExtraHtml: linkEvents })}${SocM06AssessmentRelatedSearch.renderSearch(fixture, state)}${SocM06AssessmentRelatedSearch.renderSavedQueryPanel(fixture, state)}${SocM06AssessmentRelatedSearch.renderEvidencePanel(fixture, state)}${SocM06AssessmentRelatedSearch.renderHandoffPanel(fixture, state)}${conclusion}</section>`;
+        const steps = [
+          ['01', 'Frame the lead', SocM06AssessmentSeedUi.render(fixture, state, { formExtraHtml: linkEvents })],
+          ['02', 'Search', SocM06AssessmentRelatedSearch.renderSearch(fixture, state)],
+          ['03', 'Make repeatable', SocM06AssessmentRelatedSearch.renderSavedQueryPanel(fixture, state)],
+          ['04', 'Curate', SocM06AssessmentRelatedSearch.renderEvidencePanel(fixture, state)],
+          ['05', 'Escalate', SocM06AssessmentRelatedSearch.renderHandoffPanel(fixture, state)],
+          ['06', 'Close the hunt', conclusion],
+        ];
+        const activeStep = state.huntWorkflowStep || '01';
+        return `<section class="m04-console-extra m06-console-extra" data-m06-console-workspace="hunting"><div class="m06-workspace-intro"><div><span>INVESTIGATION WORKFLOW</span><h3>Validate the lead, preserve the evidence, and document the decision.</h3></div><p>Open a step below and work through the investigation in order. Expand another step when you are ready to continue.</p></div><nav class="m06-step-nav" aria-label="Investigation workflow steps">${steps.map(([number, title]) => `<a href="#m06-hunt-step-${number}"${activeStep === number ? ' aria-current="step"' : ''}><span>${number}</span>${esc(title)}</a>`).join('')}</nav>${steps.map(([number, title, content]) => `<details class="m06-step-item" id="m06-hunt-step-${number}" name="m06-hunt-workflow"${activeStep === number ? ' open' : ''}><summary><span class="m06-step-item-number">${number}</span><span>${esc(title)}</span><i class="ri-arrow-down-s-line" aria-hidden="true"></i></summary><div class="m06-step-content">${content}</div></details>`).join('')}</section>`;
       },
       attack: () => `<section class="m04-console-extra m06-console-extra" data-m06-console-workspace="attack">${SocM06AssessmentRelatedSearch.renderMappingPanel(ctx.fixture, ctx.load())}</section>`,
     }),
@@ -558,6 +567,26 @@ const SocConsoleTools = (() => {
       const run = (selector, work) => {
         try { ctx.store(work(ctx.load(), ctx.fixture)); ctx.rerender(); } catch (error) { m06Error(root, selector, error); }
       };
+      root.addEventListener('click', (event) => {
+        const link = event.target.closest('.m06-step-nav a');
+        if (link) {
+          event.preventDefault();
+          const step = root.querySelector(link.getAttribute('href'));
+          if (step) { step.open = true; step.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+        }
+      });
+      root.addEventListener('toggle', (event) => {
+        const step = event.target;
+        if (!step.matches?.('.m06-step-item') || !step.open) return;
+        const number = step.id.replace('m06-hunt-step-', '');
+        const state = ctx.load();
+        state.huntWorkflowStep = number;
+        ctx.store(state);
+        root.querySelectorAll('.m06-step-nav a').forEach((link) => {
+          if (link.hash === `#${step.id}`) link.setAttribute('aria-current', 'step');
+          else link.removeAttribute('aria-current');
+        });
+      }, true);
       root.addEventListener('submit', (event) => {
         const form = event.target;
         const data = () => new FormData(form);

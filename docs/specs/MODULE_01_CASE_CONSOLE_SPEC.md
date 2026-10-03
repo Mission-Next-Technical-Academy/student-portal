@@ -52,14 +52,13 @@ The finished incident record becomes the primary work product.
 
 ## 2. Module 01 Interface
 
-Module 01 should launch into its own focused workspace.
+Module 01's Guided Lab and Assessment Lab render inline inside their
+respective LMS section cards. The former new-tab launch flow is retired by
+the owner decision dated 2026-10-03. Each inline console remains a focused,
+vendor-neutral workspace scoped to its assigned case; the surrounding module
+page supplies the learning sequence and standard console guide.
 
-It should not remain embedded as a small card inside the LMS.
-
-The LMS may contain the launch control, but once opened, the learner
-should feel that they have entered a work application.
-
-Use a three-pane layout:
+Use a three-pane layout within each lab card:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐

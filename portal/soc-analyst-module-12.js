@@ -149,7 +149,7 @@ const MODULE_TWELVE_ARC_CALLBACKS = [
   'M10 chain of custody: retain identifiers, provenance, integrity, and explicit evidence boundaries.',
   'M11 reporting: separate executive decisions from the technical narrative and state uncertainty plainly.',
   'M09 recovery gates plus M11 ownership: verify the fix, assign follow-up, and define monitoring.',
-  'M01–M11 synthesis: submit one defensible Amber Finch record; the rubric remains the authoritative score.',
+  'M01–M11 synthesis: submit one defensible Amber Finch record; the rubric remains the authoritative review.',
 ];
 
 // These are orientation materials for the independent range, not scored
@@ -249,6 +249,7 @@ const MODULE_TWELVE_CASE = {
 
 function moduleTwelveFreshDefaults() {
   return {
+    learnItStep: 0,
     activeConsole: 'queue', reviewedConsoles: [], selectedEvidence: [], stageVisits: [],
     answers: {}, executiveSummary: '', notes: '', closureNote: '',
     hintsOpened: [], simulatorLaunched: false, breakdown: null, feedback: [],
@@ -279,9 +280,13 @@ function moduleTwelveUnlocked(user, program) {
 }
 
 function moduleTwelveLoad(user, program) {
+  if (moduleTwelveUser?.email !== user?.email) moduleTwelveLearnViewed = null;
   moduleTwelveUser = user;
   moduleTwelveProgram = program;
   moduleTwelveState = LabRuntime.loadCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', user, moduleTwelveFreshDefaults());
+  // Earlier capstone submissions displayed a live rubric breakdown. Preserve
+  // those submissions as locked and show only the standard review status.
+  if (moduleTwelveState.attempts > 0 || moduleTwelveState.breakdown) moduleTwelveState.submitted = true;
   moduleTwelveState.assessmentState = SocM12AssessmentState.load(user, SocM12AssessmentData);
   if (!moduleTwelveState.tools || typeof moduleTwelveState.tools !== 'object') moduleTwelveState.tools = {};
   ['reviewedConsoles', 'selectedEvidence', 'stageVisits', 'hintsOpened', 'feedback', 'criticalErrors', 'flags'].forEach((key) => {
@@ -329,6 +334,9 @@ function moduleTwelveSave() {
     LabRuntime.saveCaseState(MODULE_TWELVE_LAB_ID, 'soc-12', moduleTwelveUser, moduleTwelveState);
   }
 }
+let moduleTwelveLearnViewed = null;
+function moduleTwelveLearnItHtml() { const deck = LearnItDecks['soc-12']; return LearnItCards.render({ deck, step: moduleTwelveState.learnItStep || 0, viewed: moduleTwelveLearnViewed, done: (moduleTwelveState.learnItStep || 0) >= deck.length, prefix: 'm12', id: 'm12-learn-it', headingId: 'm12-learn-title', heading: 'Integrate the investigation', intro: 'Six reminders for the independent capstone.', readyHeading: 'Capstone recap, in six ideas', readyText: 'Review the course skills before opening the integrated range.', readyActionLabel: 'LEARN IT', finalActionLabel: 'Finish', doneHeading: 'Capstone recap complete', doneIntro: 'Use these skills in the independent capstone.' }); }
+function moduleTwelveWireLearnIt() { const shell = document.querySelector('.m12-shell'); if (!shell || shell.dataset.learnItWired) return; shell.dataset.learnItWired = 'true'; LearnItCards.wire(shell, { prefix: 'm12', onStep: (step) => { moduleTwelveState.learnItStep = step; moduleTwelveLearnViewed = null; moduleTwelveSave(); document.getElementById('m12-learn-it').outerHTML = moduleTwelveLearnItHtml(); }, onView: (index) => { moduleTwelveLearnViewed = index; document.getElementById('m12-learn-it').outerHTML = moduleTwelveLearnItHtml(); shell.querySelector(`[data-m12-learn-view="${index}"]`)?.focus(); } }); }
 
 function moduleTwelveSetEqual(actual, expected) {
   const left = [...new Set(actual || [])].sort();
@@ -365,6 +373,7 @@ function moduleTwelveLockedView(user, program) {
       <p class="mf-lede">The integrated range stays sealed until every preceding module is complete. This prevents future evidence and the end-to-end scenario from bypassing the course sequence.</p></div>
       <div class="m12-lock-mark"><i class="ri-lock-2-line" aria-hidden="true"></i><strong>${complete}/11</strong><span>prerequisites complete</span></div>
     </section>
+    ${moduleTwelveLearnItHtml()}
     <section class="m12-section mf-section" aria-labelledby="m12-gate-title"><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge"><i class="ri-git-merge-line" aria-hidden="true"></i></span><div><p class="m12-kicker">Prerequisite gate</p><h2 id="m12-gate-title">Complete Modules 01–11 to unlock the incident</h2></div></div>
       <p class="m12-muted">Only completion status is shown. Incident evidence, investigation consoles, hints, and the simulator launch remain unavailable while the gate is closed.</p>
       <div class="m12-prereq-grid">${prerequisites.map((item) => `<a href="#/program/soc-analyst/module/${item.number}" class="m12-prereq ${item.complete ? 'is-complete' : ''}"><span>${String(item.number).padStart(2, '0')}</span><div><strong>${esc(item.title)}</strong><small>${item.complete ? 'Complete' : 'Required'}</small></div><i class="${item.complete ? 'ri-checkbox-circle-fill' : 'ri-lock-line'}" aria-hidden="true"></i></a>`).join('')}</div>
@@ -412,8 +421,8 @@ function moduleTwelveFindingsHtml() {
       <fieldset class="m12-wide"><legend>Closure</legend><div class="m12-two-col">${moduleTwelveOption('closure','verified-recovery','Close after verified recovery','Clean scan, persistence removal, policy correction, identity reset, and owner validation recorded.',a.closure==='verified-recovery')}${moduleTwelveOption('closure','close-after-block','Close immediately after blocking the IP','Containment alone does not establish recovery.',a.closure==='close-after-block')}${moduleTwelveOption('followup','policy-owner','Assign script-control remediation to endpoint policy owner','Names an accountable owner and addresses the contributing control gap.',a.followup==='policy-owner')}${moduleTwelveOption('followup','none','No follow-up needed','The audit-only script control remains a recurrence risk.',a.followup==='none')}</div>
         <label class="m12-text-label">Closure note <small>At least 100 characters: validation evidence, residual risk, owner, and monitoring.</small><textarea name="closureNote" rows="4">${esc(moduleTwelveState.closureNote)}</textarea><span id="m12-close-count">${moduleTwelveState.closureNote.length}/100</span></label></fieldset>
     </div>
-    <details class="m12-hint" data-m12-hint="timeline" ${moduleTwelveState.hintsOpened.includes('timeline')?'open':''}><summary>Emergency timeline hint (−5 points)</summary><p>Compare the email action, process creation, first network connection, and token refresh timestamps. Order those observed events without assuming intent.</p></details>
-    <details class="m12-hint" data-m12-hint="response" ${moduleTwelveState.hintsOpened.includes('response')?'open':''}><summary>Emergency response hint (−5 points)</summary><p>Act only on the confirmed host, account, and indicators. Preserve evidence before eradication, then validate recovery.</p></details>
+    <details class="m12-hint" data-m12-hint="timeline" ${moduleTwelveState.hintsOpened.includes('timeline')?'open':''}><summary>Emergency timeline hint</summary><p>Compare the email action, process creation, first network connection, and token refresh timestamps. Order those observed events without assuming intent.</p></details>
+    <details class="m12-hint" data-m12-hint="response" ${moduleTwelveState.hintsOpened.includes('response')?'open':''}><summary>Emergency response hint</summary><p>Act only on the confirmed host, account, and indicators. Preserve evidence before eradication, then validate recovery.</p></details>
     <div id="m12-feedback" tabindex="-1">${moduleTwelveFeedback()}</div>`;
 }
 
@@ -450,11 +459,12 @@ function moduleTwelveExtraMissing() {
 }
 
 function moduleTwelveAssessment() {
+  if (moduleTwelveState.submitted) return `<div class="m12-assessment"><section class="m01-score-empty" role="status" aria-live="polite"><strong>${moduleTwelveReviewStatus()}</strong></section></div>`;
   const state = moduleTwelveState.assessmentState || SocM12AssessmentState.fresh(SocM12AssessmentData);
   const evidence = SocM12AssessmentData.scenario.evidence;
   const selected = new Set(state.selectedEvidence || []);
   return `<div class="m12-assessment">
-    <div class="m12-assessment-heading"><div><p class="m12-kicker">Portfolio artifact</p><h2>Independent incident record</h2><p>Build a defensible record from the cumulative console. Submit at any point for criterion-level partial credit.</p></div><span>Pass ${MODULE_TWELVE_PASSING_SCORE}% · 100 points</span></div>
+    <div class="m12-assessment-heading"><div><p class="m12-kicker">Portfolio artifact</p><h2>Independent incident record</h2><p>Build a defensible record from the cumulative console. Submit your incident record for faculty review when ready.</p></div></div>
     <section class="m12-record"><div class="m12-record-heading"><h3>Evidence selection and determinations</h3><p>Select every record your conclusions rely on.</p></div><div class="m12-evidence-grid">${evidence.map((item) => `<label><input type="checkbox" name="m12-selected-evidence" value="${esc(item.id)}" ${selected.has(item.id) ? 'checked' : ''}><span><strong>${esc(item.id)} · ${esc(item.source)}</strong><small>${esc(item.class)} · ${esc(item.entityIds.join(', '))} · ${esc(item.at.slice(11, 19))}</small></span></label>`).join('')}</div>
       <div class="m12-action-grid"><form class="m12-action-card" data-m12-assessment-action="investigation"><h4>Record an investigation finding</h4><label>Domain<select name="domain"><option>identity</option><option>email</option><option>endpoint</option><option>network</option><option>exposure</option><option>timeline</option><option>scope</option></select></label><label>Finding<textarea name="finding" required minlength="20" maxlength="1000"></textarea></label><label>Evidence IDs<input name="evidenceIds" placeholder="EM-212, EP-301"></label><button class="m12-form-submit">Save finding</button></form>
       <form class="m12-action-card" data-m12-assessment-action="intel"><h4>Threat intelligence decision</h4><label>Indicator<select name="indicatorId"><option>TI-601</option><option>TI-603</option></select></label><label>Decision<select name="decision"><option>malicious</option><option>benign</option><option>unknown</option></select></label><label>Rationale<textarea name="rationale" required minlength="20"></textarea></label><button class="m12-form-submit">Save assessment</button></form>
@@ -467,18 +477,18 @@ function moduleTwelveAssessment() {
       <form class="m12-action-card" data-m12-assessment-action="approval"><h4>Action approval</h4><label>Action<select name="action"><option>isolate</option><option>revoke-session</option><option>restore</option></select></label><label>Target<input name="target" required placeholder="ws-204"></label><label class="m12-inline-check"><input type="checkbox" name="approved"> Approved</label><button class="m12-form-submit">Record decision</button></form>
       <form class="m12-action-card" data-m12-assessment-action="execute"><h4>Execute a response action</h4><label>Action<input name="action" required placeholder="isolate"></label><label>Target<input name="target" required placeholder="ws-204"></label><p class="m12-form-note">Protected and out-of-scope actions are blocked by the range.</p><button class="m12-form-submit">Execute in training range</button></form>
       <form class="m12-action-card" data-m12-assessment-action="recovery"><h4>Eradication and recovery</h4><label>Step<select name="action"><option>remove-persistence</option><option>restore</option><option>scan</option><option>monitor</option></select></label><label>Target<input name="target" required placeholder="ws-204 or BK-204-0900"></label><button class="m12-form-submit">Record validation</button></form>
-    </div></section><div class="m12-actions"><button type="button" class="m12-submit" data-m12-submit-capstone ${moduleTwelveState.submitted ? 'disabled' : ''}>Submit capstone for scoring</button><button type="button" class="m12-reset" data-m12-reset ${moduleTwelveState.submitted ? 'disabled' : ''}>Reset capstone only</button></div>${moduleTwelveFeedback()}
+    </div></section><div class="m12-actions"><button type="button" class="m12-submit" data-m12-submit-capstone ${moduleTwelveState.submitted ? 'disabled' : ''}>Submit capstone for faculty review</button><button type="button" class="m12-reset" data-m12-reset ${moduleTwelveState.submitted ? 'disabled' : ''}>Reset capstone only</button></div>${moduleTwelveFeedback()}
   </div>`;
 }
 
 function moduleTwelveFeedback() {
-  if (!moduleTwelveState.breakdown) return `<div class="m12-score-empty"><strong>No scored attempt yet.</strong><p>Your actions and reports save as you investigate. Submit at any point for an explainable score and partial credit.</p></div>`;
-  const passed = moduleTwelveState.completed;
-  return `<section class="m12-score ${passed ? 'is-pass' : 'is-remediate'}" aria-live="polite"><div class="m12-score-heading"><div><p class="m12-kicker">${passed ? 'Capstone passed' : 'Remediation required'}</p><h3>${passed ? 'End-to-end investigation complete' : 'Revise and resubmit the incident record'}</h3><p>Best ${moduleTwelveState.bestScore}/100 · ${moduleTwelveState.attempts} attempt${moduleTwelveState.attempts === 1 ? '' : 's'} · ${esc(moduleTwelveState.lastSubmittedAt || '')}</p></div><span>${moduleTwelveState.score}/100</span></div>
-    <div class="m12-score-grid">${moduleTwelveState.breakdown.map((item) => `<div><strong>${item.score}/${item.max}</strong><span>${esc(item.label)}</span></div>`).join('')}</div>
-    ${moduleTwelveState.criticalErrors.length ? `<div class="m12-critical"><strong>Safety cap</strong><ul>${moduleTwelveState.criticalErrors.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
-    <div class="m12-remediation"><strong>Explainable scoring</strong><ul>${moduleTwelveState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>
-    ${moduleTwelveReportPreview()}</section>`;
+  if (moduleTwelveState.submitted) return `<div class="m12-score-empty" role="status" aria-live="polite"><strong>${moduleTwelveReviewStatus()}</strong></div>`;
+  return `<div class="m12-score-empty"><strong>Ready when you are</strong><p>Your investigation is saved as you work. Submit the incident record for faculty review when ready.</p></div>`;
+}
+
+function moduleTwelveReviewStatus() {
+  const attempt = moduleTwelveUser?.latestLabAttemptByKey?.[MODULE_TWELVE_CATALOG_KEY];
+  return attempt?.redoRequested ? 'Returned for remediation' : attempt?.reviewedAt ? 'Lab graded' : 'Submitted for faculty review';
 }
 function moduleTwelveReportPreview() {
   const reports=moduleTwelveState.assessmentState?.reports||{};
@@ -501,9 +511,12 @@ function moduleTwelveMissionStatus() {
 }
 
 function moduleTwelvePreparation() {
-  return `<details class="m12-section-collapsible mf-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">1</span><div><p class="m12-kicker mf-kicker">Capstone preparation lectures</p><h2 id="m12-preparation-title">Briefing before the independent range</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body" id="m12-preparation" aria-labelledby="m12-preparation-title">
+  return `<details class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">1</span><div><p class="m12-kicker mf-kicker">Learn It · capstone recap</p><h2 id="m12-preparation-title">Briefing before the independent range</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body" id="m12-preparation" aria-labelledby="m12-preparation-title">
+    ${moduleTwelveLearnItHtml()}
+    <details class="m12-deep-dive mf-deep-dive"><summary>Deep Dive · capstone preparation notes</summary>
     <p class="m12-muted">These short briefings establish the operating model for the capstone. Review them before investigating; they are guidance, not additional scored stages.</p>
     <div class="mf-lesson-grid">${MODULE_TWELVE_PREPARATION_LECTURES.map((lecture, index) => `<details class="mf-lesson"><summary><span class="mf-lesson-number">${String(index + 1).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lecture.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lecture.title)}</strong><small>${esc(lecture.focus)}</small></span><i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary><div class="mf-lesson-body"><p>${esc(lecture.script)}</p><p class="mf-takeaway"><strong>Analyst prompt:</strong> ${esc(lecture.practice)}</p><p class="mf-takeaway"><small>Video placeholder · 8–12 minute recording slot</small></p></div></details>`).join('')}</div>
+    </details>
   </section></details>`;
 }
 
@@ -522,7 +535,7 @@ function moduleTwelveGetSections() {
     // This is an integrated capstone, not a sequential course flow. Keep all
     // sections reachable while the single cumulative assessment is in progress.
     { id: 'preparation', title: 'Capstone preparation', type: 'lecture', isComplete: true, scrollId: 'm12-preparation', gated: false },
-    { id: 'mission', title: 'Mission requirements', type: 'lab', isComplete: complete, scrollId: 'm12-mission-title', gated: false },
+    { id: 'mission', title: 'Mission requirements', type: 'read', isComplete: complete, scrollId: 'm12-mission-title', gated: false },
     { id: 'investigation', title: 'Investigation consoles', type: 'lab', isComplete: complete, scrollId: 'm12-range', gated: false },
     { id: 'assessment', title: 'Assessment Lab', type: 'review', isComplete: complete, scrollId: 'm12-assessment-section', gated: false },
   ];
@@ -535,13 +548,13 @@ function viewModuleTwelve(user, program) {
   const module = program.modules['soc-12'];
   const sections = moduleTwelveGetSections();
   return `<div class="m12-shell">${moduleTwelveHeader(user, program)}<div class="mquick-nav-layout">${moduleUnifiedNav(sections, { moduleKey: 'm12' })}<main class="m12-main mf-frame">
-    <section class="m12-hero mf-hero" aria-labelledby="m12-title"><div><p class="m12-kicker mf-kicker">Module 12 · ${formatHandsOnDuration(module.durationMinutes)} · Final Assessment</p><h1 id="m12-title">${esc(module.title)}</h1><p class="m12-kicker mf-kicker">Case scenario · Operation Amber Finch</p><p class="mf-lede">Investigate a synthetic high-priority signal across the complete Mission Next security operations range. Discover what happened, bound impact, improve detection, direct response, and close the case with a portfolio-grade report. This capstone integrates all competencies from Modules 01–11 into one independent Prove assessment.</p>
+    <section class="m12-hero mf-hero" aria-labelledby="m12-title"><div><p class="m12-kicker mf-kicker">Module 12 · ${formatHandsOnDuration(module.durationMinutes)} · Final Assessment</p><h1 id="m12-title">${esc(module.title)}</h1><p class="m12-kicker mf-kicker">Case scenario · Operation Amber Finch</p><p class="mf-lede">Investigate a synthetic high-priority signal across the security operations range: discover what happened, bound impact, improve detection, and direct response. Close the case with a portfolio-grade report integrating competencies from Modules 01–11.</p>
       <div class="m12-hero-actions"><a class="m12-secondary" href="#m12-range"><i class="ri-arrow-down-line" aria-hidden="true"></i> Investigate here</a><a class="m12-primary" href="#m12-assessment-section"><i class="ri-file-check-line" aria-hidden="true"></i> Open capstone assessment</a></div></div>
-      <dl class="mf-stats"><div><dt>Case</dt><dd>INC-4821</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Pass</dt><dd>${MODULE_TWELVE_PASSING_SCORE}/100 · safety cap for executed unsafe actions</dd></div></dl></section>
-    <section class="m12-objective"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Rubric scoring</p><h2>Eight competencies: Intelligence and preparation (10), queries and detection (18), alert and incident management (12), cross-domain investigation (18), timeline/scope/evidence/ATT&amp;CK (12), tuning/automation/containment (14), eradication/recovery (8), and reporting/operations/lessons (8). Total: 100 points; pass: 70.</h2></div></section>
+      <dl class="mf-stats"><div><dt>Case</dt><dd>INC-4821</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Review</dt><dd>Faculty review</dd></div></dl></section>
+    <section class="m12-objective"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Assessment focus</p><h2>Demonstrate preparation, cross-source investigation, scoped response, verified recovery, and clear reporting across the integrated incident.</h2></div></section>
     <section class="m12-objective"><div><i class="ri-git-merge-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Prior instruction</p><h2>This capstone draws on skills from all 11 prior modules: SOC operations foundations (M01), network and identity foundations (M02), SIEM and log analysis (M03), detection rule tuning (M04), endpoint investigation (M05), threat hunting (M06), network and email analysis (M07), vulnerability prioritization (M08), incident response (M09), evidence handling and case documentation (M10), and SOC metrics and communication (M11).</h2></div></section>
     ${moduleTwelvePreparation()}
-    <details class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m12-kicker mf-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">The twelve requirements may be completed in any order. They describe the deliverable, not the attacker's sequence; discover chronology from the evidence. Amber Finch is the capstone composite: Cedar Lock (M09–M11) rehearsed the response, custody, and reporting handoffs, while this case asks you to integrate those decisions with the earlier identity, SIEM, detection, endpoint, hunting, network, and prioritization work.</p>${moduleTwelveMissionStatus()}</section></details>
+    <details class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m12-kicker mf-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">Complete the twelve deliverables in any order; use evidence to discover chronology rather than assume an attack sequence. Amber Finch combines M09–M11 response, custody, and reporting with earlier identity, SIEM, detection, endpoint, hunting, network, and prioritization skills.</p>${moduleTwelveMissionStatus()}</section></details>
     <details class="m12-section-collapsible mf-section mf-lab-section" data-lab-maximize><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m12-kicker mf-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-range-section mf-section-body" id="m12-range"><div id="m12-console-root">${moduleTwelveConsole()}</div></section></details>
     <details class="m12-section-collapsible mf-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m12-kicker mf-kicker">Prove It</p><h2>Capstone assessment</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-assessment-section mf-section-body" id="m12-assessment-section">${moduleTwelveAssessment()}</section></details>
   </main></div></div>`;
@@ -560,6 +573,7 @@ function moduleTwelveRender(focusId) {
 }
 
 function wireModuleTwelveLab() {
+  moduleTwelveWireLearnIt();
   const shell = document.querySelector('.m12-shell');
   if (!shell || !moduleTwelveState || !moduleTwelveUnlocked(moduleTwelveUser, moduleTwelveProgram)) return;
   // The console must be wired on the first route render too, not only after
@@ -701,17 +715,13 @@ function wireModuleTwelveLab() {
     moduleTwelveState.reviewPayload = result.scorePayload;
     moduleTwelveState.lastSubmittedAt = new Date().toISOString();
     moduleTwelveState.completed = result.score >= MODULE_TWELVE_PASSING_SCORE && result.criticalErrors.length === 0;
-    // Once passed, the capstone ticket locks (submitted -> Lab Graded/Under
-    // Review) — docs/specs/MODULE_STANDARD.md §7.2's submit-locks-on-success model. A
-    // still-failing attempt stays editable so the learner can revise and
-    // resubmit, matching the capstone's original retry behavior.
-    if (moduleTwelveState.completed) {
-      moduleTwelveState.submitted = true;
-      moduleTwelveState.actionHistory.push({ action: 'Submitted capstone for faculty review', at: moduleTwelveState.lastSubmittedAt });
-    }
+    // Every capstone Submit is a faculty submission. The internal rubric
+    // recommendation remains in the instructor payload, never the student UI.
+    moduleTwelveState.submitted = true;
+    moduleTwelveState.actionHistory.push({ action: 'Submitted capstone for faculty review', at: moduleTwelveState.lastSubmittedAt });
     if (typeof recordLabAttempt === 'function') {
       recordLabAttempt(moduleTwelveUser, MODULE_TWELVE_CATALOG_KEY, {
-        state: moduleTwelveState.completed ? 'complete' : 'in_progress',
+        state: 'complete',
         score: result.score,
         result: {
           breakdown: result.breakdown,

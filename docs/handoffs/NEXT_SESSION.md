@@ -13,6 +13,15 @@ unblocked roadmap item, then read only that item's governing specification.
 Do not use the historical notes below as an independent plan; some describe
 superseded Module 1 directions.
 
+**2026-10-03 local work (not committed or deployed):** Learn It cards now use a
+shared horizontal carousel across SOC Modules 01–12. The rollout details and
+copy review are in `docs/workstreams/LEARN_IT_CARDS_ROLLOUT.md` and
+`docs/workstreams/LEARN_IT_DECKS_REVIEW.md`. Local syntax, renderer, portal,
+desktop/mobile carousel, reduced-motion, keyboard-focus, restart, and 304 console
+tab checks passed. M04/M05 legacy lecture paragraphs remain in collapsed Deep
+Dive sections. `master` is 31 commits ahead of `origin/master`; do not push it as
+part of this work.
+
 **2026-09-21:** `archive/historical-plans/HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` scoped a
 masked-input, read-the-real-log evidence mechanic for ALT-1001. **Superseded
 later the same day** by `docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md`'s simpler,

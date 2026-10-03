@@ -16,7 +16,7 @@ const SocM05AssessmentConsole = (() => {
     return SocConsoleCore.renderShell({
       shellClass: 'm05-shared-console',
       ariaLabel: 'Module 05 endpoint assessment console',
-      eyebrow: 'MISSION NEXT ENVIRONMENT · ASSESSMENT',
+      eyebrow: 'MISSION NEXT ENVIRONMENT · PRACTICE IT',
       title: 'ENDPOINT INVESTIGATION',
       contextHtml: `<span data-m05-scenario="${escapeHtml(scenario.id)}">${escapeHtml(scenario.caseId)} · ${scenario.telemetry.length} assessment events</span>`,
       navigationHtml: '<nav class="m05-console-tabs" role="tablist" aria-label="Assessment workspaces"><button type="button" role="tab" aria-selected="true" class="is-active" data-m05-console-tab="endpoint">Endpoint investigation</button></nav>',
