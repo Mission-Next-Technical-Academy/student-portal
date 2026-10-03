@@ -7178,15 +7178,31 @@ function collapseCourseCardsByDefault() {
     }
   });
 
-  // Nested lesson cards also form a single-open sequence within each parent.
+  // Nested lesson cards start closed; the student opens one from its chevron
+  // or the left rail, and wireLessonCardAccordion() keeps it to one at a time.
   document.querySelectorAll('main details').forEach((details) => {
-    const className = details.className || '';
-    if (!/(?:lesson|foundation)/.test(className)) return;
-    const siblings = [...(details.parentElement?.querySelectorAll(':scope > details') || [])];
-    if (siblings.length < 2) { details.open = false; return; }
-    const current = siblings.find((item) => item.open) || siblings[0];
-    siblings.forEach((item) => { item.open = item === current; });
+    if (isLessonCard(details)) details.open = false;
   });
+}
+
+function isLessonCard(details) {
+  return details?.tagName === 'DETAILS' && /(?:lesson|foundation)/.test(details.className || '');
+}
+
+// One open lesson card per parent, however it was opened (chevron, left-rail
+// link, or revealCourseCardTarget()). `toggle` does not bubble, so listen in
+// the capture phase once for the whole document.
+let lessonCardAccordionWired = false;
+function wireLessonCardAccordion() {
+  if (lessonCardAccordionWired) return;
+  lessonCardAccordionWired = true;
+  document.addEventListener('toggle', (event) => {
+    const opened = event.target;
+    if (!opened.open || !isLessonCard(opened)) return;
+    [...(opened.parentElement?.querySelectorAll(':scope > details') || [])].forEach((sibling) => {
+      if (sibling !== opened && sibling.open && isLessonCard(sibling)) sibling.open = false;
+    });
+  }, true);
 }
 
 function revealCourseCardTarget(target) {
@@ -7210,6 +7226,7 @@ function revealCourseCardTarget(target) {
 
 function wireCommon() {
   collapseCourseCardsByDefault();
+  wireLessonCardAccordion();
   // Not `signOut` directly: addEventListener calls the handler with the
   // click Event as its first argument, which would land in signOut's
   // `reason` param instead of the default 'user_signed_out' string — the
