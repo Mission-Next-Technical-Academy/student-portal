@@ -60,6 +60,14 @@ vm.runInContext(`
         }
         return { data: { session: null }, error: { message: 'Invalid credentials' } };
       },
+      async setSession() {
+        this._session = {
+          user: { id: 'stub-user2-id', email: 'user2@missionnext.example' },
+          access_token: 'stub-access-token',
+          refresh_token: 'stub-refresh-token',
+        };
+        return { data: { session: this._session }, error: null };
+      },
       async getSession() {
         return {
           data: { session: this._session }
@@ -125,11 +133,24 @@ vm.runInContext(`
         _table: table
       };
       return builder;
+    },
+    async rpc(name) {
+      return { data: name === 'has_valid_site_session', error: null };
     }
   };
 `, ctx);
 ctx.URLSearchParams = URLSearchParams;
 ctx.URL = URL;
+ctx.MNT_SUPABASE_URL = 'https://stub.supabase.co';
+ctx.MNT_SUPABASE_ANON_KEY = 'stub-anon-key';
+ctx.fetch = async (url) => ({
+  ok: true,
+  async json() {
+    return String(url).includes('/secure-login')
+      ? { access_token: 'stub-access-token', refresh_token: 'stub-refresh-token', login_event_id: 'stub-event-id' }
+      : {};
+  },
+});
 
 // Keep the harness aligned with portal/index.html's dependency order. Modules
 // register against shared components and earlier module adapters as the page
