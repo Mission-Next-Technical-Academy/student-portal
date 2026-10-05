@@ -102,12 +102,17 @@ From a terminal or an agent:
 
 ```bash
 bin/dev.sh            # start both halves in the background (target=STAGING)
-bin/dev.sh status     # one line per server; exit 0 only when both are up
+bin/dev.sh status     # one line per server; exit 0 if both up, 3 if either is down
 bin/dev.sh stop       # stop both
 bin/dev.sh serve      # same as start, but in the foreground until Ctrl-C
-                      # (bin/staging-local.sh is the same; .claude/launch.json uses it)
+                      # (bin/staging-local.sh is the same; .claude/launch.json uses it).
+                      # If the portal is already running on the same target it says so
+                      # and exits 0; on a different target it refuses (bin/dev.sh stop).
 ```
 
+`bin/dev.sh status` exits **0** when both servers are up and **3** when
+either is down (other commands exit 1 on a refusal or failure, 64 on a usage
+error), so scripts and agents can check it without parsing the output.
 Before signing in or clicking through flows, confirm the portal line of
 `bin/dev.sh status` says `target=STAGING`:
 

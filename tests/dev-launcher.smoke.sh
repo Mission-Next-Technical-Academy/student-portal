@@ -44,6 +44,21 @@ config() { curl -s --max-time 5 "$PORTAL/supabase-config.js?v=smoke"; }
 contains() { case "$1" in *"$2"*) return 0 ;; *) return 1 ;; esac; }
 not() { ! "$@"; }
 lacks() { not contains "$1" "$2"; }
+# Run "$@" for at most $1 seconds; return its status, or 124 if it had to be
+# killed (macOS has no `timeout`). Catches a serve that hangs instead of exiting.
+run_limited() {
+  local limit=$(($1 * 10)) i=0 pid
+  shift
+  "$@" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    i=$((i + 1))
+    if [ "$i" -gt "$limit" ]; then kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; return 124; fi
+    sleep 0.1
+  done
+  wait "$pid"
+}
+refused() { [ "$1" != 0 ] && [ "$1" != 124 ]; }
 remember_tmpdir() { [ -f .dev-tmpdir ] && TMPDIRS="$TMPDIRS $(cat .dev-tmpdir)"; return 0; }
 
 echo "== start (default: staging)"
@@ -64,8 +79,22 @@ check "simulator returns 200" [ "$(code "$SIM/")" = 200 ]
 
 echo "== start --production while staging runs"
 check "is refused (non-zero)" not bin/dev.sh start --production
-check "serve --production is refused too" not bin/dev.sh serve --production
 check "staging is still served" contains "$(config)" "$STAGING_REF"
+
+echo "== serve while servers are already running (the .claude/launch.json path)"
+out="$(run_limited 20 bin/dev.sh serve 2>&1)"; rc=$?
+echo "$out"
+check "serve, same target: exits 0 promptly" [ "$rc" = 0 ]
+check "serve, same target: says the portal is already running on STAGING at $PORTAL_PORT" \
+  contains "$out" "already running on STAGING at $PORTAL_PORT"
+check "serve, same target: says to use it" contains "$out" "use it at $PORTAL/#/login"
+check "serve, same target: leaves the running servers up" [ "$(code "$PORTAL/")" = 200 ]
+check "serve, same target: still serving staging" contains "$(config)" "$STAGING_REF"
+out="$(run_limited 20 bin/dev.sh serve --production 2>&1)"; rc=$?
+echo "$out"
+check "serve --production, different target: refused (non-zero, did not hang)" refused "$rc"
+check "serve --production, different target: says to run bin/dev.sh stop" contains "$out" "bin/dev.sh stop"
+check "serve --production, different target: staging still served" contains "$(config)" "$STAGING_REF"
 
 echo "== stop"
 staging_tmp="$(cat .dev-tmpdir 2>/dev/null || echo none)"
@@ -83,6 +112,12 @@ check "served config names production" contains "$cfg" "$PRODUCTION_REF"
 check "served config has the red production badge" contains "$cfg" "PRODUCTION (LOCAL)"
 check "status shows target=PRODUCTION" contains "$(bin/dev.sh status 2>&1)" "target=PRODUCTION"
 check "start (staging) while production runs is refused" not bin/dev.sh start
+out="$(run_limited 20 bin/dev.sh serve 2>&1)"; rc=$?
+check "serve (staging) while production runs: refused (non-zero, did not hang)" refused "$rc"
+check "serve (staging) while production runs: says to run bin/dev.sh stop" contains "$out" "bin/dev.sh stop"
+out="$(run_limited 20 bin/dev.sh serve --production 2>&1)"; rc=$?
+check "serve --production, same target: exits 0, already running on PRODUCTION" \
+  contains "$rc:$out" "0:The portal is already running on PRODUCTION at $PORTAL_PORT"
 
 echo "== stop"
 prod_tmp="$(cat .dev-tmpdir 2>/dev/null || echo none)"

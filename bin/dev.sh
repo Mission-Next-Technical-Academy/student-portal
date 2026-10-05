@@ -230,6 +230,15 @@ run() {
     fail "a portal is already running on port $PORTAL_PORT with target=$running, but you asked for $target. Run bin/dev.sh stop first."
   fi
 
+  # serve (also .claude/launch.json) with the same target already running:
+  # nothing to start, so say so and point at the running portal.
+  if [ "$mode" = foreground ] && [ "$running" = "$target" ]; then
+    is_up "$SIM_PORT" || fail "the portal is already running on $target at $PORTAL_PORT, but the simulator on $SIM_PORT is down. Run bin/dev.sh stop, then try again."
+    echo "The portal is already running on $target at $PORTAL_PORT: use it at http://127.0.0.1:$PORTAL_PORT/#/login"
+    echo "Nothing was started. Stop it with bin/dev.sh stop."
+    exit 0
+  fi
+
   [ "$target" = PRODUCTION ] && production_warning
   echo "Starting Mission Next Technical Academy locally (target=$target):"
   [ "$target" = STAGING ] && staging_health_check
@@ -309,10 +318,6 @@ case "${1:-start}" in
     trap 'echo; echo "Stopping:"; stop_started; exit 0' INT TERM
     trap 'stop_started' EXIT
     run foreground "$@"
-    if [ -z "$STARTED" ]; then
-      echo "  (both servers were already running in the background; stop them with bin/dev.sh stop)"
-      exit 0
-    fi
     echo "  Serving in this window. Press Ctrl-C to stop."
     # Stay in the foreground while our servers run; cleanup runs from the traps.
     while :; do
