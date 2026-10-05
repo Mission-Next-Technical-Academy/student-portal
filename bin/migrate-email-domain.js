@@ -4,14 +4,18 @@
  * from the old @students.mntacademy.internal domain to the new
  * @missionnext.example domain (see portal/app.js STUDENT_EMAIL_DOMAIN).
  *
- * Usage: node bin/migrate-email-domain.js [--dry-run]
+ * Usage: SUPABASE_URL=... node bin/migrate-email-domain.js [--dry-run] [--production]
  *
  * Requires:
  *   SUPABASE_SERVICE_ROLE_KEY (set this; no default)
- *   SUPABASE_URL (defaults to production project)
+ *   SUPABASE_URL (required; no default). Production is refused unless
+ *     --production is passed. See bin/lib/supabase-target.js.
  */
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://eokvngifirjgfozzbieu.supabase.co';
+const { requireSupabaseTarget } = require('./lib/supabase-target');
+
+// Runs first: prints the target and refuses production without --production.
+const SUPABASE_URL = requireSupabaseTarget().url;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const NEW_DOMAIN = '@missionnext.example';
 

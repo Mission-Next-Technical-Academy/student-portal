@@ -19,20 +19,29 @@ Safety controls:
   must never be committed.
 - The admin account must be marked `is_admin`; the database still enforces
   M360 faculty-review/finalizer authorization.
+- `SUPABASE_URL` is required and has no default. The script prints the target
+  project first and refuses production unless `--production` is passed.
+- Execution against any project other than production also requires
+  `SUPABASE_ANON_KEY`, that project's publishable key. For staging, use the
+  staging publishable key (public by design; it is the student-portal-staging
+  repository variable `STAGING_SUPABASE_PUBLISHABLE_KEY`).
 
 Plan (no writes):
 
 ```sh
-node bin/m360-synthetic-complete.js --student-id '<EXPLICIT_TEST_STUDENT_ID>'
+SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co \
+node bin/m360-synthetic-complete.js --student-id '<STAGING_TEST_STUDENT_ID>'
 ```
 
 Authorized execution (operator-only; do not run as part of CI):
 
 ```sh
+SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co \
+SUPABASE_ANON_KEY='<staging publishable key>' \
 M360_STUDENT_EMAIL='...' M360_STUDENT_PASSWORD='...' \
 M360_ADMIN_EMAIL='...' M360_ADMIN_PASSWORD='...' \
 node bin/m360-synthetic-complete.js \
-  --student-id '<EXPLICIT_TEST_STUDENT_ID>' \
+  --student-id '<STAGING_TEST_STUDENT_ID>' \
   --execute --confirm-synthetic
 ```
 

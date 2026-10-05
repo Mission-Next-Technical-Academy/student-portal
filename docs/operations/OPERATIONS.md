@@ -17,8 +17,15 @@ code or use the UI as a substitute for a retention process.
 | In-portal messages | `public.student_messages` |
 | Course and assessment records | `public.module_progress`, `public.lab_attempts`, `public.capstone_submissions`, and `public.portfolio_artifacts` |
 | Cohort retention/archive | `supabase/migrations/20260901121000_cohort_archival_engine.sql` |
-| Provisioning | `bin/provision-students.js` (requires `SUPABASE_SERVICE_ROLE_KEY`) |
-| Test-account cleanup | `bin/purge-test-students.js` (dry run by default; requires `SUPABASE_SERVICE_ROLE_KEY` to execute) |
+| Provisioning | `bin/provision-students.js` (requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`) |
+| Test-account cleanup | `bin/purge-test-students.js` (dry run by default; requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`) |
+
+**Every admin script needs an explicit target.** The scripts in `bin/` that
+talk to Supabase have no default project. They stop if `SUPABASE_URL` is unset,
+print the target project before doing anything, and refuse the production
+project unless `--production` is passed (`bin/lib/supabase-target.js`).
+For staging, prefix the command with
+`SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co`.
 
 Never commit a service-role key, roster CSV, or password. The locally generated
 roster output belongs in `bin/.roster-output/` (already gitignored) or an

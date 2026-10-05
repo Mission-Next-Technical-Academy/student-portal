@@ -7,10 +7,15 @@
  * student/admin RPCs so reviewer and finalizer audit fields remain accurate.
  *
  * Usage (credentials belong in the environment, never the command line):
+ *   SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co \
  *   MNT_SYNTHETIC_COMPLETION_ACK=I_UNDERSTAND_SYNTHETIC_RECORDS \
  *   SUPABASE_SERVICE_ROLE_KEY=... MNT_STUDENT_PASSWORD=... \
  *   MNT_ADMIN_EMAIL=... MNT_ADMIN_PASSWORD=... \
- *   node bin/synthesize-soc-m360-completion.js 4437023872-SOCAN --execute
+ *   node bin/synthesize-soc-m360-completion.js <STAGING_TEST_STUDENT_ID> --execute
+ *
+ * SUPABASE_URL is required (no default). Production is refused unless
+ * --production is passed, and --create-staging-m360-enrollment only runs
+ * against the staging project. See bin/lib/supabase-target.js.
  *
  * Required target conditions: the student exists, is enrolled in SOCAN, and
  * has an active M360 enrollment assigned to a controlled cohort. The supplied
@@ -19,7 +24,12 @@
 
 'use strict';
 
-const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://eokvngifirjgfozzbieu.supabase.co').replace(/\/$/, '');
+const { requireSupabaseTarget } = require('./lib/supabase-target');
+
+// Runs first: prints the target, refuses production without --production,
+// and removes --production from process.argv before the arguments are read.
+const target = requireSupabaseTarget();
+const SUPABASE_URL = target.url;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ACK = 'I_UNDERSTAND_SYNTHETIC_RECORDS';
 const args = process.argv.slice(2);
@@ -64,6 +74,7 @@ function syntheticResult(moduleKey, labKey) {
 
 async function main() {
   if (!studentId || !/^\d{10}-SOCAN$/.test(studentId)) fail('Usage: node bin/synthesize-soc-m360-completion.js <10-digit-SOCAN> --execute [--create-staging-m360-enrollment]');
+  if (createM360Enrollment && target.environment !== 'STAGING') fail(`--create-staging-m360-enrollment only runs against the staging project; the target is ${target.environment}.`);
   if (!execute) fail('Dry protection: add --execute after reviewing the target.');
   if (process.env.MNT_SYNTHETIC_COMPLETION_ACK !== ACK) fail(`Set MNT_SYNTHETIC_COMPLETION_ACK=${ACK}.`);
   for (const key of ['SUPABASE_SERVICE_ROLE_KEY', 'MNT_STUDENT_PASSWORD', 'MNT_ADMIN_EMAIL', 'MNT_ADMIN_PASSWORD']) if (!process.env[key]) fail(`Missing ${key}.`);
