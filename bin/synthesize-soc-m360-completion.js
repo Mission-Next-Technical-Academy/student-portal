@@ -113,6 +113,16 @@ async function main() {
   // M360 mutations deliberately travel through student and faculty RPCs.
   const studentToken = await signIn(`${studentId.toLowerCase()}@missionnext.example`, process.env.MNT_STUDENT_PASSWORD);
   const adminToken = await signIn(process.env.MNT_ADMIN_EMAIL, process.env.MNT_ADMIN_PASSWORD);
+
+  // Every module completes only on instructor approval
+  // (20261005120000_instructor_approval_gate_and_write_lockdown.sql). Approve
+  // through the same admin review path the Grading tab uses, signed by the
+  // admin account, so the fixture's review trail is honest.
+  const adminUserId = JSON.parse(Buffer.from(adminToken.split('.')[1], 'base64url').toString()).sub;
+  const unreviewed = await rest('lab_attempts', `user_id=eq.${student.user_id}&track_code=eq.SOCAN&state=eq.complete&reviewed_at=is.null&select=id`);
+  for (const attempt of unreviewed) {
+    await api(`/rest/v1/lab_attempts?id=eq.${attempt.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ reviewed_at: now(), reviewed_by: adminUserId, redo_requested: false }) }, adminToken);
+  }
   await rpc('m360_save_start_here', { p_payload: { synthetic: true, source: syntheticTag, networkingComfort: 3, interviewReadiness: 3 }, p_complete: true, p_acknowledgments_complete: true, p_support_flag: false }, studentToken);
   for (let week = 1; week <= 6; week++) {
     const payload = { synthetic: true, source: syntheticTag, week, submitted_at: now(), note: 'Controlled QA/demo submission; not learner-authored work.' };

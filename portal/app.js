@@ -5167,6 +5167,7 @@ const STATE_STYLES = {
   complete:    { label: 'Complete',    icon: 'ri-checkbox-circle-fill', cls: 'bg-[#f0fdf4] border-[#bbf7d0] text-[#15803d]' },
   in_progress: { label: 'In Progress', icon: 'ri-progress-4-line',      cls: 'bg-[#fff7ed] border-[#fed7aa] text-[#c2410c]' },
   needs_redo:  { label: 'Redo Requested', icon: 'ri-error-warning-line', cls: 'bg-[#fef2f2] border-[#fecaca] text-[#b91c1c]' },
+  awaiting_approval: { label: 'Awaiting Approval', icon: 'ri-time-line', cls: 'bg-[#eff6ff] border-[#bfdbfe] text-[#1d4ed8]' },
   not_started: { label: 'Not Started', icon: 'ri-circle-line',          cls: 'bg-gray-50 border-gray-200 text-gray-500' },
   locked:      { label: 'Locked',      icon: 'ri-lock-line',            cls: 'bg-gray-50 border-gray-200 text-gray-400' },
   draft:       { label: 'In Development', icon: 'ri-tools-line',        cls: 'bg-gray-50 border-gray-200 text-gray-400' },
@@ -5213,20 +5214,28 @@ function moduleCard(program, key, user) {
   const unlocked = hasModuleAccess(user, program.slug, key);
   const completion = moduleCompletion(program, key, user);
   const openRedo = (user.openLabRedosByModuleKey || {})[key];
+  const labs = programLabs(program).filter((lab) => lab.module === key && lab.optional !== true);
+  // Every module completes only on instructor approval
+  // (20261005120000_instructor_approval_gate_and_write_lockdown.sql), so a
+  // submitted lab with no review yet is waiting on faculty, not the student.
+  const awaitingApproval = !completion.complete && labs.some((lab) => {
+    const attempt = (user.latestLabAttemptByKey || {})[lab.key];
+    return attempt && attempt.completedAt && !attempt.reviewedAt;
+  });
   const state = !unlocked ? 'locked'
               : m.status === 'draft' ? 'draft'
               : openRedo ? 'needs_redo'
               : completion.complete ? 'complete'
+              : awaitingApproval ? 'awaiting_approval'
               : completion.contentOpened || completion.fixtureState !== 'not_started' ? 'in_progress'
               : 'not_started';
   const s = STATE_STYLES[state];
-  const labs = programLabs(program).filter((lab) => lab.module === key && lab.optional !== true);
   const curriculumItems = Array.isArray(m.curriculumItems) ? m.curriculumItems : [];
   const parentRecords = moduleParentRecords(program, m, labs);
   const completionLabel = completion.complete
     ? 'Module complete: module content opened and every lab completed'
     : 'Module not complete: open the module content and complete every lab';
-  const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' || state === 'needs_redo' ? 'Continue Module' : 'Start Module';
+  const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' || state === 'needs_redo' || state === 'awaiting_approval' ? 'Continue Module' : 'Start Module';
 
   return `
   <div id="sec-module-${m.number}" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden scroll-mt-32 ${unlocked ? '' : 'mnt-locked'}" data-module-card>
@@ -5249,6 +5258,10 @@ function moduleCard(program, key, user) {
         ${openRedo ? `<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
           <p class="text-xs font-semibold text-red-700 flex items-center gap-1.5"><i class="ri-error-warning-line" aria-hidden="true"></i>Redo requested: ${esc(openRedo.labTitle)}</p>
           ${openRedo.feedback.length ? `<ul class="mt-1.5 space-y-1 text-xs text-red-700/90 list-disc list-inside">${openRedo.feedback.map((f) => `<li>${f.item_label ? `<strong>${esc(f.item_label)}:</strong> ` : ''}${esc(f.comment)}</li>`).join('')}</ul>` : `<p class="mt-1 text-xs text-red-700/80">Your instructor sent this back — open the module to see what to redo.</p>`}
+        </div>` : ''}
+        ${state === 'awaiting_approval' ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2.5">
+          <p class="text-xs font-semibold text-[#1d4ed8] flex items-center gap-1.5"><i class="ri-time-line" aria-hidden="true"></i>Submitted for instructor review</p>
+          <p class="mt-1 text-xs text-[#1d4ed8]/90">The next module unlocks as soon as your instructor approves this lab.</p>
         </div>` : ''}
         <div class="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
           ${m.durationMinutes ? `<span><i class="ri-time-line"></i> ${formatHandsOnDuration(m.durationMinutes)}</span>` : ''}
