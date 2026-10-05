@@ -14,10 +14,14 @@ LIVE_URL="https://mission-next-technical-academy.github.io/student-portal/"
 
 "$ROOT/bin/dev.sh" start >>"$ROOT/.launch.log" 2>&1
 
-# Firefox accepts multiple URLs in one invocation, which opens them together as
-# tabs in the same browser window.  Fall back to the desktop URL handler when
-# Firefox is not installed; most handlers reuse the current browser window.
-if command -v firefox >/dev/null 2>&1; then
+# macOS: `open` hands each URL to the default browser.
+# Linux: Firefox accepts multiple URLs in one invocation, which opens them
+# together as tabs in the same browser window.  Fall back to the desktop URL
+# handler when Firefox is not installed; most handlers reuse the current
+# browser window.
+if [ "$(uname -s)" = Darwin ]; then
+  open "$LOCAL_URL" "$LIVE_URL"
+elif command -v firefox >/dev/null 2>&1; then
   firefox "$LOCAL_URL" "$LIVE_URL" >/dev/null 2>&1 &
 else
   xdg-open "$LOCAL_URL" >/dev/null 2>&1 &

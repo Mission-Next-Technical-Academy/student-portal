@@ -10,14 +10,42 @@ which surfaces as "No view registered for #/...".
 
 No-store on every response keeps local development honest. Nothing here reaches
 the deployed site; the Pages workflow copies portal/ and ui/ only.
+
+--override URLPATH=FILE (repeatable) serves FILE in place of URLPATH; the query
+string is ignored. bin/dev.sh uses it to swap in a generated
+/supabase-config.js that points at staging while every other file is served
+live from the repo. A request that resolves to the shadowed file by another
+spelling (case, "./", "%73") gets the override too, so the repo copy behind it
+is never served.
 """
 
 import argparse
+import os
+import posixpath
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from urllib.parse import unquote, urlsplit
 
 
 class NoCacheHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, overrides=(), **kwargs):
+        # (url path, shadowed file under --directory, replacement file)
+        self.overrides = overrides
+        super().__init__(*args, **kwargs)
+
+    def translate_path(self, path):
+        url_path = posixpath.normpath(unquote(urlsplit(path).path))
+        real = super().translate_path(path)
+        for override_path, shadowed, replacement in self.overrides:
+            if url_path == override_path:
+                return replacement
+            try:
+                if os.path.samefile(real, shadowed):
+                    return replacement
+            except OSError:
+                pass
+        return real
+
     def end_headers(self):
         self.send_header('Cache-Control', 'no-store, must-revalidate')
         self.send_header('Pragma', 'no-cache')
@@ -34,9 +62,19 @@ def main():
     parser.add_argument('port', type=int)
     parser.add_argument('--bind', default='127.0.0.1')
     parser.add_argument('--directory', required=True)
+    parser.add_argument('--override', action='append', default=[], metavar='URLPATH=FILE',
+                        help='serve FILE for requests to URLPATH (repeatable)')
     args = parser.parse_args()
 
-    handler = partial(NoCacheHandler, directory=args.directory)
+    overrides = []
+    for spec in args.override:
+        url_path, sep, replacement = spec.partition('=')
+        if not sep or not url_path.startswith('/') or not os.path.isfile(replacement):
+            parser.error('--override needs /URLPATH=EXISTING_FILE, got %r' % spec)
+        shadowed = os.path.join(args.directory, url_path.lstrip('/'))
+        overrides.append((posixpath.normpath(url_path), shadowed, os.path.abspath(replacement)))
+
+    handler = partial(NoCacheHandler, directory=args.directory, overrides=tuple(overrides))
     HTTPServer((args.bind, args.port), handler).serve_forever()
 
 
