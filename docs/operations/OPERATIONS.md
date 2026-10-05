@@ -2,7 +2,8 @@
 
 This repository's portal is a **live production application**.  It is not a
 local demo database: `portal/supabase-config.js` names the production Supabase
-project and `bin/dev.sh` connects to it.
+project, which the deployed site uses. Local development (`bin/dev.sh`)
+connects to the staging project instead unless `--production` is passed.
 
 Start operational work here. Do not reconstruct the data path from portal
 code or use the UI as a substitute for a retention process.
@@ -29,8 +30,14 @@ refuse the production project unless `--production` is passed
 (`bin/lib/supabase-target.js`). For staging, prefix the command with
 `SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co`.
 
-`bin/dev.sh` is not covered by this guard: it serves the portal exactly as
-configured in `portal/supabase-config.js`, which is the production project.
+`bin/dev.sh` follows the same rule for the local portal: it connects to
+**staging** by default and to production only with `--production`. It serves
+`portal/` live but swaps `/supabase-config.js` for a generated staging copy
+(with an orange "STAGING (LOCAL)" badge; production gets a red one), refuses
+to start if any other `portal/` or `ui/` file hard-codes the production
+project, and refuses to reuse a running portal whose target differs.
+`bin/dev.sh status` prints the target the portal is actually serving. Serving
+`portal/` any other way bypasses this and connects to production.
 
 Never commit a service-role key, roster CSV, or password. The locally generated
 roster output belongs in `bin/.roster-output/` (already gitignored) or an

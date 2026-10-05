@@ -37,27 +37,51 @@ must never be treated as the authority.
 ## Local development
 
 ```bash
-bin/dev.sh          # start both halves, print URLs and demo sign-ins
-bin/dev.sh status   # what is listening
-bin/dev.sh stop     # shut both down
+bin/dev.sh               # start both halves in the background, on STAGING
+bin/dev.sh status        # one line per server, with the Supabase target
+bin/dev.sh stop          # shut both down
+bin/staging-local.sh     # or: run in this window; Ctrl-C stops everything
 ```
 
-Then open <http://127.0.0.1:8768/#/login>. `portal/supabase-config.js`
-hardcodes the live production Supabase project — local dev is not backed by
-a local or seeded Supabase instance, it talks to the same database
-production does. `supabase/seed.sql` describes four fixed test accounts
-(`user1`-`user4`, password equal to username) for a local Supabase-CLI
-stack that this repo's `bin/dev.sh` does not actually run; those accounts
-were never reachable this way (their email domain in the seed file doesn't
-even match the app's real `@missionnext.example` construction in
-`portal/app.js`) and **do not work**, against production or otherwise. Sign
-in locally with a real provisioned account instead — see below.
+Then open <http://127.0.0.1:8768/#/login>.
 
-Real, provisioned student accounts are never listed in documentation or
-source — they're issued per-student through the admin panel/`bin/
-provision-students.js` and live only in the gitignored
-`bin/.roster-output/*.csv` files (or your password vault, if you've moved
-them there already) and in Supabase directly.
+**Local development uses the staging Supabase project by default**
+(`xbblgtrfwgeiyttdlbue`, synthetic data only), never production. The repo's
+`portal/supabase-config.js` names the production project because that is
+what the deployed site uses; locally, `bin/dev.sh` serves every file live from
+the repo except that one, which it swaps for a generated copy (kept in a temp
+folder outside the repo) that names staging. Edits to `portal/` and `ui/` show
+on reload with no restart.
+
+An orange **STAGING (LOCAL) · synthetic data only** badge in the lower-left
+corner of every portal page confirms the target, and `bin/dev.sh status`
+prints it:
+
+```
+  portal     UP    (8768)  target=STAGING
+  simulator  UP    (8767)  target=none (no Supabase)
+```
+
+To work against the live production project instead (real student data),
+opt in explicitly: `bin/dev.sh stop`, then `bin/dev.sh --production` (or
+`bin/staging-local.sh --production`). It prints a warning and shows a red
+**PRODUCTION (LOCAL) · real student data** badge. `bin/dev.sh` refuses to
+start if a portal is already running with a different target.
+
+Don't serve `portal/` any other way (for example `python3 -m http.server`):
+that skips the swap and connects to production.
+
+**Test accounts:** sign in locally with a synthetic staging account from your
+password manager. Accounts and passwords are never listed in documentation or
+source. They are issued through the admin panel or `bin/provision-students.js`
+(run against staging with
+`SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co`), and the generated
+rosters live only in the gitignored `bin/.roster-output/` until they are moved
+to a password manager. The `user1`-`user4` accounts in `supabase/seed.sql`
+belong to a local Supabase-CLI stack this repo does not run, and do not work.
+
+Requirements: bash, Python 3 (`python3`, or `python` on Windows Git Bash) and
+`curl`, on macOS or Linux.
 
 ### Where things live
 
@@ -75,7 +99,7 @@ portal/
 ui/               The simulator (inherited SC-200 lab, rebranded)
 supabase/         Postgres schema, RLS policies, and Auth-backed accounts
 local-tasks/      Fixture authoring pipeline that compiles into ui/data.js
-bin/              dev.sh, launch.sh, qa-sweep.sh, render_all.js
+bin/              dev.sh, staging-local.sh, launch.sh, qa-sweep.sh, render_all.js
 ```
 
 ### Lab state isolation

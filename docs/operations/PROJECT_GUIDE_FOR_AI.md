@@ -83,6 +83,10 @@ devices, queries, and cloud resources are fictional fixtures.
 
 ## Start the course
 
+Local runs connect to the **staging** Supabase project (synthetic data only),
+never production, unless a person explicitly asks for production in this
+session.
+
 Preferred launcher:
 
 ```bash
@@ -92,9 +96,46 @@ cd "/home/alex/Mission_Next_Technical_Academy_SOC_Analyst_course"
 
 The launcher starts both detached Python servers through `bin/dev.sh`, writes
 `.portal.pid` and `.simulator.pid`, logs to `.portal.log` and `.simulator.log`,
-and opens the portal login page in the default browser.
+and opens the portal login page in the default browser (`open` on macOS).
 
-Manual start (simulator only):
+From a terminal or an agent:
+
+```bash
+bin/dev.sh            # start both halves in the background (target=STAGING)
+bin/dev.sh status     # one line per server; exit 0 only when both are up
+bin/dev.sh stop       # stop both
+bin/dev.sh serve      # same as start, but in the foreground until Ctrl-C
+                      # (bin/staging-local.sh is the same; .claude/launch.json uses it)
+```
+
+Before signing in or clicking through flows, confirm the portal line of
+`bin/dev.sh status` says `target=STAGING`:
+
+```
+  portal     UP    (8768)  target=STAGING
+  simulator  UP    (8767)  target=none (no Supabase)
+```
+
+Every portal page also shows an orange "STAGING (LOCAL)" badge in the lower
+left, and `window.MNT_LOCAL_TARGET` is `'STAGING'`. Sign in only with
+synthetic staging accounts that a person gives you; never take credentials
+from files in this repo.
+
+How it works: `portal/` and `ui/` are served live from the repo, so edits show
+on reload. Only the portal's `/supabase-config.js` is swapped (`bin/serve.py
+--override`) for a copy generated outside the repo that names staging. The
+repo's `portal/supabase-config.js` itself still names production, because
+that is what the deployed site uses. So **do not serve `portal/` any other
+way** (`python3 -m http.server`, a hand-made `serve.py` command, another
+static server): that skips the swap and connects to production.
+
+`bin/dev.sh --production` (or `start --production`) is the explicit opt-in to
+the live production project: it prints a warning and shows a red
+"PRODUCTION (LOCAL) · real student data" badge. Do not use it unless asked.
+`bin/dev.sh` refuses to start if a portal is already running with a
+different target; run `bin/dev.sh stop` first.
+
+Manual start of the simulator alone (it does not talk to Supabase):
 
 ```bash
 cd "/home/alex/Mission_Next_Technical_Academy_SOC_Analyst_course/ui"
@@ -117,8 +158,9 @@ bin/dev.sh status
 ps -p "$(cat .portal.pid)" -o args=
 ```
 
-The portal process should be `bin/serve.py 8768 ... --directory .../portal` and
-the simulator process should be `bin/serve.py 8767 ... --directory .../ui`.
+The portal process should be `bin/serve.py 8768 ... --directory .../portal
+--override /supabase-config.js=...` and the simulator process should be
+`bin/serve.py 8767 ... --directory .../ui`.
 
 ## Desktop integration
 
