@@ -1,18 +1,23 @@
 #!/usr/bin/env node
 /**
  * Provision student (and instructor/admin) accounts against Supabase REST API.
- * Usage: node bin/provision-students.js <TRACKCODE> <COUNT>
- * Example: node bin/provision-students.js SOCAN 20
+ * Usage: node bin/provision-students.js <TRACKCODE> <COUNT> [--production]
+ * Example (staging):
+ *   SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co node bin/provision-students.js HDESK 3
  *
  * Requires:
  *   SUPABASE_SERVICE_ROLE_KEY (set this; no default)
- *   SUPABASE_URL (defaults to production project)
+ *   SUPABASE_URL (required; no default). Production is refused unless
+ *     --production is passed. See bin/lib/supabase-target.js.
  */
 
 const { randomInt, randomBytes } = require('crypto');
 const { writeFileSync, mkdirSync, appendFileSync } = require('fs');
+const { requireSupabaseTarget } = require('./lib/supabase-target');
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://eokvngifirjgfozzbieu.supabase.co';
+// Runs first: prints the target, refuses production without --production,
+// and removes --production from process.argv before the arguments are read.
+const SUPABASE_URL = requireSupabaseTarget().url;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const TRACK_CODE_MAP = {

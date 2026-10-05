@@ -8,16 +8,8 @@
 .m10-shell .m10-simulation { color: #475569; background: #f8fafc; border: 1px solid #e5e7eb; }
 .m10-shell .m10-exit { color: #1e3a5f; border: 1px solid rgba(30, 58, 95, .18); text-decoration: none; }
 .m10-shell .m10-exit:hover { background: rgba(30, 58, 95, .06); }
-.m10-shell .m10-main { width: min(calc(100% - 40px), 1180px); margin: 0 auto; padding: 34px 0 64px; }
-.m10-shell .m10-hero { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 34px; padding: 40px; color: #fff; background: linear-gradient(150deg, #0c1e32 0%, #1e3a5f 52%, #162d4a 100%); border-radius: 18px; box-shadow: 0 1px 2px rgba(12, 30, 50, .12); }
+.m10-shell .m10-main { width: min(calc(100% - 40px), 1180px); margin: 0 auto; padding: 44px 0 80px; }
 .m10-shell .m10-kicker { margin: 0; color: #f97316; font: 800 10px/1.4 Inter, sans-serif; letter-spacing: .11em; text-transform: uppercase; }
-.m10-shell .m10-hero h1 { max-width: 740px; margin: 8px 0 12px; color: #fff; font-size: clamp(32px, 5vw, 54px); line-height: 1.05; letter-spacing: -.035em; }
-.m10-shell .m10-hero > div > p:last-child { max-width: 710px; margin: 0; color: rgba(255, 255, 255, .7); font: 14px/1.75 Inter, sans-serif; }
-.m10-shell .m10-hero dl { display: grid; grid-template-columns: repeat(3, 1fr); align-self: center; margin: 0; overflow: hidden; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); border-radius: 13px; }
-.m10-shell .m10-hero dl div { padding: 18px 10px; text-align: center; }
-.m10-shell .m10-hero dl div + div { border-left: 1px solid rgba(255, 255, 255, .13); }
-.m10-shell .m10-hero dt { color: rgba(255, 255, 255, .58); font: 9px/1.4 Inter, sans-serif; text-transform: uppercase; }
-.m10-shell .m10-hero dd { margin: 5px 0 0; color: #fff; font-size: 20px; font-weight: 800; }
 .m10-shell .m10-boundary { margin: 18px 0; display: flex; align-items: flex-start; gap: 11px; padding: 14px 17px; color: #475569; background: #fff; border: 1px solid #e5e7eb; border-left: 4px solid #f97316; border-radius: 0 11px 11px 0; }
 .m10-shell .m10-boundary i { flex: 0 0 auto; color: #1e3a5f; font-size: 20px; }
 .m10-shell .m10-boundary p { margin: 0; font: 12px/1.6 Inter, sans-serif; }
@@ -144,16 +136,6 @@
 .m10-shell .m10-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .m10-shell :focus-visible { outline: 3px solid rgba(249, 115, 22, .4); outline-offset: 2px; }
 
-.m10-shell .m10-section-collapsible { margin-top: 24px; background: #fff; border: 1px solid #e5e7eb; border-radius: 20px; box-shadow: 0 8px 24px rgba(30, 58, 95, .05); }
-.m10-shell .m10-section-collapsible summary { list-style: none; cursor: pointer; }
-.m10-shell .m10-section-collapsible summary::-webkit-details-marker { display: none; }
-.m10-shell .m10-section-collapsible .m10-section { margin: 0; padding: clamp(23px, 4vw, 38px); background: 0; border: 0; box-shadow: none; }
-.m10-shell .m10-section-body { padding: clamp(23px, 4vw, 38px); border-top: 1px solid #e5e7eb; background: #fff; }
-.m10-shell .m10-section { scroll-margin-top: 148px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30, 58, 95, .05); }
-.m10-shell .m10-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 0; }
-.m10-shell .m10-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-weight: 800; }
-.m10-shell .m10-section-heading h2 { scroll-margin-top: 148px; margin: 3px 0 0; color: #1e3a5f; font-size: 23px; line-height: 1.25; }
-.m10-shell .m10-section-badge { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 11px; font-weight: 800; }
 
 .m10-shell .m10-quiz-form { margin-top: 18px; padding: 24px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 16px; }
 .m10-shell .m10-quiz-form > .m10-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0 0 24px 0; }
@@ -186,13 +168,6 @@
 .m10-shell .m10-quiz-feedback-incorrect { color: #9a3412; }
 .m10-shell .m10-quiz-feedback-list i { margin-right: 6px; font-size: 17px; }
 
-.m10-shell .m10-video-script { margin: 18px 0 0; padding: 12px 14px; color: #475569; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; }
-.m10-shell .m10-video-script summary { color: #1e3a5f; font-size: 11px; font-weight: 800; cursor: pointer; }
-.m10-shell .m10-script-body { margin: 8px 0 0; }
-.m10-shell .m10-script-body p { margin: 12px 0 0; color: #475569; font: 11px/1.6 Inter, sans-serif; }
-.m10-shell .m10-script-body p:first-child { margin-top: 0; }
-.m10-shell .m10-script-body strong { color: #1e3a5f; }
-
 .m10-shell .m10-review-section { }
 .m10-shell .m10-review-section h3 { margin: 20px 0 12px 0; color: #1e3a5f; font-size: 16px; font-weight: 700; }
 .m10-shell .m10-review-section h3:first-child { margin-top: 0; }
@@ -221,13 +196,11 @@
   .m10-shell .m10-simulation { display: none; }
   .m10-shell .m10-exit { font-size: 0; }
   .m10-shell .m10-exit i { font-size: 19px; }
-  .m10-shell .m10-hero { padding: 28px 22px; }
   .m10-shell .m10-lab { padding: 18px 14px; }
   .m10-shell .m10-loop-grid { grid-template-columns: 1fr; }
   .m10-shell .m10-lab-heading, .m10-shell .m10-panel-heading, .m10-shell .m10-score-heading { flex-direction: column; }
   .m10-shell .m10-form-grid, .m10-shell .m10-check-grid, .m10-shell .m10-score-grid { grid-template-columns: 1fr; }
   .m10-shell .m10-quiz-options { margin: 12px 0 0 0; }
-  .m10-shell .m10-section-body { padding: 18px 14px; }
   .m10-shell .m10-table-wrap { overflow: visible; border: 0; }
   .m10-shell .m10-data-table { min-width: 0; display: block; }
   .m10-shell .m10-data-table thead { display: none; }
@@ -251,4 +224,53 @@
 
 @media (prefers-reduced-motion: reduce) {
   .m10-shell * { scroll-behavior: auto !important; }
+}
+
+.m10-guided-case { display: grid; gap: 14px; }
+.m10-guided-case .m10-panel-instruction { margin: 0; color: #475569; }
+.m10-guided-status { margin: 0; color: #475569; font-weight: 650; }
+
+.m10-guided-case { display: grid; gap: 14px; }
+.m10-guided-case .m10-panel-instruction { margin: 0; color: #475569; }
+.m10-guided-status { margin: 0; color: #475569; font-weight: 650; }
+
+/* Evidence handling chain (lesson Deep Dive) */
+.m10-shell .m10-handling { margin: 18px 0 0; padding: 18px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; }
+.m10-shell .m10-handling-title { margin: 4px 0 4px; color: #1e3a5f; font-size: 17px; }
+.m10-shell .m10-handling-note { margin: 0 0 14px; color: #64748b; font: 12px/1.6 Inter, sans-serif; }
+.m10-shell .m10-handling-chain { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.m10-shell .m10-handling-step { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; }
+.m10-shell .m10-handling-step-provenance { border-style: solid; border-color: #1e3a5f; }
+.m10-shell .m10-handling-step-integrity { border-style: dashed; border-width: 2px; border-color: #f97316; }
+.m10-shell .m10-handling-step summary { display: grid; grid-template-columns: 24px minmax(0, 1fr) 16px; gap: 8px; align-items: start; cursor: pointer; list-style: none; }
+.m10-shell .m10-handling-step summary::-webkit-details-marker { display: none; }
+.m10-shell .m10-handling-step summary:focus-visible { outline: 2px solid #f97316; outline-offset: 2px; border-radius: 6px; }
+.m10-shell .m10-handling-num { width: 24px; height: 24px; display: grid; place-items: center; color: #fff; background: #1e3a5f; border-radius: 50%; font: 800 11px Inter, sans-serif; }
+.m10-shell .m10-handling-text { display: grid; gap: 2px; min-width: 0; }
+.m10-shell .m10-handling-text strong { color: #1e3a5f; font-size: 13px; }
+.m10-shell .m10-handling-text span { color: #475569; font: 11px/1.45 Inter, sans-serif; }
+.m10-shell .m10-handling-chevron { color: #64748b; transition: transform .15s; }
+.m10-shell .m10-handling-step details[open] .m10-handling-chevron { transform: rotate(180deg); }
+.m10-shell .m10-handling-step details p { margin: 8px 0 0; padding-left: 32px; color: #334155; font: 11px/1.55 Inter, sans-serif; }
+.m10-shell .m10-handling-chip { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; font: 800 10px Inter, sans-serif; background: #fff; }
+.m10-shell .m10-handling-chip-provenance { color: #1e3a5f; border: 1px solid #1e3a5f; }
+.m10-shell .m10-handling-chip-integrity { color: #9a3412; border: 2px dashed #f97316; }
+.m10-shell .m10-handling-gates { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.m10-shell .m10-handling-gate { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 9px; align-items: start; padding: 11px 12px; border-radius: 10px; background: #fff; }
+.m10-shell .m10-handling-gate i { font-size: 20px; }
+.m10-shell .m10-handling-gate strong { display: block; font-size: 12px; }
+.m10-shell .m10-handling-gate span { display: block; margin-top: 3px; color: #475569; font: 11px/1.5 Inter, sans-serif; }
+.m10-shell .m10-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Sequence arrows: right within a row, down on the stacked layout */
+.m10-shell .m10-handling-chain { column-gap: 22px; }
+.m10-shell .m10-handling-step { position: relative; }
+.m10-shell .m10-handling-step::after { position: absolute; }
+.m10-shell .m10-handling-step:not(:nth-child(3n)):not(:last-child)::after { content: '\2192'; top: 14px; right: -18px; color: #94a3b8; font: 800 14px Inter, sans-serif; }
+@media (max-width: 700px) {
+  .m10-shell .m10-handling-chain, .m10-shell .m10-handling-gates { grid-template-columns: 1fr; }
+  .m10-shell .m10-handling-chain { row-gap: 20px; }
+  .m10-shell .m10-handling-chain .m10-handling-step:not(:last-child)::after { content: '\2193'; top: auto; right: auto; bottom: -19px; left: 18px; height: 16px; line-height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .m10-shell .m10-handling-chevron { transition: none; }
 }

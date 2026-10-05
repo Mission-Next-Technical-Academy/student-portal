@@ -7,10 +7,15 @@
  * student/admin RPCs so reviewer and finalizer audit fields remain accurate.
  *
  * Usage (credentials belong in the environment, never the command line):
+ *   SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co \
  *   MNT_SYNTHETIC_COMPLETION_ACK=I_UNDERSTAND_SYNTHETIC_RECORDS \
  *   SUPABASE_SERVICE_ROLE_KEY=... MNT_STUDENT_PASSWORD=... \
  *   MNT_ADMIN_EMAIL=... MNT_ADMIN_PASSWORD=... \
- *   node bin/synthesize-soc-m360-completion.js 4437023872-SOCAN --execute
+ *   node bin/synthesize-soc-m360-completion.js 'STAGING_TEST_STUDENT_ID' --execute
+ *
+ * SUPABASE_URL is required (no default). Production is refused unless
+ * --production is passed, and --create-staging-m360-enrollment only runs
+ * against the staging project. See bin/lib/supabase-target.js.
  *
  * Required target conditions: the student exists, is enrolled in SOCAN, and
  * has an active M360 enrollment assigned to a controlled cohort. The supplied
@@ -19,7 +24,12 @@
 
 'use strict';
 
-const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://eokvngifirjgfozzbieu.supabase.co').replace(/\/$/, '');
+const { requireSupabaseTarget } = require('./lib/supabase-target');
+
+// Runs first: prints the target, refuses production without --production,
+// and removes --production from process.argv before the arguments are read.
+const target = requireSupabaseTarget();
+const SUPABASE_URL = target.url;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ACK = 'I_UNDERSTAND_SYNTHETIC_RECORDS';
 const args = process.argv.slice(2);
@@ -64,6 +74,7 @@ function syntheticResult(moduleKey, labKey) {
 
 async function main() {
   if (!studentId || !/^\d{10}-SOCAN$/.test(studentId)) fail('Usage: node bin/synthesize-soc-m360-completion.js <10-digit-SOCAN> --execute [--create-staging-m360-enrollment]');
+  if (createM360Enrollment && target.environment !== 'STAGING') fail(`--create-staging-m360-enrollment only runs against the staging project; the target is ${target.environment}.`);
   if (!execute) fail('Dry protection: add --execute after reviewing the target.');
   if (process.env.MNT_SYNTHETIC_COMPLETION_ACK !== ACK) fail(`Set MNT_SYNTHETIC_COMPLETION_ACK=${ACK}.`);
   for (const key of ['SUPABASE_SERVICE_ROLE_KEY', 'MNT_STUDENT_PASSWORD', 'MNT_ADMIN_EMAIL', 'MNT_ADMIN_PASSWORD']) if (!process.env[key]) fail(`Missing ${key}.`);
@@ -102,6 +113,16 @@ async function main() {
   // M360 mutations deliberately travel through student and faculty RPCs.
   const studentToken = await signIn(`${studentId.toLowerCase()}@missionnext.example`, process.env.MNT_STUDENT_PASSWORD);
   const adminToken = await signIn(process.env.MNT_ADMIN_EMAIL, process.env.MNT_ADMIN_PASSWORD);
+
+  // Every module completes only on instructor approval
+  // (20261005120000_instructor_approval_gate_and_write_lockdown.sql). Approve
+  // through the same admin review path the Grading tab uses, signed by the
+  // admin account, so the fixture's review trail is honest.
+  const adminUserId = JSON.parse(Buffer.from(adminToken.split('.')[1], 'base64url').toString()).sub;
+  const unreviewed = await rest('lab_attempts', `user_id=eq.${student.user_id}&track_code=eq.SOCAN&state=eq.complete&reviewed_at=is.null&select=id`);
+  for (const attempt of unreviewed) {
+    await api(`/rest/v1/lab_attempts?id=eq.${attempt.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ reviewed_at: now(), reviewed_by: adminUserId, redo_requested: false }) }, adminToken);
+  }
   await rpc('m360_save_start_here', { p_payload: { synthetic: true, source: syntheticTag, networkingComfort: 3, interviewReadiness: 3 }, p_complete: true, p_acknowledgments_complete: true, p_support_flag: false }, studentToken);
   for (let week = 1; week <= 6; week++) {
     const payload = { synthetic: true, source: syntheticTag, week, submitted_at: now(), note: 'Controlled QA/demo submission; not learner-authored work.' };

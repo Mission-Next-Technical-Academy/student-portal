@@ -58,7 +58,12 @@
     function seed(parent, spec) {
       // spec is a plain object: keys are filenames; values are either string (file) or nested object (dir).
       // Special key '__file' marks the value as a file with explicit metadata: { __file: true, content, mode, owner, mtime }.
+      // Dir specs may carry '__mode' / '__owner' / '__group' metadata keys.
+      if (spec.__mode) parent.mode = spec.__mode;
+      if (spec.__owner) parent.owner = spec.__owner;
+      if (spec.__group) parent.group = spec.__group;
       for (const key of Object.keys(spec)) {
+        if (key === '__mode' || key === '__owner' || key === '__group') continue;
         const v = spec[key];
         if (v && typeof v === 'object' && !v.__file && !Array.isArray(v)) {
           const d = dirNode(key);
@@ -154,6 +159,13 @@
           }
           node = node.children[seg];
         }
+        return true;
+      },
+
+      chmod(path, mode) {
+        const n = resolve(path);
+        if (!n) return false;
+        n.mode = mode;
         return true;
       },
 

@@ -3076,7 +3076,7 @@ function getEnterpriseLabType(mod, track) {
   if (id === 'wf-2') return 'registry-editor';
   if (id.startsWith('ma-')) return 'malware-analysis';
   if (id.startsWith('ad-')) return 'active-directory';
-  if (id === 'sa-3') return 'burp-proxy';
+  if (id === 'sa-3') return 'traffic-inspector';
   if (id === 'sa-5') return 'iam-matrix';
   if (id.startsWith('sa-')) return 'linux-terminal';
   if (id === 'vm-1') return 'openvas';
@@ -3098,7 +3098,7 @@ function getEnterpriseLabShell(labType) {
     'sysmon-viewer': shells.SysmonLabShell,
     'registry-editor': shells.RegistryLabShell,
     'linux-terminal': window.LinuxTerminalShell,
-    'burp-proxy': window.BurpProxyLabShell,
+    'traffic-inspector': window.TrafficInspectorShell,
     'iam-matrix': window.IamMatrixLabShell,
     'malware-analysis': null,
     openvas: shells.OpenVASLabShell || window.OpenVASLabShell,

@@ -2,7 +2,6 @@
   const REPO = '0xrajneesh/Active-Directory-Monitoring-Projects';
   const HASHES = {
     'ad-1': '28f82f67be4947415b92f63a36a503a4f7a84db887dc71fe708ba8f6e300efd0',
-    'ad-2': 'ace5ff8d53b8d129c5c200315bcd4a96ace2f7e7a8c7b3fcad20ed30303d4d8e',
     'ad-3': '517be79c6e500a2becdcc7ec3119aa5ff2b991a027fc15960238fa032f98d50a',
     'ad-4': '2cdfaab2f093856c683e502dd3fa585a5465680ef0a9a19d0f8b7516cb1441e3',
     'ad-5': '92bc2b685fd169afdca8f1cc40ebc357b660684f653434233925c34d6985af3e',
@@ -144,39 +143,6 @@
       ['Add panels for various security metrics.', 'Add failed-logon and account-lockout panels.'],
       ['Use appropriate filters to refine the data displayed.', 'Filter failed logons to 4625 and lockouts to 4740.'],
       ['Arrange panels for a comprehensive security overview.', 'Arrange and save the security overview.', 'ad-1.col-5'],
-    ]),
-  ]);
-
-  const AD2 = lab('ad-2', 'AD Logs and Insights with Splunk', 'project-2-active-directory-monitoring-with-splunk.md', 'SplunkLabShell', 'Splunk', [
-    exercise('ad-2', 1, 'Exercise 1: Configuring Data Inputs in Splunk', [
-      ['Log in to Splunk.', 'Log in to Splunk Enterprise.'],
-      ['Navigate to "Settings" > "Data Inputs".', 'Open Settings > Data Inputs.'],
-      ['Click "Add New" and select "Forwarded Data".', 'Add a Forwarded Data input.'],
-      ['Configure the input to receive logs from the Universal Forwarder.', 'Accept Windows Security logs from DC-01.', 'ad-2.col-1'],
-    ]),
-    exercise('ad-2', 2, 'Exercise 2: Creating a Dashboard for AD Logon Events', [
-      ['Go to "Dashboards" and click "Create New Dashboard".', 'Create an AD Logons dashboard.'],
-      ['Add a new panel and select "Search" as the data source.', 'Add a Search panel.'],
-      ['Use a search query to filter logon events.', 'Run index=ad sourcetype=WinEventLog:Security EventCode=4624.'],
-      ['Configure visualization and save the panel.', 'Save a timechart logon panel.', 'ad-2.col-2'],
-    ]),
-    exercise('ad-2', 3, 'Exercise 3: Analyzing AD Security Events', [
-      ['Create a new search in Splunk.', 'Open a new Splunk search.'],
-      ['Use a search query to filter security events.', 'Run index=ad EventCode=4625 OR EventCode=4740.'],
-      ['Save the search and add it to a dashboard.', 'Save the security-event search.'],
-      ['Configure the panel to show relevant security metrics.', 'Show failed logons and lockouts by user.', 'ad-2.col-3'],
-    ]),
-    exercise('ad-2', 4, 'Exercise 4: Setting Up Alerts for AD Anomalies', [
-      ['Create a search for an anomaly.', 'Search for more than 20 failed logons in 10 minutes.'],
-      ['Save the search and select "Alert".', 'Save the search as an alert.'],
-      ['Configure alert conditions and notification settings.', 'Set trigger threshold and email SecOps.'],
-      ['Save the alert.', 'Save the AD anomaly alert.', 'ad-2.col-4'],
-    ]),
-    exercise('ad-2', 5, 'Exercise 5: Generating Reports on AD Activity', [
-      ['Create a search for the desired AD activity report.', 'Search daily logons by user.'],
-      ['Save the search and select "Report".', 'Save it as a report.'],
-      ['Configure the report schedule and format.', 'Schedule the report daily as PDF.'],
-      ['Save the report.', 'Save the AD activity report.', 'ad-2.col-5'],
     ]),
   ]);
 
@@ -345,7 +311,6 @@
 
   Object.assign(window.MISSION_NEXT_LABS = window.MISSION_NEXT_LABS || {}, {
     'ad-1': AD1,
-    'ad-2': AD2,
     'ad-3': AD3,
     'ad-4': AD4,
     'ad-5': AD5,

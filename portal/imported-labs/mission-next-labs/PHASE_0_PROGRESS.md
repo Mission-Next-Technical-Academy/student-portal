@@ -55,7 +55,6 @@ index.html                    # title + new <script> tags
 src/data.js                   # header comment branding
 src/app.jsx                   # route resolver checks MISSION_NEXT_LABS first
 src/module-page.jsx           # intercept new-shape labs (mod.exercises) and render LabPlayer
-src/login.jsx                 # chrome branding
 src/track-selection.jsx       # chrome branding
 src/student-dashboard.jsx     # chrome branding
 src/instructor-dashboard.jsx  # branding + engagement metrics panel

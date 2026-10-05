@@ -1,0 +1,28 @@
+/* Prove It lock until the Guided Lab is submitted — see prove-it-gate.js. */
+[data-prove-gate-hidden] { display: none !important; }
+.prove-gate-locked .lab-max-btn { display: none !important; }
+
+.prove-gate-banner {
+  display: flex; align-items: flex-start; gap: 14px;
+  margin: 4px 0 8px; padding: 18px 20px;
+  background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 14px;
+}
+.prove-gate-icon {
+  display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: 40px; height: 40px; border-radius: 12px;
+  background: rgba(30, 58, 95, .1); color: #1e3a5f; font-size: 18px;
+}
+.prove-gate-banner .prove-gate-title { margin: 0 0 4px; color: #1e3a5f; font: 700 15px/1.4 Inter, sans-serif; }
+.prove-gate-banner .prove-gate-text { margin: 0 0 12px; color: #475569; font: 14px/1.6 Inter, sans-serif; }
+.prove-gate-go {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px;
+  color: #fff; background: #f97316; border: 0; border-radius: 10px;
+  font: 700 13px/1 Inter, sans-serif; cursor: pointer;
+}
+.prove-gate-go:hover { background: #ea580c; }
+.prove-gate-go:focus-visible { outline: 3px solid rgba(249, 115, 22, .35); outline-offset: 2px; }
+
+html[data-mn-theme="night"] .prove-gate-banner { background: var(--mn-theme-surface-raised, #16263a); border-color: var(--mn-theme-border, #334155); }
+html[data-mn-theme="night"] .prove-gate-icon { background: rgba(148, 197, 255, .12); color: #cfe3ff; }
+html[data-mn-theme="night"] .prove-gate-banner .prove-gate-title { color: var(--mn-theme-text, #e5edf7); }
+html[data-mn-theme="night"] .prove-gate-banner .prove-gate-text { color: var(--mn-theme-muted, #b6c4d6); }

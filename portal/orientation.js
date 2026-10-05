@@ -222,7 +222,7 @@ const AcademyOrientation = (() => {
       {
         // Grading/review is Academy-wide infrastructure (lab_attempts +
         // faculty review + the "Redo Requested" pill moduleCard() already
-        // shows — see lab-grading-notification-system/STATE.md), not
+        // shows — see docs/workstreams/lab-grading-notification-system/STATE.md), not
         // something a module's own content explains. Reuses Prove It's own
         // spot (or the combined no-rail card) as a second, distinct call-out
         // rather than a new selector to keep fragile across programs. One

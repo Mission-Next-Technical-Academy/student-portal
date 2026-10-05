@@ -55,6 +55,11 @@ Feature/fix write-ups and progress snapshots for work that finished and is
 live, each already self-marked done or all-checkboxes-complete at the time
 of archiving:
 
+- `M12_INTEGRATED_CLICKTHROUGH.md` — completed local S5 acceptance report:
+  304 console tabs, Module 1/12 interaction sweeps, three scored M12 browser
+  submissions, and synthetic Module 1 submit/reload/review. Source screenshots
+  remain in `docs/handoffs/assets/`. Designated learner/faculty UAT remains
+  active in `docs/workstreams/M12_INTEGRATED_CAPSTONE_PLAN.md` §6.
 - `ATTACK_STORY_GRAPH_FIX.md`, `LEFT_NAV_DROPDOWNS.md` — shipped UI fixes.
 - `DEVICE_PAGE_PARITY.md` — checklist, all core items `[x]`; the few
   remaining lines are labeled "gravy," not required.
@@ -139,12 +144,67 @@ of archiving:
 - `SPRINT_PLAN_2026-08-17.md` — self-marked historical platform plan; its
   outdated status board no longer governs work.
 
+## 2026-09-25 root sweep
+
+Root cut from 78 md files to 18 so it only holds active SOC Analyst work
+(roadmap, handoffs, canonical specs, open decisions). Every move was `git mv`;
+path references in live docs and code comments were rewritten (applied
+Supabase migrations were deliberately left untouched, so their comments still
+cite the old root paths).
+
+- `completed-feature-notes/` gained: `ACADEMY_ORIENTATION_SPRINT.md`,
+  `M360_DEMO_COMPLETION_SPRINT.md`, `ADMIN_M360_DEDUP_SPRINT.md`,
+  `MODULE_NAV_SIDEBAR_SPRINT.md`, `REPORTING_REMEDIATION_CONTINUATION.md`,
+  `REPORTING_PDF_GAP_REMEDIATION_PLAN.md`, both `DEPLOY_PIPELINE_*_2026-09-22.md`,
+  `DEBRIEF_2026-09-23_MISSION_NEXT_LAB_WIRING.md`,
+  `FACULTY_GRADING_TICKET_VISIBILITY.md`, `HANDOFF_DIPLOMA_GENERATION.md`,
+  `ACTIVITY_MONITOR_PERFORMANCE_FINDINGS.md`,
+  `MODULE_03_MISSION_NEXT_LAB_RETURN_AND_COMPLETION.md` (was in `docs/`),
+  `STAGING_INSTRUCTOR_ACCOUNTS.md` (shipped; still the staging-account
+  reference), `HANDOFF_ADMIN_CREDENTIALS_VIEW.md` (shipped; its "remaining
+  verification" and repo-privacy notes were never closed — revisit if the
+  credentials panel is touched), `PROGRESS_INTEGRITY_COMPLETION_SPRINT.md`
+  (one open audit line, now owned by ROADMAP item 4 /
+  `module-completion-integrity/BRIEF.md`).
+- `module-enhancement-records/` (new): the 22 `MODULE_NN_ENHANCEMENT_BRIEF.md` /
+  `_PROGRESS.md` implementation records from the 2026-09-10 scenario
+  architecture wave. Their only open items were external curriculum/compliance/
+  faculty reviews, tracked in `COMPLIANCE_DECISIONS_NEEDED.md`.
+- `historical-plans/` gained superseded plans: `00_current_state_scan.md` and
+  `01_plan_of_action_milestones.md` (2026-09-13 baseline, superseded by
+  `ROADMAP.md`), `HANDOFF_2026-09-21_EVIDENCE_LOG_SIFT_FINDINGS.md` (superseded
+  by `MODULE_01_CASE_CONSOLE_SPEC.md`),
+  `HANDOFF_2026-09-23_BOOTS2BYTES_MIGRATION_DISCOVERY.md`,
+  `BOOTS2BYTES_MIGRATION_AGILE_HANDOFF.md`, `BOOTS2BYTES_LAB_INVENTORY.md`
+  (all superseded by `HANDOFF_2026-09-23_MISSION_NEXT_LAB_WIRING.md`),
+  `course_SOC_standardized.md` (executed by the course-standardization sprint),
+  `unfinished_work.md` (a behavior note, nothing unfinished),
+  `SESSION_LOG_RETENTION_RESEARCH.md` (research; retention policy still awaits
+  an owner answer).
+- `session-logs/` gained `LATEST_PROGRESS.md` (status date 2026-09-09, stale).
+
+Moved to `docs/` instead (still-valid reference, not work instructions):
+`NAV_SPEC.md`, `ANOMALY_RULES.md`, `MNT_DESIGN_TOKENS.md`,
+`SESSION_SECURITY_SPEC.md`, `ADMIN_RESET_FLOW.md`,
+`STUDENT_LOGIN_COURSEWORK_REDIRECT.md`, `RELEASE_VERSIONING.md`,
+`FORM301_CHECKLIST_ALIGNMENT_REVIEW.md`, `SCHEMA_MIGRATION_HYGIENE.md`.
+Non-SOC material went to `docs/other-tracks/`:
+`AI_ML_ENGINEERING_CURRICULUM.md`, `PROGRAM_PARITY_SPRINT_PLAN.md` (open
+IT Support / AI-ML sprints).
+
 ## Still active, not archived
 
-`NAV_SPEC.md`, `ANOMALY_RULES.md`, `MNT_DESIGN_TOKENS.md`, and
-`MODULE_STANDARD.md` stayed at the repo root — they document current,
-in-use behavior (the live `ui/` simulator nav/rules, extracted design
-tokens, the canonical module layout all four tracks still follow), not a
-finished task. `CURRICULUM_MAP.md` also stayed — it's the same
-`2026-08-28-developer-map-v1` revision `portal/data.js`'s compliance data
-mirrors right now.
+`CURRICULUM_MAP.md` stays at the root — `bin/curriculum-check.js` reads it
+there and it mirrors `portal/data.js`'s compliance data. `MODULE_STANDARD.md`
+stays as the canonical module layout for all four tracks.
+
+## 2026-09-25 second pass — root down to README / CLAUDE / ROADMAP
+
+Remaining root docs moved into `docs/specs/`, `docs/handoffs/`,
+`docs/operations/`, `docs/compliance/` (with `Reportingrequirements.txt` and
+the CIE build-review `.docx`), and the three SOC workstream folders into
+`docs/workstreams/`. `bin/curriculum-check.js` now reads
+`docs/specs/CURRICULUM_MAP.md`. The July SC-200 suppression-rule lab
+(`defender.py`, `events.jsonl`, `rules.json`, `run_scenario.sh`) moved to
+`legacy-sc200-simulator/defender-lab/`. Only files authored solely by the
+repo owner were moved; other developers' files were not touched.

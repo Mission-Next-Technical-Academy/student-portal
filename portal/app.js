@@ -1,7 +1,7 @@
 /* MNT Academy portal — router, Supabase auth, entitlement gating.
  *
  * Everything visual here is assembled from tokens already shipping on
- * mntacademy.com (see MNT_DESIGN_TOKENS.md). No new design system.
+ * mntacademy.com (see docs/MNT_DESIGN_TOKENS.md). No new design system.
  *
  * Auth is real Supabase Auth (see portal/supabase-config.js for the client).
  * Students sign in with a login ID like "4957361987-SOCAN", never an email —
@@ -13,7 +13,7 @@ const STUDENT_EMAIL_DOMAIN = '@missionnext.example';
 
 /* Mirrors bin/provision-students.js's TRACKCODE map. The old per-student
  * `enrollments`/`programs` tables were dropped by
- * supabase/migrations/20260828160000_simplify_schema.sql (architecture.md
+ * supabase/migrations/20260828160000_simplify_schema.sql (docs/specs/architecture.md
  * Sprint 1) in favor of a single `track_code` column on `students` — access is
  * now derived from that column instead of joined from the dropped tables. */
 const TRACK_CODE_TO_PROGRAM_SLUG = {
@@ -57,22 +57,6 @@ function emailToDisplayId(email) {
  * render() can call this on every route change without refetching. */
 let _cachedUser = null;
 let _cachedUserPromise = null;
-const PENDING_PORTAL_ROUTE_KEY = 'mission_next_pending_portal_route';
-
-function rememberPendingPortalRoute(hash) {
-  if (!/^#\/program\/[a-z0-9-]+(?:\/module\/\d+)?$/.test(String(hash || ''))) return;
-  try { sessionStorage.setItem(PENDING_PORTAL_ROUTE_KEY, hash); } catch (_) { /* best effort */ }
-}
-
-function consumePendingPortalRoute() {
-  try {
-    const hash = sessionStorage.getItem(PENDING_PORTAL_ROUTE_KEY) || '';
-    sessionStorage.removeItem(PENDING_PORTAL_ROUTE_KEY);
-    return /^#\/program\/[a-z0-9-]+(?:\/module\/\d+)?$/.test(hash) ? hash : '';
-  } catch (_) {
-    return '';
-  }
-}
 
 // The initial screen must always resolve.  A stale auth token, an offline
 // browser, or an interrupted profile query should lead to the login screen,
@@ -97,7 +81,7 @@ function discardLocalSession() {
 
 // Split from the old monolithic buildUserFromSession() so signIn() can run
 // the queries below concurrently with its login_events / UEBA / site_sessions
-// / geofence chain (SESSION_SECURITY_SPEC.md Decision 3) instead of fully
+// / geofence chain (docs/SESSION_SECURITY_SPEC.md Decision 3) instead of fully
 // before it — that chain only ever reads the fields buildCoreUserFromSession()
 // returns, never the module/lab detail fetched here, so there was never a
 // reason for it to wait on them. Cuts real, otherwise-sequential network
@@ -153,7 +137,7 @@ async function buildCoreUserFromSession(session) {
     // 20260920100000_academy_orientation_state.sql migration.
     academyOrientationCompletedAt: studentRow ? studentRow.academy_orientation_completed_at : null,
     enrollments,
-    // userId/trackCode: added for the module_progress write path (architecture.md
+    // userId/trackCode: added for the module_progress write path (docs/specs/architecture.md
     // §3 Sprint 2). Both come from the studentRow query above, already run for
     // every session — nothing extra is fetched, and it rides the same
     // _cachedUser caching as everything else on this object.
@@ -182,9 +166,12 @@ async function fetchUserDetails(userId, trackCode) {
   let remoteModuleDetail = {};
   let remoteCaseState = {};
   let openLabRedosByModuleKey = {};
+  // Most recent attempt per lab, so a lab's submit control can tell
+  // "under review" (reviewed_at null) from "graded" without another query.
+  let latestLabAttemptByKey = {};
   let studentMessages = [];
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, studentMessages };
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, studentMessages };
   }
 
   const [
@@ -202,7 +189,7 @@ async function fetchUserDetails(userId, trackCode) {
     mntSupabase.from('student_verified_module_progress').select('module_key, complete').eq('track_code', trackCode),
     mntSupabase.from('module_completion_evidence').select('module_key, evidence_key').eq('track_code', trackCode),
     // Lab Grading & Notification System, Sprint 2 (see
-    // lab-grading-notification-system/STATE.md): a student's own open redos,
+    // docs/workstreams/lab-grading-notification-system/STATE.md): a student's own open redos,
     // keyed by module so moduleCard() can show the banner on the right card
     // with zero per-module-file changes. "Open" = this lab's single most
     // recent attempt (recordLabAttempt() never upserts — every attempt is a
@@ -211,7 +198,7 @@ async function fetchUserDetails(userId, trackCode) {
     // redo clears on its own — no separate acknowledgment step needed.
     mntSupabase
       .from('lab_attempts')
-      .select('id, lab_key, completed_at, redo_requested')
+      .select('id, lab_key, completed_at, reviewed_at, redo_requested')
       .eq('user_id', userId)
       .eq('track_code', trackCode)
       .not('completed_at', 'is', null)
@@ -254,6 +241,9 @@ async function fetchUserDetails(userId, trackCode) {
     (attemptRows || []).forEach((row) => {
       if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
     });
+    latestByLabKey.forEach((row, labKey) => {
+      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true };
+    });
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
     if (openAttempts.length) {
       const { data: feedbackRows, error: feedbackError } = await mntSupabase
@@ -286,7 +276,7 @@ async function fetchUserDetails(userId, trackCode) {
     studentMessages = messageRows || [];
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, studentMessages };
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, studentMessages };
 }
 
 async function buildUserFromSession(session) {
@@ -326,7 +316,7 @@ async function currentUser() {
 }
 
 /* Sign-in gates, in this order, none interchangeable
- * (SESSION_SECURITY_SPEC.md Decision 3):
+ * (docs/SESSION_SECURITY_SPEC.md Decision 3):
  *   1. Supabase Auth itself (bad credentials -> null, unchanged).
  *   2. checkLoginUeba() — MUST run before the site_sessions insert below: it
  *      may close an already-open row (favor_new) so Decision 1's concurrency
@@ -430,7 +420,7 @@ async function recordLoginEvent(user) {
   }
 }
 
-/* UEBA-lite habitual-IP arbitration (SESSION_SECURITY_SPEC.md Decision 4,
+/* UEBA-lite habitual-IP arbitration (docs/SESSION_SECURITY_SPEC.md Decision 4,
  * supabase/functions/check-login-ueba). Same auth.getSession() -> bearer
  * token -> fetch(...) shape as recordLoginGeo()/checkLoginGeofence() below,
  * but awaited: the caller needs the decision before deciding whether to
@@ -500,7 +490,7 @@ function recordLoginGeo(loginEventId) {
  * forbids. Operational visibility only — never attendance/instructional
  * time, same framing as the migration's own table comment.
  *
- * Awaited (not fire-and-forget) as of SESSION_SECURITY_SPEC.md Decision 3:
+ * Awaited (not fire-and-forget) as of docs/SESSION_SECURITY_SPEC.md Decision 3:
  * signIn() needs the new row's id to pass to checkLoginGeofence(), and needs
  * to know whether the insert was refused by Decision 1's concurrency-cap
  * trigger (enforce_site_session_concurrency(), 20260906120000_site_session_
@@ -532,7 +522,7 @@ async function recordSiteSessionStart(user) {
   }
 }
 
-/* Login geofencing (SESSION_SECURITY_SPEC.md Decision 2, supabase/functions/
+/* Login geofencing (docs/SESSION_SECURITY_SPEC.md Decision 2, supabase/functions/
  * check-login-geofence). Same auth.getSession() -> bearer token ->
  * fetch(...) shape as recordLoginGeo() above, but awaited and run against
  * the new site_sessions row's own id (must run AFTER recordSiteSessionStart,
@@ -684,12 +674,15 @@ function hasProgramAccess(user, slug) {
   return !!enrollmentFor(user, slug);
 }
 
-function hasModuleAccess(user, slug, moduleKey) {
+function isModuleEntitled(user, slug, moduleKey) {
   const e = enrollmentFor(user, slug);
   if (!e) return false;
-  const entitled = e.accessMode === 'full'
+  return e.accessMode === 'full'
     || (e.accessMode === 'partial' && (e.modules || []).includes(moduleKey));
-  if (!entitled) return false;
+}
+
+function hasModuleAccess(user, slug, moduleKey) {
+  if (!isModuleEntitled(user, slug, moduleKey)) return false;
 
   const program = PROGRAMS.find((p) => p.slug === slug);
   if (!program || !program.modules) return true;
@@ -921,11 +914,22 @@ function resolveAdminTrackCode(routeMatch) {
   return adminTrackMeta(code) ? code : null;
 }
 
-function normalizeAdminTrackData({ rows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, facultyMessageRows }) {
+function normalizeAdminTrackData({ rows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, gradedRows = [], supersededRows = [], facultyMessageRows }) {
+  const trackPending = activeTrackCode ? filterByTrack(gradingQueueRows, activeTrackCode) : [];
+  const trackGraded = activeTrackCode ? filterByTrack(gradedRows, activeTrackCode) : [];
+  const trackStoredSuperseded = activeTrackCode ? filterByTrack(supersededRows, activeTrackCode) : [];
+  const attempts = adminNumberAttempts([...trackPending, ...trackGraded, ...trackStoredSuperseded]);
+  const withAttempt = (row) => ({ ...row, attempt: attempts.get(row.id) || null });
+  const grading = adminSplitSupersededAttempts(trackPending.map(withAttempt), trackGraded.map(withAttempt));
   return {
     rosterRows: filterByTrack(rows, activeTrackCode),
     detailStudents: filterByTrack(activeStudents, activeTrackCode),
-    trackGradingQueueRows: activeTrackCode ? filterByTrack(gradingQueueRows, activeTrackCode) : [],
+    // Owner rule (2026-10-05): LEARN IT and PRACTICE IT are autograded with
+    // instant feedback; only PROVE IT waits on an instructor.
+    trackGradingQueueRows: grading.pending.filter(adminNeedsInstructorReview),
+    trackAutogradedRows: grading.pending.filter((row) => !adminNeedsInstructorReview(row)),
+    trackSupersededRows: [...grading.superseded, ...trackStoredSuperseded.map(withAttempt)],
+    trackGradedRows: trackGraded.map(withAttempt),
     trackOpenLabRedoRows: activeTrackCode ? filterByTrack(openLabRedoRows, activeTrackCode) : [],
     trackFacultyMessageRows: activeTrackCode ? filterByTrack(facultyMessageRows, activeTrackCode) : [],
   };
@@ -964,7 +968,7 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
   // Card grows from a single row to a two-row layout only when there's a
   // notification to show — cards with nothing pending keep the original
   // compact layout. (2026-09-13: the original single-line px-3 py-2.5 tile
-  // had no room for this at all — see lab-grading-notification-system/
+  // had no room for this at all — see docs/workstreams/lab-grading-notification-system/
   // 00_SCAN_AND_GAP_COMPARISON.md.)
   // No eyebrow label here anymore (2026-09-13): every card previously
   // repeated the literal word "Administration" — pure redundancy, since the
@@ -1000,103 +1004,201 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
     </div></section>`;
 }
 
-/* Grading tab: a pregraded lab attempt is not a blank submission — score/
- * result/pass_threshold already exist (recordLabAttempt(), pass_threshold
- * hardcoded to 70). The auto-scored result is an OVERVIEW (pass/fail per
- * criterion), never a specific corrective task list — the instructor writes
- * the specific "what to do differently" by hand, per flagged item, at their
- * discretion (owner's framing, 2026-09-13). Sending back always requests a
- * full resubmission of the lab attempt, not a per-field patch. See
- * lab-grading-notification-system/ for the brief and schema decisions. */
-function adminGradingQueuePanel(gradingQueueRows, openLabRedoRows = []) {
-  const pendingRows = gradingQueueRows || [];
-  const redoRows = openLabRedoRows || [];
-  if (pendingRows.length === 0 && redoRows.length === 0) {
-    return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Grading</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div>
-      <div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">Nothing waiting on review. Every completed lab attempt has been graded.</p></div>`;
-  }
-  const pendingPanel = pendingRows.length ? `<div class="space-y-4">
-      ${pendingRows.map((row) => {
-        const threshold = row.pass_threshold ?? 70;
-        const hasScore = row.score !== null && row.score !== undefined;
-        const passing = hasScore && Number(row.score) >= Number(threshold);
-        const trackMeta = adminTrackMeta(row.track_code);
-        const resultJson = (() => { try { return JSON.stringify(row.result || {}, null, 2); } catch { return '{}'; } })();
-        const resultBreakdown = row.result && typeof row.result.breakdown === 'object' && !Array.isArray(row.result.breakdown)
-          ? Object.entries(row.result.breakdown)
-          : [];
-        const hasReadableBreakdown = resultBreakdown.length > 0;
-        const resultFeedback = hasReadableBreakdown && Array.isArray(row.result.feedback)
-          ? row.result.feedback.filter((item) => typeof item === 'string' && item.trim())
-          : [];
-        // Module 01's independent case supplies structured simulator evidence.
-        // Keep it readable and editable here rather than burying competency
-        // misses in the generic raw JSON disclosure.
-        const simulatorPerformance = row.result && row.result.simulator_performance;
-        const competencyPanel = simulatorPerformance && Array.isArray(simulatorPerformance.competencies)
-          ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3">
-              <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Simulator performance assessment</p>
-              <div class="grid sm:grid-cols-2 gap-2 text-sm">${simulatorPerformance.competencies.map((item) => `<div class="rounded border ${item.passed ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'} px-3 py-2"><strong>${esc(item.label)}</strong><span class="float-right font-semibold">${esc(String(item.percentage))}% · ${item.passed ? 'Pass' : 'Developing'}</span><p class="text-xs text-gray-600 mt-1">${esc(String(item.completed))}/${esc(String(item.required))} required actions observed</p></div>`).join('')}</div>
-              <div class="mt-3 text-xs"><strong>Completed simulator actions:</strong> ${esc(String((simulatorPerformance.requirements || []).filter((item) => item.completed).length))}/${esc(String((simulatorPerformance.requirements || []).length))}</div>
-              ${(simulatorPerformance.missed_actions || []).length ? `<div class="mt-2 text-xs text-amber-800"><strong>Missed:</strong> ${esc(simulatorPerformance.missed_actions.join('; '))}</div>` : ''}
-              ${(simulatorPerformance.unsafe_actions || []).length ? `<div class="mt-2 text-xs text-red-800"><strong>Unsafe actions:</strong> ${esc(simulatorPerformance.unsafe_actions.join('; '))}</div>` : ''}
-            </div>`
-          : '';
-        const generatedRecommendation = simulatorPerformance && Array.isArray(simulatorPerformance.generated_recommendations)
-          ? simulatorPerformance.generated_recommendations.join(' ')
-          : '';
-        const readableResult = hasReadableBreakdown ? `<div class="mb-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
-            <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System score breakdown (raw points)</p>
-            <dl class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">
-              ${resultBreakdown.map(([key, value]) => {
-                const label = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-                return `<div class="grid grid-cols-2 gap-3 px-3 py-2"><dt class="text-gray-600">${esc(label)}</dt><dd class="text-right font-semibold text-[#1e3a5f]">${esc(String(value))}</dd></div>`;
-              }).join('')}
-            </dl>
-            ${resultFeedback.length ? `<div class="mt-3"><p class="text-xs font-semibold text-gray-600 mb-1">Auto-scored feedback</p><ul class="list-disc space-y-1 pl-5 text-xs text-gray-600">${resultFeedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
-          </div>` : '';
-        return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}">
-          <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
-            <div class="min-w-0">
-              <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p>
-              <p class="text-sm text-gray-600 mt-0.5">${esc(adminLabLabel(row.lab_key))} <span class="text-gray-400">·</span> ${esc(trackMeta ? trackMeta.eyebrow : row.track_code)}</p>
-              <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
-            </div>
-            <span class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${!hasScore ? 'bg-gray-100 text-gray-600' : passing ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}">
-              ${hasScore ? `${esc(String(row.score))}%` : 'No score'} <span class="opacity-60">/ ${esc(String(threshold))}% to pass</span>
-            </span>
-          </div>
-          ${adminCaseTicketSubmissionPanel(row)}
-          ${adminModuleTwoAccessReviewPanel(row)}
-          ${competencyPanel}
-          ${readableResult}
-          <details class="mb-3 text-sm">
-            <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>
-            <pre class="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-x-auto">${esc(resultJson)}</pre>
-          </details>
-          <div data-feedback-items class="space-y-2 mb-2">
-            <div class="feedback-item grid sm:grid-cols-2 gap-2">
-              <input type="text" data-feedback-label placeholder="What was wrong (instructor's own words)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
-              <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">${esc(generatedRecommendation)}</textarea>
-            </div>
-          </div>
-          <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
-          <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-            <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
-            <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(row.id)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Return for remediation' : 'Send back for redo'}</button>
-            <span data-grading-status class="text-xs text-gray-500"></span>
-          </div>
-        </article>`;
-      }).join('')}
-    </div>` : `<div class="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center"><p class="text-gray-500 text-sm">No new submissions are waiting for review.</p></div>`;
-  const redoPanel = redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminLabLabel(row.lab_key))} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2"><button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button><span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
-  return `<div class="mb-6">
-      <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Grading</h2>
-      <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-      <p class="text-gray-500 text-sm">${pendingRows.length} completed lab attempt${pendingRows.length === 1 ? '' : 's'} awaiting review. The score below is the system's own pregraded result — your job is to confirm it, flag anything it missed, and (if it's not passing) send back specific, written guidance for a redo.</p>
+/* One pending attempt's review card: pregraded evidence, per-item written
+ * feedback, Approve / Send back. The auto-scored result is an overview only;
+ * the instructor writes the specific "what to do differently" by hand, and a
+ * send-back always requests a full resubmission (owner, 2026-09-13; see
+ * docs/workstreams/lab-grading-notification-system/). `olderAttempt` marks an
+ * earlier submission the learner has since replaced; a decision applies to
+ * every row of the item. */
+function adminAttemptReviewCard(item, olderAttempt) {
+  const row = item.lead;
+  const attemptIds = item.ids.join(',');
+  const threshold = row.pass_threshold ?? 70;
+  const hasScore = row.score !== null && row.score !== undefined;
+  const passing = hasScore && Number(row.score) >= Number(threshold);
+  const resultJson = (() => { try { return JSON.stringify(row.result || {}, null, 2); } catch { return '{}'; } })();
+  const resultBreakdown = row.result && typeof row.result.breakdown === 'object' && !Array.isArray(row.result.breakdown)
+    ? Object.entries(row.result.breakdown)
+    : [];
+  const hasReadableBreakdown = resultBreakdown.length > 0;
+  const resultFeedback = hasReadableBreakdown && Array.isArray(row.result.feedback)
+    ? row.result.feedback.filter((item) => typeof item === 'string' && item.trim())
+    : [];
+  // Module 01's independent case supplies structured simulator evidence.
+  // Keep it readable and editable here rather than burying competency
+  // misses in the generic raw JSON disclosure.
+  const simulatorPerformance = row.result && row.result.simulator_performance;
+  const competencyPanel = simulatorPerformance && Array.isArray(simulatorPerformance.competencies)
+    ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3">
+        <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Simulator performance assessment</p>
+        <div class="grid sm:grid-cols-2 gap-2 text-sm">${simulatorPerformance.competencies.map((item) => `<div class="rounded border ${item.passed ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'} px-3 py-2"><strong>${esc(item.label)}</strong><span class="float-right font-semibold">${esc(String(item.percentage))}% · ${item.passed ? 'Pass' : 'Developing'}</span><p class="text-xs text-gray-600 mt-1">${esc(String(item.completed))}/${esc(String(item.required))} required actions observed</p></div>`).join('')}</div>
+        <div class="mt-3 text-xs"><strong>Completed simulator actions:</strong> ${esc(String((simulatorPerformance.requirements || []).filter((item) => item.completed).length))}/${esc(String((simulatorPerformance.requirements || []).length))}</div>
+        ${(simulatorPerformance.missed_actions || []).length ? `<div class="mt-2 text-xs text-amber-800"><strong>Missed:</strong> ${esc(simulatorPerformance.missed_actions.join('; '))}</div>` : ''}
+        ${(simulatorPerformance.unsafe_actions || []).length ? `<div class="mt-2 text-xs text-red-800"><strong>Unsafe actions:</strong> ${esc(simulatorPerformance.unsafe_actions.join('; '))}</div>` : ''}
+      </div>`
+    : '';
+  const generatedRecommendation = simulatorPerformance && Array.isArray(simulatorPerformance.generated_recommendations)
+    ? simulatorPerformance.generated_recommendations.join(' ')
+    : '';
+  const readableResult = hasReadableBreakdown ? `<div class="mb-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+      <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System score breakdown (raw points)</p>
+      <dl class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">
+        ${resultBreakdown.map(([key, value]) => {
+          const label = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+          return `<div class="grid grid-cols-2 gap-3 px-3 py-2"><dt class="text-gray-600">${esc(label)}</dt><dd class="text-right font-semibold text-[#1e3a5f]">${esc(String(value))}</dd></div>`;
+        }).join('')}
+      </dl>
+      ${resultFeedback.length ? `<div class="mt-3"><p class="text-xs font-semibold text-gray-600 mb-1">Auto-scored feedback</p><ul class="list-disc space-y-1 pl-5 text-xs text-gray-600">${resultFeedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
+    </div>` : '';
+  return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}">
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
+        <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span></p>
+        ${olderAttempt ? '<p class="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
+        <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
+      </div>
+      <span class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${!hasScore ? 'bg-gray-100 text-gray-600' : passing ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}">
+        ${hasScore ? `${esc(String(row.score))}%` : 'No score'} <span class="opacity-60">/ ${esc(String(threshold))}% to pass</span>
+      </span>
     </div>
-    ${pendingPanel}${redoPanel}`;
+    ${adminCaseTicketSubmissionPanel(row)}
+    ${adminCapstoneReviewPanel(row)}
+    ${adminModuleTwoAccessReviewPanel(row)}
+    ${competencyPanel}
+    ${readableResult}
+    <details class="mb-3 text-sm">
+      <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>
+      <pre class="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-x-auto">${esc(resultJson)}</pre>
+    </details>
+    <div data-feedback-items class="space-y-2 mb-2">
+      <div class="feedback-item grid sm:grid-cols-2 gap-2">
+        <input type="text" data-feedback-label placeholder="What was wrong (instructor's own words)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
+        <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">${esc(generatedRecommendation)}</textarea>
+      </div>
+    </div>
+    <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
+    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
+      <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Return for remediation' : 'Send back for redo'}</button>
+      <span data-grading-status class="text-xs text-gray-500"></span>
+    </div>
+  </article>`;
 }
+
+function adminOpenRedoRequestsHtml(redoRows) {
+  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2"><button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button><span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
+}
+
+/* Lab Attempts tab (owner, 2026-10-05): replaces the Grading/Graded split.
+ * One card per learner; each pill is a module phase's LATEST attempt — amber
+ * Under review, green Passed, red Failed. Clicking a pill opens that attempt:
+ * the review card while it still needs a decision, the submitted record once
+ * it has one, with earlier attempts folded underneath. The tab badge counts
+ * attempts awaiting review. */
+let adminOpenAttemptPanel = null; // reopened after a decision re-renders the tab
+
+function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRows = [], autogradedRows = [], openRedoRows = [] } = {}) {
+  const pending = new Set(pendingRows.map((row) => row.id));
+  const superseded = new Set(supersededRows.map((row) => row.id));
+  const autograded = new Set(autogradedRows.map((row) => row.id));
+  const groups = adminGroupGradingRows([...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows]);
+  const pendingCount = adminGroupGradingRows(pendingRows).reduce((n, student) => n + student.items.length, 0);
+  const header = `<div class="mb-6">
+      <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Lab Attempts</h2>
+      <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
+      <p class="text-gray-500 text-sm">${pendingCount ? `<strong class="text-[#1e3a5f]">${pendingCount} awaiting your review.</strong> ` : 'Nothing awaiting review. '}Each pill is a module phase's latest attempt — click one to open it. The score is the system's pregrade; your approval is what unlocks the next module.</p>
+      <div class="mt-3 flex flex-wrap gap-3 text-xs text-gray-500" aria-label="Status key">
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>Under review</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>Passed</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>Failed</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span>Not reviewed (replaced)</span>
+      </div>
+    </div>`;
+  if (!groups.length) {
+    return `${header}<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No lab attempts have been submitted in this course yet.</p></div>${adminOpenRedoRequestsHtml(openRedoRows)}`;
+  }
+  const pill = (text, tone) => `<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone}">${esc(text)}</span>`;
+  const status = (row) => {
+    const hasScore = row.score !== null && row.score !== undefined;
+    const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
+    if (pending.has(row.id)) return { label: 'Under review', tone: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-400' };
+    if (superseded.has(row.id)) return { label: 'Not reviewed', tone: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-300' };
+    const failed = autograded.has(row.id) ? hasScore && !passing : row.redo_requested;
+    return failed
+      ? { label: 'Failed', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' }
+      : { label: 'Passed', tone: 'bg-green-50 text-green-800 border-green-200', dot: 'bg-green-500' };
+  };
+  const outcomePill = (row) => (autograded.has(row.id)
+    ? pill('Autograded', 'bg-blue-50 text-[#1e3a5f]')
+    : superseded.has(row.id)
+    ? pill('Superseded · not reviewed', 'bg-gray-100 text-gray-600')
+    : row.redo_requested ? pill('Sent back for redo', 'bg-red-50 text-red-700') : pill('Approved', 'bg-green-50 text-green-700'));
+  const recordRow = (item, open) => {
+    const row = item.lead;
+    const hasScore = row.score !== null && row.score !== undefined;
+    const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
+    const ticket = adminCaseTicketSubmissionPanel(row);
+    return `<details class="rounded-lg border border-gray-200 bg-white px-3 py-2.5" data-graded-row="${esc(row.id)}" ${open ? 'open' : ''}>
+      <summary class="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2 text-sm">
+        <span class="font-medium text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</span>
+        <span class="flex flex-wrap items-center gap-1.5">${pill(hasScore ? `${row.score}%` : 'No score', !hasScore ? 'bg-gray-100 text-gray-600' : passing ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}${outcomePill(row)}<span class="w-7 h-7 grid place-items-center rounded-full bg-gray-50 border border-gray-200 text-gray-500 text-lg transition-transform" data-grading-chevron aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></span>
+      </summary>
+      <p class="mt-2 text-xs text-gray-500">${esc(item.labTitles.join(' · '))}</p>
+      <p class="mt-1 text-xs text-gray-500">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}${row.reviewed_at ? ` · Reviewed ${new Date(row.reviewed_at).toLocaleString()}` : ''}</p>
+      ${ticket ? `<div class="mt-3">${ticket}</div>` : ''}
+    </details>`;
+  };
+  const attemptHtml = (item, isLatest) => (pending.has(item.lead.id) ? adminAttemptReviewCard(item, !isLatest) : recordRow(item, isLatest));
+  const phaseOrder = (meta) => meta.number * 10 + Math.max(0, ['LEARN IT', 'PRACTICE IT', 'PROVE IT'].indexOf(meta.kind));
+  const domId = (value) => String(value).replace(/[^a-zA-Z0-9_-]/g, '-');
+
+  const students = groups.map((student) => {
+    const byName = new Map();
+    student.modules.flatMap((module) => module.items).forEach((item) => byName.set(item.name, [...(byName.get(item.name) || []), item]));
+    const phases = Array.from(byName.entries()).map(([name, items]) => {
+      // Newest first; same-millisecond duplicates fall back to attempt number.
+      const ordered = items.slice().sort((a, b) => String(b.lead.completed_at).localeCompare(String(a.lead.completed_at))
+        || ((b.lead.attempt && b.lead.attempt.number) || 0) - ((a.lead.attempt && a.lead.attempt.number) || 0));
+      const meta = adminGradingLabMeta(ordered[0].lead);
+      return { name, items: ordered, meta, key: `${student.studentId}|${name}`, status: status(ordered[0].lead) };
+    }).sort((a, b) => phaseOrder(a.meta) - phaseOrder(b.meta));
+    return { ...student, phases, pendingItems: student.items.filter((item) => pending.has(item.lead.id)).length };
+  }).sort((a, b) => (b.pendingItems > 0) - (a.pendingItems > 0) || String(a.studentId).localeCompare(String(b.studentId)));
+
+  const studentCard = (student) => `<section class="bg-white border ${student.pendingItems ? 'border-amber-200' : 'border-gray-200'} rounded-xl px-5 py-4" data-grading-student="${esc(student.studentId)}">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(student.studentId)}</p>
+        <p class="text-xs text-gray-500">${student.pendingItems ? `<span class="font-semibold text-amber-700">${student.pendingItems} under review</span> · ` : ''}${student.items.length - student.pendingItems} graded</p>
+      </div>
+      <div class="mt-3 grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));">${student.phases.map((phase) => {
+        const row = phase.items[0].lead;
+        const hasScore = row.score !== null && row.score !== undefined;
+        return `<button type="button" data-attempt-chip="${esc(phase.key)}" aria-expanded="false" aria-controls="attempt-panel-${esc(domId(phase.key))}" title="Open the latest ${esc(phase.name)} attempt" class="flex items-center justify-between gap-2 rounded-full border px-3 py-1 text-xs font-semibold text-left transition-shadow hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a5f]/40 ${phase.status.tone}">
+          <span class="flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 flex-shrink-0 rounded-full ${phase.status.dot}" aria-hidden="true"></span><span class="truncate">${esc(phase.name)}</span></span>
+          <span class="flex-shrink-0 tabular-nums">${esc(phase.status.label)}${hasScore ? ` <span class="font-normal opacity-75">· ${esc(String(row.score))}%</span>` : ''}</span>
+        </button>`;
+      }).join('')}</div>
+      ${student.phases.map((phase) => `<div id="attempt-panel-${esc(domId(phase.key))}" data-attempt-panel="${esc(phase.key)}" class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-3" hidden>
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="text-sm font-bold text-[#1e3a5f]">${esc(phase.meta.moduleLabel)} <span class="text-gray-400">·</span> ${esc(phase.meta.kind)}</h3>
+          <button type="button" data-attempt-close class="text-xs font-semibold text-gray-500 hover:text-[#1e3a5f]" aria-label="Close ${esc(phase.name)}">Close <i class="ri-close-line" aria-hidden="true"></i></button>
+        </div>
+        ${attemptHtml(phase.items[0], true)}
+        ${phase.items.length > 1 ? `<details class="rounded-lg border border-gray-200 bg-white">
+          <summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-600">Earlier attempts (${phase.items.length - 1})</summary>
+          <div class="px-3 pb-3 space-y-3">${phase.items.slice(1).map((item) => attemptHtml(item, false)).join('')}</div>
+        </details>` : ''}
+      </div>`).join('')}
+    </section>`;
+
+  return `${header}
+    <div class="mb-3"><input type="search" data-grading-filter placeholder="Filter by student ID" aria-label="Filter by student ID" class="w-full sm:w-72 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" /></div>
+    <div class="space-y-3">${students.map(studentCard).join('')}</div>
+    ${adminOpenRedoRequestsHtml(openRedoRows)}`;
+}
+
 
 // Faculty review must show the student's actual artifact, not only the
 // scorer's interpretation of it. Module 01's independent ticket persists a
@@ -1115,12 +1217,19 @@ function adminCaseTicketSubmissionPanel(row) {
       'benign-positive': 'Benign activity',
       'false-positive': 'False positive',
       'enterprise-breach': 'Enterprise-wide incident',
+      'false-negative': 'False Negative',
+      'true-negative': 'True Negative',
     },
     escalation: { required: 'Required', 'not-required': 'Not required' },
     escalateTo: { 'tier2-soc': 'Tier 2 SOC', 'identity-response': 'Identity Response' },
   };
   const display = (field, value) => labels[field]?.[value] || (value ? String(value) : 'Not provided');
-  const fields = [
+  // Modules on the shared case record (portal/case-record.js) send their own
+  // label/value rows, findings included; Module 01's older attempts do not.
+  const sentRows = Array.isArray(row?.result?.case_display)
+    ? row.result.case_display.filter((entry) => Array.isArray(entry) && entry.length === 2).map(([label, value]) => [String(label), String(value)])
+    : null;
+  const fields = sentRows || [
     ['Status', display('status', record.status)],
     ['Severity', display('severity', record.severity || record.priority)],
     ['Affected user', record.affectedUser || 'Not provided'],
@@ -1144,6 +1253,35 @@ function adminCaseTicketSubmissionPanel(row) {
     </dl>
     <div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Analyst work notes · student response</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(record.notes || 'Not provided')}</p></div>
     ${handoffFields.length ? `<div class="mt-3 grid sm:grid-cols-2 gap-2">${handoffFields.map(([label, value]) => `<div class="rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${esc(label)}</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(value)}</p></div>`).join('')}</div>` : ''}
+  </section>`;
+}
+
+// Module 12's scorer artifact is deliberately rendered as a readable review
+// document so faculty do not need to inspect the collapsed raw payload.
+function adminCapstoneReviewPanel(row) {
+  const review = row?.result?.reviewPayload?.reviewArtifact
+    || row?.result?.reviewPayload?.review_artifact;
+  if (!review || typeof review !== 'object') return '';
+  const responses = Array.isArray(review.studentResponses) ? review.studentResponses : [];
+  const determinations = review.studentDeterminations || {};
+  const actions = Array.isArray(review.studentActions) ? review.studentActions : [];
+  const evidence = Array.isArray(review.selectedEvidence) ? review.selectedEvidence : [];
+  const competencies = Array.isArray(review.competencyResults) ? review.competencyResults : [];
+  const explanation = Array.isArray(review.scoreExplanation) ? review.scoreExplanation : [];
+  const responseRows = responses.length ? responses.map((item) => `<article class="rounded-lg border border-gray-200 bg-white p-3">
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">${esc(item.kind || 'Student response')}${item.evidenceIds?.length ? ` · Evidence: ${esc(item.evidenceIds.join(', '))}` : ''}</p>
+    <p class="mt-1 whitespace-pre-wrap text-sm text-gray-800">${esc(item.text || 'Not provided')}</p>
+  </article>`).join('') : '<p class="text-sm text-gray-500">No written responses recorded.</p>';
+  return `<section class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" aria-label="Capstone analyst response and scoring">
+    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h3 class="text-sm font-semibold text-[#1e3a5f]">Student Analyst Response · Capstone v${esc(row?.result?.reviewPayload?.rubricVersion || '1')}</h3><span class="text-xs text-gray-500">${esc(review.instructorReviewStatus || 'needs_review').replaceAll('_', ' ')}</span></div>
+    <div class="space-y-2">${responseRows}</div>
+    <h4 class="mt-4 mb-2 text-sm font-semibold text-[#1e3a5f]">Competency breakdown</h4>
+    <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white"><table class="w-full text-left text-sm"><thead><tr class="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500"><th class="p-2">Competency</th><th class="p-2">Points</th><th class="p-2">Evidence and scoring explanation</th></tr></thead><tbody>${competencies.map((item) => `<tr class="border-b border-gray-100 align-top"><th class="p-2 font-medium text-gray-800">${esc(item.label || item.id || 'Competency')}</th><td class="p-2 whitespace-nowrap">${esc(item.points ?? 0)} / ${esc(item.max ?? 0)}</td><td class="p-2 text-gray-700">${[...(item.supportingEvidence || []), ...(item.misses || [])].map(esc).join('<br>') || 'No additional detail.'}</td></tr>`).join('')}</tbody></table></div>
+    ${explanation.length ? `<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">${explanation.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}
+    <details class="mt-3 rounded-lg border border-gray-200 bg-white p-3"><summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">Evidence, determinations, and actions</summary>
+      <p class="mt-2 text-sm"><strong>Selected evidence:</strong> ${esc(evidence.join(', ') || 'None')}</p>
+      <pre class="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-gray-700">${esc(JSON.stringify({ determinations, actions }, null, 2))}</pre>
+    </details>
   </section>`;
 }
 
@@ -1280,13 +1418,13 @@ function academicStatusLabel(status) {
 /* ------------------------------------------- G1: data-backed compliance */
 /* Replaces the old adminReportingRequirements(), which was a static array
  * that returned the same seven hard-coded statuses regardless of what data
- * actually exists (ASSESSMENT_REPORTING_SPEC.md §1c). This inspects the
+ * actually exists (docs/specs/ASSESSMENT_REPORTING_SPEC.md §1c). This inspects the
  * cohort rows actually passed in and the known state of the schema/code to
  * decide each status, so a future migration/feature landing (Agents 5-7)
  * naturally upgrades a requirement's status once the underlying field is
  * really there — nothing here needs to be hand-flipped back to "covered."
  *
- * Returns one entry per Reportingrequirements.txt requirement:
+ * Returns one entry per docs/compliance/Reportingrequirements.txt requirement:
  * { id, requirement, status: covered|partial|missing|not_applicable|unknown,
  *   requiredFields, availableFields, missingFields, sourceTables, note,
  *   lastChecked }. `context.queryError` marks every requirement `unknown`
@@ -2238,7 +2376,7 @@ async function renderCohortPdf(cohortData, reportId) {
     // ---- Student-to-program linkage detail: a second, compact table so the
     // "Student-to-program linkage" compliance verdict above has visible
     // backing evidence in the document itself, not just an unverifiable
-    // covered/partial badge (audit finding, NEXT_SESSION.md 2026-08-31). ----
+    // covered/partial badge (audit finding, docs/handoffs/NEXT_SESSION.md 2026-08-31). ----
     cursorY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : cursorY) + 20;
     cursorY = ensureSpace(doc, cursorY, 60);
     doc.setFont('helvetica', 'bold');
@@ -2283,7 +2421,7 @@ async function renderCohortPdf(cohortData, reportId) {
 /* --------------------------------------------------------- I: progress snapshot PDF */
 /* renderProgressSnapshotPdf(): human-readable companion to the JSON recovery
  * file the bulk "Save Progress File (All Students)" button downloads. The
- * JSON stays the restore-workflow artifact (ADMIN_RESET_FLOW.md); this is a
+ * JSON stays the restore-workflow artifact (docs/ADMIN_RESET_FLOW.md); this is a
  * plain roster table for a human to skim, styled after the cohort report's
  * header/footer/roster conventions but deliberately lighter — no compliance
  * table, no audit trail (see downloadProgressSnapshotPdf() below): it's a
@@ -3255,7 +3393,7 @@ function computeCapstoneRecord(program, labAttemptRows, capstoneSubmissionRows, 
  * raw students-row read instead of the admin_student_progress view (a
  * student reading their own record can't use that view — it's admin-gated).
  * Two independent implementations of the same precedence logic is a known
- * consistency risk (ASSESSMENT_REPORTING_SPEC.md §1b row 1.6); keeping both
+ * consistency risk (docs/specs/ASSESSMENT_REPORTING_SPEC.md §1b row 1.6); keeping both
  * versions' precedence order textually identical is the mitigation until
  * the view becomes readable from both sides. */
 function deriveStudentEnrollmentStatus(studentRow, moduleScores) {
@@ -3297,14 +3435,14 @@ function deriveStudentEnrollmentStatus(studentRow, moduleScores) {
  *     HAVE a score (a real average of grades, independent of how many
  *     modules a student has even attempted yet)
  *   - moduleGrades: per-module Pass/Fail/Not attempted against the 70%
- *     threshold (ASSESSMENT_REPORTING_SPEC.md §2) — a grade, not a percent
+ *     threshold (docs/specs/ASSESSMENT_REPORTING_SPEC.md §2) — a grade, not a percent
  *   - capstoneOutcome: capstoneRecord.status, already its own field
  *   - programCompletionAssessment (D2): a proper multi-condition object —
  *     required modules, required labs, required assessments passed, capstone
  *     passed, zero critical errors, PLUS required-hours and evaluator-
  *     approval recorded as "not available" rather than silently skipped or
  *     fabricated as true, since no data source exists for either yet
- *     (COMPLIANCE_DECISIONS_NEEDED.md Decisions 1 & 2 — Agents 6/7). This
+ *     (docs/compliance/COMPLIANCE_DECISIONS_NEEDED.md Decisions 1 & 2 — Agents 6/7). This
  *     status is therefore never a claim of official CIE program completion,
  *     only of what this system can currently verify. */
 function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, hourRecord) {
@@ -3350,7 +3488,7 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
     progressPercentage: Number(progressPercentage.toFixed(1)),
     academicAverage: academicAverage === null ? null : Number(academicAverage.toFixed(1)),
     moduleGrades,
-    gradeScale: `${passingThreshold}/100 passing threshold per module (ASSESSMENT_REPORTING_SPEC.md §2)`,
+    gradeScale: `${passingThreshold}/100 passing threshold per module (docs/specs/ASSESSMENT_REPORTING_SPEC.md §2)`,
     capstoneOutcome: capstoneRecord.status,
     programCompletionAssessment: {
       status: verifiableConditionsMet ? 'all_currently_verifiable_conditions_met' : 'incomplete',
@@ -3604,7 +3742,7 @@ async function downloadStudentEvidencePdf(user, program) {
  * one student's full transcript + evidence record, built from the same
  * buildTranscriptData()/buildEvidencePacketData() Supabase reads as the
  * student's own export. Exists so a disenrollment is never a one-way door:
- * ADMIN_RESET_FLOW.md documents pasting this file's contents to a connected
+ * docs/ADMIN_RESET_FLOW.md documents pasting this file's contents to a connected
  * AI agent to restore a student who was disenrolled by mistake. Available
  * as a standalone per-row button, and always run automatically before an
  * enrolled -> disenrolled toggle (see wireAdmin) so the snapshot exists
@@ -3615,7 +3753,7 @@ async function buildStudentSnapshotRecord(studentId, identity) {
     buildEvidencePacketData(studentId, identity),
   ]);
   return {
-    _label: 'Admin-captured recoverable progress snapshot — paste into ADMIN_RESET_FLOW.md\'s agent prompt to restore this student if a disenrollment was a mistake.',
+    _label: 'Admin-captured recoverable progress snapshot — paste into docs/ADMIN_RESET_FLOW.md\'s agent prompt to restore this student if a disenrollment was a mistake.',
     capturedAt: new Date().toISOString(),
     studentId,
     track: identity ? identity.trackCode : null,
@@ -3645,7 +3783,7 @@ async function downloadStudentSnapshot(studentId, identity) {
 
 /* ---------------------------------------------- module_progress (Supabase) */
 /* Additive write path alongside the localStorage engagement tracking above
- * (architecture.md §3 Sprint 2). localStorage stays the source of truth the
+ * (docs/specs/architecture.md §3 Sprint 2). localStorage stays the source of truth the
  * UI reads synchronously — these calls persist the same signal to
  * module_progress so course_progress/admin_student_progress have real data.
  * Fire-and-forget: never awaited by a caller, never blocks navigation.
@@ -3669,6 +3807,49 @@ async function upsertModuleProgress(user, moduleKey, fields) {
   } catch (err) {
     console.error('module_progress upsert threw', moduleKey, fields, err);
   }
+}
+
+/* Persist an isolated lab draft inside its module's shared case_state JSON.
+ * Read/merge/write preserves sibling labs in that module's single row. The
+ * cache is origin-scoped; this authenticated row is the cross-origin source. */
+const moduleCaseStateQueues = new Map();
+async function persistModuleCaseState(user, moduleKey, labId, state) {
+  if (!user || !user.userId || !user.trackCode || !moduleKey || !labId) return;
+  const queueKey = `${user.userId}:${user.trackCode}:${moduleKey}`;
+  const previous = moduleCaseStateQueues.get(queueKey) || Promise.resolve();
+  const write = previous.catch(() => {}).then(async () => {
+    const { data, error: readError } = await mntSupabase.from('module_progress')
+      .select('case_state').eq('user_id', user.userId).eq('track_code', user.trackCode)
+      .eq('module_key', moduleKey).maybeSingle();
+    if (readError) { console.error('module case_state read failed', moduleKey, readError); return; }
+    const current = data && data.case_state && typeof data.case_state === 'object' ? data.case_state : {};
+    const caseState = { ...current, [labId]: state };
+    let writeResult;
+    if (data) {
+      writeResult = await mntSupabase.from('module_progress').update({ case_state: caseState })
+        .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+    } else {
+      writeResult = await mntSupabase.from('module_progress').insert({
+        user_id: user.userId, module_key: moduleKey, track_code: user.trackCode,
+        state: 'in_progress', case_state: caseState,
+      });
+      // Another lab may have inserted this module row after our read. Merge
+      // into that row and retry so the first concurrent case_state writes land.
+      if (writeResult.error && writeResult.error.code === '23505') {
+        const { data: racedRow, error: racedReadError } = await mntSupabase.from('module_progress')
+          .select('case_state').eq('user_id', user.userId).eq('track_code', user.trackCode)
+          .eq('module_key', moduleKey).maybeSingle();
+        if (racedReadError) throw racedReadError;
+        const racedState = racedRow?.case_state && typeof racedRow.case_state === 'object' ? racedRow.case_state : {};
+        writeResult = await mntSupabase.from('module_progress').update({ case_state: { ...racedState, [labId]: state } })
+          .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+      }
+    }
+    if (writeResult.error) console.error('module case_state write failed', moduleKey, labId, writeResult.error);
+    else user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: caseState };
+  }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); });
+  moduleCaseStateQueues.set(queueKey, write);
+  return write;
 }
 
 /* Only ever writes 'in_progress', and only when this module's row isn't
@@ -3758,7 +3939,7 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
   saveModuleEngagement(user, engagement);
 
   // moduleCompletion() is the derived-completion read (defined below); this is
-  // the "did this call just flip it to complete" check architecture.md §3
+  // the "did this call just flip it to complete" check docs/specs/architecture.md §3
   // calls for. It re-reads engagement from localStorage, so it sees the save
   // above. Only checked when completing a lab — clearing one (completed ===
   // false) can never newly complete a module.
@@ -3772,12 +3953,12 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
 }
 
 /* ------------------------------------------------------------ lab_attempts (Supabase) */
-/* architecture.md §3 Sprint 3: "wire what already computes a result" half only
+/* docs/specs/architecture.md §3 Sprint 3: "wire what already computes a result" half only
  * — every module (01-12) already grades its own in-page artifact with a
  * moduleXScore()-shaped function (score/breakdown/feedback) and a passing
  * threshold; this just persists that already-computed result. Deliberately
  * NOT the simulator->portal postMessage contract (ui/mnt-lab-harness.js) —
- * that is flagged in architecture.md as separate, unscoped work.
+ * that is flagged in docs/specs/architecture.md as separate, unscoped work.
  *
  * lab_attempts has no one-row-per-lab uniqueness constraint (append-only, one
  * row per attempt — see supabase/migrations/20260828160000_simplify_schema.sql),
@@ -3841,7 +4022,7 @@ function persistPortfolioArtifact(user, { moduleKey, labKey, kind, title, conten
 }
 
 /* --------------------------------------------------------- capstone_submissions (Supabase) */
-/* architecture.md §3 Sprint 4, scope confirmed against CURRICULUM_ALIGNMENT_ARCHITECTURE.md
+/* docs/specs/architecture.md §3 Sprint 4, scope confirmed against docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md
  * §5 ("12 stages remain one Prove assessment"): there is no 12-stage capstone
  * flow, and none is being built here. Module 12 (portal/soc-analyst-module-12.js) IS the
  * capstone, graded once by its own moduleTwelveScore(). `stage` in the schema
@@ -3897,7 +4078,7 @@ function recordCapstoneSubmission(user, { score, answers = {}, criticalErrorCoun
 }
 
 // An instructor-requested redo keeps the module incomplete until the learner
-// resubmits; see lab-grading-notification-system/STATE.md.
+// resubmits; see docs/workstreams/lab-grading-notification-system/STATE.md.
 function moduleCompletion(program, moduleKey, user) {
   const module = program.modules[moduleKey];
   const fixtureState = (user.progress || {})[moduleKey] || 'not_started';
@@ -3912,7 +4093,7 @@ function moduleCompletion(program, moduleKey, user) {
   const remoteComplete = (user.remoteVerifiedModuleProgress || {})[moduleKey] === true;
   const engagement = loadModuleEngagement(user);
   const moduleId = moduleEngagementId(program.slug, moduleKey);
-  const labs = programLabs(program).filter((lab) => lab.module === moduleKey);
+  const labs = programLabs(program).filter((lab) => lab.module === moduleKey && lab.optional !== true);
   const contentOpened = fixtureState === 'complete' || remoteComplete || remoteState === 'in_progress'
     || engagement.openedModules.includes(moduleId);
   const allLabsComplete = remoteComplete || labs.every((lab) => {
@@ -3945,7 +4126,7 @@ function programProgress(user, program) {
 }
 
 /* A track is openable once its 12-module skeleton exists — all four tracks now
- * carry one (MODULE_STANDARD.md). Publication is a separate flag: an unpublished
+ * carry one (docs/specs/MODULE_STANDARD.md). Publication is a separate flag: an unpublished
  * track shows its standardized outline with each module marked as in
  * development, rather than pretending the lessons are ready. */
 function isBuilt(program) {
@@ -4129,33 +4310,82 @@ function moduleTopbarTitle(program, options = {}) {
   return module.title ? `${numberLabel} \u00b7 ${module.title}` : numberLabel;
 }
 
-/* Return an encoded same-origin portal URL for imported labs opened in a new
- * tab. The lab validates the decoded value before navigating, so this cannot
- * become an open redirect or escape the current Mission Next portal. */
-function missionNextReturnTo(moduleNumber) {
-  const number = Number(moduleNumber);
-  if (!Number.isInteger(number) || number < 1) return '';
-  const route = `#/program/soc-analyst/module/${number}`;
-  return encodeURIComponent(`${location.origin}${location.pathname}${route}`);
-}
-
 /* Imported Mission Next projects that extend a module's core Guided and
  * Assessment labs. Module files pass prebuilt same-page launch links. */
+/* Imported Mission Next labs open as a portal route
+ * (#/program/<slug>/module/<n>/lab/<labSlug>) that frames the lab app, so
+ * the address bar stays in the portal and never shows the imported app's
+ * path or its module query. Module files keep authoring the lab app's own
+ * deep link; these helpers translate between the two shapes. */
+const MISSION_NEXT_LAB_APP_BASE = 'imported-labs/mission-next-labs/';
+const MISSION_NEXT_LAB_TRACKS = {
+  sa: 'security-assessments', ma: 'malware-analysis', vm: 'vulnerability-management',
+  wf: 'windows-forensics', ad: 'active-directory', lap: 'log-analysis',
+};
+
+function missionNextLabSlugFromHref(href) {
+  const match = String(href || '').match(/imported-labs\/mission-next-labs\/(?:index\.html)?#\/track\/[a-z-]+\/(?:project\/([a-z0-9-]+)\/lab|module\/([a-z0-9-]+))$/i);
+  return match ? (match[1] || match[2]) : null;
+}
+
+function missionNextLabAppRoute(labSlug) {
+  if (/^[a-z0-9-]+-log-analysis$/.test(labSlug)) return `#/track/splunk/module/${labSlug}`;
+  const match = String(labSlug || '').match(/^([a-z]+)-\d+$/);
+  const track = match && MISSION_NEXT_LAB_TRACKS[match[1]];
+  return track ? `#/track/${track}/project/${labSlug}/lab` : null;
+}
+
+function missionNextLabPortalHref(moduleNumber, href) {
+  const labSlug = missionNextLabSlugFromHref(href);
+  const programMatch = typeof location !== 'undefined' && location.hash.match(/^#\/program\/([a-z0-9-]+)/);
+  if (!programMatch) return href;
+  if (!labSlug || !missionNextLabAppRoute(labSlug)) {
+    if (String(href || '').includes('imported-labs/mission-next-labs')) {
+      console.warn('[mission-next-lab] unmapped lab href', href);
+    }
+    return href;
+  }
+  return `#/program/${programMatch[1]}/module/${Number(moduleNumber)}/lab/${labSlug}`;
+}
+
+function viewMissionNextLab(user, program, moduleLab, labSlug) {
+  const moduleNumber = Number(moduleLab.moduleNumber);
+  const moduleHref = `#/program/${program.slug}/module/${moduleNumber}`;
+  const src = `${MISSION_NEXT_LAB_APP_BASE}?mntModule=${encodeURIComponent(moduleLab.moduleKey)}&embed=1${missionNextLabAppRoute(labSlug)}`;
+  return `<div class="mn-lab-view">
+    ${moduleTopbar(user, program, { backHref: moduleHref, backLabel: `Back to Module ${String(moduleNumber).padStart(2, '0')}` })}
+    <iframe class="mn-lab-frame" src="${esc(src)}" title="Mission Next lab" data-mn-lab-frame></iframe>
+  </div>`;
+}
+
+/* The framed lab's own Back/exit control asks the portal to return to the
+ * module that launched it. Same-origin only. */
+window.addEventListener('message', (event) => {
+  if (event.origin !== location.origin || event.data?.type !== 'mission-next-lab:exit') return;
+  const labRoute = location.hash.match(/^(#\/program\/[a-z0-9-]+\/module\/\d+)\/lab\//);
+  if (labRoute) location.hash = labRoute[1];
+});
+
+/* SOC Modules 4–12: retained supplemental labs, shown apart from the scored
+ * Assessment Lab. Completing them is tracked but never required, scored or
+ * used to gate a submission or module progress. */
+function missionNextOptionalLabsSection(moduleNumber, labs, bucket) {
+  const group = missionNextLabLaunchGroup(moduleNumber, 'optional', labs, bucket);
+  if (!group) return '';
+  return `<section class="mn-additional-labs mn-optional-labs" aria-labelledby="mn-optional-labs-${moduleNumber}">
+    <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">OPTIONAL LABS</p><h2 id="mn-optional-labs-${moduleNumber}">Optional Mission Next Labs</h2></div><span>Not graded · never required</span></div>
+    <p class="mn-additional-labs-copy">Extra practice on this module's topic. They do not affect your Assessment Lab score, submission or module progress.</p>
+    ${group}
+  </section>`;
+}
+
 function missionNextAdditionalLabsSection(moduleNumber, links) {
   const items = Array.isArray(links) ? links : [];
   if (!items.length) return '';
-  const returnTo = typeof missionNextReturnTo === 'function'
-    ? missionNextReturnTo(moduleNumber)
-    : '';
-  const labHref = (href) => {
-    if (!returnTo || !href) return href;
-    const separator = href.includes('?') ? '&' : '?';
-    return `${href.split('#')[0]}${separator}returnTo=${returnTo}${href.includes('#') ? `#${href.split('#').slice(1).join('#')}` : ''}`;
-  };
   return `<section class="mn-additional-labs" aria-labelledby="mn-additional-labs-${moduleNumber}">
     <div class="mn-additional-labs-heading"><div><p class="mn-additional-labs-kicker">REQUIRED LABS</p><h2 id="mn-additional-labs-${moduleNumber}">Additional Mission Next Labs</h2></div><span>Graded and required for module completion</span></div>
     <p class="mn-additional-labs-copy">These related projects extend the module topic and are required. Complete them for credit alongside the Guided Lab and Assessment Lab.</p>
-    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(labHref(item.href))}" target="_blank" rel="opener"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Required lab project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
+    <div class="mn-additional-labs-grid">${items.map((item) => `<a class="mn-additional-lab-card" href="${esc(missionNextLabPortalHref(moduleNumber, item.href))}"><span class="mn-additional-lab-icon" aria-hidden="true"><i class="ri-play-circle-line"></i></span><span class="mn-additional-lab-copy"><strong>${esc(item.label)}</strong><small>${esc(item.detail || 'Required lab project')}</small></span><span class="mn-additional-lab-cta"><i class="ri-external-link-line" aria-hidden="true"></i> Launch lab</span></a>`).join('')}</div>
   </section>`;
 }
 
@@ -4166,7 +4396,7 @@ function missionNextAdditionalLabsSection(moduleNumber, links) {
  * total to get a "Guided Lab 2"-style label; a single lab of that kind gets
  * the plain "Guided Lab"/"Assessment Lab" label with no number. */
 function missionNextLabLaunchLabel(kind, index, total) {
-  const kindLabel = kind === 'assessment' ? 'Assessment Lab' : kind === 'additional' ? 'Required Lab' : 'Guided Lab';
+  const kindLabel = kind === 'assessment' ? 'Assessment Lab' : kind === 'additional' ? 'Required Lab' : kind === 'optional' ? 'Optional Lab' : 'Guided Lab';
   return total > 1 ? `${kindLabel} ${index}` : kindLabel;
 }
 
@@ -4190,25 +4420,39 @@ function missionNextAllLabsComplete(bucket, labIds) {
   return ids.every((id) => missionNextLabProgressEntry(bucket, id).complete === true);
 }
 
+/* Verified completion written by the imported lab player itself
+ * (MISSION_NEXT_PROGRESS_EXT.markCourseLabComplete) once every required step
+ * passes. It lives in two places: this origin's localStorage (same-origin
+ * static app, keyed by the per-module guest username) and the module's
+ * shared case_state row, so either browser/origin can see it. */
+function missionNextImportedLabCompleted(user, moduleKey, importedLabId) {
+  if (!moduleKey || !importedLabId) return false;
+  const remote = user?.remoteCaseState?.[moduleKey]?.[`imported-lab-progress:${importedLabId}`];
+  if (remote?.completedAt) return true;
+  try {
+    const local = JSON.parse(localStorage.getItem('mission_next_progress_ext') || '{}');
+    return Boolean(local?.[`guest_learner_${moduleKey}`]?.[importedLabId]?.completedAt);
+  } catch (_) {
+    return false;
+  }
+}
+
 function missionNextLabLaunchCard(moduleNumber, opts) {
-  const { kind = 'guided', index = 1, total = 1, title, detail, href, labId, progress, requireNote } = opts || {};
+  const { kind = 'guided', index = 1, total = 1, title, detail, href, labId, progress, requireNote, verified } = opts || {};
   if (!href || !title) return '';
-  const returnTo = typeof missionNextReturnTo === 'function'
-    ? missionNextReturnTo(moduleNumber)
-    : '';
-  const labHref = (h) => {
-    if (!returnTo || !h) return h;
-    const separator = h.includes('?') ? '&' : '?';
-    return `${h.split('#')[0]}${separator}returnTo=${returnTo}${h.includes('#') ? `#${h.split('#').slice(1).join('#')}` : ''}`;
-  };
   const label = missionNextLabLaunchLabel(kind, index, total);
+  const launchHref = missionNextLabPortalHref(moduleNumber, href);
   const entry = labId ? (progress || { complete: false, note: '' }) : null;
-  const gateHtml = labId ? `<div class="mn-lab-gate" data-mn-lab-gate="${esc(labId)}">
+  // Verified labs have no manual toggle: the student completes the lab by
+  // finishing its steps, and the card only reports that status.
+  const gateHtml = labId && verified ? `<div class="mn-lab-gate mn-lab-gate--verified" role="status">
+      <span class="mn-lab-gate-status${entry.complete ? ' is-complete' : ''}">${entry.complete ? '✓ Completed — all lab steps verified' : 'Not complete yet — finish every step in the lab'}</span>
+    </div>` : labId ? `<div class="mn-lab-gate" data-mn-lab-gate="${esc(labId)}">
       ${requireNote ? `<textarea class="mn-lab-gate-note" data-mn-lab-note="${esc(labId)}" rows="2" maxlength="600" placeholder="Briefly note what you found in this lab…">${esc(entry.note || '')}</textarea>` : ''}
       <button type="button" class="mn-lab-gate-toggle${entry.complete ? ' is-complete' : ''}" data-mn-lab-toggle="${esc(labId)}" aria-pressed="${entry.complete ? 'true' : 'false'}">${entry.complete ? '✓ Marked complete' : 'Mark complete'}</button>
     </div>` : '';
   return `<div class="mn-lab-launch-wrap">
-    <a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(labHref(href))}" target="_blank" rel="opener">
+    <a class="mn-lab-launch-card mn-lab-launch-card--${esc(kind)}" href="${esc(launchHref)}">
       <span class="mn-lab-launch-eyebrow">${esc(label)}</span>
       <span class="mn-lab-launch-title">${esc(title)}</span>
       ${detail ? `<span class="mn-lab-launch-detail">${esc(detail)}</span>` : ''}
@@ -4231,7 +4475,7 @@ function missionNextLabLaunchGroup(moduleNumber, kind, labs, bucket) {
   return `<div class="mn-lab-launch-group mn-lab-launch-group--${esc(kind)}">${items
     .map((lab, i) => missionNextLabLaunchCard(moduleNumber, {
       kind, index: i + 1, total, title: lab.title, detail: lab.detail, href: lab.href,
-      labId: lab.labId, requireNote: lab.requireNote,
+      labId: lab.labId, requireNote: lab.requireNote, verified: lab.verified,
       progress: lab.labId ? missionNextLabProgressEntry(bucket, lab.labId) : null,
     }))
     .join('')}</div>`;
@@ -4262,7 +4506,18 @@ function wireMissionNextLabGating(root, bucket, onChange) {
       if (!id) return;
       if (!bucket[id]) bucket[id] = { complete: false, note: '' };
       bucket[id].note = ta.value;
+      const { selectionStart, selectionEnd } = ta;
       if (typeof onChange === 'function') onChange(id, bucket[id]);
+      // Callers save and re-render synchronously, which replaces this
+      // textarea. Put focus and the caret back on its replacement so the
+      // learner can keep typing.
+      if (!ta.isConnected) {
+        const next = document.querySelector(`[data-mn-lab-note="${CSS.escape(id)}"]`);
+        if (next) {
+          next.focus({ preventScroll: true });
+          next.setSelectionRange(selectionStart, selectionEnd);
+        }
+      }
     });
   });
 }
@@ -4347,7 +4602,7 @@ function moduleProgressShell(sections, state = {}, options = {}) {
   };
 
   const typeLabel = {
-    lecture: 'Lecture',
+    lecture: 'Learn It',
     quiz: 'Quiz',
     lab: 'Lab',
     review: 'Review',
@@ -4398,7 +4653,12 @@ function standardModuleStageId(moduleKey, stage) {
 }
 
 function normalizeModuleStages(sections, state = {}) {
-  const moduleKey = state.moduleKey || 'module';
+  // Generated stage sections (Foundations / Guided Lab / Assessment Lab) are
+  // rendered by moduleAssessmentModule() with ids built from the module's
+  // catalogue key (e.g. 'its-01'). Some modules pass a different rail key
+  // (e.g. 'its01') for styling/state, so they can pass `stageKey` to make the
+  // rail's links match the section ids. Without it, behavior is unchanged.
+  const moduleKey = state.stageKey || state.moduleKey || 'module';
   const source = Array.isArray(sections) ? sections : [];
   const phaseFor = (section) => {
     if (section.phase) return section.phase;
@@ -4512,14 +4772,11 @@ function moduleQuickNavRail(items, state = {}) {
   if (!Array.isArray(items) || !items.length) return '';
 
   const moduleKey = state.moduleKey || 'm01';
-  const currentIndex = items.findIndex((item) => !item.isComplete);
-  const currentItem = currentIndex >= 0 ? items[currentIndex] : items[items.length - 1];
+  const navStatuses = moduleNavStatuses(items);
 
-  const railItemHtml = items.map((item) => {
-    const isCurrentUncomplete = item === currentItem && !item.isComplete;
-    const statusClass = item.isComplete
-      ? 'mnav-chip-complete'
-      : isCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
+  const railItemHtml = items.map((item, index) => {
+    const nav = navStatuses[index];
+    const statusClass = nav.statusClass;
 
     const icon = item.kind === 'lab' ? 'ri-flask-line'
       : item.kind === 'quiz' ? 'ri-question-line'
@@ -4529,10 +4786,10 @@ function moduleQuickNavRail(items, state = {}) {
       : item.kind === 'quiz' ? 'Quiz'
       : (item.lessonNumber ? `Lesson ${String(item.lessonNumber).padStart(2, '0')}` : 'Lesson');
 
-    const isLocked = statusClass === 'mnav-chip-locked';
-    return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link ${statusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}${isLocked ? ' (complete the current item first)' : ''}" aria-disabled="${isLocked}">
+    return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link ${statusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}" ${moduleNavLockAttrs(nav)}>
       <i class="${esc(icon)}" aria-hidden="true"></i>
       <span class="mquick-nav-label">${esc(item.title)}</span>
+      ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${item.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a></li>`;
   }).join('');
@@ -4549,6 +4806,40 @@ function moduleQuickNavRail(items, state = {}) {
   </aside>`;
 }
 
+/* Per-row sequencing policy shared by every rail renderer.  A row is locked
+ * only when it is unfinished AND an earlier "blocking" row is unfinished.
+ * Blocking rows are gated rows that are neither complete nor in instructor
+ * hands (reviewState 'review' = submitted/awaiting review, 'returned' =
+ * sent back for remediation) and are not Assessment Labs: faculty review
+ * owns an assessment's outcome, so it never gates what follows it, and a
+ * returned or pending assessment stays openable (it is 'current', not
+ * locked, once the lessons and labs before it are done).  Ungated rows are
+ * never locked.  Locked state, aria-disabled, title and click behavior all
+ * read the same {locked, reason, target} result.
+ */
+function moduleNavStatuses(rows, titleOf = (row) => row.title) {
+  const gated = (row) => row.gated !== false;
+  const isAssessment = (row) => row.standardStage === 'assessment' || row.title === 'Assessment Lab';
+  const inReview = (row) => row.reviewState === 'review' || row.reviewState === 'returned';
+  const blockerIndex = rows.findIndex((row) => gated(row) && !row.isComplete && !inReview(row) && !isAssessment(row));
+  const blocker = rows[blockerIndex];
+  return rows.map((row, index) => {
+    if (!gated(row)) return { statusClass: 'munified-row-ungated', locked: false };
+    if (row.isComplete) return { statusClass: 'mnav-chip-complete', locked: false };
+    if (blockerIndex >= 0 && blockerIndex < index) {
+      return { statusClass: 'mnav-chip-locked', locked: true, reason: titleOf(blocker), target: blocker.scrollId };
+    }
+    return { statusClass: 'mnav-chip-current', locked: false };
+  });
+}
+
+// aria-disabled plus the data the click handler reads to explain the lock.
+function moduleNavLockAttrs(nav) {
+  return nav.locked
+    ? `aria-disabled="true" data-mnav-locked-reason="${esc(nav.reason)}" data-mnav-locked-target="${esc(nav.target)}"`
+    : 'aria-disabled="false"';
+}
+
 /* Merged replacement for moduleProgressShell() + moduleQuickNavRail(), used
  * together on every prior module. Owner feedback live-testing Module 01,
  * 2026-09-16: the horizontal progress bar duplicated the left rail's job
@@ -4561,7 +4852,7 @@ function moduleQuickNavRail(items, state = {}) {
  *
  * Reference implementation only — built and verified on Module 01. Not yet
  * rolled out to modules 2-12 or other tracks; see
- * module-completion-integrity/BRIEF.md's sibling rollout doc before
+ * docs/workstreams/module-completion-integrity/BRIEF.md's sibling rollout doc before
  * replicating (that doc is completion-logic, not this nav — a matching nav
  * rollout doc should point here the same way).
  *
@@ -4589,9 +4880,20 @@ function moduleUnifiedNav(sections, state = {}) {
   const hasGeneratedAssessment = sections.some((section) => section.standardStage === 'assessment');
   const reviewMode = state.reviewMode || false;
 
+  // Display title for a row; also what a locked row's message names.
+  const navTitleFor = (section) => section.standardStage === 'assessment'
+    ? 'Assessment Lab'
+    : section.standardStage === 'guided'
+      ? 'Guided Lab'
+      // The item inside Practice It has one Academy-wide name.  Individual
+      // lab titles remain on the destination surface, but the rail never
+      // alternates among Module Lab, Hands-On Lab, walkthrough, etc.
+      : section.phase === 'practice' && section.type === 'lab'
+        ? 'Guided Lab'
+        : section.title;
+  const sectionNav = moduleNavStatuses(sections, navTitleFor);
   const gatedSections = sections.filter((s) => s.gated !== false);
-  const currentGatedIndex = gatedSections.findIndex((s) => !s.isComplete);
-  const currentGatedSection = currentGatedIndex >= 0 ? gatedSections[currentGatedIndex] : gatedSections[gatedSections.length - 1];
+  const currentGatedSection = sections.find((s, i) => sectionNav[i].statusClass === 'mnav-chip-current') || gatedSections[gatedSections.length - 1];
   const completedCount = gatedSections.filter((s) => s.isComplete).length;
   const overallPercent = gatedSections.length ? Math.round((completedCount / gatedSections.length) * 100) : 0;
 
@@ -4616,34 +4918,23 @@ function moduleUnifiedNav(sections, state = {}) {
 
   const sectionRow = (section) => {
     const isGated = section.gated !== false;
-    const isCurrentUncomplete = isGated && section === currentGatedSection && !section.isComplete;
-    const statusClass = !isGated
-      ? 'munified-row-ungated'
-      : section.isComplete ? 'mnav-chip-complete' : isCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
-    const isLocked = statusClass === 'mnav-chip-locked';
+    const nav = sectionNav[sections.indexOf(section)];
+    const statusClass = nav.statusClass;
 
     const items = Array.isArray(section.items) ? section.items : null;
     const hasChildren = !!(items && items.length);
-    const childCurrentIndex = hasChildren ? items.findIndex((item) => !item.isComplete) : -1;
-    const childCurrentItem = childCurrentIndex >= 0 ? items[childCurrentIndex] : (hasChildren ? items[items.length - 1] : null);
+    const childNav = hasChildren ? moduleNavStatuses(items) : [];
     const childComplete = hasChildren ? items.filter((item) => item.isComplete).length : 0;
     const groupId = `munified-group-${esc(section.id)}`;
     const isOpen = hasChildren && section === currentGatedSection;
 
-    const navTitle = section.standardStage === 'assessment'
-      ? 'Assessment Lab'
-      : section.standardStage === 'guided'
-        ? 'Guided Lab'
-        // The item inside Practice It has one Academy-wide name.  Individual
-        // lab titles remain on the destination surface, but the rail never
-        // alternates among Module Lab, Hands-On Lab, walkthrough, etc.
-        : section.phase === 'practice' && section.type === 'lab'
-          ? 'Guided Lab'
-          : section.title;
-    const rowHtml = `<a href="#${esc(section.scrollId)}" class="munified-row ${statusClass}" data-mnav-chip-scroll="${esc(section.scrollId)}" aria-disabled="${isLocked}" title="${esc(navTitle)}${isLocked ? ' (complete the current section first)' : ''}">
+    const navTitle = navTitleFor(section);
+    const rowHtml = `<a href="#${esc(section.scrollId)}" class="munified-row ${statusClass}" data-mnav-chip-scroll="${esc(section.scrollId)}" title="${esc(navTitle)}" ${moduleNavLockAttrs(nav)}>
       <i class="${esc(typeIcon[section.type] || 'ri-file-line')}" aria-hidden="true"></i>
       <span class="munified-row-label">${esc(navTitle)}</span>
       ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
+      ${!hasChildren && !section.isComplete && section.reviewState ? `<span class="munified-row-sub">${section.reviewState === 'returned' ? 'Returned' : 'In review'}</span>` : ''}
+      ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a>`;
 
@@ -4655,16 +4946,14 @@ function moduleUnifiedNav(sections, state = {}) {
 
     const childrenHtml = hasChildren
       ? `<ul class="mquick-nav-list munified-group-body" id="${groupId}" ${isOpen ? '' : 'hidden'}>
-          ${items.map((item) => {
-            const itemIsCurrentUncomplete = item === childCurrentItem && !item.isComplete;
-            const itemStatusClass = item.isComplete
-              ? 'mnav-chip-complete'
-              : itemIsCurrentUncomplete ? 'mnav-chip-current' : 'mnav-chip-locked';
-            const itemLocked = itemStatusClass === 'mnav-chip-locked';
+          ${items.map((item, itemIndex) => {
+            const itemNav = childNav[itemIndex];
+            const itemStatusClass = itemNav.statusClass;
             const itemIcon = item.kind === 'lab' ? 'ri-flask-line' : item.kind === 'quiz' ? 'ri-question-line' : 'ri-book-open-line';
-            return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link munified-child-link ${itemStatusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}${itemLocked ? ' (complete the current item first)' : ''}" aria-disabled="${itemLocked}">
+            return `<li><a href="#${esc(item.scrollId)}" class="mquick-nav-link munified-child-link ${itemStatusClass}" data-mquick-nav-scroll="${esc(item.scrollId)}" title="${esc(item.title)}" ${moduleNavLockAttrs(itemNav)}>
               <i class="${esc(itemIcon)}" aria-hidden="true"></i>
               <span class="mquick-nav-label">${esc(item.title)}</span>
+              ${itemNav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
               ${item.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
             </a></li>`;
           }).join('')}
@@ -4713,6 +5002,7 @@ function moduleUnifiedNav(sections, state = {}) {
       <ul class="mquick-nav-list munified-groups">
         ${rowsHtml}
       </ul>
+      <div class="munified-lock-msg" data-mnav-lock-msg role="status" aria-live="polite"></div>
     </nav>
     ${supplementalSections.length ? `<div class="munified-supplemental" id="munified-supplemental-panel" hidden>
       <div class="munified-supplemental-row">
@@ -5029,10 +5319,46 @@ const STATE_STYLES = {
   complete:    { label: 'Complete',    icon: 'ri-checkbox-circle-fill', cls: 'bg-[#f0fdf4] border-[#bbf7d0] text-[#15803d]' },
   in_progress: { label: 'In Progress', icon: 'ri-progress-4-line',      cls: 'bg-[#fff7ed] border-[#fed7aa] text-[#c2410c]' },
   needs_redo:  { label: 'Redo Requested', icon: 'ri-error-warning-line', cls: 'bg-[#fef2f2] border-[#fecaca] text-[#b91c1c]' },
+  awaiting_approval: { label: 'Awaiting Approval', icon: 'ri-time-line', cls: 'bg-[#eff6ff] border-[#bfdbfe] text-[#1d4ed8]' },
   not_started: { label: 'Not Started', icon: 'ri-circle-line',          cls: 'bg-gray-50 border-gray-200 text-gray-500' },
   locked:      { label: 'Locked',      icon: 'ri-lock-line',            cls: 'bg-gray-50 border-gray-200 text-gray-400' },
   draft:       { label: 'In Development', icon: 'ri-tools-line',        cls: 'bg-gray-50 border-gray-200 text-gray-400' },
 };
+
+// One numbered button per module in the program nav, beside Curriculum, so a
+// student can jump straight to any module card without scrolling the list.
+// Completed modules read green, matching the cards' completion dot.
+function moduleJumpButtons(program, user) {
+  const keys = (program.weekGroups || []).flatMap((w) => w.modules || []);
+  if (keys.length < 2) return '';
+  return `<span class="flex items-center gap-1 pl-2 pr-3 mr-1 border-r border-gray-100" aria-label="Jump to module">
+    ${keys.map((key) => {
+      const m = program.modules[key];
+      if (!m) return '';
+      const done = moduleCompletion(program, key, user).complete;
+      return `<a href="#sec-module-${m.number}" data-module-jump="${m.number}" title="Module ${String(m.number).padStart(2, '0')} · ${esc(m.title)}"
+         class="inline-flex items-center justify-center min-w-8 h-8 px-1.5 rounded-lg text-xs font-bold tabular-nums transition-colors
+                ${done ? 'text-[#16a34a] bg-[#dcfce7]/60 hover:bg-[#dcfce7]' : 'text-[#1e3a5f] bg-gray-50 hover:bg-[#1e3a5f]/10'}">${String(m.number).padStart(2, '0')}</a>`;
+    }).join('')}
+  </span>`;
+}
+
+// Program-nav links (sections and module buttons) scroll in place rather
+// than following their href: a bare #sec-… hash would replace the
+// #/program/… route in the address bar, so a reload or a copied link would
+// lose the page.
+if (typeof document !== 'undefined' && !window.moduleJumpBound) {
+  window.moduleJumpBound = true;
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-module-jump], [data-section-jump]');
+    if (!link) return;
+    const card = document.getElementById(link.dataset.sectionJump || `sec-module-${link.dataset.moduleJump}`);
+    if (!card) return;
+    event.preventDefault();
+    const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    card.scrollIntoView({ behavior, block: 'start' });
+  });
+}
 
 function moduleCard(program, key, user) {
   const m = program.modules[key];
@@ -5040,23 +5366,31 @@ function moduleCard(program, key, user) {
   const unlocked = hasModuleAccess(user, program.slug, key);
   const completion = moduleCompletion(program, key, user);
   const openRedo = (user.openLabRedosByModuleKey || {})[key];
+  const labs = programLabs(program).filter((lab) => lab.module === key && lab.optional !== true);
+  // Every module completes only on instructor approval
+  // (20261005120000_instructor_approval_gate_and_write_lockdown.sql), so a
+  // submitted lab with no review yet is waiting on faculty, not the student.
+  const awaitingApproval = !completion.complete && labs.some((lab) => {
+    const attempt = (user.latestLabAttemptByKey || {})[lab.key];
+    return attempt && attempt.completedAt && !attempt.reviewedAt;
+  });
   const state = !unlocked ? 'locked'
               : m.status === 'draft' ? 'draft'
               : openRedo ? 'needs_redo'
               : completion.complete ? 'complete'
+              : awaitingApproval ? 'awaiting_approval'
               : completion.contentOpened || completion.fixtureState !== 'not_started' ? 'in_progress'
               : 'not_started';
   const s = STATE_STYLES[state];
-  const labs = programLabs(program).filter((lab) => lab.module === key);
   const curriculumItems = Array.isArray(m.curriculumItems) ? m.curriculumItems : [];
   const parentRecords = moduleParentRecords(program, m, labs);
   const completionLabel = completion.complete
     ? 'Module complete: module content opened and every lab completed'
     : 'Module not complete: open the module content and complete every lab';
-  const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' || state === 'needs_redo' ? 'Continue Module' : 'Start Module';
+  const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' || state === 'needs_redo' || state === 'awaiting_approval' ? 'Continue Module' : 'Start Module';
 
   return `
-  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${unlocked ? '' : 'mnt-locked'}" data-module-card>
+  <div id="sec-module-${m.number}" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden scroll-mt-32 ${unlocked ? '' : 'mnt-locked'}" data-module-card>
     <div class="w-full p-7 flex items-start gap-5 hover:bg-gray-50/60 transition-colors">
       <div class="flex-1 min-w-0 flex items-start gap-5">
 
@@ -5076,6 +5410,10 @@ function moduleCard(program, key, user) {
         ${openRedo ? `<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
           <p class="text-xs font-semibold text-red-700 flex items-center gap-1.5"><i class="ri-error-warning-line" aria-hidden="true"></i>Redo requested: ${esc(openRedo.labTitle)}</p>
           ${openRedo.feedback.length ? `<ul class="mt-1.5 space-y-1 text-xs text-red-700/90 list-disc list-inside">${openRedo.feedback.map((f) => `<li>${f.item_label ? `<strong>${esc(f.item_label)}:</strong> ` : ''}${esc(f.comment)}</li>`).join('')}</ul>` : `<p class="mt-1 text-xs text-red-700/80">Your instructor sent this back — open the module to see what to redo.</p>`}
+        </div>` : ''}
+        ${state === 'awaiting_approval' ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2.5">
+          <p class="text-xs font-semibold text-[#1d4ed8] flex items-center gap-1.5"><i class="ri-time-line" aria-hidden="true"></i>Submitted for instructor review</p>
+          <p class="mt-1 text-xs text-[#1d4ed8]/90">The next module unlocks as soon as your instructor approves this lab.</p>
         </div>` : ''}
         <div class="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
           ${m.durationMinutes ? `<span><i class="ri-time-line"></i> ${formatHandsOnDuration(m.durationMinutes)}</span>` : ''}
@@ -5131,8 +5469,8 @@ function moduleCard(program, key, user) {
 
           ${
             // Curriculum/compliance review status for this parent mapping is
-            // tracked in CURRICULUM_ALIGNMENT_ARCHITECTURE.md and
-            // CURRICULUM_MAP.md, not surfaced to students here.
+            // tracked in docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md and
+            // docs/specs/CURRICULUM_MAP.md, not surfaced to students here.
             parentRecords.length
               ? `<p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Technical Parent Mapping</p>
                  <div class="flex flex-col gap-2 mb-6">
@@ -5178,11 +5516,17 @@ function moduleCard(program, key, user) {
                      <i class="ri-lock-line text-lg text-[#1e3a5f]"></i>
                    </div>
                    <div>
-                     <p class="text-[#1e3a5f] font-medium text-sm mb-1">This module is not included in your enrollment.</p>
-                     <p class="text-gray-500 text-sm">
-                       Lessons and labs are unavailable, but the module outline stays visible so you can see what the
-                       full program covers.
-                     </p>
+                     ${isModuleEntitled(user, program.slug, key)
+                       ? `<p class="text-[#1e3a5f] font-medium text-sm mb-1">Complete the previous module to unlock this one.</p>
+                          <p class="text-gray-500 text-sm">
+                            Each module opens once the one before it is marked complete. The outline stays visible so
+                            you can see what is coming next.
+                          </p>`
+                       : `<p class="text-[#1e3a5f] font-medium text-sm mb-1">This module is not included in your enrollment.</p>
+                          <p class="text-gray-500 text-sm">
+                            Lessons and labs are unavailable, but the module outline stays visible so you can see what the
+                            full program covers.
+                          </p>`}
                    </div>
                  </div>`
           }
@@ -5237,7 +5581,7 @@ function viewProgram(user, slug) {
   // Inline onclick handlers in the rendered HTML lose the lexical `user`/
   // `program` closures once innerHTML is set, so the export button reaches
   // them via these globals instead — set on every render, read only by
-  // exportStudentRecord() at click time (Sprint F, architecture.md).
+  // exportStudentRecord() at click time (Sprint F, docs/specs/architecture.md).
   window.__mntCurrentUser = user;
   window.__mntCurrentProgram = program;
   // The lab catalogue is per-track. Tracks whose labs are not authored yet get
@@ -5282,7 +5626,7 @@ function viewProgram(user, slug) {
 
         <!-- Curriculum/compliance review status (developer-mapped, pending
              comparison against the controlling Form 301) is tracked in
-             CURRICULUM_ALIGNMENT_ARCHITECTURE.md and CURRICULUM_MAP.md, not
+             docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md and docs/specs/CURRICULUM_MAP.md, not
              shown to students on this page. -->
 
         ${
@@ -5378,12 +5722,12 @@ function viewProgram(user, slug) {
           ...(hasCapstone ? [['Capstone', 'capstone']] : []),
           [program.careerReadiness ? 'M360 Companion' : 'Career Readiness', 'career-readiness'],
         ].map(([label, anchor]) => `
-          <a href="#sec-${anchor}"
+          <a href="#sec-${anchor}" data-section-jump="sec-${anchor}"
              class="relative whitespace-nowrap text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300
                     cursor-pointer px-4 py-4 hover:bg-[#1e3a5f]/8 group">
             ${label}
             <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
-          </a>`).join('')}
+          </a>${anchor === 'curriculum' ? moduleJumpButtons(program, user) : ''}`).join('')}
       </div>
     </nav>
 
@@ -5607,7 +5951,7 @@ function viewNotFound(user) {
 // app.innerHTML rebuilds render() does on every admin data refresh (enrollment
 // toggle, planning-record save, re-poll) — a DOM/element-local variable would
 // reset to the default sort on every one of those, same class of bug as the
-// pre-existing track-filter/hide-not-started reset weakness (NEXT_SESSION.md
+// pre-existing track-filter/hide-not-started reset weakness (docs/handoffs/NEXT_SESSION.md
 // 2026-08-31 sortable-columns sprint). null key = default modules_complete/
 // last_active sort (unchanged from before this feature existed).
 let adminTableSort = { key: null, dir: 1 };
@@ -5638,6 +5982,7 @@ const adminLazyTabData = {
 // Keeping every participating read within this ceiling prevents a long session
 // or completion history from holding the entire admin workspace hostage.
 const ADMIN_ACTIVITY_ROW_LIMIT = 250;
+const ADMIN_GRADED_ROW_LIMIT = 500;
 const ADMIN_ACTIVITY_LOAD_TIMEOUT_MS = 12000;
 
 function withAdminReadTimeout(label, promise, timeoutMs = ADMIN_ACTIVITY_LOAD_TIMEOUT_MS) {
@@ -5655,7 +6000,7 @@ function resetAdminLazyTabData() {
 }
 
 /* ------------------------------------------------- completion-speed review flags */
-/* Bug-bounty finding, 2026-09-01 (NEXT_SESSION.md, supabase/migrations/
+/* Bug-bounty finding, 2026-09-01 (docs/handoffs/NEXT_SESSION.md, supabase/migrations/
  * 20260901103000_completion_integrity_guards.sql): that migration's guard
  * trigger stops a student from marking a module complete with zero recorded
  * lab work, but it can't prove a *specific* completed lab attempt belongs to
@@ -5844,6 +6189,59 @@ Password:   ${esc(data.password)}</pre>
   panel.style.maxHeight = `${panel.scrollHeight}px`;
 }
 
+/* Roster "Rotate password": first click arms the button, a second click
+ * within 5s rotates via admin-provision's rotate_password action, then
+ * admin_force_sign_out() revokes sessions opened with the old password. The
+ * new password is shown by reloading the row's credentials panel. */
+async function rotateAccountPassword(btn) {
+  const studentId = btn.getAttribute('data-rotate-password');
+  if (btn.dataset.armed !== '1') {
+    btn.dataset.armed = '1';
+    btn.dataset.label = btn.innerHTML;
+    btn.innerHTML = '<i class="ri-error-warning-line"></i>Click again to confirm';
+    btn.classList.add('text-red-700', 'border-red-300');
+    btn._disarm = setTimeout(() => {
+      btn.dataset.armed = '';
+      btn.innerHTML = btn.dataset.label;
+      btn.classList.remove('text-red-700', 'border-red-300');
+    }, 5000);
+    return;
+  }
+  clearTimeout(btn._disarm);
+  btn.dataset.armed = '';
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ri-loader-4-line"></i>Rotating…';
+  let note;
+  try {
+    const result = await callAdminProvision('rotate_password', { student_id: studentId });
+    const { error: signOutError } = await mntSupabase.rpc('admin_force_sign_out', { target_user_id: result.user_id });
+    note = signOutError
+      ? 'Password rotated, but existing sessions could not be signed out.'
+      : 'Password rotated; existing sessions signed out.';
+    if (!result.credential_stored) {
+      note += ` The lookup copy failed to save — record this now: ${result.password}`;
+    }
+    const inner = document.querySelector(`[data-cred-panel-inner="${studentId}"]`);
+    const credBtn = document.querySelector(`[data-view-credentials="${studentId}"]`);
+    if (inner && credBtn) {
+      delete inner.dataset.loaded;
+      if (credBtn.getAttribute('aria-expanded') === 'true') credBtn.setAttribute('aria-expanded', 'false');
+      await toggleCredentialsPanel(studentId, credBtn, credBtn.getAttribute('data-credential-track'));
+    }
+    btn.innerHTML = '<i class="ri-check-line"></i>Rotated';
+    btn.classList.remove('text-red-700', 'border-red-300');
+    btn.classList.add('text-green-700', 'border-green-300');
+  } catch (err) {
+    note = `Could not rotate password: ${err && err.message ? err.message : String(err)}`;
+    btn.disabled = false;
+    btn.innerHTML = btn.dataset.label;
+    btn.classList.remove('text-red-700', 'border-red-300');
+  }
+  btn.title = note;
+  const status = document.getElementById('admin-report-status');
+  if (status) status.textContent = `${studentId}: ${note}`;
+}
+
 /* Readable "3h 20m" formatting for a single admin_site_sessions row's own
  * duration_minutes. Deliberately labeled "site time" everywhere it's shown
  * in the UI, never "hours" alone — matches site_sessions' own migration
@@ -5888,8 +6286,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // admin left that workspace (e.g. back to "All Students") while still on
   // Grading, fall back to Student Progress rather than rendering a
   // still-"active" tab whose panel no longer exists in the DOM at all.
-  let activeTab = (!activeTrackCode && requestedAdminTab === 'grading') ? 'progress' : requestedAdminTab;
-  if (instructorDashboard && !['progress', 'grading', 'messages'].includes(activeTab)) activeTab = 'progress';
+  // Grading and Graded are one "Lab Attempts" tab now (data key 'grading').
+  const requestedTab = requestedAdminTab === 'graded' ? 'grading' : requestedAdminTab;
+  let activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
+  if (instructorDashboard && !['progress', 'grading', 'graded', 'messages'].includes(activeTab)) activeTab = 'progress';
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
   // Administrators supervise every course workspace. Instructors remain
   // limited to their explicit faculty_course_assignments.
@@ -5908,6 +6308,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // inside a specific track's workspace.
   const trackGradingQueueRows = normalizedTrackData.trackGradingQueueRows || (activeTrackCode ? filterByTrack(gradingQueueRows, activeTrackCode) : []);
   const trackOpenLabRedoRows = normalizedTrackData.trackOpenLabRedoRows || (activeTrackCode ? filterByTrack(openLabRedoRows, activeTrackCode) : []);
+  const trackGradedRows = normalizedTrackData.trackGradedRows || [];
+  const trackSupersededRows = normalizedTrackData.trackSupersededRows || [];
+  const trackAutogradedRows = normalizedTrackData.trackAutogradedRows || [];
+  const trackGradingItemCount = adminGroupGradingRows(trackGradingQueueRows).reduce((n, student) => n + student.items.length, 0);
   const trackFacultyMessageRows = normalizedTrackData.trackFacultyMessageRows || (activeTrackCode ? filterByTrack(facultyMessageRows, activeTrackCode) : []);
   const tabIsActive = (key) => key === activeTab;
   const tabBtnClass = (key) =>
@@ -5985,8 +6389,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           <button type="button" role="tab" aria-selected="${tabIsActive('cohorts')}" data-admin-tab="cohorts" class="${tabBtnClass('cohorts')}">Cohorts</button>
           <button type="button" role="tab" aria-selected="${tabIsActive('archived')}" data-admin-tab="archived" class="${tabBtnClass('archived')}">Archived Students</button>` : ''}
           ${activeTrackCode ? `<button type="button" role="tab" aria-selected="${tabIsActive('grading')}" data-admin-tab="grading" class="${tabBtnClass('grading')}">
-            Grading${trackGradingQueueRows.length ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700">${trackGradingQueueRows.length}</span>` : ''}
-          </button>${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')} inline-flex items-center gap-1.5" aria-label="Course messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? `, ${unreadMessageCountsByTrack.get(activeTrackCode)} unread` : ''}">
+            Lab Attempts${trackGradingItemCount ? ` <span aria-label="${trackGradingItemCount} awaiting review" class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700">${trackGradingItemCount}</span>` : ''}
+          </button>
+${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')} inline-flex items-center gap-1.5" aria-label="Course messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? `, ${unreadMessageCountsByTrack.get(activeTrackCode)} unread` : ''}">
             <i class="ri-notification-3-line" aria-hidden="true"></i> Messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? ` <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">${unreadMessageCountsByTrack.get(activeTrackCode)}</span>` : ''}
           </button>` : ''}` : ''}
         </div>
@@ -6216,7 +6621,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    </div></div>
                  </div>
                  ` : ''}
-                 ${instructorDashboard ? '' : adminTrackAdministrationStrip(rows, activeTrackCode, gradingCountsByTrack, unreadMessageCountsByTrack)}
+                 ${instructorDashboard ? '' : adminTrackAdministrationStrip(rows, activeTrackCode, activeTrackCode ? new Map(gradingCountsByTrack).set(activeTrackCode, trackGradingItemCount) : gradingCountsByTrack, unreadMessageCountsByTrack)}
                  ${activeTrack ? `<section class="order-3 bg-[#f8fafc] border border-gray-200 rounded-xl p-4 mb-4"><h2 class="text-lg font-bold text-[#1e3a5f]">${esc(activeTrack.title)} summary</h2><p class="text-sm text-gray-600 mt-1">${rosterRows.filter((r) => r.enrolled !== false).length} enrolled · ${rosterRows.filter((r) => (r.modules_complete || 0) === 0 && (r.modules_in_progress || 0) === 0).length} not started · ${rosterRows.filter((r) => (r.modules_complete || 0) >= 12).length} technical complete · ${rosterRows.filter((r) => r.m360_course_complete).length} M360 complete · ${rosterRows.filter((r) => Number(r.work_items_completed || 0) >= 18 && !r.m360_course_complete).length} verification pending</p></section>` : ''}
                  ${activeTrackCode ? adminProgramRoster(rosterRows) : ''}
                  ${!activeTrackCode ? `
@@ -6252,6 +6657,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
                                ${esc(row.student_id)}
                              </button>
+                             ${instructorDashboard ? '' : `<button type="button" data-rotate-password="${esc(row.student_id)}" class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-sans font-semibold text-gray-500 border border-gray-200 hover:text-[#f97316] hover:border-[#f97316]" title="Generate a new password for this account and sign out its sessions"><i class="ri-key-2-line"></i>Rotate password</button>`}
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
                            </td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
@@ -6517,7 +6923,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
         </div>
 
         ${activeTrackCode ? `<div id="admin-tab-panel-grading" ${tabIsActive('grading') ? '' : 'hidden'}>
-          ${adminGradingQueuePanel(trackGradingQueueRows, trackOpenLabRedoRows)}
+          ${adminLabAttemptsPanel({ pendingRows: trackGradingQueueRows, gradedRows: trackGradedRows, supersededRows: trackSupersededRows, autogradedRows: trackAutogradedRows, openRedoRows: trackOpenLabRedoRows })}
         </div>` : ''}
         ${activeTrackCode ? `<div id="admin-tab-panel-messages" ${tabIsActive('messages') ? '' : 'hidden'}>
           ${adminMessageInboxPanel(trackFacultyMessageRows)}
@@ -6668,11 +7074,6 @@ async function render(options = {}) {
   }
 
   if (!user) {
-    // Imported training labs return with a deep module hash. If restoring the
-    // portal session fails or the session has expired, keep that destination
-    // through sign-in instead of replacing it with a bare #/login and losing
-    // the student's place.
-    rememberPendingPortalRoute(hash);
     // Keep the address bar aligned with the view.  Rendering the login screen
     // alone left a protected route (for example #/admin) in the URL, which
     // made reloads and copied links misleading.
@@ -6730,6 +7131,8 @@ async function render(options = {}) {
   let cheatingFlagsByUserId = new Map();
   let gradingQueueRows = [];
   let openLabRedoRows = [];
+  let gradedRows = [];
+  let supersededRows = [];
   let unreadMessageRows = [];
   let facultyMessageRows = [];
   let facultyMessageTrackCodes = [];
@@ -6829,6 +7232,34 @@ async function render(options = {}) {
       if (openRedoResult.error) console.error('open lab redo fetch failed', openRedoResult.error);
       openLabRedoRows = openRedoResult.data || [];
 
+      // Graded tab: reviewed attempts for the selected course only. RLS limits
+      // instructors to their assigned courses (lab_attempts_assigned_instructor_read).
+      if (selectedAdminTrack) {
+        const gradedResult = await mntSupabase
+          .from('lab_attempts')
+          .select('id, user_id, track_code, lab_key, score, pass_threshold, result, started_at, completed_at, reviewed_at, redo_requested')
+          .eq('track_code', selectedAdminTrack)
+          .not('reviewed_at', 'is', null)
+          .order('reviewed_at', { ascending: false })
+          .limit(ADMIN_GRADED_ROW_LIMIT);
+        if (gradedResult.error) console.error('graded lab attempts fetch failed', gradedResult.error);
+        const gradedStudentIdByUserId = new Map(dashboardRows.map((row) => [row.user_id, row.student_id]));
+        gradedRows = (gradedResult.data || []).map((row) => ({ ...row, student_id: gradedStudentIdByUserId.get(row.user_id) || 'Unknown student' }));
+
+        // Unreviewed attempts a newer submission replaced (superseded_at,
+        // 20261005210000_one_pending_prove_it_submission.sql). The grading
+        // queues skip them, so Graded lists them as history instead.
+        const supersededResult = await mntSupabase
+          .from('lab_attempts')
+          .select('id, user_id, track_code, lab_key, score, pass_threshold, result, started_at, completed_at, superseded_at')
+          .eq('track_code', selectedAdminTrack)
+          .not('superseded_at', 'is', null)
+          .order('completed_at', { ascending: false })
+          .limit(ADMIN_GRADED_ROW_LIMIT);
+        if (supersededResult.error) console.error('superseded lab attempts fetch failed', supersededResult.error);
+        supersededRows = (supersededResult.data || []).map((row) => ({ ...row, student_id: gradedStudentIdByUserId.get(row.user_id) || 'Unknown student' }));
+      }
+
       const unreadMessagesResult = await mntSupabase
         .from('admin_unread_student_messages')
         .select('id, thread_id, user_id, student_id, track_code, subject, body, context, created_at')
@@ -6864,7 +7295,7 @@ async function render(options = {}) {
         activeStudents = sortStudentsById(dashboardRows.filter((row) => isActiveStudent(row, activityMap)));
         cheatingFlagsByUserId = buildCheatingReviewFlags(dashboardRows, adminLazyTabData.activity.completedRows || []);
       }
-      normalizedTrackData = normalizeAdminTrackData({ rows: dashboardRows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, facultyMessageRows });
+      normalizedTrackData = normalizeAdminTrackData({ rows: dashboardRows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, gradedRows, supersededRows, facultyMessageRows });
       app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, applyAdminLazyData({
         cheatingFlagsByUserId,
         activeTab: adminActiveTab,
@@ -6887,6 +7318,8 @@ async function render(options = {}) {
     return;
   }
 
+  const labMatch = hash.match(/^#\/program\/([a-z0-9-]+)\/module\/(\d+)\/lab\/([a-z0-9-]+)$/);
+  const labModule = labMatch && missionNextLabAppRoute(labMatch[3]) ? moduleLabFor(labMatch[1], labMatch[2]) : null;
   const moduleMatch = hash.match(/^#\/program\/([a-z0-9-]+)\/module\/(\d+)$/);
   const programMatch = hash.match(/^#\/program\/([a-z0-9-]+)/);
   const moduleLab = moduleMatch ? moduleLabFor(moduleMatch[1], moduleMatch[2]) : null;
@@ -6894,24 +7327,17 @@ async function render(options = {}) {
   // has no interactive surface built yet, so it falls through to the program
   // overview the same way it always did.
   if (!completeRouteLoading(renderGeneration)) return;
-  if (moduleLab) {
+  if (labModule) {
+    const program = PROGRAMS.find((item) => item.slug === labMatch[1]);
+    app.innerHTML = hasModuleAccess(user, program.slug, labModule.moduleKey)
+      ? viewMissionNextLab(user, program, labModule, labMatch[3])
+      : viewNoAccess(user, program, enrollmentFor(user, program.slug) ? 'module_locked' : 'not_enrolled');
+  } else if (moduleLab) {
     const program = PROGRAMS.find((item) => item.slug === moduleMatch[1]);
     const canAccessModule = hasModuleAccess(user, program.slug, moduleLab.moduleKey);
     app.innerHTML = canAccessModule
       ? moduleLab.view(user, program)
       : viewNoAccess(user, program, enrollmentFor(user, program.slug) ? 'module_locked' : 'not_enrolled');
-    // Module 01 already has its richer sequential timeline exercise. The
-    // shared companion makes the same fill-in-the-blank evidence-recall
-    // pattern available in SOC Modules 02–12 without altering their credit
-    // minutes or their existing completion contracts.
-    const isUnlockedSocCapstone = Number(moduleMatch[2]) !== 12
-      || (typeof moduleTwelveUnlocked === 'function' && moduleTwelveUnlocked(user, program));
-    // Module 02 has its own guided console and analyst case record, and Module
-    // 07 has its own evidence desk. The generic fill-in-the-blank recall widget
-    // is neither authentic analyst practice nor a useful duplicate there.
-    if (canAccessModule && program.slug === 'soc-analyst' && Number(moduleMatch[2]) >= 3 && Number(moduleMatch[2]) !== 7 && isUnlockedSocCapstone) {
-      mountSocEvidenceRecall(user, Number(moduleMatch[2]), app);
-    }
   } else if (programMatch) {
     app.innerHTML = viewProgram(user, programMatch[1]);
   } else {
@@ -6961,25 +7387,20 @@ function wireLogin() {
     // signIn() returns a user object on success, null on bad credentials
     // (unchanged), or one of two string sentinels — 'session_limit' /
     // 'geo_blocked' — for a login that authenticated fine but was then
-    // blocked (SESSION_SECURITY_SPEC.md Decision 3). Both sentinel cases
+    // blocked (docs/SESSION_SECURITY_SPEC.md Decision 3). Both sentinel cases
     // reuse #login-error with distinct text rather than new DOM.
     if (result && typeof result === 'object') {
       const user = result;
-      // A completed console walkthrough can return in its own tab after the
-      // original module tab was closed. Preserve that verified return route.
-      // Ordinary student sign-ins always land on My Programs so they can
-      // choose between their technical coursework and the separate M360
-      // Professional Readiness work. Admins are sent on to #/admin by
-      // render()'s admin-only rule regardless of where we land them here.
-      const coachReturn = new URLSearchParams(location.search).get('coachComplete');
-      const returnToModule = coachReturn === 'm01' && location.hash === '#/program/soc-analyst/module/1';
-      const pendingPortalRoute = consumePendingPortalRoute();
-      const destination = pendingPortalRoute || (user.isInstructor && !user.isAdmin
+      // Every student sign-in lands on My Programs (owner decision,
+      // 2026-09-24) — never back on a module, even after an idle sign-out or
+      // a walkthrough return — so they choose between technical coursework
+      // and M360 Professional Readiness. A walkthrough completion token stays
+      // in the query string, so Module 1 still records it when opened. Instructors go
+      // to their track; admins are sent on to #/admin by render().
+      const destination = user.isInstructor && !user.isAdmin
         ? `#/admin/track/${user.instructorTrackCodes[0]}`
-        : '#/portal');
-      history.replaceState(null, '', returnToModule
-        ? location.pathname + location.search + location.hash
-        : destination);
+        : '#/portal';
+      history.replaceState(null, '', destination);
       await render();
     } else {
       // Message text does not hardcode a session-count number: the cap
@@ -7013,22 +7434,55 @@ function wireLogin() {
 // (for example, to make an unfinished lab prominent), but that must not turn
 // a full course page into a long, expanded wall of content on arrival.
 function collapseCourseCardsByDefault() {
-  document.querySelectorAll('main details').forEach((details) => {
-    const className = details.className || '';
-    if (/(?:section-collapsible|lesson|foundation)/.test(className)) {
-      details.open = false;
+  const main = document.querySelector('main[class*="m0"], main[class*="m1"]');
+  const courseCards = main ? [...main.querySelectorAll(':scope > [class*="section-collapsible"]')] : [];
+  const savedCurrentCard = courseCards.find((card) => card.matches('details')
+    ? card.open
+    : card.querySelector('[data-m01-section-toggle][aria-expanded="true"]'));
+  const fallbackCurrentCard = courseCards.find((card) => !card.matches('.m01-checklist'));
+
+  // Keep the first card already marked as current by its module's progress
+  // logic. If a module has no explicit current marker, start at its first
+  // learning card. Other cards remain available through their chevrons/nav.
+  courseCards.forEach((card) => {
+    if (card.matches('details')) card.open = card === (savedCurrentCard || fallbackCurrentCard);
+    else {
+      const button = card.querySelector('[data-m01-section-toggle]');
+      if (button) {
+        const isOpen = card === (savedCurrentCard || fallbackCurrentCard);
+        button.setAttribute('aria-expanded', String(isOpen));
+        button.setAttribute('aria-label', `${isOpen ? 'Collapse' : 'Expand'} ${button.dataset.m01SectionLabel || 'section'}`);
+        const body = document.getElementById(button.getAttribute('aria-controls'));
+        if (body) body.hidden = !isOpen;
+      }
     }
   });
 
-  // Module 01 uses button-controlled sections instead of <details>. Keep its
-  // initial state consistent with every other course without overwriting the
-  // learner's saved state; a deliberate click or nav jump will open it again.
-  document.querySelectorAll('[data-m01-section-toggle]').forEach((toggle) => {
-    const body = document.getElementById(toggle.getAttribute('aria-controls'));
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-label', `Expand ${toggle.dataset.m01SectionLabel || 'section'}`);
-    if (body) body.hidden = true;
+  // Nested lesson cards start closed; the student opens one from its chevron
+  // or the left rail, and wireLessonCardAccordion() keeps it to one at a time.
+  document.querySelectorAll('main details').forEach((details) => {
+    if (isLessonCard(details)) details.open = false;
   });
+}
+
+function isLessonCard(details) {
+  return details?.tagName === 'DETAILS' && /(?:lesson|foundation)/.test(details.className || '');
+}
+
+// One open lesson card per parent, however it was opened (chevron, left-rail
+// link, or revealCourseCardTarget()). `toggle` does not bubble, so listen in
+// the capture phase once for the whole document.
+let lessonCardAccordionWired = false;
+function wireLessonCardAccordion() {
+  if (lessonCardAccordionWired) return;
+  lessonCardAccordionWired = true;
+  document.addEventListener('toggle', (event) => {
+    const opened = event.target;
+    if (!opened.open || !isLessonCard(opened)) return;
+    [...(opened.parentElement?.querySelectorAll(':scope > details') || [])].forEach((sibling) => {
+      if (sibling !== opened && sibling.open && isLessonCard(sibling)) sibling.open = false;
+    });
+  }, true);
 }
 
 function revealCourseCardTarget(target) {
@@ -7052,6 +7506,7 @@ function revealCourseCardTarget(target) {
 
 function wireCommon() {
   collapseCourseCardsByDefault();
+  wireLessonCardAccordion();
   // Not `signOut` directly: addEventListener calls the handler with the
   // click Event as its first argument, which would land in signOut's
   // `reason` param instead of the default 'user_signed_out' string — the
@@ -7099,7 +7554,7 @@ function wireCommon() {
   document.querySelectorAll('[data-mnav-chip-scroll]').forEach((chip) => {
     chip.addEventListener('click', (e) => {
       e.preventDefault();
-      if (chip.getAttribute('aria-disabled') === 'true') return;
+      if (chip.getAttribute('aria-disabled') === 'true') { showModuleNavLock(chip); return; }
       const target = document.getElementById(chip.dataset.mnavChipScroll);
       revealCourseCardTarget(target);
       target?.scrollIntoView({ behavior: 'smooth' });
@@ -7160,7 +7615,83 @@ function wireCommon() {
   wireModuleQuickNavRail();
   wireRegisteredModuleLabs();
   wireStudentMessages();
+  restoreModulePosition();
 }
+
+// Remember the learner's working position independently for each module.
+// These preferences are local to this browser and are keyed by account and
+// route, so finishing one module never changes another module's menu state.
+function modulePositionStorageKey() {
+  if (!document.querySelector('[data-mquick-nav-rail]')) return null;
+  const route = (location.hash || '').split('#')[1]?.split('?')[0] || '';
+  const userId = _cachedUser?.userId || _cachedUser?.username || 'student';
+  return `mn-module-position:${encodeURIComponent(userId)}:${encodeURIComponent(route)}`;
+}
+
+function readModulePosition() {
+  const key = modulePositionStorageKey();
+  if (!key) return null;
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); }
+  catch (_) { return null; }
+}
+
+function saveModulePosition() {
+  const key = modulePositionStorageKey();
+  if (!key) return;
+  const phaseOpen = [...document.querySelectorAll('.munified-phase-body')]
+    .filter((body) => !body.classList.contains('is-collapsed'))
+    .map((body) => body.id.slice(body.id.lastIndexOf('-') + 1));
+  const openSections = [...document.querySelectorAll('main details[class*="section-collapsible"][open]')]
+    .map((details) => details.id).filter(Boolean);
+  try {
+    localStorage.setItem(key, JSON.stringify({ y: window.scrollY, phaseOpen, openSections }));
+  } catch (_) { /* Storage can be disabled; navigation remains usable. */ }
+}
+
+function restoreModulePosition() {
+  const position = readModulePosition();
+  if (!position) return;
+  if (Array.isArray(position.phaseOpen)) {
+    document.querySelectorAll('.munified-phase-body').forEach((body) => {
+      const phase = body.id.slice(body.id.lastIndexOf('-') + 1);
+      const open = position.phaseOpen.includes(phase);
+      body.classList.toggle('is-collapsed', !open);
+      body.setAttribute('aria-hidden', String(!open));
+      const toggle = document.querySelector(`[data-munified-group-toggle][aria-controls="${CSS.escape(body.id)}"]`);
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.setAttribute('aria-label', `${open ? 'Collapse' : 'Expand'} ${phase === 'learn' ? 'Learn It' : phase === 'practice' ? 'Practice It' : 'Prove It'}`);
+      }
+    });
+  }
+  if (Array.isArray(position.openSections)) {
+    const open = new Set(position.openSections);
+    document.querySelectorAll('main details[class*="section-collapsible"]').forEach((details) => {
+      details.open = open.has(details.id);
+    });
+  }
+  const y = Number(position.y);
+  if (Number.isFinite(y) && y > 0) requestAnimationFrame(() => window.scrollTo(0, y));
+}
+
+let modulePositionSaveTimer = null;
+window.addEventListener('scroll', () => {
+  if (!modulePositionStorageKey()) return;
+  clearTimeout(modulePositionSaveTimer);
+  modulePositionSaveTimer = setTimeout(saveModulePosition, 180);
+}, { passive: true });
+window.addEventListener('pagehide', saveModulePosition);
+document.addEventListener('toggle', (event) => {
+  if (event.target instanceof HTMLDetailsElement && event.target.matches('main details[class*="section-collapsible"]')) {
+    saveModulePosition();
+  }
+}, true);
+document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-munified-group-toggle]')) setTimeout(saveModulePosition, 0);
+}, true);
+document.addEventListener('click', (event) => {
+  if (event.target.closest('a[href^="#/"]')) saveModulePosition();
+}, true);
 
 function openInstructorMessagePane(trigger) {
   document.getElementById('instructor-message-pane')?.remove();
@@ -7285,7 +7816,41 @@ function wireStudentMessages() {
   });
 }
 
+// Explain a blocked click in the rail's shared aria-live region (created
+// lazily if a renderer didn't emit one).  Text comes from the row's
+// data-mnav-locked-reason, set from the same lock value that disabled it.
+function showModuleNavLock(el) {
+  const reason = el.dataset.mnavLockedReason || 'the current item';
+  const targetId = el.dataset.mnavLockedTarget;
+  const host = el.closest('[data-mquick-nav-rail]') || document.body;
+  let box = host.querySelector('[data-mnav-lock-msg]');
+  if (!box) {
+    box = document.createElement('div');
+    box.className = 'munified-lock-msg';
+    box.setAttribute('data-mnav-lock-msg', '');
+    box.setAttribute('role', 'status');
+    box.setAttribute('aria-live', 'polite');
+    host.appendChild(box);
+  }
+  const text = document.createElement('span');
+  text.textContent = `Complete ${reason} first.`;
+  box.replaceChildren(text);
+  if (targetId) {
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'munified-lock-go';
+    go.textContent = `Go to ${reason}`;
+    go.addEventListener('click', () => {
+      const target = document.getElementById(targetId);
+      revealCourseCardTarget(target);
+      target?.scrollIntoView({ behavior: 'smooth' });
+    });
+    box.appendChild(go);
+  }
+}
+
 function wireModuleQuickNavRail() {
+  wireModuleAccordionCards();
   // Toggle the drawer on mobile and handle lesson opening
   const railToggle = document.querySelector('[data-mquick-nav-toggle]');
   if (railToggle) {
@@ -7309,8 +7874,8 @@ function wireModuleQuickNavRail() {
       e.preventDefault();
       // Locked items are visually grayed out, but the link itself still
       // worked underneath — a student could jump straight to lesson 9
-      // without opening 1-8. Stop here rather than opening/scrolling.
-      if (link.getAttribute('aria-disabled') === 'true') return;
+      // without opening 1-8. Stop here rather than opening/scrolling, but say why.
+      if (link.getAttribute('aria-disabled') === 'true') { showModuleNavLock(link); return; }
       const scrollId = link.dataset.mquickNavScroll;
       const target = document.getElementById(scrollId);
       revealCourseCardTarget(target);
@@ -7345,6 +7910,56 @@ function wireModuleQuickNavRail() {
       }
     });
   });
+}
+
+// Keep the main course cards focused on one working position at a time.
+// Module 01 uses section buttons and hidden bodies; Modules 02–12 use native
+// details/summary cards. The same behavior applies to both patterns.
+function wireModuleAccordionCards() {
+  const main = document.querySelector('main[class*="m0"], main[class*="m1"]');
+  if (!main) return;
+  const cards = [...main.querySelectorAll(':scope > [class*="section-collapsible"]')];
+  if (!cards.length) return;
+
+  // Initial markup may mark each incomplete macro section open. Keep the
+  // first open card, which follows the course order and therefore represents
+  // the student's earliest unfinished position.
+  let foundOpen = false;
+  cards.forEach((card) => {
+    const isOpen = card.matches('details') ? card.open : card.querySelector('[data-m01-section-toggle]')?.getAttribute('aria-expanded') === 'true';
+    if (!isOpen || !foundOpen) {
+      if (isOpen) foundOpen = true;
+      return;
+    }
+    if (card.matches('details')) card.open = false;
+    else setModuleOneCardOpen(card, false);
+  });
+
+  main.addEventListener('click', (event) => {
+    const trigger = event.target.closest('summary, [data-m01-section-toggle]');
+    if (!trigger || !main.contains(trigger)) return;
+    const activeCard = trigger.matches('summary') ? trigger.parentElement : trigger.closest('[class*="section-collapsible"]');
+    if (!activeCard || !cards.includes(activeCard)) return;
+    cards.forEach((card) => {
+      if (card === activeCard) return;
+      if (card.matches('details')) card.open = false;
+      else setModuleOneCardOpen(card, false);
+    });
+  }, true);
+}
+
+function setModuleOneCardOpen(card, open) {
+  const button = card.querySelector('[data-m01-section-toggle]');
+  if (!button) return;
+  const body = document.getElementById(button.getAttribute('aria-controls'));
+  button.setAttribute('aria-expanded', String(open));
+  button.setAttribute('aria-label', `${open ? 'Collapse' : 'Expand'} ${button.dataset.m01SectionLabel || 'section'}`);
+  if (body) body.hidden = !open;
+  const key = button.dataset.m01SectionKey;
+  if (key && window.moduleOneState?.sectionOpen) {
+    window.moduleOneState.sectionOpen[key] = open;
+    if (typeof window.moduleOneSave === 'function') window.moduleOneSave();
+  }
 }
 
 /* "Generate Diploma" (admin panel). Diploma title is derived from the
@@ -7536,6 +8151,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
     cohorts: document.getElementById('admin-tab-panel-cohorts'),
     archived: document.getElementById('admin-tab-panel-archived'),
     grading: document.getElementById('admin-tab-panel-grading'),
+    graded: document.getElementById('admin-tab-panel-graded'),
     messages: document.getElementById('admin-tab-panel-messages'),
   };
   tabButtons.forEach((btn) => {
@@ -7551,7 +8167,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
         b.classList.toggle('text-gray-500', !active);
       });
       Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
-      if (target !== 'progress' && target !== 'grading' && target !== 'messages' && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
+      if (!['progress', 'grading', 'graded', 'messages'].includes(target) && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
         await ensureAdminLazyTab(target);
         await render({ reuseAdminRoster: true });
       }
@@ -7907,7 +8523,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     });
   });
 
-  async function submitGradingDecision(attemptId, article, { redo }) {
+  async function submitGradingDecision(attemptIdList, article, { redo }) {
+    const attemptIds = String(attemptIdList).split(',').filter(Boolean);
     const statusEl = article.querySelector('[data-grading-status]');
     const buttons = article.querySelectorAll('button[data-action^="admin-grading-"]');
     buttons.forEach((b) => { b.disabled = true; });
@@ -7930,12 +8547,12 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
 
       if (feedbackItems.length > 0) {
         const { error: feedbackError } = await mntSupabase.from('lab_attempt_feedback').insert(
-          feedbackItems.map((item) => ({
+          attemptIds.flatMap((attemptId) => feedbackItems.map((item) => ({
             lab_attempt_id: attemptId,
             item_label: item.item_label || '(untitled item)',
             comment: item.comment,
             created_by: adminUserId,
-          }))
+          })))
         );
         if (feedbackError) throw feedbackError;
       }
@@ -7943,16 +8560,57 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       const { error: reviewError } = await mntSupabase
         .from('lab_attempts')
         .update({ reviewed_at: new Date().toISOString(), reviewed_by: adminUserId, redo_requested: !!redo })
-        .eq('id', attemptId);
+        .in('id', attemptIds);
       if (reviewError) throw reviewError;
 
       if (statusEl) statusEl.textContent = redo ? 'Sent back. Refreshing…' : 'Approved. Refreshing…';
+      // The refresh re-opens the same attempt (adminOpenAttemptPanel), now
+      // showing its recorded outcome instead of the review card.
       await render({ reuseAdminRoster: true });
       return; // render() rebuilt the DOM and re-wired everything; this node set is stale now.
     } catch (err) {
       buttons.forEach((b) => { b.disabled = false; });
       if (statusEl) statusEl.textContent = `Failed: ${err && err.message ? err.message : String(err)}`;
     }
+  }
+
+  document.querySelectorAll('[data-grading-filter]').forEach((input) => {
+    const panel = input.closest('[id^="admin-tab-panel-"]') || document;
+    input.addEventListener('input', () => {
+      const query = input.value.trim().toLocaleLowerCase();
+      panel.querySelectorAll('[data-grading-student]').forEach((group) => {
+        group.hidden = !!query && !group.dataset.gradingStudent.toLocaleLowerCase().includes(query);
+      });
+    });
+  });
+
+  // Lab Attempts pills: one open attempt per learner card; clicking the open
+  // pill (or Close) folds it away again.
+  const setAttemptPanel = (card, key) => {
+    card.querySelectorAll('[data-attempt-panel]').forEach((panel) => { panel.hidden = panel.dataset.attemptPanel !== key; });
+    card.querySelectorAll('[data-attempt-chip]').forEach((chip) => {
+      const open = chip.dataset.attemptChip === key;
+      chip.setAttribute('aria-expanded', open ? 'true' : 'false');
+      chip.classList.toggle('ring-2', open);
+      chip.classList.toggle('ring-[#1e3a5f]/40', open);
+    });
+    adminOpenAttemptPanel = key;
+  };
+  document.querySelectorAll('[data-attempt-chip]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const card = chip.closest('[data-grading-student]');
+      const key = chip.dataset.attemptChip;
+      setAttemptPanel(card, chip.getAttribute('aria-expanded') === 'true' ? null : key);
+      const panel = key && Array.from(card.querySelectorAll('[data-attempt-panel]')).find((el) => el.dataset.attemptPanel === key);
+      if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+  document.querySelectorAll('[data-attempt-close]').forEach((btn) => {
+    btn.addEventListener('click', () => setAttemptPanel(btn.closest('[data-grading-student]'), null));
+  });
+  if (adminOpenAttemptPanel) {
+    const chip = Array.from(document.querySelectorAll('[data-attempt-chip]')).find((el) => el.dataset.attemptChip === adminOpenAttemptPanel);
+    if (chip) setAttemptPanel(chip.closest('[data-grading-student]'), adminOpenAttemptPanel);
   }
 
   document.querySelectorAll('[data-action="admin-grading-approve"]').forEach((btn) => {
@@ -8205,6 +8863,11 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         );
         return;
       }
+      const rotateBtn = event.target.closest('[data-rotate-password]');
+      if (rotateBtn) {
+        await rotateAccountPassword(rotateBtn);
+        return;
+      }
       const snapshotBtn = event.target.closest('[data-admin-snapshot]');
       if (!snapshotBtn) return;
       const studentId = snapshotBtn.getAttribute('data-admin-snapshot');
@@ -8238,7 +8901,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       // snapshot first, unconditionally, in place of a confirm() popup.
       // This never deletes module_progress/lab_attempts/capstone data —
       // disenrollment only ever flips students.is_enrolled — but the
-      // snapshot file is what makes ADMIN_RESET_FLOW.md's "restore a
+      // snapshot file is what makes docs/ADMIN_RESET_FLOW.md's "restore a
       // mistaken disenrollment" workflow possible after the fact. If the
       // snapshot can't be captured, the disenroll does not proceed.
       if (!desired) {
@@ -8594,7 +9257,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
 
 /* module_key only resolves within its own program's catalogue (see PROGRAMS
  * in portal/data.js), so the student's track_code is required to look it up
- * — mirrors the join CURRICULUM_MAP.md documents against the same catalogue. */
+ * — mirrors the join docs/specs/CURRICULUM_MAP.md documents against the same catalogue. */
 function adminModuleLabel(trackCode, moduleKey) {
   const slug = TRACK_CODE_TO_PROGRAM_SLUG[trackCode];
   const program = PROGRAMS.find((p) => p.slug === slug);
@@ -8605,6 +9268,125 @@ function adminModuleLabel(trackCode, moduleKey) {
 function adminLabLabel(labKey) {
   const lab = LABS.find((l) => l.key === labKey);
   return lab ? lab.title : labKey;
+}
+
+/* Grading/Graded tabs group attempts student → module → item so faculty can
+ * see at a glance which module and which piece of work each one is. */
+
+// Lab keys each module's Prove It submits today (soc-analyst-module-NN.js).
+// Modules 07 and 08 write one row per catalog lab from a single submit; those
+// rows are shown and graded together as one item.
+const ADMIN_PROVE_IT_LAB_KEYS = new Set([
+  'lab-soc-escalation', 'lab-identity-investigation', 'lab-siem-triage', 'lab-detection-rule',
+  'lab-endpoint-investigation', 'lab-threat-hunt-independent', 'lab-email-triage', 'lab-network-investigation',
+  'lab-network-email-independent', 'lab-vuln-prioritization', 'lab-vuln-queue', 'lab-active-incident',
+  'lab-attack-mapping', 'lab-exec-report',
+]);
+
+function adminGradingLabMeta(row) {
+  const lab = LABS.find((l) => l.key === row.lab_key);
+  // Knowledge checks are recorded as `<module key>-knowledge-check`.
+  const knowledgeCheck = !lab && /^(.+)-knowledge-check$/.exec(String(row.lab_key || ''));
+  const moduleKey = lab ? lab.module : knowledgeCheck ? knowledgeCheck[1] : '';
+  const slug = TRACK_CODE_TO_PROGRAM_SLUG[row.track_code];
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  const module = program && program.modules && program.modules[moduleKey];
+  const number = module ? module.number : null;
+  // The Academy's own phase names: Learn It (knowledge check), Practice It
+  // (guided lab), Prove It (assessment lab or capstone).
+  // Outside SOC every catalogued lab is the module's instructor-approved
+  // assessment (course_module_labs maps all HDESK/AIENG labs), so it is a
+  // Prove It, not an unlabelled "LAB".
+  const kind = knowledgeCheck ? 'LEARN IT'
+    : (lab && lab.kind === 'capstone') || ADMIN_PROVE_IT_LAB_KEYS.has(row.lab_key) ? 'PROVE IT'
+    : slug === 'soc-analyst' ? 'PRACTICE IT' : lab ? 'PROVE IT' : 'LAB';
+  return {
+    moduleKey: module ? moduleKey : 'other',
+    number: number === null ? 999 : number,
+    moduleLabel: module ? `Module ${String(number).padStart(2, '0')} · ${module.title}` : 'Other labs',
+    labTitle: lab ? lab.title : knowledgeCheck ? 'Knowledge check' : row.lab_key,
+    kind,
+    itemName: module ? `Module ${number} · ${kind}` : (lab ? lab.title : row.lab_key),
+  };
+}
+
+// Rows from the same learner, module, kind, and submit time are one item.
+function adminGroupGradingRows(rows) {
+  const byStudent = new Map();
+  rows.forEach((row) => {
+    const meta = adminGradingLabMeta(row);
+    const student = byStudent.get(row.student_id) || { studentId: row.student_id, items: [], modules: new Map() };
+    const module = student.modules.get(meta.moduleKey) || { key: meta.moduleKey, number: meta.number, label: meta.moduleLabel, items: new Map() };
+    let itemKey = `${row.user_id}|${meta.moduleKey}|${meta.kind}|${row.completed_at}`;
+    let item = module.items.get(itemKey);
+    // Two attempts of the SAME lab are never one item, even when a repeated
+    // submit stamped both with the same millisecond; merging them hid the
+    // second attempt from Graded after one Approve reviewed both.
+    while (item && item.rows.some((other) => other.lab_key === row.lab_key)) {
+      itemKey += '+';
+      item = module.items.get(itemKey);
+    }
+    if (!item) {
+      item = { lead: row, rows: [], ids: [], name: meta.itemName, labTitles: [] };
+      module.items.set(itemKey, item);
+      student.items.push(item);
+    }
+    item.rows.push(row);
+    item.ids.push(row.id);
+    item.labTitles.push(meta.labTitle);
+    student.modules.set(meta.moduleKey, module);
+    byStudent.set(row.student_id, student);
+  });
+  return Array.from(byStudent.values())
+    .sort((a, b) => String(a.studentId).localeCompare(String(b.studentId)))
+    .map((student) => ({
+      ...student,
+      modules: Array.from(student.modules.values())
+        .sort((a, b) => a.number - b.number)
+        .map((module) => ({ ...module, items: Array.from(module.items.values()) })),
+    }));
+}
+
+
+
+// "Attempt N of M" per learner and lab, over every submitted attempt faculty
+// can see (pending + reviewed), oldest first.
+function adminNumberAttempts(rows) {
+  const byLab = new Map();
+  rows.forEach((row) => {
+    const key = `${row.user_id}|${row.lab_key}`;
+    byLab.set(key, [...(byLab.get(key) || []), row]);
+  });
+  const numbers = new Map();
+  byLab.forEach((attempts) => attempts
+    .sort((a, b) => String(a.completed_at).localeCompare(String(b.completed_at)))
+    .forEach((row, index) => numbers.set(row.id, { number: index + 1, of: attempts.length })));
+  return numbers;
+}
+
+function adminNeedsInstructorReview(row) {
+  return !['LEARN IT', 'PRACTICE IT'].includes(adminGradingLabMeta(row).kind);
+}
+
+function adminAttemptLabel(row) {
+  return row.attempt ? `Attempt ${row.attempt.number} of ${row.attempt.of}` : '';
+}
+
+// A pending attempt is superseded once the same learner has a later attempt of
+// the same lab that faculty already reviewed; it no longer needs a decision.
+function adminSplitSupersededAttempts(pendingRows, gradedRows) {
+  const latestReviewed = new Map();
+  (gradedRows || []).forEach((row) => {
+    const key = `${row.user_id}|${row.lab_key}`;
+    if (String(row.completed_at) > String(latestReviewed.get(key) || '')) latestReviewed.set(key, row.completed_at);
+  });
+  const pending = [];
+  const superseded = [];
+  (pendingRows || []).forEach((row) => {
+    const reviewedAt = latestReviewed.get(`${row.user_id}|${row.lab_key}`);
+    (reviewedAt && String(reviewedAt) > String(row.completed_at) ? superseded : pending).push(row);
+  });
+  return { pending, superseded };
 }
 
 function adminStateLabel(state) {

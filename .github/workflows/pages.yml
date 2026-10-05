@@ -26,11 +26,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
         with:
-          node-version: 20
+          # Full history: the deployed version is 1.<commit count on master>.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - name: Validate source before deployment
         run: bash bin/ci-check.sh
@@ -45,6 +48,18 @@ jobs:
           # directories beginning with an underscore. The vendored libraries
           # must survive verbatim.
           touch _site/.nojekyll
+
+          # Auto-incrementing build version: every push to master deploys as
+          # 1.<total commits>. Stamped into the assembled site only, so no
+          # version-bump commit is needed and nothing loops. The ?v= bump
+          # busts the cached release.js.
+          BUILD_VERSION="1.$(git rev-list --count HEAD)"
+          printf '%s\n' \
+            "/* Generated at deploy time by pages.yml; do not edit. */" \
+            "const PORTAL_RELEASE = Object.freeze({ version: '${BUILD_VERSION}' });" \
+            > _site/release.js
+          sed -i "s|release.js?v=[^\"]*|release.js?v=${BUILD_VERSION}|" _site/index.html
+          echo "Deploying portal version ${BUILD_VERSION}"
 
           # Gate 3 M360 integration is deliberately deployment-scoped. The
           # main portal application remains untouched: portal/index.html now
@@ -64,6 +79,8 @@ jobs:
           test -f _site/m360/m360-data.js
           test -f _site/m360/m360-production-bridge.js
           test -f _site/m360-entry.js
+          grep -Eq "version: '1\.[0-9]+'" _site/release.js
+          grep -Eq 'release\.js\?v=1\.[0-9]+' _site/index.html
           grep -q 'src="m360-entry.js?v=' _site/index.html
           # A hardcoded simulator origin is the one regression that looks fine
           # in CI and breaks every lab button in production. The localhost
@@ -85,10 +102,13 @@ jobs:
           print('simulator origin is hostname-guarded')
           PY
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      # v4+ drops dotfiles by default; keep them so the artifact matches what
+      # v3 published (.nojekyll, imported-labs' src/data/sources/.manifest.json).
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
+          include-hidden-files: true
 
   deploy:
     needs: build
@@ -98,4 +118,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

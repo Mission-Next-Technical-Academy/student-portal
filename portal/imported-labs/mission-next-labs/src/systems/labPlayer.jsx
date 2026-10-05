@@ -45,24 +45,47 @@
     const [revealedHints, setRevealedHints] = React.useState({});
     const [revealedAnswers, setRevealedAnswers] = React.useState({});
     const [feedback, setFeedback] = React.useState(null);
+    const [takeaway, setTakeaway] = React.useState(null);
     const [services, setServices] = React.useState({});
     const [savedFiles, setSavedFiles] = React.useState({});
     const [observed, setObserved] = React.useState({});
     const [uiPath, setUiPath] = React.useState([]);
-
     // Build virtual filesystem once per lab
     const vfs = React.useMemo(() => {
       if (!lab.environment || typeof lab.environment.fs !== 'function') return null;
       try {
-        const tree = lab.environment.fs();
+        const tree = lab.environment.fs({ user: user && user.username, labId: lab.id });
         if (window.createVirtualFs) return window.createVirtualFs(tree || {});
       } catch (e) {
         console.error('[LabPlayer] failed to build vfs', e);
       }
       return null;
     }, [lab.id]);
+    const powershellEngine = React.useMemo(() => {
+      if (!lab.environment || lab.environment.engine !== 'MISSION_NEXT_POWERSHELL_TRIAGE') return null;
+      return window.MISSION_NEXT_POWERSHELL_TRIAGE.create({ user: user && user.username, labId: lab.id });
+    }, [lab.id, user && user.username]);
+    const powershellRebuildEngine = React.useMemo(() => {
+      if (!lab.environment || lab.environment.engine !== 'MISSION_NEXT_POWERSHELL_REBUILD') return null;
+      return window.MISSION_NEXT_POWERSHELL_REBUILD.create({ user: user && user.username, labId: lab.id });
+    }, [lab.id, user && user.username]);
+    const cloudIncidentEngine = React.useMemo(() => {
+      if (!lab.environment || lab.environment.engine !== 'MISSION_NEXT_CLOUD_INCIDENT') return null;
+      return window.MISSION_NEXT_CLOUD_INCIDENT.create({ user: user && user.username, labId: lab.id });
+    }, [lab.id, user && user.username]);
 
     const flat = React.useMemo(() => flattenSteps(lab), [lab]);
+
+    React.useEffect(() => {
+      if (!user || !window.MISSION_NEXT_PROGRESS_EXT?.hydrateCourseLab) return;
+      let active = true;
+      window.MISSION_NEXT_PROGRESS_EXT.hydrateCourseLab(user.username, lab.id).then((entry) => {
+        if (!active || !entry?.stepAttempts) return;
+        setCompletedSet(new Set(Object.entries(entry.stepAttempts)
+          .filter(([, attempt]) => attempt && attempt.firstCorrectAt).map(([id]) => id)));
+      });
+      return () => { active = false; };
+    }, [lab.id, user?.username]);
 
     React.useEffect(() => {
       function onResize() {
@@ -88,6 +111,10 @@
         vfs: overrides.vfs || vfs,
         completed: overrides.completed || Array.from(completedSet),
         uiPath: overrides.uiPath || uiPath,
+        commandResult: overrides.commandResult || null,
+        powershellEngine,
+        powershellRebuildEngine,
+        cloudIncidentEngine,
       };
     }
 
@@ -106,9 +133,9 @@
 
     function evaluateAllUnlockedSteps(submission, simOverride) {
       // After every shell command, re-check all unlocked, incomplete steps.
-      // Whichever validates true gets marked complete.
-      if (!window.validateStep) return false;
-      let anyHit = false;
+      // Return the steps that were completed so the UI can explain the win.
+      if (!window.validateStep) return [];
+      const hitSteps = [];
       const sim = buildSimState(simOverride);
       for (const step of flat) {
         if (completedSet.has(step.id)) continue;
@@ -117,14 +144,14 @@
         if (step.kind !== 'command' && step.kind !== 'observe' && step.kind !== 'ui') continue;
         const res = window.validateStep(step, sim, submission);
         if (res.ok) {
-          if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, true);
+          if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, true, step.points);
           recordCorrect(step.id, step.points);
-          anyHit = true;
+          hitSteps.push(step);
         } else if (step.id === activeStepId) {
-          if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, false);
+          if (window.MISSION_NEXT_PROGRESS_EXT && user) window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, step.id, submission, false, step.points);
         }
       }
-      return anyHit;
+      return hitSteps;
     }
 
     function applyShellResult(result) {
@@ -147,21 +174,29 @@
         savedFiles: nextSavedFiles,
         observed: nextObserved,
         uiPath: nextUiPath,
+        commandResult: result,
       };
     }
 
     function onShellCommand(cmdLine, result, env) {
       if (env && env.cwd != null) { /* shell tracks cwd internally */ }
-      const hit = evaluateAllUnlockedSteps(cmdLine, applyShellResult(result));
-      if (hit) {
+      const hitSteps = evaluateAllUnlockedSteps(cmdLine, applyShellResult(result));
+      if (hitSteps.length) {
+        const step = hitSteps[0];
+        setTakeaway({
+          step,
+          command: cmdLine,
+          result,
+        });
         setFeedback({ kind: 'ok', text: 'Step complete.' });
         window.setTimeout(() => setFeedback(null), 1400);
       }
     }
 
     function onShellAction(submission, result) {
-      const hit = evaluateAllUnlockedSteps(submission, applyShellResult(result));
-      if (hit) {
+      const hitSteps = evaluateAllUnlockedSteps(submission, applyShellResult(result));
+      if (hitSteps.length) {
+        setTakeaway({ step: hitSteps[0], command: submission, result });
         setFeedback({ kind: 'ok', text: 'Step complete.' });
         window.setTimeout(() => setFeedback(null), 1400);
       }
@@ -175,7 +210,7 @@
       const sim = buildSimState();
       const res = window.validateStep(step, sim, submission);
       if (window.MISSION_NEXT_PROGRESS_EXT && user) {
-        window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, stepId, submission, res.ok);
+        window.MISSION_NEXT_PROGRESS_EXT.markStepAttempt(user.username, lab.id, stepId, submission, res.ok, step.points);
       }
       if (res.ok) {
         recordCorrect(stepId, step.points);
@@ -223,13 +258,15 @@
 
     React.useEffect(() => {
       if (!labComplete || !user) return;
+      const completedAt = new Date().toISOString();
       try {
         localStorage.setItem('mission_next_lab_completion', JSON.stringify({
           user: user.username,
           labId: lab.id,
-          completedAt: new Date().toISOString(),
+          completedAt,
         }));
       } catch (_) { /* best effort when storage is unavailable */ }
+      window.MISSION_NEXT_PROGRESS_EXT?.markCourseLabComplete?.(user.username, lab.id, completedAt);
     }, [labComplete, lab.id, user && user.username]);
 
     return (
@@ -261,8 +298,12 @@
 
         {labComplete && (
           <div role="status" style={lpStyles.completionBanner}>
-            <strong>Mission Next lab complete.</strong> All required steps are verified. Return to Module 3 to submit your assessment write-up.
+            <strong>Mission Next lab complete.</strong> {lab.completionMessage || 'All required steps are verified. Use Back to return to your module.'}
           </div>
+        )}
+
+        {takeaway && (
+          <TakeawayCard takeaway={takeaway} onClose={() => setTakeaway(null)} />
         )}
 
         <div data-module-layout style={{ ...lpStyles.layout, ...(isNarrow ? lpStyles.layoutNarrow : null) }}>
@@ -274,11 +315,15 @@
                 vfs={vfs}
                 initialCwd={(lab.environment && lab.environment.initialCwd) || "/home/student"}
                 user={user && user.username || 'student'}
-                host="mission-next"
+                host={(lab.environment && lab.environment.host) || "mission-next"}
                 onCommand={onShellCommand}
                 onAction={onShellAction}
+                onStateRestored={applyShellResult}
                 activeStep={activeStep}
                 simState={buildSimState()}
+                powershellEngine={powershellEngine}
+                powershellRebuildEngine={powershellRebuildEngine}
+                cloudIncidentEngine={cloudIncidentEngine}
                 autoFocus
                 {...shellProps}
                 {...(shellName === 'NotepadShell'
@@ -302,6 +347,17 @@
           {/* RIGHT — scenario + steps */}
           <aside style={{ ...lpStyles.sidebar, ...(isNarrow ? lpStyles.sidebarNarrow : null) }}>
             <ScenarioPanel scenario={lab.scenario} />
+
+            <div style={lpStyles.beginnerGuide}>
+              <div style={lpStyles.beginnerGuideTitle}>
+                {shellName === 'PowerShellShell' || shellName === 'PowerShellScriptShell' ? 'NEW TO POWERSHELL?' : 'NEW TO BASH?'}
+              </div>
+              <div style={lpStyles.beginnerGuideBody}>
+                {lab.beginnerGuide || <>Click the active step, type the command shown in the terminal, and press <kbd style={lpStyles.key}>Enter</kbd>.
+                You can use <kbd style={lpStyles.key}>↑</kbd> to reuse a previous command and <kbd style={lpStyles.key}>Tab</kbd> to complete a path.
+                Read any output before moving to the next step.</>}
+              </div>
+            </div>
 
             <div style={lpStyles.stepsHeader}>
               <span>EXERCISES</span>
@@ -333,6 +389,26 @@
           </aside>
         </div>
 
+      </div>
+    );
+  }
+
+  function TakeawayCard({ takeaway, onClose }) {
+    const step = takeaway.step || {};
+    const learning = step.learning || {};
+    const resultText = takeaway.result && takeaway.result.exitCode === 0
+      ? 'The simulated command completed successfully.'
+      : 'The command ran in the practice environment.';
+    return (
+      <div role="status" aria-live="polite" style={lpStyles.takeawayCard}>
+        <div style={lpStyles.takeawayTopline}>
+          <span style={lpStyles.takeawayEyebrow}>TAKEAWAY · STEP COMPLETE</span>
+          <button type="button" onClick={onClose} style={lpStyles.takeawayClose} aria-label="Dismiss takeaway">×</button>
+        </div>
+        <div style={lpStyles.takeawayTitle}>{learning.title || 'You just changed the lab state'}</div>
+        <div style={lpStyles.takeawayCommand}><code>{takeaway.command}</code></div>
+        <p style={lpStyles.takeawayBody}><strong>What happened:</strong> {learning.what || resultText}</p>
+        <p style={lpStyles.takeawayBody}><strong>Why you are learning it:</strong> {learning.why || 'SOC analysts need to connect each command to the security control or evidence it produces.'}</p>
       </div>
     );
   }
@@ -392,6 +468,8 @@
 
     const status = isDone ? 'done' : isLocked ? 'locked' : isActive ? 'active' : 'open';
     const statusColor = { done: '#22c55e', active: '#38bdf8', open: '#94a3b8', locked: '#475569' }[status];
+    const hintCommand = step.hint && step.hint.match(/`([^`]+)`/);
+    const commandToType = Object.prototype.hasOwnProperty.call(step, 'command') ? step.command : hintCommand ? hintCommand[1] : (step.upstream && step.upstream.sourceLine && !/[—()]/.test(step.upstream.sourceLine) && /^(sudo\s+)?[a-z][a-z0-9-]*(\s|$)/i.test(step.upstream.sourceLine) ? step.upstream.sourceLine : null);
 
     return (
       <div
@@ -409,9 +487,10 @@
           {step.points ? <span style={lpStyles.stepPts}>{step.points} pts</span> : null}
         </div>
         <div style={lpStyles.stepInstruction}>{step.instruction}</div>
-        {step.upstream && step.upstream.sourceLine && step.kind === 'command' && (
-          <div style={lpStyles.stepSource}>
-            <code>{step.upstream.sourceLine}</code>
+        {commandToType && (
+          <div style={lpStyles.commandCallout}>
+            <div style={lpStyles.commandLabel}>TYPE THIS IN THE TERMINAL</div>
+            <code>{commandToType}</code>
           </div>
         )}
         {hintRevealed && step.hint && !isDone && (
@@ -424,13 +503,21 @@
         )}
         {isActive && wantsManualSubmit && !isDone && (
           <div style={lpStyles.answerRow}>
-            <input
+            {step.answerMultiline ? <textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              aria-label={step.answerLabel || 'Case note'}
+              placeholder="Record your findings and actions"
+              rows={8}
+              style={{ ...lpStyles.answerInput, resize: 'vertical', minWidth: 0 }}
+            /> : <input
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && answer.trim()) { onAnswerChecked(step.id, answer.trim()); setAnswer(''); } }}
               placeholder="type your answer"
+              aria-label={step.answerLabel || 'Step answer'}
               style={lpStyles.answerInput}
-            />
+            />}
             <button
               onClick={() => { if (answer.trim()) { onAnswerChecked(step.id, answer.trim()); setAnswer(''); } }}
               style={lpStyles.answerBtn}
@@ -465,6 +552,13 @@
     pctFill: { display: 'block', height: '100%', background: '#f97316', transition: 'width 0.25s' },
     userText: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontFamily: "'Space Grotesk',sans-serif" },
     completionBanner: { padding: '12px 16px', background: 'rgba(249,115,22,0.14)', borderBottom: '1px solid rgba(249,115,22,0.45)', color: '#ffedd5', fontSize: 13, lineHeight: 1.5 },
+    takeawayCard: { position: 'fixed', right: 22, bottom: 22, width: 'min(390px, calc(100vw - 44px))', padding: 18, background: 'rgba(255,255,255,0.98)', color: '#334155', border: '1px solid #fed7aa', borderTop: '4px solid #f97316', borderRadius: 16, boxShadow: '0 18px 48px rgba(2,6,23,0.3)', zIndex: 80, animation: 'mission-next-takeaway-in 0.22s ease-out' },
+    takeawayTopline: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+    takeawayEyebrow: { fontSize: 10, fontWeight: 800, letterSpacing: 1.4, color: '#ea580c' },
+    takeawayClose: { border: 'none', background: 'transparent', color: '#64748b', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: 0 },
+    takeawayTitle: { marginTop: 8, color: '#1e3a5f', fontSize: 17, fontWeight: 800, lineHeight: 1.25 },
+    takeawayCommand: { marginTop: 10, padding: '8px 10px', background: '#0f172a', borderRadius: 8, color: '#fed7aa', fontFamily: "'Space Mono',monospace", fontSize: 11, overflowWrap: 'anywhere' },
+    takeawayBody: { margin: '12px 0 0', fontSize: 12, lineHeight: 1.55, color: '#475569' },
 
     layout: { display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(min(100%, 22rem), 26rem)', gap: 0, flex: 1, minHeight: 0 },
     layoutNarrow: { gridTemplateColumns: 'minmax(0,1fr)', gridTemplateRows: 'minmax(24rem, 58vh) auto' },
@@ -474,11 +568,15 @@
     sidebar: { minWidth: 0, overflow: 'auto', background: 'rgba(248,250,252,0.98)', color: '#334155', padding: '18px 16px' },
     sidebarNarrow: { maxHeight: 'none' },
 
-    scenarioBox: { padding: 20, background: '#fff', border: '1px solid #e2e8f0', marginBottom: 18, borderRadius: 16, boxShadow: '0 1px 2px rgba(15,23,42,0.06)' },
+    scenarioBox: { padding: 20, background: '#fff', border: '1px solid #e2e8f0', marginBottom: 12, borderRadius: 16, boxShadow: '0 1px 2px rgba(15,23,42,0.06)' },
     scenarioLabel: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#f97316', marginBottom: 8 },
     scenarioRole: { fontSize: 16, color: '#1e3a5f', marginBottom: 8, fontWeight: 700 },
     scenarioBody: { fontSize: 14, color: '#64748b', lineHeight: 1.65 },
     sourceLink: { display: 'inline-block', marginTop: 10, color: '#1e3a5f', border: '1px solid rgba(30,58,95,0.2)', borderRadius: 12, padding: '6px 10px', fontSize: 11, fontWeight: 600, textDecoration: 'none' },
+    beginnerGuide: { padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 16, borderRadius: 12, color: '#1e3a5f' },
+    beginnerGuideTitle: { fontSize: 10, fontWeight: 800, letterSpacing: 1.5, color: '#2563eb', marginBottom: 5 },
+    beginnerGuideBody: { fontSize: 12, lineHeight: 1.55 },
+    key: { display: 'inline-block', padding: '1px 5px', margin: '0 2px', border: '1px solid #93c5fd', borderBottomWidth: 2, borderRadius: 4, background: '#fff', fontFamily: "'Space Mono',monospace", fontSize: 10 },
 
     stepsHeader: { display: 'flex', justifyContent: 'space-between', fontFamily: "'Space Grotesk',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#1e3a5f', marginBottom: 10 },
     stepsHeaderCount: { color: '#64748b', fontWeight: 500, letterSpacing: 0 },
@@ -505,6 +603,8 @@
     stepPts: { marginLeft: 'auto', fontFamily: "'Space Mono',monospace", fontSize: 9, color: '#f97316' },
     stepInstruction: { fontSize: 14, color: '#475569', lineHeight: 1.55 },
     stepSource: { marginTop: 6, padding: '6px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontFamily: "'Space Mono',monospace", fontSize: 11, color: '#1e3a5f', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+    commandCallout: { marginTop: 9, padding: '9px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#bbf7d0', fontFamily: "'Space Mono',monospace", fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+    commandLabel: { color: '#93c5fd', fontFamily: "'Space Grotesk',sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: 1, marginBottom: 5 },
     stepHint: { marginTop: 6, fontSize: 12, color: '#1e3a5f', fontStyle: 'italic' },
     stepReveal: { marginTop: 6, padding: '8px 10px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, fontSize: 12, color: '#9a3412' },
 

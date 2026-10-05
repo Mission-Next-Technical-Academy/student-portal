@@ -64,6 +64,8 @@ const MODULE_ONE_DEFAULT_STATE = {
   factError: '',
   consoleStarted: false,
   consoleCompleted: false,
+  guidedGuideStep: 0,
+  guidedGuideDocked: false,
   workspaceSetupComplete: false,
   verdict: '',
   priority: '',
@@ -76,7 +78,7 @@ const MODULE_ONE_DEFAULT_STATE = {
   validationError: '',
   lastSubmittedAt: '',
   attempts: 0,
-  // Practice is deliberately the same job-shaped case record as Prove It.
+  // Practice is deliberately the same job-shaped ITSM ticket as Prove It.
   // Its coaching reacts to what the learner opens and records, rather than
   // asking them to type facts back into a disguised quiz.
   practice: {
@@ -85,6 +87,7 @@ const MODULE_ONE_DEFAULT_STATE = {
     viewedLogIds: [], expandedLogId: null, logPage: 1,
   },
   lessonWork: {},
+  learnItStep: 0,
   sectionOpen: { checklist: false, foundations: true, lab: false, quiz: false, review: false, sources: false },
   quiz: { selectedQuestions: [], questionsByAnswer: {}, answers: {}, scored: false, attempts: 0, score: 0, bestScore: 0, feedback: [], passed: false },
   // Prove It: a fresh, minimal-guidance case worked in the same case-console
@@ -100,6 +103,7 @@ const MODULE_ONE_DEFAULT_STATE = {
 };
 
 let moduleOneState = null;
+let moduleOneLearnView = null;
 let moduleOneUser = null;
 let moduleOneJustCorrect = '';
 let moduleOneQuizState = null;
@@ -108,6 +112,9 @@ let moduleOneQuizState = null;
 // remote/admin source (see moduleOneQuizPanel()). Reset on every fresh load
 // so it never carries over to a different account/session.
 let moduleOneQuizForceRetake = false;
+// Set when Submit Lab is pressed with items still missing, so the list is
+// called out rather than the button silently refusing.
+let moduleOneProveItShowMissing = false;
 let moduleOneReviewMode = false;
 let moduleOneLastSyncedDetail = null;
 
@@ -119,12 +126,39 @@ function moduleOneProveItRedoRequested() {
   return moduleOneUser?.openLabRedosByModuleKey?.['soc-01']?.labKey === 'lab-soc-escalation';
 }
 
+// '' until submitted; then 'review' while the latest attempt awaits faculty,
+// 'graded' once an instructor has reviewed it without sending it back.
+function moduleOneProveItReviewStatus() {
+  if (!moduleOneState?.lab2?.submitted) return '';
+  const attempt = moduleOneUser?.latestLabAttemptByKey?.['lab-soc-escalation'];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+// Instructor per-item notes from a returned attempt, shown wherever the
+// student works the case — not only on the program page's module card.
+function moduleOneProveItRedoFeedback() {
+  if (!moduleOneProveItRedoRequested()) return '';
+  const items = moduleOneUser.openLabRedosByModuleKey['soc-01'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
 // Prove It is Module 1's one graded artifact: a fresh case worked in the same
 // case-console interface as Practice It, minimal guidance, submitted to the
 // instructor. No live score is shown to the student — confirmation only.
 function moduleOneFinalizeProveIt() {
   const performance = moduleOneProveItPerformance();
-  if (performance.missing.length || moduleOneState.lab2.submitted) return;
+  if (moduleOneState.lab2.submitted) return;
+  if (performance.missing.length) {
+    moduleOneProveItShowMissing = true;
+    moduleOneRenderReviewDynamic('m01-review-submission');
+    return;
+  }
+  moduleOneProveItShowMissing = false;
   moduleOneState.lab2.submitted = true;
   moduleOneState.lab2.submittedAt = new Date().toISOString();
   moduleOneState.lab2.completed = true;
@@ -133,6 +167,9 @@ function moduleOneFinalizeProveIt() {
   moduleOneState.lab2.breakdown = performance.breakdown;
   moduleOneState.lab2.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleOneState.lab2.submittedAt });
   moduleOneSave();
+  if (moduleOneUser) {
+    moduleOneUser.latestLabAttemptByKey = { ...(moduleOneUser.latestLabAttemptByKey || {}), 'lab-soc-escalation': { completedAt: moduleOneState.lab2.submittedAt, reviewedAt: null, redoRequested: false } };
+  }
   if (typeof recordLabAttempt === 'function') {
     recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2 } })
       .then((saved) => {
@@ -146,12 +183,17 @@ function moduleOneFinalizeProveIt() {
 }
 
 function moduleOneLoad(user) {
+  if (moduleOneUser?.email !== user?.email) moduleOneLearnView = null;
   moduleOneUser = user;
   moduleOneState = LabRuntime.loadCaseState(MODULE_ONE_LAB_ID, 'soc-01', user, MODULE_ONE_DEFAULT_STATE);
   if (!Array.isArray(moduleOneState.reviewedEvidence)) moduleOneState.reviewedEvidence = [];
   if (!Array.isArray(moduleOneState.factWrong)) moduleOneState.factWrong = [];
   if (!moduleOneState.factTries || typeof moduleOneState.factTries !== 'object') moduleOneState.factTries = {};
   if (!moduleOneState.lessonWork || typeof moduleOneState.lessonWork !== 'object') moduleOneState.lessonWork = {};
+  if (!Number.isInteger(moduleOneState.guidedGuideStep) || moduleOneState.guidedGuideStep < 0) moduleOneState.guidedGuideStep = 0;
+  if (typeof moduleOneState.guidedGuideDocked !== 'boolean') moduleOneState.guidedGuideDocked = false;
+  if (moduleOneState.consoleCompleted) moduleOneState.guidedGuideDocked = true;
+  if (!Number.isInteger(moduleOneState.learnItStep) || moduleOneState.learnItStep < 0) moduleOneState.learnItStep = 0;
   if (!moduleOneState.sectionOpen || typeof moduleOneState.sectionOpen !== 'object') moduleOneState.sectionOpen = { ...MODULE_ONE_DEFAULT_STATE.sectionOpen };
   Object.keys(MODULE_ONE_DEFAULT_STATE.sectionOpen).forEach((key) => { if (typeof moduleOneState.sectionOpen[key] !== 'boolean') moduleOneState.sectionOpen[key] = MODULE_ONE_DEFAULT_STATE.sectionOpen[key]; });
   if (!moduleOneState.quiz || typeof moduleOneState.quiz !== 'object') moduleOneState.quiz = JSON.parse(JSON.stringify(MODULE_ONE_DEFAULT_STATE.quiz));
@@ -216,9 +258,8 @@ function moduleOneLoad(user) {
     moduleOneSave();
     history.replaceState(null, '', location.pathname + location.hash);
   } else if (coachComplete === 'm01') {
-    moduleOneState.consoleStarted = true;
-    moduleOneState.consoleCompleted = true;
-    moduleOneSave();
+    // Legacy external walkthrough completion is not an ITSM ticket submit.
+    // Clear the old callback marker without completing the Guided Lab.
     history.replaceState(null, '', location.pathname + location.hash);
   }
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'soc-analyst', 'soc-01');
@@ -323,33 +364,7 @@ function moduleOneLessonCompanion(lesson, lab) {
     </div>`;
   }
   if (lesson.number === 8) {
-    return `<div class="m01-companion" id="m01-lifecycle" aria-labelledby="m01-lifecycle-title">
-      <p class="m01-companion-label"><i class="ri-cycle-line" aria-hidden="true"></i> The map for responding</p>
-      <h3 class="m01-companion-title" id="m01-lifecycle-title">Incident response lifecycle, visualized</h3>
-      <p class="m01-instruction">Frameworks group or name phases differently. This six-part model shows the complete operational idea used in day-to-day response work. Select each phase to rotate the lifecycle and open its definition.</p>
-      <div class="m01-lifecycle-wheel" style="--wheel-rotation: 0deg" data-m01-lifecycle-wheel>
-        <div class="m01-wheel-track" aria-hidden="true">
-          ${lab.lifecycle.map((phase, index) => `<span style="--wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
-          <div class="m01-wheel-hub">
-            <i class="ri-cycle-line"></i>
-            <strong>Incident response</strong>
-            <small data-m01-hub-phase>Phase 1 · ${esc(lab.lifecycle[0].title)}</small>
-          </div>
-        </div>
-        <ol class="m01-lifecycle" aria-label="Incident response phases">
-          ${lab.lifecycle.map((phase, index) => `<li data-m01-phase-card="${index}">
-            <button type="button" class="m01-phase-button" data-m01-phase="${index}"
-                    aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m01-phase-detail-${esc(phase.id)}">
-              <span class="m01-phase-heading"><span>${index + 1}</span><i class="${esc(phase.icon)}" aria-hidden="true"></i><span class="m01-phase-title">${esc(phase.title)}</span><i class="ri-arrow-down-s-line m01-phase-chevron" aria-hidden="true"></i></span>
-            </button>
-            <div class="m01-phase-detail" id="m01-phase-detail-${esc(phase.id)}" ${index === 0 ? '' : 'hidden'}>
-              <p>${esc(phase.description)}</p>
-            </div>
-          </li>`).join('')}
-        </ol>
-      </div>
-      <p class="m01-concept"><strong>Where does the SOC analyst fit?</strong> Analysts contribute across the lifecycle, but alert triage sits mainly in <em>detect &amp; analyze</em>. Triage determines whether a response is needed and gives the response team verified evidence, scope, and priority.</p>
-    </div>`;
+    return '';
   }
   return '';
 }
@@ -487,7 +502,7 @@ function moduleOneProgress() {
   const knowledgeCheckComplete = verified
     || Boolean(moduleOneQuizState?.passed)
     || moduleOneUser?.remoteModuleEvidence?.['soc-01']?.['knowledge-check'] === true;
-  const complete = verified || (lessonsComplete === lessonsTotal && knowledgeCheckComplete && guidedLabComplete && assessmentLabComplete);
+  const complete = verified || (lessonsComplete === lessonsTotal && guidedLabComplete && assessmentLabComplete);
   return {
     lessonsTotal,
     lessonsComplete,
@@ -552,7 +567,7 @@ function moduleOneProveItPerformance() {
   // full credit, naming a supported pivot (touches the case's evidence but
   // isn't the principal) earns half credit, and an unrelated noise entity
   // pulled from the log volume earns none. See entityRoster in
-  // portal/data.js and MODULE_01_CASE_CONSOLE_SPEC.md's grading philosophy.
+  // portal/data.js and docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md's grading philosophy.
   const userTier = roster.users.find((entry) => entry.id === state.affectedUser)?.tier;
   const deviceTier = roster.devices.find((entry) => entry.id === state.affectedDevice)?.tier;
   const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
@@ -600,36 +615,35 @@ function moduleOneProveItPerformance() {
   };
 }
 function moduleOneProveItSubmissionPanel() {
-  const performance = moduleOneProveItPerformance();
-  const submitted = moduleOneState.lab2.submitted;
-  const redoRequested = moduleOneProveItRedoRequested();
-  return `<div class="m01-score-empty" id="m01-review-submission" role="status" aria-live="polite">
-    <strong>${submitted ? 'Submitted for faculty review' : redoRequested ? 'Returned for remediation' : 'Case record'}</strong>
-    <p>${submitted ? 'Module 2 stays locked until your instructor approves the submission.' : redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.' : 'Work the case above — review the evidence, complete every ticket field, and write your analyst notes — then submit for faculty review.'}</p>
-    ${!submitted && performance.missing.length ? `<ul class="m01-requirements-list">${performance.missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
-    ${!submitted ? `<p class="m01-help">${performance.missing.length ? 'Complete the remaining case-record items, then use Submit Case in the ticket.' : 'Your case record is ready. Use Submit Case in the ticket to send it for faculty review.'}</p>` : ''}
-  </div>`;
+  return caseRecordPanel({
+    panelId: 'm01-review-submission',
+    missing: moduleOneProveItPerformance().missing,
+    submitted: moduleOneState.lab2.submitted,
+    reviewStatus: moduleOneProveItReviewStatus(),
+    redoRequested: moduleOneProveItRedoRequested(),
+    redoHtml: moduleOneProveItRedoFeedback(),
+    showMissing: moduleOneProveItShowMissing,
+  });
 }
 
 function moduleOneGuidedLabFeedback() {
   if (!moduleOneState.consoleCompleted) return '';
   const practice = moduleOneState.practice;
-  const checks = [
-    [practice.status === 'in-progress', 'Status', 'Correct: keep the case In Progress while Identity Response acts.', 'Set Status to In Progress; the case is handed off, not resolved.'],
-    [practice.affectedUser === 'j.santos', 'Affected User', 'Correct: j.santos is the affected user.', 'Add j.santos as the affected user.'],
-    [practice.affectedDevice === 'WKS-14', 'Affected Device', 'Correct: WKS-14 is the supported affected device.', 'Add WKS-14 as the affected device.'],
-    [practice.priority === 'high', 'Severity', 'Correct: High fits the confirmed but bounded account compromise.', 'Change Severity from Critical to High. The evidence supports prompt response, not enterprise-wide critical impact.'],
-    [practice.verdict === 'true-positive', 'Disposition', 'Correct: this is confirmed malicious activity.', 'Set Disposition to Confirmed malicious activity.'],
-    [practice.escalation === 'required', 'Escalation required', 'Correct: the case requires escalation.', 'Set Escalation required to Required.'],
-    [practice.escalateTo === 'identity-response', 'Escalate to', 'Correct: Identity Response owns the next authorized action.', 'Choose Identity Response for the handoff.'],
-    [Boolean((practice.notes || '').trim()), 'Analyst Work Notes', 'Documented: the handoff has the evidence it needs.', 'Add concise analyst work notes with the evidence and recommended handoff.'],
-  ];
-  const correct = checks.filter(([isCorrect]) => isCorrect).length;
-  return `<div class="m01cc-feedback ${correct === checks.length ? 'is-pass' : 'is-coaching'}" id="m01cc-feedback" tabindex="-1" role="status">
-    <strong>Guided Lab feedback · ${correct}/${checks.length} decisions aligned</strong>
-    <ul class="m01cc-feedback-list">${checks.map(([isCorrect, label, correctMessage, correction]) => `<li><i class="ri-${isCorrect ? 'check' : 'information'}-circle-fill" aria-hidden="true"></i><strong>${esc(label)}:</strong> ${esc(isCorrect ? correctMessage : correction)}</li>`).join('')}</ul>
-    <p>${correct === checks.length ? 'Well reasoned. Guided Lab is complete; continue to the independent Assessment Lab.' : 'Review the notes above, update the case if needed, then resubmit to see the coaching again.'}</p>
-  </div>`;
+  const field = (name, value, note, statusWhenPresent = 'captured') => ({ name, status: value ? statusWhenPresent : 'missed', note: value ? note : 'Not recorded in the submitted ticket.' });
+  return guidedLabDebrief({
+    story: 'The sign-in succeeded from a device and location outside the user’s normal pattern, and the account owner denied the activity. Together, those facts support confirmed unauthorized access and a prompt identity response.',
+    fields: [
+      field('Status', practice.status, 'Keep the case in progress while the response team acts.'),
+      field('Affected user', practice.affectedUser, 'The sign-in record identifies the account involved.'),
+      field('Affected device', practice.affectedDevice, 'Device context contributes to the account activity timeline.', 'contributing'),
+      field('Severity', practice.priority, 'State the urgency supported by the confirmed scope.'),
+      field('Disposition', practice.verdict, 'Record the conclusion supported by the evidence.'),
+      field('Escalation', practice.escalation, 'Record whether another response team must act.'),
+      field('Route to', practice.escalateTo, 'Name the team responsible for the next action.'),
+      field('Analyst work notes', (practice.notes || '').trim(), 'Record the evidence and recommended handoff.'),
+    ],
+    handoff: 'A strong handoff states that the sign-in succeeded, names the unusual device or location and the account owner’s denial, keeps the incident open, and asks Identity Response to contain the account under the approved process.',
+  });
 }
 
 function moduleOneScorePanel() {
@@ -669,7 +683,7 @@ function moduleOneScorePanel() {
     </ul>
     <div class="m01-model-reasoning">
       <strong>Expert reasoning, in plain language</strong>
-      <p>The sign-in was real and succeeded. Its device and location differ from the user's normal pattern, and the user independently denied the activity. That makes this a confirmed unauthorized-access incident, not merely a suspicious alert. The analyst should preserve those facts, assign prompt priority, and hand the case into the approved identity-response process.</p>
+      <p>The sign-in succeeded from a device and location outside the user's normal pattern, and the user denied the activity. Treat this as confirmed unauthorized access: preserve the evidence, assign prompt priority, and use the approved identity-response process.</p>
     </div>
   </section>`;
 }
@@ -812,88 +826,43 @@ function moduleOneEvidenceList(scenario, reviewed, attribute, disabled = false) 
       </button></li>`).join('')}</ul>`;
 }
 
-function moduleOneTicketSelect(name, label, value, options, disabled, isCorrect = false) {
-  return `<label class="m01-ticket-field"><span>${esc(label)}</span><select class="${isCorrect ? 'is-correct' : ''}" name="${esc(name)}" ${disabled ? 'disabled' : ''}>
-    <option value="">Select…</option>${options.map((option) => `<option value="${esc(option.id)}" ${value === option.id ? 'selected' : ''}>${esc(option.text)}</option>`).join('')}
-  </select></label>`;
-}
-
+// Thin wrappers over the shared ITSM Incident Ticket (portal/case-record.js).
+// Module 01 is the reference the shared renderer was lifted from.
 function moduleOneTicketFields(state, spec) {
-  const disabled = spec.disabled === true;
-  const guided = spec.guided === true;
-  const entitySelects = spec.entitySelects === true;
-  const escalationRequired = state.escalation === 'required';
-  const severityOptions = [{ id: 'critical', text: 'Critical' }, { id: 'high', text: 'High' }, { id: 'medium', text: 'Medium' }, { id: 'low', text: 'Low' }];
-  const dispositionOptions = spec.dispositionOptions.map((option) => ({
-    id: option.id,
-    text: ({ 'true-positive': 'Confirmed malicious activity', 'benign-positive': 'Benign activity', 'false-positive': 'False positive', 'enterprise-breach': 'Enterprise-wide incident' })[option.id] || option.text,
-  }));
-  // Practice It (ALT-1001) keeps the small fixed roster/department list it
-  // always had; Prove It (NST-2407) passes its own larger entityRoster and
-  // departmentOptions (portal/data.js) through spec, so this stays one
-  // shared renderer for both consoles.
-  const userOptions = spec.userOptions || [{ id: 'a.chen', text: 'a.chen' }, { id: 's.kim', text: 's.kim' }, { id: 'd.williams', text: 'd.williams' }];
-  const deviceOptions = spec.deviceOptions || [{ id: 'LAP-442', text: 'LAP-442' }, { id: 'FS-02', text: 'FS-02' }, { id: 'WKS-14', text: 'WKS-14' }];
-  const departmentOptions = spec.departmentOptions || [{ id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }];
-  // No live accept/partial/bounce banner here: Prove It has no live score or
-  // per-field feedback (moduleOneProveItSubmissionPanel() below never blocks
-  // Submit Case on routing quality either) — instant per-choice feedback is
-  // Practice It's job (moduleOneGuidedLabFeedback()). Department fit still
-  // drives the stored score/breakdown the instructor sees.
-  return `<div class="m01-ticket-case"><strong>CASE ${esc(spec.caseId || '')}</strong>${moduleOneTicketSelect('status', 'Status', state.status, [{ id: 'in-progress', text: 'In Progress' }, { id: 'pending', text: 'Pending' }, { id: 'resolved', text: 'Resolved' }], disabled, guided && state.status === 'in-progress')}</div>
-    <div class="m01-ticket-grid">
-      ${moduleOneTicketSelect('severity', 'Severity', state.severity || state.priority, severityOptions, disabled, guided && state.priority === 'high')}
-      ${entitySelects
-        ? `${moduleOneTicketSelect('affectedUser', 'Affected User', state.affectedUser, userOptions, disabled)}${moduleOneTicketSelect('affectedDevice', 'Affected Device', state.affectedDevice, deviceOptions, disabled)}`
-        : `<label class="m01-ticket-field"><span>Affected User</span><button type="button" class="m01-entity-control ${guided && state.affectedUser === 'j.santos' ? 'is-correct' : ''}" data-m01-entity="user" ${disabled ? 'disabled' : ''}>${state.affectedUser || 'Add user'} <i class="ri-add-line" aria-hidden="true"></i></button></label><label class="m01-ticket-field"><span>Affected Device</span><button type="button" class="m01-entity-control ${guided && state.affectedDevice === 'WKS-14' ? 'is-correct' : ''}" data-m01-entity="device" ${disabled ? 'disabled' : ''}>${state.affectedDevice || 'Add device'} <i class="ri-add-line" aria-hidden="true"></i></button></label>`}
-      ${moduleOneTicketSelect('disposition', 'Disposition', state.disposition || state.verdict, dispositionOptions, disabled, guided && state.verdict === 'true-positive')}
-      ${moduleOneTicketSelect('escalation', 'Escalation required', state.escalation, [{ id: 'required', text: 'Required' }, { id: 'not-required', text: 'Not required' }], disabled, guided && state.escalation === 'required')}
-      ${escalationRequired ? moduleOneTicketSelect('escalateTo', 'Route to Department', state.escalateTo, departmentOptions, disabled, guided && state.escalateTo === 'identity-response') : ''}
-    </div>
-    <label class="m01-ticket-field m01-ticket-notes"><span>Analyst Work Notes</span><textarea name="notes" rows="6" placeholder="Record the evidence, your assessment, confirmed scope, and handoff needed by the next analyst." ${disabled ? 'disabled' : ''}>${esc(state.notes || '')}</textarea></label>
-    ${state.actionHistory?.length ? `<details class="m01-action-history"><summary>Action history (${state.actionHistory.length})</summary><ul>${state.actionHistory.slice(-8).reverse().map((entry) => `<li>${esc(entry.action)}</li>`).join('')}</ul></details>` : ''}`;
+  // Practice It (CASE-011420) keeps the small fixed roster/department list it
+  // always had; Prove It (CASE-012407) passes its own larger entityRoster and
+  // departmentOptions (portal/data.js) through spec.
+  return caseRecordFields(state, {
+    caseId: spec.caseId,
+    incidentIds: spec.incidentIds,
+    dispositionOptions: spec.dispositionOptions,
+    userOptions: spec.userOptions || [{ id: 'a.chen', text: 'a.chen' }, { id: 's.kim', text: 's.kim' }, { id: 'd.williams', text: 'd.williams' }],
+    deviceOptions: spec.deviceOptions || [{ id: 'LAP-442', text: 'LAP-442' }, { id: 'FS-02', text: 'FS-02' }, { id: 'WKS-14', text: 'WKS-14' }],
+    departmentOptions: spec.departmentOptions,
+    disabled: spec.disabled,
+    entityButtons: spec.entitySelects !== true,
+    correct: spec.guided ? { status: 'in-progress', severity: 'high', affectedUser: 'j.santos', affectedDevice: 'WKS-14', disposition: 'true-positive', escalation: 'required', escalateTo: 'identity-response' } : null,
+  });
 }
 
-// Practice It: a guided case (ALT-1001 / j.santos) in its own focused case
-// console — alert queue, log/evidence pane, incident/case record. Per
-// MODULE_01_CASE_CONSOLE_SPEC.md, this is NOT the full SOC range: a small,
-// original, vendor-neutral workspace scoped to exactly this case. Hints and
-// coachmarks are fine here; this is coached, ungraded, retry-friendly
-// practice, not the graded artifact (that's Prove It, moduleOneReview()).
-// Launch card: opens the console in a new tab, same origin/session, via
-// viewModuleOne()'s `?console=practice` branch — not the ui/ simulator.
-function moduleOneLabLaunchCard() {
-  const complete = Boolean(moduleOneState.consoleCompleted);
-  const started = Boolean(moduleOneState.consoleStarted);
-  return `<div class="m01-lab-launch">
-    <a class="m01-hero-action" href="?console=practice${esc(location.hash)}" target="_blank" rel="opener">
-      <i class="${complete ? 'ri-refresh-line' : started ? 'ri-terminal-box-line' : 'ri-play-circle-line'}" aria-hidden="true"></i>
-      ${complete ? 'Review the case' : started ? 'Resume Guided Lab' : 'Launch Guided Lab'}</a>
-    <p class="m01-lab-launch-status">${complete
-      ? 'Case checked. Opens the case console in a new tab if you want to review it.'
-      : 'Opens the case console in a new tab — a small, focused workspace for this one case, not the full SOC range.'}</p>
-  </div>`;
-}
+// Inline Practice It console. It remains a focused, vendor-neutral workspace
+// scoped to this case; the shared guide explains its evidence and ticket flow.
+const MODULE_ONE_GUIDED_STEPS = [
+  { title: 'Read the incident ticket', body: 'Start with the ticket fields the analyst must resolve and the open case request.', lookFor: 'Affected user and device, severity, disposition, escalation, and work notes.', lab: 'Use the ITSM ticket inside this Guided Lab.', target: '.m01-console-ticket' },
+  { title: 'Start from the alert', body: 'Read the alert summary and confirm which account and activity need attention. The alert is a lead, not a verdict.', lookFor: 'The alert identity, detection source, and event time.', lab: 'Use the log rows to verify the lead before you document a conclusion.', target: '.m01-console-detail .m01-console-meta' },
+  { title: 'Inspect sign-in evidence', body: 'Open the relevant log rows and compare the device, location, and result with the account owner’s report.', lookFor: 'A successful sign-in from an unfamiliar device or location, plus the owner’s denial.', lab: 'Ticket fields: affected user, device, and findings.', target: '.m01cc-log-table' },
+  { title: 'Separate source and context', body: 'The authentication record establishes the sign-in. Device and location context contribute to the timeline but do not independently establish who initiated it.', lookFor: 'Which record proves the authentication event and which observations corroborate the scope.', lab: 'Ticket field: Findings', target: '.m01cc-phone-note' },
+  { title: 'Scope and decide', body: 'Record the affected user and device, choose a proportionate severity and disposition, and route the response.', lookFor: 'A case that stays In Progress while the response team acts.', lab: 'Ticket fields: severity, disposition, escalation, and department.', target: '.m01-ticket-grid' },
+  { title: 'Write the handoff and submit', body: 'Summarize the evidence, scope, uncertainty, and next action in work notes, then submit the ITSM ticket.', lookFor: 'A concise evidence-based handoff another analyst can act on.', lab: 'Submitting the ticket completes this Guided Lab.', target: '.m01-ticket-notes' },
+];
 
-// LMS-side card only, per MODULE_01_CASE_CONSOLE_SPEC.md §2: "It should not
-// remain embedded as a small card inside the LMS." The actual queue/logs/
-// ticket workspace lives at viewModuleOneCaseConsole() (opened by the launch
-// card, in a new tab, full-bleed) — see moduleOneCaseConsolePane().
 function moduleOneLabDynamic() {
-  const state = moduleOneState.practice;
-  const complete = Boolean(moduleOneState.consoleCompleted);
-  const status = !moduleOneState.consoleStarted ? 'Not started'
-    : complete ? 'Complete' : 'In progress';
-  return `${moduleOneLabLaunchCard()}
-  <div class="m01-lab-status-row ${status === 'Complete' ? 'is-complete' : status === 'In progress' ? 'is-in-progress' : 'is-not-started'}">
-    <i class="${status === 'Complete' ? 'ri-checkbox-circle-fill' : status === 'In progress' ? 'ri-time-line' : 'ri-inbox-line'}" aria-hidden="true"></i>
-    <span>${status === 'Complete' ? 'Case worked and checked.'
-      : status === 'In progress' ? `${(state.actionHistory || []).length} action${(state.actionHistory || []).length === 1 ? '' : 's'} recorded so far.`
-      : 'An alert is waiting in your queue.'}</span>
+  return `<div class="m01cc-inline" id="m01cc-app" style="position:relative">
+    <div id="m01cc-console-slot">${moduleOneCaseConsolePane()}</div>
   </div>`;
 }
 
-// Log/evidence pane (MODULE_01_CASE_CONSOLE_SPEC.md §3): real rows, not
+// Log/evidence pane (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §3): real rows, not
 // pre-summarized cards. Opening a row is the "read the evidence" action —
 // see wireModuleOneCaseConsole()'s data-m01cc-log-row handler — which marks
 // it viewed and expands its raw structured record underneath.
@@ -924,8 +893,8 @@ function moduleOneLogTable(scenario, state) {
     </div>` : ''}`;
 }
 
-// The three-pane case console body (MODULE_01_CASE_CONSOLE_SPEC.md §2):
-// Alert Queue / Logs+Evidence / Incident-Case Record. Reuses the same
+// The three-pane case console body (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §2):
+// Alert Queue / Logs+Evidence / ITSM Ticket. Reuses the same
 // moduleOneState.practice record and moduleOneTicketFields() the LMS-side
 // card used to render inline — only the log pane and the shell around it
 // are new.
@@ -933,8 +902,9 @@ function moduleOneCaseConsolePane() {
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const scenario = lab.scenario;
   const state = moduleOneState.practice;
+  const guide = guidedLabGuide('m01', MODULE_ONE_GUIDED_STEPS, { step: moduleOneState.guidedGuideStep, docked: moduleOneState.guidedGuideDocked, prefix: 'm01-guided', submitted: moduleOneState.consoleCompleted, debriefHtml: moduleOneGuidedLabFeedback() });
   if (!moduleOneState.consoleStarted) {
-    return `<div class="m01-shift-start" aria-labelledby="m01cc-shift-start-title">
+    return `${guide}<div class="m01-shift-start" aria-labelledby="m01cc-shift-start-title">
       <i class="ri-shield-user-line" aria-hidden="true"></i>
       <div><p class="m01-kicker">SOC analyst shift</p><h3 id="m01cc-shift-start-title">An alert is waiting in your queue</h3>
       <p>Open the assigned alert, read the sign-in log, and record what you find in the case.</p>
@@ -944,20 +914,22 @@ function moduleOneCaseConsolePane() {
   const reviewed = new Set(moduleOneState.reviewedEvidence);
   const step = !reviewed.size ? 'Step 1: Read the alert, then open the sign-in log rows below it.'
     : (!state.affectedUser || !state.affectedDevice) ? 'Step 2: Determine scope. Add the affected user and device to the case.'
-      : 'Step 3: Set severity and disposition, write your work note, then save or submit the case.';
+      : 'Step 3: Set severity and disposition, write your work note, then update or submit the ticket.';
   const phoneNote = scenario.evidence.find((item) => item.id === 'confirmation');
-  return `<div class="m01-console" aria-labelledby="m01cc-console-title">
-    <div class="m01-console-header">
+  const guideDocked = moduleOneState.guidedGuideDocked || moduleOneState.consoleCompleted;
+  return `${guideDocked ? '' : guide}<div class="m01-console" aria-labelledby="m01cc-console-title">
+    <header class="m01-console-header">
       <span class="m01-console-badge">Security Operations</span>
       <h3 id="m01cc-console-title">Practice It — guided case</h3>
       <p>${esc(step)}</p>
-    </div>
+      ${guideDocked ? guide : ''}
+    </header>
     <div class="m01-console-body">
       <aside class="m01-console-pane m01-console-queue" aria-label="Alert queue">
         <p class="m01-console-pane-title">Alert Queue</p>
         <div class="m01-console-queue-item is-active">
           <span class="${moduleOneSeverityClass(scenario.initialSeverity)}">${esc(scenario.initialSeverity)}</span>
-          <strong>${esc(scenario.title)}</strong><span class="muted">${esc(scenario.id)}</span>
+          <strong>${esc(scenario.title)}</strong><span class="muted">${esc(scenario.alertId || scenario.id)}</span>
         </div>
       </aside>
       <section class="m01-console-pane m01-console-detail" aria-label="Logs and evidence">
@@ -971,33 +943,18 @@ function moduleOneCaseConsolePane() {
         ${moduleOneLogTable(scenario, state)}
         ${phoneNote ? `<p class="m01cc-phone-note"><i class="ri-phone-line" aria-hidden="true"></i> ${esc(phoneNote.detail)}</p>` : ''}
       </section>
-      <section class="m01-console-pane m01-console-ticket" aria-label="Incident / case record">
-        <p class="m01-console-pane-title">Incident / Case Record</p>
-        <form id="m01-practice-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: false })}
-          <div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-practice-save>Save</button><button type="button" class="m01-submit" data-m01-practice-check>Submit Case</button></div>
+      <section class="m01-console-pane m01-console-ticket" aria-label="ITSM incident ticket">
+        <p class="m01-console-pane-title">ITSM Incident Ticket</p>
+        <form id="m01-practice-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.caseId || scenario.id, incidentIds: scenario.incidentId, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: moduleOneState.consoleCompleted })}
+          ${moduleOneState.consoleCompleted ? '' : '<div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-practice-save>Update Ticket</button><button type="button" class="m01-submit" data-m01-practice-check>Submit Lab</button></div>'}
         </form>
         ${moduleOneState.consoleCompleted
-          ? moduleOneGuidedLabFeedback()
+          ? caseRecordPanel({ panelId: 'm01-practice-submission', submitted: true, practiceSubmitted: true })
           : moduleOneState.validationError
             ? `<div class="m01cc-feedback is-error" id="m01cc-feedback" tabindex="-1" role="alert">${esc(moduleOneState.validationError)}</div>`
             : ''}
       </section>
     </div>
-  </div>`;
-}
-
-// Full-bleed console page (MODULE_01_CASE_CONSOLE_SPEC.md §2): opened by
-// moduleOneLabLaunchCard() in a new tab via viewModuleOne()'s
-// `?console=practice` branch. Deliberately has no moduleTopbar/nav — the
-// student should feel they have entered a work application, not a page of
-// the LMS.
-function viewModuleOneCaseConsole(user, program) {
-  return `<div class="m01cc-shell" id="m01cc-app">
-    <header class="m01cc-topbar">
-      <span class="m01cc-topbar-title"><i class="ri-shield-keyhole-line" aria-hidden="true"></i> SECURITY OPERATIONS — CASE CONSOLE</span>
-      <a class="m01cc-topbar-close" href="${esc(location.pathname)}#/program/soc-analyst/module/1"><i class="ri-arrow-left-line" aria-hidden="true"></i> Back to Module 1</a>
-    </header>
-    <main class="m01cc-main" id="m01cc-console-slot">${moduleOneCaseConsolePane()}</main>
   </div>`;
 }
 
@@ -1040,31 +997,14 @@ function moduleOneQuizPanel() {
 // interface family as Practice It, minimal guidance — the option lists below
 // carry no `.help` text in the data, and evidence is read plainly rather
 // than filled in. This is Module 1's one graded artifact.
-// Prove It's launch card — same new-tab pattern as Practice It's
-// moduleOneLabLaunchCard(), per MODULE_01_CASE_CONSOLE_SPEC.md: no simulator,
-// no embedded-in-LMS console, just a card that opens the case console.
-function moduleOneProveItLaunchCard() {
-  const state = moduleOneState.lab2;
-  const submitted = Boolean(state.submitted);
-  const redoRequested = moduleOneProveItRedoRequested();
-  return `<div class="m01-lab-launch">
-    <a class="m01-hero-action" href="?console=prove${esc(location.hash)}" target="_blank" rel="opener">
-      <i class="${submitted ? 'ri-eye-line' : redoRequested ? 'ri-refresh-line' : 'ri-play-circle-line'}" aria-hidden="true"></i>
-      ${submitted ? 'Review the case' : redoRequested ? 'Resume Assessment Lab' : (state.actionHistory || []).length ? 'Resume Assessment Lab' : 'Launch Assessment Lab'}</a>
-    <p class="m01-lab-launch-status">${submitted
-      ? 'Submitted for faculty review. Opens the case console in a new tab if you want to review it.'
-      : redoRequested
-        ? 'Returned for remediation. Opens the case console in a new tab to review feedback and resubmit.'
-        : 'Opens the case console in a new tab — a small, focused workspace for this one case, not the full SOC range.'}</p>
-  </div>`;
-}
-
+// Prove It renders inline inside its Assessment Lab section card.
 function moduleOneProveItCaseConsolePane() {
   const lab = MODULE_ONE_ESCALATION_LAB;
   const scenario = lab.scenario;
   const state = moduleOneState.lab2;
   const submitted = state.submitted;
   const requirements = moduleOneProveItPerformance().missing;
+  const reviewStatus = moduleOneProveItReviewStatus();
   const phoneNote = scenario.evidence.find((item) => item.id === 'owner');
 
   return `<div class="m01-console" aria-labelledby="m01-console-prove-title">
@@ -1079,7 +1019,7 @@ function moduleOneProveItCaseConsolePane() {
         <div class="m01-console-queue-item is-active">
           <span class="${moduleOneSeverityClass(scenario.initialSeverity)}">${esc(scenario.initialSeverity)}</span>
           <strong>${esc(scenario.title)}</strong>
-          <span class="muted">${esc(scenario.id)}</span>
+          <span class="muted">${esc(scenario.alertId || scenario.id)}</span>
         </div>
       </aside>
       <section class="m01-console-pane m01-console-detail" aria-label="Logs and evidence">
@@ -1093,13 +1033,13 @@ function moduleOneProveItCaseConsolePane() {
         ${moduleOneLogTable(scenario, state)}
         ${phoneNote ? `<p class="m01cc-phone-note"><i class="ri-phone-line" aria-hidden="true"></i> ${esc(phoneNote.detail)}</p>` : ''}
       </section>
-      <section class="m01-console-pane m01-console-ticket" aria-label="Incident / case record">
-        <p class="m01-console-pane-title">Incident / Case Record</p>
-        <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted, entitySelects: true,
+      <section class="m01-console-pane m01-console-ticket" aria-label="ITSM incident ticket">
+        <p class="m01-console-pane-title">ITSM Incident Ticket</p>
+        <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.caseId || scenario.id, incidentIds: scenario.incidentId, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted, entitySelects: true,
           userOptions: scenario.entityRoster.users.map((entry) => ({ id: entry.id, text: entry.id })),
           deviceOptions: scenario.entityRoster.devices.map((entry) => ({ id: entry.id, text: entry.id })),
           departmentOptions: lab.departmentOptions })}
-          ${!submitted ? `<div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-save-proveit>Save</button><button type="button" class="m01-submit" data-m01-submit-proveit ${requirements.length ? 'disabled' : ''}>Submit Case</button></div>` : ''}
+          ${caseRecordActions({ submitted, reviewStatus, saveAttr: 'data-m01-save-proveit', submitAttr: 'data-m01-submit-proveit', panelId: 'm01-review-submission', hasMissing: requirements.length > 0 })}
         </form>
         ${moduleOneProveItSubmissionPanel()}
       </section>
@@ -1107,24 +1047,9 @@ function moduleOneProveItCaseConsolePane() {
   </div>`;
 }
 
-// LMS-side card only, same rule as Practice It: the console lives in its
-// own tab, not embedded here.
 function moduleOneReview() {
-  return `<div id="m01-review">${moduleOneProveItLaunchCard()}
-    <p class="m01-instruction">Work the independent case from the evidence, then document a clear, proportionate handoff.</p>
-  </div>`;
-}
-
-// Full-bleed Prove It console page — same viewModuleOneCaseConsole()
-// pattern, opened via `?console=prove`.
-function viewModuleOneProveItCaseConsole(user, program) {
-  return `<div class="m01cc-shell" id="m01pc-app">
-    <header class="m01cc-topbar">
-      <span class="m01cc-topbar-title"><i class="ri-shield-keyhole-line" aria-hidden="true"></i> SECURITY OPERATIONS — CASE CONSOLE</span>
-      <a class="m01cc-topbar-close" href="${esc(location.pathname)}#/program/soc-analyst/module/1"><i class="ri-arrow-left-line" aria-hidden="true"></i> Back to Module 1</a>
-    </header>
-    <main class="m01cc-main" id="m01pc-console-slot">${moduleOneProveItCaseConsolePane()}</main>
-  </div>`;
+  return `<div id="m01-review"><p class="m01-instruction">Work the independent case from the evidence, then document a clear, proportionate handoff.</p>
+    <div id="m01pc-app"><div id="m01pc-console-slot">${moduleOneProveItCaseConsolePane()}</div></div></div>`;
 }
 
 function moduleOneRenderReviewDynamic(focusId) {
@@ -1169,43 +1094,37 @@ function moduleOneGetQuickNavItems() {
   return items;
 }
 
-/* All 5 numbered page sections, for moduleUnifiedNav(). Foundations and
- * Guided Lab nest their granular items (moduleOneGetQuickNavItems());
- * the flow/lifecycle/loop companion reading lives inline inside Foundations
- * (see moduleOneLessonCompanion()), not as its own nav section — it has no
- * completion state of its own. Knowledge Check sits between Foundations and
- * Guided Lab (matching every other module's order: read, then prove
- * retention, then do the graded work) — sources is read-only explanatory
- * content — `gated: false` marks it always navigable, excluded from the
- * lock/current-position chain. */
+/* The student flow is Learn It, Practice It, and Prove It. The separate
+ * module-level quiz was redundant with Prove It; lesson checks remain within
+ * Learn It. Sources stay supplemental and never block progress. */
 function moduleOneGetNavSections() {
   const progress = moduleOneProgress();
   const quickNavItems = moduleOneGetQuickNavItems();
   return [
     { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: progress.lessonsComplete === progress.lessonsTotal, scrollId: 'm01-foundations', items: quickNavItems.filter((i) => i.kind === 'lesson') },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: progress.knowledgeCheckComplete, scrollId: 'm01-knowledge-check' },
     { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: progress.guidedLabComplete, scrollId: 'm01-guided-lab' },
     { id: 'review', title: 'Assessment Lab', type: 'review', isComplete: progress.assessmentLabComplete, scrollId: 'm01-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm01-sources-section', gated: false, supplemental: true },
   ];
 }
 
+function moduleOneLearnIt() {
+  const deck = window.LearnItDecks?.['soc-01'] || [];
+  if (!deck.length || !window.LearnItCards) return '';
+  return window.LearnItCards.render({ deck, step: moduleOneState.learnItStep, viewed: moduleOneLearnView, done: moduleOneState.learnItStep >= deck.length, prefix: 'm01', id: 'm01-learn-it', headingId: 'm01-learn-it-title', heading: 'Start with the security outcome', readyHeading: 'Build your SOC foundation', intro: 'A few focused ideas will prepare you for the lessons and first triage case.', doneHeading: 'Foundation ideas complete', doneIntro: 'Revisit any idea above, then continue through the foundation lessons.', readyText: 'Begin with the three properties security teams protect.', label: 'LEARN IT', countLabel: 'ideas', readyCountLabel: `${deck.length} QUICK IDEAS`, progressCopy: ({ step, total }) => `${step} of ${total} ideas explored · continue to the foundation lessons below.`, slideLabel: 'Idea', readyActionLabel: 'LEARN IT', nextActionLabel: 'NEXT', finalActionLabel: 'Complete Learn It', restartLabel: 'Restart Learn It' });
+}
+
 function viewModuleOne(user, program) {
   moduleOneLoad(user);
-  // MODULE_01_CASE_CONSOLE_SPEC.md §2: Module 01's lab opens in its own
-  // focused workspace, not embedded in the LMS page. Same route+hash, a
-  // `?console=practice` query param — opened in a new tab so this render
-  // is a *different* browser tab/window from the LMS page that linked to
-  // it, sharing the same session/auth without any new plumbing.
-  const consoleParam = new URLSearchParams(location.search).get('console');
-  if (consoleParam === 'practice') return viewModuleOneCaseConsole(user, program);
-  if (consoleParam === 'prove') return viewModuleOneProveItCaseConsole(user, program);
+  // Old launch URLs now resolve to the inline module view.
+  if (new URLSearchParams(location.search).has('console')) history.replaceState(null, '', location.pathname + location.hash);
   const lab = MODULE_ONE_ALERT_ORIENTATION;
   const module = program.modules['soc-01'];
   const moduleLabs = LABS.filter((item) => item.module === module.key);
   const moduleLabMinutes = moduleLabs.reduce((total, item) => total + item.instructionalMinutes, 0);
   const sectionOpen = moduleOneState.sectionOpen || {};
-  const openFor = (key) => moduleOneReviewMode || sectionOpen[key] === true;
+  const activeSectionKey = Object.keys(MODULE_ONE_DEFAULT_STATE.sectionOpen).find((key) => key !== 'checklist' && sectionOpen[key] === true) || 'foundations';
+  const openFor = (key) => !moduleOneReviewMode && key === activeSectionKey;
   const progress = moduleOneProgress();
 
   return `<div class="m01-shell">
@@ -1292,6 +1211,8 @@ function viewModuleOne(user, program) {
           </button>
         </div>
         <div class="m01-section-body" id="m01-foundations-body" ${openFor('foundations') ? '' : 'hidden'}>
+          ${moduleOneLearnIt()}
+          <details class="learn-it-deep-dive mf-deep-dive"><summary>Deep Dive · foundation lessons and tool translations</summary>
           <p class="m01-instruction">Read these in order on your first visit. Each lesson gives you one idea to carry into the lab; open a lesson to see the explanation.</p>
           <div class="m01-tool-translation">
             <strong>Tool translation</strong>
@@ -1300,21 +1221,17 @@ function viewModuleOne(user, program) {
               <div><dt>EDR</dt><dd><strong>Endpoint Detection and Response.</strong> Records endpoint behavior and supports device investigation and response.</dd></div>
               <div><dt>XDR</dt><dd><strong>Extended Detection and Response.</strong> Connects evidence across domains such as identity, endpoint, email, and cloud.</dd></div>
             </dl>
-            <p>Products help organize facts. The analyst is responsible for what those facts support. The lessons below use these terms — refer back here if you need a reminder.</p>
+            <p>Products organize facts; the analyst decides what those facts support. Refer back to these terms as you work through the lessons.</p>
           </div>
           ${moduleOneLessons(lab)}
           ${moduleOneReferences(lab)}
+          </details>
         </div>
-      </section>
-
-      <section class="m01-section m01-section-collapsible" id="m01-knowledge-check" aria-labelledby="m01-knowledge-title">
-        <div class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Module assessment</p><h2 id="m01-knowledge-title">Check your SOC foundations</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="quiz" data-m01-section-label="module assessment" aria-expanded="${openFor('quiz')}" aria-controls="m01-quiz-body" aria-label="${openFor('quiz') ? 'Collapse' : 'Expand'} module assessment"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
-        <div class="m01-section-body" id="m01-quiz-body" ${openFor('quiz') ? '' : 'hidden'}>${moduleOneQuizPanel()}</div>
       </section>
 
       <section class="m01-section m01-section-collapsible m01-lab-section" id="m01-guided-lab" aria-labelledby="m01-lab-title">
         <div class="m01-section-heading">
-          <span>3</span>
+          <span>2</span>
           <div><p class="m01-kicker">Practice It · Guided Lab</p><h2 id="m01-lab-title">Your first SOC alert</h2></div>
           <button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="lab" data-m01-section-label="guided lab" aria-expanded="${openFor('lab')}" aria-controls="m01-guided-lab-body" aria-label="${openFor('lab') ? 'Collapse' : 'Expand'} guided lab">
             <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
@@ -1330,12 +1247,11 @@ function viewModuleOne(user, program) {
       </section>
 
       <section class="m01-section m01-section-collapsible" id="m01-review-section" aria-labelledby="m01-review-title">
-        <div class="m01-section-heading"><span>4</span><div><p class="m01-kicker">Prove It · Assessment Lab</p><h2 id="m01-review-title">Independent alert assessment</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="review" data-m01-section-label="assessment lab" aria-expanded="${openFor('review')}" aria-controls="m01-review-body" aria-label="${openFor('review') ? 'Collapse' : 'Expand'} assessment lab"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
+        <div class="m01-section-heading"><span>3</span><div><p class="m01-kicker">Prove It · Assessment Lab</p><h2 id="m01-review-title">Independent alert assessment</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="review" data-m01-section-label="assessment lab" aria-expanded="${openFor('review')}" aria-controls="m01-review-body" aria-label="${openFor('review') ? 'Collapse' : 'Expand'} assessment lab"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
         <div class="m01-section-body" id="m01-review-body" ${openFor('review') ? '' : 'hidden'}>${moduleOneReview()}</div>
       </section>
 
-      <!-- Deliberately separate from the numbered 1-4 Learn/Practice/Prove/
-           Review flow above: this is reference material, not a graded step,
+      <!-- Deliberately separate from the numbered Learn/Practice/Prove flow above: this is reference material, not a graded step,
            so it gets its own card below that sequence rather than a "5". -->
       <section class="m01-section m01-section-collapsible m01-section-supplemental" id="m01-sources-section" aria-labelledby="m01-sources-title">
         <div class="m01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m01-kicker">Reference — not a graded step</p><h2 id="m01-sources-title">Sources &amp; Further Reading</h2></div><button class="m01-section-collapse" type="button" data-m01-section-toggle data-m01-section-key="sources" data-m01-section-label="sources and further reading" aria-expanded="${openFor('sources')}" aria-controls="m01-sources-body" aria-label="${openFor('sources') ? 'Collapse' : 'Expand'} sources and further reading"><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
@@ -1448,7 +1364,7 @@ function wireModuleOneQuiz() {
   });
 }
 
-// Case console wiring (MODULE_01_CASE_CONSOLE_SPEC.md). Scoped to its own
+// Case console wiring (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md). Scoped to its own
 // #m01cc-app root, called from wireModuleOneLab() below — that function
 // runs on every render (module-registry.js's wireRegisteredModuleLabs()),
 // so this is a no-op whenever the console page isn't the current render.
@@ -1461,10 +1377,28 @@ function wireModuleOneCaseConsole() {
   function rerender(focusId) {
     const slot = document.getElementById('m01cc-console-slot');
     if (slot) slot.innerHTML = moduleOneCaseConsolePane();
+    const tip = document.getElementById('m01-guided-learn-tip');
+    const target = root.querySelector('.m01cc-log-row.is-expanded, .m01cc-log-row.is-viewed, .m01-console-ticket') || document.getElementById('m01cc-console-title') || document.getElementById('m01cc-shift-start-title');
+    if (tip && typeof consoleGuidePosition === 'function') consoleGuidePosition(tip, root, target, { alignLeft: true });
     if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
   }
+  requestAnimationFrame(() => {
+    const tip = document.getElementById('m01-guided-learn-tip');
+    const target = root.querySelector('.m01cc-log-row.is-expanded, .m01cc-log-row.is-viewed, .m01-console-ticket') || document.getElementById('m01cc-console-title') || document.getElementById('m01cc-shift-start-title');
+    if (tip && typeof consoleGuidePosition === 'function') consoleGuidePosition(tip, root, target, { alignLeft: true });
+  });
 
   root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m01-guided-guide-next]')) {
+      moduleOneState.guidedGuideStep = moduleOneState.consoleCompleted
+        ? 0
+        : (moduleOneState.guidedGuideStep + 1) % MODULE_ONE_GUIDED_STEPS.length;
+      moduleOneSave(); rerender(); return;
+    }
+    if (event.target.closest('[data-m01-guided-guide-collapse]')) {
+      moduleOneState.guidedGuideDocked = !moduleOneState.guidedGuideDocked;
+      moduleOneSave(); rerender(); return;
+    }
     if (event.target.closest('[data-m01cc-console-launch]')) {
       moduleOneState.consoleStarted = true;
       moduleOneState.practice.actionHistory.push({ action: 'Opened assigned alert', at: new Date().toISOString() });
@@ -1522,10 +1456,10 @@ function wireModuleOneCaseConsole() {
       if (!missing) {
         moduleOneState.completed = true;
         moduleOneState.consoleCompleted = true;
+        moduleOneState.guidedGuideDocked = true;
         practice.actionHistory.push({ action: 'Submitted case', at: new Date().toISOString() });
         if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
         moduleOneSyncCompletion();
-        window.opener?.postMessage({ type: 'm01-guided-lab-complete' }, location.origin);
       }
       moduleOneSave(); rerender('m01cc-feedback');
       return;
@@ -1633,10 +1567,6 @@ function wireModuleOneProveItCaseConsole() {
 function wireModuleOneLab() {
   wireModuleOneCaseConsole();
   wireModuleOneProveItCaseConsole();
-  if (document.getElementById('m01cc-app') || document.getElementById('m01pc-app')) return;
-  window.addEventListener('message', (event) => {
-    if (event.origin === location.origin && event.data?.type === 'm01-guided-lab-complete') location.reload();
-  });
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
     reviewToggle.addEventListener('click', () => {
@@ -1654,6 +1584,8 @@ function wireModuleOneLab() {
     });
   }
   wireModuleOneQuiz();
+  const learnRoot = document.querySelector('.m01-shell');
+  if (learnRoot) window.LearnItCards?.wire(learnRoot, { prefix: 'm01', onStep: (step) => { moduleOneState.learnItStep = step; moduleOneLearnView = null; moduleOneSave(); const deck = document.getElementById('m01-learn-it'); if (deck) deck.outerHTML = moduleOneLearnIt(); }, onView: (index) => { moduleOneLearnView = index; const deck = document.getElementById('m01-learn-it'); if (deck) deck.outerHTML = moduleOneLearnIt(); } });
   document.querySelectorAll('[data-m01-section-toggle]').forEach((sectionToggle) => {
     const sectionBody = document.getElementById(sectionToggle.getAttribute('aria-controls'));
     if (!sectionBody) return;
@@ -1666,6 +1598,7 @@ function wireModuleOneLab() {
       sectionBody.hidden = isExpanded;
       const sectionKey = sectionToggle.dataset.m01SectionKey;
       if (sectionKey) {
+        Object.keys(moduleOneState.sectionOpen).forEach((key) => { moduleOneState.sectionOpen[key] = false; });
         moduleOneState.sectionOpen[sectionKey] = !isExpanded;
         moduleOneSave();
       }
@@ -1720,6 +1653,7 @@ function wireModuleOneLab() {
   if (!root || !moduleOneState) return;
 
   root.addEventListener('click', (event) => {
+    if (event.target.closest('#m01cc-app')) return;
     if (event.target.closest('[data-m01-console-launch]')) {
       moduleOneState.consoleStarted = true;
       moduleOneSave();
@@ -1769,7 +1703,7 @@ function wireModuleOneLab() {
     }
 
     if (event.target.closest('[data-m01-reset]')) {
-      moduleOneState = LabRuntime.reset(MODULE_ONE_LAB_ID, moduleOneUser, MODULE_ONE_DEFAULT_STATE);
+      moduleOneState = LabRuntime.resetCaseState(MODULE_ONE_LAB_ID, 'soc-01', moduleOneUser, MODULE_ONE_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') {
         markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY, false);
         markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation', false);
@@ -1779,6 +1713,7 @@ function wireModuleOneLab() {
   });
 
   root.addEventListener('change', (event) => {
+    if (event.target.closest('#m01cc-app')) return;
     const input = event.target;
     if (input.closest('#m01-practice-form') && ['status', 'severity', 'disposition', 'escalation', 'escalateTo'].includes(input.name)) {
       const key = input.name === 'severity' ? 'priority' : input.name === 'disposition' ? 'verdict' : input.name;
@@ -1796,6 +1731,7 @@ function wireModuleOneLab() {
   });
 
   root.addEventListener('input', (event) => {
+    if (event.target.closest('#m01cc-app')) return;
     if (event.target.closest('#m01-practice-form') && event.target.name === 'notes') {
       moduleOneState.practice.notes = event.target.value;
       moduleOneSave(); return;
@@ -2015,45 +1951,9 @@ function wireModuleOneLab() {
 async function moduleOneReceiveCoachCompletion(event) {
   if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== 'm01') return;
   if (event.origin !== new URL(SIM_ORIGIN).origin) return;
-  const user = await currentUser();
-  if (!user) return;
-
-  const saved = LabRuntime.load(MODULE_ONE_LAB_ID, user, MODULE_ONE_DEFAULT_STATE);
-  saved.consoleStarted = true;
-  saved.consoleCompleted = true;
-  moduleOneState = saved;
-  moduleOneUser = user;
-  moduleOneSave();
-
-  if (saved.completed && typeof markModuleLabComplete === 'function') {
-    markModuleLabComplete(user, 'soc-analyst', 'soc-01', MODULE_ONE_CATALOG_LAB_KEY);
-  }
-
-  // Bare completion signal — no score attached (the postMessage contract
-  // carries only a completion flag; see architecture.md §3 Sprint 3). This is
-  // a second, independent lab_attempts row for the same lab_key: the graded
-  // worksheet submit above writes its own scored row, this one just records
-  // that the guided console itself was completed.
-  if (typeof recordLabAttempt === 'function') {
-    recordLabAttempt(user, MODULE_ONE_CATALOG_LAB_KEY, {
-      state: 'complete',
-      result: { source: 'mnt-coach-complete' },
-    });
-  }
-
-  // The student may be sitting on an in-page anchor — '#m01-foundations' is the
-  // hero's own CTA — when the console reports back. That hash is not a route,
-  // so matching the route exactly here left the unlock saved but never drawn:
-  // the worksheet stayed locked until a manual reload. Detect the mounted view
-  // instead, restore the route, and re-render.
-  const mounted = Boolean(document.querySelector('.m01-shell'));
-  if (location.hash !== MODULE_ONE_ROUTE && !mounted) return;
-  if (location.hash !== MODULE_ONE_ROUTE) history.replaceState(null, '', MODULE_ONE_ROUTE);
-  render();
-
-  // Land the student on what just changed rather than at the top of the module.
-  const worksheet = document.getElementById('m01-form') || document.querySelector('.m01-siem');
-  if (worksheet) worksheet.scrollIntoView({ block: 'start' });
+  // Legacy simulator completion does not submit the inline ITSM ticket.
+  // Leave the current Module 01 state and the separate Day-1 orientation tour
+  // untouched; only the Guided Lab ticket Submit handler records completion.
 }
 
 registerModuleLab({
@@ -2061,6 +1961,7 @@ registerModuleLab({
   moduleNumber: 1,
   moduleKey: 'soc-01',
   view: viewModuleOne,
+  sections: moduleOneGetNavSections,
   wire: wireModuleOneLab,
   onMessage: moduleOneReceiveCoachCompletion,
 });

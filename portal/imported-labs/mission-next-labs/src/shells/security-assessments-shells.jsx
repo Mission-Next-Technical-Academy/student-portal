@@ -2,17 +2,17 @@
 //  Security Assessments Track — Shells (Agent 05)
 // ============================================================
 //  Shells:
-//    - BurpProxyLabShell  (PortSwigger Burp Suite chrome)
+//    - TrafficInspectorShell  (neutral traffic evidence viewer)
 //    - IamMatrixLabShell  (User × Group cross-reference matrix)
 //
 //  Also extends window.MISSION_NEXT_BASH_ENGINE.BUILTINS with realistic
-//  stub commands for tools that the upstream sa-1..sa-5 .md
+//  stub commands for tools that the upstream sa-2..sa-5 .md
 //  files invoke but which are not part of the core shared bash
 //  subset (nmap, netstat, ss, ip, iptables, nslookup, dig,
-//  auditctl, ausearch, tripwire, aide, aideinit, chkrootkit,
+//  auditctl, ausearch, aide, aideinit, chkrootkit,
 //  nikto, sqlmap, wapiti, msfconsole, openvas-setup, faillog,
-//  chage, last, getfacl, stat, usermod, gpasswd, groups,
-//  chkpasswd, ossec-control, logwatch, logrotate, tshark).
+//  chage, last, getfacl, setfacl, chmod, cp, mv, stat, usermod,
+//  gpasswd, groups, chkpasswd, logwatch, logrotate, tshark).
 //
 //  These stubs return deterministic, realistic synthetic output
 //  drawn from the lab's vfs where possible. They are gated on
@@ -96,6 +96,8 @@
   }
 
   function cmd_ss(env, args) {
+    const data = readVfs(env, '/var/lib/sa/ss.txt');
+    if (data) return ok(data);
     return ok([
       'Netid State  Recv-Q Send-Q Local Address:Port   Peer Address:Port',
       'tcp   LISTEN 0      128    0.0.0.0:22           0.0.0.0:*',
@@ -197,27 +199,39 @@
     ].join('\n') + '\n');
   }
 
-  function cmd_tripwire(env, args) {
-    if (args.includes('--init')) return ok('Generating database...\n### The database was successfully generated.\n');
-    if (args.includes('--check')) {
-      const data = readVfs(env, '/var/lib/sa/tripwire-report.txt');
-      if (data) return ok(data);
-      return ok('Total objects scanned:  18327\nTotal violations found:  3\n');
-    }
-    return ok('Tripwire(R) 2.4.3 Open Source for LINUX\n');
-  }
+  const AIDE_DB = '/var/lib/aide/aide.db';
+  const AIDE_DB_NEW = '/var/lib/aide/aide.db.new';
 
   function cmd_aide(env, args) {
-    if (args.includes('--check') || args.includes('-C')) {
-      const data = readVfs(env, '/var/lib/sa/aide-check.txt');
-      if (data) return ok(data);
-      return ok('AIDE 0.17.4 found differences between database and filesystem!!\nStart timestamp: 2026-04-23 15:02:11\n');
+    if (args.includes('--init') || args.includes('-i')) {
+      env.vfs.mkdir('/var/lib/aide', true);
+      env.vfs.write(AIDE_DB_NEW, 'aide-db', { mode: '0600' });
+      return ok('Start timestamp: 2026-04-23 15:09:02 -0400 (AIDE 0.17.4)\nAIDE successfully initialized database.\nNew AIDE database written to ' + AIDE_DB_NEW + '\n');
     }
-    return ok('Aide 0.17.4 — usage info\n');
+    if (args.includes('--check') || args.includes('-C')) {
+      if (!env.vfs.exists(AIDE_DB)) {
+        return err(`Couldn't open file ${AIDE_DB} for reading\n`, 18);
+      }
+      const data = readVfs(env, '/var/lib/sa/aide-check.txt');
+      if (data) return { stdout: data, stderr: '', exitCode: 7 };
+      return ok('AIDE found NO differences between database and filesystem. Looks okay!!\n');
+    }
+    return ok('Usage: aide [options] command\n  -i, --init     Initialize the database\n  -C, --check    Check the database\n');
   }
 
   function cmd_aideinit(env, args) {
-    return ok('Running aide --init...\nAIDE initialized.\nThe database is at /var/lib/aide/aide.db.new\n');
+    env.vfs.mkdir('/var/lib/aide', true);
+    env.vfs.write(AIDE_DB_NEW, 'aide-db', { mode: '0600' });
+    return ok([
+      'Running aide --init...',
+      'Start timestamp: 2026-04-23 15:09:02 -0400 (AIDE 0.17.4)',
+      'AIDE initialized database at ' + AIDE_DB_NEW,
+      '',
+      'Number of entries:\t24810',
+      '',
+      'End timestamp: 2026-04-23 15:09:31 -0400 (run time: 0m 29s)',
+      '',
+    ].join('\n'));
   }
 
   function cmd_chkrootkit(env, args) {
@@ -391,33 +405,139 @@
     ].join('\n') + '\n');
   }
 
+  const PERM = ['---', '--x', '-w-', '-wx', 'r--', 'r-x', 'rw-', 'rwx'];
+  const WHO = { u: 0, g: 1, o: 2, user: 0, group: 1, other: 2 };
+
+  function modeDigits(mode) {
+    return String(mode || '0644').padStart(4, '0').slice(-3).split('').map(Number);
+  }
+  function digitsToMode(d) { return '0' + d.join(''); }
+  function permBits(str) {
+    return (str.includes('r') ? 4 : 0) | (str.includes('w') ? 2 : 0) | (/[xX]/.test(str) ? 1 : 0);
+  }
+
+  function resolvePath(env, p) {
+    const MV = window.MISSION_NEXT_VFS;
+    if (!p) return env.cwd;
+    return MV.normalize(p.startsWith('/') ? p : env.cwd + '/' + p);
+  }
+
+  // Apply fn(node path) to path and, if recursive, every descendant.
+  function walk(env, path, recursive, fn) {
+    fn(path);
+    if (!recursive || !env.vfs.isDir(path)) return;
+    for (const e of env.vfs.list(path) || []) walk(env, (path === '/' ? '' : path) + '/' + e.name, true, fn);
+  }
+
+  // Symbolic (u+x,g-w,o=,a-rwx) or octal (750) mode against current mode.
+  function applyMode(current, spec) {
+    if (/^[0-7]{3,4}$/.test(spec)) return spec.padStart(4, '0');
+    const d = modeDigits(current);
+    for (const clause of spec.split(',')) {
+      const m = clause.match(/^([ugoa]*)([-+=])([rwxX]*)$/);
+      if (!m) return null;
+      const who = !m[1] || m[1].includes('a') ? [0, 1, 2] : m[1].split('').map(c => WHO[c]);
+      const bits = permBits(m[3]);
+      for (const i of who) {
+        if (m[2] === '+') d[i] |= bits;
+        else if (m[2] === '-') d[i] &= ~bits;
+        else d[i] = bits;
+      }
+    }
+    return digitsToMode(d);
+  }
+
+  function cmd_chmod(env, args) {
+    const recursive = args.includes('-R');
+    const rest = args.filter(a => a !== '-R');
+    const [spec, ...targets] = rest;
+    if (!spec || targets.length === 0) return err('chmod: missing operand\n');
+    for (const t of targets) {
+      const path = resolvePath(env, t);
+      if (!env.vfs.exists(path)) return err(`chmod: cannot access '${t}': No such file or directory\n`);
+      let bad = false;
+      walk(env, path, recursive, p => {
+        const next = applyMode(env.vfs.stat(p).mode, spec);
+        if (next == null) bad = true; else env.vfs.chmod(p, next);
+      });
+      if (bad) return err(`chmod: invalid mode: '${spec}'\n`);
+    }
+    return ok('');
+  }
+
+  // Base-entry ACLs only (u::, g::, o::) — maps straight onto mode bits.
+  function cmd_setfacl(env, args) {
+    const recursive = args.includes('-R');
+    const mi = args.indexOf('-m');
+    if (mi === -1 || !args[mi + 1]) return err('setfacl: Option -m: missing argument\n');
+    const entries = args[mi + 1].split(',');
+    const targets = args.filter((a, i) => !a.startsWith('-') && i !== mi + 1);
+    if (targets.length === 0) return err('setfacl: No filename found\n');
+    const parsed = [];
+    for (const e of entries) {
+      const m = e.match(/^(u|g|o|user|group|other)::([rwxX-]{1,3})$/);
+      if (!m) return err(`setfacl: Option -m: Invalid argument near character 1\n`);
+      parsed.push([WHO[m[1]], permBits(m[2])]);
+    }
+    for (const t of targets) {
+      const path = resolvePath(env, t);
+      if (!env.vfs.exists(path)) return err(`setfacl: ${t}: No such file or directory\n`);
+      walk(env, path, recursive, p => {
+        const d = modeDigits(env.vfs.stat(p).mode);
+        for (const [i, bits] of parsed) d[i] = bits;
+        env.vfs.chmod(p, digitsToMode(d));
+      });
+    }
+    return ok('');
+  }
+
   function cmd_getfacl(env, args) {
     const target = args.filter(a => !a.startsWith('-')).pop() || '';
-    if (target.includes('finance')) {
-      return ok([
-        '# file: srv/share/finance',
-        '# owner: root',
-        '# group: finance',
-        '# flags: -s-',
-        'user::rwx',
-        'group::rwx',
-        'other::rwx',
-      ].join('\n') + '\n');
-    }
-    return ok([`# file: ${target}`, '# owner: root', '# group: root', 'user::rwx', 'group::r-x', 'other::r-x'].join('\n') + '\n');
+    const path = resolvePath(env, target);
+    const st = env.vfs.stat(path);
+    if (!st) return err(`getfacl: ${target}: No such file or directory\n`);
+    const d = modeDigits(st.mode);
+    return ok([
+      '# file: ' + path.replace(/^\//, ''),
+      '# owner: ' + (st.owner || 'root'),
+      '# group: ' + (st.group || 'root'),
+      'user::' + PERM[d[0]],
+      'group::' + PERM[d[1]],
+      'other::' + PERM[d[2]],
+      '',
+    ].join('\n'));
   }
+
+  function copyOrMove(env, args, name, move) {
+    const operands = args.filter(a => !a.startsWith('-'));
+    if (operands.length !== 2) return err(`${name}: missing file operand\n`);
+    const src = resolvePath(env, operands[0]);
+    let dst = resolvePath(env, operands[1]);
+    if (!env.vfs.isFile(src)) return err(`${name}: cannot stat '${operands[0]}': No such file or directory\n`);
+    if (env.vfs.isDir(dst)) dst = dst + '/' + src.split('/').pop();
+    const st = env.vfs.stat(src);
+    if (!env.vfs.write(dst, env.vfs.read(src), { mode: st.mode, owner: st.owner, group: st.group })) {
+      return err(`${name}: cannot create regular file '${operands[1]}': No such file or directory\n`);
+    }
+    if (move) env.vfs.rm(src);
+    return ok('');
+  }
+  function cmd_cp(env, args) { return copyOrMove(env, args, 'cp', false); }
+  function cmd_mv(env, args) { return copyOrMove(env, args, 'mv', true); }
 
   function cmd_stat(env, args) {
     const target = args.filter(a => !a.startsWith('-')).pop() || '';
-    const data = env.vfs.stat(target);
+    const path = resolvePath(env, target);
+    const data = env.vfs.stat(path);
     if (!data) return err(`stat: cannot stat '${target}': No such file or directory\n`);
-    const isFinance = target.includes('finance');
-    const mode = isFinance ? '0777' : (data.mode || '0644');
+    const mode = String(data.mode || '0644').padStart(4, '0');
+    const d = modeDigits(mode);
+    const sym = (data.type === 'dir' ? 'd' : '-') + d.map(x => PERM[x]).join('');
     return ok([
       `  File: ${target}`,
       `  Size: ${data.size}\tBlocks: 8\t  IO Block: 4096   ${data.type === 'dir' ? 'directory' : 'regular file'}`,
       `Device: 8,1\tInode: 786442\tLinks: 1`,
-      `Access: (${mode}/${data.type === 'dir' ? 'drwxrwxrwx' : '-rwxrwxrwx'})  Uid: ( 0/    root)   Gid: ( ${isFinance ? '1003/finance' : '0/    root'})`,
+      `Access: (${mode}/${sym})  Uid: ( 0/    ${data.owner || 'root'})   Gid: ( 0/    ${data.group || 'root'})`,
       `Modify: 2026-04-22 09:14:17.118 -0400`,
     ].join('\n') + '\n');
   }
@@ -448,10 +568,6 @@
     ].join('\n') + '\n');
   }
 
-  function cmd_ossec(env, args) {
-    return ok('Starting OSSEC HIDS v3.7.0...\nStarted ossec-monitord (pid: 21134).\nCompleted.\n');
-  }
-
   function patchBuiltins() {
     if (!window.MISSION_NEXT_BASH_ENGINE || !window.MISSION_NEXT_BASH_ENGINE.BUILTINS) {
       // Defer if bash engine isn't loaded yet (shouldn't happen in normal load order)
@@ -468,7 +584,6 @@
       dig: cmd_dig,
       auditctl: cmd_auditctl,
       ausearch: cmd_ausearch,
-      tripwire: cmd_tripwire,
       aide: cmd_aide,
       aideinit: cmd_aideinit,
       chkrootkit: cmd_chkrootkit,
@@ -485,21 +600,24 @@
       chage: cmd_chage,
       last: cmd_last,
       getfacl: cmd_getfacl,
+      setfacl: cmd_setfacl,
+      chmod: cmd_chmod,
+      cp: cmd_cp,
+      mv: cmd_mv,
       stat: cmd_stat,
       logwatch: cmd_logwatch,
       logrotate: cmd_logrotate,
       tshark: cmd_tshark,
-      'ossec-control': cmd_ossec,
     });
   }
   patchBuiltins();
 
-  // ─── Burp Suite chrome ──────────────────────────────────────
-  const BURP_TABS = ['Dashboard', 'Target', 'Proxy', 'Intruder', 'Repeater', 'Sequencer', 'Decoder', 'Comparer', 'Logger', 'Extender'];
+  // ─── Neutral web traffic evidence inspector
+  const TRAFFIC_TABS = ['Traffic', 'Request Detail'];
 
-  function BurpProxyLabShell(props) {
+  function TrafficInspectorShell(props) {
     const { lab, vfs, onCommand, onAction, activeStep } = props;
-    const [tab, setTab] = React.useState('Proxy');
+    const [tab, setTab] = React.useState('Traffic');
     const [proxyOn, setProxyOn] = React.useState(false);
     const [interceptOn, setInterceptOn] = React.useState(false);
     const [selected, setSelected] = React.useState(null);
@@ -510,7 +628,7 @@
 
     const rows = React.useMemo(() => {
       if (!vfs) return [];
-      const data = vfs.read('/var/lib/burp/http-history.json');
+      const data = vfs.read('/var/lib/traffic-inspector/http-history.json');
       if (!data) return [];
       try { return JSON.parse(data); } catch (e) { return []; }
     }, [vfs]);
@@ -521,36 +639,36 @@
 
     function doConfigureProxy() {
       setProxyOn(true);
-      emit('burp.configure-proxy', { uiPath: ['burp', 'proxy', 'listener:8080'] });
+      emit('traffic-inspector.configure-proxy', { uiPath: ['traffic-inspector', 'proxy', 'listener:8080'] });
     }
     function doToggleIntercept() {
       const next = !interceptOn;
       setInterceptOn(next);
-      emit(next ? 'burp.intercept-on' : 'burp.intercept-off', { uiPath: ['burp', 'proxy', 'intercept'] });
+      emit(next ? 'traffic-inspector.intercept-on' : 'traffic-inspector.intercept-off', { uiPath: ['traffic-inspector', 'proxy', 'intercept'] });
     }
 
     function selectRow(row) {
       setSelected(row);
       setReqEdit(row.request || '');
       setResponseText(row.response || '');
-      emit('burp.row-selected:' + row.id, {
-        observed: { 'burp.lastSelectedId': row.id, 'burp.lastSelectedUrl': row.url },
-        uiPath: ['burp', 'proxy', 'history', 'select:' + row.id],
+      emit('traffic-inspector.row-selected:' + row.id, {
+        observed: { 'traffic-inspector.lastSelectedId': row.id, 'traffic-inspector.lastSelectedUrl': row.url },
+        uiPath: ['traffic-inspector', 'proxy', 'history', 'select:' + row.id],
       });
     }
 
     function sendToRepeater(row) {
-      setTab('Repeater');
+      setTab('Request Detail');
       setRepeaterRow(row);
       setReqEdit(row.request || '');
       setResponseText(row.response || '');
       setContextMenu(null);
-      emit('burp.send-to-repeater:' + row.id, { uiPath: ['burp', 'send-to-repeater', row.id] });
+      emit('traffic-inspector.send-to-repeater:' + row.id, { uiPath: ['traffic-inspector', 'send-to-repeater', row.id] });
     }
     function sendToIntruder(row) {
-      setTab('Intruder');
+      setTab('Request Detail');
       setContextMenu(null);
-      emit('burp.send-to-intruder:' + row.id, { uiPath: ['burp', 'send-to-intruder', row.id] });
+      emit('traffic-inspector.send-to-intruder:' + row.id, { uiPath: ['traffic-inspector', 'send-to-intruder', row.id] });
     }
 
     function repeaterSend() {
@@ -558,55 +676,51 @@
       let resp = repeaterRow && repeaterRow.response || '';
       if (/price\s*=\s*1\b/i.test(reqEdit)) {
         resp = repeaterRow.responseManipulated || resp;
-        emit('burp.repeater-idor-success', { observed: { 'burp.priceManipulated': true } });
+        emit('traffic-inspector.repeater-idor-success', { observed: { 'traffic-inspector.priceManipulated': true } });
       } else {
-        emit('burp.repeater-send', { uiPath: ['burp', 'repeater', 'send'] });
+        emit('traffic-inspector.repeater-send', { uiPath: ['traffic-inspector', 'repeater', 'send'] });
       }
       setResponseText(resp);
     }
 
     return (
-      <div style={burpStyles.root} onClick={() => setContextMenu(null)}>
-        <div style={burpStyles.titleBar}>
-          <span style={burpStyles.swirl}>⛧</span>
-          <span style={burpStyles.titleTxt}>Burp Suite Professional v2024.4 — Project: SOC-rotation-2026.04.23</span>
-          <span style={burpStyles.titleSpacer} />
-          <span style={burpStyles.miniDot} />
-          <span style={burpStyles.miniDot} />
-          <span style={burpStyles.miniDot} />
+      <div style={trafficStyles.root} onClick={() => setContextMenu(null)}>
+        <div style={trafficStyles.titleBar}>
+          <span style={trafficStyles.swirl}>◉</span>
+          <span style={trafficStyles.titleTxt}>Traffic Inspector — Authorized AppSec Evidence</span>
+          <span style={trafficStyles.titleSpacer} />
+          <span style={trafficStyles.miniDot} />
+          <span style={trafficStyles.miniDot} />
+          <span style={trafficStyles.miniDot} />
         </div>
 
-        <div style={burpStyles.tabBar}>
-          {BURP_TABS.map(name => (
-            <button key={name} onClick={() => setTab(name)} style={tab === name ? burpStyles.tabActive : burpStyles.tab}>
+        <div style={trafficStyles.tabBar}>
+          {TRAFFIC_TABS.map(name => (
+            <button key={name} onClick={() => setTab(name)} style={tab === name ? trafficStyles.tabActive : trafficStyles.tab}>
               {name}
             </button>
           ))}
         </div>
 
-        {tab === 'Proxy' && (
-          <div style={burpStyles.proxyWrap}>
-            <div style={burpStyles.subTabBar}>
-              <span style={burpStyles.subTabActive}>HTTP history</span>
-              <span style={burpStyles.subTab}>WebSockets history</span>
-              <span style={burpStyles.subTab}>Proxy settings</span>
+        {tab === 'Traffic' && (
+          <div style={trafficStyles.proxyWrap}>
+            <div style={trafficStyles.subTabBar}>
+              <span style={trafficStyles.subTabActive}>HTTP history</span>
+              <span style={trafficStyles.subTab}>WebSockets history</span>
+              <span style={trafficStyles.subTab}>Proxy settings</span>
             </div>
-            <div style={burpStyles.proxyToolbar}>
-              <button onClick={doConfigureProxy} style={proxyOn ? burpStyles.btnGreen : burpStyles.btn}>
-                {proxyOn ? '✓ Listener 127.0.0.1:8080' : 'Open browser'}
-              </button>
-              <button onClick={doToggleIntercept} style={interceptOn ? burpStyles.btnOrange : burpStyles.btn}>
-                {interceptOn ? 'Intercept is ON' : 'Intercept is off'}
-              </button>
-              <span style={burpStyles.toolbarMute}>{rows.length} entries</span>
+            <div style={{ ...trafficStyles.proxyToolbar, color: "#fde68a" }}>Authorized testing only — these requests were captured by AppSec within the approved assessment scope.</div>
+            <div style={{ ...trafficStyles.proxyToolbar, color: "#cbd5e1" }}>Finding: SQL error on a single-quote test · Asset: customer-facing commerce application · Exposure: internet-facing · Owner: web-platform</div>
+            <div style={trafficStyles.proxyToolbar}>
+              <span style={trafficStyles.toolbarMute}>{rows.length} entries</span>
             </div>
 
-            <div style={burpStyles.tableWrap}>
-              <table style={burpStyles.table}>
+            <div style={trafficStyles.tableWrap}>
+              <table style={trafficStyles.table}>
                 <thead>
                   <tr>
-                    {['#','Method','URL','Params','Edited','Status','Length','MIME','Title','TLS','IP'].map(h => (
-                      <th key={h} style={burpStyles.th}>{h}</th>
+                    {['#','Method','URL','Params','Edited','Status','Length','MIME','Title','TLS','Source IP'].map(h => (
+                      <th key={h} style={trafficStyles.th}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -614,19 +728,19 @@
                   {rows.map((r, i) => (
                     <tr key={r.id}
                         onClick={() => selectRow(r)}
-                        onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, row: r }); }}
-                        style={selected && selected.id === r.id ? burpStyles.trSel : burpStyles.tr}>
-                      <td style={burpStyles.td}>{i + 1}</td>
-                      <td style={burpStyles.td}>{r.method}</td>
-                      <td style={burpStyles.tdUrl}>{r.url}</td>
-                      <td style={burpStyles.td}>{r.hasParams ? '✓' : ''}</td>
-                      <td style={burpStyles.td}>{r.edited ? '✓' : ''}</td>
-                      <td style={{ ...burpStyles.td, color: r.status >= 400 ? '#f87171' : r.status >= 300 ? '#f59e0b' : '#22c55e' }}>{r.status}</td>
-                      <td style={burpStyles.td}>{r.length}</td>
-                      <td style={burpStyles.td}>{r.mime || 'HTML'}</td>
-                      <td style={burpStyles.tdUrl}>{r.title || ''}</td>
-                      <td style={burpStyles.td}>{r.tls ? '✓' : ''}</td>
-                      <td style={burpStyles.td}>{r.ip || '10.10.24.15'}</td>
+                        onContextMenu={(e) => { e.preventDefault(); selectRow(r); }}
+                        style={selected && selected.id === r.id ? trafficStyles.trSel : trafficStyles.tr}>
+                      <td style={trafficStyles.td}>{i + 1}</td>
+                      <td style={trafficStyles.td}>{r.method}</td>
+                      <td style={trafficStyles.tdUrl}>{r.url}</td>
+                      <td style={trafficStyles.td}>{r.hasParams ? '✓' : ''}</td>
+                      <td style={trafficStyles.td}>{r.edited ? '✓' : ''}</td>
+                      <td style={{ ...trafficStyles.td, color: r.status >= 400 ? '#f87171' : r.status >= 300 ? '#f59e0b' : '#22c55e' }}>{r.status}</td>
+                      <td style={trafficStyles.td}>{r.length}</td>
+                      <td style={trafficStyles.td}>{r.mime || 'HTML'}</td>
+                      <td style={trafficStyles.tdUrl}>{r.title || ''}</td>
+                      <td style={trafficStyles.td}>{r.tls ? '✓' : ''}</td>
+                      <td style={trafficStyles.td}>{r.ip || '10.10.24.15'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -634,64 +748,64 @@
             </div>
 
             {selected && (
-              <div style={burpStyles.detailWrap}>
-                <div style={burpStyles.detailPane}>
-                  <div style={burpStyles.detailHead}>Request — Pretty | Raw | Hex</div>
-                  <pre style={burpStyles.pre}>{selected.request}</pre>
+              <div style={trafficStyles.detailWrap}>
+                <div style={trafficStyles.detailPane}>
+                  <div style={trafficStyles.detailHead}>Request — Pretty | Raw | Hex</div>
+                  <pre style={trafficStyles.pre}>{selected.request}</pre>
                 </div>
-                <div style={burpStyles.detailPane}>
-                  <div style={burpStyles.detailHead}>Response — Pretty | Raw | Hex | Render</div>
-                  <pre style={burpStyles.pre}>{selected.response}</pre>
+                <div style={trafficStyles.detailPane}>
+                  <div style={trafficStyles.detailHead}>Response — Pretty | Raw | Hex | Render</div>
+                  <pre style={trafficStyles.pre}>{selected.response}</pre>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {tab === 'Repeater' && (
-          <div style={burpStyles.proxyWrap}>
-            <div style={burpStyles.proxyToolbar}>
-              <button onClick={repeaterSend} style={burpStyles.btnGreen}>Send</button>
-              <span style={burpStyles.toolbarMute}>
-                {repeaterRow ? `Target: ${repeaterRow.method} ${repeaterRow.url}` : 'No request loaded — Send-to-Repeater from the Proxy tab.'}
+        {tab === 'Request Detail' && (
+          <div style={trafficStyles.proxyWrap}>
+            <div style={trafficStyles.proxyToolbar}>
+              <button onClick={repeaterSend} style={trafficStyles.btnGreen}>Send</button>
+              <span style={trafficStyles.toolbarMute}>
+                {repeaterRow ? `Target: ${repeaterRow.method} ${repeaterRow.url}` : 'No request loaded — Select a request from the Traffic view.'}
               </span>
             </div>
-            <div style={burpStyles.repeaterPanes}>
-              <div style={burpStyles.detailPane}>
-                <div style={burpStyles.detailHead}>Request</div>
-                <textarea value={reqEdit} onChange={(e) => setReqEdit(e.target.value)} style={burpStyles.textarea} spellCheck={false} />
+            <div style={trafficStyles.repeaterPanes}>
+              <div style={trafficStyles.detailPane}>
+                <div style={trafficStyles.detailHead}>Request</div>
+                <textarea value={reqEdit} onChange={(e) => setReqEdit(e.target.value)} style={trafficStyles.textarea} spellCheck={false} />
               </div>
-              <div style={burpStyles.detailPane}>
-                <div style={burpStyles.detailHead}>Response</div>
-                <pre style={burpStyles.pre}>{responseText}</pre>
+              <div style={trafficStyles.detailPane}>
+                <div style={trafficStyles.detailHead}>Response</div>
+                <pre style={trafficStyles.pre}>{responseText}</pre>
               </div>
             </div>
           </div>
         )}
 
-        {tab !== 'Proxy' && tab !== 'Repeater' && (
-          <div style={burpStyles.placeholder}>
-            <div style={burpStyles.placeholderH1}>{tab}</div>
-            <div style={burpStyles.placeholderBody}>
-              For this lab, work in the Proxy and Repeater tabs.
+        {tab !== 'Traffic' && tab !== 'Request Detail' && (
+          <div style={trafficStyles.placeholder}>
+            <div style={trafficStyles.placeholderH1}>{tab}</div>
+            <div style={trafficStyles.placeholderBody}>
+              Review the supplied assessment traffic and request evidence.
             </div>
           </div>
         )}
 
         {contextMenu && (
-          <div style={{ ...burpStyles.contextMenu, left: contextMenu.x, top: contextMenu.y }}>
-            <div style={burpStyles.contextItem} onClick={() => sendToRepeater(contextMenu.row)}>Send to Repeater</div>
-            <div style={burpStyles.contextItem} onClick={() => sendToIntruder(contextMenu.row)}>Send to Intruder</div>
-            <div style={burpStyles.contextItemMute}>Send to Sequencer</div>
-            <div style={burpStyles.contextItemMute}>Add to scope</div>
-            <div style={burpStyles.contextItemMute}>Copy URL</div>
+          <div style={{ ...trafficStyles.contextMenu, left: contextMenu.x, top: contextMenu.y }}>
+            <div style={trafficStyles.contextItem} onClick={() => sendToRepeater(contextMenu.row)}>Open request detail</div>
+            <div style={trafficStyles.contextItem} onClick={() => sendToIntruder(contextMenu.row)}>Flag for follow-up</div>
+            <div style={trafficStyles.contextItemMute}>Add analyst note</div>
+            <div style={trafficStyles.contextItemMute}>Add to scope</div>
+            <div style={trafficStyles.contextItemMute}>Copy URL</div>
           </div>
         )}
       </div>
     );
   }
 
-  const burpStyles = {
+  const trafficStyles = {
     root: { width: '100%', height: '100%', minHeight: 540, background: '#262626', color: '#dcdcdc', fontFamily: 'Inter, sans-serif', fontSize: 12, display: 'flex', flexDirection: 'column', borderRadius: 4, overflow: 'hidden', position: 'relative' },
     titleBar: { background: '#1f1f1f', color: '#dcdcdc', padding: '6px 10px', borderBottom: '1px solid #ff6633', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 },
     swirl: { color: '#ff6633', fontWeight: 700, fontSize: 14 },
@@ -891,5 +1005,5 @@
     empty: { padding: 24, color: '#6e7681', fontSize: 11 },
   };
 
-  Object.assign(window, { BurpProxyLabShell, IamMatrixLabShell });
+  Object.assign(window, { TrafficInspectorShell, IamMatrixLabShell });
 })();

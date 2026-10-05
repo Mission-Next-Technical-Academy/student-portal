@@ -356,7 +356,170 @@ const MODULE_FIVE_DEFAULT_STATE = {
   notes: '',
   lessonWork: {},
   labProgress: {},
+  // Standard ITSM Incident Ticket for the m05-assessment Prove It
+  // submission (docs/specs/MODULE_STANDARD.md §7.2).
+  caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, caseId: '', scenarioId: '', submitted: false, submittedAt: '', actionHistory: [] },
+  assessmentAttempts: [],
 };
+
+// Standard ITSM Incident Ticket for the Prove It submission — the form is
+// `m05-assessment`, replacing the old free-form `m05-assessment-form`. It is
+// the only form here that calls recordLabAttempt() for
+// MODULE_FIVE_CATALOG_LAB_KEY. The two imported assessment labs
+// (assessment-1: Sysmon event analysis, assessment-2: keylogger behavioral
+// analysis — portal/imported-labs/mission-next-labs, sources lap-5/ma-4)
+// stay as prerequisite evidence gates above the ticket, same as before.
+//
+// The scored case identity and entities come from the immutable assessment fixture.
+const MODULE_FIVE_LEGACY_CASE_ID = 'EDR-5119';
+// Same case, pre-§7.2.1 label — relabelled, never treated as legacy.
+const MODULE_FIVE_PRIOR_CASE_IDS = ['EDR-5127'];
+const MODULE_FIVE_CASE_ID = SocM05AssessmentData.scenario.caseId;
+const MODULE_FIVE_DEPARTMENT_BOUNCE_THRESHOLD = 40;
+
+const MODULE_FIVE_ENTITY_ROSTER = {
+  users: [
+    { id: 'j.alvarez', text: 'j.alvarez', tier: 'principal' },
+    { id: 'm.reyes', text: 'm.reyes', tier: 'pivot' },
+    { id: 'p.chen', text: 'p.chen', tier: 'noise' },
+    { id: 'r.diallo', text: 'r.diallo', tier: 'noise' },
+    { id: 'k.osei', text: 'k.osei', tier: 'noise' },
+    { id: 't.nguyen', text: 't.nguyen', tier: 'noise' },
+    { id: 'a.silva', text: 'a.silva', tier: 'noise' },
+  ],
+  devices: [
+    { id: 'ws-assess-27', text: 'ws-assess-27', tier: 'principal' },
+    { id: 'ws-assess-14', text: 'ws-assess-14', tier: 'pivot' },
+    { id: 'srv-assess-02', text: 'srv-assess-02', tier: 'noise' },
+  ],
+};
+
+// Entity identity contract (docs/telemetry/SOC_TELEMETRY_SCHEMA.md): the ticket and
+// the console pivot on the normalized account (j.alvarez, not CORP\j.alvarez) and the
+// canonical device id (lower-case hostname ws-assess-27; the inventory id M05-DEV-001 is
+// AssetId). Values saved before the migration, or typed in another case/form, are
+// mapped here so the same selection scores the same.
+function moduleFiveCanonicalAccount(value) {
+  return typeof value === 'string' && value ? value.trim().replace(/^[^\\@]+\\/, '').replace(/@.*$/, '').toLowerCase() : value;
+}
+function moduleFiveCanonicalCaseEntities(caseRecord, fixture) {
+  if (!caseRecord || typeof caseRecord !== 'object') return false;
+  const user = moduleFiveCanonicalAccount(caseRecord.affectedUser);
+  const device = SocM05AssessmentState.canonicalDeviceId(caseRecord.affectedDevice, fixture);
+  const changed = user !== caseRecord.affectedUser || device !== caseRecord.affectedDevice;
+  caseRecord.affectedUser = user;
+  caseRecord.affectedDevice = device;
+  return changed;
+}
+
+const MODULE_FIVE_DEPARTMENT_OPTIONS = [
+  { id: 'endpoint-response', text: 'Endpoint/EDR Response', fit: 100, note: 'Best fit — a persistence mechanism needs to be contained and removed from the endpoint itself.' },
+  { id: 'tier2-soc', text: 'Tier 2 SOC', fit: 65, note: 'Acceptable — Tier 2 can continue monitoring and investigation, but endpoint containment still needs an EDR-focused owner.' },
+  { id: 'identity-response', text: 'Identity Response', fit: 30, note: 'Weak fit — no credential compromise is evidenced here; this is an endpoint execution and persistence chain.', bounce: 'Identity Response cannot remove a Run-key persistence entry; route to Endpoint/EDR Response.' },
+  { id: 'help-desk', text: 'IT Help Desk', fit: 10, note: 'Not a fit — this is confirmed malicious execution with persistence, not a routine help-desk ticket.', bounce: 'Help Desk cannot contain a malware persistence mechanism; this needs Endpoint/EDR Response.' },
+];
+
+// Only the assessment itself gates the ticket; the imported projects are
+// Optional Labs and never gate scoring or progress.
+function moduleFiveExtraMissing() {
+  return [];
+}
+
+function moduleFiveCaseSpec() {
+  return {
+    caseId: MODULE_FIVE_CASE_ID,
+    incidentIds: [SocM05AssessmentData.scenario.incidentId],
+    userOptions: MODULE_FIVE_ENTITY_ROSTER.users,
+    deviceOptions: MODULE_FIVE_ENTITY_ROSTER.devices,
+    departmentOptions: MODULE_FIVE_DEPARTMENT_OPTIONS,
+    notesPlaceholder: 'Summarize the endpoint execution chain, your assessment, and your recommended action for ws-assess-27…',
+    extraMissing: moduleFiveExtraMissing(),
+  };
+}
+
+function moduleFiveProveItRedoRequested() {
+  return moduleFiveUser?.openLabRedosByModuleKey?.['soc-05']?.labKey === MODULE_FIVE_CATALOG_LAB_KEY;
+}
+
+// '' until submitted; then 'review' while the latest attempt awaits faculty,
+// 'graded' once an instructor has reviewed it without sending it back.
+function moduleFiveProveItReviewStatus() {
+  if (!moduleFiveState?.caseRecord?.submitted) return '';
+  const attempt = moduleFiveUser?.latestLabAttemptByKey?.[MODULE_FIVE_CATALOG_LAB_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleFiveProveItRedoFeedback() {
+  if (!moduleFiveProveItRedoRequested()) return '';
+  const items = moduleFiveUser.openLabRedosByModuleKey['soc-05'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
+// Prove It scoring: the Module 01 weight model applied directly (entity 20,
+// severity 15, disposition 20, escalation/routing up to 35, notes 10) —
+// unlike Modules 04/06, the pre-migration m05-assessment-form had no
+// separate graded fieldset to fold in (only the two imported-lab gates and
+// a free-text write-up), so there is no domain-findings block to add. No
+// live score was ever shown to the student and no local pass/fail gate
+// existed before; that is unchanged — submission is unconditional
+// 'complete' once the ticket and both imported labs are done, same as the
+// pre-migration behavior. The score/breakdown are computed for the
+// instructor only, exactly as Module 01 does.
+function moduleFiveCaseScore() {
+  const cr = moduleFiveState.caseRecord;
+  const roster = MODULE_FIVE_ENTITY_ROSTER;
+  const affectedUser = moduleFiveCanonicalAccount(cr.affectedUser);
+  const affectedDevice = SocM05AssessmentState.canonicalDeviceId(cr.affectedDevice, SocM05AssessmentData);
+  const userTier = roster.users.find((entry) => entry.id === affectedUser)?.tier;
+  const deviceTier = roster.devices.find((entry) => entry.id === affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
+
+  const severity = caseRecordSeverity(cr);
+  const severityPoints = severity === 'high' ? 15 : 0;
+
+  const disposition = caseRecordDisposition(cr);
+  const dispositionPoints = disposition === 'true-positive' ? 20 : 0;
+
+  const department = MODULE_FIVE_DEPARTMENT_OPTIONS.find((option) => option.id === cr.escalateTo) || null;
+  const escalationRequiredOk = cr.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < MODULE_FIVE_DEPARTMENT_BOUNCE_THRESHOLD;
+  const escalationPoints = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 35) : 0;
+
+  const notesLen = (cr.notes || '').trim().length;
+  const notesPoints = Math.round(Math.min(1, notesLen / CASE_RECORD_NOTES_MIN) * 10);
+
+  const score = entityPoints + severityPoints + dispositionPoints + escalationPoints + notesPoints;
+  const criticalErrors = cr.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  const routingFeedback = !escalationRequiredOk
+    ? 'Routing: not applicable — escalation was set to not required.'
+    : !department
+      ? 'Routing: review — this case needs a department routed with the recorded evidence.'
+      : department.fit >= 100
+        ? `Routing: correct — ${department.text} is the best-fit department for this case.`
+        : department.fit >= MODULE_FIVE_DEPARTMENT_BOUNCE_THRESHOLD
+          ? `Routing: accepted, but not the best fit — ${department.note}`
+          : `Routing: returned — ${department.bounce || department.note}`;
+
+  return {
+    score,
+    breakdown: { affected_entity: entityPoints, severity: severityPoints, disposition: dispositionPoints, escalation: escalationPoints, analyst_notes: notesPoints },
+    department, bounced,
+    feedback: [
+      entityPoints >= 20 ? 'Affected entity/scope: correct — j.alvarez and ws-assess-27 are the confirmed affected user and device.' : entityPoints > 0 ? 'Affected entity/scope: partial credit — a related account or device is supported by the evidence, but j.alvarez/ws-assess-27 is the confirmed pair.' : 'Affected entity/scope: review — j.alvarez and ws-assess-27 are the confirmed affected user and device.',
+      severityPoints ? 'Severity: correct — High.' : 'Severity: review — an execution chain with a persistence entry on one endpoint is High severity.',
+      dispositionPoints ? 'Disposition: correct — confirmed malicious activity.' : 'Disposition: review — the fake-CAPTCHA → PowerShell → persistence chain is confirmed malicious activity.',
+      routingFeedback,
+    ],
+    criticalErrors,
+  };
+}
 
 const MODULE_FIVE_LESSONS = [
   { icon: 'ri-computer-line', title: 'Read endpoint telemetry', summary: 'EDR records behavior, not intent.', detail: 'Process starts, file writes, registry changes, and prevention actions are observable facts. Treat a product verdict as context, then verify it against the behavior around it.', takeaway: 'A detection starts an investigation; surrounding behavior supports the conclusion.' },
@@ -402,18 +565,84 @@ const MODULE_FIVE_LESSON_LOOPS = MODULE_FIVE_LESSONS.map((lesson, index) => ({
 
 let moduleFiveState = null;
 let moduleFiveUser = null;
+let moduleFiveLearnItViewed = null;
 let moduleFiveReviewMode = false;
 let moduleFiveQuizState = null;
+let moduleFiveProveItShowMissing = false;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleFiveQuizVerifiedElsewhere()).
+let moduleFiveQuizForceRetake = false;
 
 function moduleFiveLoad(user) {
+  if (moduleFiveUser?.email !== user?.email) moduleFiveQuizForceRetake = false;
+  if (moduleFiveUser?.email !== user?.email) moduleFiveLearnItViewed = null;
   moduleFiveUser = user;
-  moduleFiveState = LabRuntime.load(MODULE_FIVE_LAB_ID, user, MODULE_FIVE_DEFAULT_STATE);
+  moduleFiveState = LabRuntime.loadCaseState(MODULE_FIVE_LAB_ID, 'soc-05', user, MODULE_FIVE_DEFAULT_STATE);
+  moduleFiveState.learnItStep = Number.isInteger(moduleFiveState.learnItStep) ? Math.max(0, Math.min(moduleFiveState.learnItStep, LearnItDecks['soc-05'].length)) : 0;
   if (!Array.isArray(moduleFiveState.feedback)) moduleFiveState.feedback = [];
   if (!Array.isArray(moduleFiveState.flags)) moduleFiveState.flags = [];
   if (!moduleFiveState.lessonWork || typeof moduleFiveState.lessonWork !== 'object') moduleFiveState.lessonWork = {};
   if (typeof moduleFiveState.notes !== 'string') moduleFiveState.notes = '';
   if (typeof moduleFiveState.practiceNotes !== 'string') moduleFiveState.practiceNotes = '';
   if (!moduleFiveState.labProgress || typeof moduleFiveState.labProgress !== 'object') moduleFiveState.labProgress = {};
+
+  // Standard ITSM ticket — init/migrate; never crash on an old saved shape.
+  if (!moduleFiveState.caseRecord || typeof moduleFiveState.caseRecord !== 'object') {
+    moduleFiveState.caseRecord = JSON.parse(JSON.stringify(MODULE_FIVE_DEFAULT_STATE.caseRecord));
+  }
+  ['status', 'severity', 'affectedUser', 'affectedDevice', 'disposition', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
+    if (typeof moduleFiveState.caseRecord[key] !== 'string') moduleFiveState.caseRecord[key] = '';
+  });
+  if (!moduleFiveState.caseRecord.findings || typeof moduleFiveState.caseRecord.findings !== 'object') moduleFiveState.caseRecord.findings = {};
+  if (!Array.isArray(moduleFiveState.caseRecord.actionHistory)) moduleFiveState.caseRecord.actionHistory = [];
+  if (!Array.isArray(moduleFiveState.assessmentAttempts)) moduleFiveState.assessmentAttempts = [];
+  let caseIdentityMigrated = false;
+  if (moduleFiveState.caseRecord.caseId !== MODULE_FIVE_CASE_ID
+    || moduleFiveState.caseRecord.scenarioId !== SocM05AssessmentData.scenario.id) {
+    if (moduleFiveState.caseRecord.caseId && moduleFiveState.caseRecord.caseId !== MODULE_FIVE_LEGACY_CASE_ID
+      && !MODULE_FIVE_PRIOR_CASE_IDS.includes(moduleFiveState.caseRecord.caseId)
+      && !moduleFiveState.caseRecord.legacyCaseId) moduleFiveState.caseRecord.legacyCaseId = moduleFiveState.caseRecord.caseId;
+    if (moduleFiveState.caseRecord.caseId === MODULE_FIVE_LEGACY_CASE_ID && !moduleFiveState.caseRecord.legacyCaseId) {
+      moduleFiveState.caseRecord.legacyCaseId = MODULE_FIVE_LEGACY_CASE_ID;
+    }
+    const oldUser = moduleFiveState.caseRecord.affectedUser;
+    const oldDevice = moduleFiveState.caseRecord.affectedDevice;
+    if (oldUser === 'j.alvarez' || oldUser === 'm.reyes') {
+      moduleFiveState.caseRecord.legacyEntities ||= {};
+      moduleFiveState.caseRecord.legacyEntities.affectedUser = oldUser;
+      moduleFiveState.caseRecord.affectedUser = oldUser === 'j.alvarez' ? 'j.alvarez' : 'm.reyes';
+    }
+    if (oldDevice === 'WS-LAB-27' || oldDevice === 'WS-LAB-14') {
+      moduleFiveState.caseRecord.legacyEntities ||= {};
+      moduleFiveState.caseRecord.legacyEntities.affectedDevice = oldDevice;
+      moduleFiveState.caseRecord.affectedDevice = oldDevice === 'WS-LAB-27' ? 'ws-assess-27' : 'ws-assess-14';
+    }
+    moduleFiveState.caseRecord.caseId = MODULE_FIVE_CASE_ID;
+    moduleFiveState.caseRecord.scenarioId = SocM05AssessmentData.scenario.id;
+    caseIdentityMigrated = true;
+  }
+  if (moduleFiveCanonicalCaseEntities(moduleFiveState.caseRecord, SocM05AssessmentData)) caseIdentityMigrated = true;
+  if (typeof moduleFiveState.caseRecord.submitted !== 'boolean') moduleFiveState.caseRecord.submitted = false;
+  // Backward compat: the pre-migration m05-assessment-form only recorded
+  // `attempts`/`completed` and a free-text `notes`. Treat any such
+  // submission as already submitted so the student sees Lab Under Review /
+  // Lab Graded instead of a blank ticket — never re-open work already sent
+  // to faculty.
+  if (!moduleFiveState.caseRecord.submitted && Number(moduleFiveState.attempts) > 0) {
+    moduleFiveState.caseRecord.submitted = true;
+    moduleFiveState.caseRecord.submittedAt = moduleFiveState.lastSubmittedAt || new Date().toISOString();
+    if (!moduleFiveState.caseRecord.notes) moduleFiveState.caseRecord.notes = moduleFiveState.notes || '';
+  }
+  // The returned attempt remains immutable in lab_attempts; its saved
+  // case-state latch must not make the working case permanently unsubmitable.
+  // Scope this reset to an open redo for this exact lab (see Module 01).
+  if (moduleFiveProveItRedoRequested() && moduleFiveState.caseRecord.submitted === true) {
+    moduleFiveState.caseRecord.submitted = false;
+    moduleFiveState.caseRecord.submittedAt = '';
+    moduleFiveSave();
+  } else if (caseIdentityMigrated) {
+    moduleFiveSave();
+  }
 
   // Initialize quiz state
   if (!moduleFiveQuizState) {
@@ -426,15 +655,17 @@ function moduleFiveLoad(user) {
 }
 
 function moduleFiveSave() {
-  if (moduleFiveUser && moduleFiveState) LabRuntime.save(MODULE_FIVE_LAB_ID, moduleFiveUser, moduleFiveState);
+  if (moduleFiveUser && moduleFiveState) LabRuntime.saveCaseState(MODULE_FIVE_LAB_ID, 'soc-05', moduleFiveUser, moduleFiveState);
 }
 
 function moduleFiveGetSections() {
+  // Server-verified modules (finished on another device, before the 09-27
+  // lab rebuild, or by admin override) read complete instead of empty.
+  const verified = moduleFiveUser?.remoteVerifiedModuleProgress?.['soc-05'] === true;
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm05-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleFiveQuizState?.passed, scrollId: 'm05-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleFiveState.practiceComplete, scrollId: 'm05-guided-lab' },
-    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleFiveState.completed, scrollId: 'm05-assessment-lab' },
+    { id: 'lecture', title: 'Learn It', type: 'lecture', isComplete: true, scrollId: 'm05-lecture' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || (moduleFiveGuidedState.caseRecord.submitted || moduleFiveGuidedState.legacyComplete), scrollId: 'm05-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleFiveState.completed, scrollId: 'm05-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm05-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm05-sources', gated: false, supplemental: true },
   ];
@@ -458,7 +689,7 @@ function moduleFiveGetQuickNavItems() {
     id: 'm05-guided-lab',
     title: 'Guided Lab',
     kind: 'lab',
-    isComplete: moduleFiveState.practiceComplete === true,
+    isComplete: moduleFiveGuidedChecks().every((check) => check[2]),
     scrollId: 'm05-guided-lab',
   });
   items.push({
@@ -486,9 +717,24 @@ function moduleFiveQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleFiveQuizVerifiedElsewhere() {
+  if (moduleFiveQuizForceRetake || !moduleFiveQuizState || moduleFiveQuizState.scored) return false;
+  if (Object.keys(moduleFiveQuizState.answers || {}).length > 0) return false;
+  return moduleFiveUser?.remoteVerifiedModuleProgress?.['soc-05'] === true
+    || moduleFiveUser?.remoteModuleDetail?.['soc-05']?.quizPassed === true
+    || moduleFiveUser?.remoteModuleEvidence?.['soc-05']?.['knowledge-check'] === true;
+}
+
 function moduleFiveQuizPanel() {
   if (!moduleFiveQuizState?.selectedQuestions || moduleFiveQuizState.selectedQuestions.length === 0) {
     return `<div class="m05-quiz-empty" id="m05-quiz-feedback" role="status">Loading quiz...</div>`;
+  }
+  if (moduleFiveQuizVerifiedElsewhere()) {
+    return `<form class="m05-quiz-form mf-quiz-form" id="m05-quiz-form" novalidate><section class="mf-score is-pass" id="m05-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m05-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleFiveQuizState.selectedQuestions;
@@ -498,7 +744,7 @@ function moduleFiveQuizPanel() {
   let feedbackHtml = '';
   if (moduleFiveQuizState.scored) {
     const passed = moduleFiveQuizState.score >= 70;
-    feedbackHtml = `<section class="m05-quiz-score ${passed ? 'm05-quiz-pass' : 'm05-quiz-remediate'}" id="m05-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m05-quiz-score mf-score ${passed ? 'm05-quiz-pass is-pass' : 'm05-quiz-remediate is-remediate'}" id="m05-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m05-quiz-score-heading">
         <div>
           <p class="m05-kicker">Attempt ${moduleFiveQuizState.attempts} · best ${moduleFiveQuizState.bestScore}/100</p>
@@ -523,8 +769,8 @@ function moduleFiveQuizPanel() {
     feedbackHtml = `<div class="m05-quiz-empty" id="m05-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m05-quiz-form" id="m05-quiz-form" novalidate>
-    <div class="m05-panel-heading"><div><p class="m05-kicker">Knowledge check</p><h3 id="m05-quiz-title" tabindex="-1">Test your understanding of endpoint investigation</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m05-quiz-form mf-quiz-form" id="m05-quiz-form" novalidate>
+    <div class="m05-panel-heading mf-panel-heading"><div><p class="m05-kicker mf-kicker">Knowledge check</p><h3 id="m05-quiz-title" tabindex="-1">Test your understanding of endpoint investigation</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleFiveQuizQuestion(sel, idx)).join('')}
     <div class="m05-quiz-actions">
       <button class="m05-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -536,26 +782,7 @@ function moduleFiveQuizPanel() {
 }
 
 function moduleFiveVideoScript() {
-  return `<details class="m05-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m05-script-body">
-      <p><strong>Introduction:</strong> Welcome to endpoint investigation. An EDR system records process starts, file creation, registry changes, and prevention actions—the observable facts of what a workstation did. Your job is not to prevent malware (that is the sensor's job) but to understand the chain of events that led to the alert and make a proportionate containment decision.</p>
-
-      <p><strong>Segment 1 — Reading telemetry without jumping to conclusions.</strong> Every indicator recorded by an EDR—a new file, a process start, a registry change—needs context. A file created by a trusted process is different from the same file created by an untrusted process, even if the bytes are identical. Reputation helps (is the file signed, has it been seen before?), but behavior is the final word: what did the file actually do after creation?</p>
-
-      <p><strong>Segment 2 — Following parent-child process relationships.</strong> A process tree connects each program to what launched it. Office launching PowerShell is suspicious; a user launching cmd.exe is expected. The parent-child relationship tells you whether the launch was invoked by a human (interactive) or by code (automated/scripted). Trace the chain from the root cause: what started the first process, and what did it spawn?</p>
-
-      <p><strong>Segment 3 — Inspecting command context.</strong> Process names look normal but command-line arguments often reveal intent. A shell launched with hidden/encoded arguments is different from a shell launched interactively. Record the executable path, options, user context, and timing. Encoded commands are not proof on their own—many legitimate tools use encoding—but they are a signal worth inspecting in combination with the parent-child chain.</p>
-
-      <p><strong>Segment 4 — Building an endpoint timeline.</strong> Events spread across a workstation's telemetry are separate facts until you arrange them by time. A timeline shows what happened before, during, and after execution. File creation before process start suggests the file was prepared. Persistence entry after execution suggests intent to stay. The order of events is often as important as the events themselves.</p>
-
-      <p><strong>Segment 5 — Evaluating a file using multiple signals.</strong> File verdict requires combining: signature status (trusted, unsigned, revoked), prevalence (how many endpoints have it—one is suspicious, millions is normal), reputation (has it been flagged as malicious), and behavior (what did it actually do). No single field is definitive. An unsigned binary from an unknown publisher is suspicious; the same binary with low prevalence is more suspicious; the same binary that matches a loader signature is malicious.</p>
-
-      <p><strong>Segment 6 — Recognizing persistence mechanisms.</strong> Malware often creates entries in autostart locations—Run keys, scheduled tasks, services, startup folders—so it survives logout/login cycles. These are not hidden; they are recorded in the system state. Prevention can stop the initial file, but a persistence entry remains and must be cleaned. Do not close an incident if the file is quarantined but the persistence entry still exists.</p>
-
-      <p><strong>Closing:</strong> Endpoint investigation combines observation (what happened), interpretation (why it happened), and recommendation (what to do). Separate each layer so responders can follow your logic. You are not responsible for reversing malware or developing exploits—those are specialist roles. You are responsible for reading the chain of events, estimating scope, and handing off to responders with confidence in what you found and why it matters.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleFiveReview() {
@@ -571,61 +798,419 @@ function moduleFiveReview() {
       <li><strong>Scope and proportionality:</strong> Confine your conclusion to what the data shows. One endpoint is confirmed; other hosts are not proven. Recommend containment (isolate, preserve, escalate) not disruption.</li>
     </ul>
     <h3>Before you continue</h3>
-    <p>You should now be able to read a process tree, build a timeline, evaluate a file using multiple signals, and distinguish observable facts from assumptions. In the field, you will inherit alerts, inspect the telemetry, identify the chain, and decide whether the scope is single-endpoint or wider. Remember: the sensor prevents individual files; you prevent incidents by reading the chain correctly and handing off to responders with confidence.</p>
+    <p>Read process relationships and timelines, then combine signer status, prevalence, reputation, and behavior to assess a file. Keep conclusions within the observed scope and hand off evidence with a proportionate response recommendation.</p>
   </section>`;
 }
 
 function moduleFiveLessonLoop(lesson, index) {
   const work = moduleFiveState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
   const feedback = work.feedback?.length ? `<p class="m05-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
-  return `<details class="m05-lesson-loop" ${work.taskComplete ? '' : (index === 0 ? 'open' : '')}>
-    <summary><span class="m05-lesson-number">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<i class="ri-checkbox-circle-fill m05-lesson-done" aria-label="Lesson complete"></i>' : '<i class="ri-arrow-down-s-line m05-chevron" aria-hidden="true"></i>'}</summary>
-    <div class="m05-lesson-loop-body"><section><p class="m05-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m05-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m05-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m05-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m05-loop-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m05-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option.text)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m05-lesson-check" data-m05-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m05-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m05-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m05-lesson-task-button" data-m05-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div>
+  return `<details class="m05-lesson-loop mf-lesson" ${work.taskComplete ? '' : (index === 0 ? 'open' : '')}>
+    <summary><span class="m05-lesson-number mf-lesson-number">${String(index + 1).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
+    <div class="m05-lesson-loop-body mf-lesson-body"><section><p class="m05-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m05-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m05-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m05-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m05-loop-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m05-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option.text)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m05-lesson-check" data-m05-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m05-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m05-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m05-lesson-task-button" data-m05-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div>
   </details>`;
 }
 
 function moduleFiveLessonGrid() {
-  return `<section class="m05-lesson-loops" id="m05-lesson-loops" aria-labelledby="m05-lesson-loops-title"><div class="m05-panel-heading"><div><p class="m05-kicker">Four-part lesson loops</p><h3 id="m05-lesson-loops-title">Practice the fake-CAPTCHA execution chain</h3></div><span>10 lessons · embedded in existing theory minutes</span></div><div class="m05-lesson-grid">${MODULE_FIVE_LESSON_LOOPS.map(moduleFiveLessonLoop).join('')}</div></section>`;
+  return `<section class="m05-lesson-loops" id="m05-lesson-loops" aria-labelledby="m05-lesson-loops-title"><div class="m05-panel-heading"><div><p class="m05-kicker">Four-part lesson loops</p><h3 id="m05-lesson-loops-title">Practice the fake-CAPTCHA execution chain</h3></div><span>10 lessons · embedded in existing theory minutes</span></div><div class="m05-lesson-grid mf-lesson-grid">${MODULE_FIVE_LESSON_LOOPS.map(moduleFiveLessonLoop).join('')}</div></section>`;
 }
 
 
 function moduleFiveGuidedLabPanel() {
-  const labs = [
-    { title: 'Static Analysis of a Simple Malware Sample', detail: 'Examine a sample without executing it', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-1/lab', labId: 'guided-1' },
-    { title: 'Dynamic Analysis in a Controlled Environment', detail: 'Observe runtime behavior in a sandboxed environment', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-2/lab', labId: 'guided-2' },
-  ];
-  const gateOk = missionNextAllLabsComplete(moduleFiveState.labProgress, ['guided-1', 'guided-2']);
-  return `<section class="m05-external-lab" id="m05-guided-lab-panel">
-    <p class="m05-panel-instruction">Work through both imported malware-analysis projects below; each opens on this page with its own guided tasks. Mark each lab complete, then note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(5, 'guided', labs, moduleFiveState.labProgress)}
-    <label class="m05-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m05-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleFiveState.practiceNotes)}</textarea></label>
-    ${!gateOk ? `<p class="m05-help" role="status">Mark both guided labs above complete before marking the Guided Lab complete.</p>` : ''}
-    <div class="m05-actions"><button type="button" class="m05-submit" data-m05-practice-complete ${gateOk ? '' : 'disabled'}>${moduleFiveState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
-  </section>`;
+  const complete = moduleFiveGuidedState.caseRecord.submitted === true;
+  return `${moduleFiveGuidedGuide()}<div class="m03e-panel" id="m05-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE-055204 · INC-055512 · ENDPOINT ALERT · PRACTICE IT</p><p>A script attached to a quarterly forecast email ran on ws-practice-41. Reconstruct the process chain, assess persistence and sensor coverage, preserve linked evidence, and choose a proportionate response. Correlate the evidence, record your findings, and submit the ITSM ticket to complete this practice lab.</p></div><div class="m03e-console-host" id="m03e-console-m05-guided">${moduleThreeConsoleHtml('m05-guided')}</div></div><p class="m05-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Complete the investigation in the console; progress is saved automatically.'}</p>`;
 }
 
+const MODULE_FIVE_OPTIONAL_LABS = [
+  { title: 'Analyzing Windows Sysmon Events for Security Incidents', detail: 'Independent Sysmon log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-5/lab', labId: 'assessment-1' },
+  { title: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-4/lab', labId: 'assessment-2' },
+];
+
 function moduleFiveAdditionalLabs() {
-  return missionNextAdditionalLabsSection(5, []);
+  return missionNextOptionalLabsSection(5, MODULE_FIVE_OPTIONAL_LABS, moduleFiveState.labProgress);
+}
+
+/* The Module 3 console, carrying Module 4's tools, with Module 5's Endpoint
+ * workspace. Endpoint telemetry is also normalized into Log Search tables. */
+const MODULE_FIVE_ENDPOINT_SOURCES = {
+  process_start: 'DeviceProcessEvents', file_create: 'DeviceFileEvents', file_hash: 'DeviceFileEvents',
+  persistence_change: 'DeviceRegistryEvents', sensor_control: 'DeviceAlertEvents',
+  network_connection: 'DeviceNetworkEvents', scheduled_task: 'DeviceTaskEvents', sensor_health: 'DeviceSensorHealth',
+};
+// Optional fields carried only by the network, task and sensor-health records.
+function moduleFiveExtraFields(e) {
+  const out = {};
+  if (e.destination) {
+    const ip = /^[\d.]+$/.test(e.destination);
+    Object.assign(out, { DestinationIp: ip ? e.destination : '', Domain: ip ? '' : e.destination, DestinationPort: e.destinationPort || '', Protocol: e.protocol || '' });
+  }
+  if (e.taskName) Object.assign(out, { TaskName: e.taskName, TaskPath: e.taskPath || '' });
+  if (e.coverageStatus) out.CoverageStatus = e.coverageStatus;
+  return out;
+}
+// Console columns for the endpoint principal: Account is the normalized pivot; the
+// native form the sensor reported stays in AccountDomain / AccountNative.
+function moduleFivePrincipal(native) {
+  const qualified = String(native).match(/^([^\\]+)\\(.+)$/);
+  return qualified
+    ? { Account: qualified[2].toLowerCase(), AccountDomain: qualified[1].toLowerCase(), AccountNative: native }
+    : { Account: String(native).toLowerCase(), AccountDomain: '', AccountNative: native };
+}
+function moduleFiveDetail(e) { return e.commandLine || e.registryPath || e.filePath || (e.destination ? `${e.destination}:${e.destinationPort}` : '') || e.taskName || e.action; }
+// Practice It has its own endpoint case, event IDs, entities, and persisted
+// console/tool state. It intentionally reuses the assessment schema and UI.
+const MODULE_FIVE_GUIDED_LAB_ID = 'm05-guided-endpoint-chain-v1';
+let moduleFiveGuidedState = null;
+let moduleFiveGuidedUser = null;
+const moduleFiveGuidedClone = (value) => JSON.parse(JSON.stringify(value));
+const MODULE_FIVE_GUIDED_REPLACEMENTS = {
+  'M05-ASSESS-2026-09-27': 'M05-GUIDED-2026-09-27', 'CASE-055127': 'CASE-055204', 'INC-055436': 'INC-055512', 'm05-endpoint-assessment-v1': MODULE_FIVE_GUIDED_LAB_ID,
+  'M05-DEV-001': 'M05-GUIDE-101', 'M05-DEV-002': 'M05-GUIDE-102', 'M05-DEV-003': 'M05-GUIDE-103',
+  'ws-assess-27': 'ws-practice-41', 'ws-assess-14': 'ws-practice-12', 'srv-assess-02': 'srv-practice-03',
+  'M05-EVT-001': 'M05-PR-201', 'M05-EVT-002': 'M05-PR-202', 'M05-EVT-003': 'M05-PR-203', 'M05-EVT-004': 'M05-PR-204', 'M05-EVT-005': 'M05-PR-205', 'M05-EVT-006': 'M05-PR-206', 'M05-EVT-007': 'M05-PR-207', 'M05-EVT-008': 'M05-PR-208', 'M05-EVT-009': 'M05-PR-209', 'M05-EVT-010': 'M05-PR-210', 'M05-EVT-011': 'M05-PR-211', 'M05-EVT-012': 'M05-PR-212', 'M05-EVT-013': 'M05-PR-213',
+  'CORP\\j.alvarez': 'CORP\\r.patel', 'CORP\\m.reyes': 'CORP\\s.kim', 'j.alvarez': 'r.patel', 'm.reyes': 's.kim',
+  'syncsvc.exe': 'cachehost.exe', 'SyncService': 'CacheHost', '4100': '7100', '4172': '7172', '4224': '7224', '3020': '8020', '5090': '8090', '2380': '8380', '6110': '8610',
+  ['a'.repeat(64)]: 'c'.repeat(64), ['b'.repeat(64)]: 'd'.repeat(64),
+  'M05-DEV-004': 'M05-GUIDE-104', 'M05-DEV-005': 'M05-GUIDE-105', 'ws-assess-31': 'ws-practice-18', 'ws-assess-40': 'ws-practice-27',
+  'd.okafor': 'a.novak', 'l.chen': 'p.shah', 'svc-backup': 'svc-archive', 'Q3-shift-schedule.pdf': 'Onboarding-checklist.pdf', 'FY26-budget.xlsx': 'FY26-headcount.xlsx',
+  'HourlyShareSnapshot': 'HourlySharePrune', 'Snapshot-Shares.ps1': 'Prune-Shares.ps1', 'backup-nas.corp.example': 'archive-nas.corp.example', 'Fabrikam': 'Litware', 'CHG-5120': 'CHG-6120',
+  'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe': 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe', 'AcmeUpdate.exe': 'CloudSync.exe',
+  'updates.acme-software.example': 'sync.contoso-cloud.example', 'teams.microsoft.com': 'presence.teams.microsoft.com', 'intranet.corp.example': 'portal.corp.example', 'Acme Software LLC': 'Contoso Systems Ltd.',
+};
+// Background rows (EVT-014 and later) get their own Practice IDs.
+for (let n = 14; n <= 52; n += 1) MODULE_FIVE_GUIDED_REPLACEMENTS[`M05-EVT-0${n}`] = `M05-PR-2${n}`;
+
+function moduleFiveGuidedReplace(value) {
+  if (typeof value === 'string') return Object.entries(MODULE_FIVE_GUIDED_REPLACEMENTS).reduce((result, [from, to]) => result.split(from).join(to), value);
+  if (Array.isArray(value)) return value.map(moduleFiveGuidedReplace);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleFiveGuidedReplace(item)]));
+  return value;
+}
+const MODULE_FIVE_GUIDED_FIXTURE = moduleFiveGuidedReplace(moduleFiveGuidedClone(SocM05AssessmentData));
+MODULE_FIVE_GUIDED_FIXTURE.scenario.caseId = 'CASE-055204';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.id = 'M05-GUIDED-2026-09-27';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.stateKey = MODULE_FIVE_GUIDED_LAB_ID;
+MODULE_FIVE_GUIDED_FIXTURE.scenario.start = '2026-09-27T13:00:00Z';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.end = '2026-09-27T13:30:00Z';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.generatedAt = '2026-09-27T13:31:00Z';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.devices[0].owner = 'r.patel';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.devices[1].owner = 's.kim';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry.forEach((event) => { event.time = event.time.replace('09:', '13:'); });
+Object.assign(MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[0], { image: 'C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE', commandLine: 'OUTLOOK.EXE /embedding', url: null, action: 'attachment_previewed' });
+Object.assign(MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[1], { image: 'C:\\Windows\\System32\\wscript.exe', commandLine: 'wscript.exe //B "C:\\Users\\r.patel\\Downloads\\Quarterly Forecast.js"', action: 'script_host_started' });
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[2].parentProcessId = '7172';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[2].filePath = 'C:\\Users\\r.patel\\AppData\\Local\\Temp\\cachehost.exe';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[3].filePath = 'C:\\Users\\r.patel\\AppData\\Local\\Temp\\cachehost.exe';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[4].filePath = 'C:\\Users\\r.patel\\AppData\\Local\\Temp\\cachehost.exe';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[5].registryPath = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\CacheHost';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[6].result = 'detected_and_terminated_after_run_key_write';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[8].image = 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[8].commandLine = 'CloudSync.exe /update /silent';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[8].filePath = 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[8].signer = 'CN=Contoso Systems Ltd.';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[9].image = 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[10].image = 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[10].filePath = 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[9].signer = 'CN=Contoso Systems Ltd.';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[10].signer = 'CN=Contoso Systems Ltd.';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[8].time = '2026-09-27T13:20:04Z';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[9].time = '2026-09-27T13:22:42Z';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry[10].time = '2026-09-27T13:22:43Z';
+// Practice background rows carry their own file hashes (rotate each hex digit); shared Acme/CloudSync hash already remapped above.
+MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry.slice(13).forEach((event) => {
+  if (event.sha256 && event.sha256 !== 'd'.repeat(64)) event.sha256 = event.sha256.replace(/[0-9a-f]/g, (digit) => ((parseInt(digit, 16) + 5) % 16).toString(16));
+});
+MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.confirmedDevice.value = 'ws-practice-41';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.confirmedUser.value = 'r.patel';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.processAncestry.chain = ['7100', '7172', '7224'];
+MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.maliciousFile.path = 'C:\\Users\\r.patel\\AppData\\Local\\Temp\\cachehost.exe';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.persistence.registryPath = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\CacheHost';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.endpointControl.outcome = 'detected_and_terminated_after_run_key_write';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth.benignActivity = [
+  { type: 'approved_cloud_sync_update', eventIds: ['M05-PR-208', 'M05-PR-209'] },
+  { type: 'same_signed_client_on_comparison_device', eventIds: ['M05-PR-210', 'M05-PR-211'] },
+];
+const MODULE_FIVE_GUIDED_CONSOLE_DATA = (() => {
+  const s = MODULE_FIVE_GUIDED_FIXTURE.scenario;
+  const day = s.start.slice(0, 10);
+  const events = s.telemetry.map((e) => m03eRow(MODULE_FIVE_ENDPOINT_SOURCES[e.eventType] || 'DeviceEvents', e.id, day, e.time.slice(11, 19), {
+    EventType: e.eventType, ...moduleFivePrincipal(e.accountNative || e.user), Host: e.host, DeviceId: e.deviceId, AssetId: e.assetId || '', ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
+    Image: e.image || '', CommandLine: e.commandLine || '', FilePath: e.filePath || '', Sha256: e.sha256 || '', RegistryPath: e.registryPath || '',
+    Action: e.action, Result: e.result, Url: e.url || '', Signer: e.signer || '', Prevalence: e.prevalence ?? '', Reputation: e.reputation || '', Detail: moduleFiveDetail(e), ...moduleFiveExtraFields(e),
+  }));
+  const person = (native, name, owner) => ({ ...moduleFivePrincipal(native), DisplayName: name, Type: owner ? 'Service' : 'User', Department: owner ? 'IT Operations' : 'Engineering', Owner: owner || '—', Privileged: owner ? 'Yes' : 'No', UsualSourceIp: '—', Notes: '' });
+  return { ...m03eBuildDataset({ caseId: s.caseId, day, events,
+    identities: [person('CORP\\r.patel', 'R. Patel'), person('CORP\\s.kim', 'S. Kim'), person('CORP\\a.novak', 'A. Novak'), person('CORP\\p.shah', 'P. Shah'), person('CORP\\svc-archive', 'Archive service', 'IT Operations'), person('SYSTEM', 'Local system', 'Endpoint platform')], ips: [],
+    watchlists: {
+      ApprovedSoftware: { title: 'Approved software inventory', rows: [
+        { Product: 'Contoso CloudSync', Publisher: 'CN=Contoso Systems Ltd.', Path: 'C:\\Program Files\\Contoso\\CloudSync\\CloudSync.exe', Deployment: 'All workstations', Status: 'Approved' },
+        { Product: 'Litware Sync', Publisher: 'CN=Litware Software Inc.', Path: 'C:\\Program Files\\Litware\\Sync\\LitwareSync.exe', Deployment: 'Managed deployment CHG-6118', Status: 'Approved' },
+      ] },
+      ChangeTickets: { title: 'Approved change tickets', rows: [
+        { ChangeId: 'CHG-6118', Summary: 'Litware Sync client rollout', Host: 'ws-practice-18', AssetId: 'M05-GUIDE-104', Window: '2026-09-27 13:00–14:00', Status: 'Approved' },
+        { ChangeId: 'CHG-6120', Summary: 'Endpoint sensor agent upgrade', Host: 'ws-practice-27', AssetId: 'M05-GUIDE-105', Window: '2026-09-27 13:00–13:30', Status: 'Approved' },
+      ] },
+    },
+    alerts: [{ id: 'ALT-5204', time: '2026-09-27T13:05:33Z', severity: 'High', title: 'Endpoint sensor detection on ws-practice-41', entities: ['ws-practice-41', 'r.patel'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "ws-practice-41"' },
+      { id: 'ALT-5205', time: '2026-09-27T13:13:43Z', severity: 'Low', title: 'Software updater started by services.exe on ws-practice-12', entities: ['ws-practice-12', 's.kim'], rule: 'Updater process outside a change window', query: 'DeviceProcessEvents\n| where Host == "ws-practice-12"' },
+      { id: 'ALT-5206', time: '2026-09-27T13:02:03Z', severity: 'Medium', title: 'PowerShell execution-policy bypass on srv-practice-03', entities: ['srv-practice-03', 'svc-archive'], rule: 'PowerShell launched with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where Host == "srv-practice-03"' },
+      { id: 'ALT-5207', time: '2026-09-27T13:07:31Z', severity: 'Medium', title: 'New Run-key value on ws-practice-18', entities: ['ws-practice-18', 'system'], rule: 'Run-key persistence write', query: 'DeviceRegistryEvents\n| where Host == "ws-practice-18"' },
+      { id: 'ALT-5208', time: '2026-09-27T13:12:00Z', severity: 'Low', title: 'Endpoint sensor stopped reporting on ws-practice-27', entities: ['ws-practice-27', 'p.shah'], rule: 'No heartbeat from endpoint sensor for 5 minutes', query: 'DeviceSensorHealth\n| where Host == "ws-practice-27"' }],
+  }), now: s.end };
+})();
+const MODULE_FIVE_GUIDED_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, caseId: MODULE_FIVE_GUIDED_FIXTURE.scenario.caseId, end: MODULE_FIVE_GUIDED_FIXTURE.scenario.end, data: MODULE_FIVE_GUIDED_CONSOLE_DATA });
+const MODULE_FIVE_GUIDED_M05_FIXTURE = SocConsoleTools.m05Fixture({ id: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, stateKey: MODULE_FIVE_GUIDED_LAB_ID, devices: MODULE_FIVE_GUIDED_FIXTURE.scenario.devices, data: MODULE_FIVE_GUIDED_CONSOLE_DATA, expectedTruth: MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth });
+function moduleFiveGuidedLoad(user) {
+  moduleFiveGuidedUser = user;
+  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'CASE-055204', scenarioId: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
+  moduleFiveGuidedState = LabRuntime.loadCaseState(MODULE_FIVE_GUIDED_LAB_ID, 'soc-05', user, defaults);
+  moduleFiveGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleFiveGuidedState.caseRecord || {}) };
+  if (moduleFiveGuidedState.guideStep == null) moduleFiveGuidedState.guideStep = 0;
+  moduleFiveCanonicalCaseEntities(moduleFiveGuidedState.caseRecord, MODULE_FIVE_GUIDED_FIXTURE);
+  moduleFiveGuidedState.tools ||= {};
+  moduleFiveGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleFiveGuidedState.tools.m04 }, MODULE_FIVE_GUIDED_M04_FIXTURE).assessment;
+  moduleFiveGuidedState.tools.m05 = SocM05AssessmentState.normalize(moduleFiveGuidedState.tools.m05, MODULE_FIVE_GUIDED_M05_FIXTURE);
+  if (moduleFiveGuidedState.legacyComplete == null) moduleFiveGuidedState.legacyComplete = moduleFiveGuidedChecks().every((check) => check[2]);
+}
+function moduleFiveGuidedSave() { if (moduleFiveGuidedUser && moduleFiveGuidedState) LabRuntime.saveCaseState(MODULE_FIVE_GUIDED_LAB_ID, 'soc-05', moduleFiveGuidedUser, moduleFiveGuidedState); }
+function moduleFiveGuidedM04Tools() { return moduleFiveGuidedState.tools.m04; }
+function moduleFiveGuidedM05Load() { return moduleFiveGuidedState.tools.m05; }
+function moduleFiveGuidedM05Store(next) { moduleFiveGuidedState.tools.m05 = SocM05AssessmentState.normalize(next, MODULE_FIVE_GUIDED_M05_FIXTURE); moduleFiveGuidedSave(); }
+function moduleFiveGuidedChecks() {
+  const consoleState = m03eState('m05-guided');
+  const tools = moduleFiveGuidedM05Load();
+  return [
+    ['alert', 'Inspect the endpoint alert and follow it to a device.', consoleState.seen?.includes('alert:ALT-5204') || tools.selectedDeviceIds?.includes('ws-practice-41')],
+    ['chain', 'Compare the process, file, persistence, and sensor records.', (consoleState.queryLog || []).length > 0 && tools.selectedDeviceIds?.includes('ws-practice-41')],
+    ['evidence', 'Preserve linked telemetry and its file hash.', Boolean(tools.evidencePackage?.eventIds?.length && tools.evidencePackage?.hashes?.length)],
+    ['handoff', 'Record a proportionate endpoint response request or EDR handoff.', Boolean(tools.approvalRequests?.length || tools.edrHandoffs?.length)],
+  ];
+}
+function moduleFiveGuidedSteps() {
+  return [
+    { title: 'Read the ITSM ticket', body: 'Open the ITSM tab and review the fields this investigation needs you to resolve.', lookFor: 'The affected user and device, severity, disposition, escalation, findings, and work notes.', lab: 'Ticket fields: scope and handoff', tab: 'case', target: '.m01-ticket-case' },
+    { title: 'Start from the lead', body: 'Treat the alert or seed observation as a lead to test, not a verdict.', lookFor: 'What the initial signal establishes and what it leaves open.', lab: 'Ticket field: Findings', tab: 'alerts', target: '[data-m03e-select="m05-guided:alert:ALT-5204"]' },
+    { title: 'Correlate the records', body: 'Follow the related records across the console and compare the suspicious activity with its baseline.', lookFor: 'Which source identifies the activity and which records corroborate timing, scope, or context.', lab: 'Ticket fields: Affected User, Affected Device, Findings', tab: 'timeline', target: '.m03e-timeline' },
+    { title: 'Separate source from contributing evidence', body: 'A correlated record can strengthen the timeline even when it is not the originating source.', lookFor: 'Whether each record shows where activity began or only confirms that it happened.', lab: 'Ticket field: Findings', tab: 'sources', target: '[data-m03e-select="m05-guided:source:DeviceProcessEvents"]' },
+    { title: 'Scope and decide', body: 'Choose a severity, disposition, and escalation that match the evidence and confirmed scope.', lookFor: 'The difference between confirmed impact and unresolved questions.', lab: 'Ticket fields: Severity, Disposition, Escalation, Department', tab: 'case', target: '.m01-ticket-grid' },
+    { title: 'Write the handoff and submit', body: 'Summarize the evidence, scope, uncertainty, and next action in work notes, then submit the ITSM ticket.', lookFor: 'A concise record another analyst can act on.', lab: 'Ticket field: Work Notes · Submit completes this Guided Lab', tab: 'case', target: '.m01-ticket-notes' },
+  ];
+}
+function moduleFiveGuidedDebrief() {
+  const cr = moduleFiveGuidedState.caseRecord;
+  const fields = [['Affected User', cr.affectedUser], ['Affected Device', cr.affectedDevice], ['Severity', cr.severity], ['Disposition', cr.disposition], ['Escalation', cr.escalation], ['Department', cr.escalateTo], ['Findings', Object.keys(cr.findings || {}).length], ['Work Notes', cr.notes]].map(([name, value]) => ({ name, status: !value ? 'missed' : name === 'Findings' || name === 'Affected Device' ? 'contributing' : 'captured', note: !value ? 'Not recorded in the submitted ticket.' : name === 'Findings' || name === 'Affected Device' ? 'Contributes context to the case timeline.' : 'Recorded in the submitted ticket.' }));
+  return guidedLabDebrief({ story: 'The endpoint timeline links the email-delivered script to execution and persistence on the practice workstation. File reputation, the Run-key record, and sensor outcome contribute to the incident story; the ticket records the scope and proportionate endpoint response.', fields, handoff: 'Include the primary evidence, corroborating records, confirmed scope, unresolved questions, and a proportionate next action.' });
+}
+function moduleFiveGuidedGuide() {
+  const item = moduleFiveGuidedSteps()[Math.min(moduleFiveGuidedState.guideStep, moduleFiveGuidedSteps().length - 1)] || {};
+  const consoleState = m03eState('m05-guided');
+  const tabLabel = item.tab === 'case' ? 'ITSM Ticket' : item.tab || '';
+  const moveTab = !moduleFiveGuidedState.caseRecord.submitted && item.tab && consoleState.tab !== item.tab;
+  return `${guidedLabGuide('m05g', moduleFiveGuidedSteps(), { step: moduleFiveGuidedState.guideStep, docked: moduleFiveGuidedState.caseRecord.submitted ? moduleFiveGuidedState.guideCollapsed !== false : (moduleFiveGuidedState.guideCollapsed === true || moduleFiveGuidedState.guideOpen === false), prefix: 'm05g', submitted: moduleFiveGuidedState.caseRecord.submitted, debriefHtml: moduleFiveGuidedDebrief() })}
+    ${moveTab || moduleFiveGuidedState.caseRecord.submitted ? `<div class="m03e-guide-controls" role="status">${moveTab ? `<button type="button" class="m03e-guide-go" data-m05g-guide-tab="${esc(item.tab)}">Go to ${esc(tabLabel)}</button>` : ''}${moduleFiveGuidedState.caseRecord.submitted ? '<span>Ticket submitted — practice complete</span>' : ''}</div>` : ''}`;
+}
+function moduleFiveGuidedRestart() {
+  const cr = moduleFiveGuidedState.caseRecord;
+  moduleFiveGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleFiveGuidedState.guideStep = 0;
+  moduleFiveGuidedState.guideCollapsed = false;
+  moduleFiveGuidedState.guideOpen = true;
+  moduleFiveGuidedSave();
+  moduleFiveRenderGuided();
+}
+function moduleFivePositionGuidedGuide(root, host) {
+  const tip = root?.querySelector('#m05g-learn-tip');
+  const workspace = host?.querySelector('.m03e-workspace');
+  if (!tip || !workspace) return;
+  if (moduleFiveGuidedState.caseRecord.submitted || moduleFiveGuidedState.guideCollapsed === true || moduleFiveGuidedState.guideOpen === false) {
+    host.querySelector('header')?.append(tip);
+    consoleGuidePosition(tip, workspace, null);
+  } else {
+    workspace.prepend(tip);
+    consoleGuidePosition(tip, workspace, null);
+  }
+}
+M03E_AFTER_RENDER['m05-guided'] = function () {
+  const root = document.getElementById('m05-guided-lab-dynamic');
+  const host = document.getElementById('m03e-console-m05-guided');
+  if (!root || !host) return;
+  if (!root.querySelector('#m05g-learn-tip')) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = moduleFiveGuidedGuide();
+    const fresh = tpl.content.querySelector('#m05g-learn-tip');
+    if (fresh) root.prepend(fresh);
+  }
+  moduleFivePositionGuidedGuide(root, host);
+};
+
+const MODULE_FIVE_GUIDED_CONSOLE = SocConsoleTools.mount('m05-guided', {
+  data: MODULE_FIVE_GUIDED_CONSOLE_DATA, stateRoot: () => moduleFiveGuidedState, save: moduleFiveGuidedSave,
+  title: 'SIEM & ENDPOINT INVESTIGATION · PRACTICE', ariaLabel: 'Module 05 guided endpoint console', idPrefix: 'guided',
+  sourceMappings: {
+    DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['user', 'Account'], ['user', 'AccountNative'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine'], ['url', 'Url']] },
+    DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['prevalence', 'Prevalence'], ['reputation', 'Reputation']] },
+    DeviceRegistryEvents: { native: 'EDR registry telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['key', 'RegistryPath'], ['action', 'Action'], ['result', 'Result']] },
+    DeviceAlertEvents: { native: 'EDR sensor control outcomes (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['control', 'Action'], ['outcome', 'Result']] },
+    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+    DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['account', 'Account'], ['account', 'AccountNative'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['result', 'Result']] },
+    DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
+  },
+  packs: [
+    { id: 'm04', ctx: { assessment: moduleFiveGuidedM04Tools, fixture: MODULE_FIVE_GUIDED_M04_FIXTURE, save: moduleFiveGuidedSave, rerender: () => moduleFiveRenderGuided(), console: () => m03eState('m05-guided') } },
+    { id: 'm05', ctx: { fixture: MODULE_FIVE_GUIDED_FIXTURE, load: moduleFiveGuidedM05Load, store: moduleFiveGuidedM05Store, save: moduleFiveGuidedSave, rerender: () => moduleFiveRenderGuided(), console: () => m03eState('m05-guided') } },
+  ],
+    caseView: () => {
+      const html = caseRecordPane(moduleFiveGuidedState.caseRecord, { caseId: 'CASE-055204', incidentIds: ['INC-055512'], ticketType: 'Endpoint malware investigation · Endpoint Malware Triage', userOptions: [{ id: 'r.patel', text: 'r.patel' }, { id: 's.kim', text: 's.kim' }], deviceOptions: MODULE_FIVE_GUIDED_FIXTURE.scenario.devices.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'endpoint-malware-triage', text: 'Endpoint Malware Triage' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm05-guided-case', saveAttr: 'data-m05-guided-save-case', submitAttr: 'data-m05-guided-submit-case', panelId: 'm05-guided-case-panel', notesPlaceholder: 'Link process ancestry, file reputation, persistence, sensor outcome, and a bounded response recommendation.' });
+      return moduleFiveGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m05-guided-restart>Restart Guided Lab</button>' : html;
+    },
+});
+const MODULE_FIVE_CONSOLE_DATA = (function () {
+  const s = SocM05AssessmentData.scenario;
+  const day = s.start.slice(0, 10);
+  const events = s.telemetry.map((e) => m03eRow(MODULE_FIVE_ENDPOINT_SOURCES[e.eventType] || 'DeviceEvents', e.id, day, e.time.slice(11, 19), {
+    EventType: e.eventType, ...moduleFivePrincipal(e.accountNative || e.user), Host: e.host, DeviceId: e.deviceId, AssetId: e.assetId || '', ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
+    Image: e.image || '', CommandLine: e.commandLine || '', FilePath: e.filePath || '', Sha256: e.sha256 || '', RegistryPath: e.registryPath || '',
+    Action: e.action, Result: e.result, Url: e.url || '', Signer: e.signer || '', Prevalence: e.prevalence ?? '', Reputation: e.reputation || '',
+    Detail: moduleFiveDetail(e), ...moduleFiveExtraFields(e),
+  }));
+  const person = (native, name, owner) => ({ ...moduleFivePrincipal(native), DisplayName: name, Type: owner ? 'Service' : 'User', Department: owner ? 'IT Operations' : 'Finance', Owner: owner || '—', Privileged: owner ? 'Yes' : 'No', UsualSourceIp: '—', Notes: '' });
+  return {
+    ...m03eBuildDataset({
+      caseId: s.caseId,
+      day,
+      events,
+      identities: [person('CORP\\j.alvarez', 'J. Alvarez'), person('CORP\\m.reyes', 'M. Reyes'), person('CORP\\d.okafor', 'D. Okafor'), person('CORP\\l.chen', 'L. Chen'), person('CORP\\svc-backup', 'Backup service', 'IT Operations'), person('SYSTEM', 'Local system', 'Endpoint platform')],
+      ips: [],
+      watchlists: {
+        ApprovedSoftware: { title: 'Approved software inventory', rows: [
+          { Product: 'Acme Updater', Publisher: 'CN=Acme Software LLC', Path: 'C:\\Program Files\\AcmeUpdater\\AcmeUpdate.exe', Deployment: 'All workstations', Status: 'Approved' },
+          { Product: 'Fabrikam Sync', Publisher: 'CN=Fabrikam Software Inc.', Path: 'C:\\Program Files\\Fabrikam\\Sync\\FabrikamSync.exe', Deployment: 'Managed deployment CHG-5118', Status: 'Approved' },
+        ] },
+        ChangeTickets: { title: 'Approved change tickets', rows: [
+          { ChangeId: 'CHG-5118', Summary: 'Fabrikam Sync client rollout', Host: 'ws-assess-31', AssetId: 'M05-DEV-004', Window: '2026-09-27 09:00–10:00', Status: 'Approved' },
+          { ChangeId: 'CHG-5120', Summary: 'Endpoint sensor agent upgrade', Host: 'ws-assess-40', AssetId: 'M05-DEV-005', Window: '2026-09-27 09:00–09:30', Status: 'Approved' },
+        ] },
+      },
+      alerts: [
+        { id: 'ALT-5127', time: '2026-09-27T09:05:33Z', severity: 'High', title: 'Endpoint sensor detection on ws-assess-27', entities: ['ws-assess-27', 'j.alvarez'], rule: 'EDR behavioral detection: unsigned binary started from a user temp folder', query: 'DeviceAlertEvents\n| where Host == "ws-assess-27"' },
+        { id: 'ALT-5128', time: '2026-09-27T09:13:43Z', severity: 'Low', title: 'Software updater started by services.exe on ws-assess-14', entities: ['ws-assess-14', 'm.reyes'], rule: 'Updater process outside a change window', query: 'DeviceProcessEvents\n| where Host == "ws-assess-14"' },
+        { id: 'ALT-5129', time: '2026-09-27T09:02:03Z', severity: 'Medium', title: 'PowerShell execution-policy bypass on srv-assess-02', entities: ['srv-assess-02', 'svc-backup'], rule: 'PowerShell launched with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where Host == "srv-assess-02"' },
+        { id: 'ALT-5130', time: '2026-09-27T09:07:31Z', severity: 'Medium', title: 'New Run-key value on ws-assess-31', entities: ['ws-assess-31', 'system'], rule: 'Run-key persistence write', query: 'DeviceRegistryEvents\n| where Host == "ws-assess-31"' },
+        { id: 'ALT-5131', time: '2026-09-27T09:12:00Z', severity: 'Low', title: 'Endpoint sensor stopped reporting on ws-assess-40', entities: ['ws-assess-40', 'l.chen'], rule: 'No heartbeat from endpoint sensor for 5 minutes', query: 'DeviceSensorHealth\n| where Host == "ws-assess-40"' },
+      ],
+    }),
+    now: s.end,
+  };
+}());
+const MODULE_FIVE_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: SocM05AssessmentData.scenario.id, caseId: MODULE_FIVE_CASE_ID, end: SocM05AssessmentData.scenario.end, data: MODULE_FIVE_CONSOLE_DATA });
+
+function moduleFiveM04Tools() {
+  moduleFiveState.tools ||= {};
+  if (!moduleFiveState.tools.m04?.schemaVersion) moduleFiveState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleFiveState.tools.m04 }, MODULE_FIVE_M04_FIXTURE).assessment;
+  return moduleFiveState.tools.m04;
+}
+
+const MODULE_FIVE_CONSOLE = SocConsoleTools.mount('m05', {
+  data: MODULE_FIVE_CONSOLE_DATA,
+  stateRoot: () => moduleFiveState,
+  save: () => moduleFiveSave(),
+  title: 'SIEM & ENDPOINT INVESTIGATION',
+  ariaLabel: 'Module 05 endpoint assessment console',
+  sourceMappings: {
+    DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['user', 'Account'], ['user', 'AccountNative'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine'], ['url', 'Url']] },
+    DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['prevalence', 'Prevalence'], ['reputation', 'Reputation']] },
+    DeviceRegistryEvents: { native: 'EDR registry telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['key', 'RegistryPath'], ['action', 'Action'], ['result', 'Result']] },
+    DeviceAlertEvents: { native: 'EDR sensor control outcomes (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['control', 'Action'], ['outcome', 'Result']] },
+    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+    DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['account', 'Account'], ['account', 'AccountNative'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['result', 'Result']] },
+    DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device_id', 'DeviceId'], ['device_id', 'AssetId'], ['hostname', 'Host'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
+  },
+  packs: [
+    { id: 'm04', ctx: { assessment: moduleFiveM04Tools, fixture: MODULE_FIVE_M04_FIXTURE, save: () => moduleFiveSave(), rerender: () => moduleFiveRenderAssessment(), console: () => m03eState('m05') } },
+    { id: 'm05', ctx: { fixture: SocM05AssessmentData, load: () => SocM05AssessmentState.load(moduleFiveUser, SocM05AssessmentData), store: (next) => SocM05AssessmentState.save(moduleFiveUser, next, SocM05AssessmentData), save: () => moduleFiveSave(), rerender: () => moduleFiveRenderAssessment(), console: () => m03eState('m05') } },
+  ],
+  caseView: () => moduleFiveCaseTicket(),
+  caseBadge: () => (moduleFiveState.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+});
+
+function moduleFiveCaseTicket() {
+  const cr = moduleFiveState.caseRecord;
+  const spec = moduleFiveCaseSpec();
+  return caseRecordPane(cr, {
+    ...spec,
+    missing: caseRecordMissing(cr, spec),
+    formId: 'm05-assessment',
+    saveAttr: 'data-m05-save-case',
+    submitAttr: 'data-m05-submit-case',
+    panelId: 'm05-case-panel',
+    showMissing: moduleFiveProveItShowMissing,
+    redoRequested: moduleFiveProveItRedoRequested(),
+    redoHtml: moduleFiveProveItRedoFeedback(),
+    reviewStatus: moduleFiveProveItReviewStatus(),
+    lockedMessage: 'Module 6 stays locked until your instructor approves the submission.',
+  });
 }
 
 function moduleFiveAssessmentLabPanel() {
-  const feedbackHtml = moduleFiveState.feedback?.length ? `<div class="m05-independent-feedback is-pass" role="status"><strong>Submitted</strong><ul>${moduleFiveState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : '';
-  const labs = [
-    { title: 'Analyzing Windows Sysmon Events for Security Incidents', detail: 'Independent Sysmon log analysis', href: 'imported-labs/mission-next-labs/index.html#/track/log-analysis/project/lap-5/lab', labId: 'assessment-1' },
-    { title: 'Behavioral Analysis of a Keylogger', detail: 'Persistence and endpoint behavior', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-4/lab', labId: 'assessment-2' },
+  return `<div class="m03e-panel" id="m05-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel(moduleFiveCaseSpec(), 'ENDPOINT ALERT')}</p><p>The EDR sensor raised an alert on a user workstation. Your lead’s request: <em>“Work out what actually ran, whether it stuck, and whether our control stopped it — then tell the endpoint team exactly what to do and why.”</em> Pivot from the alert to the device, follow the process chain, judge the file and hash, find any persistence, decide what the control did, bound the scope, preserve the strongest evidence, request only proportionate action, and complete the ITSM ticket.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m05">${moduleThreeConsoleHtml('m05')}</div>
+  </div>`;
+}
+
+function moduleFiveRenderAssessment() {
+  const root = document.getElementById('m05-assessment-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleFiveAssessmentLabPanel();
+  m03eAttachEditor('m05');
+}
+
+/* Process-ancestry + aligned-timeline teaching visual. Every node, PID, host and
+ * time is read from the Practice It endpoint records (MODULE_FIVE_GUIDED_FIXTURE);
+ * a solid parent→child link is drawn only when the child's ParentProcessId equals
+ * the parent's ProcessId in those records. Everything else is dashed. */
+function moduleFiveAncestryVisual() {
+  const rows = (typeof MODULE_FIVE_GUIDED_FIXTURE !== 'undefined' && MODULE_FIVE_GUIDED_FIXTURE.scenario.telemetry) || [];
+  const byId = (id) => rows.find((r) => r.id === id);
+  const [doc, host, drop, reg] = ['M05-PR-201', 'M05-PR-202', 'M05-PR-203', 'M05-PR-206'].map(byId);
+  if (!doc || !host || !drop || !reg) return '';
+  const base = (path) => String(path || '').split('\\').pop();
+  const secs = (r) => Date.parse(r.time) / 1000;
+  const t0 = secs(doc);
+  const clock = (r) => r.time.slice(11, 19);
+  const parentProven = (parent, child) => parent.processId && child.parentProcessId === parent.processId;
+  const dropSigner = (byId('M05-PR-205') || {}).signer;
+  const nodes = [
+    { rec: doc, kind: 'Document viewer', name: base(doc.image), meta: `PID ${doc.processId} · ${doc.action.replace(/_/g, ' ')}`, link: null },
+    { rec: host, kind: 'Script host', name: base(host.image), meta: `PID ${host.processId} · parent PID ${host.parentProcessId}`, link: parentProven(doc, host) ? 'proven' : 'inferred' },
+    { rec: drop, kind: 'Launched file', name: base(drop.image), meta: `PID ${drop.processId} · parent PID ${drop.parentProcessId}${dropSigner ? ` · ${dropSigner}` : ''}`, link: parentProven(host, drop) ? 'proven' : 'inferred' },
+    { rec: reg, kind: 'Persistence write', name: 'Run-key value', meta: `${base(reg.registryPath)} · written by PID ${reg.processId}`, link: 'inferred' },
+    { rec: null, kind: 'Network event', name: 'No record', meta: 'None for this chain in these records', link: 'missing' },
   ];
-  const gateOk = missionNextAllLabsComplete(moduleFiveState.labProgress, ['assessment-1', 'assessment-2']);
-  return `<section class="m05-external-lab" id="m05-assessment-lab-panel">
-    <p class="m05-panel-instruction">Complete both imported assessment projects below, then write up your findings below for instructor review.</p>
-    ${missionNextLabLaunchGroup(5, 'assessment', labs, moduleFiveState.labProgress)}
-    <form id="m05-assessment-form">
-      <label class="m05-note-label">Assessment write-up<textarea id="m05-assessment-notes" rows="6" maxlength="900" data-m05-assessment-notes placeholder="Summarize what the Sysmon lab surfaced, your analysis, and your recommended action…">${esc(moduleFiveState.notes)}</textarea></label>
-      <p class="m05-help">In at least 80 characters, describe what you found and your recommended action.</p>
-      ${!gateOk ? `<p class="m05-help" role="status">Mark both assessment labs above complete before submitting.</p>` : ''}
-      <div class="m05-actions"><button type="submit" class="m05-submit" ${gateOk ? '' : 'disabled'}>${moduleFiveState.completed ? 'Resubmit for review' : 'Submit for review'}</button></div>
-    </form>
-    ${feedbackHtml}
-  </section>`;
+  const linkLabel = { proven: 'proves', inferred: 'corroborates', missing: 'no record' };
+  const items = nodes.map((n, i) => {
+    const link = n.link ? `<span class="m05-anc-link is-${n.link}" aria-hidden="true"><span class="m05-anc-linktext">${esc(linkLabel[n.link])}</span><span class="m05-anc-line"></span></span>` : '';
+    const time = n.rec ? `<time datetime="${esc(n.rec.time)}">${esc(clock(n.rec))}</time><small>${i === 0 ? 'start' : `+${secs(n.rec) - t0}s`}</small>` : '<span>—</span><small>no timestamp</small>';
+    return `<li class="m05-anc-item${n.rec ? '' : ' is-missing'}">${link}<span class="m05-anc-node"><span class="m05-anc-body"><small>${esc(n.kind)}</small><strong>${esc(n.name)}</strong><span>${esc(n.meta)}</span></span><span class="m05-anc-time">${time}</span></span></li>`;
+  }).join('');
+  const summary = `On ${doc.host}, ${base(doc.image)} (PID ${doc.processId}) is recorded as the parent of ${base(host.image)} (PID ${host.processId}), which is recorded as the parent of ${base(drop.image)} (PID ${drop.processId}). Those two links are proven by parent process ID fields. The Run-key write at ${clock(reg)} comes from PID ${reg.processId} and corroborates the chain without being a parent-child link. These records contain no network event for this chain.`;
+  return `<figure class="m05-anc" aria-labelledby="m05-anc-title">
+    <p class="m05-kicker">Reference · ${esc(doc.host)}</p>
+    <h4 id="m05-anc-title">Process ancestry and event order</h4>
+    <ol class="m05-anc-flow">${items}</ol>
+    <ul class="m05-anc-legend" aria-label="Legend">
+      <li><span class="m05-anc-key is-proven" aria-hidden="true"></span>Solid arrow, “proves”: parent→child (record proves) — child's parent PID matches the parent's PID</li>
+      <li><span class="m05-anc-key is-inferred" aria-hidden="true"></span>Dashed arrow, “corroborates”: corroborates — not proven causal — same actor or nearby time only</li>
+      <li><span class="m05-anc-key is-missing" aria-hidden="true"></span>Dotted arrow and outline, “no record”: no record exists; do not fill the gap by assumption</li>
+    </ul>
+    <figcaption class="m05-anc-caption">${esc(summary)} The time at the foot of each box is its record timestamp.</figcaption>
+  </figure>`;
+}
+
+function moduleFiveAncestryReference() {
+  const body = moduleFiveAncestryVisual();
+  if (!body) return '';
+  return `<details class="m05-anc-ref mf-lesson" id="m05-ancestry-reference"><summary><span class="mf-lesson-icon"><i class="ri-node-tree" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>Reference: reading process ancestry</strong><small>Same Guided Lab records, parent→child vs. corroborating</small></span><i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>${body}</details>`;
 }
 
 function moduleFiveLecture() {
@@ -662,59 +1247,57 @@ function moduleFiveLecture() {
   </section>`;
 }
 
+function moduleFiveLearnItMarkup() {
+  return LearnItCards.render({ deck: LearnItDecks['soc-05'], step: moduleFiveState.learnItStep || 0, done: moduleFiveState.learnItStep >= LearnItDecks['soc-05'].length, viewed: moduleFiveLearnItViewed, prefix: 'm05', id: 'm05-learn-it', headingId: 'm05-learn-it-title', heading: 'Learn the key ideas', intro: 'Move through the ideas you will use in the lab.', readyText: 'Build the mental model one idea at a time.', label: 'LEARN IT', countLabel: 'ideas', readyCountLabel: `${LearnItDecks['soc-05'].length} QUICK IDEAS`, nextActionLabel: 'NEXT', finalActionLabel: 'FINISH' });
+}
+
 function viewModuleFive(user, program) {
   moduleFiveLoad(user);
+  moduleFiveGuidedLoad(user);
   const complete = moduleFiveState.completed === true;
   const module = program.modules['soc-05'];
   const sections = moduleFiveGetSections();
-  const lectureOpen = moduleFiveReviewMode || !sections[0].isComplete;
-  const quizOpen = moduleFiveReviewMode || (moduleFiveQuizState && !moduleFiveQuizState.passed);
-  const guidedLabOpen = moduleFiveReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleFiveReviewMode || !sections[3].isComplete;
+  const lectureOpen = moduleFiveReviewMode || !sections[0].isComplete || moduleFiveState.learnItStep < LearnItDecks['soc-05'].length;
+  const guidedLabOpen = moduleFiveReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleFiveReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleFiveReviewMode;
   const quickNavItems = moduleFiveGetQuickNavItems();
 
   return `<div class="m05-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleFiveReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m05-main">
-      <section class="m05-hero" aria-labelledby="m05-title"><div><p class="m05-kicker">Module 05 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p>Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p></div><dl><div><dt>Guided Lab</dt><dd>${moduleFiveState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m05-status">${complete ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      ${moduleProgressShell(sections, { reviewMode: moduleFiveReviewMode })}
+      <main class="m05-main mf-frame">
+      <section class="m05-hero mf-hero" aria-labelledby="m05-title"><div><p class="m05-kicker mf-kicker">Module 05 · ${formatHandsOnDuration(module.durationMinutes)} · assisted investigation</p><h1 id="m05-title">${esc(module.title)}</h1><p class="mf-lede">Read process relationships, reconstruct endpoint activity, evaluate a suspicious file, and create a proportionate response handoff without leaving this one-workstation lab. This is analyst investigation and triage: learners do not reverse-engineer or develop malware, and specialist analysis is escalated.</p></div><dl class="mf-stats"><div><dt>Guided Lab</dt><dd>${moduleFiveGuidedState.caseRecord.submitted || moduleFiveGuidedState.legacyComplete ? 'Complete' : moduleFiveGuidedState.caseRecord.actionHistory.length ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd id="m05-status">${complete ? 'Complete' : moduleFiveState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
-      <details class="m05-section-collapsible" ${lectureOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">1</span><div><p class="m05-kicker">Lecture</p><h2 id="m05-lecture">Endpoint investigation foundations</h2></div></div></summary>
-        <div class="m05-section-body">${moduleFiveLecture()}${moduleFiveVideoScript()}${moduleFiveLessonGrid()}</div>
+      <details class="m05-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">1</span><div><p class="m05-kicker mf-kicker">Learn It</p><h2 id="m05-lecture">Endpoint investigation foundations</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body"><div id="m05-learn-it-root">${moduleFiveLearnItMarkup()}</div><details class="m05-deep-dive mf-deep-dive"><summary>Deep Dive · reference notes and practice</summary>${moduleFiveLecture()}${moduleFiveVideoScript()}${moduleFiveLessonGrid()}</details></div>
       </details>
 
-      <details class="m05-section-collapsible" ${quizOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">2</span><div><p class="m05-kicker">Knowledge Check</p><h2 id="m05-knowledge-check">Test your understanding of endpoint investigation</h2></div></div></summary>
-        <div class="m05-section-body">${moduleFiveQuizPanel()}</div>
-      </details>
-
-      <details class="m05-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">3</span><div><p class="m05-kicker">Practice It · Guided Lab</p><h2 id="m05-guided-lab">Malware analysis practice</h2></div></div></summary>
-        <div class="m05-section-body">
-          <div class="m05-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> These labs open in the imported training application on this page.</p></div>
-          <div id="m05-guided-lab-dynamic">${moduleFiveGuidedLabPanel()}</div>
+      <details class="m05-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">2</span><div><p class="m05-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m05-guided-lab">Malware analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">
+          ${moduleFiveAncestryReference()}<div id="m05-guided-lab-dynamic">${moduleFiveGuidedLabPanel()}</div>
         </div>
       </details>
 
-      <details class="m05-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">4</span><div><p class="m05-kicker">Prove It · Assessment Labs</p><h2 id="m05-assessment-lab">Independent Sysmon and keylogger event analysis</h2></div></div></summary>
-        <div class="m05-section-body">
+      <details class="m05-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">3</span><div><p class="m05-kicker mf-kicker">Prove It · Assessment Labs</p><h2 id="m05-assessment-lab">Endpoint alert investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">
           <div id="m05-assessment-lab-dynamic">${moduleFiveAssessmentLabPanel()}</div>
         </div>
       </details>
-      ${moduleFiveAdditionalLabs()}
+      <div id="m05-optional-labs-dynamic">${moduleFiveAdditionalLabs()}</div>
 
-      <details class="m05-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">5</span><div><p class="m05-kicker">Module Review</p><h2 id="m05-review">Key concepts and takeaways</h2></div></div></summary>
-        <div class="m05-section-body">${moduleFiveReview()}</div>
+      <details class="m05-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge">5</span><div><p class="m05-kicker mf-kicker">Module Review</p><h2 id="m05-review">Key concepts and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">${moduleFiveReview()}</div>
       </details>
 
-      <details class="m05-section-collapsible" ${moduleFiveReviewMode ? 'open' : ''}>
-        <summary class="m05-section"><div class="m05-section-heading"><span class="m05-section-badge">6</span><div><p class="m05-kicker">Sources & Further Reading</p><h2 id="m05-sources">Authoritative references on endpoint investigation</h2></div></div></summary>
-        <div class="m05-section-body">${moduleSourcesBlock(MODULE_FIVE_SOURCES)}</div>
+      <details class="m05-section-collapsible mf-section mf-section-supplemental" ${moduleFiveReviewMode ? 'open' : ''}>
+        <summary class="m05-section"><div class="m05-section-heading mf-section-heading"><span class="m05-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m05-kicker mf-kicker">Sources & Further Reading</p><h2 id="m05-sources">Authoritative references on endpoint investigation</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m05-section-body mf-section-body">${moduleSourcesBlock(MODULE_FIVE_SOURCES)}</div>
       </details>
     </main>
     </div>
@@ -772,6 +1355,12 @@ function wireModuleFiveQuiz() {
   });
 
   form.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m05-quiz-retake]')) {
+      event.preventDefault();
+      moduleFiveQuizForceRetake = true;
+      form.innerHTML = moduleFiveQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m05-quiz-retry]')) return;
     event.preventDefault();
     const previousQuestionIds = moduleFiveQuizState.selectedQuestions.map((s) => s.question.id);
@@ -827,88 +1416,188 @@ function wireModuleFiveLessons() {
   });
 }
 
-function wireModuleFiveGuidedLabGating(root) {
-  wireMissionNextLabGating(root, moduleFiveState.labProgress, () => {
-    moduleFiveSave();
-    root.innerHTML = moduleFiveGuidedLabPanel();
-    wireModuleFiveGuidedLabGating(root);
-  });
-}
-
 function wireModuleFiveGuidedLab() {
   const root = document.getElementById('m05-guided-lab-dynamic');
-  if (!root || !moduleFiveState) return;
-  wireModuleFiveGuidedLabGating(root);
+  if (!root || !moduleFiveGuidedState) return;
+  const host = root.querySelector('#m03e-console-m05-guided');
+  if (host) { MODULE_FIVE_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m05-guided'); }
+  moduleFivePositionGuidedGuide(root, host);
   root.addEventListener('input', (event) => {
-    if (event.target.matches('[data-m05-practice-notes]')) {
-      moduleFiveState.practiceNotes = event.target.value;
-      moduleFiveSave();
-    }
+    if (event.target.matches('#guided-m05-guided-case [name="notes"]')) moduleFiveGuidedState.caseRecord.notes = event.target.value;
+  });
+  root.addEventListener('change', (event) => {
+    const field = event.target.closest('#guided-m05-guided-case [name]');
+    if (!field) return;
+    if (field.name.startsWith('finding:')) moduleFiveGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
+    else moduleFiveGuidedState.caseRecord[field.name] = field.value;
+    moduleFiveGuidedSave();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m05-practice-complete]')) {
-      if (!missionNextAllLabsComplete(moduleFiveState.labProgress, ['guided-1', 'guided-2'])) {
-        root.innerHTML = moduleFiveGuidedLabPanel();
-        return;
-      }
-      moduleFiveState.practiceComplete = true;
-      moduleFiveSave();
-      root.innerHTML = moduleFiveGuidedLabPanel();
+    if (event.target.closest('[data-m05-guided-restart]')) { event.preventDefault(); moduleFiveGuidedRestart(); return; }
+    if (event.target.closest('[data-m05g-guide-next]')) { event.preventDefault(); if (moduleFiveGuidedState.caseRecord.submitted) { moduleFiveGuidedRestart(); return; } moduleFiveGuidedState.guideStep = (moduleFiveGuidedState.guideStep + 1) % moduleFiveGuidedSteps().length; { const nextTab = moduleFiveGuidedSteps()[moduleFiveGuidedState.guideStep]?.tab; if (nextTab) { m03eState('m05-guided').tab = nextTab; m03eSave('m05-guided'); } } moduleFiveGuidedSave(); moduleFiveRenderGuided(); return; }
+    if (event.target.closest('[data-m05g-guide-tab]')) { event.preventDefault(); const tab = event.target.closest('[data-m05g-guide-tab]').dataset.m05gGuideTab; m03eState('m05-guided').tab = tab; m03eSave('m05-guided'); m03eRender('m05-guided'); return; }
+    if (event.target.closest('[data-m05g-guide-collapse]')) { event.preventDefault(); moduleFiveGuidedState.guideCollapsed = !moduleFiveGuidedState.guideCollapsed; moduleFiveGuidedSave(); moduleFiveRenderGuided(); return; }
+    if (event.target.closest('[data-m05-guided-submit-case]')) { event.preventDefault(); if (!moduleFiveGuidedState.caseRecord.submitted) { moduleFiveGuidedState.caseRecord.submitted = true; moduleFiveGuidedState.guideCollapsed = true; moduleFiveGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleFiveGuidedState.caseRecord.actionHistory.push({ action: 'Submitted practice ticket', at: moduleFiveGuidedState.caseRecord.submittedAt }); moduleFiveGuidedSave(); moduleFiveRenderGuided(); } return; }
+    if (event.target.closest('[data-m05-guided-save-case]')) {
+      event.preventDefault();
+      moduleFiveGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
+      moduleFiveGuidedSave();
+      m03eRender('m05-guided');
+      return;
     }
+
   });
 }
 
-function wireModuleFiveAssessmentLabGating(root) {
-  wireMissionNextLabGating(root, moduleFiveState.labProgress, () => {
-    moduleFiveSave();
-    root.innerHTML = moduleFiveAssessmentLabPanel();
-    wireModuleFiveAssessmentLabGating(root);
-  });
+function moduleFiveRenderGuided() {
+  const root = document.getElementById('m05-guided-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleFiveGuidedLabPanel();
+  const host = root.querySelector('#m03e-console-m05-guided');
+  if (host) { MODULE_FIVE_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m05-guided'); }
+  moduleFivePositionGuidedGuide(root, host);
 }
+
+function wireModuleFiveAssessmentLabGating() {}
 
 function wireModuleFiveAssessmentLab() {
   const root = document.getElementById('m05-assessment-lab-dynamic');
   if (!root || !moduleFiveState) return;
-  wireModuleFiveAssessmentLabGating(root);
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm05-assessment-form') return;
-    event.preventDefault();
-    if (!missionNextAllLabsComplete(moduleFiveState.labProgress, ['assessment-1', 'assessment-2'])) {
-      root.innerHTML = moduleFiveAssessmentLabPanel();
-      return;
-    }
-    const notes = event.target.querySelector('#m05-assessment-notes')?.value || '';
-    moduleFiveState.notes = notes;
-    if (notes.trim().length < 80) {
-      moduleFiveState.feedback = ['Write at least 80 characters describing your findings and recommended action before submitting.'];
+  MODULE_FIVE_CONSOLE.wire(root);
+
+  root.addEventListener('change', (event) => {
+    const input = event.target;
+    if (input.closest('#m05-assessment') && caseRecordApply(moduleFiveState.caseRecord, input.name, input.value)) {
+      moduleFiveState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
       moduleFiveSave();
-      root.innerHTML = moduleFiveAssessmentLabPanel();
+    }
+  });
+
+  root.addEventListener('input', (event) => {
+    if (event.target.name === 'notes' && event.target.closest('#m05-assessment')) {
+      caseRecordApply(moduleFiveState.caseRecord, 'notes', event.target.value);
+      moduleFiveSave();
+    }
+  });
+
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m05-save-case]')) {
+      moduleFiveState.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+      moduleFiveSave();
+      moduleFiveRenderAssessment();
       return;
     }
-    moduleFiveState.attempts = (moduleFiveState.attempts || 0) + 1;
-    moduleFiveState.lastSubmittedAt = new Date().toISOString();
-    moduleFiveState.completed = true;
-    moduleFiveState.feedback = ['Submitted. This write-up has been recorded as your Assessment Lab submission for instructor review.'];
-    if (!moduleFiveState.flags.includes(MODULE_FIVE_FLAG)) moduleFiveState.flags.push(MODULE_FIVE_FLAG);
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(moduleFiveUser, MODULE_FIVE_CATALOG_LAB_KEY, { state: 'complete', result: { notes } });
+
+    if (event.target.closest('[data-m05-submit-case]')) {
+      if (moduleFiveState.caseRecord.submitted) return;
+      const spec = moduleFiveCaseSpec();
+      const missing = caseRecordMissing(moduleFiveState.caseRecord, spec);
+      if (missing.length) {
+        moduleFiveProveItShowMissing = true;
+        moduleFiveSave();
+        moduleFiveRenderAssessment();
+        return;
+      }
+      moduleFiveProveItShowMissing = false;
+      const assessmentState = SocM05AssessmentState.load(moduleFiveUser, SocM05AssessmentData);
+      const scored = SocM05AssessmentScorer.score(assessmentState, SocM05AssessmentData);
+      const submittedAt = new Date().toISOString();
+      const attemptNumber = Math.max(Number(moduleFiveState.attempts) || 0, moduleFiveState.assessmentAttempts.length) + 1;
+      const revision = (Number(moduleFiveState.caseRecord.revision) || 0) + 1;
+      const truth = SocM05AssessmentData.scenario.expectedTruth;
+      const reviewPayload = {
+        score: scored.score,
+        rawScore: scored.rawScore,
+        maxScore: scored.maxScore,
+        passed: scored.passed,
+        criticalMisses: scored.criticalMisses,
+        criteria: scored.criteria,
+        rubricVersion: scored.rubricVersion,
+        scenarioId: SocM05AssessmentData.scenario.id,
+        caseId: SocM05AssessmentData.scenario.caseId,
+        entityIdentity: {
+          affectedUser: truth.confirmedUser.value,
+          affectedDevice: truth.confirmedDevice.value,
+          hostname: SocM05AssessmentData.scenario.devices.find((device) => device.id === truth.confirmedDevice.value)?.hostname || '',
+          assetId: truth.confirmedDevice.assetId || '',
+        },
+        revision,
+        attemptNumber,
+        submittedAt,
+      };
+      moduleFiveState.caseRecord.caseId = MODULE_FIVE_CASE_ID;
+      moduleFiveState.caseRecord.scenarioId = SocM05AssessmentData.scenario.id;
+      moduleFiveState.caseRecord.revision = revision;
+      moduleFiveState.caseRecord.attemptNumber = attemptNumber;
+      moduleFiveState.caseRecord.reviewPayload = reviewPayload;
+      moduleFiveState.caseRecord.submitted = true;
+      moduleFiveState.caseRecord.submittedAt = submittedAt;
+      moduleFiveState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: submittedAt });
+      moduleFiveState.attempts = (moduleFiveState.attempts || 0) + 1;
+      moduleFiveState.assessmentAttempts.push(JSON.parse(JSON.stringify({ ...reviewPayload, caseRecord: moduleFiveState.caseRecord })));
+      moduleFiveState.lastSubmittedAt = submittedAt;
+      moduleFiveState.score = scored.score;
+      moduleFiveState.bestScore = Math.max(moduleFiveState.bestScore || 0, scored.score);
+      // No pass/fail gate existed pre-migration — a submitted case was
+      // always complete, instructor-reviewed. Unchanged here.
+      moduleFiveState.completed = true;
+      if (!moduleFiveState.flags.includes(MODULE_FIVE_FLAG)) moduleFiveState.flags.push(MODULE_FIVE_FLAG);
+      moduleFiveSave();
+      if (moduleFiveUser) {
+        moduleFiveUser.latestLabAttemptByKey = { ...(moduleFiveUser.latestLabAttemptByKey || {}), [MODULE_FIVE_CATALOG_LAB_KEY]: { completedAt: submittedAt, reviewedAt: null, redoRequested: false } };
+      }
+      if (typeof recordLabAttempt === 'function') {
+        recordLabAttempt(moduleFiveUser, MODULE_FIVE_CATALOG_LAB_KEY, {
+          state: 'complete',
+          score: scored.score,
+          result: {
+            case_record: JSON.parse(JSON.stringify(moduleFiveState.caseRecord)),
+            review_payload: reviewPayload,
+            case_display: caseRecordDisplay(moduleFiveState.caseRecord, spec),
+            case_summary: caseRecordSummary(moduleFiveState.caseRecord, spec),
+            notes: moduleFiveState.caseRecord.notes,
+          },
+        }).then((saved) => { if (saved && moduleFiveProveItRedoRequested()) delete moduleFiveUser.openLabRedosByModuleKey['soc-05']; });
+      }
+      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFiveUser, 'soc-analyst', 'soc-05', MODULE_FIVE_CATALOG_LAB_KEY);
+      const status = document.getElementById('m05-status');
+      if (status) status.textContent = 'Complete';
+      moduleFiveRenderAssessment();
     }
-    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFiveUser, 'soc-analyst', 'soc-05', MODULE_FIVE_CATALOG_LAB_KEY);
-    moduleFiveSave();
-    const status = document.getElementById('m05-status');
-    if (status) status.textContent = 'Complete';
-    root.innerHTML = moduleFiveAssessmentLabPanel();
   });
 }
 
 function wireModuleFive() {
+  const learnRoot = document.querySelector('.m05-shell');
+  if (learnRoot) LearnItCards.wire(learnRoot, { prefix: 'm05', onStep: (step, action) => {
+    moduleFiveState.learnItStep = step;
+    moduleFiveLearnItViewed = null;
+    moduleFiveSave();
+    const target = document.getElementById('m05-learn-it-root');
+    if (target) target.innerHTML = moduleFiveLearnItMarkup();
+  }, onView: (index) => {
+    moduleFiveLearnItViewed = index;
+    const target = document.getElementById('m05-learn-it-root');
+    if (target) target.innerHTML = moduleFiveLearnItMarkup();
+  } });
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   wireReviewToggle({ button: reviewToggle, sectionSelector: '.m05-section-collapsible', getReviewMode: () => moduleFiveReviewMode, setReviewMode: (value) => { moduleFiveReviewMode = value; }, enabledLabel: 'Close review', disabledLabel: 'Review module', enabledIcon: 'ri-close-line', disabledIcon: 'ri-file-list-line' });
   wireModuleFiveQuiz();
   wireModuleFiveLessons();
   wireModuleFiveGuidedLab();
   wireModuleFiveAssessmentLab();
+  wireModuleFiveOptionalLabs();
+}
+
+function wireModuleFiveOptionalLabs() {
+  const root = document.getElementById('m05-optional-labs-dynamic');
+  if (!root || !moduleFiveState) return;
+  wireMissionNextLabGating(root, moduleFiveState.labProgress, () => {
+    moduleFiveSave();
+    root.innerHTML = moduleFiveAdditionalLabs();
+    wireModuleFiveOptionalLabs();
+  });
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 5, moduleKey: 'soc-05',
-  view: viewModuleFive, wire: wireModuleFive });
+  view: viewModuleFive, wire: wireModuleFive, sections: moduleFiveGetSections });

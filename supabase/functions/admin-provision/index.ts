@@ -23,6 +23,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import { corsHeaders } from '../_shared/cors.ts';
 import {
+  generatePassword,
   provisionOneAccount,
   INSTRUCTOR_COURSE_BY_TRACK,
   INSTRUCTOR_TRACK_CODES,
@@ -184,6 +185,10 @@ Deno.serve(async (req: Request) => {
 
     if (body.action === 'delete_instructor') {
       return await handleDeleteInstructor(serviceClient, body);
+    }
+
+    if (body.action === 'rotate_password') {
+      return await handleRotatePassword(serviceClient, body, verifiedUserId);
     }
 
     if (body.action === 'create_cohort') {
@@ -362,6 +367,61 @@ async function handleDeleteInstructor(
   if (deleteError) return jsonResponse({ error: `Could not delete instructor: ${deleteError.message}` }, 500);
 
   return jsonResponse({ deleted: true, student_id: account.student_id, archive }, 200);
+}
+
+// -------------------------------------------------------- rotate_password
+// Body: { action: "rotate_password", student_id: "##########-SOCAN" }
+// Replaces the account's Supabase Auth password with a freshly generated one
+// and overwrites its admin-only student_credentials copy, so the admin
+// panel's "view credentials" action shows the new value. The new password is
+// returned once. The caller (portal/app.js) then runs admin_force_sign_out()
+// so sessions opened with the old password stop refreshing. An admin cannot
+// rotate their own account here — that would sign them out mid-action.
+// deno-lint-ignore no-explicit-any
+async function handleRotatePassword(
+  serviceClient: any,
+  body: Record<string, unknown>,
+  callerUserId: string,
+): Promise<Response> {
+  const studentId = typeof body.student_id === 'string' ? body.student_id.trim() : '';
+  if (!/^\d{10}-[A-Z]+$/.test(studentId)) {
+    return jsonResponse({ error: 'A valid login ID is required.' }, 400);
+  }
+
+  const { data: account, error: accountError } = await serviceClient
+    .from('students')
+    .select('user_id, student_id')
+    .eq('student_id', studentId)
+    .maybeSingle();
+  if (accountError) return jsonResponse({ error: 'Could not look up the account.' }, 500);
+  if (!account || !account.user_id) return jsonResponse({ error: 'Account was not found.' }, 404);
+  if (account.user_id === callerUserId) {
+    return jsonResponse({ error: 'You cannot rotate your own password from the roster.' }, 403);
+  }
+
+  const password = generatePassword();
+  const { error: authError } = await serviceClient.auth.admin.updateUserById(
+    account.user_id,
+    { password },
+  );
+  if (authError) return jsonResponse({ error: `Could not rotate password: ${authError.message}` }, 500);
+
+  const { error: credentialError } = await serviceClient
+    .from('student_credentials')
+    .upsert(
+      { student_id: account.student_id, password, created_at: new Date().toISOString() },
+      { onConflict: 'student_id' },
+    );
+
+  // The Auth password has already changed at this point, so still hand the
+  // new value back; the admin must record it if the lookup copy failed.
+  return jsonResponse({
+    rotated: true,
+    student_id: account.student_id,
+    user_id: account.user_id,
+    password,
+    credential_stored: !credentialError,
+  }, 200);
 }
 
 // ----------------------------------------------------------- create_cohort

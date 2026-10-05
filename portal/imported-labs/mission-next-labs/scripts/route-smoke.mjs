@@ -9,10 +9,49 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:5173';
 const chromeBin = process.env.CHROME_BIN || '/usr/bin/google-chrome';
 const screenshotDir = process.env.SMOKE_SCREENSHOT_DIR || path.join(os.tmpdir(), 'mission-next-route-smoke-screenshots');
-const session = { id:1, username:'student_01', password:'k7m2x9', role:'student', displayName:'Student 01' };
 const chromeExecOptions = { encoding:'utf8', stdio:['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 };
 
 const routes = [
+  {
+    name:'sa-2 file system lab (Module 02 guided/assessment; unchanged)',
+    hash:'#/track/security-assessments/project/sa-2/lab',
+    expect:['File System Security Assessment', 'EXERCISES'],
+  },
+  {
+    name:'sa-3 web finding lab',
+    hash:'#/track/security-assessments/project/sa-3/lab',
+    expect:['Web Application Security Assessment', 'Traffic Inspector', 'Authorized AppSec Evidence'],
+  },
+  {
+    name:'sa-4 linux log triage lab',
+    hash:'#/track/security-assessments/project/sa-4/lab',
+    expect:['Linux Log Triage: The Audit Gap', 'EXERCISES'],
+  },
+  {
+    name:'sa-5 identity review lab',
+    hash:'#/track/security-assessments/project/sa-5/lab',
+    expect:['User Account Security Assessment', 'EXERCISES'],
+  },
+  {
+    name:'sa-6 windows jump host lab',
+    hash:'#/track/security-assessments/project/sa-6/lab',
+    expect:['Windows Jump Host Triage', 'PowerShell'],
+  },
+  {
+    name:'sa-7 containment and rebuild lab',
+    hash:'#/track/security-assessments/project/sa-7/lab',
+    expect:['Contain, Collect, Rebuild', 'Rebuild-JumpHost.ps1'],
+  },
+  {
+    name:'sa-8 cloud incident lab',
+    hash:'#/track/security-assessments/project/sa-8/lab',
+    expect:['Cloud Identity &amp; Workload Incident', 'Cloud Shell', 'SIMULATION ONLY'],
+  },
+  {
+    name:'sa-9 file server integrity lab',
+    hash:'#/track/security-assessments/project/sa-9/lab',
+    expect:['File Server Integrity Triage', 'EXERCISES'],
+  },
   {
     name:'log analysis catalog blocked',
     hash:'#/track/log-analysis',
@@ -39,11 +78,6 @@ const routes = [
     expect:['Static Analysis of a Simple Malware Sample', 'EXERCISES', 'strings_output.txt', 'steps'],
   },
   {
-    name:'servicenow incident workspace',
-    hash:'#/track/security-assessments/project/sa-1/lab',
-    expect:['Basic Network Security Assessment', 'EXERCISES', 'steps'],
-  },
-  {
     name:'azure defender resource blades',
     hash:'#/track/vulnerability-management/project/vm-1/lab',
     expect:['Microsoft Defender for Cloud', 'Security recommendations', 'Secure score', 'Access control (IAM)'],
@@ -51,7 +85,7 @@ const routes = [
   {
     name:'training paths refresh',
     hash:'#/tracks',
-    expect:['Open this lab from the course module', 'Mission Next Lab'],
+    expect:['Open this lab from the course module', 'Choose a lab environment'],
   },
   {
     name:'malware catalogue blocked',
@@ -138,7 +172,6 @@ function seedPage(hash) {
 <meta charset="utf-8">
 <title>Route Smoke</title>
 <script>
-localStorage.setItem('mission_next_session', ${JSON.stringify(JSON.stringify(session))});
 if (!localStorage.getItem('mission_next_progress')) localStorage.setItem('mission_next_progress', '{}');
 location.replace(${JSON.stringify(`/${hash}`)});
 </script>`;

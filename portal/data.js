@@ -10,7 +10,7 @@
  */
 
 /* ---------------------------------------------------------------------------
- * STANDARD MODULE LAYOUT — see MODULE_STANDARD.md
+ * STANDARD MODULE LAYOUT — see docs/specs/MODULE_STANDARD.md
  *
  * Every module in every track carries the same keys. A field with no content
  * yet is present and empty, never absent — missing keys are what break shared
@@ -171,7 +171,8 @@ const PROGRAMS = [
       delivery: 'Online / approved distance education',
       weeks: 6,
       technicalHours: 60,
-      totalHours: 60,
+      careerHours: 12,
+      totalHours: 72,
       theoryHours: 37,
       labHours: 23,
       passingPercent: 70,
@@ -194,10 +195,32 @@ const PROGRAMS = [
       { code: 'ITHD-101.8', title: 'Remote Support Tools, Security Awareness, Troubleshooting Methodology', hours: 4, theoryMinutes: 180, labMinutes: 60, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.9', title: 'Capstone: Simulated Help Desk Support Scenario & KB Documentation', hours: 4, theoryMinutes: 30, labMinutes: 210, reviewStatus: 'developer-mapped' },
     ],
+    careerReadiness: {
+      code: 'M360-101',
+      title: 'Personal Branding, Career Positioning, LinkedIn Optimization, Resume Development, Interview Preparation, and Career Spotlight',
+      durationMinutes: 720,
+      hours: 12,
+      classification: 'theory',
+      boundary: 'Separate companion course; excluded from technical Help Desk module progress and the 60-hour technical roll-up.',
+      progressNamespace: 'mnt.m360-101.progress.v1',
+      status: 'developer-mapped',
+      curriculumComplianceReview: 'pending',
+      revision: ITS_CURRICULUM_REVISION,
+      items: [
+        m360Item('m360-101-personal-branding', 'Personal Branding', 'Define a consistent professional identity grounded in the learner\'s experience and target role.'),
+        m360Item('m360-101-career-positioning', 'Career Positioning', 'Connect transferable experience and current training to an appropriate entry-level career target.'),
+        m360Item('m360-101-linkedin-optimization', 'LinkedIn Optimization', 'Revise a professional profile so role focus, skills, and experience are clear and supportable.'),
+        m360Item('m360-101-resume-development', 'Resume Development', 'Produce a role-focused resume that accurately presents relevant accomplishments and training.'),
+        m360Item('m360-101-interview-preparation', 'Interview Preparation', 'Prepare and rehearse concise evidence-based responses to common interview questions.'),
+        m360Item('m360-101-professional-follow-up', 'Professional Follow-Up', 'Draft timely and appropriate follow-up communication for recruiting and networking interactions.'),
+        m360Item('m360-101-mentorship', 'Mentorship', 'Use structured mentor feedback to identify and complete a career-readiness improvement.'),
+        m360Item('m360-101-career-spotlight', 'Career Spotlight', 'Present a concise career narrative and next-step plan for faculty or peer review.'),
+      ],
+    },
     stats: [
       { icon: 'ri-calendar-line', label: 'Duration', value: '6 Weeks' },
       { icon: 'ri-stack-line', label: 'Learning Experience', value: '12 Modules' },
-      { icon: 'ri-time-line', label: 'Approved Program', value: '60 Clock Hours' },
+      { icon: 'ri-time-line', label: 'Approved Program', value: '72 Clock Hours' },
       { icon: 'ri-flask-line', label: 'Lab Instruction', value: '23 Hours' },
       { icon: 'ri-global-line', label: 'Delivery', value: 'Online' },
       { icon: 'ri-award-line', label: 'Credential', value: 'Diploma' },
@@ -372,7 +395,7 @@ const PROGRAMS = [
             objective: 'Combine impact and urgency into a priority call and sequence a mixed queue against SLA deadlines.' }),
         ],
         skills: ['Ticket Management', 'SLAs', 'Queue Prioritization'] },
-      'its-11': { number: 11, week: 6, title: 'Customer Service, Documentation & Escalation', hours: '4.5 Hours', durationMinutes: 270, creditMinutes: 270, lessons: 2, labs: 1,
+      'its-11': { number: 11, week: 6, title: 'Customer Service, Documentation & Escalation', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 1,
         status: 'authored',
         summary: 'The technical fix is only half the job — write it down well, communicate it clearly, and hand it off cleanly when it\'s not yours to finish.',
         curriculumItems: [
@@ -635,10 +658,10 @@ const PROGRAMS = [
       'Applied AI & Deployment',
       'Professional Practice & Capstone',
     ], 'aim'),
-    /* Authored from AI_ML_ENGINEERING_CURRICULUM.md (2026-09-10). Key prefix
+    /* Authored from docs/other-tracks/AI_ML_ENGINEERING_CURRICULUM.md (2026-09-10). Key prefix
      * stays 'aim' (not the doc's 'aiml') to match the already-registered
      * module-lab slot (ai-ml-module-01.js's registerModuleLab call) and
-     * weekGroups() above — MODULE_STANDARD.md: never rename a key. */
+     * weekGroups() above — docs/specs/MODULE_STANDARD.md: never rename a key. */
     modules: {
       'aim-01': mod({
         key: 'aim-01', number: 1, week: 1, title: 'Python Programming Foundations',
@@ -1806,7 +1829,7 @@ const MODULE_ONE_ALERT_ORIENTATION = {
     },
   ],
   scenario: {
-    id: 'ALT-1001',
+    id: 'ALT-1001', alertId: 'ALR-011001', incidentId: 'INC-011318', caseId: 'CASE-011420',
     source: 'Identity protection',
     detectedBy: 'Repeated failures followed by success',
     initialSeverity: 'Medium',
@@ -1858,7 +1881,7 @@ const MODULE_ONE_ALERT_ORIENTATION = {
         ] },
       { id: 'confirmation', time: '09:14', icon: 'ri-phone-line', label: 'The user denies the activity', detail: 'The service desk reached the account owner through the registered phone number. The user confirms they did not attempt the sign-ins.' },
     ],
-    // Real log rows for the case-console's middle pane (MODULE_01_CASE_CONSOLE_SPEC.md
+    // Real log rows for the case-console's middle pane (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md
     // §3) — the same nine events narrated by `evidence` above, restated as a
     // readable table the student clicks through instead of a pre-summarized
     // card. `raw` is the expandable structured record for that row; `evidenceId`
@@ -1961,7 +1984,7 @@ const MODULE_ONE_ESCALATION_LAB = {
   minutes: 480,
   passingScore: 70,
   scenario: {
-    id: 'NST-2407', source: 'Microsoft Sentinel correlation', detectedBy: 'Impossible-travel sign-in plus endpoint execution', initialSeverity: 'High',
+    id: 'NST-2407', alertId: 'ALR-012401', incidentId: 'INC-012716', caseId: 'CASE-012407', source: 'Microsoft Sentinel correlation', detectedBy: 'Impossible-travel sign-in plus endpoint execution', initialSeverity: 'High',
     title: 'Possible account takeover followed by endpoint execution',
     summary: 'An identity sign-in and a workstation process chain may be connected. Establish the supported scope before asking an authorized responder to contain anything.',
     entity: 'a.chen / LAP-442', created: 'Mon 09:18 UTC',
@@ -1972,7 +1995,7 @@ const MODULE_ONE_ESCALATION_LAB = {
       { id: 'owner', time: 'Mon 09:41', icon: 'ri-phone-line', label: 'User callback', detail: 'a.chen confirms the laptop is in their possession but denies approving the MFA prompts or running the downloaded file.' },
     ],
     // Real log rows for the case-console's middle pane, same idea as
-    // ALT-1001's logEvents (MODULE_01_CASE_CONSOLE_SPEC.md §3) — one small
+    // ALT-1001's logEvents (docs/specs/MODULE_01_CASE_CONSOLE_SPEC.md §3) — one small
     // table mixing the identity/endpoint/proxy sources this case actually
     // correlates, not three separate simulators. The phone callback has no
     // row — it is handed over, not logged.
@@ -2198,6 +2221,10 @@ const LABS = [
     facultyEvaluation: 'Faculty applies the capstone rubric to investigation, technical execution, triage, evidence handling, documentation, escalation, analysis, and reporting.',
     description: 'A twelve-stage security investigation spanning email, identity, endpoint, network, threat intelligence, hunting, vulnerability analysis, response, evidence, and reporting.',
     skills: ['Full Investigation Lifecycle'], simEntry: '#/defender/home' }),
+  labRecord({ key: 'lab-capstone-simulator-practice', module: 'soc-12', title: 'Legacy Capstone Simulator Practice (Optional)', difficulty: 'Advanced', minutes: 60, optional: true, isCapstone: false,
+    objective: 'Explore the retained standalone capstone simulator as optional practice.',
+    description: 'Supplementary simulator practice. This activity is separate from the cumulative Assessment Lab and never gates module progress.',
+    skills: ['SOC Investigation Practice'], simEntry: '#/defender/home' }),
 
   /* IT Help Desk lab catalogue. Only Modules 1, 2, and 12 have a built,
    * scored lab — see the compliance.sourceNotes on the it-support program
@@ -2258,7 +2285,7 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.2', 75)], objective: 'Filter the full ticket queue by priority and justify why a P1 ticket sorts to the top of the shift.',
     description: 'A coach-guided walkthrough of the real, full ticket queue in the IT Service Desk simulator, filtering to P1 and documenting priority reasoning.',
     skills: ['Ticket Management', 'Prioritization', 'SLAs'], portalEntry: '#/program/it-support/module/10' }),
-  itsLab({ key: 'lab-its-11-handoff-documentation', module: 'its-11', title: 'Writing the Handoff That Actually Helps', difficulty: 'Foundational', minutes: 135,
+  itsLab({ key: 'lab-its-11-handoff-documentation', module: 'its-11', title: 'Writing the Handoff That Actually Helps', difficulty: 'Foundational', minutes: 75,
     parentAllocations: [allocation('ITHD-101.2', 75)], objective: 'Recognize an escalation trigger and write a complete, stranger-actionable handoff note; diagnose and resolve a real ticket while calmly setting expectations for an already-frustrated user.',
     description: 'A coach-guided walkthrough of tickets HD-2113 (expired VPN gateway certificate) and HD-2124 (a repeat-contact user blocked by a stale Outlook credential) in the IT Service Desk simulator, focused on documentation, escalation, and communication under pressure.',
     skills: ['Documentation', 'Escalation', 'Customer Communication'], portalEntry: '#/program/it-support/module/11' }),
@@ -2267,7 +2294,7 @@ const LABS = [
     description: 'A six-ticket integrated scenario spanning identity, endpoint, network, peripheral, server, and security issues, scored across triage, technical accuracy, communication, escalation judgment, security judgment, documentation, and reflection.',
     skills: ['Full Ticket Lifecycle', 'Prioritization', 'Resolve/Escalate Judgment', 'Knowledge Base Documentation'], portalEntry: '#/program/it-support/module/12' }),
 
-  /* AI & Machine Learning lab catalogue, from AI_ML_ENGINEERING_CURRICULUM.md
+  /* AI & Machine Learning lab catalogue, from docs/other-tracks/AI_ML_ENGINEERING_CURRICULUM.md
    * (2026-09-10). Labs run in the student's own real Python environment (no
    * in-portal execution sandbox exists), so each module bundles its
    * curriculum hands-on labs into one guided, checklist-and-reflection

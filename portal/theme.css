@@ -1,0 +1,112 @@
+/* Mission Next day/night layer. Navy remains the main night surface; orange
+   remains the signal accent already used throughout the brand system. */
+:root {
+  --mn-theme-page: #f5f8fb;
+  --mn-theme-surface: #ffffff;
+  --mn-theme-surface-raised: #edf3f8;
+  --mn-theme-text: #172d42;
+  --mn-theme-muted: #52677b;
+  --mn-theme-border: #cfdae5;
+  --mn-theme-navy: #123754;
+  --mn-theme-blue: #1f4e79;
+  --mn-theme-accent: #f26a2e;
+}
+html[data-mn-theme="night"] {
+  color-scheme: dark;
+  --mn-theme-page: #0b1828;
+  --mn-theme-surface: #10263b;
+  --mn-theme-surface-raised: #173650;
+  --mn-theme-text: #e5edf5;
+  --mn-theme-muted: #b2c3d3;
+  --mn-theme-border: #294963;
+  --mn-theme-navy: #123754;
+  --mn-theme-blue: #1f4e79;
+  --mn-theme-accent: #f26a2e;
+}
+
+html[data-mn-theme="night"] body {
+  color: var(--mn-theme-text) !important;
+  background-color: var(--mn-theme-page) !important;
+}
+html[data-mn-theme="night"] body,
+html[data-mn-theme="night"] body #app,
+html[data-mn-theme="night"] body #root,
+html[data-mn-theme="night"] body main {
+  color: var(--mn-theme-text);
+}
+html[data-mn-theme="night"] :where(
+  .bg-white, .bg-gray-50, .bg-gray-100, .bg-slate-50, .bg-slate-100,
+  .card, .panel, .modal, .workspace-card, .lesson-card, .module-card,
+  .m360-card, .journey-card, .sidebar, .section-card, .content-card,
+  [class*="surface"], [class*="-panel"], [class*="-card"]
+) {
+  background-color: var(--mn-theme-surface) !important;
+  border-color: var(--mn-theme-border) !important;
+  color: var(--mn-theme-text);
+}
+html[data-mn-theme="night"] :where(
+  .bg-gray-50, .bg-gray-100, .bg-slate-50, .bg-slate-100,
+  [class*="surface"], [class*="-panel"]
+) { background-color: var(--mn-theme-surface-raised) !important; }
+html[data-mn-theme="night"] :where(p, li, label, small, dt, dd, figcaption) {
+  color: var(--mn-theme-text);
+}
+html[data-mn-theme="night"] :where(.text-gray-500, .text-gray-600, .text-gray-700,
+  .text-slate-500, .text-slate-600, .text-slate-700, .subtle, .muted, .hint) {
+  color: var(--mn-theme-muted) !important;
+}
+/* Tailwind's arbitrary brand colors bypass the normal text utility groups.
+   They appear on admin workspace names, section titles, tabs, and dashboard
+   figures, so explicitly lift those dark navy labels in night mode. */
+html[data-mn-theme="night"] :where(
+  [class*="text-[#1e3a5f]"], [class*="text-[#123754]"], [class*="text-[#1f4e79]"],
+  [class*="text-[#172033]"], [class*="text-[#172d42]"]
+) { color: #dceaf7 !important; }
+html[data-mn-theme="night"] :where(.text-gray-800, .text-gray-900,
+  .text-slate-800, .text-slate-900) { color: #dceaf7 !important; }
+/* Content headings and disclosure labels are commonly assigned navy directly
+   in the M360 and simulator stylesheets rather than through utility classes. */
+html[data-mn-theme="night"] :where(h1, h2, h3, h4, h5, h6, legend, summary,
+  .coach-pick-name, .coach-bar-instruction, .brand-name, .sidebar-title) {
+  color: #dceaf7 !important;
+}
+html[data-mn-theme="night"] :where(input, textarea, select, option) {
+  color: var(--mn-theme-text);
+  background-color: #0b1d2e;
+  border-color: var(--mn-theme-border);
+}
+html[data-mn-theme="night"] :where(a:not(.button):not([class*="btn"]), .text-blue-700, .text-blue-800) {
+  color: #9dc9ee;
+}
+html[data-mn-theme="night"] :where(table th, .table-header) {
+  background-color: var(--mn-theme-surface-raised);
+  color: var(--mn-theme-text);
+}
+html[data-mn-theme="night"] :where(table td, table th) { border-color: var(--mn-theme-border); }
+
+/* Persistent control occupies the same upper-right corner on every surface. */
+.mn-theme-toggle {
+  position: fixed !important;
+  top: 12px !important;
+  right: 16px !important;
+  z-index: 2147483000 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 7px 13px;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 999px;
+  background: #123754;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(8, 25, 42, .24);
+  font: 700 13px/1.2 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+.mn-theme-toggle:hover { background: #1f4e79; }
+.mn-theme-toggle:focus-visible { outline: 3px solid #f26a2e; outline-offset: 3px; }
+.mn-theme-toggle span:first-child { font-size: 17px; line-height: 1; }
+@media (max-width: 520px) {
+  .mn-theme-toggle { top: 8px !important; right: 8px !important; min-height: 36px; padding: 6px 10px; }
+}

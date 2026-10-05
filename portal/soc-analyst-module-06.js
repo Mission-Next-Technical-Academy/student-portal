@@ -405,9 +405,343 @@ const MODULE_SIX_SOURCES = {
 
 const MODULE_SIX_EXPECTED_BOOKMARKS = ['EP-602', 'EP-604', 'ID-612', 'ID-614'];
 
+// Standard ITSM Incident Ticket (docs/specs/MODULE_STANDARD.md §7.2). Module 06 has
+// two catalog-graded Prove It submissions — `m06-form` (catalog key
+// MODULE_SIX_CATALOG_LAB_KEY, 'lab-threat-hunt') and `m06-independent-form`
+// (catalog key 'lab-threat-hunt-independent') — both call recordLabAttempt()
+// for a real catalog lab key (see LABS in data.js), so both are in scope.
+// The Stage 1/2 hypothesis + two-source query workbench above the first
+// ticket stay exactly as-is (they are evidence, not the graded artifact);
+// only the two forms migrate.
+const MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY = 'lab-threat-hunt-independent';
+const MODULE_SIX_HUNT_CASE_ID = 'CASE-066214';
+const MODULE_SIX_BACKDOOR_CASE_ID = 'CASE-066318';
+const MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD = 40;
+
+const MODULE_SIX_HUNT_ENTITY_ROSTER = {
+  users: [
+    { id: 'acct-27', text: 'acct-27 (WS-214, seed pair)', tier: 'principal' },
+    { id: 'acct-41', text: 'acct-41 (WS-332, second pair)', tier: 'pivot' },
+    { id: 'acct-18', text: 'acct-18', tier: 'noise' },
+    { id: 'acct-52', text: 'acct-52', tier: 'noise' },
+    { id: 'backup-job', text: 'backup-job', tier: 'noise' },
+    { id: 'acct-63', text: 'acct-63', tier: 'noise' },
+    { id: 'acct-77', text: 'acct-77', tier: 'noise' },
+  ],
+  devices: [
+    { id: 'WS-214', text: 'WS-214 (seed device)', tier: 'principal' },
+    { id: 'WS-332', text: 'WS-332 (second matching device)', tier: 'pivot' },
+    { id: 'WS-105', text: 'WS-105 (approved signed updater)', tier: 'noise' },
+    { id: 'WS-406', text: 'WS-406 (managed inventory script)', tier: 'noise' },
+    { id: 'WS-118', text: 'WS-118', tier: 'noise' },
+    { id: 'SRV-008', text: 'SRV-008 (backup server)', tier: 'noise' },
+    { id: 'WS-020', text: 'WS-020', tier: 'noise' },
+  ],
+};
+
+const MODULE_SIX_HUNT_DEPARTMENT_OPTIONS = [
+  { id: 'detection-engineering', text: 'Detection Engineering', fit: 100, note: 'Best fit — Detection Engineering issued the fleet-wide bulletin and owns the scoped hunt findings.' },
+  { id: 'tier2-soc', text: 'Tier 2 SOC', fit: 65, note: 'Acceptable — Tier 2 can continue monitoring the scoped pairs, but Detection Engineering owns the bulletin follow-up.' },
+  { id: 'identity-response', text: 'Identity Response', fit: 30, note: 'Weak fit — the unfamiliar sessions are a supporting signal, not the primary compromise vector here.', bounce: 'Identity Response is not the primary owner of a scoped script-execution hunt; route to Detection Engineering.' },
+  { id: 'help-desk', text: 'IT Help Desk', fit: 10, note: 'Not a fit — this is a confirmed, scoped malicious pattern, not a routine help-desk ticket.', bounce: 'Help Desk cannot action a cross-device threat-hunt finding; this needs Detection Engineering.' },
+];
+
+const MODULE_SIX_BACKDOOR_ENTITY_ROSTER = {
+  users: [
+    { id: 'acct-184', text: 'acct-184 (UpdateHealth task account on ws-318)', tier: 'principal' },
+    { id: 'acct-271', text: 'acct-271 (comparison-host task account)', tier: 'pivot' },
+    { id: 'acct-27', text: 'acct-27', tier: 'noise' },
+    { id: 'acct-41', text: 'acct-41', tier: 'noise' },
+    { id: 'acct-18', text: 'acct-18', tier: 'noise' },
+    { id: 'acct-52', text: 'acct-52', tier: 'noise' },
+  ],
+  devices: [
+    { id: 'ws-318', text: 'ws-318 (UpdateHealth task, user-writable path)', tier: 'principal' },
+    { id: 'ws-355', text: 'ws-355 (comparison host, signed maintenance script)', tier: 'pivot' },
+    { id: 'WS-214', text: 'WS-214', tier: 'noise' },
+    { id: 'WS-332', text: 'WS-332', tier: 'noise' },
+    { id: 'WS-105', text: 'WS-105', tier: 'noise' },
+    { id: 'WS-406', text: 'WS-406', tier: 'noise' },
+  ],
+};
+
+const MODULE_SIX_BACKDOOR_DEPARTMENT_OPTIONS = [
+  { id: 'endpoint-response', text: 'Endpoint/EDR Response', fit: 100, note: 'Best fit — a dormant scheduled-task persistence mechanism needs to be contained and removed from the endpoint.' },
+  { id: 'tier2-soc', text: 'Tier 2 SOC', fit: 65, note: 'Acceptable — Tier 2 can continue investigation, but endpoint containment still needs an EDR-focused owner.' },
+  { id: 'identity-response', text: 'Identity Response', fit: 30, note: 'Weak fit — no credential compromise is evidenced; this is a persistence mechanism on one endpoint.', bounce: 'Identity Response cannot remove a scheduled-task persistence entry; route to Endpoint/EDR Response.' },
+  { id: 'help-desk', text: 'IT Help Desk', fit: 10, note: 'Not a fit — this is a suspected dormant backdoor, not a routine help-desk ticket.', bounce: 'Help Desk cannot contain a scheduled-task backdoor; this needs Endpoint/EDR Response.' },
+];
+
+const MODULE_SIX_EVIDENCE_PRIORITY_FINDING_OPTIONS = [
+  { id: 'task-metadata', text: 'Task author, trigger, path, signer, and creation time' },
+  { id: 'all-logs', text: 'Every log row in the tenant' },
+  { id: 'alert-only', text: 'Only generated alerts' },
+];
+
+const MODULE_SIX_SCOPE_ASSESSMENT_FINDING_OPTIONS = [
+  { id: 'ws318-only', text: 'ws-318 is supported; the signed maintenance host is a comparison' },
+  { id: 'fleet-wide', text: 'Every host with the task name is compromised' },
+  { id: 'no-scope', text: 'No scope because no alert fired' },
+];
+
+const MODULE_SIX_RESPONSE_ACTION_FINDING_OPTIONS = [
+  { id: 'escalate', text: 'Escalate ws-318 for approved containment and preserve the task/script evidence' },
+  { id: 'wipe', text: 'Wipe every host immediately' },
+  { id: 'close', text: 'Close as benign because no alert exists' },
+];
+
+function moduleSixHuntCaseSpec() {
+  return {
+    caseId: MODULE_SIX_HUNT_CASE_ID,
+    userOptions: MODULE_SIX_HUNT_ENTITY_ROSTER.users,
+    deviceOptions: MODULE_SIX_HUNT_ENTITY_ROSTER.devices,
+    departmentOptions: MODULE_SIX_HUNT_DEPARTMENT_OPTIONS,
+    notesMin: 120,
+    notesPlaceholder: 'Hypothesis result: … Scope: … Evidence: … Recommended next step: …',
+    findingsHtml: moduleSixHuntFindingsHtml(),
+    extraMissing: moduleSixHuntExtraMissing(),
+  };
+}
+
+// Stage 3-5 kept exactly as before (device/account scope, IOC
+// interpretation, ATT&CK mapping, next action) — rendered as findingsHtml
+// inside the same ticket form and wired through the existing change/click
+// handlers in wireModuleSixGuidedLab, so no behavior changes here.
+function moduleSixHuntFindingsHtml() {
+  const devices = [
+    { id: 'WS-214', label: 'WS-214', help: 'Seed device with the first matching process chain.' },
+    { id: 'WS-332', label: 'WS-332', help: 'Second device with the same fingerprint and destination.' },
+    { id: 'WS-105', label: 'WS-105', help: 'Approved signed updater activity.' },
+    { id: 'WS-406', label: 'WS-406', help: 'Managed inventory script with a different fingerprint.' },
+  ];
+  const accounts = [
+    { id: 'acct-27', label: 'acct-27', help: 'Session and endpoint activity align on WS-214.' },
+    { id: 'acct-41', label: 'acct-41', help: 'Session and endpoint activity align on WS-332.' },
+    { id: 'acct-18', label: 'acct-18', help: 'Routine access on an inventory workstation.' },
+    { id: 'acct-52', label: 'acct-52', help: 'Normal document and sign-in activity.' },
+  ];
+  const techniques = [
+    { id: 'T1059', label: 'T1059 · Command and Scripting Interpreter', help: 'Supported by the encoded script-host execution.' },
+    { id: 'T1105', label: 'T1105 · Ingress Tool Transfer', help: 'The data proves a connection, but not a file transfer.' },
+    { id: 'T1078', label: 'T1078 · Valid Accounts', help: 'Supported by active account sessions from the shared unusual source.' },
+    { id: 'T1566', label: 'T1566 · Phishing', help: 'A content viewer is present, but message-delivery evidence is not in this lab.' },
+  ];
+  return `<fieldset class="m06-fieldset"><legend><span>1</span> Scope the affected devices</legend><p class="m06-help">Choose every device with the matching suspicious behavior.</p>${moduleSixCheckboxGroup('scopedDevices', devices, moduleSixState.scopedDevices)}</fieldset>
+    <fieldset class="m06-fieldset"><legend><span>2</span> Scope the affected identities</legend><p class="m06-help">Choose every account supported by both timing and entity context.</p>${moduleSixCheckboxGroup('scopedAccounts', accounts, moduleSixState.scopedAccounts)}</fieldset>
+    <fieldset class="m06-fieldset"><legend><span>3</span> Interpret the indicator relationship</legend><p class="m06-help">Indicators are pivots. Explain what their recurrence contributes.</p>${moduleSixRadioGroup('iocRelationship', [
+      { id: 'corroborates', label: 'The shared fingerprint and destination corroborate one recurring behavior pattern.', help: 'The process, device, identity, and time context make the recurrence meaningful.' },
+      { id: 'ip-proves', label: 'The destination alone proves every matching device is compromised.', help: 'An address match without behavior and context is not enough.' },
+      { id: 'unrelated', label: 'The rows are unrelated because they occur on different devices.', help: 'Cross-device recurrence is exactly what this hunt is testing.' },
+    ])}</fieldset>
+    <fieldset class="m06-fieldset"><legend><span>4</span> Map demonstrated ATT&amp;CK behavior</legend><p class="m06-help">Choose the two techniques directly supported by these two sources; do not infer delivery or download behavior that is absent.</p>${moduleSixCheckboxGroup('techniques', techniques, moduleSixState.techniques)}</fieldset>
+    <fieldset class="m06-fieldset"><legend><span>5</span> Recommend the next action</legend>${moduleSixRadioGroup('nextAction', [
+      { id: 'scoped-escalation', label: 'Escalate the two pairs for approved containment, preserve bookmarks, and continue a scoped indicator-and-behavior hunt.', help: 'This is proportionate to the validated scope and keeps evidence available.' },
+      { id: 'wipe-all', label: 'Immediately wipe every device in the dataset.', help: 'This exceeds the observed scope and analyst authority.' },
+      { id: 'close', label: 'Close the hunt because no alert fired on WS-332.', help: 'Threat hunting exists to find relevant behavior beyond current alerts.' },
+    ])}</fieldset>`;
+}
+
+function moduleSixHuntExtraMissing() {
+  const missing = [];
+  if (!moduleSixState.hypothesis) missing.push('Choose a testable hypothesis in Stage 1');
+  if (!moduleSixState.queryRuns.endpoint || !moduleSixState.queryRuns.signin) missing.push('Run both source queries in Stage 2');
+  if (!moduleSixState.bookmarks.length) missing.push('Bookmark the decisive evidence in Stage 2');
+  if (!moduleSixState.scopedDevices.length || !moduleSixState.scopedAccounts.length) missing.push('Scope the affected devices and identities');
+  if (!moduleSixState.iocRelationship) missing.push('Interpret the indicator relationship');
+  if (!moduleSixState.techniques.length) missing.push('Map demonstrated ATT&CK behavior');
+  if (!moduleSixState.nextAction) missing.push('Recommend the next action');
+  return missing;
+}
+
+function moduleSixProveItRedoRequested() {
+  return moduleSixUser?.openLabRedosByModuleKey?.['soc-06']?.labKey === MODULE_SIX_CATALOG_LAB_KEY;
+}
+
+function moduleSixProveItReviewStatus() {
+  if (!moduleSixState?.caseRecord?.submitted) return '';
+  const attempt = moduleSixUser?.latestLabAttemptByKey?.[MODULE_SIX_CATALOG_LAB_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleSixProveItRedoFeedback() {
+  if (!moduleSixProveItRedoRequested()) return '';
+  const items = moduleSixUser.openLabRedosByModuleKey['soc-06'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
+// The Independent Assessment Lab ticket (m06-independent-form) has its own
+// redo/review tracking under the second catalog key.
+function moduleSixIndependentRedoRequested() {
+  return moduleSixUser?.openLabRedosByModuleKey?.['soc-06-independent']?.labKey === MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY;
+}
+
+function moduleSixIndependentReviewStatus() {
+  if (!moduleSixState?.independentLab?.caseRecord?.submitted) return '';
+  const attempt = moduleSixUser?.latestLabAttemptByKey?.[MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleSixIndependentRedoFeedback() {
+  if (!moduleSixIndependentRedoRequested()) return '';
+  const items = moduleSixUser.openLabRedosByModuleKey['soc-06-independent'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
+function moduleSixBackdoorCaseSpec() {
+  return {
+    caseId: MODULE_SIX_BACKDOOR_CASE_ID,
+    userOptions: MODULE_SIX_BACKDOOR_ENTITY_ROSTER.users,
+    deviceOptions: MODULE_SIX_BACKDOOR_ENTITY_ROSTER.devices,
+    departmentOptions: MODULE_SIX_BACKDOOR_DEPARTMENT_OPTIONS,
+    notesMin: 60,
+    notesPlaceholder: 'Observed behavior… comparison… bounded next action…',
+    findings: [
+      { name: 'evidencePriority', label: 'Evidence to prioritize', options: MODULE_SIX_EVIDENCE_PRIORITY_FINDING_OPTIONS, missing: 'Choose the evidence to prioritize' },
+      { name: 'scopeAssessment', label: 'Current scope', options: MODULE_SIX_SCOPE_ASSESSMENT_FINDING_OPTIONS, missing: 'Assess the current scope' },
+      { name: 'responseAction', label: 'Recommended response action', options: MODULE_SIX_RESPONSE_ACTION_FINDING_OPTIONS, missing: 'Recommend a response action' },
+    ],
+    // Optional Labs never gate the assessment ticket.
+    extraMissing: [],
+  };
+}
+
+// Hunt Lab (m06-form) scoring: queries/bookmarks/hypothesis/scope/ioc/attack
+// keep their pre-migration weights (observation 30 + analysis 30 = 60,
+// unchanged); the remaining 40 points now cover the standard ticket fields
+// that did not exist pre-migration (entity, severity, escalation) plus the
+// pre-existing decision/communication content (disposition, next action,
+// notes), rebalanced to fit.
+function moduleSixHuntCaseScore() {
+  const cr = moduleSixState.caseRecord;
+  const queries = (moduleSixState.queryPassed.endpoint ? 5 : 0) + (moduleSixState.queryPassed.signin ? 5 : 0);
+  const bookmarks = moduleSixExactSelection(moduleSixState.bookmarks, MODULE_SIX_EXPECTED_BOOKMARKS, 20);
+  const hypothesis = moduleSixState.hypothesis === 'recurrence' ? 8 : 0;
+  const deviceScope = moduleSixExactSelection(moduleSixState.scopedDevices, ['WS-214', 'WS-332'], 6);
+  const accountScope = moduleSixExactSelection(moduleSixState.scopedAccounts, ['acct-27', 'acct-41'], 6);
+  const scope = deviceScope + accountScope;
+  const ioc = moduleSixState.iocRelationship === 'corroborates' ? 4 : 0;
+  const attack = moduleSixExactSelection(moduleSixState.techniques, ['T1059', 'T1078'], 6);
+  const observation = queries + bookmarks;
+  const analysis = hypothesis + scope + ioc + attack;
+
+  const roster = MODULE_SIX_HUNT_ENTITY_ROSTER;
+  const userTier = roster.users.find((entry) => entry.id === cr.affectedUser)?.tier;
+  const deviceTier = roster.devices.find((entry) => entry.id === cr.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 4); // 0-8
+
+  const severity = caseRecordSeverity(cr);
+  const severityPoints = severity === 'high' ? 4 : 0;
+
+  const disposition = caseRecordDisposition(cr);
+  const dispositionPoints = disposition === 'true-positive' ? 8 : 0;
+
+  const department = MODULE_SIX_HUNT_DEPARTMENT_OPTIONS.find((option) => option.id === cr.escalateTo) || null;
+  const escalationRequiredOk = cr.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD;
+  const escalationPoints = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 8) : 0;
+
+  const action = moduleSixState.nextAction === 'scoped-escalation' ? 6 : 0;
+
+  const notesLen = (cr.notes || '').trim().length;
+  const notesPoints = notesLen >= 120 ? 6 : 0;
+
+  const decision = dispositionPoints + escalationPoints + action;
+  const communication = entityPoints + severityPoints + notesPoints;
+  const score = observation + analysis + decision + communication;
+  const criticalErrors = cr.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  return {
+    score,
+    breakdown: { observation, queries, bookmarks, analysis, hypothesis, scope, ioc, attack, entity: entityPoints, severity: severityPoints, disposition: dispositionPoints, escalation: escalationPoints, action, analyst_notes: notesPoints },
+    department, bounced,
+    feedback: [
+      queries === 10 ? 'Queries: Both scoped pivots returned the two chronological matches expected.' : `Queries: ${queries}/10. Run the endpoint fingerprint query and sign-in source-address query with an ascending time sort.`,
+      bookmarks === 20 ? 'Bookmarks: Correct. Four records preserve the two endpoint executions and their two identity-session correlations.' : `Bookmarks: ${bookmarks}/20. Keep EP-602, EP-604, ID-612, and ID-614; unrelated baseline rows weaken the evidence set.`,
+      hypothesis ? 'Hypothesis: Testable and correctly framed around recurrence beyond the seed device.' : 'Hypothesis: Frame the hunt around whether the same suspicious script behavior recurred on another device.',
+      scope === 12 ? 'Scope: Correctly limited to WS-214/acct-27 and WS-332/acct-41.' : `Scope: ${scope}/12. Select only the two device-account pairs supported by matching behavior and timing.`,
+      ioc && attack === 6 ? 'IOC and ATT&CK analysis: Correct. The recurring indicators corroborate the pattern; scripting and valid-account use are directly demonstrated.' : `IOC and ATT&CK analysis: ${ioc + attack}/10. Correlate indicators with context and map only scripting plus valid-account use.`,
+      entityPoints >= 8 ? 'Affected entity/scope: correct — acct-27 and WS-214 are the confirmed seed pair.' : 'Affected entity/scope: review — acct-27 and WS-214 are the confirmed seed pair; acct-41/WS-332 is the second pair, not the seed.',
+      severityPoints ? 'Severity: correct — High.' : 'Severity: review — a recurring cross-device execution pattern with active sessions is High severity.',
+      dispositionPoints ? 'Disposition: correct — confirmed malicious activity.' : 'Disposition: review — the recurring pattern is confirmed malicious activity, not a false positive.',
+      escalationPoints >= 8 ? 'Routing: correct — Detection Engineering is the best-fit department for this bulletin follow-up.' : department ? `Routing: ${department.fit >= MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD ? 'accepted, but not the best fit' : 'returned'} — ${department.bounce || department.note}` : 'Routing: review — this case needs a department routed with the recorded evidence.',
+      action ? 'Decision: Proportionate. Escalate the scoped pairs, preserve evidence, and continue the focused hunt.' : 'Decision: Avoid enterprise-wide claims or destructive actions beyond the current evidence.',
+      notesPoints ? 'Handoff: Notes meet the 120-character bar.' : 'Handoff: Include a conclusion, both device-account pairs, one validated indicator, and a proportionate recommendation in at least 120 characters.',
+    ],
+    criticalErrors,
+  };
+}
+
+// Independent Assessment Lab (m06-independent-form) scoring: Module 01
+// weights (entity 20, severity 15, disposition 15... rebalanced to include
+// the three domain findings that replace the old free-form task/scope/
+// disposition selects) — 100 total, unchanged 70% pass bar.
+function moduleSixBackdoorCaseScore() {
+  const cr = moduleSixState.independentLab.caseRecord;
+  const roster = MODULE_SIX_BACKDOOR_ENTITY_ROSTER;
+  const userTier = roster.users.find((entry) => entry.id === cr.affectedUser)?.tier;
+  const deviceTier = roster.devices.find((entry) => entry.id === cr.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 10); // 0-20
+
+  const severity = caseRecordSeverity(cr);
+  const severityPoints = severity === 'high' ? 10 : 0;
+
+  const disposition = caseRecordDisposition(cr);
+  const dispositionPoints = disposition === 'true-positive' ? 15 : 0;
+
+  const department = MODULE_SIX_BACKDOOR_DEPARTMENT_OPTIONS.find((option) => option.id === cr.escalateTo) || null;
+  const escalationRequiredOk = cr.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD;
+  const escalationPoints = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 20) : 0;
+
+  const findings = cr.findings || {};
+  const evidencePoints = findings.evidencePriority === 'task-metadata' ? 5 : 0;
+  const scopePoints = findings.scopeAssessment === 'ws318-only' ? 5 : 0;
+  const responsePoints = findings.responseAction === 'escalate' ? 5 : 0;
+  const domainFindingsPoints = evidencePoints + scopePoints + responsePoints;
+
+  const notesLen = (cr.notes || '').trim().length;
+  const notesPoints = Math.round(Math.min(1, notesLen / 60) * 20);
+
+  const score = entityPoints + severityPoints + dispositionPoints + escalationPoints + domainFindingsPoints + notesPoints;
+  const criticalErrors = cr.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  return {
+    score,
+    breakdown: { affected_entity: entityPoints, severity: severityPoints, disposition: dispositionPoints, escalation: escalationPoints, domain_findings: domainFindingsPoints, analyst_notes: notesPoints },
+    department, bounced,
+    feedback: [
+      entityPoints >= 20 ? 'Affected entity/scope: correct — acct-184 and ws-318 are the confirmed pair.' : 'Affected entity/scope: review — acct-184 and ws-318 are the confirmed pair; svc-patch/ws-355 is the signed comparison, not the confirmed pair.',
+      severityPoints ? 'Severity: correct — High.' : 'Severity: review — a dormant backdoor with active persistence is High severity.',
+      dispositionPoints ? 'Disposition: correct — confirmed malicious activity.' : 'Disposition: review — the unsigned, user-writable, weekly-triggered task is confirmed malicious activity, not benign administration.',
+      evidencePoints ? 'Evidence priority: correct.' : 'Evidence priority: prioritize task author, trigger, path, signer, and creation time.',
+      scopePoints ? 'Scope: correct — ws-318 is supported; the signed maintenance host is a comparison, not a second confirmed host.' : 'Scope: review — ws-318 is supported; the signed maintenance host is a benign comparison, not fleet-wide compromise.',
+      responsePoints ? 'Response action: correct — escalate ws-318 for approved containment and preserve evidence.' : 'Response action: escalate ws-318 for approved containment and preserve evidence; do not wipe broadly or close without review.',
+      department ? (escalationPoints >= 20 ? 'Routing: correct — Endpoint/EDR Response is the best-fit department for this case.' : `Routing: ${department.fit >= MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD ? 'accepted, but not the best fit' : 'returned'} — ${department.bounce || department.note}`) : 'Routing: review — this case needs a department routed with the recorded evidence.',
+    ],
+    criticalErrors,
+  };
+}
+
 const MODULE_SIX_DEFAULT_STATE = {
   lessonWork: {},
-  independentLab: { task: '', owner: '', scope: '', disposition: '', rationale: '', completed: false, score: 0 },
+  independentLab: {
+    task: '', owner: '', scope: '', disposition: '', rationale: '', completed: false, score: 0,
+    // Standard ITSM Incident Ticket for the m06-independent-form Prove It
+    // submission (docs/specs/MODULE_STANDARD.md §7.2).
+    caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
+  },
   hypothesis: '',
   activeSource: 'endpoint',
   queryDrafts: {
@@ -436,12 +770,21 @@ const MODULE_SIX_DEFAULT_STATE = {
   validationError: '',
   lastSubmittedAt: '',
   labProgress: {},
+  // Standard ITSM Incident Ticket for the m06-form Prove It submission
+  // (docs/specs/MODULE_STANDARD.md §7.2).
+  caseRecord: { status: '', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
 };
 
 let moduleSixState = null;
 let moduleSixUser = null;
+let moduleSixLearnItViewed = null;
 let moduleSixReviewMode = false;
 let moduleSixQuizState = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleSixQuizVerifiedElsewhere()).
+let moduleSixQuizForceRetake = false;
+let moduleSixProveItShowMissing = false;
+let moduleSixIndependentProveItShowMissing = false;
 
 function moduleSixFreshDefaults() {
   // LabRuntime intentionally performs a shallow merge. This lab has nested
@@ -450,9 +793,12 @@ function moduleSixFreshDefaults() {
 }
 
 function moduleSixLoad(user) {
+  if (moduleSixUser?.email !== user?.email) moduleSixQuizForceRetake = false;
+  if (moduleSixUser?.email !== user?.email) moduleSixLearnItViewed = null;
   moduleSixUser = user;
   const defaults = moduleSixFreshDefaults();
-  moduleSixState = LabRuntime.load(MODULE_SIX_LAB_ID, user, defaults);
+  moduleSixState = LabRuntime.loadCaseState(MODULE_SIX_LAB_ID, 'soc-06', user, defaults);
+  moduleSixState.learnItStep = Number.isInteger(moduleSixState.learnItStep) ? Math.max(0, Math.min(moduleSixState.learnItStep, LearnItDecks['soc-06'].length)) : 0;
   moduleSixState.queryDrafts = { ...defaults.queryDrafts, ...(moduleSixState.queryDrafts || {}) };
   moduleSixState.queryRuns = { ...defaults.queryRuns, ...(moduleSixState.queryRuns || {}) };
   moduleSixState.queryPassed = { ...defaults.queryPassed, ...(moduleSixState.queryPassed || {}) };
@@ -466,6 +812,53 @@ function moduleSixLoad(user) {
     if (!Array.isArray(moduleSixState[key])) moduleSixState[key] = [];
   });
 
+  // Standard ITSM tickets — init/migrate both tickets; never crash on an
+  // old saved shape.
+  if (!moduleSixState.caseRecord || typeof moduleSixState.caseRecord !== 'object') {
+    moduleSixState.caseRecord = JSON.parse(JSON.stringify(MODULE_SIX_DEFAULT_STATE.caseRecord));
+  }
+  if (!moduleSixState.independentLab.caseRecord || typeof moduleSixState.independentLab.caseRecord !== 'object') {
+    moduleSixState.independentLab.caseRecord = JSON.parse(JSON.stringify(MODULE_SIX_DEFAULT_STATE.independentLab.caseRecord));
+  }
+  [moduleSixState.caseRecord, moduleSixState.independentLab.caseRecord].forEach((cr) => {
+    ['status', 'severity', 'affectedUser', 'affectedDevice', 'disposition', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
+      if (typeof cr[key] !== 'string') cr[key] = '';
+    });
+    if (!cr.findings || typeof cr.findings !== 'object') cr.findings = {};
+    if (!Array.isArray(cr.actionHistory)) cr.actionHistory = [];
+    if (typeof cr.submitted !== 'boolean') cr.submitted = false;
+  });
+  // Backward compat: a pre-migration hunt submission recorded only
+  // `attempts`/`completed` on the old free-form m06-form. Treat it as
+  // already submitted so the student sees Lab Under Review / Lab Graded
+  // instead of a blank ticket — never re-open work already sent to faculty.
+  if (!moduleSixState.caseRecord.submitted && Number(moduleSixState.attempts) > 0) {
+    moduleSixState.caseRecord.submitted = true;
+    moduleSixState.caseRecord.submittedAt = moduleSixState.lastSubmittedAt || new Date().toISOString();
+    if (!moduleSixState.caseRecord.notes) moduleSixState.caseRecord.notes = moduleSixState.notes || '';
+  }
+  // Same backward compat for the pre-migration m06-independent-form, which
+  // only recorded `score`/`completed` (no `attempts` counter of its own —
+  // any prior score means a submission happened).
+  if (!moduleSixState.independentLab.caseRecord.submitted && Number(moduleSixState.independentLab.score) > 0) {
+    moduleSixState.independentLab.caseRecord.submitted = true;
+    moduleSixState.independentLab.caseRecord.submittedAt = moduleSixState.independentLab.submittedAt || new Date().toISOString();
+    if (!moduleSixState.independentLab.caseRecord.notes) moduleSixState.independentLab.caseRecord.notes = moduleSixState.independentLab.rationale || '';
+  }
+  // The returned attempt remains immutable in lab_attempts; its saved
+  // case-state latch must not make the working case permanently unsubmitable.
+  // Scope this reset to an open redo for the exact lab (see Module 01).
+  if (moduleSixProveItRedoRequested() && moduleSixState.caseRecord.submitted === true) {
+    moduleSixState.caseRecord.submitted = false;
+    moduleSixState.caseRecord.submittedAt = '';
+    moduleSixSave();
+  }
+  if (moduleSixIndependentRedoRequested() && moduleSixState.independentLab.caseRecord.submitted === true) {
+    moduleSixState.independentLab.caseRecord.submitted = false;
+    moduleSixState.independentLab.caseRecord.submittedAt = '';
+    moduleSixSave();
+  }
+
   // Initialize quiz state
   if (!moduleSixQuizState) {
     const previousQuestionIds = moduleSixState.lastQuizQuestionIds || [];
@@ -477,15 +870,17 @@ function moduleSixLoad(user) {
 }
 
 function moduleSixSave() {
-  if (moduleSixUser && moduleSixState) LabRuntime.save(MODULE_SIX_LAB_ID, moduleSixUser, moduleSixState);
+  if (moduleSixUser && moduleSixState) LabRuntime.saveCaseState(MODULE_SIX_LAB_ID, 'soc-06', moduleSixUser, moduleSixState);
 }
 
 function moduleSixGetSections() {
+  // Server-verified modules (finished on another device, before the 09-27
+  // lab rebuild, or by admin override) read complete instead of empty.
+  const verified = moduleSixUser?.remoteVerifiedModuleProgress?.['soc-06'] === true;
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: MODULE_SIX_LESSONS.every((lesson) => moduleSixLessonComplete(lesson)), scrollId: 'm06-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleSixQuizState?.passed, scrollId: 'm06-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleSixState.completed, scrollId: 'm06-guided-lab' },
-    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleSixState.independentLab.completed, scrollId: 'm06-assessment-lab' },
+    { id: 'lecture', title: 'Learn It', type: 'lecture', isComplete: MODULE_SIX_LESSONS.every((lesson) => moduleSixLessonComplete(lesson)), scrollId: 'm06-lecture' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || (moduleSixGuidedState.caseRecord.submitted || moduleSixGuidedState.legacyComplete), scrollId: 'm06-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleSixState.independentLab.completed, scrollId: 'm06-assessment-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm06-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm06-sources', gated: false, supplemental: true },
   ];
@@ -508,7 +903,7 @@ function moduleSixGetQuickNavItems() {
     id: 'm06-guided-lab',
     title: 'Guided Lab',
     kind: 'lab',
-    isComplete: moduleSixState.completed === true,
+    isComplete: moduleSixGuidedChecks().every((check) => check[2]),
     scrollId: 'm06-guided-lab',
   });
   items.push({
@@ -531,12 +926,12 @@ function moduleSixLessonComplete(lesson) {
 }
 
 function moduleSixLessonLoops() {
-  return `<div class="m06-lesson-grid" id="m06-lessons">${MODULE_SIX_LESSONS.map((lesson) => {
+  return `<div class="m06-lesson-grid mf-lesson-grid" id="m06-lessons">${MODULE_SIX_LESSONS.map((lesson) => {
     const work = moduleSixLessonWork(lesson.number);
     const complete = moduleSixLessonComplete(lesson);
-    return `<details class="m06-lesson" ${lesson.number === 1 ? 'open' : ''} data-m06-lesson="${lesson.number}">
-      <summary><span class="m06-lesson-number">${String(lesson.number).padStart(2, '0')}</span><span><strong>${esc(lesson.title)}</strong><small>${complete ? 'Complete' : 'Scenario → theory → check → applied task'}</small></span>${complete ? '<span aria-label="Lesson complete">✓</span>' : ''}</summary>
-      <div class="m06-lesson-body"><div class="m06-lesson-scenario"><p class="m06-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></div><div class="m06-lesson-theory"><p class="m06-kicker">Theory</p><p>${esc(lesson.theory)}</p></div>
+    return `<details class="m06-lesson mf-lesson" ${lesson.number === 1 ? 'open' : ''} data-m06-lesson="${lesson.number}">
+      <summary><span class="m06-lesson-number mf-lesson-number">${String(lesson.number).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${complete ? 'Complete' : 'Scenario → theory → check → applied task'}</small></span>${complete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
+      <div class="m06-lesson-body mf-lesson-body"><div class="m06-lesson-scenario"><p class="m06-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></div><div class="m06-lesson-theory"><p class="m06-kicker">Theory</p><p>${esc(lesson.theory)}</p></div>
       <div class="m06-lesson-check"><h4>Knowledge check</h4>${lesson.questions.map((question) => { const selected = work.answers?.[question.id]; const answered = selected !== undefined; return `<fieldset><legend>${esc(question.prompt)}</legend>${question.options.map((option, index) => `<label><input type="radio" name="m06-lesson-${lesson.number}-${question.id}" data-m06-lesson-answer data-lesson="${lesson.number}" data-question="${esc(question.id)}" value="${index}" ${selected === index ? 'checked' : ''} /><span>${esc(option)}</span></label>`).join('')}${answered ? `<p class="m06-lesson-feedback ${selected === question.correct ? 'is-pass' : 'is-remediate'}" role="status">${esc(selected === question.correct ? question.good : question.bad)}</p>` : ''}</fieldset>`; }).join('')}</div>
       <div class="m06-lesson-task"><p class="m06-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea data-m06-lesson-task="${lesson.number}" rows="3" maxlength="600" placeholder="Apply the idea to this hunt…">${esc(work.taskText || '')}</textarea><button type="button" data-m06-lesson-submit="${lesson.number}">${complete ? 'Completed' : 'Mark task complete'}</button></div></div></details>`;
   }).join('')}</div>`;
@@ -557,9 +952,24 @@ function moduleSixQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleSixQuizVerifiedElsewhere() {
+  if (moduleSixQuizForceRetake || !moduleSixQuizState || moduleSixQuizState.scored) return false;
+  if (Object.keys(moduleSixQuizState.answers || {}).length > 0) return false;
+  return moduleSixUser?.remoteVerifiedModuleProgress?.['soc-06'] === true
+    || moduleSixUser?.remoteModuleDetail?.['soc-06']?.quizPassed === true
+    || moduleSixUser?.remoteModuleEvidence?.['soc-06']?.['knowledge-check'] === true;
+}
+
 function moduleSixQuizPanel() {
   if (!moduleSixQuizState?.selectedQuestions || moduleSixQuizState.selectedQuestions.length === 0) {
     return `<div class="m06-quiz-empty" id="m06-quiz-feedback" role="status">Loading quiz...</div>`;
+  }
+  if (moduleSixQuizVerifiedElsewhere()) {
+    return `<form class="m06-quiz-form mf-quiz-form" id="m06-quiz-form" novalidate><section class="mf-score is-pass" id="m06-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m06-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleSixQuizState.selectedQuestions;
@@ -569,7 +979,7 @@ function moduleSixQuizPanel() {
   let feedbackHtml = '';
   if (moduleSixQuizState.scored) {
     const passed = moduleSixQuizState.score >= 70;
-    feedbackHtml = `<section class="m06-quiz-score ${passed ? 'm06-quiz-pass' : 'm06-quiz-remediate'}" id="m06-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m06-quiz-score mf-score ${passed ? 'm06-quiz-pass is-pass' : 'm06-quiz-remediate is-remediate'}" id="m06-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m06-quiz-score-heading">
         <div>
           <p class="m06-kicker">Attempt ${moduleSixQuizState.attempts} · best ${moduleSixQuizState.bestScore}/100</p>
@@ -594,8 +1004,8 @@ function moduleSixQuizPanel() {
     feedbackHtml = `<div class="m06-quiz-empty" id="m06-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m06-quiz-form" id="m06-quiz-form" novalidate>
-    <div class="m06-panel-heading"><div><p class="m06-kicker">Knowledge check</p><h3 id="m06-quiz-title" tabindex="-1">Test your understanding of threat hunting</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m06-quiz-form mf-quiz-form" id="m06-quiz-form" novalidate>
+    <div class="m06-panel-heading mf-panel-heading"><div><p class="m06-kicker mf-kicker">Knowledge check</p><h3 id="m06-quiz-title" tabindex="-1">Test your understanding of threat hunting</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleSixQuizQuestion(sel, idx)).join('')}
     <div class="m06-quiz-actions">
       <button class="m06-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -607,26 +1017,7 @@ function moduleSixQuizPanel() {
 }
 
 function moduleSixVideoScript() {
-  return `<details class="m06-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m06-script-body">
-      <p><strong>Introduction:</strong> Welcome to hypothesis-led threat hunting. This module builds on endpoint investigation skills from Module 05 by adding a second data source: sign-in logs. Your job is to form a testable hypothesis, run two scoped queries, bookmark the few rows that establish behavior and scope, and communicate a defensible conclusion without claiming more than the data supports.</p>
-
-      <p><strong>Segment 1 — Framing a testable hypothesis.</strong> A good hypothesis names a specific behavior, the entities it may affect, and what evidence would support or weaken it. Avoid broad claims ("the enterprise is compromised") that cannot be tested with limited data. Instead, build from a seed observation: an unusual script behavior on one device, followed by a question—does it recur? Testable hypotheses are narrow enough to evaluate and falsifiable if the evidence does not appear.</p>
-
-      <p><strong>Segment 2 — Using indicators as pivots.</strong> An indicator (file hash, IP address, domain) is a search filter, not proof. A file hash helps you find related rows, but the rows must be examined for timing, parent processes, user context, and behavioral patterns. Indicators are pivots: they narrow results, but context validates the match. Never claim compromise based on an indicator alone.</p>
-
-      <p><strong>Segment 3 — Constructing a scoped query.</strong> A good query uses KQL-style syntax: table name, one where clause with equality filtering, and a chronological sort. Example: "SignInActivity | where SourceIp == '203.0.113.77' | sort by TimeGenerated asc". Query results are a starting point; if you get too many rows, refine with additional filters. If you get too few, check the pivot value or expand the time window. Queries are iterative.</p>
-
-      <p><strong>Segment 4 — Bookmarking with discipline.</strong> After querying both sources, you may have 10+ matching rows. Bookmark only the few that directly test the hypothesis. A decisive bookmark explains why that row matters; volume is not evidence quality. Unrelated rows weaken your conclusion and distract responders. In this lab, you should bookmark exactly four rows: two from endpoint activity and two from sign-in activity, all aligned in time and entities.</p>
-
-      <p><strong>Segment 5 — Mapping demonstrated ATT&CK behavior.</strong> ATT&CK techniques describe observed behavior. Map only what the telemetry demonstrates. Script execution maps to T1059; active session from an unfamiliar source maps to T1078 (Valid Accounts). Do not infer file transfer (T1105) if the logs show a connection but not a payload. Do not infer phishing (T1566) if the delivery method is absent. Precise mapping guides responders.</p>
-
-      <p><strong>Segment 6 — Scoping proportionately.</strong> State what the evidence proves and what remains unknown. This lab shows two device-account pairs with matching indicators and timing. That supports escalation of those pairs and continued hunting for the validated indicators. It does not prove enterprise-wide compromise. Proportionate response means isolate, preserve, and escalate—not destruction, not enterprise-wide lock.</p>
-
-      <p><strong>Closing:</strong> Threat hunting is disciplined exploration. You start with a seed observation, form a testable hypothesis, query available data, bookmark the decisive evidence, and escalate with confidence in what you found and why it matters. You are not responsible for detecting every attack or reversing malware; responders handle those roles. Your responsibility is to read the data correctly and hand off with precision.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleSixReview() {
@@ -641,7 +1032,7 @@ function moduleSixReview() {
       <li><strong>Proportionate escalation:</strong> State the proven scope and recommend targeted response. This lab establishes two device-account pairs, not enterprise-wide compromise.</li>
     </ul>
     <h3>Before you continue</h3>
-    <p>You should now be able to form a testable hypothesis from a seed observation, query two sources with scoped filters, correlate evidence across data sources, and communicate a defensible scope and recommendation. In Module 07 and beyond, you will encounter multi-stage investigations where these skills apply across incident response workflows.</p>
+    <p>Form a testable hypothesis, query two sources with scoped filters, and correlate evidence across them. Communicate the supported scope and recommendation as you move into multi-stage investigations in Module 07.</p>
   </section>`;
 }
 
@@ -769,92 +1160,417 @@ function moduleSixRadioGroup(name, options) {
   return `<div class="m06-option-list">${options.map((option) => `<label><input type="radio" name="${esc(name)}" value="${esc(option.id)}" ${moduleSixState[name] === option.id ? 'checked' : ''} /><span><strong>${esc(option.label)}</strong><small>${esc(option.help)}</small></span></label>`).join('')}</div>`;
 }
 
-function moduleSixScorePanel() {
-  if (moduleSixState.validationError) return `<div class="m06-validation" id="m06-feedback" role="alert" tabindex="-1"><i class="ri-information-line" aria-hidden="true"></i><div><strong>Complete the hunt record</strong><p>${esc(moduleSixState.validationError)}</p></div></div>`;
-  if (!moduleSixState.attempts || !moduleSixState.breakdown) return `<div class="m06-score-empty" id="m06-feedback" role="status">Scoring: observation 30 · analysis 30 · decision 20 · communication 20. Passing score: ${MODULE_SIX_PASSING_SCORE}.</div>`;
-  const b = moduleSixState.breakdown;
-  const passed = moduleSixState.score >= MODULE_SIX_PASSING_SCORE;
-  return `<section class="m06-score ${passed ? 'is-pass' : 'is-remediate'}" id="m06-feedback" tabindex="-1" aria-live="polite" aria-labelledby="m06-score-title">
-    <div class="m06-score-heading"><div><p class="m06-kicker">Attempt ${moduleSixState.attempts} · best ${moduleSixState.bestScore}/100</p><h3 id="m06-score-title">${moduleSixState.score}/100 — ${passed ? 'Hypothesis tested and scoped' : 'Use the findings to refine your hunt'}</h3></div><span>${moduleSixState.score}</span></div>
-    <div class="m06-score-grid" aria-label="Explainable score breakdown">
-      <div><strong>${b.observation}/30</strong><span>Observation</span><small>${b.queries}/10 queries · ${b.bookmarks}/20 bookmarks</small></div>
-      <div><strong>${b.analysis}/30</strong><span>Analysis</span><small>${b.hypothesis}/8 hypothesis · ${b.scope}/12 scope · ${b.ioc}/4 IOC · ${b.attack}/6 ATT&amp;CK</small></div>
-      <div><strong>${b.decision}/20</strong><span>Decision</span><small>${b.disposition}/10 disposition · ${b.action}/10 action</small></div>
-      <div><strong>${b.communication}/20</strong><span>Communication</span><small>Conclusion, scope, indicators, and handoff</small></div>
-    </div>
-    <ul class="m06-feedback-list">${moduleSixState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
-    <div class="m06-expert-model"><strong>Expert hunt reasoning</strong><p>The initial row is suspicious because an unsigned script host appears beneath a content reader and contacts an unusual destination. The same fingerprint, destination, process pattern, and tightly timed unfamiliar session recur on WS-332 with a second account. That supports the hypothesis and scopes the current evidence to two device-account pairs. It does not prove enterprise-wide compromise; preserve the four bookmarks, escalate the scoped pairs, and continue monitoring for the validated indicators and behaviors.</p></div>
-  </section>`;
-}
-
 function moduleSixArtifact() {
-  const devices = [
-    { id: 'WS-214', label: 'WS-214', help: 'Seed device with the first matching process chain.' },
-    { id: 'WS-332', label: 'WS-332', help: 'Second device with the same fingerprint and destination.' },
-    { id: 'WS-105', label: 'WS-105', help: 'Approved signed updater activity.' },
-    { id: 'WS-406', label: 'WS-406', help: 'Managed inventory script with a different fingerprint.' },
-  ];
-  const accounts = [
-    { id: 'acct-27', label: 'acct-27', help: 'Session and endpoint activity align on WS-214.' },
-    { id: 'acct-41', label: 'acct-41', help: 'Session and endpoint activity align on WS-332.' },
-    { id: 'acct-18', label: 'acct-18', help: 'Routine access on an inventory workstation.' },
-    { id: 'acct-52', label: 'acct-52', help: 'Normal document and sign-in activity.' },
-  ];
-  const techniques = [
-    { id: 'T1059', label: 'T1059 · Command and Scripting Interpreter', help: 'Supported by the encoded script-host execution.' },
-    { id: 'T1105', label: 'T1105 · Ingress Tool Transfer', help: 'The data proves a connection, but not a file transfer.' },
-    { id: 'T1078', label: 'T1078 · Valid Accounts', help: 'Supported by active account sessions from the shared unusual source.' },
-    { id: 'T1566', label: 'T1566 · Phishing', help: 'A content viewer is present, but message-delivery evidence is not in this lab.' },
-  ];
-  return `<form class="m06-panel m06-artifact" id="m06-form" novalidate aria-labelledby="m06-artifact-title">
-    <div class="m06-panel-heading"><div><p class="m06-kicker">Stages 3–5 · Scope, decide, communicate</p><h3 id="m06-artifact-title">Hunt conclusion record</h3></div><span class="m06-status-chip">Retry allowed</span></div>
-    <p class="m06-instruction">Turn the two-source findings into one reviewable artifact. Select only what the evidence supports.</p>
-
-    <fieldset class="m06-fieldset"><legend><span>1</span> Scope the affected devices</legend><p class="m06-help">Choose every device with the matching suspicious behavior.</p>${moduleSixCheckboxGroup('scopedDevices', devices, moduleSixState.scopedDevices)}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>2</span> Scope the affected identities</legend><p class="m06-help">Choose every account supported by both timing and entity context.</p>${moduleSixCheckboxGroup('scopedAccounts', accounts, moduleSixState.scopedAccounts)}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>3</span> Interpret the indicator relationship</legend><p class="m06-help">Indicators are pivots. Explain what their recurrence contributes.</p>${moduleSixRadioGroup('iocRelationship', [
-      { id: 'corroborates', label: 'The shared fingerprint and destination corroborate one recurring behavior pattern.', help: 'The process, device, identity, and time context make the recurrence meaningful.' },
-      { id: 'ip-proves', label: 'The destination alone proves every matching device is compromised.', help: 'An address match without behavior and context is not enough.' },
-      { id: 'unrelated', label: 'The rows are unrelated because they occur on different devices.', help: 'Cross-device recurrence is exactly what this hunt is testing.' },
-    ])}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>4</span> Map demonstrated ATT&amp;CK behavior</legend><p class="m06-help">Choose the two techniques directly supported by these two sources; do not infer delivery or download behavior that is absent.</p>${moduleSixCheckboxGroup('techniques', techniques, moduleSixState.techniques)}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>5</span> Record the hunt disposition</legend>${moduleSixRadioGroup('disposition', [
-      { id: 'supported-scoped', label: 'Hypothesis supported; current evidence scopes activity to two device-account pairs.', help: 'The pattern recurs, while the dataset does not establish wider compromise.' },
-      { id: 'enterprise-wide', label: 'Confirmed enterprise-wide compromise.', help: 'Two affected pairs cannot support an enterprise-wide claim.' },
-      { id: 'benign', label: 'Benign administrative behavior.', help: 'The unsigned content-reader child and unfamiliar sessions differ from the benign baselines.' },
-    ])}</fieldset>
-    <fieldset class="m06-fieldset"><legend><span>6</span> Recommend the next action</legend>${moduleSixRadioGroup('nextAction', [
-      { id: 'scoped-escalation', label: 'Escalate the two pairs for approved containment, preserve bookmarks, and continue a scoped indicator-and-behavior hunt.', help: 'This is proportionate to the validated scope and keeps evidence available.' },
-      { id: 'wipe-all', label: 'Immediately wipe every device in the dataset.', help: 'This exceeds the observed scope and analyst authority.' },
-      { id: 'close', label: 'Close the hunt because no alert fired on WS-332.', help: 'Threat hunting exists to find relevant behavior beyond current alerts.' },
-    ])}</fieldset>
-    <div class="m06-fieldset"><label class="m06-note-label" for="m06-notes"><span>7</span><strong>Write the analyst handoff</strong></label><p class="m06-help" id="m06-notes-help">In 120+ characters: state whether the hypothesis is supported, name the scoped devices/accounts, cite the fingerprint or destination, and recommend a next action.</p><textarea id="m06-notes" name="notes" rows="6" maxlength="900" aria-describedby="m06-notes-help m06-note-count" placeholder="Hypothesis result: … Scope: … Evidence: … Recommended next step: …">${esc(moduleSixState.notes)}</textarea><p class="m06-note-count" id="m06-note-count"><span>${moduleSixState.notes.length}</span>/900 characters</p></div>
-    <details class="m06-hint m06-artifact-hint"><summary>Need a handoff checklist?</summary><p>Conclusion → exact scope → strongest indicator-and-behavior evidence → proportionate next action. State what is known without claiming more than two sources show.</p></details>
-    <div class="m06-actions"><button type="submit" class="m06-submit"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score my hunt</button><button type="button" class="m06-reset" data-m06-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset only this lab</button></div>
-    ${moduleSixScorePanel()}
-  </form>`;
+  const cr = moduleSixState.caseRecord;
+  const spec = moduleSixHuntCaseSpec();
+  const missing = caseRecordMissing(cr, spec);
+  return `<section class="m06-panel m06-artifact" aria-labelledby="m06-artifact-title">
+    <div class="m06-panel-heading"><div><p class="m06-kicker">Stages 3–5 · Scope, decide, communicate</p><h3 id="m06-artifact-title">Hunt conclusion record</h3></div>${!cr.submitted ? `<button type="button" class="m06-reset" data-m06-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset only this lab</button>` : ''}</div>
+    <p class="m06-instruction">Turn the two-source findings into one reviewable incident ticket. Select only what the evidence supports.</p>
+    ${caseRecordPane(cr, {
+      ...spec,
+      missing,
+      formId: 'm06-form',
+      saveAttr: 'data-m06-save-case',
+      submitAttr: 'data-m06-submit-case',
+      panelId: 'm06-case-panel',
+      showMissing: moduleSixProveItShowMissing,
+      redoRequested: moduleSixProveItRedoRequested(),
+      redoHtml: moduleSixProveItRedoFeedback(),
+      reviewStatus: moduleSixProveItReviewStatus(),
+      lockedMessage: 'The Assessment Lab stays locked until your instructor approves the submission.',
+    })}
+  </section>`;
 }
 
 function moduleSixGuidedLabPanel() {
-  return `${moduleSixHypothesis()}${moduleSixSourceWorkspace()}${moduleSixArtifact()}`;
+  const complete = moduleSixGuidedState.caseRecord.submitted === true;
+  return `${moduleSixGuidedGuide()}<div class="m03e-panel" id="m06-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE-066411 · HUNT · PRACTICE IT · CROSS-DEVICE BEHAVIOR REVIEW</p><p>An unfamiliar script fingerprint appears beneath two document-viewing processes and contacts the same destination. Test recurrence across the endpoint and identity records, retain a focused evidence set, and write a scoped hunt conclusion with a response handoff.</p></div><div class="m03e-console-host" id="m03e-console-m06-guided">${moduleThreeConsoleHtml('m06-guided')}</div></div><p class="m06-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Use the hunt console to test the lead; progress saves as you work.'}</p>`;
+}
+
+/* The Module 3 console carrying Module 4 and 5 tools on this hunt case, with
+ * Module 6's Hunting and ATT&CK workspaces. */
+const MODULE_SIX_HUNT_SOURCES = {
+  scheduled_task: 'DeviceTaskEvents', process_start: 'DeviceProcessEvents', file_indicator: 'DeviceFileEvents',
+  network_connection: 'DeviceNetworkEvents', identity_activity: 'IdentityEvents', sensor_health: 'DeviceSensorHealth',
+};
+const MODULE_SIX_CONSOLE_DATA = (function () {
+  const s = SocM06AssessmentData.scenario;
+  const events = s.telemetry.map((e) => m03eRow(MODULE_SIX_HUNT_SOURCES[e.eventType] || 'DeviceEvents', e.id, e.time.slice(0, 10), e.time.slice(11, 19), {
+    EventType: e.eventType, Account: e.account, Host: e.host, DeviceId: e.device, ProcessId: e.processId || '', ParentProcessId: e.parentProcessId || '',
+    Image: e.image || '', CommandLine: e.commandLine || '', ScriptPath: e.scriptPath || '', FilePath: e.path || '', Sha256: e.sha256 || '', Signer: e.signer || '',
+    TaskName: e.taskName || '', TaskPath: e.taskPath || '', MaintenanceId: e.maintenanceId || '', SourceIp: '',
+    DestinationIp: /^[\d.]+$/.test(e.destination || '') ? e.destination : '', Domain: /^[\d.]+$/.test(e.destination || '') ? '' : (e.destination || ''), DestinationPort: e.destinationPort || '',
+    Action: e.action, Result: e.result, RelatedEventIds: e.relatedEventIds || [],
+    EndpointEventType: e.eventType === 'file_indicator' ? 'file_hash' : e.eventType,
+    Detail: e.commandLine || e.taskPath || e.path || (e.destination ? `${e.destination}:${e.destinationPort}` : e.action),
+    ...(e.coverageStatus ? { CoverageStatus: e.coverageStatus } : {}),
+  }));
+  const user = (account, notes) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Operations', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: notes });
+  return {
+    ...m03eBuildDataset({
+      caseId: MODULE_SIX_BACKDOOR_CASE_ID,
+      day: s.end.slice(0, 10),
+      events,
+      identities: [user('acct-184', 'Signed in on ws-318'), user('acct-271', 'Signed in on ws-355'), user('acct-402', 'Signed in on ws-402'),
+        { Account: 'acct-svc-health', DisplayName: 'Health agent service', Type: 'Service', Department: 'IT Operations', Owner: 'IT Operations', Privileged: 'No', UsualSourceIp: '—', Notes: 'Used by approved health-agent maintenance' },
+        { Account: 'acct-sys', DisplayName: 'Local system', Type: 'Service', Department: 'IT Operations', Owner: 'Endpoint platform', Privileged: 'Yes', UsualSourceIp: '—', Notes: 'Scheduler and sensor context' }],
+      ips: [{ SourceIp: '198.51.100.88', Type: 'External', Country: '—', Asn: 'Unclassified hosting', FirstSeen: '2026-09-27 09:04', Reputation: 'No reputation data' }],
+      watchlists: {
+        ChangeTickets: { title: 'Approved change tickets', rows: [
+          { ChangeId: 'CHG-2048', Summary: 'Contoso health-agent maintenance run', Host: 'ws-355', Window: '2026-09-27 09:00–10:00', Status: 'Approved' },
+          { ChangeId: 'CHG-2051', Summary: 'Browser cache cleanup script', Host: 'ws-402', Window: '2026-09-27 09:00–10:00', Status: 'Approved' },
+          { ChangeId: 'CHG-2052', Summary: 'Endpoint sensor agent upgrade', Host: 'ws-402', Window: '2026-09-27 09:15–09:30', Status: 'Approved' },
+        ] },
+      },
+      // Unrelated alert candidates: none concerns the UpdateHealth lead on ws-318, which remains alert-free.
+      alerts: [
+        { id: 'ALT-6320', time: '2026-09-27T09:05:33Z', severity: 'Medium', title: 'Scheduled task launched PowerShell with execution-policy bypass on ws-402', entities: ['ws-402', 'acct-sys'], rule: 'Scheduled task child process is powershell.exe with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where DeviceId == "ws-402"' },
+        { id: 'ALT-6321', time: '2026-09-27T09:21:05Z', severity: 'Low', title: 'Endpoint sensor service stopped on ws-402', entities: ['ws-402'], rule: 'Sensor service stopped outside a heartbeat interval', query: 'DeviceSensorHealth\n| where DeviceId == "ws-402"' },
+        { id: 'ALT-6322', time: '2026-09-27T09:14:10Z', severity: 'Low', title: 'First-seen binary with outbound connection on ws-355', entities: ['ws-355', 'acct-271'], rule: 'Newly observed executable with an outbound TLS connection', query: 'DeviceNetworkEvents\n| where DeviceId == "ws-355"' },
+        { id: 'ALT-6323', time: '2026-09-27T09:13:50Z', severity: 'Low', title: 'Service-account logon on ws-355', entities: ['ws-355', 'acct-svc-health'], rule: 'Service account logon on a user workstation', query: 'IdentityEvents\n| where DeviceId == "ws-355"' },
+      ],
+    }),
+    now: s.end,
+  };
+}());
+const MODULE_SIX_DEVICES = [
+  { id: 'ws-318', hostname: 'ws-318', platform: 'Windows 11', role: 'User workstation', owner: 'acct-184', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-355', hostname: 'ws-355', platform: 'Windows 11', role: 'User workstation', owner: 'acct-271', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-402', hostname: 'ws-402', platform: 'Windows 11', role: 'User workstation', owner: 'acct-402', zone: 'CORP-USER', status: 'Online' },
+];
+const MODULE_SIX_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: SocM06AssessmentData.scenario.id, caseId: MODULE_SIX_BACKDOOR_CASE_ID, end: SocM06AssessmentData.scenario.end, data: MODULE_SIX_CONSOLE_DATA });
+const MODULE_SIX_M05_FIXTURE = SocConsoleTools.m05Fixture({ id: SocM06AssessmentData.scenario.id, stateKey: 'm06-endpoint-tools-v1', devices: MODULE_SIX_DEVICES, data: MODULE_SIX_CONSOLE_DATA });
+
+function moduleSixM04Tools() {
+  moduleSixState.tools ||= {};
+  if (!moduleSixState.tools.m04?.schemaVersion) moduleSixState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleSixState.tools.m04 }, MODULE_SIX_M04_FIXTURE).assessment;
+  return moduleSixState.tools.m04;
+}
+
+const MODULE_SIX_CONSOLE = (() => {
+  const base = { save: () => moduleSixSave(), rerender: () => moduleSixRenderAssessment(), console: () => m03eState('m06') };
+  return SocConsoleTools.mount('m06', {
+    data: MODULE_SIX_CONSOLE_DATA,
+    stateRoot: () => moduleSixState,
+    save: () => moduleSixSave(),
+    title: 'SIEM & THREAT HUNTING',
+    ariaLabel: 'Module 06 threat hunting assessment console',
+    sourceMappings: {
+      DeviceTaskEvents: { native: 'Task scheduler telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['task_name', 'TaskName'], ['task_path', 'TaskPath'], ['change_ref', 'MaintenanceId'], ['result', 'Result']] },
+      DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine']] },
+      DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['result', 'Result']] },
+      DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+      IdentityEvents: { native: 'Identity session context (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['identity', 'Account'], ['action', 'Action'], ['result', 'Result']] },
+      DeviceSensorHealth: { native: 'EDR sensor health heartbeats (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['status', 'Result'], ['coverage', 'CoverageStatus']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleSixM04Tools, fixture: MODULE_SIX_M04_FIXTURE } },
+      { id: 'm05', ctx: { ...base, fixture: MODULE_SIX_M05_FIXTURE, ...SocConsoleTools.embedded(() => moduleSixState, 'm05', SocM05AssessmentState.normalize, MODULE_SIX_M05_FIXTURE, () => moduleSixSave()) } },
+      { id: 'm06', ctx: { ...base, fixture: SocM06AssessmentData, load: () => SocM06AssessmentState.load(moduleSixUser, SocM06AssessmentData), store: (next) => SocM06AssessmentState.save(moduleSixUser, next, SocM06AssessmentData) } },
+    ],
+    caseView: () => moduleSixCaseTicket(),
+    caseBadge: () => (moduleSixState.independentLab.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+  });
+})();
+
+// Practice It: a separate cross-device script recurrence fixture and console
+// state, using the same cumulative packs and evidence mechanics as Prove It.
+const MODULE_SIX_GUIDED_LAB_ID = 'm06-guided-cross-device-hunt-v1';
+// Background-row builders for the Practice It hunt (Sprint 3). Same event shape as the authored rows.
+const moduleSixGuidedSha = (seed) => seed.repeat(Math.ceil(64 / seed.length)).slice(0, 64);
+const moduleSixGuidedEv = (n, time, eventType, device, account, o) => ({
+  id: `M06-GUIDE-${n}`, time: `2026-09-27T${time}Z`, eventType, device, host: device, account,
+  processId: null, parentProcessId: null, action: 'process_start', result: 'success', source: 'SyntheticEndpoint', ...o,
+});
+const moduleSixGuidedProc = (n, time, device, account, pid, ppid, image, commandLine, o = {}) => moduleSixGuidedEv(n, time, 'process_start', device, account, { processId: pid, parentProcessId: ppid, image, commandLine, ...o });
+const moduleSixGuidedNet = (n, time, device, account, pid, ppid, destination, result = 'allowed', o = {}) => moduleSixGuidedEv(n, time, 'network_connection', device, account, { processId: pid, parentProcessId: ppid, destination, destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result, source: 'SyntheticNetwork', ...o });
+const moduleSixGuidedTask = (n, time, device, account, pid, taskName, taskPath, o = {}) => moduleSixGuidedEv(n, time, 'scheduled_task', device, account, { processId: pid, taskName, taskPath, action: 'task_execution', result: 'started', source: 'SyntheticTaskScheduler', ...o });
+const moduleSixGuidedHealth = (n, time, device, o = {}) => moduleSixGuidedEv(n, time, 'sensor_health', device, 'acct-localsys', { action: 'sensor_heartbeat', result: 'healthy', coverageStatus: 'Full', source: 'SyntheticSensorHealth', ...o });
+const moduleSixGuidedFile = (n, time, device, account, pid, ppid, path, seed, signer, result, o = {}) => moduleSixGuidedEv(n, time, 'file_indicator', device, account, { processId: pid, parentProcessId: ppid, path, sha256: moduleSixGuidedSha(seed), signer, action: 'file_observed', result, source: 'SyntheticFileTelemetry', ...o });
+const MODULE_SIX_GUIDED_SVCHOST = 'C:\\Windows\\System32\\svchost.exe';
+const MODULE_SIX_GUIDED_PS = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+const MODULE_SIX_GUIDED_FIREFOX = 'C:\\Program Files\\Mozilla Firefox\\firefox.exe';
+const MODULE_SIX_GUIDED_BACKGROUND = [
+  // ws-421: routine browser/update activity and the signed viewer identity beside the unsigned script.
+  moduleSixGuidedHealth(213, '10:00:10', 'ws-421'),
+  moduleSixGuidedProc(214, '10:01:20', 'ws-421', 'acct-602', '4200', null, MODULE_SIX_GUIDED_FIREFOX, 'firefox.exe', { signer: 'CN=Mozilla Corporation', relatedEventIds: ['M06-GUIDE-215'] }),
+  moduleSixGuidedNet(215, '10:01:31', 'ws-421', 'acct-602', '4200', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-214'] }),
+  moduleSixGuidedProc(216, '10:02:00', 'ws-421', 'acct-localsys', '4205', null, MODULE_SIX_GUIDED_SVCHOST, 'svchost.exe -k netsvcs -p -s Schedule', { relatedEventIds: ['M06-GUIDE-217'] }),
+  moduleSixGuidedTask(217, '10:02:15', 'ws-421', 'acct-localsys', '4205', 'Adobe Acrobat Update Task', '\\Adobe Acrobat Update Task', { relatedEventIds: ['M06-GUIDE-216', 'M06-GUIDE-218'] }),
+  moduleSixGuidedProc(218, '10:02:18', 'ws-421', 'acct-602', '4231', '4205', 'C:\\Program Files (x86)\\Common Files\\Adobe\\ARM\\1.0\\AdobeARMHelper.exe', 'AdobeARMHelper.exe', { signer: 'CN=Adobe Inc.', relatedEventIds: ['M06-GUIDE-217', 'M06-GUIDE-219'] }),
+  moduleSixGuidedNet(219, '10:02:24', 'ws-421', 'acct-602', '4231', '4205', 'armmf.adobe.com', 'allowed', { relatedEventIds: ['M06-GUIDE-218'] }),
+  moduleSixGuidedFile(220, '10:04:05', 'ws-421', 'acct-602', '4210', null, 'C:\\Program Files\\Northstar\\DocPreview.exe', '6c2e90', 'CN=Northstar Software', 'signed_binary', { relatedEventIds: ['M06-GUIDE-201'] }),
+  moduleSixGuidedHealth(221, '10:34:50', 'ws-421'),
+  // ws-537: second seed host baseline, a connection retry and the signed mail viewer identity.
+  moduleSixGuidedHealth(222, '10:00:12', 'ws-537'),
+  moduleSixGuidedProc(223, '10:10:00', 'ws-537', 'acct-684', '5300', null, 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', 'msedge.exe --profile-directory=Default', { signer: 'CN=Microsoft Corporation', relatedEventIds: ['M06-GUIDE-224', 'M06-GUIDE-225'] }),
+  moduleSixGuidedNet(224, '10:10:21', 'ws-537', 'acct-684', '5300', null, 'intranet.northstar.example', 'timed_out', { relatedEventIds: ['M06-GUIDE-223', 'M06-GUIDE-225'] }),
+  moduleSixGuidedNet(225, '10:10:25', 'ws-537', 'acct-684', '5300', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-223', 'M06-GUIDE-224'] }),
+  moduleSixGuidedFile(226, '10:18:05', 'ws-537', 'acct-684', '5370', null, 'C:\\Program Files\\Northstar\\MailViewer.exe', '9b41d7', 'CN=Northstar Software', 'signed_binary', { relatedEventIds: ['M06-GUIDE-206'] }),
+  moduleSixGuidedEv(227, '10:12:40', 'identity_activity', 'ws-537', 'acct-684', { identity: 'acct-684', identityType: 'user', authentication: 'unlock', action: 'session_unlock', source: 'SyntheticIdentity' }),
+  moduleSixGuidedHealth(228, '10:34:52', 'ws-537'),
+  // ws-612: signed baseline host with a retry, an approved update task and sensor heartbeats.
+  moduleSixGuidedHealth(229, '10:00:08', 'ws-612'),
+  moduleSixGuidedFile(230, '10:25:03', 'ws-612', 'acct-712', '6120', null, 'C:\\Program Files\\Nimbus\\Sync\\NimbusSync.exe', 'f05a38', 'CN=Nimbus Software', 'signed_binary', { relatedEventIds: ['M06-GUIDE-211'] }),
+  moduleSixGuidedNet(231, '10:25:40', 'ws-612', 'acct-712', '6120', null, 'updates.nimbus.example', 'allowed', { relatedEventIds: ['M06-GUIDE-211', 'M06-GUIDE-212'] }),
+  moduleSixGuidedTask(232, '10:24:55', 'ws-612', 'acct-localsys', null, 'NimbusSyncUpdate', '\\Nimbus\\NimbusSyncUpdate', { result: 'approved_maintenance', maintenanceId: 'CHG-6104', relatedEventIds: ['M06-GUIDE-211'] }),
+  moduleSixGuidedEv(233, '10:20:10', 'identity_activity', 'ws-612', 'acct-712', { identity: 'acct-712', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', source: 'SyntheticIdentity' }),
+  moduleSixGuidedHealth(234, '10:34:51', 'ws-612'),
+  // ws-655: neighbor host. Signed inventory scan resembles the seed behavior, a bounded sensor gap, and no benefits_form.ps1.
+  moduleSixGuidedHealth(235, '10:00:09', 'ws-655'),
+  moduleSixGuidedProc(236, '10:03:00', 'ws-655', 'acct-655', '6550', null, MODULE_SIX_GUIDED_FIREFOX, 'firefox.exe', { signer: 'CN=Mozilla Corporation', relatedEventIds: ['M06-GUIDE-237'] }),
+  moduleSixGuidedNet(237, '10:03:12', 'ws-655', 'acct-655', '6550', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-236'] }),
+  moduleSixGuidedProc(238, '10:08:00', 'ws-655', 'acct-localsys', '6500', null, MODULE_SIX_GUIDED_SVCHOST, 'svchost.exe -k netsvcs -p -s Schedule', { relatedEventIds: ['M06-GUIDE-239'] }),
+  moduleSixGuidedTask(239, '10:08:20', 'ws-655', 'acct-localsys', '6500', 'WeeklyInventoryScan', '\\Northstar\\WeeklyInventoryScan', { result: 'approved_maintenance', maintenanceId: 'CHG-6107', relatedEventIds: ['M06-GUIDE-238', 'M06-GUIDE-240'] }),
+  moduleSixGuidedProc(240, '10:08:23', 'ws-655', 'acct-localsys', '6544', '6500', MODULE_SIX_GUIDED_PS, 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\\Program Files\\Northstar\\Inventory\\Scan-Inventory.ps1"', { scriptPath: 'C:\\Program Files\\Northstar\\Inventory\\Scan-Inventory.ps1', relatedEventIds: ['M06-GUIDE-239', 'M06-GUIDE-241'] }),
+  moduleSixGuidedFile(241, '10:08:26', 'ws-655', 'acct-localsys', '6544', '6500', 'C:\\Program Files\\Northstar\\Inventory\\Scan-Inventory.ps1', '2d7f64', 'CN=Northstar IT', 'signed_script', { relatedEventIds: ['M06-GUIDE-240'] }),
+  moduleSixGuidedHealth(242, '10:20:00', 'ws-655', { action: 'sensor_service_stopped', result: 'stopped_for_agent_upgrade', coverageStatus: 'Gap', maintenanceId: 'CHG-6108', relatedEventIds: ['M06-GUIDE-243'] }),
+  moduleSixGuidedHealth(243, '10:26:40', 'ws-655', { action: 'sensor_service_started', result: 'reporting_resumed', coverageStatus: 'Partial', maintenanceId: 'CHG-6108', relatedEventIds: ['M06-GUIDE-242'] }),
+  moduleSixGuidedProc(244, '10:29:00', 'ws-655', 'acct-655', '6580', null, 'C:\\Windows\\System32\\notepad.exe', 'notepad.exe'),
+  moduleSixGuidedHealth(245, '10:34:53', 'ws-655'),
+  // Periodic signed-browser polling (regular interval, signed client) and routine office work.
+  moduleSixGuidedNet(246, '10:11:31', 'ws-421', 'acct-602', '4200', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-214', 'M06-GUIDE-215'] }),
+  moduleSixGuidedNet(247, '10:21:31', 'ws-421', 'acct-602', '4200', null, 'intranet.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-214', 'M06-GUIDE-215'] }),
+  moduleSixGuidedProc(248, '10:14:00', 'ws-612', 'acct-712', '6140', null, 'C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE', 'EXCEL.EXE', { signer: 'CN=Microsoft Corporation', relatedEventIds: ['M06-GUIDE-249'] }),
+  moduleSixGuidedNet(249, '10:14:20', 'ws-612', 'acct-712', '6140', null, 'files.northstar.example', 'allowed', { relatedEventIds: ['M06-GUIDE-248'] }),
+  moduleSixGuidedEv(250, '10:30:00', 'identity_activity', 'ws-537', 'acct-684', { identity: 'acct-684', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', source: 'SyntheticIdentity' }),
+  // Sprint 7 density: routine signed scheduled tasks, mid-window heartbeats before the ws-655 gap, signed Office identity on the baseline host.
+  moduleSixGuidedHealth(251, '10:17:30', 'ws-421'),
+  moduleSixGuidedHealth(252, '10:17:31', 'ws-537'),
+  moduleSixGuidedHealth(253, '10:17:32', 'ws-612'),
+  moduleSixGuidedHealth(254, '10:17:33', 'ws-655'),
+  moduleSixGuidedTask(255, '10:22:00', 'ws-537', 'acct-localsys', null, 'MicrosoftEdgeUpdateTaskMachineUA', '\\MicrosoftEdgeUpdateTaskMachineUA', { relatedEventIds: ['M06-GUIDE-256'] }),
+  moduleSixGuidedProc(256, '10:22:03', 'ws-537', 'acct-localsys', '5395', null, 'C:\\Program Files (x86)\\Microsoft\\EdgeUpdate\\MicrosoftEdgeUpdate.exe', 'MicrosoftEdgeUpdate.exe /ua /installsource scheduler', { signer: 'CN=Microsoft Corporation', relatedEventIds: ['M06-GUIDE-255'] }),
+  moduleSixGuidedTask(257, '10:28:00', 'ws-421', 'acct-localsys', '4205', 'Microsoft Compatibility Appraiser', '\\Microsoft\\Windows\\Application Experience\\Microsoft Compatibility Appraiser', { relatedEventIds: ['M06-GUIDE-258'] }),
+  moduleSixGuidedProc(258, '10:28:03', 'ws-421', 'acct-localsys', '4290', '4205', 'C:\\Windows\\System32\\CompatTelRunner.exe', 'CompatTelRunner.exe -m:appraiser.dll', { signer: 'CN=Microsoft Windows', relatedEventIds: ['M06-GUIDE-257'] }),
+  moduleSixGuidedTask(259, '10:12:00', 'ws-655', 'acct-localsys', '6500', 'GoogleUpdateTaskMachineCore', '\\GoogleUpdateTaskMachineCore', { relatedEventIds: ['M06-GUIDE-260'] }),
+  moduleSixGuidedProc(260, '10:12:03', 'ws-655', 'acct-localsys', '6560', '6500', 'C:\\Program Files (x86)\\Google\\Update\\GoogleUpdate.exe', 'GoogleUpdate.exe /c', { signer: 'CN=Google LLC', relatedEventIds: ['M06-GUIDE-259'] }),
+  moduleSixGuidedFile(261, '10:14:02', 'ws-612', 'acct-712', '6140', null, 'C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE', 'b52e84', 'CN=Microsoft Corporation', 'signed_binary', { relatedEventIds: ['M06-GUIDE-248'] }),
+];
+const MODULE_SIX_GUIDED_FIXTURE = {
+  schemaVersion: 1,
+  scenario: {
+    id: 'M06-GUIDED-2026-09-27', stateKey: 'm06-guided-hunt-actions-v1', fixedAt: '2026-09-27T10:35:00Z',
+    start: '2026-09-27T10:00:00Z', end: '2026-09-27T10:35:00Z',
+    seedLead: { id: 'M06-GUIDE-LEAD-001', type: 'cross_device_script_indicator', device: 'ws-421', account: 'acct-602', artifactLabel: 'Seed indicator', artifact: 'Unsigned PowerShell script hash a…', observation: 'An unsigned script and the same unfamiliar destination recur beneath document-viewing processes on two workstations. No alert was raised.' },
+    scope: { devices: ['ws-421', 'ws-537', 'ws-612', 'ws-655'], accounts: ['acct-602', 'acct-684', 'acct-712'], timeStart: '2026-09-27T10:00:00Z', timeEnd: '2026-09-27T10:35:00Z', note: 'ws-612 provides a signed software baseline; the two seed workstations have different users and parent processes. ws-655 is a neighboring workstation used for baseline and bounded negative checks.' },
+    telemetrySchema: { required: ['id', 'time', 'eventType', 'device', 'host', 'account', 'processId', 'parentProcessId', 'action', 'result', 'source'], eventTypes: ['process_start', 'file_indicator', 'network_connection', 'identity_activity', 'scheduled_task', 'sensor_health'], references: 'Process IDs and related event IDs are scenario-local.' },
+    telemetry: [
+      { id: 'M06-GUIDE-201', time: '2026-09-27T10:04:02Z', eventType: 'process_start', device: 'ws-421', host: 'ws-421', account: 'acct-602', processId: '4210', parentProcessId: null, image: 'C:\\Program Files\\Northstar\\DocPreview.exe', commandLine: 'DocPreview.exe "C:\\Users\\acct-602\\Downloads\\benefits.pdf"', action: 'document_opened', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-202'] },
+      { id: 'M06-GUIDE-202', time: '2026-09-27T10:04:08Z', eventType: 'process_start', device: 'ws-421', host: 'ws-421', account: 'acct-602', processId: '4218', parentProcessId: '4210', image: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', commandLine: 'powershell.exe -NoProfile -File C:\\Users\\acct-602\\Downloads\\benefits_form.ps1', scriptPath: 'C:\\Users\\acct-602\\Downloads\\benefits_form.ps1', action: 'process_start', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-201', 'M06-GUIDE-203', 'M06-GUIDE-204'] },
+      { id: 'M06-GUIDE-203', time: '2026-09-27T10:04:11Z', eventType: 'file_indicator', device: 'ws-421', host: 'ws-421', account: 'acct-602', processId: '4218', parentProcessId: '4210', path: 'C:\\Users\\acct-602\\Downloads\\benefits_form.ps1', sha256: 'a'.repeat(64), signer: 'Unsigned', action: 'file_observed', result: 'unsigned_low_prevalence_script', source: 'SyntheticFileTelemetry', relatedEventIds: ['M06-GUIDE-202', 'M06-GUIDE-204'] },
+      { id: 'M06-GUIDE-204', time: '2026-09-27T10:04:16Z', eventType: 'network_connection', device: 'ws-421', host: 'ws-421', account: 'acct-602', processId: '4218', parentProcessId: '4210', destination: '192.0.2.145', destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result: 'allowed', source: 'SyntheticNetwork', relatedEventIds: ['M06-GUIDE-202', 'M06-GUIDE-203', 'M06-GUIDE-205'] },
+      { id: 'M06-GUIDE-205', time: '2026-09-27T10:05:01Z', eventType: 'identity_activity', device: 'ws-421', host: 'ws-421', account: 'acct-602', identity: 'acct-602', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', result: 'success', source: 'SyntheticIdentity', relatedEventIds: ['M06-GUIDE-204'] },
+      { id: 'M06-GUIDE-206', time: '2026-09-27T10:18:02Z', eventType: 'process_start', device: 'ws-537', host: 'ws-537', account: 'acct-684', processId: '5370', parentProcessId: null, image: 'C:\\Program Files\\Northstar\\MailViewer.exe', commandLine: 'MailViewer.exe /open benefits.pdf', action: 'document_opened', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-207'] },
+      { id: 'M06-GUIDE-207', time: '2026-09-27T10:18:10Z', eventType: 'process_start', device: 'ws-537', host: 'ws-537', account: 'acct-684', processId: '5378', parentProcessId: '5370', image: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', commandLine: 'powershell.exe -NoProfile -File C:\\Users\\acct-684\\Downloads\\benefits_form.ps1', scriptPath: 'C:\\Users\\acct-684\\Downloads\\benefits_form.ps1', action: 'process_start', result: 'success', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-206', 'M06-GUIDE-208', 'M06-GUIDE-209'] },
+      { id: 'M06-GUIDE-208', time: '2026-09-27T10:18:13Z', eventType: 'file_indicator', device: 'ws-537', host: 'ws-537', account: 'acct-684', processId: '5378', parentProcessId: '5370', path: 'C:\\Users\\acct-684\\Downloads\\benefits_form.ps1', sha256: 'a'.repeat(64), signer: 'Unsigned', action: 'file_observed', result: 'unsigned_low_prevalence_script', source: 'SyntheticFileTelemetry', relatedEventIds: ['M06-GUIDE-207', 'M06-GUIDE-209'] },
+      { id: 'M06-GUIDE-209', time: '2026-09-27T10:18:19Z', eventType: 'network_connection', device: 'ws-537', host: 'ws-537', account: 'acct-684', processId: '5378', parentProcessId: '5370', destination: '192.0.2.145', destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result: 'allowed', source: 'SyntheticNetwork', relatedEventIds: ['M06-GUIDE-207', 'M06-GUIDE-208', 'M06-GUIDE-210'] },
+      { id: 'M06-GUIDE-210', time: '2026-09-27T10:19:02Z', eventType: 'identity_activity', device: 'ws-537', host: 'ws-537', account: 'acct-684', identity: 'acct-684', identityType: 'user', authentication: 'existing_session', action: 'session_refresh', result: 'success', source: 'SyntheticIdentity', relatedEventIds: ['M06-GUIDE-209'] },
+      { id: 'M06-GUIDE-211', time: '2026-09-27T10:25:00Z', eventType: 'process_start', device: 'ws-612', host: 'ws-612', account: 'acct-712', processId: '6120', parentProcessId: null, image: 'C:\\Program Files\\Nimbus\\Sync\\NimbusSync.exe', commandLine: 'NimbusSync.exe /update /silent', signer: 'CN=Nimbus Software', action: 'approved_update_check', result: 'signed_binary', source: 'SyntheticEndpoint', relatedEventIds: ['M06-GUIDE-212'] },
+      { id: 'M06-GUIDE-212', time: '2026-09-27T10:25:12Z', eventType: 'network_connection', device: 'ws-612', host: 'ws-612', account: 'acct-712', processId: '6120', parentProcessId: null, destination: 'updates.nimbus.example', destinationPort: 443, protocol: 'tcp', action: 'outbound_connection', result: 'approved_service', source: 'SyntheticNetwork', relatedEventIds: ['M06-GUIDE-211'] },
+      ...MODULE_SIX_GUIDED_BACKGROUND,
+    ],
+    fixtureNotes: {
+      eventPurposes: {
+        'M06-GUIDE-251..261': 'Sprint 7 density: mid-window heartbeats before the ws-655 gap (coverage), routine signed scheduled tasks and children on ws-421/ws-537/ws-655 (background and scope check: ws-655 has other task activity so the bounded no-match stays meaningful), signed Office binary identity on the baseline host.',
+      },
+    },
+    expectedTruth: {
+      benignBackground: [
+        { device: 'ws-421', eventIds: ['M06-GUIDE-214', 'M06-GUIDE-215', 'M06-GUIDE-216', 'M06-GUIDE-217', 'M06-GUIDE-218', 'M06-GUIDE-219', 'M06-GUIDE-220', 'M06-GUIDE-246', 'M06-GUIDE-247', 'M06-GUIDE-251', 'M06-GUIDE-257', 'M06-GUIDE-258'] },
+        { device: 'ws-537', eventIds: ['M06-GUIDE-223', 'M06-GUIDE-224', 'M06-GUIDE-225', 'M06-GUIDE-226', 'M06-GUIDE-227', 'M06-GUIDE-250', 'M06-GUIDE-252', 'M06-GUIDE-255', 'M06-GUIDE-256'] },
+        { device: 'ws-612', eventIds: ['M06-GUIDE-230', 'M06-GUIDE-231', 'M06-GUIDE-232', 'M06-GUIDE-233', 'M06-GUIDE-248', 'M06-GUIDE-249', 'M06-GUIDE-253', 'M06-GUIDE-261'] },
+        { device: 'ws-655', eventIds: ['M06-GUIDE-236', 'M06-GUIDE-237', 'M06-GUIDE-238', 'M06-GUIDE-239', 'M06-GUIDE-240', 'M06-GUIDE-241', 'M06-GUIDE-244', 'M06-GUIDE-254', 'M06-GUIDE-259', 'M06-GUIDE-260'] },
+      ],
+      coverageGaps: [
+        { device: 'ws-655', windowStart: '2026-09-27T10:20:00Z', windowEnd: '2026-09-27T10:26:40Z', eventIds: ['M06-GUIDE-242', 'M06-GUIDE-243'], note: 'Planned sensor upgrade under CHG-6108: no endpoint telemetry exists for ws-655 in this interval.' },
+        { device: 'all', coverageEventIds: ['M06-GUIDE-213', 'M06-GUIDE-221', 'M06-GUIDE-222', 'M06-GUIDE-228', 'M06-GUIDE-229', 'M06-GUIDE-234', 'M06-GUIDE-235', 'M06-GUIDE-245'], note: 'Start and end heartbeats record Full coverage for the four workstations (ws-655 outside its gap).' },
+      ],
+      negativeEvidence: {
+        statement: 'No benefits_form.ps1 execution or connection to 192.0.2.145 is recorded on ws-655 between 10:00:00Z and 10:35:00Z, except that ws-655 has no telemetry from 10:20:00Z to 10:26:40Z. The finding is bounded to this device, these sources and the covered time.',
+        device: 'ws-655', result: 'no_match', coverageEventIds: ['M06-GUIDE-235', 'M06-GUIDE-242', 'M06-GUIDE-243', 'M06-GUIDE-245'],
+      },
+      hypothesis: 'The same unsigned PowerShell script hash and unfamiliar destination recur on ws-421 and ws-537 beneath different document viewers. The evidence supports a bounded cross-device execution pattern but does not establish payload transfer, web-protocol use, or enterprise-wide scope.',
+      supportedTechniques: [{ id: 'T1059.001', name: 'PowerShell', evidenceEventIds: ['M06-GUIDE-202', 'M06-GUIDE-207'], rationale: 'Process telemetry records PowerShell running the same unsigned low-prevalence script on two endpoints.' }],
+      unsupportedTechniques: [
+        { id: 'T1105', name: 'Ingress Tool Transfer', evidenceEventIds: ['M06-GUIDE-202', 'M06-GUIDE-204', 'M06-GUIDE-207', 'M06-GUIDE-209'], missingEvidence: ['No downloaded-file event or transfer command is recorded.'], contradictoryEvidence: [], rationale: 'A subsequent outbound connection does not prove that a tool was transferred onto either host.' },
+        { id: 'T1071.001', name: 'Web Protocols', evidenceEventIds: ['M06-GUIDE-204', 'M06-GUIDE-209'], missingEvidence: ['The records show TCP port 443 but no HTTP(S) application-layer evidence.'], contradictoryEvidence: [], rationale: 'Port 443 alone does not establish web protocol or command-and-control use.' },
+      ],
+    },
+  },
+};
+const MODULE_SIX_GUIDED_DEVICES = [
+  { id: 'ws-421', hostname: 'ws-421', platform: 'Windows 11', role: 'User workstation', owner: 'acct-602', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-537', hostname: 'ws-537', platform: 'Windows 11', role: 'User workstation', owner: 'acct-684', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-612', hostname: 'ws-612', platform: 'Windows 11', role: 'User workstation', owner: 'acct-712', zone: 'CORP-USER', status: 'Online' },
+  { id: 'ws-655', hostname: 'ws-655', platform: 'Windows 11', role: 'User workstation', owner: 'acct-655', zone: 'CORP-USER', status: 'Online' },
+];
+const MODULE_SIX_GUIDED_HUNT_SOURCES = { process_start: 'DeviceProcessEvents', file_indicator: 'DeviceFileEvents', network_connection: 'DeviceNetworkEvents', identity_activity: 'IdentityEvents', scheduled_task: 'DeviceTaskEvents', sensor_health: 'DeviceSensorHealth' };
+const MODULE_SIX_GUIDED_CONSOLE_DATA = (() => {
+  const s = MODULE_SIX_GUIDED_FIXTURE.scenario;
+  const events = s.telemetry.map((event) => m03eRow(MODULE_SIX_GUIDED_HUNT_SOURCES[event.eventType], event.id, event.time.slice(0, 10), event.time.slice(11, 19), {
+    EventType: event.eventType, EndpointEventType: event.eventType === 'file_indicator' ? 'file_hash' : event.eventType,
+    Account: event.account, Host: event.host, DeviceId: event.device, ProcessId: event.processId || '', ParentProcessId: event.parentProcessId || '',
+    Image: event.image || '', CommandLine: event.commandLine || '', ScriptPath: event.scriptPath || '', FilePath: event.path || event.scriptPath || '',
+    Sha256: event.sha256 || '', Signer: event.signer || '', DestinationIp: /^[\d.]+$/.test(event.destination || '') ? event.destination : '',
+    Domain: /^[\d.]+$/.test(event.destination || '') ? '' : (event.destination || ''), DestinationPort: event.destinationPort || '',
+    Action: event.action, Result: event.result, RelatedEventIds: event.relatedEventIds || [], Detail: event.commandLine || event.path || event.destination || event.taskName || event.action,
+    ...(event.taskName ? { TaskName: event.taskName, TaskPath: event.taskPath || '', MaintenanceId: event.maintenanceId || '' } : {}),
+    ...(event.coverageStatus ? { CoverageStatus: event.coverageStatus } : {}),
+  }));
+  const person = (account, name) => ({ Account: account, DisplayName: name, Type: 'User', Department: 'Operations', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' });
+  return { ...m03eBuildDataset({ caseId: 'CASE-066411', day: s.end.slice(0, 10), events,
+    identities: [person('acct-602', 'Analyst Seed User'), person('acct-684', 'Comparison User'), person('acct-712', 'Nimbus Service User'), person('acct-655', 'Neighbor User'), { Account: 'acct-localsys', DisplayName: 'Local system', Type: 'Service', Department: 'IT Operations', Owner: 'Endpoint platform', Privileged: 'Yes', UsualSourceIp: '—', Notes: 'Scheduler and sensor context' }],
+    ips: [{ SourceIp: '192.0.2.145', Type: 'External', Country: '—', Asn: 'Unclassified test network', FirstSeen: '2026-09-27 10:04', Reputation: 'No reputation data' }],
+    watchlists: {
+      ApprovedSoftware: { title: 'Approved software inventory', rows: [{ Product: 'NimbusSync', Publisher: 'CN=Nimbus Software', Path: 'C:\\Program Files\\Nimbus\\Sync\\NimbusSync.exe', Deployment: 'Managed workstations', Status: 'Approved' }] },
+      ChangeTickets: { title: 'Approved change tickets', rows: [
+        { ChangeId: 'CHG-6104', Summary: 'NimbusSync update window', Host: 'ws-612', Window: '2026-09-27 10:00–11:00', Status: 'Approved' },
+        { ChangeId: 'CHG-6107', Summary: 'Weekly inventory scan script', Host: 'ws-655', Window: '2026-09-27 10:00–11:00', Status: 'Approved' },
+        { ChangeId: 'CHG-6108', Summary: 'Endpoint sensor agent upgrade', Host: 'ws-655', Window: '2026-09-27 10:15–10:30', Status: 'Approved' },
+      ] },
+    },
+    alerts: [{ id: 'ALT-6411', time: '2026-09-27T10:04:16Z', severity: 'Medium', title: 'Repeated script indicator across endpoints', entities: ['ws-421', 'ws-537', 'acct-602', 'acct-684'], rule: 'Unfamiliar destination correlated with unsigned script execution', query: 'DeviceNetworkEvents\n| where DestinationIp == "192.0.2.145"' },
+      { id: 'ALT-6412', time: '2026-09-27T10:08:23Z', severity: 'Medium', title: 'Scheduled task launched PowerShell with execution-policy bypass on ws-655', entities: ['ws-655', 'acct-localsys'], rule: 'Scheduled task child process is powershell.exe with -ExecutionPolicy Bypass', query: 'DeviceProcessEvents\n| where DeviceId == "ws-655"' },
+      { id: 'ALT-6413', time: '2026-09-27T10:20:05Z', severity: 'Low', title: 'Endpoint sensor service stopped on ws-655', entities: ['ws-655'], rule: 'Sensor service stopped outside a heartbeat interval', query: 'DeviceSensorHealth\n| where DeviceId == "ws-655"' },
+      { id: 'ALT-6414', time: '2026-09-27T10:24:55Z', severity: 'Low', title: 'Scheduled updater task on ws-612', entities: ['ws-612', 'acct-712'], rule: 'Scheduled task started a vendor updater', query: 'DeviceTaskEvents\n| where DeviceId == "ws-612"' }],
+  }), now: s.end };
+})();
+const MODULE_SIX_GUIDED_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: MODULE_SIX_GUIDED_FIXTURE.scenario.id, caseId: 'CASE-066411', end: MODULE_SIX_GUIDED_FIXTURE.scenario.end, data: MODULE_SIX_GUIDED_CONSOLE_DATA });
+const MODULE_SIX_GUIDED_M05_FIXTURE = SocConsoleTools.m05Fixture({ id: MODULE_SIX_GUIDED_FIXTURE.scenario.id, stateKey: 'm06-guided-endpoint-tools-v1', devices: MODULE_SIX_GUIDED_DEVICES, data: MODULE_SIX_GUIDED_CONSOLE_DATA });
+let moduleSixGuidedState = null;
+let moduleSixGuidedUser = null;
+function moduleSixGuidedLoad(user) {
+  moduleSixGuidedUser = user;
+  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'CASE-066411', scenarioId: MODULE_SIX_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
+  moduleSixGuidedState = LabRuntime.loadCaseState(MODULE_SIX_GUIDED_LAB_ID, 'soc-06', user, defaults);
+  moduleSixGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleSixGuidedState.caseRecord || {}) };
+  if (moduleSixGuidedState.guideStep == null) moduleSixGuidedState.guideStep = 0;
+  moduleSixGuidedState.tools ||= {};
+  moduleSixGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleSixGuidedState.tools.m04 }, MODULE_SIX_GUIDED_M04_FIXTURE).assessment;
+  moduleSixGuidedState.tools.m05 = SocM05AssessmentState.normalize(moduleSixGuidedState.tools.m05, MODULE_SIX_GUIDED_M05_FIXTURE);
+  if (moduleSixGuidedState.legacyComplete == null) moduleSixGuidedState.legacyComplete = moduleSixGuidedChecks().every((check) => check[2]);
+}
+function moduleSixGuidedSave() { if (moduleSixGuidedUser && moduleSixGuidedState) LabRuntime.saveCaseState(MODULE_SIX_GUIDED_LAB_ID, 'soc-06', moduleSixGuidedUser, moduleSixGuidedState); }
+function moduleSixGuidedM04Tools() { return moduleSixGuidedState.tools.m04; }
+function moduleSixGuidedM06Load() { return SocM06AssessmentState.load(moduleSixGuidedUser, MODULE_SIX_GUIDED_FIXTURE); }
+function moduleSixGuidedM06Store(state) { SocM06AssessmentState.save(moduleSixGuidedUser, state, MODULE_SIX_GUIDED_FIXTURE); moduleSixGuidedSave(); }
+function moduleSixGuidedChecks() {
+  const state = moduleSixGuidedM06Load();
+  const deviceByEvent = new Map(MODULE_SIX_GUIDED_FIXTURE.scenario.telemetry.map((event) => [event.id, event.device]));
+  const bookmarkedDevices = new Set((state.bookmarks || []).map((id) => deviceByEvent.get(id)).filter(Boolean));
+  return [
+    ['hypothesis', 'Save a testable hypothesis tied to this lead.', (state.hypotheses || []).some((item) => item.seedLeadId === MODULE_SIX_GUIDED_FIXTURE.scenario.seedLead.id)],
+    ['hunt', 'Search the scoped records and bookmark the recurring evidence.', (state.queryHistory || []).length >= 2 && bookmarkedDevices.size >= 2],
+    ['conclusion', 'Record the supported ATT&CK mapping, conclusion, and case handoff.', (state.mappings || []).length > 0 && (state.conclusions || []).length > 0 && Boolean(moduleSixGuidedState.caseRecord.notes?.trim())],
+  ];
+}
+function moduleSixGuidedSteps() {
+  return [
+    { title: 'Read the ITSM ticket', body: 'Open the ITSM tab and review the fields this investigation needs you to resolve.', lookFor: 'The affected user and device, severity, disposition, escalation, findings, and work notes.', lab: 'Ticket fields: scope and handoff', tab: 'case', target: '.m01-ticket-case' },
+    { title: 'Start from the lead', body: 'Treat the alert or seed observation as a lead to test, not a verdict.', lookFor: 'What the initial signal establishes and what it leaves open.', lab: 'Ticket field: Findings', tab: 'hunting', target: '.m06-seed-review' },
+    { title: 'Correlate the records', body: 'Follow the related records across the console and compare the suspicious activity with its baseline.', lookFor: 'Which source identifies the activity and which records corroborate timing, scope, or context.', lab: 'Ticket fields: Affected User, Affected Device, Findings', tab: 'timeline', target: '.m03e-timeline' },
+    { title: 'Separate source from contributing evidence', body: 'A correlated record can strengthen the timeline even when it is not the originating source.', lookFor: 'Whether each record shows where activity began or only confirms that it happened.', lab: 'Ticket field: Findings', tab: 'sources', target: '[data-m03e-select="m06-guided:source:DeviceProcessEvents"]' },
+    { title: 'Scope and decide', body: 'Choose a severity, disposition, and escalation that match the evidence and confirmed scope.', lookFor: 'The difference between confirmed impact and unresolved questions.', lab: 'Ticket fields: Severity, Disposition, Escalation, Department', tab: 'case', target: '.m01-ticket-grid' },
+    { title: 'Write the handoff and submit', body: 'Summarize the evidence, scope, uncertainty, and next action in work notes, then submit the ITSM ticket.', lookFor: 'A concise record another analyst can act on.', lab: 'Ticket field: Work Notes · Submit completes this Guided Lab', tab: 'case', target: '.m01-ticket-notes' },
+  ];
+}
+function moduleSixGuidedDebrief() {
+  const cr = moduleSixGuidedState.caseRecord;
+  const fields = [['Affected User', cr.affectedUser], ['Affected Device', cr.affectedDevice], ['Severity', cr.severity], ['Disposition', cr.disposition], ['Escalation', cr.escalation], ['Department', cr.escalateTo], ['Findings', Object.keys(cr.findings || {}).length], ['Work Notes', cr.notes]].map(([name, value]) => ({ name, status: !value ? 'missed' : name === 'Findings' || name === 'Affected Device' ? 'contributing' : 'captured', note: !value ? 'Not recorded in the submitted ticket.' : name === 'Findings' || name === 'Affected Device' ? 'Contributes context to the case timeline.' : 'Recorded in the submitted ticket.' }));
+  return guidedLabDebrief({ story: 'The hunt supports repeated script behavior across two devices through matching process and file evidence. The shared destination contributes to correlation, while port 443 alone does not establish protocol or payload transfer; preserve that limit in the handoff.', fields, handoff: 'Include the primary evidence, corroborating records, confirmed scope, unresolved questions, and a proportionate next action.' });
+}
+function moduleSixGuidedGuide() {
+  const item = moduleSixGuidedSteps()[Math.min(moduleSixGuidedState.guideStep, moduleSixGuidedSteps().length - 1)] || {};
+  const consoleState = m03eState('m06-guided');
+  const tabLabel = item.tab === 'case' ? 'ITSM Ticket' : item.tab || '';
+  const moveTab = !moduleSixGuidedState.caseRecord.submitted && item.tab && consoleState.tab !== item.tab;
+  return `${guidedLabGuide('m06g', moduleSixGuidedSteps(), { step: moduleSixGuidedState.guideStep, docked: moduleSixGuidedState.caseRecord.submitted ? moduleSixGuidedState.guideCollapsed !== false : (moduleSixGuidedState.guideCollapsed === true || moduleSixGuidedState.guideOpen === false), prefix: 'm06g', submitted: moduleSixGuidedState.caseRecord.submitted, debriefHtml: moduleSixGuidedDebrief() })}
+    ${moveTab || moduleSixGuidedState.caseRecord.submitted ? `<div class="m03e-guide-controls" role="status">${moveTab ? `<button type="button" class="m03e-guide-go" data-m06g-guide-tab="${esc(item.tab)}">Go to ${esc(tabLabel)}</button>` : ''}${moduleSixGuidedState.caseRecord.submitted ? '<span>Ticket submitted — practice complete</span>' : ''}</div>` : ''}`;
+}
+function moduleSixGuidedRestart() {
+  const cr = moduleSixGuidedState.caseRecord;
+  moduleSixGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleSixGuidedState.guideStep = 0;
+  moduleSixGuidedState.guideCollapsed = false;
+  moduleSixGuidedState.guideOpen = true;
+  moduleSixGuidedSave();
+  moduleSixRenderGuidedLab();
+}
+function moduleSixPositionGuidedGuide(root, host) {
+  const tip = root?.querySelector('#m06g-learn-tip');
+  const workspace = host?.querySelector('.m03e-workspace');
+  if (!tip || !workspace) return;
+  if (moduleSixGuidedState.caseRecord.submitted || moduleSixGuidedState.guideCollapsed === true || moduleSixGuidedState.guideOpen === false) {
+    host.querySelector('header')?.append(tip);
+    consoleGuidePosition(tip, workspace, null);
+  } else {
+    workspace.prepend(tip);
+    consoleGuidePosition(tip, workspace, null);
+  }
+}
+M03E_AFTER_RENDER['m06-guided'] = function () {
+  const root = document.getElementById('m06-guided-lab-dynamic');
+  const host = document.getElementById('m03e-console-m06-guided');
+  if (!root || !host) return;
+  if (!root.querySelector('#m06g-learn-tip')) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = moduleSixGuidedGuide();
+    const fresh = tpl.content.querySelector('#m06g-learn-tip');
+    if (fresh) root.prepend(fresh);
+  }
+  moduleSixPositionGuidedGuide(root, host);
+};
+
+const MODULE_SIX_GUIDED_CONSOLE = SocConsoleTools.mount('m06-guided', {
+  data: MODULE_SIX_GUIDED_CONSOLE_DATA, stateRoot: () => moduleSixGuidedState, save: moduleSixGuidedSave,
+  title: 'SIEM & THREAT HUNTING · PRACTICE', ariaLabel: 'Module 06 guided hunt console', idPrefix: 'guided-m06',
+  sourceMappings: {
+    DeviceProcessEvents: { native: 'EDR process telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['hostname', 'Host'], ['account', 'Account'], ['pid', 'ProcessId'], ['ppid', 'ParentProcessId'], ['image', 'Image'], ['command_line', 'CommandLine']] },
+    DeviceFileEvents: { native: 'EDR file telemetry (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['path', 'FilePath'], ['sha256', 'Sha256'], ['signer', 'Signer'], ['result', 'Result']] },
+    DeviceNetworkEvents: { native: 'Host network connections (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['pid', 'ProcessId'], ['destination', 'DestinationIp'], ['destination_host', 'Domain'], ['port', 'DestinationPort'], ['result', 'Result']] },
+    IdentityEvents: { native: 'Identity session context (JSON)', fields: [['timestamp', 'TimeGenerated'], ['device', 'DeviceId'], ['identity', 'Account'], ['action', 'Action'], ['result', 'Result']] },
+  },
+  packs: [
+    { id: 'm04', ctx: { assessment: moduleSixGuidedM04Tools, fixture: MODULE_SIX_GUIDED_M04_FIXTURE, save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
+    { id: 'm05', ctx: { fixture: MODULE_SIX_GUIDED_M05_FIXTURE, ...SocConsoleTools.embedded(() => moduleSixGuidedState, 'm05', SocM05AssessmentState.normalize, MODULE_SIX_GUIDED_M05_FIXTURE, moduleSixGuidedSave), save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
+    { id: 'm06', ctx: { fixture: MODULE_SIX_GUIDED_FIXTURE, load: moduleSixGuidedM06Load, store: moduleSixGuidedM06Store, save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
+  ],
+    caseView: () => { const html = caseRecordPane(moduleSixGuidedState.caseRecord, { caseId: 'CASE-066411', ticketType: 'Threat hunt findings · Detection Engineering', userOptions: [{ id: 'acct-602', text: 'acct-602' }, { id: 'acct-684', text: 'acct-684' }, { id: 'acct-712', text: 'acct-712' }], deviceOptions: MODULE_SIX_GUIDED_DEVICES.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'detection-engineering', text: 'Detection Engineering' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm06-guided-case', saveAttr: 'data-m06-guided-save-case', submitAttr: 'data-m06-guided-submit-case', panelId: 'm06-guided-case-panel', notesPlaceholder: 'State the repeated behavior, two-device scope, evidence limit, and recommended detection or response follow-up.' }); return moduleSixGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m06-guided-restart>Restart Guided Lab</button>' : html; },
+});
+
+function moduleSixCaseTicket() {
+  const lab = moduleSixState.independentLab;
+  const cr = lab.caseRecord;
+  const spec = moduleSixBackdoorCaseSpec();
+  return `${caseRecordPane(cr, {
+    ...spec,
+    missing: caseRecordMissing(cr, spec),
+    formId: 'm06-independent-form',
+    saveAttr: 'data-m06-independent-save-case',
+    submitAttr: 'data-m06-independent-submit-case',
+    panelId: 'm06-independent-case-panel',
+    showMissing: moduleSixIndependentProveItShowMissing,
+    redoRequested: moduleSixIndependentRedoRequested(),
+    redoHtml: moduleSixIndependentRedoFeedback(),
+    reviewStatus: moduleSixIndependentReviewStatus(),
+    lockedMessage: 'Module 7 stays locked until your instructor approves the submission.',
+  })}`;
 }
 
 function moduleSixAssessmentLabPanel() {
-  const lab = moduleSixState.independentLab;
-  const passed = lab.completed;
-  return `<section class="m06-panel m06-independent" id="m06-independent-lab" aria-labelledby="m06-independent-title">
-    <div class="m06-panel-heading"><div><p class="m06-kicker">Independent case · same Threat Hunt Lab tool, no hints</p><h3 id="m06-independent-title">Dormant task backdoor review</h3></div><span class="m06-status-chip">${passed ? 'Complete' : 'Decision required'}</span></div>
-    <p class="m06-instruction"><strong>Fresh case, different decision path:</strong> Mission Next Labs has no alert for a scheduled task named <code>UpdateHealth</code> on <code>ws-318</code>. It runs weekly from a user-writable folder and was created by <code>acct-184</code>. A second host has the same task name but a signed script under approved maintenance. Choose a bounded disposition; do not treat the absence of an alert as proof of safety.</p>
-    <form id="m06-independent-form" class="m06-independent-form" novalidate>
-      <label><strong>1. Evidence to prioritize</strong><select name="task"><option value="" ${!lab.task ? 'selected' : ''}>Choose…</option><option value="task-metadata" ${lab.task === 'task-metadata' ? 'selected' : ''}>Task author, trigger, path, signer, and creation time</option><option value="all-logs" ${lab.task === 'all-logs' ? 'selected' : ''}>Every log row in the tenant</option><option value="alert-only" ${lab.task === 'alert-only' ? 'selected' : ''}>Only generated alerts</option></select></label>
-      <label><strong>2. Current scope</strong><select name="scope"><option value="" ${!lab.scope ? 'selected' : ''}>Choose…</option><option value="ws318" ${lab.scope === 'ws318' ? 'selected' : ''}>ws-318 is supported; the signed maintenance host is a comparison</option><option value="fleet" ${lab.scope === 'fleet' ? 'selected' : ''}>Every host with the task name is compromised</option><option value="none" ${lab.scope === 'none' ? 'selected' : ''}>No scope because no alert fired</option></select></label>
-      <label><strong>3. Disposition</strong><select name="disposition"><option value="" ${!lab.disposition ? 'selected' : ''}>Choose…</option><option value="escalate" ${lab.disposition === 'escalate' ? 'selected' : ''}>Escalate ws-318 for approved containment and preserve the task/script evidence</option><option value="wipe" ${lab.disposition === 'wipe' ? 'selected' : ''}>Wipe every host immediately</option><option value="close" ${lab.disposition === 'close' ? 'selected' : ''}>Close as benign because no alert exists</option></select></label>
-      <label><strong>4. Explain the reasoning (60+ characters)</strong><textarea name="rationale" rows="4" maxlength="700" placeholder="Observed behavior… comparison… bounded next action…">${esc(lab.rationale || '')}</textarea></label>
-      <button type="submit" class="m06-submit">${passed ? 'Re-score independent lab' : 'Score independent lab'}</button>
-      ${moduleSixState.additionalGateMessage ? `<p class="m06-independent-feedback is-remediate" role="alert">${esc(moduleSixState.additionalGateMessage)}</p>` : ''}
-      ${lab.score ? `<p class="m06-independent-feedback ${passed ? 'is-pass' : 'is-remediate'}" role="status"><strong>${lab.score}/100</strong> — ${passed ? 'Independent decision supported.' : 'Review the comparison and scope, then retry.'}</p>` : ''}
-    </form>
-  </section>`;
+  return `<div class="m03e-panel" id="m06-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel(moduleSixBackdoorCaseSpec(), 'HUNT · NO ALERT')}</p><p>There is no alert — only a lead: a weekly scheduled task named <code>UpdateHealth</code> on <code>ws-318</code> runs a script from a user-writable folder. Your lead’s request: <em>“Find out whether this is something, and prove only what the evidence shows.”</em> Write a testable hypothesis, choose a bounded time and entity scope, search and pivot through related activity, bookmark the minimum evidence chain, decide whether the hypothesis is supported, map only demonstrated behavior to ATT&amp;CK, propose a detection improvement, and complete the ITSM ticket with your limits and next steps.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m06">${moduleThreeConsoleHtml('m06')}</div>
+  </div>`;
+}
+
+function moduleSixRenderAssessment() {
+  const root = document.getElementById('m06-assessment-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleSixAssessmentLabPanel();
+  m03eAttachEditor('m06');
 }
 
 function moduleSixExactSelection(selected, expected, points) {
@@ -862,46 +1578,6 @@ function moduleSixExactSelection(selected, expected, points) {
   const correct = expected.filter((item) => chosen.has(item)).length;
   const extras = selected.filter((item) => !expected.includes(item)).length;
   return Math.max(0, Math.round((correct / expected.length) * points) - (extras * Math.ceil(points / expected.length)));
-}
-
-function moduleSixScore() {
-  const queries = (moduleSixState.queryPassed.endpoint ? 5 : 0) + (moduleSixState.queryPassed.signin ? 5 : 0);
-  const bookmarks = moduleSixExactSelection(moduleSixState.bookmarks, MODULE_SIX_EXPECTED_BOOKMARKS, 20);
-  const hypothesis = moduleSixState.hypothesis === 'recurrence' ? 8 : 0;
-  const deviceScope = moduleSixExactSelection(moduleSixState.scopedDevices, ['WS-214', 'WS-332'], 6);
-  const accountScope = moduleSixExactSelection(moduleSixState.scopedAccounts, ['acct-27', 'acct-41'], 6);
-  const scope = deviceScope + accountScope;
-  const ioc = moduleSixState.iocRelationship === 'corroborates' ? 4 : 0;
-  const attack = moduleSixExactSelection(moduleSixState.techniques, ['T1059', 'T1078'], 6);
-  const disposition = moduleSixState.disposition === 'supported-scoped' ? 10 : 0;
-  const action = moduleSixState.nextAction === 'scoped-escalation' ? 10 : 0;
-  const note = moduleSixState.notes.trim().toLowerCase();
-  const noteLength = note.length >= 120 ? 6 : 0;
-  const noteConclusion = /(hypothesis|supported|recurr|malicious|suspicious)/.test(note) ? 4 : 0;
-  const noteScope = /(ws-214)/.test(note) && /(ws-332)/.test(note) && /(acct-27)/.test(note) && /(acct-41)/.test(note) ? 4 : 0;
-  const noteIndicator = /(aaa|203\.0\.113\.77|fingerprint|destination)/.test(note) ? 3 : 0;
-  const noteAction = /(escalat|contain|preserv|continue|block)/.test(note) ? 3 : 0;
-  const communication = noteLength + noteConclusion + noteScope + noteIndicator + noteAction;
-  const observation = queries + bookmarks;
-  const analysis = hypothesis + scope + ioc + attack;
-  const decision = disposition + action;
-  const score = observation + analysis + decision + communication;
-  const exactBookmarks = bookmarks === 20;
-  const exactScope = scope === 12;
-  const exactAttack = attack === 6;
-  return {
-    score,
-    breakdown: { observation, queries, bookmarks, analysis, hypothesis, scope, ioc, attack, decision, disposition, action, communication },
-    feedback: [
-      queries === 10 ? 'Queries: Both scoped pivots returned the two chronological matches expected.' : `Queries: ${queries}/10. Run the endpoint fingerprint query and sign-in source-address query with an ascending time sort.`,
-      exactBookmarks ? 'Bookmarks: Correct. Four records preserve the two endpoint executions and their two identity-session correlations.' : `Bookmarks: ${bookmarks}/20. Keep EP-602, EP-604, ID-612, and ID-614; unrelated baseline rows weaken the evidence set.`,
-      hypothesis ? 'Hypothesis: Testable and correctly framed around recurrence beyond the seed device.' : 'Hypothesis: Frame the hunt around whether the same suspicious script behavior recurred on another device.',
-      exactScope ? 'Scope: Correctly limited to WS-214/acct-27 and WS-332/acct-41.' : `Scope: ${scope}/12. Select only the two device-account pairs supported by matching behavior and timing.`,
-      ioc && exactAttack ? 'IOC and ATT&CK analysis: Correct. The recurring indicators corroborate the pattern; scripting and valid-account use are directly demonstrated.' : `IOC and ATT&CK analysis: ${ioc + attack}/10. Correlate indicators with context and map only scripting plus valid-account use.`,
-      disposition && action ? 'Decision: Proportionate. Escalate the scoped pairs, preserve evidence, and continue the focused hunt.' : `Decision: ${decision}/20. Avoid enterprise-wide claims or destructive actions beyond the current evidence.`,
-      communication === 20 ? 'Handoff: Complete, scoped, evidence-based, and actionable.' : `Handoff: ${communication}/20. Include a conclusion, both device-account pairs, one validated indicator, and a proportionate recommendation in at least 120 characters.`,
-    ],
-  };
 }
 
 function moduleSixAllRows() {
@@ -913,9 +1589,9 @@ function moduleSixRowById(id) {
 }
 
 function moduleSixAdditionalLabs() {
-  return missionNextLabLaunchGroup(6, 'additional', [
-    { title: 'DNS Log Analysis — C2 Beaconing & Tunneling', detail: 'Optional: Splunk-style DNS query telemetry practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dns-log-analysis', labId: 'additional-1', requireNote: true },
-    { title: 'SSH Log Analysis — Brute Force & Credential Stuffing', detail: 'Optional: Splunk-style SSH auth-log practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ssh-log-analysis', labId: 'additional-2', requireNote: true },
+  return missionNextOptionalLabsSection(6, [
+    { title: 'DNS Log Analysis — C2 Beaconing & Tunneling', detail: 'Splunk-style DNS query telemetry practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/dns-log-analysis', labId: 'additional-1', requireNote: true },
+    { title: 'SSH Log Analysis — Brute Force & Credential Stuffing', detail: 'Splunk-style SSH auth-log practice', href: 'imported-labs/mission-next-labs/index.html#/track/splunk/module/ssh-log-analysis', labId: 'additional-2', requireNote: true },
     { title: 'Network Traffic Analysis of a Trojan', detail: 'Network IOCs and threat-hunting pivots', href: 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-5/lab', labId: 'additional-3', requireNote: true },
   ], moduleSixState.labProgress);
 }
@@ -929,62 +1605,63 @@ function wireModuleSixAdditionalLabsGating(root) {
   });
 }
 
+function moduleSixLearnItMarkup() {
+  return LearnItCards.render({ deck: LearnItDecks['soc-06'], step: moduleSixState.learnItStep || 0, done: moduleSixState.learnItStep >= LearnItDecks['soc-06'].length, viewed: moduleSixLearnItViewed, prefix: 'm06', id: 'm06-learn-it', headingId: 'm06-learn-it-title', heading: 'Learn the key ideas', intro: 'Move through the ideas you will use in the lab.', readyText: 'Build the mental model one idea at a time.', label: 'LEARN IT', countLabel: 'ideas', readyCountLabel: `${LearnItDecks['soc-06'].length} QUICK IDEAS`, nextActionLabel: 'NEXT', finalActionLabel: 'FINISH' });
+}
+
 function viewModuleSix(user, program) {
   moduleSixLoad(user);
+  moduleSixGuidedLoad(user);
   const module = program.modules['soc-06'];
   const sections = moduleSixGetSections();
-  const lectureOpen = moduleSixReviewMode || !sections[0].isComplete;
-  const quizOpen = moduleSixReviewMode || (moduleSixQuizState && !moduleSixQuizState.passed);
-  const guidedLabOpen = moduleSixReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleSixReviewMode || !sections[3].isComplete;
+  const lectureOpen = moduleSixReviewMode || !sections[0].isComplete || moduleSixState.learnItStep < LearnItDecks['soc-06'].length;
+  const guidedLabOpen = moduleSixReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleSixReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleSixReviewMode;
   const quickNavItems = moduleSixGetQuickNavItems();
 
   return `<div class="m06-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleSixReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m06-main">
-      <section class="m06-hero" aria-labelledby="m06-title"><div><p class="m06-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd id="m06-status">${moduleSixState.completed ? 'Complete' : moduleSixState.attempts ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${moduleSixState.independentLab.completed ? 'Complete' : 'Not started'}</dd></div></dl></section>
+      ${moduleProgressShell(sections, { reviewMode: moduleSixReviewMode })}
+      <main class="m06-main mf-frame">
+      <section class="m06-hero mf-hero" aria-labelledby="m06-title"><div><p class="m06-kicker mf-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede mf-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd id="m06-status">${moduleSixGuidedState.caseRecord.submitted || moduleSixGuidedState.legacyComplete ? 'Complete' : moduleSixGuidedState.caseRecord.actionHistory.length ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${moduleSixState.independentLab.completed ? 'Complete' : 'Not started'}</dd></div></dl></section>
 
-      <details class="m06-section-collapsible" ${lectureOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">1</span><div><p class="m06-kicker">Lecture</p><h2 id="m06-lecture">Hypothesis-led hunting foundations</h2></div></div></summary>
-        <div class="m06-section-body">
+      <details class="m06-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">1</span><div><p class="m06-kicker mf-kicker">Learn It</p><h2 id="m06-lecture">Hypothesis-led hunting foundations</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">
+          <div id="m06-learn-it-root">${moduleSixLearnItMarkup()}</div><details class="m06-deep-dive mf-deep-dive"><summary>Deep Dive · reference notes and practice</summary>
           <div class="m06-objective" aria-labelledby="m06-objective-title"><div class="m06-objective-icon"><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m06-kicker">Measurable objective</p><h3 id="m06-objective-title">Test one cross-device execution hypothesis with two scoped queries, bookmark the four records that establish behavior and scope, and communicate a supported disposition.</h3></div></div>
           <section class="m06-section" id="m06-field-guide" aria-labelledby="m06-guide-title"><div class="m06-section-heading"><span>a</span><div><p class="m06-kicker">Field guide</p><h3 id="m06-guide-title">Hunt for evidence, not confirmation</h3></div></div>${moduleSixLessonLoops()}${moduleSixConcepts()}<div class="m06-hunt-loop" aria-label="Hypothesis-led hunting loop"><span>Hypothesis</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Query</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Bookmark</span><i class="ri-bookmark-line" aria-hidden="true"></i><span>Preserve</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Scope &amp; decide</span></div></section>
           ${moduleSixVideoScript()}
+          </details>
         </div>
       </details>
 
-      <details class="m06-section-collapsible" ${quizOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">2</span><div><p class="m06-kicker">Knowledge Check</p><h2 id="m06-knowledge-check">Test your understanding of threat hunting</h2></div></div></summary>
-        <div class="m06-section-body">${moduleSixQuizPanel()}</div>
-      </details>
-
-      <details class="m06-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">3</span><div><p class="m06-kicker">Practice It · Guided Lab</p><h2 id="m06-guided-lab">Threat Hunt Lab — cross-device script recurrence</h2></div></div></summary>
-        <div class="m06-section-body">
-          <div class="m06-role"><i class="ri-user-search-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst conducting a guided hunt</strong><p>You may investigate endpoint activity and sign-in activity in either order. Hints are available when you want them. Your job is to test the stated lead inside the assigned monitoring workflow, not to investigate unrelated systems.</p></div></div>
+      <details class="m06-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">2</span><div><p class="m06-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m06-guided-lab">Threat Hunt Lab — cross-device script recurrence</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">
+    <div class="m06-role"><i class="ri-user-search-line" aria-hidden="true"></i><div><strong>Your role: SOC analyst conducting a guided hunt</strong><p>Investigate endpoint and sign-in activity in either order, using hints when useful. Test the stated lead within the assigned monitoring workflow and leave unrelated systems out of scope.</p></div></div>
           <div id="m06-guided-lab-dynamic">${moduleSixGuidedLabPanel()}</div>
         </div>
       </details>
 
-      <details class="m06-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">4</span><div><p class="m06-kicker">Prove It · Assessment Lab</p><h2 id="m06-assessment-lab">Independent case: dormant task backdoor review</h2></div></div></summary>
-        <div class="m06-section-body">
+      <details class="m06-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">3</span><div><p class="m06-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m06-assessment-lab">Independent case: dormant task backdoor review</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">
           <div id="m06-assessment-lab-dynamic">${moduleSixAssessmentLabPanel()}</div>
         </div>
       </details>
       <div id="m06-additional-labs-dynamic">${moduleSixAdditionalLabs()}</div>
 
-      <details class="m06-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">5</span><div><p class="m06-kicker">Module Review</p><h2 id="m06-review">Key concepts and takeaways</h2></div></div></summary>
-        <div class="m06-section-body">${moduleSixReview()}</div>
+      <details class="m06-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">5</span><div><p class="m06-kicker mf-kicker">Module Review</p><h2 id="m06-review">Key concepts and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">${moduleSixReview()}</div>
       </details>
 
-      <details class="m06-section-collapsible" ${moduleSixReviewMode ? 'open' : ''}>
-        <summary class="m06-section"><div class="m06-section-heading"><span class="m06-section-badge">6</span><div><p class="m06-kicker">Sources &amp; Further Reading</p><h2 id="m06-sources">Authoritative references on threat hunting</h2></div></div></summary>
-        <div class="m06-section-body">${moduleSourcesBlock(MODULE_SIX_SOURCES_LIST)}</div>
+      <details class="m06-section-collapsible mf-section mf-section-supplemental" ${moduleSixReviewMode ? 'open' : ''}>
+        <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m06-kicker mf-kicker">Sources &amp; Further Reading</p><h2 id="m06-sources">Authoritative references on threat hunting</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m06-section-body mf-section-body">${moduleSourcesBlock(MODULE_SIX_SOURCES_LIST)}</div>
       </details>
     </main>
     </div>
@@ -995,206 +1672,120 @@ function moduleSixRenderGuidedLab(focusId) {
   const root = document.getElementById('m06-guided-lab-dynamic');
   if (!root) return;
   root.innerHTML = moduleSixGuidedLabPanel();
+  const host = root.querySelector('#m03e-console-m06-guided');
+  if (host) { MODULE_SIX_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m06-guided'); }
+  moduleSixPositionGuidedGuide(root, host);
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
 function wireModuleSixGuidedLab() {
   const root = document.getElementById('m06-guided-lab-dynamic');
-  if (!root || !moduleSixState) return;
-
-  root.addEventListener('click', (event) => {
-    const sourceButton = event.target.closest('[data-m06-source]');
-    if (sourceButton) {
-      moduleSixState.activeSource = sourceButton.dataset.m06Source;
-      moduleSixState.detailEvent = '';
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-workspace-title');
-      return;
-    }
-
-    if (event.target.closest('[data-m06-run]')) {
-      const sourceKey = moduleSixState.activeSource;
-      const editor = root.querySelector('#m06-query-editor');
-      moduleSixState.queryDrafts[sourceKey] = editor ? editor.value : moduleSixState.queryDrafts[sourceKey];
-      const result = moduleSixRunQuery(sourceKey, moduleSixState.queryDrafts[sourceKey]);
-      moduleSixState.queryRuns[sourceKey] = (Number(moduleSixState.queryRuns[sourceKey]) || 0) + 1;
-      moduleSixState.queryPassed[sourceKey] = result.passed;
-      moduleSixState.queryResultIds[sourceKey] = result.rows.map((row) => row.id);
-      const source = MODULE_SIX_SOURCES[sourceKey];
-      moduleSixState.queryFeedback[sourceKey] = result.passed
-        ? `Two matches remain in chronological order. Inspect and bookmark the rows that support the hypothesis.`
-        : `${result.tableOk ? 'Table recognized.' : `Start with ${source.table}.`} ${result.canonicalField === source.expectedField && result.value === source.expectedValue ? 'Pivot recognized.' : `Filter ${source.expectedField} to the seed value.`} ${result.sortOk ? 'Time sort recognized.' : 'Sort TimeGenerated ascending.'} ${result.rows.length} row${result.rows.length === 1 ? '' : 's'} returned.`;
-      moduleSixState.detailEvent = '';
-      moduleSixState.validationError = '';
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-query-feedback');
-      return;
-    }
-
-    const bookmarkButton = event.target.closest('[data-m06-bookmark]');
-    if (bookmarkButton) {
-      const id = bookmarkButton.dataset.m06Bookmark;
-      moduleSixState.bookmarks = moduleSixState.bookmarks.includes(id)
-        ? moduleSixState.bookmarks.filter((item) => item !== id)
-        : [...moduleSixState.bookmarks, id];
-      moduleSixState.selectedEvidence = [...moduleSixState.bookmarks];
-      moduleSixState.validationError = '';
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-bookmark-title');
-      return;
-    }
-
-    const detailButton = event.target.closest('[data-m06-detail]');
-    if (detailButton) {
-      moduleSixState.detailEvent = detailButton.dataset.m06Detail;
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-row-detail');
-      return;
-    }
-
-    if (event.target.closest('[data-m06-detail-close]')) {
-      moduleSixState.detailEvent = '';
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-workspace-title');
-      return;
-    }
-
-    if (event.target.closest('[data-m06-reset]')) {
-      if (typeof window.confirm === 'function' && !window.confirm('Reset only this Module 06 lab? Your saved hunt attempt will be cleared.')) return;
-      const independentLab = moduleSixState.independentLab;
-      moduleSixState = LabRuntime.reset(MODULE_SIX_LAB_ID, moduleSixUser, moduleSixFreshDefaults());
-      moduleSixState.independentLab = independentLab;
-      moduleSixSave();
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_CATALOG_LAB_KEY, false);
-      moduleSixRenderGuidedLab('m06-hypothesis-title');
-      const status = document.getElementById('m06-status');
-      if (status) status.textContent = 'Not started';
-    }
-  });
-
+  if (!root || !moduleSixGuidedState) return;
+  const host = root.querySelector('#m03e-console-m06-guided');
+  if (host) { MODULE_SIX_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m06-guided'); }
+  moduleSixPositionGuidedGuide(root, host);
   root.addEventListener('input', (event) => {
-    if (event.target.name === 'queryDraft') {
-      moduleSixState.queryDrafts[moduleSixState.activeSource] = event.target.value;
-      moduleSixSave();
-    }
-    if (event.target.name === 'notes') {
-      moduleSixState.notes = event.target.value;
-      const count = root.querySelector('#m06-note-count span');
-      if (count) count.textContent = String(event.target.value.length);
-      moduleSixSave();
-    }
+    if (event.target.matches('#guided-m06-m06-guided-case [name="notes"]')) moduleSixGuidedState.caseRecord.notes = event.target.value;
   });
-
   root.addEventListener('change', (event) => {
-    const input = event.target;
-    if (['hypothesis', 'iocRelationship', 'disposition', 'nextAction'].includes(input.name)) {
-      moduleSixState[input.name] = input.value;
-      moduleSixState.validationError = '';
-      moduleSixSave();
-      return;
-    }
-    const checkboxFields = { scopedDevices: 'scopedDevices', scopedAccounts: 'scopedAccounts', techniques: 'techniques' };
-    if (checkboxFields[input.name]) {
-      const key = checkboxFields[input.name];
-      moduleSixState[key] = input.checked
-        ? [...new Set([...moduleSixState[key], input.value])]
-        : moduleSixState[key].filter((item) => item !== input.value);
-      moduleSixState.validationError = '';
-      moduleSixSave();
-    }
+    const field = event.target.closest('#guided-m06-m06-guided-case [name]');
+    if (!field) return;
+    if (field.name.startsWith('finding:')) moduleSixGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
+    else moduleSixGuidedState.caseRecord[field.name] = field.value;
+    moduleSixGuidedSave();
   });
-
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm06-form') return;
-    event.preventDefault();
-    moduleSixState.notes = event.target.elements.notes.value;
-    const missing = [];
-    if (!moduleSixState.hypothesis) missing.push('hypothesis');
-    if (!moduleSixState.queryRuns.endpoint || !moduleSixState.queryRuns.signin) missing.push('both source queries');
-    if (!moduleSixState.bookmarks.length) missing.push('bookmarks');
-    if (!moduleSixState.scopedDevices.length || !moduleSixState.scopedAccounts.length) missing.push('scope');
-    if (!moduleSixState.iocRelationship) missing.push('indicator interpretation');
-    if (!moduleSixState.techniques.length) missing.push('ATT&CK mapping');
-    if (!moduleSixState.disposition || !moduleSixState.nextAction) missing.push('decision');
-    if (moduleSixState.notes.trim().length < 120) missing.push('120-character handoff');
-    if (missing.length) {
-      moduleSixState.validationError = `Add: ${missing.join(', ')}. Your existing work is saved.`;
-      moduleSixSave();
-      moduleSixRenderGuidedLab('m06-feedback');
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m06-guided-restart]')) { event.preventDefault(); moduleSixGuidedRestart(); return; }
+    if (event.target.closest('[data-m06g-guide-next]')) { event.preventDefault(); if (moduleSixGuidedState.caseRecord.submitted) { moduleSixGuidedRestart(); return; } moduleSixGuidedState.guideStep = (moduleSixGuidedState.guideStep + 1) % moduleSixGuidedSteps().length; { const nextTab = moduleSixGuidedSteps()[moduleSixGuidedState.guideStep]?.tab; if (nextTab) { m03eState('m06-guided').tab = nextTab; m03eSave('m06-guided'); } } moduleSixGuidedSave(); moduleSixRenderGuidedLab(); return; }
+    if (event.target.closest('[data-m06g-guide-tab]')) { event.preventDefault(); const tab = event.target.closest('[data-m06g-guide-tab]').dataset.m06gGuideTab; m03eState('m06-guided').tab = tab; m03eSave('m06-guided'); m03eRender('m06-guided'); return; }
+    if (event.target.closest('[data-m06g-guide-collapse]')) { event.preventDefault(); moduleSixGuidedState.guideCollapsed = !moduleSixGuidedState.guideCollapsed; moduleSixGuidedSave(); moduleSixRenderGuidedLab(); return; }
+    if (event.target.closest('[data-m06-guided-submit-case]')) { event.preventDefault(); if (!moduleSixGuidedState.caseRecord.submitted) { moduleSixGuidedState.caseRecord.submitted = true; moduleSixGuidedState.guideCollapsed = true; moduleSixGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleSixGuidedState.caseRecord.actionHistory.push({ action: 'Submitted practice ticket', at: moduleSixGuidedState.caseRecord.submittedAt }); moduleSixGuidedSave(); moduleSixRenderGuidedLab(); } return; }
+    if (event.target.closest('[data-m06-guided-save-case]')) {
+      event.preventDefault();
+      moduleSixGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
+      moduleSixGuidedSave();
+      m03eRender('m06-guided');
       return;
     }
-    const result = moduleSixScore();
-    moduleSixState.attempts += 1;
-    moduleSixState.score = result.score;
-    moduleSixState.bestScore = Math.max(moduleSixState.bestScore || 0, result.score);
-    moduleSixState.breakdown = result.breakdown;
-    moduleSixState.feedback = result.feedback;
-    moduleSixState.validationError = '';
-    moduleSixState.lastSubmittedAt = new Date().toISOString();
-    const passed = result.score >= MODULE_SIX_PASSING_SCORE;
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(moduleSixUser, MODULE_SIX_CATALOG_LAB_KEY, {
-        state: passed ? 'complete' : 'in_progress',
-        score: result.score,
-        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleSixState.attempts },
-      });
-    }
-    if (passed) {
-      moduleSixState.completed = true;
-      if (!moduleSixState.flags.includes(MODULE_SIX_FLAG)) moduleSixState.flags.push(MODULE_SIX_FLAG);
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_CATALOG_LAB_KEY);
-    }
-    moduleSixSave();
-    moduleSixRenderGuidedLab('m06-feedback');
-    const status = document.getElementById('m06-status');
-    if (status) status.textContent = moduleSixState.completed ? 'Complete' : 'In progress';
+
   });
 }
 
 function wireModuleSixAssessmentLab() {
   const root = document.getElementById('m06-assessment-lab-dynamic');
   if (!root || !moduleSixState) return;
+  MODULE_SIX_CONSOLE.wire(root);
 
   root.addEventListener('change', (event) => {
-    if (['task', 'scope', 'disposition'].includes(event.target.name)) {
-      moduleSixState.independentLab[event.target.name] = event.target.value;
+    const input = event.target;
+    if (input.closest('#m06-independent-form') && caseRecordApply(moduleSixState.independentLab.caseRecord, input.name, input.value)) {
+      moduleSixState.independentLab.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
       moduleSixSave();
     }
   });
 
   root.addEventListener('input', (event) => {
-    if (event.target.name === 'rationale') {
-      moduleSixState.independentLab.rationale = event.target.value;
+    if (event.target.name === 'notes' && event.target.closest('#m06-independent-form')) {
+      caseRecordApply(moduleSixState.independentLab.caseRecord, 'notes', event.target.value);
       moduleSixSave();
     }
   });
 
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm06-independent-form') return;
-    event.preventDefault();
-    const form = event.target;
-    moduleSixState.independentLab.task = form.elements.task.value;
-    moduleSixState.independentLab.scope = form.elements.scope.value;
-    moduleSixState.independentLab.disposition = form.elements.disposition.value;
-    moduleSixState.independentLab.rationale = form.elements.rationale.value;
-    const lab = moduleSixState.independentLab;
-    if (!missionNextAllLabsComplete(moduleSixState.labProgress, ['additional-1', 'additional-2', 'additional-3'])) {
-      moduleSixState.additionalGateMessage = 'Mark all required labs above complete first.';
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m06-independent-save-case]')) {
+      moduleSixState.independentLab.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
       moduleSixSave();
-      root.innerHTML = moduleSixAssessmentLabPanel();
+      moduleSixRenderAssessment();
       return;
     }
-    moduleSixState.additionalGateMessage = '';
-    const valid = lab.task === 'task-metadata' && lab.scope === 'ws318' && lab.disposition === 'escalate' && lab.rationale.trim().length >= 60;
-    lab.score = valid ? 100 : 45;
-    lab.completed = valid;
-    moduleSixSave();
-    if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleSixUser, 'lab-threat-hunt-independent', {
-      state: valid ? 'complete' : 'in_progress', score: lab.score,
-      result: { task: lab.task, scope: lab.scope, disposition: lab.disposition },
-    });
-    if (valid && typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', 'lab-threat-hunt-independent');
-    root.innerHTML = moduleSixAssessmentLabPanel();
+
+    if (event.target.closest('[data-m06-independent-submit-case]')) {
+      const lab = moduleSixState.independentLab;
+      if (lab.caseRecord.submitted) return;
+      const spec = moduleSixBackdoorCaseSpec();
+      const missing = caseRecordMissing(lab.caseRecord, spec);
+      if (missing.length) {
+        moduleSixIndependentProveItShowMissing = true;
+        moduleSixSave();
+        moduleSixRenderAssessment();
+        return;
+      }
+      moduleSixIndependentProveItShowMissing = false;
+      const result = SocM06AssessmentScorer.score(SocM06AssessmentState.load(moduleSixUser, SocM06AssessmentData), SocM06AssessmentData);
+      const submittedAt = new Date().toISOString();
+      lab.caseRecord.submitted = true;
+      lab.caseRecord.submittedAt = submittedAt;
+      lab.caseRecord.caseId = MODULE_SIX_BACKDOOR_CASE_ID;
+      lab.caseRecord.scenarioId = SocM06AssessmentData.scenario.id;
+      lab.caseRecord.reviewPayload = { ...JSON.parse(JSON.stringify(result)), caseId: MODULE_SIX_BACKDOOR_CASE_ID, scenarioId: SocM06AssessmentData.scenario.id };
+      lab.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: submittedAt });
+      lab.score = result.score;
+      // Submitted = complete pending faculty review (Module 01 model); the
+      // 70% bar is applied by instructor review, not by locking the student out.
+      lab.completed = true;
+      moduleSixSave();
+      if (moduleSixUser) {
+        moduleSixUser.latestLabAttemptByKey = { ...(moduleSixUser.latestLabAttemptByKey || {}), [MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY]: { completedAt: submittedAt, reviewedAt: null, redoRequested: false } };
+      }
+      if (typeof recordLabAttempt === 'function') {
+        recordLabAttempt(moduleSixUser, MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY, {
+          state: 'complete',
+          score: result.score,
+          result: {
+            rubric_version: result.rubricVersion,
+            breakdown: result.criteria,
+            feedback: result.review.feedback,
+            review_payload: lab.caseRecord.reviewPayload,
+            critical_errors: result.criticalMisses,
+            case_record: lab.caseRecord,
+            case_display: caseRecordDisplay(lab.caseRecord, spec),
+            case_summary: caseRecordSummary(lab.caseRecord, spec),
+          },
+        }).then((saved) => { if (saved && moduleSixIndependentRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06-independent']; });
+      }
+      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY);
+      moduleSixRenderAssessment();
+    }
   });
 }
 
@@ -1249,6 +1840,12 @@ function wireModuleSixQuiz() {
   });
 
   form.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m06-quiz-retake]')) {
+      event.preventDefault();
+      moduleSixQuizForceRetake = true;
+      form.innerHTML = moduleSixQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m06-quiz-retry]')) return;
     event.preventDefault();
     const previousQuestionIds = moduleSixQuizState.selectedQuestions.map((s) => s.question.id);
@@ -1258,6 +1855,18 @@ function wireModuleSixQuiz() {
 }
 
 function wireModuleSix() {
+  const learnRoot = document.querySelector('.m06-shell');
+  if (learnRoot) LearnItCards.wire(learnRoot, { prefix: 'm06', onStep: (step, action) => {
+    moduleSixState.learnItStep = step;
+    moduleSixLearnItViewed = null;
+    moduleSixSave();
+    const target = document.getElementById('m06-learn-it-root');
+    if (target) target.innerHTML = moduleSixLearnItMarkup();
+  }, onView: (index) => {
+    moduleSixLearnItViewed = index;
+    const target = document.getElementById('m06-learn-it-root');
+    if (target) target.innerHTML = moduleSixLearnItMarkup();
+  } });
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   wireReviewToggle({ button: reviewToggle, sectionSelector: '.m06-section-collapsible', getReviewMode: () => moduleSixReviewMode, setReviewMode: (value) => { moduleSixReviewMode = value; }, enabledLabel: 'Close review', disabledLabel: 'Review module', enabledIcon: 'ri-close-line', disabledIcon: 'ri-file-list-line' });
   wireModuleSixQuiz();
@@ -1305,4 +1914,4 @@ function wireModuleSix() {
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 6, moduleKey: 'soc-06',
-  view: viewModuleSix, wire: wireModuleSix });
+  view: viewModuleSix, wire: wireModuleSix, sections: moduleSixGetSections });

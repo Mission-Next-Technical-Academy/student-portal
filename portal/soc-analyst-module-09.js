@@ -7,6 +7,14 @@ const MODULE_NINE_FLAG = 'M09-INCIDENT-RESPONSE-COMPLETE';
 const MODULE_NINE_CATALOG_LAB_KEY = 'lab-active-incident';
 const MODULE_NINE_PASSING_SCORE = 70;
 const MODULE_NINE_CATALOG_MODULE = LABS.find((item) => item.key === MODULE_NINE_CATALOG_LAB_KEY);
+const MODULE_NINE_LIFECYCLE_PHASES = [
+  { id: 'prepare', icon: 'ri-tools-line', title: 'Prepare', description: 'Define roles, logging, playbooks, access, communications, and backups before an incident.' },
+  { id: 'detect-analyze', icon: 'ri-search-eye-line', title: 'Detect & analyze', description: 'Validate the signal, determine what happened, estimate scope and impact, and declare an incident when warranted.' },
+  { id: 'contain', icon: 'ri-shield-keyhole-line', title: 'Contain', description: 'Limit harm-for example, revoke a session or isolate a device-under an approved playbook.' },
+  { id: 'eradicate', icon: 'ri-delete-bin-6-line', title: 'Eradicate', description: 'Remove the cause and attacker foothold, such as malware, persistence, or stolen credentials.' },
+  { id: 'recover', icon: 'ri-refresh-line', title: 'Recover', description: 'Restore normal operations carefully, monitor for recurrence, and confirm controls are working.' },
+  { id: 'learn', icon: 'ri-lightbulb-flash-line', title: 'Learn', description: 'Capture lessons, improve detections and playbooks, and assign follow-up actions.' },
+];
 
 /*
  * Shared evidence-set contract (Sprint 10 / Module 09).
@@ -50,8 +58,8 @@ const MODULE_NINE_SOURCES = {
     icon: 'ri-user-shared-line',
     prompt: 'Correlate the account activity to the impact window without treating every successful sign-in as hostile.',
     rows: [
-      { id: 'M09-E05', time: '09:58', entity: 'acct-173', title: 'Interactive sign-in from managed workstation', summary: '192.0.2.173 · ws-173 · MFA satisfied', detail: 'The account authenticated from its registered workstation before the impact behavior.', relevant: false },
-      { id: 'M09-E06', time: '10:05', entity: 'acct-173', title: 'Unfamiliar remote session overlaps encryption', summary: '203.0.113.173 · unmanaged client', detail: 'The session overlaps the ws-173 encryption window. It is correlation evidence, not proof of operator identity.', relevant: true },
+      { id: 'M09-E05', time: '09:58', entity: 'acct-173', host: 'ws-173', title: 'Interactive sign-in from managed workstation', summary: '192.0.2.173 · ws-173 · MFA satisfied', detail: 'The account authenticated from its registered workstation before the impact behavior.', relevant: false },
+      { id: 'M09-E06', time: '10:05', entity: 'acct-173', host: 'unmanaged-173', title: 'Unfamiliar remote session overlaps encryption', summary: '203.0.113.173 · unmanaged client', detail: 'The session overlaps the ws-173 encryption window. It is correlation evidence, not proof of operator identity.', relevant: true },
       { id: 'M09-E07', time: '10:11', entity: 'acct-173', title: 'Account owner denied the remote session', summary: 'Synthetic service-desk callback SD-4937', detail: 'The account owner confirmed the workstation was in use but denied the unmanaged client session.', relevant: true },
     ],
   },
@@ -68,6 +76,48 @@ const MODULE_NINE_SOURCES = {
 };
 
 const MODULE_NINE_EXPECTED_EVIDENCE = ['M09-E01', 'M09-E02', 'M09-E03', 'M09-E06', 'M09-E07', 'M09-E08', 'M09-E09'];
+
+// Prove It case — the standard ticket for INC-4937, authored from the same
+// evidence contract above (ws-173 / acct-173 / fs-02). Classification and
+// scope keep the module's original analysis decisions as ticket findings;
+// the response-plan phases render as findingsHtml; escalation replaces the
+// old escalation-path radio with the standard Escalation required + Route
+// to Department fields.
+const MODULE_NINE_ENTITY_ROSTER = {
+  users: [
+    { id: 'acct-173', tier: 'principal' },
+    { id: 'svc-backup', tier: 'pivot' },
+    { id: 'acct-045', tier: 'noise' },
+    { id: 'acct-220', tier: 'noise' },
+    { id: 'acct-338', tier: 'noise' },
+    { id: 'guest-311', tier: 'noise' },
+  ],
+  devices: [
+    { id: 'ws-173', tier: 'principal' },
+    { id: 'fs-02', tier: 'pivot' },
+    { id: 'ws-054', tier: 'noise' },
+    { id: 'ws-311', tier: 'noise' },
+    { id: 'print-08', tier: 'noise' },
+    { id: 'db-02', tier: 'noise' },
+  ],
+};
+const MODULE_NINE_DEPARTMENT_OPTIONS = [
+  { id: 'ir-lead-owners', text: 'Incident Lead + Endpoint/Identity Owners', fit: 100, note: 'Authorized to execute eradication and validate recovery.' },
+  { id: 'service-desk', text: 'Service Desk (no incident escalation)', fit: 15, note: 'Not equipped for active ransomware response.', bounce: 'Returned — active encryption and an unauthorized session require incident-lead escalation, not the service desk.' },
+  { id: 'exec-comms', text: 'Executive Communications (public breach notice)', fit: 5, note: 'Exceeds Tier 1 authority before scope is validated.', bounce: 'Returned — a public notice exceeds Tier 1 authority and the currently bounded scope.' },
+];
+const MODULE_NINE_CLASSIFICATION_OPTIONS = [
+  { id: 'ransomware-impact', text: 'Active ransomware impact with identity overlap' },
+  { id: 'endpoint-only', text: 'Endpoint impact only; identity and service signals are unrelated' },
+  { id: 'benign', text: 'Benign maintenance activity' },
+];
+const MODULE_NINE_SCOPE_OPTIONS = [
+  { id: 'bounded-three', text: 'ws-173 and acct-173 confirmed; fs-02 disruption observed; broader compromise is not established' },
+  { id: 'fleet-wide', text: 'The full endpoint fleet and every identity are compromised' },
+  { id: 'none', text: 'No affected entities because the second payload was blocked' },
+];
+// Answer key — kept in module data, never shown live in Prove It.
+const MODULE_NINE_ANSWER_KEY = { severity: 'critical', disposition: 'true-positive', escalateTo: 'ir-lead-owners', classification: 'ransomware-impact', scope: 'bounded-three' };
 
 const MODULE_NINE_QUIZ_BANKS = [
   {
@@ -426,6 +476,13 @@ const MODULE_NINE_RESPONSE_OPTIONS = {
 let moduleNineState = null;
 let moduleNineUser = null;
 let moduleNineQuizState = null;
+let moduleNineGuidedState = null;
+let moduleNineGuidedActionState = null;
+let moduleNineGuidedSelectedIncidentId = null;
+let moduleNineGuidedSelectedEntityId = null;
+// Set when the learner explicitly asks to retake a knowledge check that the
+// account already records as passed (see moduleNineQuizVerifiedElsewhere()).
+let moduleNineQuizForceRetake = false;
 let moduleNineReviewMode = false;
 
 function moduleNineFreshDefaults() {
@@ -435,26 +492,26 @@ function moduleNineFreshDefaults() {
     selectedEvidence: [],
     detailEvidence: '',
     hintsOpened: [],
-    classification: '',
-    scope: '',
-    severity: '',
     responsePlan: { contain: [], eradicate: [], recover: [] },
-    escalation: '',
-    notes: '',
-    breakdown: null,
-    feedback: [],
-    validationError: '',
     lastSubmittedAt: '',
     practiceComplete: false,
     practiceNotes: '',
     labProgress: {},
+    learnItStep: 0,
+    caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
   };
 }
 
 function moduleNineLoad(user) {
+  if (moduleNineUser?.email !== user?.email) { moduleNineQuizForceRetake = false; moduleNineLearnViewed = null; }
   moduleNineUser = user;
   const defaults = moduleNineFreshDefaults();
-  moduleNineState = LabRuntime.load(MODULE_NINE_LAB_ID, user, defaults);
+  moduleNineState = LabRuntime.loadCaseState(MODULE_NINE_LAB_ID, 'soc-09', user, defaults);
+  moduleNineGuidedState = LabRuntime.loadCaseState('m09-guided-incident-response-v1', 'soc-09', user, {
+    completed: false, caseRecord: { status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, submittedAt: '', actionHistory: [] },
+  });
+  if (moduleNineGuidedState.completed === true && !moduleNineGuidedState.caseRecord.submitted) { moduleNineGuidedState.caseRecord.submitted = true; moduleNineGuidedState.caseRecord.submittedAt ||= new Date().toISOString(); }
+  moduleNineGuidedActionState = SocM09AssessmentState.load(user, MODULE_NINE_GUIDED_FIXTURE);
   ['reviewedSources', 'selectedEvidence', 'hintsOpened', 'feedback', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleNineState[key])) moduleNineState[key] = [];
   });
@@ -465,6 +522,37 @@ function moduleNineLoad(user) {
   if (!MODULE_NINE_SOURCES[moduleNineState.activeSource]) moduleNineState.activeSource = 'endpoint';
   if (typeof moduleNineState.practiceNotes !== 'string') moduleNineState.practiceNotes = '';
   if (!moduleNineState.labProgress || typeof moduleNineState.labProgress !== 'object') moduleNineState.labProgress = {};
+  // Backward compat: a pre-case-record attempt kept classification/scope/
+  // severity/escalation/notes as top-level fields. Preserve a passed
+  // attempt as an already-submitted ITSM ticket (Lab Under Review / Lab
+  // Graded, never reset); carry over the still-valid classification/scope
+  // finding ids and notes text. A never-passed in-progress attempt starts
+  // fresh on the standard ticket rather than guessing at unmappable old
+  // severity/escalation ids.
+  if (!moduleNineState.caseRecord || typeof moduleNineState.caseRecord !== 'object') {
+    const wasSubmitted = Boolean(moduleNineState.completed);
+    moduleNineState.caseRecord = {
+      status: '', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '',
+      notes: moduleNineState.notes || '',
+      findings: {
+        ...(moduleNineState.classification ? { classification: moduleNineState.classification } : {}),
+        ...(moduleNineState.scope ? { scope: moduleNineState.scope } : {}),
+      },
+      submitted: wasSubmitted, submittedAt: moduleNineState.lastSubmittedAt || '', actionHistory: [],
+    };
+  }
+  ['status', 'affectedUser', 'affectedDevice', 'severity', 'disposition', 'escalation', 'escalateTo', 'notes'].forEach((key) => {
+    if (typeof moduleNineState.caseRecord[key] !== 'string') moduleNineState.caseRecord[key] = '';
+  });
+  if (!moduleNineState.caseRecord.findings || typeof moduleNineState.caseRecord.findings !== 'object') moduleNineState.caseRecord.findings = {};
+  if (!Array.isArray(moduleNineState.caseRecord.actionHistory)) moduleNineState.caseRecord.actionHistory = [];
+  if (typeof moduleNineState.caseRecord.submitted !== 'boolean') moduleNineState.caseRecord.submitted = Boolean(moduleNineState.completed);
+  // A returned attempt must not stay permanently unsubmittable.
+  if (moduleNineProveItRedoRequested() && moduleNineState.caseRecord.submitted === true) {
+    moduleNineState.caseRecord.submitted = false;
+    moduleNineState.caseRecord.submittedAt = '';
+    moduleNineSave();
+  }
 
   // Initialize quiz state
   if (!moduleNineQuizState) {
@@ -488,7 +576,24 @@ function moduleNineLoad(user) {
 }
 
 function moduleNineSave() {
-  if (moduleNineUser && moduleNineState) LabRuntime.save(MODULE_NINE_LAB_ID, moduleNineUser, moduleNineState);
+  if (moduleNineUser && moduleNineState) LabRuntime.saveCaseState(MODULE_NINE_LAB_ID, 'soc-09', moduleNineUser, moduleNineState);
+}
+
+let moduleNineLearnViewed = null;
+function moduleNineLearnItHtml() {
+  const deck = LearnItDecks['soc-09'];
+  return LearnItCards.render({ deck, step: moduleNineState.learnItStep || 0, viewed: moduleNineLearnViewed, done: (moduleNineState.learnItStep || 0) >= deck.length, prefix: 'm09', id: 'm09-learn-it', headingId: 'm09-learn-title', heading: 'Respond with evidence and scope', intro: 'Ideas for proportionate incident response.', readyHeading: 'Incident response, in six ideas', readyText: 'Start with the response principles, then open the Guided Lab.', readyActionLabel: 'LEARN IT', finalActionLabel: 'Finish', doneHeading: 'Response principles ready', doneIntro: 'Open the Guided Lab to apply these decisions.' });
+}
+
+function moduleNineWireLearnIt() {
+  const shell = document.querySelector('.m09-shell');
+  if (!shell || shell.dataset.learnItWired) return;
+  shell.dataset.learnItWired = 'true';
+  LearnItCards.wire(shell, { prefix: 'm09', onStep: (step, action) => { moduleNineState.learnItStep = step; moduleNineLearnViewed = null; moduleNineSave(); document.getElementById('m09-learn-it').outerHTML = moduleNineLearnItHtml(); }, onView: (index) => { moduleNineLearnViewed = index; document.getElementById('m09-learn-it').outerHTML = moduleNineLearnItHtml(); shell.querySelector(`[data-m09-learn-view="${index}"]`)?.focus(); } });
+}
+
+function moduleNineGuidedSave() {
+  if (moduleNineUser && moduleNineGuidedState) LabRuntime.saveCaseState('m09-guided-incident-response-v1', 'soc-09', moduleNineUser, moduleNineGuidedState);
 }
 
 function moduleNineAllRows() {
@@ -500,11 +605,13 @@ function moduleNineRow(id) {
 }
 
 function moduleNineGetSections() {
+  // Server-verified modules (finished on another device, before the 09-27
+  // lab rebuild, or by admin override) read complete instead of empty.
+  const verified = moduleNineUser?.remoteVerifiedModuleProgress?.['soc-09'] === true;
   return [
-    { id: 'lecture', title: 'Lecture', type: 'lecture', isComplete: true, scrollId: 'm09-lecture' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleNineQuizState?.passed, scrollId: 'm09-knowledge-check' },
-    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: moduleNineState.practiceComplete, scrollId: 'm09-guided-lab' },
-    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: moduleNineState.completed, scrollId: 'm09-lab' },
+    { id: 'lecture', title: 'Learn It', type: 'lecture', isComplete: true, scrollId: 'm09-lecture' },
+    { id: 'guided-lab', title: 'Guided Lab', type: 'lab', isComplete: verified || moduleNineGuidedComplete(), scrollId: 'm09-guided-lab' },
+    { id: 'assessment-lab', title: 'Assessment Lab', type: 'review', isComplete: verified || moduleNineState.completed, scrollId: 'm09-lab' },
     { id: 'review', title: 'Module Review', type: 'review', isComplete: true, scrollId: 'm09-review' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm09-sources', gated: false, supplemental: true },
   ];
@@ -529,7 +636,33 @@ function moduleNineConcepts() {
     ['ri-file-list-3-line', 'Leave an actionable handoff', 'Record incident state, exact entities, strongest evidence, actions requested, and the condition that permits recovery.'],
   ];
   return `<div class="m09-concept-grid">${cards.map((card) => `<article><i class="${esc(card[0])}" aria-hidden="true"></i><h3>${esc(card[1])}</h3><p>${esc(card[2])}</p></article>`).join('')}</div>
-    <div class="m09-lifecycle" aria-label="NIST incident response sequence"><span>Prepare</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Detect &amp; analyze</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Contain</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Eradicate</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Recover</span><i class="ri-arrow-right-line" aria-hidden="true"></i><span>Learn</span></div>`;
+    <div class="m09-lifecycle-companion" id="m09-lifecycle" aria-labelledby="m09-lifecycle-title">
+      <p class="m09-companion-label"><i class="ri-cycle-line" aria-hidden="true"></i> The response map</p>
+      <h3 class="m09-companion-title" id="m09-lifecycle-title">Incident response lifecycle, visualized</h3>
+      <p class="m09-instruction">Frameworks name phases differently, but this six-part model captures the operational response lifecycle. Select a phase to rotate the lifecycle and read its definition.</p>
+      <div class="m09-lifecycle-wheel" style="--wheel-rotation: 0deg" data-m09-lifecycle-wheel>
+        <div class="m09-wheel-track" aria-hidden="true">
+          ${MODULE_NINE_LIFECYCLE_PHASES.map((phase, index) => `<span style="--wheel-step: ${index}"><i class="ri-arrow-right-s-line"></i></span>`).join('')}
+          <div class="m09-wheel-hub">
+            <i class="ri-cycle-line"></i>
+            <strong>Incident response</strong>
+            <small data-m09-hub-phase>Phase 1 · ${esc(MODULE_NINE_LIFECYCLE_PHASES[0].title)}</small>
+          </div>
+        </div>
+        <ol class="m09-lifecycle" aria-label="Incident response phases">
+          ${MODULE_NINE_LIFECYCLE_PHASES.map((phase, index) => `<li class="${index === 0 ? 'is-active' : ''}" data-m09-phase-card="${index}">
+            <button type="button" class="m09-phase-button" data-m09-phase="${index}"
+                    aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="m09-phase-detail-${esc(phase.id)}">
+              <span class="m09-phase-heading"><span>${index + 1}</span><i class="${esc(phase.icon)}" aria-hidden="true"></i><span class="m09-phase-title">${esc(phase.title)}</span><i class="ri-arrow-down-s-line m09-phase-chevron" aria-hidden="true"></i></span>
+            </button>
+            <div class="m09-phase-detail" id="m09-phase-detail-${esc(phase.id)}" ${index === 0 ? '' : 'hidden'}>
+              <p>${esc(phase.description)}</p>
+            </div>
+          </li>`).join('')}
+        </ol>
+      </div>
+      <p class="m09-concept"><strong>Where does the SOC analyst fit?</strong> Analysts contribute across the lifecycle, but alert triage sits mainly in <em>detect &amp; analyze</em>. Module 09 carries that work forward into containment, eradication, recovery, and accountable handoff.</p>
+    </div>`;
 }
 
 function moduleNineScenarioLoop() {
@@ -551,9 +684,24 @@ function moduleNineQuizQuestion(selected, index) {
   </fieldset>`;
 }
 
+// A knowledge check can read complete on the account (server-verified module,
+// synced quiz detail, or knowledge-check evidence) while this browser holds no
+// answers — another device did the work, or an admin override set it. Show a
+// verified summary instead of a blank 0/N form; never fabricate answers.
+function moduleNineQuizVerifiedElsewhere() {
+  if (moduleNineQuizForceRetake || !moduleNineQuizState || moduleNineQuizState.scored) return false;
+  if (Object.keys(moduleNineQuizState.answers || {}).length > 0) return false;
+  return moduleNineUser?.remoteVerifiedModuleProgress?.['soc-09'] === true
+    || moduleNineUser?.remoteModuleDetail?.['soc-09']?.quizPassed === true
+    || moduleNineUser?.remoteModuleEvidence?.['soc-09']?.['knowledge-check'] === true;
+}
+
 function moduleNineQuizPanel() {
   if (!moduleNineQuizState?.selectedQuestions || moduleNineQuizState.selectedQuestions.length === 0) {
     return `<div class="m09-quiz-empty" id="m09-quiz-feedback" role="status">Loading quiz…</div>`;
+  }
+  if (moduleNineQuizVerifiedElsewhere()) {
+    return `<form class="m09-quiz-form mf-quiz-form" id="m09-quiz-form" novalidate><section class="mf-score is-pass" id="m09-quiz-feedback" tabindex="-1" aria-live="polite"><p class="mf-kicker">Module knowledge check</p><h3>Already verified complete</h3><p>This knowledge check is recorded as passed on your account. It is never re-answered automatically on a new device or browser, so nothing is shown here that wasn't actually submitted.</p><button type="button" class="mf-score-retake" data-m09-quiz-retake>Retake this knowledge check</button></section></form>`;
   }
 
   const selected = moduleNineQuizState.selectedQuestions;
@@ -563,7 +711,7 @@ function moduleNineQuizPanel() {
   let feedbackHtml = '';
   if (moduleNineQuizState.scored) {
     const passed = moduleNineQuizState.score >= 70;
-    feedbackHtml = `<section class="m09-quiz-score ${passed ? 'm09-quiz-pass' : 'm09-quiz-remediate'}" id="m09-quiz-feedback" tabindex="-1" aria-live="polite">
+    feedbackHtml = `<section class="m09-quiz-score mf-score ${passed ? 'm09-quiz-pass is-pass' : 'm09-quiz-remediate is-remediate'}" id="m09-quiz-feedback" tabindex="-1" aria-live="polite">
       <div class="m09-quiz-score-heading">
         <div>
           <p class="m09-kicker">Attempt ${moduleNineQuizState.attempts} · best ${moduleNineQuizState.bestScore}/100</p>
@@ -588,8 +736,8 @@ function moduleNineQuizPanel() {
     feedbackHtml = `<div class="m09-quiz-empty" id="m09-quiz-feedback" role="status">Answer all ${total} questions to submit.</div>`;
   }
 
-  return `<form class="m09-quiz-form" id="m09-quiz-form" novalidate>
-    <div class="m09-panel-heading"><div><p class="m09-kicker">Knowledge check</p><h3 id="m09-quiz-title" tabindex="-1">Test your understanding of incident response principles</h3></div><span>${answered}/${total} answered</span></div>
+  return `<form class="m09-quiz-form mf-quiz-form" id="m09-quiz-form" novalidate>
+    <div class="m09-panel-heading mf-panel-heading"><div><p class="m09-kicker mf-kicker">Knowledge check</p><h3 id="m09-quiz-title" tabindex="-1">Test your understanding of incident response principles</h3></div><span>${answered}/${total} answered</span></div>
     ${selected.map((sel, idx) => moduleNineQuizQuestion(sel, idx)).join('')}
     <div class="m09-quiz-actions">
       <button class="m09-quiz-submit" type="submit" ${answered < total ? 'disabled' : ''}>
@@ -601,24 +749,7 @@ function moduleNineQuizPanel() {
 }
 
 function moduleNineVideoScript() {
-  return `<details class="m09-video-script">
-    <summary><strong>Video script (recording pending)</strong></summary>
-    <div class="m09-script-body">
-      <p><strong>Introduction:</strong> Welcome to incident response. This module teaches you how to investigate a suspicious event, determine whether it qualifies as an incident, bound the scope, and build a response plan that matches what you actually know—without making unfounded claims about the wider environment.</p>
-
-      <p><strong>Segment 1 — Correlation across sources, not single indicators.</strong> In INC-4937, rapid encryption on ws-173, an overlapping acct-173 session, and fs-02 service disruption support one active incident slice. Correlation requires shared entities and timing; it does not identify a real operator or prove enterprise-wide compromise. Single indicators can be background noise or unrelated events.</p>
-
-      <p><strong>Segment 2 — State what you know, not what you hope.</strong> After investigation, you will find some evidence and not find other evidence. A scoped search across one endpoint and no others means you have confirmed one endpoint's compromise, not that the wider environment is clean. Absence of evidence in a bounded dataset is not evidence of absence. Communicate your scope and search boundaries precisely. Say "We found these entities compromised" and "We searched this data and found no matches," not "The environment is definitely clean" or "Everyone is probably compromised." This precision lets specialists and management make informed decisions about what comes next.</p>
-
-      <p><strong>Segment 3 — NIST lifecycle phases are sequential, not parallel.</strong> Prepare establishes roles and playbooks. Detect and analyze validates the incident. Containment stops active harm— isolate ws-173, revoke acct-173 sessions, and restrict affected service access. Eradication removes the demonstrated access and impact mechanism. Recovery restores service only after validation. Learn records control and detection improvements. Skipping a phase risks continued compromise or reinfection.</p>
-
-      <p><strong>Segment 4 — Severity classification balances scope, impact, and evidence.</strong> Malware execution is serious, but a prevented execution on a single employee workstation is lower severity than malware running on a critical database server. Account compromise is serious, but a single account is lower severity than the compromised account used to access sensitive systems. Severity reflects the true business consequence of the incident—not panic, not minimization, but proportionate classification. High severity may warrant response within hours; critical within minutes. Low-risk events warrant standard procedures. Match your severity to what the evidence actually shows.</p>
-
-      <p><strong>Segment 5 — Escalation with evidence and a clear plan.</strong> As a Tier 1 responder, your authority includes investigation and initiating approved playbook actions (isolation, session revocation, and evidence preservation). You do not have authority to wipe the fleet, declare the organization clean, or attribute the activity to a named operator. Your job is to correlate the ransomware impact, define the confirmed scope, and escalate with a clear request: "INC-4937 confirms encryption activity on ws-173, an overlapping acct-173 session, and fs-02 service disruption. Preserve evidence, stop active impact, restrict affected access, and validate before recovery." That precision lets specialists execute their part without guessing.</p>
-
-      <p><strong>Closing:</strong> Incident response is a discipline of evidence-based decisions with clear authority boundaries. Correlate before acting. State your scope and uncertainty. Follow the phases. Classify proportionately. Escalate with precision. Your team depends on it.</p>
-    </div>
-  </details>`;
+  return '';
 }
 
 function moduleNineReview() {
@@ -633,7 +764,7 @@ function moduleNineReview() {
       <li><strong>Authority and accountability:</strong> Know your role's boundaries. You investigate and escalate; specialists and owners execute remediation and validation. Clear handoffs prevent confusion and wasted cycles.</li>
     </ul>
     <h3>Before you continue</h3>
-    <p>You should now be able to correlate evidence across endpoint, identity, and network sources; bound the scope of an incident based on what you actually found; classify severity proportionately; design a containment-to-recovery plan that respects response phases; and write a clear, evidence-based handoff to incident specialists. In later modules and on-the-job, you will apply these skills in rapid triage, escalation, and coordinated response scenarios.</p>
+    <p>Correlate endpoint, identity, and network evidence; bound incident scope; classify severity proportionately; and plan containment through recovery. Write evidence-based handoffs, then apply these skills in later triage, escalation, and response work.</p>
   </section>`;
 }
 
@@ -662,134 +793,533 @@ function moduleNineEvidenceTray() {
   return `<aside class="m09-evidence-tray" aria-labelledby="m09-tray-title"><div><p class="m09-kicker">Correlation set</p><h4 id="m09-tray-title"><span id="m09-evidence-count">${selected.length}</span> records selected</h4></div>${selected.length ? `<ol>${selected.map((row) => `<li><code>${esc(row.id)}</code><span>${esc(row.entity)} · ${esc(row.title)}</span><button type="button" data-m09-remove-evidence="${esc(row.id)}" aria-label="Remove evidence ${esc(row.id)}"><i class="ri-close-line" aria-hidden="true"></i></button></li>`).join('')}</ol>` : '<p>Select records that establish execution, affected entities, correlation, and defensible scope. Benign context should stay out of the set.</p>'}</aside>`;
 }
 
-function moduleNineRadioGroup(name, legend, help, options) {
-  return `<fieldset class="m09-fieldset"><legend>${esc(legend)}</legend><p class="m09-help">${esc(help)}</p><div class="m09-option-list">${options.map((option) => `<label><input type="radio" name="${esc(name)}" value="${esc(option.id)}" ${moduleNineState[name] === option.id ? 'checked' : ''} /><span><strong>${esc(option.label)}</strong><small>${esc(option.help)}</small></span></label>`).join('')}</div></fieldset>`;
-}
-
 function moduleNineResponsePhase(phase, number, title, description) {
   const selected = moduleNineState.responsePlan[phase];
   return `<fieldset class="m09-response-phase"><legend><span>${number}</span>${esc(title)}</legend><p>${esc(description)}</p><div class="m09-response-options">${MODULE_NINE_RESPONSE_OPTIONS[phase].map((option) => `<label><input type="checkbox" name="response-${esc(phase)}" value="${esc(option.id)}" ${selected.includes(option.id) ? 'checked' : ''} /><span><strong>${esc(option.label)}</strong><small>${esc(option.help)}</small></span></label>`).join('')}</div></fieldset>`;
 }
 
-function moduleNineScorePanel() {
-  if (moduleNineState.validationError) return `<div class="m09-validation" id="m09-feedback" role="alert" tabindex="-1"><i class="ri-information-line" aria-hidden="true"></i><div><strong>Finish the response record</strong><p>${esc(moduleNineState.validationError)}</p></div></div>`;
-  if (!moduleNineState.attempts || !moduleNineState.breakdown) return `<div class="m09-score-empty" id="m09-feedback" role="status">Your evidence and decisions are saved locally. Submit when the handoff is ready; retries do not reduce your score.</div>`;
-  const b = moduleNineState.breakdown;
-  const passed = moduleNineState.score >= MODULE_NINE_PASSING_SCORE;
-  return `<section class="m09-score ${passed ? 'is-pass' : 'is-remediate'}" id="m09-feedback" tabindex="-1" aria-live="polite" aria-labelledby="m09-score-title"><div class="m09-score-heading"><div><p class="m09-kicker">Attempt ${moduleNineState.attempts} · best ${moduleNineState.bestScore}/100</p><h3 id="m09-score-title">${moduleNineState.score}/100 — ${passed ? 'Response plan approved' : 'Revise and resubmit'}</h3></div><span>${moduleNineState.score}</span></div><div class="m09-score-grid" aria-label="Score breakdown"><div><strong>${b.observation}/25</strong><span>Observation</span></div><div><strong>${b.analysis}/25</strong><span>Analysis</span></div><div><strong>${b.decision}/30</strong><span>Decision</span></div><div><strong>${b.communication}/20</strong><span>Communication</span></div></div><ul>${moduleNineState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul><div class="m09-remediation"><strong>Model response boundary</strong><p>Current evidence confirms encryption on ws-173, an overlapping acct-173 session, and fs-02 service disruption. Stop active impact, preserve the selected facts, contain the affected entities, and restore service only after validation. Continue scoped monitoring instead of claiming the full environment is clean or naming an operator.</p></div></section>`;
+// The response-plan phases (contain/eradicate/recover) are multi-select
+// checkbox groups — outside caseRecordFields' single-select `findings` —
+// so they render as spec.findingsHtml inside the standard ticket, exactly
+// where the old artifact form put them.
+function moduleNineResponsePlanHtml() {
+  return `<div class="m09-response-grid">${moduleNineResponsePhase('contain', 'A', 'Contain', 'Limit active harm while preserving the case.')}${moduleNineResponsePhase('eradicate', 'B', 'Eradicate', 'Remove the demonstrated foothold and identity risk.')}${moduleNineResponsePhase('recover', 'C', 'Recover', 'Restore service only after clear validation conditions.')}</div>`;
 }
 
 function moduleNineInvestigation() {
   return `<section class="m09-workbench" aria-labelledby="m09-case-title"><div class="m09-casebar"><div><p class="m09-kicker">INC-4937 · Mission Next Labs · active ransomware slice</p><h3 id="m09-case-title" tabindex="-1">Operation Cedar Lock — encryption in progress</h3><p>Rapid encryption on ws-173 overlaps an unfamiliar acct-173 session and fs-02 service disruption. Decide what is confirmed, contain active impact, and hand off NIST-aligned next actions without overclaiming scope.</p></div><dl><div><dt>Assigned role</dt><dd>Tier 1 responder</dd></div><div><dt>Authority</dt><dd>Approved containment</dd></div><div><dt>Starting severity</dt><dd>Critical pending scope</dd></div></dl></div>
     <div class="m09-progress-row" aria-label="Investigation progress"><span><strong>${moduleNineState.reviewedSources.length}/3</strong> sources reviewed</span><span><strong>${moduleNineState.selectedEvidence.length}</strong> evidence records</span><span><strong>${moduleNineState.attempts || 0}</strong> scored attempts</span></div>
     ${moduleNineSourceTabs()}${moduleNineEvidenceTable(moduleNineState.activeSource)}${moduleNineEvidenceTray()}
-    <details class="m09-hint" ${moduleNineState.hintsOpened.includes('correlation') ? 'open' : ''} data-m09-hint="correlation"><summary>Optional correlation hint</summary><p>Start with the process and persistence records. Then look for identity and network activity sharing both the same time window and incident entity. Keep known-good baselines out of the evidence set.</p></details>
+    <details class="m09-hint" ${moduleNineState.hintsOpened.includes('correlation') ? 'open' : ''} data-m09-hint="correlation"><summary>Optional correlation hint</summary><p>Start with process and persistence records, then find identity and network activity sharing the time window and incident entity. Keep known-good baselines out of the evidence set.</p></details>
   </section>`;
+}
+
+let moduleNineProveItShowMissing = false;
+
+function moduleNineProveItRedoRequested() {
+  return moduleNineUser?.openLabRedosByModuleKey?.['soc-09'] != null;
+}
+
+// '' until submitted; then 'review' while the latest attempt awaits faculty,
+// 'graded' once an instructor has reviewed it without sending it back.
+function moduleNineProveItReviewStatus() {
+  if (!moduleNineState?.caseRecord?.submitted) return '';
+  const attempt = moduleNineUser?.latestLabAttemptByKey?.[MODULE_NINE_CATALOG_LAB_KEY];
+  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+}
+
+function moduleNineProveItRedoFeedback() {
+  if (!moduleNineProveItRedoRequested()) return '';
+  const items = moduleNineUser.openLabRedosByModuleKey['soc-09'].feedback || [];
+  return `<div class="m01-redo-feedback" role="note">
+    <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
+    ${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this case without written notes. Use Message Instructor if you are not sure what to change.</p>'}
+  </div>`;
+}
+
+function moduleNineProveItSpec() {
+  // The response itself is worked in the console's Incident, Response and
+  // Recovery workspaces and scored by the M09 rubric on submit.
+  const extraMissing = [];
+  return {
+    formId: 'm09-form',
+    panelId: 'm09-review-submission',
+    caseId: 'INC-4937',
+    userOptions: MODULE_NINE_ENTITY_ROSTER.users.map((entry) => ({ id: entry.id, text: entry.id })),
+    deviceOptions: MODULE_NINE_ENTITY_ROSTER.devices.map((entry) => ({ id: entry.id, text: entry.id })),
+    departmentOptions: MODULE_NINE_DEPARTMENT_OPTIONS,
+    findings: [
+      { name: 'classification', label: 'Incident classification', options: MODULE_NINE_CLASSIFICATION_OPTIONS, missing: 'Classify the incident' },
+      { name: 'scope', label: 'Defensible current scope', options: MODULE_NINE_SCOPE_OPTIONS, missing: 'Record the defensible current scope' },
+    ],
+    notesPlaceholder: 'Incident state: … Confirmed scope: … Evidence: … Requested response: … Recovery condition: …',
+    notesMin: 140,
+    extraMissing,
+    saveAttr: 'data-m09-save-proveit',
+    submitAttr: 'data-m09-submit-proveit',
+    lockedMessage: 'Module 10 stays locked until your instructor approves the submission.',
+  };
+}
+
+// Prove It scoring: entity tiers 10, severity 8, disposition 10,
+// escalation/routing up to 15, classification finding 10, scope finding 8,
+// contain/eradicate/recover response actions 10/7/8, analyst notes 14 — 100
+// total. Module 01's weighting model, proportionally folded with this
+// module's own classification/scope/response-plan domain findings, which
+// the old m09-form graded directly and are now ticket findings/findingsHtml.
+function moduleNineProveItPerformance() {
+  const state = moduleNineState.caseRecord;
+  const spec = moduleNineProveItSpec();
+  const missing = caseRecordMissing(state, spec);
+
+  // Observation: sources reviewed + evidence selected against the expected
+  // set — the part of the old moduleNineScore() this ticket does not gate
+  // through caseRecordMissing's extraMissing alone (reviewing 3 sources and
+  // 4+ records is required to submit; the quality of the selection is
+  // still scored here for the instructor).
+  const sourcesReviewed = moduleNineState.reviewedSources.filter((key) => MODULE_NINE_SOURCES[key]).length;
+  const sources = Math.round((sourcesReviewed / 3) * 5); // 0-5
+  const evidence = moduleNineSelectionScore(moduleNineState.selectedEvidence, MODULE_NINE_EXPECTED_EVIDENCE, 10); // 0-10
+  const observation = sources + evidence;
+
+  const userTier = MODULE_NINE_ENTITY_ROSTER.users.find((entry) => entry.id === state.affectedUser)?.tier;
+  const deviceTier = MODULE_NINE_ENTITY_ROSTER.devices.find((entry) => entry.id === state.affectedDevice)?.tier;
+  const tierFit = (tier) => (tier === 'principal' ? 1 : tier === 'pivot' ? 0.5 : 0);
+  const entityPoints = Math.round((tierFit(userTier) + tierFit(deviceTier)) * 4); // 0-8
+
+  const severityOk = caseRecordSeverity(state) === MODULE_NINE_ANSWER_KEY.severity;
+  const dispositionOk = caseRecordDisposition(state) === MODULE_NINE_ANSWER_KEY.disposition;
+  const department = MODULE_NINE_DEPARTMENT_OPTIONS.find((option) => option.id === state.escalateTo) || null;
+  const escalationRequiredOk = state.escalation === 'required';
+  const bounced = escalationRequiredOk && department && department.fit < 40;
+  const escalation = escalationRequiredOk && department && !bounced ? Math.round((department.fit / 100) * 12) : 0;
+
+  const findings = state.findings || {};
+  const classificationOk = findings.classification === MODULE_NINE_ANSWER_KEY.classification;
+  const scopeOk = findings.scope === MODULE_NINE_ANSWER_KEY.scope;
+
+  const contain = moduleNineSelectionScore(moduleNineState.responsePlan.contain, ['isolate-ws173', 'revoke-disable-acct173', 'segment-fs02'], 8);
+  const eradicate = moduleNineSelectionScore(moduleNineState.responsePlan.eradicate, ['stop-encryption', 'reset-credentials', 'restore-service'], 6);
+  const recover = moduleNineSelectionScore(moduleNineState.responsePlan.recover, ['validate-reconnect', 'monitored-reenable'], 7);
+
+  const note = (state.notes || '').trim().toLowerCase();
+  const noteLength = note.length >= 140 ? 3 : 0;
+  const noteConclusion = /(confirm|compromis|incident|high|critical)/.test(note) ? 3 : 0;
+  const noteEntities = /ws-173/.test(note) && /acct-173/.test(note) && /fs-02/.test(note) ? 3 : 0;
+  const noteEvidence = /(encrypt|ransom|service|session|m09-e0|203\.0\.113\.173)/.test(note) ? 2 : 0;
+  const noteContain = /(isolat|revoke|disable|contain|block)/.test(note) ? 2 : 0;
+  const noteRecover = /(validat|monitor|reconnect|re-enable|reenable|recover)/.test(note) ? 1 : 0;
+  const notes = noteLength + noteConclusion + noteEntities + noteEvidence + noteContain + noteRecover; // 0-14
+
+  const severity = severityOk ? 7 : 0;
+  const disposition = dispositionOk ? 8 : 0;
+  const classification = classificationOk ? 8 : 0;
+  const scope = scopeOk ? 7 : 0;
+  const score = observation + entityPoints + severity + disposition + escalation + classification + scope + contain + eradicate + recover + notes;
+  const criticalErrors = state.escalation === 'not-required' ? ['escalation-not-required'] : [];
+
+  return {
+    missing,
+    score,
+    breakdown: { observation, sources, evidence, affected_entity: entityPoints, severity, disposition, escalation, classification, scope, contain, eradicate, recover, analyst_notes: notes },
+    department, bounced,
+    feedback: [
+      evidence >= 10 && sources >= 5 ? 'Observation: all three sources reviewed; the selected records establish encryption impact, identity overlap, service disruption, and bounded scope.' : `Observation: ${observation}/15. Review all sources and select the M09-E records that establish impact, identity overlap, service disruption, and scope; benign context is not incident proof.`,
+      entityPoints >= 8 ? 'Affected entity/scope: correct — ws-173 and acct-173.' : entityPoints > 0 ? 'Affected entity/scope: partial credit — a related host/account is supported, but ws-173 / acct-173 is the confirmed pair.' : 'Affected entity/scope: review the endpoint and identity evidence for the confirmed affected user and device.',
+      severityOk ? 'Severity: correct.' : 'Severity: review — active encryption with service disruption is Critical.',
+      dispositionOk ? 'Disposition: correct.' : 'Disposition: review — the endpoint, identity, and service evidence together confirm malicious activity.',
+      classificationOk ? 'Classification: correct — active ransomware impact with identity overlap.' : 'Classification: review — connect the endpoint encryption behavior with the overlapping identity session.',
+      scopeOk ? 'Scope: correct — bounded to the confirmed three entities.' : 'Scope: review — state only what this evidence slice supports; do not claim fleet-wide compromise or zero impact.',
+      !escalationRequiredOk ? 'Routing: not applicable — escalation was set to not required.' : !department ? 'Routing: review — this case needs a department routed with the recorded evidence.' : department.fit >= 100 ? `Routing: correct — ${department.text} is the best-fit department for this case.` : department.fit >= 40 ? `Routing: accepted, but not the best fit — ${department.note}` : `Routing: returned — ${department.bounce || department.note}`,
+      contain + eradicate + recover >= 18 ? 'Response plan: proportionate containment, eradication, and recovery selections.' : `Response plan: ${contain + eradicate + recover}/21 — select every justified action in each phase without over- or under-responding.`,
+    ],
+    criticalErrors,
+  };
 }
 
 function moduleNineArtifact() {
-  return `<form class="m09-artifact" id="m09-form" novalidate aria-labelledby="m09-artifact-title"><div class="m09-panel-heading"><div><p class="m09-kicker">Scored artifact · observation, analysis, decision, communication</p><h3 id="m09-artifact-title">Incident response record</h3></div><span>Pass ${MODULE_NINE_PASSING_SCORE}/100</span></div>
-    <section class="m09-artifact-section" aria-labelledby="m09-analysis-title"><div class="m09-subheading"><span>1</span><div><h4 id="m09-analysis-title">Analyze the incident picture</h4><p>Use only what this isolated evidence slice supports.</p></div></div>
-      ${moduleNineRadioGroup('classification', 'Incident classification', 'Connect the endpoint behavior and the unfamiliar session.', [
-        { id: 'ransomware-impact', label: 'Active ransomware impact with identity overlap', help: 'Encryption, service disruption, and the overlapping session form one supported incident slice.' },
-        { id: 'endpoint-only', label: 'Endpoint impact only; identity and service signals are unrelated', help: 'Ignores the timing and entity correlation.' },
-        { id: 'benign', label: 'Benign maintenance activity', help: 'Does not explain the rapid encryption behavior.' },
-      ])}
-      ${moduleNineRadioGroup('scope', 'Defensible current scope', 'Separate confirmed entities from the unobserved wider environment.', [
-        { id: 'bounded-three', label: 'ws-173 and acct-173 confirmed; fs-02 disruption observed; broader compromise is not established', help: 'Matches the assigned slice while retaining uncertainty beyond it.' },
-        { id: 'fleet-wide', label: 'The full endpoint fleet and every identity are compromised', help: 'No evidence in this dataset supports that breadth.' },
-        { id: 'none', label: 'No affected entities because the second payload was blocked', help: 'Prevention did not undo execution, persistence, or session activity.' },
-      ])}
-      ${moduleNineRadioGroup('severity', 'Response severity', 'Balance persistence and identity misuse against the demonstrated impact and scope.', [
-        { id: 'critical-pending-scope', label: 'Critical pending scope — active encryption and service disruption', help: 'Requires immediate containment while the wider scope remains bounded and unproven.' },
-        { id: 'critical', label: 'Critical — confirmed enterprise-wide destructive incident', help: 'Overstates scope.' },
-        { id: 'low', label: 'Low — informational prevention event', help: 'Understates active impact.' },
-      ])}
-    </section>
-    <section class="m09-artifact-section" aria-labelledby="m09-response-title"><div class="m09-subheading"><span>2</span><div><h4 id="m09-response-title">Build the response plan</h4><p>Select every justified action in each phase. Avoid both under-response and unsupported disruption.</p></div></div><div class="m09-response-grid">${moduleNineResponsePhase('contain', 'A', 'Contain', 'Limit active harm while preserving the case.')}${moduleNineResponsePhase('eradicate', 'B', 'Eradicate', 'Remove the demonstrated foothold and identity risk.')}${moduleNineResponsePhase('recover', 'C', 'Recover', 'Restore service only after clear validation conditions.')}</div>
-      ${moduleNineRadioGroup('escalation', 'Escalation path', 'Your role may initiate approved actions, but specialist owners execute and validate the full response.', [
-        { id: 'ir-owners', label: 'Escalate to the incident lead with endpoint and identity owners, evidence set, scope, and requested actions', help: 'Gives authorized responders a precise and reviewable starting point.' },
-        { id: 'no-escalation', label: 'Do not escalate because this is only one user', help: 'Small scope does not make confirmed compromise safe.' },
-        { id: 'public-notice', label: 'Publish an organization-wide breach notice immediately', help: 'This exceeds the evidence and Tier 1 authority.' },
-      ])}
-    </section>
-    <section class="m09-artifact-section" aria-labelledby="m09-handoff-title"><div class="m09-subheading"><span>3</span><div><h4 id="m09-handoff-title">Communicate the handoff</h4><p>Write at least 140 characters. Name the incident state, entities, strongest evidence, containment request, and recovery condition.</p></div></div><label class="m09-note-label" for="m09-notes">Tier 1 response handoff</label><textarea id="m09-notes" name="notes" rows="7" maxlength="1000" aria-describedby="m09-note-help m09-note-count" placeholder="Incident state: … Confirmed scope: … Evidence: … Requested response: … Recovery condition: …">${esc(moduleNineState.notes)}</textarea><div class="m09-note-meta"><p id="m09-note-help">Observed facts first; clearly separate current scope from remaining uncertainty.</p><span id="m09-note-count">${moduleNineState.notes.length}/1000</span></div><details class="m09-hint" ${moduleNineState.hintsOpened.includes('handoff') ? 'open' : ''} data-m09-hint="handoff"><summary>Optional handoff checklist</summary><p>Conclusion → ws-173, acct-173, and fs-02 → encryption/service-stop/session evidence → preserve, isolate, revoke, stop impact → validate and monitor before recovery.</p></details></section>
-    <div class="m09-actions"><button type="submit" class="m09-submit"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Score response record</button><button type="button" class="m09-reset" data-m09-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset only this lab</button></div>${moduleNineScorePanel()}
-  </form>`;
+  const performance = moduleNineProveItPerformance();
+  return `<div class="m09-panel-heading"><div><p class="m09-kicker">Scored artifact · observation, analysis, decision, communication</p><h3 id="m09-artifact-title">Incident response record</h3></div></div>
+    ${caseRecordPane(moduleNineState.caseRecord, {
+      ...moduleNineProveItSpec(),
+      missing: performance.missing,
+      reviewStatus: moduleNineProveItReviewStatus(),
+      redoRequested: moduleNineProveItRedoRequested(),
+      redoHtml: moduleNineProveItRedoFeedback(),
+      showMissing: moduleNineProveItShowMissing,
+    })}`;
 }
 
-function moduleNineDynamic() {
-  return `${moduleNineInvestigation()}${moduleNineArtifact()}`;
+/* The Module 3 console carrying Modules 4–8 on INC-4937, plus Incident,
+ * Response and Recovery. Every evidence record is also a Log Search row. */
+function moduleNineBuildEvidence(fixture, sources) {
+  const day = fixture.scenario.start.slice(0, 10);
+  return [
+    ...Object.entries(sources).flatMap(([source, group]) => group.rows.map((row) => ({ ...row, source, time: `${day}T${row.time}:00Z` }))),
+    ...fixture.scenario.evidence.map((item) => ({ id: item.id, source: item.type, time: item.time, entity: item.entityId, title: item.type.replace(/_/g, ' '), summary: item.summary, detail: item.summary })),
+  ].sort((a, b) => a.id.localeCompare(b.id));
+}
+const MODULE_NINE_EVIDENCE = moduleNineBuildEvidence(SocM09AssessmentData, MODULE_NINE_SOURCES);
+const MODULE_NINE_EVIDENCE_TABLES = { endpoint: 'DeviceEvents', identity: 'IdentityEvents', scope: 'ScopeChecks' };
+/* Console identity for an evidence record (entity identity contract, docs/telemetry/SOC_TELEMETRY_SCHEMA.md):
+ * Host = DeviceId = the lower-case hostname of the device behind the entity; the scenario's inventory/device
+ * entity id (DEV-173, DEV-UNKNOWN-173) is kept as AssetId because response actions target it. Rows that are
+ * not about a host (owner callback, credential state, scope searches) carry no Host key; scope-check labels
+ * move to CheckName. Account is never blank: the owner/session account, else the acting principal. */
+function moduleNineEvidenceIdentity(s, item) {
+  const byId = (id) => s.entities.find((entity) => entity.id === id);
+  const entity = byId(item.entity);
+  if (!entity) return { Account: 'soc-analyst', CheckName: item.entity };
+  if (entity.type === 'identity') {
+    const device = item.host ? s.entities.find((other) => other.type === 'device' && other.hostname === item.host) : null;
+    return item.host ? { Account: entity.id, Host: item.host, DeviceId: item.host, ...(device ? { AssetId: device.id } : {}) } : { Account: entity.id };
+  }
+  const device = entity.type === 'device' ? entity : byId(entity.deviceId);
+  const host = device?.hostname || entity.id;
+  const account = entity.ownerAccountId || entity.accountId
+    || (entity.type === 'backup_set' ? 'svc-backup' : entity.type === 'file_service' ? 'system' : 'soc-analyst');
+  return { Account: account, Host: host, DeviceId: host, ...(device ? { AssetId: device.id } : {}), ...(entity.type === 'session' ? { SessionId: entity.id } : {}) };
+}
+function moduleNineBuildConsoleData(fixture, evidence, caseId) {
+  const s = fixture.scenario;
+  const events = evidence.map((item) => m03eRow(MODULE_NINE_EVIDENCE_TABLES[item.source] || 'ResponseRecords', item.id, item.time.slice(0, 10), item.time.slice(11, 19), {
+    EventType: item.title, ...moduleNineEvidenceIdentity(s, item),
+    Result: item.summary, Detail: item.detail || item.summary,
+  })).concat((s.telemetry || []).map((item) => m03eRow(item.table, item.id, item.time.slice(0, 10), item.time.slice(11, 19), { SessionId: '—', ...item.fields })));
+  return {
+    ...m03eBuildDataset({
+      caseId,
+      day: s.start.slice(0, 10),
+      events,
+      identities: [{ Account: 'acct-173', DisplayName: 'User 173', Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '192.0.2.173', Notes: 'Registered workstation ws-173' },
+        ...[...new Set((s.telemetry || []).map((item) => item.fields.Account).filter((account) => account && account !== 'acct-173'))].map((account) => ({ Account: account, DisplayName: account, Type: account.startsWith('svc-') ? 'Service' : account.startsWith('guest-') ? 'Guest' : account === 'system' ? 'Built-in' : account.startsWith('soc-') ? 'Analyst' : 'User', Department: account.startsWith('svc-') || account === 'system' ? 'IT operations' : account.startsWith('soc-') ? 'Security operations' : 'Corporate', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: account === 'system' ? 'Operating-system principal (native SYSTEM)' : '' }))],
+      ips: [
+        { SourceIp: '192.0.2.173', Type: 'Internal', Country: 'Internal', Asn: 'Corporate LAN', FirstSeen: '—', Reputation: 'Registered workstation' },
+        { SourceIp: '203.0.113.173', Type: 'External', Country: '—', Asn: 'Unmanaged client network', FirstSeen: '2026-09-27 10:05', Reputation: 'No history' },
+      ],
+      watchlists: {},
+      alerts: s.incidentQueue.map((incident) => ({ id: incident.id, time: incident.reportedAt, severity: 'High', title: incident.title, entities: [incident.sourceEntityId], rule: incident.summary, query: `DeviceEvents\n| where Host == "${incident.sourceEntityId}"` }))
+        .concat((s.alertCandidates || []).map((alert) => ({ id: alert.id, time: alert.time, severity: alert.severity, title: alert.title, entities: alert.entities, rule: alert.rule, query: alert.query }))),
+    }),
+    now: s.end,
+  };
+}
+const MODULE_NINE_CONSOLE_DATA = moduleNineBuildConsoleData(SocM09AssessmentData, MODULE_NINE_EVIDENCE, 'INC-4937');
+const MODULE_NINE_GUIDED_CASE_ID = 'INC-5942';
+const MODULE_NINE_GUIDED_REPLACEMENTS = {
+  'M09-': 'M09G-', 'INC-4937': 'INC-5942', 'ws-173': 'ws-294', 'WS-173': 'WS-294', 'acct-173': 'acct-294',
+  'DEV-173': 'DEV-294', 'fs-02': 'fs-05', 'FS-02': 'FS-05', 'DEV-FS-02': 'DEV-FS-05',
+  'session-173-REMOTE': 'session-294-REMOTE', 'backup-ws-173': 'backup-ws-294', 'backup-fs-02': 'backup-fs-05',
+  'RP-WS-173': 'RP-WS-294', 'RP-FS-02': 'RP-FS-05', 'Unmanaged client': 'Unmanaged contractor laptop',
+  '192.0.2.173': '192.0.2.194', '203.0.113.173': '203.0.113.194', 'DEV-UNKNOWN-173': 'DEV-UNKNOWN-294', 'unmanaged-173': 'unmanaged-294', 'ws-187': 'ws-213', 'acct-187': 'acct-213', 'DEV-187': 'DEV-213', 'ws-226': 'ws-241', 'acct-226': 'acct-241', 'DEV-226': 'DEV-241',
+  '192.0.2.54': '192.0.2.126', '192.0.2.111': '192.0.2.188', '192.0.2.187': '192.0.2.213', '2026-09-27': '2026-10-01',
+  'acct-045': 'acct-118', 'acct-220': 'acct-231', 'acct-338': 'acct-352', 'guest-311': 'guest-407', 'ws-054': 'ws-126', 'ws-311': 'ws-388', 'DEV-054': 'DEV-126', 'DEV-311': 'DEV-388',
+  'print-08': 'print-03', 'DEV-PRINT-08': 'DEV-PRINT-03', 'db-02': 'db-05', 'DEV-DB-02': 'DEV-DB-05', 'wifi-gw-01': 'wifi-gw-02', '192.0.2.52': '192.0.2.76', '198.51.100.52': '198.51.100.88', '198.51.100.60': '198.51.100.96',
+  'finance$': 'projects$', 'Scoped search': 'Bounded sweep', 'Data access check': 'Egress review',
+  'The bounded search supports one confirmed endpoint.': 'The bounded sweep supports a single confirmed endpoint.', 'Current evidence does not show data exfiltration.': 'This review found no data exfiltration.',
+  'Operation Cedar Lock': 'Operation Amber Vault', 'worker.bin': 'syncsvc.dat', 'worker': 'syncsvc', 'User 173': 'User 294',
+};
+function moduleNineGuidedClone(value) {
+  if (typeof value === 'string') return Object.entries(MODULE_NINE_GUIDED_REPLACEMENTS).reduce((text, [from, to]) => text.split(from).join(to), value);
+  if (Array.isArray(value)) return value.map(moduleNineGuidedClone);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleNineGuidedClone(item)]));
+  return value;
+}
+const MODULE_NINE_GUIDED_FIXTURE = (() => {
+  const fixture = moduleNineGuidedClone(SocM09AssessmentData);
+  fixture.scenario.stateKey = 'm09-guided-incident-actions-v1';
+  fixture.scenario.incidentGraph.edges.forEach((edge, index) => { edge.id = `M09-LINK-GUIDED-${String(index + 1).padStart(3, '0')}`; });
+  return fixture;
+})();
+const MODULE_NINE_GUIDED_SOURCES = moduleNineGuidedClone(MODULE_NINE_SOURCES);
+const MODULE_NINE_GUIDED_EVIDENCE = moduleNineBuildEvidence(MODULE_NINE_GUIDED_FIXTURE, MODULE_NINE_GUIDED_SOURCES);
+const MODULE_NINE_GUIDED_CONSOLE_DATA = moduleNineBuildConsoleData(MODULE_NINE_GUIDED_FIXTURE, MODULE_NINE_GUIDED_EVIDENCE, MODULE_NINE_GUIDED_CASE_ID);
+// Endpoint-tool device ids follow the console DeviceId (= lower-case Host); the inventory id stays as assetId.
+const moduleNineEndpointDevices = (fixture) => fixture.scenario.entities.filter((entity) => entity.type === 'device')
+  .map((device) => ({ id: device.hostname, assetId: device.id, hostname: device.hostname, platform: '—', role: device.deviceClass || (device.linkedEntityId ? 'Managed device' : 'Unmanaged client'), owner: '—', zone: '—', status: 'Online' }));
+const MODULE_NINE_GUIDED_DEVICES = moduleNineEndpointDevices(MODULE_NINE_GUIDED_FIXTURE);
+const MODULE_NINE_GUIDED_TOOL_FIXTURES = (() => {
+  const s = MODULE_NINE_GUIDED_FIXTURE.scenario;
+  return {
+    m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: MODULE_NINE_GUIDED_CASE_ID, end: s.end, data: MODULE_NINE_GUIDED_CONSOLE_DATA }),
+    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm09-guided-endpoint-tools-v1', devices: MODULE_NINE_GUIDED_DEVICES, data: MODULE_NINE_GUIDED_CONSOLE_DATA }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M09G-LEAD-001', type: 'confirmed_incident', device: 'ws-294', account: 'acct-294', taskName: '—', observation: 'Confirmed encryption impact on ws-294 overlaps an unfamiliar remote session.' }, devices: ['ws-294', 'fs-05'], data: MODULE_NINE_GUIDED_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm09-guided-mail-tools-v1', start: s.start, end: s.end }),
+    m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm09-guided-exposure-tools-v1', start: s.start, end: s.end }),
+  };
+})();
+const MODULE_NINE_DEVICES = moduleNineEndpointDevices(SocM09AssessmentData);
+const MODULE_NINE_TOOL_FIXTURES = (() => {
+  const s = SocM09AssessmentData.scenario;
+  return {
+    m04: SocConsoleTools.m04Fixture({ id: s.id, caseId: 'INC-4937', end: s.end, data: MODULE_NINE_CONSOLE_DATA }),
+    m05: SocConsoleTools.m05Fixture({ id: s.id, stateKey: 'm09-endpoint-tools-v1', devices: MODULE_NINE_DEVICES, data: MODULE_NINE_CONSOLE_DATA }),
+    m06: SocConsoleTools.m06Fixture({ id: s.id, lead: { id: 'M09-LEAD-001', type: 'confirmed_incident', device: 'ws-173', account: 'acct-173', taskName: '—', observation: 'Confirmed ransomware impact on ws-173 with an overlapping remote session.' }, devices: ['ws-173', 'fs-02'], data: MODULE_NINE_CONSOLE_DATA, timeStart: s.start, timeEnd: s.end }),
+    m07: SocConsoleTools.m07Fixture({ id: s.id, stateKey: 'm09-mail-tools-v1', start: s.start, end: s.end }),
+    m08: SocConsoleTools.m08Fixture({ id: s.id, stateKey: 'm09-exposure-tools-v1', start: s.start, end: s.end }),
+  };
+})();
+
+function moduleNineM04Tools() {
+  moduleNineState.tools ||= {};
+  if (!moduleNineState.tools.m04?.schemaVersion) moduleNineState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleNineState.tools.m04 }, MODULE_NINE_TOOL_FIXTURES.m04).assessment;
+  return moduleNineState.tools.m04;
+}
+
+const MODULE_NINE_CONSOLE = (() => {
+  const save = () => moduleNineSave();
+  const base = { save, rerender: () => moduleNineRender(), console: () => m03eState('m09') };
+  const fx = MODULE_NINE_TOOL_FIXTURES;
+  return SocConsoleTools.mount('m09', {
+    data: MODULE_NINE_CONSOLE_DATA,
+    stateRoot: () => moduleNineState,
+    save,
+    title: 'SIEM & INCIDENT RESPONSE',
+    ariaLabel: 'Module 09 incident response assessment console',
+    sourceMappings: {
+      DeviceEvents: { native: 'Endpoint sensor records (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
+      IdentityEvents: { native: 'Identity session records (JSON)', fields: [['time', 'TimeGenerated'], ['account', 'Account'], ['title', 'EventType'], ['detail', 'Detail']] },
+      ScopeChecks: { native: 'Scoping search results (JSON)', fields: [['time', 'TimeGenerated'], ['scope', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
+      ResponseRecords: { native: 'Response inventory records (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['type', 'EventType'], ['summary', 'Detail']] },
+      DeviceNetworkEvents: { native: 'Endpoint network connection log (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['dst', 'DestinationIp'], ['dport', 'DestinationPort'], ['verdict', 'Result']] },
+      FileServiceEvents: { native: 'File-service session and availability log (text)', fields: [['time', 'TimeGenerated'], ['service', 'Host'], ['event', 'EventType'], ['user', 'Account'], ['status', 'Result']] },
+      BackupEvents: { native: 'Backup catalog job records (JSON)', fields: [['time', 'TimeGenerated'], ['target', 'Host'], ['job', 'EventType'], ['status', 'Result']] },
+      RecoveryChecks: { native: 'Recovery validation checklist records (JSON)', fields: [['time', 'TimeGenerated'], ['target', 'Host'], ['check', 'EventType'], ['state', 'Result']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleNineM04Tools, fixture: fx.m04 } },
+      { id: 'm05', ctx: { ...base, fixture: fx.m05, ...SocConsoleTools.embedded(() => moduleNineState, 'm05', SocM05AssessmentState.normalize, fx.m05, save) } },
+      { id: 'm06', ctx: { ...base, fixture: fx.m06, ...SocConsoleTools.embedded(() => moduleNineState, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
+      { id: 'm07', ctx: { ...base, fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineState, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
+      { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineState, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
+      { id: 'm09', ctx: {
+        ...base, fixture: SocM09AssessmentData, evidence: MODULE_NINE_EVIDENCE, routes: MODULE_NINE_DEPARTMENT_OPTIONS,
+        load: () => SocM09AssessmentState.load(moduleNineUser, SocM09AssessmentData),
+        store: (next) => SocM09AssessmentState.save(moduleNineUser, next, SocM09AssessmentData),
+      } },
+    ],
+    caseView: () => moduleNineArtifact(),
+    caseBadge: () => (moduleNineState.caseRecord.submitted ? ' <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>' : ''),
+  });
+})();
+
+function moduleNineGuidedM04Tools() {
+  moduleNineGuidedState.tools ||= {};
+  const fixture = MODULE_NINE_GUIDED_TOOL_FIXTURES.m04;
+  if (!moduleNineGuidedState.tools.m04?.schemaVersion) moduleNineGuidedState.tools.m04 = SocM04AssessmentState.normalize({ assessment: moduleNineGuidedState.tools.m04 }, fixture).assessment;
+  return moduleNineGuidedState.tools.m04;
+}
+const MODULE_NINE_GUIDED_CONSOLE = (() => {
+  const save = () => moduleNineGuidedSave();
+  const base = { save, rerender: () => moduleNineRenderGuided(), console: () => m03eState('m09-guided') };
+  const fx = MODULE_NINE_GUIDED_TOOL_FIXTURES;
+  return SocConsoleTools.mount('m09-guided', {
+    data: MODULE_NINE_GUIDED_CONSOLE_DATA, stateRoot: () => moduleNineGuidedState, save,
+    title: 'SIEM & INCIDENT RESPONSE · PRACTICE', ariaLabel: 'Module 09 guided incident response console', idPrefix: 'guided-m09',
+    sourceMappings: {
+      DeviceEvents: { native: 'Endpoint response telemetry (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
+      IdentityEvents: { native: 'Identity session records (JSON)', fields: [['time', 'TimeGenerated'], ['account', 'Account'], ['title', 'EventType'], ['detail', 'Detail']] },
+      ScopeChecks: { native: 'Incident scope checks (JSON)', fields: [['time', 'TimeGenerated'], ['scope', 'Host'], ['title', 'EventType'], ['detail', 'Detail']] },
+      ResponseRecords: { native: 'Response inventory records (JSON)', fields: [['time', 'TimeGenerated'], ['entity', 'Host'], ['type', 'EventType'], ['summary', 'Detail']] },
+      DeviceNetworkEvents: { native: 'Endpoint network connection log (JSON)', fields: [['time', 'TimeGenerated'], ['host', 'Host'], ['dst', 'DestinationIp'], ['dport', 'DestinationPort'], ['verdict', 'Result']] },
+      FileServiceEvents: { native: 'File-service session and availability log (text)', fields: [['time', 'TimeGenerated'], ['service', 'Host'], ['event', 'EventType'], ['user', 'Account'], ['status', 'Result']] },
+      BackupEvents: { native: 'Backup catalog job records (JSON)', fields: [['time', 'TimeGenerated'], ['target', 'Host'], ['job', 'EventType'], ['status', 'Result']] },
+      RecoveryChecks: { native: 'Recovery validation checklist records (JSON)', fields: [['time', 'TimeGenerated'], ['target', 'Host'], ['check', 'EventType'], ['state', 'Result']] },
+    },
+    packs: [
+      { id: 'm04', ctx: { ...base, assessment: moduleNineGuidedM04Tools, fixture: fx.m04 } },
+      { id: 'm05', ctx: { ...base, fixture: fx.m05, ...SocConsoleTools.embedded(() => moduleNineGuidedState, 'm05', SocM05AssessmentState.normalize, fx.m05, save) } },
+      { id: 'm06', ctx: { ...base, fixture: fx.m06, ...SocConsoleTools.embedded(() => moduleNineGuidedState, 'm06', SocM06AssessmentState.normalize, fx.m06, save) } },
+      { id: 'm07', ctx: { ...base, fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineGuidedState, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
+      { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineGuidedState, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
+      { id: 'm09', ctx: { ...base, fixture: MODULE_NINE_GUIDED_FIXTURE, evidence: MODULE_NINE_GUIDED_EVIDENCE,
+        routes: [{ id: 'guided-ir-lead', text: 'Incident Lead + Endpoint/Identity Owners', fit: 100, note: 'Authorized to execute remediation and validate recovery.' }],
+        load: () => moduleNineGuidedActionState,
+        store: (next) => { moduleNineGuidedActionState = SocM09AssessmentState.save(moduleNineUser, next, MODULE_NINE_GUIDED_FIXTURE); moduleNineGuidedSave(); },
+      } },
+    ],
+    caseView: () => { const html = caseRecordPane(moduleNineGuidedState.caseRecord, {
+      caseId: MODULE_NINE_GUIDED_CASE_ID, ticketId: 'IR-5942', ticketType: 'Ransomware response · Incident Response',
+      userOptions: [{ id: 'acct-294', text: 'acct-294 · account under review' }, { id: 'svc-backup', text: 'svc-backup · known service account' }],
+      deviceOptions: [{ id: 'ws-294', text: 'ws-294 · confirmed endpoint impact' }, { id: 'fs-05', text: 'fs-05 · observed service disruption' }],
+      departmentOptions: [{ id: 'guided-ir-lead', text: 'Incident Lead + Endpoint/Identity Owners' }, { id: 'service-desk', text: 'Service Desk' }],
+      formId: 'm09-guided-case-form', saveAttr: 'data-m09-guided-save-case', submitAttr: 'data-m09-guided-submit-case', panelId: 'm09-guided-case-panel',
+      notesPlaceholder: 'State confirmed impact, containment and recovery status, evidence limits, and next owner actions.', practiceSubmitted: true,
+    }); return moduleNineGuidedState.caseRecord.submitted ? `${html}<button type="button" class="m01-reset" data-m09-guided-restart>Restart Guided Lab</button>` : html; },
+  });
+})();
+
+function moduleNineGuidedEvidenceReady() {
+  const state = moduleNineGuidedActionState || {};
+  const workflow = state.incidentWorkflows?.[MODULE_NINE_GUIDED_CASE_ID] || {};
+  const cr = moduleNineGuidedState?.caseRecord || {};
+  return state.selectedIncidentId === MODULE_NINE_GUIDED_CASE_ID && (state.reviewedEvidenceIds || []).length >= 3
+    && (state.actionHistory || []).length > 0 && Boolean(workflow.status && cr.status && cr.affectedUser && cr.affectedDevice && cr.severity && cr.disposition && cr.escalateTo && cr.notes?.trim().length >= 35);
+}
+
+function moduleNineGuidedComplete() { return moduleNineGuidedState?.caseRecord?.submitted === true; }
+
+function moduleNineGuidedRestart() {
+  const cr = moduleNineGuidedState.caseRecord;
+  moduleNineGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleNineGuidedState.completed = false; moduleNineGuidedState.guideStep = 0; moduleNineGuidedState.guideDocked = false;
+  moduleNineGuidedSave(); moduleNineRenderGuided();
+}
+
+function moduleNineGuidedSteps() {
+  return [
+    { title: 'Read the ticket', body: 'Review the incident request, assigned role, authority, and initial severity.', lookFor: 'The ticket does not establish ransomware or enterprise-wide scope by itself.', lab: 'Confirm the response objective and case boundary.', tab: 'case', target: '.m01-ticket-id' },
+    { title: 'Start from the lead alert', body: 'Open the reported endpoint alert and note what it does and does not establish.', lookFor: 'A rapid encryption signal that needs corroboration.', lab: 'Orient to the incident starting point.', tab: 'alerts', target: 'tr[data-m03e-select$=":alert:M09G-ALERT-001"]' },
+    { title: 'Correlate incident evidence', body: 'Compare endpoint, identity, and service activity within the same time window.', lookFor: 'Matching entities and timestamps across independent records.', lab: 'Bound the affected user and device.', tab: 'evidence', target: '.m03e-table-wrap' },
+    { title: 'Check response outcomes', body: 'Review preservation, containment, and recovery records; confirm authority and results.', lookFor: 'Action approvals and validation evidence, not action names alone.', lab: 'Build a proportionate response plan.', tab: 'evidence', target: '.m03e-table-wrap' },
+    { title: 'Separate primary and contributing evidence', body: 'Distinguish records that directly establish impact from related activity that supports context.', lookFor: 'Direct endpoint or identity evidence versus corroborating service records.', lab: 'Describe how each finding supports the scope.', tab: 'evidence', target: '.m03e-table-wrap' },
+    { title: 'Set scope and decide', body: 'Choose the supported severity, disposition, response phases, and escalation owner.', lookFor: 'Confirmed impact, explicit unknowns, and authorized next actions.', lab: 'Complete the bounded incident decision.', tab: 'case', target: '.m01-ticket-grid' },
+    { title: 'Submit the ticket', body: 'Document impact, recovery conditions, and next owner in the ITSM ticket, then submit.', lookFor: 'A clear handoff that separates facts from uncertainty.', lab: 'Submit the ticket when the handoff is ready.', tab: 'case', target: '.m01-ticket-actions' },
+  ];
 }
 
 function moduleNineGuidedLabPanel() {
-  const href = 'imported-labs/mission-next-labs/index.html#/track/malware-analysis/project/ma-3/lab';
-  return `<section class="m09-external-lab" id="m09-guided-lab-panel">
-    <p class="m09-panel-instruction">Work through the imported malware-analysis project below; it opens on this page with its own guided tasks. When you're done, note what you found and mark the Guided Lab complete.</p>
-    ${missionNextLabLaunchGroup(9, 'guided', [{ title: 'Analyzing a Ransomware Sample', detail: 'Imported malware-analysis project. Opens on this page with its own guided tasks.', href, labId: 'guided-1', requireNote: true }], moduleNineState.labProgress)}
-    <label class="m09-note-label">Working notes (optional)<textarea rows="4" maxlength="900" data-m09-practice-notes placeholder="What did you find? Any blockers?">${esc(moduleNineState.practiceNotes)}</textarea></label>
-    <div class="m09-actions"><button type="button" class="m09-submit" data-m09-practice-complete>${moduleNineState.practiceComplete ? 'Guided Lab marked complete' : 'Mark Guided Lab complete'}</button></div>
+  const complete = moduleNineGuidedComplete();
+  const steps = moduleNineGuidedSteps();
+  if (!complete) { m03eState('m09-guided').tab = steps[Math.min(moduleNineGuidedState.guideStep || 0, steps.length - 1)].tab; moduleNineGuidedSave(); }
+  const cr = moduleNineGuidedState.caseRecord;
+  const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
+  const evidenceIds = (moduleNineGuidedActionState?.reviewedEvidenceIds || []).length;
+  const n = (cr.notes || '').toLowerCase(); const direct = ['acct-294', 'ws-294'].some((v) => n.includes(v)); const facts = /encrypt|ransom|contain|recover|impact|service/.test(n); const bounded = /unknown|limit|scope|owner|verify|monitor/.test(n);
+  const debrief = complete ? guidedLabDebrief({ story: 'The case supports confirmed endpoint impact and related identity and service activity. Correlation bounds the response scope; it does not establish broader impact without matching evidence.', fields: [
+    { name: 'Ticket status', status: quality(cr.status, 'in-progress', ['pending']), note: 'Keep response work active until recovery and monitoring checks pass.' },
+    { name: 'Affected user', status: quality(cr.affectedUser, 'acct-294', []), note: 'Identify the account under review; a known service account does not establish user compromise.' },
+    { name: 'Affected device', status: quality(cr.affectedDevice, 'ws-294', ['fs-05']), note: 'Name the confirmed endpoint; the disrupted file service contributes impact context.' },
+    { name: 'Severity', status: quality(cr.severity, 'critical', ['high']), note: 'Match urgency to the confirmed ransomware impact.' },
+    { name: 'Disposition', status: quality(cr.disposition, 'true-positive', ['false-negative']), note: 'Classify the corroborated incident signal.' },
+    { name: 'Evidence review', status: evidenceIds >= 3 ? 'captured' : evidenceIds > 0 ? 'contributing' : 'missed', note: 'Correlate multiple reviewed records across endpoint, identity, and service activity.' },
+    { name: 'Escalation and department', status: cr.escalation === 'required' && cr.escalateTo === 'guided-ir-lead' ? 'captured' : 'missed', note: 'Route execution to the incident lead and endpoint/identity owners.' },
+    { name: 'Evidence and handoff notes', status: direct && facts && bounded ? 'captured' : direct || facts || bounded ? 'contributing' : 'missed', note: 'Record confirmed impact, response outcomes, scope limits, and next checks.' },
+  ], handoff: 'A strong handoff separates confirmed impact from unknown scope, records approved actions and outcomes, names the next owners, and states recovery and monitoring checks.' }) : '';
+  const guide = guidedLabGuide('m09', steps, { step: moduleNineGuidedState.guideStep, docked: complete ? moduleNineGuidedState.guideDocked !== false : moduleNineGuidedState.guideDocked, prefix: 'm09-guided', submitted: complete, debriefHtml: debrief });
+  const consoleHtml = moduleThreeConsoleHtml('m09-guided');
+  return `<section class="m09-guided-case"><p class="m09-panel-instruction">Investigate the evidence and response outcomes, then record a bounded handoff.</p>
+    ${complete ? '' : guide}
+    <div class="m03e-console-host" id="m03e-console-m09-guided">${complete ? consoleHtml.replace('</header>', `${guide}</header>`) : consoleHtml}</div>
+    <p class="m09-guided-status" role="status">${complete ? 'Practice submitted.' : `${moduleNineGuidedEvidenceReady() ? 'Investigation evidence and response work captured. ' : 'Continue correlating and documenting the evidence. '}Submit the ITSM ticket to complete this Guided Lab.`}</p>
   </section>`;
+}
+
+function moduleNineRenderGuided() {
+  const root = document.getElementById('m09-guided-lab-dynamic');
+  if (!root) return;
+  root.innerHTML = moduleNineGuidedLabPanel();
+  MODULE_NINE_GUIDED_CONSOLE.wire(root);
+  m03eAttachEditor('m09-guided');
+  moduleNinePositionGuidedGuide(root);
+}
+
+function moduleNinePositionGuidedGuide(root = document.getElementById('m09-guided-lab-dynamic')) {
+  const host = root?.querySelector('#m03e-console-m09-guided');
+  const tip = root?.querySelector('#m09-guided-learn-tip');
+  const workspace = host?.querySelector('.m03e-workspace');
+  if (!host || !tip || !workspace) return;
+  tip.classList.add('is-visible');
+  if (moduleNineGuidedState.caseRecord.submitted || moduleNineGuidedState.guideDocked === true) {
+    host.querySelector('header')?.append(tip);
+    consoleGuidePosition(tip, workspace, null);
+  } else {
+    workspace.prepend(tip);
+    consoleGuidePosition(tip, workspace, null);
+  }
+}
+M03E_AFTER_RENDER['m09-guided'] = function () {
+  const root = document.getElementById('m09-guided-lab-dynamic');
+  const host = document.getElementById('m03e-console-m09-guided');
+  if (!root || !host) return;
+  if (!root.querySelector('#m09-guided-learn-tip')) {
+    const complete = moduleNineGuidedComplete();
+    const steps = moduleNineGuidedSteps();
+    const cr = moduleNineGuidedState.caseRecord;
+    const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
+    const evidenceIds = (moduleNineGuidedActionState?.reviewedEvidenceIds || []).length;
+    const n = (cr.notes || '').toLowerCase(); const direct = ['acct-294', 'ws-294'].some((v) => n.includes(v)); const facts = /encrypt|ransom|contain|recover|impact|service/.test(n); const bounded = /unknown|limit|scope|owner|verify|monitor/.test(n);
+    const debrief = complete ? guidedLabDebrief({ story: 'The case supports confirmed endpoint impact and related identity and service activity. Correlation bounds the response scope; it does not establish broader impact without matching evidence.', fields: [
+      { name: 'Ticket status', status: quality(cr.status, 'in-progress', ['pending']), note: 'Keep response work active until recovery and monitoring checks pass.' },
+      { name: 'Affected user', status: quality(cr.affectedUser, 'acct-294', []), note: 'Identify the account under review; a known service account does not establish user compromise.' },
+      { name: 'Affected device', status: quality(cr.affectedDevice, 'ws-294', ['fs-05']), note: 'Name the confirmed endpoint; the disrupted file service contributes impact context.' },
+      { name: 'Severity', status: quality(cr.severity, 'critical', ['high']), note: 'Match urgency to the confirmed ransomware impact.' },
+      { name: 'Disposition', status: quality(cr.disposition, 'true-positive', ['false-negative']), note: 'Classify the corroborated incident signal.' },
+      { name: 'Evidence review', status: evidenceIds >= 3 ? 'captured' : evidenceIds > 0 ? 'contributing' : 'missed', note: 'Correlate multiple reviewed records across endpoint, identity, and service activity.' },
+      { name: 'Escalation and department', status: cr.escalation === 'required' && cr.escalateTo === 'guided-ir-lead' ? 'captured' : 'missed', note: 'Route execution to the incident lead and endpoint/identity owners.' },
+      { name: 'Evidence and handoff notes', status: direct && facts && bounded ? 'captured' : direct || facts || bounded ? 'contributing' : 'missed', note: 'Record confirmed impact, response outcomes, scope limits, and next checks.' },
+    ], handoff: 'A strong handoff separates confirmed impact from unknown scope, records approved actions and outcomes, names the next owners, and states recovery and monitoring checks.' }) : '';
+    const guide = guidedLabGuide('m09', steps, { step: moduleNineGuidedState.guideStep, docked: complete ? moduleNineGuidedState.guideDocked !== false : moduleNineGuidedState.guideDocked, prefix: 'm09-guided', submitted: complete, debriefHtml: debrief });
+    const tpl = document.createElement('template');
+    tpl.innerHTML = guide;
+    const fresh = tpl.content.querySelector('#m09-guided-learn-tip');
+    if (fresh) root.prepend(fresh);
+  }
+  moduleNinePositionGuidedGuide(root);
+};
+
+function moduleNineDynamic() {
+  return `<div class="m03e-panel" id="m09-prove-panel">
+    <div class="m03e-brief"><p class="m03e-label">INCIDENT INC-4937 · CONFIRMED · ASSIGNED TO YOU</p><p>Run the confirmed endpoint and identity incident: contain verified impact with approval, preserve evidence, and check each action’s result. Remove persistence, address credentials and sessions, recover from a trusted backup, monitor, escalate remaining risk, and update the ticket.</p></div>
+    <div class="m03e-console-host" id="m03e-console-m09">${moduleThreeConsoleHtml('m09')}</div>
+  </div>`;
 }
 
 function viewModuleNine(user, program) {
   moduleNineLoad(user);
   const module = program.modules['soc-09'];
   const sections = moduleNineGetSections();
-  const lectureOpen = moduleNineReviewMode || !sections[0].isComplete;
-  const quizOpen = moduleNineReviewMode || (moduleNineQuizState && !moduleNineQuizState.passed);
-  const guidedLabOpen = moduleNineReviewMode || !sections[2].isComplete;
-  const assessmentLabOpen = moduleNineReviewMode || !sections[3].isComplete;
+  const lectureOpen = moduleNineReviewMode || !sections[0].isComplete || moduleNineState.learnItStep < LearnItDecks['soc-09'].length;
+  const guidedLabOpen = moduleNineReviewMode || !sections[1].isComplete;
+  const assessmentLabOpen = moduleNineReviewMode || !sections[2].isComplete;
   const reviewOpen = moduleNineReviewMode;
   const quickNavItems = moduleNineGetQuickNavItems();
 
   return `<div class="m09-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(sections, { reviewMode: moduleNineReviewMode })}
     <div class="mquick-nav-layout">
-      <main class="m09-main">
-      <section class="m09-hero" aria-labelledby="m09-title"><div><p class="m09-kicker">Module 09 · ${formatHandsOnDuration(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p>Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p></div><dl aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${moduleNineState.practiceComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Assessment Lab</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
+      ${moduleProgressShell(sections, { reviewMode: moduleNineReviewMode })}
+      <main class="m09-main mf-frame">
+      <section class="m09-hero mf-hero" aria-labelledby="m09-title"><div><p class="m09-kicker mf-kicker">Module 09 · ${formatHandsOnDuration(module.durationMinutes)} · operations &amp; response</p><h1 id="m09-title">${esc(module.title)}</h1><p class="mf-lede">Correlate a limited incident slice, decide what it proves, and build a containment-to-recovery plan that matches the verified scope.</p></div><dl class="mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${moduleNineGuidedComplete() ? 'Complete' : 'Not started'}</dd></div><div><dt>Instructional time</dt><dd>${formatInstructionalMinutes(MODULE_NINE_CATALOG_MODULE.instructionalMinutes)}</dd></div><div><dt>Assessment Lab</dt><dd id="m09-status">${moduleNineState.completed ? 'Complete' : moduleNineState.attempts ? 'In progress' : 'Not started'}</dd></div></dl></section>
 
-      <details class="m09-section-collapsible" ${lectureOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">1</span><div><p class="m09-kicker">Lecture</p><h2 id="m09-lecture">Incident response principles: correlation, scope, and proportionate action</h2></div></div></summary>
-        <div class="m09-section-body">
+      <details class="m09-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">1</span><div><p class="m09-kicker mf-kicker">Learn It</p><h2 id="m09-lecture">Incident response principles: correlation, scope, and proportionate action</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">
+          ${moduleNineLearnItHtml()}
+          <details class="m09-deep-dive mf-deep-dive"><summary>Deep Dive · response guide and reference notes</summary>
           <section class="m09-section" id="m09-field-guide" aria-labelledby="m09-guide-title"><div class="m09-section-heading"><span>a</span><div><p class="m09-kicker">Response guide</p><h3 id="m09-guide-title">Act on evidence, not urgency alone</h3></div></div>${moduleNineScenarioLoop()}${moduleNineConcepts()}</section>
           ${moduleNineVideoScript()}
+          </details>
         </div>
       </details>
 
-      <details class="m09-section-collapsible" ${quizOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">2</span><div><p class="m09-kicker">Knowledge Check</p><h2 id="m09-knowledge-check">Test your understanding of incident response principles</h2></div></div></summary>
-        <div class="m09-section-body">
-          ${moduleNineQuizPanel()}
-        </div>
-      </details>
-
-      <details class="m09-section-collapsible" ${guidedLabOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">3</span><div><p class="m09-kicker">Practice It · Guided Lab</p><h2 id="m09-guided-lab">Ransomware analysis practice</h2></div></div></summary>
-        <div class="m09-section-body">
-          <div class="m09-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Lab boundary:</strong> This lab opens in the imported training application on this page.</p></div>
+      <details class="m09-section-collapsible mf-section mf-lab-section" ${guidedLabOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">2</span><div><p class="m09-kicker mf-kicker">Practice It · Guided Lab</p><h2 id="m09-guided-lab">Ransomware analysis practice</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">
+          <div class="m09-boundary"><i class="ri-shield-check-line" aria-hidden="true"></i><p><strong>Practice case:</strong> Incident response decisions and case notes save independently from the Assessment Lab.</p></div>
           <div id="m09-guided-lab-dynamic">${moduleNineGuidedLabPanel()}</div>
         </div>
       </details>
 
-      <details class="m09-section-collapsible" ${assessmentLabOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">4</span><div><p class="m09-kicker">Prove It · Assessment Lab</p><h2 id="m09-lab">Active ransomware response · INC-4937</h2></div></div></summary>
-        <div class="m09-section-body">
-          <div class="m09-ticket" aria-labelledby="m09-ticket-title"><div class="m09-ticket-head"><i class="ri-ticket-2-line" aria-hidden="true"></i><div><p class="m09-kicker">Assigned from the Tier 1 queue</p><h3 id="m09-ticket-title">INC-4937 · Endpoint alert, unconfirmed</h3></div><span class="m09-ticket-priority">P3 at intake</span></div><dl class="m09-ticket-grid"><div><dt>Reporting source</dt><dd>Automated endpoint sensor, ws-173</dd></div><div><dt>Reported</dt><dd>10:02 UTC</dd></div><div><dt>Assigned to</dt><dd>You (Tier 1, this shift)</dd></div><div><dt>Acknowledge / respond by</dt><dd>10:17 UTC / 14:02 UTC</dd></div></dl><p class="m09-ticket-note">The queue entry carries only what the sensor reported: possible encryption activity on one endpoint. Everything else below is what you find once you start looking — the ticket does not tell you it is ransomware, that it is contained, or that it is limited to one host.</p></div>
+      <details class="m09-section-collapsible mf-section" ${assessmentLabOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">3</span><div><p class="m09-kicker mf-kicker">Prove It · Assessment Lab</p><h2 id="m09-lab">Active ransomware response · INC-4937</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">
+          <div class="m09-ticket" aria-labelledby="m09-ticket-title"><div class="m09-ticket-head"><i class="ri-ticket-2-line" aria-hidden="true"></i><div><p class="m09-kicker">Assigned from the Tier 1 queue</p><h3 id="m09-ticket-title">INC-4937 · Endpoint alert, unconfirmed</h3></div><span class="m09-ticket-priority">P3 at intake</span></div><dl class="m09-ticket-grid"><div><dt>Reporting source</dt><dd>Automated endpoint sensor, ws-173</dd></div><div><dt>Reported</dt><dd>10:02 UTC</dd></div><div><dt>Assigned to</dt><dd>You (Tier 1, this shift)</dd></div><div><dt>Acknowledge / respond by</dt><dd>10:17 UTC / 14:02 UTC</dd></div></dl><p class="m09-ticket-note">The sensor reported possible encryption on one endpoint. The ticket does not establish ransomware, containment, or single-host scope; determine those from evidence.</p></div>
           <div class="m09-role"><i class="ri-user-settings-line" aria-hidden="true"></i><div><strong>Your role: Tier 1 incident responder</strong><p>Investigate the three sources in any order. You may initiate playbook-approved containment and recommend later phases; the incident lead and system owners retain execution authority.</p></div></div>
           <div id="m09-lab-dynamic">${moduleNineDynamic()}</div>
         </div>
       </details>
 
-      <details class="m09-section-collapsible" ${reviewOpen ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">5</span><div><p class="m09-kicker">Module Review</p><h2 id="m09-review">Key concepts and takeaways</h2></div></div></summary>
-        <div class="m09-section-body">${moduleNineReview()}</div>
+      <details class="m09-section-collapsible mf-section" ${reviewOpen ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge">5</span><div><p class="m09-kicker mf-kicker">Module Review</p><h2 id="m09-review">Key concepts and takeaways</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">${moduleNineReview()}</div>
       </details>
 
-      <details class="m09-section-collapsible" ${moduleNineReviewMode ? 'open' : ''}>
-        <summary class="m09-section"><div class="m09-section-heading"><span class="m09-section-badge">6</span><div><p class="m09-kicker">Sources &amp; Further Reading</p><h2 id="m09-sources">Authoritative references</h2></div></div></summary>
-        <div class="m09-section-body">${moduleSourcesBlock(MODULE_NINE_SOURCES_LIST)}</div>
+      <details class="m09-section-collapsible mf-section mf-section-supplemental" ${moduleNineReviewMode ? 'open' : ''}>
+        <summary class="m09-section"><div class="m09-section-heading mf-section-heading"><span class="m09-section-badge mf-section-badge"><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="m09-kicker mf-kicker">Sources &amp; Further Reading</p><h2 id="m09-sources">Authoritative references</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
+        <div class="m09-section-body mf-section-body">${moduleSourcesBlock(MODULE_NINE_SOURCES_LIST)}</div>
       </details>
     </main>
     </div>
@@ -803,44 +1333,11 @@ function moduleNineSelectionScore(selected, expected, points) {
   return Math.max(0, Math.round((correct / expected.length) * points) - extras * Math.ceil(points / expected.length));
 }
 
-function moduleNineScore() {
-  const sources = moduleNineState.reviewedSources.filter((key) => MODULE_NINE_SOURCES[key]).length === 3 ? 6 : moduleNineState.reviewedSources.filter((key) => MODULE_NINE_SOURCES[key]).length * 2;
-  const evidence = moduleNineSelectionScore(moduleNineState.selectedEvidence, MODULE_NINE_EXPECTED_EVIDENCE, 19);
-  const observation = sources + evidence;
-  const classification = moduleNineState.classification === 'ransomware-impact' ? 9 : 0;
-  const scope = moduleNineState.scope === 'bounded-three' ? 8 : 0;
-  const severity = moduleNineState.severity === 'critical-pending-scope' ? 8 : 0;
-  const analysis = classification + scope + severity;
-  const contain = moduleNineSelectionScore(moduleNineState.responsePlan.contain, ['isolate-ws173', 'revoke-disable-acct173', 'segment-fs02'], 11);
-  const eradicate = moduleNineSelectionScore(moduleNineState.responsePlan.eradicate, ['stop-encryption', 'reset-credentials', 'restore-service'], 7);
-  const recover = moduleNineSelectionScore(moduleNineState.responsePlan.recover, ['validate-reconnect', 'monitored-reenable'], 9);
-  const escalation = moduleNineState.escalation === 'ir-owners' ? 3 : 0;
-  const decision = contain + eradicate + recover + escalation;
-  const note = moduleNineState.notes.trim().toLowerCase();
-  const noteLength = note.length >= 140 ? 4 : 0;
-  const noteConclusion = /(confirm|compromis|incident|high)/.test(note) ? 4 : 0;
-  const noteEntities = /ws-173/.test(note) && /acct-173/.test(note) && /fs-02/.test(note) ? 4 : 0;
-  const noteEvidence = /(encrypt|ransom|service|session|m09-e0|203\.0\.113\.173)/.test(note) ? 4 : 0;
-  const noteContain = /(isolat|revoke|disable|contain|block)/.test(note) ? 2 : 0;
-  const noteRecover = /(validat|monitor|reconnect|re-enable|reenable|recover)/.test(note) ? 2 : 0;
-  const communication = noteLength + noteConclusion + noteEntities + noteEvidence + noteContain + noteRecover;
-  const score = observation + analysis + decision + communication;
-  return {
-    score,
-    breakdown: { observation, sources, evidence, analysis, classification, scope, severity, decision, contain, eradicate, recover, escalation, communication },
-    feedback: [
-      evidence === 19 && sources === 6 ? 'Observation: All three sources reviewed; the selected records establish encryption impact, identity overlap, service disruption, and bounded scope.' : `Observation: ${observation}/25. Review all sources and select the M09-E records that establish impact, identity overlap, service disruption, and scope; benign context is not incident proof.`,
-      analysis === 25 ? 'Analysis: Correctly classified the active ransomware impact, identity overlap, and bounded entities without inventing enterprise-wide scope.' : `Analysis: ${analysis}/25. Connect ws-173, acct-173, and the fs-02 service signal while avoiding unsupported enterprise-wide claims.`,
-      decision === 30 ? 'Decision: The plan proportionately contains the pair, removes the foothold and credential risk, validates recovery, and escalates to authorized owners.' : `Decision: ${decision}/30. Choose the three scoped containment actions, two eradication actions, two conditional recovery actions, and the incident-lead escalation.`,
-      communication === 20 ? 'Communication: The handoff is complete, evidence-based, scoped, and operationally actionable.' : `Communication: ${communication}/20. In 140+ characters, name INC-4937, ws-173, acct-173, fs-02, evidence, containment, and a monitored recovery condition.`,
-    ],
-  };
-}
-
 function moduleNineRender(focusId) {
   const root = document.getElementById('m09-lab-dynamic');
   if (!root) return;
   root.innerHTML = moduleNineDynamic();
+  m03eAttachEditor('m09');
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -902,6 +1399,12 @@ function wireModuleNineQuiz() {
 
   // Event delegation for retry button - CRITICAL: use event delegation, not one-time querySelector
   quizForm.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m09-quiz-retake]')) {
+      event.preventDefault();
+      moduleNineQuizForceRetake = true;
+      quizForm.innerHTML = moduleNineQuizPanel();
+      return;
+    }
     if (!event.target.closest('[data-m09-quiz-retry]')) return;
     // Reset quiz state and select new questions
     const previousQuestionIds = moduleNineQuizState.lastQuizQuestionIds || [];
@@ -924,6 +1427,7 @@ function wireModuleNineQuiz() {
 function wireModuleNineLab() {
   const root = document.getElementById('m09-lab-dynamic');
   if (!root || !moduleNineState) return;
+  MODULE_NINE_CONSOLE.wire(root);
   root.addEventListener('keydown', (event) => {
     const tab = event.target.closest('[data-m09-source]');
     if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -938,6 +1442,7 @@ function wireModuleNineLab() {
     moduleNineRender(`m09-tab-${keys[next]}`);
   });
   root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m09-guided-restart]')) { event.preventDefault(); moduleNineGuidedRestart(); return; }
     const sourceButton = event.target.closest('[data-m09-source]');
     if (sourceButton) {
       moduleNineState.activeSource = sourceButton.dataset.m09Source;
@@ -974,13 +1479,11 @@ function wireModuleNineLab() {
       moduleNineRender('m09-tray-title');
       return;
     }
-    if (event.target.closest('[data-m09-reset]')) {
-      if (typeof window.confirm === 'function' && !window.confirm('Reset only this Module 09 lab? Your evidence, plan, notes, and score will be cleared.')) return;
-      moduleNineState = LabRuntime.reset(MODULE_NINE_LAB_ID, moduleNineUser, moduleNineFreshDefaults());
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleNineUser, 'soc-analyst', 'soc-09', MODULE_NINE_CATALOG_LAB_KEY, false);
-      moduleNineRender('m09-case-title');
-      const status = document.getElementById('m09-status');
-      if (status) status.textContent = 'Not started';
+    if (event.target.closest('[data-m09-submit-proveit]')) { moduleNineFinalizeProveIt(); return; }
+    if (event.target.closest('[data-m09-save-proveit]')) {
+      moduleNineState.caseRecord.actionHistory.push({ action: 'Saved case', at: new Date().toISOString() });
+      moduleNineSave();
+      moduleNineRender();
     }
   });
 
@@ -992,84 +1495,88 @@ function wireModuleNineLab() {
   }, true);
 
   root.addEventListener('input', (event) => {
-    if (event.target.name !== 'notes') return;
-    moduleNineState.notes = event.target.value;
-    const count = root.querySelector('#m09-note-count');
-    if (count) count.textContent = `${event.target.value.length}/1000`;
-    moduleNineSave();
+    const field = event.target;
+    if (field.tagName === 'TEXTAREA' && field.name === 'notes' && field.closest('#m09-form') && !moduleNineState.caseRecord.submitted) {
+      moduleNineState.caseRecord.notes = field.value;
+      moduleNineSave();
+    }
   });
 
   root.addEventListener('change', (event) => {
     const input = event.target;
     if (input.name === 'evidence') {
       moduleNineState.selectedEvidence = moduleNineToggleValue(moduleNineState.selectedEvidence, input.value, input.checked);
-      moduleNineState.validationError = '';
       moduleNineSave();
       const count = root.querySelector('#m09-evidence-count');
       if (count) count.textContent = String(moduleNineState.selectedEvidence.length);
       return;
     }
-    if (['classification', 'scope', 'severity', 'escalation'].includes(input.name)) {
-      moduleNineState[input.name] = input.value;
-      moduleNineState.validationError = '';
-      moduleNineSave();
-      return;
-    }
     const responseMatch = input.name.match(/^response-(contain|eradicate|recover)$/);
-    if (responseMatch) {
+    if (responseMatch && !moduleNineState.caseRecord.submitted) {
       const phase = responseMatch[1];
       moduleNineState.responsePlan[phase] = moduleNineToggleValue(moduleNineState.responsePlan[phase], input.value, input.checked);
-      moduleNineState.validationError = '';
       moduleNineSave();
-    }
-  });
-
-  root.addEventListener('submit', (event) => {
-    if (event.target.id !== 'm09-form') return;
-    event.preventDefault();
-    moduleNineState.notes = event.target.elements.notes.value;
-    const missing = [];
-    if (moduleNineState.reviewedSources.length < 3) missing.push('review all three evidence sources');
-    if (moduleNineState.selectedEvidence.length < 4) missing.push('select at least four evidence records');
-    if (!moduleNineState.classification || !moduleNineState.scope || !moduleNineState.severity) missing.push('complete the incident analysis');
-    if (Object.values(moduleNineState.responsePlan).some((items) => !items.length)) missing.push('choose at least one action in every response phase');
-    if (!moduleNineState.escalation) missing.push('select an escalation path');
-    if (moduleNineState.notes.trim().length < 140) missing.push('write a 140-character handoff');
-    if (missing.length) {
-      moduleNineState.validationError = `Please ${missing.join('; ')}. Your current work remains saved.`;
-      moduleNineSave();
-      moduleNineRender('m09-feedback');
       return;
     }
-    const result = moduleNineScore();
-    moduleNineState.attempts += 1;
-    moduleNineState.score = result.score;
-    moduleNineState.bestScore = Math.max(moduleNineState.bestScore || 0, result.score);
-    moduleNineState.breakdown = result.breakdown;
-    moduleNineState.feedback = result.feedback;
-    moduleNineState.validationError = '';
-    moduleNineState.lastSubmittedAt = new Date().toISOString();
-    const passed = result.score >= MODULE_NINE_PASSING_SCORE;
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(moduleNineUser, MODULE_NINE_CATALOG_LAB_KEY, {
-        state: passed ? 'complete' : 'in_progress',
-        score: result.score,
-        result: { breakdown: result.breakdown, feedback: result.feedback, attempts: moduleNineState.attempts },
-      });
+    // Only the ITSM ticket form writes ticket fields (the Incident form reuses severity/status).
+    if (input.name && input.closest('#m09-form') && !moduleNineState.caseRecord.submitted && caseRecordApply(moduleNineState.caseRecord, input.name, input.value)) {
+      moduleNineState.caseRecord.actionHistory.push({ action: `Updated ${input.name}`, at: new Date().toISOString() });
+      moduleNineSave();
+      moduleNineRender();
     }
-    if (passed) {
-      moduleNineState.completed = true;
-      if (!moduleNineState.flags.includes(MODULE_NINE_FLAG)) moduleNineState.flags.push(MODULE_NINE_FLAG);
-      if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleNineUser, 'soc-analyst', 'soc-09', MODULE_NINE_CATALOG_LAB_KEY);
-    }
-    moduleNineSave();
-    moduleNineRender('m09-feedback');
-    const status = document.getElementById('m09-status');
-    if (status) status.textContent = moduleNineState.completed ? 'Complete' : 'In progress';
   });
 }
 
+function moduleNineFinalizeProveIt() {
+  if (moduleNineState.caseRecord.submitted) return;
+  const missing = caseRecordMissing(moduleNineState.caseRecord, moduleNineProveItSpec());
+  const scored = SocM09AssessmentScorer.score(SocM09AssessmentState.load(moduleNineUser, SocM09AssessmentData), SocM09AssessmentData);
+  const performance = { missing, score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses };
+  if (performance.missing.length) {
+    moduleNineProveItShowMissing = true;
+    moduleNineRender('m09-review-submission');
+    return;
+  }
+  moduleNineProveItShowMissing = false;
+  const now = new Date().toISOString();
+  moduleNineState.caseRecord.submitted = true;
+  moduleNineState.caseRecord.submittedAt = now;
+  moduleNineState.caseRecord.caseId = 'INC-4937';
+  moduleNineState.caseRecord.scenarioId = SocM09AssessmentData.scenario.id;
+  moduleNineState.caseRecord.reviewPayload = { ...JSON.parse(JSON.stringify(scored)), caseId: 'INC-4937', scenarioId: SocM09AssessmentData.scenario.id };
+  moduleNineState.score = scored.score;
+  moduleNineState.caseRecord.actionHistory.push({ action: 'Submitted case for faculty review', at: now });
+  moduleNineState.attempts = (moduleNineState.attempts || 0) + 1;
+  moduleNineState.lastSubmittedAt = now;
+  moduleNineState.completed = true;
+  moduleNineState.notes = moduleNineState.caseRecord.notes;
+  if (!moduleNineState.flags.includes(MODULE_NINE_FLAG)) moduleNineState.flags.push(MODULE_NINE_FLAG);
+  moduleNineSave();
+  if (typeof recordLabAttempt === 'function') {
+    const caseSpec = moduleNineProveItSpec();
+    recordLabAttempt(moduleNineUser, MODULE_NINE_CATALOG_LAB_KEY, {
+      state: 'complete',
+      score: performance.score,
+      result: {
+        rubric_version: scored.rubricVersion,
+        breakdown: performance.breakdown,
+        feedback: performance.feedback,
+        review_payload: moduleNineState.caseRecord.reviewPayload,
+        critical_errors: performance.criticalErrors,
+        case_record: moduleNineState.caseRecord,
+        case_display: caseRecordDisplay(moduleNineState.caseRecord, caseSpec),
+        case_summary: caseRecordSummary(moduleNineState.caseRecord, caseSpec),
+      },
+    });
+  }
+  if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleNineUser, 'soc-analyst', 'soc-09', MODULE_NINE_CATALOG_LAB_KEY);
+  const status = document.getElementById('m09-status');
+  if (status) status.textContent = 'Complete';
+  moduleNineRender();
+}
+
 function wireModuleNine() {
+  moduleNineWireLearnIt();
   // Wire the review toggle button
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');
   if (reviewToggle) {
@@ -1084,6 +1591,27 @@ function wireModuleNine() {
         if (isOpen) details.setAttribute('open', '');
         else details.removeAttribute('open');
       });
+    });
+  }
+  const lifecycleWheel = document.querySelector('[data-m09-lifecycle-wheel]');
+  if (lifecycleWheel) {
+    lifecycleWheel.addEventListener('click', (event) => {
+      const phaseButton = event.target.closest('[data-m09-phase]');
+      if (!phaseButton || !lifecycleWheel.contains(phaseButton)) return;
+
+      const activeIndex = Number(phaseButton.dataset.m09Phase);
+      lifecycleWheel.querySelectorAll('[data-m09-phase]').forEach((button, index) => {
+        const isActive = index === activeIndex;
+        button.setAttribute('aria-expanded', String(isActive));
+        button.closest('[data-m09-phase-card]')?.classList.toggle('is-active', isActive);
+        const detail = document.getElementById(button.getAttribute('aria-controls'));
+        if (detail) detail.hidden = !isActive;
+      });
+
+      lifecycleWheel.style.setProperty('--wheel-rotation', `${activeIndex * -60}deg`);
+      const selectedPhase = MODULE_NINE_LIFECYCLE_PHASES[activeIndex];
+      const hubPhase = lifecycleWheel.querySelector('[data-m09-hub-phase]');
+      if (hubPhase && selectedPhase) hubPhase.textContent = `Phase ${activeIndex + 1} · ${selectedPhase.title}`;
     });
   }
   // Wire quiz and lab components
@@ -1104,26 +1632,28 @@ function wireModuleNineGuidedLabGating(root) {
 function wireModuleNineGuidedLab() {
   const root = document.getElementById('m09-guided-lab-dynamic');
   if (!root || !moduleNineState) return;
-  wireModuleNineGuidedLabGating(root);
-  root.addEventListener('input', (event) => {
-    if (event.target.matches('[data-m09-practice-notes]')) {
-      moduleNineState.practiceNotes = event.target.value;
-      moduleNineSave();
-    }
+  MODULE_NINE_GUIDED_CONSOLE.wire(root);
+  moduleNinePositionGuidedGuide(root);
+  root.addEventListener('change', (event) => {
+    const field = event.target.closest('#m09-guided-case-form [name]');
+    if (!field) return;
+    if (field.name.startsWith('finding:')) moduleNineGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
+    else moduleNineGuidedState.caseRecord[field.name] = field.value;
+    moduleNineGuidedState.completed = moduleNineGuidedComplete();
+    moduleNineGuidedSave();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m09-practice-complete]')) {
-      if (!missionNextAllLabsComplete(moduleNineState.labProgress, ['guided-1'])) {
-        root.innerHTML = moduleNineGuidedLabPanel();
-        wireModuleNineGuidedLabGating(root);
-        return;
-      }
-      moduleNineState.practiceComplete = true;
-      moduleNineSave();
-      root.innerHTML = moduleNineGuidedLabPanel();
-      wireModuleNineGuidedLabGating(root);
+    if (event.target.closest('[data-m09-guided-submit-case]')) { event.preventDefault(); moduleNineGuidedState.caseRecord.submitted = true; moduleNineGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleNineGuidedState.completed = true; moduleNineGuidedState.guideStep = 3; moduleNineGuidedState.guideDocked = true; moduleNineGuidedSave(); moduleNineRenderGuided(); return; }
+    if (event.target.closest('[data-m09-guided-guide-next]')) { moduleNineGuidedState.guideStep = ((moduleNineGuidedState.guideStep || 0) + 1) % moduleNineGuidedSteps().length; moduleNineGuidedSave(); const tab = moduleNineGuidedSteps()[moduleNineGuidedState.guideStep].tab; document.querySelector(`[data-m03e-tab="m09-guided:${tab}"]`)?.click(); moduleNineRenderGuided(); return; }
+    if (event.target.closest('[data-m09-guided-guide-collapse]')) { moduleNineGuidedState.guideDocked = !moduleNineGuidedState.guideDocked; moduleNineGuidedSave(); moduleNineRenderGuided(); return; }
+    if (event.target.closest('[data-m09-guided-save-case]')) {
+      event.preventDefault();
+      moduleNineGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });
+      moduleNineGuidedState.completed = moduleNineGuidedComplete();
+      moduleNineGuidedSave();
+      moduleNineRenderGuided();
     }
   });
 }
 
-registerModuleLab({ program: 'soc-analyst', moduleNumber: 9, moduleKey: 'soc-09', view: viewModuleNine, wire: wireModuleNine });
+registerModuleLab({ program: 'soc-analyst', moduleNumber: 9, moduleKey: 'soc-09', view: viewModuleNine, wire: wireModuleNine, sections: moduleNineGetSections });

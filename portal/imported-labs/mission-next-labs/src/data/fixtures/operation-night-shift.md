@@ -1,0 +1,7 @@
+# Operation Night Shift fixture map
+
+`operation-night-shift.js` exposes `window.MISSION_NEXT_OPERATION_NIGHT_SHIFT.generate(seed)` for deterministic A/B incident replay. Every call returns fresh mutable objects. `artifacts` holds the evidence intended for later labs; `truth` holds answer-bearing cross-lab metadata and should stay out of learner-facing lab definitions.
+
+Both variants are fictional. Public source and beacon addresses use RFC 5737 documentation ranges, and identities use the reserved `.test` domain. A/B share the incident sequence while changing the contractor account, source IP, date/times, hostnames, subscription, and cloud resource names. Labs can consume whole-artifact strings or structured Windows/cloud event rows without building their own answer key. Windows Security records are available both as structured rows and serialized event XML; the cloud evidence also records snapshot, verification, containment, rebuild, and heartbeat times in strict order.
+
+The Windows recovery fixture also carries the approved Windows golden image, recovery VNet/subnet/NSG, management subnet, baseline name, monitoring extension, workspace and incident tag for L5. These are scenario configuration facts, separate from the compromised VM image and disk. The S5 script engine reads them from `truth.resources` for each seed and exposes ticket-scoped `$env:` values to the in-browser interpreter.

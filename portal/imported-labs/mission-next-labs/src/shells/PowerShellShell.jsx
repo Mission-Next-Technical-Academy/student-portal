@@ -37,6 +37,7 @@
       onCommand,
       autoFocus = true,
       banner = true,
+      powershellEngine = null,
     } = props;
     const [cwd, setCwd] = React.useState(initialCwd);
     const [lines, setLines] = React.useState(() => banner ? [
@@ -68,7 +69,9 @@
       setHistory(next); setHistIdx(-1);
 
       let result = null;
+      if (powershellEngine) result = powershellEngine.run(line);
       for (const entry of commandMap) {
+        if (result) break;
         if (!entry || !entry.match) continue;
         if (typeof entry.match === 'string' ? line.trim() === entry.match : entry.match.test(line)) {
           try { result = entry.run(line, env) || { stdout: '', stderr: '', exitCode: 0 }; break; }

@@ -20,8 +20,19 @@ const MODULE_LABS = Object.create(null);
  *   view(user, program) -> HTML string for the whole module surface
  *   wire()        optional; runs after every render, attaches listeners
  *   onMessage(e)  optional; receives window 'message' events
+ *   sections()    optional; the module's current rail sections (same shape
+ *                 moduleProgressShell() takes).  prove-it-gate.js reads it
+ *                 after every render to keep Prove It locked until the
+ *                 Guided Lab is submitted.
  * }
  */
+
+// The module surface most recently rendered, so platform scripts that run
+// after a render (prove-it-gate.js) can read its user and sections.
+let activeModuleRender = null;
+function activeModuleRenderContext() {
+  return activeModuleRender;
+}
 function registerModuleLab(def) {
   if (!def || !def.program || !def.moduleNumber || typeof def.view !== 'function') {
     console.error('registerModuleLab: ignoring an incomplete definition', def);
@@ -36,6 +47,7 @@ function registerModuleLab(def) {
   const registeredDef = {
     ...def,
     view(user, program) {
+      activeModuleRender = { user, program, def: registeredDef };
       const authoredHtml = authoredView(user, program);
       if (typeof moduleAssessmentModule !== 'function') return authoredHtml;
       // Respect a module's prerequisite gate.  A locked capstone does not

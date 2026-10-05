@@ -39,7 +39,10 @@ vm.runInContext(`
   }, set: () => true });
   var window = new Proxy({ location, history, document }, {
     get: (t, p) => (p in t ? t[p] : (p === 'addEventListener' || p === 'scrollTo' ? () => {} : undefined)),
-    set: () => true });
+    // Browser scripts publish shared components as window properties and
+    // later modules consume those properties as globals. Mirror that binding
+    // in the VM so portal-check follows the same dependency path.
+    set: (t, p, value) => { t[p] = value; globalThis[p] = value; return true; } });
 
   // Stub Supabase for test harness: makes signIn/currentUser async calls resolve properly.
   var mntSupabase = {
@@ -128,26 +131,14 @@ vm.runInContext(`
 ctx.URLSearchParams = URLSearchParams;
 ctx.URL = URL;
 
-// Keep the harness aligned with portal/index.html's dependency order. In
-// particular, Modules 3–11 call itsRegisterCoachModule at load time, which
-// is defined by it-support-shared.js. Alphabetically loading every
-// *-module-##.js file first made the checker fail even though the browser
-// loaded the real application correctly.
-const moduleFiles = fs.readdirSync(PORTAL).filter((f) => /-module-\d\d\.js$/.test(f)).sort();
-const files = [
-  'release.js',
-  'data.js',
-  'lab-runtime.js',
-  'module-registry.js',
-  ...moduleFiles.filter((f) => f.startsWith('soc-analyst-')),
-  // Module 02's environment is deliberately an additive layer loaded after
-  // its legacy isolated lab, matching portal/index.html script order.
-  'soc-analyst-module-02-environment.js',
-  'it-support-shared.js',
-  ...moduleFiles.filter((f) => f.startsWith('it-support-')),
-  ...moduleFiles.filter((f) => !f.startsWith('soc-analyst-') && !f.startsWith('it-support-')),
-  'app.js',
-];
+// Keep the harness aligned with portal/index.html's dependency order. Modules
+// register against shared components and earlier module adapters as the page
+// loads them, so an independently sorted module list does not reflect runtime.
+const indexHtml = fs.readFileSync(path.join(PORTAL, 'index.html'), 'utf8');
+const files = [...indexHtml.matchAll(/<script\s+src="([^"]+)"/g)]
+  .map((match) => match[1].split('?')[0])
+  .filter((file) => !file.startsWith('vendor/') && file !== 'supabase-config.js' && file !== 'm360-entry.js')
+  .map((file) => path.basename(file));
 
 for (const file of files) {
   try {
@@ -202,10 +193,18 @@ const testPromise = vm.runInContext(`
           const assessmentId = \`standard-\${target.key}-assessment-module\`;
           if (usesGenericAssessment) {
             if (!html.includes(\`id="\${assessmentId}"\`)) throw new Error('missing rendered Assessment Lab surface');
+          } else if (html.includes(\`data-authored-assessment="\${target.key}"\`)) {
+            // Authored Assessment Lab section that declares itself (M02's HR ITSM case).
           } else if (!html.includes('Prove It · Assessment Lab')) {
             throw new Error('missing authored Assessment Lab surface');
           }
           if (!navHtml.includes('Guided Lab')) throw new Error('missing Guided Lab in Practice It navigation');
+        }
+        // SOC M01–M11 keep knowledge checks inside Learn It; standalone
+        // checks duplicate Prove It. M12 keeps its special capstone contract.
+        if (target.program === 'soc-analyst' && target.n <= 11) {
+          if (/id="m\d{2}-knowledge-(?:check|section)"/.test(html)) throw new Error('redundant standalone Knowledge Check card');
+          if (/id="m\d{2}-quiz-dynamic"|id="m\d{2}-quiz-panel"/.test(html)) throw new Error('redundant standalone Knowledge Check panel');
         }
         console.log(\`  module \${target.n}  OK  (\${target.key}, \${html.length} chars)\`);
       } catch (error) {

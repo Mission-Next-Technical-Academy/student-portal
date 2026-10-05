@@ -19,6 +19,7 @@ const MODULE_TWO_DEFAULT_STATE = {
   validationError: '',
   lastSubmittedAt: '',
   resetArmed: false,
+  learnItStep: -1,
   lessonWork: {},
   independentLab: { answers: {}, notes: '', attempts: 0, score: 0, completed: false, feedback: [] },
 };
@@ -40,7 +41,7 @@ const MODULE_TWO_LESSON_LOOPS = [
 const MODULE_TWO_INDEPENDENT_LAB = {
   title: 'Independent lab: MFA push-bombing and conditional-access review',
   caseId: 'CASE-MN-317',
-  scenario: 'Mission Next Labs administrator acct-317 reports unsolicited MFA push prompts. One prompt was denied, a legacy exception later succeeded, and a conditional-access policy currently excludes a small legacy group. Decide what to verify and how to recommend a scoped policy review.',
+  scenario: 'Mission Next Labs administrator acct-317 reports unsolicited MFA prompts; one was denied before a legacy exception allowed sign-in. A policy excludes a small legacy group, so verify the path and recommend a scoped policy review.',
   questions: [
     { id: 'signal', label: 'What is the strongest initial signal?', options: [{ id: 'push', text: 'Unsolicited repeated prompts plus a later weaker-method success' }, { id: 'geo', text: 'The documentation-range address alone' }, { id: 'none', text: 'No signal because the first prompt was denied' }], correct: 'push' },
     { id: 'scope', label: 'What should the policy review target first?', options: [{ id: 'acct', text: 'acct-317 and the legacy-exception path, with affected resources identified' }, { id: 'all', text: 'Every remote user immediately' }, { id: 'ip', text: 'Only the synthetic source address' }], correct: 'acct' },
@@ -50,13 +51,25 @@ const MODULE_TWO_INDEPENDENT_LAB = {
 
 const MODULE_TWO_FOUNDATIONS = [
   { icon: 'ri-route-line', title: 'Network paths', summary: 'A connection has a source, destination, route, protocol, and outcome.', detail: 'Analysts compare the observed path with expected business routes. An unfamiliar address alone is weak evidence; the device, route, authentication result, and role of the destination add meaning.' },
-  { icon: 'ri-user-key-line', title: 'Identity and accounts', summary: 'An identity represents a person, service, device, or workload.', detail: 'Human and service identities behave differently. A scheduled certificate-based service sign-in may be normal while an interactive human sign-in at that hour may deserve review.' },
+  { icon: 'ri-account-circle-line', title: 'Identity and accounts', summary: 'An identity represents a person, service, device, or workload.', detail: 'Human and service identities behave differently. A scheduled certificate-based service sign-in may be normal while an interactive human sign-in at that hour may deserve review.' },
   { icon: 'ri-login-box-line', title: 'Authentication', summary: 'Authentication answers: who or what proved its identity?', detail: 'Passwords, certificates, security keys, and one-time factors are authentication methods. A success means a control accepted the proof; it does not prove the activity was authorized by the owner.' },
   { icon: 'ri-key-2-line', title: 'Authorization', summary: 'Authorization answers: what is the authenticated identity allowed to do?', detail: 'Roles and permissions govern access after sign-in. Analysts distinguish a sign-in event from a later access change and then assess whether the combination increases risk.' },
   { icon: 'ri-shield-keyhole-line', title: 'MFA', summary: 'Multiple independent factors reduce reliance on a password alone.', detail: 'A denied prompt can be a user mistake, but repeated denials followed by a password-only success from an unmanaged device form a stronger suspicious pattern.' },
   { icon: 'ri-team-line', title: 'RBAC and least privilege', summary: 'Roles group permissions around job needs; least privilege limits excess access.', detail: 'A role assignment should have an approved purpose, appropriate scope, and accountable requester. High-impact access without a matching request deserves escalation.' },
   { icon: 'ri-fingerprint-line', title: 'PKI', summary: 'Certificates bind cryptographic proof to an identity or system.', detail: 'Certificate use is context, not an automatic verdict. Validate the subject, issuer, intended use, expiry, and whether the activity matches the workload schedule.' },
   { icon: 'ri-focus-3-line', title: 'Zero Trust reasoning', summary: 'Evaluate each request using identity, device, location, resource, and current risk.', detail: 'Network location is only one signal. A sound decision combines several independent facts and applies a proportionate control to the affected scope.' },
+];
+
+// A short, six-beat memory path for the opening SOC analyst concept. Keeping
+// each beat to one sentence makes the learner pause, read, and recall instead
+// of scanning past a wall of introductory copy.
+const MODULE_TWO_LEARN_IT_STEPS = [
+  'SOC technology keeps changing, so analysts must stay comfortable moving between terminals, dashboards, scripts, and new tools.',
+  'New threats appear every day, which makes continuous learning part of the analyst job—not an extra task.',
+  'The interface may change, but the goal stays the same: understand what the evidence is showing and why it matters.',
+  'A Level 1 SOC analyst turns collected logs into scheduled queries that can surface useful alerts.',
+  'Those alerts are correlated with focused queries and supporting context to reveal the shape of an attack.',
+  'Modern SIEMs add machine learning and AI to connect the clues, helping analysts move from noisy events to a defensible decision.',
 ];
 
 const MODULE_TWO_LAB = {
@@ -628,7 +641,7 @@ let moduleTwoQuizOwner = null;
 
 function moduleTwoLoad(user) {
   moduleTwoUser = user;
-  moduleTwoState = LabRuntime.load(MODULE_TWO_LAB_ID, user, MODULE_TWO_DEFAULT_STATE);
+  moduleTwoState = LabRuntime.loadCaseState(MODULE_TWO_LAB_ID, 'soc-02', user, MODULE_TWO_DEFAULT_STATE);
   if (!Array.isArray(moduleTwoState.reviewedStations)) moduleTwoState.reviewedStations = [];
   if (!Array.isArray(moduleTwoState.selectedEvidence)) moduleTwoState.selectedEvidence = [];
   if (!Array.isArray(moduleTwoState.feedback)) moduleTwoState.feedback = [];
@@ -638,6 +651,7 @@ function moduleTwoLoad(user) {
   if (!moduleTwoState.independentLab.answers || typeof moduleTwoState.independentLab.answers !== 'object') moduleTwoState.independentLab.answers = {};
   if (!Array.isArray(moduleTwoState.independentLab.feedback)) moduleTwoState.independentLab.feedback = [];
   if (typeof moduleTwoState.notes !== 'string') moduleTwoState.notes = '';
+  if (!Number.isInteger(moduleTwoState.learnItStep)) moduleTwoState.learnItStep = -1;
   if (!MODULE_TWO_LAB.stations.some((station) => station.id === moduleTwoState.activeStation)) moduleTwoState.activeStation = 'signins';
 
   // Initialize quiz state
@@ -657,7 +671,7 @@ function moduleTwoLoad(user) {
 function moduleTwoSave() {
   if (moduleTwoUser && moduleTwoState) {
     if (moduleTwoQuizState) moduleTwoState.quizState = moduleTwoQuizState;
-    LabRuntime.save(MODULE_TWO_LAB_ID, moduleTwoUser, moduleTwoState);
+    LabRuntime.saveCaseState(MODULE_TWO_LAB_ID, 'soc-02', moduleTwoUser, moduleTwoState);
   }
 }
 
@@ -679,14 +693,27 @@ function moduleTwoGetSections() {
   return [
     { id: 'foundations', title: 'Foundations', type: 'lecture', isComplete: true, scrollId: 'm02-foundations' },
     { id: 'trust-model', title: 'Trust Model', type: 'lecture', isComplete: true, scrollId: 'm02-model' },
-    { id: 'knowledge-check', title: 'Knowledge Check', type: 'quiz', isComplete: moduleTwoQuizState?.passed, scrollId: 'm02-knowledge-check' },
     { id: 'guided-lab', title: 'Module Lab', type: 'lab', isComplete: moduleTwoLabComplete(), scrollId: 'm02-guided-lab' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'm02-sources-section', gated: false, supplemental: true },
   ];
 }
 
 function moduleTwoFoundations() {
-  return `<div class="m02-foundation-grid">
+  const step = Number.isInteger(moduleTwoState?.learnItStep) ? moduleTwoState.learnItStep : -1;
+  const started = step >= 0;
+  const completed = step >= MODULE_TWO_LEARN_IT_STEPS.length - 1;
+  const currentText = started ? MODULE_TWO_LEARN_IT_STEPS[Math.min(step, MODULE_TWO_LEARN_IT_STEPS.length - 1)] : '';
+  return `<section class="m02-learn-it" aria-labelledby="m02-learn-it-title">
+    <div class="m02-learn-it-topline"><div><p class="m02-kicker">Learn It · six quick ideas</p><h3 id="m02-learn-it-title">How a SOC analyst turns noise into signal</h3></div><span class="m02-learn-it-count">${started ? `${Math.min(step + 1, MODULE_TWO_LEARN_IT_STEPS.length)}/6` : 'Ready'}</span></div>
+    <p class="m02-learn-it-intro">Tap through one sentence at a time. The point is to remember the workflow, not memorize a paragraph.</p>
+    <div class="m02-learn-it-card ${started ? 'is-active' : ''} ${completed ? 'is-complete' : ''}" aria-live="polite">
+      <span class="m02-learn-it-badge"><i class="ri-sparkling-2-line" aria-hidden="true"></i>${started ? `Idea ${Math.min(step + 1, MODULE_TWO_LEARN_IT_STEPS.length)}` : 'Start here'}</span>
+      <p class="m02-learn-it-sentence">${started ? esc(currentText) : 'Build the mental model in six small steps.'}</p>
+      <div class="m02-learn-it-progress" aria-hidden="true"><span style="width:${started ? `${((Math.min(step + 1, MODULE_TWO_LEARN_IT_STEPS.length)) / MODULE_TWO_LEARN_IT_STEPS.length) * 100}%` : '0%'}"></span></div>
+      <div class="m02-learn-it-actions"><button type="button" class="m02-learn-it-button" data-m02-learn-it>${started ? (completed ? 'Replay' : 'NEXT') : 'LEARN IT'} <i class="${started && !completed ? 'ri-arrow-right-line' : 'ri-sparkling-line'}" aria-hidden="true"></i></button>${started ? `<button type="button" class="m02-learn-it-restart" data-m02-learn-it-restart>Start over</button>` : ''}</div>
+    </div>
+  </section>
+  <div class="m02-foundation-grid">
     ${MODULE_TWO_FOUNDATIONS.map((item, index) => `<details class="m02-foundation" ${index === 0 ? 'open' : ''}>
       <summary><span class="m02-foundation-icon"><i class="${esc(item.icon)}" aria-hidden="true"></i></span><span><strong>${esc(item.title)}</strong><small>${esc(item.summary)}</small></span><i class="ri-arrow-down-s-line m02-chevron" aria-hidden="true"></i></summary>
       <p>${esc(item.detail)}</p>
@@ -870,7 +897,7 @@ function moduleTwoScorePanel() {
       <div><strong>${b.communication}/15</strong><span>Communication</span></div>
     </div>
     <ul class="m02-feedback-list">${moduleTwoState.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
-    <div class="m02-expert"><strong>Expert reasoning</strong><p>IDN-317 presents a connected chain: stronger authentication was denied, a weaker password-only exception then succeeded from an unmanaged external path, and a production-impacting role appeared without an approval record. The other records have expected device, route, certificate, MFA, or change-reference context. Preserve the four linked records and escalate only IDN-317 for authorized protection and role review.</p></div>
+    <div class="m02-expert"><strong>Expert reasoning</strong><p>IDN-317 links denied stronger authentication, a password-only success from an unmanaged external path, and a production-impacting role with no approval record. Preserve the four linked records and escalate IDN-317 for authorized protection and role review; the other records have expected device, route, certificate, MFA, or change context.</p></div>
   </section>`;
 }
 
@@ -980,17 +1007,6 @@ function viewModuleTwo(user, program) {
       <section class="m02-section m02-section-body" id="m02-sources-section" aria-labelledby="m02-sources-title">${moduleSourcesBlock(MODULE_TWO_SOURCES)}</section>
     </details>`;
 
-  const quizOpen = moduleTwoReviewMode || (moduleTwoQuizState && !moduleTwoQuizState.passed);
-  const quizSection = `
-    <details class="m02-section-collapsible" ${quizOpen ? 'open' : ''}>
-      <summary class="m02-section-summary">
-        <section class="m02-section" id="m02-knowledge-check" aria-labelledby="m02-quiz-title">
-          <div class="m02-section-heading"><span>4</span><div><p class="m02-kicker">Interactive knowledge check</p><h2 id="m02-quiz-title">Test your understanding of identity and trust concepts</h2></div></div>
-        </section>
-      </summary>
-      <section class="m02-section m02-section-body" aria-labelledby="m02-quiz-title"><div id="m02-quiz-dynamic">${moduleTwoQuizPanel()}</div></section>
-    </details>`;
-
   const labSection = `
     <details class="m02-section-collapsible" ${labOpen ? 'open' : ''}>
       <summary class="m02-section-summary">
@@ -1014,7 +1030,6 @@ function viewModuleTwo(user, program) {
       ${foundationsSection}
       ${trustModelSection}
       ${sourcesSection}
-      ${quizSection}
       ${labSection}
       ${moduleTwoAdditionalLabs()}
     </main>
@@ -1130,6 +1145,30 @@ function wireModuleTwoLessons() {
       const details = taskButton.closest('details');
       const lessonDef = MODULE_TWO_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m02LessonTask);
       if (details) details.outerHTML = moduleTwoLessonLoop(lessonDef, MODULE_TWO_LESSON_LOOPS.indexOf(lessonDef));
+    }
+  });
+}
+
+function wireModuleTwoLearnIt() {
+  const root = document.querySelector('.m02-learn-it');
+  if (!root || !moduleTwoState) return;
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-m02-learn-it-restart]')) {
+      moduleTwoState.learnItStep = -1;
+    } else if (event.target.closest('[data-m02-learn-it]')) {
+      moduleTwoState.learnItStep = moduleTwoState.learnItStep >= MODULE_TWO_LEARN_IT_STEPS.length - 1
+        ? 0
+        : moduleTwoState.learnItStep + 1;
+    } else return;
+    moduleTwoSave();
+    // Re-render only the interactive card, preserving the concept accordions.
+    const current = document.querySelector('.m02-learn-it');
+    if (current) {
+      const rendered = moduleTwoFoundations();
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = rendered;
+      current.replaceWith(wrapper.firstElementChild);
+      wireModuleTwoLearnIt();
     }
   });
 }
@@ -1264,6 +1303,7 @@ function wireModuleTwo() {
   wireModuleTwoQuiz();
   wireModuleTwoLab();
   wireModuleTwoLessons();
+  wireModuleTwoLearnIt();
   wireModuleTwoIndependentLab();
 }
 
@@ -1336,7 +1376,7 @@ function wireModuleTwoLab() {
     }
 
     if (event.target.closest('[data-m02-reset-confirm]')) {
-      moduleTwoState = LabRuntime.reset(MODULE_TWO_LAB_ID, moduleTwoUser, MODULE_TWO_DEFAULT_STATE);
+      moduleTwoState = LabRuntime.resetCaseState(MODULE_TWO_LAB_ID, 'soc-02', moduleTwoUser, MODULE_TWO_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleTwoUser, 'soc-analyst', 'soc-02', MODULE_TWO_CATALOG_LAB_KEY, false);
       moduleTwoRenderDynamic('m02-investigation-title');
     }
@@ -1414,4 +1454,4 @@ function wireModuleTwoLab() {
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 2, moduleKey: 'soc-02',
-  view: viewModuleTwo, wire: wireModuleTwo });
+  view: viewModuleTwo, wire: wireModuleTwo, sections: moduleTwoGetSections });

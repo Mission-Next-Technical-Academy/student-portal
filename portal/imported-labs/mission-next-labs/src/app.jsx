@@ -3,16 +3,22 @@
 // ============================================================
 
 function App() {
-  const [user, setUser] = React.useState(() => {
-    // Every route, including direct lab URLs, must start behind the login
-    // barrier. A session is only created by LoginPage after valid credentials.
-    return getSession();
+  // Imported course labs are public learning experiences. Mission Next's
+  // course portal owns learner authentication; the imported app must not add
+  // a second login gate before a lab route can render.
+  const [user] = React.useState(() => {
+    const moduleKey = new URLSearchParams(window.location.search).get('mntModule');
+    const suffix = /^soc-(?:0[1-9]|1[0-2])$/.test(moduleKey || '') ? `_${moduleKey}` : '';
+    return { id:'learner', username:`guest_learner${suffix}`, role:'student', displayName:'Learner' };
   });
-  const [track, setTrack] = React.useState(null); // splunk | windows-forensics
-  const [view, setView] = React.useState('tracks'); // tracks | dashboard | module
-  const [activeModule, setActiveModule] = React.useState(null);
-  const [activeProjectId, setActiveProjectId] = React.useState(null);
-  const [routeError, setRouteError] = React.useState(null);
+  // Resolve the hash route before the first paint so a direct lab launch
+  // never flashes the "open this lab from the course module" screen.
+  const [initialRoute] = React.useState(() => parseHashRoute());
+  const [track, setTrack] = React.useState(initialRoute.track); // splunk | windows-forensics
+  const [view, setView] = React.useState(initialRoute.view); // tracks | dashboard | module
+  const [activeModule, setActiveModule] = React.useState(initialRoute.module || null);
+  const [activeProjectId, setActiveProjectId] = React.useState(initialRoute.projectId || null);
+  const [routeError, setRouteError] = React.useState(initialRoute.error || null);
 
   React.useEffect(() => {
     function syncFromHash() {
@@ -36,20 +42,8 @@ function App() {
     applyRoute(parseHashRoute(path));
   }
 
-  function handleLogin(u) {
-    setUser(u);
-    setRoute(u.role === 'instructor' ? '#/instructor' : '#/tracks');
-  }
-
   function handleLogout() {
-    clearSession();
-    setUser(null);
-    setTrack(null);
-    setView('tracks');
-    setActiveModule(null);
-    setActiveProjectId(null);
-    setRouteError(null);
-    window.location.hash = '#/login';
+    handleBackToTracks();
   }
 
   function handleSelectTrack(nextTrack) {
@@ -75,22 +69,29 @@ function App() {
   }
 
   function handleBackFromLab() {
-    // Prefer the explicit module return route. Additional labs open in a new
-    // tab, where browser history contains no portal page to return to.
-    const returnTo = new URLSearchParams(window.location.search).get('returnTo');
-    if (returnTo) {
+    // Framed inside the course portal's lab route: the portal owns
+    // navigation, so ask it to return to the launching module.
+    if (window.parent !== window) {
       try {
-        const destination = new URL(returnTo, window.location.href);
-        const isHttp = destination.protocol === 'http:' || destination.protocol === 'https:';
-        const isSameOrigin = destination.origin === window.location.origin;
-        const isMissionNextRoute = /^#\/program\/soc-analyst\/module\/\d+$/.test(destination.hash);
-        if (isHttp && isSameOrigin && isMissionNextRoute) {
-          window.location.href = destination.href;
-          return;
-        }
+        window.parent.postMessage({ type:'mission-next-lab:exit' }, window.location.origin);
+        return;
       } catch (_) {
-        // Fall through to history/local fallback for malformed links.
+        // Fall through to the standalone behavior below.
       }
+    }
+
+    // Labs are launched from the course portal in a new tab. Return through
+    // that existing window reference instead of carrying a URL inside the
+    // lab address bar. This keeps the lab self-contained and avoids exposing
+    // redirect-looking query parameters.
+    try {
+      if (window.opener && !window.opener.closed && window.opener.location.origin === window.location.origin) {
+        window.opener.focus();
+        window.close();
+        return;
+      }
+    } catch (_) {
+      // Fall through to the local history/dashboard fallback.
     }
 
     // Same-tab launches can still use browser history. Direct lab URLs fall
@@ -110,9 +111,7 @@ function App() {
     setRoute(`#/track/windows-forensics/project/${projectId}`);
   }
 
-  const routeKey = !user
-    ? 'login'
-    : routeError
+  const routeKey = routeError
       ? `route-error-${routeError.kind}-${routeError.id || 'unknown'}`
     : view === 'tracks' || !track
       ? 'tracks'
@@ -135,8 +134,6 @@ function App() {
       </AppErrorBoundary>
     );
   }
-
-  if (!user) return withTransition(<LoginPage onLogin={handleLogin} />);
 
   if (routeError?.kind === 'module') {
     return withTransition(
