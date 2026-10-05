@@ -55,6 +55,21 @@ html[data-mn-theme="night"] :where(.text-gray-500, .text-gray-600, .text-gray-70
   .text-slate-500, .text-slate-600, .text-slate-700, .subtle, .muted, .hint) {
   color: var(--mn-theme-muted) !important;
 }
+/* Tailwind's arbitrary brand colors bypass the normal text utility groups.
+   They appear on admin workspace names, section titles, tabs, and dashboard
+   figures, so explicitly lift those dark navy labels in night mode. */
+html[data-mn-theme="night"] :where(
+  [class*="text-[#1e3a5f]"], [class*="text-[#123754]"], [class*="text-[#1f4e79]"],
+  [class*="text-[#172033]"], [class*="text-[#172d42]"]
+) { color: #dceaf7 !important; }
+html[data-mn-theme="night"] :where(.text-gray-800, .text-gray-900,
+  .text-slate-800, .text-slate-900) { color: #dceaf7 !important; }
+/* Content headings and disclosure labels are commonly assigned navy directly
+   in the M360 and simulator stylesheets rather than through utility classes. */
+html[data-mn-theme="night"] :where(h1, h2, h3, h4, h5, h6, legend, summary,
+  .coach-pick-name, .coach-bar-instruction, .brand-name, .sidebar-title) {
+  color: #dceaf7 !important;
+}
 html[data-mn-theme="night"] :where(input, textarea, select, option) {
   color: var(--mn-theme-text);
   background-color: #0b1d2e;
