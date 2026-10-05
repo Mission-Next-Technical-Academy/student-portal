@@ -911,11 +911,22 @@ function resolveAdminTrackCode(routeMatch) {
   return adminTrackMeta(code) ? code : null;
 }
 
-function normalizeAdminTrackData({ rows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, facultyMessageRows }) {
+function normalizeAdminTrackData({ rows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, gradedRows = [], supersededRows = [], facultyMessageRows }) {
+  const trackPending = activeTrackCode ? filterByTrack(gradingQueueRows, activeTrackCode) : [];
+  const trackGraded = activeTrackCode ? filterByTrack(gradedRows, activeTrackCode) : [];
+  const trackStoredSuperseded = activeTrackCode ? filterByTrack(supersededRows, activeTrackCode) : [];
+  const attempts = adminNumberAttempts([...trackPending, ...trackGraded, ...trackStoredSuperseded]);
+  const withAttempt = (row) => ({ ...row, attempt: attempts.get(row.id) || null });
+  const grading = adminSplitSupersededAttempts(trackPending.map(withAttempt), trackGraded.map(withAttempt));
   return {
     rosterRows: filterByTrack(rows, activeTrackCode),
     detailStudents: filterByTrack(activeStudents, activeTrackCode),
-    trackGradingQueueRows: activeTrackCode ? filterByTrack(gradingQueueRows, activeTrackCode) : [],
+    // Owner rule (2026-10-05): LEARN IT and PRACTICE IT are autograded with
+    // instant feedback; only PROVE IT waits on an instructor.
+    trackGradingQueueRows: grading.pending.filter(adminNeedsInstructorReview),
+    trackAutogradedRows: grading.pending.filter((row) => !adminNeedsInstructorReview(row)),
+    trackSupersededRows: [...grading.superseded, ...trackStoredSuperseded.map(withAttempt)],
+    trackGradedRows: trackGraded.map(withAttempt),
     trackOpenLabRedoRows: activeTrackCode ? filterByTrack(openLabRedoRows, activeTrackCode) : [],
     trackFacultyMessageRows: activeTrackCode ? filterByTrack(facultyMessageRows, activeTrackCode) : [],
   };
@@ -990,103 +1001,201 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
     </div></section>`;
 }
 
-/* Grading tab: a pregraded lab attempt is not a blank submission — score/
- * result/pass_threshold already exist (recordLabAttempt(), pass_threshold
- * hardcoded to 70). The auto-scored result is an OVERVIEW (pass/fail per
- * criterion), never a specific corrective task list — the instructor writes
- * the specific "what to do differently" by hand, per flagged item, at their
- * discretion (owner's framing, 2026-09-13). Sending back always requests a
- * full resubmission of the lab attempt, not a per-field patch. See
- * docs/workstreams/lab-grading-notification-system/ for the brief and schema decisions. */
-function adminGradingQueuePanel(gradingQueueRows, openLabRedoRows = []) {
-  const pendingRows = gradingQueueRows || [];
-  const redoRows = openLabRedoRows || [];
-  if (pendingRows.length === 0 && redoRows.length === 0) {
-    return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Grading</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div>
-      <div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">Nothing waiting on review. Every completed lab attempt has been graded.</p></div>`;
-  }
-  const pendingPanel = pendingRows.length ? `<div class="space-y-4">
-      ${pendingRows.map((row) => {
-        const threshold = row.pass_threshold ?? 70;
-        const hasScore = row.score !== null && row.score !== undefined;
-        const passing = hasScore && Number(row.score) >= Number(threshold);
-        const trackMeta = adminTrackMeta(row.track_code);
-        const resultJson = (() => { try { return JSON.stringify(row.result || {}, null, 2); } catch { return '{}'; } })();
-        const resultBreakdown = row.result && typeof row.result.breakdown === 'object' && !Array.isArray(row.result.breakdown)
-          ? Object.entries(row.result.breakdown)
-          : [];
-        const hasReadableBreakdown = resultBreakdown.length > 0;
-        const resultFeedback = hasReadableBreakdown && Array.isArray(row.result.feedback)
-          ? row.result.feedback.filter((item) => typeof item === 'string' && item.trim())
-          : [];
-        // Module 01's independent case supplies structured simulator evidence.
-        // Keep it readable and editable here rather than burying competency
-        // misses in the generic raw JSON disclosure.
-        const simulatorPerformance = row.result && row.result.simulator_performance;
-        const competencyPanel = simulatorPerformance && Array.isArray(simulatorPerformance.competencies)
-          ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3">
-              <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Simulator performance assessment</p>
-              <div class="grid sm:grid-cols-2 gap-2 text-sm">${simulatorPerformance.competencies.map((item) => `<div class="rounded border ${item.passed ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'} px-3 py-2"><strong>${esc(item.label)}</strong><span class="float-right font-semibold">${esc(String(item.percentage))}% · ${item.passed ? 'Pass' : 'Developing'}</span><p class="text-xs text-gray-600 mt-1">${esc(String(item.completed))}/${esc(String(item.required))} required actions observed</p></div>`).join('')}</div>
-              <div class="mt-3 text-xs"><strong>Completed simulator actions:</strong> ${esc(String((simulatorPerformance.requirements || []).filter((item) => item.completed).length))}/${esc(String((simulatorPerformance.requirements || []).length))}</div>
-              ${(simulatorPerformance.missed_actions || []).length ? `<div class="mt-2 text-xs text-amber-800"><strong>Missed:</strong> ${esc(simulatorPerformance.missed_actions.join('; '))}</div>` : ''}
-              ${(simulatorPerformance.unsafe_actions || []).length ? `<div class="mt-2 text-xs text-red-800"><strong>Unsafe actions:</strong> ${esc(simulatorPerformance.unsafe_actions.join('; '))}</div>` : ''}
-            </div>`
-          : '';
-        const generatedRecommendation = simulatorPerformance && Array.isArray(simulatorPerformance.generated_recommendations)
-          ? simulatorPerformance.generated_recommendations.join(' ')
-          : '';
-        const readableResult = hasReadableBreakdown ? `<div class="mb-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
-            <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System score breakdown (raw points)</p>
-            <dl class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">
-              ${resultBreakdown.map(([key, value]) => {
-                const label = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-                return `<div class="grid grid-cols-2 gap-3 px-3 py-2"><dt class="text-gray-600">${esc(label)}</dt><dd class="text-right font-semibold text-[#1e3a5f]">${esc(String(value))}</dd></div>`;
-              }).join('')}
-            </dl>
-            ${resultFeedback.length ? `<div class="mt-3"><p class="text-xs font-semibold text-gray-600 mb-1">Auto-scored feedback</p><ul class="list-disc space-y-1 pl-5 text-xs text-gray-600">${resultFeedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
-          </div>` : '';
-        return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}">
-          <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
-            <div class="min-w-0">
-              <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p>
-              <p class="text-sm text-gray-600 mt-0.5">${esc(adminLabLabel(row.lab_key))} <span class="text-gray-400">·</span> ${esc(trackMeta ? trackMeta.eyebrow : row.track_code)}</p>
-              <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
-            </div>
-            <span class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${!hasScore ? 'bg-gray-100 text-gray-600' : passing ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}">
-              ${hasScore ? `${esc(String(row.score))}%` : 'No score'} <span class="opacity-60">/ ${esc(String(threshold))}% to pass</span>
-            </span>
-          </div>
-          ${adminCaseTicketSubmissionPanel(row)}
-          ${adminModuleTwoAccessReviewPanel(row)}
-          ${competencyPanel}
-          ${readableResult}
-          <details class="mb-3 text-sm">
-            <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>
-            <pre class="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-x-auto">${esc(resultJson)}</pre>
-          </details>
-          <div data-feedback-items class="space-y-2 mb-2">
-            <div class="feedback-item grid sm:grid-cols-2 gap-2">
-              <input type="text" data-feedback-label placeholder="What was wrong (instructor's own words)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
-              <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">${esc(generatedRecommendation)}</textarea>
-            </div>
-          </div>
-          <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
-          <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-            <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
-            <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(row.id)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Return for remediation' : 'Send back for redo'}</button>
-            <span data-grading-status class="text-xs text-gray-500"></span>
-          </div>
-        </article>`;
-      }).join('')}
-    </div>` : `<div class="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center"><p class="text-gray-500 text-sm">No new submissions are waiting for review.</p></div>`;
-  const redoPanel = redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminLabLabel(row.lab_key))} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2"><button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button><span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
-  return `<div class="mb-6">
-      <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Grading</h2>
-      <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-      <p class="text-gray-500 text-sm">${pendingRows.length} completed lab attempt${pendingRows.length === 1 ? '' : 's'} awaiting review. The score below is the system's own pregraded result — your job is to confirm it, flag anything it missed, and (if it's not passing) send back specific, written guidance for a redo.</p>
+/* One pending attempt's review card: pregraded evidence, per-item written
+ * feedback, Approve / Send back. The auto-scored result is an overview only;
+ * the instructor writes the specific "what to do differently" by hand, and a
+ * send-back always requests a full resubmission (owner, 2026-09-13; see
+ * docs/workstreams/lab-grading-notification-system/). `olderAttempt` marks an
+ * earlier submission the learner has since replaced; a decision applies to
+ * every row of the item. */
+function adminAttemptReviewCard(item, olderAttempt) {
+  const row = item.lead;
+  const attemptIds = item.ids.join(',');
+  const threshold = row.pass_threshold ?? 70;
+  const hasScore = row.score !== null && row.score !== undefined;
+  const passing = hasScore && Number(row.score) >= Number(threshold);
+  const resultJson = (() => { try { return JSON.stringify(row.result || {}, null, 2); } catch { return '{}'; } })();
+  const resultBreakdown = row.result && typeof row.result.breakdown === 'object' && !Array.isArray(row.result.breakdown)
+    ? Object.entries(row.result.breakdown)
+    : [];
+  const hasReadableBreakdown = resultBreakdown.length > 0;
+  const resultFeedback = hasReadableBreakdown && Array.isArray(row.result.feedback)
+    ? row.result.feedback.filter((item) => typeof item === 'string' && item.trim())
+    : [];
+  // Module 01's independent case supplies structured simulator evidence.
+  // Keep it readable and editable here rather than burying competency
+  // misses in the generic raw JSON disclosure.
+  const simulatorPerformance = row.result && row.result.simulator_performance;
+  const competencyPanel = simulatorPerformance && Array.isArray(simulatorPerformance.competencies)
+    ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3">
+        <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Simulator performance assessment</p>
+        <div class="grid sm:grid-cols-2 gap-2 text-sm">${simulatorPerformance.competencies.map((item) => `<div class="rounded border ${item.passed ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'} px-3 py-2"><strong>${esc(item.label)}</strong><span class="float-right font-semibold">${esc(String(item.percentage))}% · ${item.passed ? 'Pass' : 'Developing'}</span><p class="text-xs text-gray-600 mt-1">${esc(String(item.completed))}/${esc(String(item.required))} required actions observed</p></div>`).join('')}</div>
+        <div class="mt-3 text-xs"><strong>Completed simulator actions:</strong> ${esc(String((simulatorPerformance.requirements || []).filter((item) => item.completed).length))}/${esc(String((simulatorPerformance.requirements || []).length))}</div>
+        ${(simulatorPerformance.missed_actions || []).length ? `<div class="mt-2 text-xs text-amber-800"><strong>Missed:</strong> ${esc(simulatorPerformance.missed_actions.join('; '))}</div>` : ''}
+        ${(simulatorPerformance.unsafe_actions || []).length ? `<div class="mt-2 text-xs text-red-800"><strong>Unsafe actions:</strong> ${esc(simulatorPerformance.unsafe_actions.join('; '))}</div>` : ''}
+      </div>`
+    : '';
+  const generatedRecommendation = simulatorPerformance && Array.isArray(simulatorPerformance.generated_recommendations)
+    ? simulatorPerformance.generated_recommendations.join(' ')
+    : '';
+  const readableResult = hasReadableBreakdown ? `<div class="mb-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+      <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System score breakdown (raw points)</p>
+      <dl class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">
+        ${resultBreakdown.map(([key, value]) => {
+          const label = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+          return `<div class="grid grid-cols-2 gap-3 px-3 py-2"><dt class="text-gray-600">${esc(label)}</dt><dd class="text-right font-semibold text-[#1e3a5f]">${esc(String(value))}</dd></div>`;
+        }).join('')}
+      </dl>
+      ${resultFeedback.length ? `<div class="mt-3"><p class="text-xs font-semibold text-gray-600 mb-1">Auto-scored feedback</p><ul class="list-disc space-y-1 pl-5 text-xs text-gray-600">${resultFeedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
+    </div>` : '';
+  return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}">
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
+        <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span></p>
+        ${olderAttempt ? '<p class="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
+        <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
+      </div>
+      <span class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${!hasScore ? 'bg-gray-100 text-gray-600' : passing ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}">
+        ${hasScore ? `${esc(String(row.score))}%` : 'No score'} <span class="opacity-60">/ ${esc(String(threshold))}% to pass</span>
+      </span>
     </div>
-    ${pendingPanel}${redoPanel}`;
+    ${adminCaseTicketSubmissionPanel(row)}
+    ${adminCapstoneReviewPanel(row)}
+    ${adminModuleTwoAccessReviewPanel(row)}
+    ${competencyPanel}
+    ${readableResult}
+    <details class="mb-3 text-sm">
+      <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>
+      <pre class="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-x-auto">${esc(resultJson)}</pre>
+    </details>
+    <div data-feedback-items class="space-y-2 mb-2">
+      <div class="feedback-item grid sm:grid-cols-2 gap-2">
+        <input type="text" data-feedback-label placeholder="What was wrong (instructor's own words)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
+        <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">${esc(generatedRecommendation)}</textarea>
+      </div>
+    </div>
+    <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
+    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
+      <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Return for remediation' : 'Send back for redo'}</button>
+      <span data-grading-status class="text-xs text-gray-500"></span>
+    </div>
+  </article>`;
 }
+
+function adminOpenRedoRequestsHtml(redoRows) {
+  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2"><button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button><span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
+}
+
+/* Lab Attempts tab (owner, 2026-10-05): replaces the Grading/Graded split.
+ * One card per learner; each pill is a module phase's LATEST attempt — amber
+ * Under review, green Passed, red Failed. Clicking a pill opens that attempt:
+ * the review card while it still needs a decision, the submitted record once
+ * it has one, with earlier attempts folded underneath. The tab badge counts
+ * attempts awaiting review. */
+let adminOpenAttemptPanel = null; // reopened after a decision re-renders the tab
+
+function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRows = [], autogradedRows = [], openRedoRows = [] } = {}) {
+  const pending = new Set(pendingRows.map((row) => row.id));
+  const superseded = new Set(supersededRows.map((row) => row.id));
+  const autograded = new Set(autogradedRows.map((row) => row.id));
+  const groups = adminGroupGradingRows([...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows]);
+  const pendingCount = adminGroupGradingRows(pendingRows).reduce((n, student) => n + student.items.length, 0);
+  const header = `<div class="mb-6">
+      <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Lab Attempts</h2>
+      <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
+      <p class="text-gray-500 text-sm">${pendingCount ? `<strong class="text-[#1e3a5f]">${pendingCount} awaiting your review.</strong> ` : 'Nothing awaiting review. '}Each pill is a module phase's latest attempt — click one to open it. The score is the system's pregrade; your approval is what unlocks the next module.</p>
+      <div class="mt-3 flex flex-wrap gap-3 text-xs text-gray-500" aria-label="Status key">
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>Under review</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>Passed</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>Failed</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span>Not reviewed (replaced)</span>
+      </div>
+    </div>`;
+  if (!groups.length) {
+    return `${header}<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No lab attempts have been submitted in this course yet.</p></div>${adminOpenRedoRequestsHtml(openRedoRows)}`;
+  }
+  const pill = (text, tone) => `<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone}">${esc(text)}</span>`;
+  const status = (row) => {
+    const hasScore = row.score !== null && row.score !== undefined;
+    const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
+    if (pending.has(row.id)) return { label: 'Under review', tone: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-400' };
+    if (superseded.has(row.id)) return { label: 'Not reviewed', tone: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-300' };
+    const failed = autograded.has(row.id) ? hasScore && !passing : row.redo_requested;
+    return failed
+      ? { label: 'Failed', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' }
+      : { label: 'Passed', tone: 'bg-green-50 text-green-800 border-green-200', dot: 'bg-green-500' };
+  };
+  const outcomePill = (row) => (autograded.has(row.id)
+    ? pill('Autograded', 'bg-blue-50 text-[#1e3a5f]')
+    : superseded.has(row.id)
+    ? pill('Superseded · not reviewed', 'bg-gray-100 text-gray-600')
+    : row.redo_requested ? pill('Sent back for redo', 'bg-red-50 text-red-700') : pill('Approved', 'bg-green-50 text-green-700'));
+  const recordRow = (item, open) => {
+    const row = item.lead;
+    const hasScore = row.score !== null && row.score !== undefined;
+    const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
+    const ticket = adminCaseTicketSubmissionPanel(row);
+    return `<details class="rounded-lg border border-gray-200 bg-white px-3 py-2.5" data-graded-row="${esc(row.id)}" ${open ? 'open' : ''}>
+      <summary class="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2 text-sm">
+        <span class="font-medium text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</span>
+        <span class="flex flex-wrap items-center gap-1.5">${pill(hasScore ? `${row.score}%` : 'No score', !hasScore ? 'bg-gray-100 text-gray-600' : passing ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}${outcomePill(row)}<span class="w-7 h-7 grid place-items-center rounded-full bg-gray-50 border border-gray-200 text-gray-500 text-lg transition-transform" data-grading-chevron aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></span>
+      </summary>
+      <p class="mt-2 text-xs text-gray-500">${esc(item.labTitles.join(' · '))}</p>
+      <p class="mt-1 text-xs text-gray-500">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}${row.reviewed_at ? ` · Reviewed ${new Date(row.reviewed_at).toLocaleString()}` : ''}</p>
+      ${ticket ? `<div class="mt-3">${ticket}</div>` : ''}
+    </details>`;
+  };
+  const attemptHtml = (item, isLatest) => (pending.has(item.lead.id) ? adminAttemptReviewCard(item, !isLatest) : recordRow(item, isLatest));
+  const phaseOrder = (meta) => meta.number * 10 + Math.max(0, ['LEARN IT', 'PRACTICE IT', 'PROVE IT'].indexOf(meta.kind));
+  const domId = (value) => String(value).replace(/[^a-zA-Z0-9_-]/g, '-');
+
+  const students = groups.map((student) => {
+    const byName = new Map();
+    student.modules.flatMap((module) => module.items).forEach((item) => byName.set(item.name, [...(byName.get(item.name) || []), item]));
+    const phases = Array.from(byName.entries()).map(([name, items]) => {
+      // Newest first; same-millisecond duplicates fall back to attempt number.
+      const ordered = items.slice().sort((a, b) => String(b.lead.completed_at).localeCompare(String(a.lead.completed_at))
+        || ((b.lead.attempt && b.lead.attempt.number) || 0) - ((a.lead.attempt && a.lead.attempt.number) || 0));
+      const meta = adminGradingLabMeta(ordered[0].lead);
+      return { name, items: ordered, meta, key: `${student.studentId}|${name}`, status: status(ordered[0].lead) };
+    }).sort((a, b) => phaseOrder(a.meta) - phaseOrder(b.meta));
+    return { ...student, phases, pendingItems: student.items.filter((item) => pending.has(item.lead.id)).length };
+  }).sort((a, b) => (b.pendingItems > 0) - (a.pendingItems > 0) || String(a.studentId).localeCompare(String(b.studentId)));
+
+  const studentCard = (student) => `<section class="bg-white border ${student.pendingItems ? 'border-amber-200' : 'border-gray-200'} rounded-xl px-5 py-4" data-grading-student="${esc(student.studentId)}">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(student.studentId)}</p>
+        <p class="text-xs text-gray-500">${student.pendingItems ? `<span class="font-semibold text-amber-700">${student.pendingItems} under review</span> · ` : ''}${student.items.length - student.pendingItems} graded</p>
+      </div>
+      <div class="mt-3 grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));">${student.phases.map((phase) => {
+        const row = phase.items[0].lead;
+        const hasScore = row.score !== null && row.score !== undefined;
+        return `<button type="button" data-attempt-chip="${esc(phase.key)}" aria-expanded="false" aria-controls="attempt-panel-${esc(domId(phase.key))}" title="Open the latest ${esc(phase.name)} attempt" class="flex items-center justify-between gap-2 rounded-full border px-3 py-1 text-xs font-semibold text-left transition-shadow hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a5f]/40 ${phase.status.tone}">
+          <span class="flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 flex-shrink-0 rounded-full ${phase.status.dot}" aria-hidden="true"></span><span class="truncate">${esc(phase.name)}</span></span>
+          <span class="flex-shrink-0 tabular-nums">${esc(phase.status.label)}${hasScore ? ` <span class="font-normal opacity-75">· ${esc(String(row.score))}%</span>` : ''}</span>
+        </button>`;
+      }).join('')}</div>
+      ${student.phases.map((phase) => `<div id="attempt-panel-${esc(domId(phase.key))}" data-attempt-panel="${esc(phase.key)}" class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-3" hidden>
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="text-sm font-bold text-[#1e3a5f]">${esc(phase.meta.moduleLabel)} <span class="text-gray-400">·</span> ${esc(phase.meta.kind)}</h3>
+          <button type="button" data-attempt-close class="text-xs font-semibold text-gray-500 hover:text-[#1e3a5f]" aria-label="Close ${esc(phase.name)}">Close <i class="ri-close-line" aria-hidden="true"></i></button>
+        </div>
+        ${attemptHtml(phase.items[0], true)}
+        ${phase.items.length > 1 ? `<details class="rounded-lg border border-gray-200 bg-white">
+          <summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-600">Earlier attempts (${phase.items.length - 1})</summary>
+          <div class="px-3 pb-3 space-y-3">${phase.items.slice(1).map((item) => attemptHtml(item, false)).join('')}</div>
+        </details>` : ''}
+      </div>`).join('')}
+    </section>`;
+
+  return `${header}
+    <div class="mb-3"><input type="search" data-grading-filter placeholder="Filter by student ID" aria-label="Filter by student ID" class="w-full sm:w-72 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" /></div>
+    <div class="space-y-3">${students.map(studentCard).join('')}</div>
+    ${adminOpenRedoRequestsHtml(openRedoRows)}`;
+}
+
 
 // Faculty review must show the student's actual artifact, not only the
 // scorer's interpretation of it. Module 01's independent ticket persists a
@@ -1141,6 +1250,35 @@ function adminCaseTicketSubmissionPanel(row) {
     </dl>
     <div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Analyst work notes · student response</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(record.notes || 'Not provided')}</p></div>
     ${handoffFields.length ? `<div class="mt-3 grid sm:grid-cols-2 gap-2">${handoffFields.map(([label, value]) => `<div class="rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${esc(label)}</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(value)}</p></div>`).join('')}</div>` : ''}
+  </section>`;
+}
+
+// Module 12's scorer artifact is deliberately rendered as a readable review
+// document so faculty do not need to inspect the collapsed raw payload.
+function adminCapstoneReviewPanel(row) {
+  const review = row?.result?.reviewPayload?.reviewArtifact
+    || row?.result?.reviewPayload?.review_artifact;
+  if (!review || typeof review !== 'object') return '';
+  const responses = Array.isArray(review.studentResponses) ? review.studentResponses : [];
+  const determinations = review.studentDeterminations || {};
+  const actions = Array.isArray(review.studentActions) ? review.studentActions : [];
+  const evidence = Array.isArray(review.selectedEvidence) ? review.selectedEvidence : [];
+  const competencies = Array.isArray(review.competencyResults) ? review.competencyResults : [];
+  const explanation = Array.isArray(review.scoreExplanation) ? review.scoreExplanation : [];
+  const responseRows = responses.length ? responses.map((item) => `<article class="rounded-lg border border-gray-200 bg-white p-3">
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">${esc(item.kind || 'Student response')}${item.evidenceIds?.length ? ` · Evidence: ${esc(item.evidenceIds.join(', '))}` : ''}</p>
+    <p class="mt-1 whitespace-pre-wrap text-sm text-gray-800">${esc(item.text || 'Not provided')}</p>
+  </article>`).join('') : '<p class="text-sm text-gray-500">No written responses recorded.</p>';
+  return `<section class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" aria-label="Capstone analyst response and scoring">
+    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h3 class="text-sm font-semibold text-[#1e3a5f]">Student Analyst Response · Capstone v${esc(row?.result?.reviewPayload?.rubricVersion || '1')}</h3><span class="text-xs text-gray-500">${esc(review.instructorReviewStatus || 'needs_review').replaceAll('_', ' ')}</span></div>
+    <div class="space-y-2">${responseRows}</div>
+    <h4 class="mt-4 mb-2 text-sm font-semibold text-[#1e3a5f]">Competency breakdown</h4>
+    <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white"><table class="w-full text-left text-sm"><thead><tr class="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500"><th class="p-2">Competency</th><th class="p-2">Points</th><th class="p-2">Evidence and scoring explanation</th></tr></thead><tbody>${competencies.map((item) => `<tr class="border-b border-gray-100 align-top"><th class="p-2 font-medium text-gray-800">${esc(item.label || item.id || 'Competency')}</th><td class="p-2 whitespace-nowrap">${esc(item.points ?? 0)} / ${esc(item.max ?? 0)}</td><td class="p-2 text-gray-700">${[...(item.supportingEvidence || []), ...(item.misses || [])].map(esc).join('<br>') || 'No additional detail.'}</td></tr>`).join('')}</tbody></table></div>
+    ${explanation.length ? `<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">${explanation.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}
+    <details class="mt-3 rounded-lg border border-gray-200 bg-white p-3"><summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">Evidence, determinations, and actions</summary>
+      <p class="mt-2 text-sm"><strong>Selected evidence:</strong> ${esc(evidence.join(', ') || 'None')}</p>
+      <pre class="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-gray-700">${esc(JSON.stringify({ determinations, actions }, null, 2))}</pre>
+    </details>
   </section>`;
 }
 
@@ -3692,6 +3830,17 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
         user_id: user.userId, module_key: moduleKey, track_code: user.trackCode,
         state: 'in_progress', case_state: caseState,
       });
+      // Another lab may have inserted this module row after our read. Merge
+      // into that row and retry so the first concurrent case_state writes land.
+      if (writeResult.error && writeResult.error.code === '23505') {
+        const { data: racedRow, error: racedReadError } = await mntSupabase.from('module_progress')
+          .select('case_state').eq('user_id', user.userId).eq('track_code', user.trackCode)
+          .eq('module_key', moduleKey).maybeSingle();
+        if (racedReadError) throw racedReadError;
+        const racedState = racedRow?.case_state && typeof racedRow.case_state === 'object' ? racedRow.case_state : {};
+        writeResult = await mntSupabase.from('module_progress').update({ case_state: { ...racedState, [labId]: state } })
+          .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+      }
     }
     if (writeResult.error) console.error('module case_state write failed', moduleKey, labId, writeResult.error);
     else user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: caseState };
@@ -5824,6 +5973,7 @@ const adminLazyTabData = {
 // Keeping every participating read within this ceiling prevents a long session
 // or completion history from holding the entire admin workspace hostage.
 const ADMIN_ACTIVITY_ROW_LIMIT = 250;
+const ADMIN_GRADED_ROW_LIMIT = 500;
 const ADMIN_ACTIVITY_LOAD_TIMEOUT_MS = 12000;
 
 function withAdminReadTimeout(label, promise, timeoutMs = ADMIN_ACTIVITY_LOAD_TIMEOUT_MS) {
@@ -6127,8 +6277,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // admin left that workspace (e.g. back to "All Students") while still on
   // Grading, fall back to Student Progress rather than rendering a
   // still-"active" tab whose panel no longer exists in the DOM at all.
-  let activeTab = (!activeTrackCode && requestedAdminTab === 'grading') ? 'progress' : requestedAdminTab;
-  if (instructorDashboard && !['progress', 'grading', 'messages'].includes(activeTab)) activeTab = 'progress';
+  // Grading and Graded are one "Lab Attempts" tab now (data key 'grading').
+  const requestedTab = requestedAdminTab === 'graded' ? 'grading' : requestedAdminTab;
+  let activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
+  if (instructorDashboard && !['progress', 'grading', 'graded', 'messages'].includes(activeTab)) activeTab = 'progress';
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
   // Administrators supervise every course workspace. Instructors remain
   // limited to their explicit faculty_course_assignments.
@@ -6147,6 +6299,10 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // inside a specific track's workspace.
   const trackGradingQueueRows = normalizedTrackData.trackGradingQueueRows || (activeTrackCode ? filterByTrack(gradingQueueRows, activeTrackCode) : []);
   const trackOpenLabRedoRows = normalizedTrackData.trackOpenLabRedoRows || (activeTrackCode ? filterByTrack(openLabRedoRows, activeTrackCode) : []);
+  const trackGradedRows = normalizedTrackData.trackGradedRows || [];
+  const trackSupersededRows = normalizedTrackData.trackSupersededRows || [];
+  const trackAutogradedRows = normalizedTrackData.trackAutogradedRows || [];
+  const trackGradingItemCount = adminGroupGradingRows(trackGradingQueueRows).reduce((n, student) => n + student.items.length, 0);
   const trackFacultyMessageRows = normalizedTrackData.trackFacultyMessageRows || (activeTrackCode ? filterByTrack(facultyMessageRows, activeTrackCode) : []);
   const tabIsActive = (key) => key === activeTab;
   const tabBtnClass = (key) =>
@@ -6224,8 +6380,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           <button type="button" role="tab" aria-selected="${tabIsActive('cohorts')}" data-admin-tab="cohorts" class="${tabBtnClass('cohorts')}">Cohorts</button>
           <button type="button" role="tab" aria-selected="${tabIsActive('archived')}" data-admin-tab="archived" class="${tabBtnClass('archived')}">Archived Students</button>` : ''}
           ${activeTrackCode ? `<button type="button" role="tab" aria-selected="${tabIsActive('grading')}" data-admin-tab="grading" class="${tabBtnClass('grading')}">
-            Grading${trackGradingQueueRows.length ? ` <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700">${trackGradingQueueRows.length}</span>` : ''}
-          </button>${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')} inline-flex items-center gap-1.5" aria-label="Course messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? `, ${unreadMessageCountsByTrack.get(activeTrackCode)} unread` : ''}">
+            Lab Attempts${trackGradingItemCount ? ` <span aria-label="${trackGradingItemCount} awaiting review" class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700">${trackGradingItemCount}</span>` : ''}
+          </button>
+${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')} inline-flex items-center gap-1.5" aria-label="Course messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? `, ${unreadMessageCountsByTrack.get(activeTrackCode)} unread` : ''}">
             <i class="ri-notification-3-line" aria-hidden="true"></i> Messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? ` <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">${unreadMessageCountsByTrack.get(activeTrackCode)}</span>` : ''}
           </button>` : ''}` : ''}
         </div>
@@ -6455,7 +6612,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
                    </div></div>
                  </div>
                  ` : ''}
-                 ${instructorDashboard ? '' : adminTrackAdministrationStrip(rows, activeTrackCode, gradingCountsByTrack, unreadMessageCountsByTrack)}
+                 ${instructorDashboard ? '' : adminTrackAdministrationStrip(rows, activeTrackCode, activeTrackCode ? new Map(gradingCountsByTrack).set(activeTrackCode, trackGradingItemCount) : gradingCountsByTrack, unreadMessageCountsByTrack)}
                  ${activeTrack ? `<section class="order-3 bg-[#f8fafc] border border-gray-200 rounded-xl p-4 mb-4"><h2 class="text-lg font-bold text-[#1e3a5f]">${esc(activeTrack.title)} summary</h2><p class="text-sm text-gray-600 mt-1">${rosterRows.filter((r) => r.enrolled !== false).length} enrolled · ${rosterRows.filter((r) => (r.modules_complete || 0) === 0 && (r.modules_in_progress || 0) === 0).length} not started · ${rosterRows.filter((r) => (r.modules_complete || 0) >= 12).length} technical complete · ${rosterRows.filter((r) => r.m360_course_complete).length} M360 complete · ${rosterRows.filter((r) => Number(r.work_items_completed || 0) >= 18 && !r.m360_course_complete).length} verification pending</p></section>` : ''}
                  ${activeTrackCode ? adminProgramRoster(rosterRows) : ''}
                  ${!activeTrackCode ? `
@@ -6757,7 +6914,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
         </div>
 
         ${activeTrackCode ? `<div id="admin-tab-panel-grading" ${tabIsActive('grading') ? '' : 'hidden'}>
-          ${adminGradingQueuePanel(trackGradingQueueRows, trackOpenLabRedoRows)}
+          ${adminLabAttemptsPanel({ pendingRows: trackGradingQueueRows, gradedRows: trackGradedRows, supersededRows: trackSupersededRows, autogradedRows: trackAutogradedRows, openRedoRows: trackOpenLabRedoRows })}
         </div>` : ''}
         ${activeTrackCode ? `<div id="admin-tab-panel-messages" ${tabIsActive('messages') ? '' : 'hidden'}>
           ${adminMessageInboxPanel(trackFacultyMessageRows)}
@@ -6965,6 +7122,8 @@ async function render(options = {}) {
   let cheatingFlagsByUserId = new Map();
   let gradingQueueRows = [];
   let openLabRedoRows = [];
+  let gradedRows = [];
+  let supersededRows = [];
   let unreadMessageRows = [];
   let facultyMessageRows = [];
   let facultyMessageTrackCodes = [];
@@ -7064,6 +7223,34 @@ async function render(options = {}) {
       if (openRedoResult.error) console.error('open lab redo fetch failed', openRedoResult.error);
       openLabRedoRows = openRedoResult.data || [];
 
+      // Graded tab: reviewed attempts for the selected course only. RLS limits
+      // instructors to their assigned courses (lab_attempts_assigned_instructor_read).
+      if (selectedAdminTrack) {
+        const gradedResult = await mntSupabase
+          .from('lab_attempts')
+          .select('id, user_id, track_code, lab_key, score, pass_threshold, result, started_at, completed_at, reviewed_at, redo_requested')
+          .eq('track_code', selectedAdminTrack)
+          .not('reviewed_at', 'is', null)
+          .order('reviewed_at', { ascending: false })
+          .limit(ADMIN_GRADED_ROW_LIMIT);
+        if (gradedResult.error) console.error('graded lab attempts fetch failed', gradedResult.error);
+        const gradedStudentIdByUserId = new Map(dashboardRows.map((row) => [row.user_id, row.student_id]));
+        gradedRows = (gradedResult.data || []).map((row) => ({ ...row, student_id: gradedStudentIdByUserId.get(row.user_id) || 'Unknown student' }));
+
+        // Unreviewed attempts a newer submission replaced (superseded_at,
+        // 20261005210000_one_pending_prove_it_submission.sql). The grading
+        // queues skip them, so Graded lists them as history instead.
+        const supersededResult = await mntSupabase
+          .from('lab_attempts')
+          .select('id, user_id, track_code, lab_key, score, pass_threshold, result, started_at, completed_at, superseded_at')
+          .eq('track_code', selectedAdminTrack)
+          .not('superseded_at', 'is', null)
+          .order('completed_at', { ascending: false })
+          .limit(ADMIN_GRADED_ROW_LIMIT);
+        if (supersededResult.error) console.error('superseded lab attempts fetch failed', supersededResult.error);
+        supersededRows = (supersededResult.data || []).map((row) => ({ ...row, student_id: gradedStudentIdByUserId.get(row.user_id) || 'Unknown student' }));
+      }
+
       const unreadMessagesResult = await mntSupabase
         .from('admin_unread_student_messages')
         .select('id, thread_id, user_id, student_id, track_code, subject, body, context, created_at')
@@ -7099,7 +7286,7 @@ async function render(options = {}) {
         activeStudents = sortStudentsById(dashboardRows.filter((row) => isActiveStudent(row, activityMap)));
         cheatingFlagsByUserId = buildCheatingReviewFlags(dashboardRows, adminLazyTabData.activity.completedRows || []);
       }
-      normalizedTrackData = normalizeAdminTrackData({ rows: dashboardRows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, facultyMessageRows });
+      normalizedTrackData = normalizeAdminTrackData({ rows: dashboardRows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, gradedRows, supersededRows, facultyMessageRows });
       app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, applyAdminLazyData({
         cheatingFlagsByUserId,
         activeTab: adminActiveTab,
@@ -7955,6 +8142,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
     cohorts: document.getElementById('admin-tab-panel-cohorts'),
     archived: document.getElementById('admin-tab-panel-archived'),
     grading: document.getElementById('admin-tab-panel-grading'),
+    graded: document.getElementById('admin-tab-panel-graded'),
     messages: document.getElementById('admin-tab-panel-messages'),
   };
   tabButtons.forEach((btn) => {
@@ -7970,7 +8158,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
         b.classList.toggle('text-gray-500', !active);
       });
       Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
-      if (target !== 'progress' && target !== 'grading' && target !== 'messages' && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
+      if (!['progress', 'grading', 'graded', 'messages'].includes(target) && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
         await ensureAdminLazyTab(target);
         await render({ reuseAdminRoster: true });
       }
@@ -8326,7 +8514,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     });
   });
 
-  async function submitGradingDecision(attemptId, article, { redo }) {
+  async function submitGradingDecision(attemptIdList, article, { redo }) {
+    const attemptIds = String(attemptIdList).split(',').filter(Boolean);
     const statusEl = article.querySelector('[data-grading-status]');
     const buttons = article.querySelectorAll('button[data-action^="admin-grading-"]');
     buttons.forEach((b) => { b.disabled = true; });
@@ -8349,12 +8538,12 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
 
       if (feedbackItems.length > 0) {
         const { error: feedbackError } = await mntSupabase.from('lab_attempt_feedback').insert(
-          feedbackItems.map((item) => ({
+          attemptIds.flatMap((attemptId) => feedbackItems.map((item) => ({
             lab_attempt_id: attemptId,
             item_label: item.item_label || '(untitled item)',
             comment: item.comment,
             created_by: adminUserId,
-          }))
+          })))
         );
         if (feedbackError) throw feedbackError;
       }
@@ -8362,16 +8551,57 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       const { error: reviewError } = await mntSupabase
         .from('lab_attempts')
         .update({ reviewed_at: new Date().toISOString(), reviewed_by: adminUserId, redo_requested: !!redo })
-        .eq('id', attemptId);
+        .in('id', attemptIds);
       if (reviewError) throw reviewError;
 
       if (statusEl) statusEl.textContent = redo ? 'Sent back. Refreshing…' : 'Approved. Refreshing…';
+      // The refresh re-opens the same attempt (adminOpenAttemptPanel), now
+      // showing its recorded outcome instead of the review card.
       await render({ reuseAdminRoster: true });
       return; // render() rebuilt the DOM and re-wired everything; this node set is stale now.
     } catch (err) {
       buttons.forEach((b) => { b.disabled = false; });
       if (statusEl) statusEl.textContent = `Failed: ${err && err.message ? err.message : String(err)}`;
     }
+  }
+
+  document.querySelectorAll('[data-grading-filter]').forEach((input) => {
+    const panel = input.closest('[id^="admin-tab-panel-"]') || document;
+    input.addEventListener('input', () => {
+      const query = input.value.trim().toLocaleLowerCase();
+      panel.querySelectorAll('[data-grading-student]').forEach((group) => {
+        group.hidden = !!query && !group.dataset.gradingStudent.toLocaleLowerCase().includes(query);
+      });
+    });
+  });
+
+  // Lab Attempts pills: one open attempt per learner card; clicking the open
+  // pill (or Close) folds it away again.
+  const setAttemptPanel = (card, key) => {
+    card.querySelectorAll('[data-attempt-panel]').forEach((panel) => { panel.hidden = panel.dataset.attemptPanel !== key; });
+    card.querySelectorAll('[data-attempt-chip]').forEach((chip) => {
+      const open = chip.dataset.attemptChip === key;
+      chip.setAttribute('aria-expanded', open ? 'true' : 'false');
+      chip.classList.toggle('ring-2', open);
+      chip.classList.toggle('ring-[#1e3a5f]/40', open);
+    });
+    adminOpenAttemptPanel = key;
+  };
+  document.querySelectorAll('[data-attempt-chip]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const card = chip.closest('[data-grading-student]');
+      const key = chip.dataset.attemptChip;
+      setAttemptPanel(card, chip.getAttribute('aria-expanded') === 'true' ? null : key);
+      const panel = key && Array.from(card.querySelectorAll('[data-attempt-panel]')).find((el) => el.dataset.attemptPanel === key);
+      if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+  document.querySelectorAll('[data-attempt-close]').forEach((btn) => {
+    btn.addEventListener('click', () => setAttemptPanel(btn.closest('[data-grading-student]'), null));
+  });
+  if (adminOpenAttemptPanel) {
+    const chip = Array.from(document.querySelectorAll('[data-attempt-chip]')).find((el) => el.dataset.attemptChip === adminOpenAttemptPanel);
+    if (chip) setAttemptPanel(chip.closest('[data-grading-student]'), adminOpenAttemptPanel);
   }
 
   document.querySelectorAll('[data-action="admin-grading-approve"]').forEach((btn) => {
@@ -9029,6 +9259,125 @@ function adminModuleLabel(trackCode, moduleKey) {
 function adminLabLabel(labKey) {
   const lab = LABS.find((l) => l.key === labKey);
   return lab ? lab.title : labKey;
+}
+
+/* Grading/Graded tabs group attempts student → module → item so faculty can
+ * see at a glance which module and which piece of work each one is. */
+
+// Lab keys each module's Prove It submits today (soc-analyst-module-NN.js).
+// Modules 07 and 08 write one row per catalog lab from a single submit; those
+// rows are shown and graded together as one item.
+const ADMIN_PROVE_IT_LAB_KEYS = new Set([
+  'lab-soc-escalation', 'lab-identity-investigation', 'lab-siem-triage', 'lab-detection-rule',
+  'lab-endpoint-investigation', 'lab-threat-hunt-independent', 'lab-email-triage', 'lab-network-investigation',
+  'lab-network-email-independent', 'lab-vuln-prioritization', 'lab-vuln-queue', 'lab-active-incident',
+  'lab-attack-mapping', 'lab-exec-report',
+]);
+
+function adminGradingLabMeta(row) {
+  const lab = LABS.find((l) => l.key === row.lab_key);
+  // Knowledge checks are recorded as `<module key>-knowledge-check`.
+  const knowledgeCheck = !lab && /^(.+)-knowledge-check$/.exec(String(row.lab_key || ''));
+  const moduleKey = lab ? lab.module : knowledgeCheck ? knowledgeCheck[1] : '';
+  const slug = TRACK_CODE_TO_PROGRAM_SLUG[row.track_code];
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  const module = program && program.modules && program.modules[moduleKey];
+  const number = module ? module.number : null;
+  // The Academy's own phase names: Learn It (knowledge check), Practice It
+  // (guided lab), Prove It (assessment lab or capstone).
+  // Outside SOC every catalogued lab is the module's instructor-approved
+  // assessment (course_module_labs maps all HDESK/AIENG labs), so it is a
+  // Prove It, not an unlabelled "LAB".
+  const kind = knowledgeCheck ? 'LEARN IT'
+    : (lab && lab.kind === 'capstone') || ADMIN_PROVE_IT_LAB_KEYS.has(row.lab_key) ? 'PROVE IT'
+    : slug === 'soc-analyst' ? 'PRACTICE IT' : lab ? 'PROVE IT' : 'LAB';
+  return {
+    moduleKey: module ? moduleKey : 'other',
+    number: number === null ? 999 : number,
+    moduleLabel: module ? `Module ${String(number).padStart(2, '0')} · ${module.title}` : 'Other labs',
+    labTitle: lab ? lab.title : knowledgeCheck ? 'Knowledge check' : row.lab_key,
+    kind,
+    itemName: module ? `Module ${number} · ${kind}` : (lab ? lab.title : row.lab_key),
+  };
+}
+
+// Rows from the same learner, module, kind, and submit time are one item.
+function adminGroupGradingRows(rows) {
+  const byStudent = new Map();
+  rows.forEach((row) => {
+    const meta = adminGradingLabMeta(row);
+    const student = byStudent.get(row.student_id) || { studentId: row.student_id, items: [], modules: new Map() };
+    const module = student.modules.get(meta.moduleKey) || { key: meta.moduleKey, number: meta.number, label: meta.moduleLabel, items: new Map() };
+    let itemKey = `${row.user_id}|${meta.moduleKey}|${meta.kind}|${row.completed_at}`;
+    let item = module.items.get(itemKey);
+    // Two attempts of the SAME lab are never one item, even when a repeated
+    // submit stamped both with the same millisecond; merging them hid the
+    // second attempt from Graded after one Approve reviewed both.
+    while (item && item.rows.some((other) => other.lab_key === row.lab_key)) {
+      itemKey += '+';
+      item = module.items.get(itemKey);
+    }
+    if (!item) {
+      item = { lead: row, rows: [], ids: [], name: meta.itemName, labTitles: [] };
+      module.items.set(itemKey, item);
+      student.items.push(item);
+    }
+    item.rows.push(row);
+    item.ids.push(row.id);
+    item.labTitles.push(meta.labTitle);
+    student.modules.set(meta.moduleKey, module);
+    byStudent.set(row.student_id, student);
+  });
+  return Array.from(byStudent.values())
+    .sort((a, b) => String(a.studentId).localeCompare(String(b.studentId)))
+    .map((student) => ({
+      ...student,
+      modules: Array.from(student.modules.values())
+        .sort((a, b) => a.number - b.number)
+        .map((module) => ({ ...module, items: Array.from(module.items.values()) })),
+    }));
+}
+
+
+
+// "Attempt N of M" per learner and lab, over every submitted attempt faculty
+// can see (pending + reviewed), oldest first.
+function adminNumberAttempts(rows) {
+  const byLab = new Map();
+  rows.forEach((row) => {
+    const key = `${row.user_id}|${row.lab_key}`;
+    byLab.set(key, [...(byLab.get(key) || []), row]);
+  });
+  const numbers = new Map();
+  byLab.forEach((attempts) => attempts
+    .sort((a, b) => String(a.completed_at).localeCompare(String(b.completed_at)))
+    .forEach((row, index) => numbers.set(row.id, { number: index + 1, of: attempts.length })));
+  return numbers;
+}
+
+function adminNeedsInstructorReview(row) {
+  return !['LEARN IT', 'PRACTICE IT'].includes(adminGradingLabMeta(row).kind);
+}
+
+function adminAttemptLabel(row) {
+  return row.attempt ? `Attempt ${row.attempt.number} of ${row.attempt.of}` : '';
+}
+
+// A pending attempt is superseded once the same learner has a later attempt of
+// the same lab that faculty already reviewed; it no longer needs a decision.
+function adminSplitSupersededAttempts(pendingRows, gradedRows) {
+  const latestReviewed = new Map();
+  (gradedRows || []).forEach((row) => {
+    const key = `${row.user_id}|${row.lab_key}`;
+    if (String(row.completed_at) > String(latestReviewed.get(key) || '')) latestReviewed.set(key, row.completed_at);
+  });
+  const pending = [];
+  const superseded = [];
+  (pendingRows || []).forEach((row) => {
+    const reviewedAt = latestReviewed.get(`${row.user_id}|${row.lab_key}`);
+    (reviewedAt && String(reviewedAt) > String(row.completed_at) ? superseded : pending).push(row);
+  });
+  return { pending, superseded };
 }
 
 function adminStateLabel(state) {
