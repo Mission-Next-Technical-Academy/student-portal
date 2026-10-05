@@ -1,0 +1,41 @@
+name: Local dev launcher
+
+# bin/dev.sh must serve the portal against staging by default and behave the
+# same on macOS and Linux (ISSUE-021, ISSUE-022). Serves files only; nothing
+# here signs in or writes to a Supabase project.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  launcher:
+    name: Launcher (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Tool versions
+        run: |
+          bash --version | head -1
+          python3 --version
+          node --version
+          command -v setsid || echo "no setsid (expected on macOS)"
+      - name: serve.py --override unit test
+        run: node tests/serve-override.test.js
+      - name: Generated config unit test
+        run: node tests/local-config.test.js
+      - name: Admin script target guard test
+        run: node tests/supabase-target.test.js
+      - name: dev.sh smoke test
+        run: bash tests/dev-launcher.smoke.sh
+      - name: Server logs (on failure)
+        if: failure()
+        run: tail -n 50 .portal.log .simulator.log || true
