@@ -1,26 +1,15 @@
 // supabase/functions/check-login-geofence/index.ts
 //
-// Login geofencing (docs/SESSION_SECURITY_SPEC.md, Decision 2). Called once,
-// immediately after portal/app.js's recordSiteSessionStart() inserts a new
-// public.site_sessions row for a sign-in that just succeeded. Decides
+// Login geofencing (docs/SESSION_SECURITY_SPEC.md, Decision 2). Called by
+// secure-login after it inserts the trusted public.site_sessions row and
+// before it returns the Auth tokens to the browser. Decides
 // whether the request's geolocated country is on a short denylist, and if
 // so revokes the session that was just issued.
 //
-// Why this is a POST-AUTH revoke, not a pre-auth block: the client calls
-// mntSupabase.auth.signInWithPassword() directly against Supabase's hosted
-// GoTrue service — that request never passes through this project's own
-// Postgres or Edge Functions, so there is no hook point in this
-// architecture to inspect the request's IP before Supabase Auth issues a
-// session. Same constraint record-login-geo already lives with (see that
-// function's own header comment). The fix is the same shape already used
-// elsewhere in this schema for "close it after the fact" cases
-// (admin_force_sign_out(), close_idle_site_sessions()): authenticate first,
-// then immediately geo-check and revoke if blocked. Accepted caveat, same
-// as those two: revoking auth.sessions blocks the *next* token
-// refresh/reload, it does not instantly kill an access token already
-// sitting in the browser from the last few seconds. That is acceptable for
-// this use case — do not "fix" it later by chasing an unreachable pre-auth
-// block; there isn't one in this architecture.
+// secure-login performs the password grant itself and holds the resulting
+// tokens until this function finishes. A blocked attempt is revoked before
+// the browser receives them; the direct Auth endpoint still exists, but its
+// unregistered session cannot write to academy tables.
 //
 // Why this is a SEPARATE function from record-login-geo, not a modification
 // of it: record-login-geo's only job stays "enrich, never block" — it is
@@ -249,7 +238,9 @@ Deno.serve(async (req: Request) => {
       // admin_force_sign_out(): blocks the *next* token refresh/reload,
       // does not instantly kill an access token already held in the
       // browser from the last few seconds.
-      const { error: signOutError } = await serviceClient.auth.admin.signOut(bearerToken, 'global');
+      // This token is the newly attempted sign-in. Revoke only its session;
+      // a blocked location must not sign the learner out on other devices.
+      const { error: signOutError } = await serviceClient.auth.admin.signOut(bearerToken, 'local');
       if (signOutError) {
         console.error('check-login-geofence: auth admin signOut failed', signOutError.message);
       }

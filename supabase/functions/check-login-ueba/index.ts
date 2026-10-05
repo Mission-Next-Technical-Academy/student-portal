@@ -1,10 +1,9 @@
 // supabase/functions/check-login-ueba/index.ts
 //
 // UEBA-lite habitual-IP arbitration for students (SESSION_SECURITY_
-// SPEC.md, Decision 4). Called once, immediately after portal/app.js's
-// recordLoginEvent() inserts a new public.login_events row, and BEFORE
-// recordSiteSessionStart()'s insert (unlike check-login-geofence, which
-// runs after — see Decision 3 for why the ordering matters: this function
+// SPEC.md, Decision 4). Called by secure-login after it inserts a new
+// public.login_events row, and BEFORE it inserts the new site_sessions row
+// (unlike check-login-geofence, which runs after — this function
 // may close an already-open site_sessions row so the concurrency trigger,
 // 20260906120000_site_session_concurrency_cap.sql, doesn't wrongly reject
 // the new insert, and it needs to decide before any new row exists).
@@ -301,17 +300,19 @@ Deno.serve(async (req: Request) => {
     }
 
     // Both remaining outcomes are a real block, not just a UI courtesy: the
-    // sign-in already succeeded upstream (signInWithPassword() handed the
-    // caller a live session before this function ever ran), so "block" must
+    // sign-in has authenticated upstream, but secure-login has not yet
+    // returned the token to the caller, so "block" must
     // revoke that session server-side the same way check-login-geofence
     // does — otherwise a credential-stuffing attempt with valid stolen
     // credentials keeps a working JWT regardless of what our own site_
     // sessions bookkeeping or the client's own signOut() call do. Same
-    // auth.admin.signOut(bearerToken, 'global') call, same accepted "blocks
+    // auth.admin.signOut(bearerToken, 'local') call, same accepted "blocks
     // next refresh, not an already-held access token" caveat — see check-
     // login-geofence's own comment for the full "why not a raw DELETE"
     // reasoning; identical here.
-    const { error: signOutError } = await serviceClient.auth.admin.signOut(bearerToken, 'global');
+    // Reject only the just-attempted login. An account-wide revocation would
+    // sign out unrelated active devices when a suspicious login is blocked.
+    const { error: signOutError } = await serviceClient.auth.admin.signOut(bearerToken, 'local');
     if (signOutError) {
       console.error('check-login-ueba: auth admin signOut failed', signOutError.message);
     }

@@ -1337,6 +1337,7 @@ function moduleSevenFinalizeProveIt() {
     const attemptFields = {
       state: 'complete',
       score: performance.score,
+      submittedAt: now,
       result: {
         rubric_version: scored.rubricVersion,
         breakdown: performance.breakdown,

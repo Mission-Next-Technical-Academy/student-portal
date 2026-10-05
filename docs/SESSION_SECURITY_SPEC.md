@@ -1,5 +1,23 @@
 # Concurrent session cap + login geofencing
 
+## Current login enforcement (2026-10-05)
+
+The original client-orchestrated login flow described below has been replaced
+by `supabase/functions/secure-login`. It performs the password grant, records
+the login event, runs UEBA before opening a session, inserts `site_sessions`
+with the Auth JWT `session_id`, and runs geofencing before returning tokens.
+Authenticated clients cannot insert trusted session rows. Database triggers
+reject authenticated writes unless the JWT session ID belongs to a live
+`site_sessions` row. The portal also rejects restored sessions without that
+binding. The idle sweep closes and revokes only the matching Auth session.
+
+After applying `20261005230000_session_bound_login.sql`, deploy
+`secure-login`, `check-login-ueba`, and `check-login-geofence` together. The
+last two now revoke only the attempted login when a check blocks it. Sessions
+created before the migration have no binding; users must sign in again after
+the new function is deployed. The existing student cap is two concurrent
+sessions (admins: four).
+
 ## UAT finding + fix (2026-09-06, after initial deploy)
 
 Browser UAT of a real login (`8987495051-SOCAN` at `127.0.0.1:8768/#/login`)

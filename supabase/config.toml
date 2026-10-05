@@ -412,3 +412,8 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Login starts without a JWT. secure-login validates credentials itself via
+# Supabase Auth and returns tokens only after server-side security checks.
+[functions.secure-login]
+verify_jwt = false
