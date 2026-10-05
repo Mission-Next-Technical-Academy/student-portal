@@ -126,8 +126,9 @@ on reload. Only the portal's `/supabase-config.js` is swapped (`bin/serve.py
 --override`) for a copy generated outside the repo that names staging. The
 repo's `portal/supabase-config.js` itself still names production, because
 that is what the deployed site uses. So **do not serve `portal/` any other
-way** (`python3 -m http.server`, a hand-made `serve.py` command, another
-static server): that skips the swap and connects to production.
+way** (`python3 -m http.server`, another static server): that skips the swap
+and connects to production. `bin/serve.py` run by hand on `portal/` refuses
+to start for this reason unless given `--allow-production`; don't pass it.
 
 `bin/dev.sh --production` (or `start --production`) is the explicit opt-in to
 the live production project: it prints a warning and shows a red

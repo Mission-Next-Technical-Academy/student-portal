@@ -17,14 +17,26 @@ string is ignored. bin/dev.sh uses it to swap in a generated
 live from the repo. A request that resolves to the shadowed file by another
 spelling (case, "./", "%73") gets the override too, so the repo copy behind it
 is never served.
+
+Fails closed on production: it refuses to start if the /supabase-config.js it
+would serve (the --directory copy, or the --override for it) names the
+production Supabase project, unless --allow-production is passed. The repo's
+portal/supabase-config.js names production, so serving portal/ directly
+without the staging swap stops here; use bin/dev.sh. Serving ui/ (no
+supabase-config.js) is unaffected.
 """
 
 import argparse
 import os
 import posixpath
+import sys
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import unquote, urlsplit
+
+CONFIG_PATH = '/supabase-config.js'
+# Same ref as bin/lib/targets.sh and bin/lib/supabase-target.js.
+PRODUCTION_REF = 'eokvngifirjgfozzbieu'
 
 
 class NoCacheHandler(SimpleHTTPRequestHandler):
@@ -57,6 +69,26 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         pass
 
 
+def production_config_refusal(directory, overrides):
+    """A reason to refuse, if the served /supabase-config.js names production.
+
+    Checks the file's content, not its name: the copy that would actually be
+    served (the --override for it, else the one in --directory).
+    """
+    replacement = next((r for path, _, r in overrides if path == CONFIG_PATH), None)
+    served = replacement or os.path.join(directory, CONFIG_PATH.lstrip('/'))
+    if not os.path.isfile(served):
+        return None
+    with open(served, encoding='utf-8', errors='replace') as f:
+        if PRODUCTION_REF not in f.read():
+            return None
+    source = 'the --override file %s' % served if replacement else served
+    return ('STOPPED: %s points at the PRODUCTION Supabase project (%s), so the '
+            'portal would read and write real student data.\n'
+            'Run the portal with bin/dev.sh instead: it serves staging by default. '
+            'Pass --allow-production only if you really mean production.' % (source, PRODUCTION_REF))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('port', type=int)
@@ -64,6 +96,8 @@ def main():
     parser.add_argument('--directory', required=True)
     parser.add_argument('--override', action='append', default=[], metavar='URLPATH=FILE',
                         help='serve FILE for requests to URLPATH (repeatable)')
+    parser.add_argument('--allow-production', action='store_true',
+                        help='serve a /supabase-config.js that names the production project')
     args = parser.parse_args()
 
     overrides = []
@@ -73,6 +107,11 @@ def main():
             parser.error('--override needs /URLPATH=EXISTING_FILE, got %r' % spec)
         shadowed = os.path.join(args.directory, url_path.lstrip('/'))
         overrides.append((posixpath.normpath(url_path), shadowed, os.path.abspath(replacement)))
+
+    if not args.allow_production:
+        refusal = production_config_refusal(args.directory, overrides)
+        if refusal:
+            sys.exit(refusal)
 
     handler = partial(NoCacheHandler, directory=args.directory, overrides=tuple(overrides))
     HTTPServer((args.bind, args.port), handler).serve_forever()

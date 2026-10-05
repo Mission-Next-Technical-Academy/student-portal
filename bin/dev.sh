@@ -234,14 +234,16 @@ run() {
   echo "Starting Mission Next Technical Academy locally (target=$target):"
   [ "$target" = STAGING ] && staging_health_check
 
-  local portal_needed=1
+  local portal_needed=1 dir=""
   if [ "$running" = "$target" ]; then
     portal_needed=0
   else
     # Generate the swapped config before starting anything, so a failure here
     # leaves nothing running.
+    # Use this run's own folder below, never a re-read of the shared state
+    # file, which a concurrent run could have rewritten.
     clear_state
-    local base="${TMPDIR:-/tmp}" dir
+    local base="${TMPDIR:-/tmp}"
     dir="$(mktemp -d "${base%/}/mnta-local.XXXXXX")"
     case "$dir/" in "$ROOT"/*) rm -rf "$dir"; fail "the temp folder ($dir) is inside the repo; set TMPDIR elsewhere." ;; esac
     echo "$dir" >"$TMPDIR_FILE"
@@ -258,8 +260,12 @@ run() {
     start_server "$SIM_PORT" "$ROOT/ui" simulator "$mode"
   fi
   if [ "$portal_needed" = 1 ]; then
+    # serve.py refuses a production config unless told otherwise; only
+    # --production ever tells it.
+    local allow=""
+    [ "$target" = PRODUCTION ] && allow="--allow-production"
     start_server "$PORTAL_PORT" "$ROOT/portal" portal "$mode" \
-      --override "/supabase-config.js=$(cat "$TMPDIR_FILE")/supabase-config.js"
+      --override "/supabase-config.js=$dir/supabase-config.js" $allow
   else
     echo "  portal already up on $PORTAL_PORT (target=$target)"
   fi
