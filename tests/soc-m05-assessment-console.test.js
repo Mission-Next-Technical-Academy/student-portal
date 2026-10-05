@@ -26,6 +26,7 @@ const context = {
   wireMissionNextLabGating: () => {},
   missionNextLabLaunchGroup: () => '<section data-imported-prerequisites></section>',
   caseRecordPane: () => '<form id="m05-assessment"><button data-m05-submit-case>Submit case</button></form>',
+  caseRecordBriefLabel: (spec, tag) => [spec.caseId, tag, 'ASSIGNED TO YOU'].join(' · '),
   caseRecordMissing: () => [],
   moduleFiveCaseSpec: () => ({ caseId: 'EDR-5119' }),
   moduleFiveProveItRedoRequested: () => false,
@@ -67,7 +68,7 @@ for (const tab of ['alerts', 'search', 'timeline', 'entities', 'sources', 'watch
 }
 assert.match(alertsPanel, /data-m03e-select="m05:alert:ALT-5127"/, 'the endpoint alert is in the Module 3 alert queue');
 assert.doesNotMatch(alertsPanel, /data-imported-prerequisites/, 'imported projects are not Assessment Lab prerequisites');
-assert.match(alertsPanel, /EDR-5127/);
+assert.match(alertsPanel, /CASE-055127/);
 const ticketPanel = vm.runInContext("m03eState('m05').tab = 'case'; moduleFiveAssessmentLabPanel()", context);
 assert.strictEqual((ticketPanel.match(/id="m05-assessment"/g) || []).length, 1, 'one scored case form');
 assert.strictEqual((ticketPanel.match(/data-m05-submit-case/g) || []).length, 1, 'one scored submit action');

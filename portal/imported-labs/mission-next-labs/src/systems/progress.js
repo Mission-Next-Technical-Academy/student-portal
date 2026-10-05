@@ -108,11 +108,21 @@
           .eq('user_id', context.userId).eq('track_code', context.trackCode).eq('module_key', context.moduleKey).maybeSingle();
         if (readError) throw readError;
         const caseState = { ...(row?.case_state || {}), [`${COURSE_STATE_PREFIX}${labId}`]: state };
-        const result = row
+        let result = row
           ? await mntSupabase.from('module_progress').update({ case_state: caseState })
               .eq('user_id', context.userId).eq('track_code', context.trackCode).eq('module_key', context.moduleKey)
           : await mntSupabase.from('module_progress').insert({ user_id: context.userId,
               track_code: context.trackCode, module_key: context.moduleKey, state: 'in_progress', case_state: caseState });
+        if (result.error?.code === '23505' && !row) {
+          // A sibling imported lab created the shared module row after the
+          // initial read; merge against its latest state and retry the update.
+          const { data: racedRow, error: racedReadError } = await mntSupabase.from('module_progress').select('case_state')
+            .eq('user_id', context.userId).eq('track_code', context.trackCode).eq('module_key', context.moduleKey).maybeSingle();
+          if (racedReadError) throw racedReadError;
+          result = await mntSupabase.from('module_progress').update({
+            case_state: { ...(racedRow?.case_state || {}), [`${COURSE_STATE_PREFIX}${labId}`]: state },
+          }).eq('user_id', context.userId).eq('track_code', context.trackCode).eq('module_key', context.moduleKey);
+        }
         if (result.error) throw result.error;
       }).catch((error) => console.error('Imported lab progress write failed', labId, error));
       courseWriteQueues.set(queueKey, write);

@@ -199,9 +199,9 @@
 .m05-model p { margin: 5px 0 0; font: 10px/1.6 Inter, sans-serif; }
 
 
-.m05-section-collapsible .m05-section-body h3 { margin-top: 22px; color: #1e3a5f; font-size: 17px; font-weight: 700; }
-.m05-section-collapsible .m05-section-body h3:first-child { margin-top: 0; }
-.m05-section-collapsible .m05-section-body p { margin: 10px 0; color: #4b5563; font: 14px/1.65 Inter, sans-serif; }
+.m05-section-collapsible .m05-section-body h3:not(.learn-it *):not(.m03e-console *) { margin-top: 22px; color: #1e3a5f; font-size: 17px; font-weight: 700; }
+.m05-section-collapsible .m05-section-body h3:first-child:not(.learn-it *):not(.m03e-console *) { margin-top: 0; }
+.m05-section-collapsible .m05-section-body p:not(.learn-it *):not(.m03e-console *) { margin: 10px 0; color: #4b5563; font: 14px/1.65 Inter, sans-serif; }
 .m05-section-collapsible .m05-section-body ul { margin: 12px 0; padding-left: 20px; color: #4b5563; font: 14px/1.65 Inter, sans-serif; }
 .m05-section-collapsible .m05-section-body li { margin: 8px 0; }
 .m05-section-collapsible .m05-section-body li strong { color: #334155; }

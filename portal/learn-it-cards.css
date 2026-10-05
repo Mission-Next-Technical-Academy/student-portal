@@ -6,7 +6,7 @@
 .learn-it-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding-bottom:18px;border-bottom:1px solid #ffffff24}
 .learn-it-heading h3{margin:5px 0 0;color:#fff;font-size:clamp(22px,3vw,34px);line-height:1.12;letter-spacing:-.025em}
 .learn-it-heading>div:first-child>p:last-child{max-width:760px}
-.learn-it-label{margin:0;color:#ffc27d;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.learn-it .learn-it-label{margin:0;color:#ffc27d;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
 .learn-it-actions{display:flex;gap:8px;flex:0 0 auto}
 .learn-it-cards{display:flex;gap:8px;padding:16px 2px 8px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x mandatory;scroll-padding-inline:2px;scrollbar-color:#7dd3fc66 #ffffff12;scrollbar-width:thin}
 .learn-it-card{display:grid;align-content:start;flex:0 0 clamp(112px,calc((100% - 40px)/6),196px);gap:4px;min-height:64px;padding:9px 10px;text-align:left;border:1px solid #9bc9e64d;border-radius:10px;background:#dff3ff12;color:var(--learn-muted);cursor:pointer;scroll-snap-align:start;transition:border-color .2s,background .2s,transform .2s}

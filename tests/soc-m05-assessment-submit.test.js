@@ -29,6 +29,7 @@ const context = {
   wireMissionNextLabGating: () => {},
   caseRecordMissing: () => [], caseRecordDisplay: () => [], caseRecordSummary: () => '',
   caseRecordPane: (_record, opts) => `<form id="${opts.formId}"><button ${opts.submitAttr}>Submit</button></form>`,
+  caseRecordBriefLabel: (spec, tag) => [spec.caseId, tag, 'ASSIGNED TO YOU'].join(' · '),
   caseRecordSeverity: () => 'high', caseRecordDisposition: () => 'true-positive',
   createQuizAttempt: () => ({ selectedQuestions: [], answers: {} }),
   MODULE_FIVE_FLAG: 'M05-ENDPOINT-CHAIN-VALIDATED',
@@ -55,7 +56,7 @@ records.set('m05-endpoint-chain-v1:soc-05:submit-learner', {
 });
 vm.runInContext('moduleFiveLoad(testUser)', context);
 let migrated = local('moduleFiveState');
-assert.strictEqual(migrated.caseRecord.caseId, 'EDR-5127');
+assert.strictEqual(migrated.caseRecord.caseId, 'CASE-055127');
 assert.strictEqual(migrated.caseRecord.scenarioId, 'M05-ASSESS-2026-09-27');
 assert.strictEqual(migrated.caseRecord.legacyCaseId, 'EDR-5119');
 assert.strictEqual(migrated.caseRecord.notes, 'Legacy case rationale.');
@@ -79,6 +80,8 @@ records.set('m05-endpoint-chain-v1:soc-05:pre-contract-learner', {
 vm.runInContext('moduleFiveLoad(preContractUser)', context);
 assert.strictEqual(local('moduleFiveState.caseRecord.affectedUser'), 'j.alvarez');
 assert.strictEqual(local('moduleFiveState.caseRecord.affectedDevice'), 'ws-assess-27');
+assert.strictEqual(local('moduleFiveState.caseRecord.caseId'), 'CASE-055127', 'pre-§7.2.1 EDR-5127 label is relabelled');
+assert.strictEqual(vm.runInContext('moduleFiveState.caseRecord.legacyCaseId', context), undefined, 'EDR-5127 is the same case, not a legacy one');
 assert.strictEqual(records.get('m05-endpoint-chain-v1:soc-05:pre-contract-learner').caseRecord.affectedDevice, 'ws-assess-27', 'migrated ticket is persisted');
 assert.strictEqual(local('moduleFiveCaseScore().breakdown.affected_entity'), 20, 'migrated ticket keeps full entity credit');
 vm.runInContext("moduleFiveState.caseRecord.affectedUser = 'CORP\\\\M.Reyes'; moduleFiveState.caseRecord.affectedDevice = 'M05-DEV-002'", context);
@@ -98,7 +101,7 @@ assert.strictEqual((vm.runInContext("m03eState('m05').tab = 'case'; moduleFiveAs
 click();
 const first = local('moduleFiveState');
 assert.strictEqual(first.caseRecord.submitted, true);
-assert.strictEqual(first.caseRecord.caseId, 'EDR-5127');
+assert.strictEqual(first.caseRecord.caseId, 'CASE-055127');
 assert.strictEqual(first.caseRecord.scenarioId, fixture.scenario.id);
 assert.strictEqual(first.caseRecord.reviewPayload.score, first.score);
 assert.strictEqual(first.caseRecord.reviewPayload.revision, 1);
@@ -111,7 +114,7 @@ assert.ok(first.caseRecord.reviewPayload.criteria.some((criterion) => criterion.
 assert.strictEqual(first.assessmentAttempts.length, 1);
 assert.strictEqual(catalog.length, 1);
 assert.strictEqual(catalog[0][1], 'lab-endpoint-investigation');
-assert.strictEqual(catalog[0][2].result.review_payload.caseId, 'EDR-5127');
+assert.strictEqual(catalog[0][2].result.review_payload.caseId, 'CASE-055127');
 assert.strictEqual(catalog[0][2].result.review_payload.scenarioId, fixture.scenario.id);
 assert.strictEqual(catalog[0][2].result.case_record.reviewPayload.score, first.score);
 assert.ok(progress.some((args) => args[2] === 'soc-05' && args[3] === 'lab-endpoint-investigation'));
@@ -143,7 +146,7 @@ assert.strictEqual(second.assessmentAttempts[1].attemptNumber, 3);
 assert.strictEqual(catalog.length, 2);
 assert.strictEqual(catalog[1][1], 'lab-endpoint-investigation');
 assert.strictEqual(catalog[1][2].result.review_payload.revision, 2);
-assert.strictEqual(second.caseRecord.caseId, 'EDR-5127');
+assert.strictEqual(second.caseRecord.caseId, 'CASE-055127');
 assert.strictEqual(second.flags.filter((flag) => flag === 'M05-ENDPOINT-CHAIN-VALIDATED').length, 1);
 assert.ok(progress.some((args) => args[2] === 'soc-05' && args[3] === 'lab-endpoint-investigation'));
 Promise.resolve().then(() => console.log('M05 assessment submit, identity migration, catalog/progress, persistence, duplicate suppression, instructor payload, and redo contract checks passed.'));

@@ -11,19 +11,19 @@
          Tailwind 3, Remix Icon 3.5, Space Grotesk + Inter. -->
     <link rel="stylesheet" href="vendor/fonts.css?v=20260817" />
     <link rel="stylesheet" href="vendor/remixicon.css?v=20260817" />
-    <link rel="stylesheet" href="module-labs.css?v=20261003-console-guide-sweep" />
+    <link rel="stylesheet" href="module-labs.css?v=20261005-main-min-width" />
     <link rel="stylesheet" href="soc-analyst-module-02.css?v=20261003-learn-it-color" />
-    <link rel="stylesheet" href="learn-it-cards.css?v=20261003-learn-it-v5-color" />
+    <link rel="stylesheet" href="learn-it-cards.css?v=20261005-label-contrast" />
     <link rel="stylesheet" href="soc-analyst-module-02-environment.css?v=20261003-clean-lab-flow" />
     <link rel="stylesheet" href="soc-analyst-module-03.css?v=20261003-clean-lab-flow" />
     <link rel="stylesheet" href="kql-editor.css?v=20260924-m03-siem" />
     <link rel="stylesheet" href="soc-analyst-module-03-environment.css?v=20261003-clean-lab-flow" />
-    <link rel="stylesheet" href="soc-analyst-module-04.css?v=20261003-clean-lab-flow" />
-    <link rel="stylesheet" href="soc-analyst-module-05.css?v=20261003-clean-lab-flow" />
-    <link rel="stylesheet" href="soc-analyst-module-06.css?v=20261003-clean-lab-flow" />
+    <link rel="stylesheet" href="soc-analyst-module-04.css?v=20261005-console-contrast" />
+    <link rel="stylesheet" href="soc-analyst-module-05.css?v=20261005-console-contrast" />
+    <link rel="stylesheet" href="soc-analyst-module-06.css?v=20261005-console-contrast" />
     <link rel="stylesheet" href="soc-analyst-module-07.css?v=20261003-clean-lab-flow" />
     <link rel="stylesheet" href="attack-matrix.css?v=20260928-attack-matrix" />
-    <link rel="stylesheet" href="soc-assessment-hunting.css?v=20260928-workspace-polish" />
+    <link rel="stylesheet" href="soc-assessment-hunting.css?v=20261005-result-detail" />
     <link rel="stylesheet" href="soc-analyst-module-08.css?v=20261003-clean-lab-flow" />
     <link rel="stylesheet" href="soc-analyst-module-09.css?v=20261003-clean-lab-flow" />
     <link rel="stylesheet" href="soc-analyst-module-10.css?v=20261003-clean-lab-flow" />
@@ -36,7 +36,8 @@
     <link rel="stylesheet" href="it-support-module-12.css?v=20260904" />
     <link rel="stylesheet" href="ai-ml-shared.css?v=20260910" />
     <link rel="stylesheet" href="orientation.css?v=20260920-2" />
-    <link rel="stylesheet" href="lab-maximize.css?v=20260927-lab-maximize" />
+    <link rel="stylesheet" href="lab-maximize.css?v=20261005-toggle-clearance" />
+    <link rel="stylesheet" href="prove-it-gate.css?v=20261005-prove-gate" />
     <script src="vendor/tailwind.js?v=20260817"></script>
     <!-- jsPDF 2.5.1 + jsPDF-AutoTable 3.8.2, vendored locally (no CDN at
          runtime) for the admin dashboard's "Generate Report" PDF export. -->
@@ -56,6 +57,10 @@
     </script>
     <style>
       body { font-family: 'Space Grotesk', sans-serif; }
+
+      /* Grading/Graded tabs: the round chevron turns only for its own row. */
+      details[open] > summary [data-grading-chevron] { transform: rotate(180deg); }
+      summary.list-none::-webkit-details-marker { display: none; }
 
       /* Constellation field.
          The dark tile is the pattern shipping on mntacademy.com's programs
@@ -209,16 +214,16 @@
     <script src="release.js?v=1.0.1"></script>
     <script src="data.js?v=20260923-return-base"></script>
     <script src="lab-runtime.js?v=20260924-progress-sync"></script>
-    <script src="module-registry.js?v=20260921-assessment-module-contract"></script>
+    <script src="module-registry.js?v=20261005-prove-gate"></script>
     <script src="case-record.js?v=20261003-console-guide-sweep"></script>
     <script src="console-guide.js?v=20261003-console-guide-sweep"></script>
     <script src="learn-it-decks.js?v=20261003-learn-it-decks"></script>
     <script src="learn-it-cards.js?v=20261003-learn-it-v5-color"></script>
     <script src="soc-assessment-scorer.js?v=20260926-shared-scorer"></script>
     <script src="soc-assessment-evolution.js?v=20260926-m04-m12-contract"></script>
-    <script src="soc-analyst-module-01.js?v=20261003-clean-lab-flow"></script>
-    <script src="soc-analyst-module-02.js?v=20261003-clean-lab-flow"></script>
-    <script src="soc-analyst-module-02-environment.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-analyst-module-01.js?v=20261005-prove-gate"></script>
+    <script src="soc-analyst-module-02.js?v=20261005-prove-gate"></script>
+    <script src="soc-analyst-module-02-environment.js?v=20261005-prove-gate"></script>
     <script src="kql-engine.js?v=20260924-m03-siem"></script>
     <script src="kql-editor.js?v=20260924-m03-siem"></script>
     <script src="soc-console-core.js?v=20260926-shell-renderer"></script>
@@ -228,8 +233,8 @@
     <script src="soc-timeline-ui.js?v=20260926-timeline-renderer"></script>
     <script src="soc-alert-queue-ui.js?v=20260926-alert-queue-renderer"></script>
     <script src="soc-telemetry-schema.js?v=20261002-telemetry-schema"></script>
-    <script src="soc-analyst-module-03-environment.js?v=20261001-verified-sections"></script>
-    <script src="soc-analyst-module-03.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-analyst-module-03-environment.js?v=20261005-prefix-links"></script>
+    <script src="soc-analyst-module-03.js?v=20261005-prove-gate"></script>
     <script src="soc-m04-assessment-data.js?v=20260926-m04-assessment-data"></script>
     <script src="soc-m04-assessment-state.js?v=20260926-m04-assessment-state"></script>
     <script src="soc-m04-assessment-actions.js?v=20260926-m04-assessment-actions"></script>
@@ -240,8 +245,8 @@
     <script src="soc-m04-assessment-rubric.js?v=20260926-m04-assessment-rubric"></script>
     <script src="soc-m04-assessment-scorer.js?v=20260926-m04-assessment-scorer"></script>
     <script src="soc-m04-assessment-console.js?v=20260926-m04-shared-console"></script>
-    <script src="soc-console-tools.js?v=20260929-workspace-polish"></script>
-    <script src="soc-analyst-module-04.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-console-tools.js?v=20261005-step-links"></script>
+    <script src="soc-analyst-module-04.js?v=20261005-prove-gate"></script>
     <script src="soc-m05-assessment-data.js?v=20260927-m05-assessment-data"></script>
     <script src="soc-m05-assessment-state.js?v=20260927-m05-assessment-state"></script>
     <script src="soc-m05-assessment-actions.js?v=20260927-m05-assessment-actions"></script>
@@ -249,16 +254,16 @@
     <script src="soc-m05-assessment-scorer.js?v=20260927-m05-assessment-scorer"></script>
     <script src="soc-m05-assessment-device-ui.js?v=20260927-m05-device-ui"></script>
     <script src="soc-m05-assessment-console.js?v=20260927-m05-assessment-console"></script>
-    <script src="soc-analyst-module-05.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-analyst-module-05.js?v=20261005-prove-gate"></script>
     <script src="soc-m06-assessment-data.js?v=20260927-m06-assessment-data"></script>
-    <script src="soc-m06-assessment-state.js?v=20260927-m06-persist"></script>
+    <script src="soc-m06-assessment-state.js?v=20261005-hunt-step"></script>
     <script src="soc-m06-assessment-seed-ui.js?v=20260929-workspace-polish"></script>
     <script src="soc-m06-assessment-actions.js?v=20260927-m06-mapping-1"></script>
     <script src="attack-catalog.js?v=20260928-attack-v19-2"></script>
-    <script src="soc-m06-assessment-related-search.js?v=20260929-workspace-polish"></script>
+    <script src="soc-m06-assessment-related-search.js?v=20261005-result-detail"></script>
     <script src="soc-m06-assessment-rubric.js?v=20260927-m06-rubric-1"></script>
     <script src="soc-m06-assessment-scorer.js?v=20260927-m06-scorer-1"></script>
-    <script src="soc-analyst-module-06.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-analyst-module-06.js?v=20261005-prove-gate"></script>
     <script src="soc-m07-assessment-data.js?v=20260927-m07-assessment-data"></script>
     <script src="soc-m07-assessment-state.js?v=20260927-m07-assessment-state"></script>
     <script src="soc-m07-assessment-actions.js?v=20260927-m07-incident-workflow"></script>
@@ -266,30 +271,30 @@
     <script src="soc-m07-assessment-network-ui.js?v=20260927-m07-evidence-selection"></script>
     <script src="soc-m07-assessment-rubric.js?v=20260927-m07-rubric-1"></script>
     <script src="soc-m07-assessment-scorer.js?v=20260927-m07-scorer-1"></script>
-    <script src="soc-analyst-module-07.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-analyst-module-07.js?v=20261005-prove-gate"></script>
     <script src="soc-m08-assessment-data.js?v=20260927-m08-remediation-transitions"></script>
     <script src="soc-m08-assessment-state.js?v=20260927-m08-persist"></script>
     <script src="soc-m08-assessment-actions.js?v=20260927-m08-remediation-transitions"></script>
     <script src="soc-m08-assessment-rubric.js?v=20260927-m08-rubric-1"></script>
     <script src="soc-m08-assessment-scorer.js?v=20260927-m08-scorer-1"></script>
     <script src="soc-m08-assessment-ui.js?v=20260927-m08-remediation-transitions"></script>
-    <script src="soc-analyst-module-08.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-analyst-module-08.js?v=20261005-prove-gate"></script>
     <script src="soc-m09-assessment-data.js?v=20260927-m09-assessment-data"></script>
     <script src="soc-m09-assessment-state.js?v=20260927-m09-approvals"></script>
     <script src="soc-m09-assessment-rubric.js?v=20260927-m09-rubric-2"></script>
     <script src="soc-m09-assessment-scorer.js?v=20260927-m09-scorer-1"></script>
-    <script src="soc-analyst-module-09.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-analyst-module-09.js?v=20261005-prove-gate"></script>
     <script src="soc-m10-assessment-data.js?v=20260927-m10-data-1"></script>
     <script src="soc-m10-assessment-state.js?v=20260927-m10-state-1"></script>
     <script src="soc-m10-assessment-rubric.js?v=20260927-m10-rubric-1"></script>
     <script src="soc-m10-assessment-scorer.js?v=20260927-m10-scorer-1"></script>
-    <script src="soc-analyst-module-10.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-analyst-module-10.js?v=20261005-prove-gate"></script>
     <script src="soc-m11-assessment-data.js?v=20260927-m11-assessment-data"></script>
     <script src="soc-m11-assessment-state.js?v=20260927-m11-assessment-state"></script>
     <script src="soc-m11-assessment-metrics.js?v=20260928-m11-metrics-loaded"></script>
     <script src="soc-m11-assessment-rubric.js?v=20260927-m11-assessment-rubric"></script>
     <script src="soc-m11-assessment-scorer.js?v=20260927-m11-assessment-scorer"></script>
-    <script src="soc-analyst-module-11.js?v=20261003-clean-lab-flow"></script>
+    <script src="soc-analyst-module-11.js?v=20261005-prove-gate"></script>
     <script src="soc-m12-assessment-data.js?v=20260927-m12-cumulative"></script>
     <script src="soc-m12-assessment-state.js?v=20260927-m12-cumulative"></script>
     <script src="soc-m12-assessment-rubric.js?v=20260927-m12-cumulative"></script>
@@ -334,7 +339,8 @@
     <script src="electrical-module-01.js?v=20260907"></script>
     <script src="orientation.js?v=20260920-3"></script>
     <script src="lab-maximize.js?v=20260927-lab-maximize-2"></script>
-    <script src="app.js?v=20261003-lesson-accordion"></script>
+    <script src="prove-it-gate.js?v=20261005-prove-gate"></script>
+    <script src="app.js?v=20261005-lock-copy"></script>
     <script src="m360-entry.js?v=20260921-login-loader-fix"></script>
   </body>
 </html>

@@ -19,7 +19,8 @@ const MODULE_SEVEN_PRIMARY_CATALOG_KEY = MODULE_SEVEN_CATALOG_LAB_KEYS[MODULE_SE
 // anonymous-exfil (10.4.5.200) lab scenarios in
 // portal/imported-labs/mission-next-labs/src/data.js: one incident chain —
 // web-shell foothold -> persistent GRE tunnel -> anonymous-FTP exfiltration.
-const MODULE_SEVEN_CASE_ID = 'NEC-0731';
+const MODULE_SEVEN_CASE_ID = 'CASE-070731';
+const MODULE_SEVEN_INCIDENT_ID = 'INC-071042';
 // The ticket's entities are the M07 assessment case's own recipients and devices.
 const MODULE_SEVEN_ENTITY_ROSTER = {
   users: [
@@ -441,6 +442,7 @@ function moduleSevenProveItSpec() {
     formId: 'm07-assessment-form',
     panelId: 'm07-review-submission',
     caseId: MODULE_SEVEN_CASE_ID,
+    incidentIds: [MODULE_SEVEN_INCIDENT_ID],
     userOptions: MODULE_SEVEN_ENTITY_ROSTER.users.map((entry) => ({ id: entry.id, text: entry.id })),
     deviceOptions: MODULE_SEVEN_ENTITY_ROSTER.devices.map((entry) => ({ id: entry.id, text: entry.id })),
     departmentOptions: MODULE_SEVEN_DEPARTMENT_OPTIONS,
@@ -739,7 +741,7 @@ function moduleSevenReview() {
 
 function moduleSevenGuidedLabPanel() {
   const complete = moduleSevenGuidedState.caseRecord.submitted === true;
-  return `${moduleSevenGuidedGuide()}<div class="m03e-panel" id="m07-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE NEC-0748 · PRACTICE IT · SHARED-FILE MESSAGE REVIEW</p><p>A shared-file expiry notice reached two mailboxes with different gateway outcomes. Determine who was exposed, correlate the click with DNS and TLS records, separate the legitimate HR portal, and document what remains unverified.</p></div><div class="m03e-console-host" id="m03e-console-m07-guided">${moduleThreeConsoleHtml('m07-guided')}</div></div><p class="m07-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Use the console to establish exposure and correlate the network trail; progress saves as you work.'}</p>`;
+  return `${moduleSevenGuidedGuide()}<div class="m03e-panel" id="m07-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE-070748 · INC-071056 · PRACTICE IT · SHARED-FILE MESSAGE REVIEW</p><p>A shared-file expiry notice reached two mailboxes with different gateway outcomes. Determine who was exposed, correlate the click with DNS and TLS records, separate the legitimate HR portal, and document what remains unverified.</p></div><div class="m03e-console-host" id="m03e-console-m07-guided">${moduleThreeConsoleHtml('m07-guided')}</div></div><p class="m07-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Use the console to establish exposure and correlate the network trail; progress saves as you work.'}</p>`;
 }
 
 /* The Module 3 console carrying Modules 4–6 on this case, plus Email and
@@ -936,7 +938,7 @@ function moduleSevenGuidedBuildConsoleData() {
     ...(s.backgroundEvents || []).map((event) => row(event.table, event.id, event.timestamp, event.fields)),
   ];
   const person = (account) => ({ Account: account, DisplayName: account, Type: 'User', Department: 'Finance', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' });
-  return { ...m03eBuildDataset({ caseId: 'NEC-0748', day: s.start.slice(0, 10), events,
+  return { ...m03eBuildDataset({ caseId: 'CASE-070748', day: s.start.slice(0, 10), events,
     identities: ['acct-91', 'acct-97', 'acct-55', ...s.backgroundContext.accounts.filter((account) => account !== 'acct-55')].map(person),
     ips: [{ SourceIp: '192.0.2.211', Type: 'External', Country: '—', Asn: 'Unclassified file-hosting test range', FirstSeen: '2026-09-27 11:08', Reputation: 'No reputation data' }, { SourceIp: '203.0.113.65', Type: 'External', Country: '—', Asn: 'Paperless Share HR portal', FirstSeen: '2025-02-01 08:00', Reputation: 'Known business service' }, ...s.backgroundContext.ips],
     watchlists: {}, alerts: [{ id: 'ALT-7481', time: '2026-09-27T11:03:05Z', severity: 'Medium', title: 'Shared-file notice failed DMARC alignment', entities: ['notice@paperless-share.example'], rule: 'Mail gateway: DMARC fail on an external message', query: 'EmailEvents\n| where Dmarc == "fail"' }, ...s.backgroundContext.alerts],
@@ -948,7 +950,7 @@ const MODULE_SEVEN_GUIDED_DEVICES = [
   { id: 'ws-208', hostname: 'ws-208', platform: 'Windows 11', role: 'User workstation', owner: 'acct-55', zone: 'CORP-USER', status: 'Online' },
 ];
 const MODULE_SEVEN_GUIDED_TOOL_FIXTURES = {
-  m04: SocConsoleTools.m04Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, caseId: 'NEC-0748', end: MODULE_SEVEN_GUIDED_FIXTURE.scenario.end, data: MODULE_SEVEN_GUIDED_CONSOLE_DATA }),
+  m04: SocConsoleTools.m04Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, caseId: 'CASE-070748', end: MODULE_SEVEN_GUIDED_FIXTURE.scenario.end, data: MODULE_SEVEN_GUIDED_CONSOLE_DATA }),
   m05: SocConsoleTools.m05Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, stateKey: 'm07-guided-endpoint-tools-v1', devices: MODULE_SEVEN_GUIDED_DEVICES, data: MODULE_SEVEN_GUIDED_CONSOLE_DATA }),
   m06: SocConsoleTools.m06Fixture({ id: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, lead: { id: 'M07-GUIDED-LEAD-001', type: 'suspected_delivery_chain', device: 'ws-733', account: 'acct-91', taskName: '—', observation: 'An external shared-file message failed DMARC alignment and may have reached a user.' }, devices: ['ws-733', 'ws-208'], data: MODULE_SEVEN_GUIDED_CONSOLE_DATA, timeStart: MODULE_SEVEN_GUIDED_FIXTURE.scenario.start, timeEnd: MODULE_SEVEN_GUIDED_FIXTURE.scenario.end }),
 };
@@ -958,7 +960,7 @@ let moduleSevenGuidedUser = null;
 let moduleSevenGuidedNetworkFilters = {};
 function moduleSevenGuidedLoad(user) {
   moduleSevenGuidedUser = user;
-  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'NEC-0748', scenarioId: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
+  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'CASE-070748', scenarioId: MODULE_SEVEN_GUIDED_FIXTURE.scenario.id, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
   moduleSevenGuidedState = LabRuntime.loadCaseState(MODULE_SEVEN_GUIDED_LAB_ID, 'soc-07', user, defaults);
   moduleSevenGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleSevenGuidedState.caseRecord || {}) };
   if (moduleSevenGuidedState.guideStep == null) moduleSevenGuidedState.guideStep = 0;
@@ -1065,7 +1067,7 @@ const MODULE_SEVEN_GUIDED_CONSOLE = (() => {
       { id: 'm06', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m06, ...tool('m06', SocM06AssessmentState.normalize) } },
       { id: 'm07', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_FIXTURE, ui: { get networkFilters() { return moduleSevenGuidedNetworkFilters; }, set networkFilters(value) { moduleSevenGuidedNetworkFilters = value; } }, box: { get state() { return moduleSevenGuidedAssessmentState; }, set state(value) { moduleSevenGuidedAssessmentState = value; } }, store: moduleSevenGuidedM07Store } },
     ],
-    caseView: () => { const html = caseRecordPane(moduleSevenGuidedState.caseRecord, { caseId: 'NEC-0748', ticketId: 'INC-0748', ticketType: 'Shared-file phishing exposure · Messaging Security', userOptions: [{ id: 'acct-91', text: 'acct-91 · delivered/clicked' }, { id: 'acct-97', text: 'acct-97 · gateway blocked' }, { id: 'acct-55', text: 'acct-55 · HR baseline' }], deviceOptions: [{ id: 'ws-733', text: 'ws-733 · clicked user device' }, { id: 'ws-208', text: 'ws-208 · HR portal baseline' }], departmentOptions: [{ id: 'messaging-security', text: 'Messaging Security' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm07-guided-case', saveAttr: 'data-m07-guided-save-case', submitAttr: 'data-m07-guided-submit-case', panelId: 'm07-guided-case-panel', notesPlaceholder: 'Document message authentication, delivery scope, click-to-network correlation, and unverified endpoint/credential outcomes.' }); return moduleSevenGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m07-guided-restart>Restart Guided Lab</button>' : html; },
+    caseView: () => { const html = caseRecordPane(moduleSevenGuidedState.caseRecord, { caseId: 'CASE-070748', incidentIds: ['INC-071056'], ticketType: 'Shared-file phishing exposure · Messaging Security', userOptions: [{ id: 'acct-91', text: 'acct-91 · delivered/clicked' }, { id: 'acct-97', text: 'acct-97 · gateway blocked' }, { id: 'acct-55', text: 'acct-55 · HR baseline' }], deviceOptions: [{ id: 'ws-733', text: 'ws-733 · clicked user device' }, { id: 'ws-208', text: 'ws-208 · HR portal baseline' }], departmentOptions: [{ id: 'messaging-security', text: 'Messaging Security' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm07-guided-case', saveAttr: 'data-m07-guided-save-case', submitAttr: 'data-m07-guided-submit-case', panelId: 'm07-guided-case-panel', notesPlaceholder: 'Document message authentication, delivery scope, click-to-network correlation, and unverified endpoint/credential outcomes.' }); return moduleSevenGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m07-guided-restart>Restart Guided Lab</button>' : html; },
   });
 })();
 
@@ -1084,7 +1086,7 @@ function moduleSevenCaseTicket() {
 
 function moduleSevenAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m07-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_SEVEN_CASE_ID)} · SUSPECTED DELIVERY CHAIN · ASSIGNED TO YOU</p><p>The gateway flagged an external invoice; determine who received it, what they did, and what their device did next. Validate sender and URL, bound delivery, correlate endpoint and network evidence, separate noise, preserve artifacts, and complete the incident ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel({ caseId: MODULE_SEVEN_CASE_ID, incidentIds: [MODULE_SEVEN_INCIDENT_ID] }, 'SUSPECTED DELIVERY CHAIN')}</p><p>The gateway flagged an external invoice; determine who received it, what they did, and what their device did next. Validate sender and URL, bound delivery, correlate endpoint and network evidence, separate noise, preserve artifacts, and complete the incident ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m07">${moduleThreeConsoleHtml('m07')}</div>
   </div>`;
 }
@@ -1443,4 +1445,4 @@ function wireModuleSeven() {
   wireModuleSevenAdditionalLabGating();
 }
 
-registerModuleLab({ program: 'soc-analyst', moduleNumber: 7, moduleKey: 'soc-07', view: viewModuleSeven, wire: wireModuleSeven });
+registerModuleLab({ program: 'soc-analyst', moduleNumber: 7, moduleKey: 'soc-07', view: viewModuleSeven, wire: wireModuleSeven, sections: moduleSevenGetSections });

@@ -414,8 +414,8 @@ const MODULE_SIX_EXPECTED_BOOKMARKS = ['EP-602', 'EP-604', 'ID-612', 'ID-614'];
 // ticket stay exactly as-is (they are evidence, not the graded artifact);
 // only the two forms migrate.
 const MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY = 'lab-threat-hunt-independent';
-const MODULE_SIX_HUNT_CASE_ID = 'HNT-6214';
-const MODULE_SIX_BACKDOOR_CASE_ID = 'BKD-6318';
+const MODULE_SIX_HUNT_CASE_ID = 'CASE-066214';
+const MODULE_SIX_BACKDOOR_CASE_ID = 'CASE-066318';
 const MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
 const MODULE_SIX_HUNT_ENTITY_ROSTER = {
@@ -1185,7 +1185,7 @@ function moduleSixArtifact() {
 
 function moduleSixGuidedLabPanel() {
   const complete = moduleSixGuidedState.caseRecord.submitted === true;
-  return `${moduleSixGuidedGuide()}<div class="m03e-panel" id="m06-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">HUNT HNT-6411 · PRACTICE IT · CROSS-DEVICE BEHAVIOR REVIEW</p><p>An unfamiliar script fingerprint appears beneath two document-viewing processes and contacts the same destination. Test recurrence across the endpoint and identity records, retain a focused evidence set, and write a scoped hunt conclusion with a response handoff.</p></div><div class="m03e-console-host" id="m03e-console-m06-guided">${moduleThreeConsoleHtml('m06-guided')}</div></div><p class="m06-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Use the hunt console to test the lead; progress saves as you work.'}</p>`;
+  return `${moduleSixGuidedGuide()}<div class="m03e-panel" id="m06-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE-066411 · HUNT · PRACTICE IT · CROSS-DEVICE BEHAVIOR REVIEW</p><p>An unfamiliar script fingerprint appears beneath two document-viewing processes and contacts the same destination. Test recurrence across the endpoint and identity records, retain a focused evidence set, and write a scoped hunt conclusion with a response handoff.</p></div><div class="m03e-console-host" id="m03e-console-m06-guided">${moduleThreeConsoleHtml('m06-guided')}</div></div><p class="m06-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Use the hunt console to test the lead; progress saves as you work.'}</p>`;
 }
 
 /* The Module 3 console carrying Module 4 and 5 tools on this hunt case, with
@@ -1420,7 +1420,7 @@ const MODULE_SIX_GUIDED_CONSOLE_DATA = (() => {
     ...(event.coverageStatus ? { CoverageStatus: event.coverageStatus } : {}),
   }));
   const person = (account, name) => ({ Account: account, DisplayName: name, Type: 'User', Department: 'Operations', Owner: '—', Privileged: 'No', UsualSourceIp: '—', Notes: '' });
-  return { ...m03eBuildDataset({ caseId: 'HNT-6411', day: s.end.slice(0, 10), events,
+  return { ...m03eBuildDataset({ caseId: 'CASE-066411', day: s.end.slice(0, 10), events,
     identities: [person('acct-602', 'Analyst Seed User'), person('acct-684', 'Comparison User'), person('acct-712', 'Nimbus Service User'), person('acct-655', 'Neighbor User'), { Account: 'acct-localsys', DisplayName: 'Local system', Type: 'Service', Department: 'IT Operations', Owner: 'Endpoint platform', Privileged: 'Yes', UsualSourceIp: '—', Notes: 'Scheduler and sensor context' }],
     ips: [{ SourceIp: '192.0.2.145', Type: 'External', Country: '—', Asn: 'Unclassified test network', FirstSeen: '2026-09-27 10:04', Reputation: 'No reputation data' }],
     watchlists: {
@@ -1437,13 +1437,13 @@ const MODULE_SIX_GUIDED_CONSOLE_DATA = (() => {
       { id: 'ALT-6414', time: '2026-09-27T10:24:55Z', severity: 'Low', title: 'Scheduled updater task on ws-612', entities: ['ws-612', 'acct-712'], rule: 'Scheduled task started a vendor updater', query: 'DeviceTaskEvents\n| where DeviceId == "ws-612"' }],
   }), now: s.end };
 })();
-const MODULE_SIX_GUIDED_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: MODULE_SIX_GUIDED_FIXTURE.scenario.id, caseId: 'HNT-6411', end: MODULE_SIX_GUIDED_FIXTURE.scenario.end, data: MODULE_SIX_GUIDED_CONSOLE_DATA });
+const MODULE_SIX_GUIDED_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: MODULE_SIX_GUIDED_FIXTURE.scenario.id, caseId: 'CASE-066411', end: MODULE_SIX_GUIDED_FIXTURE.scenario.end, data: MODULE_SIX_GUIDED_CONSOLE_DATA });
 const MODULE_SIX_GUIDED_M05_FIXTURE = SocConsoleTools.m05Fixture({ id: MODULE_SIX_GUIDED_FIXTURE.scenario.id, stateKey: 'm06-guided-endpoint-tools-v1', devices: MODULE_SIX_GUIDED_DEVICES, data: MODULE_SIX_GUIDED_CONSOLE_DATA });
 let moduleSixGuidedState = null;
 let moduleSixGuidedUser = null;
 function moduleSixGuidedLoad(user) {
   moduleSixGuidedUser = user;
-  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'HNT-6411', scenarioId: MODULE_SIX_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
+  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'CASE-066411', scenarioId: MODULE_SIX_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
   moduleSixGuidedState = LabRuntime.loadCaseState(MODULE_SIX_GUIDED_LAB_ID, 'soc-06', user, defaults);
   moduleSixGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleSixGuidedState.caseRecord || {}) };
   if (moduleSixGuidedState.guideStep == null) moduleSixGuidedState.guideStep = 0;
@@ -1537,7 +1537,7 @@ const MODULE_SIX_GUIDED_CONSOLE = SocConsoleTools.mount('m06-guided', {
     { id: 'm05', ctx: { fixture: MODULE_SIX_GUIDED_M05_FIXTURE, ...SocConsoleTools.embedded(() => moduleSixGuidedState, 'm05', SocM05AssessmentState.normalize, MODULE_SIX_GUIDED_M05_FIXTURE, moduleSixGuidedSave), save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
     { id: 'm06', ctx: { fixture: MODULE_SIX_GUIDED_FIXTURE, load: moduleSixGuidedM06Load, store: moduleSixGuidedM06Store, save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
   ],
-    caseView: () => { const html = caseRecordPane(moduleSixGuidedState.caseRecord, { caseId: 'HNT-6411', ticketId: 'INC-6411', ticketType: 'Threat hunt findings · Detection Engineering', userOptions: [{ id: 'acct-602', text: 'acct-602' }, { id: 'acct-684', text: 'acct-684' }, { id: 'acct-712', text: 'acct-712' }], deviceOptions: MODULE_SIX_GUIDED_DEVICES.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'detection-engineering', text: 'Detection Engineering' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm06-guided-case', saveAttr: 'data-m06-guided-save-case', submitAttr: 'data-m06-guided-submit-case', panelId: 'm06-guided-case-panel', notesPlaceholder: 'State the repeated behavior, two-device scope, evidence limit, and recommended detection or response follow-up.' }); return moduleSixGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m06-guided-restart>Restart Guided Lab</button>' : html; },
+    caseView: () => { const html = caseRecordPane(moduleSixGuidedState.caseRecord, { caseId: 'CASE-066411', ticketType: 'Threat hunt findings · Detection Engineering', userOptions: [{ id: 'acct-602', text: 'acct-602' }, { id: 'acct-684', text: 'acct-684' }, { id: 'acct-712', text: 'acct-712' }], deviceOptions: MODULE_SIX_GUIDED_DEVICES.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'detection-engineering', text: 'Detection Engineering' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm06-guided-case', saveAttr: 'data-m06-guided-save-case', submitAttr: 'data-m06-guided-submit-case', panelId: 'm06-guided-case-panel', notesPlaceholder: 'State the repeated behavior, two-device scope, evidence limit, and recommended detection or response follow-up.' }); return moduleSixGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m06-guided-restart>Restart Guided Lab</button>' : html; },
 });
 
 function moduleSixCaseTicket() {
@@ -1561,7 +1561,7 @@ function moduleSixCaseTicket() {
 
 function moduleSixAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m06-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">HUNT ${esc(MODULE_SIX_BACKDOOR_CASE_ID)} · NO ALERT · ASSIGNED TO YOU</p><p>There is no alert — only a lead: a weekly scheduled task named <code>UpdateHealth</code> on <code>ws-318</code> runs a script from a user-writable folder. Your lead’s request: <em>“Find out whether this is something, and prove only what the evidence shows.”</em> Write a testable hypothesis, choose a bounded time and entity scope, search and pivot through related activity, bookmark the minimum evidence chain, decide whether the hypothesis is supported, map only demonstrated behavior to ATT&amp;CK, propose a detection improvement, and complete the ITSM ticket with your limits and next steps.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel(moduleSixBackdoorCaseSpec(), 'HUNT · NO ALERT')}</p><p>There is no alert — only a lead: a weekly scheduled task named <code>UpdateHealth</code> on <code>ws-318</code> runs a script from a user-writable folder. Your lead’s request: <em>“Find out whether this is something, and prove only what the evidence shows.”</em> Write a testable hypothesis, choose a bounded time and entity scope, search and pivot through related activity, bookmark the minimum evidence chain, decide whether the hypothesis is supported, map only demonstrated behavior to ATT&amp;CK, propose a detection improvement, and complete the ITSM ticket with your limits and next steps.</p></div>
     <div class="m03e-console-host" id="m03e-console-m06">${moduleThreeConsoleHtml('m06')}</div>
   </div>`;
 }
@@ -1914,4 +1914,4 @@ function wireModuleSix() {
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 6, moduleKey: 'soc-06',
-  view: viewModuleSix, wire: wireModuleSix });
+  view: viewModuleSix, wire: wireModuleSix, sections: moduleSixGetSections });

@@ -132,6 +132,15 @@ const LabRuntime = (() => {
 
   function saveCaseState(labId, moduleKey, user, state, options = {}) {
     save(labId, user, state);
+    // loadCaseState() lets the server copy win. Keep this session's copy of
+    // that row current now, or a reload before the debounced write lands
+    // hands back the pre-save snapshot and silently discards the learner's
+    // latest action.
+    if (user && user.remoteCaseState && typeof user.remoteCaseState === 'object') {
+      const moduleState = user.remoteCaseState[moduleKey];
+      const labMap = moduleState && typeof moduleState === 'object' && !moduleState.labId ? moduleState : {};
+      user.remoteCaseState = { ...user.remoteCaseState, [moduleKey]: { ...labMap, [labId]: state } };
+    }
     registerCaseStateFlushListeners();
 
     const key = pendingCaseStateKey(labId, moduleKey, user);

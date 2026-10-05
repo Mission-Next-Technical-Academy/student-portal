@@ -101,7 +101,8 @@
   // confirmed finding is evt-john-hr-allowed: John Smith received HR-Read
   // authorization with no matching group membership (`violation: true` in
   // DATA.events) — an access-control excess, not malware or an intrusion.
-  const CASE_ID = 'IAM-5502';
+  const CASE_ID = 'CASE-025502';
+  const INCIDENT_ID = 'INC-025811';
   const CASE_USER_OPTIONS = [
     { id: 'john', text: 'John Smith (jsmith) — Operations Coordinator', tier: 'principal' },
     { id: 'cora', text: 'Cora Green (cgreen) — Finance Contractor', tier: 'pivot' },
@@ -141,6 +142,7 @@
   function caseSpec(disabled) {
     return {
       caseId: CASE_ID,
+      incidentIds: [INCIDENT_ID],
       userOptions: CASE_USER_OPTIONS,
       deviceOptions: CASE_DEVICE_OPTIONS,
       departmentOptions: CASE_DEPARTMENT_OPTIONS,
@@ -792,19 +794,19 @@
           </div></section>
 
           <details class="m01-section m02e-section m02e-section-collapsible" id="m02e-learn" open aria-labelledby="m02e-learn-title">
-            <summary class="m01-section-heading"><span>1</span><div><p class="m01-kicker">Learn It · foundations</p><h2 id="m02e-learn-title">Read a connection the way an analyst does</h2></div></summary>
+            <summary class="m01-section-heading"><span>1</span><div><p class="m01-kicker">Learn It · Foundations</p><h2 id="m02e-learn-title">Read a connection the way an analyst does</h2></div></summary>
             ${learnCallout()}
             ${deepDive()}
           </details>
 
           <details class="m01-section m02e-section m02e-section-collapsible" id="m02e-guided-lab" open aria-labelledby="m02e-guided-lab-title">
-            <summary class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Guided Lab · console walkthrough</p><h2 id="m02e-guided-lab-title">Read Alice’s access activity</h2></div></summary>
+            <summary class="m01-section-heading"><span>2</span><div><p class="m01-kicker">Practice It · Guided Lab</p><h2 id="m02e-guided-lab-title">Read Alice’s access activity</h2></div></summary>
             <p class="m02e-panel-instruction">Follow the console guide to inspect Alice Morgan’s 08:14 access record, then connect its identity, device, resource, and policy details.</p>
             <div class="m02e-console-wrap" id="m02e-console-learn">${consoleHtml('learn')}</div>
           </details>
 
           <details class="m01-section m02e-section m02e-section-collapsible" id="m02e-practice" data-authored-assessment="soc-02" open aria-labelledby="m02e-practice-title">
-            <summary class="m01-section-heading"><span>3</span><div><p class="m01-kicker">Assessment Lab · independent investigation</p><h2 id="m02e-practice-title">Investigate HR file authorization</h2></div></summary>
+            <summary class="m01-section-heading"><span>3</span><div><p class="m01-kicker">Prove It · Assessment Lab</p><h2 id="m02e-practice-title">Investigate HR file authorization</h2></div></summary>
             ${practicePanel()}
           </details>
 
@@ -915,5 +917,5 @@
     window.addEventListener('resize', positionPracticeTip);
   }
 
-  registerModuleLab({ program: 'soc-analyst', moduleNumber: 2, moduleKey: 'soc-02', view, wire });
+  registerModuleLab({ program: 'soc-analyst', moduleNumber: 2, moduleKey: 'soc-02', view, wire, sections: getNavSections });
 }());

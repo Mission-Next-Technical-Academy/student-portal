@@ -674,12 +674,15 @@ function hasProgramAccess(user, slug) {
   return !!enrollmentFor(user, slug);
 }
 
-function hasModuleAccess(user, slug, moduleKey) {
+function isModuleEntitled(user, slug, moduleKey) {
   const e = enrollmentFor(user, slug);
   if (!e) return false;
-  const entitled = e.accessMode === 'full'
+  return e.accessMode === 'full'
     || (e.accessMode === 'partial' && (e.modules || []).includes(moduleKey));
-  if (!entitled) return false;
+}
+
+function hasModuleAccess(user, slug, moduleKey) {
+  if (!isModuleEntitled(user, slug, moduleKey)) return false;
 
   const program = PROGRAMS.find((p) => p.slug === slug);
   if (!program || !program.modules) return true;
@@ -5513,11 +5516,17 @@ function moduleCard(program, key, user) {
                      <i class="ri-lock-line text-lg text-[#1e3a5f]"></i>
                    </div>
                    <div>
-                     <p class="text-[#1e3a5f] font-medium text-sm mb-1">This module is not included in your enrollment.</p>
-                     <p class="text-gray-500 text-sm">
-                       Lessons and labs are unavailable, but the module outline stays visible so you can see what the
-                       full program covers.
-                     </p>
+                     ${isModuleEntitled(user, program.slug, key)
+                       ? `<p class="text-[#1e3a5f] font-medium text-sm mb-1">Complete the previous module to unlock this one.</p>
+                          <p class="text-gray-500 text-sm">
+                            Each module opens once the one before it is marked complete. The outline stays visible so
+                            you can see what is coming next.
+                          </p>`
+                       : `<p class="text-[#1e3a5f] font-medium text-sm mb-1">This module is not included in your enrollment.</p>
+                          <p class="text-gray-500 text-sm">
+                            Lessons and labs are unavailable, but the module outline stays visible so you can see what the
+                            full program covers.
+                          </p>`}
                    </div>
                  </div>`
           }

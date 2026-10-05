@@ -1365,4 +1365,4 @@ function wireModuleEleven() {
   // Imported additional labs are practice only and do not gate module progress.
 }
 
-registerModuleLab({ program: 'soc-analyst', moduleNumber: 11, moduleKey: 'soc-11', view: viewModuleEleven, wire: wireModuleEleven });
+registerModuleLab({ program: 'soc-analyst', moduleNumber: 11, moduleKey: 'soc-11', view: viewModuleEleven, wire: wireModuleEleven, sections: moduleElevenGetSections });

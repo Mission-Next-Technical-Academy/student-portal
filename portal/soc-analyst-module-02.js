@@ -1454,4 +1454,4 @@ function wireModuleTwoLab() {
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 2, moduleKey: 'soc-02',
-  view: viewModuleTwo, wire: wireModuleTwo });
+  view: viewModuleTwo, wire: wireModuleTwo, sections: moduleTwoGetSections });

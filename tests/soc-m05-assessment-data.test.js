@@ -15,7 +15,7 @@ const local = (value) => JSON.parse(JSON.stringify(value));
 
 assert.strictEqual(data.schemaVersion, 1);
 assert.strictEqual(scenario.id, 'M05-ASSESS-2026-09-27');
-assert.strictEqual(scenario.caseId, 'EDR-5127');
+assert.strictEqual(scenario.caseId, 'CASE-055127');
 assert.strictEqual(scenario.stateKey, 'm05-endpoint-assessment-v1');
 const m05Identities = [scenario.id, scenario.caseId, scenario.stateKey, 'm05-endpoint-chain-v1', 'EDR-5119'];
 const m04Identities = [m04Scenario.id, m04Scenario.caseId, 'm04-detection-enrichment-v1'];

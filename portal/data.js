@@ -1829,7 +1829,7 @@ const MODULE_ONE_ALERT_ORIENTATION = {
     },
   ],
   scenario: {
-    id: 'ALT-1001',
+    id: 'ALT-1001', alertId: 'ALR-011001', incidentId: 'INC-011318', caseId: 'CASE-011420',
     source: 'Identity protection',
     detectedBy: 'Repeated failures followed by success',
     initialSeverity: 'Medium',
@@ -1984,7 +1984,7 @@ const MODULE_ONE_ESCALATION_LAB = {
   minutes: 480,
   passingScore: 70,
   scenario: {
-    id: 'NST-2407', source: 'Microsoft Sentinel correlation', detectedBy: 'Impossible-travel sign-in plus endpoint execution', initialSeverity: 'High',
+    id: 'NST-2407', alertId: 'ALR-012401', incidentId: 'INC-012716', caseId: 'CASE-012407', source: 'Microsoft Sentinel correlation', detectedBy: 'Impossible-travel sign-in plus endpoint execution', initialSeverity: 'High',
     title: 'Possible account takeover followed by endpoint execution',
     summary: 'An identity sign-in and a workstation process chain may be connected. Establish the supported scope before asking an authorized responder to contain anything.',
     entity: 'a.chen / LAP-442', created: 'Mon 09:18 UTC',

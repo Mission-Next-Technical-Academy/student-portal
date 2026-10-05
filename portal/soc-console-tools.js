@@ -81,6 +81,11 @@ const SocConsoleTools = (() => {
 
       root.addEventListener('click', (event) => {
         if (event.target.closest('[data-m04-save-search-query]')) {
+          // This action lives inside the console embedded in a collapsible lab.
+          // Keep the click local so ancestor lab handlers cannot treat it as a
+          // section toggle while we save and switch to Analytics Rules.
+          event.preventDefault();
+          event.stopPropagation();
           // Log Search is where the query is written; the rule engine re-tests the
           // exact text over its AuthLog table before the query can be saved.
           const assessment = ctx.assessment();
@@ -176,7 +181,7 @@ const SocConsoleTools = (() => {
                   enabled: form.elements.ruleEnabled.checked,
                   frequencyMinutes: form.elements.frequencyMinutes.value,
                   scheduledAt: localSchedule ? new Date(localSchedule).toISOString() : '',
-                }, timestamp);
+                }, timestamp, ctx.fixture.scenario.end || timestamp);
               } else {
                 const mode = runRuleNow.matches('[data-m04-rule-run-scheduled]') ? 'scheduled' : 'manual';
                 const execution = SocM04RulesUi.recordExecution(assessment, form.dataset.ruleId, timestamp, mode);
@@ -186,6 +191,11 @@ const SocConsoleTools = (() => {
             }
           } catch (error) {
             assessment.queryActionError = error.message;
+            const form = root.querySelector('[data-m04-rule-form]');
+            const errorNode = form?.querySelector('[data-m04-rule-error]');
+            if (errorNode) errorNode.textContent = error.message;
+            ctx.save();
+            return;
           }
           ctx.save();
           ctx.rerender();
@@ -365,7 +375,7 @@ const SocConsoleTools = (() => {
             ctx.rerender();
           } catch (error) {
             const status = event.target.querySelector('[data-m05-handoff-status-message]');
-            if (status) status.textContent = 'Handoff could not be recorded. Check its summary and fixture evidence.';
+            if (status) status.textContent = error.message || 'Handoff could not be recorded. Check its summary and fixture evidence.';
           }
           return;
         }
@@ -415,7 +425,7 @@ const SocConsoleTools = (() => {
           const fixture = ctx.fixture;
           const state = ctx.load();
           const deviceId = state.selectedDeviceIds.find((id) => fixture.scenario.devices.some((device) => device.id === id));
-          if (!deviceId) return;
+          if (!deviceId) { const status = root.querySelector('[data-m05-preserve-status]'); if (status) status.textContent = 'Select a device before preserving evidence.'; return; }
           const selectedEvents = Array.from(root.querySelectorAll('[data-m05-evidence-event]:checked')).map((input) => input.value);
           const selectedHashes = Array.from(root.querySelectorAll('[data-m05-evidence-hash]:checked')).map((input) => input.value);
           const knownEvents = new Map(fixture.scenario.telemetry.filter((item) => item.deviceId === deviceId).map((item) => [item.id, item]));
@@ -423,15 +433,20 @@ const SocConsoleTools = (() => {
           const submittedEvents = selectedEvents;
           const submittedHashes = selectedHashes;
           if (!submittedEvents.length || !submittedHashes.length
-            || !submittedEvents.every((id) => knownEvents.has(id)) || !submittedHashes.every(validHash)) return;
+            || !submittedEvents.every((id) => knownEvents.has(id)) || !submittedHashes.every(validHash)) { const status = root.querySelector('[data-m05-preserve-status]'); if (status) status.textContent = 'Select at least one valid event and one valid file hash.'; return; }
           const referencedHashes = new Set(submittedEvents.map((id) => knownEvents.get(id)?.sha256).filter(Boolean));
-          if (!submittedHashes.every((hash) => referencedHashes.has(hash))) return;
+          if (!submittedHashes.every((hash) => referencedHashes.has(hash))) { const status = root.querySelector('[data-m05-preserve-status]'); if (status) status.textContent = 'Each selected hash must belong to one of the selected events.'; return; }
           const evidencePackage = { deviceId, eventIds: [...new Set(submittedEvents)], hashes: [...new Set(submittedHashes)] };
           state.evidencePackage = evidencePackage;
           state.selectedEventIds = evidencePackage.eventIds.slice();
-          const next = SocM05AssessmentActions.append(state, 'evidence_package_preserved', new Date().toISOString(), evidencePackage, fixture);
-          ctx.store(next);
-          ctx.rerender();
+          try {
+            const next = SocM05AssessmentActions.append(state, 'evidence_package_preserved', new Date().toISOString(), evidencePackage, fixture);
+            ctx.store(next);
+            ctx.rerender();
+          } catch (error) {
+            const status = root.querySelector('[data-m05-preserve-status]');
+            if (status) status.textContent = error.message || 'Evidence could not be preserved. Review the selected events and hashes.';
+          }
           return;
         }
         const deviceButton = event.target.closest('[data-m05-device-select]');
@@ -531,6 +546,16 @@ const SocConsoleTools = (() => {
     }
   }
 
+  // One readable line per telemetry row for the hypothesis event picker:
+  // time · type · action · the field an analyst would recognise it by.
+  function m06EventSummary(event) {
+    const base = (value) => String(value || '').split(/[\\/]/).pop();
+    const detail = event.taskName || base(event.image) || base(event.path)
+      || (event.destination ? `${event.destination}${event.destinationPort ? `:${event.destinationPort}` : ''}` : '');
+    return [String(event.time || '').slice(11, 19), event.eventType, String(event.action || '').replace(/_/g, ' '), detail]
+      .filter(Boolean).join(' · ');
+  }
+
   function m06Error(root, selector, error) {
     const feedback = root.querySelector(selector);
     if (feedback) feedback.textContent = error.message;
@@ -545,7 +570,7 @@ const SocConsoleTools = (() => {
         const lead = fixture.scenario.seedLead;
         const hypothesis = (state.hypotheses || []).find((item) => item.seedLeadId === lead?.id) || {};
         const leadEvents = fixture.scenario.telemetry.filter((event) => event.device === lead?.device);
-        const linkEvents = `<fieldset class="m06-choice-set"><legend>Events that would test it</legend><div class="m06-choice-grid">${leadEvents.map((event) => `<label><input type="checkbox" name="relatedEventIds" value="${esc(event.id)}"${(hypothesis.relatedEventIds || []).includes(event.id) ? ' checked' : ''}><span><strong>${esc(event.id)}</strong><small>${esc(event.eventType)}</small></span></label>`).join('')}</div></fieldset><div class="m06-form-actions"><button type="submit">Save hypothesis</button><p data-m06-hypothesis-feedback role="status"></p></div>`;
+        const linkEvents = `<fieldset class="m06-choice-set"><legend>Events that would test it</legend><div class="m06-choice-grid">${leadEvents.map((event) => `<label><input type="checkbox" name="relatedEventIds" value="${esc(event.id)}"${(hypothesis.relatedEventIds || []).includes(event.id) ? ' checked' : ''}><span><strong>${esc(event.id)}</strong><small>${esc(m06EventSummary(event))}</small></span></label>`).join('')}</div></fieldset><div class="m06-form-actions"><button type="submit">${hypothesis.text ? 'Update hypothesis' : 'Save hypothesis'}</button><p data-m06-hypothesis-feedback role="status">${hypothesis.text ? 'Hypothesis saved. Test it next in 02 · Search.' : ''}</p></div>`;
         const bookmarked = state.bookmarks || [];
         const latest = (state.conclusions || []).at(-1);
         const conclusion = `<section data-m06-conclusion-panel aria-label="Hunt conclusion"><header class="m06-panel-header"><div><span class="m06-step">06 · Close the hunt</span><h3>Hunt conclusion</h3></div></header>${latest ? `<p class="m06-latest-record"><strong>${esc(latest.disposition)}</strong><span>${esc(latest.text)}</span><small>${esc(latest.eventIds.join(', '))}</small></p>` : ''}<form data-m06-conclusion-form><label>Hypothesis outcome <select name="disposition"><option value="supported">Supported</option><option value="rejected">Rejected</option><option value="unresolved">Unresolved</option></select></label><label class="m06-field-wide">Conclusion, limitations and next steps<textarea name="text" rows="4" maxlength="2000" required placeholder="Summarize what the evidence supports, what remains unknown, and the next action…"></textarea></label><fieldset class="m06-choice-set m06-field-wide"><legend>Bookmarked evidence it rests on</legend><div class="m06-choice-grid">${bookmarked.map((eventId) => `<label><input type="checkbox" name="eventIds" value="${esc(eventId)}"><span><strong>${esc(eventId)}</strong></span></label>`).join('') || '<p class="m06-empty-state">Bookmark evidence first.</p>'}</div></fieldset><div class="m06-form-actions m06-field-wide"><button type="submit">Record conclusion</button><p data-m06-conclusion-feedback role="status"></p></div></form></section>`;
@@ -578,7 +603,7 @@ const SocConsoleTools = (() => {
       root.addEventListener('toggle', (event) => {
         const step = event.target;
         if (!step.matches?.('.m06-step-item') || !step.open) return;
-        const number = step.id.replace('m06-hunt-step-', '');
+        const number = step.id.replace(/^.*m06-hunt-step-/, '');
         const state = ctx.load();
         state.huntWorkflowStep = number;
         ctx.store(state);

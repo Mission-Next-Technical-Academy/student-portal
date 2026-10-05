@@ -76,7 +76,7 @@ assert.strictEqual(authoredAssessmentSections[0].scrollId, 'm04-assessment-lab')
 // data: every Module 3 tab, plus only the three Module 4 workspaces, with the
 // ITSM ticket as the console's own tab. Nothing else is scored in the panel.
 vm.runInContext(`
-  moduleFourCaseSpec = () => ({ caseId: 'DET-4424' });
+  moduleFourCaseSpec = () => ({ caseId: 'CASE-044424' });
   caseRecordMissing = () => [];
   caseRecordPane = () => '<form id="m04-assessment"><button data-m04-submit-case>Submit case</button></form>';
   moduleFourProveItRedoRequested = () => false;
@@ -89,10 +89,10 @@ assert.strictEqual((composedAssessmentPanel.match(/class="m03e-console"/g) || []
 assert.match(composedAssessmentPanel, /id="m03e-console-m04"/);
 assert.doesNotMatch(composedAssessmentPanel, /m04-shared-console/, 'the separate M04 console is no longer composed');
 for (const tab of consoleTabs) assert.match(composedAssessmentPanel, new RegExp(`data-m03e-tab="m04:${tab}"`), `console exposes the ${tab} tab`);
-assert.match(composedAssessmentPanel, /DET-4424 · 2026-09-24 · \d+ events/);
+assert.match(composedAssessmentPanel, /CASE-044424 · 2026-09-24 · \d+ events/);
 assert.doesNotMatch(composedAssessmentPanel, /m04-independent-lab|m04-independent-form/, 'the independent practice lab is not in the Assessment Lab');
 const guidedPanel = vm.runInContext('moduleFourGuidedLabPanel()', context);
-assert.match(guidedPanel, /id="m03e-console-m04-guided"/, 'Practice It is the DET-4478 case in the Module 3 SIEM console');
+assert.match(guidedPanel, /id="m03e-console-m04-guided"/, 'Practice It is the CASE-044478 case in the Module 3 SIEM console');
 assert.doesNotMatch(guidedPanel, /m04-independent-lab|m04-independent-form/, 'the retired independent form lab is not composed into Practice It');
 assert.doesNotMatch(composedAssessmentPanel, /data-module-assessment-form|Independent evidence submission/,
   'the generic legacy assessment card/form is not composed into M04');
@@ -196,9 +196,9 @@ assert.strictEqual(vm.runInContext('moduleFourState.independentLab.answers.signa
 const m05Fixture = vm.runInContext('SocM05AssessmentData', context);
 const m05StateApi = vm.runInContext('SocM05AssessmentState', context);
 assert.strictEqual(config.scenarioId, 'M04-ASSESS-2026-09-24');
-assert.strictEqual(vm.runInContext('SocM04AssessmentData.scenario.caseId', context), 'DET-4424');
+assert.strictEqual(vm.runInContext('SocM04AssessmentData.scenario.caseId', context), 'CASE-044424');
 assert.strictEqual(m05Fixture.scenario.id, 'M05-ASSESS-2026-09-27');
-assert.strictEqual(m05Fixture.scenario.caseId, 'EDR-5127');
+assert.strictEqual(m05Fixture.scenario.caseId, 'CASE-055127');
 assert.strictEqual(m05Fixture.scenario.stateKey, 'm05-endpoint-assessment-v1');
 const m05User = { id: 'learner-m04-m05', email: 'learner@example.test' };
 context.integrationM05User = m05User;

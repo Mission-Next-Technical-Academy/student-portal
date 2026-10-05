@@ -11,7 +11,8 @@ const SocM04AssessmentData = (() => {
 
   const scenario = {
     id: 'M04-ASSESS-2026-09-24',
-    caseId: 'DET-4424',
+    caseId: 'CASE-044424',
+    incidentId: 'INC-044733',
     start: '2026-09-24T09:00:00Z',
     end: '2026-09-24T09:20:00Z',
     generatedAt: '2026-09-24T09:21:00Z',
@@ -75,7 +76,7 @@ const SocM04AssessmentData = (() => {
         'M04-X-001..007': 'context (console-only AppAudit/SystemLog/DirectoryAudit rows): mail-client auth error and re-sync corroborate the stale-cache explanation, scheduled backup and probe jobs, collector heartbeat/lag baseline, routine directory change',
         'M04-A-121': 'recovery validation: acct-17 re-authenticates after the rotation, confirming the earlier retries were a stale client cache',
       },
-      rule: { groupingField: 'sourceIp', metric: 'distinctAccounts', threshold: 5, windowMinutes: 10, matchEventIds: ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005', 'M04-A-006'], excludeEventIds: ['M04-A-007', 'M04-A-008', 'M04-A-009'] },
+      rule: { groupingField: 'sourceIp', metric: 'distinctAccounts', threshold: 5, windowMinutes: 20, matchEventIds: ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005', 'M04-A-006'], excludeEventIds: ['M04-A-007', 'M04-A-008', 'M04-A-009'] },
     },
   };
 

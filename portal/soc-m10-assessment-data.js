@@ -16,7 +16,7 @@ const SocM10AssessmentData = (() => {
 
   const scenario = {
     id: 'M10-ASSESS-2026-09-27',
-    caseId: 'EVD-5510',
+    caseId: 'CASE-105510',
     incidentId: 'INC-5510',
     stateKey: 'm10-evidence-locker-assessment-v1',
     start: '2026-09-27T08:30:00Z',

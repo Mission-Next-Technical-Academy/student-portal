@@ -1,5 +1,5 @@
 // Standard ITSM Incident Ticket — the one ticket every SOC module's graded
-// Prove It submission is written on. Module 01's NST-2407 case console is the
+// Prove It submission is written on. Module 01's Prove It case console is the
 // reference (docs/specs/MODULE_STANDARD.md §7.2); this file is that renderer lifted out
 // so every module produces the same ticket: Incident id + Status, Severity,
 // Affected User, Affected Device, Disposition, Escalation required (+ Route to
@@ -57,6 +57,18 @@ const CASE_RECORD_DEFAULT_DEPARTMENTS = [
   { id: 'identity-response', text: 'Identity Response' },
 ];
 
+// Linked incident ids for a case spec, always an array.
+function caseRecordIncidentIds(spec = {}) {
+  return (Array.isArray(spec.incidentIds) ? spec.incidentIds : [spec.incidentIds]).filter(Boolean);
+}
+
+// Scenario brief label (MODULE_STANDARD.md §7.2.1):
+// 'CASE-044424 · INC-044733 · NORMAL SHIFT · ASSIGNED TO YOU'. Returns
+// escaped text for the `.m03e-label` line.
+function caseRecordBriefLabel(spec, tag) {
+  return esc([spec.caseId, ...caseRecordIncidentIds(spec), tag, 'ASSIGNED TO YOU'].filter(Boolean).join(' · '));
+}
+
 function caseRecordSeverity(state) { return state.severity || state.priority || ''; }
 function caseRecordDisposition(state) { return state.disposition || state.verdict || ''; }
 
@@ -67,12 +79,16 @@ function caseRecordSelect(name, label, value, options, disabled, isCorrect = fal
 }
 
 // spec:
-//   caseId            — e.g. 'NST-2407'
+//   caseId            — e.g. 'CASE-012407' (MODULE_STANDARD.md §7.2.1)
+//   incidentIds       — linked incidents, e.g. ['INC-012716']; omit for a
+//                       hunt that has not raised one
+//   ticketType        — queue / domain line under the id
 //   userOptions       — [{ id, text }] roster for Affected User
 //   deviceOptions     — [{ id, text }] roster for Affected Device
 //   dispositionOptions, departmentOptions — optional overrides
 //   findings          — module-specific selects rendered in the ticket grid:
 //                       [{ name, label, options: [{ id, text }] }]
+//                       or { name, label, type: 'textarea', minLength, rows }
 //   findingsHtml      — optional extra markup (checkbox groups etc.) rendered
 //                       under the grid, above the work notes
 //   notesPlaceholder  — optional
@@ -99,19 +115,20 @@ function caseRecordFields(state, spec) {
     ? `<label class="m01-ticket-field"><span>Affected User</span><button type="button" class="m01-entity-control ${isCorrect('affectedUser', state.affectedUser) ? 'is-correct' : ''}" data-m01-entity="user" ${disabled ? 'disabled' : ''}>${esc(state.affectedUser || 'Add user')} <i class="ri-add-line" aria-hidden="true"></i></button></label><label class="m01-ticket-field"><span>Affected Device</span><button type="button" class="m01-entity-control ${isCorrect('affectedDevice', state.affectedDevice) ? 'is-correct' : ''}" data-m01-entity="device" ${disabled ? 'disabled' : ''}>${esc(state.affectedDevice || 'Add device')} <i class="ri-add-line" aria-hidden="true"></i></button></label>`
     : `${caseRecordSelect('affectedUser', 'Affected User', state.affectedUser, userOptions, disabled)}${caseRecordSelect('affectedDevice', 'Affected Device', state.affectedDevice, deviceOptions, disabled)}`;
 
-  const ticketId = spec.ticketId || spec.caseId || '';
   const ticketType = spec.ticketType || 'Security incident';
-  return `<div class="m01-ticket-case"><div class="m01-ticket-id"><span>ITSM Incident Ticket</span><strong>${esc(ticketId)}</strong><small>${esc(ticketType)}</small></div>${caseRecordSelect('status', 'Status', state.status, CASE_RECORD_STATUS_OPTIONS, disabled, isCorrect('status', state.status))}</div>
+  const incidents = caseRecordIncidentIds(spec);
+  return `<div class="m01-ticket-case"><div class="m01-ticket-id"><span>ITSM Incident Ticket</span><strong>${esc(spec.caseId || '')}</strong><small>${esc(ticketType)}</small>${incidents.length ? `<small>Linked ${incidents.length === 1 ? 'incident' : 'incidents'}: ${esc(incidents.join(', '))}</small>` : ''}</div>${caseRecordSelect('status', 'Status', state.status, CASE_RECORD_STATUS_OPTIONS, disabled, isCorrect('status', state.status))}</div>
     <div class="m01-ticket-grid">
       ${caseRecordSelect('severity', 'Severity', severity, CASE_RECORD_SEVERITY_OPTIONS, disabled, isCorrect('severity', severity))}
       ${entities}
       ${caseRecordSelect('disposition', 'Disposition', disposition, dispositionOptions, disabled, isCorrect('disposition', disposition))}
       ${caseRecordSelect('escalation', 'Escalation required', state.escalation, CASE_RECORD_ESCALATION_OPTIONS, disabled, isCorrect('escalation', state.escalation))}
       ${state.escalation === 'required' ? caseRecordSelect('escalateTo', 'Route to Department', state.escalateTo, departmentOptions, disabled, isCorrect('escalateTo', state.escalateTo)) : ''}
-      ${(spec.findings || []).map((field) => caseRecordSelect(`finding:${field.name}`, field.label, findings[field.name], field.options, disabled)).join('')}
+      ${(spec.findings || []).filter((field) => field.type !== 'textarea').map((field) => caseRecordSelect(`finding:${field.name}`, field.label, findings[field.name], field.options, disabled)).join('')}
     </div>
+    ${(spec.findings || []).filter((field) => field.type === 'textarea').map((field) => `<label class="m01-ticket-field m01-ticket-notes"><span>${esc(field.label)}${field.minLength ? ` · at least ${field.minLength} characters` : ''}</span><textarea name="finding:${esc(field.name)}" rows="${field.rows || 4}" minlength="${field.minLength || 1}" maxlength="${field.maxLength || 5000}" ${disabled ? 'disabled' : ''}>${esc(findings[field.name] || '')}</textarea></label>`).join('')}
     ${spec.findingsHtml || ''}
-    <label class="m01-ticket-field m01-ticket-notes"><span>Analyst Work Notes</span><textarea name="notes" rows="6" placeholder="${esc(spec.notesPlaceholder || 'Record the evidence, your assessment, confirmed scope, and handoff needed by the next analyst.')}" ${disabled ? 'disabled' : ''}>${esc(state.notes || '')}</textarea></label>
+    <label class="m01-ticket-field m01-ticket-notes"><span>Analyst Work Notes</span><textarea name="notes" rows="6" ${spec.notesMax ? `maxlength="${spec.notesMax}"` : ''} placeholder="${esc(spec.notesPlaceholder || 'Record the evidence, your assessment, confirmed scope, and handoff needed by the next analyst.')}" ${disabled ? 'disabled' : ''}>${esc(state.notes || '')}</textarea></label>
     ${state.actionHistory?.length ? `<details class="m01-action-history"><summary>Action history (${state.actionHistory.length})</summary><ul>${state.actionHistory.slice(-8).reverse().map((entry) => `<li>${esc(entry.action)}</li>`).join('')}</ul></details>` : ''}`;
 }
 
@@ -131,7 +148,10 @@ function caseRecordMissing(state, spec = {}) {
     const departments = spec.departmentOptions || CASE_RECORD_DEFAULT_DEPARTMENTS;
     if (!departments.some((option) => option.id === state.escalateTo)) missing.push('Route the case to a department');
   }
-  (spec.findings || []).forEach((field) => { if (!(state.findings || {})[field.name]) missing.push(field.missing || `Set ${field.label.toLowerCase()}`); });
+  (spec.findings || []).forEach((field) => {
+    const value = (state.findings || {})[field.name];
+    if (!value || (field.type === 'textarea' && String(value).trim().length < (field.minLength || 1))) missing.push(field.missing || `Record ${field.label.toLowerCase()}${field.minLength ? ` (${field.minLength} characters minimum)` : ''}`);
+  });
   (spec.extraMissing || []).forEach((item) => missing.push(item));
   if ((state.notes || '').trim().length < (spec.notesMin || CASE_RECORD_NOTES_MIN)) missing.push('Write an analyst work note');
   return missing;
@@ -182,7 +202,7 @@ function caseRecordPanel(spec) {
     <p>${body}</p>
     ${!submitted ? (spec.redoHtml || '') : ''}
     ${!submitted && missing.length ? `<ul class="m01-requirements-list">${missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
-    ${!submitted ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${CASE_RECORD_NOTES_MIN} characters.` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}
+    ${!submitted ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${spec.notesMin || CASE_RECORD_NOTES_MIN} characters.` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}
   </div>`;
 }
 
@@ -209,6 +229,7 @@ function caseRecordDisplay(state, spec = {}) {
   const dispositions = (spec.dispositionOptions || CASE_RECORD_DISPOSITION_OPTIONS).map((option) => ({ id: option.id, text: CASE_RECORD_DISPOSITION_LABELS[option.id] || option.text }));
   return [
     ['Case', spec.caseId || 'Not provided'],
+    ...(caseRecordIncidentIds(spec).length ? [['Linked incidents', caseRecordIncidentIds(spec).join(', ')]] : []),
     ['Status', label(CASE_RECORD_STATUS_OPTIONS, state.status)],
     ['Severity', label(CASE_RECORD_SEVERITY_OPTIONS, caseRecordSeverity(state))],
     ['Affected user', state.affectedUser || 'Not provided'],
@@ -225,7 +246,8 @@ function caseRecordDisplay(state, spec = {}) {
 function caseRecordSummary(state, spec = {}) {
   const label = (options, id) => (options || []).find((option) => option.id === id)?.text || id || '—';
   const lines = [
-    `CASE ${spec.caseId || ''}`,
+    `${/^CASE-/.test(spec.caseId || '') ? '' : 'CASE '}${spec.caseId || ''}`,
+    ...(caseRecordIncidentIds(spec).length ? [`Linked incidents: ${caseRecordIncidentIds(spec).join(', ')}`] : []),
     `Status: ${label(CASE_RECORD_STATUS_OPTIONS, state.status)}`,
     `Severity: ${label(CASE_RECORD_SEVERITY_OPTIONS, caseRecordSeverity(state))}`,
     `Affected User: ${state.affectedUser || '—'}`,

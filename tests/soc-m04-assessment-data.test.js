@@ -12,7 +12,7 @@ const local = (value) => JSON.parse(JSON.stringify(value));
 
 assert.strictEqual(data.schemaVersion, 1);
 assert.strictEqual(data.scenario.id, 'M04-ASSESS-2026-09-24');
-assert.strictEqual(data.scenario.caseId, 'DET-4424');
+assert.strictEqual(data.scenario.caseId, 'CASE-044424');
 const scenarioIdentifiers = [data.scenario.id, data.scenario.caseId, 'm04-detection-enrichment-v1'];
 assert.strictEqual(new Set(scenarioIdentifiers).size, scenarioIdentifiers.length,
   'scenario, case, and persisted lab-state identifiers are distinct');

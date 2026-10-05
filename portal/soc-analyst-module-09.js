@@ -1656,4 +1656,4 @@ function wireModuleNineGuidedLab() {
   });
 }
 
-registerModuleLab({ program: 'soc-analyst', moduleNumber: 9, moduleKey: 'soc-09', view: viewModuleNine, wire: wireModuleNine });
+registerModuleLab({ program: 'soc-analyst', moduleNumber: 9, moduleKey: 'soc-09', view: viewModuleNine, wire: wireModuleNine, sections: moduleNineGetSections });

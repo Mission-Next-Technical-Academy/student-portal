@@ -829,11 +829,12 @@ function moduleOneEvidenceList(scenario, reviewed, attribute, disabled = false) 
 // Thin wrappers over the shared ITSM Incident Ticket (portal/case-record.js).
 // Module 01 is the reference the shared renderer was lifted from.
 function moduleOneTicketFields(state, spec) {
-  // Practice It (ALT-1001) keeps the small fixed roster/department list it
-  // always had; Prove It (NST-2407) passes its own larger entityRoster and
+  // Practice It (CASE-011420) keeps the small fixed roster/department list it
+  // always had; Prove It (CASE-012407) passes its own larger entityRoster and
   // departmentOptions (portal/data.js) through spec.
   return caseRecordFields(state, {
     caseId: spec.caseId,
+    incidentIds: spec.incidentIds,
     dispositionOptions: spec.dispositionOptions,
     userOptions: spec.userOptions || [{ id: 'a.chen', text: 'a.chen' }, { id: 's.kim', text: 's.kim' }, { id: 'd.williams', text: 'd.williams' }],
     deviceOptions: spec.deviceOptions || [{ id: 'LAP-442', text: 'LAP-442' }, { id: 'FS-02', text: 'FS-02' }, { id: 'WKS-14', text: 'WKS-14' }],
@@ -928,7 +929,7 @@ function moduleOneCaseConsolePane() {
         <p class="m01-console-pane-title">Alert Queue</p>
         <div class="m01-console-queue-item is-active">
           <span class="${moduleOneSeverityClass(scenario.initialSeverity)}">${esc(scenario.initialSeverity)}</span>
-          <strong>${esc(scenario.title)}</strong><span class="muted">${esc(scenario.id)}</span>
+          <strong>${esc(scenario.title)}</strong><span class="muted">${esc(scenario.alertId || scenario.id)}</span>
         </div>
       </aside>
       <section class="m01-console-pane m01-console-detail" aria-label="Logs and evidence">
@@ -944,7 +945,7 @@ function moduleOneCaseConsolePane() {
       </section>
       <section class="m01-console-pane m01-console-ticket" aria-label="ITSM incident ticket">
         <p class="m01-console-pane-title">ITSM Incident Ticket</p>
-        <form id="m01-practice-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: moduleOneState.consoleCompleted })}
+        <form id="m01-practice-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.caseId || scenario.id, incidentIds: scenario.incidentId, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: moduleOneState.consoleCompleted })}
           ${moduleOneState.consoleCompleted ? '' : '<div class="m01-ticket-actions"><button type="button" class="m01-reset" data-m01-practice-save>Update Ticket</button><button type="button" class="m01-submit" data-m01-practice-check>Submit Lab</button></div>'}
         </form>
         ${moduleOneState.consoleCompleted
@@ -1018,7 +1019,7 @@ function moduleOneProveItCaseConsolePane() {
         <div class="m01-console-queue-item is-active">
           <span class="${moduleOneSeverityClass(scenario.initialSeverity)}">${esc(scenario.initialSeverity)}</span>
           <strong>${esc(scenario.title)}</strong>
-          <span class="muted">${esc(scenario.id)}</span>
+          <span class="muted">${esc(scenario.alertId || scenario.id)}</span>
         </div>
       </aside>
       <section class="m01-console-pane m01-console-detail" aria-label="Logs and evidence">
@@ -1034,7 +1035,7 @@ function moduleOneProveItCaseConsolePane() {
       </section>
       <section class="m01-console-pane m01-console-ticket" aria-label="ITSM incident ticket">
         <p class="m01-console-pane-title">ITSM Incident Ticket</p>
-        <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.id, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted, entitySelects: true,
+        <form id="m01-lab2-form" class="m01-ticket-form">${moduleOneTicketFields(state, { caseId: scenario.caseId || scenario.id, incidentIds: scenario.incidentId, severityOptions: lab.priorityOptions, dispositionOptions: lab.verdictOptions, disabled: submitted, entitySelects: true,
           userOptions: scenario.entityRoster.users.map((entry) => ({ id: entry.id, text: entry.id })),
           deviceOptions: scenario.entityRoster.devices.map((entry) => ({ id: entry.id, text: entry.id })),
           departmentOptions: lab.departmentOptions })}
@@ -1960,6 +1961,7 @@ registerModuleLab({
   moduleNumber: 1,
   moduleKey: 'soc-01',
   view: viewModuleOne,
+  sections: moduleOneGetNavSections,
   wire: wireModuleOneLab,
   onMessage: moduleOneReceiveCoachCompletion,
 });

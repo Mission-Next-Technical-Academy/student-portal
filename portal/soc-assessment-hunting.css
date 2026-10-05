@@ -403,6 +403,7 @@
 [data-m06-related-results] time { color: var(--hunt-muted); font-size: 9px; }
 [data-m06-related-results] li strong { color: var(--hunt-navy); font-size: 10px; }
 [data-m06-related-results] li > span { color: #526579; font-size: 10px; overflow-wrap: anywhere; }
+[data-m06-related-results] li > span code { display: block; margin-top: 3px; color: var(--hunt-navy); font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 .m06-result-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
 
 .m06-query-help {

@@ -13,7 +13,7 @@ const MODULE_EIGHT_CATALOG_LAB_KEYS = [MODULE_EIGHT_PRIORITY_CATALOG_KEY, MODULE
 // Prove It case — a validated OpenVAS finding needing WSUS remediation,
 // consistent with the imported WSUS (vm-5) and OpenVAS (vm-1) assessment
 // projects (portal/imported-labs/mission-next-labs/src/data.js).
-const MODULE_EIGHT_CASE_ID = 'VLN-0842';
+const MODULE_EIGHT_CASE_ID = 'CASE-080842';
 const MODULE_EIGHT_ENTITY_ROSTER = {
   users: [
     { id: 'p.diallo', tier: 'principal' },
@@ -898,7 +898,7 @@ M03E_AFTER_RENDER['m08-guided'] = function () {
   moduleEightPositionGuidedGuide(root);
 };
 
-const MODULE_EIGHT_GUIDED_CASE_ID = 'VLN-PRACTICE-0849';
+const MODULE_EIGHT_GUIDED_CASE_ID = 'CASE-080849';
 
 const MODULE_EIGHT_OPTIONAL_LABS = [
   { title: 'Patch Management and Vulnerability Remediation using WSUS', detail: 'Patch deployment and remediation practice', href: 'imported-labs/mission-next-labs/index.html#/track/vulnerability-management/project/vm-5/lab', labId: 'assessment-1' },
@@ -1068,7 +1068,7 @@ const MODULE_EIGHT_GUIDED_CONSOLE = (() => {
         store: (next) => SocM08AssessmentState.save(moduleEightUser, next, MODULE_EIGHT_GUIDED_FIXTURE) } },
     ],
     caseView: () => { const html = caseRecordPane(moduleEightGuidedState.caseRecord, {
-      caseId: MODULE_EIGHT_GUIDED_CASE_ID, ticketId: 'INC-0849', ticketType: 'Exposure prioritization · Vulnerability Response',
+      caseId: MODULE_EIGHT_GUIDED_CASE_ID, ticketType: 'Exposure prioritization · Vulnerability Response',
       userOptions: [{ id: 'n.owens', text: 'n.owens · API service owner' }, { id: 's.ivanov', text: 's.ivanov · backend owner' }],
       deviceOptions: [{ id: 'api-edge-31', text: 'api-edge-31 · public API edge' }, { id: 'pay-api-09', text: 'pay-api-09 · restricted backend' }],
       departmentOptions: [{ id: 'vulnerability-response', text: 'Vulnerability Response' }, { id: 'service-owner-remediation', text: 'Service Owner Remediation' }, { id: 'security-lead-review', text: 'Security Lead Review' }],
@@ -1094,7 +1094,7 @@ function moduleEightCaseTicket() {
 
 function moduleEightAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m08-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_EIGHT_CASE_ID)} · FINDINGS REVIEW · ASSIGNED TO YOU</p><p>Prioritize scanner findings by current applicability, reachability, asset value, incident evidence, and controls, not CVSS alone. Separate urgent work, assign owners and due dates, escalate or link supported incidents, and complete the ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel({ caseId: MODULE_EIGHT_CASE_ID }, 'FINDINGS REVIEW')}</p><p>Prioritize scanner findings by current applicability, reachability, asset value, incident evidence, and controls, not CVSS alone. Separate urgent work, assign owners and due dates, escalate or link supported incidents, and complete the ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m08">${moduleThreeConsoleHtml('m08')}</div>
   </div>`;
 }
@@ -1463,4 +1463,4 @@ function wireModuleEight() {
   wireModuleEightLab();
 }
 
-registerModuleLab({ program: 'soc-analyst', moduleNumber: 8, moduleKey: 'soc-08', view: viewModuleEight, wire: wireModuleEight });
+registerModuleLab({ program: 'soc-analyst', moduleNumber: 8, moduleKey: 'soc-08', view: viewModuleEight, wire: wireModuleEight, sections: moduleEightGetSections });

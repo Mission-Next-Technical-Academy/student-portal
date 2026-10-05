@@ -38,6 +38,8 @@ html.lab-max-open, html.lab-max-open body { overflow: hidden; }
 }
 .lab-max-active summary.lab-max-bar > section,
 .lab-max-active summary.lab-max-bar .lab-max-heading { margin: 0 !important; padding: 0 !important; border: 0; background: none; box-shadow: none; }
+/* Keep Minimize clear of the fixed Night/Day mode toggle (theme.css). */
+.lab-max-active .lab-max-bar { padding-right: 168px !important; }
 .lab-max-active .lab-max-heading h2 { font-size: 19px; }
 .lab-max-active .mf-section-toggle,
 .lab-max-active .m01-section-collapse { display: none !important; }

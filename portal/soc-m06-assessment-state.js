@@ -148,6 +148,9 @@ const SocM06AssessmentState = (() => {
     }
     normalized.selectedCollectionId = normalized.collections.some((item) => item.id === source.selectedCollectionId)
       ? source.selectedCollectionId : '';
+    // Which hunt workflow step is open (soc-console-tools.js), so a search or
+    // save re-render keeps the learner on the step they are working.
+    if (/^0[1-6]$/.test(source.huntWorkflowStep)) normalized.huntWorkflowStep = source.huntWorkflowStep;
     normalized.schemaVersion = VERSION;
     normalized.scenarioId = scenario.id;
     if (typeof SocM06AssessmentActions !== 'undefined') {

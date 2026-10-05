@@ -52,7 +52,8 @@ const SocM05AssessmentData = (() => {
 
   const scenario = {
     id: 'M05-ASSESS-2026-09-27',
-    caseId: 'EDR-5127',
+    caseId: 'CASE-055127',
+    incidentId: 'INC-055436',
     stateKey: 'm05-endpoint-assessment-v1',
     start: '2026-09-27T09:00:00Z',
     end: '2026-09-27T09:30:00Z',

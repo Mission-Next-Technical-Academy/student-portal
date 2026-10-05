@@ -24,6 +24,7 @@ const context = {
   esc: (value) => String(value ?? ''),
   caseRecordMissing: () => [],
   caseRecordPane: () => '<form id="m06-independent-form"></form>',
+  caseRecordBriefLabel: (spec, tag) => [spec.caseId, tag, 'ASSIGNED TO YOU'].join(' · '),
   caseRecordSeverity: (state) => state.severity || '',
   caseRecordDisposition: (state) => state.disposition || '',
   markModuleContentOpened: () => {},

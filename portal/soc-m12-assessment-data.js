@@ -278,7 +278,28 @@ const SocM12AssessmentData = (() => {
     'BEN-101': { EventType: 'SignedInventoryScript', Result: 'Allowed', Account: 'system', Image: 'inventory-script.exe', ParentImage: 'management-agent.exe', Sha256: HASH_INV, Signer: 'Mission Next IT', Detail: 'Approved inventory script; signed publisher and expected path' },
   };
 
+  // Every native console record can be cited without a shortlist of scored
+  // candidates. Availability does not assert relevance or affected scope.
+  telemetry.forEach(r=>{
+    scenario.evidence.push({id:r.EventId,source:r.EventSource,entityIds:[...new Set([r.Host,r.Account,r.DestinationIp].filter(Boolean).map(value=>String(value).toLowerCase()))],at:`${scenario.start.slice(0,10)}T${r.at}Z`});
+    const {EventSource,EventId,at,...fields}=r;
+    evidenceFields[r.EventId]={...fields,Host:String(fields.Host).toLowerCase()};
+  });
+
   const expectedTruth = {
+    // V2 support classifications belong to instructor truth, never console records.
+    evidenceSupport: Object.fromEntries(scenario.evidence.map(e => {
+      const purpose = telemetryPurposes[e.id] || '';
+      const primary = ['EM-212','EP-301','EP-303','ID-402','NW-501','VX-701'].includes(e.id);
+      const secondary = ['NW-504','EM-216','EM-217','EM-218','EU-001','EU-002','ID-403'].includes(e.id);
+      const contradictory = e.id === 'BEN-101' || /benign/.test(purpose);
+      const level = primary ? 'PRIMARY' : secondary ? 'SECONDARY' : contradictory ? 'CONTRADICTORY' : /corroboration|evidence context|scope check|coverage|exposure|custody/.test(purpose) ? 'SUPPORTING' : 'IRRELEVANT';
+      const domain = /Identity|AAD|Directory|Application/.test(e.source) ? 'identity' : /Email/.test(e.source) ? 'email' : /Network|Dns|Proxy|Firewall/.test(e.source) ? 'network' : /Vulnerability|Scan/.test(e.source) ? 'exposure' : /Device/.test(e.source) ? 'endpoint' : '';
+      return [e.id, { level, domain, entityIds: e.entityIds, boundedNegative: e.id === 'NW-504' }];
+    })),
+    indicatorDecisions: { 'TI-601':'malicious', 'TI-602':'malicious', 'TI-603':'benign', 'TI-604':'unknown', 'TI-605':'benign' },
+    indicatorEvidence: { 'TI-601':['NW-501','ID-402'], 'TI-602':['EP-301','EP-302'], 'TI-603':['BEN-101','NW-504','NW-503'], 'TI-604':['EM-212','DNS-001'], 'TI-605':['EP-311','DN-002'] },
+    supportCredit: { PRIMARY:1, SECONDARY:0.65, SUPPORTING:0.4, IRRELEVANT:0, CONTRADICTORY:0 },
     affectedEntities: ['ws-204', 'acct-204'], benignEntities: ['ws-118'], unrelatedEntities: ['acct-091'],
     selectedEvidence: ['EM-212', 'EP-301', 'EP-303', 'ID-402', 'NW-501'],
     timeline: ['EM-212', 'EP-301', 'NW-501', 'EP-303', 'ID-402'],
@@ -303,5 +324,7 @@ const SocM12AssessmentData = (() => {
       ],
     },
   };
-  return freeze({ schemaVersion: 1, scenario, expectedTruth, telemetry, evidenceFields });
+  // Console pack object identities map to the same canonical capstone targets.
+  const toolTargets = { 'DEV-204':'ws-204', 'SESSION-204':'acct-204', 'IOC-204':'203.0.113.72', 'PERSIST-204':'ws-204' };
+  return freeze({ schemaVersion: 1, scenario, expectedTruth, telemetry, evidenceFields, toolTargets });
 })();

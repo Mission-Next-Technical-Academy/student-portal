@@ -3,6 +3,63 @@
 **Total:** 100 points  
 **Passing score:** 70 points
 
+## Runtime rubric versions
+
+**V2 scorer implemented 2026-10-03; active-state migration enabled 2026-10-05.**
+`SocM12AssessmentScorer.score(state, fixture, { rubricVersion: 2 })` selects
+v2; `state.rubricVersion` is also accepted. Unversioned historical states
+and explicit version 1 use the unchanged v1 extractor. Submitted v1 score
+snapshots must be displayed as recorded, never silently rescored with v2.
+The sections below describe curriculum intent; this table is the precise v2
+runtime allocation within the unchanged eight competency weights.
+
+| Competency | V2 point allocation |
+|---|---|
+| Intelligence (10) | 10 for a correct contextual verdict supported by cited evidence or entities; unsupported explicit verdicts deduct 5 each |
+| Detection (18) | Correlated query 9, saved correlated rule 5, schedule 4 |
+| Alerts/incident (12) | Correct dispositions 2 each (maximum 4), supported incident association 4, evidence-justified ticket priority and scope 4 |
+| Investigation (18) | Identity 4, endpoint 4, email 3, network 3, exposure 4; credit scales by evidence support and domain applicability |
+| Timeline/scope/evidence/ATT&CK (12) | Chronological pinned reconstruction 3, affected entities and bounded secondary scope 3, supported pins 3, evidenced ATT&CK mappings 3 |
+| Automation/containment (14) | Preservation/approval/isolation workflow 5, supported approval 3, executed supported containment 6 |
+| Recovery (8) | Persistence removal 2, session revocation 2, trusted restore 2, clean scan plus monitoring 2 |
+| Reporting (8) | Grounded technical narrative 3, executive summary 1, lessons 1, actionable handoff 1, grounded closure 1, readable communication 1 |
+
+`expectedTruth.evidenceSupport` is instructor-only metadata: PRIMARY earns
+full finding support, SECONDARY 0.65, SUPPORTING 0.4, and IRRELEVANT or
+CONTRADICTORY zero. Domain points are rounded once. Correctly excluding a
+benign competing event can demonstrate supporting analysis. NW-504 earns
+secondary network/scope credit for a bounded negative finding; it does not
+prove ws-118 is compromised.
+
+Opening rows, running extra queries, and pinning extra evidence never reduce
+credit. Explicit conclusions can: unsupported affected entities deduct 3
+scope points each; unsupported ATT&CK mappings deduct 1 each; incorrect alert
+dispositions or incident associations deduct 2 each; calling contradictory
+evidence malicious deducts the applicable investigation domain weight.
+Deductions stay within the relevant competency and cannot make it negative.
+A determination indiscriminately citing the whole dataset earns reduced
+support because the citations are not applicable to its claimed domain.
+
+Free-text technical credit requires cited evidence or associated entities;
+keyword presence and writing length alone do not establish technical skill.
+Polished unsupported reports receive at most the single communication point.
+Automation/technical evidence is scored independently of weak writing.
+Chronology is judged from the submitted reconstruction's record timestamps,
+with at least three primary records that the student actually pinned.
+
+Any explicit unsafe execution attempt, including a blocked out-of-scope or
+unapproved attempt, reduces containment credit and caps the total at 69.
+The range retains the attempted action; a later approval does not erase it.
+This v2 rule supersedes the narrower historical safety language below.
+
+V2 emits a `reviewArtifact` containing full student responses, determinations,
+selected evidence, meaningful actions, competency results and score
+explanations, marked `needs_review`. The portal grading card renders these
+fields in a readable Student Analyst Response and competency breakdown; raw
+payload data remains secondary. A real persisted submission still needs the
+faculty-account browser check recorded in
+`archive/completed-feature-notes/M12_INTEGRATED_CLICKTHROUGH.md`.
+
 Students receive partial credit. An early mistake does not prevent passing if
 they recognize it, correct it, and make enough strong decisions afterward.
 

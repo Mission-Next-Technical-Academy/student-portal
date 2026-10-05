@@ -56,21 +56,21 @@ const setup = `
   caseRecordPane = () => '<form id="m04-assessment"></form>';
 `;
 vm.runInContext(setup, context);
-assert.strictEqual(vm.runInContext('moduleFourCaseSpec().caseId', context), 'DET-4424', 'submitted case identity matches the immutable fixture');
+assert.strictEqual(vm.runInContext('moduleFourCaseSpec().caseId', context), 'CASE-044424', 'submitted case identity matches the immutable fixture');
 assert.ok(vm.runInContext('moduleFourCaseSpec().userOptions.some((option) => option.id === "acct-44" && option.tier === "principal")', context));
 assert.ok(vm.runInContext('moduleFourCaseSpec().deviceOptions.some((option) => option.id === "198.51.100.64" && option.tier === "principal")', context));
 assert.strictEqual(vm.runInContext('moduleFourCaseScore().breakdown.affected_entity', context), 15,
   'the fixture-supported account and source earn full affected-entity credit');
 
 // Existing DET-4415 drafts retain their work while their legacy selections are
-// mapped to the equivalent identities in the immutable DET-4424 fixture.
+// mapped to the equivalent identities in the immutable CASE-044424 fixture.
 persisted = {
   ...JSON.parse(JSON.stringify(vm.runInContext('moduleFourState', context))),
   caseRecord: { caseId: 'DET-4415', status: 'closed', severity: 'high', affectedUser: 'acct-24', affectedDevice: '198.51.100.44', disposition: 'true-positive', escalation: 'required', escalateTo: 'identity-response', notes: 'Legacy analyst rationale remains preserved.', findings: { intelAssessment: 'corroborates' }, submitted: true, submittedAt: '2026-09-25T10:00:00Z', score: 76, reviewPayload: { score: 76, criteria: [{ id: 'legacy' }] }, actionHistory: [{ action: 'Saved case' }] },
 };
 vm.runInContext('moduleFourLoad(moduleFourUser)', context);
 const migratedCase = local('moduleFourState.caseRecord');
-assert.strictEqual(migratedCase.caseId, 'DET-4424');
+assert.strictEqual(migratedCase.caseId, 'CASE-044424');
 assert.strictEqual(migratedCase.scenarioId, local('SocM04AssessmentData.scenario.id'));
 assert.strictEqual(migratedCase.legacyCaseId, 'DET-4415');
 assert.strictEqual(migratedCase.affectedUser, 'acct-44');
@@ -113,10 +113,10 @@ const clickEvent = { target: { closest: (selector) => selector === '[data-m04-su
 clickHandler(clickEvent);
 const first = local('moduleFourState');
 assert.strictEqual(first.caseRecord.submitted, true);
-assert.strictEqual(first.caseRecord.caseId, 'DET-4424');
+assert.strictEqual(first.caseRecord.caseId, 'CASE-044424');
 assert.strictEqual(first.caseRecord.scenarioId, local('SocM04AssessmentData.scenario.id'));
 assert.strictEqual(first.caseRecord.score, first.caseRecord.reviewPayload.score);
-assert.strictEqual(first.caseRecord.reviewPayload.caseId, 'DET-4424');
+assert.strictEqual(first.caseRecord.reviewPayload.caseId, 'CASE-044424');
 assert.strictEqual(first.caseRecord.reviewPayload.scenarioId, local('SocM04AssessmentData.scenario.id'));
 assert.strictEqual(first.score, first.caseRecord.reviewPayload.score);
 assert.ok(first.caseRecord.reviewPayload.criteria.length > 0);
@@ -128,16 +128,16 @@ assert.strictEqual(vm.runInContext('moduleFourProveItReviewStatus()', context), 
   'submission shows the standard faculty-review state');
 assert.ok(attempts.some((entry) => entry.catalog?.[2]?.result?.review_payload?.score === first.score),
   'catalog attempt includes instructor-readable review payload');
-assert.ok(attempts.some((entry) => entry.catalog?.[2]?.result?.review_payload?.caseId === 'DET-4424'
+assert.ok(attempts.some((entry) => entry.catalog?.[2]?.result?.review_payload?.caseId === 'CASE-044424'
   && entry.catalog?.[2]?.result?.review_payload?.scenarioId === first.caseRecord.scenarioId),
   'catalog review payload identifies the fixture-matched submitted case');
 const firstCatalogAttempt = attempts.find((entry) => entry.catalog)?.catalog;
 assert.strictEqual(firstCatalogAttempt[1], 'lab-detection-rule', 'submission preserves the established catalog lab key');
 assert.strictEqual(firstCatalogAttempt[2].state, 'complete');
-assert.strictEqual(firstCatalogAttempt[2].result.case_record.caseId, 'DET-4424');
+assert.strictEqual(firstCatalogAttempt[2].result.case_record.caseId, 'CASE-044424');
 assert.strictEqual(firstCatalogAttempt[2].result.case_record.scenarioId, first.caseRecord.scenarioId,
   'instructor attempt case record carries the fixture case and scenario identity');
-assert.strictEqual(firstCatalogAttempt[2].result.review_payload.caseId, 'DET-4424');
+assert.strictEqual(firstCatalogAttempt[2].result.review_payload.caseId, 'CASE-044424');
 assert.strictEqual(firstCatalogAttempt[2].result.review_payload.scenarioId, first.caseRecord.scenarioId);
 assert.ok(attempts.some((entry) => entry.progress?.[2] === 'soc-04'
   && entry.progress?.[3] === 'lab-detection-rule'), 'submission marks progress under the existing module and catalog key');
@@ -179,7 +179,7 @@ Promise.resolve().then(() => {
   assert.strictEqual(local("Boolean(moduleFourUser.openLabRedosByModuleKey?.['soc-04'])"), false,
     'a successfully recorded redo closes the returned-redo lifecycle');
   assert.strictEqual(local('moduleFourState.caseRecord.submitted'), true);
-  assert.strictEqual(local('moduleFourState.caseRecord.reviewPayload.caseId'), 'DET-4424');
+  assert.strictEqual(local('moduleFourState.caseRecord.reviewPayload.caseId'), 'CASE-044424');
   assert.strictEqual(local('moduleFourState.caseRecord.reviewPayload.scenarioId'), local('SocM04AssessmentData.scenario.id'));
   console.log('M04 assessment submit integration, persistence, catalog/progress contract, visibility, immutability, and redo lifecycle checks passed.');
 });

@@ -9,6 +9,44 @@ pointer and must not become a second task queue.
 The prior chronological engineering handoff is preserved at
 `archive/session-logs/HANDOFF_THROUGH_2026-09-10.md`.
 
+## Live course UAT and grading UX — continue at M06 Guided Lab, step 02 (2026-10-05)
+
+Full bug list, the new Prove It gate, and exact continuation steps are in
+[docs/workstreams/LIVE_COURSE_UAT_AND_GRADING_UX.md](../workstreams/LIVE_COURSE_UAT_AND_GRADING_UX.md).
+Bug 8 is verified live: M05 complete, 5 of 12, M06 unlocked. This session
+fixed bugs 15–27 locally (lock copy, Learn It contrast/overflow, maximize vs
+theme toggle, console prose leak, Practice It eyebrow, prefixed step links,
+hunt step persistence, M06 hypothesis/search readability, M02 kickers). It
+also built the owner-requested **Prove It gate** (`portal/prove-it-gate.js`):
+the Assessment Lab stays locked until the Guided Lab is submitted. Next:
+finish the M06 Guided Lab, confirm the gate unlocks on submit, then continue
+M06 Prove It → instructor approval → M07. Bug 7 still awaits the owner's
+pre-gate cleanup decision. Nothing is committed.
+
+## Module 12 integrated capstone — S5 remains open (2026-10-05)
+
+Resumed the existing capstone worktree and verified its acceptance baseline:
+`bash bin/ci-check.sh` passes; the console sweep passes **304/304** tabs; the
+Module 1/12 lab click sweep passes fresh and complete Guided/Assessment Lab
+states; all six `tests/soc-m12-*.test.js` pass; and the full `bin/portal-check.js`
+render sweep passes. Three synthetic Chrome submissions then passed through
+the actual ticket/scoring/faculty-review UI and local state rehydration: gold
+100, exploration-heavy 100, and unsafe isolation 69 with the safety cap.
+The Module 1 Assessment Lab regression also submitted at 100, rehydrated, stayed
+locked, and rendered through the faculty ticket view using a synthetic user.
+Detailed local acceptance evidence is in
+`archive/completed-feature-notes/M12_INTEGRATED_CLICKTHROUGH.md`; outstanding
+account UAT and implementation status are in
+`docs/workstreams/M12_INTEGRATED_CAPSTONE_PLAN.md`.
+
+S5 remains open for designated learner/faculty account checks: remote
+sign-out/sign-in persistence, real faculty review of a persisted attempt, and
+historical-attempt behavior. Module 1 submit/lock/local persistence/review has
+a synthetic browser regression; authenticated remote persistence remains
+unverified. The local roster accounts are not labeled disposable QA users and
+no faculty session is available. All capstone code is still uncommitted in the
+shared worktree.
+
 ## Optional CLI Lab deep rewrite — S1–S8 complete; S9 deferred, 2026-09-30
 
 > **Scope correction (end of 2026-09-30):** `sa-2` and `sa-5` are Module 02

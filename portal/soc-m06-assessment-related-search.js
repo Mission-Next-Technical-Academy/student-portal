@@ -365,12 +365,18 @@ const SocM06AssessmentRelatedSearch = (() => {
       ${savedRows ? `<div class="attack-table-wrap"><table class="attack-table"><thead><tr><th>Tactic</th><th>Technique</th><th>Status</th><th>Confidence</th><th>Evidence</th><th>Rationale</th><th></th></tr></thead><tbody>${savedRows}</tbody></table></div>` : '<p class="attack-empty">No mappings saved.</p>'}</section>`;
   }
 
+  // The field an analyst identifies a row by: command, file, task or destination.
+  function eventDetail(event) {
+    return event.commandLine || event.path || event.taskName
+      || (event.destination ? `${event.destination}${event.destinationPort ? `:${event.destinationPort}` : ''}` : '');
+  }
+
   function render(results, options = {}) {
     const events = Array.isArray(results) ? results : [];
-    if (!events.length) return '<section data-m06-related-results aria-label="Related event results"><p role="status">No matching events.</p></section>';
+    if (!events.length) return `<section data-m06-related-results aria-label="Related event results"><p role="status">${escapeHtml(options.emptyText || 'No matching events.')}</p></section>`;
     const e = escapeHtml;
     return `<section data-m06-related-results aria-label="Related event results"><ol>${events.map((event) =>
-      `<li data-event-id="${e(event.id)}"><div><time datetime="${e(event.time)}">${e(event.time)}</time><strong>${e(event.eventType)}</strong></div><span>${e(event.device)} / ${e(event.account)}</span><span>${e(event.action)}: ${e(event.result)}</span><div class="m06-result-actions">${options.pivotFromEventId ? `<button type="button" data-m06-pivot-from="${e(options.pivotFromEventId)}" data-m06-pivot-to="${e(event.id)}">Pivot</button>` : ''}${options.relatedPivots ? (event.relatedEventIds || []).map((to) => `<button type="button" data-m06-pivot-from="${e(event.id)}" data-m06-pivot-to="${e(to)}">Pivot to ${e(to)}</button>`).join('') : ''}${options.bookmarks ? `<button type="button" data-m06-bookmark="${e(event.id)}">${options.bookmarks.includes(event.id) ? 'Remove bookmark' : 'Bookmark'}</button>` : ''}</div></li>`).join('')}</ol></section>`;
+      `<li data-event-id="${e(event.id)}"><div><time datetime="${e(event.time)}">${e(event.time)}</time><strong>${e(event.id)} · ${e(event.eventType)}</strong></div><span>${e(event.device)} / ${e(event.account)}</span><span>${e(event.action)}: ${e(event.result)}${eventDetail(event) ? `<code>${e(eventDetail(event))}</code>` : ''}</span><div class="m06-result-actions">${options.pivotFromEventId ? `<button type="button" data-m06-pivot-from="${e(options.pivotFromEventId)}" data-m06-pivot-to="${e(event.id)}">Pivot</button>` : ''}${options.relatedPivots ? (event.relatedEventIds || []).map((to) => `<button type="button" data-m06-pivot-from="${e(event.id)}" data-m06-pivot-to="${e(to)}">Pivot to ${e(to)}</button>`).join('') : ''}${options.bookmarks ? `<button type="button" data-m06-bookmark="${e(event.id)}">${options.bookmarks.includes(event.id) ? 'Remove bookmark' : 'Bookmark'}</button>` : ''}</div></li>`).join('')}</ol></section>`;
   }
 
   function renderSearch(fixture, state) {
@@ -391,7 +397,7 @@ const SocM06AssessmentRelatedSearch = (() => {
       <label>Start UTC <input name="startTime" type="text" value="${e(start)}"></label><label>End UTC <input name="endTime" type="text" value="${e(end)}"></label>
       <label>Entity <select name="entityType"><option value="all"${type === 'all' ? ' selected' : ''}>All entities</option><option value="device"${type === 'device' ? ' selected' : ''}>Device</option><option value="account"${type === 'account' ? ' selected' : ''}>Account</option></select></label>
       <label>Entity value <select name="entityValue">${choices.map((item) => `<option value="${e(item)}"${item === value ? ' selected' : ''}>${e(item)}</option>`).join('')}</select></label>
-      <div class="m06-form-actions"><button type="submit">Search events</button></div></form>${render(previous.resultEventIds?.map((id) => scenario.telemetry.find((event) => event.id === id)).filter(Boolean) || [], { bookmarks: state?.bookmarks || [], relatedPivots: true })}</section>`;
+      <div class="m06-form-actions"><button type="submit">Search events</button></div></form>${render(previous.resultEventIds?.map((id) => scenario.telemetry.find((event) => event.id === id)).filter(Boolean) || [], { bookmarks: state?.bookmarks || [], relatedPivots: true, emptyText: previous.timestamp ? '' : 'Run a search to see matching events.' })}</section>`;
   }
 
   function renderEvidencePanel(fixture, state) {

@@ -372,13 +372,15 @@ const MODULE_FIVE_DEFAULT_STATE = {
 //
 // The scored case identity and entities come from the immutable assessment fixture.
 const MODULE_FIVE_LEGACY_CASE_ID = 'EDR-5119';
+// Same case, pre-§7.2.1 label — relabelled, never treated as legacy.
+const MODULE_FIVE_PRIOR_CASE_IDS = ['EDR-5127'];
 const MODULE_FIVE_CASE_ID = SocM05AssessmentData.scenario.caseId;
 const MODULE_FIVE_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
 const MODULE_FIVE_ENTITY_ROSTER = {
   users: [
-    { id: 'j.alvarez', text: 'j.alvarez (affected user)', tier: 'principal' },
-    { id: 'm.reyes', text: 'm.reyes (benign updater activity)', tier: 'pivot' },
+    { id: 'j.alvarez', text: 'j.alvarez', tier: 'principal' },
+    { id: 'm.reyes', text: 'm.reyes', tier: 'pivot' },
     { id: 'p.chen', text: 'p.chen', tier: 'noise' },
     { id: 'r.diallo', text: 'r.diallo', tier: 'noise' },
     { id: 'k.osei', text: 'k.osei', tier: 'noise' },
@@ -386,8 +388,8 @@ const MODULE_FIVE_ENTITY_ROSTER = {
     { id: 'a.silva', text: 'a.silva', tier: 'noise' },
   ],
   devices: [
-    { id: 'ws-assess-27', text: 'ws-assess-27 (affected endpoint)', tier: 'principal' },
-    { id: 'ws-assess-14', text: 'ws-assess-14 (benign comparison)', tier: 'pivot' },
+    { id: 'ws-assess-27', text: 'ws-assess-27', tier: 'principal' },
+    { id: 'ws-assess-14', text: 'ws-assess-14', tier: 'pivot' },
     { id: 'srv-assess-02', text: 'srv-assess-02', tier: 'noise' },
   ],
 };
@@ -426,6 +428,7 @@ function moduleFiveExtraMissing() {
 function moduleFiveCaseSpec() {
   return {
     caseId: MODULE_FIVE_CASE_ID,
+    incidentIds: [SocM05AssessmentData.scenario.incidentId],
     userOptions: MODULE_FIVE_ENTITY_ROSTER.users,
     deviceOptions: MODULE_FIVE_ENTITY_ROSTER.devices,
     departmentOptions: MODULE_FIVE_DEPARTMENT_OPTIONS,
@@ -597,6 +600,7 @@ function moduleFiveLoad(user) {
   if (moduleFiveState.caseRecord.caseId !== MODULE_FIVE_CASE_ID
     || moduleFiveState.caseRecord.scenarioId !== SocM05AssessmentData.scenario.id) {
     if (moduleFiveState.caseRecord.caseId && moduleFiveState.caseRecord.caseId !== MODULE_FIVE_LEGACY_CASE_ID
+      && !MODULE_FIVE_PRIOR_CASE_IDS.includes(moduleFiveState.caseRecord.caseId)
       && !moduleFiveState.caseRecord.legacyCaseId) moduleFiveState.caseRecord.legacyCaseId = moduleFiveState.caseRecord.caseId;
     if (moduleFiveState.caseRecord.caseId === MODULE_FIVE_LEGACY_CASE_ID && !moduleFiveState.caseRecord.legacyCaseId) {
       moduleFiveState.caseRecord.legacyCaseId = MODULE_FIVE_LEGACY_CASE_ID;
@@ -814,7 +818,7 @@ function moduleFiveLessonGrid() {
 
 function moduleFiveGuidedLabPanel() {
   const complete = moduleFiveGuidedState.caseRecord.submitted === true;
-  return `${moduleFiveGuidedGuide()}<div class="m03e-panel" id="m05-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE EDR-5204 · ENDPOINT ALERT · PRACTICE IT</p><p>A script attached to a quarterly forecast email ran on ws-practice-41. Reconstruct the process chain, assess persistence and sensor coverage, preserve linked evidence, and choose a proportionate response. Correlate the evidence, record your findings, and submit the ITSM ticket to complete this practice lab.</p></div><div class="m03e-console-host" id="m03e-console-m05-guided">${moduleThreeConsoleHtml('m05-guided')}</div></div><p class="m05-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Complete the investigation in the console; progress is saved automatically.'}</p>`;
+  return `${moduleFiveGuidedGuide()}<div class="m03e-panel" id="m05-guided-prove-panel"><div class="m03e-brief"><p class="m03e-label">CASE-055204 · INC-055512 · ENDPOINT ALERT · PRACTICE IT</p><p>A script attached to a quarterly forecast email ran on ws-practice-41. Reconstruct the process chain, assess persistence and sensor coverage, preserve linked evidence, and choose a proportionate response. Correlate the evidence, record your findings, and submit the ITSM ticket to complete this practice lab.</p></div><div class="m03e-console-host" id="m03e-console-m05-guided">${moduleThreeConsoleHtml('m05-guided')}</div></div><p class="m05-guided-status" role="status">${complete ? 'Guided Lab complete: ticket submitted.' : 'Complete the investigation in the console; progress is saved automatically.'}</p>`;
 }
 
 const MODULE_FIVE_OPTIONAL_LABS = [
@@ -860,7 +864,7 @@ let moduleFiveGuidedState = null;
 let moduleFiveGuidedUser = null;
 const moduleFiveGuidedClone = (value) => JSON.parse(JSON.stringify(value));
 const MODULE_FIVE_GUIDED_REPLACEMENTS = {
-  'M05-ASSESS-2026-09-27': 'M05-GUIDED-2026-09-27', 'EDR-5127': 'EDR-5204', 'm05-endpoint-assessment-v1': MODULE_FIVE_GUIDED_LAB_ID,
+  'M05-ASSESS-2026-09-27': 'M05-GUIDED-2026-09-27', 'CASE-055127': 'CASE-055204', 'INC-055436': 'INC-055512', 'm05-endpoint-assessment-v1': MODULE_FIVE_GUIDED_LAB_ID,
   'M05-DEV-001': 'M05-GUIDE-101', 'M05-DEV-002': 'M05-GUIDE-102', 'M05-DEV-003': 'M05-GUIDE-103',
   'ws-assess-27': 'ws-practice-41', 'ws-assess-14': 'ws-practice-12', 'srv-assess-02': 'srv-practice-03',
   'M05-EVT-001': 'M05-PR-201', 'M05-EVT-002': 'M05-PR-202', 'M05-EVT-003': 'M05-PR-203', 'M05-EVT-004': 'M05-PR-204', 'M05-EVT-005': 'M05-PR-205', 'M05-EVT-006': 'M05-PR-206', 'M05-EVT-007': 'M05-PR-207', 'M05-EVT-008': 'M05-PR-208', 'M05-EVT-009': 'M05-PR-209', 'M05-EVT-010': 'M05-PR-210', 'M05-EVT-011': 'M05-PR-211', 'M05-EVT-012': 'M05-PR-212', 'M05-EVT-013': 'M05-PR-213',
@@ -883,7 +887,7 @@ function moduleFiveGuidedReplace(value) {
   return value;
 }
 const MODULE_FIVE_GUIDED_FIXTURE = moduleFiveGuidedReplace(moduleFiveGuidedClone(SocM05AssessmentData));
-MODULE_FIVE_GUIDED_FIXTURE.scenario.caseId = 'EDR-5204';
+MODULE_FIVE_GUIDED_FIXTURE.scenario.caseId = 'CASE-055204';
 MODULE_FIVE_GUIDED_FIXTURE.scenario.id = 'M05-GUIDED-2026-09-27';
 MODULE_FIVE_GUIDED_FIXTURE.scenario.stateKey = MODULE_FIVE_GUIDED_LAB_ID;
 MODULE_FIVE_GUIDED_FIXTURE.scenario.start = '2026-09-27T13:00:00Z';
@@ -958,7 +962,7 @@ const MODULE_FIVE_GUIDED_M04_FIXTURE = SocConsoleTools.m04Fixture({ id: MODULE_F
 const MODULE_FIVE_GUIDED_M05_FIXTURE = SocConsoleTools.m05Fixture({ id: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, stateKey: MODULE_FIVE_GUIDED_LAB_ID, devices: MODULE_FIVE_GUIDED_FIXTURE.scenario.devices, data: MODULE_FIVE_GUIDED_CONSOLE_DATA, expectedTruth: MODULE_FIVE_GUIDED_FIXTURE.scenario.expectedTruth });
 function moduleFiveGuidedLoad(user) {
   moduleFiveGuidedUser = user;
-  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'EDR-5204', scenarioId: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
+  const defaults = { console: {}, tools: {}, caseRecord: { caseId: 'CASE-055204', scenarioId: MODULE_FIVE_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] }, guideOpen: true };
   moduleFiveGuidedState = LabRuntime.loadCaseState(MODULE_FIVE_GUIDED_LAB_ID, 'soc-05', user, defaults);
   moduleFiveGuidedState.caseRecord = { ...defaults.caseRecord, ...(moduleFiveGuidedState.caseRecord || {}) };
   if (moduleFiveGuidedState.guideStep == null) moduleFiveGuidedState.guideStep = 0;
@@ -1056,7 +1060,7 @@ const MODULE_FIVE_GUIDED_CONSOLE = SocConsoleTools.mount('m05-guided', {
     { id: 'm05', ctx: { fixture: MODULE_FIVE_GUIDED_FIXTURE, load: moduleFiveGuidedM05Load, store: moduleFiveGuidedM05Store, save: moduleFiveGuidedSave, rerender: () => moduleFiveRenderGuided(), console: () => m03eState('m05-guided') } },
   ],
     caseView: () => {
-      const html = caseRecordPane(moduleFiveGuidedState.caseRecord, { caseId: 'EDR-5204', ticketId: 'INC-5204', ticketType: 'Endpoint malware investigation · Endpoint Malware Triage', userOptions: [{ id: 'r.patel', text: 'r.patel' }, { id: 's.kim', text: 's.kim' }], deviceOptions: MODULE_FIVE_GUIDED_FIXTURE.scenario.devices.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'endpoint-malware-triage', text: 'Endpoint Malware Triage' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm05-guided-case', saveAttr: 'data-m05-guided-save-case', submitAttr: 'data-m05-guided-submit-case', panelId: 'm05-guided-case-panel', notesPlaceholder: 'Link process ancestry, file reputation, persistence, sensor outcome, and a bounded response recommendation.' });
+      const html = caseRecordPane(moduleFiveGuidedState.caseRecord, { caseId: 'CASE-055204', incidentIds: ['INC-055512'], ticketType: 'Endpoint malware investigation · Endpoint Malware Triage', userOptions: [{ id: 'r.patel', text: 'r.patel' }, { id: 's.kim', text: 's.kim' }], deviceOptions: MODULE_FIVE_GUIDED_FIXTURE.scenario.devices.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'endpoint-malware-triage', text: 'Endpoint Malware Triage' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm05-guided-case', saveAttr: 'data-m05-guided-save-case', submitAttr: 'data-m05-guided-submit-case', panelId: 'm05-guided-case-panel', notesPlaceholder: 'Link process ancestry, file reputation, persistence, sensor outcome, and a bounded response recommendation.' });
       return moduleFiveGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m05-guided-restart>Restart Guided Lab</button>' : html;
     },
 });
@@ -1149,7 +1153,7 @@ function moduleFiveCaseTicket() {
 
 function moduleFiveAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m05-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_FIVE_CASE_ID)} · ENDPOINT ALERT · ASSIGNED TO YOU</p><p>The EDR sensor raised an alert on a user workstation. Your lead’s request: <em>“Work out what actually ran, whether it stuck, and whether our control stopped it — then tell the endpoint team exactly what to do and why.”</em> Pivot from the alert to the device, follow the process chain, judge the file and hash, find any persistence, decide what the control did, bound the scope, preserve the strongest evidence, request only proportionate action, and complete the ITSM ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel(moduleFiveCaseSpec(), 'ENDPOINT ALERT')}</p><p>The EDR sensor raised an alert on a user workstation. Your lead’s request: <em>“Work out what actually ran, whether it stuck, and whether our control stopped it — then tell the endpoint team exactly what to do and why.”</em> Pivot from the alert to the device, follow the process chain, judge the file and hash, find any persistence, decide what the control did, bound the scope, preserve the strongest evidence, request only proportionate action, and complete the ITSM ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m05">${moduleThreeConsoleHtml('m05')}</div>
   </div>`;
 }
@@ -1596,4 +1600,4 @@ function wireModuleFiveOptionalLabs() {
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 5, moduleKey: 'soc-05',
-  view: viewModuleFive, wire: wireModuleFive });
+  view: viewModuleFive, wire: wireModuleFive, sections: moduleFiveGetSections });

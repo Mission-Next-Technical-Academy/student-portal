@@ -55,6 +55,11 @@ Feature/fix write-ups and progress snapshots for work that finished and is
 live, each already self-marked done or all-checkboxes-complete at the time
 of archiving:
 
+- `M12_INTEGRATED_CLICKTHROUGH.md` — completed local S5 acceptance report:
+  304 console tabs, Module 1/12 interaction sweeps, three scored M12 browser
+  submissions, and synthetic Module 1 submit/reload/review. Source screenshots
+  remain in `docs/handoffs/assets/`. Designated learner/faculty UAT remains
+  active in `docs/workstreams/M12_INTEGRATED_CAPSTONE_PLAN.md` §6.
 - `ATTACK_STORY_GRAPH_FIX.md`, `LEFT_NAV_DROPDOWNS.md` — shipped UI fixes.
 - `DEVICE_PAGE_PARITY.md` — checklist, all core items `[x]`; the few
   remaining lines are labeled "gravy," not required.

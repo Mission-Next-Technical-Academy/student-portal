@@ -348,7 +348,7 @@ const MODULE_TEN_SOURCES_LIST = [
 // (portal/imported-labs/mission-next-labs/src/data/labs/windows-forensics.labs.js).
 // Answer key stays here, never shown live in Prove It.
 const MODULE_TEN_CASE = {
-  caseId: 'EVD-5510',
+  caseId: 'CASE-105510',
   userOptions: [
     { id: 'j.sanders', text: 'j.sanders', tier: 'principal' },
     { id: 'jdoe', text: 'jdoe', tier: 'pivot' },
@@ -699,9 +699,9 @@ function moduleTenProvenanceRows(s) {
   return rows;
 }
 const MODULE_TEN_CONSOLE_DATA = moduleTenBuildConsoleData(SocM10AssessmentData, SocM10AssessmentData.scenario.caseId);
-const MODULE_TEN_GUIDED_CASE_ID = 'EVD-6620';
+const MODULE_TEN_GUIDED_CASE_ID = 'CASE-106620';
 const MODULE_TEN_GUIDED_REPLACEMENTS = {
-  'M10-': 'M10G-', 'ART-': 'PRACT-', 'EVD-5510': 'EVD-6620', 'INC-5510': 'INC-6620', 'REQ-5510': 'REQ-6620', 'wkstn-19': 'wkstn-42',
+  'M10-': 'M10G-', 'ART-': 'PRACT-', 'CASE-105510': 'CASE-106620', 'INC-5510': 'INC-6620', 'REQ-5510': 'REQ-6620', 'wkstn-19': 'wkstn-42',
   'DEV-WKSTN-19': 'DEV-WKSTN-42', 'mail-gw-01': 'mail-gw-02', 'proxy-01': 'proxy-02', 'j.sanders': 'm.chen',
   'wks-desk-07': 'wks-fin-12', 'jdoe': 'a.rivera', '2026-09-27': '2026-10-02', 'Q3 remittance': 'Vendor contract renewal',
   'Q3_Remittance.docm': 'Vendor_Renewal.docm', 'Q3_Payables_Summary': 'Vendor_Statement_Aug', 'Q3 payables summary': 'Vendor statement',
@@ -872,7 +872,7 @@ const MODULE_TEN_GUIDED_CONSOLE = (() => {
       { id: 'm10', ctx: { ...base, fixture: MODULE_TEN_GUIDED_FIXTURE, load: () => moduleTenGuidedEvidenceState, store: moduleTenSaveGuidedEvidence } },
     ],
     caseView: () => { const html = caseRecordPane(moduleTenGuidedState.caseRecord, {
-      caseId: MODULE_TEN_GUIDED_CASE_ID, ticketId: 'IR-6620', ticketType: 'Forensic evidence preservation · Incident Response',
+      caseId: MODULE_TEN_GUIDED_CASE_ID, ticketType: 'Forensic evidence preservation · Incident Response',
       userOptions: [{ id: 'm.chen', text: 'm.chen · affected user' }, { id: 'a.rivera', text: 'a.rivera · delivered, unopened recipient' }],
       deviceOptions: MODULE_TEN_GUIDED_DEVICE_OPTIONS,
       departmentOptions: [{ id: 'guided-digital-forensics', text: 'Digital Forensics + Incident Lead' }, { id: 'legal-hold', text: 'Legal Hold Repository' }],
@@ -976,7 +976,7 @@ function moduleTenCaseTicket() {
 
 function moduleTenAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m10-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(SocM10AssessmentData.scenario.caseId)} · POST-CONTAINMENT EVIDENCE REQUEST · ASSIGNED TO YOU</p><p>Build a defensible package for wkstn-19: preserve originals under legal hold and record source, acquisition, hashes, and custody. Reconstruct the timeline, separate fact from analysis, support root cause, map evidenced behavior to ATT&amp;CK, record unknowns, and complete the ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel({ caseId: SocM10AssessmentData.scenario.caseId }, 'POST-CONTAINMENT EVIDENCE REQUEST')}</p><p>Build a defensible package for wkstn-19: preserve originals under legal hold and record source, acquisition, hashes, and custody. Reconstruct the timeline, separate fact from analysis, support root cause, map evidenced behavior to ATT&amp;CK, record unknowns, and complete the ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m10">${moduleThreeConsoleHtml('m10')}</div>
   </div>`;
 }
@@ -1452,4 +1452,4 @@ function wireModuleTenAssessmentLab() {
   });
 }
 
-registerModuleLab({ program: 'soc-analyst', moduleNumber: 10, moduleKey: 'soc-10', view: viewModuleTen, wire: wireModuleTen });
+registerModuleLab({ program: 'soc-analyst', moduleNumber: 10, moduleKey: 'soc-10', view: viewModuleTen, wire: wireModuleTen, sections: moduleTenGetSections });

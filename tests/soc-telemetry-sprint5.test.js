@@ -116,7 +116,7 @@ vm.runInContext(between(m10Src, 'const MODULE_TEN_GUIDED_CASE_ID', 'const MODULE
 
   // Shipped guided fixture (with its account adjustment) shares no host or account with the assessment.
   vm.runInContext(between(m10Src, 'const MODULE_TEN_GUIDED_FIXTURE = (() => {', 'const MODULE_TEN_DEVICES'), context);
-  const shipped = context.moduleTenBuildConsoleData(vm.runInContext('MODULE_TEN_GUIDED_FIXTURE', context), 'EVD-6620');
+  const shipped = context.moduleTenBuildConsoleData(vm.runInContext('MODULE_TEN_GUIDED_FIXTURE', context), 'CASE-106620');
   validate('M10 guided (shipped)', shipped.events, local(vm.runInContext('MODULE_TEN_GUIDED_FIXTURE.scenario', context)));
   const entitySet = (rows, key) => new Set(rows.map((e) => e[key]).filter(Boolean));
   ['Host', 'Account'].forEach((key) => {

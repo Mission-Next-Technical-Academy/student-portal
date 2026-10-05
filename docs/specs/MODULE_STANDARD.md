@@ -321,6 +321,38 @@ Rules:
 - Submit follows §7.1: clickable until submitted, lists missing items when
   pressed early, greys out only for Under review / Graded.
 
+#### 7.2.1 Record IDs — ALR / INC / CASE (locked 2026-10-03)
+
+There is no industry ID standard (NIST 800-61, ISO 27035 and ITIL prescribe
+none); every SOC tool invents its own. The course uses one model everywhere:
+
+| Record | Format | What it is | Lives in |
+|---|---|---|---|
+| Alert | `ALR-NNxxxx` | one detection that fired | log/console rows, incident's alert list |
+| Incident | `INC-NNxxxx` | correlated alerts (SIEM/XDR grouping) | linked under the case |
+| Case | `CASE-NNxxxx` | the investigation + ITSM record the student submits | ticket header, brief |
+
+- `NN` = two-digit module number; `xxxx` = four digits. Six digits after the
+  hyphen, always zero-padded. A case and its incident never share digits.
+- A case links **one or more** incidents; an incident lists **one or more**
+  alerts. A hunt case may link zero incidents until it finds something.
+- Practice It and Prove It use different numbers. No `-PRACTICE`, `-MN-` or
+  other internal labels in an ID.
+- Domain lives in `ticketType` / queue (Endpoint, Detection Engineering,
+  Vulnerability Response…), never in the prefix. `DET`, `EDR`, `HNT`, `BKD`,
+  `NEC`, `VLN`, `EVD`, `OPS`, `IR`, `NST`, `ALT`, `AL`, `ALERT` are retired.
+- Ticket header shows the **CASE** id with `Linked incident: INC-…` under it
+  (pass `incidentIds` to `caseRecordPane`; `ticketId` is retired). Brief label
+  is `CASE-044424 · INC-044733 · <TAG> · ASSIGNED TO YOU` — build it with
+  `caseRecordBriefLabel(spec, tag)`; a hunt with no incident yet just omits
+  the INC part.
+- Cross-module storylines keep the original module's ID (M10/M11 link M09's
+  `INC-09xxxx`).
+- Other ITSM records (`CHG-`, `REQ-`, `SR-`, `SEC-`) and log-row ids (`EVT-`,
+  `EV-`) are unaffected.
+
+Rename plan + full old→new map: `docs/workstreams/RECORD_ID_NOMENCLATURE_PLAN.md`.
+
 ### 7.3 Console Guide — the in-console teaching card (locked 2026-09-25)
 
 The step-by-step card that floats over a lab console is Module 02's Learn It

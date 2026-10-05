@@ -493,6 +493,7 @@ const MODULE_FOUR_AUTOMATION_FINDING_OPTIONS = [
 function moduleFourCaseSpec() {
   return {
     caseId: MODULE_FOUR_CASE_ID,
+    incidentIds: [SocM04AssessmentData.scenario.incidentId],
     userOptions: MODULE_FOUR_ENTITY_ROSTER.users,
     deviceOptions: MODULE_FOUR_ENTITY_ROSTER.devices,
     departmentOptions: MODULE_FOUR_DEPARTMENT_OPTIONS,
@@ -1080,7 +1081,7 @@ function moduleFourArtifact() {
 }
 
 function moduleFourGuidedLabPanel() {
-  return `${moduleFourGuidedGuide()}<div class="m03e-panel" id="m04-guided-console-panel"><div class="m03e-brief"><p class="m03e-label">CASE DET-4478 · PRACTICE IT · SOC DETECTION QUEUE</p><p>Review a reported burst of sign-in failures, decide how to tune a detection, and document a bounded response. You choose the investigation path.</p></div><div class="m03e-console-host" id="m03e-console-m04-guided">${moduleThreeConsoleHtml('m04-guided')}</div></div>`;
+  return `${moduleFourGuidedGuide()}<div class="m03e-panel" id="m04-guided-console-panel"><div class="m03e-brief"><p class="m03e-label">CASE-044478 · INC-044790 · PRACTICE IT · SOC DETECTION QUEUE</p><p>Review a reported burst of sign-in failures, decide how to tune a detection, and document a bounded response. You choose the investigation path.</p></div><div class="m03e-console-host" id="m03e-console-m04-guided">${moduleThreeConsoleHtml('m04-guided')}</div></div>`;
 }
 
 // The Module 3 SIEM, mounted on the independent M04 assessment data. Module 4
@@ -1156,7 +1157,7 @@ let moduleFourGuidedUser = null;
 const moduleFourGuidedClone = (value) => JSON.parse(JSON.stringify(value));
 function moduleFourGuidedReplace(value) {
   const replacements = {
-    'M04-ASSESS-2026-09-24': 'M04-GUIDED-2026-09-27', 'DET-4424': 'DET-4478',
+    'M04-ASSESS-2026-09-24': 'M04-GUIDED-2026-09-27', 'CASE-044424': 'CASE-044478', 'INC-044733': 'INC-044790',
     'M04-A-001': 'GL4-A-101', 'M04-A-002': 'GL4-A-102', 'M04-A-003': 'GL4-A-103', 'M04-A-004': 'GL4-A-104', 'M04-A-005': 'GL4-A-105', 'M04-A-006': 'GL4-A-106', 'M04-A-007': 'GL4-A-107', 'M04-A-008': 'GL4-A-108', 'M04-A-009': 'GL4-A-109',
     'M04-R-001': 'GL4-R-201', 'M04-R-002': 'GL4-R-202', 'M04-I-001': 'GL4-I-301', 'M04-I-002': 'GL4-I-302', 'M04-I-003': 'GL4-I-303',
     '198.51.100.64': '192.0.2.144', '203.0.113.77': '203.0.113.177',
@@ -1296,7 +1297,7 @@ const MODULE_FOUR_GUIDED_CONSOLE_DATA = (() => {
 function moduleFourGuidedLoad(user) {
   moduleFourGuidedUser = user;
   const defaults = {
-    assessment: {}, console: {}, caseRecord: { caseId: 'DET-4478', scenarioId: MODULE_FOUR_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] },
+    assessment: {}, console: {}, caseRecord: { caseId: 'CASE-044478', scenarioId: MODULE_FOUR_GUIDED_FIXTURE.scenario.id, status: 'New', severity: '', affectedUser: '', affectedDevice: '', disposition: '', escalation: '', escalateTo: '', notes: '', findings: {}, submitted: false, actionHistory: [] },
     guideCollapsed: false,
   };
   moduleFourGuidedState = LabRuntime.loadCaseState(MODULE_FOUR_GUIDED_LAB_ID, 'soc-04', user, defaults);
@@ -1382,13 +1383,13 @@ const MODULE_FOUR_GUIDED_CONSOLE = SocConsoleTools.mount('m04-guided', {
   data: MODULE_FOUR_GUIDED_CONSOLE_DATA, stateRoot: () => moduleFourGuidedState, save: moduleFourGuidedSave,
   title: 'SIEM & DETECTION ENGINEERING · PRACTICE', ariaLabel: 'Module 04 guided detection console', idPrefix: 'guided',
   packs: [{ id: 'm04', ctx: { assessment: moduleFourGuidedAssessment, fixture: MODULE_FOUR_GUIDED_FIXTURE, save: moduleFourGuidedSave, rerender: () => moduleFourRenderGuided(), console: () => m03eState('m04-guided') } }],
-    caseView: () => { const html = `<section class="m03e-case-view"><p class="m03e-case-attach">${m03eState('m04-guided').pins.length} pinned evidence record(s) and ${m03eState('m04-guided').queryLog.length} query record(s) are available to cite in this case.</p>${caseRecordPane(moduleFourGuidedState.caseRecord, { caseId: 'DET-4478', ticketId: 'INC-4478', ticketType: 'Detection tuning · SOC Detection Queue', userOptions: [{ id: 'acct-61', text: 'acct-61' }, { id: 'acct-62', text: 'acct-62' }, { id: 'acct-63', text: 'acct-63' }, { id: 'acct-64', text: 'acct-64' }, { id: 'acct-65', text: 'acct-65' }], deviceOptions: [{ id: '192.0.2.144', text: '192.0.2.144 · reported source' }, { id: '203.0.113.177', text: '203.0.113.177 · managed client' }], departmentOptions: [{ id: 'soc-detection-queue', text: 'SOC Detection Queue' }, { id: 'identity-operations', text: 'Identity Operations' }], formId: 'm04-guided-case-form', saveAttr: 'data-m04-guided-case-save', submitAttr: 'data-m04-guided-case-submit', panelId: 'm04-guided-case-status', notesPlaceholder: 'Record the alert, query and rule evidence, tuning decision, and safe follow-up.' })}</section>`; return moduleFourGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m04-guided-restart>Restart Guided Lab</button>' : html; },
+    caseView: () => { const html = `<section class="m03e-case-view"><p class="m03e-case-attach">${m03eState('m04-guided').pins.length} pinned evidence record(s) and ${m03eState('m04-guided').queryLog.length} query record(s) are available to cite in this case.</p>${caseRecordPane(moduleFourGuidedState.caseRecord, { caseId: 'CASE-044478', incidentIds: ['INC-044790'], ticketType: 'Detection tuning · SOC Detection Queue', userOptions: [{ id: 'acct-61', text: 'acct-61' }, { id: 'acct-62', text: 'acct-62' }, { id: 'acct-63', text: 'acct-63' }, { id: 'acct-64', text: 'acct-64' }, { id: 'acct-65', text: 'acct-65' }], deviceOptions: [{ id: '192.0.2.144', text: '192.0.2.144 · reported source' }, { id: '203.0.113.177', text: '203.0.113.177 · managed client' }], departmentOptions: [{ id: 'soc-detection-queue', text: 'SOC Detection Queue' }, { id: 'identity-operations', text: 'Identity Operations' }], formId: 'm04-guided-case-form', saveAttr: 'data-m04-guided-case-save', submitAttr: 'data-m04-guided-case-submit', panelId: 'm04-guided-case-status', notesPlaceholder: 'Record the alert, query and rule evidence, tuning decision, and safe follow-up.' })}</section>`; return moduleFourGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m04-guided-restart>Restart Guided Lab</button>' : html; },
 });
 
 
 function moduleFourAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m04-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">CASE ${esc(MODULE_FOUR_CASE_ID)} · NORMAL SHIFT · ASSIGNED TO YOU</p><p>Threat Desk has sent a new intelligence report. Your lead’s request: <em>“Decide what this report means for us, turn it into a detection that works on our telemetry, and put what you did and why in the ticket.”</em> Evaluate the report and its indicators, test a query in Log Search, save it as an analytics rule, run and schedule it, review what it raises, choose only safe automation, and complete the ITSM ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel(moduleFourCaseSpec(), 'NORMAL SHIFT')}</p><p>Threat Desk has sent a new intelligence report. Your lead’s request: <em>“Decide what this report means for us, turn it into a detection that works on our telemetry, and put what you did and why in the ticket.”</em> Evaluate the report and its indicators, test a query in Log Search, save it as an analytics rule, run and schedule it, review what it raises, choose only safe automation, and complete the ITSM ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m04">${moduleThreeConsoleHtml('m04')}</div>
   </div>`;
 }
@@ -1894,4 +1895,4 @@ function wireModuleFourAdditionalLabsGating(root) {
 }
 
 registerModuleLab({ program: 'soc-analyst', moduleNumber: 4, moduleKey: 'soc-04',
-  view: viewModuleFour, wire: wireModuleFour });
+  view: viewModuleFour, wire: wireModuleFour, sections: moduleFourGetSections });

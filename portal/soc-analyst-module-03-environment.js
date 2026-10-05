@@ -38,6 +38,9 @@ const M03E_SOURCE_MAPPINGS = {
   SystemLog: { native: 'Host / collector syslog (text)', fields: [['@timestamp', 'TimeGenerated'], ['identity', 'Account'], ['host_ip', 'SourceIp'], ['hostname', 'Host'], ['msg_type', 'EventType'], ['severity_result', 'Result'], ['job', 'SessionId'], ['change_ref', 'ChangeId'], ['message', 'Detail']] },
 };
 const M03E_UNIFIED_FIELDS = ['TimeGenerated', 'EventSource', 'EventType', 'Account', 'SourceIp', 'Host', 'SessionId', 'Result', 'Detail', 'EventId', 'RawTimestamp', 'timestamp_utc', 'raw_timestamp', 'source_type', 'user', 'session_id', 'src_ip', 'host', 'action', 'outcome', 'raw_event_id'];
+// These aliases are useful when querying heterogeneous telemetry, but they are
+// redundant in the event detail drawer where the normalized fields are shown.
+const M03E_DETAIL_ALIASES = new Set(['timestamp_utc', 'raw_timestamp', 'source_type', 'user', 'session_id', 'src_ip', 'host', 'action', 'outcome', 'raw_event_id']);
 
 function m03eRow(source, id, day, hms, fields) {
   return { TimeGenerated: `${day}T${hms}Z`, EventSource: source, EventId: id, __rid: id, SessionId: '—', Detail: '', ...fields };
@@ -56,7 +59,9 @@ function m03eBuildDataset(spec) {
     const out = { __rid: row.__rid };
     M03E_UNIFIED_FIELDS.forEach((f) => { out[f] = row[f] ?? ''; });
     out.timestamp_utc = row.TimeGenerated;
-    out.raw_timestamp = row.RawTimestamp || row.TimeGenerated;
+    // Keep raw time distinct from normalized event time. An absent source
+    // timestamp must stay absent rather than being relabeled as raw.
+    out.raw_timestamp = row.RawTimestamp || '';
     out.source_type = row.EventSource;
     // A host service identity is source context, not an interactive user. Keep
     // it on the native record but leave normalized user unset for restarts.
@@ -721,9 +726,12 @@ function m03eDrawer(scope) {
   if (sel?.type === 'record') {
     const r = data.records[sel.id];
     if (r) {
-      const extra = Object.keys(r).filter((k) => !M03E_UNIFIED_FIELDS.includes(k) && !k.startsWith('__'));
+      const detailFields = M03E_UNIFIED_FIELDS.filter((f) => f !== 'EventSource' && !M03E_DETAIL_ALIASES.has(f)
+        && !(f === 'RawTimestamp' && (!r.RawTimestamp || r.RawTimestamp === r.TimeGenerated))
+        && r[f] != null && r[f] !== '' && !(f === 'SessionId' && r[f] === '—'));
+      const extra = Object.keys(r).filter((k) => !M03E_UNIFIED_FIELDS.includes(k) && !k.startsWith('__') && r[k] != null && r[k] !== '');
       title = 'EVENT RECORD';
-      content = `<h3>${m03eChip(r.EventSource)} ${esc(r.EventType)}</h3><dl class="m03e-fields">${M03E_UNIFIED_FIELDS.filter((f) => f !== 'EventSource').map((f) => m03eField(f, f === 'TimeGenerated' ? r[f].replace('T', ' ').replace('Z', ' UTC') : r[f])).join('')}${extra.map((f) => m03eField(f, r[f])).join('')}</dl>${m03ePinButton(scope, r.__rid).replace('m03e-pin', 'm03e-pin m03e-pin-wide')}<h4>Native record (${esc(M03E_SOURCE_MAPPINGS[r.EventSource]?.native || '')})</h4><pre class="m03e-code">${esc(m03eNativeRecord(r))}</pre>${r.SessionId && r.SessionId !== '—' ? hunt(`Pivot on session ${r.SessionId}`, `UnifiedEvents\n| where SessionId == "${r.SessionId}"\n| sort by TimeGenerated asc`) : ''}${hunt(`All events for ${r.Account}`, `UnifiedEvents\n| where Account == "${r.Account}"\n| sort by TimeGenerated asc`)}`;
+      content = `<h3>${m03eChip(r.EventSource)} ${esc(r.EventType)}</h3><dl class="m03e-fields">${detailFields.map((f) => m03eField(f, f === 'TimeGenerated' ? String(r[f]).replace('T', ' ').replace('Z', ' UTC') : r[f])).join('')}${extra.map((f) => m03eField(f, r[f])).join('')}</dl>${m03ePinButton(scope, r.__rid).replace('m03e-pin', 'm03e-pin m03e-pin-wide')}<h4>Native record (${esc(M03E_SOURCE_MAPPINGS[r.EventSource]?.native || '')})</h4><pre class="m03e-code">${esc(m03eNativeRecord(r))}</pre>${r.SessionId && r.SessionId !== '—' ? hunt(`Pivot on session ${r.SessionId}`, `UnifiedEvents\n| where SessionId == "${r.SessionId}"\n| sort by TimeGenerated asc`) : ''}${r.Account ? hunt(`All events for ${r.Account}`, `UnifiedEvents\n| where Account == "${r.Account}"\n| sort by TimeGenerated asc`) : ''}`;
     }
   }
   if (sel?.type === 'account') {
@@ -864,7 +872,7 @@ function moduleThreeConsoleHtml(scope) {
   let html = SocConsoleCore.renderShell({
     shellClass: 'm03e-console',
     ariaLabel: mount?.ariaLabel || 'SIEM and log analysis console',
-    eyebrow: `MISSION NEXT ENVIRONMENT · ${scope === 'practice' ? 'GUIDED' : 'ASSESSMENT'}`,
+    eyebrow: `MISSION NEXT ENVIRONMENT · ${scope === 'practice' || /-guided$/.test(scope) ? 'PRACTICE IT' : 'ASSESSMENT'}`,
     title: mount?.title || 'SIEM & LOG ANALYSIS',
     contextHtml: `<span class="m03e-case">${esc(data.caseId)} · ${esc(data.day)} · ${data.tables.UnifiedEvents.length} events</span>`,
     navigationHtml: m03eTabsNav(scope),
@@ -878,7 +886,11 @@ function moduleThreeConsoleHtml(scope) {
   });
   if (mount?.idPrefix) {
     const prefix = mount.idPrefix;
-    html = html.replace(/\bid="([^"]+)"/g, (_all, id) => `id="${prefix}-${id}"`)
+    // In-page links (e.g. the hunt workflow step pills) must follow their
+    // targets; links to ids outside this console are left alone.
+    const ownIds = new Set(Array.from(html.matchAll(/\bid="([^"]+)"/g), (match) => match[1]));
+    html = html.replace(/\bhref="#([^"]+)"/g, (all, id) => (ownIds.has(id) ? `href="#${prefix}-${id}"` : all))
+      .replace(/\bid="([^"]+)"/g, (_all, id) => `id="${prefix}-${id}"`)
       .replace(/\bfor="([^"]+)"/g, (_all, id) => `for="${prefix}-${id}"`)
       .replace(/\baria-labelledby="([^"]+)"/g, (_all, ids) => `aria-labelledby="${ids.split(/\s+/).map((id) => `${prefix}-${id}`).join(' ')}"`);
   }
