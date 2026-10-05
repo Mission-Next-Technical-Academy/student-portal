@@ -11,7 +11,7 @@
  *   MNT_SYNTHETIC_COMPLETION_ACK=I_UNDERSTAND_SYNTHETIC_RECORDS \
  *   SUPABASE_SERVICE_ROLE_KEY=... MNT_STUDENT_PASSWORD=... \
  *   MNT_ADMIN_EMAIL=... MNT_ADMIN_PASSWORD=... \
- *   node bin/synthesize-soc-m360-completion.js <STAGING_TEST_STUDENT_ID> --execute
+ *   node bin/synthesize-soc-m360-completion.js 'STAGING_TEST_STUDENT_ID' --execute
  *
  * SUPABASE_URL is required (no default). Production is refused unless
  * --production is passed, and --create-staging-m360-enrollment only runs

@@ -22,10 +22,10 @@ SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co \
 MNT_SYNTHETIC_COMPLETION_ACK=I_UNDERSTAND_SYNTHETIC_RECORDS \
 SUPABASE_SERVICE_ROLE_KEY='...' MNT_STUDENT_PASSWORD='...' \
 MNT_ADMIN_EMAIL='...' MNT_ADMIN_PASSWORD='...' \
-node bin/synthesize-soc-m360-completion.js <STAGING_TEST_STUDENT_ID> --execute --create-staging-m360-enrollment
+node bin/synthesize-soc-m360-completion.js 'STAGING_TEST_STUDENT_ID' --execute --create-staging-m360-enrollment
 ```
 
-`<STAGING_TEST_STUDENT_ID>` is a 10-digit `-SOCAN` login ID of a synthetic staging account, for example one created with `bin/provision-students.js SOCAN 1` against staging.
+Replace `STAGING_TEST_STUDENT_ID` (keep the quotes) with the 10-digit `-SOCAN` login ID of a synthetic staging account, such as `'1234567890-SOCAN'`, for example one created with `bin/provision-students.js SOCAN 1` against staging.
 
 The student login email is assumed to be the existing provisioning convention: `<student-id lowercase>@missionnext.example`. The script fails closed if its requirements, M360 cohort, reviewer/finalizer authority, or final verification are missing.
 
