@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 /*
  * Permanently remove explicitly named disposable student accounts from the
- * live Supabase project. The default is a read-only preflight.
+ * Supabase project named by SUPABASE_URL. The default is a read-only preflight.
  *
  * Usage:
- *   SUPABASE_SERVICE_ROLE_KEY=... node bin/purge-test-students.js ID [ID ...]
- *   SUPABASE_SERVICE_ROLE_KEY=... node bin/purge-test-students.js --confirm ID [ID ...]
+ *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node bin/purge-test-students.js ID [ID ...]
+ *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node bin/purge-test-students.js --confirm ID [ID ...]
+ *
+ * SUPABASE_URL is required (no default). Production is refused unless
+ * --production is passed. See bin/lib/supabase-target.js.
  *
  * This script deliberately accepts concrete login IDs only. It never searches
  * for names containing "test" or deletes an entire course/track.
@@ -13,7 +16,11 @@
 
 'use strict';
 
-const BASE_URL = (process.env.SUPABASE_URL || 'https://eokvngifirjgfozzbieu.supabase.co').replace(/\/$/, '');
+const { requireSupabaseTarget } = require('./lib/supabase-target');
+
+// Runs first: prints the target, refuses production without --production,
+// and removes --production from process.argv before the arguments are read.
+const BASE_URL = requireSupabaseTarget().url;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const args = process.argv.slice(2);
 const confirmed = args[0] === '--confirm';
@@ -44,7 +51,7 @@ async function api(path, options = {}) {
 }
 
 async function count(table, column, userId) {
-  const response = await fetch(`${BASE_URL}/rest/v1/${table}?${column}=eq.${encodeURIComponent(userId)}&select=id`, {
+  const response = await fetch(`${BASE_URL}/rest/v1/${table}?${column}=eq.${encodeURIComponent(userId)}&select=${column}`, {
     method: 'HEAD', headers: headers({ Prefer: 'count=exact' }),
   });
   if (!response.ok) throw new Error(`Could not count ${table}: ${response.status} ${await response.text()}`);

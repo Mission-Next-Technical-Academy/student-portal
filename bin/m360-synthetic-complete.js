@@ -7,14 +7,27 @@
  * the portal and never uses service-role credentials or direct table writes.
  * It is scoped to exactly one explicitly named student_id (or user UUID).
  *
+ * Always required:
+ *   SUPABASE_URL (no default). Production is refused unless --production is
+ *     passed. See bin/lib/supabase-target.js.
+ *
  * Required for --execute:
  *   M360_STUDENT_EMAIL, M360_STUDENT_PASSWORD
  *   M360_ADMIN_EMAIL, M360_ADMIN_PASSWORD
- *   SUPABASE_URL (optional; defaults to the production project)
+ *   SUPABASE_ANON_KEY (the target project's publishable key). Only the
+ *     production project falls back to the portal's built-in publishable key.
  */
 
-const BASE_URL = (process.env.SUPABASE_URL || 'https://eokvngifirjgfozzbieu.supabase.co').replace(/\/$/, '');
-const ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_wTS7tUFTA6Jo9Du4OVHbqA_mg4jODzz';
+const { requireSupabaseTarget } = require('./lib/supabase-target');
+
+// Runs first: prints the target, refuses production without --production,
+// and removes --production from process.argv before the arguments are read.
+const target = requireSupabaseTarget();
+const BASE_URL = target.url;
+// The production publishable key is public by design (portal/supabase-config.js).
+// Any other project must supply its own key, so staging never receives production's.
+const PRODUCTION_ANON_KEY = 'sb_publishable_wTS7tUFTA6Jo9Du4OVHbqA_mg4jODzz';
+const ANON_KEY = process.env.SUPABASE_ANON_KEY || (target.environment === 'PRODUCTION' ? PRODUCTION_ANON_KEY : null);
 const args = process.argv.slice(2);
 const value = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : null; };
 const studentTarget = value('--student-id');
@@ -29,6 +42,9 @@ if (args.includes('--help') || !studentTarget) {
 if (execute && !confirmed) throw new Error('--execute requires --confirm-synthetic.');
 if (execute && (!process.env.M360_STUDENT_EMAIL || !process.env.M360_STUDENT_PASSWORD || !process.env.M360_ADMIN_EMAIL || !process.env.M360_ADMIN_PASSWORD)) {
   throw new Error('Execution requires M360_STUDENT_EMAIL, M360_STUDENT_PASSWORD, M360_ADMIN_EMAIL, and M360_ADMIN_PASSWORD.');
+}
+if (execute && !ANON_KEY) {
+  throw new Error(`Execution against ${target.environment} requires SUPABASE_ANON_KEY (that project's publishable key).`);
 }
 
 const headers = (token) => ({ apikey: ANON_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' });
@@ -67,7 +83,7 @@ const rubric = (week) => week === 6
   : { clarity: 23, relevance: 22, evidence: 22, application: 22 };
 
 async function main() {
-  console.log(`Target: ${studentTarget}`);
+  console.log(`Student: ${studentTarget}`);
   console.log(execute ? 'MODE: EXECUTE (authenticated RPCs only)' : 'MODE: PLAN / DRY RUN (no network writes)');
   if (!execute) {
     console.log('Planned sequence: resolve enrolled non-admin SOCAN student; submit weeks 1-6; complete Start Here; admin-review weeks 1-6; record structured attendance; verify Career Spotlight; finalize; verify progress.');
