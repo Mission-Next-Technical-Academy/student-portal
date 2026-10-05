@@ -39,5 +39,5 @@ jobs:
           exit 1
       - name: Run six-week M360 browser regression
         env:
-          M360_TEST_BASE_URL: http://127.0.0.1:4173
+          M360_TEST_BASE_URL: http://127.0.0.1:4173/portal
         run: npx playwright test tests/m360-runtime.spec.js --reporter=line
