@@ -18,12 +18,7 @@ summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
 
 # Re-check the target here too, so this script cannot be pointed at the wrong
 # database even when run on its own.
-guard_out="$(mktemp)"
-GITHUB_OUTPUT="$guard_out" bin/ci/check-staging-db-url.sh
-if ! grep -qx 'configured=true' "$guard_out"; then
-  echo "::error::STAGING_DB_URL is not set; nothing to migrate."
-  exit 1
-fi
+bin/ci/check-staging-db-url.sh
 
 redact() {
   sed -E \
@@ -74,7 +69,7 @@ if ! run_push "$dry_log" --dry-run; then
     echo "Nothing was applied."
     details "Dry-run output" "$dry_log"
   } >> "$summary"
-  echo "::error::supabase db push --dry-run failed against staging. Nothing was applied."
+  echo "::error::supabase db push --dry-run failed against staging. Nothing was applied, staging was not moved, and the website was not deployed."
   exit 1
 fi
 pending="$(migrations_named_in "$dry_log")"
@@ -87,10 +82,10 @@ echo "== Applying migrations to staging =="
 if ! run_push "$push_log" --yes; then
   {
     echo "### Staging database migrations: push FAILED"
-    echo "Some migrations may have been applied before the failure. Check the output below, fix the migration on master, and rerun this workflow from master. The staging website was not deployed."
+    echo "Some migrations may have been applied before the failure. staging was not moved and the website was not deployed. Check the output below, fix the migration on master, and rerun this workflow from master."
     details "Push output" "$push_log"
   } >> "$summary"
-  echo "::error::supabase db push failed against staging. The staging website will not be deployed."
+  echo "::error::supabase db push failed against staging. staging was not moved and the website was not deployed."
   exit 1
 fi
 applied="$(migrations_named_in "$push_log")"

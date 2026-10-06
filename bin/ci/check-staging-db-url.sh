@@ -3,26 +3,20 @@
 # the environment (never from an argument) and never prints it or any part of
 # it: student-portal is public, so every workflow log is public.
 #
-# Outcomes:
-#   not set                      -> ::notice::, configured=false, exit 0 (skip)
-#   names production, or does
-#   not name staging             -> ::error::, exit 1
-#   names staging only           -> configured=true, exit 0
-#
-# configured=... is appended to $GITHUB_OUTPUT when that is set.
+# Passes (exit 0) only when the value names the staging project and not the
+# production project. A missing value fails too: staging must not move ahead
+# of a database nobody migrated.
 set -euo pipefail
 set +x
 
 # shellcheck source=bin/ci/supabase-refs.sh
 source "$(dirname "$0")/supabase-refs.sh"
 
-output="${GITHUB_OUTPUT:-/dev/null}"
 db_url="${STAGING_DB_URL:-}"
 
 if [ -z "$db_url" ]; then
-  echo "::notice::STAGING_DB_URL is not set in the staging-sync environment, so staging migrations were skipped. See docs/operations/STAGING_AUTOMATION.md to add it."
-  echo "configured=false" >> "$output"
-  exit 0
+  echo "::error::STAGING_DB_URL is not set in the staging-sync environment, so staging migrations cannot run. staging was not moved and the website was not deployed. See docs/operations/STAGING_AUTOMATION.md to add it."
+  exit 1
 fi
 
 case "$db_url" in
@@ -41,4 +35,3 @@ case "$db_url" in
 esac
 
 echo "STAGING_DB_URL names the staging project ($SUPABASE_STAGING_REF)."
-echo "configured=true" >> "$output"

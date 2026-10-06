@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Print a Markdown reminder listing the Supabase Edge Functions that changed
 # between two commits, with the exact manual commands to deploy them to
-# staging. It deploys nothing. Used by staging-sync.yml (job summary) and
-# supabase-change-reminder.yml (pull request comment).
+# staging. It deploys nothing. Used by sync-staging.sh's functions gate.
 #
 # Usage: bin/ci/functions-reminder.sh <old commit> <new commit>
 # Prints nothing when no function changed.

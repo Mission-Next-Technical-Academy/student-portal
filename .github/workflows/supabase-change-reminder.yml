@@ -5,10 +5,21 @@
 # changed Edge Functions to staging by hand, and add a rollback note. It never
 # fails the pull request.
 #
+# Trust boundary: this workflow never checks out or runs code from the pull
+# request's files. It reads the list of changed files from the GitHub API and
+# treats the names as text. Only the `comment` job holds pull-requests: write,
+# and it runs nothing but the inline steps below on the text `checklist`
+# produced. (As with every pull_request workflow, a same-repository pull
+# request can edit this file itself; that edit is visible in review.)
+#
 # Plain pull_request on purpose: never change this to pull_request_target,
 # which would run fork code with write access and secrets. Pull requests from
-# forks get a read-only token here, so they cannot be commented on; for them
-# the checklist goes to the job summary only.
+# forks get a read-only token, so they cannot be commented on; for them the
+# checklist is in the `checklist` job's summary only.
+#
+# The staging project ref below must match bin/ci/supabase-refs.sh (checked by
+# tests/staging-sync-scripts.test.js); it is inline because this workflow
+# reads no files from the repository.
 #
 # Runbook: docs/operations/STAGING_AUTOMATION.md
 name: Supabase change reminder
@@ -21,54 +32,150 @@ on:
 permissions: {}
 
 jobs:
-  remind:
-    name: Staging-first checklist
+  checklist:
+    name: Build the staging-first checklist
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: write
+      pull-requests: read
+    outputs:
+      body: ${{ steps.build.outputs.body }}
     steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Build the checklist
+      - name: Build the checklist from the changed files
         id: build
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          if ! bash bin/ci/supabase-change-reminder.sh "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/reminder.md"; then
-            echo "::warning::Could not build the staging-first checklist. Follow docs/operations/STAGING_AUTOMATION.md by hand."
-            exit 0
-          fi
-          cat "$RUNNER_TEMP/reminder.md" >> "$GITHUB_STEP_SUMMARY"
-          echo "ready=true" >> "$GITHUB_OUTPUT"
-
-      - name: Post or update the pull request comment
-        if: steps.build.outputs.ready == 'true'
-        env:
           GH_TOKEN: ${{ github.token }}
-          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          STAGING_REF: xbblgtrfwgeiyttdlbue
+          PRODUCTION_REF: eokvngifirjgfozzbieu
         run: |
           set -uo pipefail
+          # File names come from the pull request: treat them as text only.
+          if ! files="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" \
+              --jq '.[] | [.status, .filename, (.previous_filename // "")] | @tsv')"; then
+            echo "::warning::Could not list this pull request's files. Follow docs/operations/STAGING_AUTOMATION.md by hand."
+            exit 0
+          fi
+
+          migrations=""
+          functions=""
+          while IFS=$'\t' read -r status file previous; do
+            if [ "$status" != "removed" ] && [[ "$file" =~ ^supabase/migrations/[^/]+\.sql$ ]]; then
+              migrations+="${file#supabase/migrations/}"$'\n'
+            fi
+            for path in "$file" "$previous"; do
+              if [[ "$path" =~ ^supabase/functions/([^/]+)/ ]]; then
+                functions+="${BASH_REMATCH[1]}"$'\n'
+              fi
+            done
+          done <<< "$files"
+
+          # Function folders at the PR's head commit, read as data via the API.
+          present="$(gh api "repos/$GITHUB_REPOSITORY/contents/supabase/functions?ref=$HEAD_SHA" \
+            --jq '.[] | select(.type == "dir") | .name' 2>/dev/null || true)"
+          # A change to _shared affects every function that imports it.
+          if grep -qx '_shared' <<< "$functions"; then
+            functions+="$present"$'\n'
+          fi
+          deploy=""
+          removed=""
+          while IFS= read -r name; do
+            if [ -z "$name" ] || [ "$name" = "_shared" ]; then continue; fi
+            if grep -qxF -- "$name" <<< "$present"; then
+              deploy+="$name"$'\n'
+            else
+              removed+="$name"$'\n'
+            fi
+          done < <(sort -u <<< "$functions")
+
+          body="$RUNNER_TEMP/reminder.md"
+          {
+            echo "<!-- supabase-change-reminder -->"
+            echo "### Supabase change: test on staging before merging"
+            echo
+            echo "This pull request changes files under \`supabase/\`. Staging-first rule: everything below happens on **staging** (\`$STAGING_REF\`) and is tested there **before** this is merged. Never use the production project (\`$PRODUCTION_REF\`) for this."
+            echo
+            if [ -n "$migrations" ]; then
+              echo "- [ ] Apply these migrations to staging and test the affected pages there:"
+              while IFS= read -r name; do
+                if [ -n "$name" ]; then echo "  - \`$name\`"; fi
+              done <<< "$migrations"
+              echo "  Preview first with \`supabase db push --project-ref $STAGING_REF --dry-run\`, then run it without \`--dry-run\`."
+            else
+              echo "- [ ] No new or changed migrations. If this changes the database some other way, test that on staging."
+            fi
+            if [ -n "$deploy$removed" ]; then
+              echo "- [ ] Deploy the changed Edge Functions to staging and test them (commands below)."
+            else
+              echo "- [ ] No Edge Functions changed."
+            fi
+            echo "- [ ] Rollback note in the pull request description: how to undo this on staging and production. Migrations only go forward, so a rollback is a new migration that reverses this one; a function rollback is redeploying the previous version of its folder."
+            echo
+            echo "After merge, the **Staging sync** workflow applies pending migrations to staging, then fast-forwards \`staging\` and redeploys the staging website. If this changes Edge Functions, it stops before moving \`staging\` until someone deploys them to staging and reruns it from \`master\` with **functions_deployed** ticked. It never touches production."
+            if [ -n "$deploy$removed" ]; then
+              echo
+              echo "### Edge Functions to deploy to staging by hand"
+              echo
+              if [ -n "$deploy" ]; then
+                echo '```'
+                while IFS= read -r name; do
+                  if [ -n "$name" ]; then echo "supabase functions deploy $name --project-ref $STAGING_REF"; fi
+                done <<< "$deploy"
+                echo '```'
+              fi
+              if [ -n "$removed" ]; then
+                echo "Removed in this pull request (not deleted from staging automatically):"
+                while IFS= read -r name; do
+                  if [ -n "$name" ]; then echo "- \`$name\`: \`supabase functions delete $name --project-ref $STAGING_REF\`"; fi
+                done <<< "$removed"
+              fi
+            fi
+          } > "$body"
+
+          cat "$body" >> "$GITHUB_STEP_SUMMARY"
           if [ "$IS_FORK" = "true" ]; then
             echo "::notice::Pull request from a fork: its token is read-only, so the checklist is in this job's summary instead of a comment."
             exit 0
           fi
+          # A random delimiter, so no file name can end the value early.
+          delimiter="EOF_$(openssl rand -hex 16)"
+          {
+            echo "body<<$delimiter"
+            cat "$body"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+  comment:
+    name: Post or update the checklist comment
+    needs: checklist
+    if: needs.checklist.outputs.body != ''
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post or update the pull request comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BODY: ${{ needs.checklist.outputs.body }}
+        run: |
+          # Runs under bash -e: every gh call is guarded, so a failure
+          # becomes a warning and the pull request never fails.
+          set -uo pipefail
+          printf '%s\n' "$BODY" > "$RUNNER_TEMP/reminder.md"
           marker='<!-- supabase-change-reminder -->'
           existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"$marker\"))) | .id" | head -n 1)"
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"$marker\"))) | .id" | head -n 1 || true)"
           if [ -n "$existing" ]; then
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -F body=@"$RUNNER_TEMP/reminder.md" > /dev/null
+            method=PATCH
+            endpoint="repos/$GITHUB_REPOSITORY/issues/comments/$existing"
           else
-            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@"$RUNNER_TEMP/reminder.md" > /dev/null
+            method=POST
+            endpoint="repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments"
           fi
-          status=$?
-          if [ "$status" -ne 0 ]; then
-            echo "::warning::Could not post the checklist comment; it is in this job's summary instead."
+          if gh api -X "$method" "$endpoint" -F body=@"$RUNNER_TEMP/reminder.md" > /dev/null; then
+            echo "Checklist comment saved ($method)."
+          else
+            echo "::warning::Could not post the checklist comment; it is in the checklist job's summary instead."
           fi
-          exit 0
