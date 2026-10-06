@@ -118,15 +118,32 @@ section. If `staging` is ever in the wrong place, stop and ask Randy or Alex.
 
    Never use `eokvngifirjgfozzbieu` (production) or a command without
    `--project-ref`.
-2. **Deploy the branch to the staging site.** student-portal-staging →
-   **Actions** → **Deploy staging site** → **Run workflow** → set **ref** to
-   the feature branch's name → **Run workflow**.
+
+   **Warning:** once a migration is applied to staging, keep its exact
+   filename until it merges to `master`. If the feature is abandoned, undo
+   that migration's changes on staging, then mark it reverted:
+
+   ```
+   supabase migration repair --status reverted <version> --project-ref xbblgtrfwgeiyttdlbue
+   ```
+
+   `<version>` is the number at the start of the migration's filename.
+   Otherwise staging's migration history lists a version that `master` does
+   not have, and **Staging sync**'s `migrate-staging` step fails ("Remote
+   migration versions not found in local migrations directory") on every
+   later merge.
+2. **Deploy the branch to the staging site.** The branch must be pushed to
+   student-portal first. student-portal-staging → **Actions** → **Deploy
+   staging site** → **Run workflow** → leave **Use workflow from** on `main`
+   → set **ref** to the feature branch's name → **Run workflow**.
 3. **Never merge a feature into the `staging` branch.** `staging` would then
    have commits that are not on `master`, and **Staging sync** fails until
    someone cleans it up (see "When a job fails").
 4. **Afterwards**, the staging site keeps showing the feature branch until the
    next merge to `master` redeploys it. To put it back sooner, run **Staging
-   sync** from `master` (see "Starting a run by hand").
+   sync** from `master` (see "Starting a run by hand"): when `staging` already
+   points at the latest `master` commit, it moves nothing but still redeploys
+   the site. Or run **Deploy staging site** by hand with **ref** `staging`.
 
 ## The `staging-sync` environment
 
