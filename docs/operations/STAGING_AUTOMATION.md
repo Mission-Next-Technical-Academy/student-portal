@@ -24,9 +24,9 @@ scripts; the pull request reminder workflow has an inline copy that
 order; if one fails, the later ones do not run, and the run's error says why.
 
 1. **Apply migrations to the staging database** (`migrate-staging`). Uses the
-   exact `master` commit this run is for. Checks that `STAGING_DB_URL` is set,
-   names the staging project, and does not name production
-   (`bin/ci/check-staging-db-url.sh`), then runs `supabase db push --dry-run`
+   exact `master` commit this run is for. Checks that `STAGING_DB_URL` is set
+   and is exactly the staging project's Session pooler string, with no trace of
+   production (`bin/ci/check-staging-db-url.sh`, see Secret 1), then runs `supabase db push --dry-run`
    and the real `supabase db push --yes` against staging
    (`bin/ci/migrate-staging.sh`). The run summary lists the migrations applied.
    No pending migrations is a normal, successful run. If the secret is missing
@@ -145,9 +145,24 @@ works from GitHub's runners (the direct connection needs IPv6, which they lack).
 4. In the `staging-sync` environment → **Add environment secret** → Name
    `STAGING_DB_URL` → paste → **Add secret**.
 
-Do not paste it into chat, a terminal, a file, or an issue. The workflow refuses
-a value that does not contain `xbblgtrfwgeiyttdlbue` or that contains
-`eokvngifirjgfozzbieu`.
+Do not paste it into chat, a terminal, a file, or an issue.
+
+**Only the staging Session pooler string is accepted**
+(`bin/ci/check-staging-db-url.sh`). The workflow parses the value and refuses
+it unless all of these hold:
+
+- it starts with `postgresql://` (or `postgres://`);
+- it contains exactly one `@`, has a password, a port, and nothing after
+  `/postgres` (no `?…` parameters, no `#`, no spaces);
+- the username is exactly `postgres.xbblgtrfwgeiyttdlbue`;
+- the host is a Supabase session pooler, `aws-<number>-<region>.pooler.supabase.com`;
+- the port is `5432` (the Session pooler; `6543` is the Transaction pooler);
+- the database is `postgres`;
+- `eokvngifirjgfozzbieu` (production) appears nowhere in it.
+
+The direct connection string (`db.xbblgtrfwgeiyttdlbue.supabase.co`) and any
+other database are refused. The password is checked only for being present; it
+is never decoded or printed.
 
 To replace it (for example after a database password reset): open the
 environment, click the pencil next to `STAGING_DB_URL`, paste the new value,
@@ -233,9 +248,25 @@ workflows must keep that true. `tests/staging-sync-scripts.test.js` checks it.
   branch (or GitHub refused the branch the environment). Start it again from
   `master`.
 - "STAGING_DB_URL is not set": add Secret 1, then rerun from `master`.
-- "STAGING_DB_URL names the PRODUCTION Supabase project" or "does not name the
-  staging Supabase project": the secret is wrong. Replace it (Secret 1).
-  Nothing ran against any database.
+- "STAGING_DB_URL rejected: …": the secret is not the staging Session pooler
+  string. Nothing ran against any database. The error names only the rule that
+  failed, never the value. Replace the secret (Secret 1):
+  - "it names the PRODUCTION Supabase project": `eokvngifirjgfozzbieu` is
+    somewhere in it. Copy the string again from the **staging** project.
+  - "scheme is not postgresql:// or postgres://": it does not start with
+    `postgresql://` (check for a leading space or a different string).
+  - "it must contain exactly one @": the password has an unencoded `@`;
+    write it as `%40`.
+  - "it is not in the form …": a missing port or password, an unencoded `/`,
+    `?` or `#` in the password, extra `?…` parameters, or spaces.
+  - "username is not postgres.xbblgtrfwgeiyttdlbue": this is the direct
+    connection string or another project's. Use **Session pooler**.
+  - "host is not a Supabase session pooler": the host is not
+    `aws-…pooler.supabase.com`. Use **Session pooler**.
+  - "port is not 5432": this is the Transaction pooler string (`6543`). Use
+    **Session pooler**.
+  - "database name is not postgres": the part after the port must be
+    `/postgres`.
 - "dry run failed": usually a wrong or expired password, or a value that is not
   percent-encoded. Nothing was applied. Check the redacted output in the run
   summary, fix the secret, rerun from `master`.

@@ -188,14 +188,18 @@ function sync(work, name, target, env = {}) {
 }
 
 // ----------------------------------------------------------- check-staging-db-url.sh
-const stagingUrl = `postgresql://postgres.${STAGING_REF}:${FAKE_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:5432/postgres`;
-const productionUrl = `postgresql://postgres.${PRODUCTION_REF}:${FAKE_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:5432/postgres`;
+const POOLER_HOST = 'aws-0-us-east-1.pooler.supabase.com';
+const stagingUrl = `postgresql://postgres.${STAGING_REF}:${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`;
+const productionUrl = `postgresql://postgres.${PRODUCTION_REF}:${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`;
+// Hosts and fragments that must never appear in the guard's output.
+const NEVER_PRINTED = [FAKE_PASSWORD, 'aws-0-us-east-1', 'aws-1-eu-west-2', 'other-db.example', `db.${STAGING_REF}`, 'x%40y%3Az'];
 function guard(value) {
   const env = {};
   if (value !== undefined) env.STAGING_DB_URL = value;
   const res = run('bash', [path.join(CI, 'check-staging-db-url.sh')], { env });
-  assert.ok(!res.out.includes(FAKE_PASSWORD), `guard printed the secret:\n${res.out}`);
-  assert.ok(!res.out.includes('postgresql://'), `guard printed the connection string:\n${res.out}`);
+  for (const secret of [...NEVER_PRINTED, ...(value ? [value] : [])]) {
+    assert.ok(!res.out.includes(secret), `guard printed ${secret}:\n${res.out}`);
+  }
   return res;
 }
 {
@@ -206,17 +210,45 @@ function guard(value) {
     assert.match(missing.out, /::error::STAGING_DB_URL is not set[\s\S]*staging was not moved/);
   }
 
-  const staging = guard(stagingUrl);
-  assert.equal(staging.status, 0, staging.out);
+  // Accepted: only the staging Session pooler string, including a
+  // percent-encoded password and the postgres:// scheme.
+  for (const value of [
+    stagingUrl,
+    `postgresql://postgres.${STAGING_REF}:x%40y%3Az${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`,
+    `postgres://postgres.${STAGING_REF}:${FAKE_PASSWORD}@aws-1-eu-west-2.pooler.supabase.com:5432/postgres`,
+  ]) {
+    const ok = guard(value);
+    assert.equal(ok.status, 0, ok.out);
+    assert.match(ok.out, /Session pooler/);
+  }
 
-  for (const [name, value] of [
-    ['production', productionUrl],
-    ['both', `${stagingUrl}?x=${PRODUCTION_REF}`],
-    ['neither', `postgresql://postgres.abcdefghijklmnopqrst:${FAKE_PASSWORD}@db.example.invalid:5432/postgres`],
+  // Refused, each naming only the rule that failed.
+  const user = `postgres.${STAGING_REF}`;
+  for (const [name, value, rule] of [
+    ['production username', productionUrl, /names the PRODUCTION Supabase project/],
+    ['production ref in a query string', `${stagingUrl}?x=${PRODUCTION_REF}`, /names the PRODUCTION Supabase project/],
+    ['production ref in the password', `postgresql://${user}:${PRODUCTION_REF}@${POOLER_HOST}:5432/postgres`, /names the PRODUCTION Supabase project/],
+    ['production direct host', `postgresql://postgres:${FAKE_PASSWORD}@db.${PRODUCTION_REF}.supabase.co:5432/postgres`, /names the PRODUCTION Supabase project/],
+    ['staging username, other host', `postgresql://${user}:${FAKE_PASSWORD}@other-db.example:5432/postgres`, /host is not a Supabase session pooler/],
+    ['staging direct connection', `postgresql://postgres:${FAKE_PASSWORD}@db.${STAGING_REF}.supabase.co:5432/postgres`, /username is not postgres\./],
+    ['pooler username, direct host', `postgresql://${user}:${FAKE_PASSWORD}@db.${STAGING_REF}.supabase.co:5432/postgres`, /host is not a Supabase session pooler/],
+    ['pooler look-alike host', `postgresql://${user}:${FAKE_PASSWORD}@aws-0-us-east-1.pooler.supabase.com.other-db.example:5432/postgres`, /host is not a Supabase session pooler/],
+    ['transaction pooler port', `postgresql://${user}:${FAKE_PASSWORD}@${POOLER_HOST}:6543/postgres`, /port is not 5432/],
+    ['missing port', `postgresql://${user}:${FAKE_PASSWORD}@${POOLER_HOST}/postgres`, /not in the form/],
+    ['missing password', `postgresql://${user}@${POOLER_HOST}:5432/postgres`, /not in the form/],
+    ['extra @ (unencoded in password)', `postgresql://${user}:x@y${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`, /exactly one @/],
+    ['query string', `${stagingUrl}?sslmode=disable`, /not in the form/],
+    ['fragment', `${stagingUrl}#x`, /not in the form/],
+    ['space', ` ${stagingUrl}`, /scheme is not/],
+    ['other database', `postgresql://${user}:${FAKE_PASSWORD}@${POOLER_HOST}:5432/other`, /database name is not postgres/],
+    ['other scheme', `mysql://${user}:${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`, /scheme is not postgresql:\/\/ or postgres:\/\//],
+    ['other project', `postgresql://postgres.abcdefghijklmnopqrst:${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`, /username is not postgres\./],
+    ['not a URL', 'just-some-text', /scheme is not/],
   ]) {
     const res = guard(value);
     assert.equal(res.status, 1, `${name} should be refused:\n${res.out}`);
-    assert.match(res.out, /::error::/);
+    assert.match(res.out, /::error::STAGING_DB_URL rejected: /, name);
+    assert.match(res.out, rule, `${name}: wrong rule\n${res.out}`);
   }
 }
 
