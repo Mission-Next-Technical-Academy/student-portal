@@ -37,16 +37,25 @@ order; if one fails, the later ones do not run, and the run's error says why.
    `bin/ci/sync-staging.sh`. Fast-forward only: never `--force`, never writes to
    `master`. If `staging` has commits that are not on `master`, it changes
    nothing and fails. Uses no secrets.
+   **Already past this commit:** if `staging` already points at a later
+   `master` commit (for example, an older run finishing after a newer one),
+   it never moves `staging` back and the run ends successfully with the notice
+   "staging is already at …, past this run's commit …; nothing synced or
+   deployed." The website is not deployed by that run, because it only
+   applied the older commit's migrations; the run for the later commit
+   deploys it. Nothing needs doing.
    **Functions gate:** if the commits `staging` would gain change anything
    under `supabase/functions/`, it does not move `staging`, lists the exact
    deploy commands in the run summary, and fails with an error saying so.
    Deploy those functions to staging, then start a manual run from `master`
    with **functions_deployed** ticked (see "Starting a run by hand").
-3. **Start the staging website deploy** (`deploy-staging-site`). Only after
-   step 2 succeeded. Confirms `staging` still points at the commit step 2
-   synced, then starts **Deploy staging site** (`deploy-staging.yml`) in
-   student-portal-staging with `ref=staging`. If the token is not set, the job
-   passes with a notice and deploys nothing.
+3. **Start the staging website deploy** (`deploy-staging-site`). Only when
+   step 2 left `staging` at exactly this run's commit. Confirms `staging` still
+   points at it, then starts **Deploy staging site** (`deploy-staging.yml`) in
+   student-portal-staging with `ref=<that commit's full 40-character SHA>`,
+   not the branch name, so a later change to `staging` cannot slip into this
+   deploy. If the token is not set, the job passes with a notice and deploys
+   nothing.
 
 Migrations run before `staging` moves, so for a short time (or until a
 failure is fixed) the staging database can be ahead of the staging code. That
@@ -67,17 +76,21 @@ write, and that job only posts the text. Pull requests from forks get a
 read-only token and cannot be commented on, so for them the checklist is in
 the job summary only.
 
-**Twice a day** (10:17 and 17:17 UTC, about 6:17 AM and 1:17 PM in Florida
-during daylight time) student-portal-staging's **Deploy staging site** runs
-on a schedule as a backup. It reads `deploy-fingerprint.txt` from the
-published staging site and skips the build only if the site was built from
-the current `staging` commit, the current commit of student-portal-staging
-(so a change to the deploy workflow rebuilds), and the current staging URL and
-publishable key (compared as a SHA-256 hash, so a rotated key rebuilds).
-`deploy-sha.txt` next to it shows the deployed student-portal commit. Manual
-and dispatched runs always deploy. Because `staging` only
-moves after its migrations succeeded, the backup never builds code whose
-migrations failed.
+**The staging website deploys only two ways:** the `deploy-staging-site` job of
+**Staging sync** above, or a manual run of **Deploy staging site** in
+student-portal-staging (Actions → **Deploy staging site** → **Run workflow**,
+ref `staging`). There is no scheduled deploy. If a deploy fails, fix the cause
+and rerun **Staging sync** from `master`.
+
+## Never move `staging` by hand
+
+Never move the staging branch by hand; run Staging sync from master.
+
+Only **Staging sync** moves the `staging` branch, and only after the staging
+database has that commit's migrations. Do not push, reset, or merge into
+`staging` yourself, and do not deploy a branch other than `staging` to the
+staging site. If `staging` is ever in the wrong place, stop and ask Randy or
+Alex.
 
 ## The `staging-sync` environment
 
@@ -213,21 +226,6 @@ and `bin/ci/migrate-staging.sh` redacts connection strings, hosts, and users
 from the Supabase CLI's output before it reaches the log. Any change to these
 workflows must keep that true. `tests/staging-sync-scripts.test.js` checks it.
 
-## The 60-day rule for scheduled workflows
-
-GitHub disables scheduled workflows in a public repository after 60 days with
-no repository activity. student-portal-staging gets few commits, so its
-backup schedule may be disabled this way. GitHub marks the whole workflow
-disabled, not just its schedule, so the dispatch from student-portal can fail
-too (see `deploy-staging-site` below).
-
-To re-enable: student-portal-staging → **Actions** → **Deploy staging site** →
-**Enable workflow**. Or in Terminal:
-
-```
-gh workflow enable deploy-staging.yml --repo Mission-Next-Technical-Academy/student-portal-staging
-```
-
 ## When a job fails
 
 **migrate-staging** (staging was not moved and the website was not deployed)
@@ -257,9 +255,10 @@ gh workflow enable deploy-staging.yml --repo Mission-Next-Technical-Academy/stud
   functions listed in the run summary to staging, then start a manual run
   from `master` with **functions_deployed** ticked.
 - "staging has commits that are not on master": someone committed to `staging`
-  directly. Nothing was changed. Get those commits onto `master` through a pull
-  request (or, if they are not wanted, have a maintainer reset `staging` to
-  `master` by hand), then run the workflow from `master` again.
+  directly. Nothing was changed. If those commits are wanted, get them onto
+  `master` through a pull request, then run the workflow from `master` again.
+  If they are not wanted, stop and ask Randy or Alex; do not move `staging` by
+  hand.
 - "is not on master": the run's commit is not on `master` (a manual run from
   another branch that got this far). Start it from `master`.
 - The push was rejected: something else moved `staging` at the same moment, or
@@ -274,10 +273,9 @@ gh workflow enable deploy-staging.yml --repo Mission-Next-Technical-Academy/stud
 - HTTP 401 or 403 from `gh workflow run`: the token expired, was revoked, is
   pending organization approval, or lacks **Actions: Read and write** on
   student-portal-staging. Replace it (Secret 2).
-- HTTP 422 or "workflow is disabled": re-enable **Deploy staging site** (60-day
-  rule above).
 - The job passed but the site did not change: open student-portal-staging →
-  **Actions** → **Deploy staging site** and read that run.
+  **Actions** → **Deploy staging site** and read that run. Fix the cause, then
+  rerun **Staging sync** from `master`.
 
 ## If student-portal is made private
 
@@ -286,6 +284,5 @@ gh workflow enable deploy-staging.yml --repo Mission-Next-Technical-Academy/stud
   secrets stop being available to these jobs.
 - student-portal-staging's deploy checks out student-portal anonymously today.
   It would need a read-only token for student-portal (see the `token:` comment in
-  `deploy-staging.yml`), and its backup schedule's `git ls-remote` check would
-  need the same token.
+  `deploy-staging.yml`).
 - Logs would no longer be public, but the rule against printing secrets stays.
