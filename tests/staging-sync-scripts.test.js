@@ -445,6 +445,99 @@ function actionsRun(name, script, env) {
   }
 }
 
+// ------------------------------------------------- deploy-staging-site, run locally
+// sync-staging.sh's real outputs feed the deploy job's inline script, which
+// runs against a fake `gh` that records which token and arguments it got.
+{
+  const syncYaml = fs.readFileSync(path.join(WORKFLOWS, 'staging-sync.yml'), 'utf8');
+  const deployScript = runBlock(syncYaml, 'name: Dispatch deploy-staging.yml in student-portal-staging');
+  const deployBin = path.join(tmp, 'fake-gh-deploy');
+  fs.mkdirSync(deployBin);
+  fs.writeFileSync(path.join(deployBin, 'gh'), `#!/usr/bin/env bash
+printf '%s|%s\\n' "$GH_TOKEN" "$*" >> "$FAKE_GH_CALLS"
+case "$1" in
+  api) printf '%s\\n' "$FAKE_STAGING" ;;
+  workflow) exit 0 ;;
+esac
+`, { mode: 0o755 });
+  const deploy = (name, syncedSha, stagingNow, extra = {}) => actionsRun(`deploy-${name}`, deployScript, {
+    PATH: `${deployBin}:${process.env.PATH}`,
+    STAGING_DEPLOY_TOKEN: 'deploy-token',
+    READ_TOKEN: 'read-token',
+    SYNCED_SHA: syncedSha,
+    FAKE_STAGING: stagingNow,
+    ...extra,
+  });
+  const dispatches = (calls) => calls.split('\n').filter((l) => l.includes('workflow run'));
+
+  const { remote, work } = syncFixture('deploy');
+  const first = commit(work, 'a.txt', '1');
+  git(work, 'push', '-q', 'origin', 'master', 'master:staging');
+  const second = commit(work, 'a.txt', '2');
+  git(work, 'push', '-q', 'origin', 'master');
+
+  // Fast-forward -> deploy dispatched with the full 40-character SHA.
+  const ff = sync(work, 'deploy-ff', second);
+  assert.equal(ff.outputs.synced, 'true');
+  const ffDeploy = deploy('ff', ff.outputs.sha, remoteSha(remote, 'staging'));
+  assert.equal(ffDeploy.status, 0, ffDeploy.out);
+  assert.deepEqual(dispatches(ffDeploy.calls), [
+    `deploy-token|workflow run deploy-staging.yml --repo Mission-Next-Technical-Academy/student-portal-staging -f ref=${second}`,
+  ]);
+  assert.match(second, /^[0-9a-f]{40}$/);
+  assert.match(ffDeploy.calls, /^read-token\|api repos\/example\/student-portal\/git\/ref\/heads\/staging/m, 'the staging check uses the read-only token');
+  assert.match(ffDeploy.summary, new RegExp(`commit \`${second}\``));
+
+  // Already equal -> deploy dispatched with that same SHA.
+  const equal = sync(work, 'deploy-equal', second);
+  assert.equal(equal.outputs.synced, 'true');
+  const equalDeploy = deploy('equal', equal.outputs.sha, second);
+  assert.equal(equalDeploy.status, 0, equalDeploy.out);
+  assert.equal(dispatches(equalDeploy.calls).length, 1);
+  assert.match(dispatches(equalDeploy.calls)[0], new RegExp(`-f ref=${second}$`));
+
+  // staging ahead of this run's commit -> synced=false, deploy job skipped
+  // (its if: needs synced == 'true'), staging unchanged.
+  const ahead = sync(work, 'deploy-ahead', first);
+  assert.equal(ahead.status, 0, ahead.out);
+  assert.equal(ahead.outputs.synced, 'false');
+  assert.equal(ahead.outputs.sha, undefined);
+  assert.equal(remoteSha(remote, 'staging'), second);
+
+  // staging moved after the sync -> error, no dispatch.
+  const moved = deploy('moved', second, first);
+  assert.equal(moved.status, 1, moved.out);
+  assert.match(moved.out, /::error::staging moved/);
+  assert.equal(dispatches(moved.calls).length, 0);
+
+  // Anything but a full SHA -> error, no dispatch, no branch name.
+  for (const bad of ['', 'staging', second.slice(0, 12)]) {
+    const res = deploy(`bad-${bad || 'empty'}`, bad, bad);
+    assert.equal(res.status, 1, res.out);
+    assert.match(res.out, /::error::sync-branch did not report a full commit SHA/);
+    assert.equal(res.calls, '');
+  }
+
+  // No token -> notice, nothing called.
+  const noToken = deploy('no-token', second, second, { STAGING_DEPLOY_TOKEN: '' });
+  assert.equal(noToken.status, 0, noToken.out);
+  assert.match(noToken.out, /::notice::STAGING_DEPLOY_TOKEN is not set/);
+  assert.equal(noToken.calls, '');
+
+  // Diverged (simulates someone force-pushing staging in this throwaway
+  // repo) -> sync fails, so the deploy job never runs.
+  git(work, 'checkout', '-q', '-b', 'stray', first);
+  const stray = commit(work, 'stray.txt', 'x');
+  git(work, 'push', '-q', '-f', 'origin', 'stray:staging');
+  const diverged = sync(work, 'deploy-diverged', second);
+  assert.equal(diverged.status, 1, diverged.out);
+  assert.deepEqual(diverged.outputs, {});
+  assert.equal(remoteSha(remote, 'staging'), stray);
+  assert.equal(remoteSha(remote, 'master'), second);
+
+  assert.doesNotMatch(syncYaml, /ref=staging/, 'never dispatch the moving branch name');
+}
+
 // ------------------------------------------------------------ workflow boundaries
 {
   const files = fs.readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f));

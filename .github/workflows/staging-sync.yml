@@ -8,7 +8,8 @@
 #                           commits change Edge Functions (functions gate)
 #   3. deploy-staging-site  only if step 2 moved staging to (or found it
 #                           at) this exact commit: start the staging website
-#                           deploy in student-portal-staging
+#                           deploy in student-portal-staging, pinned to
+#                           that commit's full SHA (not the branch name)
 # If any step fails, the later ones do not run, so `staging` and its website
 # never get ahead of the staging database.
 #
@@ -126,9 +127,13 @@ jobs:
             exit 0
           fi
 
-          # The deploy builds whatever `staging` points at when it starts.
-          # If staging moved since this run synced it, do not deploy code
-          # whose migrations this run did not apply.
+          # Deploy the exact commit this run migrated and synced, never the
+          # moving branch name, so a later change to staging cannot slip in.
+          if ! [[ "$SYNCED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sync-branch did not report a full commit SHA. Not deploying."
+            exit 1
+          fi
+          # And only while staging still points at it.
           current="$(GH_TOKEN="$READ_TOKEN" gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/staging" --jq .object.sha)"
           if [ "$current" != "$SYNCED_SHA" ]; then
             echo "::error::staging moved from ${SYNCED_SHA:0:12} to ${current:0:12} during this run. Not deploying; rerun this workflow from master."
@@ -137,8 +142,8 @@ jobs:
 
           GH_TOKEN="$STAGING_DEPLOY_TOKEN" gh workflow run deploy-staging.yml \
             --repo Mission-Next-Technical-Academy/student-portal-staging \
-            -f ref=staging
+            -f ref="$SYNCED_SHA"
           {
             echo "### Staging website"
-            echo "Started **Deploy staging site** for \`staging\` at \`${SYNCED_SHA:0:12}\`. Follow it at https://github.com/Mission-Next-Technical-Academy/student-portal-staging/actions/workflows/deploy-staging.yml"
+            echo "Started **Deploy staging site** for commit \`${SYNCED_SHA}\` (\`staging\`). Follow it at https://github.com/Mission-Next-Technical-Academy/student-portal-staging/actions/workflows/deploy-staging.yml"
           } >> "$GITHUB_STEP_SUMMARY"
