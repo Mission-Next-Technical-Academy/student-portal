@@ -140,8 +140,10 @@ jobs:
             exit 1
           fi
 
+          # --ref picks the branch whose deploy-staging.yml runs; -f ref is the commit it builds.
           GH_TOKEN="$STAGING_DEPLOY_TOKEN" gh workflow run deploy-staging.yml \
             --repo Mission-Next-Technical-Academy/student-portal-staging \
+            --ref main \
             -f ref="$SYNCED_SHA"
           {
             echo "### Staging website"

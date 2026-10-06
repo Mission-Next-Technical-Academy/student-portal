@@ -482,7 +482,7 @@ esac
   const ffDeploy = deploy('ff', ff.outputs.sha, remoteSha(remote, 'staging'));
   assert.equal(ffDeploy.status, 0, ffDeploy.out);
   assert.deepEqual(dispatches(ffDeploy.calls), [
-    `deploy-token|workflow run deploy-staging.yml --repo Mission-Next-Technical-Academy/student-portal-staging -f ref=${second}`,
+    `deploy-token|workflow run deploy-staging.yml --repo Mission-Next-Technical-Academy/student-portal-staging --ref main -f ref=${second}`,
   ]);
   assert.match(second, /^[0-9a-f]{40}$/);
   assert.match(ffDeploy.calls, /^read-token\|api repos\/example\/student-portal\/git\/ref\/heads\/staging/m, 'the staging check uses the read-only token');
@@ -494,7 +494,7 @@ esac
   const equalDeploy = deploy('equal', equal.outputs.sha, second);
   assert.equal(equalDeploy.status, 0, equalDeploy.out);
   assert.equal(dispatches(equalDeploy.calls).length, 1);
-  assert.match(dispatches(equalDeploy.calls)[0], new RegExp(`-f ref=${second}$`));
+  assert.match(dispatches(equalDeploy.calls)[0], new RegExp(`--ref main -f ref=${second}$`));
 
   // staging ahead of this run's commit -> synced=false, deploy job skipped
   // (its if: needs synced == 'true'), staging unchanged.
