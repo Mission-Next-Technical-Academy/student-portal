@@ -1,0 +1,74 @@
+# Staging-first reminder for pull requests that touch supabase/.
+#
+# Posts one comment (updated in place on later pushes, never duplicated) with
+# a checklist: apply migrations to staging and test before merging, deploy
+# changed Edge Functions to staging by hand, and add a rollback note. It never
+# fails the pull request.
+#
+# Plain pull_request on purpose: never change this to pull_request_target,
+# which would run fork code with write access and secrets. Pull requests from
+# forks get a read-only token here, so they cannot be commented on; for them
+# the checklist goes to the job summary only.
+#
+# Runbook: docs/operations/STAGING_AUTOMATION.md
+name: Supabase change reminder
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/**'
+
+permissions: {}
+
+jobs:
+  remind:
+    name: Staging-first checklist
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build the checklist
+        id: build
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if ! bash bin/ci/supabase-change-reminder.sh "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/reminder.md"; then
+            echo "::warning::Could not build the staging-first checklist. Follow docs/operations/STAGING_AUTOMATION.md by hand."
+            exit 0
+          fi
+          cat "$RUNNER_TEMP/reminder.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Post or update the pull request comment
+        if: steps.build.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          if [ "$IS_FORK" = "true" ]; then
+            echo "::notice::Pull request from a fork: its token is read-only, so the checklist is in this job's summary instead of a comment."
+            exit 0
+          fi
+          marker='<!-- supabase-change-reminder -->'
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"$marker\"))) | .id" | head -n 1)"
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -F body=@"$RUNNER_TEMP/reminder.md" > /dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@"$RUNNER_TEMP/reminder.md" > /dev/null
+          fi
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::Could not post the checklist comment; it is in this job's summary instead."
+          fi
+          exit 0

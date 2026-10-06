@@ -1,0 +1,147 @@
+# Keep staging caught up with master.
+#
+# After every push to master (and on a manual run started from master):
+#   1. sync-branch          fast-forward the `staging` branch to master
+#   2. migrate-staging      apply pending migrations to the STAGING database
+#   3. deploy-staging-site  start the staging website deploy in
+#                           student-portal-staging (only after step 2 passed)
+# Edge Functions are never deployed here; the run summary lists the manual
+# commands when any changed.
+#
+# This repository is public, so every log line below is public. Secrets live
+# only in the `staging-sync` environment (deployment branches: master), and
+# only the two jobs that need one declare it. Nothing here may print a secret
+# or anything derived from one. Never add pull_request_target to this file.
+#
+# Runbook: docs/operations/STAGING_AUTOMATION.md
+name: Staging sync
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Each job asks for exactly what it needs.
+permissions: {}
+
+# Runs queue instead of overlapping, so two pushes cannot race on staging.
+concurrency:
+  group: staging-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-branch:
+    name: Fast-forward staging to master
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.sync.outputs.sha }}
+    steps:
+      - name: Refuse to run from any branch but master
+        if: github.ref != 'refs/heads/master'
+        run: |
+          echo "::error::Start this workflow from master (Run workflow -> Branch: master). Nothing was changed."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward staging (never --force, never touches master)
+        id: sync
+        run: |
+          echo "## Staging sync" >> "$GITHUB_STEP_SUMMARY"
+          bash bin/ci/sync-staging.sh origin
+
+      - name: List Edge Functions to deploy by hand
+        env:
+          # A push compares what the push changed; a manual run compares what
+          # staging just gained.
+          OLD: ${{ github.event_name == 'push' && github.event.before || steps.sync.outputs.before }}
+          NEW: ${{ github.event_name == 'push' && github.sha || steps.sync.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$OLD" ] || [ "$OLD" = "$NEW" ] || ! git cat-file -e "$OLD^{commit}" 2>/dev/null; then
+            echo "No earlier commit to compare with; skipping the Edge Function check."
+            exit 0
+          fi
+          bash bin/ci/functions-reminder.sh "$OLD" "$NEW" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  migrate-staging:
+    name: Apply migrations to the staging database
+    needs: sync-branch
+    runs-on: ubuntu-latest
+    environment: staging-sync
+    permissions:
+      contents: read
+    outputs:
+      configured: ${{ steps.guard.outputs.configured }}
+    steps:
+      # Exactly the commit staging now points at, so the database matches the
+      # code the website deploy will build.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.sync-branch.outputs.sha }}
+          persist-credentials: false
+
+      - name: Check that STAGING_DB_URL is the staging project
+        id: guard
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: bash bin/ci/check-staging-db-url.sh
+
+      - name: Install the Supabase CLI
+        if: steps.guard.outputs.configured == 'true'
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.118.0
+
+      - name: Dry run, then apply pending migrations
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: bash bin/ci/migrate-staging.sh
+
+  deploy-staging-site:
+    name: Start the staging website deploy
+    # Default needs: runs only if migrate-staging succeeded (including its
+    # "secret not set" skip), so the site never goes ahead of the database.
+    needs: [sync-branch, migrate-staging]
+    runs-on: ubuntu-latest
+    environment: staging-sync
+    permissions:
+      contents: read
+    steps:
+      - name: Dispatch deploy-staging.yml in student-portal-staging
+        env:
+          STAGING_DEPLOY_TOKEN: ${{ secrets.STAGING_DEPLOY_TOKEN }}
+          READ_TOKEN: ${{ github.token }}
+          SYNCED_SHA: ${{ needs.sync-branch.outputs.sha }}
+          MIGRATIONS_CONFIGURED: ${{ needs.migrate-staging.outputs.configured }}
+        run: |
+          set -euo pipefail
+          if [ -z "$STAGING_DEPLOY_TOKEN" ]; then
+            echo "::notice::STAGING_DEPLOY_TOKEN is not set in the staging-sync environment, so the staging website was not redeployed. See docs/operations/STAGING_AUTOMATION.md to add it."
+            exit 0
+          fi
+          if [ "$MIGRATIONS_CONFIGURED" != "true" ]; then
+            echo "::warning::Staging migrations were skipped because STAGING_DB_URL is not set. The website deploy still goes ahead; make sure the staging database already has every migration on master."
+          fi
+
+          # The deploy builds whatever `staging` points at when it starts.
+          # If staging moved since this run migrated, do not deploy code whose
+          # migrations this run did not apply.
+          current="$(GH_TOKEN="$READ_TOKEN" gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/staging" --jq .object.sha)"
+          if [ "$current" != "$SYNCED_SHA" ]; then
+            echo "::error::staging moved from ${SYNCED_SHA:0:12} to ${current:0:12} after this run migrated the database. Not deploying; rerun this workflow from master."
+            exit 1
+          fi
+
+          GH_TOKEN="$STAGING_DEPLOY_TOKEN" gh workflow run deploy-staging.yml \
+            --repo Mission-Next-Technical-Academy/student-portal-staging \
+            -f ref=staging
+          {
+            echo "### Staging website"
+            echo "Started **Deploy staging site** for \`staging\` at \`${SYNCED_SHA:0:12}\`. Follow it at https://github.com/Mission-Next-Technical-Academy/student-portal-staging/actions/workflows/deploy-staging.yml"
+          } >> "$GITHUB_STEP_SUMMARY"
