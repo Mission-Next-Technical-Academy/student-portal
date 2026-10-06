@@ -10,6 +10,9 @@
 #     push that would drop a commit from staging;
 #   - it never writes to master; master is only read;
 #   - if staging has commits master lacks, it changes nothing and fails;
+#   - if staging is already past the target (a later master commit), it
+#     changes nothing and reports synced=false, so the website is not
+#     deployed: this run only migrated the target, not staging's commit;
 #   - functions gate: if the commits staging would gain change
 #     supabase/functions/, it changes nothing and fails, listing the manual
 #     deploy commands, unless FUNCTIONS_DEPLOYED=true (a person confirmed
@@ -19,7 +22,10 @@
 #
 # On success it appends to $GITHUB_OUTPUT (when set):
 #   before=<staging commit before the run, empty if staging did not exist>
-#   sha=<commit staging points at now>
+#   synced=true   staging now points at exactly the target, and
+#   sha=<target>  the full commit to deploy;
+# or, when staging was already past the target:
+#   synced=false  (no sha: nothing is to be deployed)
 set -euo pipefail
 
 remote="${1:?usage: sync-staging.sh <remote> <target commit>}"
@@ -41,7 +47,6 @@ if ! git merge-base --is-ancestor "$target" "$master_sha"; then
 fi
 
 staging_sha="$(remote_head staging)"
-synced="$target"
 
 if [ -z "$staging_sha" ]; then
   echo "::notice::The staging branch does not exist yet; creating it at ${target:0:12}."
@@ -52,11 +57,17 @@ else
   git fetch --no-tags --quiet "$remote" "+refs/heads/staging:refs/remotes/$remote/staging"
   if git merge-base --is-ancestor "$target" "$staging_sha" \
      && git merge-base --is-ancestor "$staging_sha" "$master_sha"; then
-    # A newer run already moved staging past this commit; never move it back.
-    echo "::notice::staging (${staging_sha:0:12}) already includes ${target:0:12}; leaving it where it is."
-    synced="$staging_sha"
+    # staging is already at a later master commit. Never move it back, and
+    # do not deploy it: this run only applied the target's migrations.
+    echo "::notice::staging is already at ${staging_sha:0:12}, past this run's commit ${target:0:12}; nothing synced or deployed."
+    {
+      echo "before=$staging_sha"
+      echo "synced=false"
+    } >> "$output"
+    echo "- \`staging\` is already at \`${staging_sha:0:12}\`, past this run's commit \`${target:0:12}\`; nothing synced or deployed." >> "$summary"
+    exit 0
   elif ! git merge-base --is-ancestor "$staging_sha" "$target"; then
-    echo "::error::staging has commits that are not on master (staging ${staging_sha:0:12}, master ${master_sha:0:12}). Nothing was changed. Get those commits onto master through a pull request, or have a maintainer reset staging by hand, then rerun this workflow from master."
+    echo "::error::staging has commits that are not on master (staging ${staging_sha:0:12}, master ${master_sha:0:12}). Nothing was changed. If they are wanted, get them onto master through a pull request and rerun this workflow from master; if not, ask Randy or Alex. Never move staging by hand."
     exit 1
   else
     functions="$("$here/functions-reminder.sh" "$staging_sha" "$target")"
@@ -79,15 +90,16 @@ else
 fi
 
 now="$(remote_head staging)"
-if [ "$now" != "$synced" ]; then
-  echo "::error::After the run, staging is at ${now:0:12}, expected ${synced:0:12}."
+if [ "$now" != "$target" ]; then
+  echo "::error::After the run, staging is at ${now:0:12}, expected ${target:0:12}."
   exit 1
 fi
-echo "staging points at ${synced:0:12} (master is at ${master_sha:0:12})."
+echo "staging points at ${target:0:12} (master is at ${master_sha:0:12})."
 
 {
   echo "before=$staging_sha"
-  echo "sha=$synced"
+  echo "synced=true"
+  echo "sha=$target"
 } >> "$output"
 previous="${staging_sha:-none}"
-echo "- \`staging\` now points at \`${synced:0:12}\` (was \`${previous:0:12}\`)." >> "$summary"
+echo "- \`staging\` now points at \`${target:0:12}\` (was \`${previous:0:12}\`)." >> "$summary"

@@ -85,7 +85,7 @@ function sync(work, name, target, env = {}) {
   assert.equal(res.status, 0, res.out);
   assert.equal(remoteSha(remote, 'staging'), second);
   assert.equal(remoteSha(remote, 'master'), second);
-  assert.deepEqual(res.outputs, { before: first, sha: second });
+  assert.deepEqual(res.outputs, { before: first, synced: 'true', sha: second });
 
   // Already equal: success, nothing changes.
   const again = sync(work, 'ff-again', second);
@@ -93,14 +93,17 @@ function sync(work, name, target, env = {}) {
   assert.match(again.out, /already points at/);
   assert.equal(remoteSha(remote, 'staging'), second);
   assert.equal(remoteSha(remote, 'master'), second);
-  assert.deepEqual(again.outputs, { before: second, sha: second });
+  assert.deepEqual(again.outputs, { before: second, synced: 'true', sha: second });
 
-  // An older run (staging already past its commit) never moves staging back.
+  // staging already past this run's commit: never moved back, and nothing
+  // is reported as synced, so the website deploy is skipped.
   const older = sync(work, 'ff-older', first);
   assert.equal(older.status, 0, older.out);
-  assert.match(older.out, /already includes/);
+  assert.match(older.out, new RegExp(`::notice::staging is already at ${second.slice(0, 12)}, past this run's commit ${first.slice(0, 12)}; nothing synced or deployed\\.`));
+  assert.match(older.summary, /nothing synced or deployed/);
   assert.equal(remoteSha(remote, 'staging'), second);
-  assert.deepEqual(older.outputs, { before: second, sha: second });
+  assert.equal(remoteSha(remote, 'master'), second);
+  assert.deepEqual(older.outputs, { before: second, synced: 'false' }, 'no sha: nothing to deploy');
 }
 
 { // Only the migrated commit is synced, even when master has moved on.
@@ -114,7 +117,7 @@ function sync(work, name, target, env = {}) {
   assert.equal(res.status, 0, res.out);
   assert.equal(remoteSha(remote, 'staging'), migrated);
   assert.equal(remoteSha(remote, 'master'), newer);
-  assert.deepEqual(res.outputs, { before: first, sha: migrated });
+  assert.deepEqual(res.outputs, { before: first, synced: 'true', sha: migrated });
 }
 
 { // A target that is not on master is refused; nothing changes.
@@ -157,7 +160,7 @@ function sync(work, name, target, env = {}) {
   const res = sync(work, 'missing', tip);
   assert.equal(res.status, 0, res.out);
   assert.equal(remoteSha(remote, 'staging'), tip);
-  assert.deepEqual(res.outputs, { before: '', sha: tip });
+  assert.deepEqual(res.outputs, { before: '', synced: 'true', sha: tip });
 }
 
 { // Functions gate: Edge Function changes hold staging until confirmed.
@@ -181,7 +184,7 @@ function sync(work, name, target, env = {}) {
   assert.equal(confirmed.status, 0, confirmed.out);
   assert.match(confirmed.summary, /confirmed deployed to staging by tester/);
   assert.equal(remoteSha(remote, 'staging'), changed);
-  assert.deepEqual(confirmed.outputs, { before, sha: changed });
+  assert.deepEqual(confirmed.outputs, { before, synced: 'true', sha: changed });
 }
 
 // ----------------------------------------------------------- check-staging-db-url.sh
@@ -472,8 +475,14 @@ function actionsRun(name, script, env) {
   assert.doesNotMatch(jobs['migrate-staging'], /needs:/);
   assert.match(jobs['sync-branch'], /^ {4}needs: migrate-staging$/m);
   assert.match(jobs['deploy-staging-site'], /^ {4}needs: \[migrate-staging, sync-branch\]$/m);
+  // The deploy runs only when staging is at exactly this run's commit; its
+  // if: has no status function, so GitHub still requires both needs to pass.
+  assert.match(jobs['sync-branch'], /^ {6}synced: \$\{\{ steps\.sync\.outputs\.synced \}\}$/m);
+  assert.match(jobs['deploy-staging-site'], /^ {4}if: needs\.sync-branch\.outputs\.synced == 'true'$/m);
   for (const [name, body] of Object.entries(jobs)) {
-    assert.doesNotMatch(body, /^ {4}if:/m, `${name} must not override the default "needs succeeded" rule`);
+    const ifs = body.match(/^ {4}if:.*$/gm) || [];
+    assert.ok(ifs.every((line) => !/always\(\)|failure\(\)|cancelled\(\)/.test(line)), `${name} must not run after a failed job`);
+    if (name !== 'deploy-staging-site') assert.equal(ifs.length, 0, `${name} must not have a job-level if:`);
     assert.doesNotMatch(body, /continue-on-error/, `${name} must not continue after a failure`);
     const usesEnv = /^ {4}environment: staging-sync$/m.test(body);
     const usesSecrets = /\$\{\{\s*secrets\./.test(body);
