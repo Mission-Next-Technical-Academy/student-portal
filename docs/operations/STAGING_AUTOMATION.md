@@ -69,9 +69,13 @@ the job summary only.
 
 **Twice a day** (10:17 and 17:17 UTC, about 6:17 AM and 1:17 PM in Florida
 during daylight time) student-portal-staging's **Deploy staging site** runs
-on a schedule as a backup. It reads `deploy-sha.txt` from the published
-staging site and skips the build if it already matches the current `staging`
-commit. Manual and dispatched runs always deploy. Because `staging` only
+on a schedule as a backup. It reads `deploy-fingerprint.txt` from the
+published staging site and skips the build only if the site was built from
+the current `staging` commit, the current commit of student-portal-staging
+(so a change to the deploy workflow rebuilds), and the current staging URL and
+publishable key (compared as a SHA-256 hash, so a rotated key rebuilds).
+`deploy-sha.txt` next to it shows the deployed student-portal commit. Manual
+and dispatched runs always deploy. Because `staging` only
 moves after its migrations succeeded, the backup never builds code whose
 migrations failed.
 
