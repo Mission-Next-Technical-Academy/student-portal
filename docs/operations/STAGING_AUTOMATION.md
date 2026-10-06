@@ -46,7 +46,9 @@ order; if one fails, the later ones do not run, and the run's error says why.
    under `supabase/functions/`, it does not move `staging`, lists the exact
    deploy commands in the run summary, and fails with an error saying so.
    Deploy those functions to staging, then start a manual run from `master`
-   with **functions_deployed** ticked (see "Starting a run by hand").
+   with **functions_deployed** ticked (see "Starting a run by hand"). If the
+   `staging` branch does not exist yet, every function in `master` counts, and
+   the branch is not created until that confirmation.
 3. **Start the staging website deploy** (`deploy-staging-site`). Only when
    step 2 succeeded, which means `staging` is at exactly this run's commit. Confirms `staging` still
    points at it, then starts **Deploy staging site** (`deploy-staging.yml`) in

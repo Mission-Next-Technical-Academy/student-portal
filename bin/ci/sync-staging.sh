@@ -16,7 +16,9 @@
 #   - functions gate: if the commits staging would gain change
 #     supabase/functions/, it changes nothing and fails, listing the manual
 #     deploy commands, unless FUNCTIONS_DEPLOYED=true (a person confirmed
-#     they deployed them to staging).
+#     they deployed them to staging). When staging does not exist yet, every
+#     function in the target counts (no known baseline), so the branch is
+#     only created once a person confirms them too.
 #
 # Usage: bin/ci/sync-staging.sh <remote> <target commit>
 #
@@ -36,6 +38,27 @@ remote_head() {
   git ls-remote "$remote" "refs/heads/$1" | cut -f1
 }
 
+# Usage: functions_gate <staging commit, or the empty tree> <what happens>
+# Fails (exit 1) when the target adds or changes Edge Functions since
+# <from>, unless FUNCTIONS_DEPLOYED=true. A change to _shared alone, with
+# no function folders, needs nothing.
+functions_gate() {
+  local from="$1" outcome="$2" functions
+  functions="$("$here/functions-reminder.sh" "$from" "$target")"
+  [ -n "$functions" ] || return 0
+  echo "$functions" >> "$summary"
+  if [ "${FUNCTIONS_DEPLOYED:-}" != "true" ]; then
+    {
+      echo
+      echo "**staging was $outcome.** Deploy the functions above to staging, then run this workflow again from \`master\` with **functions_deployed** ticked."
+    } >> "$summary"
+    echo "$functions"
+    echo "::error::These commits change Edge Functions, which are deployed by hand. staging was $outcome and the website was not deployed (migrations already ran). Deploy the functions listed in the run summary to staging, then rerun this workflow from master with functions_deployed ticked."
+    exit 1
+  fi
+  echo "Edge Function changes confirmed deployed to staging by ${GITHUB_ACTOR:-the person who started this run}." | tee -a "$summary"
+}
+
 git fetch --no-tags --quiet "$remote" "+refs/heads/master:refs/remotes/$remote/master"
 master_sha="$(git rev-parse --verify "refs/remotes/$remote/master^{commit}")"
 target="$(git rev-parse --verify "$target_arg^{commit}")"
@@ -47,6 +70,9 @@ fi
 staging_sha="$(remote_head staging)"
 
 if [ -z "$staging_sha" ]; then
+  # No staging yet, so no known baseline: compare against an empty tree,
+  # which makes every function in the target count as changed.
+  functions_gate "$(git hash-object -t tree /dev/null)" "not created"
   echo "::notice::The staging branch does not exist yet; creating it at ${target:0:12}."
   git push --quiet "$remote" "$target:refs/heads/staging"
 elif [ "$staging_sha" = "$target" ]; then
@@ -65,20 +91,7 @@ else
     echo "::error::staging has commits that are not on master (staging ${staging_sha:0:12}, master ${master_sha:0:12}). Nothing was changed. If they are wanted, get them onto master through a pull request and rerun this workflow from master; if not, ask Randy or Alex. Never move staging by hand."
     exit 1
   else
-    functions="$("$here/functions-reminder.sh" "$staging_sha" "$target")"
-    if [ -n "$functions" ]; then
-      echo "$functions" >> "$summary"
-      if [ "${FUNCTIONS_DEPLOYED:-}" != "true" ]; then
-        {
-          echo
-          echo "**staging was not moved.** Deploy the functions above to staging, then run this workflow again from \`master\` with **functions_deployed** ticked."
-        } >> "$summary"
-        echo "$functions"
-        echo "::error::These commits change Edge Functions, which are deployed by hand. staging was not moved and the website was not deployed (migrations already ran). Deploy the functions listed in the run summary to staging, then rerun this workflow from master with functions_deployed ticked."
-        exit 1
-      fi
-      echo "Edge Function changes confirmed deployed to staging by ${GITHUB_ACTOR:-the person who started this run}." | tee -a "$summary"
-    fi
+    functions_gate "$staging_sha" "not moved"
     echo "Fast-forwarding staging ${staging_sha:0:12} -> ${target:0:12}"
     git push --quiet "$remote" "$target:refs/heads/staging"
   fi

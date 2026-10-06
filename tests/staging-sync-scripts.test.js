@@ -153,11 +153,49 @@ function sync(work, name, target, env = {}) {
   assert.deepEqual(res.outputs, {});
 }
 
-{ // Missing staging branch: created at the target.
+{ // Missing staging branch, no functions in the target: created at the target.
   const { remote, work } = syncFixture('missing');
   const tip = commit(work, 'a.txt', '1');
   git(work, 'push', '-q', 'origin', 'master');
   const res = sync(work, 'missing', tip);
+  assert.equal(res.status, 0, res.out);
+  assert.equal(remoteSha(remote, 'staging'), tip);
+  assert.deepEqual(res.outputs, { before: '', synced: 'true', sha: tip });
+}
+
+{ // Missing staging + functions in the target: no baseline, so the gate applies
+  // to every function; nothing is created until a person confirms.
+  const { remote, work } = syncFixture('missing-functions');
+  const tip = commit(work, 'supabase/functions/alpha/index.ts', '1');
+  commit(work, 'supabase/functions/_shared/cors.ts', '1');
+  const withShared = git(work, 'rev-parse', 'HEAD');
+  git(work, 'push', '-q', 'origin', 'master');
+  const stagingExists = () => git(remote, 'for-each-ref', '--format=%(refname)', 'refs/heads/staging') !== '';
+
+  for (const flag of [undefined, '', 'false']) {
+    const held = sync(work, `missing-functions-held-${flag}`, withShared, flag === undefined ? {} : { FUNCTIONS_DEPLOYED: flag });
+    assert.equal(held.status, 1, held.out);
+    assert.match(held.out, /::error::These commits change Edge Functions[\s\S]*staging was not created[\s\S]*functions_deployed/);
+    assert.match(held.summary, new RegExp(`supabase functions deploy alpha --project-ref ${STAGING_REF}`));
+    assert.doesNotMatch(held.summary, /deploy _shared/);
+    assert.match(held.summary, /staging was not created/);
+    assert.equal(stagingExists(), false, 'staging must not be created');
+    assert.deepEqual(held.outputs, {});
+  }
+
+  const confirmed = sync(work, 'missing-functions-confirmed', withShared, { FUNCTIONS_DEPLOYED: 'true', GITHUB_ACTOR: 'tester' });
+  assert.equal(confirmed.status, 0, confirmed.out);
+  assert.match(confirmed.summary, /confirmed deployed to staging by tester/);
+  assert.equal(remoteSha(remote, 'staging'), withShared);
+  assert.deepEqual(confirmed.outputs, { before: '', synced: 'true', sha: withShared });
+  assert.notEqual(tip, withShared);
+}
+
+{ // Missing staging + only _shared under supabase/functions/: nothing to deploy.
+  const { remote, work } = syncFixture('missing-shared');
+  const tip = commit(work, 'supabase/functions/_shared/cors.ts', '1');
+  git(work, 'push', '-q', 'origin', 'master');
+  const res = sync(work, 'missing-shared', tip);
   assert.equal(res.status, 0, res.out);
   assert.equal(remoteSha(remote, 'staging'), tip);
   assert.deepEqual(res.outputs, { before: '', synced: 'true', sha: tip });
