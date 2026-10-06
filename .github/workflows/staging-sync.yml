@@ -1,6 +1,8 @@
 # Keep staging caught up with master.
 #
 # After every push to master (and on a manual run started from master):
+#   0. preflight            read-only: stop before any migration if staging
+#                           is already ahead of this commit or has diverged
 #   1. migrate-staging      apply this master commit's pending migrations to
 #                           the STAGING database
 #   2. sync-branch          only if step 1 succeeded: fast-forward the
@@ -45,10 +47,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  migrate-staging:
-    name: Apply migrations to the staging database
+  preflight:
+    name: Check staging can move to this commit
     runs-on: ubuntu-latest
-    environment: staging-sync
+    # Read-only: no environment and no secret is needed here
     permissions:
       contents: read
     steps:
@@ -58,6 +60,28 @@ jobs:
           echo "::error::Start this workflow from master (Run workflow -> Branch: master). Nothing was changed."
           exit 1
 
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The same ahead/diverged checks sync-branch runs, before anything
+      # touches the database. sync-branch repeats them in case staging
+      # changes in between.
+      - name: Stop if staging is ahead of this commit or has diverged
+        env:
+          TARGET_SHA: ${{ github.sha }}
+        run: bash bin/ci/sync-staging.sh origin "$TARGET_SHA" --check-only
+
+  migrate-staging:
+    name: Apply migrations to the staging database
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: staging-sync
+    permissions:
+      contents: read
+    steps:
       # The master commit this run is for. sync-branch moves staging to this
       # same commit, so the database always has the code's migrations.
       - uses: actions/checkout@v7

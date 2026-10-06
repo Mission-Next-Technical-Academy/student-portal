@@ -20,9 +20,16 @@ scripts; the pull request reminder workflow has an inline copy that
 ## What runs when
 
 **Every push to `master`** (and a manual run started from `master`) runs
-`.github/workflows/staging-sync.yml` in student-portal. Its three jobs run in
+`.github/workflows/staging-sync.yml` in student-portal. Its four jobs run in
 order; if one fails, the later ones do not run, and the run's error says why.
 
+0. **Check staging can move to this commit** (`preflight`). Read-only: no
+   environment, no secrets, changes nothing. Runs the same ahead/diverged
+   checks as step 2 (`bin/ci/sync-staging.sh --check-only`) before anything
+   touches the database. If `staging` is already ahead of this run's commit,
+   or has commits that are not on `master`, the run stops here and no
+   migration is applied. It also refuses a manual run not started from
+   `master`.
 1. **Apply migrations to the staging database** (`migrate-staging`). Uses the
    exact `master` commit this run is for. Checks that `STAGING_DB_URL` is set
    and is exactly the staging project's Session pooler string, with no trace of
@@ -40,8 +47,9 @@ order; if one fails, the later ones do not run, and the run's error says why.
    **Already past this commit:** if `staging` already points at a later
    `master` commit, it never moves `staging` back, does not deploy, and fails
    with "staging (…) is ahead of this run's commit (…), so this run can't
-   prove staging's migrations were applied." See "When a job fails" for the
-   fix.
+   prove staging's migrations were applied." Step 0 normally catches this
+   before any migration; step 2 checks again in case `staging` changed in
+   between. See "When a job fails" for the fix.
    **Functions gate:** if the commits `staging` would gain change anything
    under `supabase/functions/`, it does not move `staging`, lists the exact
    deploy commands in the run summary, and fails with an error saying so.
@@ -244,11 +252,23 @@ workflows must keep that true. `tests/staging-sync-scripts.test.js` checks it.
 
 ## When a job fails
 
-**migrate-staging** (staging was not moved and the website was not deployed)
+**preflight** (nothing was changed: no migration, no branch move, no deploy)
 
 - "Start this workflow from master": a manual run was started from another
-  branch (or GitHub refused the branch the environment). Start it again from
-  `master`.
+  branch. Start it again from `master`.
+- "staging (…) is ahead of this run's commit (…), so this run can't prove
+  staging's migrations were applied": `staging` already points at a later
+  `master` commit (for example, an older run, or a rerun of one, starting
+  after a newer one finished). Fix: run Staging sync from `master` (Actions →
+  **Staging sync** → **Run workflow** → **Branch: master**). That run migrates
+  through the latest `master` commit and redeploys.
+- "staging has commits that are not on master": see the same message under
+  **sync-branch** below.
+
+**migrate-staging** (staging was not moved and the website was not deployed)
+
+- GitHub refuses the job because of the environment's branch rule: a manual
+  run was started from another branch. Start it again from `master`.
 - "STAGING_DB_URL is not set": add Secret 1, then rerun from `master`.
 - "STAGING_DB_URL rejected: …": the secret is not the staging Session pooler
   string. Nothing ran against any database. The error names only the rule that
@@ -292,10 +312,9 @@ workflows must keep that true. `tests/staging-sync-scripts.test.js` checks it.
   If they are not wanted, stop and ask Randy or Alex; do not move `staging` by
   hand.
 - "staging (…) is ahead of this run's commit (…), so this run can't prove
-  staging's migrations were applied": `staging` already points at a later
-  `master` commit than this run migrated (for example, an older run, or an
-  older run rerun, finishing after a newer one). Nothing was moved or
-  deployed. Fix: run Staging sync from `master` (Actions → **Staging sync** →
+  staging's migrations were applied": `staging` moved to a later `master`
+  commit after preflight passed (preflight usually catches this first).
+  Nothing was moved or deployed. Fix: run Staging sync from `master` (Actions → **Staging sync** →
   **Run workflow** → **Branch: master**). That run migrates through the latest
   `master` commit and redeploys.
 - "is not on master": the run's commit is not on `master` (a manual run from
@@ -321,6 +340,9 @@ workflows must keep that true. `tests/staging-sync-scripts.test.js` checks it.
 - Environments with deployment-branch rules and environment secrets in private
   repositories may require a paid GitHub plan. Check before switching, or the
   secrets stop being available to these jobs.
+- The `preflight` job reads `staging` and `master` without a token today; it
+  would need its checkout to keep the read-only token
+  (`persist-credentials: true`).
 - student-portal-staging's deploy checks out student-portal anonymously today.
   It would need a read-only token for student-portal (see the `token:` comment in
   `deploy-staging.yml`).

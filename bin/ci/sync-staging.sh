@@ -20,7 +20,12 @@
 #     function in the target counts (no known baseline), so the branch is
 #     only created once a person confirms them too.
 #
-# Usage: bin/ci/sync-staging.sh <remote> <target commit>
+# Usage: bin/ci/sync-staging.sh <remote> <target commit> [--check-only]
+#
+# --check-only (staging-sync.yml, job preflight, before any migration):
+# runs only the "target on master", "staging ahead" and "diverged" checks,
+# then exits without pushing anything and without the functions gate. The
+# full run repeats those checks, in case staging changed in between.
 #
 # On success it appends to $GITHUB_OUTPUT (when set):
 #   before=<staging commit before the run, empty if staging did not exist>
@@ -30,6 +35,12 @@ set -euo pipefail
 
 remote="${1:?usage: sync-staging.sh <remote> <target commit>}"
 target_arg="${2:?usage: sync-staging.sh <remote> <target commit>}"
+check_only=false
+case "${3:-}" in
+  --check-only) check_only=true ;;
+  "") ;;
+  *) echo "::error::Unknown option ${3}"; exit 1 ;;
+esac
 output="${GITHUB_OUTPUT:-/dev/null}"
 summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
 here="$(dirname "$0")"
@@ -69,6 +80,29 @@ fi
 
 staging_sha="$(remote_head staging)"
 
+# Checks shared by preflight (--check-only) and the real sync.
+if [ -n "$staging_sha" ] && [ "$staging_sha" != "$target" ]; then
+  git fetch --no-tags --quiet "$remote" "+refs/heads/staging:refs/remotes/$remote/staging"
+  if git merge-base --is-ancestor "$target" "$staging_sha" \
+     && git merge-base --is-ancestor "$staging_sha" "$master_sha"; then
+    # staging is already at a later master commit. Never move it back, and
+    # never deploy it: this run only applies the target's migrations.
+    message="staging (${staging_sha:0:12}) is ahead of this run's commit (${target:0:12}), so this run can't prove staging's migrations were applied. Fix: run Staging sync from master (Actions → Staging sync → Run workflow → Branch: master). That run migrates through the latest master commit and redeploys."
+    echo "::error::$message"
+    echo "- $message" >> "$summary"
+    exit 1
+  elif ! git merge-base --is-ancestor "$staging_sha" "$target"; then
+    echo "::error::staging has commits that are not on master (staging ${staging_sha:0:12}, master ${master_sha:0:12}). Nothing was changed. If they are wanted, get them onto master through a pull request and rerun this workflow from master; if not, ask Randy or Alex. Never move staging by hand."
+    exit 1
+  fi
+fi
+
+if [ "$check_only" = true ]; then
+  current="${staging_sha:-not created yet}"
+  echo "Preflight passed: staging (${current:0:14}) is not ahead of or diverged from ${target:0:12}. Nothing was changed."
+  exit 0
+fi
+
 if [ -z "$staging_sha" ]; then
   # No staging yet, so no known baseline: compare against an empty tree,
   # which makes every function in the target count as changed.
@@ -78,23 +112,9 @@ if [ -z "$staging_sha" ]; then
 elif [ "$staging_sha" = "$target" ]; then
   echo "staging already points at ${target:0:12}; nothing to do."
 else
-  git fetch --no-tags --quiet "$remote" "+refs/heads/staging:refs/remotes/$remote/staging"
-  if git merge-base --is-ancestor "$target" "$staging_sha" \
-     && git merge-base --is-ancestor "$staging_sha" "$master_sha"; then
-    # staging is already at a later master commit. Never move it back, and
-    # never deploy it: this run only applied the target's migrations.
-    message="staging (${staging_sha:0:12}) is ahead of this run's commit (${target:0:12}), so this run can't prove staging's migrations were applied. Fix: run Staging sync from master (Actions → Staging sync → Run workflow → Branch: master). That run migrates through the latest master commit and redeploys."
-    echo "::error::$message"
-    echo "- $message" >> "$summary"
-    exit 1
-  elif ! git merge-base --is-ancestor "$staging_sha" "$target"; then
-    echo "::error::staging has commits that are not on master (staging ${staging_sha:0:12}, master ${master_sha:0:12}). Nothing was changed. If they are wanted, get them onto master through a pull request and rerun this workflow from master; if not, ask Randy or Alex. Never move staging by hand."
-    exit 1
-  else
-    functions_gate "$staging_sha" "not moved"
-    echo "Fast-forwarding staging ${staging_sha:0:12} -> ${target:0:12}"
-    git push --quiet "$remote" "$target:refs/heads/staging"
-  fi
+  functions_gate "$staging_sha" "not moved"
+  echo "Fast-forwarding staging ${staging_sha:0:12} -> ${target:0:12}"
+  git push --quiet "$remote" "$target:refs/heads/staging"
 fi
 
 now="$(remote_head staging)"

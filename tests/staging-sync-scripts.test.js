@@ -153,6 +153,60 @@ function sync(work, name, target, env = {}) {
   assert.deepEqual(res.outputs, {});
 }
 
+{ // --check-only (preflight): the same ahead/diverged checks, never a push.
+  const { remote, work } = syncFixture('preflight');
+  const first = commit(work, 'a.txt', '1');
+  git(work, 'push', '-q', 'origin', 'master', 'master:staging');
+  const second = commit(work, 'supabase/functions/alpha/index.ts', '2');
+  git(work, 'push', '-q', 'origin', 'master');
+  const check = (name, target, extra = []) => {
+    const res = run('bash', [path.join(CI, 'sync-staging.sh'), 'origin', target, '--check-only', ...extra], { cwd: work });
+    return res;
+  };
+
+  // Behind (even with a function change: the gate is the sync's job): passes, nothing moves.
+  const behind = check('behind', second);
+  assert.equal(behind.status, 0, behind.out);
+  assert.match(behind.out, /Preflight passed[\s\S]*Nothing was changed/);
+  assert.equal(remoteSha(remote, 'staging'), first, 'preflight never moves staging');
+
+  // Equal: passes.
+  const equal = check('equal', first);
+  assert.equal(equal.status, 0, equal.out);
+
+  // Ahead: fails before any migration, with the fix-it text; nothing moves.
+  git(work, 'push', '-q', 'origin', `${second}:refs/heads/staging`);
+  const ahead = check('ahead', first);
+  assert.equal(ahead.status, 1, ahead.out);
+  assert.match(ahead.out, new RegExp(`::error::staging \\(${second.slice(0, 12)}\\) is ahead of this run's commit \\(${first.slice(0, 12)}\\)[\\s\\S]*Fix: run Staging sync from master`));
+  assert.equal(remoteSha(remote, 'staging'), second);
+  assert.equal(remoteSha(remote, 'master'), second);
+
+  // Diverged: fails, nothing moves.
+  git(work, 'checkout', '-q', '-b', 'stray', first);
+  const stray = commit(work, 'stray.txt', 'x');
+  git(work, 'push', '-q', '-f', 'origin', 'stray:staging');
+  const diverged = check('diverged', second);
+  assert.equal(diverged.status, 1, diverged.out);
+  assert.match(diverged.out, /::error::staging has commits that are not on master/);
+  assert.equal(remoteSha(remote, 'staging'), stray);
+  assert.equal(remoteSha(remote, 'master'), second);
+
+  // Unknown option: refused.
+  const bad = run('bash', [path.join(CI, 'sync-staging.sh'), 'origin', second, '--push-anyway'], { cwd: work });
+  assert.equal(bad.status, 1, bad.out);
+  assert.equal(remoteSha(remote, 'staging'), stray);
+}
+
+{ // --check-only with no staging branch: passes, nothing is created.
+  const { remote, work } = syncFixture('preflight-missing');
+  const tip = commit(work, 'supabase/functions/alpha/index.ts', '1');
+  git(work, 'push', '-q', 'origin', 'master');
+  const res = run('bash', [path.join(CI, 'sync-staging.sh'), 'origin', tip, '--check-only'], { cwd: work });
+  assert.equal(res.status, 0, res.out);
+  assert.equal(git(remote, 'for-each-ref', 'refs/heads/staging'), '', 'preflight never creates staging');
+}
+
 { // Missing staging branch, no functions in the target: created at the target.
   const { remote, work } = syncFixture('missing');
   const tip = commit(work, 'a.txt', '1');
@@ -634,8 +688,16 @@ esac
   const sync = fs.readFileSync(path.join(WORKFLOWS, 'staging-sync.yml'), 'utf8');
   const jobs = jobsOf(sync);
   // Migrations first; staging moves only after they succeed; the site last.
-  assert.deepEqual(Object.keys(jobs), ['migrate-staging', 'sync-branch', 'deploy-staging-site']);
-  assert.doesNotMatch(jobs['migrate-staging'], /needs:/);
+  // Preflight first (read-only), then migrations; staging moves only after
+  // they succeed; the site last.
+  assert.deepEqual(Object.keys(jobs), ['preflight', 'migrate-staging', 'sync-branch', 'deploy-staging-site']);
+  assert.doesNotMatch(jobs.preflight, /needs:/);
+  assert.match(jobs['migrate-staging'], /^ {4}needs: preflight$/m, 'migrations run only after preflight passed');
+  assert.match(jobs.preflight, /^ {4}permissions:\n {6}contents: read\n {4}steps:/m, 'preflight is read-only');
+  assert.match(jobs.preflight, /run: bash bin\/ci\/sync-staging\.sh origin "\$TARGET_SHA" --check-only$/m);
+  assert.match(jobs.preflight, /TARGET_SHA: \$\{\{ github\.sha \}\}/);
+  assert.match(jobs.preflight, /if: github\.ref != 'refs\/heads\/master'/);
+  assert.doesNotMatch(jobs.preflight, /persist-credentials: true|git push/);
   assert.match(jobs['sync-branch'], /^ {4}needs: migrate-staging$/m);
   assert.match(jobs['deploy-staging-site'], /^ {4}needs: \[migrate-staging, sync-branch\]$/m);
   // The deploy runs only when staging is at exactly this run's commit; its
@@ -649,8 +711,9 @@ esac
     assert.doesNotMatch(body, /continue-on-error/, `${name} must not continue after a failure`);
     const usesEnv = /^ {4}environment: staging-sync$/m.test(body);
     const usesSecrets = /\$\{\{\s*secrets\./.test(body);
-    assert.equal(usesEnv, name !== 'sync-branch', `${name}: environment: staging-sync`);
-    assert.equal(usesSecrets, name !== 'sync-branch', `${name}: secrets`);
+    const secretJob = ['migrate-staging', 'deploy-staging-site'].includes(name);
+    assert.equal(usesEnv, secretJob, `${name}: environment: staging-sync`);
+    assert.equal(usesSecrets, secretJob, `${name}: secrets`);
     assert.match(body, /^ {4}permissions:\n/m, `${name} must declare its own permissions`);
     // Secrets only ever enter through env:, never pasted into a script.
     for (const line of body.split('\n').filter((l) => /secrets\./.test(l))) {
