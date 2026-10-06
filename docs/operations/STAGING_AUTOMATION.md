@@ -38,23 +38,22 @@ order; if one fails, the later ones do not run, and the run's error says why.
    `master`. If `staging` has commits that are not on `master`, it changes
    nothing and fails. Uses no secrets.
    **Already past this commit:** if `staging` already points at a later
-   `master` commit (for example, an older run finishing after a newer one),
-   it never moves `staging` back and the run ends successfully with the notice
-   "staging is already at …, past this run's commit …; nothing synced or
-   deployed." The website is not deployed by that run, because it only
-   applied the older commit's migrations; the run for the later commit
-   deploys it. Nothing needs doing.
+   `master` commit, it never moves `staging` back, does not deploy, and fails
+   with "staging (…) is ahead of this run's commit (…), so this run can't
+   prove staging's migrations were applied." See "When a job fails" for the
+   fix.
    **Functions gate:** if the commits `staging` would gain change anything
    under `supabase/functions/`, it does not move `staging`, lists the exact
    deploy commands in the run summary, and fails with an error saying so.
    Deploy those functions to staging, then start a manual run from `master`
    with **functions_deployed** ticked (see "Starting a run by hand").
 3. **Start the staging website deploy** (`deploy-staging-site`). Only when
-   step 2 left `staging` at exactly this run's commit. Confirms `staging` still
+   step 2 succeeded, which means `staging` is at exactly this run's commit. Confirms `staging` still
    points at it, then starts **Deploy staging site** (`deploy-staging.yml`) in
-   student-portal-staging with `ref=<that commit's full 40-character SHA>`,
-   not the branch name, so a later change to `staging` cannot slip into this
-   deploy. If the token is not set, the job passes with a notice and deploys
+   student-portal-staging: `--ref main` picks the branch whose
+   `deploy-staging.yml` runs, and `-f ref=<that commit's full 40-character
+   SHA>` is the commit it builds (never the branch name `staging`), so a later
+   change to `staging` cannot slip into this deploy. If the token is not set, the job passes with a notice and deploys
    nothing.
 
 Migrations run before `staging` moves, so for a short time (or until a
@@ -259,6 +258,13 @@ workflows must keep that true. `tests/staging-sync-scripts.test.js` checks it.
   `master` through a pull request, then run the workflow from `master` again.
   If they are not wanted, stop and ask Randy or Alex; do not move `staging` by
   hand.
+- "staging (…) is ahead of this run's commit (…), so this run can't prove
+  staging's migrations were applied": `staging` already points at a later
+  `master` commit than this run migrated (for example, an older run, or an
+  older run rerun, finishing after a newer one). Nothing was moved or
+  deployed. Fix: run Staging sync from `master` (Actions → **Staging sync** →
+  **Run workflow** → **Branch: master**). That run migrates through the latest
+  `master` commit and redeploys.
 - "is not on master": the run's commit is not on `master` (a manual run from
   another branch that got this far). Start it from `master`.
 - The push was rejected: something else moved `staging` at the same moment, or

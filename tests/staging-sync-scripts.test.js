@@ -95,15 +95,15 @@ function sync(work, name, target, env = {}) {
   assert.equal(remoteSha(remote, 'master'), second);
   assert.deepEqual(again.outputs, { before: second, synced: 'true', sha: second });
 
-  // staging already past this run's commit: never moved back, and nothing
-  // is reported as synced, so the website deploy is skipped.
+  // staging already past this run's commit: the run fails, staging is
+  // never moved back, and no outputs means the deploy job cannot run.
   const older = sync(work, 'ff-older', first);
-  assert.equal(older.status, 0, older.out);
-  assert.match(older.out, new RegExp(`::notice::staging is already at ${second.slice(0, 12)}, past this run's commit ${first.slice(0, 12)}; nothing synced or deployed\\.`));
-  assert.match(older.summary, /nothing synced or deployed/);
+  assert.equal(older.status, 1, older.out);
+  assert.match(older.out, new RegExp(`::error::staging \\(${second.slice(0, 12)}\\) is ahead of this run's commit \\(${first.slice(0, 12)}\\), so this run can't prove staging's migrations were applied\\. Fix: run Staging sync from master`));
+  assert.match(older.summary, /is ahead of this run's commit/);
   assert.equal(remoteSha(remote, 'staging'), second);
   assert.equal(remoteSha(remote, 'master'), second);
-  assert.deepEqual(older.outputs, { before: second, synced: 'false' }, 'no sha: nothing to deploy');
+  assert.deepEqual(older.outputs, {}, 'no synced/sha output: nothing to deploy');
 }
 
 { // Only the migrated commit is synced, even when master has moved on.
@@ -496,12 +496,12 @@ esac
   assert.equal(dispatches(equalDeploy.calls).length, 1);
   assert.match(dispatches(equalDeploy.calls)[0], new RegExp(`--ref main -f ref=${second}$`));
 
-  // staging ahead of this run's commit -> synced=false, deploy job skipped
-  // (its if: needs synced == 'true'), staging unchanged.
+  // staging ahead of this run's commit -> sync fails (so the deploy job,
+  // which needs it, never runs), no outputs, staging unchanged.
   const ahead = sync(work, 'deploy-ahead', first);
-  assert.equal(ahead.status, 0, ahead.out);
-  assert.equal(ahead.outputs.synced, 'false');
-  assert.equal(ahead.outputs.sha, undefined);
+  assert.equal(ahead.status, 1, ahead.out);
+  assert.match(ahead.out, /::error::staging \(\w{12}\) is ahead of this run's commit/);
+  assert.deepEqual(ahead.outputs, {});
   assert.equal(remoteSha(remote, 'staging'), second);
 
   // staging moved after the sync -> error, no dispatch.

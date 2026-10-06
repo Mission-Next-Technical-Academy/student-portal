@@ -7,7 +7,8 @@
 #                           `staging` branch to that commit, unless the new
 #                           commits change Edge Functions (functions gate)
 #   3. deploy-staging-site  only if step 2 moved staging to (or found it
-#                           at) this exact commit: start the staging website
+#                           at) this exact commit (step 2 fails if staging
+#                           is already past it): start the staging website
 #                           deploy in student-portal-staging, pinned to
 #                           that commit's full SHA (not the branch name)
 # If any step fails, the later ones do not run, so `staging` and its website
@@ -106,9 +107,8 @@ jobs:
   deploy-staging-site:
     name: Start the staging website deploy
     needs: [migrate-staging, sync-branch]
-    # Only when staging now points at exactly this run's migrated commit. If
-    # staging was already past it, sync-branch reported synced=false: that
-    # later commit's migrations were not applied by this run.
+    # Only when staging now points at exactly this run's migrated commit
+    # (sync-branch fails if staging is already past it).
     if: needs.sync-branch.outputs.synced == 'true'
     runs-on: ubuntu-latest
     environment: staging-sync

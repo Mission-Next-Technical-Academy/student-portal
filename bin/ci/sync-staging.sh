@@ -11,8 +11,8 @@
 #   - it never writes to master; master is only read;
 #   - if staging has commits master lacks, it changes nothing and fails;
 #   - if staging is already past the target (a later master commit), it
-#     changes nothing and reports synced=false, so the website is not
-#     deployed: this run only migrated the target, not staging's commit;
+#     changes nothing and fails: this run only migrated the target, so it
+#     cannot prove staging's own commit has its migrations;
 #   - functions gate: if the commits staging would gain change
 #     supabase/functions/, it changes nothing and fails, listing the manual
 #     deploy commands, unless FUNCTIONS_DEPLOYED=true (a person confirmed
@@ -23,9 +23,7 @@
 # On success it appends to $GITHUB_OUTPUT (when set):
 #   before=<staging commit before the run, empty if staging did not exist>
 #   synced=true   staging now points at exactly the target, and
-#   sha=<target>  the full commit to deploy;
-# or, when staging was already past the target:
-#   synced=false  (no sha: nothing is to be deployed)
+#   sha=<target>  the full commit to deploy.
 set -euo pipefail
 
 remote="${1:?usage: sync-staging.sh <remote> <target commit>}"
@@ -58,14 +56,11 @@ else
   if git merge-base --is-ancestor "$target" "$staging_sha" \
      && git merge-base --is-ancestor "$staging_sha" "$master_sha"; then
     # staging is already at a later master commit. Never move it back, and
-    # do not deploy it: this run only applied the target's migrations.
-    echo "::notice::staging is already at ${staging_sha:0:12}, past this run's commit ${target:0:12}; nothing synced or deployed."
-    {
-      echo "before=$staging_sha"
-      echo "synced=false"
-    } >> "$output"
-    echo "- \`staging\` is already at \`${staging_sha:0:12}\`, past this run's commit \`${target:0:12}\`; nothing synced or deployed." >> "$summary"
-    exit 0
+    # never deploy it: this run only applied the target's migrations.
+    message="staging (${staging_sha:0:12}) is ahead of this run's commit (${target:0:12}), so this run can't prove staging's migrations were applied. Fix: run Staging sync from master (Actions → Staging sync → Run workflow → Branch: master). That run migrates through the latest master commit and redeploys."
+    echo "::error::$message"
+    echo "- $message" >> "$summary"
+    exit 1
   elif ! git merge-base --is-ancestor "$staging_sha" "$target"; then
     echo "::error::staging has commits that are not on master (staging ${staging_sha:0:12}, master ${master_sha:0:12}). Nothing was changed. If they are wanted, get them onto master through a pull request and rerun this workflow from master; if not, ask Randy or Alex. Never move staging by hand."
     exit 1
