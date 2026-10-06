@@ -98,8 +98,35 @@ Never move the staging branch by hand; run Staging sync from master.
 Only **Staging sync** moves the `staging` branch, and only after the staging
 database has that commit's migrations. Do not push, reset, or merge into
 `staging` yourself, and do not deploy a branch other than `staging` to the
-staging site. If `staging` is ever in the wrong place, stop and ask Randy or
-Alex.
+staging site, except to test a feature branch as described in the next
+section. If `staging` is ever in the wrong place, stop and ask Randy or Alex.
+
+## Testing a feature on the hosted staging site
+
+1. **Apply its migrations to staging first** (skip if the branch has none).
+   From the feature branch, with the staging ref written out every time:
+
+   ```
+   supabase db push --project-ref xbblgtrfwgeiyttdlbue --dry-run
+   ```
+
+   Check the list, then apply:
+
+   ```
+   supabase db push --project-ref xbblgtrfwgeiyttdlbue
+   ```
+
+   Never use `eokvngifirjgfozzbieu` (production) or a command without
+   `--project-ref`.
+2. **Deploy the branch to the staging site.** student-portal-staging →
+   **Actions** → **Deploy staging site** → **Run workflow** → set **ref** to
+   the feature branch's name → **Run workflow**.
+3. **Never merge a feature into the `staging` branch.** `staging` would then
+   have commits that are not on `master`, and **Staging sync** fails until
+   someone cleans it up (see "When a job fails").
+4. **Afterwards**, the staging site keeps showing the feature branch until the
+   next merge to `master` redeploys it. To put it back sooner, run **Staging
+   sync** from `master` (see "Starting a run by hand").
 
 ## The `staging-sync` environment
 
