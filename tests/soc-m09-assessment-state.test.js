@@ -138,6 +138,14 @@ assert.strictEqual(partialRestore.actionHistory[1].details.recoveryPointId, 'RP-
 assert.strictEqual(partialRestore.actionHistory[1].details.approval.actionType, 'restore_backup');
 assert.throws(() => recoveryAction(partialRestore, 'restore_backup', 'success', '2026-09-27T10:18:00.000Z'),
   /order or prerequisite/);
+// Postgres jsonb stores keys in its own order; a reloaded session must still load.
+const jsonbOrdered = JSON.parse(JSON.stringify(partialRestore));
+jsonbOrdered.actionHistory[1].details.effects = jsonbOrdered.actionHistory[1].details.effects
+  .map(({ entityId, field, value }) => ({ field, value, entityId }));
+assert.doesNotThrow(() => api.normalize(jsonbOrdered, fixture));
+const forgedEffect = JSON.parse(JSON.stringify(partialRestore));
+forgedEffect.actionHistory[1].details.effects[0].value = true;
+assert.throws(() => api.normalize(forgedEffect, fixture), /outcome or effect is invalid/);
 const scannedRecovery = recoveryAction(partialRestore, 'scan_recovery', 'success', '2026-09-27T10:18:00.000Z');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(scannedRecovery.entityStates['DEV-173'])),
   { restoreStatus: 'partial', scanStatus: true });

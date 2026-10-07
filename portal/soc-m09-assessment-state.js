@@ -57,6 +57,15 @@ const SocM09AssessmentState = (() => {
     return JSON.parse(JSON.stringify(value));
   }
 
+  // Saved state round-trips through Postgres jsonb, which reorders object
+  // keys, so effects must be compared field by field, never by JSON text.
+  function sameEffects(actual, expected) {
+    return Array.isArray(actual) && actual.length === expected.length
+      && expected.every((effect, index) => actual[index] && typeof actual[index] === 'object'
+        && Object.keys(actual[index]).length === Object.keys(effect).length
+        && Object.keys(effect).every((key) => actual[index][key] === effect[key]));
+  }
+
   function deepFreeze(value) {
     if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
     Object.freeze(value);
@@ -229,7 +238,7 @@ const SocM09AssessmentState = (() => {
         field: effect, value: action.outcome === 'success' ? true : 'partial' }];
       const expectedSummary = action.outcome === 'success' ? 'completed'
         : action.outcome === 'partial' ? 'partially_completed' : 'no_change';
-      if (JSON.stringify(action.details.effects) !== JSON.stringify(expectedEffects)
+      if (!sameEffects(action.details.effects, expectedEffects)
         || action.details.execution?.summary !== expectedSummary) {
         throw new Error('M09 recovery action outcome or effect is invalid.');
       }
