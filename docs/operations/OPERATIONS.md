@@ -43,6 +43,15 @@ Never commit a service-role key, roster CSV, or password. The locally generated
 roster output belongs in `bin/.roster-output/` (already gitignored) or an
 institutional password vault.
 
+## Staging stays in step with master automatically
+
+After every merge to `master`, the **Staging sync** workflow applies pending
+migrations to the staging Supabase project, then fast-forwards the `staging`
+branch, then redeploys the staging website. Edge Functions are still deployed
+by hand: when a merge changes them, staging waits until someone deploys them
+and reruns the workflow with **functions_deployed** ticked. Setup, secrets, and what to do when a job
+fails: [`STAGING_AUTOMATION.md`](STAGING_AUTOMATION.md).
+
 ## Routine retention
 
 1. Keep active learners and current submissions in their course cohort.

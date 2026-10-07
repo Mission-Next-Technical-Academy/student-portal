@@ -1,0 +1,777 @@
+// Staging automation (staging-sync.yml, supabase-change-reminder.yml).
+// Exercises the bin/ci/ scripts with throwaway git repositories and fake
+// connection strings, and checks the workflows' secret boundaries. Never
+// touches the network, GitHub, or a real database.
+const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { PRODUCTION_REF, STAGING_REF } = require('../bin/lib/supabase-target');
+
+const ROOT = path.resolve(__dirname, '..');
+const CI = path.join(ROOT, 'bin', 'ci');
+const WORKFLOWS = path.join(ROOT, '.github', 'workflows');
+const FAKE_PASSWORD = 'fake-password-must-never-print';
+
+// The scripts' single source of project refs must agree with the JS guard.
+const refsFile = fs.readFileSync(path.join(CI, 'supabase-refs.sh'), 'utf8');
+assert.match(refsFile, new RegExp(`^readonly SUPABASE_PRODUCTION_REF=${PRODUCTION_REF}$`, 'm'));
+assert.match(refsFile, new RegExp(`^readonly SUPABASE_STAGING_REF=${STAGING_REF}$`, 'm'));
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'staging-sync-test-'));
+process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));
+
+function run(cmd, args, { cwd = ROOT, env = {} } = {}) {
+  const res = spawnSync(cmd, args, {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      PATH: process.env.PATH,
+      HOME: tmp,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_AUTHOR_NAME: 'Test', GIT_AUTHOR_EMAIL: 'test@example.invalid',
+      GIT_COMMITTER_NAME: 'Test', GIT_COMMITTER_EMAIL: 'test@example.invalid',
+      ...env,
+    },
+  });
+  return { status: res.status, out: `${res.stdout}${res.stderr}` };
+}
+function git(cwd, ...args) {
+  const res = run('git', args, { cwd });
+  assert.equal(res.status, 0, `git ${args.join(' ')} failed:\n${res.out}`);
+  return res.out.trim();
+}
+function commit(cwd, file, content) {
+  fs.mkdirSync(path.dirname(path.join(cwd, file)), { recursive: true });
+  fs.writeFileSync(path.join(cwd, file), content);
+  git(cwd, 'add', '-A');
+  git(cwd, 'commit', '-q', '-m', `edit ${file}`);
+  return git(cwd, 'rev-parse', 'HEAD');
+}
+const readOutputs = (file) => Object.fromEntries(
+  fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map((line) => line.split('=')),
+);
+
+// ---------------------------------------------------------------- sync-staging.sh
+function syncFixture(name) {
+  const remote = path.join(tmp, `${name}.git`);
+  const work = path.join(tmp, name);
+  git(tmp, 'init', '-q', '--bare', '-b', 'master', remote);
+  git(tmp, 'clone', '-q', remote, work);
+  git(work, 'checkout', '-q', '-b', 'master');
+  return { remote, work };
+}
+const remoteSha = (remote, branch) => git(remote, 'rev-parse', `refs/heads/${branch}`);
+function sync(work, name, target, env = {}) {
+  const output = path.join(tmp, `${name}.out`);
+  const summary = path.join(tmp, `${name}.summary`);
+  fs.writeFileSync(output, '');
+  fs.writeFileSync(summary, '');
+  const res = run('bash', [path.join(CI, 'sync-staging.sh'), 'origin', target], {
+    cwd: work, env: { GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...env },
+  });
+  return { ...res, outputs: readOutputs(output), summary: fs.readFileSync(summary, 'utf8') };
+}
+
+{ // Fast-forward: staging behind master moves to the target; master untouched.
+  const { remote, work } = syncFixture('ff');
+  const first = commit(work, 'a.txt', '1');
+  git(work, 'push', '-q', 'origin', 'master', 'master:staging');
+  const second = commit(work, 'a.txt', '2');
+  git(work, 'push', '-q', 'origin', 'master');
+
+  const res = sync(work, 'ff', second);
+  assert.equal(res.status, 0, res.out);
+  assert.equal(remoteSha(remote, 'staging'), second);
+  assert.equal(remoteSha(remote, 'master'), second);
+  assert.deepEqual(res.outputs, { before: first, synced: 'true', sha: second });
+
+  // Already equal: success, nothing changes.
+  const again = sync(work, 'ff-again', second);
+  assert.equal(again.status, 0, again.out);
+  assert.match(again.out, /already points at/);
+  assert.equal(remoteSha(remote, 'staging'), second);
+  assert.equal(remoteSha(remote, 'master'), second);
+  assert.deepEqual(again.outputs, { before: second, synced: 'true', sha: second });
+
+  // staging already past this run's commit: the run fails, staging is
+  // never moved back, and no outputs means the deploy job cannot run.
+  const older = sync(work, 'ff-older', first);
+  assert.equal(older.status, 1, older.out);
+  assert.match(older.out, new RegExp(`::error::staging \\(${second.slice(0, 12)}\\) is ahead of this run's commit \\(${first.slice(0, 12)}\\), so this run can't prove staging's migrations were applied\\. Fix: run Staging sync from master`));
+  assert.match(older.summary, /is ahead of this run's commit/);
+  assert.equal(remoteSha(remote, 'staging'), second);
+  assert.equal(remoteSha(remote, 'master'), second);
+  assert.deepEqual(older.outputs, {}, 'no synced/sha output: nothing to deploy');
+}
+
+{ // Only the migrated commit is synced, even when master has moved on.
+  const { remote, work } = syncFixture('pinned');
+  const first = commit(work, 'a.txt', '1');
+  git(work, 'push', '-q', 'origin', 'master', 'master:staging');
+  const migrated = commit(work, 'a.txt', '2');
+  const newer = commit(work, 'a.txt', '3');
+  git(work, 'push', '-q', 'origin', 'master');
+  const res = sync(work, 'pinned', migrated);
+  assert.equal(res.status, 0, res.out);
+  assert.equal(remoteSha(remote, 'staging'), migrated);
+  assert.equal(remoteSha(remote, 'master'), newer);
+  assert.deepEqual(res.outputs, { before: first, synced: 'true', sha: migrated });
+}
+
+{ // A target that is not on master is refused; nothing changes.
+  const { remote, work } = syncFixture('offmaster');
+  const base = commit(work, 'a.txt', '1');
+  git(work, 'push', '-q', 'origin', 'master', 'master:staging');
+  git(work, 'checkout', '-q', '-b', 'feature');
+  const feature = commit(work, 'feature.txt', 'x');
+  git(work, 'push', '-q', 'origin', 'feature');
+  const res = sync(work, 'offmaster', feature);
+  assert.equal(res.status, 1, res.out);
+  assert.match(res.out, /::error::Commit \w+ is not on master/);
+  assert.equal(remoteSha(remote, 'staging'), base);
+  assert.equal(remoteSha(remote, 'master'), base);
+}
+
+{ // Diverged: staging has its own commit -> fail, nothing changes.
+  const { remote, work } = syncFixture('diverged');
+  commit(work, 'a.txt', '1');
+  git(work, 'push', '-q', 'origin', 'master');
+  git(work, 'checkout', '-q', '-b', 'staging');
+  const stagingOnly = commit(work, 'staging-only.txt', 'x');
+  git(work, 'push', '-q', 'origin', 'staging');
+  git(work, 'checkout', '-q', 'master');
+  const masterTip = commit(work, 'a.txt', '2');
+  git(work, 'push', '-q', 'origin', 'master');
+
+  const res = sync(work, 'diverged', masterTip);
+  assert.equal(res.status, 1, res.out);
+  assert.match(res.out, /::error::staging has commits that are not on master[\s\S]*Nothing was changed/);
+  assert.equal(remoteSha(remote, 'staging'), stagingOnly);
+  assert.equal(remoteSha(remote, 'master'), masterTip);
+  assert.deepEqual(res.outputs, {});
+}
+
+{ // --check-only (preflight): the same ahead/diverged checks, never a push.
+  const { remote, work } = syncFixture('preflight');
+  const first = commit(work, 'a.txt', '1');
+  git(work, 'push', '-q', 'origin', 'master', 'master:staging');
+  const second = commit(work, 'supabase/functions/alpha/index.ts', '2');
+  git(work, 'push', '-q', 'origin', 'master');
+  const check = (name, target, extra = []) => {
+    const res = run('bash', [path.join(CI, 'sync-staging.sh'), 'origin', target, '--check-only', ...extra], { cwd: work });
+    return res;
+  };
+
+  // Behind (even with a function change: the gate is the sync's job): passes, nothing moves.
+  const behind = check('behind', second);
+  assert.equal(behind.status, 0, behind.out);
+  assert.match(behind.out, /Preflight passed[\s\S]*Nothing was changed/);
+  assert.equal(remoteSha(remote, 'staging'), first, 'preflight never moves staging');
+
+  // Equal: passes.
+  const equal = check('equal', first);
+  assert.equal(equal.status, 0, equal.out);
+
+  // Ahead: fails before any migration, with the fix-it text; nothing moves.
+  git(work, 'push', '-q', 'origin', `${second}:refs/heads/staging`);
+  const ahead = check('ahead', first);
+  assert.equal(ahead.status, 1, ahead.out);
+  assert.match(ahead.out, new RegExp(`::error::staging \\(${second.slice(0, 12)}\\) is ahead of this run's commit \\(${first.slice(0, 12)}\\)[\\s\\S]*Fix: run Staging sync from master`));
+  assert.equal(remoteSha(remote, 'staging'), second);
+  assert.equal(remoteSha(remote, 'master'), second);
+
+  // Diverged: fails, nothing moves.
+  git(work, 'checkout', '-q', '-b', 'stray', first);
+  const stray = commit(work, 'stray.txt', 'x');
+  git(work, 'push', '-q', '-f', 'origin', 'stray:staging');
+  const diverged = check('diverged', second);
+  assert.equal(diverged.status, 1, diverged.out);
+  assert.match(diverged.out, /::error::staging has commits that are not on master/);
+  assert.equal(remoteSha(remote, 'staging'), stray);
+  assert.equal(remoteSha(remote, 'master'), second);
+
+  // Unknown option: refused.
+  const bad = run('bash', [path.join(CI, 'sync-staging.sh'), 'origin', second, '--push-anyway'], { cwd: work });
+  assert.equal(bad.status, 1, bad.out);
+  assert.equal(remoteSha(remote, 'staging'), stray);
+}
+
+{ // --check-only with no staging branch: passes, nothing is created.
+  const { remote, work } = syncFixture('preflight-missing');
+  const tip = commit(work, 'supabase/functions/alpha/index.ts', '1');
+  git(work, 'push', '-q', 'origin', 'master');
+  const res = run('bash', [path.join(CI, 'sync-staging.sh'), 'origin', tip, '--check-only'], { cwd: work });
+  assert.equal(res.status, 0, res.out);
+  assert.equal(git(remote, 'for-each-ref', 'refs/heads/staging'), '', 'preflight never creates staging');
+}
+
+{ // Missing staging branch, no functions in the target: created at the target.
+  const { remote, work } = syncFixture('missing');
+  const tip = commit(work, 'a.txt', '1');
+  git(work, 'push', '-q', 'origin', 'master');
+  const res = sync(work, 'missing', tip);
+  assert.equal(res.status, 0, res.out);
+  assert.equal(remoteSha(remote, 'staging'), tip);
+  assert.deepEqual(res.outputs, { before: '', synced: 'true', sha: tip });
+}
+
+{ // Missing staging + functions in the target: no baseline, so the gate applies
+  // to every function; nothing is created until a person confirms.
+  const { remote, work } = syncFixture('missing-functions');
+  const tip = commit(work, 'supabase/functions/alpha/index.ts', '1');
+  commit(work, 'supabase/functions/_shared/cors.ts', '1');
+  const withShared = git(work, 'rev-parse', 'HEAD');
+  git(work, 'push', '-q', 'origin', 'master');
+  const stagingExists = () => git(remote, 'for-each-ref', '--format=%(refname)', 'refs/heads/staging') !== '';
+
+  for (const flag of [undefined, '', 'false']) {
+    const held = sync(work, `missing-functions-held-${flag}`, withShared, flag === undefined ? {} : { FUNCTIONS_DEPLOYED: flag });
+    assert.equal(held.status, 1, held.out);
+    assert.match(held.out, /::error::These commits change Edge Functions[\s\S]*staging was not created[\s\S]*functions_deployed/);
+    assert.match(held.summary, new RegExp(`supabase functions deploy alpha --project-ref ${STAGING_REF}`));
+    assert.doesNotMatch(held.summary, /deploy _shared/);
+    assert.match(held.summary, /staging was not created/);
+    assert.equal(stagingExists(), false, 'staging must not be created');
+    assert.deepEqual(held.outputs, {});
+  }
+
+  const confirmed = sync(work, 'missing-functions-confirmed', withShared, { FUNCTIONS_DEPLOYED: 'true', GITHUB_ACTOR: 'tester' });
+  assert.equal(confirmed.status, 0, confirmed.out);
+  assert.match(confirmed.summary, /confirmed deployed to staging by tester/);
+  assert.equal(remoteSha(remote, 'staging'), withShared);
+  assert.deepEqual(confirmed.outputs, { before: '', synced: 'true', sha: withShared });
+  assert.notEqual(tip, withShared);
+}
+
+{ // Missing staging + only _shared under supabase/functions/: nothing to deploy.
+  const { remote, work } = syncFixture('missing-shared');
+  const tip = commit(work, 'supabase/functions/_shared/cors.ts', '1');
+  git(work, 'push', '-q', 'origin', 'master');
+  const res = sync(work, 'missing-shared', tip);
+  assert.equal(res.status, 0, res.out);
+  assert.equal(remoteSha(remote, 'staging'), tip);
+  assert.deepEqual(res.outputs, { before: '', synced: 'true', sha: tip });
+}
+
+{ // Functions gate: Edge Function changes hold staging until confirmed.
+  const { remote, work } = syncFixture('functions');
+  const before = commit(work, 'supabase/functions/alpha/index.ts', '1');
+  git(work, 'push', '-q', 'origin', 'master', 'master:staging');
+  const changed = commit(work, 'supabase/functions/alpha/index.ts', '2');
+  git(work, 'push', '-q', 'origin', 'master');
+
+  for (const flag of [undefined, '', 'false']) {
+    const held = sync(work, `functions-held-${flag}`, changed, flag === undefined ? {} : { FUNCTIONS_DEPLOYED: flag });
+    assert.equal(held.status, 1, held.out);
+    assert.match(held.out, /::error::These commits change Edge Functions[\s\S]*functions_deployed/);
+    assert.match(held.summary, new RegExp(`supabase functions deploy alpha --project-ref ${STAGING_REF}`));
+    assert.match(held.summary, /staging was not moved/);
+    assert.equal(remoteSha(remote, 'staging'), before, 'staging must not move');
+    assert.deepEqual(held.outputs, {});
+  }
+
+  const confirmed = sync(work, 'functions-confirmed', changed, { FUNCTIONS_DEPLOYED: 'true', GITHUB_ACTOR: 'tester' });
+  assert.equal(confirmed.status, 0, confirmed.out);
+  assert.match(confirmed.summary, /confirmed deployed to staging by tester/);
+  assert.equal(remoteSha(remote, 'staging'), changed);
+  assert.deepEqual(confirmed.outputs, { before, synced: 'true', sha: changed });
+}
+
+// ----------------------------------------------------------- check-staging-db-url.sh
+const POOLER_HOST = 'aws-0-us-east-1.pooler.supabase.com';
+const stagingUrl = `postgresql://postgres.${STAGING_REF}:${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`;
+const productionUrl = `postgresql://postgres.${PRODUCTION_REF}:${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`;
+// Hosts and fragments that must never appear in the guard's output.
+const NEVER_PRINTED = [FAKE_PASSWORD, 'aws-0-us-east-1', 'aws-1-eu-west-2', 'other-db.example', `db.${STAGING_REF}`, 'x%40y%3Az'];
+function guard(value) {
+  const env = {};
+  if (value !== undefined) env.STAGING_DB_URL = value;
+  const res = run('bash', [path.join(CI, 'check-staging-db-url.sh')], { env });
+  for (const secret of [...NEVER_PRINTED, ...(value ? [value] : [])]) {
+    assert.ok(!res.out.includes(secret), `guard printed ${secret}:\n${res.out}`);
+  }
+  return res;
+}
+{
+  // Missing: fail clearly, so staging never moves ahead of an unmigrated database.
+  for (const value of [undefined, '']) {
+    const missing = guard(value);
+    assert.equal(missing.status, 1, missing.out);
+    assert.match(missing.out, /::error::STAGING_DB_URL is not set[\s\S]*staging was not moved/);
+  }
+
+  // Accepted: only the staging Session pooler string, including a
+  // percent-encoded password and the postgres:// scheme.
+  for (const value of [
+    stagingUrl,
+    `postgresql://postgres.${STAGING_REF}:x%40y%3Az${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`,
+    `postgres://postgres.${STAGING_REF}:${FAKE_PASSWORD}@aws-1-eu-west-2.pooler.supabase.com:5432/postgres`,
+  ]) {
+    const ok = guard(value);
+    assert.equal(ok.status, 0, ok.out);
+    assert.match(ok.out, /Session pooler/);
+  }
+
+  // Refused, each naming only the rule that failed.
+  const user = `postgres.${STAGING_REF}`;
+  for (const [name, value, rule] of [
+    ['production username', productionUrl, /names the PRODUCTION Supabase project/],
+    ['production ref in a query string', `${stagingUrl}?x=${PRODUCTION_REF}`, /names the PRODUCTION Supabase project/],
+    ['production ref in the password', `postgresql://${user}:${PRODUCTION_REF}@${POOLER_HOST}:5432/postgres`, /names the PRODUCTION Supabase project/],
+    ['production direct host', `postgresql://postgres:${FAKE_PASSWORD}@db.${PRODUCTION_REF}.supabase.co:5432/postgres`, /names the PRODUCTION Supabase project/],
+    ['staging username, other host', `postgresql://${user}:${FAKE_PASSWORD}@other-db.example:5432/postgres`, /host is not a Supabase session pooler/],
+    ['staging direct connection', `postgresql://postgres:${FAKE_PASSWORD}@db.${STAGING_REF}.supabase.co:5432/postgres`, /username is not postgres\./],
+    ['pooler username, direct host', `postgresql://${user}:${FAKE_PASSWORD}@db.${STAGING_REF}.supabase.co:5432/postgres`, /host is not a Supabase session pooler/],
+    ['pooler look-alike host', `postgresql://${user}:${FAKE_PASSWORD}@aws-0-us-east-1.pooler.supabase.com.other-db.example:5432/postgres`, /host is not a Supabase session pooler/],
+    ['transaction pooler port', `postgresql://${user}:${FAKE_PASSWORD}@${POOLER_HOST}:6543/postgres`, /port is not 5432/],
+    ['missing port', `postgresql://${user}:${FAKE_PASSWORD}@${POOLER_HOST}/postgres`, /not in the form/],
+    ['missing password', `postgresql://${user}@${POOLER_HOST}:5432/postgres`, /not in the form/],
+    ['extra @ (unencoded in password)', `postgresql://${user}:x@y${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`, /exactly one @/],
+    ['query string', `${stagingUrl}?sslmode=disable`, /not in the form/],
+    ['fragment', `${stagingUrl}#x`, /not in the form/],
+    ['space', ` ${stagingUrl}`, /scheme is not/],
+    ['other database', `postgresql://${user}:${FAKE_PASSWORD}@${POOLER_HOST}:5432/other`, /database name is not postgres/],
+    ['other scheme', `mysql://${user}:${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`, /scheme is not postgresql:\/\/ or postgres:\/\//],
+    ['other project', `postgresql://postgres.abcdefghijklmnopqrst:${FAKE_PASSWORD}@${POOLER_HOST}:5432/postgres`, /username is not postgres\./],
+    ['not a URL', 'just-some-text', /scheme is not/],
+  ]) {
+    const res = guard(value);
+    assert.equal(res.status, 1, `${name} should be refused:\n${res.out}`);
+    assert.match(res.out, /::error::STAGING_DB_URL rejected: /, name);
+    assert.match(res.out, rule, `${name}: wrong rule\n${res.out}`);
+  }
+}
+
+// --------------------------------------------------------------- migrate-staging.sh
+// A fake `supabase` CLI records how it was called and prints canned output.
+const migrations = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f) => f.endsWith('.sql')).sort();
+const pendingMigration = migrations[migrations.length - 1];
+const fakeBin = path.join(tmp, 'fake-bin');
+fs.mkdirSync(fakeBin);
+fs.writeFileSync(path.join(fakeBin, 'supabase'), `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$FAKE_SUPABASE_CALLS"
+case "$FAKE_SUPABASE_MODE:$*" in
+  pending:*--dry-run*) printf 'DRY RUN: migrations will *not* be pushed to the database.\\nWould push these migrations:\\n \\u2022 %s\\n' "$FAKE_PENDING" ;;
+  pending:*) printf 'Applying migration %s...\\nFinished supabase db push.\\n' "$FAKE_PENDING" ;;
+  none:*) echo 'Remote database is up to date.' ;;
+  fail:*) echo "failed to connect to $STAGING_DB_URL (host=aws-0-us-east-1.pooler.supabase.com user=postgres.${STAGING_REF})" >&2; exit 1 ;;
+esac
+`, { mode: 0o755 });
+function migrate(mode, dbUrl = stagingUrl) {
+  const calls = path.join(tmp, `calls-${mode}`);
+  const summary = path.join(tmp, `summary-${mode}`);
+  fs.writeFileSync(calls, '');
+  fs.writeFileSync(summary, '');
+  const res = run('bash', [path.join(CI, 'migrate-staging.sh')], {
+    env: {
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      STAGING_DB_URL: dbUrl,
+      GITHUB_STEP_SUMMARY: summary,
+      FAKE_SUPABASE_MODE: mode,
+      FAKE_SUPABASE_CALLS: calls,
+      FAKE_PENDING: pendingMigration,
+    },
+  });
+  const summaryText = fs.readFileSync(summary, 'utf8');
+  for (const text of [res.out, summaryText]) {
+    assert.ok(!text.includes(FAKE_PASSWORD), `migrate printed the secret:\n${text}`);
+    assert.ok(!text.includes('pooler.supabase.com'), `migrate printed the host:\n${text}`);
+  }
+  return { ...res, summary: summaryText, calls: fs.readFileSync(calls, 'utf8').trim().split('\n').filter(Boolean) };
+}
+{
+  const pending = migrate('pending');
+  assert.equal(pending.status, 0, pending.out);
+  assert.equal(pending.calls.length, 2, 'dry run, then one real push');
+  assert.match(pending.calls[0], /^db push --db-url \S+ --dry-run$/);
+  assert.match(pending.calls[1], /^db push --db-url \S+ --yes$/);
+  assert.match(pending.summary, new RegExp(`Applied to staging:[\\s\\S]*${pendingMigration.replace('.', '\\.')}`));
+
+  const none = migrate('none');
+  assert.equal(none.status, 0, none.out);
+  assert.match(none.summary, /None\. The staging database was already up to date\./);
+
+  const failed = migrate('fail');
+  assert.equal(failed.status, 1, failed.out);
+  assert.equal(failed.calls.length, 1, 'a failed dry run must stop before the real push');
+  assert.match(failed.out, /\[redacted connection string\]/);
+  assert.match(failed.summary, /dry run FAILED/);
+
+  const wrongDb = migrate('pending', productionUrl);
+  assert.equal(wrongDb.status, 1, wrongDb.out);
+  assert.equal(wrongDb.calls.length, 0, 'production must be refused before the CLI runs');
+}
+
+// ----------------------------------------------------------- functions-reminder.sh
+{
+  const repo = path.join(tmp, 'functions-repo');
+  git(tmp, 'init', '-q', '-b', 'master', repo);
+  commit(repo, 'supabase/functions/alpha/index.ts', '1');
+  commit(repo, 'supabase/functions/beta/index.ts', '1');
+  commit(repo, 'supabase/functions/_shared/cors.ts', '1');
+  const start = commit(repo, 'README.md', 'x');
+  const reminder = (from, to) => run('bash', [path.join(CI, 'functions-reminder.sh'), from, to], { cwd: repo });
+
+  const unchanged = reminder(start, start);
+  assert.equal(unchanged.status, 0);
+  assert.equal(unchanged.out, '', 'no function changes -> no reminder');
+
+  const alphaOnly = commit(repo, 'supabase/functions/alpha/index.ts', '2');
+  const one = reminder(start, alphaOnly);
+  assert.equal(one.status, 0, one.out);
+  assert.match(one.out, new RegExp(`supabase functions deploy alpha --project-ref ${STAGING_REF}`));
+  assert.doesNotMatch(one.out, /deploy beta/);
+  assert.doesNotMatch(one.out, new RegExp(`deploy \\S+ --project-ref ${PRODUCTION_REF}`));
+
+  const shared = commit(repo, 'supabase/functions/_shared/cors.ts', '2');
+  const all = reminder(alphaOnly, shared);
+  assert.match(all.out, /deploy alpha/);
+  assert.match(all.out, /deploy beta/);
+  assert.doesNotMatch(all.out, /deploy _shared/);
+
+  git(repo, 'rm', '-q', '-r', 'supabase/functions/beta');
+  git(repo, 'commit', '-q', '-m', 'remove beta');
+  const removed = reminder(shared, 'HEAD');
+  assert.match(removed.out, /`beta`: `supabase functions delete beta/);
+}
+
+// ------------------------------------------- supabase-change-reminder.yml, run locally
+// The workflow's inline scripts, run the way Actions runs them (bash -e -o
+// pipefail), against a fake `gh` that serves canned API answers.
+function runBlock(yaml, after) {
+  const lines = yaml.split('\n');
+  let i = lines.findIndex((l) => l.includes(after));
+  assert.ok(i >= 0, `no step matching ${after}`);
+  while (!/^\s+run: \|$/.test(lines[i])) i += 1;
+  const indent = lines[i].match(/^\s*/)[0].length + 2;
+  const block = [];
+  for (i += 1; i < lines.length; i += 1) {
+    if (lines[i].trim() && lines[i].match(/^\s*/)[0].length < indent) break;
+    block.push(lines[i].slice(indent));
+  }
+  return block.join('\n');
+}
+const reminderYaml = fs.readFileSync(path.join(WORKFLOWS, 'supabase-change-reminder.yml'), 'utf8');
+const yamlEnv = (name) => new RegExp(`^ +${name}: (\\S+)$`, 'm').exec(reminderYaml)[1];
+// The inline refs must match the scripts' single source.
+assert.equal(yamlEnv('STAGING_REF'), STAGING_REF);
+assert.equal(yamlEnv('PRODUCTION_REF'), PRODUCTION_REF);
+
+const ghBin = path.join(tmp, 'fake-gh');
+fs.mkdirSync(ghBin);
+fs.writeFileSync(path.join(ghBin, 'gh'), `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$FAKE_GH_CALLS"
+case "$*" in
+  *"-X PATCH"*|*"-X POST"*)
+    for arg; do case "$arg" in body=@*) cat "\${arg#body=@}" > "$FAKE_POSTED" ;; esac; done
+    exit "\${FAKE_POST_STATUS:-0}" ;;
+  *"/pulls/"*"/files"*) [ "\${FAKE_FILES_FAIL:-}" = 1 ] && exit 1; printf '%b' "$FAKE_FILES" ;;
+  *"/contents/supabase/functions"*) printf '%b' "$FAKE_DIRS" ;;
+  *"/comments"*) [ "\${FAKE_LIST_FAIL:-}" = 1 ] && exit 1; printf '%b' "\${FAKE_EXISTING:-}" ;;
+esac
+`, { mode: 0o755 });
+
+function actionsRun(name, script, env) {
+  const dir = path.join(tmp, `actions-${name}`);
+  fs.mkdirSync(dir);
+  const file = path.join(dir, 'step.sh');
+  fs.writeFileSync(file, script);
+  const files = Object.fromEntries(['output', 'summary', 'calls', 'posted'].map((k) => [k, path.join(dir, k)]));
+  for (const f of Object.values(files)) fs.writeFileSync(f, '');
+  const res = run('bash', ['--noprofile', '--norc', '-eo', 'pipefail', file], {
+    env: {
+      PATH: `${ghBin}:${process.env.PATH}`,
+      RUNNER_TEMP: dir,
+      GITHUB_OUTPUT: files.output,
+      GITHUB_STEP_SUMMARY: files.summary,
+      GITHUB_REPOSITORY: 'example/student-portal',
+      GH_TOKEN: 'fake',
+      PR_NUMBER: '7',
+      FAKE_GH_CALLS: files.calls,
+      FAKE_POSTED: files.posted,
+      ...env,
+    },
+  });
+  const read = (k) => fs.readFileSync(files[k], 'utf8');
+  return { ...res, output: read('output'), summary: read('summary'), calls: read('calls'), posted: read('posted') };
+}
+{
+  const checklistScript = runBlock(reminderYaml, 'id: build');
+  const refsEnv = { STAGING_REF: yamlEnv('STAGING_REF'), PRODUCTION_REF: yamlEnv('PRODUCTION_REF'), HEAD_SHA: 'abc123' };
+  const files = [
+    'added\tsupabase/migrations/20990101000000_example.sql\t',
+    'removed\tsupabase/migrations/20000101000000_gone.sql\t',
+    'modified\tsupabase/functions/_shared/cors.ts\t',
+    'renamed\tsupabase/functions/newname/index.ts\tsupabase/functions/oldname/index.ts',
+    'modified\tsupabase/config.toml\t',
+  ].join('\\n');
+
+  const res = actionsRun('checklist', checklistScript, {
+    ...refsEnv, IS_FORK: 'false', FAKE_FILES: `${files}\\n`, FAKE_DIRS: 'alpha\\nbeta\\nnewname\\n_shared\\n',
+  });
+  assert.equal(res.status, 0, res.out);
+  assert.doesNotMatch(res.calls, /-X (POST|PATCH)/, 'the read-only job must not write');
+  const body = /^body<<(EOF_[0-9a-f]{32})\n([\s\S]*)\n\1\n$/.exec(res.output);
+  assert.ok(body, `body output missing or malformed:\n${res.output}`);
+  const text = body[2];
+  assert.match(text, /^<!-- supabase-change-reminder -->\n/);
+  assert.match(text, /before\*\* this is merged/);
+  assert.match(text, /`20990101000000_example\.sql`/);
+  assert.doesNotMatch(text, /20000101000000_gone/, 'removed migrations are not listed');
+  for (const name of ['alpha', 'beta', 'newname']) {
+    assert.match(text, new RegExp(`supabase functions deploy ${name} --project-ref ${STAGING_REF}`));
+  }
+  assert.match(text, new RegExp(`\`oldname\`: \`supabase functions delete oldname --project-ref ${STAGING_REF}\``));
+  assert.doesNotMatch(text, /deploy _shared/);
+  assert.match(text, /Rollback note/);
+  assert.match(text, /functions_deployed/);
+  assert.equal(res.summary.trim(), text.trim(), 'the job summary carries the same checklist');
+
+  // No migrations or functions: still a checklist, saying so.
+  const plain = actionsRun('checklist-plain', checklistScript, {
+    ...refsEnv, IS_FORK: 'false', FAKE_FILES: 'modified\tsupabase/config.toml\t\\n', FAKE_DIRS: '',
+  });
+  assert.equal(plain.status, 0, plain.out);
+  assert.match(plain.output, /No new or changed migrations[\s\S]*No Edge Functions changed/);
+
+  // Fork: summary only, no body output, so the comment job is skipped.
+  const fork = actionsRun('checklist-fork', checklistScript, {
+    ...refsEnv, IS_FORK: 'true', FAKE_FILES: `${files}\\n`, FAKE_DIRS: 'alpha\\n',
+  });
+  assert.equal(fork.status, 0, fork.out);
+  assert.equal(fork.output, '');
+  assert.match(fork.summary, /supabase-change-reminder/);
+  assert.match(fork.out, /::notice::Pull request from a fork/);
+
+  // API failure: warning, still passes.
+  const broken = actionsRun('checklist-broken', checklistScript, { ...refsEnv, IS_FORK: 'false', FAKE_FILES_FAIL: '1' });
+  assert.equal(broken.status, 0, broken.out);
+  assert.match(broken.out, /::warning::Could not list/);
+  assert.equal(broken.output, '');
+
+  const commentScript = runBlock(reminderYaml, 'name: Post or update the pull request comment');
+  const fresh = actionsRun('comment-new', commentScript, { BODY: text });
+  assert.equal(fresh.status, 0, fresh.out);
+  assert.match(fresh.calls, /-X POST repos\/example\/student-portal\/issues\/7\/comments/);
+  assert.equal(fresh.posted.trim(), text.trim());
+
+  const update = actionsRun('comment-update', commentScript, { BODY: text, FAKE_EXISTING: '4242\\n' });
+  assert.equal(update.status, 0, update.out);
+  assert.match(update.calls, /-X PATCH repos\/example\/student-portal\/issues\/comments\/4242/);
+  assert.doesNotMatch(update.calls, /-X POST/, 'never a second comment');
+
+  for (const [name, env] of [['post-fails', { FAKE_POST_STATUS: '1' }], ['list-fails', { FAKE_LIST_FAIL: '1', FAKE_POST_STATUS: '1' }]]) {
+    const res = actionsRun(`comment-${name}`, commentScript, { BODY: text, ...env });
+    assert.equal(res.status, 0, `${name} must not fail the pull request:\n${res.out}`);
+    assert.match(res.out, /::warning::Could not post/);
+  }
+}
+
+// ------------------------------------------------- deploy-staging-site, run locally
+// sync-staging.sh's real outputs feed the deploy job's inline script, which
+// runs against a fake `gh` that records which token and arguments it got.
+{
+  const syncYaml = fs.readFileSync(path.join(WORKFLOWS, 'staging-sync.yml'), 'utf8');
+  const deployScript = runBlock(syncYaml, 'name: Dispatch deploy-staging.yml in student-portal-staging');
+  const deployBin = path.join(tmp, 'fake-gh-deploy');
+  fs.mkdirSync(deployBin);
+  fs.writeFileSync(path.join(deployBin, 'gh'), `#!/usr/bin/env bash
+printf '%s|%s\\n' "$GH_TOKEN" "$*" >> "$FAKE_GH_CALLS"
+case "$1" in
+  api) printf '%s\\n' "$FAKE_STAGING" ;;
+  workflow) exit 0 ;;
+esac
+`, { mode: 0o755 });
+  const deploy = (name, syncedSha, stagingNow, extra = {}) => actionsRun(`deploy-${name}`, deployScript, {
+    PATH: `${deployBin}:${process.env.PATH}`,
+    STAGING_DEPLOY_TOKEN: 'deploy-token',
+    READ_TOKEN: 'read-token',
+    SYNCED_SHA: syncedSha,
+    FAKE_STAGING: stagingNow,
+    ...extra,
+  });
+  const dispatches = (calls) => calls.split('\n').filter((l) => l.includes('workflow run'));
+
+  const { remote, work } = syncFixture('deploy');
+  const first = commit(work, 'a.txt', '1');
+  git(work, 'push', '-q', 'origin', 'master', 'master:staging');
+  const second = commit(work, 'a.txt', '2');
+  git(work, 'push', '-q', 'origin', 'master');
+
+  // Fast-forward -> deploy dispatched with the full 40-character SHA.
+  const ff = sync(work, 'deploy-ff', second);
+  assert.equal(ff.outputs.synced, 'true');
+  const ffDeploy = deploy('ff', ff.outputs.sha, remoteSha(remote, 'staging'));
+  assert.equal(ffDeploy.status, 0, ffDeploy.out);
+  assert.deepEqual(dispatches(ffDeploy.calls), [
+    `deploy-token|workflow run deploy-staging.yml --repo Mission-Next-Technical-Academy/student-portal-staging --ref main -f ref=${second}`,
+  ]);
+  assert.match(second, /^[0-9a-f]{40}$/);
+  assert.match(ffDeploy.calls, /^read-token\|api repos\/example\/student-portal\/git\/ref\/heads\/staging/m, 'the staging check uses the read-only token');
+  assert.match(ffDeploy.summary, new RegExp(`commit \`${second}\``));
+
+  // Already equal -> deploy dispatched with that same SHA.
+  const equal = sync(work, 'deploy-equal', second);
+  assert.equal(equal.outputs.synced, 'true');
+  const equalDeploy = deploy('equal', equal.outputs.sha, second);
+  assert.equal(equalDeploy.status, 0, equalDeploy.out);
+  assert.equal(dispatches(equalDeploy.calls).length, 1);
+  assert.match(dispatches(equalDeploy.calls)[0], new RegExp(`--ref main -f ref=${second}$`));
+
+  // staging ahead of this run's commit -> sync fails (so the deploy job,
+  // which needs it, never runs), no outputs, staging unchanged.
+  const ahead = sync(work, 'deploy-ahead', first);
+  assert.equal(ahead.status, 1, ahead.out);
+  assert.match(ahead.out, /::error::staging \(\w{12}\) is ahead of this run's commit/);
+  assert.deepEqual(ahead.outputs, {});
+  assert.equal(remoteSha(remote, 'staging'), second);
+
+  // staging moved after the sync -> error, no dispatch.
+  const moved = deploy('moved', second, first);
+  assert.equal(moved.status, 1, moved.out);
+  assert.match(moved.out, /::error::staging moved/);
+  assert.equal(dispatches(moved.calls).length, 0);
+
+  // Anything but a full SHA -> error, no dispatch, no branch name.
+  for (const bad of ['', 'staging', second.slice(0, 12)]) {
+    const res = deploy(`bad-${bad || 'empty'}`, bad, bad);
+    assert.equal(res.status, 1, res.out);
+    assert.match(res.out, /::error::sync-branch did not report a full commit SHA/);
+    assert.equal(res.calls, '');
+  }
+
+  // No token -> notice, nothing called.
+  const noToken = deploy('no-token', second, second, { STAGING_DEPLOY_TOKEN: '' });
+  assert.equal(noToken.status, 0, noToken.out);
+  assert.match(noToken.out, /::notice::STAGING_DEPLOY_TOKEN is not set/);
+  assert.equal(noToken.calls, '');
+
+  // Diverged (simulates someone force-pushing staging in this throwaway
+  // repo) -> sync fails, so the deploy job never runs.
+  git(work, 'checkout', '-q', '-b', 'stray', first);
+  const stray = commit(work, 'stray.txt', 'x');
+  git(work, 'push', '-q', '-f', 'origin', 'stray:staging');
+  const diverged = sync(work, 'deploy-diverged', second);
+  assert.equal(diverged.status, 1, diverged.out);
+  assert.deepEqual(diverged.outputs, {});
+  assert.equal(remoteSha(remote, 'staging'), stray);
+  assert.equal(remoteSha(remote, 'master'), second);
+
+  assert.doesNotMatch(syncYaml, /ref=staging/, 'never dispatch the moving branch name');
+}
+
+// ------------------------------------------------------------ workflow boundaries
+{
+  const files = fs.readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f));
+  for (const file of files) {
+    const text = fs.readFileSync(path.join(WORKFLOWS, file), 'utf8');
+    const code = text.split('\n').filter((line) => !line.trim().startsWith('#')).join('\n');
+    assert.doesNotMatch(code, /pull_request_target/, `${file} must never use pull_request_target`);
+    if (file !== 'staging-sync.yml') {
+      assert.doesNotMatch(code, /staging-sync|STAGING_DB_URL|STAGING_DEPLOY_TOKEN/, `${file} must not use the staging-sync secrets`);
+    }
+  }
+
+  // Split a workflow into its jobs (two-space-indented keys under jobs:).
+  const jobsOf = (text) => {
+    const jobs = {};
+    let current = null;
+    for (const line of text.slice(text.indexOf('\njobs:\n')).split('\n')) {
+      const key = /^  ([a-z-]+):$/.exec(line);
+      if (key) { current = key[1]; jobs[current] = ''; } else if (current) jobs[current] += `${line}\n`;
+    }
+    return jobs;
+  };
+
+  const sync = fs.readFileSync(path.join(WORKFLOWS, 'staging-sync.yml'), 'utf8');
+  const jobs = jobsOf(sync);
+  // Migrations first; staging moves only after they succeed; the site last.
+  // Preflight first (read-only), then migrations; staging moves only after
+  // they succeed; the site last.
+  assert.deepEqual(Object.keys(jobs), ['preflight', 'migrate-staging', 'sync-branch', 'deploy-staging-site']);
+  assert.doesNotMatch(jobs.preflight, /needs:/);
+  assert.match(jobs['migrate-staging'], /^ {4}needs: preflight$/m, 'migrations run only after preflight passed');
+  assert.match(jobs.preflight, /^ {4}permissions:\n {6}contents: read\n {4}steps:/m, 'preflight is read-only');
+  assert.match(jobs.preflight, /run: bash bin\/ci\/sync-staging\.sh origin "\$TARGET_SHA" --check-only$/m);
+  assert.match(jobs.preflight, /TARGET_SHA: \$\{\{ github\.sha \}\}/);
+  assert.match(jobs.preflight, /if: github\.ref != 'refs\/heads\/master'/);
+  assert.doesNotMatch(jobs.preflight, /persist-credentials: true|git push/);
+  assert.match(jobs['sync-branch'], /^ {4}needs: migrate-staging$/m);
+  assert.match(jobs['deploy-staging-site'], /^ {4}needs: \[migrate-staging, sync-branch\]$/m);
+  // The deploy runs only when staging is at exactly this run's commit; its
+  // if: has no status function, so GitHub still requires both needs to pass.
+  assert.match(jobs['sync-branch'], /^ {6}synced: \$\{\{ steps\.sync\.outputs\.synced \}\}$/m);
+  assert.match(jobs['deploy-staging-site'], /^ {4}if: needs\.sync-branch\.outputs\.synced == 'true'$/m);
+  for (const [name, body] of Object.entries(jobs)) {
+    const ifs = body.match(/^ {4}if:.*$/gm) || [];
+    assert.ok(ifs.every((line) => !/always\(\)|failure\(\)|cancelled\(\)/.test(line)), `${name} must not run after a failed job`);
+    if (name !== 'deploy-staging-site') assert.equal(ifs.length, 0, `${name} must not have a job-level if:`);
+    assert.doesNotMatch(body, /continue-on-error/, `${name} must not continue after a failure`);
+    const usesEnv = /^ {4}environment: staging-sync$/m.test(body);
+    const usesSecrets = /\$\{\{\s*secrets\./.test(body);
+    const secretJob = ['migrate-staging', 'deploy-staging-site'].includes(name);
+    assert.equal(usesEnv, secretJob, `${name}: environment: staging-sync`);
+    assert.equal(usesSecrets, secretJob, `${name}: secrets`);
+    assert.match(body, /^ {4}permissions:\n/m, `${name} must declare its own permissions`);
+    // Secrets only ever enter through env:, never pasted into a script.
+    for (const line of body.split('\n').filter((l) => /secrets\./.test(l))) {
+      assert.match(line, /^ {10}[A-Z_]+: \$\{\{ secrets\.[A-Z_]+ \}\}$/, `${name}: secret outside env: -> ${line}`);
+    }
+  }
+  assert.match(jobs['sync-branch'], /^ {6}contents: write$/m);
+  assert.doesNotMatch(jobs['migrate-staging'] + jobs['deploy-staging-site'], /contents: write/);
+  // The migrated commit and the synced commit are the same: github.sha.
+  assert.match(jobs['migrate-staging'], /ref: \$\{\{ github\.sha \}\}/);
+  assert.match(jobs['sync-branch'], /TARGET_SHA: \$\{\{ github\.sha \}\}/);
+  assert.match(jobs['sync-branch'], /FUNCTIONS_DEPLOYED: \$\{\{ inputs\.functions_deployed \}\}/);
+  assert.match(sync, /functions_deployed:\n\s+description: .+\n\s+type: boolean\n\s+default: false/);
+  assert.match(sync, /^permissions: \{\}$/m);
+  assert.match(sync, /^ {2}group: staging-sync\n {2}cancel-in-progress: false$/m);
+  // Nothing may push to master: the workflow pushes nothing itself, and every
+  // push in sync-staging.sh targets refs/heads/staging without force.
+  assert.doesNotMatch(sync, /git push/, 'staging-sync.yml must leave pushing to sync-staging.sh');
+  const pushes = fs.readFileSync(path.join(CI, 'sync-staging.sh'), 'utf8').split('\n').filter((l) => /^\s*git push\b/.test(l));
+  assert.ok(pushes.length > 0);
+  for (const line of pushes) {
+    assert.match(line, /"\$target:refs\/heads\/staging"$/, `unexpected push target: ${line}`);
+    assert.doesNotMatch(line, /--force|\s-f\b|\+/, `force push: ${line}`);
+  }
+
+  // The reminder runs no repository code and only its comment job can write.
+  assert.match(reminderYaml, /^ {2}pull_request:\n/m);
+  assert.doesNotMatch(reminderYaml, /\$\{\{\s*secrets\./);
+  const reminderCode = reminderYaml.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+  assert.doesNotMatch(reminderCode, /actions\/checkout|uses:|bin\//, 'the reminder must not check out or run repository code');
+  const reminderJobs = jobsOf(reminderYaml);
+  assert.deepEqual(Object.keys(reminderJobs), ['checklist', 'comment']);
+  assert.match(reminderJobs.checklist, /^ {4}permissions:\n {6}pull-requests: read\n {4}outputs:/m);
+  assert.match(reminderJobs.comment, /^ {4}permissions:\n {6}pull-requests: write\n {4}steps:/m);
+  assert.match(reminderYaml, /^permissions: \{\}$/m);
+
+  // Project refs live only in bin/ci/supabase-refs.sh among the scripts and
+  // staging-sync.yml (the reminder's inline copy is checked against it above).
+  const refPattern = new RegExp(`${PRODUCTION_REF}|${STAGING_REF}`);
+  const scripts = fs.readdirSync(CI).filter((f) => f.endsWith('.sh') && f !== 'supabase-refs.sh');
+  for (const file of [...scripts.map((f) => path.join(CI, f)), path.join(WORKFLOWS, 'staging-sync.yml')]) {
+    assert.doesNotMatch(fs.readFileSync(file, 'utf8'), refPattern, `${path.relative(ROOT, file)} must source supabase-refs.sh, not repeat a project ref`);
+  }
+
+  // Nothing echoes a secret variable or traces commands.
+  for (const file of scripts.map((f) => path.join(CI, f))) {
+    const text = fs.readFileSync(file, 'utf8');
+    assert.doesNotMatch(text, /^\s*set -[a-z]*x/m, `${file} must not enable tracing`);
+    for (const line of text.split('\n').filter((l) => /\b(echo|printf)\b/.test(l))) {
+      assert.doesNotMatch(line, /\$\{?(STAGING_DB_URL|STAGING_DEPLOY_TOKEN|GH_TOKEN|db_url)\b/, `${path.basename(file)} prints a secret: ${line}`);
+    }
+  }
+  for (const [name, text] of [['staging-sync.yml', sync], ['supabase-change-reminder.yml', reminderYaml]]) {
+    assert.doesNotMatch(text, /set -[a-z]*x/, `${name} must not enable tracing`);
+    for (const line of text.split('\n').filter((l) => /\b(echo|printf)\b/.test(l))) {
+      assert.doesNotMatch(line, /\$\{?(STAGING_DB_URL|STAGING_DEPLOY_TOKEN|GH_TOKEN|READ_TOKEN)\b/, `${name} prints a secret: ${line}`);
+    }
+  }
+}
+
+console.log('staging sync: sync + functions gate, DB URL guard, migrations, reminders, and workflow boundaries passed');

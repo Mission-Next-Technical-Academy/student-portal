@@ -1,0 +1,175 @@
+# Keep staging caught up with master.
+#
+# After every push to master (and on a manual run started from master):
+#   0. preflight            read-only: stop before any migration if staging
+#                           is already ahead of this commit or has diverged
+#   1. migrate-staging      apply this master commit's pending migrations to
+#                           the STAGING database
+#   2. sync-branch          only if step 1 succeeded: fast-forward the
+#                           `staging` branch to that commit, unless the new
+#                           commits change Edge Functions (functions gate)
+#   3. deploy-staging-site  only if step 2 moved staging to (or found it
+#                           at) this exact commit (step 2 fails if staging
+#                           is already past it): start the staging website
+#                           deploy in student-portal-staging, pinned to
+#                           that commit's full SHA (not the branch name)
+# If any step fails, the later ones do not run, so `staging` and its website
+# never get ahead of the staging database.
+#
+# Edge Functions are never deployed here. When the new commits change them,
+# step 2 stops and the run summary lists the manual commands; after deploying
+# them to staging, rerun from master with functions_deployed ticked.
+#
+# This repository is public, so every log line below is public. Secrets live
+# only in the `staging-sync` environment (deployment branches: master), and
+# only the two jobs that need one declare it. Nothing here may print a secret
+# or anything derived from one. Never add pull_request_target to this file.
+#
+# Runbook: docs/operations/STAGING_AUTOMATION.md
+name: Staging sync
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      functions_deployed:
+        description: I deployed every changed Edge Function to staging from master
+        type: boolean
+        default: false
+
+# Each job asks for exactly what it needs.
+permissions: {}
+
+# Runs queue instead of overlapping, so two pushes cannot race on staging.
+concurrency:
+  group: staging-sync
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Check staging can move to this commit
+    runs-on: ubuntu-latest
+    # Read-only: no environment and no secret is needed here
+    permissions:
+      contents: read
+    steps:
+      - name: Refuse to run from any branch but master
+        if: github.ref != 'refs/heads/master'
+        run: |
+          echo "::error::Start this workflow from master (Run workflow -> Branch: master). Nothing was changed."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The same ahead/diverged checks sync-branch runs, before anything
+      # touches the database. sync-branch repeats them in case staging
+      # changes in between.
+      - name: Stop if staging is ahead of this commit or has diverged
+        env:
+          TARGET_SHA: ${{ github.sha }}
+        run: bash bin/ci/sync-staging.sh origin "$TARGET_SHA" --check-only
+
+  migrate-staging:
+    name: Apply migrations to the staging database
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: staging-sync
+    permissions:
+      contents: read
+    steps:
+      # The master commit this run is for. sync-branch moves staging to this
+      # same commit, so the database always has the code's migrations.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Check that STAGING_DB_URL is the staging project
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: bash bin/ci/check-staging-db-url.sh
+
+      - name: Install the Supabase CLI
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.118.0
+
+      - name: Dry run, then apply pending migrations
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: bash bin/ci/migrate-staging.sh
+
+  sync-branch:
+    name: Fast-forward staging to master
+    needs: migrate-staging
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      synced: ${{ steps.sync.outputs.synced }}
+      sha: ${{ steps.sync.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Fast-forward staging (never --force, never touches master)
+        id: sync
+        env:
+          TARGET_SHA: ${{ github.sha }}
+          FUNCTIONS_DEPLOYED: ${{ inputs.functions_deployed }}
+        run: |
+          echo "## Staging sync" >> "$GITHUB_STEP_SUMMARY"
+          bash bin/ci/sync-staging.sh origin "$TARGET_SHA"
+
+  deploy-staging-site:
+    name: Start the staging website deploy
+    needs: [migrate-staging, sync-branch]
+    # Only when staging now points at exactly this run's migrated commit
+    # (sync-branch fails if staging is already past it).
+    if: needs.sync-branch.outputs.synced == 'true'
+    runs-on: ubuntu-latest
+    environment: staging-sync
+    permissions:
+      contents: read
+    steps:
+      - name: Dispatch deploy-staging.yml in student-portal-staging
+        env:
+          STAGING_DEPLOY_TOKEN: ${{ secrets.STAGING_DEPLOY_TOKEN }}
+          READ_TOKEN: ${{ github.token }}
+          SYNCED_SHA: ${{ needs.sync-branch.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$STAGING_DEPLOY_TOKEN" ]; then
+            echo "::notice::STAGING_DEPLOY_TOKEN is not set in the staging-sync environment, so the staging website was not redeployed. See docs/operations/STAGING_AUTOMATION.md to add it."
+            exit 0
+          fi
+
+          # Deploy the exact commit this run migrated and synced, never the
+          # moving branch name, so a later change to staging cannot slip in.
+          if ! [[ "$SYNCED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sync-branch did not report a full commit SHA. Not deploying."
+            exit 1
+          fi
+          # And only while staging still points at it.
+          current="$(GH_TOKEN="$READ_TOKEN" gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/staging" --jq .object.sha)"
+          if [ "$current" != "$SYNCED_SHA" ]; then
+            echo "::error::staging moved from ${SYNCED_SHA:0:12} to ${current:0:12} during this run. Not deploying; rerun this workflow from master."
+            exit 1
+          fi
+
+          # --ref picks the branch whose deploy-staging.yml runs; -f ref is the commit it builds.
+          GH_TOKEN="$STAGING_DEPLOY_TOKEN" gh workflow run deploy-staging.yml \
+            --repo Mission-Next-Technical-Academy/student-portal-staging \
+            --ref main \
+            -f ref="$SYNCED_SHA"
+          {
+            echo "### Staging website"
+            echo "Started **Deploy staging site** for commit \`${SYNCED_SHA}\` (\`staging\`). Follow it at https://github.com/Mission-Next-Technical-Academy/student-portal-staging/actions/workflows/deploy-staging.yml"
+          } >> "$GITHUB_STEP_SUMMARY"
