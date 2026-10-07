@@ -82,7 +82,7 @@ no longer exists. Docs table generated from the same data in this file.
 ## Sprint plan
 
 - [x] **Sprint 1 — M04 intelligence verdicts (gap A).** Guided + Assessment.
-- [ ] **Sprint 2 — M09 workflow designer + recorded unsafe attempts (gaps B, C).** Guided + Assessment; shared designer reused by M12 with an inline `preserve>approval` example.
+- [x] **Sprint 2 — M09 workflow designer + recorded unsafe attempts (gaps B, C).** Guided + Assessment; shared designer reused by M12 with an inline `preserve>approval` example.
 - [ ] **Sprint 3 — needs-investigation disposition (gap D).** M03 Guided + M11 Assessment.
 - [ ] **Sprint 4 — traceability map + integration.** Build the traceability module and test above (covering all M12 mechanics, not just A–D). Merge, full test + browser sweeps (M01 and M03–M12), update `MODULE_TWELVE_ARC_CALLBACKS` in `soc-analyst-module-12.js` to cite the new practice, update `docs/workstreams/LIVE_COURSE_UAT_AND_GRADING_UX.md`, owner push.
 
@@ -192,3 +192,94 @@ Caveats / for the owner:
   are covered by string-level tests only.
 - Shared files other sprints may also touch: `portal/soc-console-tools.js` (PACKS.m04 only),
   `portal/index.html` cache-buster lines, `portal/app.js` (one new panel in `adminAttemptReviewCard`).
+
+### Sprint 2 — M09 workflow designer + recorded unsafe attempts (gaps B, C) — 2026-10-07
+
+Branch `worktree-agent-a82b7fdec44723fd8`, code commit `34100a5`.
+
+```text
+REFERENCE COMPONENTS FROM MODULE 1
+  Guided Lab console guide card (guidedLabGuide steps with target/lookFor/lab),
+  practiceResult() instant scoring, Prove It review payload stored at submit
+  (review_payload on the lab attempt), adminAttemptReviewCard rubric panel.
+REUSABLE COMPONENTS
+  SocConsoleTools.PACKS.m09 views/wire, SocM09AssessmentState (approval gate,
+  executeApprovedAction, field-by-field comparison as in sameEffects),
+  SocAssessmentScorer.scoreCriteria (awards + deductions), M12's
+  workflow-design recorder (unchanged shape).
+TARGET MODULE DIFFERENCES
+  M09 gates every protected action behind approval (M12 only isolate / revoke /
+  restore); M09 targets are incident-scoped entities (DEV-UNKNOWN-173 is the
+  out-of-scope device); M09 Prove It stores its score at submit, M12 re-scores.
+ASSESSMENT COMPETENCIES (rubric v3, still 100, pass 70)
+  The original nine re-weighted (8/8/8/12/8/11/11/8/6) plus
+  response-workflow-design (10) and safe-response-conduct (10).
+PARTIAL-CREDIT MODEL
+  Workflow design, best saved design counts: +4 evidence reaches approval,
+  +4 every containment/recovery step is behind approval (+2 if only some),
+  +2 a scan/monitor step follows containment, -2 per disruptive step that feeds
+  back into preserve/approval, floor 0. Reachability, not exact edges, so
+  different valid orders score the same; extra drafts never lower the score.
+  Safe conduct: 10 when at least one approved, in-scope action ran, -3 per
+  blocked attempt (no approved action = 0). No whole-score cap.
+INSTRUCTOR-REVIEW REQUIREMENTS
+  review_payload.responseReview lists every saved design (name, steps,
+  from>to order) and every blocked attempt (action, target, reason);
+  adminResponseDesignReviewPanel renders them; the rubric panel now shows
+  per-criterion deductions with their reasons.
+FILES TO MODIFY
+  portal/soc-console-tools.js (m09 section), soc-m09-assessment-state.js /
+  -rubric.js / -scorer.js, soc-analyst-module-09.js, soc-m12-assessment-console.js,
+  app.js, index.html (cache-bust), tests/soc-m09-assessment-{state,rubric,scorer}.test.js,
+  tests/soc-m12-contextual-console.test.js.
+FILES TO CREATE
+  tests/soc-m09-workflow-attempts.test.js
+```
+
+What shipped
+
+- Shared designer: `SocConsoleTools.workflowDesignerMarkup` / `parseWorkflowEdges`
+  render one control in the M09 Response tab (flag `ctx.workflowDesigner`) and in
+  M12 (`contextualMarkup('response')`). M12 still records `workflow-design`
+  `{name,nodes,edges}` with `edges` as `{from,to}`. Every connections box now
+  says "One connection per line, e.g. `scan>monitor`"; the parser also accepts
+  `->` and is case-insensitive.
+- State (`SocM09AssessmentState`, schemaVersion unchanged): new additive
+  `workflowDesigns` and `unsafeAttempts`, validated field by field (key-order
+  safe, no JSON text compare); `saveWorkflowDesign`, `attemptResponseAction`
+  (allowed attempts run as approved executions; refused ones are logged with
+  reason `no_approval` / `out_of_scope` / `wrong_target_type`).
+- Practice It: four guide steps (plan the order, read the workflow check, see
+  what an unsafe attempt costs, do it the safe way), instant checklist on each
+  saved design with hints that open one per unsuccessful design, an attempt
+  explanation that states the capstone consequence (cap at 69) and the Prove It
+  consequence, two new practice score items, a debrief line.
+- Prove It: same designer and attempt form with no coaching text; brief gains
+  "Record your planned response order as a workflow in the Response tab."
+- Backward compatibility: the M09 score is computed once at submit and stored
+  in `review_payload`, so approved/submitted attempts keep their score.
+  `SocM09AssessmentScorer.score(state, fixture, { rubricVersion: 2 })` still
+  reproduces the nine-criterion rubric exactly; old saved state without the new
+  fields loads cleanly (tested).
+- Tests: new `tests/soc-m09-workflow-attempts.test.js` (shared markup, state API,
+  jsonb key-reorder round trip, perfect / partial / equal-credit paths /
+  exploration / unsupported order / unsafe-attempt deductions, v2 vs v3, review
+  panel, fake-DOM wiring, Practice coaching). `node --test tests/`: 90 files,
+  86 pass, 4 fail (exactly the four pre-existing failures). `bash bin/ci-check.sh` passes.
+
+Caveats
+
+- No browser run (Sprint 4). New elements (`.m09-workflow-coach`, `.m09-attempt`,
+  `.m09-attempt-coach`) reuse existing console styles; check spacing in the sweep.
+- Documentation quality is not separately scored in M09's scorer (writing lives
+  in the ticket), so the "strong technical / weak documentation" scenarios are
+  covered by design-only vs. response-only tests.
+- Cache-bust query strings in `portal/index.html` were bumped for the changed
+  scripts; expect a trivial merge conflict with Sprint 1 on the
+  `soc-console-tools.js` line.
+- The example is `scan>monitor`, not `preserve>approval`, on purpose: the
+  assessment control must not print a graded connection. Practice reveals
+  `preserve>approval` only in hint 3.
+- M12 still offers 9 nodes while its recorder accepts 2-8; selecting all nine
+  errors (pre-existing, unchanged). M12's bridge does not project M09
+  `unsafeAttempts` (the M09 attempt form is off in M12; M12 has its own).
