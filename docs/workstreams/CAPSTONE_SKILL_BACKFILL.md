@@ -1,6 +1,6 @@
 # Capstone skill backfill — teach every M12 mechanic before M12
 
-## Next AI — start here (2026-10-07, Sprints 1–4 done on local master, NOT pushed)
+## Next AI — start here (2026-10-07, Sprints 1–4 done and pushed to master in f2d3fed)
 
 **Current state:** gaps A–D are taught (Practice It) and assessed (Prove It)
 in M04, M09, M03/M11; the traceability map + guard test are in; capstone
