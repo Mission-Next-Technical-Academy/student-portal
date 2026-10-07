@@ -303,7 +303,7 @@ const verdictCriterion = (assessment) => scorer.score({ assessment }, fixture).c
   const end = appSource.indexOf('\nfunction ', start + 10);
   const sandbox = vm.createContext({
     esc: (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]),
-    adminCaseTicketSubmissionPanel: () => '', adminCapstoneReviewPanel: () => '', adminModuleTwoAccessReviewPanel: () => '', adminAttemptLabel: () => 'Attempt 1',
+    adminCaseTicketSubmissionPanel: () => '', adminCapstoneReviewPanel: () => '', adminModuleTwoAccessReviewPanel: () => '', adminResponseDesignReviewPanel: () => '', adminAttemptLabel: () => 'Attempt 1',
   });
   vm.runInContext(appSource.slice(start, end), sandbox);
   const card = sandbox.adminAttemptReviewCard({
