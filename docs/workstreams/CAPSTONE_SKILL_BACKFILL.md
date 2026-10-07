@@ -441,3 +441,57 @@ FILES TO CREATE
 - Test status: `node --test tests/` 91 files, 87 pass, 4 fail (guided-lab-console-guide,
   soc-m04-assessment-rubric, soc-m04-assessment-scorer, soc-m05-assessment-console; all pre-existing).
   `bash bin/ci-check.sh` clean.
+
+### Sprint 4a — capstone traceability map (all M12 mechanics), 2026-10-07
+
+Branch `worktree-agent-aeaf2e438050eee0d`, code commit `ce7604c` (+ this log). Not pushed. Scope was the map only; Sprint 4b (merge, browser sweeps of M01 and M03–M12, `LIVE_COURSE_UAT_AND_GRADING_UX.md`, owner push) is still open.
+
+```text
+REFERENCE COMPONENTS FROM MODULE 1
+  Case-record ticket model (shared caseRecordPane), guided-lab step cards, Prove It stored-score rubric.
+REUSABLE COMPONENTS
+  SocM12AssessmentRubric.extractV2 / SocM12AssessmentState.TYPES / moduleTwelveActionMissing() /
+  MODULE_TWELVE_TICKET_FINDINGS as the machine-readable list of M12 mechanics; each module's guide steps and rubric ids as the homes.
+TARGET MODULE DIFFERENCES
+  M01/M02 have no rubric ids (score breakdown keys); M03 has M03E_RUBRIC competencies; M04-M11 have SocMnnAssessmentRubric ids.
+  Only M03 guide steps have ids; every other module identifies a step by its title.
+ASSESSMENT COMPETENCIES / PARTIAL-CREDIT MODEL / INSTRUCTOR-REVIEW REQUIREMENTS
+  None changed: no learner-facing scoring or review code was touched.
+FILES TO MODIFY
+  portal/soc-analyst-module-12.js (three MODULE_TWELVE_ARC_CALLBACKS cues only), this file.
+FILES TO CREATE
+  portal/soc-capstone-traceability.js, tests/capstone-traceability.test.js, bin/capstone-traceability-table.js
+```
+
+What shipped
+
+- **Map.** `SocCapstoneTraceability`: 41 entries covering all 8 rubric v2 criteria, every award / deduction / miss string in `extractV2`, all 13 `moduleTwelveActionMissing()` checks, every ticket field, every graded action type (`hypothesis` is the one ungraded type, listed as such) and the unsafe-execution deduction and the 69 cap. Entry fields: `capstone`, `practice` (guided step plus `direct`/`generic` coverage), `prove` (rubric id in the home module), `code`, and where relevant `related`, `exposedIn` and `gap`. The M12-wide fact that the console mounts `SocConsoleTools.PACKS.m04`..`m10` (`soc-m12-assessment-console.js` `mount()`) is recorded in `embeddedPacks` and in every entry's `code`.
+- **Guard test.** `tests/capstone-traceability.test.js` (10 tests) derives the mechanics from the code (string literals in `extractV2`, the missing-check messages, the ticket-field list, `SocM12AssessmentState.TYPES`) and fails on: an untraced mechanic, an entry citing text that no longer exists, a guide step / rubric id / tab / file / `#fragment` that does not exist, an empty practice or prove list with no `gap`, a stale `gap`, and any difference between the actual gaps and the `KNOWN_GAPS` allowlist in the test (so a new gap fails and a closed gap must be removed from the list). Mutation-checked: a renamed guide step, a new `award(...)` in the rubric and a deleted practice list each fail it.
+- **Table.** `bin/capstone-traceability-table.js` prints the markdown table now pasted above under "Traceability table", plus the "How to use" paragraph.
+- **Cues.** `MODULE_TWELVE_ARC_CALLBACKS` Triage now cites M03 dispositions (incl. needs-investigation) and M11 queue triage; Enrichment cites M04 indicator verdicts; Response cites the M09 workflow designer and unsafe attempts. One line each. The Response cue deliberately does not print `preserve>approval` (the capstone is an assessment).
+
+Coverage: 41 mechanics. 24 have at least one direct Practice step, 6 only a generic ticket-driven step (`domain-email`, `domain-endpoint`, `domain-network`, `recovery-sessions-revoked`, `report-executive`, `closure-decision`), 11 have no Practice home.
+
+Remaining gaps (mechanic: what is missing; evidence)
+
+| Mechanic | Missing | Evidence |
+| --- | --- | --- |
+| `rule-saved`, `rule-scheduled` | Practice | `moduleFourGuidedSteps()` goes lead, correlate, source/contributing, three verdict steps, decide, submit; no step opens Analytics Rules, although the pack is mounted in the M04 guided console (`SocConsoleTools.mount('m04-guided'...)`). Prove exists (M04 `query-rule-quality`, `scheduled-execution`). |
+| `attack-mapping`, `attack-unsupported-deduction` | Practice | No guided step in M06-M11 targets the `attack` tab (steps listing in each `module*GuidedSteps()`); the tab is mounted from M06 guided on. Prove exists (M06 `attack-mapping`, M10 `attack-linkage`). |
+| `evidence-preserved-before-eradication` | Practice | No guided step runs the preserve action (M04 Automation `evidence_preservation`, M05 `evidence_package_preserved`); M09 "Check response outcomes" only reads preservation records. Prove exists (M05 `evidence-preservation`, M09 `evidence-and-scope`, M10 `preservation`). |
+| `recovery-persistence-removed`, `recovery-restored`, `recovery-validated` | Practice | M09 guide steps stop at one approved containment action; none opens the Recovery tab. Prove exists (M09 `identity-and-persistence`, `recovery-readiness`, `recovery-monitoring`). |
+| `report-lessons` | Practice | M11 guide has no lessons-learned or detection-improvement step. Prove exists (M11 `lessons-detection`). |
+| `alert-incident-link`, `alert-incident-link-unrelated-deduction` | Practice and Prove | The alert-to-incident form exists only in `soc-m12-assessment-console.js` `contextualMarkup('alerts')`. M07 `incident-evidence` and M08 `incident-link` link evidence/findings to an incident through other controls, listed under `related`, not credited as homes. |
+
+Also worth knowing when reading the table: the guided labs of M05-M08, M10 and M11 are ticket-driven (read ticket, lead, correlate, source vs contributing, scope, submit). The pack tool for each module is open but not directed, so those modules' domain mechanics are marked `generic`. M03 Prove It scores one overall verdict, not per-alert dispositions; the per-alert Prove home is M11 (Sprint 3).
+
+Capstone bugs / risks noticed while reading (NOT fixed)
+
+1. **Log Search queries are never recorded as `query-run`.** The only recorders are the bridge lines for the M04 pack query tester (`query_test`) and the M06 pack Hunting tab (`query_run`) (`soc-m12-tool-bridge.js` lines 63 and 101; `grep "'query-run'" portal/` finds no other writer). A learner who correlates in the M03 Log Search tab, which the M03 Practice steps and the mission cue both point at, gets "No query test recorded yet" and loses up to 9 points unless they re-run the query in Analytics Rules or Hunting. Likely the most important item for Sprint 4b's real-browser pass.
+2. **`alert-disposition` action type has no recorder.** It is in `TYPES`, reduced and validated, and counted by the missing-action check, but the UI only writes `review-alert` (`recordContextual`), so it is dead code.
+3. **Workflow node count mismatch (from Sprint 2, still present).** `scenario.workflowNodes` has 9 nodes, `validate('workflow-design')` accepts 2 to 8; ticking all nine errors.
+4. **`SocM12AssessmentState.load` compares `JSON.stringify(loaded)` with the normalized copy** (line 127) to decide whether to re-save: after a Postgres jsonb key reorder it saves again on every load (the same pattern Sprint 3 removed from M11; harmless but wasteful).
+5. **Preserving evidence on another host trips the 69 cap.** `deriveEffect` for `execute` only treats `preserve:ws-204` as in scope, any other target is `blocked`, and `unsafeExecution` is true for any blocked execution. A non-destructive preserve of a comparison host (for example via the M05 evidence package, which the bridge projects as `execute preserve <deviceId>`) fails the whole attempt. Confirm that is intended.
+6. **Non-success source outcomes become blocked.** `sourceOutcome !== 'success'` forces `blocked` for `execute` too (not only `recovery`), so an approved, in-scope action whose simulated M09 effect is partial or failed would count as unsafe. Check whether the M12 M09 fixture can produce one.
+
+Tests: `node --test tests/` 103 files, 99 pass, 4 fail (guided-lab-console-guide, soc-m04-assessment-rubric, soc-m04-assessment-scorer, soc-m05-assessment-console; all pre-existing, unchanged). New `tests/capstone-traceability.test.js` 10/10. `bash bin/ci-check.sh` passes; `node --check` clean on the three new files and `soc-analyst-module-12.js`. No servers or browsers started.
