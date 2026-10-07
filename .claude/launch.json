@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "portal",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8420", "--directory", "portal"],
-      "port": 8420
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["bin/dev.sh", "serve"],
+      "port": 8768
     }
   ]
 }

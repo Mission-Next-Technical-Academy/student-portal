@@ -2,6 +2,9 @@
 .agent-logs/
 *.log
 *.pid
+# bin/dev.sh state: the active Supabase target and its temp config folder.
+.dev-target
+.dev-tmpdir
 
 # Python bytecode from the local-tasks fixture tooling.
 __pycache__/
