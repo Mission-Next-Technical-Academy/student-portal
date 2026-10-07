@@ -27,14 +27,14 @@ const MODULE_TWELVE_REQUIREMENTS = [
 // learner practised each decision earlier; they do not create extra stages,
 // score domains, evidence, or instructional minutes.
 const MODULE_TWELVE_ARC_CALLBACKS = [
-  'M01 foundations: classify a signal before acting; M09 Cedar Lock: use lifecycle discipline under pressure.',
+  'M01 foundations: classify a signal before acting; M03 dispositions (including needs-investigation) and M11 queue triage: call each alert only as far as the records support.',
   'M03 SIEM & log analysis: make the pivot reproducible and join sources by entity and time.',
   'M03 correlation plus M10 custody: order observed events and preserve the timestamps that support them.',
   'M02 identity scope plus M08 prioritization: name the affected host/account and bound the search result.',
-  'M04 detection/intelligence plus M08 exposure: weigh context, reachability, and the contributing control gap.',
+  'M04 indicator verdicts (malicious, benign or unknown, backed by case records) plus M08 exposure: weigh context, reachability, and the control gap.',
   'M05 endpoint and M06 hunting plus M10 mapping: map demonstrated behavior, not an imagined full chain.',
   'M04 tuning plus M06 hypothesis testing: improve precision without hiding the behavior or disabling coverage.',
-  'M09 Operation Cedar Lock: contain proportionately, preserve evidence, then move toward recovery.',
+  'M09 workflow designer and unsafe attempts: plan your response order, never act without approval, then move toward recovery.',
   'M10 chain of custody: retain identifiers, provenance, integrity, and explicit evidence boundaries.',
   'M11 reporting: separate executive decisions from the technical narrative and state uncertainty plainly.',
   'M09 recovery gates plus M11 ownership: verify the fix, assign follow-up, and define monitoring.',
