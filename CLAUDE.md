@@ -2,6 +2,8 @@
 
 **Local testing: staging by default.** Start the app with `bin/dev.sh` (stop: `bin/dev.sh stop`). It connects to the **staging** Supabase project, never production. Check `bin/dev.sh status` shows `target=STAGING` before signing in or clicking through flows. Never pass `--production` or point anything at production unless a person explicitly asks in this session. Sign in only with synthetic staging accounts; credentials come from the person, never from files in this repo. Don't serve `portal/` any other way (e.g. `python -m http.server`): that bypasses the staging swap and connects to production.
 
+Before database, staging, deploy or merge work, read docs/operations/AI_AGENT_RULES.md.
+
 **Canonical execution source:** read `ROADMAP.md` before this historical
 status summary. It is the single delivery queue, locks Module 1's required
 beginning-of-course LMS orientation tour, and defines the CI/CD workflow.
