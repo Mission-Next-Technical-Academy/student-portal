@@ -221,7 +221,7 @@ t('the review card renders each disposition readably with the full reasoning, an
   const src = read('app.js');
   const from = src.indexOf('function adminAttemptReviewCard(');
   const card = src.slice(from, src.indexOf('\n}\n', from) + 3);
-  const rctx = { esc: context.esc, adminAttemptLabel: () => 'Attempt 1', adminCaseTicketSubmissionPanel: () => '', adminCapstoneReviewPanel: () => '', adminModuleTwoAccessReviewPanel: () => '' };
+  const rctx = { esc: context.esc, adminAttemptLabel: () => 'Attempt 1', adminCaseTicketSubmissionPanel: () => '', adminCapstoneReviewPanel: () => '', adminModuleTwoAccessReviewPanel: () => '', adminResponseDesignReviewPanel: () => '' };
   vm.createContext(rctx);
   vm.runInContext(card, rctx);
   const state = withDispositions(CORRECT, restOfShift());
