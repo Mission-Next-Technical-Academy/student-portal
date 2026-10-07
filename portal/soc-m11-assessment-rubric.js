@@ -4,6 +4,7 @@ const SocM11AssessmentRubric = (() => {
 
   const RUBRIC = Object.freeze([
     { id: 'queue-prioritization', label: 'Prioritize the queue against SLA and impact' },
+    { id: 'alert-disposition', label: 'Record supported dispositions for queue alerts' },
     { id: 'sla-awareness', label: 'Act on at-risk and breached SLAs' },
     { id: 'assignment-escalation', label: 'Assign and escalate work appropriately' },
     { id: 'metrics-interpretation', label: 'Interpret metrics without unsupported causal claims' },
@@ -17,6 +18,9 @@ const SocM11AssessmentRubric = (() => {
     { id: 'closure-decision', label: 'Make a defensible closure decision' },
   ].map(Object.freeze));
 
+  // Rubric versions: 1 = original twelve criteria (attempts submitted before per-alert dispositions);
+  // 2 = adds 'alert-disposition'. Stored attempts keep the version and score they were submitted with.
+  const VERSION = 2;
   const list = (value) => (Array.isArray(value) ? value : []);
   const record = (value) => value && typeof value === 'object' && !Array.isArray(value);
   const lower = (value) => String(value || '').toLowerCase();
@@ -37,7 +41,7 @@ const SocM11AssessmentRubric = (() => {
     });
     if (!scenario || !truth) {
       RUBRIC.forEach(({ id }) => add(id, 'unknown'));
-      return { rubricVersion: 1, criteria };
+      return { rubricVersion: VERSION, criteria };
     }
     const lowNoise = scenario.queue.filter((item) => item.ruleId === truth.noisyRuleId).map((item) => item.id);
 
@@ -46,6 +50,13 @@ const SocM11AssessmentRubric = (() => {
     add('queue-prioritization', !order.length ? 'unknown'
       : top.every((id, index) => order[index] === id) ? true
         : order[0] === top[0] ? 'partial' : lowNoise.includes(order[0]) ? false : 'incomplete', [], idsOf('priority'));
+
+    const review = dispositionReview(assessment, truth);
+    const earnedUnits = review.items.reduce((sum, item) => sum + item.points, 0);
+    const anyRecorded = review.items.some((item) => item.recorded);
+    add('alert-disposition', !anyRecorded ? 'unknown'
+      : earnedUnits === review.maxPoints && !review.items.some((item) => item.deduction) ? true
+        : earnedUnits ? 'partial' : 'incomplete', review.items.filter((item) => item.points).map((item) => item.itemId), idsOf('disposition'));
 
     const assignments = record(assessment.assignments) ? assessment.assignments : {};
     const escalations = list(assessment.escalations);
@@ -119,8 +130,41 @@ const SocM11AssessmentRubric = (() => {
         : list(closure.evidenceIds).some((id) => pendingIds.includes(id)) && closure.rationale.length >= 30 ? true : 'partial',
       list(closure?.evidenceIds), idsOf('closure_decision'));
 
-    return { rubricVersion: 1, criteria };
+    return { rubricVersion: VERSION, criteria, dispositionReview: dispositionReview(assessment, truth) };
   }
 
-  return Object.freeze({ RUBRIC, extract });
+  /* Per-alert dispositions. Each expected item carries credit units (truth.dispositionCredit, default 1).
+   *  supported   the expected call (a needs_investigation call must also name what is missing, else it is partial)
+   *  deferred    needs_investigation on an item whose evidence does decide it: no credit and never penalised
+   *  unsupported an explicit different verdict: no credit and a deduction (2 when the evidence was incomplete, else 1)
+   *  missing     nothing recorded
+   * Dispositions on items outside the expected set are ignored, and exploration is never scored. */
+  function dispositionReview(assessment, truth) {
+    const expected = record(truth.dispositions) ? truth.dispositions : {};
+    const recorded = record(assessment.dispositions) ? assessment.dispositions : {};
+    const credit = record(truth.dispositionCredit) ? truth.dispositionCredit : {};
+    const terms = list(truth.missingDataTerms).map((term) => String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const namesMissingData = terms.length ? new RegExp(`\\b(?:${terms.join('|')})`, 'i') : null;
+    const items = Object.entries(expected).map(([itemId, answer]) => {
+      const max = Number(credit[itemId]) || 1;
+      const call = record(recorded[itemId]) ? recorded[itemId] : null;
+      let outcome = 'missing'; let points = 0; let deduction = 0;
+      if (call) {
+        if (call.disposition === answer) {
+          const specific = answer !== 'needs_investigation' || !namesMissingData || namesMissingData.test(String(call.reason || ''));
+          outcome = specific ? 'supported' : 'partial';
+          points = specific ? max : Math.floor(max / 2);
+        } else if (call.disposition === 'needs_investigation') {
+          outcome = 'deferred';
+        } else {
+          outcome = 'unsupported';
+          deduction = answer === 'needs_investigation' ? 2 : 1;
+        }
+      }
+      return { itemId, expected: answer, recorded: call ? call.disposition : null, outcome, points, max, deduction };
+    });
+    return { items, maxPoints: items.reduce((sum, item) => sum + item.max, 0) };
+  }
+
+  return Object.freeze({ RUBRIC, VERSION, extract });
 })();

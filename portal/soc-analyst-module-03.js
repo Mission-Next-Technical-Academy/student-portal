@@ -574,8 +574,9 @@ function moduleThreeLecture() {
       <article><strong>True positive</strong><p>The detection matched real unauthorized activity. Example: an unapproved role grant is followed by access to a restricted resource, with no change record.</p></article>
       <article><strong>Benign positive</strong><p>The unusual activity really happened, and the alert caught it, but an approved explanation fits. Example: a documented after-hours migration uses the flagged account and source.</p></article>
       <article><strong>False positive</strong><p>The alert's condition was not actually present; a rule or data issue made it appear so. Example: a parser maps a service heartbeat as a human sign-in, and the raw event confirms no sign-in occurred.</p></article>
+      <article><strong>Needs investigation</strong><p>The data needed to decide has not arrived or is incomplete, so no verdict is supported yet. Example: an alert fires while the application collector is delayed, and the records that would show what happened next are still in transit. Say what is missing and what you will re-check.</p></article>
     </div>
-    <p>Use the evidence and authorized context to choose a verdict. If key facts are still unverified, record that uncertainty and follow your team's escalation procedure; an anomaly is a reason to investigate, not a verdict by itself.</p>
+    <p>Use the evidence and authorized context to choose a verdict. If key facts are still unverified, record that uncertainty and follow your team's escalation procedure; an anomaly is a reason to investigate, not a verdict by itself. Calling an alert true, benign or false without the evidence to support it is worse than saying it needs investigation.</p>
   </section>`;
 }
 
@@ -727,7 +728,7 @@ function moduleThreeReview() {
       <li><strong>Chronological ordering:</strong> Attack sequences progress from reconnaissance through exploitation, escalation, and exfiltration. Time-sorted events reveal this progression; reverse-sorted, it's hidden.</li>
       <li><strong>Correlation vs. coincidence:</strong> Temporal overlap alone is coincidence. Correlation requires agreement on multiple dimensions: same account, same source IP, tight time window, technical chain.</li>
       <li><strong>KQL-style queries:</strong> A SIEM query workbench (filtering, sorting, and aggregation) turns raw events into coherent patterns without manual transcription across disparate systems.</li>
-      <li><strong>Alert triage verdicts:</strong> True positive (anomaly + malice), benign positive (anomaly + legitimate context), or false positive (no anomaly). Never assume anomaly equals attack.</li>
+      <li><strong>Alert triage verdicts:</strong> True positive (anomaly + malice), benign positive (anomaly + legitimate context), false positive (no anomaly), or needs investigation (the data to decide has not arrived yet). Never assume anomaly equals attack.</li>
       <li><strong>Shared entities and timing:</strong> The same user, host, or IP address appearing in multiple events within a narrow time window is a correlation signal. Days apart or different entities = weaker signal.</li>
     </ul>
     <h3>Before you continue</h3>

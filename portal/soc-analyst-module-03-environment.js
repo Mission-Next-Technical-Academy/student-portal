@@ -121,9 +121,10 @@ const M03E_PRACTICE = (function () {
       P('P-3004', '09:45:10', { Account: 'svc-billing', SourceIp: '10.20.4.8', EventType: 'ScheduledReport', Result: 'Success', SessionId: 'JOB-22', Records: 2100, Detail: 'Nightly revenue report (CHG-210)' }),
       D('D-2004', '07:30:05', { Account: 'k.watts', SourceIp: '10.20.4.12', EventType: 'PasswordChanged', Result: 'Success', SessionId: '—', InitiatedBy: 'k.watts', TargetGroup: '', Detail: 'Self-service password change' }),
       P('P-3005', '08:35:20', { Account: 'k.watts', SourceIp: '10.20.4.12', EventType: 'Search', Result: 'Success', SessionId: 'S-8805', Records: 12, Detail: 'Reconciliation report review: 12 invoices' }),
+      P('P-3006', '09:23:35', { Account: 'c.ortega', SourceIp: '10.20.4.23', EventType: 'Search', Result: 'Success', SessionId: 'S-8862', Records: 120, Detail: 'Customer search: all active accounts (120 records returned)' }),
       S('S-4003', '08:53:48', { Account: 'billing-app', SourceIp: '10.20.4.8', Host: 'billing-app', EventType: 'CollectorHeartbeat', Result: 'Success', ChangeId: '', Detail: 'Heartbeat on schedule (60-second interval)' }),
       S('S-4001', '09:10:00', { Account: 'svc-backup', SourceIp: '10.20.4.8', Host: 'backup-01', EventType: 'ServiceRestart', Result: 'Success', SessionId: '—', ChangeId: 'CHG-221', Detail: 'Service restart, approved change CHG-221' }),
-      S('S-4002', '09:23:50', { Account: 'billing-app', SourceIp: '10.20.4.8', Host: 'billing-app', EventType: 'CollectorHeartbeat', Result: 'Delayed', ChangeId: '', Detail: 'Heartbeat delayed 42 seconds; no events dropped' }),
+      S('S-4002', '09:23:50', { Account: 'billing-app', SourceIp: '10.20.4.8', Host: 'billing-app', EventType: 'CollectorHeartbeat', Result: 'Delayed', ChangeId: '', Detail: 'Heartbeat delayed 42 seconds (09:23:08–09:23:50); no events dropped, but buffered billing-app events were still being delivered' }),
     ],
     identities: [
       { Account: 'acct-428', DisplayName: 'Billing reconciliation (service)', Type: 'Service account', Department: 'Finance Ops', Owner: 'k.watts', Privileged: 'No', UsualSourceIp: '10.20.4.15', Notes: 'Non-interactive. Interactive or MFA sign-ins are not expected.' },
@@ -157,6 +158,8 @@ const M03E_PRACTICE = (function () {
       { id: 'ALT-3101', time: `${d}T09:12:00Z`, severity: 'High', title: 'Suspicious authentication-to-export sequence — acct-428', entities: ['acct-428', '198.51.100.18', 'S-8841'], rule: 'Failed sign-in → success → directory role grant → application export within 30 minutes, with at least two shared dimensions (session preferred)', query: 'UnifiedEvents\n| where Account == "acct-428"\n| where SessionId == "S-8841"\n| sort by TimeGenerated asc' },
       { id: 'ALT-3102', time: `${d}T09:16:40Z`, severity: 'Low', title: 'Failed sign-in followed by success — h.diaz', entities: ['h.diaz', '10.20.4.44'], rule: 'Failed sign-in followed by a success for the same account within 5 minutes', query: 'AuthLog\n| where Account == "h.diaz"\n| sort by TimeGenerated asc' },
       { id: 'ALT-3103', time: `${d}T09:23:50Z`, severity: 'Informational', title: 'Collector heartbeat delayed — billing-app', entities: ['billing-app'], rule: 'Collector heartbeat later than 30 seconds', query: 'SystemLog\n| where EventType == "CollectorHeartbeat"' },
+      { id: 'ALT-3104', time: `${d}T09:23:40Z`, severity: 'Medium', title: 'Large customer search by a finance user — c.ortega', entities: ['c.ortega', '10.20.4.23', 'billing-app'], rule: 'Application search returning 100+ records for an account whose usual activity is under 20 records; the follow-up export check runs on the next collection cycle', query: 'AppAudit\n| where Account == "c.ortega"\n| sort by TimeGenerated asc' },
+      { id: 'ALT-3105', time: `${d}T09:40:05Z`, severity: 'Medium', title: 'Interactive sign-in by a privileged account — svc-billing', entities: ['svc-billing', '10.20.4.8'], rule: 'Privileged account signs in with an interactive method (password, MFA or session id starting S-)', query: 'AuthLog\n| where Account == "svc-billing"' },
     ],
   });
 }());
@@ -245,6 +248,7 @@ const M03E_ROW_PURPOSE = {
   'A-1010': 'routine: h.diaz morning sign-in (baseline)', 'A-1011': 'routine: acct-428 owner signs in from the LAN (contrast with the service-account takeover)',
   'A-1012': 'alternate explanation: typo failure then success on a usual LAN IP', 'A-1013': 'resolves A-1012; no role grant or export follows for h.diaz (ALT-3102)',
   'D-2004': 'routine self-service password change', 'P-3005': 'routine small search by the legitimate owner (vs 184-record search)',
+  'P-3006': 'incomplete evidence: search inside the billing-app collector delay window; the follow-up records that would settle ALT-3104 are not in the data yet',
   'S-4003': 'collector baseline: heartbeats are normally on schedule, so S-4002 delay stands out as minor',
   'A-5017': 'recovery validation: p.sato signs in normally after the CHG-311 reset', 'A-5018': 'alternate explanation: l.brooks typo from usual LAN IP', 'A-5019': 'resolves A-5018 (ALT-5174)',
   'P-7008': 'routine Finance download from the usual IP/session (decoy for FileDownloaded pivots)', 'S-8003': 'recovery validation: mail gateway healthy after CHG-309',
@@ -273,6 +277,70 @@ const M03E_ITSM_TAB = ['itsm', 'ITSM Ticket'];
 const M03E_CASE_TAB = ['case', 'ITSM Ticket'];
 const m03eTabs = (scope) => (M03E_MOUNTS[scope] ? [...M03E_TABS, ...(M03E_MOUNTS[scope].extraTabs || []), M03E_CASE_TAB]
   : scope === 'prove' ? [...M03E_TABS, M03E_CASE_TAB] : [M03E_ITSM_TAB, ...M03E_TABS]);
+
+/* ------------------------------------------------------------ alert dispositions
+ * The per-alert call every later module (and the Module 12 capstone) asks for.
+ * Four values; `needs-investigation` is the supported answer when the data
+ * needed to decide has not arrived yet (here: the billing-app collector delay
+ * the Data Sources step teaches). Practice only: the learner records a call
+ * plus reasoning, gets instant feedback, and unlocks progressive hints. */
+
+const M03E_ALERT_DISPOSITIONS = [
+  { id: 'true-positive', text: 'True positive' },
+  { id: 'benign-positive', text: 'Benign positive' },
+  { id: 'false-positive', text: 'False positive' },
+  { id: 'needs-investigation', text: 'Needs investigation' },
+];
+const M03E_DISPOSITION_LABEL = Object.fromEntries(M03E_ALERT_DISPOSITIONS.map((o) => [o.id, o.text]));
+const M03E_DISPOSITION_REASON_MIN = 20;
+// Needs-investigation must name what is missing, not just shrug.
+const M03E_MISSING_DATA_RE = /delay|collector|backfill|buffer|arriv|missing|incomplete|not (yet )?(in|here|available|received|visible)|re-?(check|run|query)|wait|follow[- ]?up/i;
+
+const M03E_PRACTICE_DISPOSITIONS = {
+  'ALT-3101': { value: 'true-positive',
+    why: 'Real, malicious and unapproved: a first-seen external IP, a role grant and a 184-record export share session S-8841.',
+    hints: ['Is the activity real, and is anything approving it?', 'Failed then successful sign-in from a first-seen external IP, a role grant, then an export, all in session S-8841. No change ticket covers it.', 'Real activity with no approved explanation and clear harm: true positive.'] },
+  'ALT-3102': { value: 'benign-positive',
+    why: 'The rule condition really happened (a failure, then a success), but a typo from h.diaz’s usual IP explains it and nothing follows.',
+    hints: ['Did the pattern in the rule actually occur? Check h.diaz in AuthLog.', 'The failure and success are 25 seconds apart, from h.diaz’s usual IP 10.20.4.44. No role grant or export follows.', 'Real pattern, ordinary explanation: benign positive.'] },
+  'ALT-3103': { value: 'benign-positive',
+    why: 'The heartbeat really was late, but the record says no events were dropped and the delay was 42 seconds.',
+    hints: ['Was the delay real, and did it cost you any data?', 'Open SystemLog record S-4002: it was 42 seconds late and says no events were dropped.', 'Real condition, harmless explanation: benign positive.'] },
+  'ALT-3105': { value: 'false-positive',
+    why: 'The rule needs an interactive sign-in, but the raw AuthLog record is a service credential in job session JOB-22. The condition was never present.',
+    hints: ['Read the rule’s condition, then read the raw record it fired on.', 'The rule asks for an interactive method. Look at AuthMethod and SessionId for svc-billing in AuthLog.', 'Service credential, job session JOB-22: no interactive sign-in occurred, so the alert condition was never true. False positive.'] },
+  'ALT-3104': { value: 'needs-investigation', requiresMissingData: true,
+    why: 'The 120-record search is real, but the follow-up records that would show whether an export followed fall inside the billing-app collector delay (09:23:08–09:23:50) and may not have arrived. The data to decide is not here yet.',
+    hints: ['What records would tell you whether this search was routine or the start of an export?', 'Compare the alert time with the billing-app collector delay you read in Data Sources.', 'If the evidence you need may still be in transit, you cannot call it yet. Say what is missing and what you will re-check.'] },
+};
+
+function m03eNormalizeDispositions(raw) {
+  const out = {};
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  Object.keys(src).forEach((id) => {
+    const r = src[id] && typeof src[id] === 'object' ? src[id] : {};
+    out[id] = {
+      value: M03E_DISPOSITION_LABEL[r.value] ? r.value : '',
+      reason: String(r.reason || ''),
+      attempts: Math.max(0, Number(r.attempts) || 0),
+      hints: Math.max(0, Number(r.hints) || 0),
+      result: ['correct', 'wrong', 'reasoning', 'missing-data'].includes(r.result) ? r.result : '',
+      correct: r.correct === true,
+    };
+  });
+  return out;
+}
+
+// Pure evaluation of one recorded call against the practice answer key.
+function m03eEvaluateDisposition(alertId, value, reason) {
+  const key = M03E_PRACTICE_DISPOSITIONS[alertId];
+  if (!key) return 'wrong';
+  if (value !== key.value) return 'wrong';
+  if (String(reason || '').trim().length < M03E_DISPOSITION_REASON_MIN) return 'reasoning';
+  if (key.requiresMissingData && !M03E_MISSING_DATA_RE.test(reason)) return 'missing-data';
+  return 'correct';
+}
+const m03eDispositionsCorrect = (st, ids) => ids.every((id) => st.dispositions?.[id]?.correct === true);
 
 /* ------------------------------------------------------------ guided steps
  * Decreasing support: the first steps hand over a full query, the middle
@@ -306,6 +374,14 @@ const M03E_GUIDE_STEPS = [
   { id: 'pin', tab: 'evidence', target: '.m03e-table-wrap', title: 'Preserve the evidence', body: 'A handoff cites records. Pin the linked records and the approved lookalike so the next analyst can verify both inclusion and exclusion.', task: 'Pin the failed and successful sign-ins, role grant, export, and approved restart.', lookFor: 'Four records support the chain; S-4001 remains a separately documented approved change.',
     check: (st) => m03eHasAll(new Set(st.pins), ['A-1003', 'A-1006', 'D-2001', 'P-3001', 'S-4001']) },
   { id: 'contributing', tab: 'evidence', target: '.m03e-table-wrap', title: 'Weigh contributing evidence', body: 'A correlated record can support the story without identifying where the activity began. Keep both the strongest source and useful context in your handoff.', task: 'Compare the authentication source with the later role and export records.', lookFor: 'Which record establishes the sign-in, and which records show what followed?', check: (st) => st.pins.some((id) => ['A-1003', 'A-1006', 'D-2001', 'P-3001'].includes(id)) },
+  { id: 'disp-tp', tab: 'alerts', target: '[data-m03e-select="practice:alert:ALT-3101"]', title: 'Call the alert: true positive', body: 'Triage ends with a call on each alert, plus your reasons. There are four dispositions: true positive (real and harmful), benign positive (real, but approved or harmless), false positive (the rule’s condition was not actually present), and needs investigation (the data to decide has not arrived or is incomplete).', task: 'Open ALT-3101. In the Your disposition panel choose a disposition, write why, and record it.', lookFor: 'Your reason should cite evidence: the account, the session, and whether anything approves it. Use the Hint button if you are stuck.',
+    check: (st) => m03eDispositionsCorrect(st, ['ALT-3101']) },
+  { id: 'disp-benign', tab: 'alerts', target: '[data-m03e-select="practice:alert:ALT-3102"]', title: 'Call the lookalikes', body: 'Two more alerts fired. An alert can be real and still harmless: the condition happened, but an ordinary explanation fits. Check the evidence before you call them.', task: 'Record a disposition with reasoning for ALT-3102 (h.diaz) and ALT-3103 (billing-app heartbeat).', lookFor: 'Did the rule’s condition really occur, and does anything suggest harm or lost data?',
+    check: (st) => m03eDispositionsCorrect(st, ['ALT-3102', 'ALT-3103']) },
+  { id: 'disp-false', tab: 'alerts', target: '[data-m03e-select="practice:alert:ALT-3105"]', title: 'Compare the rule with the record', body: 'A false positive is not just a harmless alert. It is an alert whose condition was never true. The only way to tell is to read the raw record the rule fired on.', task: 'Open ALT-3105, read the raw AuthLog record for svc-billing, then record your disposition and reasoning.', lookFor: 'What does the rule require, and what does the raw record actually say?',
+    check: (st) => m03eDispositionsCorrect(st, ['ALT-3105']) },
+  { id: 'disp-ni', tab: 'alerts', target: '[data-m03e-select="practice:alert:ALT-3104"]', title: 'Know when you cannot call it yet', body: 'Sometimes the data you need has not arrived. Calling the alert malicious or harmless without it is a guess. When telemetry cannot yet support a conclusion, the supported call is needs investigation, with a note of what is missing and what you will re-check.', task: 'Open ALT-3104 (c.ortega). Decide whether the data supports a call, then record your disposition and reasoning.', lookFor: 'Compare the alert time with the collector delay you checked earlier. What would settle this alert, and is it in the data yet?',
+    check: (st) => m03eDispositionsCorrect(st, ['ALT-3104']) },
   { id: 'handoff', tab: 'itsm', target: '.m01-ticket-notes', title: 'Write the analyst handoff', body: 'State the correlated sequence, explain why the 09:10 svc-backup restart is excluded, and name one unresolved question or next check.', task: 'Write the handoff in the ITSM ticket work notes. Include acct-428, S-8841, CHG-221, and a scope limit or next step.', lookFor: 'A bounded, reproducible handoff rather than a verdict without evidence.',
     check: () => /acct-428/.test(m03eState('practice').determination.notes || '') && /S-8841/.test(m03eState('practice').determination.notes || '') && /CHG-221/.test(m03eState('practice').determination.notes || '') && /svc-backup/.test(m03eState('practice').determination.notes || '') && /(approved|separate|exclud)/i.test(m03eState('practice').determination.notes || '') && (m03eState('practice').determination.notes || '').trim().length >= 50 },
   { id: 'decide', tab: 'itsm', target: '.m01-ticket-grid', title: 'Scope and decide', body: 'Use the linked records and the approved lookalike to bound the incident before routing the response.', task: 'Set the ticket severity, disposition, escalation, and department to match the evidence.', lookFor: 'A response scoped to acct-428 and session S-8841, with the approved restart excluded.', check: (st) => Boolean(st.determination?.severity && st.determination?.verdict && st.determination?.escalation) },
@@ -501,9 +577,12 @@ function moduleThreeScoreAssessment(work) {
 /* ------------------------------------------------------------ state */
 
 const M03E_SCOPE_DEFAULT = { tab: 'alerts', query: '', lastQuery: '', selected: null, pins: [], seen: [], queryLog: [], timelineEntity: '', entityKind: 'account' };
-const M03E_PRACTICE_DEFAULT = { ...M03E_SCOPE_DEFAULT, guideStep: 0, guideCollapsed: false, determination: m03eNormalizeDetermination({}) };
+const M03E_PRACTICE_DEFAULT = { ...M03E_SCOPE_DEFAULT, guideStep: 0, guideCollapsed: false, determination: m03eNormalizeDetermination({}), dispositions: {} };
 const M03E_PROVE_DEFAULT = { ...M03E_SCOPE_DEFAULT, determination: m03eNormalizeDetermination({}), startedAt: '', submittedAt: '', attempts: 0, submitMessage: '' };
 
+// Guide steps before 'disp-tp' in the original 15-step guide: handoff was index 12.
+const M03E_OLD_HANDOFF_INDEX = 12;
+const M03E_DISPOSITION_STEP_COUNT = 4;
 const M03E_STATE_DEFAULTS = { practice: M03E_PRACTICE_DEFAULT, prove: M03E_PROVE_DEFAULT };
 const m03eStateAdapter = SocConsoleCore.createStateAdapter({
   containerKey: 'console',
@@ -511,6 +590,18 @@ const m03eStateAdapter = SocConsoleCore.createStateAdapter({
   normalizeState(st, scope) {
     ['pins', 'seen', 'queryLog'].forEach((key) => { if (!Array.isArray(st[key])) st[key] = []; });
     if (scope === 'prove' || scope === 'practice') st.determination = m03eNormalizeDetermination(st.determination);
+    if (scope === 'practice') {
+      // Per-alert dispositions (Sprint 3). Older saved practice state has none.
+      st.dispositions = m03eNormalizeDispositions(st.dispositions);
+      // Four disposition steps were inserted before 'handoff'. A learner saved
+      // at or past the old handoff step keeps their place by shifting forward.
+      // Only guideVersion 2 saves use the 15-step numbering; version 0 is the
+      // former 12-step guide, which soc-analyst-module-03.js reads as-is.
+      if (Number(st.guideVersion) === 2) {
+        if (Number(st.guideStep) >= M03E_OLD_HANDOFF_INDEX) st.guideStep = Number(st.guideStep) + M03E_DISPOSITION_STEP_COUNT;
+        st.guideVersion = 3;
+      }
+    }
     if (scope === 'practice' && !st.determination.submitted && Number(st.guideStep) >= M03E_GUIDE_STEPS.length) st.guideStep = M03E_GUIDE_STEPS.length - 1;
   },
 });
@@ -697,6 +788,36 @@ function m03eNativeRecord(row) {
   return JSON.stringify(obj, null, 1);
 }
 
+// Practice-only "Your disposition" panel for the selected alert: choose one of
+// the four dispositions, write the reasoning, get instant feedback and
+// progressive hints. Nothing here is scored; it feeds the guide-step checks.
+function m03eDispositionPanel(scope, alert) {
+  if (scope !== 'practice' || !M03E_PRACTICE_DISPOSITIONS[alert.id]) return '';
+  const st = m03eState('practice');
+  const key = M03E_PRACTICE_DISPOSITIONS[alert.id];
+  const rec = (st.dispositions && st.dispositions[alert.id]) || { value: '', reason: '', attempts: 0, hints: 0, result: '', correct: false };
+  const locked = rec.correct;
+  const hintCount = Math.min(rec.hints, key.hints.length);
+  const feedback = rec.result === 'correct' ? `<p class="m03e-disp-feedback is-correct" role="status"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i> ${esc(M03E_DISPOSITION_LABEL[rec.value])} is supported. ${esc(key.why)}</p>`
+    : rec.result === 'wrong' ? `<p class="m03e-disp-feedback" role="status">Not supported by the evidence yet. Re-read the records, then try again. A hint has been added below.</p>`
+    : rec.result === 'reasoning' ? `<p class="m03e-disp-feedback" role="status">That call fits, but write at least ${M03E_DISPOSITION_REASON_MIN} characters of reasoning that cites the evidence.</p>`
+    : rec.result === 'missing-data' ? '<p class="m03e-disp-feedback" role="status">That call fits. Now say which data is missing and what you will re-check.</p>' : '';
+  const hints = key.hints.slice(0, hintCount).map((h, i) => `<li><strong>Hint ${i + 1}.</strong> ${esc(h)}</li>`).join('');
+  return `<section class="m03e-disp" aria-label="Your disposition">
+    <h4>Your disposition</h4>
+    <label class="m03e-disp-label" for="m03e-disp-value">Disposition</label>
+    <select id="m03e-disp-value" data-m03e-disp-value="${esc(alert.id)}"${locked ? ' disabled' : ''}>
+      <option value="">Choose…</option>${M03E_ALERT_DISPOSITIONS.map((o) => `<option value="${o.id}"${rec.value === o.id ? ' selected' : ''}>${esc(o.text)}</option>`).join('')}
+    </select>
+    <label class="m03e-disp-label" for="m03e-disp-reason">Evidence and reasoning</label>
+    <textarea id="m03e-disp-reason" rows="3" data-m03e-disp-reason="${esc(alert.id)}" placeholder="Cite the records, accounts or sources that support your call."${locked ? ' disabled' : ''}>${esc(rec.reason)}</textarea>
+    ${locked ? '' : `<button type="button" data-m03e-disp-save="${esc(alert.id)}"><i class="ri-check-line" aria-hidden="true"></i> Record disposition</button>
+    <button type="button" data-m03e-disp-hint="${esc(alert.id)}"${hintCount >= key.hints.length ? ' disabled' : ''}><i class="ri-lightbulb-line" aria-hidden="true"></i> ${hintCount ? 'Next hint' : 'Show a hint'}</button>`}
+    ${feedback}
+    ${hints ? `<ol class="m03e-disp-hints">${hints}</ol>` : ''}
+  </section>`;
+}
+
 function m03eDrawer(scope) {
   const st = m03eState(scope), data = M03E_DATA[scope];
   const sel = st.selected;
@@ -720,7 +841,7 @@ function m03eDrawer(scope) {
         timelineAction: timelineBtn,
         renderField: m03eField,
         escapeHtml: esc,
-      }) + (M03E_MOUNTS[scope]?.alertDetailHtml?.(a) || '');
+      }) + m03eDispositionPanel(scope, a) + (M03E_MOUNTS[scope]?.alertDetailHtml?.(a) || '');
     }
   }
   if (sel?.type === 'record') {
@@ -806,6 +927,7 @@ function m03eGuideBar() {
       { name: 'Affected user', status: st.determination.affectedUser ? 'captured' : 'missed', note: st.determination.affectedUser },
       { name: 'Affected device', status: st.determination.affectedDevice ? 'contributing' : 'missed', note: st.determination.affectedDevice || 'Host context supports the investigation; the case does not establish a compromised endpoint.' },
       { name: 'Disposition / severity', status: st.determination.verdict && st.determination.severity ? 'captured' : 'missed', note: [st.determination.verdict, st.determination.severity].filter(Boolean).join(' · ') },
+      { name: 'Alert dispositions', status: m03eDispositionsCorrect(st, Object.keys(M03E_PRACTICE_DISPOSITIONS)) ? 'captured' : 'missed', note: Object.keys(M03E_PRACTICE_DISPOSITIONS).filter((id) => st.dispositions?.[id]?.correct).length + ' of ' + Object.keys(M03E_PRACTICE_DISPOSITIONS).length + ' alerts called with supported reasoning, including one needs-investigation.' },
       { name: 'Escalation', status: st.determination.escalation ? 'captured' : 'missed', note: st.determination.escalateTo },
       { name: 'Work notes', status: st.determination.notes ? 'captured' : 'missed', note: st.determination.notes ? 'Submitted with the ticket.' : '' },
     ],
@@ -1038,7 +1160,7 @@ function moduleThreeAssessmentLabPanel() {
 /* ------------------------------------------------------------ actions */
 
 function m03eSave(scope) {
-  if (scope === 'practice') m03eState('practice').guideVersion = 2;
+  if (scope === 'practice') m03eState('practice').guideVersion = 3;
   if (M03E_MOUNTS[scope]) M03E_MOUNTS[scope].save(); else moduleThreeSave();
 }
 function m03eDomId(scope, id) { const prefix = M03E_MOUNTS[scope]?.idPrefix; return prefix ? `${prefix}-${id}` : id; }
@@ -1140,6 +1262,7 @@ function m03eHandleClick(scope, ev) {
     m03eSave(scope); m03eRender(scope, { keepEditor: true });
     return;
   }
+  if (scope === 'practice' && (d.m03eDispSave || d.m03eDispHint)) { m03eRecordDisposition(d.m03eDispSave || d.m03eDispHint, Boolean(d.m03eDispHint)); return; }
   if (d.m03eTab) { m03eGoTo(scope, d.m03eTab.split(':')[1]); return; }
   if (d.m03eEntitykind) { st.entityKind = d.m03eEntitykind.split(':')[1]; m03eSave(scope); m03eRender(scope); return; }
   if (d.m03eRun != null) { m03eRun(scope); return; }
@@ -1172,9 +1295,48 @@ function m03eHandleClick(scope, ev) {
   if (el.hasAttribute('data-m03e-practice-restart')) { m03eRestartPractice(); return; }
 }
 
+// Drafts of the disposition form are kept as the learner edits; nothing is
+// evaluated until they press Record. Editing clears the previous feedback.
+function m03eDispositionDraft(alertId, field, value) {
+  const st = m03eState('practice');
+  if (!st.dispositions) st.dispositions = {};
+  const rec = st.dispositions[alertId] || (st.dispositions[alertId] = m03eNormalizeDispositions({ [alertId]: {} })[alertId]);
+  if (rec.correct) return;
+  rec[field] = value;
+  rec.result = '';
+  m03eSave('practice');
+}
+
+function m03eRecordDisposition(alertId, hintOnly) {
+  const st = m03eState('practice');
+  const key = M03E_PRACTICE_DISPOSITIONS[alertId];
+  if (!key) return;
+  if (!st.dispositions) st.dispositions = {};
+  const rec = st.dispositions[alertId] || (st.dispositions[alertId] = m03eNormalizeDispositions({ [alertId]: {} })[alertId]);
+  if (hintOnly) {
+    rec.hints = Math.min(key.hints.length, rec.hints + 1);
+  } else {
+    const hasDom = typeof document !== 'undefined';
+    const valueEl = hasDom && document.querySelector(`[data-m03e-disp-value="${alertId}"]`);
+    const reasonEl = hasDom && document.querySelector(`[data-m03e-disp-reason="${alertId}"]`);
+    if (valueEl) rec.value = valueEl.value;
+    if (reasonEl) rec.reason = reasonEl.value;
+    if (!rec.value) return;
+    rec.attempts += 1;
+    rec.result = m03eEvaluateDisposition(alertId, rec.value, rec.reason);
+    rec.correct = rec.result === 'correct';
+    // A wrong call earns the next hint automatically (progressive support).
+    if (rec.result === 'wrong') rec.hints = Math.min(key.hints.length, rec.hints + 1);
+    st.determination.actionHistory.push({ action: `Recorded disposition ${M03E_DISPOSITION_LABEL[rec.value]} for ${alertId}${rec.correct ? '' : ' (not yet supported)'}`, at: new Date().toISOString() });
+  }
+  m03eSave('practice');
+  if (typeof document !== 'undefined') m03eRender('practice');
+}
+
 function m03eHandleChange(scope, ev) {
   const st = m03eState(scope);
   const t = ev.target;
+  if (scope === 'practice' && t.matches('[data-m03e-disp-value]')) { m03eDispositionDraft(t.dataset.m03eDispValue, 'value', t.value); m03eRender(scope, { keepEditor: true }); return; }
   if (t.matches('[data-m03e-timeline]')) { st.timelineEntity = t.value; if (t.value) m03eSeen(st, `timeline:${t.value}`); m03eSave(scope); m03eRender(scope); }
 }
 
@@ -1363,6 +1525,7 @@ function wireModuleThreeConsole() {
       }
     });
     section.addEventListener('input', (ev) => {
+      if (scope === 'practice' && ev.target.matches('[data-m03e-disp-reason]')) { m03eDispositionDraft(ev.target.dataset.m03eDispReason, 'reason', ev.target.value); return; }
       if (ev.target.id === m03eDomId(scope, `m03e-kql-${scope}`)) { m03eState(scope).query = ev.target.value; m03eSave(); return; }
       if (ev.target.matches('[data-m03-practice-notes]')) {
         moduleThreeState.practiceNotes = ev.target.value;

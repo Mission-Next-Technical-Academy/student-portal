@@ -903,11 +903,16 @@ function adminAttemptReviewCard(item, olderAttempt) {
   // Modules without a case ticket (M11 shift assessment) carry the learner's
   // work only in action_history; show it readably so there is something to review.
   const studentActions = row.result && !row.result.case_display && Array.isArray(row.result.action_history) ? row.result.action_history : [];
+  const dispositionLabel = (value) => ({ true_positive: 'True positive', benign_positive: 'Benign positive', false_positive: 'False positive', needs_investigation: 'Needs investigation',
+    'true-positive': 'True positive', 'benign-positive': 'Benign positive', 'false-positive': 'False positive', 'needs-investigation': 'Needs investigation' }[value] || String(value || '—'));
   const actionText = (value) => (Array.isArray(value) ? value.map(actionText).join(', ')
     : value && typeof value === 'object' ? Object.entries(value).map(([k, v]) => `${k}: ${actionText(v)}`).join('; ') : String(value ?? ''));
   const studentWorkPanel = studentActions.length ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3">
       <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Student work (${esc(String(studentActions.length))} recorded actions)</p>
-      <ol class="space-y-2 text-sm list-decimal pl-5">${studentActions.map((action) => `<li><strong class="text-[#1e3a5f]">${esc(String(action.type || '').replace(/_/g, ' '))}</strong> <span class="text-gray-700">${esc(actionText(action.details).slice(0, 1200))}</span></li>`).join('')}</ol>
+      <ol class="space-y-2 text-sm list-decimal pl-5">${studentActions.map((action) => (action.type === 'disposition' && action.details && typeof action.details === 'object'
+        // Per-alert dispositions read as "Q-13: Needs investigation" plus the learner's full reasoning, not a key/value dump.
+        ? `<li><strong class="text-[#1e3a5f]">Alert disposition</strong> <span class="text-gray-700"><span class="font-semibold">${esc(String(action.details.itemId || ''))}: ${esc(dispositionLabel(action.details.disposition))}</span>${action.details.reason ? ` &mdash; ${esc(String(action.details.reason))}` : ''}</span></li>`
+        : `<li><strong class="text-[#1e3a5f]">${esc(String(action.type || '').replace(/_/g, ' '))}</strong> <span class="text-gray-700">${esc(actionText(action.details).slice(0, 1200))}</span></li>`)).join('')}</ol>
     </div>` : '';
   // Module 04 records a verdict and written reasoning per indicator; show them in full beside the rubric.
   const intelVerdicts = row.result && row.result.review_payload && Array.isArray(row.result.review_payload.intelligenceVerdicts)

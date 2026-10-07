@@ -1048,7 +1048,7 @@ function moduleElevenConsoleData(fixture = SocM11AssessmentData) {
     // null while unassigned.
     EventType: item.kind, AlertTitle: item.title, Host: item.host, Account: 'siem-rules', AssigneeId: item.assigneeId || null, Result: item.status,
     Severity: item.severity, RuleId: item.ruleId, BusinessImpact: item.businessImpact,
-    Detail: `SLA ${item.slaMinutes} minutes; queue position ${index + 1}`,
+    Detail: `SLA ${item.slaMinutes} minutes; queue position ${index + 1}${item.evidenceNote ? `. ${item.evidenceNote}` : ''}`,
   })).concat(s.incident.recoveryEvidence.map((e) => m03eRow('RecoveryRecords', e.id, e.time.slice(0, 10), e.time.slice(11, 19), {
     EventType: 'RecoveryValidation', Host: /file-share/i.test(e.summary) ? s.incident.entities.find((id) => id.startsWith('fs-')) : s.incident.entities.find((id) => id.startsWith('ws-')), Account: 'soc-analyst', Result: e.status, Detail: e.summary,
   }))).concat(moduleElevenOperationalRows(s));
@@ -1079,14 +1079,29 @@ function moduleElevenOperationalRows(s) {
   let n = 0;
   const nextId = (code) => `${prefix}-${code}-${String(++n).padStart(3, '0')}`;
   const queue = s.queue.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  queue.forEach((item) => {
-    const base = { Host: 'ticketing-01', RuleId: item.ruleId, QueueId: item.id, Severity: item.severity };
-    rows.push(row('QueueActivity', nextId('QA'), item.createdAt, { ...base, EventType: 'AlertCreated', Account: 'siem-rules', Result: 'new', IngestionTime: plus(item.createdAt, 15), Detail: `${item.id} created by rule ${item.ruleId}; SLA ${item.slaMinutes} minutes.` }));
-    if (item.acknowledgedAt) rows.push(row('QueueActivity', nextId('QA'), item.acknowledgedAt, { ...base, EventType: 'AlertAcknowledged', Account: item.assigneeId || 'soc-analyst', Result: 'acknowledged', IngestionTime: plus(item.acknowledgedAt, 15), Detail: `${item.id} acknowledged ${Math.round((Date.parse(item.acknowledgedAt) - Date.parse(item.createdAt)) / 60000)} minutes after creation.` }));
-    if (item.containedAt) rows.push(row('QueueActivity', nextId('QA'), item.containedAt, { ...base, EventType: 'ContainmentRecorded', Account: item.assigneeId || 'soc-analyst', Result: 'contained', IngestionTime: plus(item.containedAt, 15), Detail: `Containment timestamp recorded for ${item.id}.` }));
+  // Items added after the original fixture (lateAdded) are emitted last so every earlier generated EventId, and any
+  // evidence a learner already pinned, keeps its meaning.
+  const queueRows = (item, base) => {
+    const out = [];
+    out.push(row('QueueActivity', nextId('QA'), item.createdAt, { ...base, EventType: 'AlertCreated', Account: 'siem-rules', Result: 'new', IngestionTime: plus(item.createdAt, 15), Detail: `${item.id} created by rule ${item.ruleId}; SLA ${item.slaMinutes} minutes.` }));
+    if (item.acknowledgedAt) out.push(row('QueueActivity', nextId('QA'), item.acknowledgedAt, { ...base, EventType: 'AlertAcknowledged', Account: item.assigneeId || 'soc-analyst', Result: 'acknowledged', IngestionTime: plus(item.acknowledgedAt, 15), Detail: `${item.id} acknowledged ${Math.round((Date.parse(item.acknowledgedAt) - Date.parse(item.createdAt)) / 60000)} minutes after creation.` }));
+    if (item.containedAt) out.push(row('QueueActivity', nextId('QA'), item.containedAt, { ...base, EventType: 'ContainmentRecorded', Account: item.assigneeId || 'soc-analyst', Result: 'contained', IngestionTime: plus(item.containedAt, 15), Detail: `Containment timestamp recorded for ${item.id}.` }));
     if (item.severity === 'critical' || item.severity === 'high') {
-      rows.push(row('OnCallPages', nextId('PG'), plus(item.createdAt, 30), { Host: 'paging-01', RuleId: item.ruleId, QueueId: item.id, EventType: 'PageSent', Account: 'on-call-router', Result: 'delivered', Detail: `${item.severity} alert ${item.id} paged to the on-call analyst group.` }));
+      out.push(row('OnCallPages', nextId('PG'), plus(item.createdAt, 30), { Host: 'paging-01', RuleId: item.ruleId, QueueId: item.id, EventType: 'PageSent', Account: 'on-call-router', Result: 'delivered', Detail: `${item.severity} alert ${item.id} paged to the on-call analyst group.` }));
     }
+    return out;
+  };
+  const lateQueue = queue.filter((item) => item.lateAdded);
+  const appendLateQueueRows = () => lateQueue.forEach((item) => {
+    const base = { Host: 'ticketing-01', RuleId: item.ruleId, QueueId: item.id, Severity: item.severity };
+    rows.push(...queueRows(item, base));
+    if (item.assigneeId && item.acknowledgedAt) {
+      rows.push(row('QueueActivity', nextId('QA'), plus(item.acknowledgedAt, -60), { ...base, EventType: 'AlertAssigned', Account: item.assigneeId, Result: 'assigned', IngestionTime: plus(item.acknowledgedAt, -45), Detail: `${item.id} assigned to ${item.assigneeId}.` }));
+    }
+  });
+  queue.filter((item) => !item.lateAdded).forEach((item) => {
+    const base = { Host: 'ticketing-01', RuleId: item.ruleId, QueueId: item.id, Severity: item.severity };
+    rows.push(...queueRows(item, base));
   });
   // Rule execution windows (30 minutes). AlertsRaised is counted from the queue; evaluated volume is stable per rule.
   // Seven full 30-minute windows from shift start plus a final partial window that closes with the last queued alert.
@@ -1112,8 +1127,8 @@ function moduleElevenOperationalRows(s) {
   ops.shiftLog.forEach((e) => rows.push(row('ShiftLog', nextId('SL'), e.time, { Host: 'soc-console', EventType: e.type, Account: e.actor, Result: 'recorded', Detail: e.detail })));
   // Sprint 7 density: supplemental background, appended so the rows above keep their EventIds. Purpose tags stay in the fixture.
   const extra = ops.supplemental;
-  if (!extra) return rows;
-  queue.filter((item) => item.assigneeId && item.acknowledgedAt).forEach((item) => {
+  if (!extra) { appendLateQueueRows(); return rows; }
+  queue.filter((item) => item.assigneeId && item.acknowledgedAt && !item.lateAdded).forEach((item) => {
     rows.push(row('QueueActivity', nextId('QA'), plus(item.acknowledgedAt, -60), { Host: 'ticketing-01', RuleId: item.ruleId, QueueId: item.id, Severity: item.severity, EventType: 'AlertAssigned', Account: item.assigneeId, Result: 'assigned', IngestionTime: plus(item.acknowledgedAt, -45), Detail: `${item.id} assigned to ${item.assigneeId}.` }));
   });
   extra.pageAcknowledgements.forEach((p) => {
@@ -1126,6 +1141,7 @@ function moduleElevenOperationalRows(s) {
       Detail: `${c.collector}: ${c.status}; ingestion lag ${c.ingestionLagSeconds} seconds; ${c.eventsPerMinute} events per minute.` }));
   });
   extra.shiftLog.forEach((e) => rows.push(row('ShiftLog', nextId('SL'), e.time, { Host: 'soc-console', EventType: e.type, Account: e.actor, Result: 'recorded', Detail: e.detail })));
+  appendLateQueueRows();
   return rows;
 }
 function moduleElevenToolFixtures(data, fixture = SocM11AssessmentData) {
@@ -1155,10 +1171,15 @@ function moduleElevenOpsHtml(fixture = SocM11AssessmentData, state = moduleEleve
   const s = fixture.scenario;
   const metrics = SocM11AssessmentMetrics.compute(fixture, state);
   const itemOptions = s.queue.map((x) => `<option value="${esc(x.id)}">${esc(x.id)} · ${esc(x.title)}</option>`).join('');
+  const openItems = s.queue.filter((x) => x.status !== 'closed');
+  const dispositionItemOptions = openItems.map((x) => `<option value="${esc(x.id)}">${esc(x.id)} · ${esc(x.title)}</option>`).join('');
+  const dispositionOptions = SocM11AssessmentState.DISPOSITIONS.map((id) => `<option value="${esc(id)}">${esc(SocM11AssessmentState.DISPOSITION_LABELS[id])}</option>`).join('');
+  const recordedDispositions = Object.entries(state.dispositions || {});
   const analystOptions = s.analysts.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
   const ownerOptions = [...s.analysts.map((x) => ({ id: x.id, name: x.name })), ...s.ownerIds.map((id) => ({ id, name: id }))].map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
   return `<section class="m03-console-extra"><h3>Shift Operations</h3><p>Prioritize the live queue, assign work, and record the handoff for the incoming shift.</p>
     <form data-m11-operation="priority"><label>Priority order (highest first)<input name="order" required placeholder="${esc(s.queue.slice(1, 4).map((item) => item.id).join(', '))}"></label><button>Save order</button></form>
+    <form data-m11-operation="disposition"><h4>Alert disposition</h4><label>Queue item<select name="itemId">${dispositionItemOptions}</select></label><label>Disposition<select name="disposition">${dispositionOptions}</select></label><label>Evidence and reasoning<textarea name="reason" required minlength="10" maxlength="1000"></textarea></label><button>Record disposition</button>${recordedDispositions.length ? `<ul class="m11-recorded-dispositions" aria-label="Dispositions you have recorded">${recordedDispositions.map(([id, d]) => `<li><strong>${esc(id)}</strong> · ${esc(SocM11AssessmentState.DISPOSITION_LABELS[d.disposition] || d.disposition)}: ${esc(d.reason)}</li>`).join('')}</ul>` : ''}</form>
     <form data-m11-operation="assign"><label>Queue item<select name="itemId">${itemOptions}</select></label><label>Assign to<select name="analystId">${analystOptions}</select></label><button>Assign</button></form>
     <form data-m11-operation="escalate"><label>Queue item<select name="itemId">${itemOptions}</select></label><label>Route<select name="route">${s.escalationRoutes.map((r) => `<option value="${esc(r.id)}">${esc(r.label)}</option>`).join('')}</select></label><label>Reason<textarea name="reason" required minlength="10"></textarea></label><button>Escalate</button></form>
     <form data-m11-operation="metrics"><label>Metric interpretation<textarea name="text" required minlength="40"></textarea></label><button>Record interpretation</button></form>
@@ -1247,6 +1268,7 @@ function moduleElevenWireConsole(root = document.getElementById('m03e-console-m1
       if (form.dataset.m11Report) state = SocM11AssessmentState.report(state, fixture, form.dataset.m11Report, d, at);
       else switch (form.dataset.m11Operation) {
         case 'priority': state = SocM11AssessmentState.setPriority(state, fixture, d.order.split(',').map((x) => x.trim()).filter(Boolean), at); break;
+        case 'disposition': state = SocM11AssessmentState.recordDisposition(state, fixture, d.itemId, d.disposition, d.reason, at); break;
         case 'assign': state = SocM11AssessmentState.assign(state, fixture, d.itemId, d.analystId, at); break;
         case 'escalate': state = SocM11AssessmentState.escalate(state, fixture, d.itemId, d.route, d.reason, at); break;
         case 'metrics': state = SocM11AssessmentState.recordMetricInterpretation(state, fixture, d.text, at); break;

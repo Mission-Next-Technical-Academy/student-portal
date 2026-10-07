@@ -10,7 +10,10 @@ const SocM11AssessmentState = (() => {
   const REPORT_KINDS = ['technical', 'executive', 'escalation', 'closure'];
   const REPORT_FIELDS = ['summary', 'confirmedScope', 'unknowns', 'businessImpact', 'containmentStatus', 'recoveryStatus', 'residualRisk'];
   const IMPROVEMENT_KINDS = ['lesson', 'detection', 'follow_up'];
-  const TYPES = ['assign', 'escalate', 'priority', 'metric_interpretation', 'noisy_rule', 'handoff', 'report', 'improvement_action', 'closure_decision'];
+  // Per-alert dispositions (internal underscore form; DISPOSITION_LABELS is the learner-facing text).
+  const DISPOSITIONS = ['true_positive', 'benign_positive', 'false_positive', 'needs_investigation'];
+  const DISPOSITION_LABELS = Object.freeze({ true_positive: 'True positive', benign_positive: 'Benign positive', false_positive: 'False positive', needs_investigation: 'Needs investigation' });
+  const TYPES = ['assign', 'escalate', 'priority', 'metric_interpretation', 'noisy_rule', 'handoff', 'report', 'improvement_action', 'closure_decision', 'disposition'];
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
   function deepFreeze(value) {
@@ -50,7 +53,7 @@ const SocM11AssessmentState = (() => {
 
   function emptyProjection() {
     return { priorityOrder: [], assignments: {}, escalations: [], interpretations: [], noisyRules: [], handoffs: [],
-      reports: {}, improvementActions: [], closure: null };
+      reports: {}, improvementActions: [], closure: null, dispositions: {} };
   }
 
   // Validate one action's details against the fixture and fold it into the projection.
@@ -68,6 +71,14 @@ const SocM11AssessmentState = (() => {
       if (!scenario.escalationRoutes.some((route) => route.id === details.route)) throw new Error('M11 escalation route is unknown.');
       const record = { itemId, route: details.route, reason: text(details.reason, 'escalation reason', 10, 500) };
       projection.escalations.push(record);
+      return record;
+    }
+    if (type === 'disposition') {
+      const itemId = list([details.itemId], 'disposition item', { min: 1, max: 1, allowed: open })[0];
+      if (!DISPOSITIONS.includes(details.disposition)) throw new Error('M11 disposition must be true positive, benign positive, false positive or needs investigation.');
+      // Structure only: correctness is never checked here, so nothing about the answer is revealed before submission.
+      const record = { itemId, disposition: details.disposition, reason: text(details.reason, 'disposition reasoning', 10, 1000) };
+      projection.dispositions[itemId] = { disposition: record.disposition, reason: record.reason };
       return record;
     }
     if (type === 'priority') {
@@ -179,10 +190,18 @@ const SocM11AssessmentState = (() => {
   const setPriority = (state, fixture, orderedItemIds, timestamp) => record(state, fixture, 'priority', { order: orderedItemIds }, timestamp);
   const recordMetricInterpretation = (state, fixture, interpretation, timestamp) => record(state, fixture, 'metric_interpretation', { text: interpretation }, timestamp);
   const flagNoisyRule = (state, fixture, ruleId, rationale, improvement, timestamp) => record(state, fixture, 'noisy_rule', { ruleId, rationale, improvement }, timestamp);
+  const recordDisposition = (state, fixture, itemId, disposition, reason, timestamp) => record(state, fixture, 'disposition', { itemId, disposition, reason }, timestamp);
   const handoff = (state, fixture, input, timestamp) => record(state, fixture, 'handoff', input, timestamp);
   const report = (state, fixture, kind, fields, timestamp) => record(state, fixture, 'report', { ...fields, kind }, timestamp);
   const improvementAction = (state, fixture, input, timestamp) => record(state, fixture, 'improvement_action', input, timestamp);
   const closureDecision = (state, fixture, input, timestamp) => record(state, fixture, 'closure_decision', input, timestamp);
+
+  function sameValue(a, b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length && keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && sameValue(a[key], b[key]));
+  }
 
   function runtime() {
     if (typeof LabRuntime === 'undefined') throw new Error('LabRuntime is required to access M11 assessment state.');
@@ -192,7 +211,8 @@ const SocM11AssessmentState = (() => {
     const key = scenarioOf(fixture).stateKey;
     const current = runtime().loadCaseState(key, MODULE_KEY, user, {});
     const normalized = normalize(current, fixture);
-    if (JSON.stringify(current) !== JSON.stringify(normalized)) runtime().saveCaseState(key, MODULE_KEY, user, normalized);
+    // Saved state round-trips through Postgres jsonb, which reorders object keys: compare structurally, never by serialized text.
+    if (!sameValue(current, normalized)) runtime().saveCaseState(key, MODULE_KEY, user, normalized);
     return normalized;
   }
   function save(user, state, fixture) {
@@ -205,8 +225,8 @@ const SocM11AssessmentState = (() => {
   }
 
   return Object.freeze({
-    VERSION, MODULE_KEY, MAX_ACTION_HISTORY, TYPES, REPORT_KINDS, IMPROVEMENT_KINDS,
-    normalize, assign, escalate, setPriority, recordMetricInterpretation, flagNoisyRule, handoff, report, improvementAction, closureDecision,
+    VERSION, MODULE_KEY, MAX_ACTION_HISTORY, TYPES, REPORT_KINDS, IMPROVEMENT_KINDS, DISPOSITIONS, DISPOSITION_LABELS,
+    normalize, assign, escalate, setPriority, recordMetricInterpretation, flagNoisyRule, recordDisposition, handoff, report, improvementAction, closureDecision,
     load, save, reset,
   });
 })();

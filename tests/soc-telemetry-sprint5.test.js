@@ -148,11 +148,11 @@ vm.runInContext(`${between(m11Src, 'function moduleElevenConsoleData(', 'functio
   validate('M11 guided', g.events.filter((e) => e.EventSource !== 'AlertQueue'), local(GUIDED.scenario));
   assert.ok(events.length >= 60 && events.length <= 120, `M11 events in band (${events.length})`);
   assert.strictEqual(new Set(a.events.map((e) => e.EventId)).size, a.events.length);
-  assert.strictEqual(s.queue.length, 12, 'queue unchanged');
+  assert.strictEqual(s.queue.length, 13, 'queue is the original twelve plus Q-13 (Sprint 3 needs-investigation item)');
   // Entity identity (phase 2): AlertQueue Host is a hostname token, the title lives in AlertTitle, no placeholder accounts.
   for (const built of [a, g]) {
     const aq = built.events.filter((e) => e.EventSource === 'AlertQueue');
-    assert.strictEqual(aq.length, 12);
+    assert.strictEqual(aq.length, 13);
     aq.forEach((row) => {
       assert.match(row.Host, /^[a-z0-9][a-z0-9._-]*$/, `${row.EventId} Host is a host token`);
       assert.ok(row.AlertTitle && row.AlertTitle !== row.Host, `${row.EventId} keeps its title in AlertTitle`);
@@ -164,13 +164,13 @@ vm.runInContext(`${between(m11Src, 'function moduleElevenConsoleData(', 'functio
 
   // Scored truth is untouched.
   const m = Metrics.compute(M11, {});
-  assert.strictEqual(m.alertVolume, 12); assert.strictEqual(m.backlog, 7);
+  assert.strictEqual(m.alertVolume, 13); assert.strictEqual(m.backlog, 8);
   assert.strictEqual(m.mttaMinutes, 17.3); assert.strictEqual(m.mttrMinutes, 46.7);
 
   // Queue-derived operational rows agree with the queue.
   const tableOf = (name) => a.events.filter((e) => e.EventSource === name);
   const created = tableOf('QueueActivity').filter((e) => e.EventType === 'AlertCreated');
-  assert.strictEqual(created.length, 12);
+  assert.strictEqual(created.length, 13);
   s.queue.forEach((q) => assert.strictEqual(created.find((e) => e.QueueId === q.id).TimeGenerated, q.createdAt));
   assert.strictEqual(tableOf('QueueActivity').filter((e) => e.EventType === 'AlertAcknowledged').length, s.queue.filter((q) => q.acknowledgedAt).length);
   const runs = tableOf('RuleRuns');

@@ -52,10 +52,10 @@ const SocM11AssessmentData = (() => {
     dailyMetrics: DAILY.map(([day, counts, analysts, mtta, mttc, sla, backlog, note]) => ({
       id: `M11-DAY-${day.slice(5).replace('-', '')}`, windowStart: `${day}T00:00:00Z`, windowEnd: `${day}T23:59:59Z`, windowType: 'full UTC day',
       alertVolume: counts.reduce((a, b) => a + b, 0), analystsOnShift: analysts, mttaMinutes: mtta, mttcMinutes: mttc, slaAttainmentPct: sla, backlogAtWindowEnd: backlog, note,
-    })).concat([{ id: 'M11-DAY-0927', windowStart: t('08:00'), windowEnd: t('12:00'), windowType: 'partial: current shift only', alertVolume: 12, analystsOnShift: 4, mttaMinutes: 17.3, mttcMinutes: 46.7, slaAttainmentPct: 77.8, backlogAtWindowEnd: 7, note: 'In progress; same fixed shift as the queue.' }]),
+    })).concat([{ id: 'M11-DAY-0927', windowStart: t('08:00'), windowEnd: t('12:00'), windowType: 'partial: current shift only', alertVolume: 13, analystsOnShift: 4, mttaMinutes: 17.3, mttcMinutes: 46.7, slaAttainmentPct: 80, backlogAtWindowEnd: 8, note: 'In progress; same fixed shift as the queue.' }]),
     shiftMetrics: SHIFTS.map(([day, volume, r04, analysts, mtta, slaPct]) => ({
       id: `M11-SHF-${day.slice(5).replace('-', '')}`, windowStart: `${day}T08:00:00Z`, windowEnd: `${day}T12:00:00Z`, alertVolume: volume, r04Alerts: r04, otherRuleAlerts: volume - r04, analystsOnShift: analysts, mttaMinutes: mtta, acknowledgedWithinSlaPct: slaPct,
-    })).concat([{ id: 'M11-SHF-0927', windowStart: t('08:00'), windowEnd: t('12:00'), alertVolume: 12, r04Alerts: 5, otherRuleAlerts: 7, analystsOnShift: 4, mttaMinutes: 17.3, acknowledgedWithinSlaPct: 77.8 }]),
+    })).concat([{ id: 'M11-SHF-0927', windowStart: t('08:00'), windowEnd: t('12:00'), alertVolume: 13, r04Alerts: 5, otherRuleAlerts: 8, analystsOnShift: 4, mttaMinutes: 17.3, acknowledgedWithinSlaPct: 80 }]),
     ruleVolume: DAILY.flatMap(([day, counts]) => counts.map((count, i) => ({ id: `M11-RV-${day.slice(5).replace('-', '')}-${RULE_IDS[i].slice(2)}`, ruleId: RULE_IDS[i], windowStart: `${day}T00:00:00Z`, windowEnd: `${day}T23:59:59Z`, alerts: count }))),
     // Historical change records; ChangeTime is when the rule was altered, not when anything happened to a monitored host.
     ruleChanges: [
@@ -123,7 +123,7 @@ const SocM11AssessmentData = (() => {
     analysts: [
       { id: 'an-okafor', name: 'Analyst Okafor', role: 'Incident lead', openItems: 3, capacity: 3 },
       { id: 'an-ruiz', name: 'Analyst Ruiz', role: 'Tier 2', openItems: 3, capacity: 3 },
-      { id: 'an-chen', name: 'Analyst Chen', role: 'Tier 1', openItems: 1, capacity: 4 },
+      { id: 'an-chen', name: 'Analyst Chen', role: 'Tier 1', openItems: 2, capacity: 4 },
       { id: 'an-patel', name: 'Analyst Patel', role: 'Tier 1', openItems: 0, capacity: 4 },
     ],
     ownerIds: ['ir-lead-owners', 'identity-owners', 'detection-engineering', 'fs02-service-owner'],
@@ -153,6 +153,11 @@ const SocM11AssessmentData = (() => {
       item('Q-10', { title: 'Password spray against OWA', host: 'owa-01', ruleId: 'R-02', severity: 'high', businessImpact: 'medium', createdAt: t('08:30'), slaMinutes: 60, acknowledgedAt: t('08:40'), containedAt: t('09:30'), status: 'closed', assigneeId: 'an-ruiz', recordedDisposition: 'true_positive' }),
       item('Q-11', { title: 'Office macro spawned shell on ws-044', host: 'ws-044', ruleId: 'R-03', severity: 'high', businessImpact: 'medium', createdAt: t('08:10'), slaMinutes: 30, acknowledgedAt: t('08:22'), containedAt: t('08:55'), status: 'closed', assigneeId: 'an-ruiz', recordedDisposition: 'true_positive' }),
       item('Q-12', { kind: 'incident', title: 'INC-5020 suspicious inbox rule on acct-208', host: 'mail-01', ruleId: 'R-01', severity: 'high', businessImpact: 'medium', createdAt: t('10:50'), slaMinutes: 30, acknowledgedAt: t('11:05'), status: 'in_progress', assigneeId: 'an-ruiz' }),
+      // Sprint 3 (needs-investigation): created inside the endpoint sensor collector lag (10:00-10:30). The rule matched
+      // a partial endpoint record, so the evidence that would settle the alert has not been ingested yet. Appended last so
+      // existing queue positions and generated EventIds stay stable.
+      item('Q-13', { lateAdded: true, title: 'Office macro spawned shell on ws-231', host: 'ws-231', ruleId: 'R-03', severity: 'medium', businessImpact: 'medium', createdAt: t('10:12'), slaMinutes: 30, acknowledgedAt: t('10:29'), status: 'in_progress', assigneeId: 'an-chen',
+        evidenceNote: 'Matched on a partial endpoint record: parent process present, command line and child-process fields not yet received.' }),
     ],
     incident: {
       id: 'INC-4937',
@@ -189,8 +194,14 @@ const SocM11AssessmentData = (() => {
     noisyRuleId: 'R-04',
     acceptableAssignees: { 'Q-02': ['an-chen', 'an-patel'], 'Q-03': ['an-chen', 'an-patel'] },
     escalations: [{ itemId: 'Q-03', route: 'ir-lead-owners' }],
-    dispositions: { 'Q-02': 'true_positive', 'Q-03': 'true_positive', 'Q-04': 'benign_positive', 'Q-08': 'false_positive', 'Q-09': 'false_positive' },
-    metrics: { alertVolume: 12, mttaMinutes: 17.3, mttrMinutes: 46.7, backlog: 7, noisyRuleNonTruePositiveRate: 1 },
+    // Internal form uses underscores; learners see True positive / Benign positive / False positive / Needs investigation.
+    // Q-13 is not decidable yet: its endpoint evidence sits behind the sensor collector lag, so needs_investigation is the supported call.
+    dispositions: { 'Q-02': 'true_positive', 'Q-03': 'true_positive', 'Q-04': 'benign_positive', 'Q-08': 'false_positive', 'Q-09': 'false_positive', 'Q-13': 'needs_investigation' },
+    // Credit units per item (default 1); the units sum to the alert-disposition criterion weight.
+    dispositionCredit: { 'Q-13': 3 },
+    // A needs_investigation reason must name what is missing; these terms are accepted as doing so.
+    missingDataTerms: ['lag', 'delay', 'backlog', 'collector', 'sensor', 'ingest', 'partial', 'incomplete', 'not yet', 'missing', 'pending', 're-check', 'recheck', 'once the', 'until'],
+    metrics: { alertVolume: 13, mttaMinutes: 17.3, mttrMinutes: 46.7, backlog: 8, noisyRuleNonTruePositiveRate: 1 },
     closureDecision: 'retain',
     residualRisks: [
       { id: 'fs02-service-validation', evidenceId: 'M11-REC-04', ownerId: 'fs02-service-owner', keywords: ['fs-02', 'file-share', 'file share'] },

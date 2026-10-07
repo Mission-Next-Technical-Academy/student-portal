@@ -18,10 +18,19 @@ const points = (result) => Object.fromEntries(result.criteria.map((criterion) =>
 const empty = scorer.score(api.normalize({}, fixture), fixture);
 assert.strictEqual(empty.score, 0, 'no shift work earns no credit');
 assert.strictEqual(scorer.CRITERIA.reduce((sum, criterion) => sum + criterion.weight, 0), 100);
+assert.strictEqual(scorer.CRITERIA_V1.reduce((sum, criterion) => sum + criterion.weight, 0), 100, 'the v1 rubric still totals 100');
+assert.strictEqual(scorer.PASSING_SCORE, 70, 'the passing bar is unchanged');
 
 function fullPath(overrides = {}) {
   let state = api.normalize({}, fixture);
   state = api.setPriority(state, fixture, ['Q-03', 'Q-02', 'Q-04', 'Q-09', 'Q-08']);
+  // Rubric v2: a supported call, with reasoning, on every alert whose evidence decides it (Q-13 is still incomplete).
+  state = api.recordDisposition(state, fixture, 'Q-02', 'true_positive', 'Password spray against the VPN gateway from the high-severity rule with no approved change.');
+  state = api.recordDisposition(state, fixture, 'Q-03', 'true_positive', 'Office macro spawned PowerShell on ws-219 and the rule is not part of the noisy set.');
+  state = api.recordDisposition(state, fixture, 'Q-04', 'benign_positive', 'Impossible travel on acct-311 fits the corporate travel VPN exit nodes added in CHG-2215.');
+  state = api.recordDisposition(state, fixture, 'Q-08', 'false_positive', 'R-04 alert after the CHG-2212 threshold widening; earlier dispositions on this rule were all non-true-positive.');
+  state = api.recordDisposition(state, fixture, 'Q-09', 'false_positive', 'Same R-04 pattern for ws-163, an old low-severity alert on a rule that is mostly noise.');
+  state = api.recordDisposition(state, fixture, 'Q-13', 'needs_investigation', 'The endpoint sensor collector was lagging when this alert fired, so the command line and child-process records are missing; re-check once the backlog drains.');
   state = api.assign(state, fixture, 'Q-03', 'an-chen');
   state = api.assign(state, fixture, 'Q-02', 'an-patel');
   state = api.escalate(state, fixture, 'Q-03', 'ir-lead-owners', 'Critical macro execution on ws-219 needs incident lead review.');
@@ -61,7 +70,7 @@ let partial = api.normalize({}, fixture);
 partial = api.setPriority(partial, fixture, ['Q-03', 'Q-04']);
 partial = api.assign(partial, fixture, 'Q-03', 'an-chen');
 const partialScore = scorer.score(partial, fixture);
-assert.strictEqual(points(partialScore)['queue-prioritization'], 5, 'correct top item only earns half');
+assert.strictEqual(points(partialScore)['queue-prioritization'], 4, 'correct top item only earns half');
 assert.ok(partialScore.score > 0 && partialScore.score < 50);
 
 let noisyFirst = api.setPriority(api.normalize({}, fixture), fixture, ['Q-09', 'Q-03']);

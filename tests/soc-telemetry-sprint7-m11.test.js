@@ -76,21 +76,21 @@ for (const [label, fixture] of [['assessment', M11], ['guided', GUIDED]]) {
   [...sup.heartbeats, ...sup.shiftLog].forEach((x) => assert.ok(x.purpose, 'supplemental purpose tag'));
   assert.ok(sup.purposes.AlertAssigned && sup.purposes.PageAcknowledged);
   assert.ok(events.every((e) => !('purpose' in e) && !('Purpose' in e)), 'purpose tags are not rendered');
-  // Queue rows are untouched: 12 items, acknowledgement rows unchanged.
-  assert.strictEqual(s.queue.length, 12);
+  // Queue rows: the original 12 plus Q-13 (Sprint 3), appended last so earlier generated EventIds do not move.
+  assert.strictEqual(s.queue.length, 13);
   assert.strictEqual(acked.length, s.queue.filter((q) => q.acknowledgedAt).length);
 }
 
 // Queue metrics and answer key unchanged.
 const m = Metrics.compute(M11, {});
-assert.strictEqual(m.alertVolume, 12); assert.strictEqual(m.backlog, 7); assert.strictEqual(m.unassigned, 5);
+assert.strictEqual(m.alertVolume, 13); assert.strictEqual(m.backlog, 8); assert.strictEqual(m.unassigned, 5);
 assert.strictEqual(m.mttaMinutes, 17.3); assert.strictEqual(m.mttrMinutes, 46.7);
 const truth = local(M11.expectedTruth);
 assert.deepStrictEqual(truth.queuePriority.map((x) => x.itemId), ['Q-03', 'Q-02', 'Q-04']);
 assert.deepStrictEqual(truth.slaBreaches, ['Q-04', 'Q-09']);
 assert.deepStrictEqual(truth.slaAtRisk, ['Q-02', 'Q-03']);
 assert.strictEqual(truth.noisyRuleId, 'R-04');
-assert.deepStrictEqual(truth.metrics, { alertVolume: 12, mttaMinutes: 17.3, mttrMinutes: 46.7, backlog: 7, noisyRuleNonTruePositiveRate: 1 });
+assert.deepStrictEqual(truth.metrics, { alertVolume: 13, mttaMinutes: 17.3, mttrMinutes: 46.7, backlog: 8, noisyRuleNonTruePositiveRate: 1 });
 assert.strictEqual(truth.closureDecision, 'retain');
 assert.deepStrictEqual(truth.residualRisks.map((x) => x.evidenceId), ['M11-REC-04', 'M11-REC-05']);
 // R-04 / CHG-2212 outlier story unchanged: supplemental rows never mention R-04 or the change.

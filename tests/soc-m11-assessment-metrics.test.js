@@ -28,6 +28,6 @@ assert.strictEqual(view.trend.reduce((sum, bucket) => sum + bucket.created, 0), 
 assert.ok(!JSON.stringify(view.queue).includes('benign_positive'), 'open items never show their truth disposition');
 const withAssignment = metrics.compute(fixture, { assignments: { 'Q-03': 'an-chen' } });
 assert.strictEqual(withAssignment.unassigned, view.unassigned - 1, 'learner assignments update the assigned count');
-assert.strictEqual(withAssignment.workload.find((row) => row.analystId === 'an-chen').openItems, 2);
+assert.strictEqual(withAssignment.workload.find((row) => row.analystId === 'an-chen').openItems, 3);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(metrics.compute(fixture, {}))), view, 'deterministic');
 console.log('M11 assessment metrics: all checks passed');
