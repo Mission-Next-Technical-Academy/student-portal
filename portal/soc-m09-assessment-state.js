@@ -41,6 +41,16 @@ const SocM09AssessmentState = (() => {
     { id: 'M09-TASK-002', title: 'Validate containment outcome', status: 'pending' },
     { id: 'M09-TASK-003', title: 'Document recovery readiness', status: 'pending' },
   ];
+  // Workflow-design node vocabulary, shared with the Module 12 capstone
+  // (SocM12AssessmentData.scenario.workflowNodes) so both render one control.
+  const WORKFLOW_NODES = ['preserve', 'approval', 'isolate', 'revoke-session', 'block-indicator',
+    'remove-persistence', 'restore', 'scan', 'monitor'];
+  const MAX_WORKFLOW_DESIGNS = 20;
+  const MAX_WORKFLOW_EDGES = 20;
+  const MAX_UNSAFE_ATTEMPTS = 50;
+  // Why a response attempt was refused (and recorded) by the range.
+  const UNSAFE_REASONS = ['no_approval', 'out_of_scope', 'wrong_target_type'];
+  const RECOVERY_ACTIONS = ['restore_backup', 'scan_recovery', 'validate_recovery'];
   const EMPTY_DEFAULTS = {
     selectedIncidentId: null,
     selectedEntityId: null,
@@ -51,6 +61,8 @@ const SocM09AssessmentState = (() => {
     incidentWorkflows: {},
     workflowHistory: [],
     nextWorkflowSequence: 1,
+    workflowDesigns: [],
+    unsafeAttempts: [],
   };
 
   function clone(value) {
@@ -143,6 +155,63 @@ const SocM09AssessmentState = (() => {
           || typeof entry.value.note !== 'string' || !entry.value.note.trim()
           || !Array.isArray(entry.value.evidenceIds)))) {
         throw new Error('M09 assessment workflow history contains an invalid entry.');
+      }
+      previous = entry.sequence;
+      return deepFreeze(clone(entry));
+    });
+  }
+
+  // Saved designs and attempts are compared field by field (key order is not
+  // preserved by jsonb), never as JSON text.
+  function validWhen(timestamp, scenario) {
+    return typeof timestamp === 'string' && Number.isFinite(Date.parse(timestamp))
+      && new Date(timestamp).toISOString() === timestamp
+      && Date.parse(timestamp) >= Date.parse(scenario.start) && Date.parse(timestamp) <= Date.parse(scenario.end);
+  }
+
+  function validateWorkflowDesigns(designs, scenario) {
+    if (!Array.isArray(designs) || designs.length > MAX_WORKFLOW_DESIGNS) {
+      throw new Error('M09 assessment workflow designs are invalid.');
+    }
+    let previous = 0;
+    return designs.map((entry) => {
+      const nodes = entry?.nodes;
+      const edges = entry?.edges;
+      if (!entry || Object.keys(entry).sort().join(',') !== 'edges,id,incidentId,name,nodes,sequence,timestamp'
+        || entry.incidentId !== scenario.incidentGraph.incidentId
+        || !Number.isSafeInteger(entry.sequence) || entry.sequence <= previous
+        || entry.id !== `${scenario.id}:DESIGN-${String(entry.sequence).padStart(6, '0')}`
+        || !validWhen(entry.timestamp, scenario)
+        || typeof entry.name !== 'string' || !entry.name.trim() || entry.name.length > 120
+        || !Array.isArray(nodes) || nodes.length < 2 || nodes.length > WORKFLOW_NODES.length
+        || nodes.some((node) => !WORKFLOW_NODES.includes(node)) || new Set(nodes).size !== nodes.length
+        || !Array.isArray(edges) || edges.length > MAX_WORKFLOW_EDGES
+        || edges.some((edge) => !edge || typeof edge !== 'object' || Object.keys(edge).sort().join(',') !== 'from,to'
+          || !nodes.includes(edge.from) || !nodes.includes(edge.to) || edge.from === edge.to)
+        || new Set(edges.map((edge) => `${edge.from}>${edge.to}`)).size !== edges.length) {
+        throw new Error('M09 assessment workflow design is invalid.');
+      }
+      previous = entry.sequence;
+      return deepFreeze(clone(entry));
+    });
+  }
+
+  function validateUnsafeAttempts(attempts, scenario) {
+    if (!Array.isArray(attempts) || attempts.length > MAX_UNSAFE_ATTEMPTS) {
+      throw new Error('M09 assessment response attempts are invalid.');
+    }
+    const entityIds = new Set(scenario.entities.map((entity) => entity.id));
+    let previous = 0;
+    return attempts.map((entry) => {
+      if (!entry || Object.keys(entry).sort().join(',') !== 'actionType,id,incidentId,outcome,reason,sequence,targetId,timestamp'
+        || entry.incidentId !== scenario.incidentGraph.incidentId
+        || !Number.isSafeInteger(entry.sequence) || entry.sequence <= previous
+        || entry.id !== `${scenario.id}:ATTEMPT-${String(entry.sequence).padStart(6, '0')}`
+        || !validWhen(entry.timestamp, scenario)
+        || !Object.hasOwn(APPROVED_ACTION_TARGETS, entry.actionType)
+        || !entityIds.has(entry.targetId) || entry.outcome !== 'blocked'
+        || !UNSAFE_REASONS.includes(entry.reason)) {
+        throw new Error('M09 assessment response attempt is invalid.');
       }
       previous = entry.sequence;
       return deepFreeze(clone(entry));
@@ -370,6 +439,8 @@ const SocM09AssessmentState = (() => {
     if (prior.nextWorkflowSequence !== undefined && prior.nextWorkflowSequence !== nextWorkflowSequence) {
       throw new Error('M09 assessment workflow sequence is not monotonic.');
     }
+    const workflowDesigns = validateWorkflowDesigns(prior.workflowDesigns || [], scenario);
+    const unsafeAttempts = validateUnsafeAttempts(prior.unsafeAttempts || [], scenario);
     const minimumSequence = previousSequence + 1;
     if (prior.nextActionSequence !== undefined
       && (!Number.isSafeInteger(prior.nextActionSequence) || prior.nextActionSequence < minimumSequence
@@ -388,6 +459,8 @@ const SocM09AssessmentState = (() => {
       incidentWorkflows,
       workflowHistory,
       nextWorkflowSequence,
+      workflowDesigns,
+      unsafeAttempts,
       schemaVersion: VERSION,
       scenarioId: scenario.id,
       // LabRuntime only restores a record that keeps its own identity fields.
@@ -539,6 +612,85 @@ const SocM09AssessmentState = (() => {
     } else if (action.outcome === 'partial' && effect) {
       next.entityStates[targetId] = { ...next.entityStates[targetId], [effect[0]]: 'partial' };
     }
+    return next;
+  }
+
+  // Workflow design: the learner's planned order of response steps. Recorded
+  // as a plan only; it never executes anything.
+  function saveWorkflowDesign(state, incidentId, input, timestamp, fixture) {
+    const scenario = scenarioOf(fixture);
+    if (!scenario.incidentQueue.some((incident) => incident.id === incidentId)) {
+      throw new Error('M09 workflow design incident is invalid.');
+    }
+    const name = String(input?.name ?? '').trim();
+    const nodes = Array.isArray(input?.nodes) ? input.nodes : [];
+    const rawEdges = Array.isArray(input?.edges) ? input.edges : [];
+    if (!name) throw new Error('Name the workflow.');
+    if (name.length > 120) throw new Error('Keep the workflow name under 120 characters.');
+    if (new Set(nodes).size !== nodes.length || nodes.some((node) => !WORKFLOW_NODES.includes(node))) {
+      throw new Error('Choose each action node once, from the list.');
+    }
+    if (nodes.length < 2) throw new Error('Choose at least two action nodes.');
+    const edges = [];
+    for (const edge of rawEdges) {
+      const from = edge?.from;
+      const to = edge?.to;
+      if (!nodes.includes(from) || !nodes.includes(to)) {
+        throw new Error(`Connection ${from}>${to}: both ends must be nodes you selected.`);
+      }
+      if (from === to) throw new Error(`Connection ${from}>${to} joins a node to itself.`);
+      if (!edges.some((known) => known.from === from && known.to === to)) edges.push({ from, to });
+    }
+    if (edges.length > MAX_WORKFLOW_EDGES) throw new Error(`Use at most ${MAX_WORKFLOW_EDGES} connections.`);
+    const next = normalize(state, fixture);
+    if (next.workflowDesigns.length >= MAX_WORKFLOW_DESIGNS) throw new Error('Workflow design limit reached.');
+    const sequence = (next.workflowDesigns.at(-1)?.sequence || 0) + 1;
+    const record = { id: `${scenario.id}:DESIGN-${String(sequence).padStart(6, '0')}`, sequence, timestamp,
+      incidentId, name, nodes: [...nodes], edges };
+    next.workflowDesigns = validateWorkflowDesigns([...next.workflowDesigns, record], scenario);
+    return next;
+  }
+
+  // Why an attempted response action would be refused, or null when the range
+  // would run it (in scope, right target type, matching recorded approval).
+  function responseAttemptBlock(normalized, incidentId, type, targetId, fixture) {
+    const scenario = scenarioOf(fixture);
+    const target = scenario.entities.find((entity) => entity.id === targetId);
+    if (!target) return 'out_of_scope';
+    if (!targetInIncidentScope(targetId, target, normalized.incidentMemberships)) return 'out_of_scope';
+    if (target.type !== APPROVED_ACTION_TARGETS[type]) return 'wrong_target_type';
+    const workflow = normalized.incidentWorkflows[incidentId];
+    const approvalActionType = RECOVERY_ACTIONS.includes(type) ? 'restore_backup' : type;
+    const approved = workflow.approvalStatus === 'approved' && workflow.approvalTargetId === targetId
+      && workflow.approvalActionType === approvalActionType && actorHasRole(workflow.approvalActorId, 'approver')
+      && Boolean(workflow.approvalReason.trim());
+    return approved ? null : 'no_approval';
+  }
+
+  // An explicit "attempt" at a protected response action. Allowed attempts run
+  // exactly like an approved execution; refused ones are recorded as unsafe
+  // attempts (the refusal does not erase them).
+  function attemptResponseAction(state, incidentId, input, timestamp, fixture) {
+    const scenario = scenarioOf(fixture);
+    const type = input?.type;
+    const targetId = input?.targetId;
+    if (!scenario.incidentQueue.some((incident) => incident.id === incidentId)
+      || !Object.hasOwn(APPROVED_ACTION_TARGETS, type)
+      || !scenario.entities.some((entity) => entity.id === targetId)) {
+      throw new Error('Choose a response action and a target.');
+    }
+    const next = normalize(state, fixture);
+    const reason = responseAttemptBlock(next, incidentId, type, targetId, fixture);
+    if (!reason) {
+      return executeApprovedAction(next, incidentId, { type, outcome: input.outcome || 'success',
+        details: { entityId: targetId, incidentId, evidenceIds: input.evidenceIds || next.reviewedEvidenceIds || [] } },
+      timestamp, fixture);
+    }
+    if (next.unsafeAttempts.length >= MAX_UNSAFE_ATTEMPTS) throw new Error('Response attempt limit reached.');
+    const sequence = (next.unsafeAttempts.at(-1)?.sequence || 0) + 1;
+    next.unsafeAttempts = validateUnsafeAttempts([...next.unsafeAttempts, {
+      id: `${scenario.id}:ATTEMPT-${String(sequence).padStart(6, '0')}`, sequence, timestamp, incidentId,
+      actionType: type, targetId, outcome: 'blocked', reason }], scenario);
     return next;
   }
 
@@ -842,6 +994,8 @@ const SocM09AssessmentState = (() => {
   }
 
   return Object.freeze({ VERSION, MODULE_KEY, MAX_ACTION_HISTORY, EMPTY_DEFAULTS: deepFreeze(EMPTY_DEFAULTS),
+    WORKFLOW_NODES: Object.freeze([...WORKFLOW_NODES]), UNSAFE_REASONS: Object.freeze([...UNSAFE_REASONS]),
+    saveWorkflowDesign, attemptResponseAction,
     normalize, transition, updateIncidentWorkflow, authorIncidentTask, completeIncidentTask,
     appendAction, executeApprovedAction, recoveryInventory, selectRecoveryPoint,
     completeRecoveryMonitoring,

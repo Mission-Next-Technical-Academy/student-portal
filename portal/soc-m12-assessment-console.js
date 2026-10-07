@@ -144,8 +144,10 @@ const SocM12AssessmentConsole = (() => {
         ${indicator?`<article data-m12-selected-indicator="${esc(indicator.id)}"><h5>${esc(indicator.indicator)}</h5><p>${esc(indicator.context)}</p><form data-m12-context="intel" data-indicator-id="${esc(indicator.id)}"><label>Verdict<select name="decision" required><option value="">Choose…</option>${['malicious','benign','unknown'].map(v=>`<option value="${v}">${v}</option>`).join('')}</select></label><label>Context and reasoning<textarea name="rationale" required minlength="20" maxlength="1000"></textarea></label><button type="submit">Record indicator verdict</button></form></article>`:'<p>Select an indicator to record its contextual verdict.</p>'}</section>`;
     }
     if(tab==='response') {
-      return `<section class="m04-console-extra m09-console-extra"><h4>Response workflow design</h4>
-        <form data-m12-context="workflow"><label>Workflow name<input name="name" required maxlength="120"></label><fieldset><legend>Action nodes</legend>${scenario.workflowNodes.map(n=>`<label><input type="checkbox" name="nodes" value="${n}"> ${n}</label>`).join('')}</fieldset><label>Connections (one from&gt;to pair per line)<textarea name="edges" rows="4" maxlength="1000" required></textarea></label><button type="submit">Save workflow design</button></form>
+      // The same designer Module 09 renders; only the recorder differs.
+      const designer=SocConsoleTools.workflowDesignerMarkup({nodes:scenario.workflowNodes,formAttrs:'data-m12-context="workflow"',
+        saved:(moduleTwelveState.assessmentState.workflows||[]).map(w=>({name:w.name,nodes:w.nodes,connections:w.edges.map(e=>`${e.from}>${e.to}`)}))});
+      return designer+`<section class="m04-console-extra m09-console-extra">
         <h4>Response action</h4><form data-m12-context="execute"><label>Action<select name="action" required><option value="">Choose…</option>${['preserve','isolate','revoke-session','block-indicator'].map(a=>`<option value="${a}">${a}</option>`).join('')}</select></label><label>Target<select name="target" required><option value="">Choose…</option>${scenario.entities.map(e=>`<option value="${esc(e.id)}">${esc(e.id)}</option>`).join('')}</select></label><button type="submit">Attempt response action</button></form><p class="m03e-muted">The range records the attempt and checks scope and recorded approval.</p>
         <ol>${(moduleTwelveState.assessmentState.executions||[]).filter(e=>e.sourceRef?.startsWith('m09:range-attempt:')).map(e=>`<li>${esc(e.action)} → ${esc(e.target)} · ${esc(e.outcome)}${e.blockReason?` · ${esc(e.blockReason)}`:''}</li>`).join('')}</ol></section>`;
     }
@@ -176,8 +178,7 @@ const SocM12AssessmentConsole = (() => {
       return api.record(state,fixture,'investigation',{domain:values.domain,finding:values.finding,evidenceIds:[row.EventId]});
     }
     if(kind==='workflow') {
-      const lines=String(values.edges||'').split(/[\n,]/).map(v=>v.trim()).filter(Boolean);
-      const edges=lines.map(line=>{const pair=line.split('>').map(v=>v.trim());if(pair.length!==2)throw new Error('Each connection needs a from>to pair.');return {from:pair[0],to:pair[1]};});
+      const edges=SocConsoleTools.parseWorkflowEdges(values.edges);
       return api.record(state,fixture,'workflow-design',{name:values.name,nodes:values.nodes,edges});
     }
     if(kind==='execute') {

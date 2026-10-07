@@ -42,6 +42,13 @@ for (const type of ['restore_backup', 'scan_recovery', 'validate_recovery']) {
   recovery = api.executeApprovedAction(recovery, incident, { type, outcome: 'success', details: { entityId: 'DEV-173', incidentId: incident } }, at(), fixture);
 }
 recovery = api.completeRecoveryMonitoring(recovery, incident, 'DEV-173', at(), [], fixture);
+const withoutDesign = scorer.score(recovery, fixture);
+assert.strictEqual(withoutDesign.score, 90, 'a complete response with no workflow design loses only the workflow competency');
+assert.strictEqual(withoutDesign.criteria.find((c) => c.id === 'response-workflow-design').points, 0);
+assert.strictEqual(withoutDesign.passed, true);
+assert.strictEqual(scorer.score(recovery, fixture, { rubricVersion: 2 }).score, 100, 'rubric v2 scoring of the same state is unchanged');
+recovery = api.saveWorkflowDesign(recovery, incident, { name: 'Preserve, approve, contain, verify', nodes: ['preserve', 'approval', 'isolate', 'revoke-session', 'scan', 'monitor'],
+  edges: [{ from: 'preserve', to: 'approval' }, { from: 'approval', to: 'isolate' }, { from: 'approval', to: 'revoke-session' }, { from: 'isolate', to: 'scan' }, { from: 'scan', to: 'monitor' }] }, at(), fixture);
 const full = scorer.score(recovery, fixture);
 assert.strictEqual(full.score, 100, `a complete, ordered response earns full credit: ${JSON.stringify(full.criteria.map((c) => [c.id, c.points]))}`);
 assert.strictEqual(full.passed, true);

@@ -44,7 +44,7 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(api.normalize({}, fixture))), {
     { id: 'M09-TASK-002', title: 'Validate containment outcome', status: 'pending', description: '', authorId: 'system', completionEvidence: null },
     { id: 'M09-TASK-003', title: 'Document recovery readiness', status: 'pending', description: '', authorId: 'system', completionEvidence: null },
   ], escalationStatus: 'none', escalationReason: '', approvalStatus: 'not_requested',
-    approvalReason: '', approvalActorId: null, approvalTargetId: null, approvalActionType: null } }, workflowHistory: [], nextWorkflowSequence: 1,
+    approvalReason: '', approvalActorId: null, approvalTargetId: null, approvalActionType: null } }, workflowHistory: [], nextWorkflowSequence: 1, workflowDesigns: [], unsafeAttempts: [],
   schemaVersion: 1, scenarioId: scenario.id,
 });
 assert.throws(() => api.normalize({}, { scenario: { ...scenario, stateKey: '' } }), /stateKey/);
@@ -65,7 +65,7 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(migrated)), {
     { id: 'M09-TASK-002', title: 'Validate containment outcome', status: 'pending', description: '', authorId: 'system', completionEvidence: null },
     { id: 'M09-TASK-003', title: 'Document recovery readiness', status: 'pending', description: '', authorId: 'system', completionEvidence: null },
   ], escalationStatus: 'none', escalationReason: '', approvalStatus: 'not_requested',
-    approvalReason: '', approvalActorId: null, approvalTargetId: null, approvalActionType: null } }, workflowHistory: [], nextWorkflowSequence: 1,
+    approvalReason: '', approvalActorId: null, approvalTargetId: null, approvalActionType: null } }, workflowHistory: [], nextWorkflowSequence: 1, workflowDesigns: [], unsafeAttempts: [],
   schemaVersion: 1, scenarioId: scenario.id,
 });
 assert.deepStrictEqual(JSON.parse(JSON.stringify(api.normalize(migrated, fixture))),

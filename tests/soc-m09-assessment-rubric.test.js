@@ -13,7 +13,9 @@ const fixture = data;
 const result = rubric.extract({}, fixture);
 assert.equal(result.criteria.length, rubric.RUBRIC.length);
 assert.deepEqual(Array.from(result.criteria.map((item) => item.finding)), Array(rubric.RUBRIC.length).fill('unknown'));
-assert.equal(rubric.RUBRIC.length, 9, 'M09 grades the MD criteria including evidence-before-eradication and residual-risk escalation');
+assert.equal(rubric.RUBRIC.length, 11, 'M09 v3 grades the original nine plus workflow design and safe conduct');
+assert.equal(rubric.RUBRIC_V2.length, 9, 'the original nine-criterion rubric stays reproducible');
+assert.equal(rubric.extract({}, fixture, { rubricVersion: 2 }).criteria.length, 9);
 assert.ok(result.criteria.every((item) => !Object.hasOwn(item, 'points') && !Object.hasOwn(item, 'awarded')),
   'extraction reports evidence only, never scores or awards');
 assert.ok(!JSON.stringify(result).includes('expectedResponseTruth'), 'extraction does not expose hidden truth');

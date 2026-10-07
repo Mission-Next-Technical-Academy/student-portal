@@ -14,11 +14,68 @@ const SocM09AssessmentRubric = (() => {
     { id: 'residual-risk-escalation', label: 'Escalate remaining gaps and residual risk' },
   ].map(Object.freeze));
 
+  // Version 3 adds two competencies; version 2 (the original nine) stays
+  // reproducible so attempts scored before this change keep their meaning.
+  const RUBRIC_V2 = Object.freeze(RUBRIC.slice());
+  const RUBRIC_V3 = Object.freeze([...RUBRIC,
+    { id: 'response-workflow-design', label: 'Design the response order: evidence, approval, then containment' },
+    { id: 'safe-response-conduct', label: 'Attempt only approved, in-scope response actions' },
+  ].map((item) => Object.freeze(item)));
+  const LATEST_VERSION = 3;
+
   const list = (value) => Array.isArray(value) ? value : [];
   const record = (value) => value && typeof value === 'object' && !Array.isArray(value);
   const unique = (values) => [...new Set(values.filter((value) => typeof value === 'string' && value))];
 
-  function extract(state, fixture) {
+  // Workflow-design facts, evidence only (points belong to the scorer). A step
+  // is "gated" when the approval node can reach it; reachability, not a direct
+  // edge, so equivalent valid orderings (preserve>collect>approval) all count.
+  const CONTAINMENT_NODES = ['isolate', 'revoke-session', 'block-indicator', 'remove-persistence', 'restore'];
+  const VERIFY_NODES = ['scan', 'monitor'];
+
+  function designFacts(design) {
+    const nodes = list(design.nodes);
+    const edges = list(design.edges).filter((edge) => record(edge) && nodes.includes(edge.from) && nodes.includes(edge.to));
+    const reaches = (from, to) => {
+      const seen = new Set([from]);
+      const queue = [from];
+      while (queue.length) {
+        const current = queue.shift();
+        for (const edge of edges) {
+          if (edge.from !== current || seen.has(edge.to)) continue;
+          if (edge.to === to) return true;
+          seen.add(edge.to);
+          queue.push(edge.to);
+        }
+      }
+      return false;
+    };
+    const contained = nodes.filter((node) => CONTAINMENT_NODES.includes(node));
+    const gated = contained.filter((node) => nodes.includes('approval') && reaches('approval', node));
+    const evidenceBeforeApproval = nodes.includes('preserve') && nodes.includes('approval') && reaches('preserve', 'approval');
+    // Disruptive steps that feed back into preservation or approval run the
+    // wrong way round: they act before evidence is saved or sign-off is given.
+    const orderingErrors = edges.filter((edge) => CONTAINMENT_NODES.includes(edge.from)
+      && (edge.to === 'preserve' || edge.to === 'approval')).map((edge) => `${edge.from}>${edge.to}`);
+    const verifiedAfterContainment = gated.some((node) => VERIFY_NODES.some((check) => nodes.includes(check) && reaches(node, check)));
+    return {
+      designId: design.id,
+      evidenceBeforeApproval,
+      containmentSteps: contained.length,
+      gatedSteps: gated.length,
+      verifiedAfterContainment,
+      orderingErrors,
+    };
+  }
+
+  // Facts are comparable by the score they would earn; the best saved design counts.
+  const DESIGN_MAX = 10;
+  const designPotential = (facts) => (facts.evidenceBeforeApproval ? 4 : 0)
+    + (facts.containmentSteps && facts.gatedSteps === facts.containmentSteps ? 4 : facts.gatedSteps ? 2 : 0)
+    + (facts.verifiedAfterContainment ? 2 : 0) - facts.orderingErrors.length * 2;
+
+  function extract(state, fixture, options = {}) {
+    const version = options.rubricVersion === 2 ? 2 : LATEST_VERSION;
     const scenario = fixture?.scenario;
     const truth = fixture?.expectedResponseTruth;
     const assessment = record(state) ? state : {};
@@ -34,8 +91,8 @@ const SocM09AssessmentRubric = (() => {
       actionIds: unique(actionIds),
     });
     if (!scenario || !truth || !incidentId) {
-      RUBRIC.forEach(({ id }) => add(id, 'unknown'));
-      return { rubricVersion: 1, criteria };
+      (version === 2 ? RUBRIC_V2 : RUBRIC_V3).forEach(({ id }) => add(id, 'unknown'));
+      return { rubricVersion: version === 2 ? 1 : LATEST_VERSION, criteria };
     }
 
     const workflow = assessment.incidentWorkflows?.[incidentId];
@@ -151,8 +208,29 @@ const SocM09AssessmentRubric = (() => {
     add('residual-risk-escalation', escalated ? true : monitor?.outcome === 'partial' ? 'partial' : 'unknown', [],
       workflowActions.filter((entry) => ['escalationStatus', 'escalationReason'].includes(entry.field)).map((entry) => entry.id));
 
-    return { rubricVersion: 2, criteria };
+    if (version === 2) return { rubricVersion: 2, criteria };
+
+    const designs = list(assessment.workflowDesigns).filter((design) => record(design) && design.incidentId === incidentId);
+    const designFactsList = designs.map(designFacts);
+    const best = designFactsList.reduce((top, facts) => (!top || designPotential(facts) > designPotential(top) ? facts : top), null);
+    const designFinding = !best ? 'unknown' : designPotential(best) >= DESIGN_MAX ? 'observed'
+      : designPotential(best) > 0 ? 'partial' : 'incomplete';
+    add('response-workflow-design', designFinding, [], designs.map((design) => design.id));
+    criteria[criteria.length - 1].facts = { designCount: designs.length, best, orderingErrorsAll: unique(designFactsList.flatMap((facts) => facts.orderingErrors)) };
+
+    const attempts = list(assessment.unsafeAttempts).filter((attempt) => record(attempt) && attempt.incidentId === incidentId
+      && validEntities.has(attempt.targetId));
+    // Safe conduct is evidenced by at least one correctly approved, in-scope
+    // action; unsafe attempts are listed so the scorer can deduct for them.
+    add('safe-response-conduct', approvedActions.length ? (attempts.length ? 'partial' : true) : attempts.length ? 'incomplete' : 'unknown',
+      [], [...approvedActions.map((action) => action.id), ...attempts.map((attempt) => attempt.id)]);
+    criteria[criteria.length - 1].facts = {
+      approvedActionCount: approvedActions.length,
+      unsafeAttempts: attempts.map((attempt) => ({ id: attempt.id, actionType: attempt.actionType, targetId: attempt.targetId, reason: attempt.reason })),
+    };
+
+    return { rubricVersion: LATEST_VERSION, criteria };
   }
 
-  return Object.freeze({ RUBRIC, extract });
+  return Object.freeze({ RUBRIC: RUBRIC_V3, RUBRIC_V2, LATEST_VERSION, DESIGN_MAX, designFacts, designPotential, extract });
 })();

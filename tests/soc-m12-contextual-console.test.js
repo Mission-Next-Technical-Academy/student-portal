@@ -43,6 +43,10 @@ for(const [tab,id] of [['search','ID-402'],['timeline','EP-301'],['evidence','EP
 }
 assert.deepEqual(controls('email',{type:'record',id:'EP-301'}),[],'stale selection from another domain does not create a finding form');
 assert.deepEqual(controls('response',null),['workflow','execute']);
+// The capstone renders the same designer as Module 09, with the inline syntax example.
+assert.match(render('response',null),/data-m09-workflow-designer/);
+assert.match(render('response',null),/One connection per line, e\.g\. <code>scan&gt;monitor<\/code>/);
+assert.match(render('response',null),/<form data-m12-context="workflow">/);
 for(const tab of ['rules','automation','endpoint','hunting','attack','incident','recovery','locker','reconstruction']) {
   assert.equal(typeof mounted.views[tab],'function',`${tab} keeps native tool controls`);
   assert.ok(mounted.views[tab]().length>20,`${tab} still renders`);
@@ -56,6 +60,8 @@ record('intel',{contextId:'TI-601',decision:'malicious',rationale:'The feed indi
 for(const [domain,id] of [['identity','ID-402'],['email','EM-212'],['endpoint','EP-301'],['network','NW-501'],['exposure','VX-701']])record('finding',{contextId:id,domain,finding:`${id} records the observed ${domain} behavior and establishes context for this investigation.`},{type:'record',id},'search');
 record('finding',{contextId:'EM-212',domain:'scope',finding:'EM-212 identifies acct-204 and ws-204 in the correlated email investigation scope.'},{type:'record',id:'EM-212'},'email');
 record('workflow',{name:'Scoped incident response',nodes:['preserve','approval','isolate'],edges:'preserve>approval\napproval>isolate'},null,'response');
+assert.deepEqual(JSON.parse(JSON.stringify(state.actionHistory.at(-1).details)).edges,[{from:'preserve',to:'approval'},{from:'approval',to:'isolate'}],'workflow-design keeps its recorded from/to shape');
+assert.throws(()=>ui.recordContextual(state,{tab:'response',selected:null},data,'workflow',{name:'Bad',nodes:['preserve','approval'],edges:'preserve approval'}),/from>to pair/);
 assert.equal(state.investigations.find(i=>i.domain==='exposure').evidenceIds[0],'VX-701');
 assert.ok(get('SocM12AssessmentRubric').extract(state,fixture).criteria.find(c=>c.id==='cross-domain-investigation').finding==='observed');
 assert.throws(()=>ui.recordContextual(state,{tab:'search',selected:{type:'record',id:'EP-301'}},data,'finding',{contextId:'ID-402',domain:'identity',finding:'Unsupported context injection'}),/Select the evidence/);

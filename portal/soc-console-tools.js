@@ -1130,7 +1130,7 @@ const SocConsoleTools = (() => {
   const m09Incident = (ctx) => ctx.fixture.scenario.incidentGraph.incidentId;
   const m09Clock = (ctx, state) => {
     const s = ctx.fixture.scenario;
-    const times = [...(state.actionHistory || []), ...(state.workflowHistory || [])].map((item) => Date.parse(item.timestamp)).filter(Number.isFinite);
+    const times = [...(state.actionHistory || []), ...(state.workflowHistory || []), ...(state.workflowDesigns || []), ...(state.unsafeAttempts || [])].map((item) => Date.parse(item.timestamp)).filter(Number.isFinite);
     const base = Math.max(Date.parse(s.incidentQueue[0]?.reportedAt || s.start), ...times);
     return new Date(Math.min(base + 15000, Date.parse(s.end))).toISOString();
   };
@@ -1180,13 +1180,99 @@ const SocConsoleTools = (() => {
     </section>`;
   }
 
+  // Response workflow designer, shared by the Module 09 Response tab and the
+  // Module 12 capstone so both render one control. The caller supplies the
+  // form attributes that route the submit to its own recorder.
+  const WORKFLOW_NODE_LABELS = {
+    preserve: 'Preserve evidence', approval: 'Get approval', isolate: 'Isolate endpoint', 'revoke-session': 'Revoke session',
+    'block-indicator': 'Block indicator', 'remove-persistence': 'Remove persistence', restore: 'Restore from backup',
+    scan: 'Clean scan', monitor: 'Monitor',
+  };
+  // One example for every place a connections box appears. It shows the
+  // syntax only; it is not one of the graded connections.
+  const WORKFLOW_EDGE_EXAMPLE = 'scan>monitor';
+
+  function parseWorkflowEdges(text) {
+    return String(text || '').split(/[\n,]/).map((value) => value.trim()).filter(Boolean).map((line) => {
+      const pair = line.replace(/\s*(?:->|=>|→)\s*/g, '>').split('>').map((value) => value.trim().toLowerCase());
+      if (pair.length !== 2 || !pair[0] || !pair[1]) throw new Error(`"${line}" needs a from>to pair, for example ${WORKFLOW_EDGE_EXAMPLE}.`);
+      return { from: pair[0], to: pair[1] };
+    });
+  }
+
+  // saved: [{ name, nodes, connections: ['a>b', …] }] shown under the form.
+  function workflowDesignerMarkup({ nodes, formAttrs, heading = 'Response workflow design', saved = [], coachHtml = '' }) {
+    const recent = saved.slice(-3).reverse();
+    return `<section class="m04-console-extra m09-console-extra" data-m09-workflow-designer><h4>${esc(heading)}</h4>
+      <form ${formAttrs}><label>Workflow name<input name="name" required maxlength="120"></label>
+        <fieldset><legend>Action nodes</legend>${nodes.map((node) => `<label><input type="checkbox" name="nodes" value="${esc(node)}"> ${esc(node)}${WORKFLOW_NODE_LABELS[node] ? ` · ${esc(WORKFLOW_NODE_LABELS[node])}` : ''}</label>`).join('')}</fieldset>
+        <label>Connections (one from&gt;to pair per line)<textarea name="edges" rows="4" maxlength="1000" required aria-describedby="workflow-edge-example"></textarea></label>
+        <small id="workflow-edge-example" class="m03e-muted" data-workflow-edge-example>One connection per line, e.g. <code>${esc(WORKFLOW_EDGE_EXAMPLE)}</code> (the first step, then &gt;, then the step that follows it). Use the node names above.</small>
+        <button type="submit">Save workflow design</button><p role="alert" data-workflow-status></p></form>
+      ${recent.length ? `<h5>Saved designs</h5><ul data-workflow-saved>${recent.map((design) => `<li><strong>${esc(design.name)}</strong> · ${esc(design.nodes.join(', '))} · ${design.connections.length ? esc(design.connections.join('  ')) : 'no connections'}</li>`).join('')}</ul>` : ''}
+      ${coachHtml}
+    </section>`;
+  }
+
+  // Practice It only: instant checks on the saved design with hints that open
+  // up the more attempts the learner has made.
+  function m09DesignCoach(ctx, state) {
+    const incident = m09Incident(ctx);
+    const designs = (state.workflowDesigns || []).filter((design) => design.incidentId === incident);
+    if (!designs.length) return '<p class="m03e-muted" data-workflow-coach>Plan the order before you act: pick the steps you would use and connect each one to the step that follows it.</p>';
+    const rubric = SocM09AssessmentRubric;
+    const all = designs.map(rubric.designFacts);
+    const last = all[all.length - 1];
+    const checks = [
+      [last.evidenceBeforeApproval, 'Evidence is preserved before approval is requested.'],
+      [last.containmentSteps > 0 && last.gatedSteps === last.containmentSteps, 'Every disruptive step (isolate, revoke, block, remove, restore) comes after approval.'],
+      [last.verifiedAfterContainment, 'A scan or monitor step checks the result after containment.'],
+      [!last.orderingErrors.length, 'No disruptive step feeds back into preserve or approval.'],
+    ];
+    const done = checks.every(([ok]) => ok);
+    const misses = all.filter((facts) => rubric.designPotential(facts) < rubric.DESIGN_MAX || facts.orderingErrors.length).length;
+    const hints = [
+      'Think about what you lose if you isolate or restore first. Which step protects that?',
+      'Make approval the gate: evidence goes in, approval comes out, and only then the disruptive steps.',
+      'Connect them in this order: preserve>approval, then approval>isolate. Add your other steps the same way.',
+    ];
+    return `<div class="m09-workflow-coach" data-workflow-coach role="status"><h5>Check: ${esc(designs[designs.length - 1].name)}</h5>
+      <ul>${checks.map(([ok, text]) => `<li>${ok ? 'Done' : 'Not yet'} · ${esc(text)}</li>`).join('')}</ul>
+      ${done ? '<p><strong>This design orders the response safely.</strong> Now try it for real below.</p>' : hints.slice(0, Math.min(3, misses)).map((hint, index) => `<p data-workflow-hint="${index + 1}">Hint ${index + 1}: ${esc(hint)}</p>`).join('')}</div>`;
+  }
+
+  // Practice It only: explains a refused attempt the moment it is logged.
+  function m09AttemptCoach(state) {
+    const last = (state.unsafeAttempts || []).slice(-1)[0];
+    if (!last) return '<p class="m03e-muted" data-attempt-coach>Try isolating a device before any approval is recorded and see what the range does.</p>';
+    const why = { no_approval: 'no matching approval was recorded for that action and target', out_of_scope: 'that target is outside this incident', wrong_target_type: 'that action does not apply to that kind of target' }[last.reason];
+    return `<div class="m09-attempt-coach" data-attempt-coach role="status"><p><strong>Blocked and logged.</strong> ${esc(M09_ACTION_LABELS[last.actionType] || last.actionType)} on ${esc(last.targetId)} was refused because ${esc(why)}. Nothing changed on the system, but the attempt is still on your record.</p>
+      <p>In the capstone an attempt like this fails the whole attempt (the score is capped at 69). In the Prove It for this module it costs points. Request approval first, then act.</p></div>`;
+  }
+
   function m09ResponseView(ctx) {
     const state = ctx.load();
     const s = ctx.fixture.scenario;
     const entityRows = s.entities.map((entity) => `<tr><td class="m03e-mono">${esc(entity.id)}</td><td>${esc(entity.type)}</td><td>${esc(entity.hostname || entity.path || entity.name || entity.value || entity.displayName || '')}</td><td>${esc(Object.entries(state.entityStates?.[entity.id] || {}).map(([field, value]) => `${field}: ${value}`).join(', ') || '—')}</td></tr>`).join('');
     const log = (state.actionHistory || []).slice().reverse().map((action) => `<li><strong>${esc(action.type)}</strong> → ${esc(action.details.entityId || action.details.targetEntityId || '')} · <b>${esc(action.outcome)}</b> · ${esc(action.details.execution?.summary || '')} · ${esc(action.timestamp.slice(11, 19))}</li>`).join('');
+    const incident = m09Incident(ctx);
+    const designer = ctx.workflowDesigner ? workflowDesignerMarkup({
+      nodes: SocM09AssessmentState.WORKFLOW_NODES, formAttrs: 'data-m09-workflow-design',
+      saved: (state.workflowDesigns || []).filter((design) => design.incidentId === incident).map((design) => ({ name: design.name, nodes: design.nodes, connections: design.edges.map((edge) => `${edge.from}>${edge.to}`) })),
+      coachHtml: ctx.practice ? m09DesignCoach(ctx, state) : '',
+    }) : '';
+    const attempts = (state.unsafeAttempts || []).slice().reverse().map((attempt) => `<li><strong>${esc(M09_ACTION_LABELS[attempt.actionType] || attempt.actionType)}</strong> → ${esc(attempt.targetId)} · <b>${esc(attempt.outcome)}</b> · ${esc({ no_approval: 'no matching approval recorded', out_of_scope: 'target outside the incident scope', wrong_target_type: 'wrong target type for this action' }[attempt.reason] || attempt.reason)} · ${esc(attempt.timestamp.slice(11, 19))}</li>`).join('');
+    const attemptForm = ctx.attemptForm ? `<section class="m09-attempt" data-m09-attempt><h5>Attempt a response action</h5>
+      <form data-m09-attempt-form><label>Action<select name="actionType" required><option value="">Choose…</option>${Object.keys(M09_ACTION_TARGETS).map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
+        <label>Target<select name="targetId" required><option value="">Choose…</option>${s.entities.map((entity) => `<option value="${esc(entity.id)}">${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
+        <button type="submit">Attempt response action</button></form>
+      <p class="m03e-muted">The range records every attempt and checks scope and recorded approval.</p>
+      ${ctx.practice ? m09AttemptCoach(state) : ''}
+      <ol data-m09-attempt-log>${attempts || '<li>No blocked attempts.</li>'}</ol></section>` : '';
     return `<section class="m04-console-extra m09-console-extra" data-m09-console-workspace="response">
+      ${designer}
       ${m09ApprovalPanel(ctx, state, Object.keys(M09_ACTION_TARGETS).filter((type) => type !== 'restore_backup'))}
+      ${attemptForm}
       <h5>Simulated entity state</h5><div class="m03e-table-wrap"><table class="m03e-table"><thead><tr><th>ENTITY</th><th>TYPE</th><th>NAME</th><th>STATE</th></tr></thead><tbody>${entityRows}</tbody></table></div>
       <h5>Action execution log</h5><ol>${log || '<li>No actions executed.</li>'}</ol>
       <p role="alert" data-m09-feedback></p>
@@ -1219,9 +1305,11 @@ const SocConsoleTools = (() => {
     views: (ctx) => ({ incident: () => m09IncidentView(ctx), response: () => m09ResponseView(ctx), recovery: () => m09RecoveryView(ctx) }),
     wire(root, ctx) {
       const incidentId = () => m09Incident(ctx);
-      const run = (work) => {
+      const run = (work, form) => {
         try { const state = ctx.load(); ctx.store(work(state, m09Clock(ctx, state))); ctx.rerender(); } catch (error) {
-          root.querySelectorAll('[data-m09-feedback]').forEach((node) => { node.textContent = error.message; });
+          const own = form && form.querySelector('[role="alert"]');
+          if (own) own.textContent = error.message;
+          else root.querySelectorAll('[data-m09-feedback]').forEach((node) => { node.textContent = error.message; });
         }
       };
       const workflow = (changes) => run((state, at) => SocM09AssessmentState.updateIncidentWorkflow(state, incidentId(), changes, at, ctx.fixture));
@@ -1236,9 +1324,19 @@ const SocConsoleTools = (() => {
       });
       root.addEventListener('submit', (event) => {
         const form = event.target;
-        if (!form.matches('[data-m09-workflow], [data-m09-task-complete], [data-m09-task-author], [data-m09-escalation], [data-m09-approval-request], [data-m09-approval-decision], [data-m09-monitor]')) return;
+        if (!form.matches('[data-m09-workflow], [data-m09-task-complete], [data-m09-task-author], [data-m09-escalation], [data-m09-approval-request], [data-m09-approval-decision], [data-m09-monitor], [data-m09-workflow-design], [data-m09-attempt-form]')) return;
         event.preventDefault();
         const data = new FormData(form);
+        if (form.matches('[data-m09-workflow-design]')) {
+          run((state, at) => SocM09AssessmentState.saveWorkflowDesign(state, incidentId(), { name: String(data.get('name') || ''), nodes: data.getAll('nodes'), edges: parseWorkflowEdges(data.get('edges')) }, at, ctx.fixture), form);
+          return;
+        }
+        if (form.matches('[data-m09-attempt-form]')) {
+          const type = String(data.get('actionType') || '');
+          const targetId = String(data.get('targetId') || '');
+          run((state, at) => SocM09AssessmentState.attemptResponseAction(state, incidentId(), { type, targetId, outcome: m09Outcome(ctx, type, targetId), evidenceIds: state.reviewedEvidenceIds || [] }, at, ctx.fixture));
+          return;
+        }
         if (form.matches('[data-m09-workflow]')) {
           const state = ctx.load();
           const current = state.incidentWorkflows[incidentId()];
@@ -1488,5 +1586,5 @@ const SocConsoleTools = (() => {
     };
   }
 
-  return Object.freeze({ PACKS, mount, watchGuide, setText, embedded, embeddedBox, m04Fixture, m05Fixture, m06Fixture, m07Fixture, m08Fixture, m09Fixture, esc });
+  return Object.freeze({ PACKS, mount, watchGuide, setText, embedded, embeddedBox, m04Fixture, m05Fixture, m06Fixture, m07Fixture, m08Fixture, m09Fixture, workflowDesignerMarkup, parseWorkflowEdges, WORKFLOW_EDGE_EXAMPLE, esc });
 })();

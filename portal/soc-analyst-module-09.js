@@ -1096,6 +1096,7 @@ const MODULE_NINE_CONSOLE = (() => {
       { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineState, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
       { id: 'm09', ctx: {
         ...base, fixture: SocM09AssessmentData, evidence: MODULE_NINE_EVIDENCE, routes: MODULE_NINE_DEPARTMENT_OPTIONS,
+        workflowDesigner: true, attemptForm: true,
         load: () => SocM09AssessmentState.load(moduleNineUser, SocM09AssessmentData),
         store: (next) => SocM09AssessmentState.save(moduleNineUser, next, SocM09AssessmentData),
       } },
@@ -1135,6 +1136,7 @@ const MODULE_NINE_GUIDED_CONSOLE = (() => {
       { id: 'm07', ctx: { ...base, fixture: fx.m07, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineGuidedState, 'm07', SocM07AssessmentState.normalize, fx.m07, save) } },
       { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineGuidedState, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
       { id: 'm09', ctx: { ...base, fixture: MODULE_NINE_GUIDED_FIXTURE, evidence: MODULE_NINE_GUIDED_EVIDENCE,
+        workflowDesigner: true, attemptForm: true, practice: true,
         routes: [{ id: 'guided-ir-lead', text: 'Incident Lead + Endpoint/Identity Owners', fit: 100, note: 'Authorized to execute remediation and validate recovery.' }],
         load: () => moduleNineGuidedActionState,
         store: (next) => { moduleNineGuidedActionState = SocM09AssessmentState.save(moduleNineUser, next, MODULE_NINE_GUIDED_FIXTURE); moduleNineGuidedSave(); },
@@ -1160,6 +1162,15 @@ function moduleNineGuidedEvidenceReady() {
     && (state.actionHistory || []).length > 0 && Boolean(workflow.status && cr.status && cr.affectedUser && cr.affectedDevice && cr.severity && cr.disposition && cr.escalateTo && cr.notes?.trim().length >= 35);
 }
 
+// True when any saved design puts evidence before approval and every
+// containment step behind approval (the order the capstone grades).
+function moduleNineGuidedWorkflowSound(state) {
+  return (state.workflowDesigns || []).some((design) => {
+    const facts = SocM09AssessmentRubric.designFacts(design);
+    return facts.evidenceBeforeApproval && facts.containmentSteps > 0 && facts.gatedSteps === facts.containmentSteps && !facts.orderingErrors.length;
+  });
+}
+
 // Instant Practice It score: each incident-response competency counts equally.
 function moduleNineGuidedScoreItems() {
   const state = moduleNineGuidedActionState || {};
@@ -1172,6 +1183,8 @@ function moduleNineGuidedScoreItems() {
     ['Reviewed at least three pieces of evidence', (state.reviewedEvidenceIds || []).length >= 3],
     ['Ran an approved, incident-scoped containment action', (state.actionHistory || []).some((action) => containment.includes(action.type))],
     ['Scoped the ticket to the confirmed endpoint and account', cr.affectedDevice === 'ws-294' && cr.affectedUser === 'acct-294'],
+    ['Saved a workflow that preserves evidence before approval and approval before containment', moduleNineGuidedWorkflowSound(state)],
+    ['Saw a containment attempt without approval blocked and logged', (state.unsafeAttempts || []).length > 0],
   ];
 }
 function moduleNineGuidedSubmit() {
@@ -1210,6 +1223,10 @@ function moduleNineGuidedSteps() {
     { title: 'Correlate incident evidence', body: 'Compare endpoint, identity, and service activity within the same time window.', lookFor: 'Matching entities and timestamps across independent records.', lab: 'Bound the affected user and device.', tab: 'evidence', target: '.m03e-table-wrap' },
     { title: 'Check response outcomes', body: 'Review preservation, containment, and recovery records; confirm authority and results.', lookFor: 'Action approvals and validation evidence, not action names alone.', lab: 'Build a proportionate response plan.', tab: 'evidence', target: '.m03e-table-wrap' },
     { title: 'Separate primary and contributing evidence', body: 'Distinguish records that directly establish impact from related activity that supports context.', lookFor: 'Direct endpoint or identity evidence versus corroborating service records.', lab: 'Describe how each finding supports the scope.', tab: 'evidence', target: '.m03e-table-wrap' },
+    { title: 'Plan the order of response', body: 'Before you act, design the workflow: which steps you will use and in what order. Name it, tick the action nodes, and connect them with one from>to line each.', lookFor: 'What each disruptive step could destroy or break if it ran first.', lab: 'Save a workflow that preserves evidence before approval, and approval before containment.', tab: 'response', target: '[data-m09-workflow-designer]' },
+    { title: 'Read the workflow check', body: 'Every time you save, the check lists what your order gets right and what is still missing. Hints open up if the design still has gaps.', lookFor: 'Evidence before approval, approval before every disruptive step, and a scan or monitor step after containment.', lab: 'Adjust and save again until every line reads Done.', tab: 'response', target: '[data-m09-workflow-designer]' },
+    { title: 'See what an unsafe attempt costs', body: 'Now try the shortcut on purpose: attempt to isolate a device before any approval is recorded.', lookFor: 'The range blocks it, logs it and says why. Nothing changes on the system, but the attempt stays on your record.', lab: 'In the capstone a blocked attempt like this fails the whole attempt (score capped at 69); here and in the Prove It it costs points. Approval comes first.', tab: 'response', target: '[data-m09-attempt]' },
+    { title: 'Do it the safe way', body: 'Request approval for the exact action and target, record the incident lead\'s decision, then run the approved action.', lookFor: 'The approval gate reading approved for that action and target before Execute appears.', lab: 'Run one approved, in-scope containment action.', tab: 'response', target: '.m09-approval' },
     { title: 'Set scope and decide', body: 'Choose the supported severity, disposition, response phases, and escalation owner.', lookFor: 'Confirmed impact, explicit unknowns, and authorized next actions.', lab: 'Complete the bounded incident decision.', tab: 'case', target: '.m01-ticket-grid' },
     { title: 'Submit the ticket', body: 'Document impact, recovery conditions, and next owner in the ITSM ticket, then submit.', lookFor: 'A clear handoff that separates facts from uncertainty.', lab: 'Submit the ticket when the handoff is ready.', tab: 'case', target: '.m01-ticket-actions' },
   ];
@@ -1232,6 +1249,7 @@ function moduleNineGuidedLabPanel() {
     { name: 'Affected device', status: quality(cr.affectedDevice, 'ws-294', ['fs-05']), note: 'Name the confirmed endpoint; the disrupted file service contributes impact context.' },
     { name: 'Severity', status: quality(cr.severity, 'critical', ['high']), note: 'Match urgency to the confirmed ransomware impact.' },
     { name: 'Disposition', status: quality(cr.disposition, 'true-positive', ['false-negative']), note: 'Classify the corroborated incident signal.' },
+    { name: 'Response workflow', status: moduleNineGuidedWorkflowSound(moduleNineGuidedActionState || {}) ? 'captured' : (moduleNineGuidedActionState?.workflowDesigns || []).length ? 'contributing' : 'missed', note: 'Preserve evidence before approval, and get approval before any isolate, revoke, block, remove or restore step.' },
     { name: 'Evidence review', status: evidenceIds >= 3 ? 'captured' : evidenceIds > 0 ? 'contributing' : 'missed', note: 'Correlate multiple reviewed records across endpoint, identity, and service activity.' },
     { name: 'Escalation and department', status: cr.escalation === 'required' && cr.escalateTo === 'guided-ir-lead' ? 'captured' : 'missed', note: 'Route execution to the incident lead and endpoint/identity owners.' },
     { name: 'Evidence and handoff notes', status: direct && facts && bounded ? 'captured' : direct || facts || bounded ? 'contributing' : 'missed', note: 'Record confirmed impact, response outcomes, scope limits, and next checks.' },
@@ -1285,6 +1303,7 @@ M03E_AFTER_RENDER['m09-guided'] = function () {
       { name: 'Affected device', status: quality(cr.affectedDevice, 'ws-294', ['fs-05']), note: 'Name the confirmed endpoint; the disrupted file service contributes impact context.' },
       { name: 'Severity', status: quality(cr.severity, 'critical', ['high']), note: 'Match urgency to the confirmed ransomware impact.' },
       { name: 'Disposition', status: quality(cr.disposition, 'true-positive', ['false-negative']), note: 'Classify the corroborated incident signal.' },
+      { name: 'Response workflow', status: moduleNineGuidedWorkflowSound(moduleNineGuidedActionState || {}) ? 'captured' : (moduleNineGuidedActionState?.workflowDesigns || []).length ? 'contributing' : 'missed', note: 'Preserve evidence before approval, and get approval before any isolate, revoke, block, remove or restore step.' },
       { name: 'Evidence review', status: evidenceIds >= 3 ? 'captured' : evidenceIds > 0 ? 'contributing' : 'missed', note: 'Correlate multiple reviewed records across endpoint, identity, and service activity.' },
       { name: 'Escalation and department', status: cr.escalation === 'required' && cr.escalateTo === 'guided-ir-lead' ? 'captured' : 'missed', note: 'Route execution to the incident lead and endpoint/identity owners.' },
       { name: 'Evidence and handoff notes', status: direct && facts && bounded ? 'captured' : direct || facts || bounded ? 'contributing' : 'missed', note: 'Record confirmed impact, response outcomes, scope limits, and next checks.' },
@@ -1300,7 +1319,7 @@ M03E_AFTER_RENDER['m09-guided'] = function () {
 
 function moduleNineDynamic() {
   return `<div class="m03e-panel" id="m09-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">INCIDENT INC-4937 · CONFIRMED · ASSIGNED TO YOU</p><p>Run the confirmed endpoint and identity incident: contain verified impact with approval, preserve evidence, and check each action’s result. Remove persistence, address credentials and sessions, recover from a trusted backup, monitor, escalate remaining risk, and update the ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">INCIDENT INC-4937 · CONFIRMED · ASSIGNED TO YOU</p><p>Run the confirmed endpoint and identity incident: contain verified impact with approval, preserve evidence, and check each action’s result. Remove persistence, address credentials and sessions, recover from a trusted backup, monitor, escalate remaining risk, and update the ticket. Record your planned response order as a workflow in the Response tab.</p></div>
     <div class="m03e-console-host" id="m03e-console-m09">${moduleThreeConsoleHtml('m09')}</div>
   </div>`;
 }

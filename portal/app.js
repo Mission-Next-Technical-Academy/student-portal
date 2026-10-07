@@ -931,7 +931,8 @@ function adminAttemptReviewCard(item, olderAttempt) {
           const full = Number(earned) >= Number(c.max);
           const misses = Array.isArray(c.misses) ? c.misses.filter(Boolean) : [];
           const evidence = (Array.isArray(c.supportingEvidence) ? c.supportingEvidence : Array.isArray(c.evidence) ? c.evidence : []).filter(Boolean);
-          return `<div class="px-3 py-2"><div class="flex justify-between gap-3"><span class="text-gray-700">${esc(c.label)}</span><span class="font-semibold ${full ? 'text-green-700' : 'text-amber-700'}">${esc(String(earned))} / ${esc(String(c.max ?? '—'))}</span></div>${misses.length ? `<p class="text-xs text-amber-800 mt-1">Missed: ${esc(misses.join('; '))}</p>` : ''}${evidence.length ? `<p class="text-xs text-gray-500 mt-1">Evidence: ${esc(evidence.join(', '))}</p>` : ''}</div>`;
+          const deductions = Array.isArray(c.deductions) ? c.deductions.filter((d) => d && d.points) : [];
+          return `<div class="px-3 py-2"><div class="flex justify-between gap-3"><span class="text-gray-700">${esc(c.label)}</span><span class="font-semibold ${full ? 'text-green-700' : 'text-amber-700'}">${esc(String(earned))} / ${esc(String(c.max ?? '—'))}</span></div>${misses.length ? `<p class="text-xs text-amber-800 mt-1">Missed: ${esc(misses.join('; '))}</p>` : ''}${deductions.length ? `<p class="text-xs text-red-800 mt-1">Deductions: ${esc(deductions.map((d) => `-${d.points} ${d.reason}`).join('; '))}</p>` : ''}${evidence.length ? `<p class="text-xs text-gray-500 mt-1">Evidence: ${esc(evidence.join(', '))}</p>` : ''}</div>`;
         }).join('')}
       </div>
     </div>` : '';
@@ -949,6 +950,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     </div>
     ${adminCaseTicketSubmissionPanel(row)}
     ${adminCapstoneReviewPanel(row)}
+    ${adminResponseDesignReviewPanel(row)}
     ${adminModuleTwoAccessReviewPanel(row)}
     ${competencyPanel}
     ${readableResult}
@@ -1169,6 +1171,31 @@ function adminCapstoneReviewPanel(row) {
       <p class="mt-2 text-sm"><strong>Selected evidence:</strong> ${esc(evidence.join(', ') || 'None')}</p>
       <pre class="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-gray-700">${esc(JSON.stringify({ determinations, actions }, null, 2))}</pre>
     </details>
+  </section>`;
+}
+
+// Module 09's Prove It records the learner's own response workflow design and
+// every blocked response attempt. Show both readably, not only in raw JSON.
+function adminResponseDesignReviewPanel(row) {
+  const payload = row?.result?.review_payload || row?.result?.reviewPayload;
+  const review = payload && typeof payload === 'object' ? payload.responseReview : null;
+  if (!review || typeof review !== 'object') return '';
+  const designs = Array.isArray(review.workflowDesigns) ? review.workflowDesigns : [];
+  const attempts = Array.isArray(review.unsafeAttempts) ? review.unsafeAttempts : [];
+  const actionName = (value) => String(value || '').replace(/_/g, ' ');
+  const designRows = designs.length ? designs.map((design, index) => `<article class="rounded-lg border border-gray-200 bg-white p-3">
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Design ${index + 1} of ${designs.length}${index === designs.length - 1 ? ' (latest)' : ''} · ${esc(design.name || 'Untitled')}</p>
+    <p class="mt-1 text-sm text-gray-800"><strong>Steps:</strong> ${esc((design.nodes || []).join(', ') || 'None')}</p>
+    <p class="text-sm text-gray-800"><strong>Order (from &gt; to):</strong> ${(design.connections || []).length ? (design.connections || []).map((line) => `<code class="mr-2 rounded bg-gray-100 px-1">${esc(line)}</code>`).join('') : 'No connections drawn'}</p>
+  </article>`).join('') : '<p class="text-sm text-gray-500">No response workflow was designed.</p>';
+  const attemptRows = attempts.length ? `<ul class="list-disc space-y-1 pl-5 text-sm text-red-800">${attempts.map((attempt) => `<li><strong>${esc(actionName(attempt.actionType))}</strong> on ${esc(attempt.targetId)} was blocked: ${esc(attempt.reasonText || attempt.reason || 'unsafe attempt')}.</li>`).join('')}</ul>`
+    : '<p class="text-sm text-gray-500">No blocked or unapproved response attempts were recorded.</p>';
+  return `<section class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" aria-label="Student response workflow and unsafe attempts">
+    <h3 class="mb-2 text-sm font-semibold text-[#1e3a5f]">Response workflow design</h3>
+    <div class="space-y-2">${designRows}</div>
+    <h3 class="mt-4 mb-2 text-sm font-semibold text-[#1e3a5f]">Unsafe response attempts (${esc(String(attempts.length))})</h3>
+    ${attemptRows}
+    <p class="mt-2 text-xs text-gray-500">Each blocked attempt lowers the safe-conduct competency; it does not cap the whole score.</p>
   </section>`;
 }
 
