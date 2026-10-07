@@ -224,7 +224,7 @@ for (const [file, formId] of [['soc-analyst-module-07.js', 'm07-assessment-form'
   const source = fs.readFileSync(path.join(portal, file), 'utf8');
   const lines = source.split('\n');
   const writes = lines.map((line, index) => ({ line, index })).filter(({ line }) => /caseRecordApply\(|caseRecord\.notes = /.test(line) && !/function /.test(line));
-  assert.ok(writes.length > 0 && writes.every(({ index }) => lines.slice(Math.max(0, index - 3), index + 1).some((line) => line.includes(`#${formId}`) || /#guided-m0\d-|#m0\d-guided-case-form/.test(line))), `${file} ticket writes are scoped to #${formId} (or the Guided Lab case form)`);
+  assert.ok(writes.length > 0 && writes.every(({ index }) => lines.slice(Math.max(0, index - 3), index + 1).some((line) => line.includes(`#${formId}`) || /#guided-m0\d-|#m0\d-guided-case-form|\[id\$="m0\d-guided-case-form"\]/.test(line))), `${file} ticket writes are scoped to #${formId} (or the Guided Lab case form)`);
   assert.ok(new RegExp(`closest\\('#${formId}'\\)`).test(source), `${file} checks the ticket form before writing`);
 }
 assert.ok(storage.has(`${local('SocM04AssessmentState.LAB_ID')}:soc-04:${user.email}`));

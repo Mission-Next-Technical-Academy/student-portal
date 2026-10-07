@@ -616,7 +616,7 @@ const SocM09AssessmentState = (() => {
       if (field === 'approvalReason' && !validText(value)) throw new Error('M09 assessment approval reason is invalid.');
       if (field === 'approvalActorId' && value !== null
         && !actorHasRole(value, 'responder')) {
-        throw new Error('M09 assessment approval actor is invalid.');
+        throw new Error('Enter the approver as an incident-response ID, for example ir-lead-morgan or ir-analyst-lee.');
       }
       if (field === 'approvalTargetId' && value !== null
         && !new Set([...scenario.entities.map((item) => item.id), ...scenario.incidentGraph.nodes.map((item) => item.id)]).has(value)) {

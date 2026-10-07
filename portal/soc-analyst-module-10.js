@@ -603,7 +603,10 @@ function moduleTenGuidedLabPanel() {
   const complete = moduleTenGuidedState.caseRecord.submitted === true;
   const cr = moduleTenGuidedState.caseRecord;
   const steps = moduleTenGuidedSteps();
-  if (!complete) { m03eState('m10-guided').tab = steps[Math.min(moduleTenGuidedState.guideStep || 0, steps.length - 1)].tab; moduleTenSaveGuided(); }
+  // Move the console to the guide's tab only when the guide step changes; doing
+  // it on every render yanked the learner off the tab they were working in.
+  const guideStepIndex = Math.min(moduleTenGuidedState.guideStep || 0, steps.length - 1);
+  if (!complete && m03eState('m10-guided').guideTabStep !== guideStepIndex) { m03eState('m10-guided').tab = steps[guideStepIndex].tab; m03eState('m10-guided').guideTabStep = guideStepIndex; moduleTenSaveGuided(); }
   const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
   const locker = Object.values(evidence.locker || {}); const timeline = evidence.timeline || []; const held = evidence.legalHold?.artifactIds || [];
   const note = (cr.notes || '').toLowerCase(); const entities = note.includes('wkstn-42') && note.includes('m.chen'); const custody = /custod|hash|integrity|provenance/.test(note); const chronology = /chronolog|timeline|event|timestamp/.test(note); const bounded = /exfiltration|unknown|unproven|limit|verify|owner/.test(note);
@@ -877,18 +880,52 @@ const MODULE_TEN_GUIDED_CONSOLE = (() => {
       deviceOptions: MODULE_TEN_GUIDED_DEVICE_OPTIONS,
       departmentOptions: [{ id: 'guided-digital-forensics', text: 'Digital Forensics + Incident Lead' }, { id: 'legal-hold', text: 'Legal Hold Repository' }],
       formId: 'm10-guided-case-form', saveAttr: 'data-m10-guided-save-case', submitAttr: 'data-m10-guided-submit-case', panelId: 'm10-guided-case-panel',
-      notesPlaceholder: 'Document the acquired evidence and custody, supported chronology, specialist work, and limits such as unproven exfiltration.', practiceSubmitted: true,
+      notesPlaceholder: 'Document the acquired evidence and custody, supported chronology, specialist work, and limits such as unproven exfiltration.', practiceSubmitted: true, practiceScored: true,
+      practiceResult: moduleTenGuidedState.caseRecord.practiceResult, showMissing: moduleTenGuidedState.caseRecord.showMissing === true,
     }); return moduleTenGuidedState.caseRecord.submitted ? `${html}<button type="button" class="m01-reset" data-m10-guided-restart>Restart Guided Lab</button>` : html; },
   });
 })();
 
+// Instant Practice It score: each evidence-handling competency counts equally.
+function moduleTenGuidedScoreItems() {
+  const state = moduleTenGuidedEvidenceState || {};
+  const locker = Object.values(state.locker || {});
+  const cr = moduleTenGuidedState.caseRecord;
+  return [
+    ['Acquired at least four artifacts into the evidence locker', locker.length >= 4],
+    ['Verified the integrity of every acquired artifact', locker.length > 0 && locker.every((item) => item.integrity === 'verified')],
+    ['Built a supported chronology of at least three entries', (state.timeline || []).length >= 3],
+    ['Placed the key artifacts on legal hold', (state.legalHold?.artifactIds || []).length >= 2],
+    ['Scoped the ticket to the affected user and device', cr.affectedUser === 'm.chen' && cr.affectedDevice === 'wkstn-42'],
+  ];
+}
+function moduleTenGuidedSubmit() {
+  const cr = moduleTenGuidedState.caseRecord;
+  if (cr.submitted) return;
+  const at = new Date().toISOString();
+  if (caseRecordMissing(cr, { departmentOptions: [{ id: 'guided-digital-forensics' }, { id: 'legal-hold' }] }).length) {
+    cr.showMissing = true;
+  } else {
+    const result = practiceResult(moduleTenGuidedScoreItems());
+    cr.showMissing = false;
+    cr.practiceResult = result;
+    cr.actionHistory.push({ action: `Practice scored ${result.score}% (${result.passed ? 'pass' : 'not passed'})`, at });
+    if (result.passed) {
+      cr.submitted = true;
+      cr.submittedAt = at;
+      moduleTenGuidedState.practiceComplete = true; moduleTenGuidedState.guideStep = 3; moduleTenGuidedState.guideDocked = true;
+    }
+  }
+  moduleTenSaveGuided();
+  moduleTenRenderGuided();
+}
 function moduleTenGuidedComplete() {
   return moduleTenGuidedState?.caseRecord?.submitted === true;
 }
 
 function moduleTenGuidedRestart() {
   const cr = moduleTenGuidedState.caseRecord;
-  moduleTenGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleTenGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', practiceResult: null, showMissing: false, actionHistory: [] };
   moduleTenGuidedState.practiceComplete = false; moduleTenGuidedState.guideStep = 0; moduleTenGuidedState.guideDocked = false;
   moduleTenSaveGuided(); moduleTenRenderGuided();
 }
@@ -1340,7 +1377,7 @@ function wireModuleTenGuidedLab() {
   MODULE_TEN_GUIDED_CONSOLE.wire(root);
   moduleTenPositionGuidedGuide(root);
   root.addEventListener('change', (event) => {
-    const field = event.target.closest('#m10-guided-case-form [name]');
+    const field = event.target.closest('[id$="m10-guided-case-form"] [name]');
     if (!field) return;
     if (field.name.startsWith('finding:')) moduleTenGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
     else moduleTenGuidedState.caseRecord[field.name] = field.value;
@@ -1349,7 +1386,7 @@ function wireModuleTenGuidedLab() {
   });
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m10-guided-restart]')) { event.preventDefault(); moduleTenGuidedRestart(); return; }
-    if (event.target.closest('[data-m10-guided-submit-case]')) { event.preventDefault(); moduleTenGuidedState.caseRecord.submitted = true; moduleTenGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleTenGuidedState.practiceComplete = true; moduleTenGuidedState.guideStep = 3; moduleTenGuidedState.guideDocked = true; moduleTenSaveGuided(); moduleTenRenderGuided(); return; }
+    if (event.target.closest('[data-m10-guided-submit-case]')) { event.preventDefault(); moduleTenGuidedSubmit(); return; }
     if (event.target.closest('[data-m10-guided-guide-next]')) { moduleTenGuidedState.guideStep = ((moduleTenGuidedState.guideStep || 0) + 1) % moduleTenGuidedSteps().length; moduleTenSaveGuided(); const tab = moduleTenGuidedSteps()[moduleTenGuidedState.guideStep].tab; document.querySelector(`[data-m03e-tab="m10-guided:${tab}"]`)?.click(); moduleTenRenderGuided(); return; }
     if (event.target.closest('[data-m10-guided-guide-collapse]')) { moduleTenGuidedState.guideDocked = !moduleTenGuidedState.guideDocked; moduleTenSaveGuided(); moduleTenRenderGuided(); return; }
     if (event.target.closest('[data-m10-guided-save-case]')) {

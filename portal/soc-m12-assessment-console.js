@@ -212,7 +212,20 @@ const SocM12AssessmentConsole = (() => {
     const baseViews={alerts:()=>m03eAlertsView('m12'),search:()=>m03eSearchView('m12'),timeline:()=>m03eTimelineView('m12'),evidence:()=>m03eEvidenceView('m12')};
     for(const tab of ['alerts','search','timeline','evidence','intelligence','email','network','exposure','response']) {
       const view=packViews[tab]||baseViews[tab];
-      contextualViews[tab]=()=>view()+contextualMarkup(tab,m03eState('m12'),data);
+      contextualViews[tab]=()=>view()+`<div data-m12-contextual="${tab}">${contextualMarkup(tab,m03eState('m12'),data)}</div>`;
+    }
+    // Selecting a Log Search row re-renders only results/drawer (to keep the
+    // editor), which left this panel showing the previous record's finding form.
+    // mount() runs on every render, so install the refresher once.
+    if(typeof M03E_AFTER_RENDER!=='undefined' && !M03E_AFTER_RENDER.m12?.m12Contextual) {
+      const previousAfterRender=M03E_AFTER_RENDER.m12;
+      const refresh=()=>{
+        previousAfterRender?.();
+        const st=m03eState('m12'), panel=document.querySelector(`#m03e-console-m12 [data-m12-contextual="${st.tab}"]`);
+        if(panel) panel.innerHTML=contextualMarkup(st.tab,st,dataset());
+      };
+      refresh.m12Contextual=true;
+      M03E_AFTER_RENDER.m12=refresh;
     }
     const mounted=SocConsoleTools.mount('m12',{data,stateRoot:parent,save,title:'CUMULATIVE SOC CAPSTONE',ariaLabel:'Module 12 cumulative SOC capstone console',packs,
       extraTabs:[['operations','Operations'],['reporting','Reporting']],views:{...contextualViews,operations:()=>operations({state:()=>moduleTwelveState.assessmentState}),reporting:()=>reporting({state:()=>moduleTwelveState.assessmentState})},

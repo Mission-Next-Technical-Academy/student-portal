@@ -1048,3 +1048,74 @@ html[data-mn-theme="night"] .m05-pick-detail, html[data-mn-theme="night"] .m05-p
 @media (max-width: 720px) { .m05-pick-head, .m05-pick-row { grid-template-columns: 1.15rem 3.6rem minmax(4rem, 1fr); } .m05-pick-head span:nth-child(n+4), .m05-pick-row > :nth-child(n+4) { display: none; } .m05-pick-hash { grid-template-columns: 1.15rem 5rem minmax(0, 1fr); } }
 html[data-mn-theme="night"] .m05-device-profile { background: #0f172a; border-color: #334155; color: #e2e8f0; }
 html[data-mn-theme="night"] .m05-device-profile dt, html[data-mn-theme="night"] .m05-device-inventory li button span { color: #94a3b8; }
+
+/* Instant Practice It score (case-record.js practiceResultHtml). */
+.practice-score { display: flex; align-items: baseline; gap: 10px; margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; font-family: Inter, sans-serif; }
+.practice-score.is-pass { color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.practice-score.is-fail { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; }
+.practice-score-value { font-size: 24px; font-weight: 700; line-height: 1; }
+.practice-score-label { font-size: 13px; font-weight: 600; }
+.m01-requirements-list li i.ri-close-circle-line { color: #dc2626; }
+[data-mn-theme="night"] .practice-score.is-pass { color: #bbf7d0; background: rgba(22, 101, 52, .25); border-color: rgba(134, 239, 172, .35); }
+[data-mn-theme="night"] .practice-score.is-fail { color: #fecaca; background: rgba(153, 27, 27, .25); border-color: rgba(252, 165, 165, .35); }
+
+/* "Restart Guided Lab" sits outside .m01-ticket-actions, so it had no button
+ * shape and rendered as plain text. */
+button.m01-reset[data-m02e-restart], button.m01-reset[data-m03e-practice-restart],
+button.m01-reset[data-m04-guided-restart], button.m01-reset[data-m05-guided-restart],
+button.m01-reset[data-m06-guided-restart], button.m01-reset[data-m07-guided-restart],
+button.m01-reset[data-m08-guided-restart], button.m01-reset[data-m09-guided-restart],
+button.m01-reset[data-m10-guided-restart], button.m01-reset[data-m11-guided-restart] { min-height: 40px; display: inline-flex; align-items: center; margin: 14px 0 0; padding: 9px 15px; border-radius: 10px; font: 700 12px 'Space Grotesk', sans-serif; cursor: pointer; }
+
+/* Instructor notes on an approved Prove It (case-record.js caseRecordPanel). */
+.m01-graded-feedback { margin: 12px 0 0; padding: 12px 14px; color: #1e3a5f; background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 11px; font: 13px/1.55 Inter, sans-serif; }
+.m01-graded-feedback > strong { display: flex; align-items: center; gap: 7px; }
+.m01-graded-feedback ul { margin: 6px 0 0; padding-left: 18px; list-style: disc; }
+[data-mn-theme="night"] .m01-graded-feedback { color: #dbeafe; background: rgba(30, 58, 95, .45); border-color: rgba(147, 197, 253, .35); }
+
+/* M09 incident / response / recovery workspaces (PACKS.m09, reused by M10-M12)
+* and the M10 evidence locker / reconstruction workspaces (PACKS.m10).
+* Only the bare .m04-console-extra base applied: selects ran together inline
+ * and the evidence review was a raw checkbox list. */
+.m09-console-extra > h4, * the M10 evidence locker / reconstruction workspaces (PACKS.m10) and the
+ * M11/M12 Shift Operations and Reporting tabs (.m03-console-extra).
+ * Only the bare .m04-console-extra base applied: selects ran together inline
+ * and the evidence review was a raw checkbox list. */
+.m10-console-extra > h4, * Only the bare .m04-console-extra base applied: selects ran together inline
+ * and the evidence review was a raw checkbox list. */
+.m03-console-extra > h4 { margin: 4px 0 6px; font-size: 16px; }
+.m09-console-extra > p, .m10-console-extra > p, .m03-console-extra > p { margin: 0 0 12px; color: #52616b; font-size: 12px; line-height: 1.5; }
+.m09-console-extra > ul, .m09-console-extra > ol, .m10-console-extra > ul, .m10-console-extra > ol, .m03-console-extra > ul, .m03-console-extra > ol { margin: 0 0 14px; padding: 10px 14px 10px 30px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; line-height: 1.6; }
+.m09-console-extra form, .m10-console-extra form, .m03-console-extra form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; margin: 0 0 14px; padding: 12px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+.m09-console-extra form > h5, .m10-console-extra form > h5, .m03-console-extra form > h5 { flex: 1 1 100%; margin: 0; }
+.m09-console-extra form label, .m10-console-extra form label, .m03-console-extra form label { display: grid; gap: 4px; min-width: 160px; flex: 1 1 180px; color: #52616b; font-size: 11px; font-weight: 700; }
+.m09-console-extra form select, .m09-console-extra form input:not([type="checkbox"]):not([type="radio"]), .m09-console-extra form textarea, .m10-console-extra form select, .m10-console-extra form input:not([type="checkbox"]):not([type="radio"]), .m10-console-extra form textarea, .m03-console-extra form select, .m03-console-extra form input:not([type="checkbox"]):not([type="radio"]), .m03-console-extra form textarea { width: 100%; min-height: 34px; padding: 6px 8px; color: #172033; background: #fff; border: 1px solid #b9c6ce; border-radius: 6px; font: 13px/1.4 Inter, sans-serif; }
+.m09-console-extra form textarea, .m10-console-extra form textarea, .m03-console-extra form textarea { min-height: 64px; }
+.m09-console-extra form fieldset, .m10-console-extra form fieldset, .m03-console-extra form fieldset { flex: 1 1 100%; margin: 0; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px; }
+.m09-console-extra form fieldset label, .m10-console-extra form fieldset label, .m03-console-extra form fieldset label { display: flex; align-items: center; gap: 8px; min-width: 0; color: #172033; font-weight: 600; }
+.m09-console-extra form > button, .m10-console-extra form > button, .m03-console-extra form > button { flex: 0 0 auto; }
+.m09-console-extra .m09-evidence, .m10-console-extra .m09-evidence, .m03-console-extra .m09-evidence { display: grid; gap: 6px; margin: 0 0 14px; padding: 0; list-style: none; }
+.m09-console-extra .m09-evidence li, .m10-console-extra .m09-evidence li, .m03-console-extra .m09-evidence li { padding: 8px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+.m09-console-extra .m09-evidence li label, .m10-console-extra .m09-evidence li label, .m03-console-extra .m09-evidence li label { display: flex; align-items: baseline; gap: 8px; color: #172033; font-size: 12px; cursor: pointer; }
+.m09-console-extra .m09-evidence li input, .m10-console-extra .m09-evidence li input, .m03-console-extra .m09-evidence li input { flex: 0 0 auto; accent-color: #f97316; }
+.m09-console-extra .m09-evidence li p, .m10-console-extra .m09-evidence li p, .m03-console-extra .m09-evidence li p { margin: 2px 0 0 24px; color: #52616b; font-size: 12px; }
+.m09-console-extra .m09-approval, .m10-console-extra .m09-approval, .m03-console-extra .m09-approval { margin: 0 0 14px; padding: 12px 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; }
+[data-mn-theme="night"] .m09-console-extra form, [data-mn-theme="night"] .m09-console-extra .m09-evidence li, [data-mn-theme="night"] .m10-console-extra form, [data-mn-theme="night"] .m10-console-extra .m09-evidence li, [data-mn-theme="night"] .m03-console-extra form, [data-mn-theme="night"] .m03-console-extra .m09-evidence li { background: #0f1b2d; border-color: #24364f; }
+[data-mn-theme="night"] .m09-console-extra > ul, [data-mn-theme="night"] .m09-console-extra > ol, [data-mn-theme="night"] .m10-console-extra > ul, [data-mn-theme="night"] .m10-console-extra > ol, [data-mn-theme="night"] .m03-console-extra > ul, [data-mn-theme="night"] .m03-console-extra > ol { background: #0f1b2d; border-color: #24364f; }
+
+.m10-console-extra .m10-intake { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; }
+.m10-console-extra .m10-intake > :first-child { grid-column: 1 / -1; }
+.m10-console-extra form label:has(input[type="checkbox"]) { flex: 0 0 auto; min-width: 0; display: inline-flex; flex-direction: row; align-items: center; gap: 6px; }
+@media (max-width: 640px) { .m10-console-extra .m10-intake { grid-template-columns: 1fr; } }
+
+/* .m03-console-extra had no base styles at all (M11/M12 Operations + Reporting). */
+.m03-console-extra { color: #172b43; font-size: 13px; }
+.m03-console-extra > h3 { margin: 4px 0 6px; color: #1e3a5f; font-size: 17px; }
+.m03-console-extra h4, .m03-console-extra h5 { margin: 14px 0 8px; color: #1e3a5f; }
+.m03-console-extra button { margin: 0; padding: 7px 12px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #1e3a5f; font: 700 12px Inter, sans-serif; cursor: pointer; }
+.m03-console-extra button:hover:not(:disabled) { border-color: #f97316; }
+.m03-console-extra form button[type="submit"], .m03-console-extra form > button:last-child { color: #fff; background: #1e3a5f; border-color: #1e3a5f; }
+
+/* M11 shift-assessment submit sits outside a ticket, so it had no button shape. */
+button[data-m11-submit-score] { min-height: 42px; display: inline-flex; align-items: center; padding: 10px 16px; color: #fff; background: #f97316; border: 1px solid #f97316; border-radius: 10px; font: 700 13px 'Space Grotesk', sans-serif; cursor: pointer; }
+button[data-m11-submit-score]:hover, button[data-m11-submit-score]:focus-visible { background: #ea580c; }

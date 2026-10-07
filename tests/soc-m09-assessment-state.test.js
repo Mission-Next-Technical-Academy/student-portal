@@ -532,7 +532,7 @@ assert.throws(() => api.updateIncidentWorkflow(approvalRequested, 'INC-4937', { 
   '2026-09-27T10:15:00.000Z', fixture), /requires a reason and actor/);
 assert.throws(() => api.updateIncidentWorkflow(approvalRequested, 'INC-4937', {
   approvalStatus: 'rejected', approvalReason: 'Denied.', approvalActorId: 'bad actor',
-}, '2026-09-27T10:15:00.000Z', fixture), /approval actor/);
+}, '2026-09-27T10:15:00.000Z', fixture), /approver as an incident-response ID/);
 assert.throws(() => api.updateIncidentWorkflow(approvalRequested, 'INC-4937', {
   approvalStatus: 'rejected', approvalReason: 'Denied by responder.', approvalActorId: 'ir-analyst-2',
 }, '2026-09-27T10:15:00.000Z', fixture), /authorized approver/);

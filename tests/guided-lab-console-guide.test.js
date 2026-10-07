@@ -62,7 +62,7 @@ assert.match(sharedCss, /header \.m02e-learn-tip\{opacity:1;visibility:visible\}
 assert.match(sharedCss, /header \.m02e-learn-tip:not\(\.is-collapsed\) \.m02e-tip-body\{display:block\}/, 'header-docked guides can expand');
 const m02Environment = fs.readFileSync(path.join(portal, 'soc-analyst-module-02-environment.js'), 'utf8');
 assert.match(m02Environment, /ITSM Ticket/);
-assert.match(m02Environment, /CASE_ID = 'IAM-5502'/);
+assert.match(m02Environment, /CASE_ID = 'CASE-025502'/);
 assert.doesNotMatch(m02Environment, /DECISION ARTIFACT|data-m02e-practice-submit|IAM-GUIDED-02/);
 // The Assessment Lab (HR authorization ITSM case) is the only graded M02 ticket; its pane and submit stay separate.
 const m02AssessmentStart = m02Environment.indexOf('function practiceTicketPane()');

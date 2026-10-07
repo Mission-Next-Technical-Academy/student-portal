@@ -837,6 +837,40 @@ function moduleElevenGetQuickNavItems() {
 }
 
 
+// Instant Practice It score: each SOC-operations competency counts equally.
+function moduleElevenGuidedScoreItems() {
+  const ops = moduleElevenGuidedOpsState || {};
+  const cr = moduleElevenGuidedState.caseRecord;
+  return [
+    ['Prioritized the alert queue', (ops.priorityOrder || []).length > 0],
+    ['Interpreted the shift metrics', (ops.interpretations || []).length > 0],
+    ['Wrote a shift handoff with a follow-up owner', (ops.handoffs || []).length > 0],
+    ['Wrote both the executive and the technical report', Boolean(ops.reports?.executive?.summary && ops.reports?.technical?.summary)],
+    ['Documented queue risk and next verification in the ticket', (cr.notes || '').trim().length >= 80],
+  ];
+}
+function moduleElevenGuidedSubmit() {
+  const cr = moduleElevenGuidedState.caseRecord;
+  if (cr.submitted) return;
+  const at = new Date().toISOString();
+  const routes = MODULE_ELEVEN_GUIDED_FIXTURE.scenario.escalationRoutes.map((route) => ({ id: route.id }));
+  if (caseRecordMissing(cr, { departmentOptions: routes }).length) {
+    cr.showMissing = true;
+  } else {
+    const result = practiceResult(moduleElevenGuidedScoreItems());
+    cr.showMissing = false;
+    cr.practiceResult = result;
+    cr.actionHistory.push({ action: `Practice scored ${result.score}% (${result.passed ? 'pass' : 'not passed'})`, at });
+    if (result.passed) {
+      cr.submitted = true;
+      cr.submittedAt = at;
+      moduleElevenGuidedState.completed = true; moduleElevenGuidedState.guideStep = 3; moduleElevenGuidedState.guideDocked = true;
+    }
+  }
+  moduleElevenGuidedSave();
+  moduleElevenUpdateGuidedProgress();
+  moduleElevenRenderGuided();
+}
 function moduleElevenGuidedComplete() {
   return moduleElevenGuidedState?.caseRecord?.submitted === true;
 }
@@ -857,14 +891,15 @@ function moduleElevenGuidedCaseTicket() {
     caseId: MODULE_ELEVEN_GUIDED_CASE_ID, ticketId: 'INC-6240', ticketType: 'SOC Operations & Shift Handoff',
     userOptions: [{ id: user, text: `${user} · affected incident account` }], deviceOptions: [{ id: endpoint, text: `${endpoint} · confirmed impact endpoint` }],
     departmentOptions: routes, formId: 'm11-guided-case-form', saveAttr: 'data-m11-guided-save-case', submitAttr: 'data-m11-guided-submit-case', panelId: 'm11-guided-case-panel',
-    notesPlaceholder: 'Summarize the queue risk, case scope, named follow-up owner, and next verification time.', practiceSubmitted: true,
+    notesPlaceholder: 'Summarize the queue risk, case scope, named follow-up owner, and next verification time.', practiceSubmitted: true, practiceScored: true,
+    practiceResult: moduleElevenGuidedState.caseRecord.practiceResult, showMissing: moduleElevenGuidedState.caseRecord.showMissing === true,
   });
   return moduleElevenGuidedState.caseRecord.submitted ? `${html}<button type="button" class="m01-reset" data-m11-guided-restart>Restart Guided Lab</button>` : html;
 }
 
 function moduleElevenGuidedRestart() {
   const cr = moduleElevenGuidedState.caseRecord;
-  moduleElevenGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleElevenGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', practiceResult: null, showMissing: false, actionHistory: [] };
   moduleElevenGuidedState.completed = false; moduleElevenGuidedState.guideStep = 0; moduleElevenGuidedState.guideDocked = false;
   moduleElevenGuidedSave(); moduleElevenRenderGuided();
 }
@@ -885,7 +920,10 @@ function moduleElevenGuidedLabPanel() {
   const complete = moduleElevenGuidedComplete();
   const cr = moduleElevenGuidedState.caseRecord;
   const steps = moduleElevenGuidedSteps();
-  if (!complete) { m03eState('m11-guided').tab = steps[Math.min(moduleElevenGuidedState.guideStep || 0, steps.length - 1)].tab; moduleElevenGuidedSave(); }
+  // Move the console to the guide's tab only when the guide step changes; doing
+  // it on every render yanked the learner off the tab they were working in.
+  const guideStepIndex = Math.min(moduleElevenGuidedState.guideStep || 0, steps.length - 1);
+  if (!complete && m03eState('m11-guided').guideTabStep !== guideStepIndex) { m03eState('m11-guided').tab = steps[guideStepIndex].tab; m03eState('m11-guided').guideTabStep = guideStepIndex; moduleElevenGuidedSave(); }
   const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
   const ops = moduleElevenGuidedOpsState || {}; const reports = ops.reports || {};
   const opsCount = (ops.priorityOrder || []).length + (ops.interpretations || []).length + (ops.handoffs || []).length + (reports.executive?.summary ? 1 : 0) + (reports.technical?.summary ? 1 : 0);
@@ -910,11 +948,15 @@ function moduleElevenGuidedLabPanel() {
 }
 
 function moduleElevenAssessmentLabPanel() {
-  const submitted = moduleElevenReportState.submitted === true;
+  // A returned shift must show the instructor's notes and accept a resubmission;
+  // this panel has no case ticket to carry the redo state like other modules.
+  const redo = moduleElevenCaseRedoRequested();
+  const submitted = moduleElevenReportState.submitted === true && !redo;
   const graded = moduleElevenCaseReviewStatus() === 'graded';
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
     <p class="m11-panel-instruction">Complete the shift assessment in the Operations and Reporting tabs, then submit for faculty review. Imported practice is listed separately under Optional Labs.</p>
-    ${submitted ? `<p role="status">${graded ? 'Lab graded' : 'Submitted for faculty review'}</p>` : '<p><button type="button" data-m11-submit-score>Submit shift assessment</button></p>'}
+    ${redo ? `<p role="status"><strong>Returned for remediation.</strong> Review your instructor's feedback, update the Operations and Reporting tabs, then resubmit.</p>${moduleElevenCaseRedoFeedback()}` : ''}
+    ${submitted ? `<p role="status">${graded ? 'Lab graded' : 'Submitted for faculty review'}</p>${graded ? caseRecordGradedFeedbackHtml() : ''}` : `<p><button type="button" data-m11-submit-score>${redo ? 'Resubmit shift assessment' : 'Submit shift assessment'}</button></p>`}
   </section>`;
 }
 
@@ -1236,7 +1278,7 @@ function viewModuleEleven(user, program) {
   const quickNavItems = moduleElevenGetQuickNavItems();
 
   const html = `<div class="m11-shell">${moduleTopbar(user, program)}<div class="mquick-nav-layout">${moduleProgressShell(sections, { moduleKey: 'm11', reviewMode: moduleElevenReviewMode })}<main class="m11-main mf-frame">
-<section class="m11-hero mf-hero" aria-labelledby="m11-title"><div><p class="m11-kicker mf-kicker">Module 11 · ${formatHandsOnDuration(module.durationMinutes)} · Week 6</p><h1 id="m11-title">${esc(module.title)}</h1><p class="mf-lede">Turn operating signals and technical evidence into decisions that analysts, incident owners, and leaders can act on.</p></div><dl class="mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${sections[1].isComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${sections[2].isComplete ? 'Complete' : 'Not started'}</dd></div></dl></section>
+<section class="m11-hero mf-hero" aria-labelledby="m11-title"><div><p class="m11-kicker mf-kicker">Module 11 · ${formatHandsOnDuration(module.durationMinutes)} · Week 6</p><h1 id="m11-title">${esc(module.title)}</h1><p class="mf-lede">Turn operating signals and technical evidence into decisions that analysts, incident owners, and leaders can act on.</p></div><dl class="mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd>${sections[1].isComplete ? 'Complete' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${moduleElevenCaseRedoRequested() ? 'Returned for redo' : sections[2].isComplete ? 'Complete' : moduleElevenReportState?.submitted ? 'In review' : 'Not started'}</dd></div></dl></section>
 <details class="m11-section-collapsible mf-section" id="m11-lecture-section" ${lectureOpen ? 'open' : ''}><summary><div class="mf-section-heading"><span class="m11-section-badge mf-section-badge">1</span><div><p class="m11-kicker mf-kicker">Learn It</p><h2>Learn It</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><div class="m11-section-body mf-section-body" id="m11-lecture">
   ${moduleElevenLearnItHtml()}
   <details class="m11-deep-dive mf-deep-dive"><summary>Deep Dive · operating guide and reference notes</summary>
@@ -1273,7 +1315,7 @@ function wireModuleElevenGuidedLab() {
     moduleElevenGuidedConsole);
   moduleElevenPositionGuidedGuide(root);
   root.addEventListener('change', (event) => {
-    const field = event.target.closest('#m11-guided-case-form [name]');
+    const field = event.target.closest('[id$="m11-guided-case-form"] [name]');
     if (!field) return;
     if (field.name.startsWith('finding:')) moduleElevenGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
     else moduleElevenGuidedState.caseRecord[field.name] = field.value;
@@ -1283,7 +1325,7 @@ function wireModuleElevenGuidedLab() {
   });
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m11-guided-restart]')) { event.preventDefault(); moduleElevenGuidedRestart(); return; }
-    if (event.target.closest('[data-m11-guided-submit-case]')) { event.preventDefault(); moduleElevenGuidedState.caseRecord.submitted = true; moduleElevenGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleElevenGuidedState.completed = true; moduleElevenGuidedState.guideStep = 3; moduleElevenGuidedState.guideDocked = true; moduleElevenGuidedSave(); moduleElevenUpdateGuidedProgress(); moduleElevenRenderGuided(); return; }
+    if (event.target.closest('[data-m11-guided-submit-case]')) { event.preventDefault(); moduleElevenGuidedSubmit(); return; }
     if (event.target.closest('[data-m11-guided-guide-next]')) { moduleElevenGuidedState.guideStep = ((moduleElevenGuidedState.guideStep || 0) + 1) % moduleElevenGuidedSteps().length; moduleElevenGuidedSave(); const tab = moduleElevenGuidedSteps()[moduleElevenGuidedState.guideStep].tab; document.querySelector(`[data-m03e-tab="m11-guided:${tab}"]`)?.click(); moduleElevenRenderGuided(); return; }
     if (event.target.closest('[data-m11-guided-guide-collapse]')) { moduleElevenGuidedState.guideDocked = !moduleElevenGuidedState.guideDocked; moduleElevenGuidedSave(); moduleElevenRenderGuided(); return; }
     if (event.target.closest('[data-m11-guided-save-case]')) {
@@ -1298,7 +1340,7 @@ function wireModuleElevenGuidedLab() {
 }
 
 function moduleElevenFinalizeCase(root) {
-  if (moduleElevenReportState.submitted) return;
+  if (moduleElevenReportState.submitted && !moduleElevenCaseRedoRequested()) return;
   const scored = SocM11AssessmentScorer.score(moduleElevenOpsState, SocM11AssessmentData);
   moduleElevenReportState.showMissing = false;
   moduleElevenReportState.submitted = true;
@@ -1314,13 +1356,17 @@ function moduleElevenFinalizeCase(root) {
   if (moduleElevenUser) {
     moduleElevenUser.latestLabAttemptByKey = { ...(moduleElevenUser.latestLabAttemptByKey || {}), [MODULE_ELEVEN_REPORT_CATALOG_KEY]: { completedAt: moduleElevenReportState.lastSubmittedAt, reviewedAt: null, redoRequested: false } };
   }
+  // Clear the returned state now so the panel shows the resubmission at once;
+  // put it back only if the attempt fails to save.
+  const openRedo = moduleElevenCaseRedoRequested() ? moduleElevenUser.openLabRedosByModuleKey['soc-11'] : null;
+  if (openRedo) delete moduleElevenUser.openLabRedosByModuleKey['soc-11'];
   if (typeof recordLabAttempt === 'function') {
     recordLabAttempt(moduleElevenUser, MODULE_ELEVEN_REPORT_CATALOG_KEY, {
       state: 'complete',
       score: scored.score,
       result: { ...scored, action_history: moduleElevenOpsState.actionHistory },
     }).then((saved) => {
-      if (saved && moduleElevenCaseRedoRequested()) delete moduleElevenUser.openLabRedosByModuleKey['soc-11'];
+      if (!saved && openRedo) { moduleElevenUser.openLabRedosByModuleKey['soc-11'] = openRedo; root.innerHTML = moduleElevenAssessmentLabPanel(); }
     });
   }
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_REPORT_CATALOG_KEY);

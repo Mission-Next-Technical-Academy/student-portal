@@ -975,6 +975,47 @@ function moduleSevenGuidedLoad(user) {
 function moduleSevenGuidedSave() { if (moduleSevenGuidedUser && moduleSevenGuidedState) LabRuntime.saveCaseState(MODULE_SEVEN_GUIDED_LAB_ID, 'soc-07', moduleSevenGuidedUser, moduleSevenGuidedState); }
 function moduleSevenGuidedM04Tools() { return moduleSevenGuidedState.tools.m04; }
 function moduleSevenGuidedM07Store(state) { moduleSevenGuidedAssessmentState = SocM07AssessmentState.save(moduleSevenGuidedUser, state, MODULE_SEVEN_GUIDED_FIXTURE); moduleSevenGuidedSave(); }
+function moduleSevenGuidedCaseSpec() {
+  return { caseId: 'CASE-070748', incidentIds: ['INC-071056'], ticketType: 'Shared-file phishing exposure · Messaging Security', userOptions: [{ id: 'acct-91', text: 'acct-91 · delivered/clicked' }, { id: 'acct-97', text: 'acct-97 · gateway blocked' }, { id: 'acct-55', text: 'acct-55 · HR baseline' }], deviceOptions: [{ id: 'ws-733', text: 'ws-733 · clicked user device' }, { id: 'ws-208', text: 'ws-208 · HR portal baseline' }], departmentOptions: [{ id: 'messaging-security', text: 'Messaging Security' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm07-guided-case', saveAttr: 'data-m07-guided-save-case', submitAttr: 'data-m07-guided-submit-case', panelId: 'm07-guided-case-panel', notesPlaceholder: 'Document message authentication, delivery scope, click-to-network correlation, and unverified endpoint/credential outcomes.' };
+}
+// Instant Practice It score: each analyst competency counts equally.
+function moduleSevenGuidedScoreItems() {
+  const action = moduleSevenGuidedAssessmentState;
+  const cr = moduleSevenGuidedState.caseRecord;
+  const selected = new Set((action.evidenceChanges || []).filter((entry) => entry.operation === 'add').map((entry) => entry.eventId));
+  const network = MODULE_SEVEN_GUIDED_FIXTURE.scenario.networkEvents;
+  const reviewed = new Set(action.reviewedNetworkEventIds || []);
+  const incident = (action.incidentLinks || []).at(-1);
+  return [
+    ['Reviewed the reported message', (action.reviewedMessageIds || []).includes('M07-GL-MSG-301')],
+    ['Confirmed delivered versus blocked recipients', (action.actionHistory || []).some((entry) => entry.type === 'recipient_search')],
+    ['Correlated the click with its DNS and TLS records', ['M07-GL-RECIPIENT-313', 'M07-GL-DNS-321', 'M07-GL-TLS-331'].every((id) => selected.has(id) || reviewed.has(id))],
+    ['Ruled out the HR lookalike traffic', [...reviewed].some((id) => network.find((event) => event.id === id)?.benignLookalike === true)],
+    ['Linked only supported evidence to the incident', Boolean(incident && !incident.eventIds.some((id) => network.find((event) => event.id === id)?.benignLookalike))],
+    ['Scoped the ticket to the clicked user and device', cr.affectedUser === 'acct-91' && cr.affectedDevice === 'ws-733'],
+  ];
+}
+function moduleSevenGuidedSubmit() {
+  const cr = moduleSevenGuidedState.caseRecord;
+  if (cr.submitted) return;
+  const at = new Date().toISOString();
+  if (caseRecordMissing(cr, moduleSevenGuidedCaseSpec()).length) {
+    cr.showMissing = true;
+  } else {
+    const result = practiceResult(moduleSevenGuidedScoreItems());
+    cr.showMissing = false;
+    cr.practiceResult = result;
+    cr.actionHistory.push({ action: `Practice scored ${result.score}% (${result.passed ? 'pass' : 'not passed'})`, at });
+    if (result.passed) {
+      cr.submitted = true;
+      cr.submittedAt = at;
+      moduleSevenGuidedState.guideCollapsed = true;
+    }
+  }
+  moduleSevenGuidedSave();
+  moduleSevenRenderGuidedPanel();
+  requestAnimationFrame(() => document.querySelector('[id$="m07-guided-case-panel"]')?.focus());
+}
 function moduleSevenGuidedChecks() {
   const action = moduleSevenGuidedAssessmentState;
   const selected = new Set((action.evidenceChanges || []).filter((entry) => entry.operation === 'add').map((entry) => entry.eventId));
@@ -1012,7 +1053,7 @@ function moduleSevenGuidedGuide() {
 }
 function moduleSevenGuidedRestart() {
   const cr = moduleSevenGuidedState.caseRecord;
-  moduleSevenGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleSevenGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', practiceResult: null, showMissing: false, actionHistory: [] };
   moduleSevenGuidedState.guideStep = 0;
   moduleSevenGuidedState.guideCollapsed = false;
   moduleSevenGuidedState.guideOpen = true;
@@ -1067,7 +1108,7 @@ const MODULE_SEVEN_GUIDED_CONSOLE = (() => {
       { id: 'm06', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_TOOL_FIXTURES.m06, ...tool('m06', SocM06AssessmentState.normalize) } },
       { id: 'm07', ctx: { ...base, fixture: MODULE_SEVEN_GUIDED_FIXTURE, ui: { get networkFilters() { return moduleSevenGuidedNetworkFilters; }, set networkFilters(value) { moduleSevenGuidedNetworkFilters = value; } }, box: { get state() { return moduleSevenGuidedAssessmentState; }, set state(value) { moduleSevenGuidedAssessmentState = value; } }, store: moduleSevenGuidedM07Store } },
     ],
-    caseView: () => { const html = caseRecordPane(moduleSevenGuidedState.caseRecord, { caseId: 'CASE-070748', incidentIds: ['INC-071056'], ticketType: 'Shared-file phishing exposure · Messaging Security', userOptions: [{ id: 'acct-91', text: 'acct-91 · delivered/clicked' }, { id: 'acct-97', text: 'acct-97 · gateway blocked' }, { id: 'acct-55', text: 'acct-55 · HR baseline' }], deviceOptions: [{ id: 'ws-733', text: 'ws-733 · clicked user device' }, { id: 'ws-208', text: 'ws-208 · HR portal baseline' }], departmentOptions: [{ id: 'messaging-security', text: 'Messaging Security' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm07-guided-case', saveAttr: 'data-m07-guided-save-case', submitAttr: 'data-m07-guided-submit-case', panelId: 'm07-guided-case-panel', notesPlaceholder: 'Document message authentication, delivery scope, click-to-network correlation, and unverified endpoint/credential outcomes.' }); return moduleSevenGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m07-guided-restart>Restart Guided Lab</button>' : html; },
+    caseView: () => { const cr = moduleSevenGuidedState.caseRecord; const html = caseRecordPane(cr, { ...moduleSevenGuidedCaseSpec(), practiceSubmitted: true, practiceScored: true, practiceResult: cr.practiceResult, showMissing: cr.showMissing === true }); return cr.submitted ? html + '<button type="button" class="m01-reset" data-m07-guided-restart>Restart Guided Lab</button>' : html; },
   });
 })();
 
@@ -1275,7 +1316,7 @@ function wireModuleSevenGuidedLab() {
     if (event.target.closest('[data-m07g-guide-next]')) { event.preventDefault(); if (moduleSevenGuidedState.caseRecord.submitted) { moduleSevenGuidedRestart(); return; } moduleSevenGuidedState.guideStep = (moduleSevenGuidedState.guideStep + 1) % moduleSevenGuidedSteps().length; moduleSevenGuidedSave(); moduleSevenRenderGuidedPanel(); return; }
     if (event.target.closest('[data-m07g-guide-tab]')) { event.preventDefault(); const tab = event.target.closest('[data-m07g-guide-tab]').dataset.m07gGuideTab; m03eState('m07-guided').tab = tab; m03eSave('m07-guided'); m03eRender('m07-guided'); return; }
     if (event.target.closest('[data-m07g-guide-collapse]')) { event.preventDefault(); moduleSevenGuidedState.guideCollapsed = !moduleSevenGuidedState.guideCollapsed; moduleSevenGuidedSave(); moduleSevenRenderGuidedPanel(); return; }
-    if (event.target.closest('[data-m07-guided-submit-case]')) { event.preventDefault(); if (!moduleSevenGuidedState.caseRecord.submitted) { moduleSevenGuidedState.caseRecord.submitted = true; moduleSevenGuidedState.guideCollapsed = true; moduleSevenGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleSevenGuidedState.caseRecord.actionHistory.push({ action: 'Submitted practice ticket', at: moduleSevenGuidedState.caseRecord.submittedAt }); moduleSevenGuidedSave(); moduleSevenRenderGuidedPanel(); } return; }
+    if (event.target.closest('[data-m07-guided-submit-case]')) { event.preventDefault(); moduleSevenGuidedSubmit(); return; }
     if (event.target.closest('[data-m07-guided-save-case]')) {
       event.preventDefault();
       moduleSevenGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });

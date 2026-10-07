@@ -347,8 +347,8 @@ const M03E_ACTIONS = [
 const M03E_IDENTITY_LABEL = Object.fromEntries(M03E_PROVE.identities.map((i) => [i.Account, `${i.Account} (${i.DisplayName}, ${i.Department})`]));
 const M03E_USER_OPTIONS = M03E_ACCOUNTS_PROVE.map((a) => ({ id: a, text: M03E_IDENTITY_LABEL[a] || a, tier: a === 'm.ortiz' ? 'principal' : a === 'd.hale' ? 'pivot' : 'noise' }));
 const M03E_DEVICE_OPTIONS = [
-  { id: 'mail-01', text: 'mail-01 — mail server (forwarding rule + mailbox access)', tier: 'principal' },
-  { id: 'docs-01', text: 'docs-01 — document server (file downloads in the attacker session)', tier: 'pivot' },
+  { id: 'mail-01', text: 'mail-01', tier: 'principal' },
+  { id: 'docs-01', text: 'docs-01', tier: 'pivot' },
   { id: 'idp-02', text: 'idp-02 — identity provider node', tier: 'noise' },
   { id: 'dc-01', text: 'dc-01 — domain controller', tier: 'noise' },
   { id: 'mail-gw', text: 'mail-gw — mail gateway (approved maintenance restart)', tier: 'noise' },
@@ -920,7 +920,7 @@ function moduleThreeGuidedLabPanel() {
 }
 
 function m03ePracticeCaseSpec(disabled = false) {
-  return { caseId: 'CASE-MN-428', ticketId: 'INC-MN-428-PRACTICE', ticketType: 'Guided practice · SIEM correlation', userOptions: [{ id: 'acct-428', text: 'acct-428 — service account', tier: 'principal' }, { id: 'svc-backup', text: 'svc-backup — approved service account', tier: 'noise' }], deviceOptions: [{ id: 'idp-02', text: 'idp-02 — identity provider node', tier: 'principal' }, { id: 'billing-app', text: 'billing-app — application server', tier: 'pivot' }], departmentOptions: M03E_DEPARTMENT_OPTIONS, dispositionOptions: M03E_DISPOSITION_OPTIONS, notesPlaceholder: 'Summarize the linked events, scope, uncertainty, and next action.', disabled };
+  return { caseId: 'CASE-MN-428', ticketId: 'INC-MN-428-PRACTICE', ticketType: 'Guided practice · SIEM correlation', userOptions: [{ id: 'acct-428', text: 'acct-428', tier: 'principal' }, { id: 'svc-backup', text: 'svc-backup — approved service account', tier: 'noise' }], deviceOptions: [{ id: 'idp-02', text: 'idp-02', tier: 'principal' }, { id: 'billing-app', text: 'billing-app', tier: 'pivot' }], departmentOptions: M03E_DEPARTMENT_OPTIONS, dispositionOptions: M03E_DISPOSITION_OPTIONS, notesPlaceholder: 'Summarize the linked events, scope, uncertainty, and next action.', disabled };
 }
 
 function m03ePracticeTicketView() {

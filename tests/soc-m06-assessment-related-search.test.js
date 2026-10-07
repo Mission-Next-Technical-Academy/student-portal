@@ -158,12 +158,15 @@ assert.strictEqual(evidenceState.actionHistory.at(-1).type, 'attack_mapping_chan
 assert.deepStrictEqual(JSON.parse(JSON.stringify(evidenceState.actionHistory.at(-1).details.eventIds)), ['M06-EVT-003']);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(evidenceState.bookmarks)), ['M06-EVT-001'], 'mapping edits preserve bookmarks');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(evidenceState.collections[0].eventIds)), ['M06-EVT-004'], 'mapping edits preserve collections');
+// Prove It gives no pre-submission answer feedback (LAB_ASSESSMENT_STANDARD):
+// a wrong assessment cited with real case events saves, and the scorer and
+// rubric judge it. Only events that are not in this case are rejected.
+assert.strictEqual(api.saveMapping(evidenceState, fixture, { tacticId: 'TA0011', techniqueId: 'T1105', confidence: 50,
+  status: 'supported', rationale: 'The network connection proves transfer.', eventIds: ['M06-EVT-005'] }, '2026-09-27T09:22:08Z').mappings.length, 2,
+  'an incorrect but well-formed mapping is saved, not rejected before submission');
 assert.throws(() => api.saveMapping(evidenceState, fixture, { tacticId: 'TA0011', techniqueId: 'T1105', confidence: 50,
-  status: 'supported', rationale: 'The network connection proves transfer.', eventIds: ['M06-EVT-005'] }, '2026-09-27T09:22:08Z'), /evidence that supports/,
-  'a fixture event alone cannot support a technique it does not prove');
-assert.throws(() => api.saveMapping(evidenceState, fixture, { tacticId: 'TA0003', techniqueId: 'T1053.005', confidence: 50,
-  status: 'unsupported', rationale: 'Persistence intent is unproven.', eventIds: ['M06-EVT-002'] }, '2026-09-27T09:22:08Z'), /evidence that supports/,
-  'execution evidence cannot be attached to the unsupported persistence interpretation');
+  status: 'supported', rationale: 'Cites an event outside this case.', eventIds: ['M06-EVT-999'] }, '2026-09-27T09:22:08Z'), /evidence that supports/,
+  'citations must be real events from this case');
 const correctedMapping = api.saveMapping(evidenceState, fixture, { tacticId: 'TA0011', techniqueId: 'T1071.001', confidence: 35,
   status: 'unsupported', rationale: 'TCP 443 is not application-layer evidence.', eventIds: ['M06-EVT-005'] }, '2026-09-27T09:22:09Z',
   { tacticId: 'TA0002', techniqueId: 'T1059.001' });

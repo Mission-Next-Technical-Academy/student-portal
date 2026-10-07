@@ -180,7 +180,9 @@ const SocConsoleTools = (() => {
                 SocM04RulesUi.configureSchedule(assessment, form.dataset.ruleId, {
                   enabled: form.elements.ruleEnabled.checked,
                   frequencyMinutes: form.elements.frequencyMinutes.value,
-                  scheduledAt: localSchedule ? new Date(localSchedule).toISOString() : '',
+                  // The field shows and means UTC like the lab clock; parsing it as
+                  // browser-local time shifted it by the viewer's offset.
+                  scheduledAt: localSchedule ? new Date(`${localSchedule}Z`).toISOString() : '',
                 }, timestamp, ctx.fixture.scenario.end || timestamp);
               } else {
                 const mode = runRuleNow.matches('[data-m04-rule-run-scheduled]') ? 'scheduled' : 'manual';
@@ -1154,7 +1156,7 @@ const SocConsoleTools = (() => {
       <form data-m09-approval-request><label>Action<select name="actionType">${actionTypes.map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
         <label>Target<select name="targetId">${targets.map((entity) => `<option value="${esc(entity.id)}">${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
         <label>Justification<input name="reason" maxlength="500" required></label><button type="submit"${approvalOpen ? ' disabled' : ''}>Request approval</button></form>
-      ${approvalOpen ? `<form data-m09-approval-decision><label>Approver<input name="approver" maxlength="64" required placeholder="ir-lead-name"></label><label>Decision reason<input name="reason" maxlength="500" required></label><button type="submit" name="decision" value="approved">Approve</button><button type="submit" name="decision" value="rejected">Reject</button></form>` : ''}
+      ${approvalOpen ? `<form data-m09-approval-decision><label>Approver ID<input name="approver" maxlength="64" required placeholder="ir-lead-morgan" pattern="ir-(lead|analyst)-[a-z0-9-]+" title="Incident-response ID: ir-lead-… or ir-analyst-… (lowercase)"><small>Incident lead or analyst ID, e.g. ir-lead-morgan</small></label><label>Decision reason<input name="reason" maxlength="500" required></label><button type="submit" name="decision" value="approved">Approve</button><button type="submit" name="decision" value="rejected">Reject</button></form>` : ''}
       ${approved && workflow.approvalActionType !== 'restore_backup' ? `<button type="button" data-m09-execute>Execute approved action</button>` : ''}
     </section>`;
   }
@@ -1453,8 +1455,14 @@ const SocConsoleTools = (() => {
       resultsActionsHtml: () => active.map(({ pack, ctx }) => (pack.resultsActionsHtml ? pack.resultsActionsHtml(ctx) : '')).join(''),
       onSelect: (type, id) => active.forEach(({ pack, ctx }) => pack.onSelect && pack.onSelect(ctx, type, id)),
     });
+    // Pack listeners are delegated, so an element needs them once. Modules
+    // that re-render inside a persistent root and call wire() again stacked a
+    // copy per render: one click then saved the same action N times.
+    const wiredRoots = new WeakSet();
     return {
       wire(root) {
+        if (!root || wiredRoots.has(root)) return;
+        wiredRoots.add(root);
         m03eWireMountedConsole(root, scope);
         active.forEach(({ pack, ctx }) => pack.wire && pack.wire(root, ctx));
       },

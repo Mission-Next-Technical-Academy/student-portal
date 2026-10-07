@@ -420,8 +420,8 @@ const MODULE_SIX_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
 const MODULE_SIX_HUNT_ENTITY_ROSTER = {
   users: [
-    { id: 'acct-27', text: 'acct-27 (WS-214, seed pair)', tier: 'principal' },
-    { id: 'acct-41', text: 'acct-41 (WS-332, second pair)', tier: 'pivot' },
+    { id: 'acct-27', text: 'acct-27', tier: 'principal' },
+    { id: 'acct-41', text: 'acct-41', tier: 'pivot' },
     { id: 'acct-18', text: 'acct-18', tier: 'noise' },
     { id: 'acct-52', text: 'acct-52', tier: 'noise' },
     { id: 'backup-job', text: 'backup-job', tier: 'noise' },
@@ -429,8 +429,8 @@ const MODULE_SIX_HUNT_ENTITY_ROSTER = {
     { id: 'acct-77', text: 'acct-77', tier: 'noise' },
   ],
   devices: [
-    { id: 'WS-214', text: 'WS-214 (seed device)', tier: 'principal' },
-    { id: 'WS-332', text: 'WS-332 (second matching device)', tier: 'pivot' },
+    { id: 'WS-214', text: 'WS-214', tier: 'principal' },
+    { id: 'WS-332', text: 'WS-332', tier: 'pivot' },
     { id: 'WS-105', text: 'WS-105 (approved signed updater)', tier: 'noise' },
     { id: 'WS-406', text: 'WS-406 (managed inventory script)', tier: 'noise' },
     { id: 'WS-118', text: 'WS-118', tier: 'noise' },
@@ -448,20 +448,20 @@ const MODULE_SIX_HUNT_DEPARTMENT_OPTIONS = [
 
 const MODULE_SIX_BACKDOOR_ENTITY_ROSTER = {
   users: [
-    { id: 'acct-184', text: 'acct-184 (UpdateHealth task account on ws-318)', tier: 'principal' },
-    { id: 'acct-271', text: 'acct-271 (comparison-host task account)', tier: 'pivot' },
+    { id: 'acct-184', text: 'acct-184', tier: 'principal' },
+    { id: 'acct-271', text: 'acct-271', tier: 'pivot' },
     { id: 'acct-27', text: 'acct-27', tier: 'noise' },
     { id: 'acct-41', text: 'acct-41', tier: 'noise' },
     { id: 'acct-18', text: 'acct-18', tier: 'noise' },
     { id: 'acct-52', text: 'acct-52', tier: 'noise' },
   ],
   devices: [
-    { id: 'ws-318', text: 'ws-318 (UpdateHealth task, user-writable path)', tier: 'principal' },
-    { id: 'ws-355', text: 'ws-355 (comparison host, signed maintenance script)', tier: 'pivot' },
-    { id: 'WS-214', text: 'WS-214', tier: 'noise' },
-    { id: 'WS-332', text: 'WS-332', tier: 'noise' },
-    { id: 'WS-105', text: 'WS-105', tier: 'noise' },
-    { id: 'WS-406', text: 'WS-406', tier: 'noise' },
+    { id: 'ws-318', text: 'ws-318', tier: 'principal' },
+    { id: 'ws-355', text: 'ws-355', tier: 'pivot' },
+    { id: 'WS-214', text: 'ws-214', tier: 'noise' },
+    { id: 'WS-332', text: 'ws-332', tier: 'noise' },
+    { id: 'WS-105', text: 'ws-105', tier: 'noise' },
+    { id: 'WS-406', text: 'ws-406', tier: 'noise' },
   ],
 };
 
@@ -1466,6 +1466,52 @@ function moduleSixGuidedChecks() {
     ['conclusion', 'Record the supported ATT&CK mapping, conclusion, and case handoff.', (state.mappings || []).length > 0 && (state.conclusions || []).length > 0 && Boolean(moduleSixGuidedState.caseRecord.notes?.trim())],
   ];
 }
+// Hunt actions count as progress too, not only ticket edits.
+function moduleSixGuidedStatusText() {
+  if (moduleSixGuidedState.caseRecord.submitted || moduleSixGuidedState.legacyComplete) return 'Complete';
+  const hunt = moduleSixGuidedM06Load();
+  const started = moduleSixGuidedState.caseRecord.actionHistory.length || (hunt.hypotheses || []).length || (hunt.queryHistory || []).length || (hunt.bookmarks || []).length;
+  return started ? 'In progress' : 'Not started';
+}
+function moduleSixGuidedCaseSpec() {
+  return { caseId: 'CASE-066411', ticketType: 'Threat hunt findings · Detection Engineering', userOptions: [{ id: 'acct-602', text: 'acct-602' }, { id: 'acct-684', text: 'acct-684' }, { id: 'acct-712', text: 'acct-712' }], deviceOptions: MODULE_SIX_GUIDED_DEVICES.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'detection-engineering', text: 'Detection Engineering' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm06-guided-case', saveAttr: 'data-m06-guided-save-case', submitAttr: 'data-m06-guided-submit-case', panelId: 'm06-guided-case-panel', notesPlaceholder: 'State the repeated behavior, two-device scope, evidence limit, and recommended detection or response follow-up.' };
+}
+// Instant Practice It score: each hunt competency counts equally.
+function moduleSixGuidedScoreItems() {
+  const state = moduleSixGuidedM06Load();
+  const cr = moduleSixGuidedState.caseRecord;
+  const deviceByEvent = new Map(MODULE_SIX_GUIDED_FIXTURE.scenario.telemetry.map((event) => [event.id, event.device]));
+  const bookmarkedDevices = new Set((state.bookmarks || []).map((id) => deviceByEvent.get(id)).filter(Boolean));
+  return [
+    ['Saved a testable hypothesis tied to the lead', (state.hypotheses || []).some((item) => item.seedLeadId === MODULE_SIX_GUIDED_FIXTURE.scenario.seedLead.id)],
+    ['Ran at least two scoped searches', (state.queryHistory || []).length >= 2],
+    ['Bookmarked the recurring evidence on two devices', bookmarkedDevices.size >= 2],
+    ['Mapped the behavior to ATT&CK', (state.mappings || []).length > 0],
+    ['Recorded a hunt conclusion', (state.conclusions || []).length > 0],
+    ['Scoped the ticket to a hunted user and device', ['acct-602', 'acct-684'].includes(cr.affectedUser) && ['ws-421', 'ws-537'].includes(cr.affectedDevice)],
+  ];
+}
+function moduleSixGuidedSubmit() {
+  const cr = moduleSixGuidedState.caseRecord;
+  if (cr.submitted) return;
+  const at = new Date().toISOString();
+  if (caseRecordMissing(cr, moduleSixGuidedCaseSpec()).length) {
+    cr.showMissing = true;
+  } else {
+    const result = practiceResult(moduleSixGuidedScoreItems());
+    cr.showMissing = false;
+    cr.practiceResult = result;
+    cr.actionHistory.push({ action: `Practice scored ${result.score}% (${result.passed ? 'pass' : 'not passed'})`, at });
+    if (result.passed) {
+      cr.submitted = true;
+      cr.submittedAt = at;
+      moduleSixGuidedState.guideCollapsed = true;
+    }
+  }
+  moduleSixGuidedSave();
+  moduleSixRenderGuidedLab();
+  requestAnimationFrame(() => document.getElementById('m06-guided-case-panel')?.focus());
+}
 function moduleSixGuidedSteps() {
   return [
     { title: 'Read the ITSM ticket', body: 'Open the ITSM tab and review the fields this investigation needs you to resolve.', lookFor: 'The affected user and device, severity, disposition, escalation, findings, and work notes.', lab: 'Ticket fields: scope and handoff', tab: 'case', target: '.m01-ticket-case' },
@@ -1491,7 +1537,7 @@ function moduleSixGuidedGuide() {
 }
 function moduleSixGuidedRestart() {
   const cr = moduleSixGuidedState.caseRecord;
-  moduleSixGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleSixGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', practiceResult: null, showMissing: false, actionHistory: [] };
   moduleSixGuidedState.guideStep = 0;
   moduleSixGuidedState.guideCollapsed = false;
   moduleSixGuidedState.guideOpen = true;
@@ -1537,7 +1583,7 @@ const MODULE_SIX_GUIDED_CONSOLE = SocConsoleTools.mount('m06-guided', {
     { id: 'm05', ctx: { fixture: MODULE_SIX_GUIDED_M05_FIXTURE, ...SocConsoleTools.embedded(() => moduleSixGuidedState, 'm05', SocM05AssessmentState.normalize, MODULE_SIX_GUIDED_M05_FIXTURE, moduleSixGuidedSave), save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
     { id: 'm06', ctx: { fixture: MODULE_SIX_GUIDED_FIXTURE, load: moduleSixGuidedM06Load, store: moduleSixGuidedM06Store, save: moduleSixGuidedSave, rerender: () => moduleSixRenderGuidedLab(), console: () => m03eState('m06-guided') } },
   ],
-    caseView: () => { const html = caseRecordPane(moduleSixGuidedState.caseRecord, { caseId: 'CASE-066411', ticketType: 'Threat hunt findings · Detection Engineering', userOptions: [{ id: 'acct-602', text: 'acct-602' }, { id: 'acct-684', text: 'acct-684' }, { id: 'acct-712', text: 'acct-712' }], deviceOptions: MODULE_SIX_GUIDED_DEVICES.map((device) => ({ id: device.id, text: `${device.hostname} · ${device.role}` })), departmentOptions: [{ id: 'detection-engineering', text: 'Detection Engineering' }, { id: 'tier2-soc', text: 'Tier 2 SOC' }, { id: 'identity-response', text: 'Identity Response' }], formId: 'm06-guided-case', saveAttr: 'data-m06-guided-save-case', submitAttr: 'data-m06-guided-submit-case', panelId: 'm06-guided-case-panel', notesPlaceholder: 'State the repeated behavior, two-device scope, evidence limit, and recommended detection or response follow-up.' }); return moduleSixGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m06-guided-restart>Restart Guided Lab</button>' : html; },
+    caseView: () => { const cr = moduleSixGuidedState.caseRecord; const html = caseRecordPane(cr, { ...moduleSixGuidedCaseSpec(), practiceSubmitted: true, practiceScored: true, practiceResult: cr.practiceResult, showMissing: cr.showMissing === true }); return cr.submitted ? html + '<button type="button" class="m01-reset" data-m06-guided-restart>Restart Guided Lab</button>' : html; },
 });
 
 function moduleSixCaseTicket() {
@@ -1625,7 +1671,7 @@ function viewModuleSix(user, program) {
     <div class="mquick-nav-layout">
       ${moduleProgressShell(sections, { reviewMode: moduleSixReviewMode })}
       <main class="m06-main mf-frame">
-      <section class="m06-hero mf-hero" aria-labelledby="m06-title"><div><p class="m06-kicker mf-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede mf-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd id="m06-status">${moduleSixGuidedState.caseRecord.submitted || moduleSixGuidedState.legacyComplete ? 'Complete' : moduleSixGuidedState.caseRecord.actionHistory.length ? 'In progress' : 'Not started'}</dd></div><div><dt>Assessment Lab</dt><dd>${moduleSixState.independentLab.completed ? 'Complete' : 'Not started'}</dd></div></dl></section>
+      <section class="m06-hero mf-hero" aria-labelledby="m06-title"><div><p class="m06-kicker mf-kicker">Module 06 · ${formatHandsOnDuration(module.durationMinutes)} · guided threat hunt</p><h1 id="m06-title">${esc(module.title)}</h1><p class="m06-lede mf-lede">Move from a suspicious seed observation to a tested hypothesis, a defensible two-source evidence set, and a scoped analyst handoff. This is a guided monitoring workflow within the SOC analyst role, not training for a separate Threat Hunter occupation.</p></div><dl class="m06-progress mf-stats" aria-label="Saved lab progress"><div><dt>Guided Lab</dt><dd id="m06-status">${moduleSixGuidedStatusText()}</dd></div><div><dt>Assessment Lab</dt><dd>${moduleSixState.independentLab.completed ? 'Complete' : 'Not started'}</dd></div></dl></section>
 
       <details class="m06-section-collapsible mf-section" ${lectureOpen ? 'open' : ''}>
         <summary class="m06-section"><div class="m06-section-heading mf-section-heading"><span class="m06-section-badge mf-section-badge">1</span><div><p class="m06-kicker mf-kicker">Learn It</p><h2 id="m06-lecture">Hypothesis-led hunting foundations</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary>
@@ -1675,6 +1721,8 @@ function moduleSixRenderGuidedLab(focusId) {
   const host = root.querySelector('#m03e-console-m06-guided');
   if (host) { MODULE_SIX_GUIDED_CONSOLE.wire(host); m03eAttachEditor('m06-guided'); }
   moduleSixPositionGuidedGuide(root, host);
+  const status = document.getElementById('m06-status');
+  if (status) status.textContent = moduleSixGuidedStatusText();
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -1699,7 +1747,7 @@ function wireModuleSixGuidedLab() {
     if (event.target.closest('[data-m06g-guide-next]')) { event.preventDefault(); if (moduleSixGuidedState.caseRecord.submitted) { moduleSixGuidedRestart(); return; } moduleSixGuidedState.guideStep = (moduleSixGuidedState.guideStep + 1) % moduleSixGuidedSteps().length; { const nextTab = moduleSixGuidedSteps()[moduleSixGuidedState.guideStep]?.tab; if (nextTab) { m03eState('m06-guided').tab = nextTab; m03eSave('m06-guided'); } } moduleSixGuidedSave(); moduleSixRenderGuidedLab(); return; }
     if (event.target.closest('[data-m06g-guide-tab]')) { event.preventDefault(); const tab = event.target.closest('[data-m06g-guide-tab]').dataset.m06gGuideTab; m03eState('m06-guided').tab = tab; m03eSave('m06-guided'); m03eRender('m06-guided'); return; }
     if (event.target.closest('[data-m06g-guide-collapse]')) { event.preventDefault(); moduleSixGuidedState.guideCollapsed = !moduleSixGuidedState.guideCollapsed; moduleSixGuidedSave(); moduleSixRenderGuidedLab(); return; }
-    if (event.target.closest('[data-m06-guided-submit-case]')) { event.preventDefault(); if (!moduleSixGuidedState.caseRecord.submitted) { moduleSixGuidedState.caseRecord.submitted = true; moduleSixGuidedState.guideCollapsed = true; moduleSixGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleSixGuidedState.caseRecord.actionHistory.push({ action: 'Submitted practice ticket', at: moduleSixGuidedState.caseRecord.submittedAt }); moduleSixGuidedSave(); moduleSixRenderGuidedLab(); } return; }
+    if (event.target.closest('[data-m06-guided-submit-case]')) { event.preventDefault(); moduleSixGuidedSubmit(); return; }
     if (event.target.closest('[data-m06-guided-save-case]')) {
       event.preventDefault();
       moduleSixGuidedState.caseRecord.actionHistory.push({ action: 'Ticket updated', at: new Date().toISOString() });

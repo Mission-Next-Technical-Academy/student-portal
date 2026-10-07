@@ -366,3 +366,32 @@
 
 /* Keep a submitted practice debrief accessible from its docked console header. */
 .m03e-console header .m02e-learn-tip:not(.is-collapsed) .m02e-tip-body { display:block; }
+
+/* Evidence tray + incident record (were unstyled: a run-on checkbox wall). */
+.m07-assessment-email [data-m07-evidence-tray],
+.m07-assessment-email [data-m07-incident-workflow] { margin: 14px 0 0; padding: 14px; background: #fff; border: 1px solid #d8e1e8; border-radius: 5px; }
+.m07-assessment-email [data-m07-evidence-tray] h4,
+.m07-assessment-email [data-m07-incident-workflow] h4 { margin: 0 0 8px; color: #172033; font-size: 15px; }
+.m07-assessment-email [data-m07-evidence-tray] ul { margin: 0; padding-left: 18px; color: #334155; font-size: 12px; }
+.m07-assessment-email [data-m07-incident-workflow] > p { margin: 0 0 10px; color: #52616b; font-size: 12px; }
+.m07-assessment-email [data-m07-incident] { margin: 0 0 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e3e9ed; border-radius: 5px; font-size: 12px; color: #334155; }
+.m07-assessment-email [data-m07-incident] h5 { margin: 0 0 4px; color: #172033; font-size: 13px; }
+.m07-assessment-email [data-m07-incident] p { margin: 2px 0; }
+.m07-assessment-email [data-m07-incident-form] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.m07-assessment-email [data-m07-incident-form] > label { display: grid; gap: 5px; color: #52616b; font-size: 11px; font-weight: 700; }
+.m07-assessment-email [data-m07-incident-form] > label:has(textarea),
+.m07-assessment-email [data-m07-incident-form] > fieldset,
+.m07-assessment-email [data-m07-incident-form] > button,
+.m07-assessment-email [data-m07-incident-form] > [role="status"] { grid-column: 1 / -1; }
+.m07-assessment-email [data-m07-incident-form] input:not([type="checkbox"]),
+.m07-assessment-email [data-m07-incident-form] select,
+.m07-assessment-email [data-m07-incident-form] textarea { width: 100%; min-height: 36px; padding: 6px 8px; color: #172033; background: #fff; border: 1px solid #b9c6ce; border-radius: 4px; font: 13px/1.4 Inter, sans-serif; }
+.m07-assessment-email [data-m07-incident-form] textarea { min-height: 72px; }
+.m07-assessment-email [data-m07-incident-form] fieldset { min-width: 0; margin: 0; padding: 10px 12px; border: 1px solid #e3e9ed; border-radius: 5px; }
+.m07-assessment-email [data-m07-incident-form] legend { padding: 0 4px; color: #52616b; font-size: 11px; font-weight: 700; }
+.m07-assessment-email [data-m07-incident-form] fieldset label { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; color: #172033; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; border-bottom: 1px solid #f1f5f9; }
+.m07-assessment-email [data-m07-incident-form] fieldset:last-of-type { max-height: 260px; overflow-y: auto; }
+.m07-assessment-email [data-m07-incident-form] fieldset input { flex: 0 0 auto; margin-top: 2px; }
+.m07-assessment-email [data-m07-incident-form] > button { justify-self: start; min-height: 36px; padding: 6px 14px; color: #fff; background: #075e59; border: 1px solid #075e59; border-radius: 4px; font: 700 12px/1.2 Inter, sans-serif; cursor: pointer; }
+.m07-assessment-email [data-m07-incident-form] [role="status"] { margin: 0; color: #075e59; font-size: 12px; }
+@media (max-width: 640px) { .m07-assessment-email [data-m07-incident-form] { grid-template-columns: 1fr; } }

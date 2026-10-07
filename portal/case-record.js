@@ -185,24 +185,67 @@ function caseRecordActions(spec) {
   return `<div class="m01-ticket-actions"><button type="button" class="m01-reset" ${spec.saveAttr}>Update Ticket</button><button type="button" class="m01-submit" ${spec.submitAttr} ${spec.hasMissing ? `aria-describedby="${esc(spec.panelId)}"` : ''}>Submit Lab</button></div>`;
 }
 
+// Practice It (Guided Lab) tickets are autograded the moment the learner
+// submits. `items` is [[label, met], …] from the module's own checks. Only a
+// passing score marks the practice submitted, so the Prove It gate still
+// waits for real practice.
+const PRACTICE_PASS_PERCENT = 70;
+
+function practiceResult(items) {
+  const met = items.filter(([, ok]) => ok).length;
+  const score = items.length ? Math.round((met / items.length) * 100) : 0;
+  return { score, passed: score >= PRACTICE_PASS_PERCENT, items: items.map(([label, ok]) => ({ label, met: Boolean(ok) })), at: new Date().toISOString() };
+}
+
+function practiceResultHtml(result) {
+  if (!result || !Array.isArray(result.items)) return '';
+  return `<div class="practice-score ${result.passed ? 'is-pass' : 'is-fail'}"><span class="practice-score-value">${esc(result.score)}%</span><span class="practice-score-label">${result.passed ? 'Pass' : 'Not passed'} · ${PRACTICE_PASS_PERCENT}% needed</span></div>
+    <ul class="m01-requirements-list">${result.items.map((item) => `<li class="${item.met ? 'is-done' : ''}"><i class="${item.met ? 'ri-checkbox-circle-fill' : 'ri-close-circle-line'}" aria-hidden="true"></i><span>${esc(item.label)}</span></li>`).join('')}</ul>`;
+}
+
+// Notes an instructor left while approving this module's Prove It, deduped
+// because one approval writes the same items to every attempt row it covers.
+function caseRecordGradedFeedback() {
+  const context = typeof activeModuleRenderContext === 'function' ? activeModuleRenderContext() : null;
+  const byLab = context?.user?.reviewedLabFeedbackByLabKey || {};
+  const moduleKey = context?.def?.moduleKey;
+  if (!moduleKey || typeof LABS === 'undefined') return [];
+  const seen = new Set();
+  return LABS.filter((lab) => lab.module === moduleKey || String(lab.module).startsWith(`${moduleKey}-`))
+    .flatMap((lab) => byLab[lab.key] || [])
+    .filter((item) => { const key = `${item.item_label}\u0000${item.comment}`; if (seen.has(key)) return false; seen.add(key); return true; });
+}
+
+function caseRecordGradedFeedbackHtml(notes = caseRecordGradedFeedback()) {
+  return notes.length ? `<div class="m01-graded-feedback" role="note"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong><ul>${notes.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul></div>` : '';
+}
+
 // spec: { panelId, missing, submitted, reviewStatus, redoRequested,
-//         redoHtml, showMissing, lockedMessage }
+//         redoHtml, showMissing, lockedMessage, practiceSubmitted,
+//         practiceScored, practiceResult }
 function caseRecordPanel(spec) {
   const missing = spec.missing || [];
   const submitted = spec.submitted === true;
   const graded = spec.reviewStatus === 'graded';
+  const practice = spec.practiceSubmitted === true;
+  const result = practice ? spec.practiceResult : null;
+  const failedPractice = !submitted && result && !result.passed;
   const flagMissing = !submitted && spec.showMissing && missing.length;
-  const title = spec.practiceSubmitted && submitted ? 'Practice submitted' : graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
+  const title = practice && submitted ? (result ? 'Practice passed' : 'Practice submitted') : graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : failedPractice ? 'Practice not passed yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
   const body = graded ? 'Your instructor has reviewed this case.'
-    : submitted ? (spec.practiceSubmitted ? 'Your ungraded practice ticket is recorded.' : spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
-      : spec.redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.'
-        : 'Use the console evidence to complete the incident ticket. Submit only after the ticket fields, notes, and handoff are ready for faculty review.';
-  return `<div class="m01-score-empty${flagMissing ? ' is-missing' : ''}" id="${esc(spec.panelId)}" role="status" aria-live="polite" tabindex="-1">
+    : submitted ? (practice ? (result ? 'Your practice score is recorded. Prove It · Assessment Lab is now open.' : 'Your ungraded practice ticket is recorded.') : spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
+      : failedPractice ? 'Finish the items marked below, update the ticket, and submit again. A passing practice score opens Prove It.'
+        : spec.redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.'
+          : practice ? `Use the console evidence to complete the incident ticket. ${spec.practiceScored ? `Submit Lab scores your practice instantly; ${PRACTICE_PASS_PERCENT}% opens Prove It.` : 'Submit Lab completes this Guided Lab and opens Prove It.'}`
+            : 'Use the console evidence to complete the incident ticket. Submit only after the ticket fields, notes, and handoff are ready for faculty review.';
+  return `<div class="m01-score-empty${flagMissing || failedPractice ? ' is-missing' : ''}" id="${esc(spec.panelId)}" role="status" aria-live="polite" tabindex="-1">
     <strong>${title}</strong>
     <p>${body}</p>
+    ${result && !flagMissing ? practiceResultHtml(result) : ''}
+    ${graded ? caseRecordGradedFeedbackHtml(spec.gradedFeedback || caseRecordGradedFeedback()) : ''}
     ${!submitted ? (spec.redoHtml || '') : ''}
     ${!submitted && missing.length ? `<ul class="m01-requirements-list">${missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
-    ${!submitted ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${spec.notesMin || CASE_RECORD_NOTES_MIN} characters.` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}
+    ${!submitted ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${spec.notesMin || CASE_RECORD_NOTES_MIN} characters.` : practice ? `Your ITSM ticket is ready. ${spec.practiceScored ? 'Submit Lab scores your practice now.' : 'Submit Lab completes this Guided Lab.'}` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}
   </div>`;
 }
 

@@ -87,6 +87,20 @@ const SocM07AssessmentEmailUi = (() => {
     }).join('');
     return `<section class="m07-assessment-email" aria-label="Independent email assessment" data-m07-assessment-email>
       <h3>Message queue</h3><p>Independent synthetic message review</p>
+      ${queue || '<p role="status">No messages in this fixture.</p>'}
+      <section class="m07-assessment-delivery" aria-labelledby="m07-delivery-title">
+        <h4 id="m07-delivery-title">Delivery trace and recipient scope</h4>
+        <form data-m07-recipient-search>
+          <label>Search recipient or device <input name="query" type="search" maxlength="100" value="${e(filters.query)}"></label>
+          <label>Delivery <select name="delivery"><option value="all" ${filters.delivery === 'all' ? 'selected' : ''}>All outcomes</option><option value="delivered" ${filters.delivery === 'delivered' ? 'selected' : ''}>Delivered</option><option value="blocked_at_gateway" ${filters.delivery === 'blocked_at_gateway' ? 'selected' : ''}>Gateway blocked</option></select></label>
+          <label>Interaction <select name="interaction"><option value="all" ${filters.interaction === 'all' ? 'selected' : ''}>All interaction states</option><option value="opened" ${filters.interaction === 'opened' ? 'selected' : ''}>Opened</option><option value="clicked" ${filters.interaction === 'clicked' ? 'selected' : ''}>Link clicked</option><option value="no_interaction" ${filters.interaction === 'no_interaction' ? 'selected' : ''}>No interaction recorded</option></select></label>
+          <label>Maximum results <input name="limit" type="number" min="1" max="100" step="1" value="${e(filters.limit)}"></label>
+          <button type="submit">Apply filters</button>
+        </form>
+        <p role="status">Showing ${traceRows.length} recipient${traceRows.length === 1 ? '' : 's'} from fixture delivery events.</p>
+        <div class="m07-assessment-trace-scroll"><table><thead><tr><th>Recipient</th><th>Delivery</th><th>Device</th><th>Open</th><th>Link click</th><th>Trace time</th><th>Scope</th><th>Evidence</th></tr></thead>
+          <tbody>${trace || '<tr><td colspan="8">No recipients match these filters.</td></tr>'}</tbody></table></div>
+      </section>
       <section aria-label="Selected evidence" data-m07-evidence-tray><h4>Evidence tray</h4><ul>${evidenceTray || '<li>No evidence selected.</li>'}</ul></section>
       <section aria-label="Incident records" data-m07-incident-workflow><h4>Incident record</h4>
         <p>Assessment status reflects your current analysis. Records not established by linked evidence remain unknown.</p>
@@ -103,20 +117,6 @@ const SocM07AssessmentEmailUi = (() => {
           <button type="submit">Save incident</button><p data-m07-incident-status role="status" aria-live="polite"></p>
         </form>
       </section>
-      <section class="m07-assessment-delivery" aria-labelledby="m07-delivery-title">
-        <h4 id="m07-delivery-title">Delivery trace and recipient scope</h4>
-        <form data-m07-recipient-search>
-          <label>Search recipient or device <input name="query" type="search" maxlength="100" value="${e(filters.query)}"></label>
-          <label>Delivery <select name="delivery"><option value="all" ${filters.delivery === 'all' ? 'selected' : ''}>All outcomes</option><option value="delivered" ${filters.delivery === 'delivered' ? 'selected' : ''}>Delivered</option><option value="blocked_at_gateway" ${filters.delivery === 'blocked_at_gateway' ? 'selected' : ''}>Gateway blocked</option></select></label>
-          <label>Interaction <select name="interaction"><option value="all" ${filters.interaction === 'all' ? 'selected' : ''}>All interaction states</option><option value="opened" ${filters.interaction === 'opened' ? 'selected' : ''}>Opened</option><option value="clicked" ${filters.interaction === 'clicked' ? 'selected' : ''}>Link clicked</option><option value="no_interaction" ${filters.interaction === 'no_interaction' ? 'selected' : ''}>No interaction recorded</option></select></label>
-          <label>Maximum results <input name="limit" type="number" min="1" max="100" step="1" value="${e(filters.limit)}"></label>
-          <button type="submit">Apply filters</button>
-        </form>
-        <p role="status">Showing ${traceRows.length} recipient${traceRows.length === 1 ? '' : 's'} from fixture delivery events.</p>
-        <div class="m07-assessment-trace-scroll"><table><thead><tr><th>Recipient</th><th>Delivery</th><th>Device</th><th>Open</th><th>Link click</th><th>Trace time</th><th>Scope</th><th>Evidence</th></tr></thead>
-          <tbody>${trace || '<tr><td colspan="8">No recipients match these filters.</td></tr>'}</tbody></table></div>
-      </section>
-      ${queue || '<p role="status">No messages in this fixture.</p>'}
     </section>`;
   }
 

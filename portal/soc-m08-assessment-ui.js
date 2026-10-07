@@ -67,7 +67,7 @@ const SocM08AssessmentUi = (() => {
       </article>`;
     }).join('');
     return `<section class="m08-assessment-findings" aria-labelledby="m08-assessment-findings-title">
-      <header><div><p class="m08-kicker">Independent assessment workspace</p><h3 id="m08-assessment-findings-title">Findings queue</h3></div><span>${findings.length} of ${allFindings.length} findings</span></header>
+      <header><div><p class="m08-kicker">Vulnerability management workspace</p><h3 id="m08-assessment-findings-title">Findings queue</h3></div><span>${findings.length} of ${allFindings.length} findings</span></header>
       <form class="m08-assessment-filters" aria-label="Filter findings">
         <label>Search remediation context<input type="search" name="search" value="${esc(filters.search || '')}" placeholder="Asset, control, exposure, finding"></label>
         <label>Freshness<select name="freshness"><option value="all" ${filterValues.freshness === 'all' ? 'selected' : ''}>Any</option><option value="current" ${filterValues.freshness === 'current' ? 'selected' : ''}>Current</option><option value="stale" ${filterValues.freshness === 'stale' ? 'selected' : ''}>Stale</option></select></label>

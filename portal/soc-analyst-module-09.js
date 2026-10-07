@@ -1146,7 +1146,8 @@ const MODULE_NINE_GUIDED_CONSOLE = (() => {
       deviceOptions: [{ id: 'ws-294', text: 'ws-294 · confirmed endpoint impact' }, { id: 'fs-05', text: 'fs-05 · observed service disruption' }],
       departmentOptions: [{ id: 'guided-ir-lead', text: 'Incident Lead + Endpoint/Identity Owners' }, { id: 'service-desk', text: 'Service Desk' }],
       formId: 'm09-guided-case-form', saveAttr: 'data-m09-guided-save-case', submitAttr: 'data-m09-guided-submit-case', panelId: 'm09-guided-case-panel',
-      notesPlaceholder: 'State confirmed impact, containment and recovery status, evidence limits, and next owner actions.', practiceSubmitted: true,
+      notesPlaceholder: 'State confirmed impact, containment and recovery status, evidence limits, and next owner actions.', practiceSubmitted: true, practiceScored: true,
+      practiceResult: moduleNineGuidedState.caseRecord.practiceResult, showMissing: moduleNineGuidedState.caseRecord.showMissing === true,
     }); return moduleNineGuidedState.caseRecord.submitted ? `${html}<button type="button" class="m01-reset" data-m09-guided-restart>Restart Guided Lab</button>` : html; },
   });
 })();
@@ -1159,11 +1160,45 @@ function moduleNineGuidedEvidenceReady() {
     && (state.actionHistory || []).length > 0 && Boolean(workflow.status && cr.status && cr.affectedUser && cr.affectedDevice && cr.severity && cr.disposition && cr.escalateTo && cr.notes?.trim().length >= 35);
 }
 
+// Instant Practice It score: each incident-response competency counts equally.
+function moduleNineGuidedScoreItems() {
+  const state = moduleNineGuidedActionState || {};
+  const workflow = state.incidentWorkflows?.[MODULE_NINE_GUIDED_CASE_ID] || {};
+  const cr = moduleNineGuidedState.caseRecord;
+  const containment = ['isolate_endpoint', 'isolate_device', 'disable_identity', 'revoke_session', 'block_ioc', 'quarantine_file', 'remove_inbox_rule', 'remove_persistence'];
+  return [
+    ['Set the incident severity and an owner', Boolean(workflow.severity && workflow.assigneeId)],
+    ['Moved the incident into investigation', Boolean(workflow.status && workflow.status !== 'open')],
+    ['Reviewed at least three pieces of evidence', (state.reviewedEvidenceIds || []).length >= 3],
+    ['Ran an approved, incident-scoped containment action', (state.actionHistory || []).some((action) => containment.includes(action.type))],
+    ['Scoped the ticket to the confirmed endpoint and account', cr.affectedDevice === 'ws-294' && cr.affectedUser === 'acct-294'],
+  ];
+}
+function moduleNineGuidedSubmit() {
+  const cr = moduleNineGuidedState.caseRecord;
+  if (cr.submitted) return;
+  const at = new Date().toISOString();
+  if (caseRecordMissing(cr, { departmentOptions: [{ id: 'guided-ir-lead' }, { id: 'service-desk' }] }).length) {
+    cr.showMissing = true;
+  } else {
+    const result = practiceResult(moduleNineGuidedScoreItems());
+    cr.showMissing = false;
+    cr.practiceResult = result;
+    cr.actionHistory.push({ action: `Practice scored ${result.score}% (${result.passed ? 'pass' : 'not passed'})`, at });
+    if (result.passed) {
+      cr.submitted = true;
+      cr.submittedAt = at;
+      moduleNineGuidedState.completed = true; moduleNineGuidedState.guideStep = 3; moduleNineGuidedState.guideDocked = true;
+    }
+  }
+  moduleNineGuidedSave();
+  moduleNineRenderGuided();
+}
 function moduleNineGuidedComplete() { return moduleNineGuidedState?.caseRecord?.submitted === true; }
 
 function moduleNineGuidedRestart() {
   const cr = moduleNineGuidedState.caseRecord;
-  moduleNineGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleNineGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', practiceResult: null, showMissing: false, actionHistory: [] };
   moduleNineGuidedState.completed = false; moduleNineGuidedState.guideStep = 0; moduleNineGuidedState.guideDocked = false;
   moduleNineGuidedSave(); moduleNineRenderGuided();
 }
@@ -1183,7 +1218,10 @@ function moduleNineGuidedSteps() {
 function moduleNineGuidedLabPanel() {
   const complete = moduleNineGuidedComplete();
   const steps = moduleNineGuidedSteps();
-  if (!complete) { m03eState('m09-guided').tab = steps[Math.min(moduleNineGuidedState.guideStep || 0, steps.length - 1)].tab; moduleNineGuidedSave(); }
+  // Move the console to the guide's tab only when the guide step changes; doing
+  // it on every render yanked the learner off the tab they were working in.
+  const guideStepIndex = Math.min(moduleNineGuidedState.guideStep || 0, steps.length - 1);
+  if (!complete && m03eState('m09-guided').guideTabStep !== guideStepIndex) { m03eState('m09-guided').tab = steps[guideStepIndex].tab; m03eState('m09-guided').guideTabStep = guideStepIndex; moduleNineGuidedSave(); }
   const cr = moduleNineGuidedState.caseRecord;
   const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
   const evidenceIds = (moduleNineGuidedActionState?.reviewedEvidenceIds || []).length;
@@ -1635,7 +1673,7 @@ function wireModuleNineGuidedLab() {
   MODULE_NINE_GUIDED_CONSOLE.wire(root);
   moduleNinePositionGuidedGuide(root);
   root.addEventListener('change', (event) => {
-    const field = event.target.closest('#m09-guided-case-form [name]');
+    const field = event.target.closest('[id$="m09-guided-case-form"] [name]');
     if (!field) return;
     if (field.name.startsWith('finding:')) moduleNineGuidedState.caseRecord.findings[field.name.slice(8)] = field.value;
     else moduleNineGuidedState.caseRecord[field.name] = field.value;
@@ -1643,7 +1681,7 @@ function wireModuleNineGuidedLab() {
     moduleNineGuidedSave();
   });
   root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-m09-guided-submit-case]')) { event.preventDefault(); moduleNineGuidedState.caseRecord.submitted = true; moduleNineGuidedState.caseRecord.submittedAt = new Date().toISOString(); moduleNineGuidedState.completed = true; moduleNineGuidedState.guideStep = 3; moduleNineGuidedState.guideDocked = true; moduleNineGuidedSave(); moduleNineRenderGuided(); return; }
+    if (event.target.closest('[data-m09-guided-submit-case]')) { event.preventDefault(); moduleNineGuidedSubmit(); return; }
     if (event.target.closest('[data-m09-guided-guide-next]')) { moduleNineGuidedState.guideStep = ((moduleNineGuidedState.guideStep || 0) + 1) % moduleNineGuidedSteps().length; moduleNineGuidedSave(); const tab = moduleNineGuidedSteps()[moduleNineGuidedState.guideStep].tab; document.querySelector(`[data-m03e-tab="m09-guided:${tab}"]`)?.click(); moduleNineRenderGuided(); return; }
     if (event.target.closest('[data-m09-guided-guide-collapse]')) { moduleNineGuidedState.guideDocked = !moduleNineGuidedState.guideDocked; moduleNineGuidedSave(); moduleNineRenderGuided(); return; }
     if (event.target.closest('[data-m09-guided-save-case]')) {

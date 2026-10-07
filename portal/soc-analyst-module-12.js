@@ -94,7 +94,7 @@ const MODULE_TWELVE_CASE = {
   caseId: 'INC-4821',
   userOptions: [
     { id: 'acct-204', text: 'acct-204', tier: 'principal' },
-    { id: 'system', text: 'system (WS-118 script context)', tier: 'pivot' },
+    { id: 'system', text: 'system', tier: 'pivot' },
     { id: 'acct-091', text: 'acct-091', tier: 'noise' },
     { id: 'backup-job', text: 'backup-job', tier: 'noise' },
     { id: 'm.alvarez', text: 'm.alvarez', tier: 'noise' },

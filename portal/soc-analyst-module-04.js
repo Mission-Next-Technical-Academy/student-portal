@@ -455,12 +455,12 @@ const MODULE_FOUR_ENTITY_ROSTER = {
     { id: 'acct-48', text: 'acct-48', tier: 'noise' },
   ],
   devices: [
-    { id: '198.51.100.64', text: '198.51.100.64 (unresolved source)', tier: 'principal' },
-    { id: '203.0.113.77', text: '203.0.113.77 (managed mail client)', tier: 'pivot' },
-    { id: '10.44.3.18', text: '10.44.3.18 (East office managed)', tier: 'noise' },
-    { id: '10.44.3.22', text: '10.44.3.22 (East office managed)', tier: 'noise' },
+    { id: '198.51.100.64', text: '198.51.100.64', tier: 'principal' },
+    { id: '203.0.113.77', text: '203.0.113.77', tier: 'pivot' },
+    { id: '10.44.3.18', text: '10.44.3.18 (east office managed)', tier: 'noise' },
+    { id: '10.44.3.22', text: '10.44.3.22 (east office managed)', tier: 'noise' },
     { id: '192.0.2.91', text: '192.0.2.91 (unrelated phishing cluster)', tier: 'noise' },
-    { id: '203.0.113.155', text: '203.0.113.155 (expired malware-staging IP)', tier: 'noise' },
+    { id: '203.0.113.155', text: '203.0.113.155 (expired malware-staging ip)', tier: 'noise' },
     { id: 'updates-cdn.example', text: 'updates-cdn.example (low-confidence redirect domain)', tier: 'noise' },
   ],
 };

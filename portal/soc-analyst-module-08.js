@@ -27,10 +27,10 @@ const MODULE_EIGHT_ENTITY_ROSTER = {
   devices: [
     { id: 'web-dmz-14', tier: 'principal' },
     { id: 'app-dmz-22', tier: 'pivot' },
-    { id: 'WKS-501', tier: 'noise' },
-    { id: 'DB-INT-07', tier: 'noise' },
-    { id: 'PRT-OFC02', tier: 'noise' },
-    { id: 'LAP-330', tier: 'noise' },
+    { id: 'wks-501', tier: 'noise' },
+    { id: 'db-int-07', tier: 'noise' },
+    { id: 'prt-ofc02', tier: 'noise' },
+    { id: 'lap-330', tier: 'noise' },
   ],
 };
 const MODULE_EIGHT_DISPOSITION_OPTIONS = [
@@ -806,7 +806,10 @@ function moduleEightGuidedLabPanel() {
   const decisions = new Set((state.remediationDecisions || []).map((item) => item.findingId));
   const complete = moduleEightGuidedState?.caseRecord?.submitted === true;
   const steps = moduleEightGuidedSteps();
-  if (!complete) { m03eState('m08-guided').tab = steps[Math.min(moduleEightGuidedState.guideStep || 0, steps.length - 1)].tab; moduleEightGuidedSave(); }
+  // Move the console to the guide's tab only when the guide step changes; doing
+  // it on every render yanked the learner off the tab they were working in.
+  const guideStepIndex = Math.min(moduleEightGuidedState.guideStep || 0, steps.length - 1);
+  if (!complete && m03eState('m08-guided').guideTabStep !== guideStepIndex) { m03eState('m08-guided').tab = steps[guideStepIndex].tab; m03eState('m08-guided').guideTabStep = guideStepIndex; moduleEightGuidedSave(); }
   const cr = moduleEightGuidedState.caseRecord;
   const quality = (value, expected, contributing = []) => !value ? 'missed' : value === expected ? 'captured' : contributing.includes(value) ? 'contributing' : 'missed';
   const noteQuality = (text) => { const n = (text || '').toLowerCase(); const direct = ['api-edge-31', 'n.owens'].some((v) => n.includes(v)); const evidence = /reach|expos|version|exploit|control|finding/.test(n); const action = /owner|patch|remediat|verify|due|retest/.test(n); return direct && evidence && action ? 'captured' : direct || evidence || action ? 'contributing' : 'missed'; };
@@ -836,13 +839,48 @@ function moduleEightGuidedEvidenceReady() {
   return reviewed && decided;
 }
 
+// Instant Practice It score: each vulnerability-response competency counts equally.
+function moduleEightGuidedScoreItems() {
+  const state = moduleEightGuidedAssessmentState || {};
+  const cr = moduleEightGuidedState.caseRecord;
+  const id = MODULE_EIGHT_GUIDED_FIXTURE.scenario.expectedPriority.findingId;
+  const reviewedIds = new Set((state.findingReviews || []).map((item) => item.findingId));
+  const escalated = (state.actionHistory || []).some((item) => item.type === 'escalation' && item.details?.findingId === id);
+  return [
+    ['Validated the priority finding', reviewedIds.has(id)],
+    ['Compared it with at least one other finding', reviewedIds.size >= 2],
+    ['Recorded a remediation decision for it', (state.remediationDecisions || []).some((item) => item.findingId === id)],
+    ['Routed it to an owner with a due date', escalated],
+    ['Scoped the ticket to the exposed asset and its owner', cr.affectedDevice === MODULE_EIGHT_GUIDED_FIXTURE.scenario.expectedPriority.assetId && cr.affectedUser === MODULE_EIGHT_GUIDED_FIXTURE.scenario.expectedPriority.ownerId],
+  ];
+}
+function moduleEightGuidedSubmit() {
+  const cr = moduleEightGuidedState.caseRecord;
+  if (cr.submitted) return;
+  const at = new Date().toISOString();
+  if (caseRecordMissing(cr, { departmentOptions: [{ id: 'vulnerability-response' }, { id: 'service-owner-remediation' }, { id: 'security-lead-review' }] }).length) {
+    cr.showMissing = true;
+  } else {
+    const result = practiceResult(moduleEightGuidedScoreItems());
+    cr.showMissing = false;
+    cr.practiceResult = result;
+    cr.actionHistory.push({ action: `Practice scored ${result.score}% (${result.passed ? 'pass' : 'not passed'})`, at });
+    if (result.passed) {
+      cr.submitted = true;
+      cr.submittedAt = at;
+      moduleEightGuidedState.completed = true; moduleEightGuidedState.guideStep = 3; moduleEightGuidedState.guideDocked = true;
+    }
+  }
+  moduleEightGuidedSave();
+  moduleEightRenderGuided();
+}
 function moduleEightGuidedComplete() {
   return moduleEightGuidedState?.caseRecord?.submitted === true;
 }
 
 function moduleEightGuidedRestart() {
   const cr = moduleEightGuidedState.caseRecord;
-  moduleEightGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleEightGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', practiceResult: null, showMissing: false, actionHistory: [] };
   moduleEightGuidedState.completed = false; moduleEightGuidedState.guideStep = 0; moduleEightGuidedState.guideDocked = false;
   moduleEightGuidedSave(); moduleEightRenderGuided();
 }
@@ -1074,7 +1112,8 @@ const MODULE_EIGHT_GUIDED_CONSOLE = (() => {
       departmentOptions: [{ id: 'vulnerability-response', text: 'Vulnerability Response' }, { id: 'service-owner-remediation', text: 'Service Owner Remediation' }, { id: 'security-lead-review', text: 'Security Lead Review' }],
       formId: 'm08-guided-case-form', saveAttr: 'data-m08-guided-save-case', submitAttr: 'data-m08-guided-submit-case', panelId: 'm08-guided-case-panel',
       notesPlaceholder: 'Explain finding validity, exposure and business context, remediation priority, owner, and the limit of any risk exception.',
-      submitted: false, practiceSubmitted: true,
+      submitted: false, practiceSubmitted: true, practiceScored: true,
+      practiceResult: moduleEightGuidedState.caseRecord.practiceResult, showMissing: moduleEightGuidedState.caseRecord.showMissing === true,
     }); return moduleEightGuidedState.caseRecord.submitted ? `${html}<button type="button" class="m01-reset" data-m08-guided-restart>Restart Guided Lab</button>` : html; },
   });
 })();
@@ -1285,11 +1324,7 @@ function wireModuleEightLab() {
   root.addEventListener('click', (event) => {
     if (event.target.closest('[data-m08-guided-restart]')) { event.preventDefault(); moduleEightGuidedRestart(); return; }
     if (event.target.closest('[data-m08-submit-proveit]')) { moduleEightFinalizeProveIt(); return; }
-    if (event.target.closest('[data-m08-guided-submit-case]')) {
-      event.preventDefault(); moduleEightGuidedState.caseRecord.submitted = true; moduleEightGuidedState.caseRecord.submittedAt = new Date().toISOString();
-      moduleEightGuidedState.completed = true; moduleEightGuidedState.guideStep = 3; moduleEightGuidedState.guideDocked = true; moduleEightGuidedState.caseRecord.actionHistory.push({ action: 'Practice submitted', at: moduleEightGuidedState.caseRecord.submittedAt });
-      moduleEightGuidedSave(); moduleEightRenderGuided(); return;
-    }
+    if (event.target.closest('[data-m08-guided-submit-case]')) { event.preventDefault(); moduleEightGuidedSubmit(); return; }
     if (event.target.closest('[data-m08-guided-guide-next]')) { moduleEightGuidedState.guideStep = ((moduleEightGuidedState.guideStep || 0) + 1) % moduleEightGuidedSteps().length; moduleEightGuidedSave(); const tab = moduleEightGuidedSteps()[moduleEightGuidedState.guideStep].tab; document.querySelector(`[data-m03e-tab="m08-guided:${tab}"]`)?.click(); moduleEightRenderGuided(); return; }
     if (event.target.closest('[data-m08-guided-guide-collapse]')) { moduleEightGuidedState.guideDocked = !moduleEightGuidedState.guideDocked; moduleEightGuidedSave(); moduleEightRenderGuided(); return; }
     if (event.target.closest('[data-m08-guided-save-case]')) {
@@ -1358,7 +1393,7 @@ function wireModuleEightLab() {
 
   root.addEventListener('change', (event) => {
     const input = event.target;
-    const guidedTicketField = input.closest('#m08-guided-case-form [name]');
+    const guidedTicketField = input.closest('[id$="m08-guided-case-form"] [name]');
     if (guidedTicketField && caseRecordApply(moduleEightGuidedState.caseRecord, guidedTicketField.name, guidedTicketField.value)) {
       moduleEightGuidedState.completed = moduleEightGuidedComplete();
       moduleEightGuidedSave();

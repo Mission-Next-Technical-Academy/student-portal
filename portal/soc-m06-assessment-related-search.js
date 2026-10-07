@@ -198,21 +198,12 @@ const SocM06AssessmentRelatedSearch = (() => {
     const scenario = fixture?.scenario;
     if (!scenario || !mapping || typeof mapping !== 'object' || Array.isArray(mapping)) return false;
     const technique = TECHNIQUES[mapping.techniqueId];
-    const truth = scenario.expectedTruth;
-    const supported = truth.supportedTechniques.find((item) => item.id === mapping.techniqueId);
-    const unsupported = truth.unsupportedTechniques.find((item) => item.id === mapping.techniqueId);
-    const validEvents = new Set((mapping.status === 'supported' ? supported?.evidenceEventIds
-      : mapping.status === 'unsupported' ? unsupported?.evidenceEventIds
-        : [...(supported?.evidenceEventIds || []), ...(unsupported?.evidenceEventIds || [])]) || []);
-    // Later cumulative cases may supply their own telemetry slice while the
-    // M06 truth object has no event IDs for that independent scenario. Accept
-    // any real event from that fixture here; the module's scorer still decides
-    // whether the cited evidence supports the learner's assessment.
-    if (!String(scenario.id || '').startsWith('M06-')) {
-      for (const event of scenario.telemetry || []) {
-        if (event?.id) validEvents.add(event.id);
-      }
-    }
+    // Saving checks structure only: any real event from this case may be
+    // cited. Rejecting citations outside the answer key told the learner
+    // which evidence was "right" before submission (LAB_ASSESSMENT_STANDARD:
+    // no pre-submission answer feedback in Prove It). The scorer and rubric
+    // judge whether the cited evidence supports the assessment.
+    const validEvents = new Set((scenario.telemetry || []).map((event) => event?.id).filter(Boolean));
     return !!technique && technique.tactics.includes(mapping.tacticId)
       && Object.values(TACTICS).includes(TACTICS[mapping.tacticId])
       && Array.isArray(mapping.eventIds) && mapping.eventIds.length > 0 && mapping.eventIds.length <= 100
@@ -379,6 +370,16 @@ const SocM06AssessmentRelatedSearch = (() => {
       `<li data-event-id="${e(event.id)}"><div><time datetime="${e(event.time)}">${e(event.time)}</time><strong>${e(event.id)} · ${e(event.eventType)}</strong></div><span>${e(event.device)} / ${e(event.account)}</span><span>${e(event.action)}: ${e(event.result)}${eventDetail(event) ? `<code>${e(eventDetail(event))}</code>` : ''}</span><div class="m06-result-actions">${options.pivotFromEventId ? `<button type="button" data-m06-pivot-from="${e(options.pivotFromEventId)}" data-m06-pivot-to="${e(event.id)}">Pivot</button>` : ''}${options.relatedPivots ? (event.relatedEventIds || []).map((to) => `<button type="button" data-m06-pivot-from="${e(event.id)}" data-m06-pivot-to="${e(to)}">Pivot to ${e(to)}</button>`).join('') : ''}${options.bookmarks ? `<button type="button" data-m06-bookmark="${e(event.id)}">${options.bookmarks.includes(event.id) ? 'Remove bookmark' : 'Bookmark'}</button>` : ''}</div></li>`).join('')}</ol></section>`;
   }
 
+  // A pivot reveals its target event next to the result it came from;
+  // without this the pivot was recorded but nothing changed on screen.
+  function searchResultsWithPivots(scenario, previous, state) {
+    const resultIds = previous.resultEventIds || [];
+    const pivotIds = (state?.pivots || []).filter((item) => resultIds.includes(item.fromEventId)).map((item) => item.toEventId);
+    return [...new Set([...resultIds, ...pivotIds])]
+      .map((id) => scenario.telemetry.find((event) => event.id === id)).filter(Boolean)
+      .sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+  }
+
   function renderSearch(fixture, state) {
     const scenario = fixture?.scenario;
     if (!scenario) return '<section aria-label="Related event search"><p role="status">Search fixture is unavailable.</p></section>';
@@ -397,7 +398,7 @@ const SocM06AssessmentRelatedSearch = (() => {
       <label>Start UTC <input name="startTime" type="text" value="${e(start)}"></label><label>End UTC <input name="endTime" type="text" value="${e(end)}"></label>
       <label>Entity <select name="entityType"><option value="all"${type === 'all' ? ' selected' : ''}>All entities</option><option value="device"${type === 'device' ? ' selected' : ''}>Device</option><option value="account"${type === 'account' ? ' selected' : ''}>Account</option></select></label>
       <label>Entity value <select name="entityValue">${choices.map((item) => `<option value="${e(item)}"${item === value ? ' selected' : ''}>${e(item)}</option>`).join('')}</select></label>
-      <div class="m06-form-actions"><button type="submit">Search events</button></div></form>${render(previous.resultEventIds?.map((id) => scenario.telemetry.find((event) => event.id === id)).filter(Boolean) || [], { bookmarks: state?.bookmarks || [], relatedPivots: true, emptyText: previous.timestamp ? '' : 'Run a search to see matching events.' })}</section>`;
+      <div class="m06-form-actions"><button type="submit">Search events</button></div></form>${render(searchResultsWithPivots(scenario, previous, state), { bookmarks: state?.bookmarks || [], relatedPivots: true, emptyText: previous.timestamp ? '' : 'Run a search to see matching events.' })}</section>`;
   }
 
   function renderEvidencePanel(fixture, state) {
@@ -406,13 +407,14 @@ const SocM06AssessmentRelatedSearch = (() => {
     if (!scenario) return '';
     const selected = (state?.collections || []).find((item) => item.id === state?.selectedCollectionId);
     const currentResults = (state?.queryHistory || []).at(-1)?.resultEventIds || [];
-    const selectableIds = [...new Set([...currentResults, ...(selected?.eventIds || [])])];
+    // Bookmarks are the evidence the learner curates, so they always appear.
+    const selectableIds = [...new Set([...(state?.bookmarks || []), ...currentResults, ...(selected?.eventIds || [])])];
     const eventMap = new Map(scenario.telemetry.map((event) => [event.id, event]));
     return `<section data-m06-evidence-panel aria-label="Bookmarks and evidence collections"><header class="m06-panel-header"><div><span class="m06-step">04 · Curate</span><h3>Evidence collection</h3></div><span class="m06-count-badge">${(state?.bookmarks || []).length}/100 bookmarks</span></header>
-      <ul class="m06-bookmark-list">${(state?.bookmarks || []).map((id) => `<li><span>${e(id)}</span><button type="button" data-m06-bookmark="${e(id)}">Remove</button></li>`).join('') || '<li class="m06-empty-state">No bookmarked events.</li>'}</ul>
+      <ul class="m06-bookmark-list">${(state?.bookmarks || []).map((id) => `<li><span>${e(id)}${eventMap.has(id) ? ` · ${e(eventMap.get(id).eventType)} · ${e(eventMap.get(id).device)}` : ''}</span><button type="button" data-m06-bookmark="${e(id)}">Remove</button></li>`).join('') || '<li class="m06-empty-state">No bookmarked events.</li>'}</ul>
       <label>Selected collection <select data-m06-collection-select><option value="">No collection selected</option>${(state?.collections || []).map((item) => `<option value="${e(item.id)}"${item.id === selected?.id ? ' selected' : ''}>${e(item.name)} (${item.eventIds.length}/100)</option>`).join('')}</select></label>
       <form data-m06-collection-form><label>Collection name <input name="name" maxlength="80" required value="${e(selected?.name || '')}"></label>
-      <p data-m06-evidence-feedback role="status"></p><fieldset class="m06-choice-set m06-field-wide"><legend>Fixture events</legend><div class="m06-choice-grid">${selectableIds.map((id) => `<label><input type="checkbox" name="eventIds" value="${e(id)}"${selected?.eventIds.includes(id) ? ' checked' : ''}><span><strong>${e(id)}</strong><small>${e(eventMap.get(id)?.eventType || '')}</small></span></label>`).join('') || '<p class="m06-empty-state">Run a saved query to choose evidence events.</p>'}</div></fieldset>
+      <p data-m06-evidence-feedback role="status"></p><fieldset class="m06-choice-set m06-field-wide"><legend>Bookmarked and latest search events</legend><div class="m06-choice-grid">${selectableIds.map((id) => `<label><input type="checkbox" name="eventIds" value="${e(id)}"${selected?.eventIds.includes(id) ? ' checked' : ''}><span><strong>${e(id)}</strong><small>${e(eventMap.get(id)?.eventType || '')}${eventMap.get(id)?.device ? ` · ${e(eventMap.get(id).device)}` : ''}</small></span></label>`).join('') || '<p class="m06-empty-state">Run a saved query to choose evidence events.</p>'}</div></fieldset>
       <div class="m06-form-actions m06-field-wide"><button type="submit">${selected ? 'Save collection' : 'Create collection'}</button></div></form>
       <ol class="m06-record-list">${(selected?.eventIds || []).map((id) => `<li>${e(id)} · ${e(eventMap.get(id)?.eventType || '')}</li>`).join('') || '<li>Selected collection is empty.</li>'}</ol></section>`;
   }

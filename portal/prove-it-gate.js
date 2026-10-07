@@ -104,9 +104,24 @@
     card.querySelectorAll(':scope > .prove-gate-banner').forEach((el) => el.remove());
   }
 
+  // Module heroes render the Guided Lab status once at page load; keep it in
+  // step with the same completion the gate reads, so a submit shows at once.
+  function syncHeroGuidedStatus(context) {
+    let sections;
+    try { sections = context.def.sections() || []; } catch (_) { return; }
+    const guided = sections.filter((s) => s.id === 'guided-lab');
+    if (!guided.length || !guided.every((s) => s.isComplete)) return;
+    document.querySelectorAll('#app .mf-stats dt').forEach((dt) => {
+      if ((dt.textContent || '').trim() !== 'Guided Lab') return;
+      const dd = dt.nextElementSibling;
+      if (dd && dd.textContent.trim() !== 'Complete') dd.textContent = 'Complete';
+    });
+  }
+
   function sync() {
     scheduled = false;
     const context = moduleContext();
+    if (context) syncHeroGuidedStatus(context);
     const gate = context ? gateFor(context) : null;
     proveCards().forEach(({ card, heading }) => (gate ? lock(card, heading, gate) : unlock(card)));
     // A card that stopped being a Prove It card (re-render) must not keep a stale lock.

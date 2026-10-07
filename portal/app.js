@@ -167,9 +167,10 @@ async function fetchUserDetails(userId, trackCode) {
   // Most recent attempt per lab, so a lab's submit control can tell
   // "under review" (reviewed_at null) from "graded" without another query.
   let latestLabAttemptByKey = {};
+  let reviewedLabFeedbackByLabKey = {};
   let studentMessages = [];
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, studentMessages };
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, studentMessages };
   }
 
   const [
@@ -243,11 +244,13 @@ async function fetchUserDetails(userId, trackCode) {
       latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true };
     });
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
-    if (openAttempts.length) {
+    // Notes left while approving were saved but never shown to the learner.
+    const approvedAttempts = Array.from(latestByLabKey.values()).filter((row) => row.reviewed_at && !row.redo_requested);
+    if (openAttempts.length || approvedAttempts.length) {
       const { data: feedbackRows, error: feedbackError } = await mntSupabase
         .from('lab_attempt_feedback')
         .select('lab_attempt_id, item_label, comment')
-        .in('lab_attempt_id', openAttempts.map((row) => row.id))
+        .in('lab_attempt_id', [...openAttempts, ...approvedAttempts].map((row) => row.id))
         .order('created_at', { ascending: true });
       if (feedbackError) console.error('fetchUserDetails: lab_attempt_feedback fetch failed', feedbackError);
       const feedbackByAttemptId = new Map();
@@ -255,6 +258,10 @@ async function fetchUserDetails(userId, trackCode) {
         const list = feedbackByAttemptId.get(row.lab_attempt_id) || [];
         list.push(row);
         feedbackByAttemptId.set(row.lab_attempt_id, list);
+      });
+      approvedAttempts.forEach((row) => {
+        const items = feedbackByAttemptId.get(row.id) || [];
+        if (items.length) reviewedLabFeedbackByLabKey[row.lab_key] = items;
       });
       openAttempts.forEach((row) => {
         const lab = LABS.find((l) => l.key === row.lab_key);
@@ -274,7 +281,7 @@ async function fetchUserDetails(userId, trackCode) {
     studentMessages = messageRows || [];
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, studentMessages };
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, studentMessages };
 }
 
 async function buildUserFromSession(session) {
@@ -887,6 +894,34 @@ function adminAttemptReviewCard(item, olderAttempt) {
       </dl>
       ${resultFeedback.length ? `<div class="mt-3"><p class="text-xs font-semibold text-gray-600 mb-1">Auto-scored feedback</p><ul class="list-disc space-y-1 pl-5 text-xs text-gray-600">${resultFeedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
     </div>` : '';
+  // Rubric-based modules (M06 onward) return breakdown as a criterion list;
+  // without this the instructor only saw it inside the raw debugging JSON.
+  const rubricSource = row.result && (Array.isArray(row.result.breakdown) ? row.result.breakdown : row.result.criteria);
+  const rubricCriteria = Array.isArray(rubricSource)
+    ? rubricSource.filter((c) => c && typeof c === 'object' && c.label)
+    : [];
+  // Modules without a case ticket (M11 shift assessment) carry the learner's
+  // work only in action_history; show it readably so there is something to review.
+  const studentActions = row.result && !row.result.case_display && Array.isArray(row.result.action_history) ? row.result.action_history : [];
+  const actionText = (value) => (Array.isArray(value) ? value.map(actionText).join(', ')
+    : value && typeof value === 'object' ? Object.entries(value).map(([k, v]) => `${k}: ${actionText(v)}`).join('; ') : String(value ?? ''));
+  const studentWorkPanel = studentActions.length ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3">
+      <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Student work (${esc(String(studentActions.length))} recorded actions)</p>
+      <ol class="space-y-2 text-sm list-decimal pl-5">${studentActions.map((action) => `<li><strong class="text-[#1e3a5f]">${esc(String(action.type || '').replace(/_/g, ' '))}</strong> <span class="text-gray-700">${esc(actionText(action.details).slice(0, 1200))}</span></li>`).join('')}</ol>
+    </div>` : '';
+  const rubricPanel = rubricCriteria.length ? `<div class="mb-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+      <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System rubric (recommendation, your review decides)</p>
+      <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">
+        ${rubricCriteria.map((c) => {
+          // M06–M11 use points/supportingEvidence; the M12 capstone uses score/evidence.
+          const earned = c.points ?? c.score ?? 0;
+          const full = Number(earned) >= Number(c.max);
+          const misses = Array.isArray(c.misses) ? c.misses.filter(Boolean) : [];
+          const evidence = (Array.isArray(c.supportingEvidence) ? c.supportingEvidence : Array.isArray(c.evidence) ? c.evidence : []).filter(Boolean);
+          return `<div class="px-3 py-2"><div class="flex justify-between gap-3"><span class="text-gray-700">${esc(c.label)}</span><span class="font-semibold ${full ? 'text-green-700' : 'text-amber-700'}">${esc(String(earned))} / ${esc(String(c.max ?? '—'))}</span></div>${misses.length ? `<p class="text-xs text-amber-800 mt-1">Missed: ${esc(misses.join('; '))}</p>` : ''}${evidence.length ? `<p class="text-xs text-gray-500 mt-1">Evidence: ${esc(evidence.join(', '))}</p>` : ''}</div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
   return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}">
     <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
       <div class="min-w-0">
@@ -904,6 +939,8 @@ function adminAttemptReviewCard(item, olderAttempt) {
     ${adminModuleTwoAccessReviewPanel(row)}
     ${competencyPanel}
     ${readableResult}
+    ${studentWorkPanel}
+    ${rubricPanel}
     <details class="mb-3 text-sm">
       <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>
       <pre class="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-x-auto">${esc(resultJson)}</pre>
@@ -3681,8 +3718,13 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
           .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
       }
     }
-    if (writeResult.error) console.error('module case_state write failed', moduleKey, labId, writeResult.error);
-    else user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: caseState };
+    if (writeResult.error) { console.error('module case_state write failed', moduleKey, labId, writeResult.error); return; }
+    // LabRuntime.saveCaseState() already put every newer action from this
+    // session in the in-session copy. Replacing it with this write's older
+    // snapshot made the next load undo actions taken while it was in flight.
+    const live = user.remoteCaseState && user.remoteCaseState[moduleKey];
+    const liveLabs = live && typeof live === 'object' && !live.labId ? live : {};
+    user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: { ...caseState, ...liveLabs } };
   }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); });
   moduleCaseStateQueues.set(queueKey, write);
   return write;
