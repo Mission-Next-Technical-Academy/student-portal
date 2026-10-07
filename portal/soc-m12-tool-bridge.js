@@ -145,6 +145,13 @@ const SocM12ToolBridge = (() => {
         emit('m03',{id:`pin:${id}:${revision}`,timestamp:s.fixedAt},'evidence-select',{evidenceId:id,selected});
       }
     }
+    // Log Search runs are historical queries too. Without this only the M04
+    // query tester and Hunting counted, so a learner who correlated in Log
+    // Search saw "No query test recorded yet" and lost the query credit.
+    list(consoleState?.queryLog).forEach((entry) => {
+      if (!entry || typeof entry.query !== 'string' || !entry.query.trim() || !entry.at) return;
+      emit('m03',{id:`query:${entry.at}`,timestamp:entry.at},'query-run',{query:entry.query});
+    });
     return next;
   }
   return Object.freeze({project});

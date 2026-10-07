@@ -68,11 +68,11 @@ const SocCapstoneTraceability = (() => {
     // ------------------------------------------------ queries-detection-scheduling
     {
       id: 'query-correlated',
-      capstone: { criterion: 'queries-detection-scheduling', mechanic: 'Run a reproducible query whose results correlate at least three primary records across sources', tab: 'rules', recordedAs: 'query-run { query } (outcome derived by evaluating the query)', rubricText: ['Historical query results correlate incident evidence.', 'No cross-source correlated query outcome.'], missingCheck: ['No query test recorded yet'], actionTypes: ['query-run'] },
+      capstone: { criterion: 'queries-detection-scheduling', mechanic: 'Run a reproducible query whose results correlate at least three primary records across sources', tab: 'search', recordedAs: 'query-run { query } (outcome derived by evaluating the query)', rubricText: ['Historical query results correlate incident evidence.', 'No cross-source correlated query outcome.'], missingCheck: ['No query test recorded yet'], actionTypes: ['query-run'] },
       practice: [P('M03', 'search', 'auth'), P('M03', 'search', 'session'), P('M03', 'search', 'scope'), P('M04', 'search', 'Start from the lead', 'generic')],
       prove: [V('M03', 'investigation'), V('M04', 'query-rule-quality'), V('M06', 'query-and-pivots')],
-      code: [...M12, `${TOOLS}#PACKS.m04`, `${TOOLS}#PACKS.m06`, 'portal/kql-engine.js', 'portal/soc-m04-rules-ui.js'],
-      notes: 'Only two recorders exist: the M04 pack query tester (Analytics Rules tab, query_test) and the M06 pack Hunting tab (query_run), both projected by the bridge. A query typed in the M03 Log Search tab is not recorded as query-run (see the Sprint 4a log).',
+      code: [...M12, 'portal/soc-m12-tool-bridge.js', 'portal/soc-analyst-module-03-environment.js', `${TOOLS}#PACKS.m04`, `${TOOLS}#PACKS.m06`, 'portal/kql-engine.js', 'portal/soc-m04-rules-ui.js'],
+      notes: 'Three recorders, all projected by soc-m12-tool-bridge.js: the M03 Log Search history (queryLog, since 2026-10-07), the M04 pack query tester (Analytics Rules tab, query_test) and the M06 pack Hunting tab (query_run).',
     },
     {
       id: 'rule-saved',

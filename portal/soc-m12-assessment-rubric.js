@@ -129,7 +129,10 @@ const SocM12AssessmentRubric = (() => {
     add('timeline-scope-evidence-attack',[award(ordered?3:0,'Pinned evidence is reconstructed in chronological order.'),award(Math.min(3,affected.length+(secondaryScope?1:0)),'Confirmed entities and bounded secondary scope evidence.'),award(Math.min(3,supportedPins.length),'Relevant evidence is retained.'),award(Math.min(3,goodMappings.length),'ATT&CK mappings cite demonstrated behavior.')],[...(!ordered?['No chronological reconstruction of at least three pinned incident records.']:[]),...(!secondaryScope?['Scope lacks bounded secondary evidence.']:[])],idsFor(['investigation','evidence-select','attack-map']),[...unsupportedEntities.map(e=>award(3,`${e}: unsupported affected-scope determination.`)),...badMappings.map(t=>award(1,`${t}: ATT&CK conclusion lacks supporting behavior.`))]);
     const executions=list(x.executions), approvals=list(x.approvals), workflows=list(x.workflows), recovery=list(x.recovery);
     // Action-time approval is enforced during replay. Later approval cannot erase a blocked attempt.
-    const unsafeExecution=executions.some(e=>e.outcome==='blocked'||!truth.safeActions.includes(`${e.action}:${e.target}`)||(truth.requiredApprovals.includes(e.action)&&!approvals.some(a=>a.action===e.action&&a.target===e.target&&a.approved)));
+    // Preserving evidence changes nothing on a system, so packaging records
+    // from an out-of-scope host (e.g. documenting why ws-118 is excluded) is
+    // not an unsafe execution and must not trigger the safety cap.
+    const unsafeExecution=executions.filter(e=>e.action!=='preserve').some(e=>e.outcome==='blocked'||!truth.safeActions.includes(`${e.action}:${e.target}`)||(truth.requiredApprovals.includes(e.action)&&!approvals.some(a=>a.action===e.action&&a.target===e.target&&a.approved)));
     const safeActions=truth.safeActions.filter(key=>executions.some(e=>`${e.action}:${e.target}`===key&&e.outcome==='success'));
     const workflow=workflows.some(w=>list(w.nodes).includes('approval')&&list(w.edges).some(e=>e.from==='preserve'&&e.to==='approval')&&list(w.edges).some(e=>e.from==='approval'&&e.to==='isolate'));
     const approved=approvals.some(a=>a.approved&&truth.safeActions.includes(`${a.action}:${a.target}`));

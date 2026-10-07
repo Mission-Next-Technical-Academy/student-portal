@@ -76,6 +76,20 @@ const noApproval=bridge.project({m09:{actionHistory:[{id:'NO-APPROVAL',type:'iso
 assert.equal(noApproval.executions[0].outcome,'blocked');
 assert.equal(score.score(noApproval,fixture).unsafeExecution,true);
 assert.throws(()=>m09.executeApprovedAction(m09.normalize({},fx.m09),'INC-4821',{type:'isolate_endpoint',outcome:'success',details:{entityId:'ws-204'}},time(),fx.m09),/approved target/,'M09 UI API itself rejects missing approval');
+// A correlating Log Search run counts as a query test, once, like the M04 tester.
+const searchOnly={pins:[],queryLog:[{at:'2026-10-07T19:00:00.000Z',query,rows:5}]};
+const searched=bridge.project({},searchOnly,api.fresh(fixture),fixture);
+assert.equal(searched.queryRuns.length,1,'a Log Search run is recorded as a query run');
+assert.equal(searched.queryRuns[0].outcome,'correlated');
+assert.equal(bridge.project({},searchOnly,searched,fixture).queryRuns.length,1,'re-projecting the same history adds nothing');
+assert.equal(score.score(searched,fixture).criteria.find(c=>c.id==='queries-detection-scheduling').points,9,'Log Search correlation earns the query credit');
+// Packaging evidence from an excluded host is recorded but is not an unsafe execution.
+{
+  const t={m05:m05.append({},'evidence_package_preserved','2026-09-27T09:40:00Z',{deviceId:'ws-118',eventIds:['BEN-101'],hashes:[fixture.evidenceFields['BEN-101']?.Sha256].filter(Boolean)},fx.m05)};
+  const st=bridge.project(t,{pins:[]},{...api.fresh(fixture),rubricVersion:2},fixture);
+  assert.equal(st.executions[0]?.action,'preserve');
+  assert.equal(score.score(st,fixture,{rubricVersion:2}).unsafeExecution,false,'out-of-scope preservation does not trip the safety cap');
+}
 // Changing pins removes selections exactly once.
 const unpinned=bridge.project(tools,{pins:[]},state,fixture);
 assert.equal(unpinned.selectedEvidence.length,0);
