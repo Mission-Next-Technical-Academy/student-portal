@@ -49,6 +49,9 @@ assert.equal(scoreApi.score(narrow,fixture).criteria[1].points,0,'narrow query w
 let workflow=empty;
 workflow=record(workflow,'workflow-design',{name:'Preserve, approve, contain',nodes:['preserve','approval','isolate'],edges:[{from:'preserve',to:'approval'},{from:'approval',to:'isolate'}]});
 assert.equal(scoreApi.score(workflow,fixture).criteria.find(c=>c.id==='tuning-automation-containment').points,7,'the bounded workflow UI action reaches partial automation credit');
+// Every node the designer offers can be ticked at once (it used to reject the ninth).
+const allNodes=record(empty,'workflow-design',{name:'Every step',nodes:[...fixture.scenario.workflowNodes],edges:[{from:'preserve',to:'approval'},{from:'approval',to:'isolate'}]});
+assert.equal(allNodes.workflows.length,1,'a workflow using all offered nodes records');
 
 function buildPassLine(){
   let s=empty;

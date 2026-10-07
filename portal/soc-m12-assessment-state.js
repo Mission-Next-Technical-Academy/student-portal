@@ -52,7 +52,7 @@ const SocM12AssessmentState = (() => {
       case 'attack-map': d.technique=text(d.technique,40); d.evidenceIds=(d.evidenceIds||[]).filter(id=>exists(s.evidence,id)); break;
       case 'workflow-design':
         d.name=text(d.name,120);
-        if(!Array.isArray(d.nodes)||d.nodes.length<2||d.nodes.length>8||d.nodes.some(n=>!s.workflowNodes.includes(n))||new Set(d.nodes).size!==d.nodes.length) throw new Error('Workflow needs 2–8 unique supported action nodes.');
+        if(!Array.isArray(d.nodes)||d.nodes.length<2||d.nodes.length>s.workflowNodes.length||d.nodes.some(n=>!s.workflowNodes.includes(n))||new Set(d.nodes).size!==d.nodes.length) throw new Error('Workflow needs at least 2 unique supported action nodes.');
         d.edges=Array.isArray(d.edges)?d.edges:[];
         if(d.edges.length>12||d.edges.some(e=>!e||!d.nodes.includes(e.from)||!d.nodes.includes(e.to)||e.from===e.to)) throw new Error('Workflow edges must connect selected nodes.');
         break;

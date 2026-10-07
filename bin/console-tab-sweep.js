@@ -50,6 +50,13 @@ function openModule(page, number) {
   return page.evaluate((number) => {
     const lab = moduleLabFor('soc-analyst', number);
     document.getElementById('app').innerHTML = lab.view(__sweepUser, __sweepProgram);
+    // M03's Guided Lab console stays behind the card-1 ingest step; open it
+    // so the Practice It console is swept too, not only Prove It.
+    if (number === 3 && typeof m03eState === 'function' && !m03eState('practice').normalizedIngestReady) {
+      m03eState('practice').normalizedIngestReady = true;
+      moduleThreeSave();
+      document.getElementById('app').innerHTML = lab.view(__sweepUser, __sweepProgram);
+    }
     if (lab.wire) lab.wire(__sweepUser, __sweepProgram);
     return [...document.querySelectorAll('[id^="m03e-console-"]')]
       .flatMap((host) => [...host.querySelectorAll('nav[role=tablist] button')].map((button) => [host.id, button.textContent.trim()]));
