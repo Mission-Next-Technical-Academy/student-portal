@@ -2,7 +2,9 @@
 const SocM04AssessmentRubric = (() => {
   'use strict';
 
-  const RUBRIC = Object.freeze([
+  // Rubric version 2 adds contextual indicator verdicts. Version 1 is kept so a submitted attempt can be
+  // re-read under the rules it was scored with (its stored score is never recomputed on load).
+  const RUBRIC_V1 = Object.freeze([
     { id: 'intelligence-corroboration', label: 'Corroborate the incident with relevant intelligence' },
     { id: 'ioc-lifecycle', label: 'Maintain accurate IOC context and lifecycle' },
     { id: 'query-rule-quality', label: 'Build a focused query and appropriately tuned rule' },
@@ -12,6 +14,11 @@ const SocM04AssessmentRubric = (() => {
     { id: 'automation-boundary', label: 'Keep automation bounded and disruptive actions approval-gated' },
     { id: 'case-documentation', label: 'Document a supported disposition, escalation, and rationale' },
   ].map(Object.freeze));
+  const VERDICT_CRITERION = Object.freeze({ id: 'intelligence-verdicts', label: 'Judge each indicator against the case evidence' });
+  const RUBRIC = Object.freeze([...RUBRIC_V1.slice(0, 2), VERDICT_CRITERION, ...RUBRIC_V1.slice(2)]);
+  const CURRENT_VERSION = 2;
+  const MIN_RATIONALE = 25;
+  const WRONG_VERDICT_DEDUCTION = 2;
 
   const list = (value) => Array.isArray(value) ? value : [];
   const unique = (values) => [...new Set(values.filter((value) => Boolean(value)))];
@@ -19,7 +26,68 @@ const SocM04AssessmentRubric = (() => {
   const containsText = (value, terms) => typeof value === 'string' && terms.some((term) => value.toLowerCase().includes(term));
   const intersect = (left, right) => left.filter((item) => right.includes(item));
 
-  function extract(state, fixture) {
+  const mentions = (text, token) => typeof text === 'string' && typeof token === 'string' && token.length > 0
+    && text.toLowerCase().includes(token.toLowerCase());
+
+  // One indicator's verdict against the scenario truth. Pure; shared by scoring and Practice It feedback.
+  //   verdict:   'correct' | 'undecided' (unknown although the records support a verdict) | 'contradicted' | 'missing'
+  //   reasoning: true when the rationale is long enough and, where records support a verdict, cites one of them.
+  function evaluateVerdict(truth, indicatorId, entry) {
+    const expected = truth?.indicatorDecisions?.[indicatorId];
+    const refs = list(truth?.indicatorEvidence?.[indicatorId]);
+    const decidable = Boolean(expected) && expected !== 'unknown';
+    const decision = entry && typeof entry.decision === 'string' ? entry.decision : '';
+    const rationale = entry && typeof entry.rationale === 'string' ? entry.rationale.trim() : '';
+    if (!expected || !['malicious', 'benign', 'unknown'].includes(decision)) return { id: indicatorId, expected, decision, verdict: 'missing', reasoning: false, cites: false, decidable };
+    const cites = refs.some((token) => mentions(rationale, token));
+    const documented = rationale.length >= MIN_RATIONALE && (!decidable || cites);
+    if (decision === expected) return { id: indicatorId, expected, decision, verdict: 'correct', reasoning: documented, cites, decidable };
+    if (decision === 'unknown') return { id: indicatorId, expected, decision, verdict: 'undecided', reasoning: documented, cites, decidable };
+    return { id: indicatorId, expected, decision, verdict: 'contradicted', reasoning: false, cites, decidable };
+  }
+
+  // Partial credit per indicator: its points minus one for the verdict, one for documented reasoning.
+  // An explicit verdict the records contradict also costs a deduction; leaving a decidable indicator
+  // unknown costs the verdict credit only (cautious, not wrong). Reasoning that cites the records is
+  // credited even when the learner stopped short of a verdict.
+  function extractVerdicts(assessment, fixture) {
+    const truth = fixture.scenario.truth;
+    const indicators = list(fixture.scenario.verdictIndicators);
+    const verdicts = assessment.intelVerdicts && typeof assessment.intelVerdicts === 'object' && !Array.isArray(assessment.intelVerdicts) ? assessment.intelVerdicts : {};
+    const awards = [], deductions = [], evidence = [], misses = [], detail = [];
+    indicators.forEach((indicator) => {
+      const total = Number(truth.indicatorPoints?.[indicator.id]) || 2;
+      const result = evaluateVerdict(truth, indicator.id, verdicts[indicator.id]);
+      const label = `${indicator.value} (${indicator.id})`;
+      let earned = 0;
+      if (result.verdict === 'correct') {
+        awards.push({ points: total - 1, reason: `${label}: ${result.decision} is supported by the case evidence.` });
+        earned += total - 1;
+        evidence.push(`${indicator.id}: ${result.decision}`);
+      } else if (result.verdict === 'contradicted') {
+        deductions.push({ points: WRONG_VERDICT_DEDUCTION, reason: `${label}: explicit verdict "${result.decision}" is contradicted by the case evidence.` });
+        misses.push(`${label}: explicit verdict "${result.decision}" is contradicted by the case evidence.`);
+        evidence.push(`${indicator.id}: ${result.decision} (contradicted)`);
+      } else if (result.verdict === 'undecided') {
+        misses.push(`${label}: left unknown although the case records support a verdict.`);
+        evidence.push(`${indicator.id}: unknown`);
+      } else {
+        misses.push(`${label}: no verdict recorded.`);
+      }
+      if (result.reasoning && result.verdict !== 'contradicted' && result.verdict !== 'missing') {
+        awards.push({ points: 1, reason: `${label}: the reasoning ${result.decidable ? 'cites a record or entity from this case' : 'explains why the evidence is insufficient'}.` });
+        earned += 1;
+      } else if (result.verdict === 'correct') {
+        misses.push(`${label}: the reasoning ${result.decidable ? 'does not cite a record or entity from this case' : 'is too brief to explain the gap'}.`);
+      }
+      detail.push({ indicatorId: indicator.id, value: indicator.value, decision: result.decision, expected: result.expected, verdict: result.verdict, reasoningCredited: Boolean(result.reasoning && ['correct', 'undecided'].includes(result.verdict)), points: earned, max: total });
+    });
+    const full = indicators.length > 0 && detail.every((item) => item.verdict === 'correct' && item.points === item.max);
+    return { id: VERDICT_CRITERION.id, awarded: full, evidence: unique(evidence), misses: full ? [] : unique(indicators.length ? misses : ['No indicators are configured for verdicts.']), awards, deductions, detail };
+  }
+
+  function extract(state, fixture, options) {
+    const rubricVersion = options && options.rubricVersion === 1 ? 1 : CURRENT_VERSION;
     const assessment = state?.assessment && typeof state.assessment === 'object' ? state.assessment : {};
     const truth = fixture?.scenario?.truth;
     if (!truth) throw new TypeError('M04 expected scenario truth is required.');
@@ -135,8 +203,12 @@ const SocM04AssessmentRubric = (() => {
       [!disposition && 'Case disposition does not identify the supported activity as malicious.', !escalated && 'No escalation or receiving team is documented.',
         notes.length < 40 && 'Case notes are missing or too brief to support review.', notes.length >= 40 && !rationale && 'Case notes do not connect the authentication evidence to the relevant indicator or account.']);
 
-    return { rubricVersion: 1, criteria };
+    if (rubricVersion >= 2) {
+      const verdictCriterion = extractVerdicts(assessment, fixture);
+      criteria.splice(2, 0, verdictCriterion);
+    }
+    return { rubricVersion, criteria };
   }
 
-  return Object.freeze({ RUBRIC, extract });
+  return Object.freeze({ RUBRIC, RUBRIC_V1, CURRENT_VERSION, MIN_RATIONALE, WRONG_VERDICT_DEDUCTION, evaluateVerdict, extract });
 })();

@@ -38,7 +38,7 @@ const SocConsoleTools = (() => {
   PACKS.m04 = {
     tabs: [['intelligence', 'Threat Intelligence'], ['rules', 'Analytics Rules'], ['automation', 'Automation']],
     views: (ctx) => ({
-      intelligence: () => `<section class="m04-console-extra" data-m04-console-workspace="intelligence">${SocM04IntelligenceUi.render(ctx.assessment(), ctx.fixture)}</section>`,
+      intelligence: () => `<section class="m04-console-extra" data-m04-console-workspace="intelligence">${SocM04IntelligenceUi.render(ctx.assessment(), ctx.fixture)}${SocM04IntelligenceUi.renderVerdicts(ctx.assessment(), ctx.fixture, { guided: ctx.guided === true })}</section>`,
       rules: () => `<section class="m04-console-extra" data-m04-console-workspace="rules">${SocM04RulesUi.render(ctx.assessment(), { queryEditor: false, fields: ctx.fixture.ruleFields })}</section>`,
       automation: () => `<section class="m04-console-extra" data-m04-console-workspace="automation">${SocM04AssessmentConsole.renderAutomation(ctx.assessment())}</section>`,
     }),
@@ -203,6 +203,13 @@ const SocConsoleTools = (() => {
           ctx.rerender();
           return;
         }
+        const verdictHint = event.target.closest('[data-m04-verdict-hint]');
+        if (verdictHint && ctx.guided === true) {
+          SocM04IntelligenceUi.revealHint(ctx.assessment(), ctx.fixture, verdictHint.dataset.m04VerdictHint);
+          ctx.save();
+          ctx.rerender();
+          return;
+        }
         const reportCreate = event.target.closest('[data-m04-report-create]');
         const iocCreate = event.target.closest('[data-m04-ioc-create]');
         const reportEdit = event.target.closest('[data-m04-report-edit]');
@@ -274,6 +281,18 @@ const SocConsoleTools = (() => {
           } catch (error) {
             ctx.assessment().queryActionError = error.message;
             ctx.rerender();
+          }
+          return;
+        }
+        const verdictForm = event.target.closest('[data-m04-verdict-form]');
+        if (verdictForm) {
+          event.preventDefault();
+          try {
+            SocM04IntelligenceUi.recordVerdict(ctx.assessment(), ctx.fixture, verdictForm.dataset.indicatorId, verdictForm.elements.decision.value, verdictForm.elements.rationale.value, new Date().toISOString());
+            ctx.save();
+            ctx.rerender();
+          } catch (error) {
+            verdictForm.querySelector('[data-m04-verdict-error]').textContent = error.message;
           }
           return;
         }

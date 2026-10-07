@@ -14,8 +14,15 @@ const fixture = vm.runInContext('SocM04AssessmentData', context);
 const local = (value) => JSON.parse(JSON.stringify(value));
 const timestamp = fixture.scenario.end;
 
-assert.strictEqual(api.RUBRIC.length, 8);
+assert.strictEqual(api.RUBRIC.length, 9);
+assert.strictEqual(api.RUBRIC_V1.length, 8);
 const state = { assessment: {
+  intelVerdicts: {
+    'M04-I-001': { decision: 'malicious', rationale: 'Five accounts failed from this address in five minutes and acct-44 then signed in (M04-A-006).' },
+    'M04-I-002': { decision: 'unknown', rationale: 'No sign-in or application record in this case mentions this address.' },
+    'M04-I-003': { decision: 'unknown', rationale: 'Expired indicator and nothing in this case touches this domain.' },
+    'M04-C-001': { decision: 'benign', rationale: 'acct-17 retries follow the CR-204 credential rotation and later succeeded (M04-A-121).' },
+  },
   reports: local(fixture.scenario.reports),
   iocs: local(fixture.scenario.iocs),
   actionHistory: [

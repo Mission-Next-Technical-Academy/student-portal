@@ -909,6 +909,19 @@ function adminAttemptReviewCard(item, olderAttempt) {
       <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Student work (${esc(String(studentActions.length))} recorded actions)</p>
       <ol class="space-y-2 text-sm list-decimal pl-5">${studentActions.map((action) => `<li><strong class="text-[#1e3a5f]">${esc(String(action.type || '').replace(/_/g, ' '))}</strong> <span class="text-gray-700">${esc(actionText(action.details).slice(0, 1200))}</span></li>`).join('')}</ol>
     </div>` : '';
+  // Module 04 records a verdict and written reasoning per indicator; show them in full beside the rubric.
+  const intelVerdicts = row.result && row.result.review_payload && Array.isArray(row.result.review_payload.intelligenceVerdicts)
+    ? row.result.review_payload.intelligenceVerdicts.filter((v) => v && typeof v === 'object') : [];
+  const verdictLabels = { correct: 'Supported by the case evidence', undecided: 'Left unknown; the case records support a verdict', contradicted: 'Contradicted by the case evidence', missing: 'No verdict recorded' };
+  const intelVerdictPanel = intelVerdicts.length ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3" data-admin-intel-verdicts>
+      <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Student indicator verdicts and reasoning</p>
+      <div class="space-y-3">${intelVerdicts.map((v) => `<div class="rounded border border-gray-200 bg-white px-3 py-2 text-sm">
+        <div class="flex flex-wrap justify-between gap-2"><strong class="text-[#1e3a5f] break-all">${esc(String(v.value || v.indicatorId || ''))}</strong><span class="font-semibold ${v.assessment === 'correct' ? 'text-green-700' : v.assessment === 'contradicted' ? 'text-red-700' : 'text-amber-700'}">${esc(String(v.points ?? 0))} / ${esc(String(v.max ?? '—'))}</span></div>
+        <p class="text-xs text-gray-500">${esc(String(v.origin || ''))}</p>
+        <p class="mt-1"><span class="text-gray-600">Student verdict:</span> <strong>${esc(String(v.decision || 'none recorded'))}</strong> <span class="text-xs text-gray-500">(${esc(verdictLabels[v.assessment] || String(v.assessment || ''))})</span></p>
+        ${v.rationale ? `<p class="mt-1 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">${esc(String(v.rationale))}</p>` : ''}
+      </div>`).join('')}</div>
+    </div>` : '';
   const rubricPanel = rubricCriteria.length ? `<div class="mb-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
       <p class="text-sm font-semibold text-[#1e3a5f] mb-2">System rubric (recommendation, your review decides)</p>
       <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">
@@ -940,6 +953,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     ${competencyPanel}
     ${readableResult}
     ${studentWorkPanel}
+    ${intelVerdictPanel}
     ${rubricPanel}
     <details class="mb-3 text-sm">
       <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>

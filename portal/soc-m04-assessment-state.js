@@ -8,6 +8,8 @@ const SocM04AssessmentState = (() => {
   const EMPTY_DEFAULTS = Object.freeze({
     selectedIocIds: [],
     iocStatusById: {},
+    intelVerdicts: {},
+    intelHints: {},
     ruleDraft: {
       id: '',
       queryId: '',
@@ -52,12 +54,38 @@ const SocM04AssessmentState = (() => {
     return JSON.parse(JSON.stringify(value));
   }
 
+  // Verdicts are keyed by indicator id and read by key, so a Postgres jsonb key reorder is harmless.
+  // Entries that are not a well-formed verdict are dropped rather than repaired.
+  const VERDICT_DECISIONS = ['malicious', 'benign', 'unknown'];
+  function normalizeVerdicts(value) {
+    const out = {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+    Object.keys(value).sort().slice(0, 50).forEach((id) => {
+      const entry = value[id];
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry) || id.length > 64) return;
+      if (!VERDICT_DECISIONS.includes(entry.decision) || typeof entry.rationale !== 'string') return;
+      out[id] = { decision: entry.decision, rationale: entry.rationale.slice(0, 1000), recordedAt: typeof entry.recordedAt === 'string' ? entry.recordedAt : '' };
+    });
+    return out;
+  }
+  function normalizeHints(value) {
+    const out = {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+    Object.keys(value).sort().slice(0, 50).forEach((id) => {
+      const level = Number(value[id]);
+      if (id.length <= 64 && Number.isInteger(level) && level > 0 && level <= 5) out[id] = level;
+    });
+    return out;
+  }
+
   function normalizeAssessment(value, fixture) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const assessment = { ...clone(EMPTY_DEFAULTS), ...source };
     assessment.selectedIocIds = Array.isArray(source.selectedIocIds) ? source.selectedIocIds.slice() : [];
     assessment.iocStatusById = source.iocStatusById && typeof source.iocStatusById === 'object' && !Array.isArray(source.iocStatusById)
       ? { ...source.iocStatusById } : {};
+    assessment.intelVerdicts = normalizeVerdicts(source.intelVerdicts);
+    assessment.intelHints = normalizeHints(source.intelHints);
     assessment.ruleDraft = { ...clone(EMPTY_DEFAULTS.ruleDraft), ...(source.ruleDraft || {}) };
     assessment.ruleDraft.exclusion = { ...clone(EMPTY_DEFAULTS.ruleDraft.exclusion), ...(source.ruleDraft?.exclusion || {}) };
     assessment.ruleDraft.suppression = { ...clone(EMPTY_DEFAULTS.ruleDraft.suppression), ...(source.ruleDraft?.suppression || {}) };

@@ -58,7 +58,25 @@ const SocM04AssessmentData = (() => {
       { id: 'M04-I-002', type: 'ip', value: '192.0.2.91', confidence: 61, status: 'active', firstSeen: '2026-09-22T12:00:00Z', lastSeen: '2026-09-22T12:00:00Z', sourceReportId: 'M04-R-002', context: 'Related to a separate phishing cluster; no assessment telemetry match.' },
       { id: 'M04-I-003', type: 'domain', value: 'legacy-drop.example', confidence: 77, status: 'expired', firstSeen: '2026-06-01T00:00:00Z', lastSeen: '2026-06-03T00:00:00Z', sourceReportId: 'M04-R-002', context: 'Retired infrastructure; historical context only.' },
     ],
+    // Indicators the learner records a contextual verdict for (malicious / benign / unknown). Three come from
+    // the Threat Desk feed above; M04-C-001 is an observed source flagged by an automated reputation sweep.
+    verdictIndicators: [
+      { id: 'M04-I-001', type: 'ip', value: '198.51.100.64', origin: 'Threat Desk feed · IOC M04-I-001', context: 'Listed as current password-spray infrastructure.' },
+      { id: 'M04-I-002', type: 'ip', value: '192.0.2.91', origin: 'Threat Desk feed · IOC M04-I-002', context: 'Listed against a separate phishing cluster.' },
+      { id: 'M04-I-003', type: 'domain', value: 'legacy-drop.example', origin: 'Threat Desk feed · IOC M04-I-003', context: 'Listed as retired infrastructure; status expired.' },
+      { id: 'M04-C-001', type: 'ip', value: '203.0.113.77', origin: 'Reputation sweep · not in the Threat Desk feed', context: 'Flagged for analyst review after repeated failed sign-ins from this address.' },
+    ],
     truth: {
+      // Contextual verdicts. `unknown` is the supported answer when this case holds no evidence either way.
+      // indicatorEvidence lists the records and entities a supported rationale can cite; points total 10.
+      indicatorDecisions: { 'M04-I-001': 'malicious', 'M04-I-002': 'unknown', 'M04-I-003': 'unknown', 'M04-C-001': 'benign' },
+      indicatorEvidence: {
+        'M04-I-001': ['M04-A-001', 'M04-A-002', 'M04-A-003', 'M04-A-004', 'M04-A-005', 'M04-A-006', 'M04-R-002', 'acct-41', 'acct-42', 'acct-43', 'acct-44', 'acct-45'],
+        'M04-I-002': [],
+        'M04-I-003': [],
+        'M04-C-001': ['M04-A-007', 'M04-A-008', 'M04-A-009', 'M04-A-121', 'M04-X-001', 'M04-X-002', 'M04-R-001', 'CR-204', 'acct-17'],
+      },
+      indicatorPoints: { 'M04-I-001': 3, 'M04-C-001': 3, 'M04-I-002': 2, 'M04-I-003': 2 },
       maliciousSourceIp: '198.51.100.64',
       targetedAccounts: ['acct-41', 'acct-42', 'acct-43', 'acct-44', 'acct-45'],
       confirmedCompromisedAccounts: ['acct-44'],

@@ -1209,6 +1209,35 @@ MODULE_FOUR_GUIDED_FIXTURE.scenario.truth = {
   },
   rule: { groupingField: 'sourceIp', metric: 'distinctAccounts', threshold: 3, windowMinutes: 5, matchEventIds: ['GL4-A-101', 'GL4-A-102', 'GL4-A-103', 'GL4-A-104'], excludeEventIds: ['GL4-A-105', 'GL4-A-106', 'GL4-A-107'] },
 };
+// Practice It indicator verdicts (same four-way mix as Prove It: one malicious, one benign, two unknown).
+MODULE_FOUR_GUIDED_FIXTURE.scenario.verdictIndicators = [
+  { id: 'GL4-I-301', type: 'ip', value: '192.0.2.144', origin: 'Threat Desk feed · IOC GL4-I-301', context: 'Listed as part of a current distributed credential-guessing cluster.' },
+  { id: 'GL4-I-302', type: 'ip', value: '192.0.2.91', origin: 'Threat Desk feed · IOC GL4-I-302', context: 'Listed against a separate phishing cluster.' },
+  { id: 'GL4-I-303', type: 'domain', value: 'legacy-drop.example', origin: 'Threat Desk feed · IOC GL4-I-303', context: 'Listed as retired infrastructure; status expired.' },
+  { id: 'GL4-C-401', type: 'ip', value: '203.0.113.177', origin: 'Reputation sweep · not in the Threat Desk feed', context: 'Flagged for analyst review after repeated failed sign-ins from this address.' },
+];
+Object.assign(MODULE_FOUR_GUIDED_FIXTURE.scenario.truth, {
+  indicatorDecisions: { 'GL4-I-301': 'malicious', 'GL4-I-302': 'unknown', 'GL4-I-303': 'unknown', 'GL4-C-401': 'benign' },
+  indicatorEvidence: {
+    'GL4-I-301': ['GL4-A-101', 'GL4-A-102', 'GL4-A-103', 'GL4-A-104', 'GL4-R-202', 'acct-61', 'acct-62', 'acct-63'],
+    'GL4-I-302': [], 'GL4-I-303': [],
+    'GL4-C-401': ['GL4-A-105', 'GL4-A-106', 'GL4-A-107', 'GL4-X-001', 'GL4-R-201', 'CR-288', 'acct-67'],
+  },
+  indicatorPoints: { 'GL4-I-301': 3, 'GL4-C-401': 3, 'GL4-I-302': 2, 'GL4-I-303': 2 },
+});
+// Progressive hints narrow from where to look to what to cite; feedback is shown only in Practice It.
+MODULE_FOUR_GUIDED_FIXTURE.scenario.verdictHints = {
+  'GL4-I-301': ['Open Log Search and look up this address. Which accounts did it try?', 'Count the distinct accounts that failed from this address, and whether any later succeeded.', 'Cite the failed attempts (GL4-A-101 to GL4-A-103), the success on acct-62 (GL4-A-104), or the Threat Desk report GL4-R-202.'],
+  'GL4-C-401': ['Look up this address in the Entities view. Who normally signs in from it?', 'Check the Approved change tickets and the AppAudit rows for the same account.', 'Cite the credential refresh (CR-288), the mail-client error (GL4-X-001), or the account acct-67.'],
+  'GL4-I-302': ['Search the sign-in and application records for this address.', 'Nothing in this case mentions it; the feed ties it to a different cluster.', 'With no records either way, unknown is the supported verdict. Say what evidence is missing.'],
+  'GL4-I-303': ['The feed marks this domain expired. Search this case for any record that touches it.', 'No sign-in, application, or directory record here mentions it.', 'An expired indicator with no local match is historical context. Record unknown and say why.'],
+};
+MODULE_FOUR_GUIDED_FIXTURE.scenario.verdictFeedback = {
+  'GL4-I-301': { why: 'Several accounts failed from this address within minutes and one then succeeded, which matches the report.', nudge: 'Look at the sign-in records for this address: how many distinct accounts, and did any succeed?' },
+  'GL4-C-401': { why: 'The failures follow an approved credential refresh and the mail client logged the stale credential, so the report alone does not make this address hostile.', nudge: 'Check the change tickets and application records for this account before judging the address.' },
+  'GL4-I-302': { why: 'No record in this case mentions this address, so the case can neither confirm nor clear it.', nudge: 'Search the records for this address. With no match you have no basis to call it malicious or benign.' },
+  'GL4-I-303': { why: 'The indicator is expired and nothing in this case touches it, so it is historical context only.', nudge: 'Search the records for this domain. With no match you have no basis to call it malicious or benign.' },
+};
 MODULE_FOUR_GUIDED_FIXTURE.scenario.reports[0].summary = 'acct-67 mail retries follow the completed credential refresh; treat them as a managed-client baseline.';
 MODULE_FOUR_GUIDED_FIXTURE.scenario.reports[1].summary = '192.0.2.144 is linked to a current distributed credential-guessing cluster; corroborate the report against local sign-in activity.';
 // Teaching visual (Guided Lab reference): same Guided Lab records bucketed two ways. Built from
@@ -1328,13 +1357,16 @@ function moduleFourGuidedSteps() {
     { title: 'Start from the lead', body: 'Treat the alert or seed observation as a lead to test, not a verdict.', lookFor: 'What the initial signal establishes and what it leaves open.', lab: 'Ticket field: Findings', tab: 'search', target: '.m03e-editor-host' },
     { title: 'Correlate the records', body: 'Follow the related records across the console and compare the suspicious activity with its baseline.', lookFor: 'Which source identifies the activity and which records corroborate timing, scope, or context.', lab: 'Ticket fields: Affected User, Affected Device, Findings', tab: 'timeline', target: '.m03e-timeline' },
     { title: 'Separate source from contributing evidence', body: 'A correlated record can strengthen the timeline even when it is not the originating source.', lookFor: 'Whether each record shows where activity began or only confirms that it happened.', lab: 'Ticket field: Findings', tab: 'sources', target: '[data-m03e-select="m04-guided:source:AuthLog"]' },
+    { title: 'Judge the reported source', body: 'Open Threat Intelligence and find the indicator for the reported source. Record a verdict, then name the local records that back it.', lookFor: 'Whether the sign-in records for this address match what the report claims. Use Show a hint if you get stuck.', lab: 'Threat Intelligence: Indicator verdicts', tab: 'intelligence', target: '[data-m04-verdict-card="GL4-I-301"]' },
+    { title: 'Rule out a benign explanation', body: 'A flagged address is not automatically hostile. Check the change tickets and application records for the address the reputation sweep flagged.', lookFor: 'An approved change or application record that explains the failed sign-ins.', lab: 'Threat Intelligence: Indicator verdicts', tab: 'intelligence', target: '[data-m04-verdict-card="GL4-C-401"]' },
+    { title: 'Know when the answer is unknown', body: 'Two feed indicators have nothing in this case to confirm or clear them. When the records are silent, record unknown and say what is missing.', lookFor: 'Whether any record in this case mentions the indicator. No record means no basis for malicious or benign.', lab: 'Threat Intelligence: Indicator verdicts', tab: 'intelligence', target: '[data-m04-verdict-card="GL4-I-302"]' },
     { title: 'Scope and decide', body: 'Choose a severity, disposition, and escalation that match the evidence and confirmed scope.', lookFor: 'The difference between confirmed impact and unresolved questions.', lab: 'Ticket fields: Severity, Disposition, Escalation, Department', tab: 'case', target: '.m01-ticket-grid' },
     { title: 'Write the handoff and submit', body: 'Summarize the evidence, scope, uncertainty, and next action in work notes, then submit the ITSM ticket.', lookFor: 'A concise record another analyst can act on.', lab: 'Ticket field: Work Notes · Submit completes this Guided Lab', tab: 'case', target: '.m01-ticket-notes' },
   ];
 }
 function moduleFourGuidedDebrief() {
   const cr = moduleFourGuidedState.caseRecord;
-  const fields = [['Affected User', cr.affectedUser], ['Affected Device', cr.affectedDevice], ['Severity', cr.severity], ['Disposition', cr.disposition], ['Escalation', cr.escalation], ['Department', cr.escalateTo], ['Findings', Object.keys(cr.findings || {}).length], ['Work Notes', cr.notes]].map(([name, value]) => ({ name, status: !value ? 'missed' : name === 'Findings' || name === 'Affected Device' ? 'contributing' : 'captured', note: !value ? 'Not recorded in the submitted ticket.' : name === 'Findings' || name === 'Affected Device' ? 'Contributes context to the case timeline.' : 'Recorded in the submitted ticket.' }));
+  const fields = [['Affected User', cr.affectedUser], ['Affected Device', cr.affectedDevice], ['Severity', cr.severity], ['Disposition', cr.disposition], ['Escalation', cr.escalation], ['Department', cr.escalateTo], ['Findings', Object.keys(cr.findings || {}).length], ['Indicator verdicts', Object.keys(moduleFourGuidedState.assessment?.intelVerdicts || {}).length], ['Work Notes', cr.notes]].map(([name, value]) => ({ name, status: !value ? 'missed' : name === 'Findings' || name === 'Affected Device' ? 'contributing' : 'captured', note: name === 'Indicator verdicts' ? (value ? `${value} indicator verdict(s) recorded in Threat Intelligence. A strong verdict names the records behind it, or says what is missing.` : 'No indicator verdicts were recorded in Threat Intelligence.') : !value ? 'Not recorded in the submitted ticket.' : name === 'Findings' || name === 'Affected Device' ? 'Contributes context to the case timeline.' : 'Recorded in the submitted ticket.' }));
   return guidedLabDebrief({ story: 'The sign-in evidence includes a concentrated burst from the reported source, while the managed mail client and scheduled probe explain separate failures. The submitted scope and tuning decision should distinguish these correlated signals from the primary source evidence.', fields, handoff: 'Include the primary evidence, corroborating records, confirmed scope, unresolved questions, and a proportionate next action.' });
 }
 function moduleFourGuidedGuide() {
@@ -1348,6 +1380,8 @@ function moduleFourGuidedGuide() {
 function moduleFourGuidedRestart() {
   const cr = moduleFourGuidedState.caseRecord;
   moduleFourGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', actionHistory: [] };
+  moduleFourGuidedState.assessment.intelVerdicts = {};
+  moduleFourGuidedState.assessment.intelHints = {};
   moduleFourGuidedState.guideStep = 0;
   moduleFourGuidedState.guideCollapsed = false;
   moduleFourGuidedState.guideOpen = true;
@@ -1382,14 +1416,14 @@ M03E_AFTER_RENDER['m04-guided'] = function () {
 const MODULE_FOUR_GUIDED_CONSOLE = SocConsoleTools.mount('m04-guided', {
   data: MODULE_FOUR_GUIDED_CONSOLE_DATA, stateRoot: () => moduleFourGuidedState, save: moduleFourGuidedSave,
   title: 'SIEM & DETECTION ENGINEERING · PRACTICE', ariaLabel: 'Module 04 guided detection console', idPrefix: 'guided',
-  packs: [{ id: 'm04', ctx: { assessment: moduleFourGuidedAssessment, fixture: MODULE_FOUR_GUIDED_FIXTURE, save: moduleFourGuidedSave, rerender: () => moduleFourRenderGuided(), console: () => m03eState('m04-guided') } }],
+  packs: [{ id: 'm04', ctx: { guided: true, assessment: moduleFourGuidedAssessment, fixture: MODULE_FOUR_GUIDED_FIXTURE, save: moduleFourGuidedSave, rerender: () => moduleFourRenderGuided(), console: () => m03eState('m04-guided') } }],
     caseView: () => { const html = `<section class="m03e-case-view"><p class="m03e-case-attach">${m03eState('m04-guided').pins.length} pinned evidence record(s) and ${m03eState('m04-guided').queryLog.length} query record(s) are available to cite in this case.</p>${caseRecordPane(moduleFourGuidedState.caseRecord, { caseId: 'CASE-044478', incidentIds: ['INC-044790'], ticketType: 'Detection tuning · SOC Detection Queue', userOptions: [{ id: 'acct-61', text: 'acct-61' }, { id: 'acct-62', text: 'acct-62' }, { id: 'acct-63', text: 'acct-63' }, { id: 'acct-64', text: 'acct-64' }, { id: 'acct-65', text: 'acct-65' }], deviceOptions: [{ id: '192.0.2.144', text: '192.0.2.144 · reported source' }, { id: '203.0.113.177', text: '203.0.113.177 · managed client' }], departmentOptions: [{ id: 'soc-detection-queue', text: 'SOC Detection Queue' }, { id: 'identity-operations', text: 'Identity Operations' }], formId: 'm04-guided-case-form', saveAttr: 'data-m04-guided-case-save', submitAttr: 'data-m04-guided-case-submit', panelId: 'm04-guided-case-status', notesPlaceholder: 'Record the alert, query and rule evidence, tuning decision, and safe follow-up.' })}</section>`; return moduleFourGuidedState.caseRecord.submitted ? html.replace('Submitted for faculty review', 'Practice submitted').replace('Lab Under Review', 'Practice submitted') + '<button type="button" class="m01-reset" data-m04-guided-restart>Restart Guided Lab</button>' : html; },
 });
 
 
 function moduleFourAssessmentLabPanel() {
   return `<div class="m03e-panel" id="m04-prove-panel">
-    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel(moduleFourCaseSpec(), 'NORMAL SHIFT')}</p><p>Threat Desk has sent a new intelligence report. Your lead’s request: <em>“Decide what this report means for us, turn it into a detection that works on our telemetry, and put what you did and why in the ticket.”</em> Evaluate the report and its indicators, test a query in Log Search, save it as an analytics rule, run and schedule it, review what it raises, choose only safe automation, and complete the ITSM ticket.</p></div>
+    <div class="m03e-brief"><p class="m03e-label">${caseRecordBriefLabel(moduleFourCaseSpec(), 'NORMAL SHIFT')}</p><p>Threat Desk has sent a new intelligence report. Your lead’s request: <em>“Decide what this report means for us, turn it into a detection that works on our telemetry, and put what you did and why in the ticket.”</em> Evaluate the report and its indicators, record a verdict and your reasoning for each indicator under review, test a query in Log Search, save it as an analytics rule, run and schedule it, review what it raises, choose only safe automation, and complete the ITSM ticket.</p></div>
     <div class="m03e-console-host" id="m03e-console-m04">${moduleThreeConsoleHtml('m04')}</div>
   </div>`;
 }

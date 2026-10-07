@@ -18,6 +18,12 @@ const timestamp = fixture.scenario.end;
 const query = 'AuthLog | where EventType == "AuthFailure" | summarize count() by SourceIp';
 const state = {
   assessment: {
+    intelVerdicts: {
+      'M04-I-001': { decision: 'malicious', rationale: 'Five accounts failed from this address in five minutes and acct-44 then signed in (M04-A-006).' },
+      'M04-I-002': { decision: 'unknown', rationale: 'No sign-in or application record in this case mentions this address.' },
+      'M04-I-003': { decision: 'unknown', rationale: 'Expired indicator and nothing in this case touches this domain.' },
+      'M04-C-001': { decision: 'benign', rationale: 'acct-17 retries follow the CR-204 credential rotation and later succeeded (M04-A-121).' },
+    },
     reports: local(fixture.scenario.reports), iocs: local(fixture.scenario.iocs),
     actionHistory: [
       { type: 'ioc_edit', details: { recordId: 'M04-I-001' } },
@@ -46,7 +52,7 @@ assert.strictEqual(full.passed, true);
 assert.strictEqual(full.review.cap, null);
 assert.deepStrictEqual(local(state), before, 'scoring does not mutate learner state');
 assert.deepStrictEqual(local(api.score(state, fixture)), local(full), 'same evidence produces deterministic output');
-assert.strictEqual(full.review.awards.length, 8);
+assert.strictEqual(full.review.awards.length, 16, 'one award per criterion, except indicator verdicts which itemise a verdict and a reasoning award per indicator');
 assert.strictEqual(full.review.misses.length, 0);
 assert(full.criteria.every((criterion) => criterion.points === criterion.max && criterion.feedback.includes('requirements evidenced.')),
   'correct outcome explains each fully awarded criterion');

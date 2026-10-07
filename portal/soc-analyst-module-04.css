@@ -369,3 +369,23 @@
 .m04-gc-outcome { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #334155; font: 12px/1.6 Inter, sans-serif; }
 .m04-gc-key { margin: 12px 0 0; color: #64748b; font: 11px/1.6 Inter, sans-serif; }
 @media (max-width: 760px) { .m04-gc-cols { grid-template-columns: minmax(0, 1fr); } }
+
+/* Indicator verdicts (Threat Intelligence tab): one card per indicator, same field styling as the IOC forms. */
+.m04-ti-verdicts { margin-top: 22px; }
+.m04-ti-verdicts > p { margin: 0 0 10px; font-size: 12px; max-width: 70ch; }
+.m04-ti-verdict-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 10px; }
+.m04-ti-verdict { border: 1px solid #d4dde6; padding: 12px; background: #fff; min-width: 0; }
+.m04-ti-verdict > div:first-child { display: grid; gap: 3px; overflow-wrap: anywhere; }
+.m04-ti-verdict > div:first-child span { color: #526579; font-size: 11px; }
+.m04-ti-verdict p { margin: 8px 0; font-size: 12px; overflow-wrap: anywhere; }
+.m04-ti-verdict form { display: grid; gap: 10px; margin-top: 10px; }
+.m04-ti-verdict form label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; }
+.m04-ti-verdict form select, .m04-ti-verdict form textarea { box-sizing: border-box; width: 100%; min-height: 38px; padding: 7px; border: 1px solid #aebdca; font: inherit; }
+.m04-ti-verdict form textarea { min-height: 72px; resize: vertical; }
+.m04-ti-verdict form [role="alert"] { color: #a32323; margin: 0; }
+.m04-ti-verdict-recorded { padding: 8px; background: #f1f5f9; border-left: 3px solid #526579; }
+.m04-ti-verdict-feedback { padding: 8px; border-left: 3px solid #526579; background: #f8fafc; }
+.m04-ti-verdict-feedback.is-good { border-left-color: #1b7a3d; background: #eef8f1; }
+.m04-ti-verdict-feedback.is-close { border-left-color: #a56a00; background: #fff8e8; }
+.m04-ti-verdict-feedback.is-wrong { border-left-color: #a32323; background: #fdeeee; }
+.m04-ti-verdict-hints { margin: 8px 0 0; padding-left: 18px; font-size: 12px; }

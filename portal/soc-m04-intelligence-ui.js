@@ -31,10 +31,10 @@ const SocM04IntelligenceUi = (() => {
     return false;
   }
 
-  function log(assessment, timestamp, operation, record) {
-    const wrapper = SocM04AssessmentActions.record({ assessment }, 'ioc_edit', timestamp, {
+  function log(assessment, timestamp, operation, record, type = 'ioc_edit') {
+    const wrapper = SocM04AssessmentActions.record({ assessment }, type, timestamp, type === 'ioc_edit' ? {
       entityType: record.kind, operation, recordId: record.id,
-    });
+    } : record.details);
     assessment.actionHistory = wrapper.assessment.actionHistory;
     assessment.nextActionSequence = wrapper.assessment.nextActionSequence;
   }
@@ -97,6 +97,64 @@ const SocM04IntelligenceUi = (() => {
     throw new RangeError(`Unknown M04 intelligence command: ${command}`);
   }
 
+  const VERDICTS = Object.freeze(['malicious', 'benign', 'unknown']);
+  const MIN_RATIONALE = 25;
+  const MAX_RATIONALE = 1000;
+
+  // Records (or replaces) the learner's contextual verdict for one indicator. A later record for the same
+  // indicator replaces the earlier one; every record is also logged to the action history.
+  function recordVerdict(assessment, fixture, indicatorId, decision, rationale, timestamp) {
+    if (!assessment || typeof assessment !== 'object') throw new TypeError('M04 assessment state is required.');
+    if (typeof timestamp !== 'string' || Number.isNaN(Date.parse(timestamp))) throw new TypeError('Pass an explicit valid timestamp.');
+    const indicator = (fixture?.scenario?.verdictIndicators || []).find((item) => item.id === indicatorId);
+    if (!indicator) throw new RangeError('Choose an indicator from the list.');
+    if (!VERDICTS.includes(decision)) throw new TypeError('Choose malicious, benign, or unknown.');
+    const text = String(rationale ?? '').trim();
+    if (text.length < MIN_RATIONALE) throw new TypeError(`Explain the verdict in at least ${MIN_RATIONALE} characters.`);
+    if (text.length > MAX_RATIONALE) throw new TypeError(`Keep the explanation under ${MAX_RATIONALE} characters.`);
+    const verdicts = assessment.intelVerdicts && typeof assessment.intelVerdicts === 'object' && !Array.isArray(assessment.intelVerdicts) ? assessment.intelVerdicts : {};
+    verdicts[indicatorId] = { decision, rationale: text, recordedAt: timestamp };
+    assessment.intelVerdicts = verdicts;
+    log(assessment, timestamp, 'verdict', { details: { indicatorId, decision } }, 'intel_verdict');
+    return verdicts[indicatorId];
+  }
+
+  // Practice It only: reveals the next hint for an indicator (hints narrow from where to look to what to cite).
+  function revealHint(assessment, fixture, indicatorId) {
+    const hints = fixture?.scenario?.verdictHints?.[indicatorId] || [];
+    const store = assessment.intelHints && typeof assessment.intelHints === 'object' && !Array.isArray(assessment.intelHints) ? assessment.intelHints : {};
+    store[indicatorId] = Math.min(hints.length, (Number(store[indicatorId]) || 0) + 1);
+    assessment.intelHints = store;
+    return store[indicatorId];
+  }
+
+  // Practice It only: instant, specific feedback on a recorded verdict. Never rendered in Prove It.
+  function verdictFeedback(fixture, indicatorId, entry) {
+    const note = fixture?.scenario?.verdictFeedback?.[indicatorId] || {};
+    const result = SocM04AssessmentRubric.evaluateVerdict(fixture.scenario.truth, indicatorId, entry);
+    if (result.verdict === 'correct' && result.reasoning) return { tone: 'good', text: `Supported. ${note.why || ''}`.trim() };
+    if (result.verdict === 'correct') return { tone: 'close', text: result.decidable ? 'Right verdict. Now name a specific record or entity from this case that supports it, so a reviewer can check your reasoning.' : `Right verdict. Say in a sentence what is missing from this case. ${note.why || ''}`.trim() };
+    if (result.verdict === 'undecided') return { tone: 'close', text: `This case does hold evidence either way. ${note.nudge || ''}`.trim() };
+    if (result.verdict === 'contradicted') return { tone: 'wrong', text: `The records do not support that verdict. ${note.nudge || ''}`.trim() };
+    return { tone: 'close', text: 'Record a verdict and your reasoning.' };
+  }
+
+  function renderVerdicts(assessment, fixture, options = {}) {
+    const indicators = fixture?.scenario?.verdictIndicators;
+    if (!Array.isArray(indicators) || !indicators.length) return '';
+    const guided = options.guided === true;
+    const verdicts = assessment.intelVerdicts && typeof assessment.intelVerdicts === 'object' ? assessment.intelVerdicts : {};
+    const hintLevels = assessment.intelHints && typeof assessment.intelHints === 'object' ? assessment.intelHints : {};
+    const cards = indicators.map((indicator) => {
+      const recorded = verdicts[indicator.id];
+      const hints = guided ? (fixture.scenario.verdictHints?.[indicator.id] || []) : [];
+      const level = Math.min(hints.length, Number(hintLevels[indicator.id]) || 0);
+      const feedback = guided && recorded ? verdictFeedback(fixture, indicator.id, recorded) : null;
+      return `<article class="m04-ti-verdict" data-m04-verdict-card="${escapeHtml(indicator.id)}"><div><strong>${escapeHtml(indicator.value)}</strong><span>${escapeHtml(indicator.type)} · ${escapeHtml(indicator.origin)}</span></div><p>${escapeHtml(indicator.context)}</p>${recorded ? `<p class="m04-ti-verdict-recorded" data-m04-verdict-recorded="${escapeHtml(indicator.id)}"><strong>Recorded: ${escapeHtml(recorded.decision)}</strong> — ${escapeHtml(recorded.rationale)}</p>` : ''}${feedback ? `<p class="m04-ti-verdict-feedback is-${feedback.tone}" role="status" data-m04-verdict-feedback="${escapeHtml(indicator.id)}">${escapeHtml(feedback.text)}</p>` : ''}<form data-m04-verdict-form data-indicator-id="${escapeHtml(indicator.id)}"><label>Verdict<select name="decision" required><option value="">Choose…</option>${VERDICTS.map((value) => `<option value="${value}"${recorded?.decision === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>Reasoning${guided ? ' (cite the records or entities that support it)' : ''}<textarea name="rationale" required minlength="${MIN_RATIONALE}" maxlength="${MAX_RATIONALE}">${escapeHtml(recorded?.rationale || '')}</textarea></label><button type="submit">${recorded ? 'Update verdict' : 'Record verdict'}</button>${guided && hints.length ? `<button type="button" data-m04-verdict-hint="${escapeHtml(indicator.id)}"${level >= hints.length ? ' disabled' : ''}>${level ? 'Another hint' : 'Show a hint'}</button>` : ''}<p role="alert" data-m04-verdict-error></p></form>${level ? `<ol class="m04-ti-verdict-hints" data-m04-verdict-hints="${escapeHtml(indicator.id)}">${hints.slice(0, level).map((hint) => `<li>${escapeHtml(hint)}</li>`).join('')}</ol>` : ''}</article>`;
+    }).join('');
+    return `<section class="m04-ti-verdicts" aria-labelledby="m04-ti-verdicts"><div class="m04-ti-heading"><h4 id="m04-ti-verdicts">Indicator verdicts</h4></div><p>${guided ? 'An indicator on its own is not a verdict. For each one, decide whether this case\u2019s records show it is malicious or benign, or whether they do not say, and name the records or entities you relied on. Unknown is the right answer when the case holds no evidence either way.' : 'Record a verdict and your reasoning for each indicator under review.'}</p><div class="m04-ti-verdict-list">${cards}</div></section>`;
+  }
+
   function render(assessment, fixture) {
     seed(assessment, fixture);
     const reports = assessment.reports.map((report) => `<article class="m04-ti-report"><h4>${escapeHtml(report.kind)} · ${escapeHtml(report.id)}</h4><dl><dt>Reported</dt><dd>${escapeHtml(report.time)}</dd><dt>Source</dt><dd>${escapeHtml(report.source)}</dd><dt>Source reliability</dt><dd>${escapeHtml(report.sourceReliability || 'Not provided')}</dd><dt>Confidence</dt><dd>${escapeHtml(report.confidence ?? 'Not provided')}${report.confidence === undefined ? '' : '%'}</dd><dt>Freshness</dt><dd>${escapeHtml(report.freshness || 'Not provided')}</dd><dt>Status</dt><dd>${escapeHtml(report.status || 'Not provided')}</dd><dt>Campaign</dt><dd>${escapeHtml(report.campaign || 'Not provided')}</dd><dt>Summary</dt><dd>${escapeHtml(report.summary)}</dd></dl>${Array.isArray(report.attackReferences) && report.attackReferences.length ? `<p><strong>Report-provided ATT&amp;CK context (unverified):</strong> ${report.attackReferences.map(escapeHtml).join(', ')}. These references are claims in the report, not confirmed findings.</p>` : ''}<button type="button" data-m04-report-edit="${escapeHtml(report.id)}">Edit report</button></article>`).join('');
@@ -108,5 +166,5 @@ const SocM04IntelligenceUi = (() => {
   }
 
   function formData(form) { return Object.fromEntries(new FormData(form).entries()); }
-  return Object.freeze({ IOC_TYPES, IOC_STATUSES, seed, validValue, mutate, render, formData });
+  return Object.freeze({ IOC_TYPES, IOC_STATUSES, VERDICTS, MIN_RATIONALE, seed, validValue, mutate, render, renderVerdicts, recordVerdict, revealHint, verdictFeedback, formData });
 })();

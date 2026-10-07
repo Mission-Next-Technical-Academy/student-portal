@@ -9,6 +9,7 @@ const SocM04AssessmentActions = (() => {
   const MAX_AUTOMATION_HISTORY = 200;
   const TYPES = Object.freeze([
     'ioc_edit',
+    'intel_verdict',
     'query_test',
     'rule_change',
     'rule_execution',

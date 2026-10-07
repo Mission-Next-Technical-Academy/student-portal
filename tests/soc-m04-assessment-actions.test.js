@@ -9,7 +9,7 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'portal', 'soc-m04-assessment-actions.js'), 'utf8'), context);
 const api = vm.runInContext('SocM04AssessmentActions', context);
 const local = (value) => JSON.parse(JSON.stringify(value));
-const types = ['ioc_edit', 'query_test', 'rule_change', 'rule_execution', 'scheduling', 'alert_review', 'automation', 'case_update', 'automation_action_recorded', 'automation_execution_recorded'];
+const types = ['ioc_edit', 'intel_verdict', 'query_test', 'rule_change', 'rule_execution', 'scheduling', 'alert_review', 'automation', 'case_update', 'automation_action_recorded', 'automation_execution_recorded'];
 const original = { attempts: 2, caseRecord: { notes: 'retain' }, assessment: { selectedIocIds: ['M04-I-001'], alertIds: ['alert-1'], legacy: true } };
 
 assert.strictEqual(api.MAX_HISTORY, 200);
