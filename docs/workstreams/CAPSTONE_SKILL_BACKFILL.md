@@ -83,7 +83,7 @@ no longer exists. Docs table generated from the same data in this file.
 
 - [x] **Sprint 1 — M04 intelligence verdicts (gap A).** Guided + Assessment.
 - [x] **Sprint 2 — M09 workflow designer + recorded unsafe attempts (gaps B, C).** Guided + Assessment; shared designer reused by M12 with an inline `preserve>approval` example.
-- [ ] **Sprint 3 — needs-investigation disposition (gap D).** M03 Guided + M11 Assessment.
+- [x] **Sprint 3 — needs-investigation disposition (gap D).** M03 Guided + M11 Assessment.
 - [ ] **Sprint 4 — traceability map + integration.** Build the traceability module and test above (covering all M12 mechanics, not just A–D). Merge, full test + browser sweeps (M01 and M03–M12), update `MODULE_TWELVE_ARC_CALLBACKS` in `soc-analyst-module-12.js` to cite the new practice, update `docs/workstreams/LIVE_COURSE_UAT_AND_GRADING_UX.md`, owner push.
 
 ## Sprint log
@@ -283,3 +283,83 @@ Caveats
 - M12 still offers 9 nodes while its recorder accepts 2-8; selecting all nine
   errors (pre-existing, unchanged). M12's bridge does not project M09
   `unsafeAttempts` (the M09 attempt form is off in M12; M12 has its own).
+
+### Sprint 3 — needs-investigation disposition (gap D), 2026-10-07
+
+Branch `worktree-agent-ac280c066086eaf9e`, commit `50ef287` (+ this log). Not pushed.
+
+**Premise correction.** The plan said M11 "already scores per-item dispositions". It did not:
+`expectedTruth.dispositions` was unused, the learner had no way to record one, and no rubric
+criterion read it (`recordedDisposition` is only the closed items' prior-shift history). So M11
+gained the whole mechanic (record action, rubric criterion, UI, review rendering), not just a
+fourth option.
+
+```text
+REFERENCE COMPONENTS FROM MODULE 1
+  Guided-step pattern with decreasing support and verify-from-evidence checks; case-record style
+  reasoning capture; Prove It = no guidance, durable instructor review, competency partial credit.
+REUSABLE COMPONENTS
+  M03 console guide (M03E_GUIDE_STEPS + guidedLabGuide), m03eState/createStateAdapter, alert drawer
+  (SocAlertQueueUi.renderDetail); M11 append-only SocM11AssessmentState, SocM11AssessmentRubric,
+  SocAssessmentScorer.scoreCriteria (awards/deductions), adminAttemptReviewCard rubric + student-work panels.
+TARGET MODULE DIFFERENCES
+  M03 practice is a SIEM alert queue (alerts carry rule + query); M11 is a SOC operations queue whose
+  "evidence" is metadata plus platform telemetry (SourceHealth, ShiftLog), so the incomplete-evidence
+  signal is the endpoint sensor collector lag (10:00-10:30), not an AppAudit gap.
+ASSESSMENT COMPETENCIES
+  New M11 criterion `alert-disposition` (8 pts): supported call per decidable alert (1 pt each for
+  Q-02/03/04/08/09) and a supported needs_investigation on Q-13 (3 pts) that names the missing evidence.
+PARTIAL-CREDIT MODEL
+  Correct call = full item credit. needs_investigation on Q-13 without naming missing evidence = 1 of 3.
+  needs_investigation on a decidable item = 0, never penalised. Explicit wrong verdict = 0 plus a
+  deduction (1 point; 2 on Q-13, whose evidence was incomplete), floored at 0 for the criterion.
+  Dispositions on non-expected items are ignored. Last recorded call per item wins (order-independent).
+INSTRUCTOR-REVIEW REQUIREMENTS
+  Review card shows "Alert disposition - Q-13: Needs investigation - <full reasoning>" per action,
+  the new rubric row with earned/available, awards, deductions and misses; v1 attempts render as before.
+FILES TO MODIFY
+  portal/soc-analyst-module-03-environment.js/.css, soc-analyst-module-03.js (Learn It),
+  portal/soc-analyst-module-11.js, soc-m11-assessment-{data,state,rubric,scorer}.js, portal/app.js,
+  tests/soc-m11-assessment-{metrics,scorer}.test.js, tests/soc-telemetry-sprint{5,7-m11}.test.js
+FILES TO CREATE
+  tests/m03-alert-dispositions.test.js, tests/soc-m11-alert-dispositions.test.js
+```
+
+**Shipped**
+
+- M03 Practice It: ALT-3103 (collector heartbeat) stays; new ALT-3104 (c.ortega 120-record search at
+  09:23:40, inside the billing-app delay window 09:23:08-09:23:50 now stated on S-4002) and ALT-3105
+  (svc-billing "interactive sign-in" whose raw record is a service credential in JOB-22). Four new guide
+  steps before `handoff`: `disp-tp` (ALT-3101), `disp-benign` (ALT-3102, ALT-3103), `disp-false`
+  (ALT-3105), `disp-ni` (ALT-3104). "Your disposition" panel in the practice alert drawer: four values,
+  reasoning, instant feedback, wrong call auto-reveals the next of three hints, Hint button. NI must
+  name what is missing. ALT-3101 flow, query and guide steps untouched. Learn It teaches the fourth verdict.
+- M11 Prove It: Q-13 (R-03, ws-231, medium, SLA 30, assigned/acknowledged by an-chen after 17 min,
+  created 10:12 during the endpoint collector lag; evidenceNote says the rule matched a partial
+  record). Operations tab "Alert disposition" form (open items, four labelled values, reasoning, no cues;
+  shows only the learner's own entries). Rubric v2 (13 criteria, still 100 points, pass 70). Instructor
+  card readable. Internal form stays `true_positive` etc.; labels via `DISPOSITION_LABELS`.
+- Compatibility: score and criteria are stored at submit time (`recordLabAttempt` result) and never
+  recomputed, so submitted/approved attempts keep their score; `score(..., { rubricVersion: 1 })` still
+  reproduces v1. Old M11 state loads (no `dispositions` key). Old M03 practice state loads; a saved guide
+  position at/after the old `handoff` step shifts forward by 4 (guideVersion 3). Key-reorder tests added
+  for both modules; `SocM11AssessmentState.load` no longer compares serialized JSON (was a spurious
+  re-save on every jsonb round trip).
+
+**Caveats / for owner review**
+
+- Queue grew 12 to 13: alertVolume 13, backlog 8, SLA attainment 80.0 on the live-shift metric rows,
+  an-chen open items 2, R-03 run counts. Tests anchored to 12 (sprint5, sprint7-m11, metrics workload)
+  were updated deliberately. Q-13's generated rows are appended last: all 112 pre-existing operational
+  EventIds are unchanged (verified against eba3646), so already-pinned evidence keeps its meaning.
+- Rubric v2 rebalanced weights to make room for 8 points (queue 10 to 8, SLA 8 to 6, assignment 10 to 8,
+  residual risk 10 to 8). A learner who skips dispositions now tops out at 92 and still passes. The
+  M11 Guided Lab shows the same Operations form but has no disposition guide step (practice home is M03).
+- Hard-coded 0927 shift metric rows were edited by hand (13 / 8 / 80.0); MTTA stays 17.3 by choosing
+  the 17-minute acknowledgement.
+- M12's `needs-investigation` is hyphenated, M11 internal is `needs_investigation`; both display as
+  "Needs investigation". Sprint 4's traceability map should list M03 `disp-ni` + M11 `alert-disposition`.
+- Not browser-tested (per brief); Sprint 4 sweep should open M03 alerts (drawer panel) and M11 Operations.
+- Test status: `node --test tests/` 91 files, 87 pass, 4 fail (guided-lab-console-guide,
+  soc-m04-assessment-rubric, soc-m04-assessment-scorer, soc-m05-assessment-console; all pre-existing).
+  `bash bin/ci-check.sh` clean.
