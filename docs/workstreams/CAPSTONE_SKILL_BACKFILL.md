@@ -1,6 +1,30 @@
 # Capstone skill backfill — teach every M12 mechanic before M12
 
-## Next AI — start here (2026-10-07, plan written, Sprints 1–3 launched)
+## Next AI — start here (2026-10-07, Sprints 1–4 done on local master, NOT pushed)
+
+**Current state:** gaps A–D are taught (Practice It) and assessed (Prove It)
+in M04, M09, M03/M11; the traceability map + guard test are in; capstone
+fixes 882ff12 (9 workflow nodes) and 0ecb59d (Log Search counts as a query;
+out-of-scope evidence preservation no longer trips the 69 cap). Suite
+99/103, only the 4 pre-existing failures. Real-browser sweep: all console
+tabs M03 (now incl. Practice It)–M12 clean; new controls click-tested.
+
+**Waiting on the owner:** (1) push; (2) weight rebalances in M04/M09/M11
+(see sprint logs); (3) the remaining Practice-It gaps listed in Sprint 4a's
+log and `KNOWN_GAPS` in tests/capstone-traceability.test.js — next sprint
+candidates: M04 guide opens Analytics Rules (save+schedule), an ATT&CK
+mapping guided step (M06), M09 guided preserve + Recovery tab steps, M11
+lessons-learned step, and an alert→incident link control in an earlier
+module (no Practice or Prove home yet).
+
+**Open capstone risks (not fixed):** `alert-disposition` action type is dead
+(UI writes review-alert); `SocM12AssessmentState.load` JSON.stringify
+compare (harmless re-save); an approved in-scope M09 action with a
+partial/failed simulated outcome is projected as blocked (unconfirmed
+reachable in the M12 fixture). Cosmetic: M09 workflow checklist is plain
+text; M11 "Alert disposition" label sits beside the select.
+
+### Original brief
 
 Owner rule (2026-10-07): every task the M12 capstone grades must first be
 practised (Practice It / Guided Lab) and then assessed (Prove It /
@@ -84,7 +108,7 @@ no longer exists. Docs table generated from the same data in this file.
 - [x] **Sprint 1 — M04 intelligence verdicts (gap A).** Guided + Assessment.
 - [x] **Sprint 2 — M09 workflow designer + recorded unsafe attempts (gaps B, C).** Guided + Assessment; shared designer reused by M12 with an inline `preserve>approval` example.
 - [x] **Sprint 3 — needs-investigation disposition (gap D).** M03 Guided + M11 Assessment.
-- [ ] **Sprint 4 — traceability map + integration.** (4a traceability map: done, see log; 4b merge, browser sweeps, UAT doc, owner push: open.) Build the traceability module and test above (covering all M12 mechanics, not just A–D). Merge, full test + browser sweeps (M01 and M03–M12), update `MODULE_TWELVE_ARC_CALLBACKS` in `soc-analyst-module-12.js` to cite the new practice, update `docs/workstreams/LIVE_COURSE_UAT_AND_GRADING_UX.md`, owner push.
+- [x] **Sprint 4 — traceability map + integration.** (4a traceability map: done, see log; 4b merge, browser sweeps, UAT doc, owner push: open.) Build the traceability module and test above (covering all M12 mechanics, not just A–D). Merge, full test + browser sweeps (M01 and M03–M12), update `MODULE_TWELVE_ARC_CALLBACKS` in `soc-analyst-module-12.js` to cite the new practice, update `docs/workstreams/LIVE_COURSE_UAT_AND_GRADING_UX.md`, owner push.
 
 ## Traceability table
 
@@ -495,3 +519,16 @@ Capstone bugs / risks noticed while reading (NOT fixed)
 6. **Non-success source outcomes become blocked.** `sourceOutcome !== 'success'` forces `blocked` for `execute` too (not only `recovery`), so an approved, in-scope action whose simulated M09 effect is partial or failed would count as unsafe. Check whether the M12 M09 fixture can produce one.
 
 Tests: `node --test tests/` 103 files, 99 pass, 4 fail (guided-lab-console-guide, soc-m04-assessment-rubric, soc-m04-assessment-scorer, soc-m05-assessment-console; all pre-existing, unchanged). New `tests/capstone-traceability.test.js` 10/10. `bash bin/ci-check.sh` passes; `node --check` clean on the three new files and `soc-analyst-module-12.js`. No servers or browsers started.
+
+### Sprint 4b — integration (orchestrator), 2026-10-07
+
+- Merged Sprints 1–3 + 4a onto local master (cache-buster conflicts in
+  portal/index.html resolved to `20261007-capstone-backfill` for shared
+  files). Two review-card test harnesses needed the new
+  `adminResponseDesignReviewPanel` stub (765fc4f, M11 test commit).
+- Browser: `bin/console-tab-sweep.js` all M03–M12 clean; it now also opens
+  M03's Guided Lab (was never swept — gated behind the card-1 ingest step).
+  Click-tested M03 disposition (wrong → hint, needs-investigation →
+  explanation, persists), M04 verdicts (both labs), M09 designer + blocked
+  unapproved isolate (both labs), M11 Q-13 disposition.
+- Capstone fixes found by this pass: 882ff12, 0ecb59d (see top block).
