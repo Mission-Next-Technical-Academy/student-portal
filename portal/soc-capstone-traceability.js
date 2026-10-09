@@ -97,7 +97,7 @@ const SocCapstoneTraceability = (() => {
     // ------------------------------------------------ alert-incident-management
     {
       id: 'alert-disposition-supported',
-      capstone: { criterion: 'alert-incident-management', mechanic: 'Call each alert true-positive / benign-positive / false-positive from the records', tab: 'alerts', recordedAs: 'review-alert { alertId, disposition, reason } (M12 alerts tab, or M04 pack alert_review)', rubricText: ['Supported alert dispositions.'], missingCheck: ['No alert determination recorded yet'], actionTypes: ['review-alert', 'alert-disposition'] },
+      capstone: { criterion: 'alert-incident-management', mechanic: 'Call each alert true-positive / benign-positive / false-positive from the records', tab: 'alerts', recordedAs: 'review-alert { alertId, disposition, reason } (M12 alerts tab, or M04 pack alert_review)', rubricText: ['Supported alert dispositions.'], missingCheck: ['No alert determination recorded yet'], actionTypes: ['review-alert'] },
       practice: [P('M03', 'alerts', 'disp-tp'), P('M03', 'alerts', 'disp-benign'), P('M03', 'alerts', 'disp-false')],
       prove: [V('M11', 'alert-disposition')],
       code: [...M12, 'portal/soc-analyst-module-03-environment.js#M03E_GUIDE_STEPS', 'portal/soc-m11-assessment-rubric.js', 'portal/soc-m11-assessment-state.js'],
