@@ -36,7 +36,7 @@ const state = {
     approvalRequests: [{ id: 'approval-1', status: 'approved', audit: [{ status: 'approved', execution: 'never' }] }],
     automationResults: [{ type: 'indicator_enrichment', status: 'succeeded', iocId: 'M04-I-001', executionId: 'auto-exec-1', matchedEventIds: ['M04-A-001'] }],
     savedQueries: [{ id: 'query-1', query }],
-    rules: [{ id: 'rule-1', queryId: 'query-1', query, name: 'Spray', groupingField: 'sourceIp', threshold: 5, windowMinutes: 10, enabled: true, schedule: { scheduledAt: timestamp, frequencyMinutes: 30 }, exclusion: { enabled: true } }],
+    rules: [{ id: 'rule-1', queryId: 'query-1', query, name: 'Spray', groupingField: 'sourceIp', threshold: 5, windowMinutes: fixture.scenario.truth.rule.windowMinutes, enabled: true, schedule: { scheduledAt: timestamp, frequencyMinutes: 30 }, exclusion: { enabled: true } }],
     executions: [{ id: 'execution-1', ruleId: 'rule-1', mode: 'scheduled', status: 'completed', alertIds: ['alert-1'], reviewEvidence: { excluded: [{ supportingEventIds: fixture.scenario.truth.rule.excludeEventIds }], suppressed: [] } }],
     alerts: [{ id: 'alert-1', ruleId: 'rule-1', sourceRule: 'Spray', groupingField: 'sourceIp', group: fixture.scenario.truth.maliciousSourceIp, eventIds: fixture.scenario.truth.rule.matchEventIds }],
   },
