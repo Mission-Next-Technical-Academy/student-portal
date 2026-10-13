@@ -6497,15 +6497,16 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                    <table class="w-full border-collapse">
                      <thead>
                        <tr class="border-b border-gray-200 bg-gray-50">
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="studentId">Student ID<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="track">Track<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="program">Program<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="progress">Progress<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="modules">Coursework<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="capstone">Capstone<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="lastActive">Last Active<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="studentId">Student ID<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="track">Track<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="program">Program<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment Status<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="progress">Progress<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="modules">Coursework<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="capstone">Capstone<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="lastActive">Last Active<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] whitespace-nowrap">Enrollment</th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
                        </tr>
                      </thead>
                      <tbody id="admin-table-body">
@@ -6514,16 +6515,16 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                          return `
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
                              data-track="${esc(row.track_code)}" data-progress="${programmeProgress.percent}" data-started="${(programmeProgress.completed > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
-                           <td class="px-6 py-4 text-sm text-gray-900 font-mono">
+                           <td class="px-3 py-4 text-sm text-gray-900 font-mono">
                              <button type="button" data-view-credentials="${esc(row.student_id)}" data-credential-track="${esc(row.track_code)}"${instructorDashboard ? '' : ' data-can-rotate="1"'} aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
                                ${esc(row.student_id)}
                              </button>
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
                            </td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
-                           <td class="px-6 py-4 text-sm">
+                           <td class="px-3 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
+                           <td class="px-3 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
+                           <td class="px-3 py-4 text-sm">
                              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${row.enrolled !== false ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
                                <span class="w-1.5 h-1.5 rounded-full ${row.enrolled !== false ? 'bg-green-500' : 'bg-gray-400'}"></span>
                                ${row.adminStateLabel}
@@ -6536,7 +6537,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                                      : '')
                              }
                            </td>
-                           <td class="px-6 py-4 text-sm">
+                           <td class="px-3 py-4 text-sm">
                              <div class="flex items-center gap-2">
                                <div class="h-1.5 w-24 bg-gray-100 rounded-full overflow-hidden">
                                  <div class="h-full rounded-full" style="width: ${programmeProgress.percent}%; background-color: ${programRequirementsComplete(row) ? '#22c55e' : programmeProgress.percent > 0 ? '#f97316' : '#d1d5db'};"></div>
@@ -6544,17 +6545,16 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                                <span class="text-gray-600 text-xs min-w-fit">${programmeProgress.percent}%</span>
                              </div>
                            </td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${programmeProgress.completed} / ${programmeProgress.required}</td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${row.capstone_overall_score !== null && row.capstone_overall_score !== undefined ? row.capstone_overall_score.toFixed(2) : '—'}</td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${row.last_active !== null ? new Date(row.last_active).toLocaleDateString() : '—'}</td>
-                           <td class="px-6 py-4 text-sm">
-                             <label class="inline-flex items-center gap-2 cursor-pointer">
+                           <td class="px-3 py-4 text-sm text-gray-600">${programmeProgress.completed} / ${programmeProgress.required}</td>
+                           <td class="px-3 py-4 text-sm text-gray-600">${row.capstone_overall_score !== null && row.capstone_overall_score !== undefined ? row.capstone_overall_score.toFixed(2) : '—'}</td>
+                           <td class="px-3 py-4 text-sm text-gray-600">${row.last_active !== null ? new Date(row.last_active).toLocaleDateString() : '—'}</td>
+                           <td class="px-3 py-4 text-sm">
+                             <label class="inline-flex items-center gap-2 whitespace-nowrap cursor-pointer">
                                <input type="checkbox" class="sr-only peer" data-admin-enrollment="${esc(row.student_id)}" ${row.enrolled !== false ? 'checked' : ''} aria-label="Enrollment for ${esc(row.student_id)}" />
-                               <span class="relative w-10 h-5 rounded-full bg-gray-300 peer-checked:bg-[#22c55e] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
-                               <span class="text-xs font-semibold text-gray-600">${row.adminStateLabel}</span>
+                               <span class="relative w-10 h-5 shrink-0 rounded-full bg-gray-300 peer-checked:bg-[#22c55e] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
                              </label>
                            </td>
-                           <td class="px-6 py-4 text-sm whitespace-nowrap">
+                           <td class="px-3 py-4 text-sm whitespace-nowrap">
                              <button type="button" data-admin-snapshot="${esc(row.student_id)}" class="text-xs font-semibold text-[#1e3a5f] hover:underline" title="Download a recoverable progress snapshot for this student">Save Progress File</button>
                            </td>
                          </tr>
