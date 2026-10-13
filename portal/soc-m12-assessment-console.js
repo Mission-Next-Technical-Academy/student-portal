@@ -228,7 +228,7 @@ const SocM12AssessmentConsole = (() => {
       refresh.m12Contextual=true;
       M03E_AFTER_RENDER.m12=refresh;
     }
-    const mounted=SocConsoleTools.mount('m12',{data,stateRoot:parent,save,title:'CUMULATIVE SOC CAPSTONE',ariaLabel:'Module 12 cumulative SOC capstone console',packs,
+    const mounted=SocConsoleTools.mount('m12',{data,stateRoot:parent,save,title:'CUMULATIVE SOC CAPSTONE',ariaLabel:'Module 12 cumulative SOC capstone console',packs,initialTab:'case',
       extraTabs:[['operations','Operations'],['reporting','Reporting']],views:{...contextualViews,operations:()=>operations({state:()=>moduleTwelveState.assessmentState}),reporting:()=>reporting({state:()=>moduleTwelveState.assessmentState})},
       caseView:()=>moduleTwelveTicketView(),
       caseBadge:()=>moduleTwelveState.submitted?' <i class="ri-checkbox-circle-fill" aria-label="Submitted"></i>':''});

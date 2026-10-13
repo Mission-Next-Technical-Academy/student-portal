@@ -266,7 +266,7 @@ function m03eMountConsole(scope, mount) {
   M03E_MOUNTS[scope] = mount;
   Object.assign(M03E_SOURCE_MAPPINGS, mount.sourceMappings || {});
   M03E_DATA[scope] = mount.data;
-  M03E_STATE_DEFAULTS[scope] = M03E_SCOPE_DEFAULT;
+  M03E_STATE_DEFAULTS[scope] = { ...M03E_SCOPE_DEFAULT, ...(mount.initialTab ? { tab: mount.initialTab } : {}) };
 }
 
 const M03E_TABS = [['alerts', 'Alerts'], ['search', 'Log Search'], ['timeline', 'Timeline'], ['entities', 'Entities'], ['sources', 'Data Sources'], ['watchlists', 'Watchlists'], ['evidence', 'Evidence']];
