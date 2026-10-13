@@ -1334,7 +1334,11 @@ const SocConsoleTools = (() => {
         if (form.matches('[data-m09-attempt-form]')) {
           const type = String(data.get('actionType') || '');
           const targetId = String(data.get('targetId') || '');
-          run((state, at) => SocM09AssessmentState.attemptResponseAction(state, incidentId(), { type, targetId, outcome: m09Outcome(ctx, type, targetId), evidenceIds: state.reviewedEvidenceIds || [] }, at, ctx.fixture));
+          run((state, at) => {
+            const blocked = ctx.practiceActionGate?.(type, targetId);
+            if (blocked) throw new Error(blocked);
+            return SocM09AssessmentState.attemptResponseAction(state, incidentId(), { type, targetId, outcome: m09Outcome(ctx, type, targetId), evidenceIds: state.reviewedEvidenceIds || [] }, at, ctx.fixture);
+          });
           return;
         }
         if (form.matches('[data-m09-workflow]')) {
@@ -1382,6 +1386,8 @@ const SocConsoleTools = (() => {
             const approval = state.incidentWorkflows[incidentId()];
             const type = approval.approvalActionType;
             const target = approval.approvalTargetId;
+            const blocked = ctx.practiceActionGate?.(type, target);
+            if (blocked) throw new Error(blocked);
             return SocM09AssessmentState.executeApprovedAction(state, incidentId(), { type, outcome: m09Outcome(ctx, type, target), details: { entityId: target, incidentId: incidentId(), evidenceIds: state.reviewedEvidenceIds || [] } }, at, ctx.fixture);
           });
           return;
@@ -1396,6 +1402,8 @@ const SocConsoleTools = (() => {
           run((state, at) => {
             const approval = state.incidentWorkflows[incidentId()];
             const type = recovery.dataset.m09Recovery;
+            const blocked = ctx.practiceActionGate?.(type, approval.approvalTargetId);
+            if (blocked) throw new Error(blocked);
             return SocM09AssessmentState.executeApprovedAction(state, incidentId(), { type, outcome: m09Outcome(ctx, type, approval.approvalTargetId), details: { entityId: approval.approvalTargetId, incidentId: incidentId() } }, at, ctx.fixture);
           });
         }

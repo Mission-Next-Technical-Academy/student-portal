@@ -18,21 +18,7 @@ const exists = (file) => fs.existsSync(path.join(root, file));
 // an empty list WITHOUT adding it here fails; so does leaving an entry here once
 // its gap is closed. Closing a gap = add the home in the data file, delete the
 // line here.
-const KNOWN_GAPS = {
-  'rule-saved': ['practice'],
-  'rule-scheduled': ['practice'],
-  'alert-incident-link': ['practice', 'prove'],
-  'alert-incident-link-unrelated-deduction': ['practice', 'prove'],
-  'incident-resolution': ['practice', 'prove'],
-  'incident-resolution-wrong-deduction': ['practice', 'prove'],
-  'attack-mapping': ['practice'],
-  'attack-unsupported-deduction': ['practice'],
-  'evidence-preserved-before-eradication': ['practice'],
-  'recovery-persistence-removed': ['practice'],
-  'recovery-restored': ['practice'],
-  'recovery-validated': ['practice'],
-  'report-lessons': ['practice'],
-};
+const KNOWN_GAPS = {};
 
 // Graded-looking rubric strings that are not mechanics.
 const IGNORED_RUBRIC_TEXT = ['Scenario unavailable.'];
@@ -205,6 +191,36 @@ test('practice and prove homes exist in the module code', () => {
       assert.ok(GUIDE[x.module], `${entry.id}: exposedIn module ${x.module}`);
       assert.ok(knownTabs.has(x.tab), `${entry.id}: exposedIn unknown tab ${x.tab}`);
     }
+  }
+});
+
+test('M04 Practice It coaches saving a correlated rule and enabling its recurring schedule', () => {
+  const steps = guideBlock('M04');
+  const start = steps.indexOf("title: 'Save and schedule the rule'");
+  assert.ok(start >= 0, 'M04 includes the save and schedule guided step');
+  const step = steps.slice(start, steps.indexOf('},', start));
+  assert.match(step, /tab: 'rules'/);
+  assert.match(step, /data-m04-rule-form/);
+  assert.match(step, /correlated sign-in query/);
+  assert.match(step, /save the rule/);
+  assert.match(step, /Enable it and save a recurring schedule/);
+});
+
+test('M06 Practice It teaches evidence-backed and unsupported ATT&CK mappings', () => {
+  const steps = guideBlock('M06');
+  const start = steps.indexOf("title: 'Map only demonstrated behavior'");
+  assert.ok(start >= 0, 'M06 includes a dedicated ATT&CK mapping guided step');
+  const step = steps.slice(start, steps.indexOf('},', start));
+  assert.match(step, /tab: 'attack'/);
+  assert.match(step, /data-m06-mapping-panel/);
+  assert.match(step, /M06-GUIDE-202/);
+  assert.match(step, /M06-GUIDE-203/);
+  assert.match(step, /M06-GUIDE-204/);
+  assert.match(step, /only when the observed behavior matches/);
+  assert.match(step, /unsupported/);
+  for (const id of ['attack-mapping', 'attack-unsupported-deduction']) {
+    const entry = entries.find((item) => item.id === id);
+    assert.ok(entry.practice.some((item) => item.module === 'M06' && item.where.tab === 'attack' && item.where.step === 'Map only demonstrated behavior'), `${id} maps to the new direct practice step`);
   }
 });
 

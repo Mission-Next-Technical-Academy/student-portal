@@ -153,6 +153,7 @@ const perfect = {
   },
   pins: ['A-5001', 'A-5002', 'A-5012', 'P-7001', 'P-7003', 'A-5011', 'D-6001'],
   queryLog: [{ sources: ['AuthLog'], pivot: false }, { sources: ['AuthLog', 'AppAudit', 'DirectoryAudit'], pivot: true }],
+  incidentLinks: [{ alertId: 'ALT-5170', incidentId: 'INC-MN-517' }, { alertId: 'ALT-5171', incidentId: 'INC-MN-517' }],
 };
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -161,7 +162,7 @@ t('perfect investigation → full credit', () => { const r = score(perfect); ass
 t('partial: found secondary d.hale but missed data-access evidence → meaningful partial credit', () => {
   const w = clone(perfect); w.pins = ['A-5001', 'A-5002', 'A-5011']; w.determination.indicators = ['203.0.113.77'];
   const r = score(w);
-  assert.ok(comp(r, 'evidence').earned >= 6 && comp(r, 'evidence').earned < 20);
+  assert.ok(comp(r, 'evidence').earned >= 3 && comp(r, 'evidence').earned < 15);
   assert.ok(r.score > 50 && r.score < 100);
 });
 
@@ -183,7 +184,7 @@ t('explicit unsupported conclusion (t.nguyen compromised, benign IP) → scope r
   const w = clone(perfect); w.determination.accountStatus['t.nguyen'] = 'compromised'; w.determination.indicators.push('198.51.100.140');
   const r = score(w);
   assert.strictEqual(comp(r, 'scope').earned, 25 - 7);
-  assert.strictEqual(comp(r, 'evidence').earned, 20);
+  assert.strictEqual(comp(r, 'evidence').earned, 15);
   assert.ok(comp(r, 'scope').deductions.length === 2);
 });
 

@@ -68,6 +68,10 @@ const reviewHtml=vm.runInContext('adminCaseTicketSubmissionPanel(reviewRow)',con
 assert.match(reviewHtml,/Priority rationale|Scope statement|Executive summary|Closure note/);
 assert.match(reviewHtml,/whitespace-pre-wrap/);
 assert.ok(reviewHtml.includes(context.reviewRow.result.case_record.notes),'full analyst notes remain readable in faculty ticket review');
+context.reviewRow={result:{case_record:{notes:'',incidentResolutions:{parentClosed:true,children:{'INC-MN-517':{resolved:true,disposition:'true-positive',evidence:'A-5012, P-7001',note:'A-5012 confirms access; P-7001 confirms forwarding.'}}}}}};
+const childReviewHtml=vm.runInContext('adminCaseTicketSubmissionPanel(reviewRow)',context);
+assert.match(childReviewHtml,/Child incident resolutions · parent closed/);
+assert.match(childReviewHtml,/A-5012 confirms access; P-7001 confirms forwarding\./);
 vm.runInContext('moduleTwelveState.submitted=true',context);
 const lockedHtml=vm.runInContext('moduleTwelveTicketView()',context);
 assert.match(lockedHtml,/Submitted for faculty review/);
