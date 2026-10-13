@@ -1139,6 +1139,10 @@ function adminCaseTicketSubmissionPanel(row) {
     ['Scope', handoff.scope],
     ['Requested next action', handoff.nextAction],
   ].filter(([, value]) => typeof value === 'string' && value.trim());
+  const incidentResolutions = record.incidentResolutions && typeof record.incidentResolutions === 'object' ? record.incidentResolutions : null;
+  const childResolutions = incidentResolutions?.children && typeof incidentResolutions.children === 'object'
+    ? Object.entries(incidentResolutions.children).filter(([, value]) => value && typeof value === 'object' && (value.resolved || value.note || value.disposition || value.evidence))
+    : [];
 
   return `<section class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3" aria-label="Student submitted case ticket">
     <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2"><p class="text-sm font-semibold text-[#1e3a5f]">Student-submitted case ticket</p><span class="text-xs text-gray-500">Use the note below to grade communication.</span></div>
@@ -1147,6 +1151,7 @@ function adminCaseTicketSubmissionPanel(row) {
     </dl>
     <div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Analyst work notes · student response</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(record.notes || 'Not provided')}</p></div>
     ${handoffFields.length ? `<div class="mt-3 grid sm:grid-cols-2 gap-2">${handoffFields.map(([label, value]) => `<div class="rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${esc(label)}</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(value)}</p></div>`).join('')}</div>` : ''}
+    ${incidentResolutions ? `<div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-sm font-semibold text-[#1e3a5f]">Child incident resolutions · parent ${incidentResolutions.parentClosed ? 'closed' : 'open'}</p>${childResolutions.length ? `<div class="mt-2 space-y-2">${childResolutions.map(([id, item]) => `<article class="rounded border border-gray-200 p-3"><p class="font-semibold text-sm">${esc(id)} · ${esc(item.resolved ? 'Resolved' : 'Open')} · ${esc(display('disposition', item.disposition))}</p><p class="mt-1 text-xs text-gray-600"><strong>Evidence:</strong> ${esc(item.evidence || 'Not provided')}</p><p class="mt-1 whitespace-pre-wrap text-sm text-gray-800"><strong>Student resolution note:</strong> ${esc(item.note || 'Not provided')}</p></article>`).join('')}</div>` : '<p class="mt-2 text-sm text-gray-500">No child incident resolutions recorded.</p>'}</div>` : ''}
   </section>`;
 }
 

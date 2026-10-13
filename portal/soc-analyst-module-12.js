@@ -8,39 +8,6 @@ const MODULE_TWELVE_CATALOG_KEY = 'lab-capstone';
 const MODULE_TWELVE_FLAG = 'M12-CAPSTONE-INVESTIGATION-PASSED';
 const MODULE_TWELVE_PASSING_SCORE = 70;
 
-const MODULE_TWELVE_REQUIREMENTS = [
-  ['Triage', 'Classify and prioritize the incident.'],
-  ['Query', 'Select a reproducible cross-source query.'],
-  ['Timeline', 'Reconstruct chronology from discovered evidence.'],
-  ['Scope', 'Name affected entities without overstating absence.'],
-  ['Enrichment', 'Interpret indicators in incident context.'],
-  ['ATT&CK', 'Map only demonstrated behaviors.'],
-  ['Detection', 'Propose durable logic and safe tuning.'],
-  ['Response', 'Contain, eradicate, and recover proportionately.'],
-  ['Evidence', 'Preserve a defensible evidence record.'],
-  ['Reporting', 'Write technical and executive findings.'],
-  ['Closure', 'Verify recovery and assign follow-up.'],
-  ['Submission', 'Submit the incident record for faculty review.'],
-];
-
-// Visible continuity cues for the capstone. These are reminders of where the
-// learner practised each decision earlier; they do not create extra stages,
-// score domains, evidence, or instructional minutes.
-const MODULE_TWELVE_ARC_CALLBACKS = [
-  'M01 foundations: classify a signal before acting; M03 dispositions (including needs-investigation) and M11 queue triage: call each alert only as far as the records support.',
-  'M03 SIEM & log analysis: make the pivot reproducible and join sources by entity and time.',
-  'M03 correlation plus M10 custody: order observed events and preserve the timestamps that support them.',
-  'M02 identity scope plus M08 prioritization: name the affected host/account and bound the search result.',
-  'M04 indicator verdicts (malicious, benign or unknown, backed by case records) plus M08 exposure: weigh context, reachability, and the control gap.',
-  'M05 endpoint and M06 hunting plus M10 mapping: map demonstrated behavior, not an imagined full chain.',
-  'M04 tuning plus M06 hypothesis testing: improve precision without hiding the behavior or disabling coverage.',
-  'M09 workflow designer and unsafe attempts: plan your response order, never act without approval, then move toward recovery.',
-  'M10 chain of custody: retain identifiers, provenance, integrity, and explicit evidence boundaries.',
-  'M11 reporting: separate executive decisions from the technical narrative and state uncertainty plainly.',
-  'M09 recovery gates plus M11 ownership: verify the fix, assign follow-up, and define monitoring.',
-  'M01–M11 synthesis: submit one defensible Amber Finch record; the rubric remains the authoritative review.',
-];
-
 // These are orientation materials for the independent range, not scored
 // stages. The capstone deliberately keeps its single integrated assessment
 // inside the range rather than splitting the experience into L→Q→L units.
@@ -136,7 +103,7 @@ function moduleTwelveFreshDefaults() {
     // Standard case-record ticket fields (docs/specs/MODULE_STANDARD.md §7.2).
     submitted: false, status: '', severity: '', affectedUser: '', affectedDevice: '',
     disposition: '', escalation: '', escalateTo: '', findings: {}, actionHistory: [],
-    showMissing: false, tools: {}, assessmentState: null, reviewPayload: null,
+    showMissing: false, tools: {}, assessmentState: null, reviewPayload: null, checklist: [],
   };
 }
 
@@ -167,7 +134,7 @@ function moduleTwelveLoad(user, program) {
   // those submissions as locked and show only the standard review status.
   if (moduleTwelveState.attempts > 0 || moduleTwelveState.breakdown) moduleTwelveState.submitted = true;
   moduleTwelveState.assessmentState = SocM12AssessmentState.load(user, SocM12AssessmentData);
-  if (!moduleTwelveState.submitted) moduleTwelveState.assessmentState.rubricVersion = 2;
+  if (!moduleTwelveState.submitted) moduleTwelveState.assessmentState.rubricVersion = 3;
   if (!moduleTwelveState.tools || typeof moduleTwelveState.tools !== 'object') moduleTwelveState.tools = {};
   ['stageVisits', 'feedback', 'criticalErrors', 'flags'].forEach((key) => {
     if (!Array.isArray(moduleTwelveState[key])) moduleTwelveState[key] = [];
@@ -182,6 +149,8 @@ function moduleTwelveLoad(user, program) {
   ['status', 'severity', 'affectedUser', 'affectedDevice', 'disposition', 'escalation', 'escalateTo'].forEach((key) => {
     if (typeof moduleTwelveState[key] !== 'string') moduleTwelveState[key] = '';
   });
+  moduleTwelveState.checklist = Array.isArray(moduleTwelveState.checklist)
+    ? [...new Set(moduleTwelveState.checklist.filter((i) => Number.isInteger(i) && i >= 0 && i < MODULE_TWELVE_SHIFT_CHECKLIST.length))] : [];
   if (typeof moduleTwelveState.submitted !== 'boolean') moduleTwelveState.submitted = false;
   if (typeof moduleTwelveState.showMissing !== 'boolean') moduleTwelveState.showMissing = false;
   // Any already-completed old-form attempt keeps its pass and stays a
@@ -265,32 +234,60 @@ const MODULE_TWELVE_TICKET_FINDINGS = [
   { name: 'closureNote', label: 'Closure note', type: 'textarea', minLength: 100, maxLength: 2000 },
 ];
 
-// Presence checks describe outcome categories; they never evaluate correctness.
-function moduleTwelveActionMissing() {
+// Attempts submitted under rubric v1/v2 keep the single-incident ticket they
+// were graded on; everything else works the parent CASE and its incidents.
+function moduleTwelveCaseMode() {
+  return !(moduleTwelveState.submitted && (moduleTwelveState.assessmentState?.rubricVersion || 1) < 3);
+}
+
+const MODULE_TWELVE_INCIDENT_STATUS = [['in-progress', 'In Progress'], ['pending', 'Pending'], ['resolved', 'Resolved']];
+const MODULE_TWELVE_INCIDENT_DISPOSITIONS = [['true-positive', 'True positive'], ['benign-positive', 'Benign positive'], ['false-positive', 'False positive'], ['needs-investigation', 'Needs investigation']];
+
+const moduleTwelveIncidentStatus = (record) => MODULE_TWELVE_INCIDENT_STATUS.find(([id]) => id === record?.status)?.[1] || 'New';
+const moduleTwelveIncidentAlerts = (incidentId) => [...new Set((moduleTwelveState.assessmentState?.incidentLinks || []).filter((link) => link.incidentId === incidentId).map((link) => link.alertId))];
+
+// Related-records tab strip at the top of the CASE and of each child incident:
+// CASE-… | INC-… · status. Links come only from the analyst's Alerts-tab
+// associations; each incident keeps its own record.
+function moduleTwelveRecordTabs(activeId) {
+  const parent = SocM12AssessmentData.scenario.parentCase;
+  const incidents = moduleTwelveState.assessmentState?.incidents || {};
+  const tab = (id, label) => `<button type="button" role="tab" aria-selected="${activeId === id}" class="${activeId === id ? 'is-active' : ''}" data-m12-open-incident="${esc(id === parent.id ? '' : id)}">${label}</button>`;
+  return `<div class="m12-record-tabs"><nav role="tablist" aria-label="Related incidents">${tab(parent.id, esc(parent.id))}${parent.incidents.map((incident) => tab(incident.id, `${esc(incident.id)} · ${esc(moduleTwelveIncidentStatus(incidents[incident.id]))}`)).join('')}</nav>
+    <p class="m03e-muted">Resolve each incident on its own evidence.</p></div>`;
+}
+
+// One child incident's record: parent, status, linked alerts (each opens in
+// the Alerts tab), cited evidence, its own activity history, and its update form.
+function moduleTwelveIncidentRecord(incidentId) {
+  const parent = SocM12AssessmentData.scenario.parentCase;
+  const incident = parent.incidents.find((item) => item.id === incidentId);
   const state = moduleTwelveState.assessmentState || {};
-  const actions = state.actionHistory || [];
-  const has = (type) => actions.some((action) => action.type === type);
-  const checks = [
-    [has('review-alert') || has('alert-disposition'), 'No alert determination recorded yet'],
-    [has('intel-decision'), 'No intelligence verdict recorded yet'],
-    [has('query-run'), 'No query test recorded yet'],
-    [has('rule-save'), 'No detection rule saved yet'],
-    [has('rule-schedule'), 'No detection schedule recorded yet'],
-    [has('incident-link'), 'No alert-to-incident relationship recorded yet'],
-    [(state.investigations || []).some((item) => item.domain !== 'scope' && item.domain !== 'timeline'), 'No cross-domain investigation finding recorded yet'],
-    [(state.selectedEvidence || []).length > 0, 'No evidence selected yet'],
-    [has('attack-map'), 'No ATT&CK determination recorded yet'],
-    [has('workflow-design'), 'No response workflow recorded yet'],
-    [has('execute'), 'No response action attempted yet'],
-    [has('recovery'), 'No recovery validation recorded yet'],
-    [has('handoff') || state.reports?.handoff, 'No shift handoff recorded yet'],
-  ];
-  return checks.filter(([present]) => !present).map(([, message]) => message);
+  const record = state.incidents?.[incidentId] || {};
+  const alerts = moduleTwelveIncidentAlerts(incidentId);
+  const disabled = moduleTwelveState.submitted ? 'disabled' : '';
+  const option = (current) => ([id, text]) => `<option value="${esc(id)}" ${current === id ? 'selected' : ''}>${esc(text)}</option>`;
+  const activity = (state.actionHistory || []).filter((action) => action.details?.incidentId === incidentId).reverse()
+    .map((action) => `<li>#${esc(action.sequence)} · ${action.type === 'incident-link' ? `Linked ${esc(action.details.alertId)}` : `Set ${esc(moduleTwelveIncidentStatus(action.details))}${action.details.disposition ? ` · ${esc(action.details.disposition)}` : ''}`}</li>`).join('');
+  return `${moduleTwelveRecordTabs(incidentId)}<section class="m01-console-pane m01-console-ticket" aria-label="Incident ${esc(incidentId)}">
+    <div class="m01-ticket-case"><div class="m01-ticket-id"><span>ITSM Incident</span><strong>${esc(incidentId)}</strong><small>${esc(incident.title)}</small><small>Parent case: ${esc(parent.id)} · ${esc(parent.title)}</small></div></div>
+    <p class="m03e-muted">Status: <strong>${esc(moduleTwelveIncidentStatus(record))}</strong>${record.disposition ? ` · ${esc(record.disposition)}` : ''}${record.evidenceIds?.length ? ` · Cited: ${esc(record.evidenceIds.join(', '))}` : ''}</p>
+    <p class="m01-console-pane-title">Linked alerts</p>
+    ${alerts.length ? `<div class="m03e-listing">${alerts.map((id) => { const alert = SocM12AssessmentData.scenario.queue.find((item) => item.id === id); return `<button type="button" data-m12-open-alert="${esc(id)}"><strong>${esc(id)}</strong><span>${esc(alert?.signal || 'Query-generated alert')} · open in Alerts</span></button>`; }).join('')}</div>` : '<p class="m03e-muted">None yet. Link alerts to this incident from the Alerts tab.</p>'}
+    <form class="m01-ticket-form" data-m12-action="incident-update" data-incident-id="${esc(incidentId)}"><div class="m01-ticket-grid">
+      <label class="m01-ticket-field"><span>Status</span><select name="status" required ${disabled}><option value="">Select…</option>${MODULE_TWELVE_INCIDENT_STATUS.map(option(record.status)).join('')}</select></label>
+      <label class="m01-ticket-field"><span>Disposition</span><select name="disposition" ${disabled}><option value="">Select…</option>${MODULE_TWELVE_INCIDENT_DISPOSITIONS.map(option(record.disposition)).join('')}</select></label></div>
+      <label class="m01-ticket-field m01-ticket-notes"><span>Incident note · cite the records that support it</span><textarea name="note" rows="4" required minlength="30" maxlength="1000" ${disabled}>${esc(record.note || '')}</textarea></label>
+      <div class="m01-ticket-actions"><button type="submit" class="m01-submit" ${disabled}>Update ${esc(incidentId)}</button></div></form>
+    ${activity ? `<details class="m01-action-history" open><summary>Incident activity</summary><ul>${activity}</ul></details>` : ''}
+  </section>`;
 }
 
 function moduleTwelveCaseSpec() {
   return {
-    caseId: MODULE_TWELVE_CASE.caseId,
+    ...(moduleTwelveCaseMode()
+      ? { caseId: SocM12AssessmentData.scenario.parentCase.id, incidentIds: SocM12AssessmentData.scenario.parentCase.incidents.map((item) => item.id) }
+      : { caseId: MODULE_TWELVE_CASE.caseId }),
     ticketType: 'Independent capstone · Operation Amber Finch',
     userOptions: MODULE_TWELVE_CASE.userOptions,
     deviceOptions: MODULE_TWELVE_CASE.deviceOptions,
@@ -299,16 +296,17 @@ function moduleTwelveCaseSpec() {
     findings: MODULE_TWELVE_TICKET_FINDINGS,
     notesPlaceholder: 'Record your technical findings, supporting records, scope, response decisions, and remaining uncertainty.',
     notesMin: 260, notesMax: 5000,
-    extraMissing: moduleTwelveActionMissing(),
     disabled: moduleTwelveState.submitted === true,
   };
 }
 
 function moduleTwelveTicketView() {
-  return `${caseRecordPane(moduleTwelveState, {
+  const openIncident = moduleTwelveCaseMode() && typeof m03eState === 'function' && m03eState('m12').openIncident;
+  if (openIncident && SocM12AssessmentData.scenario.parentCase.incidents.some((item) => item.id === openIncident)) return moduleTwelveIncidentRecord(openIncident);
+  return `${moduleTwelveCaseMode() ? moduleTwelveRecordTabs(SocM12AssessmentData.scenario.parentCase.id) : ''}${caseRecordPane(moduleTwelveState, {
     ...moduleTwelveCaseSpec(), formId: 'm12-case-form',
     saveAttr: 'data-m12-save-case', submitAttr: 'data-m12-submit-case',
-    panelId: 'm12-case-panel', showMissing: moduleTwelveState.showMissing,
+    panelId: 'm12-case-panel', compactRequirements: true,
     reviewStatus: moduleTwelveReviewStatus() === 'Lab graded' ? 'graded' : 'review',
     lockedMessage: 'Your incident ticket and range actions are recorded for faculty review.',
   })}`;
@@ -340,12 +338,35 @@ function moduleTwelveReviewStatus() {
   const attempt = moduleTwelveUser?.latestLabAttemptByKey?.[MODULE_TWELVE_CATALOG_KEY];
   return attempt?.redoRequested ? 'Returned for remediation' : attempt?.reviewedAt ? 'Lab graded' : 'Submitted for faculty review';
 }
-function moduleTwelveMissionStatus() {
-  return `<div class="m12-stage-note"><strong>Mission outcomes</strong><span>One integrated incident record for faculty review</span></div><div class="m12-requirements">${MODULE_TWELVE_REQUIREMENTS.map(([label, detail], index) => `<div><span>${String(index + 1).padStart(2,'0')}</span><p><strong>${esc(label)}</strong><small>${esc(detail)}</small><em>${esc(MODULE_TWELVE_ARC_CALLBACKS[index])}</em></p></div>`).join('')}</div>`;
+
+// Practice It for the capstone: the shift's required actions, in working
+// order. It names where each action happens, never what the answer is, and is
+// not scored.
+const MODULE_TWELVE_SHIFT_CHECKLIST = [
+  ['Open your CASE', 'ITSM Ticket', 'Read its incidents and open work.', 'M01'],
+  ['Triage alerts', 'Alerts', 'Disposition each; link it to its incident.', 'M01 · M03'],
+  ['Judge indicators', 'Threat Intelligence', 'Malicious, benign, or unknown, from case records.', 'M04'],
+  ['Investigate', 'Log Search · Email · Endpoint · Network · Exposure', 'Findings from each source; pin the evidence.', 'M03 · M05 · M07 · M08'],
+  ['Timeline and scope', 'Timeline · Evidence', 'Order events; name affected hosts and accounts.', 'M03 · M05 · M07 · M10'],
+  ['Map ATT&CK', 'ATT&CK', 'Only behavior a record shows.', 'M06 · M10'],
+  ['Build detection', 'Log Search · Analytics Rules', 'Test, save, and schedule a rule.', 'M03 · M04'],
+  ['Contain', 'Response', 'Preserve, approve, then contain.', 'M09'],
+  ['Recover', 'Recovery', 'Remove persistence, restore, scan, monitor.', 'M09'],
+  ['Resolve incidents', 'ITSM Ticket', 'Status and disposition, each on its own evidence.', 'M03 · M11'],
+  ['Fill the ticket', 'ITSM Ticket', 'Severity, affected user and device, rationale, scope, work notes.', 'M01 · M10'],
+  ['Report and hand off', 'Reporting · Operations', 'Technical, executive, lessons; handoff with owners.', 'M11'],
+  ['Close and submit', 'ITSM Ticket', 'Resolve the CASE only when every incident is; then Submit Lab.', 'M01–M11'],
+];
+
+function moduleTwelvePracticeChecklist() {
+  return `<details id="m12-section-practice" class="m12-section-collapsible mf-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m12-kicker mf-kicker">Practice It · shift checklist</p><h2 id="m12-practice-title">Work the shift in this order</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body" id="m12-practice">
+    <p class="m12-muted">Tick each step as you finish it. Your ticks save to your account, so your progress follows you across sessions and devices. Not scored. <span id="m12-checklist-count">${moduleTwelveState.checklist.length} of ${MODULE_TWELVE_SHIFT_CHECKLIST.length} done.</span></p>
+    <div class="m12-requirements">${MODULE_TWELVE_SHIFT_CHECKLIST.map(([label, where, detail, modules], index) => `<div><span>${String(index + 1).padStart(2, '0')}</span><input type="checkbox" data-m12-checklist="${index}" aria-label="${esc(label)}"${moduleTwelveState.checklist.includes(index) ? ' checked' : ''}><p><strong>${esc(label)}</strong><small>${esc(detail)}</small><em>${esc(where)} · ${esc(modules)}</em></p></div>`).join('')}</div>
+  </section></details>`;
 }
 
 function moduleTwelvePreparation() {
-  return `<details class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">1</span><div><p class="m12-kicker mf-kicker">Learn It · capstone recap</p><h2 id="m12-preparation-title">Briefing before the independent range</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body" id="m12-preparation" aria-labelledby="m12-preparation-title">
+  return `<details id="m12-section-preparation" class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">1</span><div><p class="m12-kicker mf-kicker">Learn It · capstone recap</p><h2 id="m12-preparation-title">Briefing before the independent range</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body" id="m12-preparation" aria-labelledby="m12-preparation-title">
     ${moduleTwelveLearnItHtml()}
     <details class="m12-deep-dive mf-deep-dive"><summary>Deep Dive · capstone preparation notes</summary>
     <p class="m12-muted">These short briefings establish the operating model for the capstone. Review them before investigating; they are guidance, not additional scored stages.</p>
@@ -370,7 +391,9 @@ function moduleTwelveGetSections() {
     // sections reachable while the single cumulative assessment is in progress.
     { id: 'preparation', title: 'Capstone preparation', type: 'lecture', isComplete: true, scrollId: 'm12-preparation', gated: false },
     { id: 'mission', title: 'Mission requirements', type: 'read', isComplete: complete, scrollId: 'm12-mission-title', gated: false },
-    { id: 'investigation', title: 'Investigation consoles', type: 'lab', isComplete: complete, scrollId: 'm12-range', gated: false },
+    // Practice It is a read-only shift checklist; the console below is the one
+    // independent Assessment Lab, so it is not listed a second time.
+    { id: 'practice', title: 'Shift checklist', type: 'read', phase: 'practice', isComplete: complete, scrollId: 'm12-practice-title', gated: false },
     { id: 'assessment', title: 'Assessment Lab', type: 'review', isComplete: complete, scrollId: 'm12-ticket', gated: false },
   ];
 }
@@ -384,12 +407,13 @@ function viewModuleTwelve(user, program) {
   return `<div class="m12-shell">${moduleTwelveHeader(user, program)}<div class="mquick-nav-layout">${moduleUnifiedNav(sections, { moduleKey: 'm12' })}<main class="m12-main mf-frame">
     <section class="m12-hero mf-hero" aria-labelledby="m12-title"><div><p class="m12-kicker mf-kicker">Module 12 · ${formatHandsOnDuration(module.durationMinutes)} · Final Assessment</p><h1 id="m12-title">${esc(module.title)}</h1><p class="m12-kicker mf-kicker">Case scenario · Operation Amber Finch</p><p class="mf-lede">Investigate a synthetic high-priority signal across the security operations range: discover what happened, bound impact, improve detection, and direct response. Close the case with a portfolio-grade report integrating competencies from Modules 01–11.</p>
       <div class="m12-hero-actions"><a class="m12-secondary" href="#m12-range"><i class="ri-arrow-down-line" aria-hidden="true"></i> Investigate here</a><a class="m12-primary" href="#m12-range" data-m12-open-ticket><i class="ri-file-check-line" aria-hidden="true"></i> Open ITSM Ticket</a></div></div>
-      <dl class="mf-stats"><div><dt>Case</dt><dd>INC-4821</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Review</dt><dd>Faculty review</dd></div></dl></section>
+      <dl class="mf-stats"><div><dt>Case</dt><dd>${esc(moduleTwelveCaseMode() ? SocM12AssessmentData.scenario.parentCase.id : MODULE_TWELVE_CASE.caseId)}</dd></div><div><dt>Mode</dt><dd>Independent assessment</dd></div><div><dt>Review</dt><dd>Faculty review</dd></div></dl></section>
     <section class="m12-objective"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Assessment focus</p><h2>Demonstrate preparation, cross-source investigation, scoped response, verified recovery, and clear reporting across the integrated incident.</h2></div></section>
     <section class="m12-objective"><div><i class="ri-git-merge-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Prior instruction</p><h2>This capstone draws on skills from all 11 prior modules: SOC operations foundations (M01), network and identity foundations (M02), SIEM and log analysis (M03), detection rule tuning (M04), endpoint investigation (M05), threat hunting (M06), network and email analysis (M07), vulnerability prioritization (M08), incident response (M09), evidence handling and case documentation (M10), and SOC metrics and communication (M11).</h2></div></section>
     ${moduleTwelvePreparation()}
-    <details class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m12-kicker mf-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">Complete the twelve deliverables in any order; use evidence to discover chronology rather than assume an attack sequence. Amber Finch combines M09–M11 response, custody, and reporting with earlier identity, SIEM, detection, endpoint, hunting, network, and prioritization skills.</p>${moduleTwelveMissionStatus()}</section></details>
-    <details class="m12-section-collapsible mf-section mf-lab-section" data-lab-maximize><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m12-kicker mf-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-range-section mf-section-body" id="m12-range"><div id="m12-ticket"><div id="m12-console-root">${moduleTwelveConsole()}</div></div></section></details>
+    <details id="m12-section-mission" class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m12-kicker mf-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">Let the evidence set the timeline. Your deliverables are the steps in the Shift Checklist below.</p></section></details>
+    ${moduleTwelvePracticeChecklist()}
+    <details id="m12-section-range" class="m12-section-collapsible mf-section mf-lab-section" data-lab-maximize><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m12-kicker mf-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-range-section mf-section-body" id="m12-range"><div id="m12-ticket"><div id="m12-console-root">${moduleTwelveConsole()}</div></div></section></details>
 
   </main></div></div>`;
 }
@@ -449,6 +473,16 @@ function wireModuleTwelveLab() {
   });
   shell.addEventListener('change', (event) => {
     const field = event.target;
+    if (field.dataset?.m12Checklist !== undefined) {
+      const index = Number(field.dataset.m12Checklist);
+      const ticked = new Set(moduleTwelveState.checklist);
+      if (field.checked) ticked.add(index); else ticked.delete(index);
+      moduleTwelveState.checklist = [...ticked].sort((a, b) => a - b);
+      moduleTwelveSave();
+      const count = shell.querySelector('#m12-checklist-count');
+      if (count) count.textContent = `${moduleTwelveState.checklist.length} of ${MODULE_TWELVE_SHIFT_CHECKLIST.length} done.`;
+      return;
+    }
     if (moduleTwelveState.submitted || !field.closest('#m12-case-form')) return;
     if (!caseRecordApply(moduleTwelveState, field.name, field.value)) return;
     moduleTwelveSyncTicket(); moduleTwelveSave();
@@ -458,11 +492,7 @@ function wireModuleTwelveLab() {
     if (moduleTwelveState.submitted) return;
     moduleTwelveSyncTicket(); moduleTwelveSave();
     const spec = moduleTwelveCaseSpec();
-    if (caseRecordMissing(moduleTwelveState, spec).length) {
-      moduleTwelveState.showMissing = true; moduleTwelveSave(); moduleTwelveRender('m12-case-panel'); return;
-    }
     if (!moduleTwelveState.stageVisits.includes('submission')) moduleTwelveState.stageVisits.push('submission');
-    moduleTwelveState.showMissing = false;
     const result = moduleTwelveScore();
     moduleTwelveState.attempts = (moduleTwelveState.attempts || 0) + 1;
     moduleTwelveState.score = result.score;

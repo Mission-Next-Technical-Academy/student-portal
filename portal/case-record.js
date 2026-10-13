@@ -222,7 +222,8 @@ function caseRecordGradedFeedbackHtml(notes = caseRecordGradedFeedback()) {
 
 // spec: { panelId, missing, submitted, reviewStatus, redoRequested,
 //         redoHtml, showMissing, lockedMessage, practiceSubmitted,
-//         practiceScored, practiceResult }
+//         practiceScored, practiceResult, compactRequirements }
+// compactRequirements: true hides the missing list + help line unless showMissing flags it.
 function caseRecordPanel(spec) {
   const missing = spec.missing || [];
   const submitted = spec.submitted === true;
@@ -231,6 +232,7 @@ function caseRecordPanel(spec) {
   const result = practice ? spec.practiceResult : null;
   const failedPractice = !submitted && result && !result.passed;
   const flagMissing = !submitted && spec.showMissing && missing.length;
+  const hideMissing = spec.compactRequirements === true && !flagMissing && missing.length > 0;
   const title = practice && submitted ? (result ? 'Practice passed' : 'Practice submitted') : graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : failedPractice ? 'Practice not passed yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
   const body = graded ? 'Your instructor has reviewed this case.'
     : submitted ? (practice ? (result ? 'Your practice score is recorded. Prove It · Assessment Lab is now open.' : 'Your ungraded practice ticket is recorded.') : spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
@@ -244,8 +246,8 @@ function caseRecordPanel(spec) {
     ${result && !flagMissing ? practiceResultHtml(result) : ''}
     ${graded ? caseRecordGradedFeedbackHtml(spec.gradedFeedback || caseRecordGradedFeedback()) : ''}
     ${!submitted ? (spec.redoHtml || '') : ''}
-    ${!submitted && missing.length ? `<ul class="m01-requirements-list">${missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
-    ${!submitted ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${spec.notesMin || CASE_RECORD_NOTES_MIN} characters.` : practice ? `Your ITSM ticket is ready. ${spec.practiceScored ? 'Submit Lab scores your practice now.' : 'Submit Lab completes this Guided Lab.'}` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}
+    ${!submitted && missing.length && !hideMissing ? `<ul class="m01-requirements-list">${missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
+    ${!submitted && !hideMissing ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${spec.notesMin || CASE_RECORD_NOTES_MIN} characters.` : practice ? `Your ITSM ticket is ready. ${spec.practiceScored ? 'Submit Lab scores your practice now.' : 'Submit Lab completes this Guided Lab.'}` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}
   </div>`;
 }
 

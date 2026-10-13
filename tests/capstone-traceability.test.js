@@ -1,7 +1,7 @@
 'use strict';
 // Keeps portal/soc-capstone-traceability.js honest. The M12 mechanics are read
 // from the capstone code itself (rubric v2 award / deduction / miss text,
-// moduleTwelveActionMissing() messages, ticket fields, action types), so a new
+// Shift Checklist steps, ticket fields, action types), so a new
 // graded mechanic that has no traceability entry fails here.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -18,19 +18,7 @@ const exists = (file) => fs.existsSync(path.join(root, file));
 // an empty list WITHOUT adding it here fails; so does leaving an entry here once
 // its gap is closed. Closing a gap = add the home in the data file, delete the
 // line here.
-const KNOWN_GAPS = {
-  'rule-saved': ['practice'],
-  'rule-scheduled': ['practice'],
-  'alert-incident-link': ['practice', 'prove'],
-  'alert-incident-link-unrelated-deduction': ['practice', 'prove'],
-  'attack-mapping': ['practice'],
-  'attack-unsupported-deduction': ['practice'],
-  'evidence-preserved-before-eradication': ['practice'],
-  'recovery-persistence-removed': ['practice'],
-  'recovery-restored': ['practice'],
-  'recovery-validated': ['practice'],
-  'report-lessons': ['practice'],
-};
+const KNOWN_GAPS = {};
 
 // Graded-looking rubric strings that are not mechanics.
 const IGNORED_RUBRIC_TEXT = ['Scenario unavailable.'];
@@ -58,10 +46,10 @@ for (const m of v2Body.matchAll(/'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`/g)) {
 }
 
 const moduleTwelveSource = read('portal/soc-analyst-module-12.js');
-const missingBody = moduleTwelveSource.slice(moduleTwelveSource.indexOf('function moduleTwelveActionMissing'), moduleTwelveSource.indexOf('function moduleTwelveCaseSpec'));
-const missingChecks = new Set([...missingBody.matchAll(/'(No [^']*? yet)'/g)].map((m) => m[1]));
+const checklistBody = moduleTwelveSource.slice(moduleTwelveSource.indexOf('const MODULE_TWELVE_SHIFT_CHECKLIST'), moduleTwelveSource.indexOf('function moduleTwelvePracticeChecklist'));
+const checklistSteps = new Set([...checklistBody.matchAll(/^\s*\['([^']+)',/gm)].map((m) => m[1]));
 
-const findingsBody = moduleTwelveSource.slice(moduleTwelveSource.indexOf('const MODULE_TWELVE_TICKET_FINDINGS'), moduleTwelveSource.indexOf('// Presence checks describe'));
+const findingsBody = moduleTwelveSource.slice(moduleTwelveSource.indexOf('const MODULE_TWELVE_TICKET_FINDINGS'), moduleTwelveSource.indexOf('// Attempts submitted under rubric'));
 const coreMatch = /Object\.fromEntries\(\[((?:'[A-Za-z]+',?\s*)+)\]\.map/.exec(moduleTwelveSource);
 const ticketFields = new Set([
   ...[...findingsBody.matchAll(/name:\s*'([A-Za-z]+)'/g)].map((m) => m[1]),
@@ -151,11 +139,12 @@ test('every rubric v2 award, deduction and miss is traced (and no entry cites te
   assert.deepEqual(stale, [], `entries cite rubric text that no longer exists in extractV2: ${stale.join(' | ')}`);
 });
 
-test('every moduleTwelveActionMissing() check is traced', () => {
-  assert.ok(missingChecks.size >= 13, 'parsed the missing-action checks');
-  const have = covered((c) => c.missingCheck);
-  assert.deepEqual([...missingChecks].filter((m) => !have.has(m)), [], 'missing-action checks with no entry');
-  assert.deepEqual([...have].filter((m) => !missingChecks.has(m)), [], 'entries cite missing-action checks that no longer exist');
+test('every checklistStep names a Shift Checklist step, and every mechanic with an action check has one', () => {
+  assert.equal(checklistSteps.size, 13, 'parsed the Shift Checklist steps');
+  const have = covered((c) => c.checklistStep);
+  assert.deepEqual([...have].filter((step) => !checklistSteps.has(step)), [], 'entries cite checklist steps that do not exist');
+  const traced = entries.filter((entry) => (entry.capstone.actionTypes || []).length && !(entry.capstone.checklistStep || []).length);
+  assert.deepEqual(traced.map((entry) => entry.id), [], 'graded mechanics recorded as actions with no checklistStep');
 });
 
 test('every M12 ticket field is traced', () => {
@@ -202,6 +191,36 @@ test('practice and prove homes exist in the module code', () => {
       assert.ok(GUIDE[x.module], `${entry.id}: exposedIn module ${x.module}`);
       assert.ok(knownTabs.has(x.tab), `${entry.id}: exposedIn unknown tab ${x.tab}`);
     }
+  }
+});
+
+test('M04 Practice It coaches saving a correlated rule and enabling its recurring schedule', () => {
+  const steps = guideBlock('M04');
+  const start = steps.indexOf("title: 'Save and schedule the rule'");
+  assert.ok(start >= 0, 'M04 includes the save and schedule guided step');
+  const step = steps.slice(start, steps.indexOf('},', start));
+  assert.match(step, /tab: 'rules'/);
+  assert.match(step, /data-m04-rule-form/);
+  assert.match(step, /correlated sign-in query/);
+  assert.match(step, /save the rule/);
+  assert.match(step, /Enable it and save a recurring schedule/);
+});
+
+test('M06 Practice It teaches evidence-backed and unsupported ATT&CK mappings', () => {
+  const steps = guideBlock('M06');
+  const start = steps.indexOf("title: 'Map only demonstrated behavior'");
+  assert.ok(start >= 0, 'M06 includes a dedicated ATT&CK mapping guided step');
+  const step = steps.slice(start, steps.indexOf('},', start));
+  assert.match(step, /tab: 'attack'/);
+  assert.match(step, /data-m06-mapping-panel/);
+  assert.match(step, /M06-GUIDE-202/);
+  assert.match(step, /M06-GUIDE-203/);
+  assert.match(step, /M06-GUIDE-204/);
+  assert.match(step, /only when the observed behavior matches/);
+  assert.match(step, /unsupported/);
+  for (const id of ['attack-mapping', 'attack-unsupported-deduction']) {
+    const entry = entries.find((item) => item.id === id);
+    assert.ok(entry.practice.some((item) => item.module === 'M06' && item.where.tab === 'attack' && item.where.step === 'Map only demonstrated behavior'), `${id} maps to the new direct practice step`);
   }
 });
 

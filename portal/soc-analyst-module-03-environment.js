@@ -314,6 +314,70 @@ const M03E_PRACTICE_DISPOSITIONS = {
     hints: ['What records would tell you whether this search was routine or the start of an export?', 'Compare the alert time with the billing-app collector delay you read in Data Sources.', 'If the evidence you need may still be in transit, you cannot call it yet. Say what is missing and what you will re-check.'] },
 };
 
+const M03E_INCIDENT_LINK_EXPECTATIONS = {
+  practice: { incidentId: 'INC-MN-428-PRACTICE', supported: ['ALT-3101'], unrelated: ['ALT-3102'] },
+  prove: { incidentId: 'INC-MN-517', supported: ['ALT-5170', 'ALT-5171'], unrelated: ['ALT-5174'] },
+};
+
+// One assigned parent case tracks two independently resolvable incidents.
+// The benign child is supported by the ordinary LAN sign-in sequence; the
+// primary child is supported by the spray success and forwarding rule.
+const M03E_CHILD_INCIDENTS = [
+  { id: 'INC-MN-517', label: 'Identity activity review', disposition: 'true-positive', evidence: ['A-5012', 'P-7001'] },
+  { id: 'INC-MN-518', label: 'Account alert review', disposition: 'benign-positive', evidence: ['A-5018', 'A-5019'] },
+];
+const M03E_PRACTICE_CHILD_IDS = ['INC-MN-428-PRACTICE', 'INC-MN-429-PRACTICE'];
+const M03E_RESOLUTION_DISPOSITIONS = ['true-positive', 'benign-positive', 'false-positive'];
+function m03eNormalizeIncidentResolutions(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const records = src.children && typeof src.children === 'object' && !Array.isArray(src.children) ? src.children : src;
+  const out = {};
+  [...M03E_CHILD_INCIDENTS.map((i) => i.id), ...M03E_PRACTICE_CHILD_IDS].forEach((id) => {
+    const row = records[id] && typeof records[id] === 'object' ? records[id] : {};
+    out[id] = {
+      disposition: M03E_RESOLUTION_DISPOSITIONS.includes(row.disposition) ? row.disposition : '',
+      note: String(row.note || ''), evidence: String(row.evidence || ''),
+      resolved: row.resolved === true,
+    };
+  });
+  return { children: out, parentClosed: src.parentClosed === true, hints: Math.min(3, Math.max(0, Number(src.hints) || 0)) };
+}
+function m03eResolutionPanel(scope) {
+  const st = m03eState(scope), resolutions = st.incidentResolutions;
+  const disabled = scope === 'prove' && st.determination.submitted;
+  const children = scope === 'practice' ? [
+    { ...M03E_CHILD_INCIDENTS[0], id: M03E_PRACTICE_CHILD_IDS[0], label: 'acct-428 takeover', evidence: ['A-1006', 'D-2001', 'P-3001'] },
+    { ...M03E_CHILD_INCIDENTS[1], id: M03E_PRACTICE_CHILD_IDS[1], label: 'h.diaz sign-in review', disposition: 'benign-positive', evidence: ['A-1012', 'A-1013'] },
+  ] : M03E_CHILD_INCIDENTS;
+  const allResolved = children.every((i) => resolutions.children[i.id]?.resolved);
+  const hintText = ['Compare each child incident with its own alert and event records.', 'For the main incident, check the attacker session and forwarding rule. For the second, compare the sign-in source with the account baseline.', 'The main incident is true positive; the l.brooks / h.diaz review is benign positive. Cite matching event IDs in each note.'];
+  return `<section class="m03e-incident-resolution"><h3>${scope === 'practice' ? 'CASE-MN-428' : 'CASE-MN-517'} · Child incidents</h3><p>Resolve each incident on its own record. Cite evidence in the note. Close the parent case only after every child incident is resolved.</p>${scope === 'practice' ? `<button type="button" data-m03e-resolution-hint${resolutions.hints >= 3 ? ' disabled' : ''}>${resolutions.hints ? 'Show next hint' : 'Show a hint'}</button>${resolutions.hints ? `<p role="status">Hint ${resolutions.hints}: ${esc(hintText[resolutions.hints - 1])}</p>` : ''}` : ''}${children.map((incident) => {
+    const row = resolutions.children[incident.id];
+    const locked = disabled || (scope === 'prove' && row.resolved);
+    const evidenceExample = incident.evidence.slice(0, 2).join(', ');
+    const practiceExpected = scope === 'practice' ? (incident.id === M03E_PRACTICE_CHILD_IDS[1] ? 'benign-positive' : 'true-positive') : '';
+    const practiceFeedback = scope === 'practice' && row.resolved ? `<p role="status">${row.disposition === practiceExpected ? 'Disposition supported. Check that the note cites the records.' : 'That disposition is not supported by the records. Reopen the incident and review the evidence.'}</p>` : '';
+    return `<fieldset><legend>${esc(incident.id)} · ${esc(incident.label)}${row.resolved ? ' · recorded' : ''}</legend><label>Disposition<select data-m03e-resolution="${esc(incident.id)}:disposition"${locked ? ' disabled' : ''}><option value="">Choose</option>${M03E_RESOLUTION_DISPOSITIONS.map((v) => `<option value="${v}"${row.disposition === v ? ' selected' : ''}>${v.replace('-', ' ')}</option>`).join('')}</select></label><label>Evidence IDs<input data-m03e-resolution="${esc(incident.id)}:evidence" value="${esc(row.evidence)}" placeholder="For example: ${esc(evidenceExample)}"${locked ? ' disabled' : ''}></label><label>Resolution note<textarea data-m03e-resolution="${esc(incident.id)}:note" rows="2" placeholder="Explain the disposition and cite records."${locked ? ' disabled' : ''}>${esc(row.note)}</textarea></label>${locked ? '' : `<button type="button" data-m03e-resolve="${esc(incident.id)}">Record incident resolution</button>`}${practiceFeedback}</fieldset>`;
+  }).join('')}<p>Parent case: ${resolutions.parentClosed ? 'closed' : 'open'}</p>${!disabled && allResolved && !resolutions.parentClosed ? '<button type="button" data-m03e-close-case>Close parent case</button>' : ''}</section>`;
+}
+function m03eResolutionScore(raw) {
+  const state = m03eNormalizeIncidentResolutions(raw);
+  const evidence = [];
+  const deductions = [];
+  let earned = 0;
+  M03E_CHILD_INCIDENTS.forEach((incident) => {
+    const row = state.children[incident.id];
+    const cited = row.evidence.split(/[\s,;]+/).filter(Boolean);
+    const noteCites = cited.some((id) => incident.evidence.includes(id) && row.note.includes(id)) && row.note.length >= 20;
+    if (row.resolved && row.disposition === incident.disposition && noteCites) { earned += 2; evidence.push(`${incident.id} resolved with supported disposition and cited evidence`); }
+    else if (row.resolved && row.disposition && row.disposition !== incident.disposition) { earned -= 2; deductions.push(`${incident.id} resolved with unsupported ${row.disposition} disposition (−2)`); }
+  });
+  const allResolved = M03E_CHILD_INCIDENTS.every((i) => state.children[i.id].resolved);
+  if (allResolved && state.parentClosed) { earned += 1; evidence.push('Parent case closed after every child was resolved'); }
+  earned = Math.max(0, Math.min(5, earned));
+  return { earned, max: 5, evidence, deductions, misses: earned < 5 ? ['Resolve both child incidents with evidence and close the parent after both are resolved'] : [] };
+}
+
 function m03eNormalizeDispositions(raw) {
   const out = {};
   const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
@@ -382,9 +446,11 @@ const M03E_GUIDE_STEPS = [
     check: (st) => m03eDispositionsCorrect(st, ['ALT-3105']) },
   { id: 'disp-ni', tab: 'alerts', target: '[data-m03e-select="practice:alert:ALT-3104"]', title: 'Know when you cannot call it yet', body: 'Sometimes the data you need has not arrived. Calling the alert malicious or harmless without it is a guess. When telemetry cannot yet support a conclusion, the supported call is needs investigation, with a note of what is missing and what you will re-check.', task: 'Open ALT-3104 (c.ortega). Decide whether the data supports a call, then record your disposition and reasoning.', lookFor: 'Compare the alert time with the collector delay you checked earlier. What would settle this alert, and is it in the data yet?',
     check: (st) => m03eDispositionsCorrect(st, ['ALT-3104']) },
+  { id: 'incident-link', tab: 'alerts', target: '[data-m03e-select="practice:alert:ALT-3101"]', title: 'Associate the alert with its incident', body: 'A supported alert belongs on the incident record it helps establish. Link ALT-3101 to INC-MN-428-PRACTICE. ALT-3102 has an ordinary explanation and should stay out of this incident.', task: 'Open ALT-3101 and record its incident association. Then check ALT-3102 and leave it unlinked.', lookFor: 'The incident record should include the alert supported by the evidence; an unrelated alert should not be attached.', check: (st) => st.incidentLinks?.some((l) => l.alertId === 'ALT-3101' && l.incidentId === M03E_INCIDENT_LINK_EXPECTATIONS.practice.incidentId) && !st.incidentLinks.some((l) => l.alertId === 'ALT-3102') },
   { id: 'handoff', tab: 'itsm', target: '.m01-ticket-notes', title: 'Write the analyst handoff', body: 'State the correlated sequence, explain why the 09:10 svc-backup restart is excluded, and name one unresolved question or next check.', task: 'Write the handoff in the ITSM ticket work notes. Include acct-428, S-8841, CHG-221, and a scope limit or next step.', lookFor: 'A bounded, reproducible handoff rather than a verdict without evidence.',
     check: () => /acct-428/.test(m03eState('practice').determination.notes || '') && /S-8841/.test(m03eState('practice').determination.notes || '') && /CHG-221/.test(m03eState('practice').determination.notes || '') && /svc-backup/.test(m03eState('practice').determination.notes || '') && /(approved|separate|exclud)/i.test(m03eState('practice').determination.notes || '') && (m03eState('practice').determination.notes || '').trim().length >= 50 },
   { id: 'decide', tab: 'itsm', target: '.m01-ticket-grid', title: 'Scope and decide', body: 'Use the linked records and the approved lookalike to bound the incident before routing the response.', task: 'Set the ticket severity, disposition, escalation, and department to match the evidence.', lookFor: 'A response scoped to acct-428 and session S-8841, with the approved restart excluded.', check: (st) => Boolean(st.determination?.severity && st.determination?.verdict && st.determination?.escalation) },
+  { id: 'resolve-children', tab: 'itsm', target: '.m03e-incident-resolution', title: 'Resolve child incidents', body: 'A case can contain more than one incident. Each incident needs its own supported disposition and evidence note; close the case only after all child incidents are resolved.', task: 'Resolve the child incident records independently using the event evidence. Close the parent case after both records are resolved.', lookFor: 'Both child records have individual evidence-backed resolutions and the parent is closed last.', check: (st) => M03E_PRACTICE_CHILD_IDS.every((id) => st.incidentResolutions?.children?.[id]?.resolved) && st.incidentResolutions?.parentClosed === true },
   { id: 'submit', tab: 'itsm', target: '.m01-ticket-actions', title: 'Submit the ticket', body: 'The guide is a reference, not a gate. Finish the ITSM fields, write work notes, and submit the ticket when ready.', task: 'Open the ITSM Ticket tab and submit your case.', lookFor: 'Submitting the ticket completes this Guided Lab. You can move through or skip guide steps at any time.', check: (st) => st.determination?.submitted === true },
 ];
 
@@ -453,12 +519,12 @@ const M03E_RUBRIC = {
       { pts: 3, label: 'Queried application activity', test: (s, x) => x.sourcesQueried.has('AppAudit') },
       { pts: 4, label: 'Pivoted across sources on the attacker IP or session', test: (s, x) => x.crossSourcePivot },
     ] },
-    { id: 'evidence', label: 'Evidence correlation', max: 20, items: [
-      { pts: 4, level: 'PRIMARY', label: 'Pinned the spray failures from 203.0.113.77', test: (s, x) => x.pinCount(['A-5001', 'A-5002', 'A-5003', 'A-5004', 'A-5005', 'A-5006', 'A-5007', 'A-5008', 'A-5009', 'A-5010']) >= 2 },
-      { pts: 4, level: 'PRIMARY', label: 'Pinned m.ortiz’s legacy-protocol success from the attacker IP', test: (s, x) => x.pinned('A-5012') },
-      { pts: 4, level: 'PRIMARY', label: 'Pinned the forwarding inbox rule', test: (s, x) => x.pinned('P-7001') },
-      { pts: 4, level: 'PRIMARY', label: 'Pinned data access in the attacker session', test: (s, x) => x.pinCount(['P-7002', 'P-7003', 'P-7004', 'P-7005']) >= 1 },
-      { pts: 2, level: 'SECONDARY', label: 'Pinned d.hale’s correct-password / MFA-denied sign-in', test: (s, x) => x.pinned('A-5011') },
+    { id: 'evidence', label: 'Evidence correlation', max: 15, items: [
+      { pts: 3, level: 'PRIMARY', label: 'Pinned the spray failures from 203.0.113.77', test: (s, x) => x.pinCount(['A-5001', 'A-5002', 'A-5003', 'A-5004', 'A-5005', 'A-5006', 'A-5007', 'A-5008', 'A-5009', 'A-5010']) >= 2 },
+      { pts: 3, level: 'PRIMARY', label: 'Pinned m.ortiz’s legacy-protocol success from the attacker IP', test: (s, x) => x.pinned('A-5012') },
+      { pts: 3, level: 'PRIMARY', label: 'Pinned the forwarding inbox rule', test: (s, x) => x.pinned('P-7001') },
+      { pts: 3, level: 'PRIMARY', label: 'Pinned data access in the attacker session', test: (s, x) => x.pinCount(['P-7002', 'P-7003', 'P-7004', 'P-7005']) >= 1 },
+      { pts: 1, level: 'SECONDARY', label: 'Pinned d.hale’s correct-password / MFA-denied sign-in', test: (s, x) => x.pinned('A-5011') },
       { pts: 2, level: 'SECONDARY', label: 'Pinned the app password created for persistence', test: (s, x) => x.pinned('D-6001') },
     ] },
     { id: 'scope', label: 'Scope determination', max: 25, items: [
@@ -484,6 +550,11 @@ const M03E_RUBRIC = {
       { pts: -5, unsafe: true, label: 'Unsafe: disabling every targeted account', test: (s) => s.actions.includes('disable-all') },
       { pts: -5, unsafe: true, label: 'Unsafe: deleting log evidence', test: (s) => s.actions.includes('purge-logs') },
       { pts: -3, unsafe: true, label: 'Unsupported: wiping a laptop with no host evidence', test: (s) => s.actions.includes('wipe-laptop') },
+    ] },
+    { id: 'incident-association', label: 'Alert-to-incident association', max: 5, items: [
+      { pts: 3, level: 'PRIMARY', label: 'Linked the supported password-spray alert to INC-MN-517', test: (s, x) => x.linked('ALT-5170') },
+      { pts: 2, level: 'PRIMARY', label: 'Linked the supported forwarding alert to INC-MN-517', test: (s, x) => x.linked('ALT-5171') },
+      { pts: -2, level: 'CONTRADICTORY', label: 'Unrelated benign l.brooks alert linked to INC-MN-517', test: (s, x) => x.linked('ALT-5174') },
     ] },
     { id: 'documentation', label: 'Documentation & handoff', max: 15, items: [
       // Communication credit: a complete, structured handoff.
@@ -539,11 +610,14 @@ function moduleThreeScoreAssessment(work) {
   const s = m03eNormalizeDetermination(work?.determination);
   const pins = new Set(Array.isArray(work?.pins) ? work.pins : []);
   const log = Array.isArray(work?.queryLog) ? work.queryLog : [];
+  const incidentLinks = Array.isArray(work?.incidentLinks) ? work.incidentLinks : [];
+  const incidentResolution = m03eResolutionScore(work?.incidentResolutions);
   const x = {
     pinned: (id) => pins.has(id),
     pinCount: (ids) => ids.filter((id) => pins.has(id)).length,
     sourcesQueried: new Set(log.flatMap((q) => q.sources || [])),
     crossSourcePivot: log.some((q) => q.pivot === true),
+    linked: (id) => incidentLinks.some((link) => link.alertId === id && link.incidentId === M03E_INCIDENT_LINK_EXPECTATIONS.prove.incidentId),
     text: [s.handoff.observations, s.handoff.analysis, s.handoff.scope, s.handoff.nextAction, s.notes].join('\n'),
   };
   const competencies = M03E_RUBRIC.competencies.map((comp) => {
@@ -567,18 +641,20 @@ function moduleThreeScoreAssessment(work) {
     };
   });
   const total = competencies.reduce((n, c) => n + c.earned, 0);
+  competencies.push({ id: 'incident-resolution', label: 'Child incident resolution', earned: incidentResolution.earned, max: incidentResolution.max, percentage: Math.round(incidentResolution.earned / incidentResolution.max * 100), passed: incidentResolution.earned === incidentResolution.max, completed: incidentResolution.evidence.length, required: 3, evidence: incidentResolution.evidence, deductions: incidentResolution.deductions, unsafe: [], misses: incidentResolution.misses });
   const criticalMisses = M03E_RUBRIC.critical.filter((c) => !c.test(s)).map((c) => c.label);
   // A critical miss caps the automated recommendation below passing; the
   // instructor can still override on review.
-  const score = criticalMisses.length ? Math.min(total, M03E_RUBRIC.passing - 1) : total;
-  return { score, total, passing: M03E_RUBRIC.passing, passed: score >= M03E_RUBRIC.passing, competencies, criticalMisses };
+  const rawTotal = total + incidentResolution.earned;
+  const score = criticalMisses.length ? Math.min(rawTotal, M03E_RUBRIC.passing - 1) : Math.min(100, rawTotal);
+  return { score, total: Math.min(100, rawTotal), passing: M03E_RUBRIC.passing, passed: score >= M03E_RUBRIC.passing, rubricVersion: 2, competencies, criticalMisses };
 }
 
 /* ------------------------------------------------------------ state */
 
-const M03E_SCOPE_DEFAULT = { tab: 'alerts', query: '', lastQuery: '', selected: null, pins: [], seen: [], queryLog: [], timelineEntity: '', entityKind: 'account' };
-const M03E_PRACTICE_DEFAULT = { ...M03E_SCOPE_DEFAULT, guideStep: 0, guideCollapsed: false, determination: m03eNormalizeDetermination({}), dispositions: {} };
-const M03E_PROVE_DEFAULT = { ...M03E_SCOPE_DEFAULT, determination: m03eNormalizeDetermination({}), startedAt: '', submittedAt: '', attempts: 0, submitMessage: '' };
+const M03E_SCOPE_DEFAULT = { tab: 'alerts', query: '', lastQuery: '', selected: null, pins: [], seen: [], queryLog: [], timelineEntity: '', entityKind: 'account', incidentLinks: [] };
+const M03E_PRACTICE_DEFAULT = { ...M03E_SCOPE_DEFAULT, guideStep: 0, guideCollapsed: false, determination: m03eNormalizeDetermination({}), dispositions: {}, incidentResolutions: m03eNormalizeIncidentResolutions({}) };
+const M03E_PROVE_DEFAULT = { ...M03E_SCOPE_DEFAULT, determination: m03eNormalizeDetermination({}), incidentResolutions: m03eNormalizeIncidentResolutions({}), startedAt: '', submittedAt: '', attempts: 0, submitMessage: '' };
 
 // Guide steps before 'disp-tp' in the original 15-step guide: handoff was index 12.
 const M03E_OLD_HANDOFF_INDEX = 12;
@@ -588,7 +664,9 @@ const m03eStateAdapter = SocConsoleCore.createStateAdapter({
   containerKey: 'console',
   defaultsByScope: M03E_STATE_DEFAULTS,
   normalizeState(st, scope) {
-    ['pins', 'seen', 'queryLog'].forEach((key) => { if (!Array.isArray(st[key])) st[key] = []; });
+    ['pins', 'seen', 'queryLog', 'incidentLinks'].forEach((key) => { if (!Array.isArray(st[key])) st[key] = []; });
+    st.incidentResolutions = m03eNormalizeIncidentResolutions(st.incidentResolutions);
+    st.incidentLinks = st.incidentLinks.filter((link) => link && typeof link.alertId === 'string' && typeof link.incidentId === 'string');
     if (scope === 'prove' || scope === 'practice') st.determination = m03eNormalizeDetermination(st.determination);
     if (scope === 'practice') {
       // Per-alert dispositions (Sprint 3). Older saved practice state has none.
@@ -600,6 +678,16 @@ const m03eStateAdapter = SocConsoleCore.createStateAdapter({
       if (Number(st.guideVersion) === 2) {
         if (Number(st.guideStep) >= M03E_OLD_HANDOFF_INDEX) st.guideStep = Number(st.guideStep) + M03E_DISPOSITION_STEP_COUNT;
         st.guideVersion = 3;
+      }
+      if (Number(st.guideVersion) === 3) {
+        const priorHandoff = M03E_GUIDE_STEPS.findIndex((step) => step.id === 'handoff') - 1;
+        if (Number(st.guideStep) >= priorHandoff) st.guideStep = Number(st.guideStep) + 1;
+        st.guideVersion = 4;
+      }
+      if (Number(st.guideVersion) === 4) {
+        const priorSubmit = M03E_GUIDE_STEPS.findIndex((step) => step.id === 'submit') - 1;
+        if (Number(st.guideStep) >= priorSubmit) st.guideStep = Number(st.guideStep) + 1;
+        st.guideVersion = 5;
       }
     }
     if (scope === 'practice' && !st.determination.submitted && Number(st.guideStep) >= M03E_GUIDE_STEPS.length) st.guideStep = M03E_GUIDE_STEPS.length - 1;
@@ -818,6 +906,25 @@ function m03eDispositionPanel(scope, alert) {
   </section>`;
 }
 
+function m03eIncidentAssociationPanel(scope, alert) {
+  const expectation = M03E_INCIDENT_LINK_EXPECTATIONS[scope];
+  if (!expectation) return '';
+  const st = m03eState(scope);
+  const linked = st.incidentLinks.find((item) => item.alertId === alert.id);
+  const supported = expectation.supported.includes(alert.id);
+  const unrelated = expectation.unrelated.includes(alert.id);
+  const feedback = scope !== 'practice' || !linked ? '' : supported && linked.incidentId === expectation.incidentId
+    ? '<p class="m03e-disp-feedback is-correct" role="status">Supported association recorded on the incident.</p>'
+    : unrelated ? '<p class="m03e-disp-feedback" role="status">This alert has a benign explanation; leave it unlinked from this incident.</p>'
+      : '<p class="m03e-disp-feedback" role="status">Check whether the alert is supported by this incident before associating it.</p>';
+  return `<section class="m03e-disp m03e-incident-link" aria-label="Incident association">
+    <h4>Incident association</h4><p>Incident record: <strong>${esc(expectation.incidentId)}</strong></p>
+    ${linked ? `<p class="m03e-muted">Current link: ${esc(linked.incidentId)}</p>` : '<p class="m03e-muted">Not linked.</p>'}
+    <button type="button" data-m03e-link-incident="${esc(alert.id)}" data-incident-id="${esc(expectation.incidentId)}">Link this alert to incident</button>
+    ${feedback}
+  </section>`;
+}
+
 function m03eDrawer(scope) {
   const st = m03eState(scope), data = M03E_DATA[scope];
   const sel = st.selected;
@@ -841,7 +948,7 @@ function m03eDrawer(scope) {
         timelineAction: timelineBtn,
         renderField: m03eField,
         escapeHtml: esc,
-      }) + m03eDispositionPanel(scope, a) + (M03E_MOUNTS[scope]?.alertDetailHtml?.(a) || '');
+      }) + m03eDispositionPanel(scope, a) + m03eIncidentAssociationPanel(scope, a) + (M03E_MOUNTS[scope]?.alertDetailHtml?.(a) || '');
     }
   }
   if (sel?.type === 'record') {
@@ -1049,7 +1156,7 @@ function m03ePracticeTicketView() {
   const st = m03eState('practice'), d = st.determination;
   const submitted = d.submitted === true;
   const spec = m03ePracticeCaseSpec(submitted);
-  return `<div class="m03e-case-view">${caseRecordPane(d, { ...spec, practiceSubmitted: true, missing: caseRecordMissing(d, { ...spec, notesMin: 80 }), formId: 'm03e-practice-form', saveAttr: 'data-m03e-save-practice', submitAttr: 'data-m03e-submit-practice', panelId: 'm03e-practice-review', showMissing: st.submitMessage === 'missing', lockedMessage: 'Practice submitted' })}${submitted ? '<button type="button" class="m01-reset" data-m03e-practice-restart>Restart Guided Lab</button>' : '<p class="m03e-muted">Submitting this ticket completes the Guided Lab. The guide never blocks Next.</p>'}</div>`;
+    return `<div class="m03e-case-view">${m03eResolutionPanel('practice')}${caseRecordPane(d, { ...spec, practiceSubmitted: true, missing: caseRecordMissing(d, { ...spec, notesMin: 80 }), formId: 'm03e-practice-form', saveAttr: 'data-m03e-save-practice', submitAttr: 'data-m03e-submit-practice', panelId: 'm03e-practice-review', showMissing: st.submitMessage === 'missing', lockedMessage: 'Practice submitted' })}${submitted ? '<button type="button" class="m01-reset" data-m03e-practice-restart>Restart Guided Lab</button>' : '<p class="m03e-muted">Submitting this ticket completes the Guided Lab. The guide never blocks Next.</p>'}</div>`;
 }
 
 // '' until submitted; then 'review' while the latest attempt awaits faculty,
@@ -1133,6 +1240,7 @@ function m03eCaseRecordView() {
   const submitted = d.submitted === true;
   const pins = st.pins.length;
   return `<div class="m03e-case-view">
+    ${m03eResolutionPanel('prove')}
     <p class="m03e-case-attach"><i class="ri-attachment-2" aria-hidden="true"></i> ${pins} pinned evidence record${pins === 1 ? '' : 's'} and ${st.queryLog.length} logged quer${st.queryLog.length === 1 ? 'y' : 'ies'} attach to this ticket on submit. <button type="button" data-m03e-tab="prove:evidence">Review evidence</button></p>
     ${caseRecordPane(d, {
       ...m03eCaseSpec(submitted),
@@ -1160,7 +1268,7 @@ function moduleThreeAssessmentLabPanel() {
 /* ------------------------------------------------------------ actions */
 
 function m03eSave(scope) {
-  if (scope === 'practice') m03eState('practice').guideVersion = 3;
+  if (scope === 'practice') m03eState('practice').guideVersion = 5;
   if (M03E_MOUNTS[scope]) M03E_MOUNTS[scope].save(); else moduleThreeSave();
 }
 function m03eDomId(scope, id) { const prefix = M03E_MOUNTS[scope]?.idPrefix; return prefix ? `${prefix}-${id}` : id; }
@@ -1243,10 +1351,28 @@ function m03eHandleClick(scope, ev) {
   const el = ev.target.closest('button,[data-m03e-select]');
   if (!el) return;
   const d = el.dataset;
+  if (d.m03eResolutionHint != null) { st.incidentResolutions.hints = Math.min(3, st.incidentResolutions.hints + 1); m03eSave(scope); m03eRender(scope, { keepEditor: true }); return; }
+  if (d.m03eResolve) {
+    const row = st.incidentResolutions.children[d.m03eResolve];
+    if (row && row.disposition && row.note.trim().length >= 20 && row.evidence.trim()) row.resolved = true;
+    m03eSave(scope); m03eRender(scope, { keepEditor: true }); return;
+  }
+  if (d.m03eCloseCase) {
+    const ids = scope === 'practice' ? M03E_PRACTICE_CHILD_IDS : M03E_CHILD_INCIDENTS.map((i) => i.id);
+    if (ids.every((id) => st.incidentResolutions.children[id]?.resolved)) st.incidentResolutions.parentClosed = true;
+    m03eSave(scope); m03eRender(scope, { keepEditor: true }); return;
+  }
   if (d.m03ePin) {
     ev.stopPropagation();
     const rid = d.m03ePin.split(':').slice(1).join(':');
     SocEvidenceUi.togglePin(st, rid, { records: M03E_DATA[scope].records });
+    m03eSave(scope); m03eRender(scope, { keepEditor: true });
+    return;
+  }
+  if (d.m03eLinkIncident) {
+    st.incidentLinks = st.incidentLinks.filter((link) => link.alertId !== d.m03eLinkIncident);
+    st.incidentLinks.push({ alertId: d.m03eLinkIncident, incidentId: d.incidentId, at: new Date().toISOString() });
+    st.determination.actionHistory.push({ action: `Linked alert ${d.m03eLinkIncident} to incident ${d.incidentId}`, at: new Date().toISOString() });
     m03eSave(scope); m03eRender(scope, { keepEditor: true });
     return;
   }
@@ -1336,6 +1462,7 @@ function m03eRecordDisposition(alertId, hintOnly) {
 function m03eHandleChange(scope, ev) {
   const st = m03eState(scope);
   const t = ev.target;
+  if (t.matches('[data-m03e-resolution]')) { const [id, field] = t.dataset.m03eResolution.split(':'); if (st.incidentResolutions.children[id]) st.incidentResolutions.children[id][field] = t.value; m03eSave(scope); return; }
   if (scope === 'practice' && t.matches('[data-m03e-disp-value]')) { m03eDispositionDraft(t.dataset.m03eDispValue, 'value', t.value); m03eRender(scope, { keepEditor: true }); return; }
   if (t.matches('[data-m03e-timeline]')) { st.timelineEntity = t.value; if (t.value) m03eSeen(st, `timeline:${t.value}`); m03eSave(scope); m03eRender(scope); }
 }
@@ -1345,6 +1472,7 @@ function m03eHandleFormInput(ev, scope = 'prove') {
   const st = m03eState(scope);
   const d = st.determination;
   const t = ev.target;
+  if (t.matches('[data-m03e-resolution]')) { const [id, field] = t.dataset.m03eResolution.split(':'); if (st.incidentResolutions.children[id]) st.incidentResolutions.children[id][field] = t.value; m03eSave(scope); return; }
   if (!st.startedAt) st.startedAt = new Date().toISOString();
   // Standard ticket controls (case-record.js) carry a `name`, not a
   // `data-m03e-*` attribute. `finding:account-<id>` selects mirror into
@@ -1379,6 +1507,7 @@ function m03eSubmitPractice() {
 function m03eRestartPractice() {
   const st = m03eState('practice');
   Object.assign(st.determination, m03eNormalizeDetermination({}));
+  st.incidentResolutions = m03eNormalizeIncidentResolutions({});
   moduleThreeState.practiceComplete = false;
   st.guideStep = 0; st.guideCollapsed = false; st.tab = M03E_GUIDE_STEPS[0].tab; st.submitMessage = '';
   m03eSave('practice'); moduleThreeRefreshLabPanels();
@@ -1395,7 +1524,7 @@ function m03eSubmitAssessment() {
     m03eSave(); moduleThreeRefreshLabPanels(); return;
   }
   st.submitMessage = '';
-  const performance = moduleThreeScoreAssessment({ determination: d, pins: st.pins, queryLog: st.queryLog });
+  const performance = moduleThreeScoreAssessment({ determination: d, pins: st.pins, queryLog: st.queryLog, incidentLinks: st.incidentLinks, incidentResolutions: st.incidentResolutions });
   st.attempts = (st.attempts || 0) + 1;
   st.submittedAt = new Date().toISOString();
   d.submitted = true;
@@ -1423,8 +1552,8 @@ function m03eSubmitAssessment() {
   // and score-explanation panels; recommended response and pinned evidence
   // (not part of the standard ticket fields) go in `assessment` below.
   const result = {
-    case_record: m03eSyncFindingsView(d),
-    case_display: caseRecordDisplay(d, caseSpec),
+    case_record: { ...m03eSyncFindingsView(d), alertIncidentLinks: st.incidentLinks.map(({ alertId, incidentId, at }) => ({ alertId, incidentId, at })), incidentResolutions: st.incidentResolutions },
+    case_display: [...caseRecordDisplay(d, caseSpec), ['Alert-to-incident links', st.incidentLinks.length ? st.incidentLinks.map((link) => `${link.alertId} → ${link.incidentId}`).join('; ') : 'None recorded']],
     case_summary: caseRecordSummary(d, caseSpec),
     simulator_performance: {
       competencies: performance.competencies.map((c) => ({ label: `${c.label} (${c.earned}/${c.max} pts)`, percentage: c.percentage, passed: c.passed, completed: c.completed, required: c.required })),
@@ -1439,8 +1568,10 @@ function m03eSubmitAssessment() {
       ...performance.competencies.flatMap((c) => [...c.evidence.map((e) => `${c.label} ✓ ${e}`), ...c.deductions.map((e) => `${c.label} ✗ ${e}`), ...c.misses.map((m) => `${c.label} — missed: ${m}`)]),
     ],
     assessment: {
+      rubric_version: performance.rubricVersion, parent_case_status: st.incidentResolutions.parentClosed ? 'closed' : 'open', child_incident_resolutions: st.incidentResolutions.children,
       case_id: data.caseId, attempt: st.attempts, started_at: st.startedAt || st.submittedAt, submitted_at: st.submittedAt,
       selected_evidence: evidence.map((r) => r.__rid),
+      alert_incident_links: st.incidentLinks.map(({ alertId, incidentId, at }) => ({ alert_id: alertId, incident_id: incidentId, recorded_at: at })),
       determinations: { verdict: d.verdict, severity: d.severity, account_status: d.accountStatus, indicators: d.indicators },
       actions: d.actions, actions_labels: d.actions.map((a) => actionLabel[a] || a), escalation: { required: d.escalation, to: d.escalateTo },
       pinned_evidence: evidenceLines,
@@ -1501,14 +1632,14 @@ function wireModuleThreeConsole() {
           return;
         }
       }
-      if (ev.target.closest(`#m03e-console-${scope}`)) m03eHandleClick(scope, ev);
+      if (ev.target.closest(`#m03e-console-${scope}, .m03e-incident-resolution`)) m03eHandleClick(scope, ev);
     });
     section.addEventListener('keydown', (ev) => {
       if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('[data-m03e-select]') && ev.target.tagName !== 'BUTTON') { ev.preventDefault(); m03eHandleClick(scope, ev); }
     });
     section.addEventListener('change', (ev) => {
       const inTicket = scope === 'prove' ? ev.target.closest('#m03e-prove-form') : ev.target.closest('#m03e-practice-form');
-      if (!inTicket && ev.target.closest(`#m03e-console-${scope}`)) { m03eHandleChange(scope, ev); return; }
+      if (!inTicket && ev.target.closest(`#m03e-console-${scope}, .m03e-incident-resolution`)) { m03eHandleChange(scope, ev); return; }
       if (!inTicket) return;
       m03eHandleFormInput(ev, scope);
       // A select/checkbox pick (unlike typing) is safe to re-render on, and
@@ -1525,6 +1656,7 @@ function wireModuleThreeConsole() {
       }
     });
     section.addEventListener('input', (ev) => {
+      if (ev.target.matches('[data-m03e-resolution]')) { m03eHandleFormInput(ev, scope); return; }
       if (scope === 'practice' && ev.target.matches('[data-m03e-disp-reason]')) { m03eDispositionDraft(ev.target.dataset.m03eDispReason, 'reason', ev.target.value); return; }
       if (ev.target.id === m03eDomId(scope, `m03e-kql-${scope}`)) { m03eState(scope).query = ev.target.value; m03eSave(); return; }
       if (ev.target.matches('[data-m03-practice-notes]')) {

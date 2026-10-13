@@ -37,5 +37,7 @@ for (const entry of data.entries) {
   lines.push(`| \`${entry.id}\`: ${cell(entry.capstone.mechanic)} | ${entry.capstone.criterion} | ${entry.capstone.tab} | ${cell(practice(entry))} | ${cell(prove(entry))} | ${cell(code(entry))} | ${cell(entry.gap || '')} |`);
 }
 const gaps = data.entries.filter((e) => !e.practice.length || !e.prove.length);
-lines.push('', `${gaps.length} of ${data.entries.length} mechanics still have a gap: ${gaps.map((e) => `\`${e.id}\``).join(', ')}.`);
+lines.push('', gaps.length
+  ? `${gaps.length} of ${data.entries.length} mechanics still have a gap: ${gaps.map((e) => `\`${e.id}\``).join(', ')}.`
+  : `All ${data.entries.length} mechanics have Practice It and Prove It homes.`);
 console.log(lines.join('\n'));

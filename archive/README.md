@@ -51,6 +51,12 @@ product-architecture planning, explicitly classified as historical-only by
 
 ## `completed-feature-notes/`
 
+- `CAPSTONE_SKILL_BACKFILL.md` — completed the earlier-module Practice It and
+  Prove It homes for all 43 mechanics graded by the SOC Analyst M12 capstone.
+  Focused checks pass and the traceability map has no gaps. Browser verification
+  of the new tasks and PR publication remain separate release steps; the local
+  portal was found targeting production, so no production UAT was performed.
+
 Feature/fix write-ups and progress snapshots for work that finished and is
 live, each already self-marked done or all-checkboxes-complete at the time
 of archiving:

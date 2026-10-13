@@ -170,6 +170,8 @@
 .m03e-disp-label{display:block;margin:10px 0 4px;color:#334155;font-size:11px;font-weight:700}
 .m03e-disp select,.m03e-disp textarea{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#1e293b;font:13px/1.45 Inter,sans-serif}
 .m03e-disp textarea{resize:vertical;min-height:72px}
+.m03e-incident-link button{margin-top:8px;padding:7px 10px;border:1px solid #93c5fd;border-radius:7px;background:#eff6ff;color:#1e3a5f;font-size:12px;font-weight:700;cursor:pointer}
+.m03e-incident-link button:hover{background:#dbeafe}
 .m03e-disp-feedback{margin:10px 0 0;padding:9px 11px;border:1px solid #fed7aa;border-radius:7px;background:#fff7ed;color:#9a3412;font-size:12px;line-height:1.5}
 .m03e-disp-feedback.is-correct{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
 .m03e-disp-hints{margin:10px 0 0;padding-left:18px;color:#475569;font-size:12px;line-height:1.5}
