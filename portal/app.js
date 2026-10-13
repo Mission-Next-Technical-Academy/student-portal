@@ -6500,11 +6500,12 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                          <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="studentId">Student ID<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="track">Track<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="program">Program<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment Status<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="progress">Progress<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="modules">Coursework<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="capstone">Capstone<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="lastActive">Last Active<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] whitespace-nowrap">Enrollment</th>
                          <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
                        </tr>
                      </thead>
@@ -6548,10 +6549,9 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                            <td class="px-3 py-4 text-sm text-gray-600">${row.capstone_overall_score !== null && row.capstone_overall_score !== undefined ? row.capstone_overall_score.toFixed(2) : '—'}</td>
                            <td class="px-3 py-4 text-sm text-gray-600">${row.last_active !== null ? new Date(row.last_active).toLocaleDateString() : '—'}</td>
                            <td class="px-3 py-4 text-sm">
-                             <label class="inline-flex items-center gap-2 cursor-pointer">
+                             <label class="inline-flex items-center gap-2 whitespace-nowrap cursor-pointer">
                                <input type="checkbox" class="sr-only peer" data-admin-enrollment="${esc(row.student_id)}" ${row.enrolled !== false ? 'checked' : ''} aria-label="Enrollment for ${esc(row.student_id)}" />
-                               <span class="relative w-10 h-5 rounded-full bg-gray-300 peer-checked:bg-[#22c55e] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
-                               <span class="text-xs font-semibold text-gray-600">${row.adminStateLabel}</span>
+                               <span class="relative w-10 h-5 shrink-0 rounded-full bg-gray-300 peer-checked:bg-[#22c55e] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
                              </label>
                            </td>
                            <td class="px-3 py-4 text-sm whitespace-nowrap">
