@@ -5827,7 +5827,9 @@ function viewProgram(user, slug) {
           <p class="text-gray-500 text-base">6 Weeks · 12 Modules</p>
           <p class="inline-flex items-center gap-2 text-gray-500 text-xs">
             <span class="w-2.5 h-2.5 rounded-full bg-[#22c55e] ring-4 ring-[#dcfce7]"></span>
-            Green means the content was opened and every module lab was completed
+            ${program.truthfulModuleStates === true
+              ? 'Green means Passed: every required lab reviewed and passed by your instructor.'
+              : 'Green means the content was opened and every module lab was completed'}
           </p>
         </div>
 

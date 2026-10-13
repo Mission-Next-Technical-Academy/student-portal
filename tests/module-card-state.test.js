@@ -371,5 +371,17 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
   await run('recordLabAttempt')(socUser, 'lab-soc-escalation', { state: 'complete' });
   assert.deepEqual(Object.keys(socUser.latestLabAttemptByKey), []);
 
+  // Curriculum legend: opted-in programs describe Passed; others keep the old text.
+  const OLD_LEGEND = 'Green means the content was opened and every module lab was completed';
+  const NEW_LEGEND = 'Green means Passed: every required lab reviewed and passed by your instructor.';
+  const helpDeskPage = run('viewProgram')({ ...hdUser(), name: 'Test Student' }, 'it-support');
+  assert.ok(helpDeskPage.includes(NEW_LEGEND));
+  assert.ok(!helpDeskPage.includes(OLD_LEGEND));
+  for (const [slug, trackCode] of [['soc-analyst', 'SOCAN'], ['ai-ml', 'AIENG'], ['electrical', 'ELECT']]) {
+    const page = run('viewProgram')(makeUser(slug, trackCode, { name: 'Test Student' }), slug);
+    assert.ok(page.includes(OLD_LEGEND), `${slug} keeps the old legend`);
+    assert.ok(!page.includes(NEW_LEGEND), `${slug} does not show the new legend`);
+  }
+
   console.log('module-card-state: ok');
 })().catch((error) => { console.error(error); process.exit(1); });

@@ -12,11 +12,16 @@ program. Randy approved this (Oct 12) on the condition that you validate the
 shared logic. Please: (1) review PR #[number] and the shared logic in
 moduleCardState() / markModuleContentOpened(); (2) decide whether SOC opts in
 (one line: `truthfulModuleStates: true` on the SOC program). Opting in would
-fix two current SOC card issues: practice-lab submissions showing "Awaiting
-Approval" though they're never reviewed, and states that can differ by
-device. Before deciding, check the six SOC modules where data.js LABS lists a
-lab that course_module_labs doesn't require (soc-01, 05, 06, 09, 10, 11; table
-in the PR), and whether those labs are practice labs.
+fix two current SOC card issues: attempts recorded for labs that
+course_module_labs doesn't require (today, as far as the code shows, only
+from the synthetic-completion script) would show "Awaiting Approval" though
+nobody reviews them, and states that can differ by device. Before deciding,
+check the six SOC modules where data.js LABS lists a lab that
+course_module_labs doesn't require (soc-01, 05, 06, 09, 10, 11; table in the
+PR), and whether those labs are practice labs. Today's portal code has no
+submit path for soc-06's lab-threat-hunt, but a code comment says it submits
+and bin/synthesize-soc-m360-completion.js writes attempts for it. Alex,
+please confirm which is intended.
 
 **2026-09-23 (lab-wiring session, out-of-queue, not a `ROADMAP.md` item):**
 if you are touching anything related to Mission Next / imported labs / the
