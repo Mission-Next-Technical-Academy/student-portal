@@ -9,7 +9,7 @@ Revision. Every other program's card is unchanged, pinned by a snapshot of
 master's card HTML in `tests/module-card-state.test.js` (now run by
 `bin/ci-check.sh`). The "opened" write now saves on any device for every
 program. Randy approved this (Oct 12) on the condition that you validate the
-shared logic. Please: (1) review PR #[number] and the shared logic in
+shared logic. Please: (1) review PR #60 and the shared logic in
 moduleCardState() / markModuleContentOpened(); (2) decide whether SOC opts in
 (one line: `truthfulModuleStates: true` on the SOC program). Opting in would
 fix two current SOC card issues: attempts recorded for labs that
