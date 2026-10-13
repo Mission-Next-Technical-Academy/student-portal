@@ -108,6 +108,10 @@ Done:
 - Rubric v3 (`extractV2(state, fixture, 3)`): alert-incident-management = dispositions 3 + one point per incident with a correctly linked alert + ticket core 3 + one point per incident resolved with the supported disposition and cited evidence. Deductions for an alert linked to an incident it does not belong to and for a wrong incident resolution. A CASE `close` earns closure credit only when every child incident is resolved. Unsubmitted attempts load at v3; submitted v1/v2 attempts keep their scores and their single-incident ticket view.
 - UI: ITSM ticket shows `CASE-124821` with its linked incidents and an "Incidents in CASE-124821" panel (status/disposition/note per incident, analyst-made alert links). The Alerts-tab link form is a select of the CASE's incidents. Missing-list items: "No incident status updated yet" and "Resolve … before resolving CASE-124821". The rail shows Practice It → Shift checklist and Prove It → Assessment Lab (the duplicate "Guided Lab" entry is gone).
 - Traceability: new `incident-resolution` and `incident-resolution-wrong-deduction` entries, listed as KNOWN_GAPS until the M01–M11 rollout.
+- One Shift Checklist (13 steps, each tagged with the earlier modules that teach it): manual ticks saved per account in `moduleTwelveState.checklist`, not scored. It replaces the separate Mission requirements card grid.
+- Mission requirements section keeps its heading and now holds one line pointing to the Shift Checklist; `MODULE_TWELVE_REQUIREMENTS`, `MODULE_TWELVE_ARC_CALLBACKS` and `moduleTwelveMissionStatus()` are removed.
+- Submit no longer blocks: `moduleTwelveFinalize()` has no missing-items gate. `moduleTwelveActionMissing()` is removed and the ITSM ticket never shows the requirements list.
+- Traceability entries cite `checklistStep` (Shift Checklist step labels) instead of `missingCheck`.
 - Verification: all M12 unit tests plus a new `tests/soc-m12-assessment-v3.test.js`; `bin/ci-check.sh` green; headless Chrome click-through on :8768 with every Supabase request aborted and persistence stubbed (rail, checklist, CASE header, link + resolve through the real forms, refusal message, close guard).
 
 Open:
