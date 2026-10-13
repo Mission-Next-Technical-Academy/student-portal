@@ -2,7 +2,7 @@
 const SocM12AssessmentState = (() => {
   'use strict';
   const VERSION = 1, MAX_ACTIONS = 1000;
-  const TYPES = Object.freeze(['review-alert','intel-decision','hypothesis','query-run','rule-save','rule-schedule','alert-disposition','incident-link','investigation','evidence-select','attack-map','workflow-design','approval','execute','recovery','report','handoff','closure']);
+  const TYPES = Object.freeze(['review-alert','intel-decision','hypothesis','query-run','rule-save','rule-schedule','incident-link','investigation','evidence-select','attack-map','workflow-design','approval','execute','recovery','report','handoff','closure']);
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const scenarioOf = (f) => { if (!f?.scenario?.id) throw new Error('M12 assessment fixture required.'); return f.scenario; };
   const text = (x, max=4000) => { if (typeof x !== 'string' || !x.trim() || x.length > max) throw new Error('M12 action text is invalid.'); return x.trim(); };
@@ -18,7 +18,6 @@ const SocM12AssessmentState = (() => {
       case 'query-run': state.queryRuns.push(d); if(['correlated','broad'].includes(d.outcome)) { const related=[...new Set(d.matchedEvidence.flatMap(id=>fixture.scenario.evidence.find(e=>e.id===id)?.entityIds||[]))]; state.generatedAlerts.push({id:`M12-QALERT-${String(action.sequence).padStart(3,'0')}`,severity:d.outcome==='correlated'?'High':'Low',title:d.outcome==='correlated'?'Correlated behavior observed in query results':'Broad query returned excess activity',entities:related,ruleId:'Learner-tested query',outcome:d.outcome}); } break;
       case 'rule-save': state.rules.push(d); break;
       case 'rule-schedule': state.schedules.push(d); break;
-      case 'alert-disposition': state.dispositions[d.alertId]=d.disposition; break;
       case 'incident-link': state.incidentLinks.push(d); break;
       case 'investigation': state.investigations.push(d); break;
       case 'evidence-select': if(d.selected) { if(!state.selectedEvidence.includes(d.evidenceId)) state.selectedEvidence.push(d.evidenceId); } else state.selectedEvidence=state.selectedEvidence.filter(x=>x!==d.evidenceId); break;
@@ -40,7 +39,7 @@ const SocM12AssessmentState = (() => {
     const alertExists=(id)=>exists(s.queue,id)||exists(state.generatedAlerts||[],id)||packAlert(id);
     const packRule=(id)=>d.sourceRef?.startsWith('m04:') && /^M04-RULE-\d+$/.test(id);
     switch(type) {
-      case 'review-alert': case 'alert-disposition': if(!alertExists(d.alertId)||!['true-positive','benign-positive','false-positive','needs-investigation'].includes(d.disposition)) throw new Error('Unknown alert or disposition.'); if(d.reason) d.reason=text(d.reason,1000); break;
+      case 'review-alert': if(!alertExists(d.alertId)||!['true-positive','benign-positive','false-positive','needs-investigation'].includes(d.disposition)) throw new Error('Unknown alert or disposition.'); if(d.reason) d.reason=text(d.reason,1000); break;
       case 'intel-decision': if(!exists(s.intelligence,d.indicatorId)||!['malicious','benign','unknown'].includes(d.decision)) throw new Error('Unknown intelligence record or decision.'); d.rationale=text(d.rationale,1000); break;
       case 'hypothesis': d.statement=text(d.statement,1000); d.entityIds=Array.isArray(d.entityIds)?d.entityIds:[]; break;
       case 'query-run': d.query=text(d.query,4000); d.outcome=['correlated','broad','narrow','no-match','other'].includes(d.outcome)?d.outcome:'other'; d.matchedEvidence=(d.matchedEvidence||[]).filter(id=>exists(s.evidence,id)); break;
@@ -65,6 +64,13 @@ const SocM12AssessmentState = (() => {
     }
     return d;
   }
+  // Outcomes a simulated M09 result can carry. partial and failure are recorded
+  // as such: they earn no credit (only success does) but are not unsafe.
+  const SOURCE_BLOCK_REASON='The source tool did not complete this action successfully.';
+  function sourceResult(d) {
+    if(d.sourceOutcome===undefined||d.sourceOutcome===null||d.sourceOutcome==='success') return 'success';
+    return ['partial','failure'].includes(d.sourceOutcome)?d.sourceOutcome:'blocked';
+  }
   function deriveEffect(state,type,d) {
     if(type==='query-run' && typeof SocM12AssessmentConsole!=='undefined') {
       const evaluated=SocM12AssessmentConsole.evaluateQuery(d.query);
@@ -79,8 +85,11 @@ const SocM12AssessmentState = (() => {
       const protectedActions=['isolate','revoke-session'];
       const approval=[...state.approvals].reverse().find(a=>a.action===d.action&&a.target===d.target)?.approved===true;
       const inScope=safeTargets[d.action]===d.target;
-      d.outcome=inScope&&(!protectedActions.includes(d.action)||approval)?'success':'blocked';
-      d.blockReason=d.outcome==='blocked'?(!inScope?'Action target is outside the authorized scenario scope.':'A current approval for this exact action and target is required.'):'';
+      const permitted=inScope&&(!protectedActions.includes(d.action)||approval);
+      // Only an unapproved or out-of-scope attempt is refused. A permitted action
+      // keeps the result the simulated M09 effect reported (partial or failure).
+      d.outcome=permitted?sourceResult(d):'blocked';
+      d.blockReason=d.outcome!=='blocked'?'':!permitted?(!inScope?'Action target is outside the authorized scenario scope.':'A current approval for this exact action and target is required.'):SOURCE_BLOCK_REASON;
     }
     if(type==='recovery') {
       const history=state.executions, done=(action,target)=>history.some(x=>x.action===action&&x.target===target&&x.outcome==='success');
@@ -91,10 +100,9 @@ const SocM12AssessmentState = (() => {
       } else if(d.action==='scan') d.outcome=d.target==='ws-204'&&state.recovery.some(x=>x.action==='restore'&&x.outcome==='success')?'success':'blocked';
       else if(d.action==='monitor') d.outcome=d.target==='ws-204'&&state.recovery.some(x=>x.action==='scan'&&x.outcome==='success')?'success':'blocked';
       else d.outcome='blocked';
-      d.blockReason=d.outcome==='blocked'?'Required target or prior recovery step is missing.':'';
-    }
-    if(['execute','recovery'].includes(type) && d.sourceOutcome && d.sourceOutcome!=='success') {
-      d.outcome='blocked'; d.blockReason='The source tool did not complete this action successfully.';
+      const prerequisitesMet=d.outcome==='success';
+      if(prerequisitesMet) d.outcome=sourceResult(d);
+      d.blockReason=d.outcome!=='blocked'?'':prerequisitesMet?SOURCE_BLOCK_REASON:'Required target or prior recovery step is missing.';
     }
     return d;
   }
@@ -124,7 +132,15 @@ const SocM12AssessmentState = (() => {
     const action={id:`${s.id}:ACTION-${String(sequence).padStart(6,'0')}`,sequence,type,timestamp:at,details:safe};
     reduce(next,action,fixture); next.actionHistory.push(action); next.nextActionSequence=sequence+1; return normalize(next,fixture);
   }
-  function load(user,fixture) { if(typeof LabRuntime==='undefined') throw new Error('LabRuntime required.'); const s=scenarioOf(fixture), loaded=LabRuntime.loadCaseState(s.stateKey,'soc-12',user,{}), normalized=normalize(loaded,fixture); if(JSON.stringify(loaded)!==JSON.stringify(normalized)) LabRuntime.saveCaseState(s.stateKey,'soc-12',user,normalized); return normalized; }
+  // Saved state round-trips through Postgres jsonb, which reorders object keys,
+  // so compare structurally (same approach as the M11 state), never by text.
+  function sameValue(a, b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+    const keys = Object.keys(a).filter((k) => a[k] !== undefined), other = Object.keys(b).filter((k) => b[k] !== undefined);
+    return keys.length === other.length && keys.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameValue(a[k], b[k]));
+  }
+  function load(user,fixture) { if(typeof LabRuntime==='undefined') throw new Error('LabRuntime required.'); const s=scenarioOf(fixture), loaded=LabRuntime.loadCaseState(s.stateKey,'soc-12',user,{}), normalized=normalize(loaded,fixture); if(!sameValue(loaded,normalized)) LabRuntime.saveCaseState(s.stateKey,'soc-12',user,normalized); return normalized; }
   function save(user,state,fixture) { return LabRuntime.saveCaseState(scenarioOf(fixture).stateKey,'soc-12',user,normalize(state,fixture)); }
   function reset(user,fixture) { const s=scenarioOf(fixture), fresh=LabRuntime.resetCaseState(s.stateKey,'soc-12',user,{}); return save(user,normalize(fresh,fixture),fixture); }
   return Object.freeze({VERSION,TYPES,fresh,normalize,record,load,save,reset});
