@@ -1,5 +1,16 @@
 # Live course UAT + faculty Grading UX
 
+## 2026-10-13 capstone skill backfill status
+
+The capstone traceability map now has Practice It and Prove It homes for all
+43 mechanics. New guided tasks cover M03 alert association and child-incident
+resolution, M04 rule saving/scheduling, M06 evidence-backed ATT&CK mapping,
+M09 preservation and recovery, and M11 lessons learned. Focused automated
+checks passed. These additions have not had a real-browser UAT pass yet: the
+local portal was found serving a production target, so no browser sign-in or
+production test was performed. Resume UI verification only after confirming
+`bin/dev.sh status` reports the intended target.
+
 Started 2026-10-05. A learner and an instructor test account work the SOC
 Analyst course side by side in one Chrome window (split view, Claude in
 Chrome) against the local portal (`127.0.0.1:8768`) and the **live** Supabase
