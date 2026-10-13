@@ -136,7 +136,7 @@ const SocM12AssessmentConsole = (() => {
       const alert=selected?.type==='alert' && data.alerts.find(a=>a.id===selected.id); if(!alert)return '';
       return `<section class="m04-console-extra" data-m12-selected-alert="${esc(alert.id)}"><h4>Alert determination · ${esc(alert.id)}</h4>
         <form data-m12-context="alert" data-alert-id="${esc(alert.id)}"><label>Disposition<select name="disposition" required><option value="">Choose…</option>${['true-positive','benign-positive','false-positive','needs-investigation'].map(d=>`<option value="${d}">${d}</option>`).join('')}</select></label><label>Evidence and reasoning<textarea name="reason" required minlength="20" maxlength="1000"></textarea></label><button type="submit">Record alert determination</button></form>
-        <form data-m12-context="incident-link" data-alert-id="${esc(alert.id)}"><label>Incident in ${esc(scenario.parentCase.id)}<select name="incidentId" required><option value="">Choose…</option>${scenario.parentCase.incidents.map(i=>`<option value="${esc(i.id)}">${esc(i.id)} · ${esc(i.title)}</option>`).join('')}</select></label><button type="submit">Link selected alert</button></form></section>`;
+        <form data-m12-context="incident-link" data-alert-id="${esc(alert.id)}"><label>Incident ID<input name="incidentId" required maxlength="120"></label><button type="submit">Link selected alert</button></form></section>`;
     }
     if(tab==='intelligence') {
       const indicator=selected?.type==='intel'&&scenario.intelligence.find(i=>i.id===selected.id);
@@ -228,7 +228,7 @@ const SocM12AssessmentConsole = (() => {
       refresh.m12Contextual=true;
       M03E_AFTER_RENDER.m12=refresh;
     }
-    const mounted=SocConsoleTools.mount('m12',{data,stateRoot:parent,save,title:'CUMULATIVE SOC CAPSTONE',ariaLabel:'Module 12 cumulative SOC capstone console',packs,initialTab:'case',
+    const mounted=SocConsoleTools.mount('m12',{data,stateRoot:parent,save,title:'CUMULATIVE SOC CAPSTONE',ariaLabel:'Module 12 cumulative SOC capstone console',packs,
       extraTabs:[['operations','Operations'],['reporting','Reporting']],views:{...contextualViews,operations:()=>operations({state:()=>moduleTwelveState.assessmentState}),reporting:()=>reporting({state:()=>moduleTwelveState.assessmentState})},
       caseView:()=>moduleTwelveTicketView(),
       caseBadge:()=>moduleTwelveState.submitted?' <i class="ri-checkbox-circle-fill" aria-label="Submitted"></i>':''});
@@ -249,7 +249,6 @@ const SocM12AssessmentConsole = (() => {
         else if(form.dataset.m12Action==='hypothesis') next=api.record(next,fixture,'hypothesis',{statement:v('statement'),entityIds:list('entityIds')});
         else if(form.dataset.m12Action==='handoff') next=api.record(next,fixture,'handoff',{text:v('text'),openRisks:list('openRisks')});
         else if(form.dataset.m12Action==='closure') next=api.record(next,fixture,'closure',{decision:v('decision'),rationale:v('rationale')});
-        else if(form.dataset.m12Action==='incident-update') next=api.record(next,fixture,'incident-update',{incidentId:form.dataset.incidentId,status:v('status'),disposition:v('disposition'),note:v('note')});
         moduleTwelveState.assessmentState=next;
         const stage=form.matches('[data-m12-report]')?'reporting':form.dataset.m12Action==='closure'?'closure':'query';
         moduleTwelveState.stageVisits=[...new Set([...moduleTwelveState.stageVisits,stage])];
@@ -257,17 +256,6 @@ const SocM12AssessmentConsole = (() => {
       } catch(error) { let status=form.querySelector('[role="alert"]'); if(!status){status=document.createElement('p');status.setAttribute('role','alert');form.append(status);} status.textContent=error.message; }
     });
     root.addEventListener('click',(event)=>{
-      // ITSM navigation: open a child incident's record (empty id = back to
-      // the CASE), or jump from an incident to one of its linked alerts.
-      const incidentNav=event.target.closest('[data-m12-open-incident], [data-m12-open-alert]');
-      if(incidentNav) {
-        event.stopPropagation();
-        const st=m03eState('m12');
-        if(incidentNav.hasAttribute('data-m12-open-alert')) { st.tab='alerts'; st.selected={type:'alert',id:incidentNav.dataset.m12OpenAlert}; }
-        else st.openIncident=incidentNav.dataset.m12OpenIncident||'';
-        moduleTwelveSave(); moduleTwelveRender();
-        document.getElementById('m03e-console-m12')?.scrollIntoView({block:'start'}); return;
-      }
       const selection=event.target.closest('[data-m12-select-intel], [data-m12-select-record]');
       if(selection) {
         const st=m03eState('m12');

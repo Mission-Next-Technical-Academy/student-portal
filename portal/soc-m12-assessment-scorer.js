@@ -7,7 +7,7 @@ const SocM12AssessmentScorer = (() => {
     const outcomes={};
     SocM12AssessmentRubric.CRITERIA.forEach(c=>{
       const result=byId.get(c.id); if(!result) throw new TypeError(`M12 rubric criterion missing: ${c.id}`);
-      if(extracted.rubricVersion>=2) {
+      if(extracted.rubricVersion===2) {
         outcomes[c.id]={awards:result.awards||[],deductions:result.deductions||[],evidence:result.evidenceIds,misses:result.misses||[],feedback:`${c.label}: ${result.points} of ${c.weight} points. ${result.explanation}`};
         return;
       }

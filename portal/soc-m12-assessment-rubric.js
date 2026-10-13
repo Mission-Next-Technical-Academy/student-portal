@@ -54,12 +54,9 @@ const SocM12AssessmentRubric = (() => {
     add('reporting-operations-lessons',reportScore>=4?'observed':reportScore?'partial':reportKinds.length?'incomplete':'unknown',[...find('report'),...find('handoff'),...find('closure')].map(a=>a.id),'Evidence-backed reports, uncertainty, handoff and a recovery-aware closure decision.');
     return {rubricVersion:1,criteria,unsafeExecution:unsafe,selectedEvidence:evidenceIds,actionCount:actions.length};
   }
-  // v3 reads the parent CASE: alerts link to the child incident they belong
-  // to, each incident is resolved on its own evidence, and the CASE closes
-  // only once every child incident is resolved. Everything else matches v2.
-  function extractV2(state, fixture, version=2) {
-    const x=state||{}, s=fixture?.scenario, truth=fixture?.expectedTruth, v3=version===3;
-    if(!s||!truth) return {rubricVersion:version,criteria:CRITERIA.map(c=>({...outcome(c.id,'unknown',[],'Scenario unavailable.'),points:0,misses:['Scenario unavailable.']}))};
+  function extractV2(state, fixture) {
+    const x=state||{}, s=fixture?.scenario, truth=fixture?.expectedTruth;
+    if(!s||!truth) return {rubricVersion:2,criteria:CRITERIA.map(c=>({...outcome(c.id,'unknown',[],'Scenario unavailable.'),points:0,misses:['Scenario unavailable.']}))};
     const actions=list(x.actionHistory), investigations=list(x.investigations), selected=list(x.selectedEvidence);
     const support=truth.evidenceSupport||{}, rows=new Map(s.evidence.map(e=>[e.id,e]));
     const idsFor=(types)=>actions.filter(a=>types.includes(a.type)).map(a=>a.id);
@@ -108,23 +105,12 @@ const SocM12AssessmentRubric = (() => {
     const expectedAlert=(id)=>truth.alertDispositions[id]||((generated.find(a=>a.id===id)?.outcome==='correlated')?'true-positive':null);
     const correctDispositions=dispositions.filter(([id,d])=>d===expectedAlert(id));
     const badDispositions=dispositions.filter(([id,d])=>expectedAlert(id)&&d!=='needs-investigation'&&d!==expectedAlert(id));
-    const links=list(x.incidentLinks), childIds=list(s.parentCase?.incidents).map(i=>i.id);
-    // A correlated learner-generated alert belongs with either confirmed incident.
-    const belongs=(l)=>list(truth.incidentAlerts?.[l.incidentId]).includes(l.alertId)||(!truth.alertDispositions[l.alertId]&&expectedAlert(l.alertId)==='true-positive'&&truth.incidentDispositions?.[l.incidentId]==='true-positive');
-    const validLinks=v3?links.filter(belongs):links.filter(l=>l.incidentId===s.caseId&&expectedAlert(l.alertId)==='true-positive');
-    const badLinks=v3?links.filter(l=>childIds.includes(l.incidentId)&&expectedAlert(l.alertId)&&!belongs(l)):links.filter(l=>l.incidentId===s.caseId&&expectedAlert(l.alertId)&&expectedAlert(l.alertId)!=='true-positive');
-    const incidents=x.incidents||{}, unresolved=childIds.filter(id=>incidents[id]?.status!=='resolved');
-    const resolvedWell=childIds.filter(id=>{
-      const i=incidents[id]; if(i?.status!=='resolved'||i.disposition!==truth.incidentDispositions[id]||String(i.note||'').length<30) return false;
-      return list(truth.incidentEvidence[id]).some(e=>list(i.evidenceIds).includes(e)||mentions(i.note,e));
-    });
-    const badResolutions=childIds.filter(id=>incidents[id]?.status==='resolved'&&incidents[id].disposition!==truth.incidentDispositions[id]);
-    const linkedIncidents=unique(validLinks.map(l=>l.incidentId));
+    const links=list(x.incidentLinks), validLinks=links.filter(l=>l.incidentId===s.caseId&&expectedAlert(l.alertId)==='true-positive');
+    const badLinks=links.filter(l=>l.incidentId===s.caseId&&expectedAlert(l.alertId)&&expectedAlert(l.alertId)!=='true-positive');
     const core=[...actions].reverse().find(a=>a.details?.ticketCore)?.details.ticketCore;
     const priorityEvidence=core&&s.evidence.filter(e=>mentions(core.priorityRationale,e.id)&&support[e.id]?.level==='PRIMARY');
     const coreValid=core&&truth.affectedEntities.includes(core.affectedUser)&&truth.affectedEntities.includes(core.affectedDevice)&&['high','critical'].includes(core.severity)&&priorityEvidence.length>0;
-    if(v3) add('alert-incident-management',[award(Math.min(3,correctDispositions.length),'Supported alert dispositions.'),award(linkedIncidents.length,'Supported alerts are linked to the incident they belong to.'),award(coreValid?3:0,'Ticket priority and affected entities are justified by cited evidence.'),award(resolvedWell.length,'Incidents are resolved with the supported disposition and cited evidence.')],[...childIds.filter(id=>!linkedIncidents.includes(id)).map(id=>`${id}: no supported alert linked.`),...childIds.filter(id=>!resolvedWell.includes(id)).map(id=>`${id}: not resolved on cited evidence.`),...(!coreValid?['Ticket priority/scope is incomplete or unsupported.']:[])],idsFor(['review-alert','alert-disposition','incident-link','incident-update','investigation','report']),[...badDispositions.map(([id])=>award(2,`${id}: unsupported alert disposition.`)),...badLinks.map(l=>award(2,`${l.alertId}: linked to ${l.incidentId}, which it does not belong to.`)),...badResolutions.map(id=>award(2,`${id}: resolved with a disposition the evidence does not support.`))]);
-    else add('alert-incident-management',[award(Math.min(4,correctDispositions.length*2),'Supported alert dispositions.'),award(validLinks.length?4:0,'A supported alert is linked to the incident.'),award(coreValid?4:0,'Ticket priority and affected entities are justified by cited evidence.')],[...(!validLinks.length?['No supported incident association.']:[]),...(!coreValid?['Ticket priority/scope is incomplete or unsupported.']:[])],idsFor(['review-alert','alert-disposition','incident-link','investigation','report']),[...badDispositions.map(([id])=>award(2,`${id}: unsupported alert disposition.`)),...badLinks.map(l=>award(2,`${l.alertId}: unrelated alert linked to the incident.`))]);
+    add('alert-incident-management',[award(Math.min(4,correctDispositions.length*2),'Supported alert dispositions.'),award(validLinks.length?4:0,'A supported alert is linked to the incident.'),award(coreValid?4:0,'Ticket priority and affected entities are justified by cited evidence.')],[...(!validLinks.length?['No supported incident association.']:[]),...(!coreValid?['Ticket priority/scope is incomplete or unsupported.']:[])],idsFor(['review-alert','alert-disposition','incident-link','investigation','report']),[...badDispositions.map(([id])=>award(2,`${id}: unsupported alert disposition.`)),...badLinks.map(l=>award(2,`${l.alertId}: unrelated alert linked to the incident.`))]);
     const domainWeights={identity:4,email:3,endpoint:4,network:3,exposure:4};
     const domainAwards=Object.entries(domainWeights).map(([domain,weight])=>award(Math.round(weight*Math.max(0,...investigations.filter(i=>i.domain===domain).map(i=>findingCredit(i,domain)))),`${domain}: evidence-linked domain analysis.`));
     const contradictedFindings=investigations.filter(i=>i.domain!=='timeline'&&i.domain!=='scope'&&maliciousClaim(textOf(i))&&citations(i).some(id=>support[id]?.level==='CONTRADICTORY'));
@@ -157,17 +143,17 @@ const SocM12AssessmentRubric = (() => {
     const reports=x.reports||{}, technical=reports.technical, executive=reports.executive, lessons=reports.lessons;
     const reportSupport=(r,min)=>r&&textOf(r).length>=min&&citations(r).filter(id=>['PRIMARY','SECONDARY','SUPPORTING'].includes(support[id]?.level)&&grounded(r,id)).length>=1&&citations(r).filter(id=>support[id]?.level==='IRRELEVANT'||support[id]?.level==='CONTRADICTORY').length===0;
     const handoff=list(x.handoffs).some(h=>h.text?.length>=40&&(truth.affectedEntities.some(e=>mentions(h.text,e))||list(h.openRisks).some(r=>truth.residualRisk.includes(r))));
-    const closure=x.closure, closureSupported=closure&&closure.rationale?.length>=40&&(truth.affectedEntities.some(e=>mentions(closure.rationale,e))||s.evidence.some(e=>mentions(closure.rationale,e.id)))&&(closure.decision==='retain'||(closure.decision==='close'&&restored&&scanned&&monitored&&!(v3&&unresolved.length)));
+    const closure=x.closure, closureSupported=closure&&closure.rationale?.length>=40&&(truth.affectedEntities.some(e=>mentions(closure.rationale,e))||s.evidence.some(e=>mentions(closure.rationale,e.id)))&&(closure.decision==='retain'||(closure.decision==='close'&&restored&&scanned&&monitored));
     const written=Object.values(reports).some(r=>textOf(r).length>=80);
     add('reporting-operations-lessons',[award(reportSupport(technical,80)?3:0,'Technical narrative identifies cited evidence or its entities.'),award(reportSupport(executive,80)?1:0,'Executive summary is grounded in incident evidence.'),award(reportSupport(lessons,40)?1:0,'Lessons reference an evidenced control gap.'),award(handoff?1:0,'Handoff identifies entities or outstanding scenario risks.'),award(closureSupported?1:0,'Closure reasoning cites the case and recovery status.'),award(written?1:0,'Readable written communication is present.')],[...(!reportSupport(technical,80)?['Technical narrative lacks supported citations/entities.']:[]),...(!reportSupport(executive,80)?['Executive narrative lacks supported citations/entities.']:[])],idsFor(['report','handoff','closure']));
     const studentResponses=[...Object.entries(reports).map(([kind,r])=>({kind,text:r.text,evidenceIds:list(r.evidenceIds)})),...list(x.handoffs).map(h=>({kind:'handoff',text:h.text})),...(closure?[{kind:'closure',text:closure.rationale}]:[]),...scopeFindings.map(i=>({kind:'scope',text:i.finding,evidenceIds:list(i.evidenceIds)})),...(core?.priorityRationale?[{kind:'priority',text:core.priorityRationale}]:[])];
-    return {rubricVersion:version,criteria,unsafeExecution,selectedEvidence:selected,actionCount:actions.length,reviewArtifact:{studentResponses,studentDeterminations:{intelligence:x.intelligence||{},dispositions:x.dispositions||{},findings:investigations,attackMappings:mappings,ticketCore:core||null,...(v3?{caseId:s.parentCase.id,incidents:childIds.map(id=>({id,...(incidents[id]||{status:'new'}),linkedAlerts:links.filter(l=>l.incidentId===id).map(l=>l.alertId)}))}:{})},studentActions:actions.filter(a=>!['query-run','evidence-select'].includes(a.type)),selectedEvidence:selected,instructorReviewStatus:'needs_review'}};
+    return {rubricVersion:2,criteria,unsafeExecution,selectedEvidence:selected,actionCount:actions.length,reviewArtifact:{studentResponses,studentDeterminations:{intelligence:x.intelligence||{},dispositions:x.dispositions||{},findings:investigations,attackMappings:mappings,ticketCore:core||null},studentActions:actions.filter(a=>!['query-run','evidence-select'].includes(a.type)),selectedEvidence:selected,instructorReviewStatus:'needs_review'}};
   }
 
   // Unversioned historical actions retain their original interpretation.
   function extract(state, fixture, options={}) {
-    const version=options.rubricVersion ?? state?.rubricVersion ?? 1;
-    return version === 2 || version === 3 ? extractV2(state, fixture, version) : extractV1(state, fixture);
+    return (options.rubricVersion ?? state?.rubricVersion ?? 1) === 2
+      ? extractV2(state, fixture) : extractV1(state, fixture);
   }
-  return Object.freeze({CURRENT_VERSION:3,CRITERIA,extract,extractV1,extractV2});
+  return Object.freeze({CURRENT_VERSION:2,CRITERIA,extract,extractV1,extractV2});
 })();

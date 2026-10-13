@@ -23,8 +23,6 @@ const KNOWN_GAPS = {
   'rule-scheduled': ['practice'],
   'alert-incident-link': ['practice', 'prove'],
   'alert-incident-link-unrelated-deduction': ['practice', 'prove'],
-  'incident-resolution': ['practice', 'prove'],
-  'incident-resolution-wrong-deduction': ['practice', 'prove'],
   'attack-mapping': ['practice'],
   'attack-unsupported-deduction': ['practice'],
   'evidence-preserved-before-eradication': ['practice'],
