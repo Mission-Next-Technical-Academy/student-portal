@@ -1,3 +1,23 @@
+**2026-10-12 (Megan; shared portal/app.js and portal/data.js — action needed
+from Alex):** Module card states are rebuilt behind an opt-in program flag
+`truthfulModuleStates` (portal/data.js), on for Help Desk only. For opted-in
+programs, card state comes only from the database (course_module_labs,
+lab_attempts, module_progress, the verified record), reflects every required
+lab, shows per-lab status, and uses the labels Not Started, In Progress,
+Practice Submitted, Submitted for Faculty Review, Passed, Returned for
+Revision. Every other program's card is unchanged, pinned by a snapshot of
+master's card HTML in `tests/module-card-state.test.js` (now run by
+`bin/ci-check.sh`). The "opened" write now saves on any device for every
+program. Randy approved this (Oct 12) on the condition that you validate the
+shared logic. Please: (1) review PR #[number] and the shared logic in
+moduleCardState() / markModuleContentOpened(); (2) decide whether SOC opts in
+(one line: `truthfulModuleStates: true` on the SOC program). Opting in would
+fix two current SOC card issues: practice-lab submissions showing "Awaiting
+Approval" though they're never reviewed, and states that can differ by
+device. Before deciding, check the six SOC modules where data.js LABS lists a
+lab that course_module_labs doesn't require (soc-01, 05, 06, 09, 10, 11; table
+in the PR), and whether those labs are practice labs.
+
 **2026-09-23 (lab-wiring session, out-of-queue, not a `ROADMAP.md` item):**
 if you are touching anything related to Mission Next / imported labs / the
 Guided Lab / Assessment Lab wiring for Modules 2–11, read
