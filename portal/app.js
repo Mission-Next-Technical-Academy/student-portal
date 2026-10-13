@@ -168,9 +168,16 @@ async function fetchUserDetails(userId, trackCode) {
   // "under review" (reviewed_at null) from "graded" without another query.
   let latestLabAttemptByKey = {};
   let reviewedLabFeedbackByLabKey = {};
+  // Instructor notes on each lab whose latest attempt was sent back, by lab
+  // key (openLabRedosByModuleKey keeps only one lab per module).
+  let openLabRedoFeedbackByLabKey = {};
+  // The required labs of each module, from course_module_labs: the same list
+  // student_verified_module_progress checks. null when the read failed, so
+  // callers fall back to the client's LABS catalogue.
+  let requiredLabsByModuleKey = null;
   let studentMessages = [];
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, studentMessages };
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
   }
 
   const [
@@ -179,6 +186,7 @@ async function fetchUserDetails(userId, trackCode) {
     evidenceResult,
     { data: attemptRows, error: attemptsError },
     { data: messageRows, error: messagesError },
+    { data: requiredLabRows, error: requiredLabsError },
   ] = await Promise.all([
     mntSupabase.from('module_progress').select('module_key, state, detail, case_state').eq('user_id', userId).eq('track_code', trackCode),
     // This view is the institutional completion record.  It derives a
@@ -197,7 +205,7 @@ async function fetchUserDetails(userId, trackCode) {
     // redo clears on its own — no separate acknowledgment step needed.
     mntSupabase
       .from('lab_attempts')
-      .select('id, lab_key, completed_at, reviewed_at, redo_requested')
+      .select('id, lab_key, completed_at, reviewed_at, redo_requested, superseded_at')
       .eq('user_id', userId)
       .eq('track_code', trackCode)
       .not('completed_at', 'is', null)
@@ -210,6 +218,7 @@ async function fetchUserDetails(userId, trackCode) {
       .eq('student_id', userId)
       .eq('track_code', trackCode)
       .order('created_at', { ascending: true }),
+    mntSupabase.from('course_module_labs').select('module_key, lab_key').eq('track_code', trackCode),
   ]);
 
   if (progressError) {
@@ -241,7 +250,7 @@ async function fetchUserDetails(userId, trackCode) {
       if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
     });
     latestByLabKey.forEach((row, labKey) => {
-      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true };
+      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null };
     });
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
     // Notes left while approving were saved but never shown to the learner.
@@ -264,6 +273,7 @@ async function fetchUserDetails(userId, trackCode) {
         if (items.length) reviewedLabFeedbackByLabKey[row.lab_key] = items;
       });
       openAttempts.forEach((row) => {
+        openLabRedoFeedbackByLabKey[row.lab_key] = feedbackByAttemptId.get(row.id) || [];
         const lab = LABS.find((l) => l.key === row.lab_key);
         if (!lab) return; // stale/renamed lab key — nothing to point the student at
         openLabRedosByModuleKey[lab.module] = {
@@ -281,7 +291,16 @@ async function fetchUserDetails(userId, trackCode) {
     studentMessages = messageRows || [];
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, studentMessages };
+  if (requiredLabsError) {
+    console.error('fetchUserDetails: course_module_labs fetch failed; module cards fall back to the LABS catalogue', requiredLabsError);
+  } else {
+    requiredLabsByModuleKey = {};
+    (requiredLabRows || []).forEach((row) => {
+      requiredLabsByModuleKey[row.module_key] = [...(requiredLabsByModuleKey[row.module_key] || []), row.lab_key];
+    });
+  }
+
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
 }
 
 async function buildUserFromSession(session) {
@@ -3715,8 +3734,8 @@ async function downloadStudentSnapshot(studentId, identity) {
  * user.userId/user.trackCode, which are only populated on a real Supabase
  * Auth session (buildUserFromSession) — no session, no write, no throw. */
 
-async function upsertModuleProgress(user, moduleKey, fields) {
-  if (!user || !user.userId || !user.trackCode) return;
+async function upsertModuleProgress(user, moduleKey, fields, { insertOnly = false } = {}) {
+  if (!user || !user.userId || !user.trackCode) return false;
   try {
     const { error } = await mntSupabase.from('module_progress').upsert(
       {
@@ -3725,11 +3744,15 @@ async function upsertModuleProgress(user, moduleKey, fields) {
         track_code: user.trackCode,
         ...fields,
       },
-      { onConflict: 'user_id,module_key' }
+      // insertOnly: ON CONFLICT DO NOTHING, so a row another tab or device
+      // created since our read keeps its values.
+      { onConflict: 'user_id,module_key', ignoreDuplicates: insertOnly }
     );
     if (error) console.error('module_progress upsert failed', moduleKey, fields, error);
+    return !error;
   } catch (err) {
     console.error('module_progress upsert threw', moduleKey, fields, err);
+    return false;
   }
 }
 
@@ -3782,24 +3805,60 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
 }
 
 /* Only ever writes 'in_progress', and only when this module's row isn't
- * already 'complete' — a read-before-write, chosen over a conditional upsert
- * because supabase-js has no clean way to express an upsert with a WHERE
- * predicate on the existing row. This is the sole guard against regressing a
- * completed module back to in_progress; markModuleCompleteRemote below never
- * needs a symmetric check since going TO complete is never a regression. */
+ * already 'in_progress' or 'complete' — a read-before-write, chosen over a
+ * conditional upsert because supabase-js has no clean way to express an upsert
+ * with a WHERE predicate on the existing row. This is the sole guard against
+ * regressing a completed module back to in_progress (and against resetting
+ * started_at); markModuleCompleteRemote below never needs a symmetric check
+ * since going TO complete is never a regression. Updates the in-session copy
+ * of the row so later opens this session skip the round trip. */
+const moduleInProgressWrites = new Set();
 function markModuleInProgressRemote(user, moduleKey) {
-  if (!user || !user.userId || !user.trackCode) return;
-  mntSupabase
+  if (!user || !user.userId || !user.trackCode) return Promise.resolve(false);
+  const writeKey = `${user.userId}:${user.trackCode}:${moduleKey}`;
+  if (moduleInProgressWrites.has(writeKey)) return Promise.resolve(false);
+  moduleInProgressWrites.add(writeKey);
+  const remember = (state) => { user.remoteModuleProgress = { ...(user.remoteModuleProgress || {}), [moduleKey]: state }; };
+  return mntSupabase
     .from('module_progress')
     .select('state')
     .eq('user_id', user.userId)
+    .eq('track_code', user.trackCode)
     .eq('module_key', moduleKey)
     .maybeSingle()
     .then(({ data, error }) => {
-      if (error) { console.error('module_progress read failed', moduleKey, error); return; }
-      if (data && data.state === 'complete') return;
-      upsertModuleProgress(user, moduleKey, { state: 'in_progress', started_at: new Date().toISOString() });
-    });
+      if (error) { console.error('module_progress read failed', moduleKey, error); return false; }
+      if (data && (data.state === 'complete' || data.state === 'in_progress')) { remember(data.state); return true; }
+      const fields = { state: 'in_progress', started_at: new Date().toISOString() };
+      // No row yet: insert only. Two tabs or devices opening the module at
+      // once both see "no row"; the second insert is ignored instead of
+      // resetting the first one's started_at.
+      if (!data) {
+        return upsertModuleProgress(user, moduleKey, fields, { insertOnly: true })
+          .then((saved) => { if (saved) remember('in_progress'); return saved; });
+      }
+      // A not_started row (e.g. one an admin override created): update it
+      // only while it still says not_started, so a second tab that read the
+      // same row can't overwrite the first tab's started_at.
+      return mntSupabase
+        .from('module_progress')
+        .update(fields)
+        .eq('user_id', user.userId)
+        .eq('track_code', user.trackCode)
+        .eq('module_key', moduleKey)
+        .eq('state', 'not_started')
+        .select('state')
+        .then(({ data: updated, error: updateError }) => {
+          if (updateError) { console.error('module_progress in_progress update failed', moduleKey, updateError); return false; }
+          // No row matched: another tab or device moved it on first; the next
+          // open reads whatever it wrote.
+          if (!updated || !updated.length) return false;
+          remember('in_progress');
+          return true;
+        });
+    })
+    .catch((err) => { console.error('module_progress in_progress write threw', moduleKey, err); return false; })
+    .finally(() => moduleInProgressWrites.delete(writeKey));
 }
 
 function markModuleCompleteRemote(user, moduleKey) {
@@ -3855,6 +3914,14 @@ function recordModuleCompletionEvidence(user, moduleKey, evidenceKeys) {
   }).catch((err) => { console.error('module completion evidence insert threw', moduleKey, err); return null; });
 }
 
+/* The browser flag still feeds the card of programs without
+ * truthfulModuleStates. The database write used to sit inside that flag's
+ * first-time check: when the card trusted this browser, the row was only a
+ * copy for admin reports, and skipping it saved a read and a write on every
+ * open. A failed write, or a first open on another device, then left no row
+ * at all. The row is now the record, so it is written whenever this
+ * session's copy of the database has no in_progress/complete row for the
+ * module, whatever this browser remembers. */
 function markModuleContentOpened(user, programSlug, moduleKey) {
   if (!user) return;
   const engagement = loadModuleEngagement(user);
@@ -3862,8 +3929,9 @@ function markModuleContentOpened(user, programSlug, moduleKey) {
   if (!engagement.openedModules.includes(id)) {
     engagement.openedModules.push(id);
     saveModuleEngagement(user, engagement);
-    markModuleInProgressRemote(user, moduleKey);
   }
+  const remoteState = (user.remoteModuleProgress || {})[moduleKey];
+  if (remoteState !== 'in_progress' && remoteState !== 'complete') markModuleInProgressRemote(user, moduleKey);
 }
 
 function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed = true) {
@@ -3927,6 +3995,13 @@ function recordLabAttempt(user, labKey, { state, score = null, result = {}, subm
     .then(({ error }) => {
       if (error) { console.error('lab_attempts insert failed', labKey, error); return false; }
       const lab = LABS.find((item) => item.key === labKey);
+      // Opted-in module cards read lab_attempts as loaded at sign-in; record
+      // this saved row in that copy so the program page is current without a
+      // reload. Other programs' module pages keep their own copies.
+      const labProgram = lab && PROGRAMS.find((p) => p.modules && p.modules[lab.module]);
+      if (labProgram && labProgram.truthfulModuleStates && state === 'complete') {
+        user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [labKey]: { completedAt: now, reviewedAt: null, redoRequested: false, supersededAt: null } };
+      }
       // The insert's database trigger updates the verified read model. Fetch
       // that result after the successful write instead of promoting local
       // storage to an academic completion fact.
@@ -4043,6 +4118,111 @@ function moduleCompletion(program, moduleKey, user) {
   // course credit or the percentage displayed to a learner/admin.
   const complete = module.status !== 'draft' && remoteComplete && !hasOpenLabRedo;
   return { complete, contentOpened, allLabsComplete, fixtureState, module };
+}
+
+/* ---------------------------------------------- database-only module card */
+/* Programs with `truthfulModuleStates: true` (portal/data.js) derive a module
+ * card's state only from database rows fetchUserDetails() loaded: the
+ * verified record, course_module_labs, lab_attempts and module_progress.
+ * Nothing here reads browser storage, so every device shows the same card. */
+
+// The module's required labs: its course_module_labs rows, the list
+// student_verified_module_progress checks. If that read failed, the LABS
+// catalogue's non-optional, non-practice labs stand in (they matched the
+// registry for every Help Desk module when this was written).
+function moduleRequiredLabKeys(program, moduleKey, user) {
+  const registry = user && user.requiredLabsByModuleKey;
+  if (registry) return registry[moduleKey] || [];
+  return programLabs(program)
+    .filter((lab) => lab.module === moduleKey && lab.optional !== true && lab.phase !== 'practice')
+    .map((lab) => lab.key);
+}
+
+// Practice labs are only those a lab record explicitly marks
+// `phase: 'practice'`; none are marked yet, so practice_submitted stays dormant.
+function modulePracticeLabKeys(program, moduleKey) {
+  return programLabs(program)
+    .filter((lab) => lab.module === moduleKey && lab.optional !== true && lab.phase === 'practice')
+    .map((lab) => lab.key);
+}
+
+function requiredLabStatus(attempt) {
+  if (!attempt || !attempt.completedAt || attempt.supersededAt) return 'not_submitted';
+  if (attempt.redoRequested) return 'returned';
+  if (attempt.reviewedAt) return 'passed';
+  return 'waiting';
+}
+
+/* State order: locked, draft, needs_redo, complete, awaiting_approval,
+ * practice_submitted, in_progress, not_started. */
+function moduleCardState(program, moduleKey, user, unlocked) {
+  const module = program.modules[moduleKey];
+  const attempts = (user && user.latestLabAttemptByKey) || {};
+  const notes = (user && user.openLabRedoFeedbackByLabKey) || {};
+  const labs = moduleRequiredLabKeys(program, moduleKey, user).map((key) => {
+    const record = LABS.find((lab) => lab.key === key);
+    const status = requiredLabStatus(attempts[key]);
+    return { key, title: record ? record.title : key, status, feedback: status === 'returned' ? (notes[key] || []) : [] };
+  });
+  const submitted = labs.filter((lab) => lab.status === 'waiting' || lab.status === 'passed').length;
+  const waiting = labs.filter((lab) => lab.status === 'waiting').length;
+  const summary = { labs, required: labs.length, submitted, waiting };
+  const practiceKeys = modulePracticeLabKeys(program, moduleKey);
+  const hasAttempt = (key) => !!(attempts[key] && attempts[key].completedAt);
+  const moduleLabKeys = [...labs.map((lab) => lab.key), ...practiceKeys,
+    ...programLabs(program).filter((lab) => lab.module === moduleKey).map((lab) => lab.key),
+    `${moduleKey}-knowledge-check`];
+  const state = !unlocked ? 'locked'
+    : module.status === 'draft' ? 'draft'
+    : labs.some((lab) => lab.status === 'returned') ? 'needs_redo'
+    : moduleCompletion(program, moduleKey, user).complete ? 'complete'
+    : labs.length && submitted === labs.length && waiting > 0 ? 'awaiting_approval'
+    : practiceKeys.length && practiceKeys.every(hasAttempt) && labs.every((lab) => !attempts[lab.key]) ? 'practice_submitted'
+    : Object.prototype.hasOwnProperty.call((user && user.remoteModuleProgress) || {}, moduleKey)
+      || moduleLabKeys.some(hasAttempt) ? 'in_progress'
+    : 'not_started';
+  return { state, ...summary };
+}
+
+const TRUTHFUL_DOT_LABELS = {
+  complete: 'Module Passed: all required labs passed and reviewed by your instructor.',
+  incomplete: 'Module not passed yet: complete the module and submit every required lab for review by your instructor.',
+};
+
+function truthfulLabLine(lab) {
+  if (lab.status === 'passed') return `${esc(lab.title)} passed.`;
+  if (lab.status === 'returned') return `${esc(lab.title)} returned for revision.`;
+  if (lab.status === 'waiting') return `${esc(lab.title)}: waiting on your instructor.`;
+  return `${esc(lab.title)}: not submitted yet.`;
+}
+
+// The per-lab panel under the card summary. Only promises the next module
+// unlocks on approval once every required lab is in.
+function truthfulLabStatusPanel(card) {
+  const showFor = ['needs_redo', 'awaiting_approval', 'in_progress'];
+  if (!showFor.includes(card.state) || !card.required) return '';
+  if (card.state === 'in_progress' && !card.labs.some((lab) => lab.status !== 'not_submitted')) return '';
+  const tone = card.state === 'needs_redo'
+    ? { box: 'border-red-200 bg-red-50', text: 'text-red-700', icon: 'ri-error-warning-line' }
+    : card.state === 'awaiting_approval'
+      ? { box: 'border-[#bfdbfe] bg-[#eff6ff]', text: 'text-[#1d4ed8]', icon: 'ri-time-line' }
+      : { box: 'border-gray-200 bg-gray-50', text: 'text-gray-700', icon: 'ri-flask-line' };
+  const footer = card.state === 'needs_redo'
+    ? 'Open the module to see what to change and resubmit.'
+    : card.submitted < card.required
+      ? 'The next module unlocks once every required lab is submitted and approved.'
+      : card.waiting
+        ? `The next module unlocks as soon as your instructor approves the remaining lab${card.waiting === 1 ? '' : 's'}.`
+        : 'Every required lab is approved. Open the module to finish its remaining steps.';
+  return `<div class="mb-3 rounded-lg border ${tone.box} px-3 py-2.5" data-module-lab-status>
+          <p class="text-xs font-semibold ${tone.text} flex items-center gap-1.5"><i class="${tone.icon}" aria-hidden="true"></i>${card.submitted} of ${card.required} required lab${card.required === 1 ? '' : 's'} submitted</p>
+          <ul class="mt-1.5 space-y-1 text-xs ${tone.text}">
+            ${card.labs.map((lab) => `<li data-lab-status="${lab.status}">${truthfulLabLine(lab)}${lab.feedback.length
+              ? `<ul class="mt-1 ml-3 space-y-0.5 list-disc list-inside opacity-90">${lab.feedback.map((f) => `<li>${f.item_label ? `<strong>${esc(f.item_label)}:</strong> ` : ''}${esc(f.comment)}</li>`).join('')}</ul>`
+              : ''}</li>`).join('')}
+          </ul>
+          <p class="mt-1.5 text-xs ${tone.text} opacity-90">${footer}</p>
+        </div>`;
 }
 
 function programProgress(user, program) {
@@ -5247,6 +5427,8 @@ const STATE_STYLES = {
   in_progress: { label: 'In Progress', icon: 'ri-progress-4-line',      cls: 'bg-[#fff7ed] border-[#fed7aa] text-[#c2410c]' },
   needs_redo:  { label: 'Redo Requested', icon: 'ri-error-warning-line', cls: 'bg-[#fef2f2] border-[#fecaca] text-[#b91c1c]' },
   awaiting_approval: { label: 'Awaiting Approval', icon: 'ri-time-line', cls: 'bg-[#eff6ff] border-[#bfdbfe] text-[#1d4ed8]' },
+  // Reached only by programs with truthfulModuleStates (moduleCardState()).
+  practice_submitted: { label: 'Practice Submitted', icon: 'ri-flask-line', cls: 'bg-[#f0fdfa] border-[#99f6e4] text-[#0f766e]' },
   not_started: { label: 'Not Started', icon: 'ri-circle-line',          cls: 'bg-gray-50 border-gray-200 text-gray-500' },
   locked:      { label: 'Locked',      icon: 'ri-lock-line',            cls: 'bg-gray-50 border-gray-200 text-gray-400' },
   draft:       { label: 'In Development', icon: 'ri-tools-line',        cls: 'bg-gray-50 border-gray-200 text-gray-400' },
@@ -5301,20 +5483,20 @@ function moduleCard(program, key, user) {
     const attempt = (user.latestLabAttemptByKey || {})[lab.key];
     return attempt && attempt.completedAt && !attempt.reviewedAt;
   });
-  const state = !unlocked ? 'locked'
+  const truthful = program.truthfulModuleStates === true ? moduleCardState(program, key, user, unlocked) : null;
+  const state = truthful ? truthful.state
+              : !unlocked ? 'locked'
               : m.status === 'draft' ? 'draft'
               : openRedo ? 'needs_redo'
               : completion.complete ? 'complete'
               : awaitingApproval ? 'awaiting_approval'
               : completion.contentOpened || completion.fixtureState !== 'not_started' ? 'in_progress'
               : 'not_started';
-  const s = STATE_STYLES[state];
+  const s = { ...STATE_STYLES[state], label: (program.stateLabels || {})[state] || STATE_STYLES[state].label };
   const curriculumItems = Array.isArray(m.curriculumItems) ? m.curriculumItems : [];
   const parentRecords = moduleParentRecords(program, m, labs);
-  const completionLabel = completion.complete
-    ? 'Module complete: module content opened and every lab completed'
-    : 'Module not complete: open the module content and complete every lab';
-  const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' || state === 'needs_redo' || state === 'awaiting_approval' ? 'Continue Module' : 'Start Module';
+  const completionLabel = moduleCompletionDotLabel(program, completion.complete);
+  const moduleActionLabel = state === 'complete' ? 'Review Module' : ['in_progress', 'needs_redo', 'awaiting_approval', 'practice_submitted'].includes(state) ? 'Continue Module' : 'Start Module';
 
   return `
   <div id="sec-module-${m.number}" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden scroll-mt-32 ${unlocked ? '' : 'mnt-locked'}" data-module-card>
@@ -5334,11 +5516,11 @@ function moduleCard(program, key, user) {
         </div>
         <h3 class="text-[#1e3a5f] font-bold text-base leading-snug mb-2">${esc(m.title)}</h3>
         <p class="text-gray-500 text-sm leading-relaxed mb-3">${esc(m.summary)}</p>
-        ${openRedo ? `<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+        ${truthful ? truthfulLabStatusPanel(truthful) : ''}${!truthful && openRedo ? `<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
           <p class="text-xs font-semibold text-red-700 flex items-center gap-1.5"><i class="ri-error-warning-line" aria-hidden="true"></i>Redo requested: ${esc(openRedo.labTitle)}</p>
           ${openRedo.feedback.length ? `<ul class="mt-1.5 space-y-1 text-xs text-red-700/90 list-disc list-inside">${openRedo.feedback.map((f) => `<li>${f.item_label ? `<strong>${esc(f.item_label)}:</strong> ` : ''}${esc(f.comment)}</li>`).join('')}</ul>` : `<p class="mt-1 text-xs text-red-700/80">Your instructor sent this back — open the module to see what to redo.</p>`}
         </div>` : ''}
-        ${state === 'awaiting_approval' ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2.5">
+        ${!truthful && state === 'awaiting_approval' ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2.5">
           <p class="text-xs font-semibold text-[#1d4ed8] flex items-center gap-1.5"><i class="ri-time-line" aria-hidden="true"></i>Submitted for instructor review</p>
           <p class="mt-1 text-xs text-[#1d4ed8]/90">The next module unlocks as soon as your instructor approves this lab.</p>
         </div>` : ''}
@@ -5463,6 +5645,13 @@ function moduleCard(program, key, user) {
   </div>`;
 }
 
+function moduleCompletionDotLabel(program, complete) {
+  if (program.truthfulModuleStates === true) return complete ? TRUTHFUL_DOT_LABELS.complete : TRUTHFUL_DOT_LABELS.incomplete;
+  return complete
+    ? 'Module complete: module content opened and every lab completed'
+    : 'Module not complete: open the module content and complete every lab';
+}
+
 function refreshModuleCompletionDot(button, user) {
   const program = PROGRAMS.find((item) => item.slug === button.dataset.program);
   if (!program || !program.modules[button.dataset.module]) return;
@@ -5473,9 +5662,7 @@ function refreshModuleCompletionDot(button, user) {
   dot.classList.toggle('ring-[#dcfce7]', complete);
   dot.classList.toggle('bg-gray-300', !complete);
   dot.classList.toggle('ring-gray-100', !complete);
-  const label = complete
-    ? 'Module complete: module content opened and every lab completed'
-    : 'Module not complete: open the module content and complete every lab';
+  const label = moduleCompletionDotLabel(program, complete);
   dot.setAttribute('aria-label', label);
   dot.title = label;
 }
@@ -5654,7 +5841,9 @@ function viewProgram(user, slug) {
           <p class="text-gray-500 text-base">6 Weeks · 12 Modules</p>
           <p class="inline-flex items-center gap-2 text-gray-500 text-xs">
             <span class="w-2.5 h-2.5 rounded-full bg-[#22c55e] ring-4 ring-[#dcfce7]"></span>
-            Green means the content was opened and every module lab was completed
+            ${program.truthfulModuleStates === true
+              ? 'Green means Passed: every required lab reviewed and passed by your instructor.'
+              : 'Green means the content was opened and every module lab was completed'}
           </p>
         </div>
 

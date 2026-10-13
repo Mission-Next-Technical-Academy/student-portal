@@ -164,6 +164,19 @@ const PROGRAMS = [
     weeks: 6,
     moduleCount: 12,
     isPublished: true,
+    // Opt-in for database-only module card states. SOC opt-in is pending
+    // Alex's decision; see the 2026-10-12 entry in docs/handoffs/NEXT_SESSION.md.
+    truthfulModuleStates: true,
+    // Optional per-program card labels; any state not listed here uses the
+    // STATE_STYLES label in portal/app.js.
+    stateLabels: {
+      not_started: 'Not Started',
+      in_progress: 'In Progress',
+      practice_submitted: 'Practice Submitted',
+      awaiting_approval: 'Submitted for Faculty Review',
+      complete: 'Passed',
+      needs_redo: 'Returned for Revision',
+    },
     compliance: {
       revision: ITS_CURRICULUM_REVISION,
       programName: 'IT Help Desk & Career Accelerator',
