@@ -22,11 +22,15 @@ opened locally or offline.
 
 ## Production build counter (auto)
 
-Deployed builds are versioned automatically as `1.<N>`, where `N` is the
-commit count on `master` (`git rev-list --count HEAD`). `.github/workflows/pages.yml`
+Deployed builds are versioned automatically as `1.<59000 + N - 590>`, where
+`N` is the commit count on `master` (`git rev-list --count HEAD`). The counter
+is anchored so the old `1.590` (commit #590) became `1.59000`; each commit adds
+1 (`1.59001`, `1.59002`, ...). The fixed five-digit width keeps versions
+sortable through `1.99999`, i.e. commit #41589 — 40,999 commits after the
+anchor. Past that the counter becomes six digits and should move to `2.x`. `.github/workflows/pages.yml`
 generates `release.js` into the assembled site on every push to `master`, so the
 footer counter increments with each push and no version-bump commit is needed.
 The deploy never edits source. `VERSION` and `portal/release.js` are kept equal
 to the deployed number by `bin/stamp-version.sh` (run it before a commit, or any
-time, to sync them to `1.<count after the next commit>`). The manual
+time, to sync them to the version the next commit will deploy as). The manual
 `release:` tag procedure above is superseded by this counter.
