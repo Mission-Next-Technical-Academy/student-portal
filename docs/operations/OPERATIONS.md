@@ -59,10 +59,16 @@ fails: [`STAGING_AUTOMATION.md`](STAGING_AUTOMATION.md).
    institution's restricted records repository, then close/archive the cohort
    through the cohort lifecycle. Do not delete genuine learner work merely to
    shorten the dashboard.
-3. For disposable QA accounts, run a dry run first, verify the exact login
-   IDs and dependent-record counts, then execute the purge with explicit IDs.
-   Deleting the Auth identity removes its cascade-linked test work, messages,
-   and roster row; it is intentionally not a bulk "delete all SOC" action.
+3. For disposable QA accounts, first confirm that the scoped accounts are
+   synthetic and authorized for cleanup. Build and review an explicit list of
+   student IDs, then run the purge script's dry run and verify its results
+   before executing with those IDs. The script checks only the IDs supplied
+   and reports counts for module progress, lab attempts, capstone submissions,
+   portfolio artifacts, and student messages; it does not discover all
+   accounts in a track or inspect every possible dependent record. Separately
+   check reporting, attendance, and other delete-restricted records before
+   deletion. Exclude admins and instructors, preserve shared course content,
+   and record the preflight inventory and outcome.
 4. Treat a zero-item grading queue as a workflow result, not a retention
    strategy. Reviewed work stays as an academic record; archive cohorts to
    keep the live list short.
